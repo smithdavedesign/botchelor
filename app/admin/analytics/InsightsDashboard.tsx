@@ -89,6 +89,11 @@ export default function InsightsDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [needsPassword, setNeedsPassword] = useState(false);
   const [password, setPassword] = useState("");
+  // On a phone the filters fold under one "Filters" line (they took ~350px above every tab); open everywhere else.
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 640px)").matches) setFiltersOpen(false);
+  }, []);
   const request = useRef(0);
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ overview: null, product: null, agents: null, quality: null });
 
@@ -192,72 +197,81 @@ export default function InsightsDashboard() {
   const tab = filters.tab;
   return (
     <section>
-      <div className="insights-filters" role="group" aria-label="Filters for every tab">
-        <div className="filter-group">
-          <span className="filter-label" id="range-label">
-            Dates
+      <details className="insights-filters-fold" open={filtersOpen} onToggle={(e) => setFiltersOpen(e.currentTarget.open)}>
+        <summary>
+          <strong>Filters</strong>
+          <span className="muted small">
+            {filters.preset === "custom" ? `${shortDay(from)} – ${shortDay(to)}` : `${filters.preset} days`} · {SEGMENT_LABELS[segment]} · by {interval}
+            {ours ? " · ours included" : ""}
           </span>
-          <div className="segmented" role="group" aria-labelledby="range-label">
-            {[...PRESETS, "custom" as const].map((p) => (
-              <button
-                key={p}
-                type="button"
-                className="segmented-tab"
-                aria-pressed={filters.preset === p}
-                onClick={() => update(p === "custom" ? { preset: "custom" } : { preset: p, from: addDays(today, -(Number(p) - 1)), to: today })}
-              >
-                {p === "custom" ? "Custom" : `${p} days`}
-              </button>
-            ))}
-          </div>
-        </div>
-        {filters.preset === "custom" && (
-          <div className="custom-range">
-            <div>
-              <label htmlFor="range-from">From</label>
-              <input
-                id="range-from"
-                type="date"
-                value={from}
-                min={addDays(to, -(MAX_DAYS - 1))}
-                max={to}
-                onChange={(e) => isDay(e.target.value) && e.target.value <= to && update({ from: e.target.value })}
-              />
-            </div>
-            <div>
-              <label htmlFor="range-to">To</label>
-              <input id="range-to" type="date" value={to} min={from} max={today} onChange={(e) => isDay(e.target.value) && e.target.value >= from && e.target.value <= today && update({ to: e.target.value })} />
+        </summary>
+        <div className="insights-filters" role="group" aria-label="Filters for every tab">
+          <div className="filter-group">
+            <span className="filter-label" id="range-label">
+              Dates
+            </span>
+            <div className="segmented" role="group" aria-labelledby="range-label">
+              {[...PRESETS, "custom" as const].map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className="segmented-tab"
+                  aria-pressed={filters.preset === p}
+                  onClick={() => update(p === "custom" ? { preset: "custom" } : { preset: p, from: addDays(today, -(Number(p) - 1)), to: today })}
+                >
+                  {p === "custom" ? "Custom" : `${p} days`}
+                </button>
+              ))}
             </div>
           </div>
-        )}
-        <div className="filter-group">
-          <span className="filter-label" id="segment-label">
-            Who
-          </span>
-          <div className="segmented" role="group" aria-labelledby="segment-label">
-            {(Object.keys(SEGMENT_LABELS) as Segment[]).map((s) => (
-              <button key={s} type="button" className="segmented-tab" aria-pressed={segment === s} onClick={() => update({ segment: s })}>
-                {SEGMENT_LABELS[s]}
-              </button>
-            ))}
+          {filters.preset === "custom" && (
+            <div className="custom-range">
+              <div>
+                <label htmlFor="range-from">From</label>
+                <input
+                  id="range-from"
+                  type="date"
+                  value={from}
+                  min={addDays(to, -(MAX_DAYS - 1))}
+                  max={to}
+                  onChange={(e) => isDay(e.target.value) && e.target.value <= to && update({ from: e.target.value })}
+                />
+              </div>
+              <div>
+                <label htmlFor="range-to">To</label>
+                <input id="range-to" type="date" value={to} min={from} max={today} onChange={(e) => isDay(e.target.value) && e.target.value >= from && e.target.value <= today && update({ to: e.target.value })} />
+              </div>
+            </div>
+          )}
+          <div className="filter-group">
+            <span className="filter-label" id="segment-label">
+              Who
+            </span>
+            <div className="segmented" role="group" aria-labelledby="segment-label">
+              {(Object.keys(SEGMENT_LABELS) as Segment[]).map((s) => (
+                <button key={s} type="button" className="segmented-tab" aria-pressed={segment === s} onClick={() => update({ segment: s })}>
+                  {SEGMENT_LABELS[s]}
+                </button>
+              ))}
+            </div>
           </div>
+          <div className="filter-group">
+            <label htmlFor="chart-interval">Charts</label>
+            <select id="chart-interval" value={filters.interval} onChange={(e) => update({ interval: e.target.value as Filters["interval"] })}>
+              <option value="auto">{days > WEEKLY_FROM ? "By week (auto)" : "By day (auto)"}</option>
+              <option value="day">By day</option>
+              <option value="week">By week</option>
+            </select>
+          </div>
+          <label className="check">
+            <input type="checkbox" checked={ours} onChange={(e) => update({ ours: e.target.checked })} />
+            Include our own traffic
+          </label>
+          <button type="button" className="secondary small" onClick={() => void load(true)} disabled={loading}>
+            {loading ? "Loading…" : "Refresh"}
+          </button>
         </div>
-        <div className="filter-group">
-          <label htmlFor="chart-interval">Charts</label>
-          <select id="chart-interval" value={filters.interval} onChange={(e) => update({ interval: e.target.value as Filters["interval"] })}>
-            <option value="auto">{days > WEEKLY_FROM ? "By week (auto)" : "By day (auto)"}</option>
-            <option value="day">By day</option>
-            <option value="week">By week</option>
-          </select>
-        </div>
-        <label className="check">
-          <input type="checkbox" checked={ours} onChange={(e) => update({ ours: e.target.checked })} />
-          Include our own traffic
-        </label>
-        <button type="button" className="secondary small" onClick={() => void load(true)} disabled={loading}>
-          {loading ? "Loading…" : "Refresh"}
-        </button>
-      </div>
+      </details>
       <p className="muted small insights-range" suppressHydrationWarning>
         {shortDay(from)} – {shortDay(to)} ({days} UTC {days === 1 ? "day" : "days"}), against the {days === 1 ? "day" : `${days} days`} before ·{" "}
         {segment === "all" ? "everyone" : SEGMENT_LABELS[segment]} · our own traffic {ours ? "included" : "left out"}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import CharacterName from "@/app/CharacterName";
 
 type Slot = { character_id: string; name: string; slot: number; source: "dealt" | "survivor" | "new" };
 type Candidate = {
@@ -113,7 +114,7 @@ export default function SeasonPanel() {
         <ol>
           {view.this_season.cast.map((s) => (
             <li key={s.character_id}>
-              <Link href={`/characters/${s.character_id}`}>{s.name}</Link> <span className="muted">· {SOURCE[s.source]}</span>
+              <CharacterName character={{ id: s.character_id, name: s.name }} /> <span className="muted">· {SOURCE[s.source]}</span>
             </li>
           ))}
         </ol>

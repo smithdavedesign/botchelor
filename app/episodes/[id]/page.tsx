@@ -37,6 +37,7 @@ import SafetyActions from "./SafetyActions";
 import SlidingDoors from "./SlidingDoors";
 import WatchPartyLaunch from "./WatchPartyLaunch";
 import GeneratingPoller from "./GeneratingPoller";
+import { withoutLeadName } from "./lead-name";
 
 export const dynamic = "force-dynamic";
 
@@ -131,7 +132,11 @@ function EpisodeHero({
           <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={84} />
         </div>
         <h1>
-          <CharacterName character={a} avatar={false} /> <span className="episode-hero-x">×</span> <CharacterName character={b} avatar={false} />
+          {/* The × stays with the first name, so a two-line title never starts with it or leaves it alone. */}
+          <span className="nowrap">
+            <CharacterName character={a} avatar={false} /> <span className="episode-hero-x">×</span>
+          </span>{" "}
+          <CharacterName character={b} avatar={false} />
         </h1>
         {setting && <p className="episode-hero-setting">{setting}</p>}
         {children}
@@ -194,6 +199,11 @@ export default async function EpisodePage({
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
   const nameOf = (characterId: string) => episode.characters.find((c) => c.id === characterId)?.name;
+  // A speaker's face and name, for the agendas and confessionals.
+  const who = (id: string) => {
+    const c = episode.characters.find((x) => x.id === id);
+    return c ? <CharacterName character={c} strong /> : null;
+  };
   // A creator of a house date has nobody to block; everyone else blocks "whoever made this".
   const canBlock = !episode.is_creator || episode.characters.every((c) => !c.house);
 
@@ -240,6 +250,10 @@ export default async function EpisodePage({
   const hasTheater = Boolean(episode.ending && episode.transcript && episode.transcript.length > 0);
   // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
   const dateNo = dateNumberOf(episode);
+  const squash = (t: string | null | undefined) => (t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  const lastAct = episode.scenes?.length ? episode.scenes.length - 1 : -1;
+  const finaleRepeats =
+    lastAct >= 0 && Boolean(episode.finale) && squash(withoutActLabel(episode.scenes![lastAct], DATE_ACTS[lastAct])) === squash(episode.finale);
   return (
     <article className="episode-page">
       {episode.visibility === "public" && !episode.hidden && (
@@ -335,17 +349,19 @@ export default async function EpisodePage({
           <ul>
             {episode.goals.map((g) => {
               const c = episode.characters.find((x) => x.id === g.character_id);
+              // The goal usually opens with their name already: the face-and-name label takes its place, said once.
+              const rest = c ? withoutLeadName(g.goal, c.name) : null;
               return (
                 <li key={g.character_id} className="card">
                   {c && <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={40} />}
                   <p>
-                    {c ? <CharacterName character={c} avatar={false} strong /> : <strong>{nameOf(g.character_id)}</strong>} {g.goal}
+                    {c ? <CharacterName character={c} avatar={false} strong /> : <strong>{nameOf(g.character_id)}</strong>}
+                    {rest !== null ? rest : <>: {g.goal}</>}
                   </p>
                 </li>
               );
             })}
           </ul>
-          {episode.drama_question && <p className="muted episode-bonus">Bonus question: {DRAMA_QUESTION_LABELS[episode.drama_question]}</p>}
         </section>
 
         {/* Predicting comes before the read: once the lines are read, there's nothing left to call. */}
@@ -392,8 +408,13 @@ export default async function EpisodePage({
             ))}
             <h2>The twist</h2>
             <p>{episode.twist}</p>
-            <h2>The finale</h2>
-            <p>{episode.finale}</p>
+            {/* The last act ("The decision") is sometimes the finale word for word: then it isn't said twice. */}
+            {!finaleRepeats && (
+              <>
+                <h2>The finale</h2>
+                <p>{episode.finale}</p>
+              </>
+            )}
             <p className="ending">Ending: {endingLabel(episode.ending, dateNo)}</p>
             {episode.drama_question && episode.drama_answer && (
               <p>
@@ -420,11 +441,15 @@ export default async function EpisodePage({
               </p>
             )}
             <ul>
-              {episode.agendas.map((ag) => (
-                <li key={ag.character_id}>
-                  <strong>{nameOf(ag.character_id)}:</strong> {ag.agenda}
-                </li>
-              ))}
+              {episode.agendas.map((ag) => {
+                const rest = withoutLeadName(ag.agenda, nameOf(ag.character_id) ?? "");
+                return (
+                  <li key={ag.character_id}>
+                    {who(ag.character_id)}
+                    {rest !== null ? rest : <>: {ag.agenda}</>}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}
@@ -434,7 +459,7 @@ export default async function EpisodePage({
             <h2>The confessionals</h2>
             {episode.confessionals.map((c) => (
               <p key={c.character_id} className="confessional">
-                <strong>{nameOf(c.character_id)}:</strong> “{c.line}”
+                {who(c.character_id)}: “{c.line}”
               </p>
             ))}
             {episode.is_host && <ConfessionalShare episodeId={episode.id} shared={episode.confessionals_shared} />}

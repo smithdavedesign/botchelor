@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
+import Avatar from "@/app/Avatar";
 import TextPhone from "@/app/couples/[a]/[b]/TextPhone";
 import { dayOf } from "@/lib/between-dates";
 import { getDb } from "@/lib/db";
@@ -73,7 +74,22 @@ export default async function MessagesPage({ params, searchParams }: Props) {
         page={{
           back,
           info: story,
-          switcher: <ThreadSwitcher chats={chats} current={here} />,
+          // Your own character's face before theirs ("Marlowe × Marisol"), so whose phone this is reads at a glance. It
+          // rides in the switcher slot; app/ux/agents-footer.css orders it between ‹ and their name. Left out when the
+          // viewer owns both, since ⇄ flips whose phone it is on the client.
+          switcher: (
+            <>
+              {t.mine.length < 2 && (
+                <span className="thread-self" title={`${shortName(me.name)}'s phone`}>
+                  <Avatar seed={me.id} name={me.name} hue={me.hue} house={me.house} portraitSrc={refOf(me).portrait} size={26} />
+                  <span className="thread-self-x" aria-hidden="true">
+                    ×
+                  </span>
+                </span>
+              )}
+              <ThreadSwitcher chats={chats} current={here} />
+            </>
+          ),
           action: <ThreadNext next={next} mineId={me.id} themId={them.id} />,
         }}
       />

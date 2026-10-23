@@ -314,13 +314,41 @@ type CardProps = {
 
 /** One dating-profile card: the look, who they are, two or three prompts, interests, what they're after, and why. */
 function Card({ card, className, style, children, ...pointer }: CardProps) {
+  // A long profile scrolls inside the card. With a mouse nothing said so (it faded out mid-sentence), so while there's
+  // more below, a "More" button sits on the fade and scrolls it on.
+  const body = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  const measure = useCallback(() => {
+    const el = body.current;
+    if (el) setMore(el.scrollHeight - el.scrollTop - el.clientHeight > 24);
+  }, []);
+  useEffect(() => {
+    measure();
+    const el = body.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure, card.id]);
   return (
     <article className={className} style={style} aria-label={`${card.name}, ${card.age}`} {...pointer}>
       {children}
+      {more && (
+        <button
+          type="button"
+          className="swipe-more"
+          tabIndex={-1}
+          aria-hidden="true"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => body.current?.scrollBy({ top: body.current.clientHeight * 0.7, behavior: "smooth" })}
+        >
+          More ⌄
+        </button>
+      )}
       <div className="swipe-photo">
         <Avatar seed={card.id} name={card.name} hue={card.hue} house={card.house} portraitSrc={card.portrait} size={140} />
       </div>
-      <div className="swipe-body">
+      <div className="swipe-body" ref={body} onScroll={measure}>
         <h2 className="swipe-name">
           {card.name}
           <span className="swipe-age">, {card.age}</span>

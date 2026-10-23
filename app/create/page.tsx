@@ -88,7 +88,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       swipeGate={swipeGate}
       tokens={dates}
       offer={offer}
-      myCharacters={myCharacters.map(({ id, name }) => ({ id, name }))}
+      myCharacters={myCharacters.map(({ id, name, hue, portrait }) => ({ id, name, hue, portrait }))}
       startSample={sp.sample === "1"}
       startCharacterId={typeof sp.character === "string" ? sp.character : null}
       startName={typeof sp.name === "string" ? sp.name.trim().slice(0, 40) || null : null}

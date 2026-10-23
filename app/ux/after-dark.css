@@ -1,0 +1,495 @@
+/* UX audit 2026-10-23: after-dark. Loaded after globals.css (app/layout.tsx). */
+
+/* ---------------- the night card itself ---------------- */
+/* In the site's dark theme the night card was nearly the page's colour: a hairline and a faint glow mark its edge. */
+@media (prefers-color-scheme: dark) {
+  .after-dark-mode {
+    border: 1px solid var(--ad-line);
+    box-shadow: 0 0 0 1px rgba(199, 146, 255, 0.06), 0 0 48px -16px rgba(199, 146, 255, 0.35);
+  }
+}
+/* A face's name inside a heading or legend takes the heading's type (Memory's "Rafe remembers about June"). */
+.after-dark :is(h1, h2, h3, h4, legend, summary) .char-name-text {
+  font: inherit;
+}
+/* Shorts: a short page is a short card (the 70vh floor left an empty night under an empty list). */
+.after-dark-mode.ad-shorts-page {
+  min-height: 0;
+}
+.ad-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  margin: var(--space-4) 0;
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--ad-line);
+  border-radius: 0.9rem;
+  text-align: center;
+}
+.ad-empty p {
+  margin: 0;
+}
+.ad-empty-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+.ad-empty .button-ghost {
+  margin-top: var(--space-2);
+}
+
+/* ---------------- the hub (app/after-dark/page.tsx, PairPicker.tsx) ---------------- */
+/* Shorts, Privacy, Settings and Back as one row of small buttons under the kicker. */
+.ad-hub-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: var(--space-2) 0 var(--space-3);
+}
+.ad-hub-links .button-ghost {
+  --control-h: var(--control-h-sm);
+  padding-inline: 0.85rem;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+@media (pointer: coarse) {
+  .ad-hub-links .button-ghost {
+    --control-h: 2.75rem;
+  }
+}
+.after-dark .ad-hub-sub {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-base, 1rem);
+}
+.ad-pairs {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ad-pairs .card.ad-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+  margin: 0;
+  padding: 0.5rem 0.9rem;
+}
+/* Both names are one link; only the names underline (on hover), never the × between them. */
+.after-dark-mode a.ad-pair-link {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.45rem;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--ad-ink);
+  text-decoration: none;
+}
+.ad-pair-link:hover .char-name-text,
+.ad-pair-link:focus-visible .char-name-text {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ad-pair-x {
+  color: var(--ad-muted);
+}
+.ad-pair .badge {
+  margin-left: auto;
+}
+/* Pick one of the cast: a face each, in a row that wraps. */
+.ad-cast-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 var(--space-3);
+}
+button.ad-cast-chip {
+  --control-h: var(--control-h-sm);
+  margin: 0;
+  padding: 0.2rem 0.7rem 0.2rem 0.25rem;
+  border: 1px solid var(--ad-line);
+  border-radius: 999px;
+  background: var(--ad-card);
+  color: var(--ad-ink);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+button.ad-cast-chip:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--ad-accent);
+}
+button.ad-cast-chip.on {
+  border-color: var(--ad-accent);
+  background: color-mix(in srgb, var(--ad-accent) 22%, var(--ad-card));
+}
+@media (pointer: coarse) {
+  button.ad-cast-chip {
+    min-height: 2.75rem;
+  }
+}
+
+/* ---------------- the scene page's steer bar (SceneWriter.tsx) ---------------- */
+/* A model error ("only repeated lines…") is a compact alert, not a paragraph of large pink text. */
+.after-dark .ad-note-error {
+  margin: var(--space-2) 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--bad-text) 45%, transparent);
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--bad-text) 10%, transparent);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.4;
+}
+/* Room between the last line and the chips over the steer. */
+.after-dark-form .ad-suggestions {
+  margin-top: var(--space-2);
+}
+.after-dark-form label.ad-steer-label {
+  margin: 0;
+}
+/* Nudge, Direct and the two whispers: one segmented row of pills, never a radio left alone on a line. */
+.ad-segmented {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ad-segmented > label {
+  display: inline-flex;
+  flex: none;
+  gap: 0.3rem;
+  align-items: center;
+  margin: 0;
+  min-height: 2.25rem;
+  padding: 0.2rem 0.7rem 0.2rem 0.5rem;
+  border: 1px solid var(--ad-line);
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ad-segmented > label.on {
+  border-color: var(--ad-accent);
+  background: color-mix(in srgb, var(--ad-accent) 20%, transparent);
+}
+.ad-segmented input {
+  margin: 0;
+  accent-color: #c9a2ff;
+}
+/* The steer and Write on one row. */
+.ad-steer-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-width: 0;
+}
+.ad-steer-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+.ad-steer-row button {
+  flex: none;
+  margin: 0;
+}
+.ad-phone-only {
+  display: none;
+}
+/* Autoplay and the rewind tools. On a wide screen the tools sit in the row; on a phone they fold under "⋯ More". */
+div.ad-steer-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+label.after-dark-autoplay {
+  order: 1;
+  margin: 0;
+  min-height: 2.75rem;
+}
+.after-dark-autoplay input {
+  margin: 0;
+}
+.ad-more,
+.ad-more-items {
+  display: contents;
+}
+button.ad-more-toggle {
+  display: none;
+}
+@media (max-width: 640px) {
+  .after-dark-form label.ad-steer-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .ad-wide-only {
+    display: none;
+  }
+  .ad-phone-only {
+    display: inline;
+  }
+  label.after-dark-autoplay {
+    order: 0;
+  }
+  button.ad-more-toggle {
+    display: inline-block;
+    margin-left: auto;
+  }
+  .ad-more-items {
+    display: none;
+  }
+  .ad-more.open .ad-more-items {
+    display: flex;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  /* The chips scroll sideways inside the bar: a fade at the right edge says there's more. */
+  .ad-suggestions {
+    -webkit-mask-image: linear-gradient(to right, #000 82%, transparent);
+    mask-image: linear-gradient(to right, #000 82%, transparent);
+    padding-right: 1.5rem;
+  }
+}
+
+/* ---------------- the theater (AfterDarkTheater.tsx) ---------------- */
+/* Wide screens: every tool in the row. Phones: Play/Pause, 📜 and Exit stay; the rest open from "⋯". */
+.ad-tools-more,
+.ad-tools-items {
+  display: contents;
+}
+button.ad-tools-toggle {
+  display: none;
+}
+.ad-theater-steer {
+  display: flex;
+  flex: 1 1 100%;
+  gap: var(--space-2);
+  align-items: center;
+  min-width: 0;
+}
+.ad-theater-steer button {
+  flex: none;
+  margin: 0;
+}
+.ad-theater-options {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+}
+.ad-theater-options label {
+  margin: 0;
+}
+.ad-theater-options .ad-steer-mode input {
+  margin: 0;
+}
+.ad-theater-options > .button-ghost {
+  margin: 0 0 0 auto;
+}
+@media (max-width: 600px) {
+  .theater-after-dark .theater-tools {
+    flex-wrap: nowrap;
+  }
+  .ad-tools-more {
+    position: relative;
+    display: inline-flex;
+  }
+  button.ad-tools-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ad-tools-items {
+    display: none;
+  }
+  .ad-tools-more.open .ad-tools-items {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    z-index: 7;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    align-items: center;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+    padding: var(--space-2);
+    border: 1px solid #33264d;
+    border-radius: 0.8rem;
+    background: rgba(18, 10, 28, 0.96);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+  .ad-theater-options {
+    gap: var(--space-2) var(--space-3);
+  }
+  .ad-theater-options > .button-ghost {
+    --control-h: var(--control-h-sm);
+    padding-inline: 0.85rem;
+    font-size: var(--text-sm);
+  }
+}
+
+/* ---------------- panels under the steer bar ---------------- */
+/* Scenarios: equal-height cards, the meta on one row and the button at the foot of each. */
+.ad-scenario-list {
+  align-items: stretch;
+}
+.ad-scenario-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.ad-scenario-meta {
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow: hidden;
+}
+.ad-scenario-meta .chip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ad-scenario-list li > button,
+.ad-scenario-list li > .ad-scenario-go {
+  margin-top: auto;
+}
+.ad-scenario-list li > button {
+  align-self: flex-start;
+}
+.ad-scenario-list li > .ad-scenario-go {
+  flex-wrap: wrap;
+  margin-left: 0;
+}
+.ad-scenario-more {
+  margin: var(--space-2) 0 0;
+}
+/* Limits: every intensity is the same box (a transparent border until chosen), radio beside the name, blurb under it. */
+.ad-intensity > label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.5rem;
+  align-items: center;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.6rem;
+}
+.ad-intensity > label.chosen {
+  border-color: var(--ad-accent);
+}
+.ad-intensity > label input {
+  margin: 0;
+}
+.ad-intensity > label > .muted {
+  grid-column: 2;
+}
+/* The Add button as tall as its field. */
+.ad-own-add {
+  align-items: stretch;
+}
+.ad-own-add input {
+  margin: 0;
+}
+.ad-own-add button {
+  margin: 0;
+  min-height: var(--control-h);
+}
+/* What they're into: one character at a time, a two-way switch with their faces. */
+.ad-side-switch {
+  display: inline-flex;
+  gap: 0.2rem;
+  margin: var(--space-3) 0 var(--space-1);
+  padding: 0.2rem;
+  border: 1px solid var(--ad-line);
+  border-radius: 999px;
+}
+.ad-side-switch button {
+  --control-h: var(--control-h-sm);
+  margin: 0;
+  padding: 0.2rem 0.8rem 0.2rem 0.3rem;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ad-ink);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.ad-side-switch button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: var(--soft);
+}
+.ad-side-switch button.on {
+  background: color-mix(in srgb, var(--ad-accent) 28%, var(--ad-card));
+}
+@media (pointer: coarse) {
+  .ad-side-switch button {
+    min-height: 2.75rem;
+  }
+}
+
+/* ---------------- /admin/after-dark/settings (SettingsForm.tsx) ---------------- */
+/* A checkbox and its words, wrapping (the .fact-private label they borrowed never wrapped: the page was 1,700px wide). */
+label.ad-check-row {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  margin: var(--space-2) 0;
+  font-weight: 400;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ad-check-row input {
+  flex: none;
+  margin: 0.2rem 0 0;
+}
+.ad-check-row > span {
+  min-width: 0;
+}
+.ad-settings-section {
+  min-width: 0;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+.ad-settings-section > summary {
+  cursor: pointer;
+  padding: var(--space-1) 0;
+}
+.ad-settings-section > summary h3 {
+  display: inline;
+  margin: 0;
+  font-size: var(--text-md, 1.1rem);
+}
+.ad-settings-section > label:not(.ad-check-row) {
+  margin-top: var(--space-3);
+}
+.ad-settings-section > p {
+  margin: var(--space-2) 0;
+}
+.ad-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.ad-settings-actions button {
+  margin: 0;
+}
+/* Listen's status line on a phone: its own line under the two buttons, not wrapped around them. */
+@media (max-width: 640px) {
+  .ad-listen-status {
+    display: block;
+    margin-top: var(--space-1);
+  }
+}

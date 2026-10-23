@@ -295,7 +295,7 @@ export default function ListenLines({ lines, a, b, names }: { lines: SceneLine[]
       <button type="button" className="ad-chip" onClick={() => start(0)} title="Read the chapter from its first line">
         ⏮ From the top
       </button>{" "}
-      <span className="muted small" role="status">
+      <span className="muted small ad-listen-status" role="status">
         {note ?? (on && who !== null && at !== null ? `${who}, line ${at + 1} of ${lines.length}. Tap a line to read from there.` : on ? "New lines are read as they're written." : "Each line in their own voice.")}
       </span>
     </div>

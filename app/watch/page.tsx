@@ -62,14 +62,15 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
       </div>
       <div className="watch-lobby-meta">
         <strong>
-          {a.name} × {b.name}
+          <span className="nowrap">{a.name} ×</span> <span className="nowrap">{b.name}</span>
         </strong>
         <span className="muted">
           {room.kind === "template" ? "Open room" : "Premiere"} · {room.phase_label}
           {room.date_number && <span className="badge watch-lobby-second">{dateLabel(room.date_number)}</span>}
         </span>
       </div>
-      <span className={`watch-lobby-live${room.status === "live" ? " on" : ""}`}>{action}</span>
+      {/* A room nobody has started: its action looks like the button it is (the whole card is the link). */}
+      <span className={`watch-lobby-live${room.status === "live" ? " on" : ""}${room.status === "ready" ? " is-action" : ""}`}>{action}</span>
     </Link>
   );
 }

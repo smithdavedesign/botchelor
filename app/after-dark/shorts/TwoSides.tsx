@@ -4,6 +4,7 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import type { TwoSides } from "@/lib/adult/monologues";
 import styles from "./shorts.module.css";
+import CharacterName from "@/app/CharacterName";
 
 const first = (name: string) => name.split(/\s+/)[0] ?? name;
 
@@ -19,7 +20,10 @@ export function TwoSidesView({ sides }: { sides: TwoSides }) {
         {both.map((s) => (
           <article key={s.id} className={`card ${styles.side}`} aria-label={`${s.label}: ${s.name}`}>
             <h3>
-              {s.label} <span className="muted small">· {first(s.name)}</span>
+              {s.label}{" "}
+              <span className="muted small">
+                · <CharacterName character={{ id: s.id, name: s.name }} label={first(s.name)} link={false} size={20} />
+              </span>
             </h3>
             {s.page
               .split(/\n{2,}/)
@@ -36,7 +40,7 @@ export function TwoSidesView({ sides }: { sides: TwoSides }) {
         {both.map((s, i) => (
           <p key={s.id} className={styles.bubble}>
             <span className="muted small">
-              {first(s.name)} to {first(both[1 - i].name)}
+              <CharacterName character={{ id: s.id, name: s.name }} label={first(s.name)} link={false} size={18} /> to {first(both[1 - i].name)}
             </span>
             <span>{s.text}</span>
           </p>

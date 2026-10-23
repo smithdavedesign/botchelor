@@ -145,8 +145,8 @@ export default async function CouplePage({ params, searchParams }: Props) {
         </h1>
         <p className="muted small couple-names">
           {[ca, cb].map((c, i) => (
-            <span key={c.id}>
-              {i > 0 && " and "}
+            <span key={c.id} className="couple-name-unit">
+              {i > 0 && <span className="couple-name-and">and </span>}
               <CharacterName character={{ ...refOf(c), private: hidden(c) }} avatar={false} />
               <OriginBadge origin={origins.get(c.id) ?? originOf({ house: c.house, agent: c.made_by_agent })} />
             </span>
@@ -159,7 +159,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
           {view.second_dates > 0 && ` · ${view.second_dates === view.dates && view.dates > 1 ? "all" : view.second_dates} ended in a second date`}
           {view.second_dates > 0 && ` · ${followedUp === 0 ? "none booked yet" : `${followedUp} booked`}`}
         </p>
-        <Meter label="How close they are" value={view.tie} word={closeness(view.tie)} />
+        <Meter label="Closeness" value={view.tie} word={closeness(view.tie)} />
         {view.chemistry !== null && <Meter label="Chemistry" value={view.chemistry / 100} word={String(Math.round(view.chemistry))} />}
         {view.trust !== null && <Meter label="Trust" value={view.trust / 100} word={String(Math.round(view.trust))} />}
         {complicated.length > 0 && (
@@ -187,7 +187,8 @@ export default async function CouplePage({ params, searchParams }: Props) {
 
       {next && <NextDate pair={[ca.id, cb.id]} next={next} hasNudge={nudges.length > 0} />}
 
-      {arc && <ArcCard pair={[ca.id, cb.id]} names={`${first(ca)} and ${first(cb)}`} q={arc} />}
+      {/* An owner can't call their own couple's arc: the card only told them so. */}
+      {arc && !owner && <ArcCard pair={[ca.id, cb.id]} names={`${first(ca)} and ${first(cb)}`} q={arc} />}
 
       <AfterDarkTeaser pair={[ca.id, cb.id]} />
 
@@ -201,7 +202,8 @@ export default async function CouplePage({ params, searchParams }: Props) {
       )}
 
       {!owner && texted && (
-        <section className="card phone-card">
+        // No card around it: the phone is the frame (a card inside a card had a ragged edge).
+        <section className="phone-card couple-texts-locked">
           <h2>Their texts</h2>
           <PhoneFrame short>
             <div className="phone-locked">
@@ -229,7 +231,9 @@ export default async function CouplePage({ params, searchParams }: Props) {
           const them = n.id === ca.id ? cb : ca;
           return (
             <section key={n.id} className="card" id={i === 0 ? "nudge" : undefined}>
-              <h2>Nudge {first(me)}</h2>
+              <h2>
+                Nudge <CharacterName character={refOf(me)} label={first(me)} size={26} />
+              </h2>
               <NudgeForm pair={[ca.id, cb.id]} characterId={me.id} name={me.name} other={them.name} current={n.note} />
             </section>
           );
@@ -269,7 +273,9 @@ export default async function CouplePage({ params, searchParams }: Props) {
           {[ca, cb].map((c) =>
             view.told[c.id]?.length ? (
               <div key={c.id}>
-                <h3>{first(c)}</h3>
+                <h3>
+                  <CharacterName character={refOf(c)} label={first(c)} size={24} />
+                </h3>
                 <ul className="list">
                   {view.told[c.id].map((line) => (
                     <li key={line}>“{line}”</li>
@@ -288,7 +294,12 @@ export default async function CouplePage({ params, searchParams }: Props) {
           <ul className="list">
             {view.plans.map((p) => (
               <li key={`${p.episode_id}-${p.by}`}>
-                <strong>{shortName(nameOf(p.by))}:</strong> “{p.text}”{" "}
+                {p.by === ca.id || p.by === cb.id ? (
+                  <CharacterName character={refOf(p.by === ca.id ? ca : cb)} label={shortName(nameOf(p.by))} strong />
+                ) : (
+                  <strong>{shortName(nameOf(p.by))}</strong>
+                )}
+                : “{p.text}”{" "}
                 <span className="badge">{p.status === "kept" ? "✅ kept" : p.status === "missed" ? "missed" : "still to do"}</span>
               </li>
             ))}

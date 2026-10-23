@@ -15,6 +15,7 @@ import { linkedAgents } from "@/lib/agent-links";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { authFromCookieStore } from "@/lib/http";
+import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Account · Botchelor", robots: { index: false, follow: false } };
@@ -90,7 +91,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
                     {a.characters.map((c, i) => (
                       <span key={c.id}>
                         {i > 0 && ", "}
-                        <Link href={`/characters/${c.id}`}>{c.name}</Link>
+                        <CharacterName character={c} />
                       </span>
                     ))}
                   </p>

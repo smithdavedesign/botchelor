@@ -576,6 +576,7 @@ async function main() {
       const apiKey = ["AIza", "e2e", "0".repeat(28), "L4st"].join(""); // fake, built from parts
       await page.goto(`${base}/account`);
       await page.getByRole("heading", { name: "Your model key (optional)" }).waitFor();
+      await page.locator("#model-key details").first().locator("summary").click(); // each key is folded to its status line
       await page.locator('select[name="provider"]').selectOption("google");
       await page.locator('input[name="key"]').first().fill(apiKey); // the text-key form (an image-key form follows)
       await page.getByRole("button", { name: "Save key", exact: true }).click();

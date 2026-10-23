@@ -103,13 +103,17 @@ export default function KeyForm({ providers }: { providers: ProviderPair[] }) {
       </label>
       <label>
         <span>Model</span>
-        <select value={model || current.defaultModel} onChange={(e) => setModel(e.target.value)}>
+        {/* The id alone in the option (a long note got cut off mid-word); the chosen one's note shows under it. */}
+        <select value={model || current.defaultModel} onChange={(e) => setModel(e.target.value)} aria-describedby="byok-model-note">
           {current.models.map((m) => (
             <option key={m.id} value={m.id}>
-              {m.id} — {m.note}
+              {m.id}
             </option>
           ))}
         </select>
+        <span id="byok-model-note" className="muted small byok-model-note">
+          {current.models.find((m) => m.id === (model || current.defaultModel))?.note}
+        </span>
       </label>
       <label>
         <span>API key</span>
@@ -125,9 +129,13 @@ export default function KeyForm({ providers }: { providers: ProviderPair[] }) {
         />
       </label>
       <div className="byok-actions">
-        <button type="button" onClick={test} disabled={status?.kind === "busy"}>Test</button>
         <button type="submit" disabled={status?.kind === "busy"}>Save</button>
-        <button type="button" onClick={remove} disabled={status?.kind === "busy"} className="danger">Remove</button>
+        <button type="button" className="secondary" onClick={test} disabled={status?.kind === "busy"}>
+          Test
+        </button>
+        <button type="button" onClick={remove} disabled={status?.kind === "busy"} className="link-button danger">
+          Remove
+        </button>
       </div>
       {status && <p className={`byok-status ${status.kind}`}>{status.text}</p>}
       <p className="muted small">

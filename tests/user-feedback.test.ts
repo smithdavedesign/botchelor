@@ -536,7 +536,7 @@ describe("the modal, the button and the footer link (markup)", () => {
   it("puts \"Give us feedback\" on the footer's last line, beside the other links, and mounts the dock once in the layout", () => {
     expect(renderToStaticMarkup(createElement(FeedbackLink))).toBe('<button type="button" class="link-button footer-link" aria-haspopup="dialog">Give us feedback</button>');
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-    expect(layout).toMatch(/Ship name generator<\/Link> ·\{" "\}\s*<FeedbackLink \/>\s*<\/p>\s*<\/footer>/);
+    expect(layout).toMatch(/Ship name generator<\/Link><\/li>\s*<li>\s*<FeedbackLink \/>\s*<\/li>\s*<\/ul>\s*<\/footer>/);
     expect(layout.match(/<FeedbackDock \/>/g)).toHaveLength(1);
   });
 

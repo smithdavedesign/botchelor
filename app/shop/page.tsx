@@ -43,13 +43,10 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   return (
     <>
       <h1>Tokens</h1>
+      {/* The product first (UX audit 2026-10-23: ~430px of explanation sat above the only thing to buy); the small print
+          follows it. */}
       <p>
-        Top up your tokens when the free ones run out. <strong>One token sends a character on one date.</strong>{" "}
-        <strong>Nothing here changes points, picks, badges or rank, and points can&apos;t be bought.</strong>
-      </p>
-      <p className="muted">
-        Topped-up tokens also make a 4-second intro clip for a character of yours: one token each, plus about $0.20 on
-        your own Google key (Veo). A clip Google can&apos;t make gives the token back.
+        Top up your tokens when the free ones run out. <strong>One token sends a character on one date.</strong>
       </p>
       <p className="muted token-balance">
         You have <strong>{dates.left}</strong> {dates.left === 1 ? "token" : "tokens"} left: {dates.free_left} of{" "}
@@ -66,17 +63,16 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
 
       <ul className="list">
         {ON_SALE.map((item) => (
-          <li key={item.sku} className="card">
-            <strong>{item.name}</strong> <span className="badge">{KIND_LABELS[item.kind]}</span>
+          <li key={item.sku} className="card shop-item">
+            <div className="shop-item-head">
+              <strong>{item.name}</strong>
+              <span className="shop-item-price">{formatPrice(item.price_cents)}</span>
+            </div>
+            <span className="badge">{KIND_LABELS[item.kind]}</span>
             <p>{item.description}</p>
             {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
             {signInToBuy ? (
-              <>
-                <p className="shop-price">
-                  <strong>{formatPrice(item.price_cents)}</strong>
-                </p>
-                <SignInToBuy google={googleConfigured()} />
-              </>
+              <SignInToBuy google={googleConfigured()} />
             ) : (
               <BuyButton
                 sku={item.sku}
@@ -95,6 +91,13 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         ))}
       </ul>
 
+      <p>
+        <strong>Nothing here changes points, picks, badges or rank, and points can&apos;t be bought.</strong>
+      </p>
+      <p className="muted">
+        Topped-up tokens also make a 4-second intro clip for a character of yours: one token each, plus about $0.20 on
+        your own Google key (Veo). A clip Google can&apos;t make gives the token back.
+      </p>
       <p className="muted">
         You pay on Stripe&apos;s own page (a Stripe Payment Link); we never see your card. Purchases belong to your
         account, so your tokens follow you to any device you sign in on. Keep your Stripe receipt. Refunds within 14
@@ -111,7 +114,7 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
 function SignInToBuy({ google }: { google: boolean }) {
   return (
     <>
-      <p className="notice">
+      <p className="shop-signin-note">
         Sign in to buy, so your tokens follow you to any device. Your characters and dates come with you.
       </p>
       {google ? (

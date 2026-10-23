@@ -14,6 +14,7 @@ import SceneWriter from "./SceneWriter";
 import ShortsPanel from "./ShortsPanel";
 import TwoSidesPanel from "./TwoSidesPanel";
 import { housePair } from "@/lib/adult/shorts";
+import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After dark · Botchelor", robots: { index: false, follow: false } };
@@ -37,6 +38,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
   if (!admin) notFound();
   const scene = await openScene(db, admin, a, b);
   if (!scene) notFound();
+  const characters = [refOf(scene.a.id, scene.a.name, await getPublicCharacter(db, scene.a.id)), refOf(scene.b.id, scene.b.name, await getPublicCharacter(db, scene.b.id))] as [CharacterRef, CharacterRef];
   return (
     <div className="after-dark-mode">
     <article className="after-dark">
@@ -44,7 +46,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         <Link href="/after-dark">← 🌙 After Dark</Link>
       </p>
       <h1>
-        {scene.a.name} × {scene.b.name}
+        <CharacterName character={characters[0]} link={false} size={34} /> × <CharacterName character={characters[1]} link={false} size={34} />
       </h1>
       <p className="muted">
         {scene.date ? `Picking up from their latest date: ${scene.date.setting ?? "a date"}.` : "They haven't been on a date yet: this is how they meet."}
@@ -64,7 +66,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
       <SceneWriter
         initial={scene}
         gallery={await listMedia(db, [scene.a.id, scene.b.id])}
-        characters={[refOf(scene.a.id, scene.a.name, await getPublicCharacter(db, scene.a.id)), refOf(scene.b.id, scene.b.name, await getPublicCharacter(db, scene.b.id))]}
+        characters={characters}
         play={play === "1"}
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}

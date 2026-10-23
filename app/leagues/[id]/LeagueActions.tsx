@@ -36,9 +36,12 @@ export default function LeagueActions({ leagueId, invitePath, isMember, hasName 
           {error && <p className="error">{error}</p>}
         </form>
       )}
-      <h2>Invite friends</h2>
-      <p className="muted">Anyone with this link can see the board and join.</p>
-      <ShareLink path={invitePath} label="League invite link" />
+      {/* Its own block under a rule, so joining and inviting don't read as one form. */}
+      <div className={isMember ? undefined : "league-invite"}>
+        <h2>Invite friends</h2>
+        <p className="muted">Anyone with this link can see the board and join.</p>
+        <ShareLink path={invitePath} label="League invite link" />
+      </div>
     </section>
   );
 }

@@ -16,6 +16,13 @@ export const metadata: Metadata = { title: "Notifications · Botchelor", robots:
 const when = (iso: string) =>
   new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) + " UTC";
 
+/** A title's leading emoji ("💬 Dex texted Sam"), kept outside its link so the underline runs under words only. */
+const LEAD_EMOJI = /^((?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:[\uFE0F\u200D]|\p{Extended_Pictographic}|\p{Emoji_Modifier})*)\s+/u;
+function splitEmoji(title: string): [string | null, string] {
+  const m = title.match(LEAD_EMOJI);
+  return m ? [m[1], title.slice(m[0].length)] : [null, title];
+}
+
 /** Notifications: this many a page (?page=N), newest first. */
 const NOTIFICATIONS_PAGE = 10;
 
@@ -56,9 +63,18 @@ export default async function NotificationsPage({ searchParams }: { searchParams
             <ClearNotifications />
           </div>
           <ul className="list" aria-label="Notifications">
-            {items.map((n) => (
+            {items.map((n) => {
+              const [emoji, title] = splitEmoji(n.title);
+              return (
               <li key={n.id} className={`notification${n.read ? "" : " unread"}${n.booked ? " is-booked" : ""}`}>
-                <strong>{n.link ? <Link href={n.link}>{n.title}</Link> : n.title}</strong>
+                <strong className="notif-title">
+                  {emoji && (
+                    <span className="notif-emoji" aria-hidden="true">
+                      {emoji}
+                    </span>
+                  )}
+                  {n.link ? <Link href={n.link}>{title}</Link> : title}
+                </strong>
                 {n.booked ? (
                   // A "Book it" notice whose date has been booked since (lib/notifications.ts withBookings).
                   <span className="notification-booked">
@@ -71,7 +87,8 @@ export default async function NotificationsPage({ searchParams }: { searchParams
                   {when(n.created_at)} · <ClearNotifications id={n.id} />
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
           <Pager page={page} pages={pages} label="Notifications pages" href={(n) => pageHref("/notifications", {}, "page", n)} prev="Newer" next="Older" />
           </>

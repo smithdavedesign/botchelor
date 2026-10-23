@@ -17,7 +17,7 @@ export function FollowButton({ pair, following, followers }: { pair: [string, st
     router.refresh();
   }
   return (
-    <p className="couple-follow">
+    <p className="couple-follow action-hint">
       <button type="button" className={following ? "button-ghost" : "primary"} onClick={toggle} disabled={busy} aria-pressed={following}>
         {following ? "Following ✓" : "Follow this couple"}
       </button>{" "}

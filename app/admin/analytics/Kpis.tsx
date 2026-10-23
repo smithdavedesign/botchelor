@@ -34,10 +34,12 @@ export function describeChange(k: Kpi): { text: string; tone: "up" | "down" | "q
     : { text: `${arrow} ${size}, within normal variation`, tone: "quiet" };
 }
 
-export function KpiCard({ kpi, segment }: { kpi: Kpi; segment: Segment }) {
+export function KpiCard({ kpi, segment, sharedNotes }: { kpi: Kpi; segment: Segment; sharedNotes?: ReadonlySet<string> }) {
   const change = describeChange(kpi);
   const value = kpi.current === null ? "—" : kpi.format === "percent" ? percent(kpi.current) : kpi.current.toLocaleString("en-US");
   const scopeNote = segment !== "all" && kpi.scope !== "segment" ? SCOPE_NOTE[kpi.scope] : null;
+  // A note several cards share (the launch-day caveat) is said once above the grid instead.
+  const note = kpi.note && !sharedNotes?.has(kpi.note) ? kpi.note : null;
   const base = kpi.base ? `of ${kpi.base.current.toLocaleString("en-US")} ${kpi.base.unit}` : null;
   return (
     <div className="kpi" title={kpi.definition}>
@@ -45,7 +47,7 @@ export function KpiCard({ kpi, segment }: { kpi: Kpi; segment: Segment }) {
       <span className="kpi-value">{value}</span>
       <span className={`kpi-delta is-${change.tone}`}>{change.text}</span>
       {(kpi.sub || base) && <span className="kpi-sub">{[base, kpi.sub].filter(Boolean).join(" · ")}</span>}
-      {(kpi.note || scopeNote) && <span className="kpi-note">{[kpi.note, scopeNote].filter(Boolean).join(" ")}</span>}
+      {(note || scopeNote) && <span className="kpi-note">{[note, scopeNote].filter(Boolean).join(" ")}</span>}
       {kpi.spark && <Sparkline values={kpi.spark} />}
     </div>
   );
@@ -53,11 +55,19 @@ export function KpiCard({ kpi, segment }: { kpi: Kpi; segment: Segment }) {
 
 /** The cards, then what each one means (for touch screens, where a card's title tooltip never shows). */
 export function KpiGrid({ kpis, segment }: { kpis: Kpi[]; segment: Segment }) {
+  const counts = new Map<string, number>();
+  for (const k of kpis) if (k.note) counts.set(k.note, (counts.get(k.note) ?? 0) + 1);
+  const shared = new Set([...counts].filter(([, n]) => n > 1).map(([note]) => note));
   return (
     <>
+      {[...shared].map((note) => (
+        <p key={note} className="kpi-shared-note muted small">
+          {note}
+        </p>
+      ))}
       <div className="kpi-grid">
         {kpis.map((k) => (
-          <KpiCard key={k.key} kpi={k} segment={segment} />
+          <KpiCard key={k.key} kpi={k} segment={segment} sharedNotes={shared} />
         ))}
       </div>
       <details className="kpi-definitions">

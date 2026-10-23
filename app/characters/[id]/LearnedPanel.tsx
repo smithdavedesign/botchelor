@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { requestJson } from "../../request";
 import type { ForgetKind, PersonMemory, Source } from "@/lib/memory";
+import CharacterName from "@/app/CharacterName";
 
 export type LearnedItem = { kind: ForgetKind; item: string; label: ReactNode; from: Source[] };
 
@@ -110,7 +111,7 @@ export default function LearnedPanel({
           <ul className="list learned-list">
             {people.map((p) => (
               <li key={p.id}>
-                {p.name}
+                <CharacterName character={p} />
                 {p.wanted_more !== null && <> — {p.wanted_more ? "still wants to see them again" : "isn't hoping for a rematch"}</>}
                 {p.they_said && (
                   <>

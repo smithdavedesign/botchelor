@@ -118,6 +118,8 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
       ) : (
         <>
           {state.they_asked && <p className="muted">{first}&apos;s creator already said yes.</p>}
+          {/* The button on its own line and the cost under it (it wrapped raggedly beside it). */}
+          <p className="action-hint">
           <button type="button" className="primary" onClick={plan} disabled={busy}>
             {busy ? "Booking…" : state.they_asked || !state.needs_their_yes ? `Plan the ${next}` : `Say yes to a ${next} with ${first}`}
           </button>{" "}
@@ -128,6 +130,7 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
                 ? "Free: your second date this week is on the show. It happens where they planned it."
                 : "1 token, like any date. It happens where they planned it."}
           </span>
+          </p>
         </>
       )}
       {message && (

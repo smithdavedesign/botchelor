@@ -133,7 +133,7 @@ export default function FeedbackPanel() {
           </button>
         </form>
       ) : (
-        <div className="owner-talk">
+        <div className="admin-fb-toolbar">
           <button type="button" className="secondary small" onClick={() => void load()}>
             Refresh
           </button>
@@ -156,7 +156,7 @@ export default function FeedbackPanel() {
             ) : null}
           </p>
           {data.feedback.length === 0 && <p className="muted">Nothing yet.</p>}
-          <ul className="list">
+          <ul className="list admin-fb-list">
             {rows.map((f) => (
               <li key={f.id} className="card">
                 <p className="small muted">

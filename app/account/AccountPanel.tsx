@@ -27,6 +27,14 @@ const TEXT_PROVIDERS: { id: string; label: string }[] = [
 ];
 
 /**
+ * A folded key's status line: "none set", or which key by its last four. Written "(…1234)", not "····1234" like the
+ * list inside, so the two never read as the same text.
+ */
+function keyStatus(keys: SavedKey[], label: (k: SavedKey) => string): string {
+  return keys.length ? keys.map((k) => `${label(k)} (…${k.last4})`).join(", ") : "none set";
+}
+
+/**
  * The account page. Anonymous by default: an account is optional and only ADDS things (your characters and
  * dates follow you across devices, private dates, a key you bring). Signing out returns to anonymous play.
  * Your characters and dates show either way — they belong to this browser's session.
@@ -216,6 +224,10 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
       </section>
     );
 
+  const textKeys = keys.filter((k) => k.kind === "text");
+  const imageKeys = keys.filter((k) => k.kind === "image" && k.provider === "openai");
+  const clipKeys = keys.filter((k) => k.kind === "image" && k.provider === "google");
+
   return (
     <>
       {authCard}
@@ -252,26 +264,33 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
       {me.authenticated && (
         <section className="card" id="model-key">
           <h2>Your model key (optional)</h2>
-          <p className="muted">
-            Bring your own key and your dates run on your quota and your chosen model instead of the free tier. The
-            engine still decides every outcome, so a stronger model can&apos;t buy a result. Your key runs only your own
-            character&apos;s lines (and a house partner&apos;s) — never another player&apos;s private character. Stored
-            encrypted; we only ever show the last four characters.
+          <p className="muted small">
+            Run your characters on your own quota and model. Each key folds away with its status; the{" "}
+            <Link href="/account/keys">keys page</Link> tests one before saving it.
           </p>
-          <p className="muted">
-            That includes dates other players and their agents book with your character (while it&apos;s open to dates, or
-            with someone it&apos;s matched or together with): your key writes its side there too. To keep your key to the
-            dates you start, close your characters to dates, or remove the key.
-          </p>
-          <p className="muted">
-            It also lets your characters text the people they&apos;ve dated whenever you like, as much as you like: on their
-            couple page, tap send on the phone.
-          </p>
-          {keys.filter((k) => k.kind === "text").length > 0 && (
-            <ul className="account-links">
-              {keys
-                .filter((k) => k.kind === "text")
-                .map((k) => (
+          {/* Three keys, each folded to one status line: open they took ~1,400px of a phone screen. */}
+          <details className="ux-fold account-key">
+            <summary>
+              <strong>Model key:</strong> <span className="muted">{keyStatus(textKeys, (k) => TEXT_PROVIDERS.find((p) => p.id === k.provider)?.label ?? k.provider)}</span>
+            </summary>
+            <p className="muted">
+              Bring your own key and your dates run on your quota and your chosen model instead of the free tier. The
+              engine still decides every outcome, so a stronger model can&apos;t buy a result. Your key runs only your own
+              character&apos;s lines (and a house partner&apos;s) — never another player&apos;s private character. Stored
+              encrypted; we only ever show the last four characters.
+            </p>
+            <p className="muted">
+              That includes dates other players and their agents book with your character (while it&apos;s open to dates, or
+              with someone it&apos;s matched or together with): your key writes its side there too. To keep your key to the
+              dates you start, close your characters to dates, or remove the key.
+            </p>
+            <p className="muted">
+              It also lets your characters text the people they&apos;ve dated whenever you like, as much as you like: on their
+              couple page, tap send on the phone.
+            </p>
+            {textKeys.length > 0 && (
+              <ul className="account-links">
+                {textKeys.map((k) => (
                   <li key={k.provider}>
                     <strong>{TEXT_PROVIDERS.find((p) => p.id === k.provider)?.label ?? k.provider}</strong> ····{k.last4}
                     {k.model ? ` · ${k.model}` : ""}{" "}
@@ -280,41 +299,43 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
                     </button>
                   </li>
                 ))}
-            </ul>
-          )}
-          <form onSubmit={saveKey}>
-            <label>
-              Provider
-              <select name="provider" defaultValue="google">
-                {TEXT_PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              API key
-              <input name="key" type="password" required minLength={8} maxLength={400} autoComplete="off" placeholder="sk-… / AIza…" />
-            </label>
-            <label>
-              Model (optional)
-              <input name="model" maxLength={80} placeholder="leave blank for a sensible default" />
-            </label>
-            <button type="submit">Save key</button>
-          </form>
+              </ul>
+            )}
+            <form onSubmit={saveKey}>
+              <label>
+                Provider
+                <select name="provider" defaultValue="google">
+                  {TEXT_PROVIDERS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                API key
+                <input name="key" type="password" required minLength={8} maxLength={400} autoComplete="off" placeholder="sk-… / AIza…" />
+              </label>
+              <label>
+                Model (optional)
+                <input name="model" maxLength={80} placeholder="leave blank for a sensible default" />
+              </label>
+              <button type="submit">Save key</button>
+            </form>
+          </details>
 
-          <h3>Image key (optional)</h3>
-          <p className="muted small">
-            An OpenAI key to generate a portrait for your own characters, on your own quota. Images are
-            moderated by the provider and built only from your character&apos;s sheet. Generate from a
-            character&apos;s card.
-          </p>
-          {keys.filter((k) => k.kind === "image" && k.provider === "openai").length > 0 ? (
-            <ul className="account-links">
-              {keys
-                .filter((k) => k.kind === "image" && k.provider === "openai")
-                .map((k) => (
+          <details className="ux-fold account-key">
+            <summary>
+              <strong>Image key:</strong> <span className="muted">{keyStatus(imageKeys, () => "OpenAI")}</span>
+            </summary>
+            <p className="muted small">
+              An OpenAI key to generate a portrait for your own characters, on your own quota. Images are
+              moderated by the provider and built only from your character&apos;s sheet. Generate from a
+              character&apos;s card.
+            </p>
+            {imageKeys.length > 0 ? (
+              <ul className="account-links">
+                {imageKeys.map((k) => (
                   <li key={`img-${k.provider}`}>
                     <strong>OpenAI Images</strong> ····{k.last4}{" "}
                     <button type="button" className="link-button danger" onClick={() => removeKey(k.provider, "image")}>
@@ -322,28 +343,30 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
                     </button>
                   </li>
                 ))}
-            </ul>
-          ) : (
-            <form onSubmit={saveImageKey}>
-              <label>
-                OpenAI image key
-                <input name="key" type="password" required minLength={8} maxLength={400} autoComplete="off" placeholder="sk-…" />
-              </label>
-              <button type="submit">Save image key</button>
-            </form>
-          )}
+              </ul>
+            ) : (
+              <form onSubmit={saveImageKey}>
+                <label>
+                  OpenAI image key
+                  <input name="key" type="password" required minLength={8} maxLength={400} autoComplete="off" placeholder="sk-…" />
+                </label>
+                <button type="submit">Save image key</button>
+              </form>
+            )}
+          </details>
 
-          <h3>Clip key (optional)</h3>
-          <p className="muted small">
-            Intro clips run on Google&apos;s Veo 3.1 Lite on your own Google key (about $0.20 for a 4-second clip, on your
-            Google bill; Veo needs billing turned on in AI Studio). Each clip also costs a bought token. If you already
-            saved a Google key above for dates, that one works too.
-          </p>
-          {keys.filter((k) => k.kind === "image" && k.provider === "google").length > 0 ? (
-            <ul className="account-links">
-              {keys
-                .filter((k) => k.kind === "image" && k.provider === "google")
-                .map((k) => (
+          <details className="ux-fold account-key">
+            <summary>
+              <strong>Clip key:</strong> <span className="muted">{keyStatus(clipKeys, () => "Google")}</span>
+            </summary>
+            <p className="muted small">
+              Intro clips run on Google&apos;s Veo 3.1 Lite on your own Google key (about $0.20 for a 4-second clip, on your
+              Google bill; Veo needs billing turned on in AI Studio). Each clip also costs a bought token. If you already
+              saved a Google key above for dates, that one works too.
+            </p>
+            {clipKeys.length > 0 ? (
+              <ul className="account-links">
+                {clipKeys.map((k) => (
                   <li key="clip-google">
                     <strong>Google (Veo clips)</strong> ····{k.last4}{" "}
                     <button type="button" className="link-button danger" onClick={() => removeKey("google", "image")}>
@@ -351,16 +374,17 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
                     </button>
                   </li>
                 ))}
-            </ul>
-          ) : (
-            <form onSubmit={saveClipKey}>
-              <label>
-                Google AI Studio key
-                <input name="key" type="password" required minLength={8} maxLength={400} autoComplete="off" placeholder="AIza…" />
-              </label>
-              <button type="submit">Save clip key</button>
-            </form>
-          )}
+              </ul>
+            ) : (
+              <form onSubmit={saveClipKey}>
+                <label>
+                  Google AI Studio key
+                  <input name="key" type="password" required minLength={8} maxLength={400} autoComplete="off" placeholder="AIza…" />
+                </label>
+                <button type="submit">Save clip key</button>
+              </form>
+            )}
+          </details>
           {keyError && <p className="error">{keyError}</p>}
         </section>
       )}

@@ -11,6 +11,7 @@ import { authFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
 import { ShortTeaserCard, SubscribeToUnlock } from "./ShortTeaser";
 import styles from "./shorts.module.css";
+import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Shorts · After Dark · Botchelor", robots: { index: false, follow: false } };
@@ -28,7 +29,7 @@ export default async function ShortsPage() {
   if (access.kind === "hidden") notFound();
   if (access.kind === "off") {
     return (
-      <div className="after-dark-mode">
+      <div className="after-dark-mode ad-shorts-page">
         <article className="after-dark">
           <p className="kicker">
             🌙 After Dark · <Link href="/admin/after-dark/settings">Settings</Link>
@@ -42,7 +43,7 @@ export default async function ShortsPage() {
   if (access.kind === "teaser") {
     const shorts = await teaserShorts(db);
     return (
-      <div className="after-dark-mode">
+      <div className="after-dark-mode ad-shorts-page">
         <article className="after-dark">
           <p className="kicker">
             🌙 After Dark · <Link href="/">Back to the show</Link>
@@ -66,7 +67,7 @@ export default async function ShortsPage() {
   const shorts = await listShorts(db);
   const [watched, board, name] = await Promise.all([watchedOf(db, access.viewer, shorts.map((s) => s.id)), callBoard(db, access.viewer), boardName(db, access.viewer)]);
   return (
-    <div className="after-dark-mode">
+    <div className="after-dark-mode ad-shorts-page">
       <article className="after-dark">
         <p className="kicker">
           <Link href="/after-dark">← 🌙 After Dark</Link>
@@ -94,14 +95,28 @@ export default async function ShortsPage() {
                   <span className={styles.title}>{s.title}</span>
                 </Link>
                 <p className={`muted small ${styles.meta}`}>
-                  {shortName(s.a.name)} × {shortName(s.b.name)} · {s.lines} lines{s.video ? " · 🎬 with its video" : ""}
+                  <CharacterName character={{ ...s.a, house: true }} label={shortName(s.a.name)} link={false} /> ×{" "}
+                  <CharacterName character={{ ...s.b, house: true }} label={shortName(s.b.name)} link={false} /> · {s.lines} lines{s.video ? " · 🎬 with its video" : ""}
                   {watched.has(s.id) ? " · watched" : ""}
                 </p>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="muted">No Shorts yet.</p>
+          <div className="ad-empty">
+            <p className="ad-empty-icon" aria-hidden="true">
+              📺
+            </p>
+            <p>
+              <strong>No Shorts yet.</strong>
+            </p>
+            <p className="muted small">The house cast&apos;s nights land here as they&apos;re published.</p>
+            <p>
+              <Link className="button-ghost" href="/after-dark">
+                ← Back to After Dark
+              </Link>
+            </p>
+          </div>
         )}
         <section id="board" className={styles.board} aria-label="Call it: the board">
           <h2>📣 Call it: {board.season.label}</h2>

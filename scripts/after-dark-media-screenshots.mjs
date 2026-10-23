@@ -265,6 +265,8 @@ async function main() {
       // The settings: a clip's price and a menu picture's, under the video of the night's.
       await page.setViewportSize({ width: 1280, height: 800 });
       await page.goto(`${app.base}/admin/after-dark/settings`);
+      // Each provider is a fold (SettingsForm.tsx): the video's, opened.
+      await page.locator(".ad-settings-section summary", { hasText: "Video of the night" }).click();
       await page.locator("#ad-clip-tokens").waitFor({ timeout: 30_000 });
       await under(page, "label[for=ad-reel-tokens]");
       await shot(page, "after-dark-prices-settings-desktop");

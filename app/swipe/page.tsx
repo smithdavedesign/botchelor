@@ -12,6 +12,7 @@ import { takenWith } from "@/lib/partners";
 import { deckFor } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
 import SwipeDeck from "./SwipeDeck";
+import Avatar from "@/app/Avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,10 @@ export default async function SwipePage({ searchParams }: Props) {
         <Link href="/" className="swipe-topbar-btn" aria-label="Close the deck">
           ✕
         </Link>
-        <span className="swipe-topbar-name">{first}</span>
+        <span className="swipe-topbar-who">
+          <Avatar seed={me.id} name={me.name} hue={me.hue} portraitSrc={me.portrait} size={24} decorative round />
+          <span className="swipe-topbar-name">{first}</span>
+        </span>
         <Link href={matchesHref} className="swipe-topbar-btn" aria-label={texts ? `Matches, ${texts} unread texts` : "Matches"}>
           💬{texts > 0 && <span className="nav-count">{texts > 99 ? "99+" : texts}</span>}
         </Link>
@@ -76,7 +80,10 @@ export default async function SwipePage({ searchParams }: Props) {
       <div className="swipe-intro">
         <p className="kicker">Swipe</p>
         <div className="matches-head">
-          <h1>Who should {first} meet?</h1>
+          <h1 className="heading-face">
+            <Avatar seed={me.id} name={me.name} hue={me.hue} portraitSrc={me.portrait} size={36} decorative round />
+            <span>Who should {first} meet?</span>
+          </h1>
         </div>
         {faces}
         <p className="muted">

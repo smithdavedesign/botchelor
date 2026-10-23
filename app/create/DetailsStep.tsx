@@ -305,7 +305,8 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
                 }
               }}
             />
-            <button type="button" className="secondary small" onClick={() => addHobby(hobbyDraft)}>
+            {/* Full height, like the input beside it (--control-h), not a small pill next to a 44px field. */}
+            <button type="button" className="secondary" onClick={() => addHobby(hobbyDraft)}>
               Add
             </button>
           </span>
@@ -358,7 +359,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
               Their answer
               <textarea name={`extra_prompt_${i}`} maxLength={160} rows={2} value={p.answer} onChange={(e) => setPrompt(i, { answer: e.target.value })} />
             </label>
-            <button type="button" className="link-button danger" onClick={() => removePrompt(i)}>
+            <button type="button" className="link-button danger prompt-remove" onClick={() => removePrompt(i)}>
               Remove this prompt
             </button>
           </div>

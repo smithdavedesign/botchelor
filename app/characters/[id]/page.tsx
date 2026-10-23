@@ -226,7 +226,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             <OriginBadge origin={origin} />
             {c.house && dating && !dating.can_ask_out && !PREMIUM_IDS.has(c.id) && <span className="badge">Off this season</span>}
             {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
-            {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">💍 With {shortName(partnerStyle.partners[0].name)}</span>}
+            {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">
+                💍 With <CharacterName character={partnerStyle.partners[0]} label={shortName(partnerStyle.partners[0].name)} size={18} />
+              </span>}
             {partnerStyle && !partnerStyle.taken && partnerStyle.effective === "open" && (partnerStyle.choice === "open" || partnerStyle.decided) && (
               <span className="badge">🌈 Open to more than one</span>
             )}
@@ -382,11 +384,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           </div>
           <ul className="list connections">
             {relPage.items.map((r) => (
-              <li key={r.otherId}>
-                <CharacterName character={r.other} /> {r.view.stage_label && <span className="badge">{r.view.stage_label}</span>}
-                <span className="muted">
-                  {" "}
-                  · {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
+              <li key={r.otherId} className="row-2line">
+                {/* Two lines on purpose: who and where they stand, then the numbers and the links (they wrapped raggedly). */}
+                <span className="row-2line-head">
+                  <CharacterName character={r.other} /> {r.view.stage_label && <span className="badge">{r.view.stage_label}</span>}
+                </span>
+                <span className="muted row-2line-meta">
+                  {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
                   {ratings.is_owner && (
                     <>
                       {" "}
@@ -415,8 +419,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             </p>
             <ul className="list">
               {episodes.map((e) => (
-                <li key={e.episode_id}>
-                  vs <CharacterName character={e.partner} /> <span className="badge">{endingLabel(e.ending, e.date_number)}</span> ·{" "}
+                <li key={e.episode_id} className="row-split">
+                  <span className="row-2line-head">
+                    vs <CharacterName character={e.partner} /> <span className="badge">{endingLabel(e.ending, e.date_number)}</span>
+                  </span>
                   <Link href={e.share_path}>See the date</Link>
                 </li>
               ))}

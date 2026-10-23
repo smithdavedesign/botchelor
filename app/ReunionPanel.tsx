@@ -8,6 +8,9 @@ import { pageOf } from "@/lib/paging";
 
 /** "Where they stand": this many couples a page. */
 const COUPLES_PAGE = 10;
+/** Shown before "Show all" (UX audit 2026-10-23: all 13 pairings were ~2,200px on a phone): couples, then confessionals. */
+const COUPLES_SHOWN = 5;
+const CONFESSIONALS_SHOWN = 3;
 
 function Face({ c, size = 34 }: { c: ReunionChar; size?: number }) {
   return (
@@ -42,6 +45,36 @@ export default function ReunionPanel({
   const hasContent = reunion.couples.length > 0 || reunion.confessionals.length > 0 || reunion.awards.length > 0;
   if (!hasContent) return null;
   const couples = couplesHref ? pageOf(reunion.couples, couplesPage, COUPLES_PAGE) : { items: reunion.couples, page: 1, pages: 1 };
+  const coupleRow = (couple: Reunion["couples"][number]) => (
+    <li key={`${couple.a.id}-${couple.b.id}`} className="card reunion-couple">
+      <span className="pair-faces">
+        <Face c={couple.a} />
+        <Face c={couple.b} />
+      </span>
+      <div className="meta">
+        <strong>
+          <CharacterName character={named(couple.a)} avatar={false} /> × <CharacterName character={named(couple.b)} avatar={false} />
+        </strong>{" "}
+        <span className="badge">{couple.stage}</span>
+        <p className="muted">
+          {couple.dates} {couple.dates === 1 ? "date" : "dates"}
+          {couple.second_dates > 0 && `, ${couple.second_dates} second`}
+          {couple.last_ending && ` · last: ${endingLabel(couple.last_ending, couple.dates)}`}
+        </p>
+      </div>
+    </li>
+  );
+  const confessionalRow = (c: Reunion["confessionals"][number], i: number) => (
+    <li key={`${c.episode_id}-${i}`} className="card reunion-confessional">
+      <Face c={c.character} />
+      <div>
+        <p className="confessional">“{c.line}”</p>
+        <p className="muted">
+          <CharacterName character={named(c.character)} avatar={false} strong /> · <Link href={`/episodes/${c.episode_id}`}>see the date</Link>
+        </p>
+      </div>
+    </li>
+  );
 
   return (
     <section className="reunion-panel">
@@ -79,29 +112,16 @@ export default function ReunionPanel({
           <h3 className="section" id="couples">
             Where they stand
           </h3>
-          <ul className="list">
-            {couples.items.map((couple) => (
-              <li key={`${couple.a.id}-${couple.b.id}`} className="card reunion-couple">
-                <div className="reunion-faces">
-                  <Face c={couple.a} />
-                  <span className="vs">×</span>
-                  <Face c={couple.b} />
-                </div>
-                <div className="meta">
-                  <strong>
-                    <CharacterName character={named(couple.a)} avatar={false} /> × <CharacterName character={named(couple.b)} avatar={false} />
-                  </strong>{" "}
-                  <span className="badge">{couple.stage}</span>
-                  <p className="muted">
-                    {couple.dates} {couple.dates === 1 ? "date" : "dates"}
-                    {couple.second_dates > 0 && `, ${couple.second_dates} second`}
-                    {couple.last_ending && ` · last: ${endingLabel(couple.last_ending, couple.dates)}`}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {couplesHref && <Pager page={couples.page} pages={couples.pages} label="Couples pages" href={couplesHref} scroll={false} />}
+          <ul className="list">{couples.items.slice(0, COUPLES_SHOWN).map(coupleRow)}</ul>
+          {couples.items.length > COUPLES_SHOWN && (
+            // Later pages (?couples=N) open it: someone paging through wants them all.
+            <details className="show-more" open={couples.page > 1}>
+              <summary>Show more ({reunion.couples.length} in all)</summary>
+              <ul className="list">{couples.items.slice(COUPLES_SHOWN).map(coupleRow)}</ul>
+              {couplesHref && <Pager page={couples.page} pages={couples.pages} label="Couples pages" href={couplesHref} scroll={false} />}
+            </details>
+          )}
+          {couples.items.length <= COUPLES_SHOWN && couplesHref && <Pager page={couples.page} pages={couples.pages} label="Couples pages" href={couplesHref} scroll={false} />}
         </>
       )}
 
@@ -109,19 +129,13 @@ export default function ReunionPanel({
         <>
           <h3 className="section">The confessional reel</h3>
           <p className="muted">The private reflections their creators chose to share.</p>
-          <ul className="list">
-            {reunion.confessionals.map((c, i) => (
-              <li key={`${c.episode_id}-${i}`} className="card reunion-confessional">
-                <Face c={c.character} />
-                <div>
-                  <p className="confessional">“{c.line}”</p>
-                  <p className="muted">
-                    <CharacterName character={named(c.character)} avatar={false} strong /> · <Link href={`/episodes/${c.episode_id}`}>see the date</Link>
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <ul className="list">{reunion.confessionals.slice(0, CONFESSIONALS_SHOWN).map(confessionalRow)}</ul>
+          {reunion.confessionals.length > CONFESSIONALS_SHOWN && (
+            <details className="show-more">
+              <summary>{reunion.confessionals.length - CONFESSIONALS_SHOWN} more</summary>
+              <ul className="list">{reunion.confessionals.slice(CONFESSIONALS_SHOWN).map((c, i) => confessionalRow(c, i + CONFESSIONALS_SHOWN))}</ul>
+            </details>
+          )}
         </>
       )}
     </section>

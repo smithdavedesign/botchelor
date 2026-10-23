@@ -1,0 +1,504 @@
+/* UX audit 2026-10-23: show. Loaded after globals.css (app/layout.tsx). */
+
+/* ---------------- shared bits ---------------- */
+/* Words that belong together ("Mira Quell ×") never split across a line. */
+.nowrap {
+  white-space: nowrap;
+}
+/* Two faces as one overlapping pair (the episode lists, the reunion, the lobby): the second sits over the first with a
+   ring in the card's colour, so a pair reads as a pair at one size everywhere. */
+.pair-faces {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+.pair-faces > * + * {
+  margin-left: -12px;
+}
+.pair-faces > * + .avatar,
+.pair-faces > * + * .avatar {
+  box-shadow: 0 0 0 2px var(--card);
+}
+
+/* ---------------- home (app/page.tsx) ---------------- */
+/* The feature cards: icon beside the words. On a phone they're compact rows, not six tall cards (~1,300px). */
+.home-features .feature {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.feature-icon {
+  flex: none;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.home-features .feature p {
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .home-features {
+    gap: var(--space-2);
+  }
+  .home-features .feature {
+    padding: var(--space-3);
+  }
+  .home-features .feature h3 {
+    font-size: var(--text-md);
+    margin-bottom: 0.15rem;
+  }
+  .home-features .feature p {
+    font-size: var(--text-sm);
+  }
+}
+/* The house cast: six, two to a row on a phone as compact tiles (the directory has the rest). */
+@media (max-width: 640px) {
+  .home-cast {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .home-cast > .card {
+    padding: var(--space-3);
+  }
+  .home-cast .char {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+  .home-cast .chips {
+    margin: var(--space-2) 0 0;
+    gap: var(--space-1);
+  }
+  /* Two traits are enough for a tile; the character's page has all three. */
+  .home-cast .chips > li:nth-child(n + 3) {
+    display: none;
+  }
+  .home-cast .chip {
+    font-size: var(--text-2xs);
+  }
+}
+.home-cast-more {
+  margin-top: var(--space-3);
+}
+
+/* ---------------- an episode in a list (app/EpisodeItem.tsx) ---------------- */
+.episode-item .char {
+  align-items: flex-start;
+}
+.episode-item .meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.episode-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.episode-item-meta .badge {
+  margin: 0;
+}
+.episode-item-status {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* ---------------- the Watch lobby (app/watch/page.tsx) ---------------- */
+/* A strip card's action sits at its foot, so a taller neighbour leaves space above it rather than a gap under it. */
+.watch-strip .watch-lobby-card {
+  gap: var(--space-2);
+}
+.watch-strip .watch-lobby-live {
+  margin-top: auto;
+}
+/* "Start it" is the card's action: a small button, not a grey label. */
+.watch-lobby-live.is-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 var(--space-4);
+  border-radius: 999px;
+  background: var(--grad);
+  color: var(--accent-ink);
+}
+.watch-lobby-card:hover .watch-lobby-live.is-action {
+  filter: brightness(1.06);
+}
+
+/* ---------------- a couple as one link (characters' graph, /graph's ledger) ----------------
+   Two faces and names, one link to the couple: only the names underline (on hover), the faces and the × never do, and
+   each name keeps its face beside it when the row wraps. */
+.pair-link {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.4rem;
+  color: inherit;
+  text-decoration: none;
+}
+.pair-link .char-name {
+  white-space: nowrap;
+}
+.pair-link:hover .char-name-text,
+.pair-link:focus-visible .char-name-text {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+.pair-x {
+  color: var(--muted);
+}
+.graph-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.graph-row .badge {
+  margin: 0;
+}
+
+/* ---------------- a character's page (app/characters/[id]) ---------------- */
+/* The name and its badges: the badges in the body font, centred on the name, wrapping as whole pills. */
+.contestant .meta h1 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.contestant .meta h1 .badge {
+  margin: 0;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: var(--text-2xs);
+  line-height: 1.6;
+  letter-spacing: normal;
+}
+/* The owner's settings, folded under the two switches. */
+.owner-settings {
+  margin: var(--space-3) 0 0;
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-2);
+}
+.owner-settings > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--accent-text);
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+.owner-style label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* Relationships: who and where they stand on one line, the numbers and links on the next. */
+.row-2line {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.row-2line-head {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.row-2line-head .badge {
+  margin: 0;
+}
+.row-2line-meta {
+  font-size: var(--text-sm);
+}
+/* The date record: the date on the left, its link on the right (under it on a narrow phone). */
+.row-split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-2);
+}
+/* Reviews: "Write a review" is one button until it's opened. */
+.review-write > summary {
+  list-style: none;
+  display: inline-flex;
+  cursor: pointer;
+}
+.review-write > summary::-webkit-details-marker {
+  display: none;
+}
+.review-write[open] > summary {
+  margin-bottom: var(--space-3);
+}
+
+/* ---------------- the Constellation (app/graph/page.tsx) ---------------- */
+/* In orbit: each name a chip with its face, not a run of names with dots. */
+.constellation-singles {
+  line-height: normal;
+  gap: var(--space-2);
+}
+.constellation-singles > .chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem 0.2rem 0.25rem;
+  color: var(--ink);
+}
+.constellation-missing-details > summary,
+.show-more > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--accent-text);
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+/* ---------------- the Reunion (app/ReunionPanel.tsx) ---------------- */
+/* A couple's faces top-aligned with their names, the same size and frame as the confessionals'. */
+.reunion-couple {
+  align-items: flex-start;
+}
+.reunion-couple .meta p {
+  margin: 0.2rem 0 0;
+}
+.reunion-panel .show-more > .list {
+  margin-top: var(--space-2);
+}
+
+/* ---------------- a friends' league (app/leagues/[id]) ---------------- */
+.league-board th.num,
+.league-board td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  width: 4.5rem;
+}
+.league-invite {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.league-invite > h2 {
+  margin-top: 0;
+}
+
+/* ---------------- an episode (app/episodes/[id]) ---------------- */
+/* The kicker's dot trails the word before it, so a wrapped line never starts with a lone "·". */
+.episode-hero-kicker {
+  display: block;
+}
+/* The "·" hangs off the word before it (::after), so a wrapped kicker never starts with it; a long venue may wrap. */
+.episode-hero-kicker span + span::before {
+  content: none;
+}
+.episode-hero-kicker span:not(:last-child)::after {
+  content: "·";
+  margin: 0 0.9rem;
+  opacity: 0.7;
+}
+/* The recap toggle says what it does: "Show…" closed, "Hide…" open. */
+details.recap-toggle .recap-toggle-hide,
+details.recap-toggle[open] .recap-toggle-show {
+  display: none;
+}
+details.recap-toggle[open] .recap-toggle-hide {
+  display: inline;
+}
+/* The box score's reasoning, folded. */
+.boxscore-why {
+  margin-top: var(--space-3);
+}
+.boxscore-why > summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--accent-text);
+}
+.boxscore-why > p {
+  margin: var(--space-2) 0 0;
+}
+
+/* ---------------- a watch room (app/watch/[id]/WatchRoom.tsx) ---------------- */
+/* An empty chat is the welcome line and the composer, not ~250px of white: it shrinks to its content. */
+.watch-grid > .room-panel .room-pane-chat:has(.watch-welcome),
+.room-panel.is-sheet .room-pane-chat:has(.watch-welcome) {
+  height: auto;
+}
+.room-panel .watch-messages:has(> .watch-welcome) {
+  flex: 0 0 auto;
+  min-height: 5rem;
+  justify-content: flex-end;
+}
+/* The way out of a decided date: three buttons of one width (stacked on a narrow phone). */
+.room-next {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-2);
+}
+.room-next > * {
+  justify-content: center;
+  text-align: center;
+}
+/* The phone bar: Vote and Chat pinned to the bottom; each opens the room as a sheet. Hidden where the room sits beside
+   the date (60rem and up). */
+.watch-dock,
+.watch-sheet-backdrop {
+  display: none;
+}
+@media (max-width: 59.99rem) {
+  .watch:has(> .watch-dock) {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  /* The panel under the transcript is what the bar replaces. */
+  .watch-grid > .room-panel:not(.is-sheet) {
+    display: none;
+  }
+  .watch-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--gutter) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--paper) 90%, transparent);
+    backdrop-filter: saturate(1.4) blur(10px);
+    border-top: 1px solid var(--line);
+  }
+  .watch-dock-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+    margin: 0;
+  }
+  .watch-sheet-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: rgb(20 8 24 / 40%);
+    box-shadow: none;
+  }
+  .watch-grid > .room-panel.is-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 31;
+    height: auto;
+    max-height: 82dvh;
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -10px 30px -12px rgb(36 16 34 / 35%);
+  }
+  .room-panel.is-sheet .room-pane-chat {
+    height: min(26rem, 62dvh);
+  }
+}
+.watch-dock-btn:not(.secondary) .room-tab-live {
+  background: var(--accent-ink);
+}
+
+/* ---------------- a couple (app/couples/[a]/[b]) ---------------- */
+/* An action and its small print: the button(s) on one line, the muted note under them, never wrapped beside. */
+.action-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.action-hint > button {
+  margin: 0;
+}
+.action-hint > .muted {
+  flex-basis: 100%;
+}
+/* The byline: each name with its badge wraps as one unit. */
+.couple-names {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.couple-name-unit {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.couple-name-and {
+  margin-right: 0.3rem;
+}
+.couple-texts-locked {
+  margin: var(--space-5) 0;
+}
+.couple-texts-locked > h2 {
+  margin-bottom: var(--space-3);
+}
+.couple-head .action-hint {
+  justify-content: center;
+}
+
+/* ---------------- notifications (app/notifications/page.tsx) ---------------- */
+/* Every row keeps a gutter for the unread dot, so a read and an unread title start at the same place; the emoji sits
+   outside the link, so only the words underline. */
+.notification {
+  padding-left: 1.1rem;
+  position: relative;
+}
+.notification.unread strong::before {
+  content: none;
+}
+.notification.unread::before {
+  content: "";
+  position: absolute;
+  left: 0.1rem;
+  top: 1.2rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.notif-emoji {
+  margin-right: 0.35rem;
+}
+
+/* ---------------- the token shop (app/shop/page.tsx) ---------------- */
+.shop-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+.shop-item-head strong {
+  font-size: var(--text-lg);
+}
+.shop-item-price {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.shop-item > .badge {
+  margin: var(--space-1) 0 0;
+}
+/* Signing in is a step, not a success: the accent colour, not the notice's green. */
+.shop-signin-note {
+  margin: var(--space-3) 0 var(--space-2);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* Fold-out toggles on the episode page open from a row tall enough to tap. */
+.boxscore-why > summary {
+  padding-block: 10px;
+}

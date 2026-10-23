@@ -52,23 +52,24 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
       )}
 
       <h2>This season</h2>
-      <table className="board">
+      <table className="board league-board">
         <thead>
           <tr>
-            <th scope="col">#</th>
+            <th scope="col" className="num">#</th>
             <th scope="col">Player</th>
-            <th scope="col">Points</th>
+            <th scope="col" className="num">Points</th>
           </tr>
         </thead>
         <tbody>
           {league.leaderboard.map((entry, i) => (
             <tr key={i} className={entry.me ? "me" : undefined}>
-              <td>{entry.rank}</td>
+              {/* Nobody has a point yet: everyone "1st" read as broken, so no rank until there's something to rank. */}
+              <td className="num">{entry.points > 0 ? entry.rank : <span aria-label="Not ranked yet">–</span>}</td>
               <td>
                 <span className={entry.frame ? frameClass(entry.frame) : undefined}>{entry.name}</span>
                 {entry.me && " (you)"}
               </td>
-              <td>{entry.points}</td>
+              <td className="num">{entry.points}</td>
             </tr>
           ))}
         </tbody>

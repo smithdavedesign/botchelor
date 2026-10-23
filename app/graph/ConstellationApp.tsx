@@ -7,6 +7,7 @@ import { KINDS, type KindId } from "@/lib/kinds";
 import { communityColor, kindHue, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
 import SidePanel from "./SidePanel";
+import CharacterName from "@/app/CharacterName";
 
 // The canvas needs the browser (rAF, ResizeObserver, pointers). Next 16: ssr:false must live in a client file.
 const ConstellationCanvas = dynamic(() => import("./ConstellationCanvas"), {
@@ -106,7 +107,7 @@ export default function ConstellationApp({ data, initialFocus = null }: { data: 
               {matches.map((n) => (
                 <li key={n.id}>
                   <button type="button" className="link-button" onClick={() => focus(n.id)}>
-                    {n.private ? `🔒 ${n.name}` : n.name}
+                    {n.private ? `🔒 ${n.name}` : <CharacterName character={n} link={false} />}
                   </button>
                 </li>
               ))}

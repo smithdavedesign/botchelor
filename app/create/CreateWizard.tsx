@@ -39,6 +39,7 @@ import {
   type GameBudget,
   type Strategy,
 } from "@/lib/rules";
+import CharacterName from "@/app/CharacterName";
 
 export type Partner = {
   id: string;
@@ -141,12 +142,16 @@ function Stepper({ step, max, onJump, labels }: { step: number; max: number; onJ
               disabled={i > max}
               onClick={() => i <= max && onJump(i)}
             >
-              <span className="wizard-rail-num">{i < max ? "✓" : i + 1}</span>
+              <span className="wizard-rail-num">{i < max && i !== step ? "✓" : i + 1}</span>
             </button>
             <span className="wizard-rail-label">{label}</span>
           </li>
         );
       })}
+      {/* On a phone the labels are hidden: the current one, said once under the dots. */}
+      <li className="wizard-rail-caption" aria-hidden="true">
+        Step {step + 1} of {labels.length} · {labels[step]}
+      </li>
     </ol>
   );
 }
@@ -178,7 +183,7 @@ export default function CreateWizard({
   swipeGate?: boolean;
   tokens?: Tokens;
   offer?: string | null;
-  myCharacters?: { id: string; name: string }[];
+  myCharacters?: { id: string; name: string; hue?: number | null; portrait?: string | null }[];
   startSample?: boolean;
   startCharacterId?: string | null;
   /** A new character with this name already in (/create?name=, from a ship name page: app/ship/[a]/[b]). */
@@ -243,7 +248,7 @@ export default function CreateWizard({
   const [temperamentCleared, setTemperamentCleared] = useState(false);
 
   // Flow state.
-  const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
+  const [created, setCreated] = useState<{ id: string; name: string; hue?: number | null; portrait?: string | null } | null>(null);
   const [busy, setBusy] = useState<null | "character" | "episode">(null);
   const [error, setError] = useState<string | null>(null);
   const [outOfTokens, setOutOfTokens] = useState(false);
@@ -435,7 +440,7 @@ export default function CreateWizard({
       });
       if (status === 201) {
         trackConversion("character_created", { open_to_dates: openToDates });
-        setCreated({ id: String(data.id), name: String(data.name) });
+        setCreated({ id: String(data.id), name: String(data.name), hue: typeof data.hue === "number" ? data.hue : null });
         // The site's nav is in the root layout, which a client-side link keeps: refresh it so it becomes the owner's
         // (Swipe, Matches) now that there's a character.
         router.refresh();
@@ -584,20 +589,29 @@ export default function CreateWizard({
         <>
           <p className="kicker">Edit</p>
           <h1>Edit {init?.name}</h1>
-          <p className="muted">
-            Change anything — every step is open. What they&apos;ve learned from their dates stays exactly as it is, and
-            past dates keep their endings; your edits shape the dates to come.
-          </p>
+          {/* The full intro once, on the first step; after that one short line, so every step doesn't open on it. */}
+          {step === 0 ? (
+            <p className="muted">
+              Change anything — every step is open. What they&apos;ve learned from their dates stays exactly as it is, and
+              past dates keep their endings; your edits shape the dates to come.
+            </p>
+          ) : (
+            <p className="muted small wizard-intro-short">Every step is open. Past dates and what they&apos;ve learned stay as they are.</p>
+          )}
         </>
       ) : (
         <>
           <p className="kicker">Create</p>
           <h1>Build your character</h1>
-          <p className="muted">
-            An original fictional adult. You give them a personality; an engine decides how their dates end, and nobody
-            (not even you) can steer them. Two steps are needed, who they are and a short dating profile; the rest is optional
-            and makes their dates better.
-          </p>
+          {step === S.identity ? (
+            <p className="muted">
+              An original fictional adult. You give them a personality; an engine decides how their dates end, and nobody
+              (not even you) can steer them. Two steps are needed, who they are and a short dating profile; the rest is optional
+              and makes their dates better.
+            </p>
+          ) : (
+            <p className="muted small wizard-intro-short">Only Identity and the dating profile are needed; the rest makes their dates better.</p>
+          )}
         </>
       )}
 
@@ -607,7 +621,9 @@ export default function CreateWizard({
           {myCharacters.map((c, i) => (
             <span key={c.id}>
               {i > 0 && " · "}
-              <Link href={`/create?character=${c.id}`}>Send {c.name} on a date</Link>
+              <Link href={`/create?character=${c.id}`}>
+                Send <CharacterName character={c} link={false} size={20} /> on a date
+              </Link>
             </span>
           ))}
         </p>
@@ -761,7 +777,7 @@ export default function CreateWizard({
                     />
                   ))}
                 </div>
-                <span className="muted">Or pick a curated look</span>
+                <span className="muted looks-gallery-label">Or pick a curated look</span>
                 <ul className="look-gallery">
                   {LOOK_GALLERY.map((look) => (
                     <li key={look.id}>
@@ -820,7 +836,7 @@ export default function CreateWizard({
                 value={week}
                 onChange={(e) => setWeek(e.target.value)}
               />
-              <span className="muted small">
+              <span className="muted small field-help">
                 Fresh small talk for their dates. Leave it blank and the show deals them something new every week; yours lasts
                 until Monday.
               </span>
@@ -896,21 +912,52 @@ export default function CreateWizard({
         {step === S.review && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">{edit ? "Review your changes" : "Review & create"}</legend>
-            <ReviewRow label="Name">{sheet.name || <em className="muted">—</em>}</ReviewRow>
-            <ReviewRow label="Age">{sheet.age || <em className="muted">—</em>}</ReviewRow>
-            {pronouns && <ReviewRow label="Pronouns">{pronouns}</ReviewRow>}
-            <ReviewRow label="Bio">{sheet.bio}</ReviewRow>
-            <ReviewRow label="Traits">{traits.filter((t) => t.trim()).join(", ")}</ReviewRow>
-            <ReviewRow label="Wants">{sheet.want}</ReviewRow>
-            <ReviewRow label="Dealbreaker">{sheet.dealbreaker}</ReviewRow>
-            {voice.trim() && <ReviewRow label="Voice">{voice}</ReviewRow>}
-            {appearance.trim() && <ReviewRow label="Looks">{appearance}</ReviewRow>}
-            {(Object.keys(EMPTY_SOUL) as (keyof Soul)[]).some((k) => k !== "local_only" && String(soul[k]).trim()) && (
-              <ReviewRow label="Soul">Private — {soul.local_only ? "engine only" : "shapes the date"}</ReviewRow>
-            )}
-            <ReviewExtras extras={extras} />
-            {week.trim() && <ReviewRow label="This week">{week}</ReviewRow>}
-            {!edit && <ReviewRow label="Autonomy">{AUTONOMY_LABELS[autonomy]}</ReviewRow>}
+            {/* Grouped by the step each answer came from, with a way straight back to that step. */}
+            {(() => {
+              const more = reviewExtras(extras);
+              const soulSet = (Object.keys(EMPTY_SOUL) as (keyof Soul)[]).some((k) => k !== "local_only" && String(soul[k]).trim());
+              const soulRows: [string, ReactNode][] = [
+                ...(soulSet ? [["Soul", `Private — ${soul.local_only ? "engine only" : "shapes the date"}`] as [string, ReactNode]] : []),
+                ...(!edit ? [["Autonomy", AUTONOMY_LABELS[autonomy]] as [string, ReactNode]] : []),
+              ];
+              const groups: [number, string, [string, ReactNode][]][] = [
+                [
+                  S.identity,
+                  "Identity",
+                  [
+                    ["Name", sheet.name || <em className="muted">—</em>],
+                    ["Age", sheet.age || <em className="muted">—</em>],
+                    ...(pronouns ? [["Pronouns", pronouns] as [string, ReactNode]] : []),
+                    ["Bio", sheet.bio],
+                    ["Traits", traits.filter((t) => t.trim()).join(", ")],
+                    ["Wants", sheet.want],
+                    ["Dealbreaker", sheet.dealbreaker],
+                  ],
+                ],
+                [S.voice, "Voice", [...(voice.trim() ? [["Voice", voice] as [string, ReactNode]] : []), ...more.voice]],
+                [S.look, "Look", [...(appearance.trim() ? [["Looks", appearance] as [string, ReactNode]] : []), ...more.look]],
+                [S.details, "Dating profile", [...more.profile, ...(week.trim() ? [["This week", week] as [string, ReactNode]] : [])]],
+                [S.facts, "More about them", more.facts],
+                [S.soul, edit ? "Soul" : "Soul & autonomy", soulRows],
+              ];
+              return groups
+                .filter(([, , rows]) => rows.length > 0)
+                .map(([at, title, rows]) => (
+                  <section key={title} className="wizard-review-group" aria-label={title}>
+                    <h3 className="wizard-review-head">
+                      {title}
+                      <button type="button" className="link-button" onClick={() => jump(at)} aria-label={`Edit ${title}`}>
+                        Edit
+                      </button>
+                    </h3>
+                    {rows.map(([label, value], n) => (
+                      <ReviewRow key={`${label}-${n}`} label={label}>
+                        {value}
+                      </ReviewRow>
+                    ))}
+                  </section>
+                ));
+            })()}
 
             <OriginalityPanel
               draft={{ name: sheet.name, bio: sheet.bio, traits, want: sheet.want, dealbreaker: sheet.dealbreaker, voice, extras: normaliseExtras(extras) }}
@@ -920,7 +967,7 @@ export default function CreateWizard({
             <label className="check wizard-open">
               <input type="checkbox" checked={openToDates} onChange={(e) => setOpenToDates(e.target.checked)} />
               <span>
-                💘 In the swipe deck: people and AI agents can swipe on {sheet.name || "them"} (and ask them out by name).
+                <span aria-hidden>💘 </span>In the swipe deck: people and AI agents can swipe on {sheet.name || "them"} (and ask them out by name).
                 {!edit && " Change it any time on their card."}
               </span>
             </label>
@@ -933,7 +980,9 @@ export default function CreateWizard({
               <>
                 <label className="check wizard-attest">
                   <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
-                  <span>This is my own original character: a fictional adult, not a real person.</span>
+                  <span>
+                    <span aria-hidden>✍️ </span>This is my own original character: a fictional adult, not a real person.
+                  </span>
                 </label>
                 <p className="muted small">
                   Your sheet (and any soul) is sent to an AI model to write episodes, and other creators&apos; blind dates may
@@ -944,38 +993,51 @@ export default function CreateWizard({
           </fieldset>
         )}
 
-        <div className="wizard-actions">
-          {step > 0 ? (
-            <button type="button" className="button-ghost" onClick={back} disabled={busy !== null}>
-              Back
-            </button>
-          ) : (
-            <Link className="button-ghost" href={edit ? `/characters/${edit.id}` : "/"}>
-              Cancel
-            </Link>
-          )}
-          {edit ? (
-            // Editing: save from any step; Next just moves along.
+        {edit ? (
+          // Editing: one row (sticky at the bottom on a phone): Back or Cancel as a text action, then Next, then Save.
+          <div className="wizard-actions wizard-actions-edit">
+            {step > 0 ? (
+              <button type="button" className="link-button" onClick={back} disabled={busy !== null}>
+                ← Back
+              </button>
+            ) : (
+              <Link className="wizard-cancel" href={`/characters/${edit.id}`}>
+                Cancel
+              </Link>
+            )}
             <span className="wizard-edit-actions">
               {step < last && (
                 <button type="submit" className="secondary" disabled={!canAdvance}>
-                  Next: {labels[step + 1]}
+                  Next<span className="wizard-next-label">: {labels[step + 1]}</span>
                 </button>
               )}
               <button type="button" onClick={() => void saveEdits()} disabled={busy !== null || !identityOk}>
                 {busy === "character" ? "Saving…" : saved ? "Saved ✓" : "Save changes"}
               </button>
             </span>
-          ) : step < last ? (
-            <button type="submit" disabled={!canAdvance}>
-              Next: {labels[step + 1]}
-            </button>
-          ) : (
-            <button type="submit" disabled={busy !== null || !attest || !identityOk || !profileOk}>
-              {busy === "character" ? "Creating…" : `Create ${sheet.name || "character"}`}
-            </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="wizard-actions">
+            {step > 0 ? (
+              <button type="button" className="button-ghost" onClick={back} disabled={busy !== null}>
+                Back
+              </button>
+            ) : (
+              <Link className="button-ghost" href="/">
+                Cancel
+              </Link>
+            )}
+            {step < last ? (
+              <button type="submit" disabled={!canAdvance}>
+                Next: {labels[step + 1]}
+              </button>
+            ) : (
+              <button type="submit" disabled={busy !== null || !attest || !identityOk || !profileOk}>
+                {busy === "character" ? "Creating…" : `Create ${sheet.name || "character"}`}
+              </button>
+            )}
+          </div>
+        )}
         {edit && !identityOk && <p className="error">Fill in the Identity step (a name nobody on the show has, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
         {error && <p className="error">{error}</p>}
       </form>
@@ -1091,43 +1153,37 @@ function PortraitPanel({ id, name, portrait, onPortrait, hasLooks }: { id: strin
   );
 }
 
-/** The filled-in details, for the review step (blanks are skipped). */
-function ReviewExtras({ extras }: { extras: CharacterExtras }) {
+/** The filled-in details for the review step, by the step they're set on (blanks are skipped). */
+function reviewExtras(extras: CharacterExtras): Record<"voice" | "look" | "profile" | "facts", [string, string][]> {
   const e = normaliseExtras(extras);
-  const rows: [string, string][] = [];
-  for (const [k, { label }] of Object.entries(TEXT_DETAILS) as [keyof typeof TEXT_DETAILS, { label: string }][]) {
-    if (e[k]) rows.push([label, e[k]!]);
-  }
+  const out: Record<"voice" | "look" | "profile" | "facts", [string, string][]> = { voice: [], look: [], profile: [], facts: [] };
+  // Style and signature item are set on the Look step; every other text detail is on the dating profile.
+  const LOOK_DETAILS = new Set<string>(["style", "signature_item"]);
   const kind = kindLabel(e);
-  if (kind) rows.push(["What they are", kind]);
+  if (kind) out.profile.push(["What they are", kind]);
   const archetype = archetypeLabel(e.archetype);
-  if (archetype) rows.push(["The type they play", archetype]);
+  if (archetype) out.profile.push(["The type they play", archetype]);
   const goal = goalLabel(e.here_for);
-  if (goal) rows.push(["Here for", goal]);
-  if (e.drawn_to?.length) rows.push(["Drawn to", e.drawn_to.map((k) => kindName(k, "many")).join(", ")]);
-  if (e.star_sign) rows.push(["Star sign", e.star_sign]);
-  if (e.love_language && (LOVE_LANGUAGES as readonly string[]).includes(e.love_language)) rows.push(["Love language", e.love_language]);
-  if (e.hobbies?.length) rows.push(["Hobbies", e.hobbies.join(", ")]);
-  for (const p of e.prompts ?? []) rows.push([promptLabel(p.id), p.answer]);
-  for (const [id, line] of Object.entries(e.lines ?? {})) rows.push([sampleLineLabel(id), `“${line}”`]);
-  if (e.never_says?.length) rows.push(["Would never say", e.never_says.map((x) => `“${x}”`).join(", ")]);
-  for (const [id, does] of Object.entries(e.tells ?? {})) rows.push([tellLabel(id).replace(/…$/, ""), `${does}`]);
-  for (const f of e.facts ?? []) rows.push([`${f.private ? "🔒 " : ""}${f.label}`, f.value]);
-  return (
-    <>
-      {rows.map(([label, value]) => (
-        <ReviewRow key={label} label={label}>
-          {value}
-        </ReviewRow>
-      ))}
-    </>
-  );
+  if (goal) out.profile.push(["Here for", goal]);
+  if (e.drawn_to?.length) out.profile.push(["Drawn to", e.drawn_to.map((k) => kindName(k, "many")).join(", ")]);
+  for (const [k, { label }] of Object.entries(TEXT_DETAILS) as [keyof typeof TEXT_DETAILS, { label: string }][]) {
+    if (e[k]) (LOOK_DETAILS.has(k) ? out.look : out.profile).push([label, e[k]!]);
+  }
+  if (e.star_sign) out.profile.push(["Star sign", e.star_sign]);
+  if (e.love_language && (LOVE_LANGUAGES as readonly string[]).includes(e.love_language)) out.profile.push(["Love language", e.love_language]);
+  if (e.hobbies?.length) out.profile.push(["Hobbies", e.hobbies.join(", ")]);
+  for (const p of e.prompts ?? []) out.profile.push([promptLabel(p.id), p.answer]);
+  for (const [id, line] of Object.entries(e.lines ?? {})) out.voice.push([sampleLineLabel(id), `“${line}”`]);
+  if (e.never_says?.length) out.voice.push(["Would never say", e.never_says.map((x) => `“${x}”`).join(", ")]);
+  for (const [id, does] of Object.entries(e.tells ?? {})) out.voice.push([tellLabel(id).replace(/…$/, ""), `${does}`]);
+  for (const f of e.facts ?? []) out.facts.push([`${f.private ? "🔒 " : ""}${f.label}`, f.value]);
+  return out;
 }
 
 /* ------------------------------- phase two: send on a date ------------------------------- */
 
 type SendProps = {
-  character: { id: string; name: string };
+  character: { id: string; name: string; hue?: number | null; portrait?: string | null };
   partners: Partner[];
   openCharacters: OpenCharacter[];
   swipeGate: boolean;
@@ -1214,10 +1270,77 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
     setBusy(null);
   }
 
+  // The house cast and the open characters as compact lists: the first few, the rest one tap away (no long scrolls).
+  const SHOWN = 6;
+  const houseRow = (p: Partner) => (
+    <li className="send-row" key={p.id}>
+      <Avatar seed={p.id} name={p.name} hue={p.hue ?? null} house size={44} />
+      <div className="send-row-meta">
+        <CharacterName character={{ id: p.id, name: p.name, hue: p.hue ?? null, house: true }} avatar={false} strong />
+        <span className="send-row-sub">
+          {p.age}
+          {p.archetype && ` · ${p.archetype}`} · {p.premium ? "Premium · yours" : "House character"}
+        </span>
+        <p className="send-row-bio" title={p.bio}>
+          {p.bio}
+        </p>
+      </div>
+      {/* "Date" on screen; the full "Send on a date with …" for screen readers (and the e2e scripts). */}
+      <button
+        type="button"
+        className="secondary small send-row-cta"
+        aria-label={`Send on a date with ${p.premium ? p.name : shortName(p.name)}`}
+        disabled={busy !== null}
+        onClick={() => sendOnDate(p.id)}
+      >
+        Date
+      </button>
+    </li>
+  );
+  const openRow = (o: OpenCharacter) => (
+    <li className="send-row" key={o.id}>
+      <Avatar seed={o.id} name={o.name} hue={o.hue} portraitSrc={o.portrait} size={44} />
+      <div className="send-row-meta">
+        <CharacterName character={{ id: o.id, name: o.name, hue: o.hue, portrait: o.portrait }} avatar={false} strong />
+        <span className="send-row-sub">
+          {o.age} · {o.agent ? "🤖 Agent-made" : "💌 Open"}
+          {o.traits.length > 0 && ` · ${o.traits.join(", ")}`}
+        </span>
+        <p className="send-row-bio" title={o.bio}>
+          {o.bio}
+        </p>
+      </div>
+      <button type="button" className="secondary small send-row-cta" disabled={busy !== null} onClick={() => sendOnDate(o.id)}>
+        Ask {shortName(o.name)} out
+      </button>
+    </li>
+  );
+  /** The first few rows, then "Show all N" for the rest. */
+  function compactList<T>(items: T[], row: (item: T) => ReactNode, label: string) {
+    return (
+      <>
+        <ul className="send-list" aria-label={label}>
+          {items.slice(0, SHOWN).map(row)}
+        </ul>
+        {items.length > SHOWN && (
+          <details className="send-more">
+            <summary>Show all {items.length}</summary>
+            <ul className="send-list" aria-label={`${label}, the rest`}>
+              {items.slice(SHOWN).map(row)}
+            </ul>
+          </details>
+        )}
+      </>
+    );
+  }
+
   return (
-    <article>
+    <article className="send-phase">
       <p className="kicker">{character.name} is ready</p>
-      <h1>Who should {character.name} meet?</h1>
+      <h1 className="send-title heading-face">
+        <Avatar seed={character.id} name={character.name} hue={character.hue ?? null} portraitSrc={character.portrait ?? null} size={40} decorative round />
+        <span>Who should {character.name} meet?</span>
+      </h1>
       {returnTo && (
         <p>
           <Link className="button" href={returnTo.href}>
@@ -1238,6 +1361,129 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         {tokens.left <= 1 && offer && <Link href="/shop">{offer}</Link>}
       </p>
 
+      {/* The one primary action on this screen. */}
+      <div className="card send-blind">
+        <strong>A blind date</strong>
+        <p>
+          {swipeGate ? (
+            <>
+              The show picks one of {shortName(character.name)}&apos;s matches where both said yes to a date, or one of this
+              season&apos;s house cast.
+            </>
+          ) : (
+            <>The show picks another creator&apos;s character (or a house character if nobody&apos;s around).</>
+          )}{" "}
+          You stay anonymous to each other unless you both agree to reveal yourselves.
+        </p>
+        <button type="button" disabled={busy !== null} onClick={() => sendOnDate(null)}>
+          Send {character.name} on a blind date
+        </button>
+      </div>
+
+      <details className="card settings">
+        <summary>Date settings (optional)</summary>
+        <div className="send-settings">
+          <label>
+            Show format
+            <select value={format} onChange={(e) => setFormat(e.target.value as FormatId)}>
+              {FORMATS.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            <span className="muted small field-help">{FORMATS.find((f) => f.id === format)?.blurb}</span>
+          </label>
+          <label>
+            Strategy
+            <select value={strategy} onChange={(e) => setStrategy(e.target.value as Strategy)}>
+              {STRATEGIES.map((s) => (
+                <option key={s} value={s}>
+                  {STRATEGY_LABELS[s]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Date budget <span className="muted">(fictional; can&apos;t be bought)</span>
+            <select value={budget} onChange={(e) => setBudget(Number(e.target.value) as GameBudget)}>
+              {GAME_BUDGETS.map((b) => (
+                <option key={b} value={b}>
+                  {formatGameBudget(b)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Secret agenda
+            <select value={agenda} onChange={(e) => setAgenda(e.target.value)}>
+              <option value="">Let the show decide</option>
+              {AGENDAS.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Your guess: how will your own AI&apos;s date end?
+            <select value={selfPick} onChange={(e) => setSelfPick(e.target.value)}>
+              <option value="">Skip</option>
+              {ENDINGS.map((end) => (
+                <option key={end} value={end}>
+                  {ENDING_LABELS[end]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="send-settings-wide">
+            A note in the pocket <span className="muted">(one sentence; your AI may or may not take it)</span>
+            <input type="text" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
+          </label>
+        </div>
+      </details>
+
+      {swipeGate && (
+        <div className="card">
+          <strong>💘 Swipe to meet someone new</strong>
+          <p>
+            A first date with another creator&apos;s character (a person&apos;s or an AI agent&apos;s) starts with a match.
+            Swipe for {shortName(character.name)}: a like both ways is a match, the two of them text, and each decides
+            whether they want a date. If both do, you book it.
+          </p>
+          <Link className="button-ghost" href={`/swipe?character=${character.id}`}>
+            Swipe for {shortName(character.name)}
+          </Link>
+        </div>
+      )}
+
+      {!swipeGate && openCharacters.length > 0 && (
+        <>
+          <h2>Open to dates</h2>
+          <p className="muted">
+            Characters whose creators — people and AI agents — said yes to being asked out. Their creators stay anonymous,
+            like on a blind date.
+          </p>
+          {compactList(openCharacters, openRow, "Open to dates")}
+        </>
+      )}
+
+      <p className="muted">
+        {swipeGate
+          ? "Or date one of this season's house cast now, no match needed: a handful the show fields each month. Either way, you can't steer the date."
+          : "Or one of this season's house cast — a handful the show fields each month. Either way, you can't steer the date."}
+      </p>
+      {compactList(partners, houseRow, "This season's house cast")}
+      {busy === "episode" && <p className="muted">The engine is deciding the outcome and the showrunner is writing it…</p>}
+      {error && <p className="error">{error}</p>}
+      {outOfTokens && (
+        <p>
+          {offer ? <Link href="/shop">{offer}</Link> : <Link href="/shop">Top up your tokens</Link>}{" "}
+          <span className="muted">(optional; tokens never add points)</span>
+        </p>
+      )}
+
+      {/* The Pro upsell last, below every way to send them on a date. */}
       <section className="card wizard-pro-card">
         <h2>
           <span className="pro-tag">✨ Pro</span> Portrait
@@ -1266,177 +1512,6 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           </p>
         )}
       </section>
-
-      <details className="card settings">
-        <summary>Date settings (optional)</summary>
-        <label>
-          Show format
-          <select value={format} onChange={(e) => setFormat(e.target.value as FormatId)}>
-            {FORMATS.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="muted">{FORMATS.find((f) => f.id === format)?.blurb}</p>
-        <label>
-          Strategy
-          <select value={strategy} onChange={(e) => setStrategy(e.target.value as Strategy)}>
-            {STRATEGIES.map((s) => (
-              <option key={s} value={s}>
-                {STRATEGY_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Date budget <span className="muted">(fictional; can&apos;t be bought)</span>
-          <select value={budget} onChange={(e) => setBudget(Number(e.target.value) as GameBudget)}>
-            {GAME_BUDGETS.map((b) => (
-              <option key={b} value={b}>
-                {formatGameBudget(b)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Secret agenda
-          <select value={agenda} onChange={(e) => setAgenda(e.target.value)}>
-            <option value="">Let the show decide</option>
-            {AGENDAS.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          A note in the pocket <span className="muted">(one sentence; your AI may or may not take it)</span>
-          <input type="text" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
-        </label>
-        <label>
-          Your guess: how will your own AI&apos;s date end?
-          <select value={selfPick} onChange={(e) => setSelfPick(e.target.value)}>
-            <option value="">Skip</option>
-            {ENDINGS.map((end) => (
-              <option key={end} value={end}>
-                {ENDING_LABELS[end]}
-              </option>
-            ))}
-          </select>
-        </label>
-      </details>
-
-      <div className="card">
-        <strong>A blind date</strong>
-        <p>
-          {swipeGate ? (
-            <>
-              The show picks one of {shortName(character.name)}&apos;s matches where both said yes to a date, or one of this
-              season&apos;s house cast.
-            </>
-          ) : (
-            <>The show picks another creator&apos;s character (or a house character if nobody&apos;s around).</>
-          )}{" "}
-          You stay anonymous to each other unless you both agree to reveal yourselves.
-        </p>
-        <button type="button" disabled={busy !== null} onClick={() => sendOnDate(null)}>
-          Send {character.name} on a blind date
-        </button>
-      </div>
-
-      {swipeGate && (
-        <div className="card">
-          <strong>💘 Swipe to meet someone new</strong>
-          <p>
-            A first date with another creator&apos;s character (a person&apos;s or an AI agent&apos;s) starts with a match.
-            Swipe for {shortName(character.name)}: a like both ways is a match, the two of them text, and each decides
-            whether they want a date. If both do, you book it.
-          </p>
-          <Link className="button" href={`/swipe?character=${character.id}`}>
-            Swipe for {shortName(character.name)}
-          </Link>
-        </div>
-      )}
-
-      {!swipeGate && openCharacters.length > 0 && (
-        <>
-          <h2>Open to dates</h2>
-          <p className="muted">
-            Characters whose creators — people and AI agents — said yes to being asked out. Their creators stay anonymous,
-            like on a blind date.
-          </p>
-          <ul className="gallery">
-            {openCharacters.map((o) => (
-              <li className="card" key={o.id}>
-                <div className="char">
-                  <Avatar seed={o.id} name={o.name} hue={o.hue} portraitSrc={o.portrait} size={44} />
-                  <div className="meta">
-                    <strong>
-                      {o.name}, {o.age}
-                    </strong>
-                    {o.agent ? <span className="badge badge-agent">🤖 Agent-made</span> : <span className="badge badge-open">💌 Open</span>}
-                  </div>
-                </div>
-                <p>{o.bio}</p>
-                <ul className="chips">
-                  {o.traits.map((trait) => (
-                    <li className="chip" key={trait}>
-                      {trait}
-                    </li>
-                  ))}
-                </ul>
-                <button type="button" disabled={busy !== null} onClick={() => sendOnDate(o.id)}>
-                  Ask {shortName(o.name)} out
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <p className="muted">
-        {swipeGate
-          ? "Or date one of this season's house cast now, no match needed: a handful the show fields each month. Either way, you can't steer the date."
-          : "Or one of this season's house cast — a handful the show fields each month. Either way, you can't steer the date."}
-      </p>
-      <ul className="gallery">
-        {partners.map((p) => (
-          <li className="card" key={p.id}>
-            <div className="char">
-              <Avatar seed={p.id} name={p.name} hue={p.hue ?? null} house size={44} />
-              <div className="meta">
-                <strong>
-                  {p.name}, {p.age}
-                </strong>
-                <span className="badge">House character</span>
-                {p.premium && <span className="badge">Premium · yours</span>}
-              </div>
-            </div>
-            {p.archetype && <p className="muted archetype">{p.archetype}</p>}
-            <p>{p.bio}</p>
-            <ul className="chips">
-              {p.traits.map((trait) => (
-                <li className="chip" key={trait}>
-                  {trait}
-                </li>
-              ))}
-            </ul>
-            <button type="button" disabled={busy !== null} onClick={() => sendOnDate(p.id)}>
-              Send on a date with {p.premium ? p.name : shortName(p.name)}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {busy === "episode" && <p className="muted">The engine is deciding the outcome and the showrunner is writing it…</p>}
-      {error && <p className="error">{error}</p>}
-      {outOfTokens && (
-        <p>
-          {offer ? <Link href="/shop">{offer}</Link> : <Link href="/shop">Top up your tokens</Link>}{" "}
-          <span className="muted">(optional; tokens never add points)</span>
-        </p>
-      )}
     </article>
   );
 }

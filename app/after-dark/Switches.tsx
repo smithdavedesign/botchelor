@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { requestJson } from "@/app/request";
 import type { Switchable } from "@/lib/adult/characters";
+import CharacterName from "@/app/CharacterName";
 
 /** Your characters and the house characters they date: a switch each (this season's cast is always in). */
 export default function Switches({ initial }: { initial: Switchable[] }) {
@@ -30,7 +31,7 @@ export default function Switches({ initial }: { initial: Switchable[] }) {
         {list.map((c) => (
           <li key={c.id} className="account-character">
             <span className="account-character-name">
-              {c.name} {c.house && <span className="badge">house</span>}
+              <CharacterName character={c} link={false} /> {c.house && <span className="badge">house</span>}
             </span>
             <label className="fact-private">
               <input

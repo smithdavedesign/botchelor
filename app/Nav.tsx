@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { afterDarkHref } from "@/lib/after-dark-host";
+import { openFeedback } from "@/lib/user-feedback-shared";
 
 /**
  * The primary nav links (the token meter and the logo sit outside these lists). David, 2026-10-22: Create isn't a nav
@@ -133,6 +134,17 @@ export default function Nav({
             </span>
           )}
         </Link>
+        {/* On a phone the floating Feedback button sat on forms (UX audit 2026-10-23): it lives in the menu there. */}
+        <button
+          type="button"
+          className="nav-feedback"
+          onClick={() => {
+            setOpen(false);
+            openFeedback();
+          }}
+        >
+          <span aria-hidden="true">💬</span> Give us feedback
+        </button>
       </div>
     </nav>
   );

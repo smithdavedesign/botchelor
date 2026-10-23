@@ -200,7 +200,11 @@ export default function OwnerControls(props: Props) {
           {isPrivate ? "Make public" : "Make private"}
         </button>
       </p>
-      {openToDates && (
+      {/* The rest folded (UX audit 2026-10-23: open, it was ~1,500px on a phone above the public card). The two switches
+          people use most stay out above it. */}
+      <details className="owner-settings">
+        <summary>Settings</summary>
+        {openToDates && (
         <div className="owner-talk">
           <label htmlFor={`audience-${props.id}`}>Who can swipe for them</label>
           <select id={`audience-${props.id}`} value={audience} disabled={busy} onChange={(e) => void changeAudience(e.target.value as Audience)}>
@@ -253,9 +257,10 @@ export default function OwnerControls(props: Props) {
         </div>
       )}
       <div className="owner-actions">
-        <span className="pro-tag">✨ Pro</span>
         <div className="owner-style">
-          <label htmlFor={`style-${props.id}`}>Portrait &amp; clip style</label>
+          <label htmlFor={`style-${props.id}`}>
+            Portrait &amp; clip style <span className="pro-tag">✨ Pro</span>
+          </label>
           <select id={`style-${props.id}`} value={style} disabled={busy} onChange={(e) => setStyle(e.target.value as PortraitStyle)}>
             {PORTRAIT_STYLES.map((s) => (
               <option key={s} value={s}>
@@ -301,6 +306,7 @@ export default function OwnerControls(props: Props) {
           Delete
         </button>
       </div>
+      </details>
       <p className={message?.error ? "owner-message error" : "owner-message muted small"} role="status" aria-live="polite">
         {message?.text}
         {message?.link && (

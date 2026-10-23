@@ -130,7 +130,7 @@ describe("Watch's airing soon: public dates still open to predictions, soonest f
 describe("the episode page's written recap sits behind a toggle when the theater exists", () => {
   it("wraps the recap in a closed <details> with a spoiler warning when there's a theater", () => {
     const html = renderToStaticMarkup(createElement(RecapToggle, { hasTheater: true, children: createElement("p", null, "Ending: Friends") }));
-    expect(html).toMatch(/^<details class="recap-toggle"><summary>Show the written recap \(it gives away the ending\)<\/summary>/);
+    expect(html).toMatch(/^<details class="recap-toggle"><summary><span class="recap-toggle-show">Show the written recap \(it gives away the ending\)<\/span><span class="recap-toggle-hide">Hide the written recap<\/span><\/summary>/);
     expect(html).not.toMatch(/<details[^>]*\sopen/);
     expect(html.indexOf("Ending: Friends")).toBeGreaterThan(html.indexOf("</summary>"));
     expect(html).toMatch(/Ending: Friends<\/p><\/div><\/details>$/);
