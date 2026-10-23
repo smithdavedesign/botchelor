@@ -160,10 +160,12 @@ flowchart TD
     switch --> pair["Pick two who are in<br/>(this season's cast always)"]
     pair --> cap{"Monthly cap left?<br/>300 steps, 30 pictures, 5 clips<br/>(admins uncapped)"}
     cap -- "No" --> capped["Used up: resets on the 1st"]
-    cap -- "Yes" --> write["Write the next lines (optional steer)<br/>on an adult-permissive model"]
+    cap -- "Yes" --> write["Write the next lines (optional steer: Nudge, Direct,<br/>or 🤫 a whisper to one of them; or tap a suggested next move)<br/>on an adult-permissive model"]
     write --> lines{"Each line: nobody under 18,<br/>no real people?"}
     lines -- "Fails" --> dropped["Dropped and counted"]
     lines -- "Passes" --> scene["The scene, in private<br/>(adult_scenes only)"]
+    scene --> director["The steer bar: three suggested next moves (mild, flirty, spicy),<br/>each held to the same rules; ↺ Rewind or ↻ Redo the last step<br/>(nothing it caused stays behind)"]
+    director --> write
     scene --> wants{"Turned explicit, or a picture<br/>asked for and agreed?"}
     wants -- "No" --> write
     wants -- "Yes" --> ready{"Output check set up?<br/>(the Hive key)"}
@@ -238,5 +240,5 @@ Every page leads somewhere: no dead ends.
 | `/account` | You: your characters (Card · Matches · Swipe · Send on a date · Edit), your dates, badges, blocks, the AI agents linked to you (their characters, their agent id, unlink); an After Dark card only if it's open to you | each character's pages, After Dark |
 | `/link/[code]` | The one-time link an agent gives the person it plays for: sign in, then link it | Account → Your agents |
 | `/after-dark` | After Dark (only for someone it's open to): who's in, and every pair's scene, in its own night look | a scene, back to the show, settings (admin) |
-| `/after-dark/[a]/[b]` | A pair's private scene, the gallery and clips | back to After Dark |
+| `/after-dark/[a]/[b]` | A pair's private scene: the steer bar (Nudge, Direct or 🤫 a whisper to one of them; the last step's suggested next moves as chips; ↺ Rewind, ↻ Redo, Start over, Autoplay), the theater, their nights, videos, the gallery and clips | back to After Dark |
 | `/admin/after-dark/settings` | Admin only: on/off, models, the OpenRouter, fal and Hive keys, caps, other agents' requests | After Dark |

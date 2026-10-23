@@ -518,15 +518,31 @@ export async function bumpFacts(db: Db, ids: readonly string[]): Promise<void> {
   await db.query(`update adult_facts set uses = uses + 1, last_used_at = now() where id = any($1)`, [[...new Set(ids)]]).catch(() => {});
 }
 
+/** A fact's uses and last use, as they were before a step cited it (a rewind puts them back: restoreFactUses). */
+export type FactUse = Pick<AdultFact, "id" | "uses" | "last_used_at">;
+
+/** Puts cited facts' uses and last use back to what they were: a rewound step's citations leave nothing behind. */
+export async function restoreFactUses(db: Db, before: readonly FactUse[]): Promise<void> {
+  for (const f of before) {
+    await db.query(`update adult_facts set uses = $2, last_used_at = $3 where id = $1`, [f.id, Math.max(0, f.uses), f.last_used_at]).catch(() => {});
+  }
+}
+
+/** What one extraction changed, for a rewind to take back: the facts it added, and the ones the cap dropped, as they were. */
+export type FactsChange = { added: string[]; dropped: AdultFact[] };
+
 /**
  * Extracts a chapter's facts and keeps them (a chapter closing, a night saved): one call, deduped against what's
- * remembered, the memory held to its cap. Never throws; the number of facts added.
+ * remembered, the memory held to its cap. Never throws; what it added and dropped (on a failure part way, what it had).
  */
-export async function rememberFacts(db: Db, ownerId: string, a: Character | null, b: Character | null, lines: readonly SceneLine[]): Promise<number> {
-  if (!a || !b || lines.length < MIN_LINES_TO_EXTRACT) return 0;
+export async function rememberFactsChange(db: Db, ownerId: string, a: Character | null, b: Character | null, lines: readonly SceneLine[]): Promise<FactsChange> {
+  // What's been written so far, so even a failure part way can be taken back.
+  const kept: string[] = [];
+  let removed: AdultFact[] = [];
+  if (!a || !b || lines.length < MIN_LINES_TO_EXTRACT) return { added: kept, dropped: removed };
   try {
     const incoming = await extractFacts(await adultModel(db), a, b, lines);
-    if (!incoming.length) return 0;
+    if (!incoming.length) return { added: kept, dropped: removed };
     const existing = await loadPairFacts(db, ownerId, a.id, b.id);
     const { added, dropped } = mergeFacts(existing, incoming, () => crypto.randomUUID(), new Date().toISOString());
     for (const f of added) {
@@ -540,10 +556,34 @@ export async function rememberFacts(db: Db, ownerId: string, a: Character | null
         f.quote,
         f.source,
       ]);
+      kept.push(f.id);
     }
-    if (dropped.length) await db.query(`delete from adult_facts where id = any($1)`, [dropped]);
-    return added.length;
+    if (dropped.length) {
+      await db.query(`delete from adult_facts where id = any($1)`, [dropped]);
+      const gone = new Set(dropped);
+      removed = existing.filter((f) => gone.has(f.id));
+    }
+    return { added: kept, dropped: removed };
   } catch {
-    return 0;
+    return { added: kept, dropped: removed };
+  }
+}
+
+/** rememberFactsChange, for callers that only need the count. */
+export async function rememberFacts(db: Db, ownerId: string, a: Character | null, b: Character | null, lines: readonly SceneLine[]): Promise<number> {
+  return (await rememberFactsChange(db, ownerId, a, b, lines)).added.length;
+}
+
+/** Takes back one extraction (a rewound chapter close): the facts it added go, the ones it dropped come back as they were. */
+export async function undoFacts(db: Db, ownerId: string, change: FactsChange): Promise<void> {
+  if (change.added.length) await db.query(`delete from adult_facts where owner_id = $1 and id = any($2)`, [ownerId, change.added]).catch(() => {});
+  for (const f of change.dropped) {
+    await db
+      .query(
+        `insert into adult_facts (id, owner_id, character_id, other_id, kind, fact, quote, source, created_at, last_used_at, uses)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) on conflict (id) do nothing`,
+        [f.id, ownerId, f.character_id, f.other_id, f.kind, f.fact, f.quote, f.source, f.created_at, f.last_used_at, f.uses],
+      )
+      .catch(() => {});
   }
 }

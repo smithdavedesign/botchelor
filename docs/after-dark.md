@@ -126,6 +126,32 @@ changes. The runbook (accounts, DNS at Wix, env vars, copying the media, verifyi
 a month) is `docs/after-dark-hosting.md`; the code is `lib/after-dark-host.ts`, `lib/object-store.ts` (Bunny) and
 `scripts/media-to-bunny.mjs`.
 
+### Terms fixes (2026-10-22)
+
+Three cheap fixes from the day's terms review:
+
+- **Text runs only on hosts whose terms allow it.** `:nitro` sorted all five of DeepSeek V3.1's OpenRouter hosts by
+  throughput, so a step could land on SiliconFlow (bans "obscene, pornographic, indecent" content), SambaNova (bars
+  making the service available to third parties) or Mara (not reviewed). Every After Dark OpenRouter call now sends
+  `provider: { only: ["coreweave", "deepinfra"], sort: "throughput" }` (lib/adult/mode.ts): CoreWeave first, DeepInfra
+  its only fallback. `only` is a hard allowlist, so `allow_fallbacks` keeps its default (`false` would allow only the
+  top host). A model neither host serves (the sim's Dolphin, most eval arms, the code default `mistral-large`) now
+  fails with OpenRouter's 404; `ADULT_TEXT_PROVIDERS` (comma-separated slugs) replaces the list once a host's terms are
+  read. The local `ADULT_MODE` model is untouched.
+- **Google Analytics never sees After Dark, and its pages say they're adult.** A `<head>` script (lib/ga-guard.ts)
+  sets gtag.js's own opt-out (`window['ga-disable-G-VHL1LZTPHL']`) before gtag loads on `/after-dark/*` and
+  `/admin/after-dark/*`, on a page reached from one, and before an in-app navigation reaches one. It stays on in that
+  tab until the next full page load, because GA's next in-app page_view would carry the After Dark address as its
+  page_referrer. Nothing sends a page title or address explicitly. In Chromium, against the real gtag.js (every hit
+  answered locally): normal pages still counted, and no hit came from or after After Dark. Vercel Web Analytics and
+  Speed Insights still count these pages, by path and route only (no titles, no cookies). The After Dark layouts add
+  `<meta name="rating" content="adult">` and the RTA label (lib/adult/rating.ts).
+- **Hive's age check answers from three labels.** Hive's terms (1.5) count its VLM as generative, which (3.2) bars
+  non-PG content without written permission, "solely when used for any purpose other than receiving a response
+  confined to a defined set of response labels". The check now sends a JSON schema (`response_format`, `answer` one of
+  ADULTS / MINOR / UNSURE; lib/adult/check.ts) and reads the JSON answer, falling back to the first word. Anything but
+  ADULTS still refuses. One live call on a PG portrait answered `{"answer": "ADULTS"}` in half a second.
+
 ## Build order
 
 1. **Output moderation (#1)** — or keep images off and ship **text-first**. Safety, first.
@@ -510,7 +536,8 @@ Timed on the scene prompt (about 1,400 tokens in, 600 out): DeepInfra 65–151 s
 SiliconFlow about 30 s, CoreWeave 6–7.6 s (about 90 tokens a second); SambaNova answered 429 every time. So
 `text_model` is `deepseek/deepseek-chat-v3.1:nitro`, OpenRouter's throughput-first routing, which picked CoreWeave each
 time: two production steps through the eval route took 11 seconds, at about 0.2¢ a step (twice DeepInfra's price). A
-setting, not code: the plain id goes back to the cheapest-first routing.
+setting, not code: the plain id went back to the cheapest-first routing. Since the terms fixes (#6), every call is held
+to CoreWeave and DeepInfra, fastest first, whatever the id says.
 
 ## Videos with both of them in (2026-10-22)
 
@@ -573,3 +600,55 @@ It showed two weak spots, both fixed in the follow-up:
 - **"Extend"** from a shot's last frame, for longer moments.
 - **Wan 3.0 reference-to-video** as a one-step option.
 - **Terms:** Venice's model list marks Wan 3.0 "anonymized", which means a third party runs it, while `qwen-edit-uncensored` and LongCat are Venice's own. Get Venice's word in writing on explicit output for both kinds, along with the pictures question already open.
+
+## The director: suggested next moves, rewind and redo, whisper to one (2026-10-22)
+
+David picked these from the competitor read (Candy, OurDream, SpicyChat, Secrets, Nectar: nearly all have them). Code:
+`lib/adult/director.ts` (pure), `lib/adult/scenes.ts` (`continueScene`, `rewindScene`, `redoScene`, `forgetWhisper`),
+the scene route, and the steer bar in `SceneWriter.tsx` (the theater shows the suggestions too).
+
+**Suggested next moves.** Each step's reply (prompt v2) also carries `"suggestions": {"mild", "flirty", "spicy"}`: three
+one-tap steers for what could happen next, each under 80 characters. Every one is held to the rules a line is
+(`holdSuggestion`), for the scene as the step leaves it:
+- the two lines (`checkAdultText`), and no one else on the show by name (the name guard);
+- the pace: at most one stage further than the scene stands (`stageAsked`: what it plainly shows, by the stage floor's
+  signs, or a stage on when it asks for more: "further", "all the way", "into bed");
+- the public-place cap: somewhere public, nothing past kissing unless it has them leave for somewhere private first;
+- any limits the rules bring (the pair's hard-nos, next).
+
+One that fails is replaced by a plain one of the same heat (`fallbackSuggestion`, held to the same rules; the spicy one
+somewhere public is "One of them suggests they leave for somewhere private"), and the step's flags count how many
+(`suggestions_replaced`). They're stored on the scene (`adult_scenes.suggestions`), so a reload shows them, and go when
+the night starts over or the scene is set somewhere new. A chip sends its text as a Nudge. Prompt v1 (kept word for
+word for the A/B) asks for none, so it shows none.
+
+**Rewind and redo.** Each step leaves what a rewind needs on `adult_scenes.undo`, a stack 5 deep (`UNDO_DEPTH`): the scene
+before it (its lines by count, since within a chapter they only grow; stage, place, set, cut, place history, moves,
+picture note, suggestions, whispers), what it was asked (steer, Nudge or Direct, whisper), the uses of the facts its
+lines cited, and, when it filled the chapter, what the chapter's close did. **Rewind** puts all of it back:
+- the facts its lines cited get their `uses` and `last_used_at` back;
+- a chapter close is taken back whole: its saved night goes (its lines come back to the scene, with their votes and
+  steps), the PG notes are put back as they were (or removed where there were none), the facts it extracted go, and the
+  ones the cap dropped to make room come back as they were;
+- votes on the lines that went are dropped (their line numbers will be the next step's);
+- the step's log entry is never deleted: it's marked `rewound`, with when and the lines it wrote, and the rewind is a
+  step of its own (`kind: "rewind"`), so /why reads honestly.
+
+What stays: the step's pictures (made and checked; pictures are off while Venice is out of credit anyway), and a set it
+drew (sets are a shared library: the scene goes back to the set it was on). Start over and Set the scene clear the stack,
+so a rewind never undoes a paid cut or a filed night. **Redo** is a rewind and the same step again: the same steer, the
+same strength, the same whisper. It counts for the month like any step, and is refused before anything is taken back
+when the month's cap is reached. Both buttons sit in the steer bar.
+
+**Whisper to one.** The steer bar's "How" has two more choices besides Nudge and Direct: 🤫 one of them. The words then
+go to that character alone (`adult_steps.whisper` on the step it's sent with; the scene keeps the ones still running in
+`adult_scenes.whispers`, one each at most, so the viewer can hold both secrets at once). The prompt plays it as that
+character's own secret intention for this step and the next ("A secret only Juniper knows: …; Rafe doesn't know it, and
+nothing in these lines lets him find out… never said aloud, word for word or nearly"). It's held to the same checks as
+a steer: refused (422, never stored, only that one was refused) when it crosses the two lines, and a line that says it
+out loud (most of it word for word, the steer-copy rule) is dropped, or loses the action that does (`whispers_said`).
+A whisper never lifts the public-place cap (it's not a Direct steer). The page shows a 🤫 chip for each one running,
+with whom it went to and a × to forget it.
+
+**Screenshots** (`npm run screenshots:after-dark`, a stub model writing PG placeholder lines):
+`docs/screenshots/after-dark-director-*.png`.

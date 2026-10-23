@@ -180,13 +180,21 @@ function fakeFal() {
   return seen;
 }
 
-/** Hive's replies (V3): moderation with no child, and the VLM saying everyone's an adult; or what a test passes in. */
+/**
+ * Hive's replies (V3): moderation with no child, and the VLM saying everyone's an adult, in the JSON its schema holds it
+ * to (the live reply, 2026-10-22); or what a test passes in.
+ */
 const CLEAN_MOD = { output: [{ classes: [{ class: "yes_child_present", value: 0.01 }, { class: "no_child_present", value: 0.99 }, { class: "general_nsfw", value: 0.98 }] }] };
-const ADULTS = { choices: [{ message: { role: "assistant", content: "ADULTS" } }] };
+const vlmSays = (content: string) => ({ choices: [{ message: { role: "assistant", content } }] });
+const ADULTS = vlmSays('{"answer": "ADULTS"}');
+/** The VLM request bodies the fake saw. */
+const vlmBodies: Record<string, unknown>[] = [];
 function fakeHive(vlm: unknown = ADULTS, mod: unknown = CLEAN_MOD, fail = false) {
   const seen: string[] = [];
+  vlmBodies.length = 0;
   setCheckFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
     seen.push(String((init?.headers as Record<string, string>)?.authorization ?? ""));
+    if (String(input) === HIVE_VLM) vlmBodies.push(JSON.parse(String(init?.body)));
     if (fail) return new Response("down", { status: 500 });
     return Response.json(String(input) === HIVE_VLM ? vlm : mod);
   });
@@ -277,8 +285,10 @@ describe("the output check (Hive)", () => {
 
   const cases: [string, unknown, unknown, boolean, RegExp][] = [
     ["a child present", ADULTS, { output: [{ classes: [{ class: "no_child_present", value: 0.6 }, { class: "yes_child_present", value: 0.4 }] }] }, false, /moderation: yes_child_present/],
-    ["the VLM says a minor", { choices: [{ message: { content: "MINOR" } }] }, CLEAN_MOD, false, /age check: MINOR/],
-    ["the VLM is unsure", { choices: [{ message: { content: "Unsure." } }] }, CLEAN_MOD, false, /age check: UNSURE/],
+    ["the VLM says a minor", vlmSays('{"answer": "MINOR"}'), CLEAN_MOD, false, /age check: MINOR/],
+    ["the VLM is unsure", vlmSays('{"answer": "UNSURE"}'), CLEAN_MOD, false, /age check: UNSURE/],
+    ["a plain-word reply that isn't ADULTS", vlmSays("Unsure."), CLEAN_MOD, false, /age check: UNSURE/],
+    ["a JSON reply without an answer", vlmSays('{"verdict": "ADULTS"}'), CLEAN_MOD, false, /age check: no answer/],
     ["an unreadable reply", {}, CLEAN_MOD, false, /age check: no answer/],
     ["no child scores", ADULTS, { output: [] }, false, /no child scores/],
     ["Hive down", ADULTS, CLEAN_MOD, true, /couldn't run/],
@@ -302,12 +312,41 @@ describe("the output check (Hive)", () => {
 
   it("reads Hive's V3 replies, and sends the one secret key as a Bearer token", async () => {
     expect(classScores(CLEAN_MOD).map((c) => c.cls)).toEqual(["yes_child_present", "no_child_present", "general_nsfw"]);
+    // The schema's JSON answer, whatever its spacing; the first word of a plain reply when the schema is ignored.
     expect(vlmAnswer(ADULTS)).toBe("ADULTS");
-    expect(vlmAnswer({ choices: [{ message: { content: " adults." } }] })).toBe("ADULTS");
+    expect(vlmAnswer(vlmSays('{"answer":"MINOR"}'))).toBe("MINOR");
+    expect(vlmAnswer(vlmSays(' { "answer" : " unsure " } '))).toBe("UNSURE");
+    expect(vlmAnswer(vlmSays("ADULTS"))).toBe("ADULTS");
+    expect(vlmAnswer(vlmSays(" adults."))).toBe("ADULTS");
+    // Fails closed: a JSON reply without a string answer is no answer, and an answer off the labels is never ADULTS.
+    expect(vlmAnswer(vlmSays('{"verdict": "ADULTS"}'))).toBe("");
+    expect(vlmAnswer(vlmSays('{"answer": ["ADULTS"]}'))).toBe("");
+    expect(vlmAnswer(vlmSays('{"answer": "ADULTS AND MINOR"}'))).not.toBe("ADULTS");
+    expect(vlmAnswer(vlmSays('{"answer": "ADUL'))).not.toBe("ADULTS");
     const seen = fakeHive();
     expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/pic.png")).toEqual({ ok: true });
     expect(seen).toEqual(["Bearer placeholder-hive", "Bearer placeholder-hive"]);
     expect(await checkOutput(null, "https://cdn.fal.test/pic.png")).toMatchObject({ ok: false });
+  });
+
+  it("asks the VLM for an answer held to three labels by a JSON schema (Hive's terms: not generative use)", async () => {
+    fakeHive();
+    expect(await checkOutput("placeholder-hive", { base64: "UklGRg==", mime: "image/webp" })).toEqual({ ok: true });
+    expect(vlmBodies).toHaveLength(1);
+    const body = vlmBodies[0];
+    expect(body).toMatchObject({ model: "hive/vision-language-model", temperature: 0 });
+    // The shape Hive's docs give and its API answered on 2026-10-22 ({"answer": "ADULTS"} for a PG portrait).
+    expect(body.response_format).toEqual({
+      type: "json_schema",
+      json_schema: {
+        name: "age_check",
+        schema: { type: "object", properties: { answer: { type: "string", enum: ["ADULTS", "MINOR", "UNSURE"] } }, required: ["answer"], additionalProperties: false },
+        strict: true,
+      },
+    });
+    expect(JSON.stringify(body.messages)).toContain("data:image/webp;base64,UklGRg==");
+    // Room for the whole JSON answer: a cut-off reply would refuse a good picture.
+    expect(body.max_tokens).toBeGreaterThanOrEqual(16);
   });
 
   it("checks a clip's frames with moderation only (its picture already passed the age check)", async () => {
