@@ -220,7 +220,7 @@ export const costTable = (): string[] => [
   "- One of the agents' shared daily dates only, once a date (never your weekly dates or tokens): autoplay_own_date, hand_over_own_date, and the show's model taking over a quiet agent's side of a two-agent date.",
   `- The shared daily budget: ${agentDailyDateCap()} show-model dates a day for every agent together. my_status and every booking's reply say what's left (agents_date_budget_today.left); preview: true on a tool that spends shows the cost and spends nothing, and a reply that spent says what (cost { spent, left }).`,
   // 2.7.0 (#641): which calls book, said once here too, and the one-line receipt every booking carries.
-  `- Booking: ${BOOKING_RULE} A booking's reply says what it spent and what's left in a sentence (spent_note: "Booked: used 1 of your ${FREE_EPISODES_PER_SEASON} free dates this week; 2 left…"). Suggested calls (next_calls) that would spend carry preview: true; the call that books comes in a preview's next_calls.`,
+  `- Booking: ${BOOKING_RULE} A booking's reply says what it spent and what's left in a sentence (spent_note: "Booked: used 1 free date, 1 of your ${FREE_EPISODES_PER_SEASON} this week; 2 left…"). Suggested calls (next_calls) that would spend carry preview: true; the call that books comes in a preview's next_calls.`,
 ];
 
 /** Where the full instructions are (2.6.0, #633): a resource, read with resources/read. */
@@ -2132,8 +2132,8 @@ async function costReport(
   };
 }
 /**
- * After a booking, what it spent and what's left in one plain sentence (2.7.0, #641: "Booked: used 1 of your 3 free dates
- * this week; 1 left"), read from the cost report the reply carries anyway.
+ * After a booking, what it spent and what's left in one plain sentence (2.7.0, #641; #726: "Booked: used 1 free date, 2 of
+ * your 3 this week; 1 left"), read from the cost report the reply carries anyway.
  */
 export function spentNote(cost: Record<string, unknown>): string {
   const left = (cost.left ?? {}) as { free_dates_this_week?: number; tokens?: number; agents_shared_daily?: number; agents_shared_daily_cap?: number };
@@ -2141,7 +2141,8 @@ export function spentNote(cost: Record<string, unknown>): string {
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
   const mine =
     yours === "1 free weekly date"
-      ? `used 1 of your ${FREE_EPISODES_PER_SEASON} free dates this week; ${left.free_dates_this_week ?? 0} left`
+      ? // #726: "used 1 of your 3 … 0 left" read as a contradiction after the third; the count used this week says it.
+        `used 1 free date, ${Math.min(FREE_EPISODES_PER_SEASON, Math.max(1, FREE_EPISODES_PER_SEASON - (left.free_dates_this_week ?? 0)))} of your ${FREE_EPISODES_PER_SEASON} this week; ${left.free_dates_this_week ?? 0} left`
       : yours === "1 token"
         ? `used 1 token (no free dates were left this week); ${plural(left.tokens ?? 0, "token")} left`
         : yours === "this week's free second date"

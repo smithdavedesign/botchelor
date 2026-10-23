@@ -122,7 +122,7 @@ describe("#641: a wait never books, and a spending call is suggested as a previe
     scriptedModel([episodeJson()]);
     const b = (await call(s.next_calls[0].tool, s.next_calls[0].args, A.ctx)).structuredContent;
     expect(b).toMatchObject({ second_date_of: booked.episode.id });
-    expect(b.spent_note).toMatch(new RegExp(`^Booked: used 1 of your 3 free dates this week; ${free - 1} left, and 1 of the \\d+ show-model dates all agents share today \\(\\d+ left\\)\\.$`));
+    expect(b.spent_note).toMatch(new RegExp(`^Booked: used 1 free date, ${4 - free} of your 3 this week; ${free - 1} left, and 1 of the \\d+ show-model dates all agents share today \\(\\d+ left\\)\\.$`));
     const keys = Object.keys(b);
     expect(keys.indexOf("spent_note")).toBe(keys.indexOf("episode") + 1);
     expect(await freeLeft(A.ctx)).toBe(free - 1);
@@ -136,7 +136,7 @@ describe("#641: a wait never books, and a spending call is suggested as a previe
     scriptedModel([episodeJson()]);
     const s = (await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 10, confirm: true }, A.ctx)).structuredContent;
     expect(s).toMatchObject({ second_date_of: booked.episode.id, returned_because: "new", waited_for: "the first date to air" });
-    expect(s.spent_note).toMatch(/^Booked: used 1 of your 3 free dates this week; 1 left/);
+    expect(s.spent_note).toMatch(/^Booked: used 1 free date, 2 of your 3 this week; 1 left/);
     expect(await t.count("episodes")).toBe(episodes + 1);
     // preview: true wins over confirm: nothing more is booked.
     const both = (await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 1, confirm: true, preview: true }, A.ctx)).structuredContent;
@@ -226,7 +226,7 @@ describe("#641: a wait never books, and a spending call is suggested as a previe
     scriptedModel([episodeJson()]);
     const yes = (await call("answer_match", { character_id: B.id, with: A.id, yes: true }, B.ctx)).structuredContent;
     expect(yes.accepted_proposal).toBe(true);
-    expect(yes.spent_note).toMatch(/^Booked: used 1 of your 3 free dates this week; 2 left, and 1 of the \d+ show-model dates all agents share today/);
+    expect(yes.spent_note).toMatch(/^Booked: used 1 free date, 1 of your 3 this week; 2 left, and 1 of the \d+ show-model dates all agents share today/);
     // On a plain match, a preview says answering is free.
     const { A: X, B: Y } = await matched("Pell Ortega", "Wren Pike");
     const plain = (await call("answer_match", { character_id: X.id, with: Y.id, preview: true }, X.ctx)).structuredContent;
@@ -237,7 +237,9 @@ describe("#641: a wait never books, and a spending call is suggested as a previe
   it("every booking says what it spent and what's left; the cost label in _meta is short", async () => {
     const A = await agentWith("Ada Lumen");
     const booked = await houseDate(A.ctx, A.id, "friends");
-    expect(booked.spent_note).toMatch(/^Booked: used 1 of your 3 free dates this week; 2 left, and 1 of the \d+ show-model dates all agents share today \(\d+ left\)\.$/);
+    expect(booked.spent_note).toMatch(/^Booked: used 1 free date, 1 of your 3 this week; 2 left, and 1 of the \d+ show-model dates all agents share today \(\d+ left\)\.$/);
+    // #726: after the third free date it says 3 of 3 used and 0 left, not "used 1 of your 3 … 0 left".
+    expect(spentNote({ yours: "1 free weekly date", left: { free_dates_this_week: 0 } })).toBe("Booked: used 1 free date, 3 of your 3 this week; 0 left.");
     expect(spentNote({ yours: "1 token", agents_shared_daily: "counted one", left: { free_dates_this_week: 0, tokens: 4, agents_shared_daily: 9, agents_shared_daily_cap: 12 } })).toBe(
       "Booked: used 1 token (no free dates were left this week); 4 tokens left, and 1 of the 12 show-model dates all agents share today (9 left).",
     );
