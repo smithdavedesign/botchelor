@@ -4,14 +4,18 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { FRAMINGS, TURN_ONS, type FramingId, type TurnOnId } from "@/lib/adult/profile";
 import type { AdultScene, ProfileView } from "@/lib/adult/scenes";
+import type { CharacterRef } from "@/lib/game";
+import CharacterName from "@/app/CharacterName";
 
 /**
  * What they're into, and how they know each other (lib/adult/profile.ts): the pair's framing (the viewer's, per pair),
  * and each character's private turn-ons, for a character whose profile the viewer may set (their own; an admin, the
- * house cast). Nothing here is ever shown on the show. Loaded when opened.
+ * house cast). Nothing here is ever shown on the show. Loaded when opened. One character's turn-ons at a time, picked by a
+ * two-way switch with their faces (the two lists of the same chips, one under the other, read as one long repeat).
  */
-export default function Profile({ scene, onScene }: { scene: AdultScene; onScene: (scene: AdultScene) => void }) {
+export default function Profile({ scene, characters, onScene }: { scene: AdultScene; characters?: [CharacterRef, CharacterRef]; onScene: (scene: AdultScene) => void }) {
   const [profile, setProfile] = useState<ProfileView | null>(null);
+  const [side, setSide] = useState<"a" | "b">("a");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const first = (n: string) => n.split(/\s+/)[0];
@@ -69,32 +73,45 @@ export default function Profile({ scene, onScene }: { scene: AdultScene; onScene
       {!profile ? (
         !error && <p className="muted small">Loading…</p>
       ) : (
-        (["a", "b"] as const).map((who) => {
-          const c = who === "a" ? scene.a : scene.b;
-          if (!profile[who].editable) {
+        <>
+          <div className="ad-side-switch" role="radiogroup" aria-label="Whose turn-ons">
+            {(["a", "b"] as const).map((who) => {
+              const c = characters?.[who === "a" ? 0 : 1] ?? (who === "a" ? scene.a : scene.b);
+              return (
+                <button key={who} type="button" role="radio" aria-checked={side === who} className={side === who ? "on" : ""} onClick={() => setSide(who)}>
+                  <CharacterName character={c} label={first(c.name)} link={false} size={22} />
+                </button>
+              );
+            })}
+          </div>
+          {(() => {
+            const who = side;
+            const c = who === "a" ? scene.a : scene.b;
+            if (!profile[who].editable) {
+              return (
+                <p className="muted small">
+                  {first(c.name)}&apos;s turn-ons are private to {first(c.name)}&apos;s owner.
+                </p>
+              );
+            }
             return (
-              <p key={who} className="muted small">
-                {first(c.name)}&apos;s turn-ons are private to {first(c.name)}&apos;s owner.
-              </p>
+              <fieldset key={who} className="ad-turn-ons">
+                <legend>{first(c.name)} is into (private, never on the show)</legend>
+                <div className="ad-chip-row" role="group" aria-label={`What ${first(c.name)} is into`}>
+                  {TURN_ONS.map((t) => {
+                    const on = profile[who].turn_ons.includes(t.id);
+                    return (
+                      <button key={t.id} type="button" className={`ad-chip${on ? " on is-turn-on" : ""}`} aria-pressed={on} disabled={busy} onClick={() => toggle(who, t.id)}>
+                        {on ? "♥ " : ""}
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
             );
-          }
-          return (
-            <fieldset key={who} className="ad-turn-ons">
-              <legend>{first(c.name)} is into (private, never on the show)</legend>
-              <div className="ad-chip-row" role="group" aria-label={`What ${first(c.name)} is into`}>
-                {TURN_ONS.map((t) => {
-                  const on = profile[who].turn_ons.includes(t.id);
-                  return (
-                    <button key={t.id} type="button" className={`ad-chip${on ? " on is-turn-on" : ""}`} aria-pressed={on} disabled={busy} onClick={() => toggle(who, t.id)}>
-                      {on ? "♥ " : ""}
-                      {t.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-          );
-        })
+          })()}
+        </>
       )}
       <p className="muted small">A turn-on one of your hard nos rules out never reaches the scene.</p>
     </details>

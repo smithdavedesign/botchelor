@@ -91,6 +91,8 @@ export default function SceneWriter({
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   // Autoplay (lib/adult/autoplay.ts): one switch for the page and the theater. Each paces its own steps.
   const [autoplay, setAutoplay] = useState(false);
+  // Rewind, Redo and Start over: in a "⋯ More" fold on a phone (the sticky bar took 400px), always out on a wider screen.
+  const [more, setMore] = useState(false);
   const writing = useRef(false);
   const pause = useRef(0);
   function switchAutoplay(on: boolean) {
@@ -272,7 +274,7 @@ export default function SceneWriter({
         <p className="muted">{scene.chapter > 1 ? `Chapter ${scene.chapter} starts here: write the next lines.` : "Nothing yet. Write the first lines, or steer it first."}</p>
       )}
       {note && (
-        <p className={note.error ? "error" : "muted small"} role={note.error ? "alert" : "status"}>
+        <p className={note.error ? "error ad-note-error" : "muted small"} role={note.error ? "alert" : "status"}>
           {note.text}
         </p>
       )}
@@ -319,54 +321,75 @@ export default function SceneWriter({
             ))}
           </p>
         )}
-        <label htmlFor="after-dark-direction">{whisperTo ? `Whisper to ${nameOf(whisperTo)} (only ${nameOf(whisperTo)} knows it)` : "Steer it (optional)"}</label>
-        <span className="after-dark-steer-mode" role="radiogroup" aria-label="How">
-          <label title="Worked toward at the scene's own pace">
+        {/* The label stays for screen readers on a phone, where the placeholder says the same and the room is the bar's. */}
+        <label htmlFor="after-dark-direction" className="ad-steer-label">
+          {whisperTo ? `Whisper to ${nameOf(whisperTo)} (only ${nameOf(whisperTo)} knows it)` : "Steer it (optional)"}
+        </label>
+        <span className="after-dark-steer-mode ad-segmented" role="radiogroup" aria-label="How">
+          <label title="Worked toward at the scene's own pace" className={!whisperTo && steerMode === "nudge" ? "on" : ""}>
             <input type="radio" name="steer-mode" checked={!whisperTo && steerMode === "nudge"} onChange={() => (setWhisperTo(null), setSteerMode("nudge"))} /> Nudge
           </label>
-          <label title="Done now: it can skip ahead">
+          <label title="Done now: it can skip ahead" className={!whisperTo && steerMode === "direct" ? "on" : ""}>
             <input type="radio" name="steer-mode" checked={!whisperTo && steerMode === "direct"} onChange={() => (setWhisperTo(null), setSteerMode("direct"))} /> Direct
           </label>
           {(["a", "b"] as const).map((who) => (
-            <label key={who} title={`A secret for ${nameOf(who)} alone: ${nameOf(other(who))} won't know it`}>
+            <label key={who} title={`A secret for ${nameOf(who)} alone: ${nameOf(other(who))} won't know it`} className={whisperTo === who ? "on" : ""}>
               <input type="radio" name="steer-mode" checked={whisperTo === who} onChange={() => setWhisperTo(who)} /> 🤫{" "}
               <CharacterName character={who === "a" ? characters[0] : characters[1]} label={nameOf(who)} link={false} size={18} />
             </label>
           ))}
         </span>
-        <input
-          id="after-dark-direction"
-          value={direction}
-          maxLength={whisperTo ? 200 : 300}
-          onChange={(e) => setDirection(e.target.value)}
-          placeholder={whisperTo ? `${nameOf(other(whisperTo))} wants you to take the lead…` : "They go back to hers…"}
-          disabled={busy}
-        />
-        <p className="ad-steer-buttons">
-          <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim())}>
-            {busy ? "Writing…" : whisperTo ? "Whisper and write" : "Write the next lines"}
-          </button>{" "}
-          <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ rewind: true })} title={scene.rewind?.depth ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
-            ↺ Rewind
-          </button>{" "}
-          <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ redo: true })} title={redoTitle}>
-            ↻ Redo
-          </button>{" "}
-          <button type="button" className="button-ghost" disabled={busy || !scene.lines.length} onClick={() => void send({ reset: true })}>
-            Start over
-          </button>{" "}
+        <div className="ad-steer-row">
+          <input
+            id="after-dark-direction"
+            value={direction}
+            maxLength={whisperTo ? 200 : 300}
+            onChange={(e) => setDirection(e.target.value)}
+            placeholder={whisperTo ? `${nameOf(other(whisperTo))} wants you to take the lead…` : "Steer it (optional): they go back to hers…"}
+            disabled={busy}
+          />
+          <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim())} title={whisperTo ? "Whisper and write the next lines" : "Write the next lines"}>
+            {busy ? (
+              "Writing…"
+            ) : (
+              <>
+                <span className="ad-wide-only">{whisperTo ? "Whisper and write" : "Write the next lines"}</span>
+                <span className="ad-phone-only">{whisperTo ? "Whisper" : "Write"}</span>
+              </>
+            )}
+          </button>
+        </div>
+        <div className="ad-steer-buttons">
           <label className="after-dark-autoplay" title="It carries on by itself, no button needed, until the chapter ends">
             <input type="checkbox" checked={autoplay} onChange={(e) => switchAutoplay(e.target.checked)} /> Autoplay
           </label>
-        </p>
+          {(scene.lines.length > 0 || Boolean(scene.rewind?.depth)) && (
+            <div className={`ad-more${more ? " open" : ""}`}>
+              <button type="button" className="button-ghost small ad-more-toggle" aria-expanded={more} onClick={() => setMore((v) => !v)}>
+                ⋯ More
+              </button>
+              <div className="ad-more-items">
+                <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ rewind: true })} title={scene.rewind?.depth ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
+                  ↺ Rewind
+                </button>
+                <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ redo: true })} title={redoTitle}>
+                  ↻ Redo
+                </button>
+                <button type="button" className="button-ghost" disabled={busy || !scene.lines.length} onClick={() => void send({ reset: true })}>
+                  Start over
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </form>
       {/* The viewer's limits for the pair, and what the two of them remember (both theirs to see and change): under the
           steer bar, which settles into its place above them, so it never covers them. */}
       <div className="ad-panels">
         <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
         <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits) => send({ limits })} />
-        <Profile scene={scene} onScene={setScene} />
-        <Memory a={scene.a} b={scene.b} onScene={setScene} />
+        <Profile scene={scene} characters={characters} onScene={setScene} />
+        <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
       </div>
       {watching && (
         <AfterDarkTheater

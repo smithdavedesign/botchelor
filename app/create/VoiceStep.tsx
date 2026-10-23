@@ -161,7 +161,7 @@ export default function VoiceStep({
                 }
               }}
             />
-            <button type="button" className="secondary small" onClick={() => addNever(neverDraft)}>
+            <button type="button" className="secondary" onClick={() => addNever(neverDraft)}>
               Add
             </button>
           </span>

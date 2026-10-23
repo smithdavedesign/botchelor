@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { requestJson } from "../request";
+import CharacterName from "../CharacterName";
 import type { OriginalityReport, SheetDraft } from "@/lib/originality";
 
 /**
@@ -42,8 +43,9 @@ export default function OriginalityPanel({ draft, characterId }: { draft: SheetD
           {report.similar.filter((s, i, all) => all.findIndex((o) => o.name === s.name) === i).map((s, i) => (
             <span key={s.id}>
               {i > 0 && ", "}
+              {/* A new tab, so the wizard (and an unsaved edit) stays where it was. */}
               <Link href={`/characters/${s.id}`} target="_blank">
-                {s.name}
+                <CharacterName character={s} link={false} size={20} />
               </Link>
             </span>
           ))}

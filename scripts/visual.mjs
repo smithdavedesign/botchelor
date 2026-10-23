@@ -174,7 +174,25 @@ async function settle(page) {
   await page
     .evaluate(() => Promise.race([Promise.all([...document.images].map((i) => (i.complete ? null : i.decode().catch(() => {})))), new Promise((r) => setTimeout(r, 3000))]))
     .catch(() => {});
-  // Open folded groups so their fields are audited too.
+  await page.waitForTimeout(150);
+}
+
+/** Scrolls the page top to bottom so lazy images load, as a reader's scroll would, then back to the top. */
+async function scrollThrough(page) {
+  await page
+    .evaluate(async () => {
+      const step = Math.max(400, Math.floor(window.innerHeight * 0.8));
+      for (let y = 0; y < document.documentElement.scrollHeight; y += step) {
+        window.scrollTo(0, y);
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      window.scrollTo(0, 0);
+    })
+    .catch(() => {});
+}
+
+/** Opens folded groups so their fields are audited too (after the screenshot, which shows the page as it opens). */
+async function openDetails(page) {
   await page.evaluate(() => document.querySelectorAll("details").forEach((d) => (d.open = true))).catch(() => {});
   await page.waitForTimeout(150);
 }
@@ -191,10 +209,13 @@ async function main() {
   const showrunner = await startShowrunner();
   // After Dark (lib/adult) is audited too, as an admin, against a stub for the adult model (the same stand-in
   // scripts/e2e-after-dark.mjs uses: two lines every step, no key, no network beyond localhost).
+  // Each step's lines differ (the scene refuses a step that only repeats lines already said).
+  let adultStep = 0;
   const adult = createServer((req, res) => {
     req.resume();
     req.on("end", () => {
-      const content = JSON.stringify({ lines: [{ who: "a", text: "Your place or mine?" }, { who: "b", text: "Mine. It's closer, and the kettle's on." }] });
+      const n = ++adultStep;
+      const content = JSON.stringify({ lines: [{ who: "a", text: `Your place or mine? (take ${n})` }, { who: "b", text: `Mine. It's closer, and the kettle's on, take ${n}.` }] });
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ id: "stub", object: "chat.completion", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }] }));
     });
@@ -349,7 +370,7 @@ async function main() {
       { name: "notifications", path: "/notifications", as: "owner" },
       { name: "graph", path: "/graph" },
       { name: "reunion", path: "/reunion" },
-      { name: "ship", path: `/ship/${data.chars[0].id}/house-teo` },
+      { name: "ship", path: "/ship/juniper/teo" },
       { name: "tool-chemistry", path: "/tools/oc-chemistry-test" },
       { name: "tool-ship-names", path: "/tools/ship-name-generator" },
       { name: "admin-season", path: "/admin/season", as: "admin" },
@@ -357,8 +378,8 @@ async function main() {
       { name: "after-dark-scene", path: scenePath, as: "adult-admin", walk: writeScene },
       { name: "after-dark-theater", path: `${scenePath}?play=1`, as: "adult-admin" },
       { name: "after-dark-shorts", path: "/after-dark/shorts", as: "adult-admin" },
-      { name: "after-dark-subscribe", path: "/after-dark/subscribe", as: "adult-admin" },
-      { name: "admin-after-dark", path: "/admin/after-dark", as: "adult-admin" },
+      // Signed in but not subscribed: an admin is sent on to the hub (and /admin/after-dark is only a redirect there).
+      { name: "after-dark-subscribe", path: "/after-dark/subscribe", as: "member" },
       { name: "admin-after-dark-settings", path: "/admin/after-dark/settings", as: "adult-admin" },
     ].filter((r) => !only.length || only.some((o) => r.name.includes(o)));
 
@@ -405,9 +426,11 @@ async function main() {
           });
 
           const audit = async (state) => {
+            await scrollThrough(page);
             await settle(page);
             const file = `${variant}/${state}.png`;
             await page.screenshot({ path: join(OUT, file), fullPage: true });
+            await openDetails(page);
             const findings = await page.evaluate(auditPage, { phone: device === "phone", dark: scheme === "dark", width: opts.viewport.width });
             for (const msg of consoleErrors.splice(0)) findings.push({ rule: "console-error", level: "error", el: "", detail: msg.slice(0, 200) });
             const n = findings.filter((f) => f.level === "error").length;

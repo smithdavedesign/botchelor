@@ -9435,3 +9435,38 @@ details > summary.small {
 .card > form > input[type="password"] + button {
   margin-top: var(--space-2);
 }
+
+/* ---------------- UX audit 2026-10-23: site-wide tidying ---------------- */
+/* A card's first heading sat ~50px down (its own top margin on top of the card's padding): the padding is the gap. */
+.card > :first-child {
+  margin-top: 0;
+}
+/* Outline buttons are the same height as filled ones beside them (they had their own fixed padding). */
+.button-ghost {
+  --btn-border: 1.5px;
+  padding: calc((var(--control-h) - 1.3em - 2 * var(--btn-border)) / 2) 1.2rem;
+  line-height: 1.3;
+}
+/* A name with its face inside a heading or a strong takes the heading's type, not the label's. */
+:is(h1, h2, h3, h4, strong) .char-name-text {
+  font: inherit;
+}
+/* A heading carrying a face wraps evenly instead of leaving its last word alone. */
+:is(h1, h2) {
+  text-wrap: balance;
+}
+/* A heading led by its character's face (the face first, the sentence whole, so it reads and wraps as one). */
+.heading-face {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+.heading-face > .avatar {
+  flex: 0 0 auto;
+}
+.swipe-topbar-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}

@@ -8,12 +8,46 @@ import { ConsentChoice } from "../ConsentBanner";
  * page, the M3 address). A plain draft for counsel to review before live payments (REVIEW.md).
  */
 
-export const LAST_UPDATED = "Last updated 22 October 2026 (how long we keep it; training and research: opt-in only).";
+export const LAST_UPDATED = "Last updated 22 October 2026.";
+/** What changed last time, which was all in the privacy notice (so /terms shows only the date). */
+export const PRIVACY_CHANGES = "Changed: how long we keep it; training and research: opt-in only.";
+
+/** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
+export const TERMS_HEADINGS = [
+  { id: "who-for", title: "Who Botchelor is for" },
+  { id: "points", title: "Points, seasons and badges" },
+  { id: "buy", title: "What you can buy" },
+  { id: "refunds", title: "Refunds" },
+] as const;
+export const PRIVACY_HEADINGS = [
+  { id: "what-we-store", title: "What we store" },
+  { id: "how-long", title: "How long we keep it" },
+  { id: "processors", title: "Who processes it" },
+  { id: "training", title: "Training and research" },
+  { id: "analytics", title: "Analytics" },
+] as const;
+export const CONTACT_HEADING = { id: "contact", title: "Contact" } as const;
+
+/** A jump list to the page's headings: these pages run long on a phone. */
+export function OnThisPage({ headings }: { headings: readonly { id: string; title: string }[] }) {
+  return (
+    <nav className="legal-toc" aria-label="On this page">
+      <p className="legal-toc-title">On this page</p>
+      <ul>
+        {headings.map((h) => (
+          <li key={h.id}>
+            <a href={`#${h.id}`}>{h.title}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
 
 export function TermsSections() {
   return (
     <>
-      <h2>Who Botchelor is for</h2>
+      <h2 id="who-for">Who Botchelor is for</h2>
       <p>
         Botchelor is for adults (18+). Every character must be a fictional adult: no minors, no real people and no
         sexual content. Episodes are written by an AI model from two character sheets. They are fiction, nobody can
@@ -21,7 +55,7 @@ export function TermsSections() {
         people report is hidden.
       </p>
 
-      <h2>Points, seasons and badges</h2>
+      <h2 id="points">Points, seasons and badges</h2>
       <p>
         Points are free. They can&apos;t be bought, sold, cashed out or transferred, they have no cash value, and there
         are no prizes. Nothing you buy changes anyone&apos;s points, picks, odds or rank.
@@ -32,7 +66,7 @@ export function TermsSections() {
         prizes.
       </p>
 
-      <h2>What you can buy</h2>
+      <h2 id="buy">What you can buy</h2>
       <p>
         Every creator gets {FREE_EPISODES_PER_SEASON} free dates a week. One thing is on sale: &ldquo;{PACK_5.name}
         &rdquo;, an episode pack with {PACK_5.episodes} more dates for your characters on top of the free ones. Pack
@@ -47,7 +81,7 @@ export function TermsSections() {
         don&apos;t appear, email us your Stripe receipt and we&apos;ll add them to the right place. Premium house characters and profile frames aren&apos;t on sale.
       </p>
 
-      <h2>Refunds</h2>
+      <h2 id="refunds">Refunds</h2>
       <p>
         If a pack doesn&apos;t work, or you change your mind within 14 days of buying it, email us with your Stripe
         receipt and we&apos;ll refund you in full. A refunded pack&apos;s dates stop counting, and episodes already
@@ -60,7 +94,7 @@ export function TermsSections() {
 export function PrivacySections() {
   return (
     <>
-      <h2>What we store</h2>
+      <h2 id="what-we-store">What we store</h2>
       <ul>
         <li>
           An anonymous random ID in a cookie, which keeps your characters, picks, leagues and purchases together. An
@@ -103,7 +137,7 @@ export function PrivacySections() {
         </li>
       </ul>
 
-      <h2>How long we keep it</h2>
+      <h2 id="how-long">How long we keep it</h2>
       <ul>
         <li>
           Your characters and their private souls and memory, their texts, swipes and matches, your account, purchases
@@ -120,7 +154,7 @@ export function PrivacySections() {
         <li>The keyed hash of your IP address that limits how many dates one connection starts: two days.</li>
       </ul>
 
-      <h2>Who processes it</h2>
+      <h2 id="processors">Who processes it</h2>
       <p>
         Character sheets are sent to the AI model provider that writes the episodes: Anthropic&apos;s Claude, through
         Vercel&apos;s AI Gateway, with Google&apos;s Gemini API as a fallback. The texts the show writes (a house
@@ -129,7 +163,7 @@ export function PrivacySections() {
         privacy policy. The site and its database run on third-party cloud hosting (Vercel and Neon).
       </p>
 
-      <h2>Training and research</h2>
+      <h2 id="training">Training and research</h2>
       <p>
         We only use your data to train or test our models if you opt in on your account page, and you can opt out any time.
         Even then, only dates that aired publicly can be used: never private or unlisted dates, never After Dark, never a
@@ -142,7 +176,7 @@ export function PrivacySections() {
         before. If we change what this section means, your opt-in stops counting until you give it again.
       </p>
 
-      <h2>Analytics</h2>
+      <h2 id="analytics">Analytics</h2>
       <ul>
         <li>
           Vercel Web Analytics and Speed Insights count page views and measure how fast pages load. They use no
@@ -184,7 +218,7 @@ export function Contact() {
   const contact = process.env.CONTACT_EMAIL;
   return (
     <>
-      <h2>Contact</h2>
+      <h2 id="contact">Contact</h2>
       {contact ? (
         <p>
           Refunds, restores, removal from the waitlist and anything else: <a href={`mailto:${contact}`}>{contact}</a>.

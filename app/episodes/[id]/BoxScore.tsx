@@ -24,7 +24,13 @@ export default function BoxScore({ boxScore, bestLine, why, note }: { boxScore: 
           </div>
         );
       })}
-      {why && <p className="muted">{why}{note ? ` ${note}` : ""}</p>}
+      {/* The engine's reasoning is a paragraph of numbers (~240px on a phone): folded for the few who want it. */}
+      {why && (
+        <details className="boxscore-why">
+          <summary>How this was scored</summary>
+          <p className="muted">{why}{note ? ` ${note}` : ""}</p>
+        </details>
+      )}
       {bestLine && <p className="bestline">“{bestLine}”</p>}
     </section>
   );

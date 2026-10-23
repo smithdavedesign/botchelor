@@ -125,17 +125,18 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
               const b = byId.get(e.b_id);
               if (!a || !b) return null;
               return e.masked ? (
-                <li key={`${e.a_id}~${e.b_id}`} className="card is-private">
+                <li key={`${e.a_id}~${e.b_id}`} className="card is-private graph-row">
                   {a.private ? <PrivateName name={a.name} /> : <CharacterName character={a} strong />} ×{" "}
                   {b.private ? <PrivateName name={b.name} /> : <CharacterName character={b} strong />}
                 </li>
               ) : (
-                <li key={`${e.a_id}~${e.b_id}`} className="card">
-                  <strong>
-                    <Link href={`/couples/${e.a_id}/${e.b_id}`}>
-                      <CharacterName character={a} link={false} /> × <CharacterName character={b} link={false} />
-                    </Link>
-                  </strong>{" "}
+                <li key={`${e.a_id}~${e.b_id}`} className="card graph-row">
+                  {/* One link to the couple: only the names underline, and each name keeps its face when the row wraps. */}
+                  <Link className="pair-link" href={`/couples/${e.a_id}/${e.b_id}`}>
+                    <CharacterName character={a} link={false} strong />
+                    <span className="pair-x">×</span>
+                    <CharacterName character={b} link={false} strong />
+                  </Link>
                   {e.stage && <span className="badge">{e.stage}</span>}{" "}
                   {/* No endings here: like the episode page, the canvas keeps them behind "Show what happened". */}
                   <span className="muted">
@@ -153,14 +154,13 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         {singles.length > 0 && (
           <>
             <h3>In orbit (no public dates yet)</h3>
-            <p className="constellation-singles">
-              {singles.map((n, i) => (
-                <span key={n.id}>
-                  {i > 0 && " · "}
-                  {n.private ? <PrivateName name={n.name} /> : <CharacterName character={n} />}
-                </span>
+            <ul className="chips constellation-singles">
+              {singles.map((n) => (
+                <li key={n.id} className="chip">
+                  {n.private ? <PrivateName name={n.name} /> : <CharacterName character={n} size={20} />}
+                </li>
               ))}
-            </p>
+            </ul>
           </>
         )}
       </section>
@@ -199,6 +199,9 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
       <section className="constellation-missing card">
         <h2>What the network doesn&apos;t know yet</h2>
         <p className="muted small">The constellation draws everything the show records publicly. These are the edges it can&apos;t draw — yet.</p>
+        {/* Folded (UX audit 2026-10-23): six long bullets, ~650px on a phone, for the few who want the caveats. */}
+        <details className="constellation-missing-details">
+          <summary>Why some edges are missing</summary>
         <ul>
           <li>
             <strong>What they are is self-reported, and optional.</strong> A character&apos;s kind (vampire, robot, ghost…) is whatever its creator
@@ -231,6 +234,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
             up or one of them asked, about that date only; dates booked before then don&apos;t say.
           </li>
         </ul>
+        </details>
         <p className="muted small">
           Want to light up a corner of the sky? <Link href="/create">Make a character</Link> or <Link href="/characters">browse the cast</Link> and send
           someone on a date.

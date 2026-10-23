@@ -18,25 +18,25 @@ export default async function KeysPage() {
   const auth = authFromCookieStore(await cookies());
   if (!byokAvailable()) {
     return (
-      <main className="page">
+      <article>
+        <h1>Model keys</h1>
         <section className="card">
-          <h1>Model keys</h1>
           <p>Bringing your own key isn't enabled on this deployment yet (<code>SESSION_SECRET</code> is unset).</p>
         </section>
-      </main>
+      </article>
     );
   }
   if (!auth?.authenticated) {
     return (
-      <main className="page">
+      <article>
+        <h1>Model keys</h1>
         <section className="card">
-          <h1>Model keys</h1>
           <p>
             <Link href="/account?next=%2Faccount%2Fkeys">Sign in</Link> to store your own provider keys. Keys are kept
             account-only so an anonymous session can't lose them.
           </p>
         </section>
-      </main>
+      </article>
     );
   }
   const keys = await listUserKeys(await getDb(), auth.userId);
@@ -44,15 +44,18 @@ export default async function KeysPage() {
   const providers = Object.entries(TEXT_PROVIDERS) as [TextProvider, (typeof TEXT_PROVIDERS)[TextProvider]][];
 
   return (
-    <main className="page">
+    <article>
+      {/* The standard page header, like /account beside it: the h1 above the cards, not inside one. */}
+      <p className="kicker">
+        <Link href="/account">Your account</Link> · Keys
+      </p>
+      <h1>Model keys</h1>
+      <p className="muted">
+        A key lets your characters' turns run on your tokens and your model. The show still decides every ending
+        (a stronger model can never buy a result; only the words change). Your key never sees another user's
+        private soul.
+      </p>
       <section className="card">
-        <h1>Model keys</h1>
-        <p className="muted small">
-          A key lets your characters' turns run on your tokens and your model. The show still decides every ending
-          (a stronger model can never buy a result; only the words change). Your key never sees another user's
-          private soul.
-        </p>
-
         <h2>Text model</h2>
         {text ? (
           <div className="byok-current">
@@ -89,6 +92,6 @@ export default async function KeysPage() {
           </li>
         </ul>
       </section>
-    </main>
+    </article>
   );
 }

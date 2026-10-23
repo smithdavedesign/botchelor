@@ -129,6 +129,8 @@ export default function AfterDarkTheater({
   const [listenHold, setListenHold] = useState(false);
   const replay = useReplay(turns, true, { live, startAt, hold: listenHold });
   const [convo, setConvo] = useState(false);
+  // On a phone, the secondary tools (from the top, catch up, listen, clip, video) fold into "⋯" so the bar is one row.
+  const [tools, setTools] = useState(false);
   const [direction, setDirection] = useState("");
   const [moving, setMoving] = useState(false);
   const [where, setWhere] = useState("");
@@ -197,12 +199,6 @@ export default function AfterDarkTheater({
             <button type="button" className="theater-icon" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>
               {replay.playing ? "⏸" : "▶"}
             </button>
-            <button type="button" className="theater-icon" onClick={replay.restart} aria-label="From the top" title="From the top">
-              ↻
-            </button>
-            <button type="button" className="theater-icon" onClick={replay.skip} aria-label="Catch up" title="Catch up">
-              ⏭
-            </button>
             <button
               type="button"
               className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
@@ -213,11 +209,24 @@ export default function AfterDarkTheater({
             >
               📜
             </button>
-            <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
-            <ClipHere a={a.id} b={b.id} at={shown.length - 1} nightId={live ? null : feedbackRef} />
-            {onMakeVideo && (
-              <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} onMake={onMakeVideo} />
-            )}
+            <div className={`ad-tools-more${tools ? " open" : ""}`}>
+              <button type="button" className="theater-icon ad-tools-toggle" aria-expanded={tools} aria-label="More tools" title="More tools" onClick={() => setTools((v) => !v)}>
+                ⋯
+              </button>
+              <div className="ad-tools-items">
+                <button type="button" className="theater-icon" onClick={replay.restart} aria-label="From the top" title="From the top">
+                  ↻
+                </button>
+                <button type="button" className="theater-icon" onClick={replay.skip} aria-label="Catch up" title="Catch up">
+                  ⏭
+                </button>
+                <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
+                <ClipHere a={a.id} b={b.id} at={shown.length - 1} nightId={live ? null : feedbackRef} />
+                {onMakeVideo && (
+                  <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} onMake={onMakeVideo} />
+                )}
+              </div>
+            </div>
             <button type="button" className="secondary small" onClick={onExit}>
               Exit
             </button>
@@ -258,38 +267,42 @@ export default function AfterDarkTheater({
               ))}
             </div>
           )}
-          <input
-            aria-label="Steer it (optional)"
-            value={direction}
-            maxLength={300}
-            onChange={(e) => setDirection(e.target.value)}
-            placeholder="Steer it (optional)…"
-            disabled={busy}
-          />
-          {onSteerMode && (
-            <span className="ad-steer-mode" role="radiogroup" aria-label="How strongly">
-              <label title="Worked toward at the scene's own pace">
-                <input type="radio" name="theater-steer-mode" checked={steerMode === "nudge"} onChange={() => onSteerMode("nudge")} /> Nudge
-              </label>
-              <label title="Done now: it can skip ahead">
-                <input type="radio" name="theater-steer-mode" checked={steerMode === "direct"} onChange={() => onSteerMode("direct")} /> Direct
-              </label>
-            </span>
-          )}
-          {/* Autoplay is always writing ahead, so a steer goes as soon as it's typed. */}
-          <button type="submit" className="primary" disabled={busy || (!caughtUp && !(autoplay && direction.trim()))}>
-            {busy ? "Writing…" : caughtUp || (autoplay && direction.trim()) ? "Next" : "Playing…"}
-          </button>
-          {onAutoplay && (
-            <label className="ad-steer-mode" title="It carries on by itself, no Next needed, until the chapter ends">
-              <input type="checkbox" checked={autoplay} onChange={(e) => onAutoplay(e.target.checked)} /> Autoplay
-            </label>
-          )}
-          {onSetScene && (
-            <button type="button" className="button-ghost" onClick={() => setMoving(true)} disabled={busy} title="Take them anywhere (1 token)">
-              📍 Set the scene
+          <div className="ad-theater-steer">
+            <input
+              aria-label="Steer it (optional)"
+              value={direction}
+              maxLength={300}
+              onChange={(e) => setDirection(e.target.value)}
+              placeholder="Steer it (optional)…"
+              disabled={busy}
+            />
+            {/* Autoplay is always writing ahead, so a steer goes as soon as it's typed. */}
+            <button type="submit" className="primary" disabled={busy || (!caughtUp && !(autoplay && direction.trim()))}>
+              {busy ? "Writing…" : caughtUp || (autoplay && direction.trim()) ? "Next" : "Playing…"}
             </button>
-          )}
+          </div>
+          <div className="ad-theater-options">
+            {onSteerMode && (
+              <span className="ad-steer-mode" role="radiogroup" aria-label="How strongly">
+                <label title="Worked toward at the scene's own pace">
+                  <input type="radio" name="theater-steer-mode" checked={steerMode === "nudge"} onChange={() => onSteerMode("nudge")} /> Nudge
+                </label>
+                <label title="Done now: it can skip ahead">
+                  <input type="radio" name="theater-steer-mode" checked={steerMode === "direct"} onChange={() => onSteerMode("direct")} /> Direct
+                </label>
+              </span>
+            )}
+            {onAutoplay && (
+              <label className="ad-steer-mode" title="It carries on by itself, no Next needed, until the chapter ends">
+                <input type="checkbox" checked={autoplay} onChange={(e) => onAutoplay(e.target.checked)} /> Autoplay
+              </label>
+            )}
+            {onSetScene && (
+              <button type="button" className="button-ghost" onClick={() => setMoving(true)} disabled={busy} title="Take them anywhere (1 token)">
+                📍 Set the scene
+              </button>
+            )}
+          </div>
           {(videoNote || note) && (
             <p className="ad-theater-note" role="status">
               {videoNote || note}

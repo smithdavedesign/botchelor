@@ -180,12 +180,7 @@ const SAME_AS: Record<string, string> = {
  * read; the rest of the idea (barometer collecting, tide tables) was in their hobbies and profile answers.
  */
 export function conceptTerms(sheet: SheetDraft): Set<string> {
-  const e = sheet.extras ?? {};
-  const details = [
-    e.occupation, e.quirk, e.signature_item, e.hidden_talent, e.pet_peeve, e.guilty_pleasure, ...(e.facts ?? []).map((f) => f.value),
-    ...(e.hobbies ?? []), ...(e.prompts ?? []).map((p) => p.answer),
-  ].filter(Boolean).join(". ");
-  const text = [sheet.bio ?? "", (sheet.traits ?? []).join(". "), sheet.want ?? "", sheet.dealbreaker ?? "", details].join(". ");
+  const text = conceptText(sheet);
   const out = new Set<string>();
   for (const part of text.toLowerCase().split(/[.!?;,:()"“”\n]+/)) {
     let prev: string | null = null;
@@ -203,6 +198,25 @@ export function conceptTerms(sheet: SheetDraft): Set<string> {
     }
   }
   return out;
+}
+
+/** The words conceptTerms reads from a sheet, as one text. */
+function conceptText(sheet: SheetDraft): string {
+  const e = sheet.extras ?? {};
+  const details = [
+    e.occupation, e.quirk, e.signature_item, e.hidden_talent, e.pet_peeve, e.guilty_pleasure, ...(e.facts ?? []).map((f) => f.value),
+    ...(e.hobbies ?? []), ...(e.prompts ?? []).map((p) => p.answer),
+  ].filter(Boolean).join(". ");
+  return [sheet.bio ?? "", (sheet.traits ?? []).join(". "), sheet.want ?? "", sheet.dealbreaker ?? "", details].join(". ");
+}
+
+/** A concept term as the sheet wrote it ("flinches", not the stem "flinche"), word by word; the term where no word matches. */
+function asWritten(term: string, sheet: SheetDraft): string {
+  const words = conceptText(sheet).toLowerCase().replace(/[-–—/]/g, " ").split(/[^a-z']+/).map((w) => w.replace(/'s$/, ""));
+  return term
+    .split(" ")
+    .map((part) => words.find((w) => w && (SAME_AS[w] ?? SAME_AS[stem(w)] ?? stem(w)) === part) ?? part)
+    .join(" ");
 }
 
 /** How rare each term is among `docs` (the sheets compared against): a word everyone uses counts for little. */
@@ -368,7 +382,7 @@ async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], re
 export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, otherTerms: Set<string>, weight: (term: string) => number): (Lookalike & { score: number }) | null {
   const base = { id: other.id, name: other.name };
   const concept = conceptSimilarity(terms, otherTerms, weight);
-  const both = concept.shared.length ? ` (both: ${concept.shared.join(", ")})` : "";
+  const both = concept.shared.length ? ` (both: ${concept.shared.map((t) => asWritten(t, sheet)).join(", ")})` : "";
   if (concept.score >= CONCEPT_TWIN_AT && concept.count >= CONCEPT_TWIN_TERMS) {
     return { ...base, kind: "concept", why: `${other.name} reads a lot like this one${both}.`, score: 1 + concept.score };
   }

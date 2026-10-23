@@ -607,7 +607,10 @@ async function capture(base, leagueId, viewer) {
       await home.getByText("A note in the pocket", { exact: false }).waitFor();
       await home.getByLabel("Show format").selectOption("meet_the_parents");
       await shot(home, "date-settings");
-      await home.getByRole("button", { name: "Send on a date with Juniper" }).click();
+      // The house cast shows six, the rest under "Show all": open it if Juniper is folded away.
+      const juniper = home.getByRole("button", { name: "Send on a date with Juniper" });
+      if (!(await juniper.isVisible())) await home.locator(".send-phase details").filter({ has: juniper }).locator("summary").first().click();
+      await juniper.click();
       await home.waitForURL(/\/episodes\/[0-9a-f-]{36}$/);
       await home.getByRole("heading", { level: 1, name: `${c.name} × Juniper Vale` }).waitFor();
       await shot(home, "episode");
@@ -673,6 +676,7 @@ async function capture(base, leagueId, viewer) {
       await home.getByRole("button", { name: "Create account" }).click();
       await home.getByText(`Signed in as ${handle}`).waitFor();
       await home.getByRole("heading", { name: "Your model key (optional)" }).waitFor();
+      await home.locator("#model-key details").first().locator("summary").click(); // each key is folded to its status line
       await home.locator('input[name="key"]').first().fill(sampleKey); // the text-key form (an image-key form follows)
       await home.getByRole("button", { name: "Save key", exact: true }).click();
       await home.getByText("····Ab12").waitFor();

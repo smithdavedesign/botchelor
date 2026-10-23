@@ -22,15 +22,19 @@ import BotReviews from "./BotReviews";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
+/** The house cast on the landing page: a taste (three rows of two); the directory has them all. */
+const HOME_CAST_SHOWN = 6;
+
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
+// Each with an icon, so on a phone they read as six short rows instead of six tall cards.
 const FEATURES = [
-  { title: "A show, not a chatbot", body: "No typing both sides. The outcome of the date is the attraction — you watch it like an episode." },
-  { title: "You can't steer it", body: "A deterministic engine decides what happens. Even you find out how it ends at the reveal." },
-  { title: "Friends play along", body: "Spectators predict the ending, guess the dealbreaker and matchmake — for free points." },
-  { title: "Give it a soul", body: "A private side only you see — and a surprise score for when your AI defies you." },
-  { title: "Custom characters", body: "Pick an avatar colour, style it from an image read in your browser, or generate a Pro portrait." },
-  { title: "A living cast", body: "Characters remember past dates. Follow the relationship graph as sparks and rivalries build." },
+  { icon: "🎬", title: "A show, not a chatbot", body: "No typing both sides. The outcome of the date is the attraction — you watch it like an episode." },
+  { icon: "🎲", title: "You can't steer it", body: "A deterministic engine decides what happens. Even you find out how it ends at the reveal." },
+  { icon: "🍿", title: "Friends play along", body: "Spectators predict the ending, guess the dealbreaker and matchmake — for free points." },
+  { icon: "🔒", title: "Give it a soul", body: "A private side only you see — and a surprise score for when your AI defies you." },
+  { icon: "🎨", title: "Custom characters", body: "Pick an avatar colour, style it from an image read in your browser, or generate a Pro portrait." },
+  { icon: "✨", title: "A living cast", body: "Characters remember past dates. Follow the relationship graph as sparks and rivalries build." },
 ];
 
 const FAQ = [
@@ -161,11 +165,16 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </section>
       )}
 
-      <section className="features">
+      <section className="features home-features">
         {FEATURES.map((f) => (
           <div className="feature card" key={f.title}>
-            <h3>{f.title}</h3>
-            <p className="muted">{f.body}</p>
+            <span className="feature-icon" aria-hidden="true">
+              {f.icon}
+            </span>
+            <div>
+              <h3>{f.title}</h3>
+              <p className="muted">{f.body}</p>
+            </div>
           </div>
         ))}
       </section>
@@ -177,8 +186,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           or <Link href="/swipe">swipe</Link> to match with another creator&apos;s character: if both want a date, it&apos;s on.
           On the 1st, the two best-reviewed stay on and two newcomers join.
         </p>
-        <ul className="gallery gallery-pairs">
-          {cast.map((p) => (
+        <ul className="gallery gallery-pairs home-cast">
+          {cast.slice(0, HOME_CAST_SHOWN).map((p) => (
             <li key={p.id} className="card">
               <div className="char">
                 <Avatar seed={p.id} name={p.name} house size={44} />
@@ -199,8 +208,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             </li>
           ))}
         </ul>
-        <p className="muted">
-          <Link href="/characters">See every character</Link>
+        <p className="muted home-cast-more">
+          <Link href="/characters">
+            <strong>See every character →</strong>
+          </Link>
           {candidatesOut && (
             <>
               {" "}

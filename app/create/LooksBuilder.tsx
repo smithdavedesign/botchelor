@@ -73,7 +73,8 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
   const locked = adTab && !afterDark;
   const gender: Gender = looks.gender ?? "woman";
   const steps = stepsFor(gender, adTab);
-  const [i, setI] = useState(0);
+  // A look already picked (editing, or back on this step): open on its summary, not an empty first step.
+  const [i, setI] = useState(() => (looks.gender ? stepsFor(looks.gender, false).length : 0));
   const at = Math.min(i, steps.length);
   const step = steps[at] as LookStep | undefined; // undefined: the summary
   const have = new Set(tiles);
@@ -181,7 +182,14 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
                         onClick={() => pick(step, o.id)}
                         tabIndex={locked ? -1 : undefined}
                       >
-                        {img && <img src={img} alt="" loading="lazy" decoding="async" />}
+                        {img ? (
+                          <img src={img} alt="" loading="lazy" decoding="async" />
+                        ) : (
+                          // No picture drawn for this tile yet: a figure over the label, not an empty box.
+                          <span className="looks-tile-fallback" aria-hidden>
+                            {step.id === "gender" ? (o.id === "man" ? "👨" : "👩") : "👤"}
+                          </span>
+                        )}
                         <span className="looks-tile-label">
                           {chosen && <span aria-hidden>✓ </span>}
                           {label}
@@ -215,6 +223,11 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
             <p className="muted small">
               This becomes their appearance line, and their portrait is drawn from it when you create them. Tap a pick to change it.
             </p>
+            {looks.gender && (
+              <button type="button" className="secondary small looks-change" onClick={() => setI(0)}>
+                Change look
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -232,11 +245,12 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
       )}
 
       <div className="looks-nav">
-        <button type="button" className="secondary small" onClick={() => setI((n) => Math.max(0, n - 1))} disabled={at === 0}>
-          ← Back
+        {/* Small text links, so they don't compete with the wizard's own Back and Next below. */}
+        <button type="button" className="link-button" onClick={() => setI((n) => Math.max(0, n - 1))} disabled={at === 0}>
+          ← Previous
         </button>
         {step && (
-          <button type="button" className="secondary small" onClick={() => setI((n) => Math.min(n + 1, steps.length))}>
+          <button type="button" className="link-button" onClick={() => setI((n) => Math.min(n + 1, steps.length))}>
             {current(looks, step, adTab) ? "Next →" : "Skip →"}
           </button>
         )}

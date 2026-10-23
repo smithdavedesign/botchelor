@@ -108,7 +108,7 @@ describe("the Characters hub's tabs", () => {
     expect(cast).toMatch(/Next season&#x27;s candidates: /);
     expect(cast).toMatch(/The relationship graph/); // what /cast had moved here
     expect(cast).toContain(`/characters/${HOUSE_CHARACTERS[0].id}`);
-    expect(cast).toContain(">Cast</span>");
+    expect(cast).not.toContain(">Cast</span>"); // every card on the cast tab is the show's own: no chip saying so (UX audit 2026-10-23)
     expect(cast).not.toContain(`/characters/${person.id}`);
 
     const people = await render({ tab: "people" });

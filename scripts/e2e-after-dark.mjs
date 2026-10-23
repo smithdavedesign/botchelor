@@ -148,6 +148,9 @@ async function main() {
           const bar = page.locator(".ad-theater-bar");
           await bar.getByRole("radio", { name: "Direct" }).check();
           await bar.getByRole("textbox", { name: "Steer it (optional)" }).fill("they kiss in the doorway");
+          // On a phone, ⏭ is under the toolbar's "⋯" (AfterDarkTheater.tsx).
+          const more = page.locator(".theater .ad-tools-toggle");
+          if (await more.isVisible()) await more.click();
           await page.locator(".theater").getByRole("button", { name: "⏭" }).click().catch(() => {});
           const sent = page.waitForRequest((r) => r.url().endsWith("/api/admin/after-dark") && r.method() === "POST");
           await bar.getByRole("button", { name: "Next" }).click();

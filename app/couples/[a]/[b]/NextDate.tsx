@@ -70,7 +70,7 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
                 ? "Their last date is still being filmed. You can book the next one now."
                 : `${them} is ${next.them.house ? "on the show" : "open to dates"}, and they'll remember every date so far.`}
           </p>
-          <p>
+          <p className="action-hint">
             <button type="button" className="primary" onClick={() => void book()} disabled={busy}>
               {busy ? "Booking…" : `Send ${me} on a date with ${them}`}
             </button>{" "}
@@ -84,7 +84,7 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
           <p>
             💌 <strong>{them}&apos;s creator proposed a date with {me}.</strong>
           </p>
-          <p>
+          <p className="action-hint">
             <button type="button" className="primary" onClick={() => void book({ proposal_id: o.theirs_pending!.id })} disabled={busy}>
               {busy ? "Booking…" : "Accept and book it"}
             </button>{" "}

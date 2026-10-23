@@ -253,7 +253,9 @@ async function scenarios({ page, base, scenePath, shot }) {
     await profile.locator(".ad-turn-ons").first().getByRole("button", { name: label }).click();
     await page.waitForTimeout(300);
   }
-  await profile.locator(".ad-turn-ons").nth(1).getByRole("button", { name: "Massage" }).click();
+  // One character's turn-ons at a time: the switch to the other's.
+  await profile.locator(".ad-side-switch [role=radio]").nth(1).click();
+  await profile.locator(".ad-turn-ons").first().getByRole("button", { name: "Massage" }).click();
   await page.waitForTimeout(400);
   await top(".ad-profile");
   await shot("profile-desktop");

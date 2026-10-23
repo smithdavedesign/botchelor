@@ -29,7 +29,7 @@ export default async function ShortsPage() {
   if (access.kind === "hidden") notFound();
   if (access.kind === "off") {
     return (
-      <div className="after-dark-mode">
+      <div className="after-dark-mode ad-shorts-page">
         <article className="after-dark">
           <p className="kicker">
             🌙 After Dark · <Link href="/admin/after-dark/settings">Settings</Link>
@@ -43,7 +43,7 @@ export default async function ShortsPage() {
   if (access.kind === "teaser") {
     const shorts = await teaserShorts(db);
     return (
-      <div className="after-dark-mode">
+      <div className="after-dark-mode ad-shorts-page">
         <article className="after-dark">
           <p className="kicker">
             🌙 After Dark · <Link href="/">Back to the show</Link>
@@ -67,7 +67,7 @@ export default async function ShortsPage() {
   const shorts = await listShorts(db);
   const [watched, board, name] = await Promise.all([watchedOf(db, access.viewer, shorts.map((s) => s.id)), callBoard(db, access.viewer), boardName(db, access.viewer)]);
   return (
-    <div className="after-dark-mode">
+    <div className="after-dark-mode ad-shorts-page">
       <article className="after-dark">
         <p className="kicker">
           <Link href="/after-dark">← 🌙 After Dark</Link>
@@ -103,7 +103,20 @@ export default async function ShortsPage() {
             ))}
           </ul>
         ) : (
-          <p className="muted">No Shorts yet.</p>
+          <div className="ad-empty">
+            <p className="ad-empty-icon" aria-hidden="true">
+              📺
+            </p>
+            <p>
+              <strong>No Shorts yet.</strong>
+            </p>
+            <p className="muted small">The house cast&apos;s nights land here as they&apos;re published.</p>
+            <p>
+              <Link className="button-ghost" href="/after-dark">
+                ← Back to After Dark
+              </Link>
+            </p>
+          </div>
         )}
         <section id="board" className={styles.board} aria-label="Call it: the board">
           <h2>📣 Call it: {board.season.label}</h2>

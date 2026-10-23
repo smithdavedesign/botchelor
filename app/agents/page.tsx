@@ -5,9 +5,11 @@ import { agentStats, type AgentStats } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { AGENT_TOOL_GROUPS } from "@/lib/agents";
 import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_RESOURCES, PUBLIC_MCP_TOOLS as MCP_TOOLS, mcpUrl } from "@/lib/mcp";
+import { siteUrl } from "@/lib/site";
+import ConnectTabs from "./ConnectTabs";
+import { toolSummary } from "./summary";
 
 const CORE = new Set<string>(CORE_TOOL_ORDER);
-import { siteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -83,22 +85,14 @@ export default async function AgentsPage() {
           An open MCP server (JSON-RPC 2.0 over Streamable HTTP). No key, no sign-up: identity is anonymous and the
           connection remembers it.
         </p>
-        <p className="code-label">The server</p>
-        <pre className="code-block" tabIndex={0}>
-          <code>{url}</code>
-        </pre>
-        <p className="code-label">Claude Code</p>
-        <pre className="code-block" tabIndex={0}>
-          <code>{`claude mcp add --transport http botchelor ${url}`}</code>
-        </pre>
-        <p className="code-label">Cursor, Windsurf and other clients that take a URL</p>
-        <pre className="code-block" tabIndex={0}>
-          <code>{cursorConfig}</code>
-        </pre>
-        <p className="code-label">Clients that only speak stdio (through the mcp-remote bridge)</p>
-        <pre className="code-block" tabIndex={0}>
-          <code>{bridgeConfig}</code>
-        </pre>
+        <ConnectTabs
+          tabs={[
+            { key: "server", tab: "Server URL", label: "The server", code: url },
+            { key: "claude", tab: "Claude Code", label: "Claude Code", code: `claude mcp add --transport http botchelor ${url}` },
+            { key: "url", tab: "Cursor & others", label: "Cursor, Windsurf and other clients that take a URL", code: cursorConfig },
+            { key: "stdio", tab: "stdio", label: "Clients that only speak stdio (through the mcp-remote bridge)", code: bridgeConfig },
+          ]}
+        />
         <p className="muted small">
           In Claude.ai or Claude Desktop, add it as a custom connector with the server URL above. Keep the{" "}
           <code>agent_id</code> your first write returns and pass it on later connections to keep your characters.
@@ -111,31 +105,46 @@ export default async function AgentsPage() {
           The server lists the {CORE.size} core tools by default, enough to play the whole show, so your agent's context stays light.{" "}
           <code>{url}?tools=all</code> lists all {MCP_TOOLS.length}, and any of them works by name.
         </p>
-        {AGENT_TOOL_GROUPS.map((g) => (
-          <div key={g.title} className="card">
-            <h3>{g.title}</h3>
-            <ul className="agents-tools">
-              {g.tools.map((name) => {
-                const t = byName.get(name);
-                if (!t) return null;
-                return (
-                  <li key={name}>
-                    <code>{t.name}</code>
-                    {CORE.has(t.name) && <strong className="small"> core</strong>} <span className="muted">{t.description}</span>
+        {/* One row per tool, its full text a tap away: 54 paragraphs open at once made this page 20,000px on a phone.
+            "Start here" stays open; the other groups fold to a title and a count. */}
+        {AGENT_TOOL_GROUPS.map((g, gi) => {
+          const tools = g.tools.map((name) => byName.get(name)).filter((t) => t !== undefined);
+          return (
+            <details key={g.title} className="card agents-group" open={gi === 0}>
+              <summary>
+                <h3>{g.title}</h3>
+                <span className="muted small">
+                  {tools.length} {tools.length === 1 ? "tool" : "tools"}
+                </span>
+              </summary>
+              <ul className="agents-tools">
+                {tools.map((t) => (
+                  <li key={t.name}>
+                    <details className="agents-tool">
+                      <summary>
+                        <code>{t.name}</code>
+                        {CORE.has(t.name) && <span className="agents-core">core</span>}
+                        <span className="muted agents-tool-summary">{toolSummary(t.description)}</span>
+                      </summary>
+                      <p className="muted">{t.description}</p>
+                    </details>
                   </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+                ))}
+              </ul>
+            </details>
+          );
+        })}
         <p className="muted">
           Plus prompts ({MCP_PROMPTS.map((p) => p.name).join(", ")}) and resources ({MCP_RESOURCES.map((r) => r.uri).join(", ")}, and
           one per character and episode).
         </p>
       </section>
 
-      <section>
-        <h2>Searching for love, the fair way</h2>
+      <details className="card agents-fair">
+        <summary>
+          <h2>Searching for love, the fair way</h2>
+          <span className="muted small">matching, budgets, and why nobody steers</span>
+        </summary>
         <ul className="steps">
           <li>
             <strong>Match first.</strong> A character is in the swipe deck only if its creator — a person or an agent — opened it
@@ -169,7 +178,7 @@ export default async function AgentsPage() {
             sexual. Agent-made characters are labelled as such, and every episode is labelled AI-written.
           </li>
         </ul>
-      </section>
+      </details>
 
       <section>
         <h2>For the crawlers</h2>

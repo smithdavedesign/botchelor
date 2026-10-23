@@ -57,7 +57,8 @@ function PrivateName({ name }: { name: string }) {
   );
 }
 
-function Entry({ e, badge }: { e: DirectoryEntry; badge?: string }) {
+/** `origin={false}` on the cast tab, where every card is the show's own and a "Cast" chip on each says nothing. */
+function Entry({ e, badge, origin = true }: { e: DirectoryEntry; badge?: string; origin?: boolean }) {
   if (e.private) {
     return (
       <li className="card is-private">
@@ -77,7 +78,7 @@ function Entry({ e, badge }: { e: DirectoryEntry; badge?: string }) {
         <Avatar seed={e.id} name={e.name} hue={e.hue} house={e.house} portraitSrc={e.portrait} size={48} />
         <div className="meta">
           <CharacterName character={e} avatar={false} strong />
-          <OriginBadge origin={e.origin} />
+          {origin && <OriginBadge origin={e.origin} />}
           {badge && <span className="badge">{badge}</span>}
           {e.reviews > 0 && (
             <span className="muted small">
@@ -154,6 +155,10 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
   const hidden = await privateAmong(db, [...cast.map((c) => c.id), ...boards.flat().map((t) => t.id), ...edges.flatMap((e) => [e.a_id, e.b_id])]);
   const matchable = cast.filter((c) => !hidden.has(c.id));
   const pairs = pageSlice(edges, pairsPage, PAIRS_PAGE);
+  // Faces for the graph's names: the cast already carries each one's colour and portrait; anyone not in it (an
+  // off-season house character) still gets a face from its id.
+  const castById = new Map(cast.map((c) => [c.id, c]));
+  const named = (id: string, name: string) => castById.get(id) ?? { id, name };
   const leaderboards = RATING_CATEGORIES.map((c, i) => ({ category: c, top: boards[i] })).filter((b) => b.top.length > 0);
 
   return (
@@ -167,7 +172,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
         </p>
         <ul className="gallery">
           {season.map((e) => (
-            <Entry key={e.id} e={e} badge="On this season" />
+            <Entry key={e.id} e={e} origin={false} />
           ))}
         </ul>
       </section>
@@ -177,7 +182,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
         {upcoming.length ? (
           <ul className="gallery">
             {upcoming.map((e) => (
-              <Entry key={e.id} e={e} badge={statusOf.get(e.id) === "approved" ? "Joining next season" : "Candidate"} />
+              <Entry key={e.id} e={e} origin={false} badge={statusOf.get(e.id) === "approved" ? "Joining next season" : "Candidate"} />
             ))}
           </ul>
         ) : (
@@ -250,12 +255,13 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
                   {hidden.has(e.b_id) ? <PrivateName name={e.b} /> : <strong>{e.b}</strong>}
                 </li>
               ) : (
-              <li key={`${e.a}-${e.b}`} className="card">
-                <strong>
-                  <Link href={`/couples/${e.a_id}/${e.b_id}`}>
-                    {e.a} × {e.b}
-                  </Link>
-                </strong>
+              <li key={`${e.a}-${e.b}`} className="card graph-row">
+                {/* One link to the couple; the faces sit inside it unlinked (no nested anchors). */}
+                <Link className="pair-link" href={`/couples/${e.a_id}/${e.b_id}`}>
+                  <CharacterName character={named(e.a_id, e.a)} link={false} strong />
+                  <span className="pair-x">×</span>
+                  <CharacterName character={named(e.b_id, e.b)} link={false} strong />
+                </Link>
                 <span className="badge">{e.stage}</span>{" "}
                 <span className="muted">
                   {e.dates} {e.dates === 1 ? "date" : "dates"}
@@ -279,7 +285,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
           <p className="muted small">House characters from earlier seasons, and the premium ones. Their cards and dates stay up.</p>
           <ul className="gallery">
             {earlier.map((e) => (
-              <Entry key={e.id} e={e} />
+              <Entry key={e.id} e={e} origin={false} />
             ))}
           </ul>
         </details>

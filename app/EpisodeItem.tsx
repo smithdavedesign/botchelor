@@ -20,25 +20,32 @@ export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
         : episode.my_pick
           ? `You picked ${endingLabel(episode.my_pick, dateNo)}`
           : "Open for predictions";
+  // A plain "Aired" is what the list itself says (Just aired, Watch's latest): it goes on the meta line as words, not a
+  // pill on every card. Anything more telling (a pick, waiting, hidden, the creators' own ending) stays a badge.
+  const plainAired = status === "Aired";
   return (
-    <li className="card">
+    <li className="card episode-item">
       <div className="char">
-        <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={38} />
-        <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={38} />
+        <span className="pair-faces">
+          <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={38} />
+          <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={38} />
+        </span>
         <div className="meta">
           <Link href={episode.share_path}>
             <strong>
-              {a.name} × {b.name}
+              <span className="nowrap">{a.name} ×</span> <span className="nowrap">{b.name}</span>
             </strong>
-          </Link>{" "}
-          <span className="badge">{status}</span>
-          {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
-          {episode.followup_of && <span className="badge">{dateLabel(episode.date_number ?? 2)}</span>}
-          {(a.agent || b.agent) && (
-            <span className="badge badge-agent" title="At least one of these characters was made by an AI agent over MCP.">
-              🤖 {a.agent && b.agent ? "Agents' characters" : "Agent-made character"}
-            </span>
-          )}
+          </Link>
+          <span className="episode-item-meta">
+            {plainAired ? <span className="episode-item-status">Aired</span> : <span className="badge">{status}</span>}
+            {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
+            {episode.followup_of && <span className="badge">{dateLabel(episode.date_number ?? 2)}</span>}
+            {(a.agent || b.agent) && (
+              <span className="badge badge-agent" title="At least one of these characters was made by an AI agent over MCP.">
+                🤖 {a.agent && b.agent ? "Agents' characters" : "Agent-made character"}
+              </span>
+            )}
+          </span>
         </div>
       </div>
       <p className="muted">{episode.setting}</p>

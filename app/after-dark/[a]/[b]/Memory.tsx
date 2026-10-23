@@ -58,7 +58,7 @@ export default function Memory({ a, b, onScene }: { a: { id: string; name: strin
             return (
               <section key={who} className="ad-memory-side">
                 <h3>
-                  <CharacterName character={self} label={first(self.name)} link={false} size={22} /> remembers about {first(other.name)}
+                  <CharacterName character={self} label={first(self.name)} link={false} size={22} /> remembers about <CharacterName character={other} label={first(other.name)} link={false} size={22} />
                 </h3>
                 <p className="muted small">The note goes into their public dates and texts, so it stays PG.</p>
                 {memory.notes[who] ? (

@@ -1,1 +1,517 @@
 /* UX audit 2026-10-23: agents-footer. Loaded after globals.css (app/layout.tsx). */
+
+/* ---------------- shared: a folded section whose summary carries a chevron (agents groups, footer, account keys…) ---------------- */
+.agents-group > summary,
+.agents-fair > summary,
+.agents-tool > summary,
+.footer-about > summary,
+.ux-fold > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+:is(.agents-group, .agents-fair, .agents-tool, .footer-about, .ux-fold) > summary::-webkit-details-marker {
+  display: none;
+}
+:is(.agents-group, .agents-fair, .footer-about, .ux-fold) > summary::after {
+  content: "⌄";
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+:is(.agents-group, .agents-fair, .footer-about, .ux-fold)[open] > summary::after {
+  transform: rotate(180deg);
+}
+:is(.agents-group, .agents-fair) > summary :is(h2, h3) {
+  margin: 0;
+}
+
+/* ---------------- /agents ---------------- */
+.agents-group,
+.agents-fair {
+  padding-block: 0.5rem;
+}
+.agents-group[open] > summary,
+.agents-fair[open] > summary {
+  margin-bottom: var(--space-2);
+}
+.agents-fair > summary h2 {
+  font-size: 1.25rem;
+}
+.agents-tools li {
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+/* One line per tool: name, the core chip, then a summary that ellipsizes rather than wrapping the row tall. */
+.agents-tool > summary {
+  flex-wrap: nowrap;
+  min-width: 0;
+  padding-block: 0.35rem;
+}
+.agents-tool > summary code {
+  flex: none;
+}
+.agents-tool-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+.agents-tool[open] .agents-tool-summary {
+  display: none;
+}
+.agents-tool > p {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.agents-core {
+  flex: none;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+  color: var(--accent-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* On a phone the name and chip take the line; the summary drops under them, still one line. */
+@media (max-width: 520px) {
+  .agents-tool > summary {
+    flex-wrap: wrap;
+  }
+  .agents-tool-summary {
+    flex-basis: 100%;
+  }
+}
+
+/* The connect block: one code box under a tab row (all four stacked, each labelled, until JS runs). */
+.connect-tabs.is-ready .code-label {
+  display: none;
+}
+.connect-tabs .tabs {
+  margin-top: var(--space-3);
+}
+.connect-code {
+  position: relative;
+}
+.connect-tabs.is-ready .code-block {
+  margin-top: var(--space-2);
+  padding-right: 5rem;
+}
+.connect-copy {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  margin: 0;
+  min-height: 36px;
+  padding: 0 0.8rem;
+  font-size: var(--text-sm);
+}
+@media (pointer: coarse) {
+  .connect-copy {
+    min-height: 44px;
+  }
+}
+
+/* ---------------- the site footer (app/layout.tsx) ---------------- */
+/* The same gutter as the page above it, so the footer's text starts where the content does. */
+.site-footer {
+  padding-inline: var(--gutter);
+}
+.site-footer > p,
+.site-footer .crisis {
+  margin: 0 0 var(--space-2);
+}
+.footer-about {
+  margin: 0 0 var(--space-3);
+}
+.footer-about > summary {
+  min-height: 40px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.footer-about > summary::after {
+  margin-left: 0;
+}
+.footer-about p {
+  margin: 0 0 var(--space-2);
+}
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.footer-links li {
+  margin: 0;
+}
+/* A tidy two-column list on a phone instead of four wrapped lines of links and dots; each row a comfortable tap. */
+@media (max-width: 640px) {
+  .footer-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 var(--space-3);
+  }
+  .site-footer .footer-links li > :is(a, button) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+}
+@media (max-width: 640px) and (pointer: coarse) {
+  .site-footer .footer-links li > :is(a, button) {
+    min-height: 44px;
+  }
+}
+
+/* ---------------- /legal, /terms, /privacy ---------------- */
+.legal-toc {
+  margin: var(--space-3) 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper-2) 60%, var(--card));
+}
+.legal-toc-title {
+  margin: 0 0 var(--space-1);
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+.legal-toc ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0 var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.legal-toc a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+}
+@media (pointer: coarse) {
+  .legal-toc a {
+    min-height: 44px;
+  }
+}
+/* A jump lands the heading below the sticky header, not under it. */
+.legal-page h2[id] {
+  scroll-margin-top: 5rem;
+}
+@media (max-width: 520px) {
+  .legal-page ul:not(.legal-toc ul) {
+    padding-left: 1.1rem;
+  }
+}
+
+/* ---------------- /admin ---------------- */
+.admin-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+.admin-tiles li {
+  position: relative;
+  margin: 0;
+}
+.admin-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  height: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+.admin-tile:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.admin-tile strong {
+  color: var(--accent-text);
+}
+/* The "N new" badge sits in the tile's corner (it's its own element, outside the link). */
+.admin-tile-count {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+}
+.admin-signin form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.admin-signin label {
+  flex: 1 1 14rem;
+  margin: 0;
+}
+.admin-signin button[type="submit"] {
+  margin: 0;
+}
+.admin-signed-in {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---------------- /admin/feedback ---------------- */
+/* Refresh and the sort on one compact row, the select only as wide as its longest option. */
+.admin-fb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.admin-fb-toolbar label {
+  margin: 0 0 0 auto;
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+.admin-fb-toolbar select {
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+}
+.admin-fb-toolbar button {
+  margin: 0;
+}
+/* Rows divided by a line, not cards inside the panel's card (the li keeps .card for the e2e's selector). */
+.admin-fb-list {
+  padding: 0;
+  list-style: none;
+}
+.admin-fb-list > li.card {
+  margin: 0;
+  padding: var(--space-3) 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.admin-fb-list > li.card:first-child {
+  border-top: 0;
+}
+.admin-fb-list > li p {
+  margin: 0 0 var(--space-2);
+}
+
+/* ---------------- /admin/analytics ---------------- */
+/* The range and segment labels never break inside ("30 / days"). */
+.insights-filters .segmented-tab {
+  white-space: nowrap;
+}
+/* The launch-day caveat, once above the cards instead of on fourteen of them. */
+.kpi-shared-note {
+  margin: var(--space-3) 0 0;
+}
+/* Wide screens: the summary line is hidden and the filters always show. Phones: one "Filters · 30 days · All" line. */
+.insights-filters-fold > summary {
+  display: none;
+}
+@media (max-width: 640px) {
+  .insights-filters-fold {
+    margin: 0 0 var(--space-3);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0 var(--space-3);
+  }
+  .insights-filters-fold > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .insights-filters-fold > summary::-webkit-details-marker {
+    display: none;
+  }
+  .insights-filters-fold > summary > .small {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .insights-filters-fold > summary::after {
+    content: "⌄";
+    color: var(--muted);
+    transition: transform 0.15s ease;
+  }
+  .insights-filters-fold[open] > summary::after {
+    transform: rotate(180deg);
+  }
+  .insights-filters-fold[open] > .insights-filters {
+    padding-bottom: var(--space-3);
+  }
+}
+
+/* ---------------- /account ---------------- */
+/* Your dates: a line between rows, and the faces at the top of a row that wraps to two lines on a phone. */
+.account-dates {
+  gap: 0;
+}
+.account-dates li {
+  align-items: flex-start;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+.account-dates li:first-child {
+  border-top: 0;
+}
+@media (min-width: 561px) {
+  .account-dates li {
+    align-items: center;
+  }
+}
+/* Your characters: the quick links sit on the name's line, centred with its face. */
+.account-character {
+  align-items: center;
+}
+.account-character-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  min-height: 32px;
+}
+@media (pointer: coarse) {
+  .account-character-links a {
+    min-height: 44px;
+  }
+}
+/* The three keys, each one status line until opened. */
+.account-key {
+  border-top: 1px solid var(--line);
+}
+.account-key:last-of-type {
+  border-bottom: 1px solid var(--line);
+}
+.account-key > summary {
+  flex-wrap: wrap;
+}
+.account-key > summary .muted {
+  overflow-wrap: anywhere;
+}
+.account-key[open] {
+  padding-bottom: var(--space-3);
+}
+
+/* ---------------- /account/keys ---------------- */
+.byok-model-note {
+  display: block;
+  margin-top: var(--space-1);
+  font-weight: 400;
+}
+
+/* ---------------- /swipe ---------------- */
+/* "Who should [face] Marlowe meet?" breaks evenly instead of leaving "meet?" alone on a line. */
+.swipe-intro h1 {
+  text-wrap: balance;
+}
+/* The cue on a long card's fade: there's more below (app/swipe/SwipeDeck.tsx Card). */
+.swipe-more {
+  position: absolute;
+  left: 50%;
+  bottom: 0.6rem;
+  z-index: 3;
+  transform: translateX(-50%);
+  margin: 0;
+  min-height: 32px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.swipe-more:hover:not(:disabled) {
+  transform: translateX(-50%);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.swipe-next .swipe-more {
+  display: none;
+}
+
+/* ---------------- /matches and /swipe with no character yet: the cast as an even grid (app/CastPreview.tsx) ---------------- */
+/* Fixed cells, so a long name ("Perpetua") can't widen its column; it ends in an ellipsis instead. */
+.cast-preview-faces {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: var(--space-3) var(--space-2);
+}
+.cast-preview-faces li {
+  min-width: 0;
+}
+.cast-preview-faces a {
+  min-width: 0;
+}
+.cast-preview-faces a > .small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------- /messages thread header (TextPhone page mode) ---------------- */
+/* ‹, your face ×, their face and name, then the rest: the face comes in the switcher slot, so order places it. */
+.messages-fullscreen .phone-header.is-page > * {
+  order: 3;
+}
+.messages-fullscreen .phone-header.is-page > .phone-back {
+  order: 0;
+}
+.messages-fullscreen .phone-header.is-page > .thread-self {
+  order: 1;
+}
+.messages-fullscreen .phone-header.is-page > .phone-contact {
+  order: 2;
+}
+.thread-self {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: -0.2rem;
+}
+.thread-self-x {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+/* ⓘ (and ⇄): a full 44px target everywhere, with room from the action beside it. */
+.messages-fullscreen .phone-header.is-page .phone-head-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin-left: var(--space-1);
+}
+/* The narrowest phones keep the row for their name and the actions. */
+@media (max-width: 359px) {
+  .thread-self {
+    display: none;
+  }
+}

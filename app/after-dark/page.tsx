@@ -12,8 +12,8 @@ import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import PrivacyCard from "./PrivacyCard";
 import Switches from "./Switches";
+import PairPicker from "./PairPicker";
 import { currentView } from "./view";
-import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 
@@ -50,9 +50,24 @@ export default async function AfterDarkPage() {
   return (
     <div className="after-dark-mode">
       <article className="after-dark">
-        <p className="kicker">
-          🌙 After Dark · private{settings ? <> · {settings}</> : null} · <Link href="/after-dark/shorts">📺 Shorts</Link> · <Link href="/">Back to the show</Link>
-        </p>
+        <p className="kicker">🌙 After Dark · private</p>
+        {/* The hub's other pages as one row of small buttons, not a kicker that wraps on a phone. */}
+        <nav className="ad-hub-links" aria-label="After Dark">
+          <Link className="button-ghost" href="/after-dark/shorts">
+            📺 Shorts
+          </Link>
+          <a className="button-ghost" href="#privacy">
+            🔒 Privacy
+          </a>
+          {admin && (
+            <Link className="button-ghost" href="/admin/after-dark/settings">
+              ⚙ Settings
+            </Link>
+          )}
+          <Link className="button-ghost" href="/">
+            ← Back to the show
+          </Link>
+        </nav>
         <h1>After Dark</h1>
         <p className="muted">
           The adult season: this season&apos;s cast, and any of your characters you switch on (with the house characters they date). Nothing here
@@ -61,20 +76,11 @@ export default async function AfterDarkPage() {
         <Switches initial={switchable} />
         <section>
           <h2>Scenes</h2>
-          <ul className="list">
-            {pairs.map((p) => (
-              <li key={p.path} className="card">
-                <Link href={p.path}>
-                  <strong>
-                    <CharacterName character={p.a} link={false} /> × <CharacterName character={p.b} link={false} />
-                  </strong>
-                </Link>{" "}
-                {p.lines > 0 && <span className="badge">{p.lines} lines</span>}
-              </li>
-            ))}
-          </ul>
+          <PairPicker pairs={pairs} />
         </section>
-        <PrivacyCard initial={privacy} />
+        <div id="privacy">
+          <PrivacyCard initial={privacy} />
+        </div>
       </article>
     </div>
   );

@@ -130,23 +130,33 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">
-          <p>
-            Episodes are written by an AI model from the character sheets. Every character is a fictional adult.
-            Creators stay anonymous unless they agree to reveal themselves. Every episode has a report button.
-          </p>
-          <p>
-            Points and badges are free. They can&apos;t be bought, cashed out or transferred, and there are no prizes.
-            Nothing you buy changes points, badges or rank.
-          </p>
+          {/* The two lines that must never be one tap away stay out in the open: who's on the show, and where help is. */}
+          <p className="footer-adults">Every character is a fictional adult (18+), and every episode is written by an AI model.</p>
           <CrisisResources />
-          <p>
-            <Link href="/terms">Terms and refunds</Link> · <Link href="/privacy">Privacy</Link> ·{" "}
-            <Link href="/legal">Both on one page</Link> · <Link href="/shop">Tokens</Link> ·{" "}
-            <Link href="/agents">For AI agents</Link> · <Link href="/graph">The Constellation</Link> ·{" "}
-            <Link href="/tools/oc-chemistry-test">OC chemistry test</Link> ·{" "}
-            <Link href="/tools/ship-name-generator">Ship name generator</Link> ·{" "}
-            <FeedbackLink />
-          </p>
+          <details className="footer-about">
+            <summary>About this show</summary>
+            <p>
+              Episodes are written by an AI model from the character sheets. Every character is a fictional adult.
+              Creators stay anonymous unless they agree to reveal themselves. Every episode has a report button.
+            </p>
+            <p>
+              Points and badges are free. They can&apos;t be bought, cashed out or transferred, and there are no prizes.
+              Nothing you buy changes points, badges or rank.
+            </p>
+          </details>
+          <ul className="footer-links">
+            <li><Link href="/terms">Terms and refunds</Link></li>
+            <li><Link href="/privacy">Privacy</Link></li>
+            <li><Link href="/legal">Both on one page</Link></li>
+            <li><Link href="/shop">Tokens</Link></li>
+            <li><Link href="/agents">For AI agents</Link></li>
+            <li><Link href="/graph">The Constellation</Link></li>
+            <li><Link href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
+            <li><Link href="/tools/ship-name-generator">Ship name generator</Link></li>
+            <li>
+              <FeedbackLink />
+            </li>
+          </ul>
         </footer>
         <FeedbackDock />
         <InstallHint />

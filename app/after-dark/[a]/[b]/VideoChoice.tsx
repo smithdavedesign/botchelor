@@ -46,7 +46,7 @@ export default function VideoChoice({
         disabled={busy || whole < MIN_LINES}
         title={`A short film of the night, in their own voices (${price})`}
       >
-        🎬 Video of the night · {tokens}
+        🎬 Video of the night · {price}
       </button>
     );
   }
@@ -58,7 +58,7 @@ export default function VideoChoice({
   return (
     <span className="ad-video-choice">
       <button type="button" className="secondary small" aria-expanded={open} onClick={() => setOpen((v) => !v)} disabled={busy} title="A short film, in their own voices: of this chapter or the whole night">
-        🎬 Video · {tokens}
+        🎬 Video · {price}
       </button>
       {open && (
         <span className="ad-video-choice-panel" role="group" aria-label="What the video covers">

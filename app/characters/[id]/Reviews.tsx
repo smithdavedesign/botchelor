@@ -59,6 +59,9 @@ export default function Reviews({ characterId, name, initial, isOwner, house, op
       ) : !open ? (
         <p className="muted">{first} isn&apos;t on this season&apos;s cast, so reviews are closed until they&apos;re back on the show.</p>
       ) : (
+        // Folded behind one line (UX audit 2026-10-23): the stars and the box were a big form even on a card with no reviews.
+        <details className="review-write">
+          <summary className="button-ghost small">{summary.mine ? "✏️ Edit your review" : `✍️ Write a review of ${first}`}</summary>
         <form className="review-form" onSubmit={submit}>
           <fieldset>
             <legend>Your review of {first}</legend>
@@ -87,6 +90,7 @@ export default function Reviews({ characterId, name, initial, isOwner, house, op
             </p>
           )}
         </form>
+        </details>
       )}
     </div>
   );

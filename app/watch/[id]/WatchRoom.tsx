@@ -13,6 +13,7 @@ import type { RoomState } from "@/lib/watch";
 import { placeAt } from "@/lib/venues";
 import { trackConversion } from "@/app/conversion";
 import CharacterName from "@/app/CharacterName";
+import { withoutLeadName } from "@/app/episodes/[id]/lead-name";
 
 /** Where to go once the date is decided, so a finished room is never a dead end (David, 2026-10-18). */
 function RoomNext({ state }: { state: RoomState }) {
@@ -75,6 +76,9 @@ function RoomPanel({
   script,
   dark = false,
   onHide,
+  hideLabel = "Hide the sidebar",
+  hideIcon = "⇥",
+  className = "",
 }: {
   state: RoomState;
   sync: () => void;
@@ -83,12 +87,16 @@ function RoomPanel({
   script?: ReactNode;
   dark?: boolean;
   onHide?: () => void;
+  /** The hide button's words and icon: the sidebar's "⇥" beside the date, "✕ Close" on a phone's bottom sheet. */
+  hideLabel?: string;
+  hideIcon?: string;
+  className?: string;
 }) {
   // The opening tab only: after that the viewer's choice stands (it never jumps when, say, they vote).
   const [tab, setTab] = useState<RoomTab>(start);
   const live = voteLive(state);
   return (
-    <aside className={`room-panel${dark ? " is-dark" : ""}`} aria-label="The room">
+    <aside className={`room-panel${dark ? " is-dark" : ""}${className ? ` ${className}` : ""}`} aria-label="The room">
       <div className="room-tabs" role="tablist" aria-label="The room">
         {tabs.map((t) => (
           <button
@@ -107,8 +115,8 @@ function RoomPanel({
           </button>
         ))}
         {onHide && (
-          <button type="button" className="room-hide" onClick={onHide} aria-label="Hide the sidebar" title="Hide the sidebar">
-            ⇥
+          <button type="button" className="room-hide" onClick={onHide} aria-label={hideLabel} title={hideLabel}>
+            {hideIcon}
           </button>
         )}
       </div>
@@ -146,6 +154,9 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
   const [chatHidden, setChatHidden] = useState(false);
   // A date opens in the standard view (David, 2026-10-22); theater mode is a button, and choosing it is remembered here.
   const [theater, setTheaterState] = useState(false);
+  // On a phone the room's panel sat under the whole transcript (~2,900px down): a bar pinned to the bottom opens it as a
+  // sheet on the tab tapped. Null when the sheet is shut; wide screens never set it (the bar is phone-only CSS).
+  const [sheet, setSheet] = useState<RoomTab | null>(null);
   const busy = useRef(false);
 
   // The heartbeat: register presence, advance the template clock / air the finale, pull fresh tallies.
@@ -241,7 +252,22 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
         <section className="watch-stage" aria-label="The date">
           <Stage state={state} onPredict={sync} preshowLeft={preshowLeft} />
         </section>
-        {chatHidden ? (
+        {sheet ? (
+          <>
+            <button type="button" className="watch-sheet-backdrop" aria-label="Close" onClick={() => setSheet(null)} />
+            <RoomPanel
+              key={`sheet-${sheet}`}
+              className="is-sheet"
+              state={state}
+              sync={sync}
+              tabs={["vote", "chat"]}
+              start={sheet}
+              onHide={() => setSheet(null)}
+              hideLabel="Close"
+              hideIcon="✕"
+            />
+          </>
+        ) : chatHidden ? (
           <aside className="room-panel room-panel-hidden">
             <p className="muted">
               Chat hidden.{" "}
@@ -254,6 +280,19 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
           <RoomPanel state={state} sync={sync} tabs={["vote", "chat"]} start={firstTab(state, ["vote", "chat"], { phone: false, replay: false })} onHide={toggleChat} />
         )}
       </div>
+      {/* Phone only (CSS): the vote and the chat within thumb's reach, wherever the date has scrolled to. */}
+      {!sheet && (
+        <nav className="watch-dock" aria-label="The room">
+          <button type="button" className="watch-dock-btn" onClick={() => setSheet("vote")}>
+            🗳️ Vote
+            {voteLive(state) && <span className="room-tab-live" aria-label="open now" />}
+          </button>
+          <button type="button" className="watch-dock-btn secondary" onClick={() => setSheet("chat")}>
+            💬 Chat
+            {state.messages.length > 0 && <span className="room-tab-count">{state.messages.length}</span>}
+          </button>
+        </nav>
+      )}
     </div>
   );
 }
@@ -307,7 +346,8 @@ function Theater({
   const [isReplay] = useState(state.clock.ended);
   const replay = useReplay(state.turns, isReplay);
   const turns = isReplay ? replay.shown : state.turns;
-  const typing = isReplay ? replay.typing : state.next_speaker;
+  // No "typing…" once the date is decided: nobody is about to speak.
+  const typing = isReplay ? replay.typing : state.show_ending || state.clock.ended ? null : state.next_speaker;
   const showVerdict = isReplay ? replay.done : state.show_ending;
 
   const actLabel = turns.length
@@ -478,11 +518,16 @@ function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict:
         {(state.place_name ?? state.venue_name) && <p className="venue-chip">📍 {state.place_name ?? state.venue_name}</p>}
         <p>{state.setting}</p>
         <ul className="watch-goals">
-          {state.goals.map((g) => (
-            <li key={g.character_id}>
-              {whoIn(state, g.character_id)}: {g.goal}
-            </li>
-          ))}
+          {state.goals.map((g) => {
+            // The goal usually starts with their name already: the face-and-name label stands in for it.
+            const rest = withoutLeadName(g.goal, nameOf(state, g.character_id));
+            return (
+              <li key={g.character_id}>
+                {whoIn(state, g.character_id)}
+                {rest !== null ? rest : <>: {g.goal}</>}
+              </li>
+            );
+          })}
         </ul>
       </section>
 
@@ -503,7 +548,7 @@ function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict:
           <ChatThread
             characters={state.characters}
             turns={state.turns}
-            typing={state.next_speaker}
+            typing={state.show_ending || state.clock.ended ? null : state.next_speaker}
             challenge={state.challenge}
           />
         </section>
