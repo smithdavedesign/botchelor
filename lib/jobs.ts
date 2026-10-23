@@ -240,6 +240,10 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     void ensureSet(db, built.setup.venue);
     // When each line was written (episodes.turn_meta), stamped as the theater saves it.
     const lineAt: string[] = [];
+    // Per line, aligned with the transcript: when, and whether the show's model or an owner's own key spoke it. Every
+    // write of the transcript writes this beside it, so the two are always the same length.
+    const metaOf = (lines: readonly { side?: string }[], at: string) =>
+      lines.map((t, i) => ({ at: lineAt[i] ?? at, by: keyForSide?.(t.side === "b" ? "b" : "a") ? "byok" : "show" }));
     // Lines the critic sent back and a revision replaced: stored as turn_drafts once the date is saved.
     const drafts: { turn_index: number; side: "a" | "b"; reason: string; rejected: string }[] = [];
     const gen = await generateDate(models, built, decided, {
@@ -266,7 +270,13 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         // A move somewhere new: start drawing its set now, so it's there by the time they arrive (lib/sets.ts).
         const to = lines[lines.length - 1]?.move?.to;
         if (to) void ensureSet(db, to);
-        return db.query(`update episodes set transcript = $2::jsonb where id = $1 and status = 'generating'`, [episodeId, JSON.stringify(lines)]).then(() => {});
+        return db
+          .query(`update episodes set transcript = $2::jsonb, turn_meta = $3::jsonb where id = $1 and status = 'generating'`, [
+            episodeId,
+            JSON.stringify(lines),
+            JSON.stringify(metaOf(lines, new Date().toISOString())),
+          ])
+          .then(() => {});
       },
     });
     if (gen.conversationError) {
@@ -274,9 +284,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     }
     if (gen.quality) trackDateQuality(episodeId, "job", gen.plan?.source ?? null, gen.quality);
     const { draft, transcript, afterglow, reflections, outcome } = gen;
-    // Per line, aligned with the transcript: when, and whether the show's model or an owner's own key spoke it.
-    const doneAt = new Date().toISOString();
-    const turnMeta = transcript.map((t, i) => ({ at: lineAt[i] ?? doneAt, by: keyForSide?.(t.side === "b" ? "b" : "a") ? "byok" : "show" }));
+    // The finished transcript's (empty when the conversation failed, like the transcript; a backfill fills both later).
+    const turnMeta = metaOf(transcript, new Date().toISOString());
 
     // The ending as it stands once the wishes weighed in (the engine's own, unless they tipped it), with its drama and sides.
     const saved = await db.query<{ id: string }>(

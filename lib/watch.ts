@@ -841,11 +841,15 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
     usage: gen.usage,
   });
   const { draft, transcript } = gen;
+  // turn_meta (episodes.turn_meta), line for line with the transcript: a template room's lines are all the show's.
+  const at = new Date().toISOString();
 
   await db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
-                           drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup, transcript, generated_with, engine_trace)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb, $19::jsonb, $20::jsonb, $21::jsonb)`,
+                           drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup, transcript, generated_with, engine_trace,
+                           turn_meta)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb, $19::jsonb, $20::jsonb, $21::jsonb,
+             $22::jsonb)`,
     [
       episodeId,
       SYSTEM_CREATOR_ID,
@@ -868,6 +872,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
       JSON.stringify(transcript),
       JSON.stringify(gen.generatedWith),
       trace ? JSON.stringify(trace) : null,
+      JSON.stringify(transcript.map(() => ({ at, by: "show" }))),
     ],
   );
   await rememberDate(db, a.id, b.id).catch(() => {});

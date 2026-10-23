@@ -28,6 +28,9 @@ review; the money, legal and posting steps that only the owner can do are tracke
 |---|---|---|
 | Per-visitor date limit | A script minting fresh anonymous cookies (each gets free dates) to flood the show. Keyed by an HMAC of the client IP, never the IP; rows pruned after two days by the daily job. | `DATE_START_LIMITS`: 10 an hour, 30 a day. The owner's key skips it. In-process calls (the MCP front door) carry no IP; agent dates on our model have their own daily cap (`lib/dating.ts`). |
 | Paid-model daily cap | A flood spending the AI Gateway balance. Every date, template room and backfill claims one of today's paid dates; past the cap the date still runs, on the free model. | `FRONTIER_DAILY_DATE_CAP` (default 100 a UTC day; `0` turns the paid default off without a redeploy of code). |
+| Originality check limit | A script sending draft after draft to `POST /api/characters/originality`: each distinct bio can be one embedding call. | `ORIGINALITY_CHECK_LIMITS`: 60 an hour, 300 a day, per connection and per session (429). In-process MCP calls carry no IP: the session limit and the embedding cap apply. |
+| Embedding daily cap | A flood of concept-embedding calls on the embedding key (the show's own `GOOGLE_API_KEY` until `EMBED_API_KEY` is set). Every caller claims one of today's calls; past the cap the concept pass is skipped and the word-based check still runs. | `EMBED_DAILY_CAP` (default 2000 a UTC day; `0` turns the calls off). |
+| `swipe_deck` rate limit | An agent polling its deck (each call ranks the whole pool and logs what it shows). | 20 a minute per agent (`lib/rate-limit.ts`). |
 | Kill switch | Everything at once. | `BOTCHELOR_PAUSE=1` (M10). |
 
 The AI Gateway is prepaid, so its balance is the hard ceiling. Keep auto top-up off unless a spend is approved.
