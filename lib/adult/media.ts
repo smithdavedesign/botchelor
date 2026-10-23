@@ -27,7 +27,14 @@ import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
 
 /** `clip`: the picture can be made to move (it's on fal; Venice's explicit pictures can't be). */
-export type Media = { id: string; character_id: string | null; character_b: string | null; kind: "baseline" | "scene" | "video"; status: string; created_at: string; mime: string; clip?: boolean };
+export type Media = {
+  id: string; character_id: string | null; character_b: string | null; kind: "baseline" | "scene" | "video"; status: string; created_at: string; mime: string; clip?: boolean;
+  /** A scene picture's chapter and place (lib/adult/auto-pictures.ts draws one per chapter and place); null otherwise. */
+  chapter?: number | null;
+  place?: string | null;
+};
+/** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
+export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
 
 /**
  * Pictures and clips run only with the output check in place (lib/adult/check.ts; docs/after-dark.md #1): the Hive
@@ -256,7 +263,7 @@ async function baselineFace(db: Db, characterId: string): Promise<string | null>
 export async function makePicture(
   db: Db,
   ownerId: string,
-  opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null; face_of?: string | null },
+  opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null; face_of?: string | null } & PictureScene,
 ): Promise<Media> {
   if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
   const capped = await overCap(db, ownerId, "pictures");
@@ -312,18 +319,20 @@ export async function makePicture(
 async function storePicture(
   db: Db,
   ownerId: string,
-  opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null },
+  opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null } & PictureScene,
   file: { bytes: Buffer; mime: string },
   url: string | null,
 ): Promise<Media> {
   await countUse(db, ownerId, "pictures");
   const id = crypto.randomUUID();
   const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
+  const chapter = opts.scene_chapter ?? null;
+  const place = opts.scene_place?.slice(0, 120) ?? null;
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place],
   );
-  return { id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null };
+  return { id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null, chapter, place };
 }
 
 /** The character's baseline, making it the first time it's needed. */
@@ -413,7 +422,7 @@ export async function listMedia(db: Db, ids: string[]): Promise<Media[]> {
   // Theirs alone, or of these characters together: never a picture or video with someone else in it (a character's
   // night with another partner stays on that pair's page). A reel's keyframes and voices stay with its shots.
   const { rows } = await db.query<Media>(
-    `select id, character_id, character_b, kind, status, created_at, mime, (kind <> 'video' and remote_url is not null) as clip from adult_images
+    `select id, character_id, character_b, kind, status, created_at, mime, (kind <> 'video' and remote_url is not null) as clip, scene_chapter as chapter, scene_place as place from adult_images
       where character_id = any($1) and (character_b is null or character_b = any($1)) and kind not in ('frame', 'audio')
       order by created_at desc limit 60`,
     [ids],

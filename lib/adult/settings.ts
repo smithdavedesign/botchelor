@@ -82,6 +82,11 @@ export const DEFAULT_REPETITION_PENALTY: number | null = null;
 export const PROMPT_VERSIONS = ["v1", "v2"] as const;
 export type PromptVersion = (typeof PROMPT_VERSIONS)[number];
 export const DEFAULT_PROMPT_VERSION: PromptVersion = "v2";
+/**
+ * Which revision of v2 runs: v2 changes in place (v2.1 craft, v2.2 continuity, v2.3 the heat, a Direct steer's quoted
+ * lines and a chapter carrying on: docs/after-dark.md), so each step's flags say which one wrote it.
+ */
+export const SCENE_PROMPT_REVISION = "v2.3";
 
 export type AdultSettings = {
   enabled: boolean;
@@ -121,6 +126,11 @@ export type AdultSettings = {
   replicate_last4: string | null;
   /** No Replicate key saved, but the server has one (REPLICATE_API_TOKEN): that's the one used. Never its value. */
   replicate_from_env: boolean;
+  /**
+   * A picture of the two of them each time a chapter starts and each time the place changes (lib/adult/auto-pictures.ts;
+   * David, 2026-10-23). On unless turned off (a null column is on).
+   */
+  auto_scene_pictures: boolean;
 };
 
 type Row = {
@@ -162,6 +172,7 @@ type Row = {
   replicate_ciphertext: string | null;
   replicate_nonce: string | null;
   replicate_last4: string | null;
+  auto_scene_pictures: boolean | null;
 };
 
 /** The server's own Replicate token, used when none is saved in the settings. */
@@ -205,6 +216,7 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     replicate_video_lora: r?.replicate_video_lora || null,
     replicate_last4: r?.replicate_last4 ?? null,
     replicate_from_env: !r?.replicate_last4 && envReplicate(env) !== null,
+    auto_scene_pictures: r?.auto_scene_pictures ?? true,
   };
 }
 
@@ -257,6 +269,7 @@ export type SettingsPatch = {
   replicate_voice_model?: string;
   replicate_video_lora?: string;
   replicate_key?: string;
+  auto_scene_pictures?: boolean;
 };
 
 export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<AdultSettings> {
@@ -271,6 +284,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch): Promise<A
   if (patch.image_provider !== undefined) put("image_provider", patch.image_provider);
   if (patch.prompt_version !== undefined) put("prompt_version", patch.prompt_version);
   if (patch.media_provider !== undefined) put("media_provider", patch.media_provider);
+  if (patch.auto_scene_pictures !== undefined) put("auto_scene_pictures", patch.auto_scene_pictures);
   for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);

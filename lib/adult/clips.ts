@@ -23,7 +23,7 @@ import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, NO_MEDIA_LIMITS, type MediaLimits, type MenuAct } from "./acts";
 import { CHAIN_MAX } from "./clip-chains";
 import { isPublicPlace } from "./continuity";
-import { INTENSITY, intensityOf, limitsHit, storedHardNos, type PairLimits } from "./limits";
+import { atLeastExplicit, INTENSITY, intensityOf, limitsHit, storedHardNos, type PairLimits } from "./limits";
 import { ensureBaseline } from "./media";
 import { adultModel } from "./mode";
 import {
@@ -62,13 +62,14 @@ const HERE_LINES = 8;
 
 /**
  * The viewer's limits for a pair (lib/adult/limits.ts: the intensity dial and the hard nos, set per owner and pair) as
- * its pictures and clips hold to them: no further than the intensity goes, explicit only at explicit (spicy and below
- * are sensual, never graphic), and no act, still, motion or line that crosses a hard no.
+ * its pictures and clips hold to them: no further than the intensity goes, explicit only at explicit or filthy (spicy and
+ * below are sensual, never graphic), and no act, still, motion or line that crosses a hard no.
  */
 export function mediaLimitsOf(limits: PairLimits): MediaLimits {
   return {
     maxStage: INTENSITY[limits.intensity].maxStage,
-    explicit: limits.intensity === "explicit",
+    // Explicit, and Filthy above it (v2.3): as far and as frank as After Dark goes.
+    explicit: atLeastExplicit(limits.intensity),
     hardNos: limits.hard_nos.chips,
     hit: (text) => limitsHit(text, limits),
   };

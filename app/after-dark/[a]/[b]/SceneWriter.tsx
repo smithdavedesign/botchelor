@@ -96,6 +96,17 @@ export default function SceneWriter({
   const isThisPair = (r: BusyReel) => new Set([r.a, r.b, scene.a.id, scene.b.id]).size === 2;
   const nameOf = (who: "a" | "b") => (who === "a" ? scene.a.name : scene.b.name).split(/\s+/)[0];
 
+  /** Fetches the gallery again a little later (twice: a picture and its checks take a while), adding what's new. */
+  function lookForPictures() {
+    for (const ms of [20_000, 60_000]) {
+      setTimeout(async () => {
+        const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+        const fresh = (r?.gallery as Media[] | undefined) ?? [];
+        if (fresh.length) setGallery((g) => [...fresh.filter((m) => !g.some((x) => x.id === m.id)), ...g]);
+      }, ms);
+    }
+  }
+
   /** Sends one action to the scene's route; whether it went through. */
   async function send(body: Record<string, unknown>): Promise<boolean> {
     if (writing.current) return false;
@@ -131,6 +142,8 @@ export default function SceneWriter({
     }
     if (body.redo) setAutoplay(false);
     if (body.limits) return true;
+    // A picture of the chapter or the new place is drawing after the response (lib/adult/auto-pictures.ts): look again soon.
+    if (res.data.auto_picture) lookForPictures();
     const pictures = (res.data.pictures as Media[] | undefined) ?? [];
     if (pictures.length) setGallery((g) => [...pictures, ...g]);
     const held = Number(res.data.held ?? 0);
@@ -438,7 +451,7 @@ function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | 
     return (
       <>
         {problemNote}
-        <p className="muted small">No pictures yet: the first ones come when a scene turns explicit, or when they ask each other for one.</p>
+        <p className="muted small">No pictures yet: they come as each chapter starts and when they go somewhere new, when a scene turns explicit, or when they ask each other for one.</p>
       </>
     );
   }
@@ -474,6 +487,10 @@ function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | 
                 <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" />
               )}
               <span className="badge">{m.kind}</span>
+              {m.kind === "scene" && (m.chapter || m.place) && (
+                // Drawn for a chapter and a place (lib/adult/auto-pictures.ts).
+                <span className="muted small ad-picture-where">{[m.chapter ? `Chapter ${m.chapter}` : "", m.place ?? ""].filter(Boolean).join(" · ")}</span>
+              )}
               {m.clip && (
                 <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)}>
                   Make it move

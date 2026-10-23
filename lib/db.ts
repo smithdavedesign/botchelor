@@ -1481,6 +1481,13 @@ create table if not exists adult_profiles (
   updated_by text,
   updated_at timestamptz not null default now()
 );
+-- After Dark v2.3 (lib/adult/auto-pictures.ts; 2026-10-23): the automatic pictures a scene has claimed (one per chapter
+-- and place, so a retry or a rewind never draws twice), the chapter and place a picture was drawn for, and the switch
+-- for them (null is on). Filthy, v2.3's intensity above explicit, is one more value of adult_scenes.intensity.
+alter table adult_scenes add column if not exists auto_pictures jsonb not null default '[]';
+alter table adult_images add column if not exists scene_chapter integer;
+alter table adult_images add column if not exists scene_place text;
+alter table adult_settings add column if not exists auto_scene_pictures boolean;
 -- Marketing + agent funnel analytics (lib/agent-funnel.ts). user_id is an agent_id or an anon id; event is a
 -- small enum. The partial unique index makes agent_first_* events idempotent per user, so a tool that
 -- re-fires on retry never inflates the count.
