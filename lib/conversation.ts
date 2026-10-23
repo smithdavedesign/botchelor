@@ -360,6 +360,24 @@ export function parseTurn(raw: string, side: "a" | "b", act: number): Turn | nul
 }
 
 /**
+ * The critic's notes as a turn draft keeps them (lib/turn-drafts.ts). The model is told which never_says phrase it used,
+ * so it can revise, but the sheet's never_says list is private (publicExtras leaves it out), so the stored reason names
+ * it generically, as an agent's refused line does (lib/own-date.ts NEVER_SAYS_REASON, docs/data-plan.md).
+ */
+export function storedDraftReason(notes: string, never: readonly string[] | undefined): string {
+  const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let out = notes;
+  for (const phrase of never ?? []) {
+    const p = escape(phrase.trim());
+    if (!p) continue;
+    // The critic's own note first, then the phrase anywhere else a note quotes the line (an opener, an echo).
+    out = out.replace(new RegExp(`you'd never say "${p}"`, "gi"), "the line used a phrase on the character's never_says list");
+    out = out.replace(new RegExp(p, "gi"), "[never_says]");
+  }
+  return out.slice(0, 300);
+}
+
+/**
  * The critic's note for a line, or null when it reads like a real person on a blind date. Deterministic and
  * free (lib/quality.ts). One note per problem, phrased as direction for a rewrite.
  */
@@ -511,7 +529,8 @@ export async function simulateConversation(
     // The revision won: the draft it replaced is the rejected half of a pair (never throws into the date).
     if (line && draft && line !== draft && opts.onDraft) {
       try {
-        opts.onDraft({ turn_index: i, side, reason: draftNotes.slice(0, 300), rejected: draft.turn.dialogue.slice(0, 600) });
+        const speaker = characters[side === "a" ? 0 : 1];
+        opts.onDraft({ turn_index: i, side, reason: storedDraftReason(draftNotes, speaker.extras?.never_says), rejected: draft.turn.dialogue.slice(0, 600) });
       } catch {
         /* a lost draft never costs the date */
       }
