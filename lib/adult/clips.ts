@@ -23,7 +23,7 @@ import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, NO_MEDIA_LIMITS, type MediaLimits, type MenuAct } from "./acts";
 import { CHAIN_MAX } from "./clip-chains";
 import { isPublicPlace } from "./continuity";
-import { INTENSITY, intensityOf, limitsHit, storedHardNos, type PairLimits } from "./limits";
+import { atLeastExplicit, INTENSITY, intensityOf, limitsHit, storedHardNos, type PairLimits } from "./limits";
 import { ensureBaseline } from "./media";
 import { adultModel } from "./mode";
 import {
@@ -62,13 +62,14 @@ const HERE_LINES = 8;
 
 /**
  * The viewer's limits for a pair (lib/adult/limits.ts: the intensity dial and the hard nos, set per owner and pair) as
- * its pictures and clips hold to them: no further than the intensity goes, explicit only at explicit (spicy and below
- * are sensual, never graphic), and no act, still, motion or line that crosses a hard no.
+ * its pictures and clips hold to them: no further than the intensity goes, explicit only at explicit or filthy (spicy and
+ * below are sensual, never graphic), and no act, still, motion or line that crosses a hard no.
  */
 export function mediaLimitsOf(limits: PairLimits): MediaLimits {
   return {
     maxStage: INTENSITY[limits.intensity].maxStage,
-    explicit: limits.intensity === "explicit",
+    // Explicit, and Filthy above it (v2.3): as far and as frank as After Dark goes.
+    explicit: atLeastExplicit(limits.intensity),
     hardNos: limits.hard_nos.chips,
     hit: (text) => limitsHit(text, limits),
   };
@@ -229,8 +230,14 @@ export async function clipOffer(db: Db, ownerId: string, x: string, y: string): 
   return { price, here, acts: actMenu(nightStands(night.where), cast, [ca.name, cb.name], limits) };
 }
 
-/** What's asked for: the latest moment, an act (with who leads swapped, or not), or to keep going from a clip. */
-export type ClipAsk = { a: string; b: string; here: true } | { a: string; b: string; act: string; swap?: boolean } | { continue: string };
+/**
+ * What's asked for: a moment of the night (the latest, or the line `at`, as the theater shows it; the running scene, or a
+ * saved night), an act (with who leads swapped, or not), or to keep going from a clip.
+ */
+export type ClipAsk =
+  | { a: string; b: string; here: true; at?: number; night_id?: string | null }
+  | { a: string; b: string; act: string; swap?: boolean }
+  | { continue: string };
 
 /** A shot planned, before anything is spent: what it shows and says, how far it goes, where, and its keyframe. */
 type Plan = {
@@ -285,7 +292,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
     return refuse(409, "not_set_up", `Clips need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.`);
   }
-  const night = await reelNight(db, ownerId, a, b);
+  const night = await reelNight(db, ownerId, a, b, "here" in ask ? (ask.night_id ?? null) : null);
   const [ca, cb] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b)]);
   if (!night || !ca || !cb) return refuse(404, "not_found", "Pick two characters who are in after dark.");
   const cast = reelCast(ca, cb, ownerId);
@@ -332,16 +339,21 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
       keyframe: (set, place) => ({ prompt: keyframePrompt(cast, frame, place ? placeWords(place, cast) : null, act.dress, Boolean(set), { explicit: limits.explicit }), continueFrom: null, withSet: true }),
     };
   } else {
-    if (night.lines.length < 2) return refuse(409, "too_short", "Write a few lines first: a clip from here films the scene's latest moment.");
-    const cap = capFor(stands, limits);
-    const d = await directHere(db, cast, night.lines, places, cap, limits);
-    const at = night.lines.length - 1;
+    // The moment: the latest line, or the one the theater is showing (`at`), and the lines up to it.
+    const last = night.lines.length - 1;
+    const at = "here" in ask && typeof ask.at === "number" ? Math.min(Math.max(0, ask.at), last) : last;
+    if (at < 1) return refuse(409, "too_short", "Write a few lines first: a clip from here films the scene's latest moment.");
+    const lines = night.lines.slice(0, at + 1);
+    // How far it had gone there, and whether that was somewhere public (where it stands now, at the latest line).
+    const there = at === last ? stands : { ...stands, stage: Math.min(stands.stage, lines[at].stage ?? stands.stage), place: places[at] ?? stands.place, publicPlace: isPublicPlace(places[at] ?? stands.place, null) };
+    const cap = capFor(there, limits);
+    const d = await directHere(db, cast, lines, places, cap, limits);
     const line = d.line ?? at;
     plan = {
-      shot: { line, who: night.lines[line].who, text: d.line !== null ? spoken(night.lines[line].text).speech : "", frame: d.frame, motion: d.motion },
+      shot: { line, who: lines[line].who, text: d.line !== null ? spoken(lines[line].text).speech : "", frame: d.frame, motion: d.motion },
       stage: cap,
-      place: places[at] ?? stands.place,
-      meta: { act: null, swap: false, from: null, stage: cap, place: places[at] ?? stands.place, label: "From here" },
+      place: there.place,
+      meta: { act: null, swap: false, from: null, stage: cap, place: there.place, label: "From here" },
       keyframe: (set, place) => ({ prompt: keyframePrompt(cast, d.frame, place ? placeWords(place, cast) : null, cap, Boolean(set), { explicit: limits.explicit }), continueFrom: null, withSet: true }),
     };
   }

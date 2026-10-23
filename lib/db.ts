@@ -1190,6 +1190,8 @@ create index if not exists adult_reels_pair on adult_reels (owner_id, character_
 alter table adult_reels add column if not exists kind text not null default 'night';
 alter table adult_reels add column if not exists clip jsonb;
 alter table adult_settings add column if not exists clip_tokens integer;
+-- A picture from the shot menu (lib/adult/pictures-menu.ts, 2026-10-22): its price in bought tokens.
+alter table adult_settings add column if not exists menu_picture_tokens integer;
 -- Every image the output check refused: never the image itself, only why (for the admin to see it's working).
 create table if not exists adult_rejections (
   id text primary key,
@@ -1326,6 +1328,19 @@ alter table adult_settings add column if not exists cap_writes integer not null 
 alter table adult_settings add column if not exists image_base text;
 alter table adult_settings add column if not exists cap_pictures integer not null default 30;
 alter table adult_settings add column if not exists cap_clips integer not null default 5;
+-- Voiced nights (lib/adult/voice-lines.ts, 2026-10-22): each line's audio made once, in its character's stock voice, and
+-- found again by a key of the owner, the voice and the words (an adult_images 'audio'); a monthly cap per subscriber.
+create table if not exists adult_voice_lines (
+  owner_id text not null,
+  key text not null,
+  image_id text not null,
+  voice text not null,
+  chars integer not null,
+  created_at timestamptz not null default now(),
+  primary key (owner_id, key)
+);
+alter table adult_usage add column if not exists voice_lines integer not null default 0;
+alter table adult_settings add column if not exists cap_voice_lines integer not null default 2000;
 
 -- Monthly seasons (David, 2026-10-19; lib/season-cast.ts): who's on each season's show, decided once on its first
 -- read. 'dealt' from the old shuffle, 'survivor' the previous season's two most-loved, 'new' a newcomer.

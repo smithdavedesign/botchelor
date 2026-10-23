@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * npm run screenshots:after-dark-media: real-browser screenshots of After Dark's media on a pair's page (clips on demand,
- * lib/adult/clips.ts), desktop and phone, into docs/screenshots/. It builds the app and runs it with ADULT_MODE=1 on a
+ * lib/adult/clips.ts), its prices in the settings, and the media UI (the clip and picture menu, Listen on the lines and in
+ * the theater), desktop and phone, into docs/screenshots/ (SHOTS=clips,prices,ui). It builds the app and runs it with ADULT_MODE=1 on a
  * throwaway local database and a local stub for After Dark's model that writes PG placeholder lines. No provider is
  * called: the clips are seeded straight into the local database, their pictures and videos made here from the repo's
  * own PG portraits (public/cast) with ffmpeg, and deleted with the database afterwards. Never anything explicit.
@@ -19,7 +20,8 @@ import { appEnv, build, freePort, ROOT, startApp, startShowrunner, stopApp } fro
 const OUT_DIR = join(ROOT, "docs", "screenshots");
 const DATA_DIR = join(ROOT, ".data", "after-dark-media-screenshots");
 const DB_DIR = join(DATA_DIR, "pglite");
-const PREFIX = process.env.SHOTS_PREFIX || "after-dark-clips";
+/** Which screenshots: clips (the videos list), prices (the settings' price fields); all by default. */
+const SHOTS = new Set((process.env.SHOTS || "clips,prices,ui").split(",").map((s) => s.trim()));
 
 /** PG placeholder lines: two people on a rooftop with a kettle, talking. */
 const LINES = [
@@ -90,7 +92,10 @@ function placeholders(a, b) {
   };
   run(["-i", cast(a), "-i", cast(b), "-filter_complex", "[0:v]scale=384:512[l];[1:v]scale=384:512[r];[l][r]hstack=inputs=2", "-frames:v", "1", still]);
   run(["-loop", "1", "-i", still, "-t", "2", "-vf", "scale=768:512,format=yuv420p", "-c:v", "libx264", "-r", "16", clip]);
-  return { still: readFileSync(still), clip: readFileSync(clip), portrait: (id) => readFileSync(cast(id)) };
+  // A line's "voice": a second of a soft tone, for Listen to play.
+  const tone = join(dir, "tone.wav");
+  run(["-f", "lavfi", "-i", "sine=frequency=330:duration=1.2", "-af", "volume=0.2", tone]);
+  return { still: readFileSync(still), clip: readFileSync(clip), tone: readFileSync(tone), portrait: (id) => readFileSync(cast(id)) };
 }
 
 /** Clips straight into the local database: a slow kiss kept going once, and a slow dance. */
@@ -114,6 +119,9 @@ async function seed(scenePath) {
     await put("shots-base-b", b, null, "baseline", "image/webp", media.portrait(b));
     for (const n of [1, 2, 3]) await put(`shots-frame-${n}`, a, b, "frame", "image/png", media.still);
     for (const n of [1, 2]) await put(`shots-video-${n}`, a, b, "video", "video/mp4", media.clip);
+    await put("shots-voice", a, b, "audio", "audio/wav", media.tone);
+    // The night at kissing (the stub's lines alone leave it at the first touches: a stage lasts 12 lines unsteered).
+    await db.query("update adult_scenes set stage = 2 where owner_id = $1", [owner]);
     const shot = (n, motion, status = "ready") => ({
       line: 11,
       who: "a",
@@ -161,9 +169,20 @@ async function main() {
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
   const shot = async (page, file) => {
     await page.waitForTimeout(500);
-    await page.screenshot({ path: join(OUT_DIR, `${PREFIX}-${file}.png`) });
-    console.log(`  📸 docs/screenshots/${PREFIX}-${file}.png`);
+    await page.screenshot({ path: join(OUT_DIR, `${file}.png`) });
+    console.log(`  📸 docs/screenshots/${file}.png`);
   };
+  const noSideways = async (page, name) => {
+    const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
+    assert(scroll <= width, `${name}: the page scrolls sideways on a phone (${scroll}px wide on a ${width}px screen)`);
+    console.log(`  ✓ ${name}: no sideways scroll on a phone`);
+  };
+  /** Scrolls so `selector` sits just under the sticky header. */
+  const under = (page, selector) =>
+    page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - (document.querySelector("header")?.getBoundingClientRect().height ?? 0) - 16);
+    }, selector);
   try {
     const ctx = await browser.newContext();
     await ctx.addCookies([{ name: "bz_adult", value: "1", url: app.base }]);
@@ -187,24 +206,73 @@ async function main() {
     await seed(scenePath);
     app = await startApp(port, env);
 
-    await page.goto(`${app.base}${scenePath}`);
-    const clips = page.locator(".ad-clips");
-    await clips.waitFor({ timeout: 30_000 });
-    await page.getByRole("button", { name: /Keep going/ }).first().waitFor({ timeout: 15_000 });
-    // Their videos' heading just under the sticky header.
-    const toVideos = () => page.evaluate(() => {
-      const h = [...document.querySelectorAll("h2")].find((x) => x.textContent === "Their videos");
-      if (h) window.scrollTo(0, h.getBoundingClientRect().top + window.scrollY - (document.querySelector("header")?.getBoundingClientRect().height ?? 0) - 16);
-    });
-    await toVideos();
-    await shot(page, "list-desktop");
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    await toVideos();
-    const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: window.innerWidth }));
-    assert(scroll <= width, `the page scrolls sideways on a phone (${scroll}px wide on a ${width}px screen)`);
-    console.log("  ✓ phone: no sideways scroll");
-    await shot(page, "list-phone");
+    if (SHOTS.has("clips")) {
+      // The videos list: clips apart, each chain as one film with Keep going.
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(`${app.base}${scenePath}`);
+      await page.locator(".ad-clips").waitFor({ timeout: 30_000 });
+      await page.getByRole("button", { name: /Keep going/ }).first().waitFor({ timeout: 15_000 });
+      await under(page, ".ad-clips");
+      await page.evaluate(() => window.scrollBy(0, -60));
+      await shot(page, "after-dark-clips-list-desktop");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await under(page, ".ad-clips");
+      await page.evaluate(() => window.scrollBy(0, -60));
+      await noSideways(page, "the videos list");
+      await shot(page, "after-dark-clips-list-phone");
+    }
+    if (SHOTS.has("ui")) {
+      // The voice route answers the seeded tone for every line (no Kokoro here).
+      await page.route("**/api/admin/after-dark/voice", async (route) => {
+        const { lines = [] } = JSON.parse(route.request().postData() || "{}");
+        await route.fulfill({ json: { voices: lines.map((l) => ({ i: l.i, id: "shots-voice" })) } });
+      });
+      for (const [w, h, size] of [[1280, 800, "desktop"], [390, 844, "phone"]]) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.goto(`${app.base}${scenePath}`);
+        // The clip or picture panel, opened on a clip: a slow kiss picked, who's who shown.
+        const panel = page.locator("details.ad-media");
+        await panel.locator("summary").click();
+        await panel.getByRole("button", { name: /Clip from here/ }).waitFor({ timeout: 20_000 });
+        await panel.getByRole("button", { name: "A slow kiss" }).click();
+        await under(page, "details.ad-media");
+        if (size === "phone") await noSideways(page, "the clip menu");
+        await shot(page, `after-dark-media-clip-${size}`);
+        // A picture: cuddling, casual, wide.
+        await panel.getByRole("tab", { name: /A picture/ }).click();
+        await panel.getByRole("button", { name: "Cuddling" }).click();
+        await panel.getByRole("button", { name: "Casual" }).click();
+        await panel.getByRole("radio", { name: /Wide/ }).click();
+        await under(page, "details.ad-media");
+        if (size === "phone") await noSideways(page, "the picture menu");
+        await shot(page, `after-dark-media-picture-${size}`);
+        // Listen on the lines, from the top: the line being said marked.
+        await page.getByRole("button", { name: "⏮ From the top" }).click();
+        await page.getByText(/line \d+ of \d+/).first().waitFor({ timeout: 15_000 });
+        await under(page, ".ad-listen");
+        if (size === "phone") await noSideways(page, "Listen on the lines");
+        await shot(page, `after-dark-listen-lines-${size}`);
+        await page.getByRole("button", { name: "🔊 Listening" }).click();
+        // The theater: 🔈 Listen and 🎞 Clip this in its tools, Listen on.
+        await page.goto(`${app.base}${scenePath}?play=1`);
+        await page.locator(".theater").getByRole("button", { name: /Listen: each line/ }).click();
+        await page.waitForTimeout(1500);
+        if (size === "phone") await noSideways(page, "the theater");
+        await shot(page, `after-dark-listen-theater-${size}`);
+      }
+    }
+    if (SHOTS.has("prices")) {
+      // The settings: a clip's price and a menu picture's, under the video of the night's.
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(`${app.base}/admin/after-dark/settings`);
+      await page.locator("#ad-clip-tokens").waitFor({ timeout: 30_000 });
+      await under(page, "label[for=ad-reel-tokens]");
+      await shot(page, "after-dark-prices-settings-desktop");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await under(page, "label[for=ad-reel-tokens]");
+      await noSideways(page, "the settings");
+      await shot(page, "after-dark-prices-settings-phone");
+    }
     await ctx.close();
   } finally {
     await browser.close();
