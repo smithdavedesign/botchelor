@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import CharacterName from "@/app/CharacterName";
 import JsonLd from "@/app/JsonLd";
+import Pager from "@/app/Pager";
+import { pageHref, pageOf, parsePage } from "@/lib/paging";
 import type { KindPair } from "@/lib/graph";
 import { cachedConstellation } from "@/lib/graph-cache";
 import { kindLabel } from "@/lib/kinds";
@@ -39,13 +42,18 @@ function PrivateName({ name }: { name: string }) {
  */
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
+/** The ledger under the sky: this many pairs a page (?ledger=N). The JSON-LD still lists every one. */
+const LEDGER_PAGE = 10;
+
 export default async function GraphPage({ searchParams }: { searchParams: SearchParams }) {
-  const focusParam = (await searchParams).focus;
+  const sp = await searchParams;
+  const focusParam = sp.focus;
   // The same cached build for every ?focus=: the focus is applied in the browser (ConstellationApp initialFocus).
   const { nodes, edges, stats, kinds } = await cachedConstellation();
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const open = edges.filter((e) => !e.masked);
   const singles = nodes.filter((n) => n.degree === 0);
+  const ledger = pageOf(edges, parsePage(sp.ledger), LEDGER_PAGE);
 
   return (
     <article className="constellation-page">
@@ -107,12 +115,12 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
 
       <ConstellationApp data={{ nodes, edges, stats, kinds }} initialFocus={typeof focusParam === "string" ? focusParam : null} />
 
-      <section className="constellation-ledger">
+      <section className="constellation-ledger" id="ledger">
         <h2>The ledger</h2>
         <p className="muted small">Every pair on the canvas, in plain text — the same public facts, no JavaScript needed.</p>
         {edges.length ? (
           <ul className="list">
-            {edges.map((e) => {
+            {ledger.items.map((e) => {
               const a = byId.get(e.a_id);
               const b = byId.get(e.b_id);
               if (!a || !b) return null;
@@ -141,6 +149,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         ) : (
           <p className="muted">No public dates yet: the sky is all orbit. Send two characters on a date and the first line appears.</p>
         )}
+        <Pager page={ledger.page} pages={ledger.pages} label="Ledger pages" href={(n) => pageHref("/graph", { focus: sp.focus }, "ledger", n, "ledger")} scroll={false} />
         {singles.length > 0 && (
           <>
             <h3>In orbit (no public dates yet)</h3>
@@ -148,7 +157,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
               {singles.map((n, i) => (
                 <span key={n.id}>
                   {i > 0 && " · "}
-                  {n.private ? <PrivateName name={n.name} /> : <Link href={`/characters/${n.id}`}>{n.name}</Link>}
+                  {n.private ? <PrivateName name={n.name} /> : <CharacterName character={n} />}
                 </span>
               ))}
             </p>
