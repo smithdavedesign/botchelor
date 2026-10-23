@@ -28,7 +28,7 @@ The deeper write-ups are `docs/upgrade-cost.md` (a date's token cost, measured) 
 | One After Dark scene step (6 lines) | OpenRouter **DeepSeek V3.1** `deepseek/deepseek-chat-v3.1:nitro` (throughput-sorted routing, picks CoreWeave) since 2026-10-22; Dolphin-Mistral 24B before | **~0.18–0.21¢** (Dolphin was ~0.15¢; DeepSeek on the cheapest host, DeepInfra, ~0.09¢). About 5.5–7.6 s a step on CoreWeave. Without `:nitro`, default routing picked DeepInfra: 40–55 s a step, 429s and about 1 empty step in 26. DeepSeek won the blind reads (8.2 and 8.5 of 10 on the explicit-stage run, #612, against Dolphin's 3.5 and 4.0). |
 | An After Dark eval run (4 steps, `/api/jobs/eval-after-dark`) | OpenRouter: Dolphin v1 0.3¢, Dolphin v2 with facts 0.7¢, DeepSeek V3.1 1.4¢, Hermes 3 70B 1.6¢, Euryale 70B 2¢, Hermes 4 405B 3.5¢ | capped at $0.25 a run and $2 a day (botchelor-2c) |
 | One After Dark picture | Venice plus Hive moderation and age check | ~1.5¢ |
-| The video of the night (6 shots, Wan 3.0, ~30 s) | Venice video plus Hive on every shot | **$4.00–5.20** (sells for 15 tokens, ~$10.80 after Stripe) |
+| The video of the night (6 shots, Wan 3.0, ~30 s) | Venice video, a $0.04 keyframe of the two of them per shot, plus Hive on every keyframe and shot | **$4.25–5.50** (sells for 15 tokens, ~$10.80 after Stripe) |
 | A 15 s clip, standard (LongCat) | Venice video plus Hive | $0.30–0.80 |
 | Email (Resend) | Free plan, 3,000 a month | $0 |
 | A sale | Stripe 2.9% + 30¢ | **42¢** on a $4 pack |

@@ -90,10 +90,13 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 
 **What it is:** a short film of a whole night (`lib/adult/reels.ts`).
 - The model picks its strongest lines across the night: how it starts, how it builds, the peak (rarely at either end), how it lands.
-- Each line becomes one shot of the speaker saying it, starting from the pair's own pictures, which already passed the age check.
+- **Each line becomes one shot of the two of them together** (since 2026-10-22; docs/after-dark.md, "Videos with both of them in"):
+  - the model writes a still of that moment (where they are, how they're posed, the framing) and what they do next;
+  - Venice's multi-image edit (`qwen-edit-uncensored`, $0.04) turns their two portraits, plus the night's drawn set when there is one, into one picture of both;
+  - Hive checks that picture (moderation and the age check), and Wan 3.0 animates it.
 - **Voices (David's pick, 2026-10-19, after watching both tests):** Wan 3.0 speaks each line itself, from the prompt ("test A"). It sounded more real than a stock Kokoro voice lip-synced by Wan 2.6 ("test B").
-  - The catch: the model chooses the voice per shot, so a character can sound slightly different from shot to shot.
-  - B's own-voice path is still in the code: set the model to a Wan 2.6 one to use it.
+  - The catch: the model chooses the voice per shot, so a character can sound slightly different from shot to shot. The prompt gives each character the same voice words every shot ("a deep, warm man's voice").
+  - B's own-voice path is still in the code (set the model to a Wan 2.5–2.7 one), but with two people in the shot it lip-syncs whichever face is clearest. On 2026-10-22 that put Dex's line on Lexi's mouth.
 - Hive checks every shot before it's kept. A discarded shot gives back its share of the tokens.
 - The shots play in order, with each line as a caption.
 
@@ -102,22 +105,23 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 | Default video (6 shots, Wan 3.0, about 30 s) | Cost |
 |---|---|
 | 6 shots × $0.65 (5 s each; a long line takes 10 s, $1.30) | $3.90 to $5.00 |
-| Picking the lines (text model) | about $0.001 |
-| Hive moderation on each shot, plus the age check | about $0.10 to $0.20 |
-| **Total** | **about $4.00 to $5.20** |
+| 6 keyframes of the two of them × $0.04 (`qwen-edit-uncensored`) | $0.24 |
+| Picking the lines and writing the shots (text model) | about $0.002 |
+| Hive moderation on each keyframe and shot, plus the age check on each keyframe | about $0.10 to $0.25 |
+| **Total** | **about $4.25 to $5.50** |
 
-At **15 tokens** we take in about $10.80 after Stripe's fee (about $10.20 with an adult processor), so we keep about **$5 to $6.50** a video. Test B's route (Wan 2.6 with our own voices) would cost about $3.50.
+At **15 tokens** we take in about $10.80 after Stripe's fee (about $10.20 with an adult processor), so we keep about **$5.30 to $6.50** a video. Test B's route (Wan 2.6 with our own voices) would cost about $3.50, but it lip-syncs the wrong face in a two-person shot.
 
-**Hive's limit:** self-serve allows 100 visual-moderation requests a day, and the only way to raise it is to contact Hive Sales. That's needed before real volume. The vision-language model (the age check) has no listed limit and costs $0.50 per million input tokens and $2.50 per million output, about $0.001 a check.
+**Hive's limit:** self-serve allows 100 visual-moderation requests a day, and the only way to raise it is to contact Hive Sales. That's needed before real volume. A video now asks for 6 more of them (one per keyframe) on top of its shots. The vision-language model (the age check) has no listed limit and costs $0.50 per million input tokens and $2.50 per million output, about $0.001 a check.
 
 ### What other sites charge (from reviews, October 2026; check before relying on them)
 
-- **[OurDream](https://kissable.app/blog/best-ai-girlfriend-app-with-video):** about 100 coins for a 5 s clip and 300 for 30 s. 1,000 coins is about $10, so roughly **$1 for 5 s and $3 for 30 s**. It's video inside the chat, but with no voiced dialogue from the user's own story.
+- **OurDream:** its [help centre](https://help.ourdream.ai/en/articles/10808513) charges 100 coins for 5 s, 20 coins a second for audio and +50% to extend. Plans give 1,000 coins for $9.99 to $19.99 a month, so a silent 5 s clip is about $1 to $2 and a voiced 30 s about 1,200 coins, **$12 to $24**. (A review's "300 coins for 30 s", which this page used before, understated it.) It's one character in a preset action, with no dialogue from the user's own story.
 - **[GirlfriendGPT](https://www.callyourgirlfriend.com/ai-girlfriend-video-generator):** 30 coins for a 5 s clip, 60 for 10 s.
 - **[Promptchan](https://il.ly/blog/nsfw):** about 20 to 28 credits a clip, on a paid tier only.
-- **Candy.ai:** video comes out of a 100-token monthly allowance. [One review](https://www.startuphub.ai/ai-news/reviews/2026/best-ai-girlfriend-apps-2026) estimates real video spend at $25 to $60 a month.
+- **Candy.ai:** about 12 to 20 tokens for a clip of about 10 s (roughly $1.20 to $2.00 at $9.99 for 100 tokens). It shows one character, to camera, with the viewer as the partner; two people together appear only in its pre-made Shorts.
 
-Ours is priced above the clip sites on purpose. They sell a few seconds of motion; ours is the person's own night, in their characters' own voices, as a short film. At $12 (15 tokens) we're about 4 times OurDream's 30 s price. Lower it in settings if people don't buy.
+Ours is priced as a short film, not a clip: the person's own night, with both characters in it, in their own voices. At $12 (15 tokens) for about 30 s, we're level with OurDream's voiced price or below it. Lower it in settings if people don't buy.
 
 ## The subscription
 

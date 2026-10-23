@@ -126,10 +126,15 @@ export function physicalLook(c: Character, undressed = false): string {
  */
 const picks = (c: Character, viewer?: string | null) => looksPictureWords(c.extras?.looks, Boolean(viewer) && c.ownerId === viewer);
 
+/** How a picture describes a character's look: their looks-builder picks when they have them, else physicalLook. */
+export function lookWords(c: Character, undressed: boolean, viewer?: string | null): string {
+  const picked = picks(c, viewer);
+  return picked.body ? [picked.body, !undressed && picked.outfit ? `wearing ${picked.outfit}` : ""].filter(Boolean).join(", ") : physicalLook(c, undressed);
+}
+
 const person = (c: Character, undressed: boolean, viewer?: string | null) => {
   const p = c.pronouns?.startsWith("she") ? "woman" : c.pronouns?.startsWith("he") ? "man" : "person";
-  const picked = picks(c, viewer);
-  const look = picked.body ? [picked.body, !undressed && picked.outfit ? `wearing ${picked.outfit}` : ""].filter(Boolean).join(", ") : physicalLook(c, undressed);
+  const look = lookWords(c, undressed, viewer);
   return `a ${Math.max(18, c.age)}-year-old adult ${p}${look ? `, ${look}` : ""}`;
 };
 

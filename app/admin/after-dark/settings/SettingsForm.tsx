@@ -124,8 +124,9 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <input id="ad-venice-model" value={s.venice_image_model} onChange={(e) => setS({ ...s, venice_image_model: e.target.value })} />
       <h3>Video of the night: Venice</h3>
       <p className="muted small">
-        A short film of a whole night: the strongest lines, each a shot of the speaker saying it in their own stock voice. A Wan 2.6 or 2.5 model
-        lip-syncs to that voice; any other model is given the line to speak itself.
+        A short film of a whole night: the strongest lines, each a shot of the two of them together, started from a picture of both made from
+        their portraits in the night&apos;s place. Wan 3.0 (the default) says each line itself. A Wan 2.5–2.7 model lip-syncs their stock voice
+        instead, but to whichever face is clearest, often the wrong one with two people in the shot.
       </p>
       <label htmlFor="ad-reel-model">Video model</label>
       <input id="ad-reel-model" value={s.reel_model} onChange={(e) => setS({ ...s, reel_model: e.target.value })} />

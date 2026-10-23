@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
+import { invalidateGraph } from "@/lib/graph-cache";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { REPORT_REASONS } from "@/lib/rules";
 import { refreshEpisodePair } from "@/lib/relationships";
@@ -31,6 +32,7 @@ export const POST = handle(async (req) => {
     track("content_reported", { target: "episode", reason: input.reason });
     // Enough reports hide a date, which takes it out of the relationship graph's public layer.
     await refreshEpisodePair(db, input.episode_id).catch(() => {});
+    invalidateGraph(); // the Constellation's turned-down and left-first counts read the same rule
     return json({ episode_id: input.episode_id, reported: true }, 201, sess);
   }
 

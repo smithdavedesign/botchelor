@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { GraphData, GraphEdge, GraphNode } from "@/lib/graph";
 import { KINDS, type KindId } from "@/lib/kinds";
-import { communityHue, kindHue, type ColorBy } from "./colors";
+import { communityColor, kindHue, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
 import SidePanel from "./SidePanel";
 
@@ -30,9 +30,9 @@ const COLOR_BY: { id: ColorBy; label: string }[] = [
 type KindFilter = "all" | KindId | "unsaid";
 
 /**
- * The interactive shell around the canvas: search-to-focus, origin and depth filters, and the detail panel.
- * Filtering happens here so the canvas just draws what it's given; edges are always cut down to pairs whose
- * both ends survived the node filter (the canvas relies on that alignment).
+ * The interactive shell around the canvas: a toolbar above the sky (search-to-focus, origin, colouring, kind and depth
+ * filters), the sky itself, and the detail panel. Filtering happens here so the canvas just draws what it's given;
+ * edges are always cut down to pairs whose both ends survived the node filter (the canvas relies on that alignment).
  */
 export default function ConstellationApp({ data, initialFocus = null }: { data: GraphData; initialFocus?: string | null }) {
   // /graph?focus=<id> (from a character, couple or episode page): open on that character, its panel open.
@@ -51,8 +51,13 @@ export default function ConstellationApp({ data, initialFocus = null }: { data: 
   const [showSingles, setShowSingles] = useState(true);
   const [colorBy, setColorBy] = useState<ColorBy>("character");
   const [kind, setKind] = useState<KindFilter>("all");
+  // "Show what happened": endings, turn-downs, who left first and the chevrons. Off, like the episode page's recap.
+  const [showOutcomes, setShowOutcomes] = useState(false);
   // The kinds anyone on the sky has said, in the vocabulary's order, for the filter and the legend.
   const kindsPresent = useMemo(() => KINDS.filter((k) => data.nodes.some((n) => n.kind === k.id)), [data.nodes]);
+  // The clusters on the sky, biggest first (the server numbers them by size): the first CLUSTER_COLORS.length get a
+  // colour, the rest share the grey and the key just counts them.
+  const clusters = useMemo(() => [...new Set(data.nodes.map((n) => n.community).filter((c): c is number => c !== null))].sort((x, y) => x - y), [data.nodes]);
 
   const { nodes, edges } = useMemo(() => {
     let ns: GraphNode[] = data.nodes;
@@ -82,10 +87,12 @@ export default function ConstellationApp({ data, initialFocus = null }: { data: 
     setQuery("");
   };
 
+  const coloured = clusters.filter((c) => communityColor(c) !== null);
+  const smaller = clusters.length - coloured.length;
+
   return (
     <div className="constellation-stage">
-      <ConstellationCanvas nodes={nodes} edges={edges} selection={selection} onSelect={setSelection} focusId={focusId} colorBy={colorBy} />
-      <div className="constellation-hud">
+      <div className="constellation-hud" role="toolbar" aria-label="Find and filter the constellation">
         <div className="constellation-search">
           <input
             type="search"
@@ -121,14 +128,19 @@ export default function ConstellationApp({ data, initialFocus = null }: { data: 
               </button>
             ))}
           </div>
-          <div className="segmented constellation-segmented" role="group" aria-label="Colour by">
-            {COLOR_BY.map((c) => (
-              <button key={c.id} type="button" className="segmented-tab" aria-pressed={colorBy === c.id} onClick={() => setColorBy(c.id)}>
-                {c.label}
-              </button>
-            ))}
+          <div className="constellation-colour" role="group" aria-label="Colour by">
+            <span className="constellation-colour-label" aria-hidden>
+              Colour
+            </span>
+            <div className="segmented constellation-segmented">
+              {COLOR_BY.map((c) => (
+                <button key={c.id} type="button" className="segmented-tab" aria-pressed={colorBy === c.id} onClick={() => setColorBy(c.id)}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <label className="constellation-filter">
+          <label className="constellation-filter constellation-kind">
             <select value={kind} onChange={(e) => setKind(e.target.value as KindFilter)} aria-label="What they are">
               <option value="all">Every kind</option>
               {kindsPresent.map((k) => (
@@ -139,43 +151,66 @@ export default function ConstellationApp({ data, initialFocus = null }: { data: 
               <option value="unsaid">Hasn&apos;t said</option>
             </select>
           </label>
-          <label className="constellation-filter">
-            <input type="checkbox" checked={minDates >= 2} onChange={(e) => setMinDates(e.target.checked ? 2 : 0)} /> Regulars only (2+ dates)
+          <label className="constellation-filter" title="Only pairs with two or more public dates">
+            <input type="checkbox" checked={minDates >= 2} onChange={(e) => setMinDates(e.target.checked ? 2 : 0)} /> 2+ dates
           </label>
-          <label className="constellation-filter">
-            <input type="checkbox" checked={showSingles} onChange={(e) => setShowSingles(e.target.checked)} /> Show the orbit (no dates yet)
+          <label className="constellation-filter" title="Characters still waiting for a first date, on the outer ring">
+            <input type="checkbox" checked={showSingles} onChange={(e) => setShowSingles(e.target.checked)} /> The orbit
           </label>
         </div>
       </div>
-      <SidePanel selection={selection} nodes={data.nodes} edges={data.edges} onClose={() => setSelection(null)} onFocus={focus} />
-      {colorBy === "kind" && (
-        <ul className="constellation-key small" aria-label="Kinds">
-          {kindsPresent.map((k) => (
-            <li key={k.id}>
-              <span className="constellation-swatch" style={{ background: `hsl(${kindHue(k.id)} 72% 58%)` }} aria-hidden /> {k.emoji} {k.label}
-            </li>
-          ))}
-          <li>
-            <span className="constellation-swatch is-grey" aria-hidden /> Hasn&apos;t said
-          </li>
-        </ul>
-      )}
-      {colorBy === "community" && (
-        <ul className="constellation-key small" aria-label="Clusters">
-          {[...new Set(data.nodes.map((n) => n.community).filter((c): c is number => c !== null))]
-            .sort((a, b) => a - b)
-            .slice(0, 6)
-            .map((c) => (
-              <li key={c}>
-                <span className="constellation-swatch" style={{ background: `hsl(${communityHue(c)} 72% 58%)` }} aria-hidden /> Cluster {c + 1}
+      <div className="constellation-sky">
+        <ConstellationCanvas
+          nodes={nodes}
+          edges={edges}
+          selection={selection}
+          onSelect={setSelection}
+          focusId={focusId}
+          colorBy={colorBy}
+          showOutcomes={showOutcomes}
+        />
+        <SidePanel
+          selection={selection}
+          nodes={data.nodes}
+          edges={data.edges}
+          onClose={() => setSelection(null)}
+          onFocus={focus}
+          colorBy={colorBy}
+          showOutcomes={showOutcomes}
+          onShowOutcomes={setShowOutcomes}
+        />
+        {colorBy === "kind" && (
+          <ul className="constellation-key small" aria-label="Kinds">
+            {kindsPresent.map((k) => (
+              <li key={k.id}>
+                <span className="constellation-swatch" style={{ background: `hsl(${kindHue(k.id)} 72% 58%)` }} aria-hidden /> {k.emoji} {k.label}
               </li>
             ))}
-          <li className="muted">Each colour is a circle that dates among itself.</li>
-        </ul>
-      )}
-      <p className="constellation-legend muted small" aria-hidden>
-        Bigger stars have dated more · brighter lines run deeper · dashed pairs keep it private · a chevron points at who got turned down · the outer ring is
-        still waiting for a first date
+            <li>
+              <span className="constellation-swatch is-grey" aria-hidden /> Hasn&apos;t said
+            </li>
+          </ul>
+        )}
+        {colorBy === "community" && (
+          <ul className="constellation-key small" aria-label="Clusters">
+            {coloured.map((c) => (
+              <li key={c}>
+                <span className="constellation-swatch" style={{ background: communityColor(c)! }} aria-hidden /> Cluster {c + 1}
+              </li>
+            ))}
+            {smaller > 0 && (
+              <li>
+                <span className="constellation-swatch is-grey" aria-hidden /> +{smaller} smaller
+              </li>
+            )}
+            {clusters.length === 0 && <li>No clusters yet: every pair dates alone.</li>}
+            <li className="muted">Each colour is a circle that dates mostly among itself.</li>
+          </ul>
+        )}
+      </div>
+      <p className="constellation-legend small">
+        Bigger stars have dated more · brighter lines run deeper · dashed pairs keep it private
+        {showOutcomes ? " · a chevron points at who got turned down" : ""} · the outer ring is still waiting for a first date
       </p>
     </div>
   );

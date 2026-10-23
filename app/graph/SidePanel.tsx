@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
-import type { GraphEdge, GraphNode } from "@/lib/graph";
+import type { GraphEdge, GraphNode, PairTimeline } from "@/lib/graph";
 import { ORIGIN_LABEL } from "@/lib/origin";
 import { ENDING_LABELS } from "@/lib/rules";
+import { communityColor, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
 
 type Props = {
@@ -14,7 +16,14 @@ type Props = {
   onClose: () => void;
   /** Jump the canvas to a node (the panel's partner links double as navigation). */
   onFocus: (id: string) => void;
+  /** What the stars' colours mean right now: under "Cluster", a star's panel names its cluster. */
+  colorBy: ColorBy;
+  /** "Show what happened": endings, who turned whom down, who left first. Off by default (the episode page's rule). */
+  showOutcomes: boolean;
+  onShowOutcomes: (on: boolean) => void;
 };
+
+export const SHOW_OUTCOMES_LABEL = "Show what happened (it gives away the endings)";
 
 const times = (n: number) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -54,8 +63,56 @@ function Tile({ node }: { node: GraphNode }) {
   );
 }
 
-/** What a tap opens: a character's public story, or a pair's. Everything here shipped with the page — no fetches. */
-export default function SidePanel({ selection, nodes, edges, onClose, onFocus }: Props) {
+/** Their first public date, and how it came about ("the show set it up"): never about a date before it. */
+function firstPublic(edge: GraphEdge): string | null {
+  if (!edge.first_at) return null;
+  const how = edge.met_via === "set_up" ? ": the show set it up" : edge.met_via === "asked" ? ": one of them asked" : "";
+  return `First public date ${shortDate(edge.first_at)}${how}.`;
+}
+
+/**
+ * A pair's public dates with each ending and the stage after it, fetched when "Show what happened" is opened on them
+ * (/api/graph/[a]/[b]): it isn't in the page's payload, which stays small and spoiler-light.
+ */
+function Timeline({ a, b }: { a: string; b: string }) {
+  const key = `${a}~${b}`;
+  const [got, setGot] = useState<{ key: string; data: PairTimeline | null } | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/graph/${encodeURIComponent(a)}/${encodeURIComponent(b)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<PairTimeline>) : null))
+      .catch(() => null)
+      .then((data) => {
+        if (live) setGot({ key, data });
+      });
+    return () => {
+      live = false;
+    };
+  }, [a, b, key]);
+  if (got?.key !== key) return <p className="muted small">Loading their dates…</p>;
+  if (!got.data) return <p className="muted small">Their dates didn&apos;t load. Their story page has them all.</p>;
+  const { timeline, total, truncated } = got.data;
+  return (
+    <>
+      {truncated && (
+        <p className="muted small constellation-timeline-note">
+          Their latest {timeline.length} of {total} public dates.
+        </p>
+      )}
+      <ol className="constellation-timeline small" aria-label="Their public dates" start={total - timeline.length + 1}>
+        {timeline.map((step, i) => (
+          <li key={`${step.at}-${i}`}>
+            <span className="muted">{shortDate(step.at)}</span> {ENDING_LABELS[step.ending]}
+            {step.stage && <span className="muted"> → {step.stage}</span>}
+          </li>
+        ))}
+      </ol>
+    </>
+  );
+}
+
+/** What a tap opens: a character's public story, or a pair's. Spoilers wait behind "Show what happened". */
+export default function SidePanel({ selection, nodes, edges, onClose, onFocus, colorBy, showOutcomes, onShowOutcomes }: Props) {
   if (!selection) return null;
   const byId = new Map(nodes.map((n) => [n.id, n]));
 
@@ -63,6 +120,7 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus }:
     const node = byId.get(selection.id);
     if (!node) return null;
     const mine = edges.filter((e) => e.a_id === node.id || e.b_id === node.id);
+    const clusterColor = colorBy === "community" && node.community !== null ? communityColor(node.community) : null;
     return (
       <aside className="constellation-panel card" aria-label={`About ${node.name}`}>
         <button type="button" className="constellation-close" onClick={onClose} aria-label="Close">
@@ -78,6 +136,13 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus }:
               <p className="muted small">
                 {node.kind_label && <span className="badge">{node.kind_label}</span>} {node.origin ? ORIGIN_LABEL[node.origin] : ""} ·{" "}
                 {node.degree === 0 ? "waiting for a first date" : `${node.degree} public connection${node.degree === 1 ? "" : "s"}`}
+              </p>
+            )}
+            {colorBy === "community" && node.community !== null && (
+              <p className="muted small constellation-cluster-name">
+                <span className={`constellation-swatch${clusterColor ? "" : " is-grey"}`} style={clusterColor ? { background: clusterColor } : undefined} aria-hidden />{" "}
+                Cluster {node.community + 1}
+                {clusterColor ? "" : " (a smaller one, in grey)"}
               </p>
             )}
           </div>
@@ -124,6 +189,8 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus }:
   const edge = edges.find((e) => e.a_id === selection.a_id && e.b_id === selection.b_id);
   if (!a || !b || !edge) return null;
   const anyPrivate = a.private || b.private;
+  const first = firstPublic(edge);
+  const happened = aired(edge, a.name, b.name);
   return (
     <aside className="constellation-panel card" aria-label={`${a.name} and ${b.name}`}>
       <button type="button" className="constellation-close" onClick={onClose} aria-label="Close">
@@ -152,29 +219,27 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus }:
           )}
         </div>
       </header>
-      {!edge.masked && (edge.met_via || edge.first_at || aired(edge, a.name, b.name).length > 0) && (
-        <p className="small constellation-aired">
-          {edge.met_via && <>{edge.met_via === "set_up" ? "The show set them up" : "One of them asked"}. </>}
-          {edge.first_at && <>First public date {shortDate(edge.first_at)}. </>}
-          {aired(edge, a.name, b.name).join(" · ")}
-        </p>
-      )}
-      {!edge.masked && edge.timeline.length > 1 && (
-        <ol className="constellation-timeline small" aria-label="Their public dates">
-          {edge.timeline.map((step, i) => (
-            <li key={`${step.at}-${i}`}>
-              <span className="muted">{shortDate(step.at)}</span> {ENDING_LABELS[step.ending]}
-              {step.stage && <span className="muted"> → {step.stage}</span>}
-            </li>
-          ))}
-        </ol>
-      )}
+      {!edge.masked && first && <p className="small constellation-aired">{first}</p>}
       {!edge.masked && (
         <div className="constellation-tie" title={`Tie strength ${Math.round(edge.weight * 100)}%`}>
           <span className="muted small">Tie strength</span>
           <span className="constellation-tie-track" aria-hidden>
             <span className="constellation-tie-fill" style={{ width: `${Math.max(4, Math.round(edge.weight * 100))}%` }} />
           </span>
+        </div>
+      )}
+      {!edge.masked && (
+        <div className="constellation-outcomes">
+          {/* The same fold as the episode page's recap toggle: closed by default, and it opens the chevrons on the sky too. */}
+          <button type="button" className="constellation-reveal" aria-expanded={showOutcomes} onClick={() => onShowOutcomes(!showOutcomes)}>
+            {showOutcomes ? "Hide what happened" : SHOW_OUTCOMES_LABEL}
+          </button>
+          {showOutcomes && (
+            <div className="constellation-outcomes-body">
+              {happened.length > 0 && <p className="small constellation-aired">{happened.join(" · ")}</p>}
+              <Timeline a={edge.a_id} b={edge.b_id} />
+            </div>
+          )}
         </div>
       )}
       {!anyPrivate && (

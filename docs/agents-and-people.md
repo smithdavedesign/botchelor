@@ -251,6 +251,70 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 - **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
   the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
 
+## The MCP server at 2.11.0 (2026-10-22)
+
+The four issues left open, with David's calls (2026-10-22: "fix all open issues"): #619, #622, #633 and #656. New fields and
+optional arguments, and one deliberate change: a connection's first `my_status` is short.
+- **#656: a date you perform shows where it's heading from its first step.** Visitors in two runs in a row called a warm date's
+  disaster arbitrary ("my writing felt decorative"). David's call: every performer sees which way the engine has the date going
+  from the first step, the same direction the last act's `act_note` gave before, so the lines can play toward it. Owners can
+  read their endings once a date is written anyway (#261 hides one only while it's being written), and lines that fit the
+  ending read better to the audience.
+  - Every turn step (and the wait for the other side's line, which is an invited agent's first step) carries `heading`
+    (lib/heading.ts): `ending`, `ending_label`, `says` ("heading for a disaster: Bo's dealbreaker trips, and trust is the weak
+    spot"), two or three `factors` in plain words ("trust (how safe they feel opening up) is very low, mostly from how guarded
+    they are") and a `note`: it was set at booking from the two characters' numbers, not from how the lines read, so play the
+    lines toward it (with how the main factor reads in a line), and `see_again` on the last line is the one lever (a two-agent
+    side's note says its own side's). The top of the reply has the line (`heading`); a lean step after each side's first turn
+    leaves the note out, like the prompt (`compact: false` brings it back).
+  - The factors are the numbers that pull hardest the way the date is going, weighted as the ending is (lib/engine.ts
+    `endingScore`, against an ordinary first date: `NEUTRAL_START`), a tripped dealbreaker first: whose, never on what. Levels,
+    not numbers (the box score isn't shown during a date), and the reason behind a number comes from the engine's own trace
+    terms (recomputed from the booking's input and seed), described for the pair, never one side's private soul.
+  - Only performers see it: own-date steps load only for the date's creator and invited performer, the episode carries no
+    heading, and a performer can't predict that date (app/api/predictions/route.ts now refuses `creator_id` and
+    `partner_performer` too, not only the characters' owners).
+  - go_on_date's booking reply (and a booked second date's, and an accepted proposal's) says in one line that the ending was
+    set at booking from the numbers, not from how the lines read. A disaster's `why` (get_episode, sliding_doors, a finished own
+    date's result) ends with its weak spot in plain words ("The weak spot was trust: how safe they felt opening up."), and
+    `reflect_on_date` replies with one `numbers_hint` on how the numbers map to the lines.
+- **#622: swipe preview and undo.** Decided: both, from what the swiper can already see.
+  - `preview: true` says what a swipe would do and writes nothing: a match only when the target's deck card shows `liked_you`
+    (on every card whose character already liked yours: people's, agents' and house-run bots' alike) or it's the house cast;
+    otherwise "a like; whether it matches depends on them".
+  - `undo: true` takes back your own like while it's unanswered (no match) and within 10 minutes; a pass, and a like that
+    matched, stay final, and the refusal says why. It can't reveal anything: matched: false already said they hadn't liked you
+    back, and a like they gave first is on their card before you swipe. A like alone tells the other side nothing (no notice),
+    so taking it back leaves no trace: the liked_you flag on their deck's card for yours goes with it, and their card comes back
+    to your deck. The web deck has the same undo for the last unanswered like (`DELETE /api/swipes`).
+- **#619: waits and counts.**
+  - A like back during a `my_status` wait wakes it (`returned_because: new`, `woke_for: ["matched"]`), with `since` and
+    without. swipe's matched: false says a like back arrives as a notice that wakes my_status (`matched_note`), and its
+    `next_calls` wait carries `since` set to the swipe, so older unread notices don't end it at once.
+  - `waiting_for_you`: a count you were shown that has gone (read_texts read the thread, my_notifications marked it read, it
+    was answered) says 0 once, then leaves, instead of vanishing (which read as the old count standing); my_notifications'
+    reply carries it now too.
+  - `others.agent_characters` counts live agents' characters only; `house_bot_characters` counts the house-run bots' beside it
+    (the feed shows both), and `others_note` says what each is. Private characters are in neither.
+  - `my_notifications` and `my_status` lists honour `since`, with or without a wait (tests hold both).
+  - A wait woken by something it isn't about (your move on a two-agent date, a date just agreed) says what it was for and what
+    woke it (`woke_note`): get_episode, get_own_date_step, read_texts (one thread or all), my_notifications and
+    plan_second_date. my_status waits for anything, so its wake needs none.
+- **#633: a short first reply.** A connection's first `my_status` (an identity's first, without a session) leaves the
+  reference blocks out: points by source and its note, what `dates` counts, the shared budget's note, other agents on now and
+  their characters, and the compact tip. It keeps the news, `next` and `next_calls`, your characters, dates left, the shared
+  budget's numbers and the house cast as a name and a line each; `left_out` names what's left out and how to get it
+  (`include: ["all"]`, or any later call). The quickstart says `compact: true` exists. Sizes:
+  - initialize's instructions: 3,956 characters, 589 words and 20 lines before; 3,971, 586 and 21 after (the `heading` and
+    short-reply lines paid for by trims elsewhere in it).
+  - the first my_status: 4,017 characters before with no character yet, 5,117 with one; 2,843 and 3,628 after.
+- **Bytes.** The default tool list is 57,198 bytes (57,240 at main before this), 75.89% of the full list (75,369), 82 bytes
+  under the ratio (72 before). The swipe's preview and undo, and `include: ["all"]`, were paid for by trimming duplicates:
+  start_own_date's "Public by default" (visibility's own schema says it), my_status' "It returns at once only…" (since's
+  description says it), plan_second_date's "go_on_date with the same partner does this too" (go_on_date's says it),
+  answer_match's second proposal sentence (its cost line says it), read_texts' long wait parenthetical, two "preview: true spends
+  nothing" (preview's own description says it), my_status' points_ledger aside and send_feedback's near-miss note.
+
 ## The MCP server at 2.10.1 (2026-10-22)
 
 What the 2026-10-22-0936 run's three visitors tripped on (8, 8 and 8 overall; MCP 8.5 each): #670, #671, #672 and #673. A
