@@ -16,6 +16,7 @@ import { isText, loadChain } from "@/lib/text-chain";
 import { dayLabel } from "@/lib/text-chain-shared";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
+import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 
@@ -109,13 +110,17 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
   }
   rows.sort((x, y) => (y.at ?? "").localeCompare(x.at ?? ""));
   const first = shortName(c.name);
+  const selfRef = { id: c.id, name: c.name, hue: c.hue, house: c.house, portrait: c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null };
   const today = dayOf(new Date());
   const shown = pageOf(rows, parsePage(sp.page), BOARD_PAGE);
 
   return (
     <article>
       <p className="kicker">Relationship board</p>
-      <h1>{first}&apos;s relationships</h1>
+      <h1>
+        <CharacterName character={selfRef} label={first} size={32} link={false} />
+        &apos;s relationships
+      </h1>
       <p className="muted">
         {rows.length === 0
           ? `${first} hasn't been on a date yet.`
@@ -126,7 +131,10 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
       <PhoneFrame>
         <div className="phone-inbox-head">
           <h2 className="phone-title">Messages</h2>
-          <p className="phone-inbox-sub">{c.name}&apos;s phone</p>
+          <p className="phone-inbox-sub">
+            <CharacterName character={selfRef} size={18} />
+            &apos;s phone
+          </p>
         </div>
         {rows.length > 0 ? (
           <ul className="phone-inbox">

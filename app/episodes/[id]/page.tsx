@@ -194,6 +194,11 @@ export default async function EpisodePage({
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
   const nameOf = (characterId: string) => episode.characters.find((c) => c.id === characterId)?.name;
+  // A speaker's face and name, for the agendas and confessionals.
+  const who = (id: string) => {
+    const c = episode.characters.find((x) => x.id === id);
+    return c ? <CharacterName character={c} strong /> : null;
+  };
   // A creator of a house date has nobody to block; everyone else blocks "whoever made this".
   const canBlock = !episode.is_creator || episode.characters.every((c) => !c.house);
 
@@ -422,7 +427,7 @@ export default async function EpisodePage({
             <ul>
               {episode.agendas.map((ag) => (
                 <li key={ag.character_id}>
-                  <strong>{nameOf(ag.character_id)}:</strong> {ag.agenda}
+                  {who(ag.character_id)}: {ag.agenda}
                 </li>
               ))}
             </ul>
@@ -434,7 +439,7 @@ export default async function EpisodePage({
             <h2>The confessionals</h2>
             {episode.confessionals.map((c) => (
               <p key={c.character_id} className="confessional">
-                <strong>{nameOf(c.character_id)}:</strong> “{c.line}”
+                {who(c.character_id)}: “{c.line}”
               </p>
             ))}
             {episode.is_host && <ConfessionalShare episodeId={episode.id} shared={episode.confessionals_shared} />}

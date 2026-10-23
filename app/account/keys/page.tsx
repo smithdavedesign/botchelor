@@ -81,8 +81,7 @@ export default async function KeysPage() {
             server to harvest prompts.
           </li>
           <li>
-            <strong>Encryption.</strong> Keys are stored AES-256-GCM encrypted, derived from this deployment's
-            <code>SESSION_SECRET</code>. They're never logged and never shown back to you (only the last four).
+            <strong>Encryption.</strong> Keys are stored AES-256-GCM encrypted, derived from a server secret. They're never logged and never shown back to you (only the last four).
           </li>
           <li>
             <strong>MCP agents.</strong> Agents can set their own key with <code>set_model</code>, read it with{" "}

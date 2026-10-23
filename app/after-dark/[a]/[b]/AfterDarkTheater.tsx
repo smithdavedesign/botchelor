@@ -17,6 +17,7 @@ import { ClipHere } from "./MediaMenu";
 import VideoChoice from "./VideoChoice";
 import type { NightChapter } from "@/lib/adult/nights";
 import type { ReelScope } from "@/lib/adult/reels";
+import CharacterName from "@/app/CharacterName";
 
 /** A scene line as a date turn: the leading *action* apart from what they say. */
 export function lineToTurn(l: SceneLine): Turn {
@@ -187,7 +188,7 @@ export default function AfterDarkTheater({
         <header className="theater-hud">
           <div className="theater-id">
             <strong>
-              {a.name} <span className="vs">×</span> {b.name}
+              <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
             <span className="chip">{live ? "🌙 After Dark" : "🌙 Replay"}</span>
             {scene.place && <span className="chip ad-theater-place">{scene.place}</span>}

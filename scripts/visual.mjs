@@ -27,6 +27,7 @@
  *   ONLY=account,create               audit only routes whose name contains one of these words
  */
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { appEnv, build, freePort, ROOT, seedDataset, startApp, startShowrunner, stopApp } from "./harness.mjs";
@@ -169,7 +170,10 @@ async function settle(page) {
   await page.waitForLoadState("load");
   await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
   // Every <img> decoded, so screenshots never catch a half-loaded avatar.
-  await page.evaluate(() => Promise.all([...document.images].map((i) => (i.complete ? null : i.decode().catch(() => {}))))).catch(() => {});
+  // Capped: a lazy image below the fold never loads, so its decode() never settles.
+  await page
+    .evaluate(() => Promise.race([Promise.all([...document.images].map((i) => (i.complete ? null : i.decode().catch(() => {})))), new Promise((r) => setTimeout(r, 3000))]))
+    .catch(() => {});
   // Open folded groups so their fields are audited too.
   await page.evaluate(() => document.querySelectorAll("details").forEach((d) => (d.open = true))).catch(() => {});
   await page.waitForTimeout(150);
@@ -185,10 +189,28 @@ async function main() {
 
   if (!process.env.SKIP_BUILD) build();
   const showrunner = await startShowrunner();
+  // After Dark (lib/adult) is audited too, as an admin, against a stub for the adult model (the same stand-in
+  // scripts/e2e-after-dark.mjs uses: two lines every step, no key, no network beyond localhost).
+  const adult = createServer((req, res) => {
+    req.resume();
+    req.on("end", () => {
+      const content = JSON.stringify({ lines: [{ who: "a", text: "Your place or mine?" }, { who: "b", text: "Mine. It's closer, and the kettle's on." }] });
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ id: "stub", object: "chat.completion", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }] }));
+    });
+  });
+  await new Promise((r) => adult.listen(0, "127.0.0.1", r));
   // The admin pages are audited signed in too: a throwaway password for a throwaway server (built from parts, never a
   // literal secret).
   const ADMIN_PASSWORD = ["visual", "admin", "pw"].join("-");
-  const app = await startApp(await freePort(), { ...appEnv(showrunner.address().port, DATA_DIR), FRONTIER_PASSWORD: ADMIN_PASSWORD });
+  const app = await startApp(await freePort(), {
+    ...appEnv(showrunner.address().port, DATA_DIR),
+    FRONTIER_PASSWORD: ADMIN_PASSWORD,
+    ADULT_MODE: "1",
+    ADULT_LLM_BASE_URL: `http://127.0.0.1:${adult.address().port}/v1`,
+    ADULT_LLM_API_KEY: "local-stub",
+    ADULT_LLM_MODEL: "stub-adult",
+  });
   const base = app.base;
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
   const report = [];
@@ -252,6 +274,31 @@ async function main() {
     await asOwner("/api/swipes", { character_id: swiper.id, target_id: houseCard.id, like: true });
     const matchPath = `/couples/${[swiper.id, houseCard.id].sort().join("/")}`;
 
+    // After Dark's first scene, as an admin sees the list (an admin account: registered, then claimed with the password).
+    const adminCreds = { handle: "visual_admin", password: ["visual", "admin", "acct"].join("-") };
+    const adminSignIn = async (request) => {
+      const opts = { headers: { origin: base } };
+      let res = await request.post(`${base}/api/auth/register`, { ...opts, data: { ...adminCreds, attest: true } });
+      if (res.status() === 409) res = await request.post(`${base}/api/auth/login`, { ...opts, data: adminCreds });
+      if (!res.ok()) throw new Error(`admin sign-in → ${res.status()}`);
+      const claim = await request.post(`${base}/api/admin/claim`, { headers: { origin: base, "x-frontier-key": ADMIN_PASSWORD } });
+      if (!claim.ok()) throw new Error(`admin claim → ${claim.status()}`);
+    };
+    let scenePath = "/after-dark";
+    {
+      const ctx = await browser.newContext();
+      await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
+      await adminSignIn(ctx.request);
+      const html = await (await ctx.request.get(`${base}/after-dark`)).text();
+      scenePath = html.match(/href="(\/after-dark\/[^/"?]+\/[^/"?]+)"/)?.[1] ?? scenePath;
+      await ctx.close();
+    }
+    const writeScene = async (page) => {
+      await page.locator("#after-dark-direction").fill("they share a cab home");
+      await page.locator(".after-dark-form button[type=submit]").click();
+      await page.locator(".after-dark-lines").getByText("kettle").first().waitFor({ timeout: 30_000 });
+    };
+
     // Each route: who opens it, and an optional walk through its states (each state is audited separately).
     const routes = [
       { name: "gate", path: "/watch", as: "visitor" },
@@ -297,6 +344,22 @@ async function main() {
       { name: "admin-analytics", path: "/admin/analytics" },
       { name: "admin-analytics-signed-in", path: "/admin/analytics", as: "admin" },
       { name: "account-signed-in", path: "/account", as: "member" },
+      { name: "account-keys", path: "/account/keys", as: "member" },
+      { name: "directory", path: "/characters" },
+      { name: "notifications", path: "/notifications", as: "owner" },
+      { name: "graph", path: "/graph" },
+      { name: "reunion", path: "/reunion" },
+      { name: "ship", path: `/ship/${data.chars[0].id}/house-teo` },
+      { name: "tool-chemistry", path: "/tools/oc-chemistry-test" },
+      { name: "tool-ship-names", path: "/tools/ship-name-generator" },
+      { name: "admin-season", path: "/admin/season", as: "admin" },
+      { name: "after-dark", path: "/after-dark", as: "adult-admin" },
+      { name: "after-dark-scene", path: scenePath, as: "adult-admin", walk: writeScene },
+      { name: "after-dark-theater", path: `${scenePath}?play=1`, as: "adult-admin" },
+      { name: "after-dark-shorts", path: "/after-dark/shorts", as: "adult-admin" },
+      { name: "after-dark-subscribe", path: "/after-dark/subscribe", as: "adult-admin" },
+      { name: "admin-after-dark", path: "/admin/after-dark", as: "adult-admin" },
+      { name: "admin-after-dark-settings", path: "/admin/after-dark/settings", as: "adult-admin" },
     ].filter((r) => !only.length || only.some((o) => r.name.includes(o)));
 
     for (const [device, opts] of Object.entries(DEVICES)) {
@@ -311,6 +374,7 @@ async function main() {
           if (as === "owner" || as === "member") await ctx.addCookies([{ name: "bz_uid", value: owner, url: base }]);
           // Signed in to the admin pages the way they remember it: the password in localStorage.
           if (as === "admin") await ctx.addInitScript((k) => { try { localStorage.setItem("bz_frontier", k); } catch {} }, ADMIN_PASSWORD);
+          if (as === "adult-admin") await adminSignIn(ctx.request);
           if (as === "member") {
             // The first signed-in pass registers (adopting the owner's anonymous session, so the account lists
             // their characters); later passes sign in to the same account.
@@ -381,6 +445,7 @@ async function main() {
     await browser.close();
     await stopApp(app);
     showrunner.close();
+    adult.close();
     writeFileSync(join(OUT, "report.json"), JSON.stringify(report, null, 2));
     writeFileSync(join(OUT, "report.md"), summary(report));
     writeFileSync(join(OUT, "index.html"), contactSheet(report));

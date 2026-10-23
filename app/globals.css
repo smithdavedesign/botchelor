@@ -4206,8 +4206,20 @@ details.recap-toggle[open] > summary {
   color: var(--accent-text);
   font-weight: 600;
 }
-.account-actions {
+.account-actions,
+.byok-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
   margin-top: 0.5rem;
+}
+.account-actions > a,
+.account-actions > button {
+  margin: 0;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
 }
 .button-google {
   display: inline-block;
@@ -9312,4 +9324,114 @@ a.char-name-link:focus-visible {
 }
 .char-name.is-private {
   display: inline;
+}
+
+/* ---------------- UX audit 2026-10-23: tap targets the visual audit flagged ---------------- */
+/* The footer's feedback button keeps its link look; padding that doesn't move the line makes it a 24px+ target. */
+.site-footer button.footer-link {
+  padding-block: 4px;
+}
+/* The looks steps stay thin dashes, drawn inside a 24px-tall button so a thumb can hit one. */
+.looks-dots button {
+  height: 24px;
+  background: none;
+  position: relative;
+}
+.looks-dots button::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+}
+.looks-dots button.done::before {
+  background: var(--accent);
+  opacity: 0.55;
+}
+.looks-dots button.current::before {
+  background: var(--accent);
+}
+.looks-dots button.done,
+.looks-dots button.current {
+  background: none;
+  opacity: 1;
+}
+/* Folded sections open from a row tall enough to tap. */
+.episode-safety > summary,
+details > summary.small {
+  padding-block: 10px;
+}
+/* The graph's kind filter: a full-height control, like the toolbar's other fields. */
+.constellation-kind select {
+  min-height: 40px;
+}
+/* Feedback: the floating button on wide screens; on a phone, a row in the menu (it covered form buttons). */
+.nav-feedback {
+  display: none;
+}
+@media (max-width: 720px) {
+  .feedback-fab {
+    display: none;
+  }
+  .beta-toast {
+    bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  }
+  body:has(.feedback-fab) .site-footer {
+    padding-bottom: 2.5rem;
+  }
+  .nav-links .nav-feedback {
+    display: block;
+    min-height: 0;
+    margin: 0;
+    padding: 0.7rem 0.9rem;
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 400;
+    text-align: left;
+  }
+}
+/* The create wizard's rail: seven 44px dots fit a 360px phone without scrolling, with the step named under them. */
+.wizard-rail-caption {
+  display: none;
+}
+@media (max-width: 520px) {
+  .wizard-rail {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    overflow: visible;
+  }
+  .wizard-rail-step {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  .wizard-rail-caption {
+    display: block;
+    flex: 1 0 100%;
+    margin-top: 0.35rem;
+    color: var(--accent-text);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-align: center;
+  }
+}
+/* A wide table scrolls inside its own column (a grid item's min-width: auto let the funnel table push past the page). */
+.analytics-grid > *,
+.insights-body > * {
+  min-width: 0;
+}
+.insights-filters {
+  align-items: end;
+}
+/* The admin sign-in forms: the button sat on the password field. */
+.card > form > input[type="password"] + button {
+  margin-top: var(--space-2);
 }

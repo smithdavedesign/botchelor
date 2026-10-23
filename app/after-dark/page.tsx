@@ -13,6 +13,7 @@ import { authFromCookieStore } from "@/lib/http";
 import PrivacyCard from "./PrivacyCard";
 import Switches from "./Switches";
 import { currentView } from "./view";
+import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export default async function AfterDarkPage() {
               <li key={p.path} className="card">
                 <Link href={p.path}>
                   <strong>
-                    {p.a.name} × {p.b.name}
+                    <CharacterName character={p.a} link={false} /> × <CharacterName character={p.b} link={false} />
                   </strong>
                 </Link>{" "}
                 {p.lines > 0 && <span className="badge">{p.lines} lines</span>}

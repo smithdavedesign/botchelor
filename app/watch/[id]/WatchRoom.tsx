@@ -480,7 +480,7 @@ function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict:
         <ul className="watch-goals">
           {state.goals.map((g) => (
             <li key={g.character_id}>
-              <strong>{nameOf(state, g.character_id)}:</strong> {g.goal}
+              {whoIn(state, g.character_id)}: {g.goal}
             </li>
           ))}
         </ul>
@@ -896,6 +896,12 @@ function Chat({ state, onDone }: { state: RoomState; onDone: () => void }) {
       </p>
     </div>
   );
+}
+
+/** A goal's owner, face and name. */
+function whoIn(state: RoomState, characterId: string) {
+  const c = state.characters.find((x) => x.id === characterId);
+  return c ? <CharacterName character={c} strong /> : null;
 }
 
 function nameOf(state: RoomState, characterId: string): string {

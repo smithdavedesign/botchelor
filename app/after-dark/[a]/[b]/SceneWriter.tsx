@@ -20,6 +20,7 @@ import { AUTOPLAY_PAGE_PAUSE_MS, autoplayStop } from "@/lib/adult/autoplay";
 import type { Heat } from "@/lib/adult/director";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
+import CharacterName from "@/app/CharacterName";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -308,7 +309,9 @@ export default function SceneWriter({
                 className="ad-whisper-chip"
                 title={`Only ${nameOf(who)} knows this; ${nameOf(other(who))} doesn't. It shapes the next ${scene.whispers[who]!.steps_left === 1 ? "step" : `${scene.whispers[who]!.steps_left} steps`}.`}
               >
-                <span className="ad-whisper-who">🤫 {nameOf(who)}:</span> <q>{scene.whispers[who]!.text}</q>
+                <span className="ad-whisper-who">
+                  🤫 <CharacterName character={who === "a" ? characters[0] : characters[1]} label={nameOf(who)} link={false} size={18} />:
+                </span> <q>{scene.whispers[who]!.text}</q>
                 <button type="button" className="ad-whisper-forget" aria-label={`Forget the whisper to ${nameOf(who)}`} disabled={busy} onClick={() => void send({ forget_whisper: who })}>
                   ×
                 </button>
@@ -326,7 +329,8 @@ export default function SceneWriter({
           </label>
           {(["a", "b"] as const).map((who) => (
             <label key={who} title={`A secret for ${nameOf(who)} alone: ${nameOf(other(who))} won't know it`}>
-              <input type="radio" name="steer-mode" checked={whisperTo === who} onChange={() => setWhisperTo(who)} /> 🤫 {nameOf(who)}
+              <input type="radio" name="steer-mode" checked={whisperTo === who} onChange={() => setWhisperTo(who)} /> 🤫{" "}
+              <CharacterName character={who === "a" ? characters[0] : characters[1]} label={nameOf(who)} link={false} size={18} />
             </label>
           ))}
         </span>

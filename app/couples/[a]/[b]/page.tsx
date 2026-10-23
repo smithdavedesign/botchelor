@@ -229,7 +229,9 @@ export default async function CouplePage({ params, searchParams }: Props) {
           const them = n.id === ca.id ? cb : ca;
           return (
             <section key={n.id} className="card" id={i === 0 ? "nudge" : undefined}>
-              <h2>Nudge {first(me)}</h2>
+              <h2>
+                Nudge <CharacterName character={refOf(me)} label={first(me)} size={26} />
+              </h2>
               <NudgeForm pair={[ca.id, cb.id]} characterId={me.id} name={me.name} other={them.name} current={n.note} />
             </section>
           );
@@ -269,7 +271,9 @@ export default async function CouplePage({ params, searchParams }: Props) {
           {[ca, cb].map((c) =>
             view.told[c.id]?.length ? (
               <div key={c.id}>
-                <h3>{first(c)}</h3>
+                <h3>
+                  <CharacterName character={refOf(c)} label={first(c)} size={24} />
+                </h3>
                 <ul className="list">
                   {view.told[c.id].map((line) => (
                     <li key={line}>“{line}”</li>
@@ -288,7 +292,12 @@ export default async function CouplePage({ params, searchParams }: Props) {
           <ul className="list">
             {view.plans.map((p) => (
               <li key={`${p.episode_id}-${p.by}`}>
-                <strong>{shortName(nameOf(p.by))}:</strong> “{p.text}”{" "}
+                {p.by === ca.id || p.by === cb.id ? (
+                  <CharacterName character={refOf(p.by === ca.id ? ca : cb)} label={shortName(nameOf(p.by))} strong />
+                ) : (
+                  <strong>{shortName(nameOf(p.by))}</strong>
+                )}
+                : “{p.text}”{" "}
                 <span className="badge">{p.status === "kept" ? "✅ kept" : p.status === "missed" ? "missed" : "still to do"}</span>
               </li>
             ))}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { requestJson } from "@/app/request";
 import type { AdultScene, MemoryEdit, MemoryView } from "@/lib/adult/scenes";
+import CharacterName from "@/app/CharacterName";
 
 /**
  * What they remember, seen and edited (lib/adult/scenes.ts memoryView, editMemory): each one's PG note about the other
@@ -57,7 +58,7 @@ export default function Memory({ a, b, onScene }: { a: { id: string; name: strin
             return (
               <section key={who} className="ad-memory-side">
                 <h3>
-                  {first(self.name)} remembers about {first(other.name)}
+                  <CharacterName character={self} label={first(self.name)} link={false} size={22} /> remembers about {first(other.name)}
                 </h3>
                 <p className="muted small">The note goes into their public dates and texts, so it stays PG.</p>
                 {memory.notes[who] ? (

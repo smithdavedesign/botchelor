@@ -11,6 +11,7 @@ import { ORIGIN_LABEL } from "@/lib/origin";
 import { endingLabel } from "@/lib/rules";
 import { communityColor, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
+import CharacterName from "@/app/CharacterName";
 
 type Props = {
   selection: Selection;
@@ -270,10 +271,10 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus, c
             Their story →
           </Link>{" "}
           <Link className="button-ghost small" href={`/characters/${a.id}`}>
-            {a.name} →
+            <CharacterName character={a} link={false} size={18} /> →
           </Link>{" "}
           <Link className="button-ghost small" href={`/characters/${b.id}`}>
-            {b.name} →
+            <CharacterName character={b} link={false} size={18} /> →
           </Link>
         </p>
       )}

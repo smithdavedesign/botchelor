@@ -126,14 +126,14 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
               if (!a || !b) return null;
               return e.masked ? (
                 <li key={`${e.a_id}~${e.b_id}`} className="card is-private">
-                  {a.private ? <PrivateName name={a.name} /> : <strong>{a.name}</strong>} ×{" "}
-                  {b.private ? <PrivateName name={b.name} /> : <strong>{b.name}</strong>}
+                  {a.private ? <PrivateName name={a.name} /> : <CharacterName character={a} strong />} ×{" "}
+                  {b.private ? <PrivateName name={b.name} /> : <CharacterName character={b} strong />}
                 </li>
               ) : (
                 <li key={`${e.a_id}~${e.b_id}`} className="card">
                   <strong>
                     <Link href={`/couples/${e.a_id}/${e.b_id}`}>
-                      {a.name} × {b.name}
+                      <CharacterName character={a} link={false} /> × <CharacterName character={b} link={false} />
                     </Link>
                   </strong>{" "}
                   {e.stage && <span className="badge">{e.stage}</span>}{" "}

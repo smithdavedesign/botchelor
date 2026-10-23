@@ -226,7 +226,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             <OriginBadge origin={origin} />
             {c.house && dating && !dating.can_ask_out && !PREMIUM_IDS.has(c.id) && <span className="badge">Off this season</span>}
             {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
-            {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">💍 With {shortName(partnerStyle.partners[0].name)}</span>}
+            {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">
+                💍 With <CharacterName character={partnerStyle.partners[0]} label={shortName(partnerStyle.partners[0].name)} size={18} />
+              </span>}
             {partnerStyle && !partnerStyle.taken && partnerStyle.effective === "open" && (partnerStyle.choice === "open" || partnerStyle.decided) && (
               <span className="badge">🌈 Open to more than one</span>
             )}

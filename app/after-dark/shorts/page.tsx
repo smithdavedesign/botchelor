@@ -11,6 +11,7 @@ import { authFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
 import { ShortTeaserCard, SubscribeToUnlock } from "./ShortTeaser";
 import styles from "./shorts.module.css";
+import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Shorts · After Dark · Botchelor", robots: { index: false, follow: false } };
@@ -94,7 +95,8 @@ export default async function ShortsPage() {
                   <span className={styles.title}>{s.title}</span>
                 </Link>
                 <p className={`muted small ${styles.meta}`}>
-                  {shortName(s.a.name)} × {shortName(s.b.name)} · {s.lines} lines{s.video ? " · 🎬 with its video" : ""}
+                  <CharacterName character={{ ...s.a, house: true }} label={shortName(s.a.name)} link={false} /> ×{" "}
+                  <CharacterName character={{ ...s.b, house: true }} label={shortName(s.b.name)} link={false} /> · {s.lines} lines{s.video ? " · 🎬 with its video" : ""}
                   {watched.has(s.id) ? " · watched" : ""}
                 </p>
               </li>

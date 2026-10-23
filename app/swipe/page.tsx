@@ -12,6 +12,7 @@ import { takenWith } from "@/lib/partners";
 import { deckFor } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
 import SwipeDeck from "./SwipeDeck";
+import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export default async function SwipePage({ searchParams }: Props) {
   const first = shortName(me.name);
   const matchesHref = `/matches?character=${encodeURIComponent(me.id)}`;
   // The same row of faces under the phone's slim bar and in the desktop's intro (only one of them shows at a time).
+  const meRef = { id: me.id, name: me.name, hue: me.hue, portrait: me.portrait };
   const faces = <CharacterTabs characters={mine} current={me.id} href="/swipe?character=" label="Whose deck" taken={taken} takenNote="can't swipe" />;
 
   return (
@@ -67,7 +69,9 @@ export default async function SwipePage({ searchParams }: Props) {
         <Link href="/" className="swipe-topbar-btn" aria-label="Close the deck">
           ✕
         </Link>
-        <span className="swipe-topbar-name">{first}</span>
+        <span className="swipe-topbar-name">
+          <CharacterName character={meRef} label={first} link={false} size={24} />
+        </span>
         <Link href={matchesHref} className="swipe-topbar-btn" aria-label={texts ? `Matches, ${texts} unread texts` : "Matches"}>
           💬{texts > 0 && <span className="nav-count">{texts > 99 ? "99+" : texts}</span>}
         </Link>
@@ -76,7 +80,9 @@ export default async function SwipePage({ searchParams }: Props) {
       <div className="swipe-intro">
         <p className="kicker">Swipe</p>
         <div className="matches-head">
-          <h1>Who should {first} meet?</h1>
+          <h1>
+            Who should <CharacterName character={meRef} label={first} size={30} /> meet?
+          </h1>
         </div>
         {faces}
         <p className="muted">

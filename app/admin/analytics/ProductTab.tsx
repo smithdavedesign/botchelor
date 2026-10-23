@@ -10,6 +10,7 @@ import { CountChart } from "./CountChart";
 import { ENDING_COLORS } from "./OverviewTab";
 import RealUse from "./RealUse";
 import SortableTable, { type Column } from "./SortableTable";
+import CharacterName from "@/app/CharacterName";
 
 export type AdminFetch = (path: string) => Promise<Response>;
 
@@ -91,7 +92,7 @@ function CharactersTable({ rows, minN }: { rows: CharacterRow[]; minN: number })
       className: "wrap",
       render: (r) => (
         <>
-          <Link href={`/characters/${r.id}`}>{r.name}</Link>
+          <CharacterName character={{ id: r.id, name: r.name }} />
           {r.private && <span className="muted small"> (private)</span>}
         </>
       ),

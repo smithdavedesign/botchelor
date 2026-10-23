@@ -12,6 +12,7 @@ import CharacterTabs from "@/app/CharacterTabs";
 import CastPreview from "@/app/CastPreview";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
+import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 
@@ -91,7 +92,10 @@ export default async function MatchesPage({ searchParams }: Props) {
   return (
     <article className="matches-page">
       <header className="matches-head">
-        <h1>{first}&apos;s matches</h1>
+        <h1>
+          <CharacterName character={me} label={first} size={32} />
+          &apos;s matches
+        </h1>
       </header>
       <CharacterTabs characters={mine} current={me.id} href="/matches?character=" label="Whose matches" news={news} taken={taken} takenNote="closed to other dates" />
       <p className="matches-sub">

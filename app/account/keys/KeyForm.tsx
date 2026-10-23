@@ -125,9 +125,13 @@ export default function KeyForm({ providers }: { providers: ProviderPair[] }) {
         />
       </label>
       <div className="byok-actions">
-        <button type="button" onClick={test} disabled={status?.kind === "busy"}>Test</button>
         <button type="submit" disabled={status?.kind === "busy"}>Save</button>
-        <button type="button" onClick={remove} disabled={status?.kind === "busy"} className="danger">Remove</button>
+        <button type="button" className="secondary" onClick={test} disabled={status?.kind === "busy"}>
+          Test
+        </button>
+        <button type="button" onClick={remove} disabled={status?.kind === "busy"} className="link-button danger">
+          Remove
+        </button>
       </div>
       {status && <p className={`byok-status ${status.kind}`}>{status.text}</p>}
       <p className="muted small">

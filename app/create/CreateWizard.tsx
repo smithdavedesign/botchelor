@@ -39,6 +39,7 @@ import {
   type GameBudget,
   type Strategy,
 } from "@/lib/rules";
+import CharacterName from "@/app/CharacterName";
 
 export type Partner = {
   id: string;
@@ -141,12 +142,16 @@ function Stepper({ step, max, onJump, labels }: { step: number; max: number; onJ
               disabled={i > max}
               onClick={() => i <= max && onJump(i)}
             >
-              <span className="wizard-rail-num">{i < max ? "✓" : i + 1}</span>
+              <span className="wizard-rail-num">{i < max && i !== step ? "✓" : i + 1}</span>
             </button>
             <span className="wizard-rail-label">{label}</span>
           </li>
         );
       })}
+      {/* On a phone the labels are hidden: the current one, said once under the dots. */}
+      <li className="wizard-rail-caption" aria-hidden="true">
+        Step {step + 1} of {labels.length} · {labels[step]}
+      </li>
     </ol>
   );
 }
@@ -178,7 +183,7 @@ export default function CreateWizard({
   swipeGate?: boolean;
   tokens?: Tokens;
   offer?: string | null;
-  myCharacters?: { id: string; name: string }[];
+  myCharacters?: { id: string; name: string; hue?: number | null; portrait?: string | null }[];
   startSample?: boolean;
   startCharacterId?: string | null;
   /** A new character with this name already in (/create?name=, from a ship name page: app/ship/[a]/[b]). */
@@ -243,7 +248,7 @@ export default function CreateWizard({
   const [temperamentCleared, setTemperamentCleared] = useState(false);
 
   // Flow state.
-  const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
+  const [created, setCreated] = useState<{ id: string; name: string; hue?: number | null; portrait?: string | null } | null>(null);
   const [busy, setBusy] = useState<null | "character" | "episode">(null);
   const [error, setError] = useState<string | null>(null);
   const [outOfTokens, setOutOfTokens] = useState(false);
@@ -435,7 +440,7 @@ export default function CreateWizard({
       });
       if (status === 201) {
         trackConversion("character_created", { open_to_dates: openToDates });
-        setCreated({ id: String(data.id), name: String(data.name) });
+        setCreated({ id: String(data.id), name: String(data.name), hue: typeof data.hue === "number" ? data.hue : null });
         // The site's nav is in the root layout, which a client-side link keeps: refresh it so it becomes the owner's
         // (Swipe, Matches) now that there's a character.
         router.refresh();
@@ -607,7 +612,9 @@ export default function CreateWizard({
           {myCharacters.map((c, i) => (
             <span key={c.id}>
               {i > 0 && " · "}
-              <Link href={`/create?character=${c.id}`}>Send {c.name} on a date</Link>
+              <Link href={`/create?character=${c.id}`}>
+                Send <CharacterName character={c} link={false} size={20} /> on a date
+              </Link>
             </span>
           ))}
         </p>
@@ -1127,7 +1134,7 @@ function ReviewExtras({ extras }: { extras: CharacterExtras }) {
 /* ------------------------------- phase two: send on a date ------------------------------- */
 
 type SendProps = {
-  character: { id: string; name: string };
+  character: { id: string; name: string; hue?: number | null; portrait?: string | null };
   partners: Partner[];
   openCharacters: OpenCharacter[];
   swipeGate: boolean;
@@ -1217,7 +1224,9 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
   return (
     <article>
       <p className="kicker">{character.name} is ready</p>
-      <h1>Who should {character.name} meet?</h1>
+      <h1>
+        Who should <CharacterName character={character} size={34} /> meet?
+      </h1>
       {returnTo && (
         <p>
           <Link className="button" href={returnTo.href}>

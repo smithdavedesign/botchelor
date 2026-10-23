@@ -9,6 +9,7 @@ import { signedInAdmin } from "@/lib/adult/mode";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
+import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After Dark graph · Botchelor", robots: { index: false, follow: false } };
@@ -109,7 +110,8 @@ export default async function AfterDarkGraphPage({ searchParams }: { searchParam
               <tr key={e.key} className={e.key === pickedKey ? "picked" : undefined}>
                 <td>
                   <Link href={`?pair=${encodeURIComponent(e.key)}`}>
-                    {nameOf.get(e.a)} × {nameOf.get(e.b)}
+                    <CharacterName character={{ id: e.a, name: nameOf.get(e.a) ?? "?" }} link={false} /> ×{" "}
+                    <CharacterName character={{ id: e.b, name: nameOf.get(e.b) ?? "?" }} link={false} />
                   </Link>
                 </td>
                 <td>{e.lines}</td>
@@ -145,7 +147,7 @@ function Pair({ content: c }: { content: PairContent }) {
   return (
     <section id="pair" className="ad-pair">
       <h2>
-        {c.a.name} × {c.b.name}
+        <CharacterName character={c.a} size={28} /> × <CharacterName character={c.b} size={28} />
       </h2>
       <p>
         <Link href={`/after-dark/${c.a.id}/${c.b.id}`}>Open their After Dark page →</Link>

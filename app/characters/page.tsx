@@ -225,7 +225,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
             {proposals.map((p) => (
               <li key={p.id} className="card">
                 <strong>
-                  {p.character_a.name} + {p.character_b.name}
+                  <CharacterName character={p.character_a} /> + <CharacterName character={p.character_b} />
                 </strong>{" "}
                 <span className="badge">{p.paid_off ? "Second date! Points earned" : "Waiting"}</span>
               </li>

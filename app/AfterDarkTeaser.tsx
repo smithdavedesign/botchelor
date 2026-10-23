@@ -7,6 +7,7 @@ import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
+import CharacterName from "@/app/CharacterName";
 
 /**
  * The After Dark teaser card (lib/adult/teaser.ts): a pair's scene, blurred, and "Subscribe to unlock"; or, for
@@ -26,7 +27,8 @@ export default async function AfterDarkTeaser({ pair, character }: { pair?: [str
       {teasers.map((t) => (
         <div key={t.path} className="ad-teaser-scene">
           <p className="ad-teaser-title">
-            {shortName(t.a.name)} × {shortName(t.b.name)} · {t.lines} lines, after the cameras stop
+            <CharacterName character={t.a} label={shortName(t.a.name)} /> × <CharacterName character={t.b} label={shortName(t.b.name)} /> · {t.lines} lines, after
+            the cameras stop
           </p>
           {open ? (
             <Link className="button small" href={afterDarkHref(t.path)}>

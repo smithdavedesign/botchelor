@@ -10,6 +10,7 @@ import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { placeAt, type PlaceId } from "@/lib/venues";
+import CharacterName from "@/app/CharacterName";
 
 function lastLine(turns: Turn[], side: "a" | "b"): string | null {
   for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
@@ -172,7 +173,7 @@ export default function GeneratingPoller({ episodeId, stage }: { episodeId: stri
           <header className="theater-hud">
             <div className="theater-id">
               <strong>
-                {a.name} <span className="vs">×</span> {b.name}
+                <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
               </strong>
               <span className="chip">🔴 Filming live</span>
             </div>

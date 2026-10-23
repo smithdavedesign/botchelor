@@ -1,5 +1,6 @@
 import { avatarPalette, initials } from "@/lib/avatar";
 import { characterPortrait } from "@/lib/portraits";
+import CharacterName from "@/app/CharacterName";
 
 type Props = {
   /** Stable seed for the gradient; use the character id so the avatar never changes (and so a house
@@ -31,6 +32,8 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
   // Then an OC's BYOK-generated portrait (the owner's own, provider-moderated).
   const portrait = characterPortrait(seed) ?? sized(portraitSrc, size);
   if (portrait) {
+    // The tile's own gradient under the picture, so a face still loading (they're lazy) reads as theirs, not a blank box.
+    const p = avatarPalette(seed, hue);
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a static public asset; no loader/optimizer needed
       <img
@@ -41,7 +44,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
         decoding="async"
         loading="lazy"
         className={`avatar avatar-portrait${house ? " avatar-house" : ""}`}
-        style={{ borderRadius: r, width: size, height: size }}
+        style={{ borderRadius: r, width: size, height: size, background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
       />
     );
   }
