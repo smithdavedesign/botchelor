@@ -61,6 +61,7 @@ import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type Da
 import { dateShape, moveProblem, segmentBudget, settleLine, type DateShape } from "./moves";
 import { venueName, venuePhrase, type PlaceId } from "./venues";
 import { applyWishes, resolveWishes, settledWishes, type StoredWishes, wishReport } from "./wishes";
+import { dateHeading, forTwoAgents, headingLine, type Heading } from "./heading";
 
 /** How many unfinished self-performed dates one identity may have at once. */
 export const OWN_DATE_MAX_OPEN = 3;
@@ -270,7 +271,7 @@ export type OwnDateStep =
       /**
        * Where the engine has this date heading, so the performer's turns head there and the recap doesn't contradict
        * them (#204). The two sides' wishes can still move it one step at the end (lib/wishes.ts); the recap step names
-       * the final call. Only on a date between the performer's own two characters; a two-agent date's turns don't carry it.
+       * the final call. Only on a date between the performer's own two characters; a two-agent date's turns carry heading instead (2.11.0).
        */
       ending?: Ending;
       ending_label?: string;
@@ -280,6 +281,12 @@ export type OwnDateStep =
       where: string;
       /** 2.8.0: in the last act, which way the date lands (actNote), for the performer whose turn it is. */
       act_note?: string;
+      /**
+       * MCP 2.11.0 (#656, David's call): where the engine has the date heading, from the first step, for every performer
+       * (both kinds of date): the ending as booked, the two or three factors that matter most for this pair, and what it
+       * means for the lines (lib/heading.ts). Only performers read steps (load()).
+       */
+      heading?: Heading;
       /** A filled example of reply_format (#422). */
       example_reply: string;
       answer_their_suggestion?: string;
@@ -325,6 +332,8 @@ export type OwnDateStep =
       show_takes_over_at?: string;
       seconds_left?: number;
       show_takes_over?: string;
+      /** MCP 2.11.0 (#656): where the date is heading, while you wait for their line too (the invited side's first step is a wait). */
+      heading?: Heading;
       instructions: string;
     }
   | {
@@ -810,7 +819,18 @@ async function settleEnding(db: Db, row: Row, decided: Outcome, seed: number): P
   return final;
 }
 
-/** The turn step's one line on where the date is headed (#204); forViewer drops it on a two-agent date. */
+/**
+ * Where the date is heading, in words (MCP 2.11.0, #656: lib/heading.ts): the engine's ending as booked, with the factors
+ * that matter most for this pair. The engine's trace is recomputed from the same input and seed it was booked with (pure, and
+ * cheap); a test's fixed outcome has none, and then the factors name the numbers without what moved them.
+ */
+function headingOf(built: BuiltDate, decided: Outcome): Heading {
+  const trace = decideTraced(built.input, built.seed, built.setup.engine_version).trace;
+  const names: [string, string] = [built.characters[0].name, built.characters[1].name];
+  return dateHeading(decided, names, built.input.a.strategy, trace && trace.ending === decided.ending ? trace : null);
+}
+
+/** The turn step's one line on where the date is headed (#204); on a two-agent date forViewer puts the heading's line there instead. */
 export const endingLine = (ending: Ending) =>
   `The engine has this date heading for "${ENDING_LABELS[ending]}" (ending: ${ending}): let the turns head there, without announcing it. The recap step names the final call.`;
 
@@ -979,6 +999,8 @@ function stepFor(
       of,
       // 2.10.0: near the top, as the step's instructions lead with it.
       ...(lastLine ? { see_again: seeAgainLine(speaker.name, other.name) } : {}),
+      // 2.11.0 (#656): where it's heading, on every turn from the first (forViewer gives a two-agent side its own lever).
+      heading: headingOf(built, decided),
       side,
       you_are: `${side}: ${speaker.name}`,
       speaker: { id: ids[side === "a" ? 0 : 1], name: speaker.name },
@@ -1102,6 +1124,8 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
       ...(since ? { last_move_at: since.toISOString(), quiet_minutes: quiet, can_hand_over: canHandOver } : {}),
       // 2.10.1 (#673): their clock, to the second, while it's theirs to play (the show's model plays it at once once it's the show's).
       ...(since && twoAgent && !show ? { ...handOverClock(since), show_takes_over: `${step.speaker.name}'s side (theirs), if they stay quiet` } : {}),
+      // 2.11.0 (#656): where it's heading, while you wait too: an invited side's first step is a wait for the opening line.
+      ...(step.heading ? { heading: twoAgent ? forTwoAgents(step.heading) : step.heading } : {}),
       instructions:
         (show
           ? `The show's model plays ${step.speaker.name}'s side now`
@@ -1119,13 +1143,17 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
             : `If they stay quiet ${OWN_DATE_HANDOVER_MINUTES} minutes, the show's model takes over ${step.speaker.name}'s side on its own (it counts against the agents' daily budget); decline_own_date cancels.`),
     };
   }
-  // Each agent plays only its own character on a two-agent date: its turns aren't told where the date is headed.
+  // Each agent plays only its own character on a two-agent date. 2.11.0 (#656, David's call: "every performer sees from the
+  // first step which way the date is heading"): its turns carry the heading, in words, with its own side's lever (heading);
+  // the ending and ending_label fields stay a date-between-your-own-two's (the recap step and next_calls read them so).
   if (step.stage === "turn" && twoAgent) {
     const { ending, ending_label: _label, ...rest } = step;
     // 2.10.1 (#673, the 2026-10-22-0936 run: "show the time left for the 3-minute hand-over window as a plain field on every
     // own-date reply"): your clock, to the second, on your move.
     const clock = since ? { ...handOverClock(since), show_takes_over: `${step.speaker.name}'s side (yours), if you stay quiet` } : {};
-    return ending ? { ...rest, ...clock, instructions: step.instructions.replace(` ${endingLine(ending)}`, "") } : { ...rest, ...clock };
+    const heading = step.heading ? forTwoAgents(step.heading) : undefined;
+    const instructions = ending ? step.instructions.replace(` ${endingLine(ending)}`, heading ? ` ${headingLine(heading)}` : "") : step.instructions;
+    return { ...rest, ...(heading ? { heading } : {}), ...clock, instructions };
   }
   if (step.stage === "recap" && twoAgent) {
     return {

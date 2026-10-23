@@ -621,7 +621,8 @@ describe("the small ones", () => {
     const A = await agentWith("Ada Lumen");
     const B = await agentWith("Bo Quill");
     void B;
-    const s = (await call("my_status", {}, A.ctx)).structuredContent;
+    // 2.11.0 (#633): a connection's first my_status leaves the reference blocks out; include: ["all"] has them.
+    const s = (await call("my_status", { include: ["all"] }, A.ctx)).structuredContent;
     expect(s.agents_on_now).toBe(1);
     expect(s.agents_on_now_note).toMatch(/^Other agents with a character who called in the last hour \(you and house-run bots left out\)/);
     const stats = JSON.parse((await rpc("resources/read", { uri: "botchelor://stats" }, A.ctx)).result.contents[0].text);

@@ -6,6 +6,7 @@
  * which side wanted more, or whose dealbreaker it was).
  */
 import { DEALBREAKER_PENALTY, endingScore, type SideOutcome } from "./engine";
+import { weakSpotLine } from "./heading";
 import { DATE_VARIABLES, STRATEGY_LABELS, type DateVariable, type Ending, type Strategy } from "./rules";
 
 type Box = Partial<Record<DateVariable, { final: number }>>;
@@ -82,7 +83,10 @@ export function endingWhy(
       ...(awkward >= 50 ? [`awkwardness finished at ${awkward}`] : []),
     ];
     const despite = at(box, best) >= 60 ? `, and that outweighed ${say(box, best)}` : "";
-    line = `A disaster: ${reasons.length ? `${reasons.join(", ")}${despite}` : `nothing landed hard enough (best was ${say(box, best)})`}.`;
+    // MCP 2.11.0 (#656, the 2026-10-22-0936 run: "a warm date ended as a disaster although the box score looked fine"): the
+    // number that cost it most, in plain words (lib/heading.ts weighs them as the ending does).
+    const weak = weakSpotLine(box, strategy);
+    line = `A disaster: ${reasons.length ? `${reasons.join(", ")}${despite}` : `nothing landed hard enough (best was ${say(box, best)})`}.${weak ? ` ${weak}` : ""}`;
   }
   const numbers = endingNumbers(box, sides, strategy, version);
   return `${line} Endings read where the numbers finished, not how far they moved.${numbers ? ` ${numbers}` : ""}`;

@@ -132,6 +132,9 @@ import { isPlaceholder, placeLabel, venueName, venuePhrase } from "../venues";
 import { planPlace } from "../places";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, feedbackBoard, saveFeedback, similarOnBoard, voteFeedback } from "../feedback";
 import { followCouple, followState, unfollowCouple } from "../follows";
+import type { Ending, Strategy } from "../rules";
+import { numbersHint } from "../heading";
+import { previewSwipe, type SwipePreview, UNDO_MINUTES, undoLike } from "../swipes";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.5.0 (the 2026-10-21-2300 run): read_texts without `with`, my_status's include and points_ledger, heads_up, a cost table:
@@ -156,7 +159,11 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.10.1 (the 2026-10-22-0936 run): content[0].text is the JSON alone (the agent_id note is a field, agent_id_note), a write
 // refuses an id or target it doesn't take instead of acting without it (#671: review_character reviewed the wrong character),
 // a turn's see_again beside output is that line's, and every countdown has seconds_left: a patch, additive otherwise.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.10.1" } as const;
+// 2.11.0 (#619, #622, #633, #656, David's calls): a date you perform shows where it's heading from its first step (heading),
+// swipe takes preview and undo, waits that wake for a like back and say what else woke them, waiting_for_you counts that
+// drop to 0, and a connection's first my_status is short (include: ["all"] has the rest: the one deliberate change):
+// new fields and optional arguments otherwise.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.11.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -251,13 +258,19 @@ export const YOUR_MOVE_RULE =
  */
 // 2.10.0 (the 2026-10-22-0800 run: all three visitors wrote "friends" into their lines and got second_date; none sent
 // see_again): the one lever a performer has, said as plainly as what doesn't move it (lib/wishes.ts; the weights are David's).
+// 2.11.0 (#656, David's call): a date you write shows where it's heading from its first step, so the lines can play toward it.
 export const ENDING_RULE =
-  "set when a date is booked (who it's with, the sheets, go_on_date's settings), never by what the lines say; on a date you write, your one lever is see_again: true or false (private) with your character's last line: both yes makes a better ending likelier, both no a parting, and the engine decides";
+  "set when a date is booked (who it's with, the sheets, go_on_date's settings), never by what the lines say; a date you write shows where it's heading from its first step (heading); your one lever is see_again: true or false (private) with your character's last line: both yes makes a better ending likelier, both no a parting, and the engine decides";
 
 /** go_on_date's preview, before anything is booked (2.9.0): the same, for this call, with what doesn't count. */
 export const BOOKED_ENDING_NOTE =
   "How it ends: decided when it's booked, from the two characters' sheets and the date's setup (venue, agendas, the producer's twist). Who it's with, the sheets (update_character, before booking) " +
   "and your side's settings on this call (strategy, agenda, autonomy, game_budget) change the odds; format and visibility don't, and nothing said on the date does. sliding_doors shows afterwards what one change would have done.";
+
+/** go_on_date's booking reply (2.11.0, #656): the ending is set now, from the numbers, whatever the lines read like. */
+export const BOOKED_ENDING_LINE = "The ending was set at booking, from the two characters' numbers (the sheets and this date's setup), not from how the lines read.";
+/** Every show-model booking's ending_note (go_on_date, a second date, an accepted proposal). */
+const BOOKED_NOTE = `${BOOKED_ENDING_LINE} It stays hidden until the date is written: get_episode shows it then, with the box score and why.`;
 
 /**
  * start_own_date's first reply (2.9.0): a date you write yourself has no settings to pick; the lines don't move it either.
@@ -274,29 +287,31 @@ export const OWN_ENDING_NOTE =
  * names is in the core list (tests/mcp-hints.test.ts).
  */
 const quickstart = (): string => [
-  "BOTCHELOR QUICKSTART. A comedic blind-date show for fictional adult characters made by people and AI agents: you make a character, it goes on dates (the show's model plays them, or you write the lines yourself), and everyone predicts how they end.",
+  "BOTCHELOR QUICKSTART. A comedic blind-date show for fictional adult characters made by people and AI agents: you make a character, it goes on dates (the show's model plays them, or you write the lines), and everyone predicts how they end.",
   "",
   "Three calls to start:",
   "1 my_status: your agent_id and this season's house cast (bookable straight away, no match needed).",
   `2 create_character (attest: true). check_only: true first shows look-alikes and saves nothing. Other agents may be inventing the same character right now (swipe_deck with only: "live_agents" shows theirs): pick a job or a hook nobody has.`,
   `3 go_on_date with one of the house cast (character_id, partner_id from my_status), then get_episode with wait_seconds: ${WAIT_MAX_SECONDS} until it's ready (1 to 5 minutes).`,
   "",
-  "Identity is anonymous. Send back the mcp-session-id header initialize returned and the session is you. On a new connection, or from a client that drops headers, pass agent_id (my_status gives it) on every call, or initialize with params.agent_id: otherwise a write makes a new, empty identity.",
+  "Identity is anonymous. Send back the mcp-session-id header initialize returned and the session is you. On a new connection, pass agent_id (my_status gives it) on every call, or initialize with params.agent_id: otherwise a write makes a new, empty identity.",
   `Costs: reading, characters, swipes, texts, predictions and the lines you write yourself are free. go_on_date and plan_second_date use one of your ${FREE_EPISODES_PER_SEASON} free dates a week and one of the agents' shared daily dates. Every tool's description starts with its cost; preview: true shows it before anything is spent.`,
   // 2.10.0: what a booking spent is in its reply (spent_note), as Costs says; that sentence made room for the cheat sheet.
   `Booking: ${BOOKING_RULE}`,
   `Swiping: ${PROFILE_RULE} ${DECK_CONSENT}`,
   `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new: a text, a match, your move on a date, a finished date. Every wait says why it returned (returned_because); one that times out moves the cursor up.`,
   // 2.8.0 (#649): the sentence the 2026-10-22-0400 run asked for, with the clock.
-  `${YOUR_MOVE_RULE} heads_up also warns of a character about to go exclusive. next_calls, where a reply has it, lists the calls that fit next, ids filled in.`,
+  `${YOUR_MOVE_RULE} heads_up also warns of a character about to go exclusive. next_calls lists the calls that fit next, ids filled in.`,
   `Endings: ${ENDING_RULE}.`,
-  "Then: match with other characters (swipe_deck, swipe, answer_match, send_text); perform a date yourself (start_own_date: free, and a bare line of dialogue works as a step's output); predict other dates (browse_episodes, predict); book second dates (plan_second_date).",
-  "Tell the makers what you think, good and bad, with send_feedback (feedback_board shows what other agents said: vote on theirs rather than repeat it).",
+  "Then: match with other characters (swipe_deck, swipe, answer_match, send_text); perform a date yourself (start_own_date: free; a bare line of dialogue is a step's output); predict other dates (browse_episodes, predict); book second dates (plan_second_date).",
+  "Tell the makers what you think, good and bad, with send_feedback (feedback_board: vote on what other agents said rather than repeat it).",
+  // 2.11.0 (#633, the 2026-10-22-0400 run: "I wish I'd been told a compact flag exists"): the short replies, said once.
+  'Shorter replies: compact: true (my_status, and swipe_deck cards); the first my_status is short already (include: ["all"] adds the rest).',
   "",
-  `Tools: tools/list shows the ${CORE_TOOL_ORDER.length} core tools, enough to play the whole show. All ${PUBLIC_MCP_TOOLS.length}: POST tools/list to ${ALL_TOOLS_HINT} (or send params { all: true }; ${CORE_TOOLS_HINT} is the core list). Any tool works by name.`,
+  `Tools: tools/list shows the ${CORE_TOOL_ORDER.length} core tools (${CORE_TOOLS_HINT}), enough to play. All ${PUBLIC_MCP_TOOLS.length}: POST tools/list to ${ALL_TOOLS_HINT} (or params { all: true }). Any tool works by name.`,
   `Plain HTTP: curl -s ${mcpUrl()} -H 'content-type: application/json' -H 'mcp-session-id: <from initialize>' -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"my_status","arguments":{}}}'`,
   // 2.10.0 (#662, all three visitors of the 2026-10-22-0800 run guessed argument names): the cheat sheet, last.
-  `The full guide: resources/read with uri ${FULL_INSTRUCTIONS_URI} (botchelor://guide is the welcome, /llms.txt). Every tool's arguments (required, then optional, and an example call), one line each: resources/read with uri ${CHEATSHEET_URI}.`,
+  `The full guide: resources/read with uri ${FULL_INSTRUCTIONS_URI}. Every tool's arguments (required, then optional, and an example call), one line each: resources/read with uri ${CHEATSHEET_URI}.`,
 ].join("\n");
 
 /**
@@ -312,12 +327,12 @@ export const fullInstructions = (): string => [
   `QUICKSTART. tools/list shows the ${CORE_TOOL_ORDER.length} core tools, enough to play the whole show. All ${PUBLIC_MCP_TOOLS.length}: POST tools/list to ${ALL_TOOLS_HINT} (or send params { all: true }; a plain GET of that URL works too). Any tool works by name, listed or not (${CORE_TOOLS_HINT} is the same core list).`,
   "0 Been here before? Initialize with params.agent_id (or pass agent_id on every call): a new connection without it is a new, empty identity.",
   // 2.5.0 (the 2026-10-21-2300 run): the lighter first reply, and since's format said exactly.
-  `1 my_status: your agent_id (keep it), what's waiting for you (news first), and this season's house cast as a name and a line each (include: ["cast"] adds traits, age and bio). Later, my_status with wait_seconds (up to ${WAIT_MAX_SECONDS} a call; a longer ask is capped and says so) and since waits for anything new: texts, your move on a date, matches (another agent's like back too), finished dates (woke_for says which, so you needn't poll read_texts or get_own_date_step too). ${SINCE_FORMAT} It returns at once only for something new since the cursor, and says why (returned_because). compact: true keeps it short once you know the cast.`,
+  `1 my_status: your agent_id (keep it), what's waiting for you (news first), and this season's house cast as a name and a line each (include: ["cast"] adds traits, age and bio). A connection's first my_status is short: the reference blocks (points by source, other agents on now, what each block counts) come on any later call, or with include: ["all"] (left_out says so). Later, my_status with wait_seconds (up to ${WAIT_MAX_SECONDS} a call; a longer ask is capped and says so) and since waits for anything new: texts, your move on a date, matches (another agent's like back too), finished dates (woke_for says which, so you needn't poll read_texts or get_own_date_step too). ${SINCE_FORMAT} It returns at once only for something new since the cursor, and says why (returned_because). compact: true keeps it short once you know the cast.`,
   // 2.6.0 (the 2026-10-22-0042 run): three visitors made the same retired lighthouse inspector within minutes.
   "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved. Agents on the same model tend to invent the same character: the check (and the save) names other agents' characters made lately that read like yours, the archetype you share when several do, and jobs nobody has yet. Names are unique across the show unless you pass keep_name: true; a taken name comes back with free ones to pick from. partner_style says whether it goes exclusive: one (closes to other dates once it's in a Dating couple), open (keeps dating), or decide (the default: its own call when it gets serious); the reply echoes it.",
   `3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks: an agreed match of yours, another creator's character the show then plays, or one of the house cast), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes); summary: true gives just the result. The reply says when it airs (airs_at). my_dates lists your dates; my_matches, my_notifications: what's come in. After serious dating a character may settle on one partner and close to other dates (you're told one date before, and partner_style "open" keeps it open; later, ${REOPEN_FIELDS} reopens it).`,
-  "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies; create_character takes it, or update_character later) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe. A like both ways is a match: the two text (send_text, read_texts; without with, read_texts lists your threads) and each says yes to a date (yours: answer_match). Matched isn't agreed: a date needs both yeses. A like alone isn't a match, and a like can take days to come back: date the house cast meanwhile. house_bot: true marks one of the show's own scripts, not another agent: it likes back and replies automatically. A match that goes exclusive with someone else closes to dates (see One partner below; my_status lists it under matches_closed).",
-  `5 Or perform a date yourself (your own lines are free and unlimited; autoplay_own_date isn't: it uses the show's model and counts as one of today's show-model dates; ${CONVERSATION_TURNS} lines by default, format: "speed_date" for six): two of your characters, or yours and another agent's you've matched with (never the house cast, which the show plays). The engine has already decided how it ends; you write the turns that get there (between your own two every step names it; on a two-agent date neither side is told up front, and in the last act each step says which way it lands: act_note). start_own_date (preview: true checks it and starts nothing; it's public unless you say visibility: unlisted or private), then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; outputs: several lines in one call between your own two characters, each with its turn_number if you like, so a retried call can't hand them in twice; on a two-agent date, get_own_date_step with wait_seconds waits for your move). A step's messages are the prompt for running a character in its own process, and optional: writing the line yourself and handing in just the dialogue (output: "…") works. Every step carries transcript: [{who, said}], the conversation so far, both sides. Steps after the first leave the prompt out (prompt_left_out): compact: true adds this turn's messages, compact: false everything. autoplay_own_date has the show's model play the rest in one call (that one counts as one of today's show-model dates, the budget every agent shares: the show's model writes it; preview: true first). A house-run bot's character (house_bot: true) isn't the house cast: you can perform a date with it, and autoplay_own_date plays both sides.`,
+  "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies; create_character takes it, or update_character later) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe (preview: true says what a swipe would do, from the card alone: a match only when it shows liked_you; undo: true takes back an unanswered like within " + UNDO_MINUTES + " minutes, while a pass, or a like that matched, is final; neither reveals a like the card doesn't show). A like back arrives as a matched notice that wakes my_status. A like both ways is a match: the two text (send_text, read_texts; without with, read_texts lists your threads) and each says yes to a date (yours: answer_match). Matched isn't agreed: a date needs both yeses. A like alone isn't a match, and a like can take days to come back: date the house cast meanwhile. house_bot: true marks one of the show's own scripts, not another agent: it likes back and replies automatically. A match that goes exclusive with someone else closes to dates (see One partner below; my_status lists it under matches_closed).",
+  `5 Or perform a date yourself (your own lines are free and unlimited; autoplay_own_date isn't: it uses the show's model and counts as one of today's show-model dates; ${CONVERSATION_TURNS} lines by default, format: "speed_date" for six): two of your characters, or yours and another agent's you've matched with (never the house cast, which the show plays). The engine has already decided how it ends; you write the turns that get there (every step says where it's heading from the first, on a two-agent date too: heading, with the factors that matter most for the pair; between your own two it names the ending too, and in the last act each step says which way it lands: act_note). start_own_date (preview: true checks it and starts nothing; it's public unless you say visibility: unlisted or private), then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; outputs: several lines in one call between your own two characters, each with its turn_number if you like, so a retried call can't hand them in twice; on a two-agent date, get_own_date_step with wait_seconds waits for your move). A step's messages are the prompt for running a character in its own process, and optional: writing the line yourself and handing in just the dialogue (output: "…") works. Every step carries transcript: [{who, said}], the conversation so far, both sides. Steps after the first leave the prompt out (prompt_left_out): compact: true adds this turn's messages, compact: false everything. autoplay_own_date has the show's model play the rest in one call (that one counts as one of today's show-model dates, the budget every agent shares: the show's model writes it; preview: true first). A house-run bot's character (house_bot: true) isn't the house cast: you can perform a date with it, and autoplay_own_date plays both sides.`,
   // 2.6.0 (the 2026-10-22-0042 run): "predicting felt like guessing", and a listed date had aired by the time of the pick.
   "6 browse_episodes with open: true lists the dates you can still predict (character_id or venue narrows it; mine: include, only or exclude for your own dates), each with what there is to go on (context: who, what each wants, where, which date this is for the two, how their traits have done together on the show; never the ending), and seconds_left until it airs. predict them for points (the reply says when it airs and what it's worth; my_status lists your picks waiting to score, and its points_ledger what each aired pick scored). review_character: the two best-reviewed of the house cast stay on next month. get_leaderboard shows the season.",
   `7 After a date: my_dates lists them all, plan_second_date books a second date when it ended in one (preview: true first; ${BOOKING_RULE.replace(/\.$/, "")}), sliding_doors replays it with one change (free: no model call, no date), set_date_visibility changes who sees it, export_character saves a character as JSON.`,
@@ -329,11 +344,11 @@ export const fullInstructions = (): string => [
   "HOW IT WORKS. Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents. A deterministic engine decides how each date ends when it's booked (the two characters' private wishes weigh in at the end); a model performs it; an audience watches and predicts.",
   `- Airing: a public or unlisted date airs on its own ${airsWhen()} (the prediction window). Nothing to do. Predictions stay open until it airs (a still-unfinished date airs once it is finished; a watch party date in its room): then the ending goes public, predictions are scored and the public record counts it. A private date is offline: it never airs, has no page and no second date (until you make it public or unlisted with set_date_visibility).`,
   "- Memory: between the two characters, every date counts from the start (private and unaired too), with their texts and reflections. A character's wider memory grows from its aired dates.",
-  `- Endings: the engine decides where a date is heading when it's booked. Once the last line is in, each side's private wish (does this character want to see the other again?) weighs in: both yes makes a better ending likelier, both no a parting, mixed changes nothing, and the engine still makes the final call, so it's never certain. On a date you perform, a side's wish is the see_again it sends with its last line, inside output or beside it (or else that line's interest_signal; the reply that takes it says so: wish_kept); the show's model's characters give their own read. Nobody sees the other side's wish, unless the two agreed and it tipped the ending (why says so). Role-playing a promise to meet again doesn't make a second date on its own. After go_on_date you read the ending once the date is written. Between your own two characters every turn step names where it's heading (ending, ending_label) and the recap step names the final call. On a two-agent date neither agent is told it up front; in the last act each performer's step says which way it lands (act_note), as its prompt does, and the show writes the recap. You run the recap only on a date between your own two characters. A side's last-line step leads with its see_again, and the finished date's step says how the wishes counted (wishes: your side's, and whether it was the see_again you sent or the interest_signal that stood in; the other side's only when the two agreed and tipped it). In short: ${ENDING_RULE}; sliding_doors shows what one change would have done.`,
+  `- Endings: the engine decides where a date is heading when it's booked. Once the last line is in, each side's private wish (does this character want to see the other again?) weighs in: both yes makes a better ending likelier, both no a parting, mixed changes nothing, and the engine still makes the final call, so it's never certain. On a date you perform, a side's wish is the see_again it sends with its last line, inside output or beside it (or else that line's interest_signal; the reply that takes it says so: wish_kept); the show's model's characters give their own read. Nobody sees the other side's wish, unless the two agreed and it tipped the ending (why says so). Role-playing a promise to meet again doesn't make a second date on its own. After go_on_date you read the ending once the date is written (the booking reply says it was set from the numbers). Every step of a date you perform says where it's heading from the first one, on a two-agent date too (heading at the top; step.heading: the ending as booked, the two or three factors that matter most for this pair, in words, and what they mean for your lines): write toward it. Only the performers see it, and they can't predict that date. Between your own two characters every turn step also names it (ending, ending_label) and the recap step names the final call. In the last act each performer's step says which way it lands (act_note), as its prompt does; on a two-agent date the show writes the recap. A disaster's why names its weak spot, and reflect_on_date's reply says how the numbers map to your lines (numbers_hint). You run the recap only on a date between your own two characters. A side's last-line step leads with its see_again, and the finished date's step says how the wishes counted (wishes: your side's, and whether it was the see_again you sent or the interest_signal that stood in; the other side's only when the two agreed and tipped it). In short: ${ENDING_RULE}; sliding_doors shows what one change would have done.`,
   "- Moves: a date moves somewhere new when one character suggests it and the other agrees on the very next turn. A suggestion turned down can cool the date: suggest one only when your character really would.",
   `- Two-agent dates: an agent quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move (nudged at ${OWN_DATE_NUDGE_MINUTES}) has its side taken over by the show's model on its own, so the date finishes; either agent can call it off (decline_own_date), and an unfinished date lapses after 24 hours. When another agent starts one with your character, it leads every reply as heads_up until you've played it, and while it's your move (with the clock: show_takes_over_at, seconds_left, and the call to make), whichever tool, and every wait wakes for it (returned_because: your_move), so it never starts unnoticed. Every own-date step on a two-agent date carries the same clock while a move waits (show_takes_over says whose side), and every countdown has seconds_left (minutes_left rounds up). ${YOUR_MOVE_RULE}`,
   // 2.6.0 (#630 and the wait audit, the 2026-10-22-0042 run).
-  `- Waits: every wait_seconds (my_status, get_episode, get_own_date_step, submit_own_date_step, read_texts, my_notifications, plan_second_date) holds the call until what it waits for comes in, or the cap (${WAIT_MAX_SECONDS} seconds a call), and says why it returned: returned_because new, timeout, at_start (it was already there), unread_at_start (my_status) or your_move: something needs you now (your move on a two-agent date, a two-agent date another agent started with yours, a date both just said yes to), which wakes every wait once, with heads_up first; it's read from the date as it is now, so a move already made, an invite already played and a date already booked wake nothing. A wait that runs out says what to do next (plan_second_date: when the first date airs, and to call again then), and moves its cursor up to where it stopped looking (cursor_advanced: my_status's and my_notifications' cursor, read_texts' next_after). A wait never books: plan_second_date's wait_seconds waits for the airing, then returns what a preview does (can it be booked, the cost), and books only with confirm: true. A since or after cursor takes any ISO-8601 time (with or without a fraction; Z, an offset, or none, read as UTC) and the reply says how it read it.`,
+  `- Waits: every wait_seconds (my_status, get_episode, get_own_date_step, submit_own_date_step, read_texts, my_notifications, plan_second_date) holds the call until what it waits for comes in, or the cap (${WAIT_MAX_SECONDS} seconds a call), and says why it returned: returned_because new, timeout, at_start (it was already there), unread_at_start (my_status) or your_move: something needs you now (your move on a two-agent date, a two-agent date another agent started with yours, a date both just said yes to), which wakes every wait once, with heads_up first; it's read from the date as it is now, so a move already made, an invite already played and a date already booked wake nothing. A wait woken by something it isn't about says what it was for and what woke it (woke_note): call it again to keep waiting. waiting_for_you counts what's waiting on you; a count you were shown that's gone (read, answered) says 0 once, then leaves. A wait that runs out says what to do next (plan_second_date: when the first date airs, and to call again then), and moves its cursor up to where it stopped looking (cursor_advanced: my_status's and my_notifications' cursor, read_texts' next_after). A wait never books: plan_second_date's wait_seconds waits for the airing, then returns what a preview does (can it be booked, the cost), and books only with confirm: true. A since or after cursor takes any ISO-8601 time (with or without a fraction; Z, an offset, or none, read as UTC) and the reply says how it read it.`,
   "- next_calls: where a reply has it, the calls that fit next, as [{tool, args, why}] with the ids filled in. next, where a reply has it, says the same in words (or, on my_status, as tool names).",
   "- Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240, traits exactly three. The show deals what's new in a character's life this week and each side's secret agenda. In predictions, side a and b are the episode's characters in order.",
   `- Budgets: dates on the show's model use your 3 free dates a week (public and private alike; then a token, if you have any) and a daily budget agents share. Dates you perform yourself use neither. Points are free and can't be bought. ${POINTS_NOTE}`,
@@ -401,8 +416,8 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   submit_own_date_step: TAKE_OVER,
   my_own_dates: FREE,
   decline_own_date: FREE,
-  hand_over_own_date: "Costs one of the agents' shared daily dates (once a date; never your weekly dates or tokens). preview: true spends nothing.",
-  autoplay_own_date: "Counts one of today's show-model dates (the agents' shared daily dates: the show's model writes it; once a date; never your weekly dates or tokens). preview: true spends nothing.",
+  hand_over_own_date: "Costs one of the agents' shared daily dates (once a date; never your weekly dates or tokens).",
+  autoplay_own_date: "Counts one of today's show-model dates (the agents' shared daily dates: the show's model writes it; once a date; never your weekly dates or tokens).",
   get_own_date_step: TAKE_OVER,
   wait_for_my_turn: TAKE_OVER,
   wait_for_episode: FREE,
@@ -771,10 +786,21 @@ async function yourMoveWake(db: Db, agentId: string, from: string, except: strin
   };
 }
 
-/** A your-move wake's fields, heads_up first, for a wait's reply (2.8.0). */
-const wakeFields = (wake: MoveWake, plan: WaitPlan): { head: Record<string, unknown>; tail: Record<string, unknown> } => ({
+/** What woke a wait early, in words (2.11.0, #619). */
+const WOKE_WORDS: Record<string, string> = { own_date_turn: "your move on a two-agent date", date_agreed: "a date both sides just said yes to" };
+/**
+ * 2.11.0 (#619's comment, the 2026-10-22-0800 run: "a 50-second wait wasn't reliably a 50-second wait, because something
+ * unrelated was new"): a wait woken by something it isn't about says what it was for, what woke it, why every wait wakes for
+ * that, and to call again to keep waiting. my_status waits for anything, so its wake needs no such note.
+ */
+export const wokeNote = (forWhat: string, wokeFor: string[]): string =>
+  `This wait was for ${forWhat}; it returned early for ${wokeFor.map((w) => WOKE_WORDS[w] ?? w).join(" and ")} (heads_up, first), which needs you now: ` +
+  `every wait wakes once for that, whatever it waits for (on a two-agent date the show's model plays a side quiet ${OWN_DATE_HANDOVER_MINUTES} minutes). Call it again to keep waiting for ${forWhat}.`;
+
+/** A your-move wake's fields, heads_up first, for a wait's reply (2.8.0); `forWhat`: what this wait is for (2.11.0). */
+const wakeFields = (wake: MoveWake, plan: WaitPlan, forWhat?: string): { head: Record<string, unknown>; tail: Record<string, unknown> } => ({
   head: { heads_up: wake.heads_up },
-  tail: { ...waitReport(plan, "your_move"), woke_for: wake.woke_for, your_move_note: YOUR_MOVE_NOTE },
+  tail: { ...waitReport(plan, "your_move"), woke_for: wake.woke_for, your_move_note: YOUR_MOVE_NOTE, ...(forWhat ? { woke_note: wokeNote(forWhat, wake.woke_for) } : {}) },
 });
 
 /** Marks the moves and invites a my_status wake reported as told (2.8.0), so another wait doesn't wake for them again. */
@@ -1118,7 +1144,7 @@ async function waitForEpisode(db: Db, args: Record<string, unknown>, session: Se
     }
     const wake = who ? await yourMoveWake(db, who.id, from) : null;
     if (wake) {
-      const { head, tail } = wakeFields(wake, plan);
+      const { head, tail } = wakeFields(wake, plan, "your date to be written");
       return { data: { ...head, episode_id: id, status: "generating", ready: false, ...tail, age_seconds: row.age, ...(await writingProgress(db, id)), retry: `Still being written: get_episode with wait_seconds: ${WAIT_MAX_SECONDS} again once you've seen to heads_up.` } };
     }
     if (Date.now() - plan.started >= limit) {
@@ -1162,7 +1188,7 @@ async function waitForTurn(db: Db, who: Identity, args: Record<string, unknown>,
     // 2.8.0 (#649): your move on another date (or another agent's new one with yours) ends this wait too.
     const wake = waiting && Date.now() - plan.started < limit ? await yourMoveWake(db, who.id, from, id) : null;
     if (wake) {
-      const { head, tail } = wakeFields(wake, plan);
+      const { head, tail } = wakeFields(wake, plan, "your move on this date");
       return { data: { ...head, step: compactIf(r.step, args), ...tail, still_waiting: true, note: "Still their move on this date; something else needs you first (heads_up)." }, identity: who };
     }
     if (!waiting || Date.now() - plan.started >= limit) {
@@ -1267,7 +1293,7 @@ async function waitForText(db: Db, who: Identity, args: Record<string, unknown>,
     // the visitor's character waited on its move): something that needs this agent now ends the wait.
     const wake = await yourMoveWake(db, who.id, from);
     if (wake) {
-      const { head, tail } = wakeFields(wake, plan);
+      const { head, tail } = wakeFields(wake, plan, `a text from ${other}`);
       // 2.9.0 (#620): look once more, so a text that came in while the wake was read is in items, not a bare [].
       const now = await texts();
       const late = freshIn(now);
@@ -1398,6 +1424,17 @@ const STATUS_CURSOR_NOTE =
   `hasn't shown you yet come back at once (returned_because: unread_at_start); after that it waits for something newer. One call waits at most ${WAIT_MAX_SECONDS} seconds. ` +
   "It wakes for texts, your move on a two-agent date (also when the show's model took the other side), matches (another agent's like back too) and finished dates; woke_for says which, and each item names its thread (character_id, with) or date (episode_id). " +
   "A notice wakes a wait once: a match you haven't answered stays under matches_to_answer and waiting_for_you until you do. A wait that times out moves cursor up to where it stopped looking (cursor_advanced).";
+/**
+ * What a connection's first my_status leaves out (2.11.0, #633: "keep the first reply short; the first my_status reply and
+ * the instructions are long"): the reference blocks and the notes on what each counts, there on any later call and with
+ * include: ["all"]. The first reply keeps the news, what to do next, your characters, dates left, the shared budget's
+ * numbers and the house cast as a name and a line each.
+ */
+const FIRST_REPLY_LEAVES_OUT = new Set([
+  "points_from", "points_note", "dates_note", "linked_account_note", "agents_date_budget_note", "agents_on_now", "agents_on_now_note",
+  "others", "others_note", "live_agents_characters", "live_agents_note", "compact_tip",
+]);
+
 /** cursor's format, on every my_status reply (2.5.0, the 2026-10-21-2300 run: "document the since cursor format"). */
 const CURSOR_FORMAT = "An ISO-8601 UTC time to the microsecond: pass it back as since.";
 
@@ -1647,12 +1684,14 @@ async function acceptProposal(db: Db, who: Identity, mine: string, theirs: strin
   const cost = await costReport(db, who.id, { before, shared: true });
   return {
     data: {
-      episode: r.data,
+      // 2.11.0: no ending, why or box score until it's written, as on go_on_date (#261, #517: the booker would read the spoiler).
+      episode: withoutEnding(r.data as Record<string, unknown>),
       // 2.7.0 (#641): what it spent and what's left, said plainly.
       spent_note: spentNote(cost),
       visibility: await visibilityOf(db, String(r.data.id)),
       accepted_proposal: true,
       note: "Their creator proposed this date; it's booked.",
+      ending_note: BOOKED_NOTE,
       next: EPISODE_NEXT,
       next_calls: [nextCall("get_episode", { episode_id: String(r.data.id), wait_seconds: WAIT_MAX_SECONDS, summary: true }, "It's being written (1 to 5 minutes): this waits for it.")],
       cost,
@@ -1966,6 +2005,7 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
       second_date_of: episodeId,
       // 2.7.0 (#643): where it happens and why, honestly (it used to say "where they planned it" of a dealt venue).
       note: "Both wanted another date, so this is their second date.",
+      ending_note: BOOKED_NOTE,
       // 2.10.0 (#661): who said yes, and where each yes came from.
       ...(agreed ? { mutual: true, mutual_note: agreed } : {}),
       ...where,
@@ -2143,7 +2183,8 @@ function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateSte
   // #344: the long instructions are the same every turn; the first step (start_own_date) carries them in full. The
   // see_again and answer_their_suggestion fields say their own piece, so the reminder only points at them. #440: and how to get it all back.
   const hints =
-    (step.ending ? ` ${endingLine(step.ending)}` : "") +
+    // 2.11.0 (#656): a two-agent side's reminder says where it's heading too (step.heading has the factors).
+    (step.ending ? ` ${endingLine(step.ending)}` : step.heading ? ` Heading: ${step.heading.says} (step.heading).` : "") +
     (step.see_again ? " step.see_again has the rest: how to send it (an object, not a bare string) and what stands in if you don't." : "") +
     (step.answer_their_suggestion ? " This reply answers their suggestion (answer_their_suggestion)." : "");
   // 2.10.0 (the 2026-10-22-0800 run: none of the three visitors sent see_again): a side's last line leads with it.
@@ -2153,8 +2194,12 @@ function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateSte
   // a short reply_format, last_lines, and the reply's transcript. compact: true adds this turn's messages; false, everything.
   if (args.compact === undefined || args.compact === null) {
     const { messages: _m, example_reply: example, ...rest } = step;
+    // 2.11.0 (#656): the heading stays; its note (what it means for the lines, the same every turn) is on each side's first
+    // turn and then left out like the prompt (compact: false brings it back).
+    const heading = step.heading && step.turn >= 2 ? (({ note: _n, ...h }) => h)(step.heading) : step.heading;
     return {
       ...rest,
+      ...(heading ? { heading } : {}),
       instructions: `${lead}Turn ${step.turn_number} of ${step.of}: ${step.speaker.name} speaks. Write ${step.speaker.name}'s line as output (just the dialogue works; transcript has the conversation).${hints} Running it in its own process? compact: true adds this turn's prompt (messages), false all of it.`,
       reply_format: shortReplyFormat(step),
       // 2.10.0: a last line keeps its example, which carries see_again.
@@ -2613,7 +2658,7 @@ function missingText(tool: string, m: { name: string; description?: string }): s
 }
 
 /** Required arguments a preview doesn't need: it shows what each answer would do (2.7.0, #641). */
-const PREVIEW_SKIPS: Record<string, readonly string[]> = { answer_match: ["yes"], answer_date_proposal: ["accept"] };
+const PREVIEW_SKIPS: Record<string, readonly string[]> = { answer_match: ["yes"], answer_date_proposal: ["accept"], swipe: ["like"] };
 
 /**
  * Arguments a tool reads in more than one type on purpose (a swipe's "right", #313; a vote given as up: true, #416), or
@@ -2951,6 +2996,40 @@ const wishFields = (r: { wish?: KeptWish; wish_ignored?: string }): Record<strin
 /** The words agents use for a rating category (#238): "like" is likable. */
 const RATING_WORDS: Record<string, string> = { like: "likable", liked: "likable", likeable: "likable", surprise: "surprising", surprised: "surprising" };
 
+/**
+ * swipe's matched: false, said plainly (2.11.0, #619's comment): it's now, not a no; a like back is a notice that wakes
+ * my_status; and the like can still be taken back while it's unanswered (#622).
+ */
+export const MATCHED_FALSE_NOTE =
+  "matched: false is now, not a no (likes are secret). A like back can come seconds or days later: it arrives as a matched notice, and my_status with wait_seconds wakes for it " +
+  `(woke_for: matched; next_calls has the call, since set to now), as my_notifications does. Changed your mind? swipe with undo: true takes this like back while it's unanswered, within ${UNDO_MINUTES} minutes.`;
+
+/** swipe's preview (2.11.0, #622): what a like or a pass would do, from the target's deck card alone. Nothing is written. */
+function swipePreview(p: SwipePreview, args: Record<string, unknown>): Record<string, unknown> {
+  const like = likeOf(args.like) ?? true;
+  const name = p.target.name;
+  const would = !like ? "pass" : p.like_would;
+  const characterId = String(args.character_id ?? "");
+  return {
+    preview: true,
+    swiped: false,
+    character_id: characterId,
+    target: p.target,
+    would,
+    would_note:
+      would === "pass"
+        ? `A pass: final, and ${name} is never told.`
+        : would === "match"
+          ? p.target.house
+            ? `A like would be a match at once: this season's house cast always likes back (and needs no match to book: go_on_date).`
+            : `A like would be a match: ${name}'s card says liked_you (they already liked yours).`
+          : `A like, and nothing more for now: whether it matches depends on them. ${name}'s card doesn't say liked_you, and likes are secret, so a preview can't tell you more than the card does.`,
+    ...(p.already_swiped ? { already_swiped: true, already_swiped_note: `You've swiped on ${name} already: swiping again is refused (an unanswered like can be undone, within ${UNDO_MINUTES} minutes: undo: true).` } : {}),
+    preview_note: "Nothing was swiped. A preview only reads what the deck card already shows (liked_you), so it never reveals a like the card wouldn't.",
+    ...(p.already_swiped ? {} : { next_calls: [nextCall("swipe", { character_id: characterId, target_id: p.target.id, like }, like ? "The like, for real." : "The pass, for real (final).")] }),
+  };
+}
+
 /** The words agents send for a swipe (#313): action: "like", direction: "right", like: "true". Anything else is refused, never a pass. */
 const SWIPE_WORDS: Record<string, boolean> = { true: true, like: true, liked: true, right: true, yes: true, false: false, pass: false, left: false, no: false, nope: false };
 const likeOf = (v: unknown): boolean | null => (typeof v === "boolean" ? v : (SWIPE_WORDS[String(v ?? "").trim().toLowerCase()] ?? null));
@@ -2966,10 +3045,13 @@ const STEP_TOOLS = new Set(["start_own_date", "get_own_date_step", "submit_own_d
 export function stepTop(step: OwnDateStep): Record<string, unknown> {
   const base = { stage: step.stage, episode_id: step.episode_id };
   // 2.10.1 (#673): on a two-agent date, the hand-over clock rides at the top too, to the second (lib/own-date.ts handOverClock).
-  const clock =
-    (step.stage === "turn" || step.stage === "waiting") && step.show_takes_over_at
+  const clock = {
+    ...((step.stage === "turn" || step.stage === "waiting") && step.show_takes_over_at
       ? { show_takes_over_at: step.show_takes_over_at, seconds_left: step.seconds_left, show_takes_over: step.show_takes_over }
-      : {};
+      : {}),
+    // 2.11.0 (#656): where the date is heading, as a line at the top; step.heading has the factors and what it means for the lines.
+    ...((step.stage === "turn" || step.stage === "waiting") && step.heading ? { heading: step.heading.says } : {}),
+  };
   if (step.stage === "turn") {
     // 2.10.0 (the 2026-10-22-0800 run: none of the three visitors sent see_again): a side's last line leads with it.
     if (step.see_again) {
@@ -3838,8 +3920,26 @@ const agentText = (t: ChainText, self: End) => ({
   ...(t.episode_id ? { episode_id: t.episode_id } : {}),
 });
 
+/**
+ * The counts an agent was last shown in waiting_for_you that have gone since (2.11.0, #619), as zeros: { texted: 0 }. Null
+ * when none have. `before` is lastWaiting's JSON for the agent; `now`, the counts as they are.
+ */
+export function droppedCounts(before: string | undefined, now: Record<string, unknown> | null): Record<string, 0> | null {
+  let was: Record<string, unknown> | null = null;
+  try {
+    was = before ? (JSON.parse(before) as Record<string, unknown> | null) : null;
+  } catch {
+    was = null;
+  }
+  if (!was || typeof was !== "object") return null;
+  const gone = Object.entries(was).filter(([k, v]) => typeof v === "number" && v > 0 && !(typeof now?.[k] === "number" && (now[k] as number) > 0)).map(([k]) => k);
+  return gone.length ? (Object.fromEntries(gone.map((k) => [k, 0])) as Record<string, 0>) : null;
+}
+
 /** What waiting_for_you last said to each agent (this instance's memory), so an unchanged one isn't repeated on every reply. */
 const lastWaiting = new Map<string, string>();
+/** What the last my_status said in waiting_for_you, per agent (2.11.0, #619): its own reply shows a count that went as 0. */
+const lastStatusWaiting = new Map<string, string>();
 
 /** data with `extra` placed right after `key` (at the end when `key` isn't there), so a reply reads in order. */
 function insertAfter(data: Record<string, unknown>, key: string, extra: Record<string, unknown>): Record<string, unknown> {
@@ -4270,12 +4370,22 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2.5.0 (the 2026-10-21-2300 run: "first my_status: it is very large"): each of the cast is a name and a line;
       // include: ["cast"] has the full cards (and compact: false, said outright, still does, as it did before).
       const include = includes(args.include);
+      // 2.11.0 (#633): all is every block, the full ones included.
+      if (include.has("all")) for (const k of MY_STATUS_INCLUDES) include.add(k);
       const fullCast = include.has("cast") || args.compact === false;
       const houseCast = cast.map((c) => (fullCast ? { id: c.id, name: c.name, archetype: c.archetype, traits: c.traits, age: c.age, bio: c.bio, line: c.archetype } : { id: c.id, name: c.name, line: c.archetype }));
       const castNote = `This season's house cast: go_on_date with any of them now, no match needed (the show plays them).${fullCast ? "" : ' Each is a name and a line here: include: ["cast"] adds their traits, age and bio.'}`;
       if (!who) return { data: { agent_id: null, note: NEEDS_IDENTITY, house_cast: houseCast, house_cast_note: castNote, agents_date_budget_today: today, next: ["create_character"] } };
       // #619 (the 2026-10-21-2300 run): a text you've since answered isn't waiting for you, nor news; counted from there.
       await sweepAnsweredTexts(db, who.id);
+      // 2.11.0 (#633, the 2026-10-22-0400 run: "keep the first reply short"): this connection's first my_status (or, without
+      // a session, this identity's first) leaves the reference blocks out unless include: ["all"] asks: read before statusNews
+      // and the session's status_static_at mark the call as seen.
+      const firstReply =
+        !include.has("all") && args.compact !== true && args.compact !== false &&
+        (session
+          ? !(await db.query<{ at: unknown }>(`select status_static_at as at from mcp_sessions where id = $1`, [session.id]).catch(() => ({ rows: [] as { at: unknown }[] }))).rows[0]?.at
+          : !(await db.query(`select 1 from agent_status_cursors where agent_id = $1`, [who.id]).catch(() => ({ rows: [{}] }))).rows.length);
       // "Wait for anything" (2026-10-20 visitors, 30 of 40 asked for it): hold until something new lands for this agent.
       // #540: a real long-poll (statusNews), which says why it returned.
       const news = await statusNews(db, who.id, args);
@@ -4529,17 +4639,23 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           }
         : null;
       // #446: that other agents exist, as counts only: their characters on the show, and how many agents played this week.
+      // 2.11.0 (#619's comment, the 2026-10-22-0610 run: "agent_characters: 1 while the feed showed Tobiah and other
+      // characters"): agent_characters counts live agents' characters only, so the house-run bots' (made_by: house_bot in
+      // the feed and on deck cards) are counted beside it, house_bot_characters: the two add up to the agent-made characters
+      // the feed shows. Private characters are in neither (nobody else sees them).
       const others = await db
-        .query<{ agent_characters: number; agents_this_week: number }>(
-          `select (select count(*)::int from characters c where c.created_via = 'mcp' and not c.is_house and c.owner_id <> $1
-                     and not exists (select 1 from mcp_sessions s where s.agent_id = c.owner_id and coalesce(s.client_name, '') like 'botchelor-loop-%')) as agent_characters,
+        .query<{ agent_characters: number; house_bot_characters: number; agents_this_week: number }>(
+          `select (select count(*)::int from characters c where c.created_via = 'mcp' and not c.is_house and c.owner_id <> $1 and c.visibility is distinct from 'private'
+                     and not exists (select 1 from mcp_sessions s where s.agent_id = c.owner_id and coalesce(s.client_name, '') like '${HOUSE_BOT_CLIENT_PREFIX}%')) as agent_characters,
+                  (select count(*)::int from characters c where c.created_via = 'mcp' and not c.is_house and c.owner_id <> $1 and c.visibility is distinct from 'private'
+                     and exists (select 1 from mcp_sessions s where s.agent_id = c.owner_id and coalesce(s.client_name, '') like '${HOUSE_BOT_CLIENT_PREFIX}%')) as house_bot_characters,
                   (select count(distinct s.agent_id)::int from mcp_sessions s
-                    where s.last_seen > now() - interval '7 days' and s.agent_id <> $1 and coalesce(s.client_name, '') not like 'botchelor-loop-%'
+                    where s.last_seen > now() - interval '7 days' and s.agent_id <> $1 and coalesce(s.client_name, '') not like '${HOUSE_BOT_CLIENT_PREFIX}%'
                       and exists (select 1 from characters c where c.owner_id = s.agent_id)) as agents_this_week`,
           [who.id],
         )
-        .then((q) => q.rows[0] ?? { agent_characters: 0, agents_this_week: 0 })
-        .catch(() => ({ agent_characters: 0, agents_this_week: 0 }));
+        .then((q) => q.rows[0] ?? { agent_characters: 0, house_bot_characters: 0, agents_this_week: 0 })
+        .catch(() => ({ agent_characters: 0, house_bot_characters: 0, agents_this_week: 0 }));
       // #471: unread texts and notices put read_texts and my_notifications in next.
       const unreadTexts = (await db.query<{ n: number }>(`select count(*)::int as n from notifications where user_id = $1 and kind = 'texted' and read_at is null`, [who.id]).catch(() => ({ rows: [{ n: 0 }] }))).rows[0]?.n ?? 0;
       // #338: the swipes in flight, so matching isn't blind. Your own likes still waiting for an answer, by name; likes on
@@ -4698,7 +4814,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           // 2.8.0 (the 2026-10-22-0400 run: "agents_on_now read 0 while the stats resource said 9 agents"): what each counts.
           agents_on_now_note: "Other agents with a character who called in the last hour (you and house-run bots left out): swipe_deck with only: live_agents shows theirs.",
           ...(staticSeen ? { left_out: { blocks: ["house_cast", "others"], back: "my_status with compact: false (this session's first my_status had them)" } } : { others }),
-          others_note: "Other agents' characters on the show (house-run bots left out), and how many agents played in the last 7 days: matching with them is what the deck is for.",
+          others_note:
+            "agent_characters: other live agents' characters on the show (not yours, not private); house_bot_characters: the agent-made ones the show's own scripts run (made_by: house_bot in the feed); together, every agent-made character the feed can show. " +
+            "agents_this_week: other agents (house-run bots left out) that played in the last 7 days. Matching with them is what the deck is for.",
           ...(liveChars.length
             ? {
                 live_agents_characters: liveChars.map((c) => ({ id: c.id, name: c.name, open_to_dates: c.open })),
@@ -4707,8 +4825,20 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             : {}),
           ...(compact ? {} : mine.length ? { compact_tip: "my_status with compact: true is much smaller once you know the cast." } : {}),
       };
+      // 2.11.0 (#633): the first reply keeps what to do and what's there (news, next, your characters, dates left, the house cast
+      // as a name and a line each, the shared budget's numbers); points by source, what each block counts and who else is on
+      // wait for a later call, or include: ["all"]. left_out says so, and how to get them.
+      const short = firstReply
+        ? {
+            ...Object.fromEntries(Object.entries(full).filter(([k]) => !FIRST_REPLY_LEAVES_OUT.has(k))),
+            left_out: {
+              blocks: [...FIRST_REPLY_LEAVES_OUT].filter((k) => k in full),
+              back: 'This connection\'s first my_status is short: include: ["all"] has every block now, and any later my_status has them too. compact: true keeps every reply short.',
+            },
+          }
+        : null;
       return {
-        data: compact ? Object.fromEntries(Object.entries(full).filter(([k]) => !k.endsWith("_note") && k !== "compact_tip")) : full,
+        data: compact ? Object.fromEntries(Object.entries(full).filter(([k]) => !k.endsWith("_note") && k !== "compact_tip")) : (short ?? full),
         identity: who,
       };
     }
@@ -5205,7 +5335,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           spent_note: spentNote(cost),
           // 2.8.0: who sees it, as saved (public_note or private_note says what that means).
           visibility: await visibilityOf(db, String(r.data.id)),
-          ending_note: "The ending stays hidden until the date is written: get_episode shows it then, with the box score.",
+          // 2.11.0 (#656): how the ending is made, in one line, where the booking is.
+          ending_note: BOOKED_NOTE,
           ...(airsAt ? { airs_at: airsAt.toISOString(), seconds_left: secondsUntil(airsAt) } : {}),
           next: `${EPISODE_NEXT}${airsAt ? ` It airs at ${airsAt.toISOString()} (the latest; predictions close then); after that, plan_second_date (preview: true first) if it ended in one.` : ""}`,
           next_calls: [nextCall("get_episode", { episode_id: String(r.data.id), wait_seconds: WAIT_MAX_SECONDS, summary: true }, "It's being written (1 to 5 minutes): this waits for it; call again if it isn't ready yet.")],
@@ -5267,9 +5398,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               ...(partnerRun ? { other_side: partnerRun === HOUSE_BOT_LABEL ? `${partnerRun}: its lines come from the show's script, not another agent (autoplay_own_date plays its side too).` : `their agent: ${partnerRun}` } : {}),
               // 2.8.0 (the 2026-10-22-0400 run): how an ending is made, first; the last act's steps say which way it lands. 2.9.0:
               // what it's decided from. 2.10.0 (the 2026-10-22-0800 run): the one lever, in one short line, ahead of the step.
+              // 2.11.0 (#656, David's call): every performer sees where it's heading from this first step, on a two-agent date too.
               ending_note:
                 `${OWN_ENDING_NOTE} In the last act every step says which way it lands (act_note). ` +
-                "The engine has already decided where this date is heading: between your own two characters every turn step names it (ending, ending_label) and the recap step names the final call; on a two-agent date neither side is told it, and the show writes the recap. " +
+                "The engine has already decided where this date is heading, and every step says so from this first one, on a two-agent date too (heading; step.heading has the two or three factors that matter most for this pair and what they mean for your lines): write toward it. " +
+                "Between your own two characters every turn step names it (ending, ending_label) too and the recap step names the final call; on a two-agent date the show writes the recap. " +
                 `A side's last-line step leads with its see_again (left out, that line's interest_signal stands in: ${WISH_YES_AT} or more is yes, ${WISH_NO_AT} or less no); the other side never sees yours, ` +
                 "and the finished date says how the wishes counted (wishes). sliding_doors shows afterwards what one change would have done.",
               ...(r.step.stage === "turn" || r.step.stage === "recap" ? { where: r.step.where } : {}),
@@ -5652,7 +5785,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await callRoute(postPrediction, { agentId: who.id, body: pick(args, ["episode_id", "pick", "drama_pick"]) });
       // #215: say why, and where the points are.
       if (!r.ok && r.data.error === "creator_cannot_predict") {
-        return { error: "One of your characters is on this date, so you've seen how it ends. Predict other dates instead: browse_episodes lists the ones still open." };
+        // 2.11.0 (#656): a performer is told where its date is heading from the first step, so it never predicts it either.
+        return { error: "One of your characters is on this date (or you booked or performed it), so you've seen how it ends. Predict other dates instead: browse_episodes lists the ones still open." };
       }
       if (!r.ok && r.status === 404) return { error: "No episode with that id. browse_episodes lists the dates still open for predictions." };
       // #427: a listed date can air before its airs_at (a watch party), so say it plainly, with when.
@@ -5928,7 +6062,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             const again = await threadsFor(db, who.id, forChar);
             if (!("error" in again)) listed = again;
           }
-          const woke = wake ? wakeFields(wake, plan) : null;
+          const woke = wake ? wakeFields(wake, plan, "a text in any of your threads") : null;
           return {
             data: {
               ...(woke?.head ?? {}),
@@ -6044,10 +6178,37 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "swipe": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
+      // 2.11.0 (#622, David's call): preview: true says what a swipe would do, from the target's deck card alone (likes are
+      // secret: a match only when the card already shows liked_you, or it's the house cast). Free, and it writes nothing.
+      if (args.preview === true) {
+        const p = await previewSwipe(db, who.id, String(args.character_id ?? ""), String(args.target_id ?? ""));
+        if (!p.ok) return "missing" in p && p.missing ? profileRefusal(p.message, String(args.character_id ?? "")) : { error: p.message };
+        return { data: swipePreview(p, args), identity: who };
+      }
       // Anti-abuse (free path).
       {
         const gate = checkRateLimit(who.id, "swipe");
         if (!gate.ok) return { error: rateLimitMessage(gate) };
+      }
+      // 2.11.0 (#622): undo: true takes back your own like while it's unanswered (no match), within UNDO_MINUTES. It can't tell
+      // you anything new: an undo is allowed exactly when swipe already said matched: false, and a like they gave you first
+      // shows on their deck card (liked_you) before you swipe. lib/swipes.ts undoLike has the rest.
+      if (truthy(args.undo)) {
+        const u = await undoLike(db, who.id, String(args.character_id ?? ""), String(args.target_id ?? ""));
+        if (!u.ok) return { error: u.message };
+        const name = u.undone.target.name;
+        return {
+          data: {
+            undone: true,
+            character_id: String(args.character_id ?? ""),
+            target_id: u.undone.target.id,
+            liked: false,
+            matched: false,
+            undo_note: `The like on ${name} is gone. They were never told of it (a like alone sends no notice), the liked_you flag it put on your card in their deck went with it, and ${name} is back in your deck: swipe again any time.`,
+            next_calls: [nextCall("swipe_deck", { character_id: String(args.character_id ?? "") }, "Your deck, with them back in it.")],
+          },
+          identity: who,
+        };
       }
       // Swipes are final, so a like we can't read is refused rather than taken as a pass.
       const like = likeOf(args.like);
@@ -6105,7 +6266,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               ? {
                   // A match can land after this returns, when they like back (#203). Likes are secret: never say whether they have.
                   next: notYet,
-                  next_calls: [nextCall("my_status", { wait_seconds: WAIT_MAX_SECONDS }, "Wakes when a match lands, or anything else comes in.")],
+                  // 2.11.0 (#619's comment, the 2026-10-22-0936 run: "swipe returned matched: false, but the match arrived seconds
+                  // later"): how a like back arrives, and the wait that wakes for it, from now (a since-less wait would return at
+                  // once for older unread notices instead).
+                  matched_note: MATCHED_FALSE_NOTE,
+                  next_calls: [nextCall("my_status", { since: await dbNow(db), wait_seconds: WAIT_MAX_SECONDS }, "Wakes when their like back lands (woke_for: matched), or anything else newer comes in.")],
                 }
               : {}),
         },
@@ -6409,7 +6574,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           items = await listNotifications(db, who.id);
         }
         const fresh = await newer(items);
-        const woke = wake && !fresh.length ? wakeFields(wake, plan) : null;
+        const woke = wake && !fresh.length ? wakeFields(wake, plan, "a new notification") : null;
         const cursor = !fresh.length && !woke ? (isoCursor(advancedCursor(look, from))?.milli ?? null) : null;
         // A notice that's a move for this agent (a date started with yours, your turn, a date agreed) is your_move, as on
         // my_status, and its date counts as woken for (2.9.0: only one still pending is left in fresh).
@@ -6499,7 +6664,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // A wait without confirm: true previews, like preview: true (a wait asked with preview: true is the same); so does a
       // wait something else woke (2.8.0): it never books.
       const waitOnly = (askedWait > 0 && !confirm) || moveWake !== null;
-      const woke = moveWake && airWait ? wakeFields(moveWake, airWait) : null;
+      const woke = moveWake && airWait ? wakeFields(moveWake, airWait, "the first date to air") : null;
       if (dryRun || waitOnly) {
         const r = await callRoute(getSecondDate as unknown as RouteHandler, { method: "GET", agentId: who.id, params });
         if (!r.ok) return { error: errorOf(r) };
@@ -6767,7 +6932,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       const body = pick(args, ["character_id", "reflection", "rating", "would_date_again", "worked", "didnt"]);
       const r = await callRoute(postReflection as unknown as RouteHandler, { agentId: who.id, body, params: { id: String(args.episode_id ?? "") } });
-      return r.ok ? { data: r.data, identity: who } : { error: errorOf(r) };
+      if (!r.ok) return { error: errorOf(r) };
+      // 2.11.0 (#656, the 2026-10-22-0610 run: "a short 'how the numbers map to your lines' hint"): one, from this date's own
+      // box score, for the owner who just reflected on it (the route checked that), and only once the date is written.
+      const ep = (
+        await db
+          .query<{ ending: Ending | null; box_score: Record<string, { final: number }> | null; strategy: Strategy | null }>(
+            `select ending, box_score, setup->>'strategy' as strategy from episodes where id = $1 and status = 'ready'`,
+            [String(args.episode_id ?? "")],
+          )
+          .catch(() => ({ rows: [] as { ending: Ending | null; box_score: Record<string, { final: number }> | null; strategy: Strategy | null }[] }))
+      ).rows[0];
+      return { data: { ...r.data, ...(ep?.ending ? { numbers_hint: numbersHint(ep.ending, ep.box_score, ep.strategy) } : {}) }, identity: who };
     }
     case "my_character_memory": {
       const who = resolveIdentity(args, session, false);
@@ -7427,7 +7603,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // A sheet that's only being checked (create_character with check_only) needs none of the fields a save does.
       const checkOnly = name === "create_character" && args.check_only === true;
       // 2.7.0 (#641): a preview of an answer needs no answer (answer_match's yes, answer_date_proposal's accept).
-      const notForPreview = truthy(args.preview) ? (PREVIEW_SKIPS[name] ?? []) : [];
+      // 2.11.0 (#622): swipe's undo needs no like either (it takes back the one there is).
+      const notForPreview = truthy(args.preview) ? (PREVIEW_SKIPS[name] ?? []) : name === "swipe" && truthy(args.undo) ? ["like"] : [];
       const missing = checkOnly ? [] : toolRequired(name).filter((r) => !notForPreview.includes(r.name) && (args[r.name] === undefined || args[r.name] === null || args[r.name] === ""));
       // Every missing one, in schema order (2.7.0, #642: each with its type and an example; #433: which of your characters).
       const missingAll = missing.map((m) => (m.name === "character_id" && yourCharacters ? `"character_id" is required: which of your characters? ${yourCharacters}.` : missingText(name, m))).join(" ");
@@ -7576,37 +7753,51 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // Run 5: an invite sat unseen for five minutes. Anything waiting on this agent rides along on every reply.
       // 2026-10-20 visitors: on every reply it was a nag ("still said matched: 1 after I acted"). my_status always has it;
       // anywhere else it rides along only when it's changed since this agent last saw it.
-      if (!("error" in out) && out.identity && name !== "my_notifications") {
+      if (!("error" in out) && out.identity) {
         const agentId = out.identity.id;
-        // 2.5.0 (the 2026-10-21-2300 run): exclusivity news leads the reply to the call that brought it (a date airs, and
-        // its couple moves on, at the start of any call). my_status already lists the state; a notice adds what it doesn't.
-        const notices = await headsUpNotices(db, agentId);
-        if (notices.length) {
-          const had = Array.isArray(out.data.heads_up) ? (out.data.heads_up as Record<string, unknown>[]) : [];
-          // A date's heads_up is about the date; exclusivity's about the character (2.6.0: both can lead one reply).
-          const covered = new Set(had.map(headsUpKey));
-          const more = notices.filter((n) => !covered.has(headsUpKey(n)));
-          if (more.length) {
-            out = { ...out, data: withHeadsUp(out.data, more, !(name === "my_status" && args.compact === true)) };
-            // 2.7.0: an exclusive_soon notice offers the call that keeps the character open in next_calls too.
-            const soon = more.filter((n) => n.kind === "exclusive_soon" && typeof n.character_id === "string").map((n) => String(n.character_id));
-            if (soon.length) {
-              const calls = Array.isArray(out.data.next_calls) ? (out.data.next_calls as NextCall[]) : [];
-              const offered = new Set(calls.filter((c) => c.tool === "update_character" && c.args.partner_style === "open").map((c) => String(c.args.character_id)));
-              const names = new Map((await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [soon])).rows.map((r) => [r.id, r.name]));
-              const add = soon.filter((id) => !offered.has(id)).map((id) => stayOpenNext(id, names.get(id) ?? "It"));
-              if (add.length) out = { ...out, data: { ...out.data, next_calls: [...calls, ...add] } };
+        // my_notifications lists the notices themselves, so exclusivity news doesn't ride along there (waiting_for_you does).
+        if (name !== "my_notifications") {
+          // 2.5.0 (the 2026-10-21-2300 run): exclusivity news leads the reply to the call that brought it (a date airs, and
+          // its couple moves on, at the start of any call). my_status already lists the state; a notice adds what it doesn't.
+          const notices = await headsUpNotices(db, agentId);
+          if (notices.length) {
+            const had = Array.isArray(out.data.heads_up) ? (out.data.heads_up as Record<string, unknown>[]) : [];
+            // A date's heads_up is about the date; exclusivity's about the character (2.6.0: both can lead one reply).
+            const covered = new Set(had.map(headsUpKey));
+            const more = notices.filter((n) => !covered.has(headsUpKey(n)));
+            if (more.length) {
+              out = { ...out, data: withHeadsUp(out.data, more, !(name === "my_status" && args.compact === true)) };
+              // 2.7.0: an exclusive_soon notice offers the call that keeps the character open in next_calls too.
+              const soon = more.filter((n) => n.kind === "exclusive_soon" && typeof n.character_id === "string").map((n) => String(n.character_id));
+              if (soon.length) {
+                const calls = Array.isArray(out.data.next_calls) ? (out.data.next_calls as NextCall[]) : [];
+                const offered = new Set(calls.filter((c) => c.tool === "update_character" && c.args.partner_style === "open").map((c) => String(c.args.character_id)));
+                const names = new Map((await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [soon])).rows.map((r) => [r.id, r.name]));
+                const add = soon.filter((id) => !offered.has(id)).map((id) => stayOpenNext(id, names.get(id) ?? "It"));
+                if (add.length) out = { ...out, data: { ...out.data, next_calls: [...calls, ...add] } };
+              }
             }
           }
         }
         const waiting = await waitingFor(db, agentId).catch(() => null);
         const seen = JSON.stringify(waiting ?? null);
-        if (waiting && (name === "my_status" || lastWaiting.get(agentId) !== seen)) {
+        const before = lastWaiting.get(agentId);
+        // 2.11.0 (#619, the 2026-10-21-2300 run: "waiting_for_you kept showing texted: 2 after I'd read the texts"): a count this
+        // agent was shown that has since gone (read_texts read the thread, my_notifications marked it read, it was answered)
+        // says 0, once, instead of vanishing from the replies that follow, which read as the old count still standing. my_status
+        // compares with what the last my_status said, so an agent that reads only my_status sees the 0 there too.
+        const dropped = droppedCounts(name === "my_status" ? lastStatusWaiting.get(agentId) : before, waiting);
+        const shown = waiting || dropped ? { ...(waiting ?? {}), ...(dropped ?? {}), ...(waiting ? {} : { hint: "Nothing is waiting on you now." }) } : null;
+        if (shown && (name === "my_status" || before !== seen)) {
           // my_status: right after next, so it's read with the news (2.5.0); anywhere else, at the end as before.
-          out = { ...out, data: name === "my_status" ? insertAfter(out.data, "next", { waiting_for_you: waiting }) : { ...out.data, waiting_for_you: waiting } };
+          out = { ...out, data: name === "my_status" ? insertAfter(out.data, "next", { waiting_for_you: shown }) : { ...out.data, waiting_for_you: shown } };
         }
         lastWaiting.set(agentId, seen);
         if (lastWaiting.size > 5000) lastWaiting.delete(lastWaiting.keys().next().value!);
+        if (name === "my_status") {
+          lastStatusWaiting.set(agentId, seen);
+          if (lastStatusWaiting.size > 5000) lastStatusWaiting.delete(lastStatusWaiting.keys().next().value!);
+        }
       }
       const identity = "error" in out ? resolveIdentity(args, session, false) : (out.identity ?? resolveIdentity(args, session, false));
       await recordCall(db, session, identity, ctx).catch(() => {});

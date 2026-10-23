@@ -251,10 +251,102 @@ export async function swipe(db: Db, userId: string, characterId: string, targetI
     return refuse(404, "not_in_deck", await notInDeckWhy(db, userId, mine, targetId));
   }
   const stored = await db.query(`insert into swipes (swiper, target, liked) values ($1, $2, $3) on conflict do nothing returning swiper`, [mine.id, target.id, liked]);
-  if (!stored.rows.length) return refuse(409, "already_swiped", `${shortName(mine.name)} already swiped on ${shortName(target.name)}, and swipes are final (#221): a like can't be taken back.`);
+  if (!stored.rows.length) {
+    return refuse(409, "already_swiped", `${shortName(mine.name)} already swiped on ${shortName(target.name)}, and a swipe is once per pair (#221): a pass is final, and a like can only be undone while it's unanswered, within ${UNDO_MINUTES} minutes.`);
+  }
   if (!liked) return { ok: true, liked: false, match: null };
   const likesBack = target.is_house || (await db.query(`select 1 from swipes where swiper = $1 and target = $2 and liked`, [target.id, mine.id])).rows.length > 0;
   return { ok: true, liked: true, match: likesBack ? await createMatch(db, mine.id, target.id) : null };
+}
+
+/** How long a like stays undoable while it's unanswered (#622, David 2026-10-22). */
+export const UNDO_MINUTES = 10;
+
+export type SwipePreview = {
+  ok: true;
+  target: { id: string; name: string; house: boolean; liked_you: boolean };
+  /** What a like would do now: "match" only when the card already shows liked_you (or it's the house cast, which always likes back). */
+  like_would: "match" | "like";
+  already_swiped: boolean;
+};
+
+/**
+ * What a swipe would do, without swiping (#622's preview, David 2026-10-22): the same checks as swipe, and from the target's
+ * deck card only. Likes are secret, so "would match" rests on what the swiper can already see: the card's liked_you flag
+ * (#443: on every card whose character already liked yours, people's, agents' and house-run bots' alike) and the rule that
+ * the house cast always likes back. Without either it's "a like; whether it matches depends on them": never a peek.
+ */
+export async function previewSwipe(db: Db, userId: string, characterId: string, targetId: string): Promise<SwipePreview | Refusal> {
+  const mine = await loadMine(db, userId, characterId);
+  const no = cantSwipe(mine);
+  if (no || !mine) return no!;
+  if (!targetId || targetId === mine.id) return refuse(422, "invalid_target", "Swipe on someone else: target_id is a character in your deck.");
+  const target = (await deckPool(db, userId, mine, { only: targetId, includeSwiped: true }))[0];
+  if (!target) {
+    const exists = (await db.query(`select 1 from characters where id::text = $1`, [targetId])).rows.length > 0;
+    if (!exists) return refuse(404, "not_found", "No character has that id: swipe_deck lists the ids you can swipe on.");
+    return refuse(404, "not_in_deck", await notInDeckWhy(db, userId, mine, targetId));
+  }
+  // The same flag deckFor puts on this character's card (likedMine), read the same way: nothing a card wouldn't show.
+  const [likedYou, swiped] = await Promise.all([
+    db.query(`select 1 from swipes where swiper = $1 and target = $2 and liked`, [target.id, mine.id]).then((q) => q.rows.length > 0),
+    db.query(`select 1 from swipes where swiper = $1 and target = $2`, [mine.id, target.id]).then((q) => q.rows.length > 0),
+  ]);
+  return {
+    ok: true,
+    target: { id: target.id, name: target.name, house: target.is_house, liked_you: likedYou },
+    like_would: target.is_house || likedYou ? "match" : "like",
+    already_swiped: swiped,
+  };
+}
+
+export type UndoResult = { ok: true; undone: { target: { id: string; name: string }; liked_at: string } } | Refusal;
+
+/**
+ * Takes back one of your own likes (#622's undo, David 2026-10-22): only while it's unanswered (no match), and within
+ * UNDO_MINUTES of it. A pass stays final, and so does a like that made a match (both owners were told).
+ *
+ * Why it can't reveal anything (likes are secret): an undo is allowed exactly when there's no match, and the swipe's own
+ * reply already said so (matched: false: they haven't liked you back yet), while a like they'd already given shows on their
+ * card (liked_you) before you ever swipe. So undoing tells the swiper nothing it didn't know, and since a like alone tells
+ * the other side nothing (no notice, no list; only a liked_you flag on its own deck card), taking it back leaves no trace
+ * there either: the flag goes with it, and the card comes back to the swiper's deck.
+ */
+export async function undoLike(db: Db, userId: string, characterId: string, targetId: string): Promise<UndoResult> {
+  const mine = (await db.query<{ id: string; name: string }>(`select id, name from characters where id = $1 and owner_id = $2 and not is_house`, [characterId, userId])).rows[0];
+  if (!mine) return refuse(404, "not_your_character", "Undo a like for one of your own characters.");
+  const them = (await db.query<{ id: string; name: string }>(`select id, name from characters where id::text = $1`, [targetId])).rows[0];
+  if (!them) return refuse(404, "not_found", "No character has that id.");
+  const row = (
+    await db.query<{ liked: boolean; at: string | Date; minutes: number }>(
+      `select liked, created_at as at, extract(epoch from now() - created_at)::float / 60 as minutes from swipes where swiper = $1 and target = $2`,
+      [mine.id, them.id],
+    )
+  ).rows[0];
+  const [x, y] = [shortName(mine.name), shortName(them.name)];
+  if (!row) return refuse(404, "no_swipe", `${x} hasn't swiped on ${y}: there's nothing to undo.`);
+  if (!row.liked) return refuse(409, "pass_is_final", `${x} passed on ${y}, and a pass is final: only an unanswered like can be undone.`);
+  if (await matchView(db, mine.id, them.id)) {
+    return refuse(409, "already_matched", `${x} and ${y} have matched, so the like can't be undone: both owners were told. answer_match with yes: false says no to a date instead.`);
+  }
+  if (row.minutes > UNDO_MINUTES) {
+    return refuse(409, "too_late", `${x}'s like on ${y} is ${Math.floor(row.minutes)} minutes old: a like can be undone only within ${UNDO_MINUTES} minutes, so it stands.`);
+  }
+  // One statement, so a like back landing meanwhile can't be undone underneath it (the match check is in the same delete).
+  const [lo, hi] = pairKey(mine.id, them.id);
+  const gone = await db.query(
+    `delete from swipes where swiper = $1 and target = $2 and liked and created_at > now() - ($3 || ' minutes')::interval
+        and not exists (select 1 from matches m where m.character_lo = $4 and m.character_hi = $5)
+      returning swiper`,
+    [mine.id, them.id, String(UNDO_MINUTES), lo, hi],
+  );
+  // A like back that made the match between the check and the delete: the like is put back as it was, and it's refused.
+  if (gone.rows.length && (await matchView(db, mine.id, them.id))) {
+    await db.query(`insert into swipes (swiper, target, liked, created_at) values ($1, $2, true, $3) on conflict do nothing`, [mine.id, them.id, row.at]);
+    return refuse(409, "already_matched", `${x} and ${y} matched just now, so the like stands.`);
+  }
+  if (!gone.rows.length) return refuse(409, "already_matched", `${x}'s like on ${y} can't be undone now: it was just answered, or is ${UNDO_MINUTES} minutes old.`);
+  return { ok: true, undone: { target: { id: them.id, name: them.name }, liked_at: new Date(row.at).toISOString() } };
 }
 
 /**

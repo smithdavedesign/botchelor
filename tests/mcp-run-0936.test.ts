@@ -78,8 +78,8 @@ const linesOf = async (id: string) => ((await t.db.query<Any>(`select transcript
 const rows = async (table: "character_reviews" | "couple_texts" | "swipes") => (await t.db.query<{ n: number }>(`select count(*)::int as n from ${table}`)).rows[0].n;
 const reviews = () => rows("character_reviews");
 
-it("is MCP 2.10.1", () => {
-  expect(MCP_SERVER_INFO.version).toBe("2.10.1");
+it("is MCP 2.10.1 or later", () => {
+  expect(MCP_SERVER_INFO.version.localeCompare("2.10.1", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
 });
 
 describe("1. #670: a tool reply's text is plain JSON, the same as structuredContent", () => {

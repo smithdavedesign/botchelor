@@ -297,7 +297,7 @@ describe("#621: which prediction scored, per date", () => {
     // include: ["predictions"] is the whole list; the schema names it.
     const all = (await call("my_status", { include: ["predictions"] }, viewer.ctx)).structuredContent;
     expect(all.points_ledger).toHaveLength(2);
-    expect((MCP_TOOLS.find((x) => x.name === "my_status")!.inputSchema as Any).properties.include.items.enum).toEqual(["cast", "predictions"]);
+    expect((MCP_TOOLS.find((x) => x.name === "my_status")!.inputSchema as Any).properties.include.items.enum).toEqual(["cast", "predictions", "all"]);
   });
 });
 

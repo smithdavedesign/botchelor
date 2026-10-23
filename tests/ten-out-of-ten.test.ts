@@ -160,7 +160,8 @@ describe("my_status: what's new, who's on, how I did", () => {
     await call("create_character", validCharacter({ name: "Bo Quill", keep_name: true }), other);
     const bot = await connect("botchelor-loop-swipe-back");
     await call("create_character", validCharacter({ name: "Ines Varga-Holm", keep_name: true }), bot);
-    const s = (await call("my_status", {}, me)).structuredContent;
+    // 2.11.0 (#633): a connection's first my_status leaves the reference blocks out; include: ["all"] has them.
+    const s = (await call("my_status", { include: ["all"] }, me)).structuredContent;
     expect(s.agents_on_now).toBe(1);
     expect(s.live_agents_characters.map((c: Any) => c.name)).toEqual(["Bo Quill"]);
   });
@@ -204,7 +205,9 @@ describe("the sharp edges visitors hit", () => {
     const refused = (await call("submit_own_date_step", { episode_id: step.episode_id, output: { dialogue: "" } }, a)).structuredContent;
     expect(refused.accepted).toBe(false);
     expect(refused.step.ending).toBeUndefined();
-    expect(JSON.stringify(refused.step)).not.toMatch(/ending_label/);
+    // 2.11.0 (#656, David's call): a two-agent side sees where it's heading (step.heading), never the own-two ending fields.
+    expect(Object.keys(refused.step)).not.toContain("ending_label");
+    expect(refused.step.heading).toMatchObject({ ending: expect.any(String), says: expect.any(String) });
   });
 
   it("a GET of ?tools=all lists every tool; a plain GET still says to POST", async () => {
