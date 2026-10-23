@@ -109,29 +109,52 @@ export function fallbackSuggestion(heat: Heat, rules: Pick<SuggestionRules, "sta
   return SPICY_TOWARD[next] ?? "They draw it out, slower than before";
 }
 
-/** The suggestions in a reply's JSON: {"mild": "…", "flirty": "…", "spicy": "…"}, a list of {heat, text}, or three strings in that order. */
+/** A reply's key as it was meant: lower case, the underscores and stray marks a model puts round it gone ("_stage" → "stage"). */
+export const metaKey = (k: string): string => k.toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, "");
+
+/** The text of one suggestion, however it came: a string, or {text}, {steer}, {suggestion} or {note}. */
+const textOf = (v: unknown): unknown => (v && typeof v === "object" && !Array.isArray(v) ? ((v as Record<string, unknown>).text ?? (v as Record<string, unknown>).steer ?? (v as Record<string, unknown>).suggestion ?? (v as Record<string, unknown>).note) : v);
+
+/** The heat a key names: "mild", "Mild", "mild_steer", "spicy (bolder)". */
+const heatOf = (k: string): Heat | null => HEATS.find((h) => metaKey(k).startsWith(h)) ?? null;
+
+/**
+ * The suggestions in a reply's JSON, in every shape DeepSeek V3.1 was seen to send (a real four-step run, 2026-10-22: in
+ * one step of four the object as asked; in another, flattened into top-level "_suggestions_mild" keys; in the other two,
+ * none): {"suggestions": {"mild": …}} (or {text: …} per heat), a list of {heat, text}, of single-key objects or of three
+ * strings in heat order, and flattened keys ("suggestions_mild", "_suggestion-spicy"). Keys are read without the
+ * underscores a model puts round them.
+ */
 export function suggestionsIn(j: unknown): Partial<Record<Heat, unknown>> {
-  if (!j || typeof j !== "object") return {};
-  const box = j as { suggestions?: unknown; next?: unknown };
-  const s = box.suggestions ?? box.next;
+  if (!j || typeof j !== "object" || Array.isArray(j)) return {};
+  const entries = Object.entries(j as Record<string, unknown>);
+  const named = (...keys: string[]) => entries.find(([k]) => keys.includes(metaKey(k)))?.[1];
+  const s = named("suggestions", "suggestion", "next", "nextmoves", "next_moves", "suggestednextmoves", "suggested_next_moves");
+  const out: Partial<Record<Heat, unknown>> = {};
   if (Array.isArray(s)) {
-    const out: Partial<Record<Heat, unknown>> = {};
     s.forEach((x, i) => {
       if (typeof x === "string") out[HEATS[i]] ??= x;
       else if (x && typeof x === "object") {
-        const heat = String((x as { heat?: unknown }).heat ?? "").toLowerCase() as Heat;
-        const text = (x as { text?: unknown; steer?: unknown }).text ?? (x as { steer?: unknown }).steer;
-        if (HEATS.includes(heat)) out[heat] ??= text;
+        const o = x as Record<string, unknown>;
+        const keyed = Object.keys(o).length === 1 ? heatOf(Object.keys(o)[0]) : null;
+        const heat = keyed ?? (typeof o.heat === "string" ? heatOf(o.heat) : null);
+        const text = keyed ? textOf(Object.values(o)[0]) : textOf(o);
+        if (heat) out[heat] ??= text;
         else if (i < HEATS.length) out[HEATS[i]] ??= text;
       }
     });
-    return out;
+  } else if (s && typeof s === "object") {
+    for (const [k, v] of Object.entries(s as Record<string, unknown>)) {
+      const heat = heatOf(k);
+      if (heat) out[heat] ??= textOf(v);
+    }
   }
-  if (s && typeof s === "object") {
-    const o = s as Record<string, unknown>;
-    return Object.fromEntries(HEATS.filter((h) => h in o).map((h) => [h, o[h]]));
+  // Flattened into the reply itself: "suggestions_mild", "_suggestions_flirty", "suggestion-spicy".
+  for (const [k, v] of entries) {
+    const m = /^suggestions?[^a-z]*(mild|flirty|spicy)$/.exec(metaKey(k));
+    if (m) out[m[1] as Heat] ??= textOf(v);
   }
-  return {};
+  return out;
 }
 
 /**
