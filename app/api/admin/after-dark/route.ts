@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { answerBeat, pictureNow } from "@/lib/adult/beats";
 import { adultViewer } from "@/lib/adult/mode";
 import { listMedia } from "@/lib/adult/media";
 import { WHISPER_MAX } from "@/lib/adult/director";
@@ -26,6 +27,7 @@ import { isAdmin } from "@/lib/admins";
 import { refundBoughtTokens, SET_SCENE_TOKEN_COST, spendBoughtTokens } from "@/lib/allowance";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
+import { requestBase } from "@/lib/site";
 
 // A long scene, plus a picture or two, can take a while.
 export const maxDuration = 300;
@@ -63,6 +65,9 @@ const Input = z.object({
       z.object({ kind: z.literal("recap"), text: z.string().max(2400).nullable() }),
     ])
     .optional(),
+  // Beat pictures (lib/adult/beats.ts): the viewer's answer to an offered moment, or Picture this at a line.
+  beat: z.object({ id, answer: z.enum(["now", "later"]) }).optional(),
+  picture_now: z.object({ line: z.number().int().min(0).max(10_000) }).optional(),
 });
 
 /** Not found for everyone but a signed-in admin while after dark is open (lib/adult/mode.ts). */
@@ -140,6 +145,16 @@ export const POST = handle(async (req: Request) => {
     const r = await editMemory(db, admin, input.a, input.b, input.memory_edit);
     if (!r.ok) return json({ error: "not_saved", message: r.message }, r.status);
     return json({ scene: r.scene, memory: r.memory });
+  }
+  if (input.beat || input.picture_now) {
+    const scene = await openScene(db, admin, input.a, input.b);
+    if (!scene) return hidden();
+    const r = input.beat
+      ? await answerBeat(db, admin, input.beat.id, input.beat.answer, requestBase(req))
+      : await pictureNow(db, admin, { ...scene, a: scene.a.id, b: scene.b.id, place: scene.set_place ?? scene.place }, input.picture_now!.line, requestBase(req));
+    if (!r.ok) return json({ error: "not_pictured", message: r.message }, r.status);
+    // The scene again, with the beat's new status; the picture lands in the gallery a little later.
+    return json({ scene: (await openScene(db, admin, input.a, input.b)) ?? scene, beat: r.beat });
   }
   if (input.forget_whisper) {
     const scene = await forgetWhisper(db, admin, input.a, input.b, input.forget_whisper);

@@ -47,6 +47,7 @@ const Input = z.object({
   replicate_voice_model: replicateModel.optional(),
   replicate_video_lora: videoLora.optional(),
   auto_scene_pictures: z.boolean().optional(),
+  beat_pictures: z.boolean().optional(),
   media_fallback: z.boolean().optional(),
 });
 

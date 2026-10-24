@@ -5,6 +5,7 @@ import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { AUTOPLAY_THEATER_AHEAD } from "@/lib/adult/autoplay";
+import type { PublicBeat } from "@/lib/adult/beats";
 import type { Suggestion } from "@/lib/adult/director";
 import type { SceneLine } from "@/lib/adult/scenes";
 import { STAGES } from "@/lib/adult/stages";
@@ -69,6 +70,8 @@ const lastOf = (turns: Turn[], side: "a" | "b") => {
  * The steer has the page's Nudge/Direct choice too (David, 2026-10-21: no direct way to steer from the theater).
  * Autoplay (lib/adult/autoplay.ts) writes the next lines by itself while the last few are still playing. The last step's
  * suggested next moves (lib/adult/director.ts) sit over the steer: one tap sends one as a nudge.
+ * Beat pictures (lib/adult/beats.ts): when playback reaches a moment worth a picture, it stops and asks; 📸 pictures the
+ * line on screen whenever the viewer likes.
  */
 export default function AfterDarkTheater({
   scene,
@@ -89,6 +92,9 @@ export default function AfterDarkTheater({
   feedbackRef = null,
   suggestions = [],
   onSuggest,
+  beats = [],
+  onBeat,
+  onPictureNow,
   onExit,
 }: {
   scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null; chapter?: number };
@@ -123,6 +129,10 @@ export default function AfterDarkTheater({
   /** The last step's suggested next moves, and what a tap does (sends it as a nudge). */
   suggestions?: Suggestion[];
   onSuggest?: (text: string) => Promise<void>;
+  /** The chapter's moments worth a picture; the viewer's answer to one; and Picture this, at a line. */
+  beats?: readonly PublicBeat[];
+  onBeat?: (id: string, answer: "now" | "later") => Promise<void>;
+  onPictureNow?: (line: number) => Promise<void>;
   onExit: () => void;
 }) {
   const live = Boolean(onWrite);
@@ -130,7 +140,10 @@ export default function AfterDarkTheater({
   // Live: playback waits at the newest line and carries on as the next ones are written.
   const [startAt] = useState(() => (live ? Math.max(0, scene.lines.length - 6) : 0));
   const [listenHold, setListenHold] = useState(false);
-  const replay = useReplay(turns, true, { live, startAt, hold: listenHold });
+  // A moment worth a picture, reached: playback waits for the viewer's answer.
+  const [beatHold, setBeatHold] = useState(false);
+  const [answered, setAnswered] = useState<ReadonlySet<string>>(() => new Set());
+  const replay = useReplay(turns, true, { live, startAt, hold: listenHold || beatHold });
   const [convo, setConvo] = useState(false);
   // On a phone, the secondary tools (from the top, catch up, listen, clip, video) fold into "⋯" so the bar is one row.
   const [tools, setTools] = useState(false);
@@ -145,6 +158,12 @@ export default function AfterDarkTheater({
   useEffect(() => {
     if (live && autoplay && !busy && left <= AUTOPLAY_THEATER_AHEAD) void onWrite?.("");
   }, [live, autoplay, busy, left, onWrite]);
+  const offer = live && onBeat ? (beats.find((x) => x.status === "offered" && !answered.has(x.id) && x.line < shown.length) ?? null) : null;
+  useEffect(() => setBeatHold(Boolean(offer)), [offer]);
+  async function answer(id: string, a: "now" | "later") {
+    setAnswered((s) => new Set([...s, id]));
+    await onBeat?.(id, a);
+  }
   const latestAction = shown.length ? shown[shown.length - 1].action : "";
   const label = stageLabel(scene, shown.length, caughtUp);
   // The set: preloaded, so the last ready one stays up until the next has loaded (never the placeholder in between).
@@ -185,6 +204,22 @@ export default function AfterDarkTheater({
             placeholder={scene.lines.length ? "…" : "Press Next to begin."}
           />
           {latestAction && <p className="ad-theater-action">{latestAction}</p>}
+          {offer && (
+            <div className="ad-beat-offer" role="dialog" aria-label="Picture this moment?">
+              <p>
+                <strong>📸 {offer.label}</strong>
+                <span className="muted small"> Picture this moment? It&apos;s drawn from the last few lines and lands in their gallery.</span>
+              </p>
+              <div className="ad-beat-actions">
+                <button type="button" className="primary small" onClick={() => void answer(offer.id, "now")}>
+                  Picture it
+                </button>
+                <button type="button" className="button-ghost small" onClick={() => void answer(offer.id, "later")} title="Carry on. Press 📸 when you want it; if you never do, it's drawn when the chapter ends.">
+                  Not now
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="theater-convo">
           <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow empty="The scene appears here, line by line." feedback={feedback} />
@@ -224,6 +259,18 @@ export default function AfterDarkTheater({
                   ⏭
                 </button>
                 <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
+                {live && onPictureNow && (
+                  <button
+                    type="button"
+                    className="theater-icon"
+                    onClick={() => void onPictureNow(Math.max(0, shown.length - 1))}
+                    disabled={!shown.length || Boolean(mediaPaused)}
+                    aria-label="Picture this moment"
+                    title={mediaPaused ?? "Picture this moment: a picture of the two of them, from the line on screen"}
+                  >
+                    📸
+                  </button>
+                )}
                 <ClipHere a={a.id} b={b.id} at={shown.length - 1} nightId={live ? null : feedbackRef} paused={mediaPaused} />
                 {onMakeVideo && (
                   <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} />

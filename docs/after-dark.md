@@ -1750,3 +1750,61 @@ answered 429))" and a 502 from the video start.
   API and MCP `after_dark_settings` return the same as `hive`.
 - **Cost:** paused means no drawing spend (docs/after-dark-costs.md). An outage costs the two pictures before it opens,
   then one probe per pause.
+
+## Beat pictures: a picture of each moment that matters (2026-10-24)
+
+**What David asked.** "Generating a image baseline of the scene and then asking for the video is way more effective…
+when things get explicit in our theater stop and take a image of the scene at the place." A few key pictures a chapter,
+of undressing, sex, the climax and each new position. The viewer can choose ("the theater stops and says generate
+this scene"); if they say no they pick their moment; if they never choose, the chapter's close draws them. Videos reuse
+them.
+
+**Why.** Every clip David liked started from a picture that already showed the two of them in the moment (the bake-off
+above), and the chapter's automatic picture (lib/adult/auto-pictures.ts) is a text-to-image picture, drawn once per
+chapter and place, so a night that undresses and has sex in one bedroom got one picture from when they walked in, with
+faces that don't match the baselines.
+
+**The moments** (`findBeats`, lib/adult/beats.ts, pure): read from each step's new lines, by the stage each line carries
+and plain words, the way the stage floor reads a stage.
+- **Undressing**: the first line at undressing.
+- **Sex**: the first line at sex, in the position its first three lines name (else face to face).
+- **A new position**: a line naming a position the chapter hasn't had (going down, from behind, spooning, in a lap, on
+  top, face to face: the act menu's, lib/adult/acts.ts).
+- **The climax** (craft.ts `climaxIn`), in the position they're in; **the afterglow** four lines after it.
+- At most 6 found a chapter (`BEATS_PER_CHAPTER`); an act the pair's limits rule out is never found. A moment the viewer
+  picks (Picture this) is always drawn, on top of these.
+
+**The flow.**
+- **In the theater:** when playback reaches a moment, it stops (useReplay's `hold`) and asks "📸 Sex: on top. Picture this
+  moment?". **Picture it** draws it now; **Not now** carries on. 📸 in the tools pictures the line on screen whenever the
+  viewer likes: the latest moment still waiting at or before it, or, with none, that moment itself (its position, or its
+  stage: undressing, a kiss, close together).
+- **On the page:** the same as a banner over the steer, and a 📸 Picture this button. Page autoplay waits while a moment
+  is offered and unanswered.
+- **The chapter's close** (and Start over) files the chapter's moments with its saved night and draws every one never
+  pictured, one after another after the response. Agents over MCP never answer, so theirs are drawn this way.
+- **A rewind** takes back the moments past the lines it keeps (written again, they're found again); taking back a
+  chapter's close brings its moments home first.
+
+**The picture** (`keepPictureOfBoth`, lib/adult/pictures-menu.ts, shared with the picture menu): the two baselines and
+the place's set, made into one picture by the multi-image edit (Venice qwen-edit-uncensored, or Replicate), checked by
+Hive (moderation and the age question) before it's kept, stored in the gallery as a scene picture with its chapter and
+place. The still is the act's (who is where, both faces visible), its bed dropped where the place has none, plus "What
+is happening:" from the last three actions before it, names taken out; a moment that wouldn't pass David's lines or the
+pair's limits keeps only the act's still. Clothes by the stage, explicit by the intensity, as every keyframe. Free, like
+the automatic picture; counted against the month's pictures; nothing drawn while Hive is paused.
+
+**Videos** (`reuseBeatPictures`, lib/adult/reels.ts): a shot starts from the latest drawn moment at or before its line in
+its chapter (the running chapter's, or the saved night's), when the stage and the place still match, each picture once a
+video. Nothing is drawn or checked for that shot's keyframe (the picture passed the full check when it was kept); its
+video is queued from the picture. The video looks like the pictures, and each reused shot saves a keyframe ($0.04) and
+a Hive check.
+
+**Storage:** `adult_beats` (scene, pair, chapter, line, act, kind, stage, place, status offered / later / drawing / drawn
+/ failed, picture_id, night_id), additive. `adult_settings.beat_pictures` (null is on), in the settings page, its route
+and MCP `after_dark_settings`. The scene carries the running chapter's `beats`; POST /api/admin/after-dark takes
+`beat: { id, answer: "now" | "later" }` and `picture_now: { line }`.
+
+**Cost:** about 5¢ a picture with its checks, up to 6 a chapter found, so up to about 30¢ a chapter, less what videos
+reuse. Each picture is one Hive check (moderation plus the age question): with the self-serve daily limit, a busy day of
+chapters can reach it, so a paid Hive plan comes before subscribers use it.

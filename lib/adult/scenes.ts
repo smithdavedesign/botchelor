@@ -110,6 +110,7 @@ import {
 import { DEFAULT_PROMPT_VERSION, getAdultSettings, SCENE_PROMPT_REVISION, type AdultSettings, type PromptVersion } from "./settings";
 import { carriesQuote, quotedSpans, quotesKept, steerQuotes, withoutQuotes, type QuoteCheck, type SteerQuote } from "./quotes";
 import { kickAutoPicture } from "./auto-pictures";
+import { chapterBeats, clearBeats, fileBeats, recordBeats, rewindBeats, type PublicBeat } from "./beats";
 import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
 import { ACTION_ONLY_MAX, ACTION_ONLY_WINDOW, actionOnlyRun, checkAsides, misattributedQuote, overusedTics, TIC_CAP, withoutQuote, withoutTics } from "./asides";
 export { SOFT_CHAPTERS } from "./stages";
@@ -165,6 +166,11 @@ export type AdultScene = {
   /** How the viewer frames the two of them (lib/adult/profile.ts), and the scenario tonight started from (lib/adult/scenarios.ts). */
   framing: FramingId | null;
   scenario: string | null;
+  /**
+   * The running chapter's moments worth a picture (lib/adult/beats.ts): offered as the theater reaches each, drawn when
+   * the viewer says yes or picks their moment, else when the chapter closes. Absent where a scene isn't loaded with them.
+   */
+  beats?: PublicBeat[];
 };
 
 /** What a step was asked: its steer, how strongly, and a whisper sent with it. A redo asks the same again. */
@@ -322,6 +328,7 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     hard_nos: storedHardNos(row.hard_nos),
     framing: framingOf(row.framing),
     scenario: row.scenario && scenarioById(row.scenario) ? row.scenario : null,
+    beats: await chapterBeats(db, row.id, row.chapter ?? 1),
   };
 }
 
@@ -2206,6 +2213,12 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     [scene.id, JSON.stringify(lines), place, stage, stage_from, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40)), JSON.stringify(suggestions), JSON.stringify(nextWhispers), JSON.stringify(stack)],
   );
   await countUse(db, adminId, "writes");
+  // The moments in these lines worth a picture (lib/adult/beats.ts): offered as the theater reaches each. Never fails the step.
+  await recordBeats(
+    db,
+    { id: scene.id, owner: adminId, a: scene.a.id, b: scene.b.id, chapter: scene.chapter, lines, from: scene.lines.length, before: scene.stage, placeBefore: scene.set_place ?? scene.place, placeNow: set_place ?? place },
+    [a, b],
+  );
   // The facts these lines drew on: one more use each (lib/adult/facts.ts).
   await bumpFacts(db, step.lines.flatMap((l) => l.fact_ids ?? []));
   // Pictures (lib/adult/media.ts), only with a fal key: each character's baseline the first time it turns explicit,
@@ -2244,7 +2257,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // one that didn't come (Hive busy, 2026-10-23) is drawn on a later step; the claim keeps it to one per chapter and
   // place. Claimed now, drawn after the response; never fails the step.
   const autoPicture = await kickAutoPicture(db, adminId, { id: scene.id, chapter: scene.chapter, place: place ?? ctx.date?.setting ?? null, set_place, stage, lines }, a, b);
-  let after: LoadedScene = { ...scene, ...next, suggestions, whispers: nextWhispers, picture_note: note, undo: stack };
+  let after: LoadedScene = { ...scene, ...next, suggestions, whispers: nextWhispers, picture_note: note, undo: stack, beats: await chapterBeats(db, scene.id, scene.chapter) };
   // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one. What the close
   // changed goes with the step's undo, so a rewind takes it back too.
   if (lines.length >= CHAPTER_LINES) {
@@ -2373,6 +2386,8 @@ async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene:
   // saved night, before the scene's lines are cleared.
   await moveLineFeedback(db, scene.id, nightId);
   await fileSteps(db, scene.id, scene.chapter, nightId);
+  // The chapter's moments go with it, and those never pictured are drawn now (lib/adult/beats.ts).
+  await fileBeats(db, scene.id, scene.chapter, nightId);
   // The PG notes as they were, so a rewind of the step that closed this chapter can put them back.
   const notes = await notesBetween(db, scene.a.id, scene.b.id);
   await rememberAfterDark(db, ownerId, a, b, recap, scene.lines);
@@ -2390,7 +2405,7 @@ async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene:
     recap,
     stage_from,
   ]);
-  return { scene: { ...scene, lines: [], prev_tail, chapter, recap, stage_from, moves: [] }, undo: { night_id: nightId, notes, facts } };
+  return { scene: { ...scene, lines: [], prev_tail, chapter, recap, stage_from, moves: [], beats: [] }, undo: { night_id: nightId, notes, facts } };
 }
 
 /**
@@ -2468,6 +2483,8 @@ export async function rewindScene(db: Db, ownerId: string, x: string, y: string,
     gone = scene.lines.slice(before.line_count);
   }
   await restoreFactUses(db, top.bumped);
+  // The moments past the lines kept are gone too; a chapter's close taken back brings its own home first.
+  await rewindBeats(db, scene.id, top.chapter_close ? before.chapter : scene.chapter, lines.length, top.chapter_close?.night_id ?? null);
   // Votes on lines that are gone would land on whatever is written there next.
   await db.query(`delete from line_feedback where kind = 'after_dark' and ref_id = $1 and line_index >= $2`, [scene.id, lines.length]).catch(() => {});
   if (top.step_id) await markRewound(db, top.step_id, publicLines(gone));
@@ -2484,6 +2501,7 @@ export async function rewindScene(db: Db, ownerId: string, x: string, y: string,
     ...scene, lines, ...chapterBack, place: before.place, stage: before.stage, stage_from: before.stage_from, set_place: before.set_place, cut_to: before.cut_to,
     place_history: before.place_history, moves: before.moves, picture_note: before.picture_note, suggestions: [], whispers: storedWhispers(before.whispers), undo,
   };
+  restored.beats = await chapterBeats(db, scene.id, restored.chapter);
   // The suggestions it had then, held to the limits as they are now.
   restored.suggestions = await heldAgain(db, restored, limitsOf(scene), storedSuggestions(before.suggestions));
   await db.query(
@@ -2780,6 +2798,10 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
     // The lines' thumbs (lib/line-feedback.ts) and their steps (lib/adult/steps.ts) go with them to the saved night.
     await moveLineFeedback(db, scene.id, nightId);
     await fileSteps(db, scene.id, scene.chapter, nightId);
+    // Its moments too, and those never pictured are drawn now (lib/adult/beats.ts).
+    await fileBeats(db, scene.id, scene.chapter, nightId);
+  } else if (scene) {
+    await clearBeats(db, scene.id);
   }
   if (scene) {
     await logStep(db, adminId, { a: pair[0], b: pair[1] }, scene.id, {

@@ -1866,6 +1866,31 @@ create table if not exists user_connection_usage (
   primary key (user_id, job, month)
 );
 
+-- Beat pictures (lib/adult/beats.ts; David, 2026-10-24): the moments of a chapter worth a picture (undressing, sex, each
+-- new position, the climax, the afterglow), each offered to the viewer as it plays, drawn when they say yes or press
+-- Picture this, else when the chapter closes. night_id is the saved night the chapter was filed as (null: still running);
+-- picture_id the gallery picture, which a video of the night starts its shot from (lib/adult/reels.ts).
+create table if not exists adult_beats (
+  id text primary key,
+  owner_id text not null,
+  scene_id text not null,
+  character_a text not null,
+  character_b text not null,
+  chapter integer not null,
+  line integer not null,
+  act text not null,
+  kind text not null,
+  stage integer not null,
+  place text,
+  status text not null default 'offered' check (status in ('offered', 'later', 'drawing', 'drawn', 'failed')),
+  picture_id text,
+  night_id text,
+  created_at timestamptz not null default now()
+);
+create index if not exists adult_beats_scene_idx on adult_beats (scene_id, chapter, line);
+create index if not exists adult_beats_pair_idx on adult_beats (owner_id, character_a, character_b, chapter);
+alter table adult_settings add column if not exists beat_pictures boolean;
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

@@ -14,7 +14,7 @@
  */
 import { isAdmin } from "../admins";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
-import { loadCharacter } from "../character";
+import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
@@ -203,59 +203,91 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
     if (pays && price > 0) await refundBoughtTokens(db, ownerId, price);
   };
   const tokensBack = pays && price > 0 ? ` Your token${price === 1 ? " is" : "s are"} back.` : "";
+  const kept = await keepPictureOfBoth(db, ownerId, [ca, cb], plan, { keys, settings, baseUrl, reject });
+  if (!kept.ok) {
+    await giveBack();
+    if (kept.error === "hive_paused" && kept.pausedErr) return { ok: false, status: 503, error: "hive_paused", message: hivePausedErrorMessage(kept.pausedErr, pays && price > 0) };
+    return { ok: false, status: kept.status, error: kept.error, message: `${kept.message}${tokensBack}` };
+  }
+  return { ok: true, picture: kept.picture };
+}
+
+/** Why a picture of both wasn't kept; `pausedErr` when a baseline made first found Hive out. */
+export type KeepFailure = { ok: false; status: number; error: "hive_paused" | "check_busy" | "discarded" | "not_made"; message: string; pausedErr?: HivePausedError };
+
+/**
+ * A picture of both of them, drawn and kept: their two baselines (made first if they have none) and the place's drawn
+ * set when there is one, made into one picture by the multi-image edit on the configured provider (the other when it's
+ * limited), checked by Hive (moderation and the age question) before anything is kept, then stored in the pair's
+ * gallery as a scene picture and counted for the month. The caller has already held it to the lines and limits, checked
+ * the gate and the cap, and taken any price. Menu pictures and beat pictures (lib/adult/beats.ts) both come through here.
+ */
+export async function keepPictureOfBoth(
+  db: Db,
+  ownerId: string,
+  [ca, cb]: [Character, Character],
+  plan: { promptFor: (withSet: boolean) => string; place: string | null },
+  ctx: {
+    keys: Awaited<ReturnType<typeof adultKeys>>;
+    settings: Awaited<ReturnType<typeof getAdultSettings>>;
+    baseUrl: string;
+    reject: (reason: string) => Promise<unknown>;
+    scene?: { chapter: number; place: string | null };
+  },
+): Promise<{ ok: true; picture: Media } | KeepFailure> {
+  const { keys, settings, baseUrl, reject } = ctx;
   let file: { bytes: Buffer; mime: string };
   let made: { provider: MediaProvider; fell_back: boolean };
   let prompt = plan.promptFor(false);
   try {
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
-    const bases = await baselines(db, a, b);
+    const bases = await baselines(db, ca.id, cb.id);
     if (!bases) throw new Error("a picture of each of them is needed first");
     const faces = bases.map((id) => signedMediaUrl(id, baseUrl));
-    const set = (await setPictures(db, [plan.place])).get(plan.place) ?? null;
+    const set = plan.place ? ((await setPictures(db, [plan.place])).get(plan.place) ?? null) : null;
     // With the place's drawn set as Picture 3, the prompt says to keep its room and its light.
     prompt = plan.promptFor(Boolean(set));
     // One picture, one job: drawn on the other provider when the configured one is limited (lib/adult/fallback.ts).
     const drawn = await runMedia(db, "keyframe", (p) => {
       if (p === "replicate") {
         const r = { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora };
-        return drawReplicateKeyframe(r, prompt, set ? [...faces, replicateSetImage(set, plan.place, baseUrl)] : faces);
+        return drawReplicateKeyframe(r, prompt, set && plan.place ? [...faces, replicateSetImage(set, plan.place, baseUrl)] : faces);
       }
       return drawKeyframe(keys.venice!, prompt, set ? [...faces, set] : faces);
     });
     file = drawn.value;
     made = { provider: drawn.provider, fell_back: drawn.fell_back };
   } catch (err) {
-    await giveBack();
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
-    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: hivePausedErrorMessage(err, pays && price > 0) };
-    return { ok: false, status: 502, error: "not_made", message: `The picture couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${tokensBack}` };
+    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: err.message, pausedErr: err };
+    return { ok: false, status: 502, error: "not_made", message: `The picture couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).` };
   }
   // The output check on the picture itself, before anything is kept, whoever made it: a refusal is discarded, never stored.
   const verdict = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image"));
   if (!verdict.ok) {
-    await giveBack();
     // Hive out of its daily allowance: discarded, logged, and the pause says until when.
     if (verdict.paused) {
       await reject(verdict.reason);
-      return { ok: false, status: 503, error: "hive_paused", message: `${hivePausedMessage(verdict.paused, { discarded: true })}${tokensBack}` };
+      return { ok: false, status: 503, error: "hive_paused", message: hivePausedMessage(verdict.paused, { discarded: true }) };
     }
     const busy = verdict.reason.startsWith("the check couldn't run");
     if (!busy) await reject(verdict.reason);
     return busy
-      ? { ok: false, status: 503, error: "check_busy", message: `The safety check couldn't look at it just now, so it wasn't kept. Try again in a few minutes.${tokensBack}` }
-      : { ok: false, status: 422, error: "discarded", message: `The safety check discarded that picture (${verdict.reason}).${tokensBack}` };
+      ? { ok: false, status: 503, error: "check_busy", message: "The safety check couldn't look at it just now, so it wasn't kept. Try again in a few minutes." }
+      : { ok: false, status: 422, error: "discarded", message: `The safety check discarded that picture (${verdict.reason}).` };
   }
   const id = crypto.randomUUID();
   const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back) values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10)`,
-    [id, ownerId, a, b, prompt.slice(0, 2000), file.mime, kept.data, kept.object_key, made.provider, made.fell_back],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, scene_chapter, scene_place)
+     values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10, $11, $12)`,
+    [id, ownerId, ca.id, cb.id, prompt.slice(0, 2000), file.mime, kept.data, kept.object_key, made.provider, made.fell_back, ctx.scene?.chapter ?? null, ctx.scene?.place ?? null],
   );
   await countUse(db, ownerId, "pictures");
   return {
     ok: true,
     picture: {
-      id, character_id: a, character_b: b, kind: "scene", status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: false,
+      id, character_id: ca.id, character_b: cb.id, kind: "scene", status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: false,
       provider: made.provider, fell_back: made.fell_back, note: fallbackNote(made.provider, made.fell_back),
     },
   };
