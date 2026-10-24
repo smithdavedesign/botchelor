@@ -54,6 +54,8 @@ to generated output, which is the one place they currently don't reach.
 
 ## #3 Payments — not Stripe (adult rules forbid it)
 
+_2026-10-24: superseded in part by `docs/after-dark-legal-review.md` (Segpay first, Verotel backup; the banned themes processors require in text too; where age checks are required)._
+
 Visa/MC via Stripe/PayPal prohibit adult content, so the subscription runs on a **high-risk / adult processor**,
 fully isolated from the existing Stripe setup (the botchelor Stripe account stays untouched).
 
