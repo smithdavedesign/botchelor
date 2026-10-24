@@ -103,6 +103,10 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/shop",
         "/terms",
         "/privacy",
+        "/content-policy",
+        "/report",
+        "/cancel",
+        "/2257",
         "/tools/ship-name-generator",
         "/tools/oc-chemistry-test",
       ].map(

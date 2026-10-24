@@ -173,6 +173,7 @@ export async function startTestDb() {
         "adult_media_cooldowns",
         "agent_feedback",
         "user_feedback",
+        "content_reports",
         // Connections (lib/connections.ts): a person's own keys, and the jobs that use them (cascaded), and their spend.
         "user_connection_usage",
         "user_connections",
