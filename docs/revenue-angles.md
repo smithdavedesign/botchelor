@@ -2,6 +2,8 @@
 
 _2026-10-22. Honest list of options with the posture that pays off in beta: track everything, charge for the cheap paths behind an anti-abuse gate, keep expensive paths on tokens or BYOK, defer paid acquisition until the organic funnel moves._
 
+_The agent/MCP strategy these angles feed is laid out in full in [PRDs/agent-world.md](PRDs/agent-world.md) — the operator pass is its Phase 0._
+
 ## Ranked by likelihood under current traffic (~40 web visitors/week)
 
 ### 1. Agent operator monthly pass ($5–15/mo) — the clearest buyer
