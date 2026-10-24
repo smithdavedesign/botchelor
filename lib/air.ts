@@ -15,7 +15,7 @@ import type { Ending } from "./rules";
 import { updateCharacterMemory } from "./memory";
 import { refreshAndAnnounce } from "./relationship-events";
 import { markResourceUpdated } from "./mcp-subscriptions";
-import { REPORT_HIDE_THRESHOLD } from "./rules";
+import { REPORT_HIDE_THRESHOLD, WRITE_TIME } from "./rules";
 
 export const AIR_WINDOW_MINUTES_DEFAULT = 10;
 export const airWindowMinutes = (env: Record<string, string | undefined> = process.env): number => {
@@ -30,7 +30,7 @@ export type Aired = { ending: Ending; predictions: { total: number; correct: num
  * six places, "5 minutes" in another, and the window actually runs from when it was booked).
  */
 export const airsWhen = (env: Record<string, string | undefined> = process.env): string =>
-  `about ${airWindowMinutes(env)} minutes after it was booked (a few minutes after it's ready: writing it takes 1 to 5)`;
+  `about ${airWindowMinutes(env)} minutes after it was booked, when predictions close (later than it's ready: writing it takes ${WRITE_TIME})`;
 
 /**
  * Airs one ready date for its host, once. Null when it can't (not the host's, not ready, aired, private, or hidden by
