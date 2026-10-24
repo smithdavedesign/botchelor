@@ -14,9 +14,9 @@
  * Hive is over its daily limit (lib/adult/hive-limit.ts, shared with After Dark): then no set is drawn or checked at all.
  */
 import { after } from "next/server";
-import { checkSet } from "./adult/check";
 import { canonicalSet, closestSet } from "./adult/continuity";
-import { hivePausedUntil, underHiveLimit } from "./adult/hive-limit";
+import { hivePausedUntil } from "./adult/hive-limit";
+import { checkMedia, checkReady, isVerdict } from "./adult/moderation";
 import { adultKeys } from "./adult/settings";
 import type { Db } from "./db";
 import { checkShowText } from "./safety";
@@ -172,7 +172,7 @@ async function draw(db: Db, normalized: string, label: string): Promise<SetStatu
       ])
       .then(() => status);
   const keys = await adultKeys(db).catch(() => null);
-  if (!keys?.fal || !keys.hive) return failed(db, normalized, "no fal or Hive key saved");
+  if (!keys?.fal || !(await checkReady(db, { pg: true }))) return failed(db, normalized, "no fal key or no checker saved");
   const res = await doFetch(`${FAL_RUN}/${SET_MODEL}`, {
     method: "POST",
     headers: { authorization: `Key ${keys.fal}`, "content-type": "application/json" },
@@ -184,9 +184,8 @@ async function draw(db: Db, normalized: string, label: string): Promise<SetStatu
   }
   const url = ((await res.json()) as { images?: { url?: string }[] }).images?.[0]?.url;
   if (!url) return failed(db, normalized, "fal.ai returned no picture");
-  const hive = keys.hive;
-  const verdict = await underHiveLimit(db, () => checkSet(hive, url));
-  if (!verdict.ok && verdict.reason.startsWith("moderation:")) return done("refused", verdict.reason);
+  const verdict = await checkMedia(db, url, "set");
+  if (isVerdict(verdict)) return done("refused", (verdict as { reason: string }).reason);
   const file = await doFetch(url);
   if (!file.ok) return failed(db, normalized, `download ${file.status}`);
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -200,15 +199,14 @@ async function draw(db: Db, normalized: string, label: string): Promise<SetStatu
 /** Checks a kept picture again (nothing new drawn or paid for): ready if it passes, refused if Hive refuses, else later. */
 async function recheck(db: Db, normalized: string): Promise<SetStatus> {
   const row = (await db.query<{ mime: string | null; data: Buffer | Uint8Array | null }>(`select mime, data from place_sets where normalized = $1`, [normalized])).rows[0];
-  const keys = await adultKeys(db).catch(() => null);
-  if (!row?.data || !keys?.hive) return failed(db, normalized, `${UNCHECKED_PREFIX}no picture or no Hive key to check it with`);
-  const [hive, data] = [keys.hive, row.data];
-  const verdict = await underHiveLimit(db, () => checkSet(hive, { base64: Buffer.from(data).toString("base64"), mime: row.mime ?? "image/jpeg" }));
+  if (!row?.data || !(await checkReady(db, { pg: true }))) return failed(db, normalized, `${UNCHECKED_PREFIX}no picture or no checker to check it with`);
+  const data = row.data;
+  const verdict = await checkMedia(db, { base64: Buffer.from(data).toString("base64"), mime: row.mime ?? "image/jpeg" }, "set");
   if (verdict.ok) {
     await db.query(`update place_sets set status = 'ready', reason = null, retry_at = null, updated_at = now() where normalized = $1`, [normalized]);
     return "ready";
   }
-  if (verdict.reason.startsWith("moderation:")) {
+  if (isVerdict(verdict)) {
     await db.query(`update place_sets set status = 'refused', reason = $2, data = null, retry_at = null, updated_at = now() where normalized = $1`, [normalized, verdict.reason.slice(0, 300)]);
     return "refused";
   }

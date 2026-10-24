@@ -11,9 +11,11 @@
  * While Hive is over its daily limit (lib/adult/hive-limit.ts), no tile or portrait is drawn and nothing goes to Hive.
  */
 import { recordAsset, reviewAsset } from "./assets";
-import { checkOutput } from "./adult/check";
 import { canAfterDark } from "./adult/entitlement";
-import { hiveGate, hivePausedMessage, hivePausedUntil, underHiveLimit } from "./adult/hive-limit";
+import { hivePausedMessage, hivePausedUntil } from "./adult/hive-limit";
+import { checkMedia, checkReady, mediaGate } from "./adult/moderation";
+import { accessHere } from "./adult/place";
+import { mediaAllowed } from "./jurisdiction";
 import { NEGATIVE_PROMPT, VENICE_IMAGE } from "./adult/media";
 import { adultKeys, getAdultSettings } from "./adult/settings";
 import type { Db } from "./db";
@@ -59,23 +61,24 @@ const UNCHECKED_PREFIX = "unchecked: ";
  * safety checker's job (on for every show picture; drawPg refuses what it flags), so Hive isn't asked twice: self-serve
  * Hive has a small daily quota, and the site's sets and After Dark pictures share it.
  */
-async function screenPg(db: Db, hive: string | null, url: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
-  // Held to Hive's daily limit (lib/adult/hive-limit.ts): while it's out, nothing is sent and the picture waits unscreened.
-  const v = await underHiveLimit(db, () => checkOutput(hive, url, "image"));
+async function screenPg(db: Db, url: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
+  // Held to Hive's daily limit (lib/adult/hive-limit.ts), or the alternative the settings pick for the show's own pictures
+  // (lib/adult/moderation.ts): with no verdict, nothing is kept and the picture waits unscreened.
+  const v = await checkMedia(db, url, "pg_image");
   if (v.ok) return { ok: true };
   return UNCHECKED.test(v.reason) ? { unchecked: v.reason } : { refused: v.reason };
 }
 
 /** Screens an After Dark picture: everyone shown an adult. */
-async function screenNsfw(db: Db, hive: string | null, b64: string, mime: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
-  const v = await underHiveLimit(db, () => checkOutput(hive, { base64: b64, mime }, "image"));
+async function screenNsfw(db: Db, b64: string, mime: string): Promise<{ ok: true } | { refused: string } | { unchecked: string }> {
+  const v = await checkMedia(db, { base64: b64, mime }, "image");
   if (v.ok) return { ok: true };
   return UNCHECKED.test(v.reason) ? { unchecked: v.reason } : { refused: v.reason };
 }
 
 /** A show picture on fal, then Hive. */
 async function drawPg(db: Db, keys: Keys, prompt: string, seed: number | null, size: { width: number; height: number }): Promise<Drawn> {
-  if (!keys.fal || !keys.hive) return { failed: "no fal or Hive key saved" };
+  if (!keys.fal || !(await checkReady(db, { pg: true }))) return { failed: "no fal key or no checker saved" };
   const res = await doFetch(`${FAL_RUN}/${LOOKS_PG_MODEL}`, {
     method: "POST",
     headers: { authorization: `Key ${keys.fal}`, "content-type": "application/json" },
@@ -91,13 +94,13 @@ async function drawPg(db: Db, keys: Keys, prompt: string, seed: number | null, s
   const bytes = Buffer.from(await file.arrayBuffer());
   if (bytes.length > MAX_BYTES) return { failed: "file too large" };
   const pic = { bytes, mime: file.headers.get("content-type") ?? "image/jpeg", url };
-  const v = await screenPg(db, keys.hive, url);
+  const v = await screenPg(db, url);
   return "ok" in v ? pic : "refused" in v ? v : { ...pic, unchecked: v.unchecked };
 }
 
 /** An After Dark picture on Venice (bytes come back in the reply), then Hive. */
 async function drawNsfw(db: Db, keys: Keys, prompt: string, seed: number): Promise<Drawn> {
-  if (!keys.venice || !keys.hive) return { failed: "no Venice or Hive key saved" };
+  if (!keys.venice || !(await checkReady(db))) return { failed: "no Venice key or no checker saved" };
   const { venice_image_model } = await getAdultSettings(db);
   const res = await doFetch(VENICE_IMAGE, {
     method: "POST",
@@ -111,7 +114,7 @@ async function drawNsfw(db: Db, keys: Keys, prompt: string, seed: number): Promi
   const bytes = Buffer.from(b64, "base64");
   if (bytes.length > MAX_BYTES) return { failed: "file too large" };
   const pic = { bytes, mime: "image/webp", url: null };
-  const v = await screenNsfw(db, keys.hive, b64, pic.mime);
+  const v = await screenNsfw(db, b64, pic.mime);
   return "ok" in v ? pic : "refused" in v ? v : { ...pic, unchecked: v.unchecked };
 }
 
@@ -162,7 +165,7 @@ export async function drawTile(db: Db, spec: TileSpec, keys?: Keys): Promise<str
     const prevBytes = prev.mime && prev.reason?.startsWith(UNCHECKED_PREFIX) ? await readBytes(prev) : null;
     if (prevBytes && prev.mime) {
       const pic = { bytes: prevBytes, mime: prev.mime, url: prev.remote_url };
-      const v = spec.variant === "pg" ? (pic.url ? await screenPg(db, k.hive, pic.url) : { refused: "nothing to screen" }) : await screenNsfw(db, k.hive, pic.bytes.toString("base64"), pic.mime);
+      const v = spec.variant === "pg" ? (pic.url ? await screenPg(db, pic.url) : { refused: "nothing to screen" }) : await screenNsfw(db, pic.bytes.toString("base64"), pic.mime);
       if ("ok" in v) return done("ready", null, pic, prev.object_key);
       if ("refused" in v) return done("refused", v.refused);
       return done("failed", UNCHECKED_PREFIX + v.unchecked, pic, prev.object_key);
@@ -274,7 +277,7 @@ export async function drawLooksPortrait(db: Db, characterId: string, env: Record
   if (today >= portraitsPerDay(env)) return { ok: false, status: 429, error: "portraits_busy", message: "Today's portraits are all drawn. Try again tomorrow." };
   const keys = await keysFor(db);
   // Hive over its daily limit (lib/adult/hive-limit.ts): an unscreened portrait is never kept, so none is drawn (or paid for).
-  const gate = await hiveGate(db, keys.hive);
+  const gate = await mediaGate(db, { pg: true });
   if (!gate.ok) return { ok: false, status: 503, error: "hive_paused", message: gate.message };
   const r = await drawPg(db, keys, prompt, null, { width: 640, height: 800 }).catch((err: unknown) => ({ failed: err instanceof Error ? err.message : "error" }));
   if ("refused" in r) return { ok: false, status: 422, error: "portrait_refused", message: "The picture didn't pass our check. Try other looks." };
@@ -309,7 +312,8 @@ export async function gateAfterDarkLooks<E extends { looks?: Looks } | null | un
 
 /** What the builder needs for a viewer: the drawn tiles it may see, and whether After Dark's tab opens for them. */
 export async function builderLooks(db: Db, auth: { userId: string; authenticated: boolean } | null): Promise<{ tiles: string[]; afterDark: boolean }> {
-  const afterDark = (await canAfterDark(db, auth).catch(() => ({ ok: false }))).ok;
+  // Its tiles are pictures: the tab opens only where pictures are allowed (lib/jurisdiction.ts), admins excepted.
+  const afterDark = await accessHere(db, auth).then((h) => h.entitled.ok && mediaAllowed(h), () => false);
   const [pg, nsfw] = await Promise.all([readyTiles(db, "pg").catch(() => []), afterDark ? readyTiles(db, "nsfw").catch(() => []) : Promise.resolve([])]);
   return { tiles: [...pg, ...nsfw], afterDark };
 }

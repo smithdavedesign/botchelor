@@ -2004,3 +2004,44 @@ since they are supposed to be naked?"
     and leaves the everyday face alone.
 - **Not changed:** a clip that keeps going from a keyframe drawn before this still carries what that keyframe wears
   ("keep what each of them is wearing or not").
+
+## The Studio (2026-10-24)
+
+The PRD is docs/PRDs/studio.md (David: "build 1-3 … similar pricing … POV … share … an alternative to Hive … everything
+configurable … best in class"). What's built, by phase:
+
+**v1** (`lib/adult/studio.ts`, `studio-catalog.ts`, `studio-config.ts`; `/after-dark/studio/[id]`; `POST/GET
+/api/admin/after-dark/studio`):
+- **Who:** the owner's own characters switched into After Dark; an admin's house cast too. `studio.open_to` is `admins`
+  until payments and age checks are live. Linked from the hub ("🎨 Studio") and each pair page.
+- **Shoot:** menus (pose, framing, angle, POV, wardrobe, up to three accessories, place incl. their own drawn places,
+  light, expression), each option a fixed phrase with a level (0 dressed … 3 explicit); held to the viewer's studio
+  intensity and hard nos for the character, the configured maximum, and to suggestive in public. `shoot_size` (4) pictures
+  by the chosen edit model from the face they keep (Picture 1), their body reference (Picture 2) and the place's set.
+  Ratings steer it; the light test picks the light when they don't.
+- **Identity:** Restyle (the looks builder's chips as an edit of the face: 3 baselines to pick from; "Save to their look"
+  writes `extras.looks` and the appearance line when it was the builder's), Recast (3 new baselines on a new-picture
+  model), Body reference (2, dressed or nude; "Use as body"), face strength (loose, balanced, strict), studio limits.
+- **Gallery:** their pictures alone with 👍/👎, Use this face, Use as body; a free redo for a shoot they 👎'd whole.
+- **Prices** (bought tokens, admins free): shoot 1 standard / 2 pro, restyle 1, recast 1, body 1; nothing came through:
+  refunded whole. **Caps:** `cap_studio` 400, `cap_studio_byok` 1,000, `cap_upscales` 50 a month, and every cap is now
+  editable on the settings page.
+- **Tables:** `adult_studio_shoots`, `adult_identity`; `adult_images.shoot_id`; `adult_settings.studio` (JSON).
+
+### The checks: an alternative to Hive (2026-10-24)
+
+David: "Hive is a bottleneck atm, so it might be worth adding an alternative too. Everything should be configurable."
+`lib/adult/moderation.ts` (`checkMedia`, `mediaGate`, `checkReady`) now sits in front of every check; the settings
+page's **🛡 The checks** section sets it (`adult_settings.moderation`, `lib/adult/moderation-config.ts`).
+- **Alternatives:** `venice_vlm` (the same three-answer age question to a vision model on Venice, `qwen3-vl-235b-a22b`
+  by default: Venice-run, no daily cap, ~$0.0003 a check; it reads generated faces), `sightengine` (`face-age`'s minor
+  probability; an unscored "artificial" face refuses), `endpoint` (our own URL answering ADULTS/MINOR/UNSURE).
+- **Modes:** `hive` (the default, unchanged), `hive_then_alt` (the alternatives only when Hive gives no verdict: paused,
+  busy, down), `both` (Hive and every alternative must pass), `alt` (no Hive for pictures). Any alternative's refusal
+  refuses; `min_sources` say how many must run and pass. Videos always wait for Hive.
+- **The show's own pictures** (place sets, look tiles, season portraits) go to Hive, or with `pg_via: "alt"` to the
+  alternatives asked the show's question (SAFE/UNSAFE/UNSURE), leaving Hive's 100 a day for After Dark.
+- **The draw gate:** while Hive's breaker is open a picture is drawn only when the mode lets a ready alternative stand in.
+- A pass now carries Hive's `general_nsfw` score (`CheckResult.nsfw`), kept on Studio pictures (`adult_images.nsfw_score`)
+  for the texts' photos (v2).
+- Keys sealed like the others: `sightengine_key` (its api_secret; the api_user is a setting), `moderation_endpoint_key`.

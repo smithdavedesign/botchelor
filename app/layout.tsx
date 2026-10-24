@@ -8,7 +8,7 @@ import { getDb } from "@/lib/db";
 import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
-import { canAfterDark } from "@/lib/adult/entitlement";
+import { accessHere } from "@/lib/adult/place";
 import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
 import { siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
@@ -91,8 +91,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // agent reading the page) it shows the fresh weekly allowance as "free dates", not as someone's count (run 2026-10-22-0215).
   const cookieStore = await cookies();
   const viewerId = userIdFromCookieStore(cookieStore);
-  // After Dark's link shows only to someone it's open to (lib/adult/entitlement.ts); everyone else never sees it.
-  const afterDark = viewerId ? (await canAfterDark(await getDb(), authFromCookieStore(cookieStore)).catch(() => ({ ok: false }))).ok : false;
+  // After Dark's link shows only to someone it's open to (lib/adult/entitlement.ts), and only where it's offered
+  // (lib/jurisdiction.ts); everyone else never sees it.
+  const afterDark = viewerId
+    ? await accessHere(await getDb(), authFromCookieStore(cookieStore)).then((h) => h.entitled.ok && h.mode !== "blocked", () => false)
+    : false;
   const dates = viewerId ? await episodeAllowance(await getDb(), viewerId) : freshAllowance();
   // The bell's unread count (lib/notifications.ts): what happened between dates.
   const unread = viewerId ? await unreadCount(await getDb(), viewerId).catch(() => 0) : 0;

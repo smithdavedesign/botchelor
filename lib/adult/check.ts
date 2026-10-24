@@ -27,7 +27,8 @@
  * this check or this check opened it.
  */
 export type HiveOutage = { status: number | null; retry_after_ms: number | null };
-export type CheckResult = { ok: true } | { ok: false; reason: string; unavailable?: HiveOutage; paused?: string };
+/** A pass carries Hive's NSFW score when its moderation ran (a photo for the texts needs a low one: lib/adult/shares.ts). */
+export type CheckResult = { ok: true; nsfw?: number } | { ok: false; reason: string; unavailable?: HiveOutage; paused?: string };
 
 export const HIVE_MODERATION = "https://api.thehive.ai/api/v3/hive/visual-moderation";
 export const HIVE_VLM = "https://api.thehive.ai/api/v3/chat/completions";
@@ -285,7 +286,8 @@ export async function checkOutput(key: string | null, media: Checkable, kind: Ch
       const answer = vlmAnswer(vlm);
       if (answer !== "ADULTS") return { ok: false, reason: `age check: ${answer || "no answer"}` };
     }
-    return { ok: true };
+    const nsfw = moderated ? classScores(mod).find((s) => s.cls === "general_nsfw")?.score : undefined;
+    return nsfw === undefined ? { ok: true } : { ok: true, nsfw };
   } catch (err) {
     return couldntRun(err);
   }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { eligibleIds } from "@/lib/adult/characters";
 import { adultViewer } from "@/lib/adult/mode";
+import { mediaRefusal } from "@/lib/adult/place";
 import { setFaceReference } from "@/lib/adult/steering";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
@@ -21,6 +22,9 @@ export const POST = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const input = parseBody(Input, await readJson(req), "invalid_request");
   if (!(await eligibleIds(db, viewer)).has(input.character_id)) return hidden();
   const r = await setFaceReference(db, viewer, input.character_id, input.image_id, input.rivals ?? [], { nude: input.nude === true });

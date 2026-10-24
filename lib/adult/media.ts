@@ -21,9 +21,9 @@ import { looksPictureWords } from "../looks";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { dataColumn, keepBytes, objectStore, readBytes } from "../object-store";
 import { checkAdultText } from "../safety";
-import { checkOutput } from "./check";
+import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { fallbackNote, providerError, runMedia, type Ran } from "./fallback";
-import { hiveGate, hivePausedMessage, HivePausedError, hivePausedUntil, underHiveLimit } from "./hive-limit";
+import { hivePausedMessage, HivePausedError, hivePausedUntil } from "./hive-limit";
 import { attireOf, nudeSql } from "./attire";
 import { PICTURE_PRESETS, type PresetId } from "./rating-tags";
 import { runModel } from "./replicate";
@@ -60,8 +60,8 @@ export type PictureScene = { scene_chapter?: number | null; scene_place?: string
  * that shows a minor. Every file is checked before it's stored, and a failure is discarded, never stored.
  */
 export async function outputCheckReady(db: Db): Promise<boolean> {
-  const k = await adultKeys(db).catch(() => null);
-  return Boolean(k?.hive);
+  // Hive's key, or an alternative checker the mode uses (lib/adult/moderation.ts).
+  return checkReady(db).catch(() => false);
 }
 export const PICTURES_OFF_NOTE =
   "Pictures and clips are off until the output check is set up (the Hive key in after dark's settings): every image is checked after it's made, not only our prompt.";
@@ -84,10 +84,11 @@ export const VENICE_IMAGE = "https://api.venice.ai/api/v1/image/generate";
  * A picture on Venice: its bytes come back in the reply (no URL), unblurred with safe_mode off. `safe` turns Venice's
  * safe mode on, for the show's own (PG) portraits (lib/season-gen.ts).
  */
-export async function venicePicture(db: Db, prompt: string, opts: { safe?: boolean; negative?: string } = {}): Promise<{ bytes: Buffer; mime: string }> {
-  const { venice } = await adultKeys(db);
+export async function venicePicture(db: Db, prompt: string, opts: { safe?: boolean; negative?: string; model?: string; key?: string } = {}): Promise<{ bytes: Buffer; mime: string }> {
+  // The Studio passes its picked model, and an owner's own key (lib/adult/studio.ts); otherwise the settings' own.
+  const venice = opts.key ?? (await adultKeys(db)).venice;
   if (!venice) throw new Error("No Venice key saved in after dark's settings.");
-  const { venice_image_model } = await getAdultSettings(db);
+  const venice_image_model = opts.model ?? (await getAdultSettings(db)).venice_image_model;
   const res = await doFetch(VENICE_IMAGE, {
     method: "POST",
     headers: { authorization: `Bearer ${venice}`, "content-type": "application/json" },
@@ -324,9 +325,8 @@ export async function makePicture(
   const negative = [NEGATIVE_PROMPT, ...steer.negative].join(", ");
   const check = checkAdultText({ prompt: opts.prompt });
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
-  const { hive } = await adultKeys(db);
-  // Hive over its daily limit (lib/adult/hive-limit.ts): nothing is drawn (or paid for) while its check can't run.
-  const gate = await hiveGate(db, hive);
+  // Hive over its daily limit (lib/adult/hive-limit.ts): nothing is drawn (or paid for) while no checker can run.
+  const gate = await mediaGate(db);
   if (!gate.ok) {
     await logRejection(db, ownerId, opts.kind, gate.reason);
     throw new HivePausedError(gate.until, gate.message);
@@ -336,7 +336,7 @@ export async function makePicture(
     const drawn = await drawPicture(db, opts.prompt, negative);
     const file = drawn.value;
     // The output check on the bytes themselves, before anything is stored, whoever made them: a failure is discarded.
-    const verdict = await underHiveLimit(db, () => checkOutput(hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image"));
+    const verdict = await checkMedia(db, { base64: file.bytes.toString("base64"), mime: file.mime }, "image");
     if (!verdict.ok) return discarded(db, ownerId, opts.kind, verdict);
     const model = drawn.provider === "replicate" ? replicate_picture_model : venice_image_model;
     return storePicture(db, ownerId, opts, file, null, { provider: drawn.provider, fell_back: drawn.fell_back, model });
@@ -372,7 +372,7 @@ export async function makePicture(
   const url = body.images?.[0]?.url ?? body.image?.url;
   if (!url) throw new Error("fal.ai returned no picture.");
   // The output check, before anything is stored: a failure is discarded.
-  const verdict = await underHiveLimit(db, () => checkOutput(hive, url, "image"));
+  const verdict = await checkMedia(db, url, "image");
   if (!verdict.ok) return discarded(db, ownerId, opts.kind, verdict);
   return storePicture(db, ownerId, opts, await download(url), url, { provider: "fal", fell_back: false, model });
 }
@@ -467,7 +467,7 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
   const check = checkAdultText({ prompt });
   if (!check.ok) throw new Error(`That clip crosses one of the two lines (${check.reason}).`);
   // A clip's frames pass Hive once it's made: none is started while Hive is over its daily limit (lib/adult/hive-limit.ts).
-  const gate = await hiveGate(db, (await adultKeys(db)).hive);
+  const gate = await mediaGate(db, { video: true });
   if (!gate.ok) {
     await logRejection(db, ownerId, "video", gate.reason);
     throw new HivePausedError(gate.until, gate.message);
@@ -518,7 +518,7 @@ export async function pollClip(db: Db, id: string, viewerId: string): Promise<st
   }
   // The output check on the clip itself, before it's stored: a failure is discarded. Hive out of its daily allowance isn't
   // a verdict: the clip stays pending, unchecked and unstored, and is checked once the pause is over.
-  const verdict = await underHiveLimit(db, () => adultKeys(db).then((k) => checkOutput(k.hive, body.video!.url!, "video")));
+  const verdict = await checkMedia(db, body.video.url, "video");
   if (!verdict.ok && verdict.paused) return "pending";
   if (!verdict.ok) {
     await logRejection(db, row.owner_id, "video", verdict.reason);

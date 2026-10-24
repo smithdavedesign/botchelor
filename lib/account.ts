@@ -369,6 +369,8 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   //    memory gone).
   const kept = (await db.query<{ id: string }>("select id from characters where owner_id = $1 and not is_house", [userId])).rows.map((r) => r.id);
   await forgetEverything(db, kept);
+  // Their After Dark turn-ons (sex-life data, GDPR Art. 9) go too; a deleted character's went with it (on delete cascade).
+  if (kept.length) await run("delete from adult_profiles where character_id = any($1::text[])", [kept]);
   const charactersAnonymized = await returning(
     // Closed to dates too: a deleted creator's character must never be asked out or blind-matched again.
     "update characters set owner_id = $2, open_to_dates = false where owner_id = $1 and not is_house returning id",
@@ -416,9 +418,40 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   // A complaint or takedown request stays as the record of what was reported and what we did; who sent it doesn't.
   await run("update content_reports set reporter_id = null, contact_email = null where reporter_id = $1", [userId]);
   await run("delete from profiles where user_id = $1", [userId]);
+  await deleteAfterDarkData(db, userId);
   await run("delete from accounts where user_id = $1", [userId]);
 
   return { characters_deleted: charactersDeleted, characters_anonymized: charactersAnonymized };
+}
+
+/** Every After Dark table keyed to a person, and the column it's keyed by: dependents first. */
+const AFTER_DARK_OWNED: readonly [string, string][] = [
+  ["adult_media_ratings", "user_id"], ["adult_media_thumbs", "owner_id"], ["adult_short_views", "user_id"], ["adult_short_calls", "user_id"],
+  ["adult_beats", "owner_id"], ["adult_monologues", "owner_id"], ["adult_voice_lines", "owner_id"], ["adult_reels", "owner_id"],
+  ["adult_steps", "owner_id"], ["adult_facts", "owner_id"], ["adult_memories", "owner_id"], ["adult_rejections", "owner_id"],
+  ["adult_light_picks", "owner_id"], ["adult_face_refs", "owner_id"], ["adult_nude_refs", "owner_id"], ["adult_images", "owner_id"],
+  ["adult_steer_resets", "owner_id"], ["adult_shorts", "owner_id"], ["adult_nights", "owner_id"], ["adult_scenes", "owner_id"],
+  ["adult_characters", "owner_id"], ["adult_switches", "owner_id"], ["adult_usage", "owner_id"], ["adult_privacy", "user_id"],
+  ["adult_entitlements", "user_id"], ["adult_viewer_places", "user_id"],
+];
+
+/**
+ * After Dark's part of deleting an account (2026-10-24, the privacy notice's promise): everything the person made, chose
+ * or rated there, their subscription record and their last-seen place. The tables point at one another in places, so a
+ * delete a reference still blocks is tried again on the next pass; a table that doesn't exist yet is skipped.
+ */
+export async function deleteAfterDarkData(db: Db, userId: string): Promise<void> {
+  let left = [...AFTER_DARK_OWNED];
+  for (let pass = 0; pass < 4 && left.length; pass++) {
+    const blocked: [string, string][] = [];
+    for (const [table, column] of left) {
+      await db.query(`delete from ${table} where ${column} = $1`, [userId]).catch((err: unknown) => {
+        if (!/does not exist/.test(err instanceof Error ? err.message : "")) blocked.push([table, column]);
+      });
+    }
+    left = blocked;
+  }
+  if (left.length) throw new Error(`After Dark data left after deleting an account: ${left.map(([t]) => t).join(", ")}`);
 }
 
 export type AdminRemoval = { id: string; name: string | null; outcome: "deleted" | "anonymized" | "house" | "not_found" };
