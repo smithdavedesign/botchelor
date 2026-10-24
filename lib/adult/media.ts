@@ -81,10 +81,11 @@ export const VENICE_IMAGE = "https://api.venice.ai/api/v1/image/generate";
  * A picture on Venice: its bytes come back in the reply (no URL), unblurred with safe_mode off. `safe` turns Venice's
  * safe mode on, for the show's own (PG) portraits (lib/season-gen.ts).
  */
-export async function venicePicture(db: Db, prompt: string, opts: { safe?: boolean; negative?: string } = {}): Promise<{ bytes: Buffer; mime: string }> {
-  const { venice } = await adultKeys(db);
+export async function venicePicture(db: Db, prompt: string, opts: { safe?: boolean; negative?: string; model?: string; key?: string } = {}): Promise<{ bytes: Buffer; mime: string }> {
+  // The Studio passes its picked model, and an owner's own key (lib/adult/studio.ts); otherwise the settings' own.
+  const venice = opts.key ?? (await adultKeys(db)).venice;
   if (!venice) throw new Error("No Venice key saved in after dark's settings.");
-  const { venice_image_model } = await getAdultSettings(db);
+  const venice_image_model = opts.model ?? (await getAdultSettings(db)).venice_image_model;
   const res = await doFetch(VENICE_IMAGE, {
     method: "POST",
     headers: { authorization: `Bearer ${venice}`, "content-type": "application/json" },

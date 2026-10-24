@@ -8005,6 +8005,109 @@ a.phone-head-btn {
   color: #ffd2c4;
   font-weight: 700;
 }
+.ad-chip:disabled {
+  opacity: 0.45;
+}
+
+/* The After Dark Studio (lib/adult/studio.ts): tabs, chip groups, the go row, the pictures. */
+.ad-studio-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  border-bottom: 1px solid var(--ad-line, var(--line));
+}
+.ad-studio-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ad-ink, var(--ink));
+  padding: var(--space-2) var(--space-3);
+}
+.ad-studio-tabs button.on {
+  border-bottom-color: #ff9f80;
+  font-weight: 700;
+}
+.ad-studio-group {
+  border: 0;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+}
+.ad-studio-group legend {
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+.ad-studio-go {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  margin: var(--space-3) 0;
+}
+.ad-studio-go select {
+  max-width: 100%;
+}
+.ad-studio-grid {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--space-3);
+}
+.ad-studio-item img,
+.ad-studio-refs img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  background: #000;
+}
+.ad-studio-item-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-2);
+}
+.ad-studio-refs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 12rem));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.ad-studio-refs figure {
+  margin: 0;
+}
+.ad-studio-empty {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 4;
+  border: 1px dashed var(--ad-line, var(--line));
+  border-radius: 0.5rem;
+  padding: var(--space-3);
+  text-align: center;
+  font-size: var(--text-sm);
+}
+.ad-studio-fresh {
+  margin: var(--space-4, 1rem) 0;
+}
+.ad-studio-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* The settings page's number fields, two or three to a row. */
+.ad-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+.ad-settings-grid label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: var(--text-sm);
+}
 .ad-chip:hover:not(:disabled) {
   transform: none;
   border-color: var(--ad-accent, var(--accent));

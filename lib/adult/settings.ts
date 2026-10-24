@@ -6,6 +6,8 @@
 import type { Db } from "../db";
 import { needsReseal, reseal } from "../key-crypto";
 import { openSecret, sealSecret } from "../keys";
+import { mergeStudioConfig, studioConfigOf, type StudioConfig } from "./studio-config";
+import { DEFAULT_CAPS, USAGE_KINDS, type UsageKind } from "./usage";
 
 /**
  * Defaults to start from; every one can be changed on the settings page. The text model is the one production runs
@@ -145,6 +147,10 @@ export type AdultSettings = {
    * David, 2026-10-22). On unless turned off (a null column is on).
    */
   media_fallback: boolean;
+  /** The Studio's every setting (lib/adult/studio-config.ts), defaults filled in. */
+  studio: StudioConfig;
+  /** Each person's monthly cap per kind (lib/adult/usage.ts); admins are never capped. */
+  caps: Record<UsageKind, number>;
 };
 
 type Row = {
@@ -189,7 +195,8 @@ type Row = {
   auto_scene_pictures: boolean | null;
   beat_pictures: boolean | null;
   media_fallback: boolean | null;
-};
+  studio: unknown;
+} & Partial<Record<`cap_${UsageKind}`, number | null>>;
 
 /** The server's own Replicate token, used when none is saved in the settings. */
 const envReplicate = (env: Record<string, string | undefined>) => env.REPLICATE_API_TOKEN?.trim() || null;
@@ -235,6 +242,8 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     auto_scene_pictures: r?.auto_scene_pictures ?? true,
     beat_pictures: r?.beat_pictures ?? true,
     media_fallback: r?.media_fallback ?? true,
+    studio: studioConfigOf(r?.studio),
+    caps: Object.fromEntries(USAGE_KINDS.map((k) => [k, num(r?.[`cap_${k}`]) ?? DEFAULT_CAPS[k]])) as Record<UsageKind, number>,
   };
 }
 
@@ -310,6 +319,10 @@ export type SettingsPatch = {
   auto_scene_pictures?: boolean;
   beat_pictures?: boolean;
   media_fallback?: boolean;
+  /** Studio settings to change (lib/adult/studio-config.ts): the keys named replace the stored ones; a bad value throws. */
+  studio?: Record<string, unknown>;
+  /** Monthly caps to change, per kind (0 or more). */
+  caps?: Partial<Record<UsageKind, number>>;
 };
 
 /**
@@ -365,6 +378,11 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
   if (patch.auto_scene_pictures !== undefined) put("auto_scene_pictures", patch.auto_scene_pictures);
   if (patch.beat_pictures !== undefined) put("beat_pictures", patch.beat_pictures);
   if (patch.media_fallback !== undefined) put("media_fallback", patch.media_fallback);
+  if (patch.studio !== undefined) put("studio", JSON.stringify(mergeStudioConfig(before.studio, patch.studio)));
+  for (const k of USAGE_KINDS) {
+    const v = patch.caps?.[k];
+    if (v !== undefined) put(`cap_${k}`, Math.max(0, Math.floor(v)));
+  }
   for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
