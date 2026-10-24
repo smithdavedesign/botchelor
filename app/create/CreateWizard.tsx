@@ -1,6 +1,7 @@
 "use client";
 
 import { shortName } from "@/lib/names";
+import { takenNote } from "@/lib/partners-shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -185,7 +186,8 @@ export default function CreateWizard({
   swipeGate?: boolean;
   tokens?: Tokens;
   offer?: string | null;
-  myCharacters?: { id: string; name: string; hue?: number | null; portrait?: string | null }[];
+  /** `taken`: with someone and wanting only them (lib/partners.ts takenWith), so they date only that partner for now. */
+  myCharacters?: { id: string; name: string; hue?: number | null; portrait?: string | null; taken?: { id: string; name: string } | null }[];
   startSample?: boolean;
   startCharacterId?: string | null;
   /** A new character with this name already in (/create?name=, from a ship name page: app/ship/[a]/[b]). */
@@ -250,7 +252,10 @@ export default function CreateWizard({
   const [temperamentCleared, setTemperamentCleared] = useState(false);
 
   // Flow state.
-  const [created, setCreated] = useState<{ id: string; name: string; hue?: number | null; portrait?: string | null } | null>(null);
+  // Returning with ?character=id starts at the date step itself (not a flash of the builder before it).
+  const [created, setCreated] = useState<{ id: string; name: string; hue?: number | null; portrait?: string | null; taken?: { id: string; name: string } | null } | null>(
+    () => (startCharacterId ? (myCharacters.find((c) => c.id === startCharacterId) ?? null) : null),
+  );
   const [busy, setBusy] = useState<null | "character" | "episode">(null);
   const [error, setError] = useState<string | null>(null);
   const [outOfTokens, setOutOfTokens] = useState(false);
@@ -1185,7 +1190,8 @@ function reviewExtras(extras: CharacterExtras): Record<"voice" | "look" | "profi
 /* ------------------------------- phase two: send on a date ------------------------------- */
 
 type SendProps = {
-  character: { id: string; name: string; hue?: number | null; portrait?: string | null };
+  /** `taken`: their partner when they're with someone and want only them; then only that date is on offer. */
+  character: { id: string; name: string; hue?: number | null; portrait?: string | null; taken?: { id: string; name: string } | null };
   partners: Partner[];
   openCharacters: OpenCharacter[];
   swipeGate: boolean;
@@ -1283,10 +1289,24 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
     setBusy(null);
   }
 
+  // With someone and wanting only them (lib/partners.ts): only their partner is on offer; everyone else is shown closed.
+  const first = shortName(character.name);
+  const taken = character.taken ?? null;
+  const partnerFirst = taken ? shortName(taken.name) : "";
+  const closed = (id: string) => Boolean(taken) && id !== taken?.id;
+  const closedWhy = `${first} only dates ${partnerFirst} for now`;
+  /** On a row: their partner's tag, or nothing. */
+  const partnerTag = (id: string) =>
+    taken && id === taken.id ? (
+      <span className="badge taken-tag" title={`${first} is dating ${partnerFirst}`}>
+        💞 {first}&apos;s partner
+      </span>
+    ) : null;
+
   // The house cast and the open characters as compact lists: the first few, the rest one tap away (no long scrolls).
   const SHOWN = 6;
   const houseRow = (p: Partner) => (
-    <li className="send-row" key={p.id}>
+    <li className={closed(p.id) ? "send-row is-closed" : "send-row"} key={p.id}>
       <Avatar seed={p.id} name={p.name} hue={p.hue ?? null} house size={44} />
       <div className="send-row-meta">
         <CharacterName character={{ id: p.id, name: p.name, hue: p.hue ?? null, house: true }} avatar={false} strong />
@@ -1294,6 +1314,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           {p.age}
           {p.archetype && ` · ${p.archetype}`} · {p.premium ? "Premium · yours" : "House character"}
         </span>
+        {partnerTag(p.id)}
         <p className="send-row-bio" title={p.bio}>
           {p.bio}
         </p>
@@ -1303,7 +1324,8 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         type="button"
         className="secondary small send-row-cta"
         aria-label={`Send on a date with ${p.premium ? p.name : shortName(p.name)}`}
-        disabled={busy !== null}
+        disabled={busy !== null || closed(p.id)}
+        title={closed(p.id) ? closedWhy : undefined}
         onClick={() => sendOnDate(p.id)}
       >
         Date
@@ -1311,7 +1333,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
     </li>
   );
   const openRow = (o: OpenCharacter) => (
-    <li className="send-row" key={o.id}>
+    <li className={closed(o.id) ? "send-row is-closed" : "send-row"} key={o.id}>
       <Avatar seed={o.id} name={o.name} hue={o.hue} portraitSrc={o.portrait} size={44} />
       <div className="send-row-meta">
         <CharacterName character={{ id: o.id, name: o.name, hue: o.hue, portrait: o.portrait }} avatar={false} strong />
@@ -1319,11 +1341,12 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           {o.age} · {o.agent ? "🤖 Agent-made" : "💌 Open"}
           {o.traits.length > 0 && ` · ${o.traits.join(", ")}`}
         </span>
+        {partnerTag(o.id)}
         <p className="send-row-bio" title={o.bio}>
           {o.bio}
         </p>
       </div>
-      <button type="button" className="secondary small send-row-cta" disabled={busy !== null} onClick={() => sendOnDate(o.id)}>
+      <button type="button" className="secondary small send-row-cta" disabled={busy !== null || closed(o.id)} title={closed(o.id) ? closedWhy : undefined} onClick={() => sendOnDate(o.id)}>
         Ask {shortName(o.name)} out
       </button>
     </li>
@@ -1374,8 +1397,22 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         {tokens.left <= 1 && offer && <Link href="/shop">{offer}</Link>}
       </p>
 
-      {/* The one primary action on this screen. */}
-      <div className="card send-blind">
+      {taken && (
+        // With someone and wanting only them: why the others are closed, the one date that's open, and where to change it.
+        <div className="card taken-note" role="note">
+          <span className="badge taken-tag">💍 With {partnerFirst}</span>
+          <p>{takenNote(first, taken.name)}</p>
+          <div className="send-taken-actions">
+            <button type="button" className="primary" disabled={busy !== null} onClick={() => sendOnDate(taken.id)}>
+              {busy === "episode" ? "Sending…" : `Send ${first} on a date with ${partnerFirst}`}
+            </button>
+            <Link href={`/characters/${character.id}#partners-${character.id}`}>Change it on {first}&apos;s page</Link>
+          </div>
+        </div>
+      )}
+
+      {/* The one primary action on this screen (unless they're with someone: then it's the date with them, above). */}
+      <div className={taken ? "card send-blind is-closed" : "card send-blind"}>
         <strong>A blind date</strong>
         <p>
           {swipeGate ? (
@@ -1388,7 +1425,8 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           )}{" "}
           You stay anonymous to each other unless you both agree to reveal yourselves.
         </p>
-        <button type="button" disabled={busy !== null} onClick={() => sendOnDate(null)}>
+        {taken && <p className="muted small">Not while {closedWhy}.</p>}
+        <button type="button" disabled={busy !== null || Boolean(taken)} title={taken ? closedWhy : undefined} onClick={() => sendOnDate(null)}>
           Send {character.name} on a blind date
         </button>
       </div>

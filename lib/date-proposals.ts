@@ -14,8 +14,8 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "./db";
 import { pairNames, shortName } from "./names";
 import { notify } from "./notifications";
-import { takenSql } from "./partners";
-import { takenMessage } from "./partners-shared";
+import { currentPartners, takenSql } from "./partners";
+import { takenMessage, takenNote } from "./partners-shared";
 import { haveDated, MATCH_FIRST, swipeGateOn } from "./swipe-gate";
 import { dateNotAgreed } from "./swipes";
 import { DELETED_OWNER } from "./rules";
@@ -163,7 +163,7 @@ export type NextDate = {
     | { kind: "planned"; episode_id: string }
     | { kind: "date"; after: "not_mutual" | "not_ready" | "none" }
     | { kind: "propose"; mine_pending: Proposal | null; theirs_pending: Proposal | null }
-    | { kind: "unavailable"; message: string };
+    | { kind: "unavailable"; message: string; /** One of the viewer's own is with someone else: whose page changes it. */ taken?: { id: string; partner: { id: string; name: string } | null } };
 };
 
 /**
@@ -187,6 +187,13 @@ export async function nextDate(
   if (!mine) return null;
   const them = mine === cx ? cy : cx;
   const base = { mine: { id: mine.id, name: mine.name }, them: { id: them.id, name: them.name, house: them.is_house }, last_episode_id: lastEpisodeId, plan, plan_place: planPlace };
+
+  // Theirs to book is with someone else and wants only them (lib/partners.ts): no date with this one until it cools
+  // off, or until its owner opens it to more than one. Said first: any date here would be refused.
+  if (await takenElsewhere(db, mine.id, them.id)) {
+    const [withWhom] = await currentPartners(db, mine.id);
+    return { ...base, option: { kind: "unavailable", message: takenNote(shortName(mine.name), withWhom?.name ?? null), taken: { id: mine.id, partner: withWhom ?? null } } };
+  }
 
   // A proposal from them waiting on this owner comes first: that's the thing to answer.
   const theirs = await pendingProposal(db, them.id, mine.id);

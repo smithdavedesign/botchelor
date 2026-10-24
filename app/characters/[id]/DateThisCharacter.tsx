@@ -6,6 +6,7 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import type { DateCta } from "@/lib/date-cta";
 import { shortName } from "@/lib/names";
+import { takenNote } from "@/lib/partners-shared";
 
 /**
  * "Date this character", right under the contestant header (lib/date-cta.ts says which version shows). Sending one of
@@ -15,7 +16,8 @@ import { shortName } from "@/lib/names";
 export default function DateThisCharacter({ cta, targetId, first }: { cta: DateCta; targetId: string; first: string }) {
   const router = useRouter();
   const mine = cta.kind === "send" ? cta.mine : [];
-  const [pick, setPick] = useState(mine[0]?.id ?? "");
+  // One that's free to go first (a taken one, with someone else and wanting only them, is listed but can't go).
+  const [pick, setPick] = useState((mine.find((m) => !m.taken) ?? mine[0])?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; shop?: boolean } | null>(null);
   // David, 2026-10-23: the booker may say where the date happens (else a texted plan, else the show picks).
@@ -59,18 +61,26 @@ export default function DateThisCharacter({ cta, targetId, first }: { cta: DateC
             {mine.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
+                {m.taken ? ` · 💍 with ${shortName(m.taken)}` : ""}
               </option>
             ))}
           </select>
         </label>
       )}
-      {chosen.mode === "book" && (
+      {chosen.taken && (
+        // With someone else and wanting only them: the tag, why, and where to change it, instead of a booking that fails.
+        <p className="taken-note small" role="note">
+          <span className="badge taken-tag">💍 With {shortName(chosen.taken)}</span> {takenNote(shortName(chosen.name), chosen.taken)}{" "}
+          <Link href={`/characters/${chosen.id}#partners-${chosen.id}`}>Change it on {shortName(chosen.name)}&apos;s page</Link>
+        </p>
+      )}
+      {chosen.mode === "book" && !chosen.taken && (
         <label className="date-cta-pick">
           <span className="muted small">Where? (optional)</span>
           <input type="text" name="place" maxLength={80} value={place} placeholder="the night market, my place…" onChange={(e) => setPlace(e.target.value)} />
         </label>
       )}
-      {chosen.mode === "book" ? (
+      {chosen.taken ? null : chosen.mode === "book" ? (
         <button type="button" className="primary" onClick={() => void book()} disabled={busy}>
           {busy ? "Booking…" : `💌 ${cta.label}`}
         </button>
@@ -79,7 +89,7 @@ export default function DateThisCharacter({ cta, targetId, first }: { cta: DateC
           💌 {cta.label}
         </Link>
       )}
-      <p className="muted small date-cta-note">
+      <p className="muted small date-cta-note" hidden={Boolean(chosen.taken)}>
         {chosen.mode === "book"
           ? `${shortName(chosen.name)} goes. 1 token, like any date.`
           : `A first date with someone else's character starts with a match: swipe for ${first} as ${shortName(chosen.name)}.`}

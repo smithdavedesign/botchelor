@@ -132,7 +132,16 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
         </>
       )}
 
-      {o.kind === "unavailable" && <p className="muted">{o.message}</p>}
+      {o.kind === "unavailable" &&
+        (o.taken ? (
+          // One of theirs is with someone else and wants only them: the badge, why, and where to change it.
+          <p className="taken-note" role="note">
+            <span className="badge taken-tag">💍 {o.taken.partner ? `With ${shortName(o.taken.partner.name)}` : "Taken"}</span> {o.message}{" "}
+            <Link href={`/characters/${o.taken.id}#partners-${o.taken.id}`}>Change it on {me}&apos;s page</Link>
+          </p>
+        ) : (
+          <p className="muted">{o.message}</p>
+        ))}
 
       {o.kind !== "unavailable" && o.kind !== "planned" && hasNudge && (
         <p className="muted small">
