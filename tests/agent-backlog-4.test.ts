@@ -626,6 +626,59 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
     expect((await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent.can_book).toBe(true);
   });
 
+  it("out of dates, go_on_date says when free dates return and that own dates are free, with no shop to look for (#760)", async () => {
+    const { ctx, id, agentId } = await agentWith("Ada Lumen");
+    await t.db.query(`insert into free_episode_usage (user_id, season_id, used) values ($1, $2, $3)`, [agentId, weekAt(new Date()).id, FREE_EPISODES_PER_SEASON]);
+    const real = await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx);
+    expect(real.isError).toBe(true);
+    expect(real.structuredContent.code).toBe("quota");
+    const text = real.structuredContent.error as string;
+    expect(text).toMatch(/^No dates left on the show's model/);
+    expect(text).toContain(`Monday 00:00 UTC (${weekAt(new Date()).ends_at})`);
+    expect(text).toMatch(/start_own_date is free and unlimited/);
+    expect(text).toMatch(/There's no shop over MCP/);
+    expect(text).not.toMatch(/in the shop/);
+  });
+
+  it("feedback_board names vote_feedback's arguments and fills in a call on another agent's item (#771)", async () => {
+    const a = await agentWith("Ada Lumen");
+    const empty = (await call("feedback_board", {}, a.ctx)).structuredContent;
+    expect(empty.next_calls).toBeUndefined();
+    await call("send_feedback", { wants: "A picnic format with a basket of props." }, a.ctx);
+    expect((await call("feedback_board", {}, a.ctx)).structuredContent.next_calls).toBeUndefined(); // only its own item
+    const b = await agentWith("Bo Quill");
+    const board = (await call("feedback_board", {}, b.ctx)).structuredContent;
+    expect(board.note).toMatch(/vote_feedback with item_id \(an item's id\) and vote: "up"/);
+    expect(board.next_calls).toEqual([{ tool: "vote_feedback", args: { item_id: board.items[0].id, vote: "up" }, why: expect.any(String) }]);
+    const v = await call("vote_feedback", board.next_calls[0].args, b.ctx);
+    expect(v.isError).toBeUndefined();
+  });
+
+  it("sliding_doors says an autonomy change swings every number, trust included (#762)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const booked = await houseDate(ctx, id);
+    const bolder = (await call("sliding_doors", { episode_id: booked.episode.id, change: "bolder" }, ctx)).structuredContent.sliding_doors;
+    expect(bolder.what_changed).toMatch(/how much the dice swing every number on the box score, so trust or chemistry can move up or down/);
+    expect(bolder.what_changed).not.toMatch(/nothing else moved/);
+    const longer = (await call("sliding_doors", { episode_id: booked.episode.id, change: "long_game" }, ctx)).structuredContent.sliding_doors;
+    expect(longer.what_changed).toMatch(/weighed on trust most/);
+    expect(MCP_TOOLS.find((x) => x.name === "sliding_doors")!.description).toMatch(/chance swings every number more, trust too/);
+  });
+
+  it("a date being written is said to take about 2 minutes, and the countdown runs from 3 (#770)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const booked = await houseDate(ctx, id);
+    const at = async (age: number) => {
+      await t.db.query(`update episodes set status = 'generating', created_at = now() - make_interval(secs => $2) where id = $1`, [booked.episode.id, age]);
+      return (await call("get_episode", { episode_id: booked.episode.id, summary: true }, ctx)).structuredContent.writing;
+    };
+    expect((await at(60)).eta).toMatch(/^about 2 minutes, rarely more than 3 in all: probably about 1[12]\d seconds more at most$/);
+    expect((await at(200)).eta).toBe("a little longer than usual: nearly there");
+    expect((await at(400)).eta).toMatch(/retried automatically/);
+    expect(MCP_TOOLS.find((x) => x.name === "go_on_date")!.description).toMatch(/Written in about 2 minutes, rarely more than 3/);
+    expect(JSON.stringify(MCP_TOOLS)).not.toMatch(/1 to 5 minutes/);
+  });
+
   it("plan_second_date check says what booking would spend (#536)", async () => {
     const { ctx, id } = await agentWith("Ada Lumen");
     const booked = await houseDate(ctx, id);

@@ -513,6 +513,17 @@ const CHANGE_SAYS: Record<SlidingDoorChange, string> = {
   long_game: "playing for long-term compatibility (the ending is scored on trust most)",
 };
 
+/** Why the numbers moved (#762: "bolder changed trust 53→62; the mechanism isn't clear"). Autonomy sets how wide the
+ *  seeded jitter is (lib/engine.ts JITTER) and whether a side keeps to its wish, so it moves every number, not one trait. */
+const AUTONOMY_HOW =
+  "Same seed, but a different autonomy changes how much the dice swing every number on the box score, so trust or chemistry can move up or down, not just one trait, and the ending can flip.";
+const CHANGE_HOW: Record<SlidingDoorChange, string> = {
+  bolder: AUTONOMY_HOW,
+  safer: AUTONOMY_HOW,
+  bigger_budget: "Same seed: a bigger budget lifts the date's numbers a little, and nothing else moved.",
+  long_game: "Same seed: the long game nudges trust up (and drops any chemistry bump from a playful strategy), and the ending is weighed on trust most.",
+};
+
 const DOORS_SELECT = `
   select e.id as episode_id, e.seed::text as seed, e.setup, e.note, e.ending, e.box_score, e.wishes,
          a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want,
@@ -594,7 +605,7 @@ async function replayDoors(db: Db, row: DoorRow, change: SlidingDoorChange): Pro
   const altWhy = endingWhy(alt.ending, alt.variables, alt.sides, varied.strategy, setup.engine_version, undefined, dateNumberOf(setup));
   const result: SlidingDoorsResult = {
     change,
-    what_changed: `${shortName(row.a_name)}'s side was ${CHANGE_SAYS[change]}; ${shortName(row.b_name)}'s stayed as it was. Same seed, so nothing else moved.`,
+    what_changed: `${shortName(row.a_name)}'s side was ${CHANGE_SAYS[change]}; ${shortName(row.b_name)}'s stayed as it was. ${CHANGE_HOW[change]}`,
     base: { ending: row.ending, box_score: row.box_score, ...(baseWhy ? { why: baseWhy } : {}) },
     alternate: { ending: alt.ending, box_score: alt.variables, ...(altWhy ? { why: altWhy } : {}) },
   };

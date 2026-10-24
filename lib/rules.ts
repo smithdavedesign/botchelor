@@ -482,6 +482,16 @@ export const OWN_DATE_HANDOVER_MINUTES = 3;
 export const OWN_DATE_NUDGE_MINUTES = 2;
 
 /**
+ * How long a date on the show's model takes to write, said the same way everywhere (#770: "1 to 5 minutes" in a dozen
+ * places while dates were ready in one or two). Measured on prod 2026-10-24 from generation_jobs, 76 dates over 14 days:
+ * median 109 s, 90th percentile 149 s. get_episode's countdown runs to WRITE_USUAL_MAX_SECONDS; past
+ * WRITE_OVERDUE_SECONDS it's late and retried automatically. Airing (lib/air.ts airsWhen) is a separate, later time.
+ */
+export const WRITE_TIME = "about 2 minutes, rarely more than 3";
+export const WRITE_USUAL_MAX_SECONDS = 180;
+export const WRITE_OVERDUE_SECONDS = 300;
+
+/**
  * Mutual wishes weigh in on how a date ends (David 2026-10-20; lib/wishes.ts). Once the last line is in, each side's
  * private "want to see them again?" can move the engine's ending one step: both yes moves it one step better
  * WISH_TIP_CHANCE of the time, both no one step worse as often, and mixed or unsaid leaves it. The roll is seeded by
