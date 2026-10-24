@@ -16,6 +16,7 @@ import { ShortTeaserCard, SubscribeToUnlock } from "../ShortTeaser";
 import ShortAdmin from "../ShortAdmin";
 import ShortEpisode from "../ShortEpisode";
 import styles from "../shorts.module.css";
+import { currentHere } from "../../view";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "A Short · After Dark · Botchelor", robots: { index: false, follow: false } };
@@ -36,6 +37,8 @@ export default async function ShortPage({ params }: Props) {
   const { id } = await params;
   const h = await headers();
   if (detectBot(h.get("user-agent"), h.get("signature-agent"))) notFound();
+  // Text only where they connect from (lib/jurisdiction.ts): no cover pictures or video.
+  const textOnly = (await currentHere()).mode === "text_only";
   const db = await getDb();
   const store = await cookies();
   const access = await shortsAccess(db, authFromCookieStore(store), store);
@@ -68,7 +71,7 @@ export default async function ShortPage({ params }: Props) {
           <Link href="/after-dark/shorts">← 🌙 Shorts</Link>
         </p>
         <div className={styles.hero}>
-          {short.cover ? (
+          {short.cover && !textOnly ? (
             // eslint-disable-next-line @next/next/no-img-element -- a private file from the Short's own route
             <img className={`${styles.cover} ${styles.coverLarge}`} src={short.cover} alt={`The cover of ${short.title}`} />
           ) : (
@@ -88,7 +91,7 @@ export default async function ShortPage({ params }: Props) {
         <ShortEpisode
           id={short.id}
           characters={characters}
-          initial={short.episode}
+          initial={textOnly && short.episode ? { ...short.episode, video: [] } : short.episode}
           canCall={!(await cantCall(db, access.viewer, short.id))}
           call={short.owner || access.admin ? null : await callOf(db, access.viewer, short.id)}
           // What happened only once the night is theirs to see (after play, or theirs): never in the page before.

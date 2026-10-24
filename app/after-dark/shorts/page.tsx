@@ -9,6 +9,7 @@ import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
+import { currentHere } from "../view";
 import { ShortTeaserCard, SubscribeToUnlock } from "./ShortTeaser";
 import styles from "./shorts.module.css";
 import CharacterName from "@/app/CharacterName";
@@ -23,6 +24,8 @@ export const metadata: Metadata = { title: "Shorts · After Dark · Botchelor", 
 export default async function ShortsPage() {
   const h = await headers();
   if (detectBot(h.get("user-agent"), h.get("signature-agent"))) notFound();
+  // Text only where they connect from (lib/jurisdiction.ts): no cover pictures or video.
+  const textOnly = (await currentHere()).mode === "text_only";
   const db = await getDb();
   const store = await cookies();
   const access = await shortsAccess(db, authFromCookieStore(store), store);
@@ -83,7 +86,7 @@ export default async function ShortsPage() {
             {shorts.map((s) => (
               <li key={s.id} className={`card ${styles.card}`}>
                 <Link href={s.path}>
-                  {s.cover ? (
+                  {s.cover && !textOnly ? (
                     // eslint-disable-next-line @next/next/no-img-element -- a private file from the Short's own route
                     <img className={styles.cover} src={s.cover} alt={`The cover of ${s.title}`} loading="lazy" />
                   ) : (

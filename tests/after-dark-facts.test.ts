@@ -303,6 +303,7 @@ describe("in a scene", () => {
     walk(join(root, "lib"));
     walk(join(root, "app"));
     expect(hits).toContain("lib/adult/facts.ts");
-    expect(hits.filter((p) => !p.startsWith("lib/adult/") && p !== "lib/db.ts")).toEqual([]);
+    // lib/account.ts only deletes them, with everything else of a deleted account's (deleteAfterDarkData).
+    expect(hits.filter((p) => !p.startsWith("lib/adult/") && p !== "lib/db.ts" && p !== "lib/account.ts")).toEqual([]);
   });
 });
