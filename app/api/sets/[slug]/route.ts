@@ -1,3 +1,4 @@
+import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
 import { getDb } from "@/lib/db";
 import { getSet, inBackground, retryDueSets, setStatus } from "@/lib/sets";
 import { normalizeScene } from "@/lib/venues";
@@ -16,8 +17,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   const db = await getDb();
   const set = normalized ? await getSet(db, normalized) : null;
   if (set) {
-    return new Response(new Uint8Array(set.data), {
-      headers: { "content-type": set.mime, "x-set-status": "ready", "cache-control": "public, max-age=86400, stale-while-revalidate=604800" },
+    // Drawn by a model: marked AI-generated in its XMP (a set drawn before the mark gets it here) and its headers.
+    return new Response(aiBody(set.data, set.mime), {
+      headers: { "content-type": set.mime, "x-set-status": "ready", "cache-control": "public, max-age=86400, stale-while-revalidate=604800", ...AI_HEADERS },
     });
   }
   const status = normalized ? await setStatus(db, normalized) : "none";

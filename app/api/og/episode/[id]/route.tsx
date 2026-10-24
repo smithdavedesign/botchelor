@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { markedImageResponse } from "@/lib/ai-mark";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { approvedPortraitDataUrl } from "@/lib/assets";
 import { getDb } from "@/lib/db";
@@ -38,7 +39,9 @@ export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: str
   if (!episode || episode.hidden) return json({ error: "episode_not_found" }, 404);
   // An OC's approved portrait when it has one, else the gradient tile (a failed read just means the tile).
   const portraits = await Promise.all(episode.characters.map((c) => approvedPortraitDataUrl(db, c.id).catch(() => null)));
-  return new ImageResponse(<EpisodeCard episode={episode} portraits={portraits} />, { ...SIZE, headers: { "cache-control": CACHE } });
+  const card = new ImageResponse(<EpisodeCard episode={episode} portraits={portraits} />, { ...SIZE, headers: { "cache-control": CACHE } });
+  // A card with a generated portrait in it is marked AI-generated, in its PNG's XMP and its headers (lib/ai-mark.ts).
+  return portraits.some(Boolean) ? markedImageResponse(card) : card;
 });
 
 type Character = EpisodeView["characters"][number];

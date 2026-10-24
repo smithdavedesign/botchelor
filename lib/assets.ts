@@ -7,6 +7,7 @@
  * serve one a human has not approved. Reads are approved-only by construction: there is no function
  * here that returns a pending or rejected asset to a page.
  */
+import { markAiDataUrl } from "./ai-mark";
 import type { Db } from "./db";
 
 export const ASSET_KINDS = ["portrait", "expression", "background", "decoration", "clip", "photo"] as const;
@@ -73,6 +74,9 @@ export async function recordAsset(db: Db, asset: NewAsset): Promise<string> {
   const problem = assetProvenanceError(asset);
   if (problem) throw new Error(`asset provenance: ${problem}`);
   const id = crypto.randomUUID();
+  // A generated picture stored as a data URL (a BYOK or season portrait) carries the machine-readable "AI-generated"
+  // mark from here on (lib/ai-mark.ts, EU AI Act Art. 50).
+  const url = asset.source_type === "generated" && asset.url ? markAiDataUrl(asset.url) : (asset.url ?? null);
   await db.query(
     `insert into character_assets (id, character_id, kind, source_type, source_model, prompt, prompt_version,
                                    seed, source_url, license_name, attribution, url)
@@ -89,7 +93,7 @@ export async function recordAsset(db: Db, asset: NewAsset): Promise<string> {
       asset.source_url ?? null,
       asset.license_name ?? null,
       asset.attribution ?? null,
-      asset.url ?? null,
+      url,
     ],
   );
   return id;
@@ -196,7 +200,8 @@ export async function approvedClipIsVideo(db: Db, clipId: string): Promise<boole
 
 /** Sets an asset's servable file + video reference (completing a clip) without changing its review state. */
 export async function setAssetMedia(db: Db, id: string, url: string, sourceUrl?: string | null): Promise<void> {
-  await db.query(`update character_assets set url = $2, source_url = coalesce($3, source_url) where id = $1`, [id, url, sourceUrl ?? null]);
+  // Only ever a generated clip or its still: a still gets the AI mark (a video's is its route's headers).
+  await db.query(`update character_assets set url = $2, source_url = coalesce($3, source_url) where id = $1`, [id, markAiDataUrl(url), sourceUrl ?? null]);
 }
 
 /** The approved asset plus the id of the character it belongs to (for proxying a clip on the owner's key). */

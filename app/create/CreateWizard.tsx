@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Avatar from "../Avatar";
+import CrisisNotice, { crisisFrom } from "../CrisisNotice";
 import { requestJson } from "../request";
+import type { CrisisResources } from "@/lib/crisis";
 import DetailsStep, { DetailField } from "./DetailsStep";
 import OriginalityPanel from "./OriginalityPanel";
 import TemperamentSliders, { type TemperamentSource } from "./TemperamentSliders";
@@ -1209,6 +1211,9 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
   const [agenda, setAgenda] = useState("");
   const [note, setNote] = useState("");
   const [selfPick, setSelfPick] = useState("");
+  // The self-harm notice (lib/crisis.ts), and the date it held back from opening.
+  const [crisis, setCrisis] = useState<CrisisResources | null>(null);
+  const [datePath, setDatePath] = useState<string | null>(null);
   // Pro portrait (BYOK): whether this viewer can generate one, and the generation status.
   const [pro, setPro] = useState<{ canGenerate: boolean; authenticated: boolean } | null>(null);
   const [portrait, setPortrait] = useState<string | null>(null);
@@ -1257,8 +1262,16 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         ...(partnerId ? { partner_id: partnerId } : { blind: true }),
         ...dateFields,
       });
+      // The note read as wanting to hurt themselves (lib/crisis.ts): the help first, the date one tap away.
+      const help = crisisFrom(data);
+      if (help) setCrisis(help);
       if (status === 200) {
         trackConversion("date_started", { mode: partnerId ? "partner" : "blind" });
+        if (help) {
+          setDatePath(`${String(data.share_path)}?play=1`);
+          setBusy(null);
+          return;
+        }
         onSend(`${String(data.share_path)}?play=1`);
         return;
       }
@@ -1442,6 +1455,14 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           </label>
         </div>
       </details>
+      {crisis && <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} />}
+      {datePath && (
+        <p>
+          <a className="button-ghost" href={datePath}>
+            Go to the date
+          </a>
+        </p>
+      )}
 
       {swipeGate && (
         <div className="card">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
@@ -96,11 +96,14 @@ export default function AfterDarkTheater({
   onBeat,
   onPictureNow,
   onExit,
+  crisis = null,
 }: {
   scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null; chapter?: number };
   characters: [CharacterRef, CharacterRef];
   busy?: boolean;
   note?: string | null;
+  /** The crisis notice (app/CrisisNotice.tsx), when the viewer's own steer tripped lib/crisis.ts: shown over the stage. */
+  crisis?: ReactNode;
   /** Writes the next lines; without it, this is a saved night's playback. */
   onWrite?: (direction: string) => Promise<void>;
   /** How strongly a steer is taken: worked toward (nudge) or done now (direct). Shared with the page's form. */
@@ -358,6 +361,7 @@ export default function AfterDarkTheater({
               {videoNote || note}
             </p>
           )}
+          {crisis}
         </form>
         ) : (
           replay.done && (

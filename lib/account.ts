@@ -12,6 +12,7 @@
  * data is gone, the fictional sheet stays in the shared episode. The tombstone can never collide with a
  * real user: real ids are UUIDs (lib/http readUserId).
  */
+import { deleteAdultProfile } from "./adult/profile-data";
 import type { Db } from "./db";
 import { getPoints } from "./game";
 import { DELETED_OWNER } from "./rules";
@@ -356,6 +357,9 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   // 1. The private souls of this user's characters (the most sensitive personal data), before any
   //    character is kept as a tombstone.
   await run("delete from souls where character_id in (select id from characters where owner_id = $1)", [userId]);
+  // The After Dark profile (turn-ons and hard nos, "sex life" data: lib/adult/profile-data.ts), before any character is
+  // kept as a tombstone with its row.
+  await deleteAdultProfile(db, userId);
 
   // 2. Characters never used in an episode: hard delete (cascades assets, relationships, proposals).
   const charactersDeleted = await returning(

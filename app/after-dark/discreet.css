@@ -43,14 +43,20 @@
 .ad-pin-forgot {
   margin: var(--space-3) 0;
 }
-.ad-privacy-pin {
+.ad-privacy-pin,
+.ad-privacy-profile {
   margin: var(--space-4) 0 0;
   padding: 0;
   border: 0;
 }
-.ad-privacy-pin legend {
+.ad-privacy-pin legend,
+.ad-privacy-profile legend {
   padding: 0;
   font-weight: 700;
+}
+/* "Delete my After Dark profile": the download and the delete (lib/adult/profile-data.ts). */
+.ad-privacy-profile .danger {
+  color: var(--bad-text);
 }
 .ad-privacy-actions {
   display: flex;

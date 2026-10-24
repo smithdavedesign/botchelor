@@ -14,6 +14,7 @@
  * Hive is over its daily limit (lib/adult/hive-limit.ts, shared with After Dark): then no set is drawn or checked at all.
  */
 import { after } from "next/server";
+import { markAiImage } from "./ai-mark";
 import { canonicalSet, closestSet } from "./adult/continuity";
 import { hivePausedUntil } from "./adult/hive-limit";
 import { checkMedia, checkReady, isVerdict } from "./adult/moderation";
@@ -190,7 +191,8 @@ async function draw(db: Db, normalized: string, label: string): Promise<SetStatu
   if (!file.ok) return failed(db, normalized, `download ${file.status}`);
   const bytes = Buffer.from(await file.arrayBuffer());
   if (bytes.length > MAX_BYTES) return failed(db, normalized, "file too large");
-  const picture = { mime: file.headers.get("content-type") ?? "image/jpeg", bytes };
+  // Stored with the machine-readable "AI-generated" mark (lib/ai-mark.ts, EU AI Act Art. 50).
+  const picture = { mime: file.headers.get("content-type") ?? "image/jpeg", bytes: markAiImage(bytes) };
   // No verdict (a rate limit, an outage): the picture is kept, never shown, and only checked again later.
   if (!verdict.ok) return failed(db, normalized, UNCHECKED.test(verdict.reason) && !verdict.reason.startsWith(UNCHECKED_PREFIX) ? UNCHECKED_PREFIX + verdict.reason : verdict.reason, picture);
   return done("ready", null, picture);

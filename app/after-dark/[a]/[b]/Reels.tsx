@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
+import { AiTag } from "@/app/AiLabel";
 import { archivedClip, clipChains, keepGoingFrom, playable } from "@/lib/adult/clip-chains";
 import type { BusyReel, Reel, ReelShot } from "@/lib/adult/reels";
 import { chaptersLabel } from "@/lib/adult/nights";
@@ -554,6 +555,7 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
   return (
     <figure className="after-dark-reel">
       <div ref={stage} className={`ad-reel-stage${theater ? " ad-reel-theater" : ""}`}>
+        <AiTag over />
         {players.map((ref, n) => (
           <video
             key={n}

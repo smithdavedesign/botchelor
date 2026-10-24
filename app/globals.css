@@ -996,6 +996,92 @@ button.chosen {
   vertical-align: middle;
 }
 
+/* ---------------- AI labels and the crisis notice (app/AiLabel.tsx, app/CrisisNotice.tsx) ---------------- */
+
+/* "AI-generated" beside a generated picture or video: quiet, never louder than the thing it labels. */
+.ai-tag {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+/* On the picture's own corner (its parent is positioned). */
+.ai-tag-over {
+  position: absolute;
+  left: var(--space-2);
+  top: var(--space-2);
+  z-index: 2;
+  border-color: transparent;
+  background: rgba(10, 6, 18, 0.62);
+  color: #fff;
+  pointer-events: none;
+}
+/* The one line where people meet characters. */
+.ai-fiction {
+  margin: var(--space-2) 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+/* At the foot of every After Dark page (app/after-dark/Frame.tsx). */
+.ai-fiction.ad-ai-fiction {
+  margin: var(--space-4) auto;
+  padding: 0 var(--space-4);
+  text-align: center;
+}
+/* Under the text thread, above the compose bar: always there, never in the way. */
+.ai-fiction.phone-ai-line {
+  margin: 0;
+  padding: 0.2rem var(--space-3);
+  text-align: center;
+  font-size: var(--text-2xs);
+}
+/* Under the looks builder's picture grid. */
+.ai-fiction.looks-ai-note {
+  text-align: center;
+}
+/* The consent box before turn-ons or hard nos are stored (lib/adult/profile.ts PROFILE_CONSENT_TEXT). */
+.ad-consent {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: var(--space-3) 0;
+  font-size: var(--text-sm);
+}
+.ad-consent.needs-tick span {
+  color: var(--bad-text);
+}
+
+/* Shown when someone's own words read as wanting to hurt themselves (lib/crisis.ts). Calm, not an alarm. */
+.crisis-notice {
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent-2);
+  border-radius: var(--control-radius, 12px);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+.crisis-notice p {
+  margin: 0 0 var(--space-2);
+}
+.crisis-notice ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.crisis-notice li {
+  margin: 0.15rem 0;
+}
+
 /* The dealt venue (lib/venues.ts), painted with its own backdrop gradient behind the location's name. */
 .venue {
   display: block;
