@@ -24,6 +24,7 @@ import { checkAdultText } from "../safety";
 import { checkOutput } from "./check";
 import { fallbackNote, providerError, runMedia, type Ran } from "./fallback";
 import { hiveGate, hivePausedMessage, HivePausedError, hivePausedUntil, underHiveLimit } from "./hive-limit";
+import { attireOf, nudeSql } from "./attire";
 import { PICTURE_PRESETS, type PresetId } from "./rating-tags";
 import { runModel } from "./replicate";
 import { choosePreset, faceReferenceId, NO_STEERING, steeringFor, withSteering } from "./steering";
@@ -47,6 +48,8 @@ export type Media = {
   rating?: 1 | -1 | null;
   tags?: string[];
   face?: boolean;
+  /** A baseline drawn nude (lib/adult/attire.ts): the gallery says "undressed". */
+  nude?: boolean;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -221,8 +224,9 @@ const UNDRESSED_FROM = 3;
  * face reference for every later picture of them, and a face-detection model needs to find it. In the outfit they
  * picked (a swimsuit stays a swimsuit), nude when they picked none or Nude.
  */
-export function baselinePrompt(c: Character, viewer?: string | null, light = "natural light"): string {
-  const { outfit } = picks(c, viewer);
+export function baselinePrompt(c: Character, viewer?: string | null, light = "natural light", opts: { nude?: boolean } = {}): string {
+  // `nude`: the nude baseline a character who wears something has too, for undressed moments (lib/adult/attire.ts).
+  const outfit = opts.nude ? null : picks(c, viewer).outfit;
   const [opener, worn] = outfit ? ["Uncensored adult photograph", `Wearing ${outfit}`] : ["Explicit, uncensored adult photograph", "Nude"];
   // The framing never changes (waist-up, facing the camera, the face clear): it's the face every later picture keeps.
   // Only the light does (lib/adult/rating-tags.ts PICTURE_PRESETS: "draw three to pick from").
@@ -388,9 +392,10 @@ async function storePicture(
   const chapter = opts.scene_chapter ?? null;
   const place = opts.scene_place?.slice(0, 120) ?? null;
   const preset = opts.preset ?? null;
+  const attire = attireOf(opts.kind, opts.prompt);
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place, provider, fell_back, model, preset) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place, made.provider, made.fell_back, made.model ?? null, preset],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place, provider, fell_back, model, preset, attire) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place, made.provider, made.fell_back, made.model ?? null, preset, attire],
   );
   return {
     id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null, chapter, place,
@@ -403,12 +408,12 @@ async function storePicture(
  * their look as it is now (picks changed since the first one are in). Each is checked like any picture; one that doesn't
  * come through is left out and said why. The viewer picks one as the face (lib/adult/steering.ts setFaceReference).
  */
-export async function drawBaselineChoices(db: Db, ownerId: string, c: Character): Promise<{ pictures: Media[]; failed: string[] }> {
+export async function drawBaselineChoices(db: Db, ownerId: string, c: Character, opts: { nude?: boolean } = {}): Promise<{ pictures: Media[]; failed: string[] }> {
   const pictures: Media[] = [];
   const failed: string[] = [];
   for (const p of PICTURE_PRESETS) {
     try {
-      pictures.push(await makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId, p.light), kind: "baseline", character_id: c.id, preset: p.id }));
+      pictures.push(await makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId, p.light, opts), kind: "baseline", character_id: c.id, preset: p.id }));
     } catch (e) {
       // Hive out for the day, or this month's pictures used up (lib/adult/usage.ts overCap): the rest would fail the same way.
       if (e instanceof HivePausedError) throw e;
@@ -424,6 +429,21 @@ export async function ensureBaseline(db: Db, ownerId: string, c: Character): Pro
   const have = (await db.query<{ id: string }>(`select id from adult_images where character_id = $1 and kind = 'baseline' and status = 'ready' limit 1`, [c.id])).rows[0];
   if (have) return null;
   return makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId), kind: "baseline", character_id: c.id });
+}
+
+/**
+ * The character's nude baseline, for undressed moments (lib/adult/attire.ts), made the first time it's needed: the same
+ * look and framing as their baseline, without the outfit. A character who wears nothing has one already, their baseline.
+ */
+export async function ensureNudeBaseline(db: Db, ownerId: string, c: Character): Promise<Media | null> {
+  const have = (
+    await db.query<{ id: string }>(
+      `select id from adult_images where character_id = $1 and character_b is null and kind = 'baseline' and status = 'ready' and ${nudeSql("adult_images")} limit 1`,
+      [c.id],
+    )
+  ).rows[0];
+  if (have) return null;
+  return makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId, undefined, { nude: true }), kind: "baseline", character_id: c.id });
 }
 
 /**
@@ -521,10 +541,12 @@ export async function listMedia(db: Db, ids: string[], viewerId: string | null =
   const { rows } = await db.query<Media & { face_of: string | null }>(
     `select i.id, i.character_id, i.character_b, i.kind, i.status, i.created_at, i.mime, (i.kind <> 'video' and i.remote_url is not null) as clip,
             i.scene_chapter as chapter, i.scene_place as place, i.provider, coalesce(i.fell_back, false) as fell_back, i.preset,
-            r.rating, coalesce(r.tags, '[]'::jsonb) as tags, f.character_id as face_of
+            r.rating, coalesce(r.tags, '[]'::jsonb) as tags, coalesce(f.character_id, n.character_id) as face_of,
+            (i.kind = 'baseline' and ${nudeSql("i")}) as nude
        from adult_images i
        left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $2
        left join adult_face_refs f on f.image_id = i.id and f.owner_id = $2
+       left join adult_nude_refs n on n.image_id = i.id and n.owner_id = $2
       where i.character_id = any($1) and (i.character_b is null or i.character_b = any($1)) and i.kind not in ('frame', 'audio')
         and ($2::text is null or i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
         and (i.kind <> 'video' or not exists (

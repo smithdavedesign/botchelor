@@ -13,8 +13,11 @@ const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 /** A tag as the line under a face says it: "odd pose", "jerky or morphing". */
 const tagWords = (t: RatingTag) => ((PICTURE_TAGS as Record<string, string>)[t] ?? (VIDEO_TAGS as Record<string, string>)[t] ?? t).toLowerCase();
 
-/** Each one's face for this viewer (lib/adult/steering.ts facesFor), and whether they picked it. */
-export type Faces = Record<string, { image_id: string | null; picked: boolean }>;
+/**
+ * Each one's faces for this viewer (lib/adult/steering.ts facesFor), and whether they picked them: the face everything
+ * keeps, and for a character who wears something, the nude one their undressed moments start from (lib/adult/attire.ts).
+ */
+export type Faces = Record<string, { image_id: string | null; picked: boolean; nude?: { image_id: string | null; picked: boolean } | null }>;
 
 /**
  * The face each of them keeps (lib/adult/steering.ts): every picture and video of them starts from it. It's the one
@@ -36,8 +39,8 @@ export default function FacesPanel({
   characters: [CharacterRef, CharacterRef];
   faces: Faces;
   gallery: Media[];
-  /** Picks a face (null: back to the default), with the others it was picked from; resolves to what went wrong, or null. */
-  onFace: (characterId: string, imageId: string | null, rivals?: string[]) => Promise<string | null>;
+  /** Picks a face (null: back to the default, the nude one's with `nude`), with the others it was picked from; resolves to what went wrong, or null. */
+  onFace: (characterId: string, imageId: string | null, rivals?: string[], opts?: { nude?: boolean }) => Promise<string | null>;
   steer?: Record<string, SteerSummary>;
   onSteerReset?: (characterId: string, next: SteerSummary) => void;
   onPictures: (pictures: Media[]) => void;
@@ -83,24 +86,27 @@ function FaceCard({
   character: CharacterRef;
   face: Faces[string];
   gallery: Media[];
-  onFace: (characterId: string, imageId: string | null, rivals?: string[]) => Promise<string | null>;
+  onFace: (characterId: string, imageId: string | null, rivals?: string[], opts?: { nude?: boolean }) => Promise<string | null>;
   steer: SteerSummary;
   onSteerReset?: (characterId: string, next: SteerSummary) => void;
   onPictures: (pictures: Media[]) => void;
   paused: string | null;
 }) {
-  const [drawing, setDrawing] = useState(false);
+  const [drawing, setDrawing] = useState<"dressed" | "nude" | null>(null);
   const [choices, setChoices] = useState<Media[]>([]);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   // Shown when the viewer can open it: one of theirs (another's, the show's own, is used but not shown).
-  const shown = face.image_id && gallery.some((m) => m.id === face.image_id) ? face.image_id : null;
+  const canOpen = (id: string | null | undefined) => (id && gallery.some((m) => m.id === id) ? id : null);
+  const shown = canOpen(face.image_id);
+  const nudeShown = canOpen(face.nude?.image_id);
 
-  async function draw() {
-    setDrawing(true);
+  /** Three to pick from: dressed (their outfit), or nude for the face of their undressed moments. */
+  async function draw(nude = false) {
+    setDrawing(nude ? "nude" : "dressed");
     setNote(null);
-    const res = await requestJson("/api/admin/after-dark/baselines", { character_id: character.id }).catch(() => null);
-    setDrawing(false);
+    const res = await requestJson("/api/admin/after-dark/baselines", { character_id: character.id, ...(nude ? { nude: true } : {}) }).catch(() => null);
+    setDrawing(null);
     if (!res) return setNote("That didn't reach the server. Check your connection and try again.");
     if (!res.ok) return setNote(res.message);
     const pictures = (res.data.pictures as Media[] | undefined) ?? [];
@@ -111,11 +117,11 @@ function FaceCard({
   }
 
   /** Keeps a face; picked from the three, the other two tell the light test which lights were passed over. */
-  async function use(id: string | null) {
+  async function use(id: string | null, opts: { nude?: boolean } = {}) {
     setBusy(true);
     setNote(null);
     const rivals = id && choices.some((m) => m.id === id) ? choices.filter((m) => m.id !== id).map((m) => m.id) : [];
-    const error = await onFace(character.id, id, rivals);
+    const error = await onFace(character.id, id, rivals, opts);
     setBusy(false);
     if (error) return setNote(error);
     if (id) setChoices([]);
@@ -155,11 +161,11 @@ function FaceCard({
         <button
           type="button"
           className="secondary small"
-          disabled={drawing || Boolean(paused)}
+          disabled={Boolean(drawing) || Boolean(paused)}
           title={paused ?? "Three waist-up pictures, one in each light. Uses three of this month's pictures."}
           onClick={() => void draw()}
         >
-          {drawing ? "Drawing three (about a minute)…" : "Draw three to pick from"}
+          {drawing === "dressed" ? "Drawing three (about a minute)…" : "Draw three to pick from"}
         </button>
         {face.picked && (
           <button type="button" className="button-ghost small" disabled={busy} onClick={() => void use(null)}>
@@ -178,14 +184,44 @@ function FaceCard({
           </button>
         )}
       </div>
+      {face.nude && (
+        // Wearing something, they have a nude face too: undressed moments (the night at sex) start from it, since a
+        // picture made from the dressed one keeps what it wears (lib/adult/attire.ts).
+        <div className="ad-face-nude">
+          <p className="muted small">
+            <strong>In intimate scenes:</strong>{" "}
+            {face.nude.picked ? "the nude picture you picked." : face.nude.image_id ? "their nude picture, picked for you." : "a nude picture of them, drawn the first time one is needed."}
+          </p>
+          {nudeShown && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className="ad-face-pic is-nude" src={mediaUrl(nudeShown)} alt={`The face kept for ${character.name} in intimate scenes`} loading="lazy" />
+          )}
+          <div className="ad-face-actions">
+            <button
+              type="button"
+              className="secondary small"
+              disabled={Boolean(drawing) || Boolean(paused)}
+              title={paused ?? "Three nude waist-up pictures, one in each light, for their intimate scenes. Uses three of this month's pictures."}
+              onClick={() => void draw(true)}
+            >
+              {drawing === "nude" ? "Drawing three (about a minute)…" : "Draw three, undressed"}
+            </button>
+            {face.nude.picked && (
+              <button type="button" className="button-ghost small" disabled={busy} onClick={() => void use(null, { nude: true })}>
+                Let it pick for me
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {choices.length > 0 && (
         <ul className="ad-face-choices">
           {choices.map((m) => (
             <li key={m.id}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={mediaUrl(m.id)} alt={`A face to pick for ${character.name}`} />
-              <button type="button" className="secondary small" disabled={busy || face.image_id === m.id} onClick={() => void use(m.id)}>
-                {face.image_id === m.id ? "✓ Their face" : "Use this face"}
+              <button type="button" className="secondary small" disabled={busy || face.image_id === m.id || face.nude?.image_id === m.id} onClick={() => void use(m.id)}>
+                {face.image_id === m.id || face.nude?.image_id === m.id ? "✓ Their face" : "Use this face"}
               </button>
             </li>
           ))}

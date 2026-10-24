@@ -110,6 +110,14 @@ async function seed(scenePath) {
     await put("steer-base-b", b, null, "baseline", "image/webp", media.portrait(b), 90, "natural");
     for (const id of [a, b]) for (const light of ["natural", "warm", "studio"]) await put(`steer-pick-${light}-${id}`, id, null, "baseline", "image/png", media.lit(id, light), 80, light);
     await put("steer-scene-a", a, null, "scene", "image/png", media.lit(a, "warm"), 40, "warm");
+    // One of them wears something (a casual outfit), so the faces panel shows the face of their intimate scenes too: a
+    // nude baseline, here a PG stand-in marked nude (lib/adult/attire.ts).
+    await db.query(
+      `update characters set extras = coalesce(extras, '{}'::jsonb) || jsonb_build_object('looks', jsonb_build_object('gender', case when pronouns like 'she%' then 'woman' else 'man' end, 'outfit', 'casual')) where id = $1`,
+      [a],
+    );
+    await put("steer-nude-a", a, null, "baseline", "image/png", media.lit(a, "studio"), 70, "studio");
+    await db.query("update adult_images set attire = 'nude' where id = 'steer-nude-a'");
     await put("steer-scene-ab", a, b, "scene", "image/png", media.still, 35);
     // A 👎 on her scene picture: what was off, open.
     await db.query("insert into adult_media_thumbs (owner_id, media_id, rating, tags) values ($1, 'steer-scene-a', -1, '[\"face\", \"blurry\"]'::jsonb)", [owner]);
@@ -238,6 +246,11 @@ async function main() {
         await under(page, ".ad-faces");
         await shot(page, "after-dark-faces-picked-desktop");
       }
+      // The one who wears something has the face of their intimate scenes, with its own Draw three.
+      await faces.locator(".ad-face-nude").getByRole("button", { name: "Draw three, undressed" }).waitFor({ timeout: 15_000 });
+      await under(page, ".ad-face-nude");
+      if (size === "phone") await noSideways(page, "the intimate-scenes face");
+      await shot(page, `after-dark-faces-nude-${size}`);
       // The gallery: 👍/👎 on each, what's off open on the 👎, Use this face on a picture of one of them alone.
       await page.locator(".after-dark-gallery .ad-rate-tags").first().waitFor({ timeout: 15_000 });
       await under(page, ".after-dark-gallery li:has(.ad-rate-tags)");
