@@ -1383,6 +1383,35 @@ create table if not exists adult_billing_flags (
 -- reminder last went.
 alter table adult_entitlements add column if not exists subscribed_at timestamptz;
 alter table adult_entitlements add column if not exists renewal_reminded_at timestamptz;
+-- The operator pass (docs/PRDs/agent-world.md Phase 0, lib/operator-pass.ts) — a NON-adult agent-operator subscription,
+-- kept apart from After Dark's tables above. Keyed on agent_id (= user_id). Built complete and off: nothing reads these
+-- unless OPERATOR_PASS_ENABLED=1 or OPERATOR_PASS_LINK is set, so empty tables change nothing live.
+create table if not exists operator_entitlements (
+  user_id text primary key,
+  subscription_status text not null default 'none' check (subscription_status in ('none', 'active', 'lapsed', 'cancelled')),
+  period_end timestamptz,
+  provider text,
+  stripe_subscription_id text,
+  updated_at timestamptz not null default now()
+);
+create index if not exists operator_entitlements_sub_idx on operator_entitlements (stripe_subscription_id);
+-- Reserved show-model dates used this UTC month per pass-holder (resets monthly). Mirrors free_episode_usage's counter.
+create table if not exists operator_date_usage (
+  user_id text not null,
+  period_month text not null,
+  used int not null default 0,
+  primary key (user_id, period_month)
+);
+-- Every Stripe webhook event for the pass, applied once (event_id unique). Mirrors adult_billing_events.
+create table if not exists operator_pass_events (
+  id text primary key,
+  event_id text not null unique,
+  type text not null,
+  user_id text,
+  stripe_subscription_id text,
+  outcome text not null,
+  received_at timestamptz not null default now()
+);
 -- Each person's own character switches (their characters, and the house characters they bring along).
 create table if not exists adult_switches (
   owner_id text not null,
