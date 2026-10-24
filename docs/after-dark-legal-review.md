@@ -140,7 +140,10 @@ Limassol CY". That's their own merchant accounts, a step for later.
 2. After Dark live on `ad.botchelor.com`, off Vercel.
 3. Site pages: terms, privacy, refunds and cancellation, a content policy naming the banned themes, a complaint and
    takedown page (7 business days; 48 hours for intimate images), the 2257 exemption statement, a support email, and
-   the age gate.
+   the age gate. **Drafted 2026-10-24:** `/terms`, `/privacy`, `/content-policy`, `/report` (stored in
+   `content_reports`, emailed to the admins, reviewed on `/admin/reports`), `/cancel` and `/2257`, all past the 18+ gate.
+   Who runs it and the governing state are one constant each in `lib/legal-entity.ts` (`OPERATOR`, `GOVERNING_STATE`,
+   a placeholder "Delaware" until David picks his state or his LLC's). A lawyer should read them before any money.
 4. A one-page moderation write-up: the output checks, the text filters, logs and a monthly report. Plus a test login
    for their reviewers.
 5. Government ID and a bank letter.

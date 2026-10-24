@@ -60,6 +60,8 @@ export type AccountExport = {
   email: Record<string, unknown>[];
   /** Feedback they sent from the site (lib/user-feedback.ts): what they wrote and what was captured with it. */
   feedback: Record<string, unknown>[];
+  /** Complaints and takedown requests they sent from /report (lib/content-reports.ts), and what became of them. */
+  content_reports: Record<string, unknown>[];
   /** Their choice on machine-learning use of their data (lib/ml-consent.ts). */
   ml_consent: Record<string, unknown>[];
   /** The cards their characters' decks showed them (lib/swipes.ts logImpressions). */
@@ -193,6 +195,10 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
     ),
     feedback: await q(
       "select created_at, category, rating, message, email, page, viewport, version, user_agent from user_feedback where user_id = $1 order by created_at",
+      [userId],
+    ),
+    content_reports: await q(
+      "select created_at, category, target, details, contact_email, status, decided_at from content_reports where reporter_id = $1 order by created_at",
       [userId],
     ),
     ml_consent: await q("select granted, version, decided_at from ml_consents where user_id = $1", [userId]),
@@ -409,6 +415,8 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from second_date_requests where user_id = $1", [userId]);
   await run("delete from date_proposals where from_user = $1 or to_user = $1", [userId]);
   await run("delete from user_feedback where user_id = $1", [userId]);
+  // A complaint or takedown request stays as the record of what was reported and what we did; who sent it doesn't.
+  await run("update content_reports set reporter_id = null, contact_email = null where reporter_id = $1", [userId]);
   await run("delete from profiles where user_id = $1", [userId]);
   await deleteAfterDarkData(db, userId);
   await run("delete from accounts where user_id = $1", [userId]);
@@ -421,7 +429,8 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["adult_media_ratings", "user_id"], ["adult_media_thumbs", "owner_id"], ["adult_short_views", "user_id"], ["adult_short_calls", "user_id"],
   ["adult_beats", "owner_id"], ["adult_monologues", "owner_id"], ["adult_voice_lines", "owner_id"], ["adult_reels", "owner_id"],
   ["adult_steps", "owner_id"], ["adult_facts", "owner_id"], ["adult_memories", "owner_id"], ["adult_rejections", "owner_id"],
-  ["adult_light_picks", "owner_id"], ["adult_face_refs", "owner_id"], ["adult_nude_refs", "owner_id"], ["adult_images", "owner_id"],
+  ["adult_light_picks", "owner_id"], ["adult_face_refs", "owner_id"], ["adult_nude_refs", "owner_id"], ["adult_identity", "owner_id"],
+  ["adult_images", "owner_id"], ["adult_studio_shoots", "owner_id"],
   ["adult_steer_resets", "owner_id"], ["adult_shorts", "owner_id"], ["adult_nights", "owner_id"], ["adult_scenes", "owner_id"],
   ["adult_characters", "owner_id"], ["adult_switches", "owner_id"], ["adult_usage", "owner_id"], ["adult_privacy", "user_id"],
   ["adult_entitlements", "user_id"], ["adult_viewer_places", "user_id"],

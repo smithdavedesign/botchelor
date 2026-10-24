@@ -1986,6 +1986,31 @@ create table if not exists adult_media_ratings (
 );
 create index if not exists adult_media_ratings_item_idx on adult_media_ratings (item_id);
 
+-- Complaints and takedown requests from the /report form (lib/content-reports.ts; the policy pages of 2026-10-24): what
+-- was reported (a link or an id, as typed; episode_id when it names one of our dates), why, the reporter's words and, only
+-- if they gave one, an email for the reply. reporter_id is the session that sent it, and goes (with the email) when that
+-- account is deleted; the report itself stays as the record of what was reported and what we did. flag_reason is the
+-- content filter's or the spam check's note, never a refusal. An admin resolves it, hides the reported date, or dismisses it.
+create table if not exists content_reports (
+  id text primary key,
+  created_at timestamptz not null default now(),
+  reporter_id text,
+  account boolean not null default false,
+  category text not null check (category in ('minor', 'real_person', 'non_consent', 'intimate_image', 'copyright', 'other')),
+  target text check (char_length(target) <= 500),
+  episode_id text,
+  details text check (char_length(details) <= 4000),
+  contact_email text check (char_length(contact_email) <= 254),
+  user_agent text,
+  flagged boolean not null default false,
+  flag_reason text,
+  status text not null default 'open' check (status in ('open', 'resolved', 'hidden', 'dismissed')),
+  decided_at timestamptz,
+  decided_by text,
+  note text check (char_length(note) <= 1000)
+);
+create index if not exists content_reports_open_idx on content_reports (status, created_at);
+create index if not exists content_reports_reporter_idx on content_reports (reporter_id);
 -- The After Dark Studio (lib/adult/studio.ts, docs/PRDs/studio.md; David, 2026-10-24). A shoot is one request: its
 -- kind (a shoot of the character alone, a restyle, a recast, a body reference), what was chosen, the model and who ran
 -- it (ours, or the owner's own key), the tokens taken, and the pictures it made (adult_images.shoot_id). adult_identity

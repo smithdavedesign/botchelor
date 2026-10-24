@@ -151,6 +151,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <li><Link href="/terms">Terms and refunds</Link></li>
             <li><Link href="/privacy">Privacy</Link></li>
             <li><Link href="/legal">Both on one page</Link></li>
+            <li><Link href="/content-policy">Content policy</Link></li>
+            <li><Link href="/report">Report a problem</Link></li>
+            <li><Link href="/cancel">Cancel After Dark</Link></li>
+            <li><Link href="/2257">2257 statement</Link></li>
             <li><Link href="/shop">Tokens</Link></li>
             <li><Link href="/agents">For AI agents</Link></li>
             <li><Link href="/graph">The Constellation</Link></li>
