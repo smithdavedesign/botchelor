@@ -114,6 +114,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         video_model: { type: "string", maxLength: 120, description: "A fal.ai video model id." },
         image_base: { type: "string", maxLength: 160, description: "For fal-ai/lora: the Hugging Face id of the base model." },
         auto_scene_pictures: { type: "boolean", description: "A picture of the pair each time a chapter starts or the place changes (on by default)." },
+        beat_pictures: { type: "boolean", description: "A picture of each moment that matters (undressing, sex, each new position, the climax, the afterglow), drawn when the chapter closes if the viewer never asked for it (on by default)." },
         media_provider: { type: "string", enum: ["venice", "replicate"], description: "Where pictures, keyframes, videos and voices are made." },
         media_fallback: {
           type: "boolean",
@@ -173,6 +174,7 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
     const patch: Record<string, unknown> = {};
     if (typeof args.enabled === "boolean") patch.enabled = args.enabled;
     if (typeof args.auto_scene_pictures === "boolean") patch.auto_scene_pictures = args.auto_scene_pictures;
+    if (typeof args.beat_pictures === "boolean") patch.beat_pictures = args.beat_pictures;
     for (const k of ["text_model", "image_model", "video_model", "image_base"]) if (typeof args[k] === "string" && (args[k] as string).trim()) patch[k] = (args[k] as string).trim();
     if (args.media_provider === "venice" || args.media_provider === "replicate") patch.media_provider = args.media_provider;
     if (typeof args.media_fallback === "boolean") patch.media_fallback = args.media_fallback;

@@ -135,6 +135,12 @@ export type AdultSettings = {
    */
   auto_scene_pictures: boolean;
   /**
+   * A picture of each moment that matters (lib/adult/beats.ts; David, 2026-10-24): undressing, sex, each new position, the
+   * climax, the afterglow, offered as the theater plays and drawn at the chapter's close if never asked for. On unless
+   * turned off (a null column is on).
+   */
+  beat_pictures: boolean;
+  /**
    * When the media provider is limited (429, 402, down), the same job runs once on the other one (lib/adult/fallback.ts;
    * David, 2026-10-22). On unless turned off (a null column is on).
    */
@@ -181,6 +187,7 @@ type Row = {
   replicate_nonce: string | null;
   replicate_last4: string | null;
   auto_scene_pictures: boolean | null;
+  beat_pictures: boolean | null;
   media_fallback: boolean | null;
 };
 
@@ -226,6 +233,7 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     replicate_last4: r?.replicate_last4 ?? null,
     replicate_from_env: !r?.replicate_last4 && envReplicate(env) !== null,
     auto_scene_pictures: r?.auto_scene_pictures ?? true,
+    beat_pictures: r?.beat_pictures ?? true,
     media_fallback: r?.media_fallback ?? true,
   };
 }
@@ -300,6 +308,7 @@ export type SettingsPatch = {
   replicate_video_lora?: string;
   replicate_key?: string;
   auto_scene_pictures?: boolean;
+  beat_pictures?: boolean;
   media_fallback?: boolean;
 };
 
@@ -354,6 +363,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
   if (patch.prompt_version !== undefined) put("prompt_version", patch.prompt_version);
   if (patch.media_provider !== undefined) put("media_provider", patch.media_provider);
   if (patch.auto_scene_pictures !== undefined) put("auto_scene_pictures", patch.auto_scene_pictures);
+  if (patch.beat_pictures !== undefined) put("beat_pictures", patch.beat_pictures);
   if (patch.media_fallback !== undefined) put("media_fallback", patch.media_fallback);
   for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);

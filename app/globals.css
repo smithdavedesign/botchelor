@@ -6858,6 +6858,42 @@ a.phone-head-btn {
   color: #e2c8ff;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
 }
+/* Beat pictures (lib/adult/beats.ts): the theater stops on a moment worth a picture and asks. */
+.ad-beat-offer {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  z-index: 4;
+  width: min(26rem, calc(100% - 32px));
+  padding: var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: rgba(16, 8, 22, 0.92);
+  color: #f4ecff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+.ad-beat-offer p {
+  margin: 0 0 var(--space-2);
+}
+.ad-beat-offer .muted {
+  display: block;
+  color: #cbb8e0;
+}
+.ad-beat-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ad-beat-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+}
 .ad-theater-bar {
   position: absolute;
   left: 0;

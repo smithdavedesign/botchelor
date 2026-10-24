@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
+import type { PublicBeat } from "@/lib/adult/beats";
 import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkTheater from "./AfterDarkTheater";
@@ -189,10 +190,30 @@ export default function SceneWriter({
     return true;
   }
 
+  /**
+   * Beat pictures (lib/adult/beats.ts): the viewer's answer to a moment worth a picture, or Picture this at a line. Apart
+   * from send(): nothing is written, so autoplay's "nothing new" stop doesn't apply.
+   */
+  async function beatAction(body: { beat: { id: string; answer: "now" | "later" } } | { picture_now: { line: number } }) {
+    const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
+    if (!res || !res.ok) {
+      setNote({ text: res ? res.message : "Network error. Try again.", error: true });
+      return;
+    }
+    setScene(res.data.scene as AdultScene);
+    const beat = res.data.beat as PublicBeat | undefined;
+    if (beat?.status === "drawing") {
+      lookForPictures();
+      setNote({ text: `📸 ${beat.label}: drawing it now. It lands in the gallery below in a minute or so.` });
+    }
+  }
+  // The moment the page is waiting on: the first offered, unanswered (the page shows every line at once).
+  const offered = (scene.beats ?? []).find((x) => x.status === "offered") ?? null;
+
   // Autoplay on the page (the theater paces it by what's left to play): a pause to read, then the next lines. Not while
-  // the tab is hidden, so a forgotten tab doesn't write all night.
+  // the tab is hidden, so a forgotten tab doesn't write all night. A moment offered for a picture waits for its answer.
   useEffect(() => {
-    if (!autoplay || theater || watching || busy) return;
+    if (!autoplay || theater || watching || busy || offered) return;
     const step = () => {
       if (document.visibilityState === "hidden") return document.addEventListener("visibilitychange", step, { once: true });
       void send({});
@@ -204,7 +225,7 @@ export default function SceneWriter({
     };
     // send is a fresh closure each render; the scene it writes from changes with `busy`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoplay, theater, watching, busy]);
+  }, [autoplay, theater, watching, busy, offered]);
   // Following along: while the end is in view, each step's new lines scroll in.
   const lineCount = scene.lines.length;
   useEffect(() => {
@@ -246,6 +267,9 @@ export default function SceneWriter({
           onSetScene={async (place) => void (await send({ set_scene: place }))}
           suggestions={scene.suggestions}
           onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
+          beats={scene.beats ?? []}
+          onBeat={(id, answer) => beatAction({ beat: { id, answer } })}
+          onPictureNow={(line) => beatAction({ picture_now: { line } })}
           onMakeVideo={(scope) => makeVideo(scope)}
           videoChapters={runningNight(
             nightList.map((n) => ({ id: n.id, chapter: n.chapter, created_at: n.created_at, lines: n.lines.length })),
@@ -292,6 +316,18 @@ export default function SceneWriter({
         </p>
       )}
       <span ref={endRef} aria-hidden="true" />
+      {offered && !theater && (
+        <div className="ad-beat-banner" role="status">
+          <strong>📸 {offered.label}</strong>
+          <span className="muted small">Picture this moment? It&apos;s drawn from the last few lines.</span>
+          <button type="button" className="primary small" onClick={() => void beatAction({ beat: { id: offered.id, answer: "now" } })}>
+            Picture it
+          </button>
+          <button type="button" className="button-ghost small" onClick={() => void beatAction({ beat: { id: offered.id, answer: "later" } })} title="Carry on. Picture this whenever you like; if you never do, it's drawn when the chapter ends.">
+            Not now
+          </button>
+        </div>
+      )}
       {/* Sticks to the bottom of the screen while it's scrolled past, until it reaches its own place under the lines. */}
       <form className="after-dark-form" onSubmit={onSubmit}>
         {!atEnd && scene.lines.length > 8 && (
@@ -376,6 +412,17 @@ export default function SceneWriter({
           <label className="after-dark-autoplay" title="It carries on by itself, no button needed, until the chapter ends">
             <input type="checkbox" checked={autoplay} onChange={(e) => switchAutoplay(e.target.checked)} /> Autoplay
           </label>
+          {scene.lines.length > 0 && (
+            <button
+              type="button"
+              className="button-ghost small"
+              disabled={busy || Boolean(mediaPaused)}
+              onClick={() => void beatAction({ picture_now: { line: scene.lines.length - 1 } })}
+              title={mediaPaused ?? "A picture of the two of them as the scene stands now, from the last few lines"}
+            >
+              📸 Picture this
+            </button>
+          )}
           {(scene.lines.length > 0 || Boolean(scene.rewind?.depth)) && (
             <div className={`ad-more${more ? " open" : ""}`}>
               <button type="button" className="button-ghost small ad-more-toggle" aria-expanded={more} onClick={() => setMore((v) => !v)}>
