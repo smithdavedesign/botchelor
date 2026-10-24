@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { FRAMINGS } from "@/lib/adult/acts";
 import { adultViewer } from "@/lib/adult/mode";
+import { mediaRefusal } from "@/lib/adult/place";
 import { removeShare, sharePicture } from "@/lib/adult/shares";
 import {
   bodyShoot,
@@ -80,6 +81,9 @@ export const GET = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const q = new URL(req.url).searchParams;
   const character = q.get("character") ?? "";
   const partner = q.get("partner");
@@ -96,6 +100,9 @@ export const POST = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const input = parseBody(Input, await readJson(req), "invalid_request");
   const base = requestBase(req);
   const after = async (characterId: string, extra: Record<string, unknown>) => {

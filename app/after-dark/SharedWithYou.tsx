@@ -8,9 +8,10 @@ type Shared = { shares: IncomingShare[]; auto_accept: boolean };
 
 /**
  * What's been shared with you in After Dark (lib/adult/shares.ts): a request shows no picture until you accept it, and
- * either of you can take a picture away again. Shares from characters yours have dated can skip the asking.
+ * either of you can take a picture away again. Shares from characters yours have dated can skip the asking. Where only
+ * the scenes are allowed (`textOnly`, lib/jurisdiction.ts), the pictures aren't shown: why instead.
  */
-export default function SharedWithYou({ initial }: { initial: Shared }) {
+export default function SharedWithYou({ initial, textOnly = null }: { initial: Shared; textOnly?: string | null }) {
   const [s, setS] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +48,12 @@ export default function SharedWithYou({ initial }: { initial: Shared }) {
           ))}
         </ul>
       )}
-      {accepted.length > 0 && (
+      {accepted.length > 0 && textOnly && (
+        <p className="muted small" data-text-only>
+          {accepted.length} picture{accepted.length === 1 ? "" : "s"} shared with you. {textOnly}
+        </p>
+      )}
+      {accepted.length > 0 && !textOnly && (
         <ul className="ad-studio-grid">
           {accepted.map((x) => (
             <li key={x.id} className="card ad-studio-item">
