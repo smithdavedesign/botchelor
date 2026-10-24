@@ -493,3 +493,19 @@ label.ad-check-row {
     margin-top: var(--space-1);
   }
 }
+
+/* The pair picker (app/after-dark/PairPicker.tsx): the picked one (and two), Start over, and the way in. */
+.ad-pair-picked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-2) 0 var(--space-3);
+}
+.ad-pair-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}

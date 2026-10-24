@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { notFound } from "next/navigation";
 import { afterDarkMetadata } from "@/lib/adult/discreet";
 import AfterDarkFrame from "./Frame";
 import Unavailable from "./Unavailable";
@@ -21,7 +22,12 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default async function AfterDarkLayout({ children }: { children: ReactNode }) {
   const here = await currentHere();
-  if (here.mode === "blocked") return <Unavailable reason={here.reason} />;
+  // Someone it isn't open to gets the same not-found as anywhere else (nothing says After Dark exists); someone it is
+  // open to is told why it won't open here.
+  if (here.mode === "blocked") {
+    if (!here.entitled.ok) notFound();
+    return <Unavailable reason={here.reason} />;
+  }
   return (
     <AfterDarkFrame view={await currentView()}>
       {here.mode === "text_only" && (

@@ -207,7 +207,7 @@ async function main() {
     const page = await ctx.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(`${app.base}/after-dark`);
-    const scenePath = (await page.locator(".after-dark li.card a").first().getAttribute("href")) ?? "";
+    const scenePath = (await page.locator("[data-first-scene]").getAttribute("data-first-scene")) ?? "";
     assert(scenePath.startsWith("/after-dark/"), "a pair to open");
     await page.goto(`${app.base}${scenePath}`);
     const before = await page.locator(".after-dark-lines li").count();

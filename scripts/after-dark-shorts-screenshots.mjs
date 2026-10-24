@@ -397,7 +397,7 @@ async function main() {
     const admin = await adminCtx.newPage();
     await desktop(admin);
     await admin.goto(`${app.base}/after-dark`);
-    const scenePath = (await admin.locator(".after-dark li.card a").first().getAttribute("href")) ?? "";
+    const scenePath = (await admin.locator("[data-first-scene]").getAttribute("data-first-scene")) ?? "";
     assert(scenePath.startsWith("/after-dark/"), "a pair to open");
     const pair = scenePath.split("/").slice(2, 4);
     // Their first names, from the pair's page ("{a} × {b}", lower id first, as the pair's lines are).

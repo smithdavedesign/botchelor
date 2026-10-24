@@ -616,7 +616,22 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
       {ready && shot?.media_id && (
         <figcaption className="ad-shot-bar">
           <span className="muted small">This shot:</span>
-          <RateMedia key={shot.media_id} id={shot.media_id} kind="video" rating={shot.rating ?? null} tags={shot.tags ?? []} />
+          <RateMedia
+            key={shot.media_id}
+            id={shot.media_id}
+            kind="video"
+            rating={shot.rating ?? null}
+            tags={shot.tags ?? []}
+            // A 👎 takes the shot out of its video (lib/adult/reels.ts shotsFollowRating): show the video without it.
+            onRated={() =>
+              shot.reel &&
+              onChange &&
+              void fetch(`/api/admin/after-dark/reel?id=${encodeURIComponent(shot.reel)}`)
+                .then((r) => r.json())
+                .then((res) => res?.reel && onChange(res.reel as Reel))
+                .catch(() => {})
+            }
+          />
           {onChange && (
             <button
               type="button"

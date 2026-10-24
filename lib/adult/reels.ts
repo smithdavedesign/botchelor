@@ -163,6 +163,8 @@ export type ReelShot = {
    * (lib/adult/clip-chains.ts playable).
    */
   archived_at?: string;
+  /** Archived by a 👎 on the shot (shotsFollowRating), so taking the 👎 back puts it back; one archived by hand stays. */
+  archived_by?: "rating";
   /** Read with the reel for the one watching, never stored in it: their 👍/👎 on the shot and what was off (lib/adult/steering.ts). */
   rating?: 1 | -1 | null;
   tags?: string[];
@@ -1532,6 +1534,41 @@ export type ArchiveResult = { ok: true; reel: Reel } | { ok: false; status: numb
  * (lib/adult/clip-chains.ts playable) until it's put back. Theirs only, and not while the video is still being made
  * (its poll rewrites the shots).
  */
+/**
+ * A 👎 on a shot takes it out of its video of the night, and taking the 👎 back (or a 👍) puts it back (David,
+ * 2026-10-24: "if the user downvotes a clip we should remove it from the highlight reel"). It's archived like
+ * archiveShot does (kept, never deleted, out of every player), marked archived_by: "rating" so only these come back on
+ * their own; a shot archived by hand stays archived. Reels still being made are left alone. Returns how many changed.
+ */
+export async function shotsFollowRating(db: Db, ownerId: string, mediaId: string, rating: 1 | -1 | 0): Promise<number> {
+  const rows = (
+    await db.query<{ id: string; shots: ReelShot[] }>(
+      `select id, shots from adult_reels where owner_id = $1 and status <> 'making' and shots @> $2::jsonb`,
+      [ownerId, JSON.stringify([{ media_id: mediaId }])],
+    )
+  ).rows;
+  let changed = 0;
+  for (const r of rows) {
+    let touched = false;
+    for (const shot of r.shots) {
+      if (shot.media_id !== mediaId || shot.status !== "ready") continue;
+      if (rating === -1 && !shot.archived_at) {
+        shot.archived_at = new Date().toISOString();
+        shot.archived_by = "rating";
+        touched = true;
+      } else if (rating !== -1 && shot.archived_by === "rating") {
+        delete shot.archived_at;
+        delete shot.archived_by;
+        touched = true;
+      }
+    }
+    if (!touched) continue;
+    await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status <> 'making'`, [r.id, JSON.stringify(r.shots)]);
+    changed++;
+  }
+  return changed;
+}
+
 export async function archiveShot(db: Db, ownerId: string, reelId: string, mediaId: string, archived: boolean): Promise<ArchiveResult> {
   const row = (await db.query<{ owner_id: string; status: string; shots: ReelShot[] }>(`select owner_id, status, shots from adult_reels where id = $1`, [reelId])).rows[0];
   if (!row || row.owner_id !== ownerId) return { ok: false, status: 404, error: "not_found", message: "There's no video of yours with that id." };
@@ -1540,6 +1577,8 @@ export async function archiveShot(db: Db, ownerId: string, reelId: string, media
   if (!shot) return { ok: false, status: 404, error: "not_found", message: "That video has no such shot." };
   if (archived) shot.archived_at ??= new Date().toISOString();
   else delete shot.archived_at;
+  // Archived or put back by hand: no longer the rating's to undo.
+  delete shot.archived_by;
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status <> 'making'`, [reelId, JSON.stringify(row.shots)]);
   const [reel] = await withRatings(db, ownerId, [(await getReel(db, reelId))!]);
   return { ok: true, reel };

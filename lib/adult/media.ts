@@ -51,6 +51,8 @@ export type Media = {
   face?: boolean;
   /** A baseline drawn nude (lib/adult/attire.ts): the gallery says "undressed". */
   nude?: boolean;
+  /** A video that's a shot of a video of the night (lib/adult/reels.ts), not a clip made from one picture. */
+  in_reel?: boolean;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -537,7 +539,10 @@ export async function pollClip(db: Db, id: string, viewerId: string): Promise<st
 const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.status, i.created_at, i.mime, (i.kind <> 'video' and i.remote_url is not null) as clip,
             i.scene_chapter as chapter, i.scene_place as place, i.provider, coalesce(i.fell_back, false) as fell_back, i.preset,
             r.rating, coalesce(r.tags, '[]'::jsonb) as tags, coalesce(f.character_id, n.character_id) as face_of,
-            (i.kind = 'baseline' and ${nudeSql("i")}) as nude
+            (i.kind = 'baseline' and ${nudeSql("i")}) as nude,
+            -- A shot of a video of the night (lib/adult/reels.ts), not a clip made from one picture: the gallery's sections.
+            (i.kind = 'video' and exists (select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
+                                           where v.owner_id = i.owner_id and s->>'media_id' = i.id)) as in_reel
        from adult_images i
        left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $2
        left join adult_face_refs f on f.image_id = i.id and f.owner_id = $2
@@ -574,7 +579,9 @@ export async function listMedia(db: Db, ids: string[], viewerId: string | null =
         and ($2::text is null or i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
         and (i.kind <> 'video' or not exists (
           select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
-           where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at'))
+           where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at'
+             -- One a 👎 took out stays in the gallery (under Not liked), so the 👎 can be taken back there.
+             and coalesce(s->>'archived_by', '') <> 'rating'))
       order by i.created_at desc limit 60`,
     [ids, viewerId],
   );
