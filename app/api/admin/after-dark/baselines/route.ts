@@ -10,7 +10,8 @@ import { handle, json, parseBody, readJson } from "@/lib/http";
 // Three pictures, each drawn and checked in turn: 10 to 30 seconds apiece.
 export const maxDuration = 300;
 
-const Input = z.object({ character_id: z.string().min(1).max(64) });
+// `nude`: three nude ones, for the face of their undressed moments (lib/adult/attire.ts).
+const Input = z.object({ character_id: z.string().min(1).max(64), nude: z.boolean().optional() });
 
 /** Not found for everyone but a viewer after dark is open to (lib/adult/mode.ts). */
 const hidden = () => json({ error: "not_found" }, 404);
@@ -29,7 +30,7 @@ export const POST = handle(async (req: Request) => {
   const c = await loadCharacter(db, input.character_id);
   if (!c) return hidden();
   try {
-    const r = await drawBaselineChoices(db, viewer, c);
+    const r = await drawBaselineChoices(db, viewer, c, { nude: input.nude === true });
     if (!r.pictures.length) return json({ error: "not_made", message: `None of the three came through: ${r.failed[0] ?? "try again"}` }, 502);
     return json({ pictures: r.pictures, failed: r.failed.length });
   } catch (err) {

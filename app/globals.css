@@ -9783,3 +9783,14 @@ details > summary.small {
   flex: 1 0 24px;
   max-width: 44px;
 }
+
+/* The face a character who wears something keeps in intimate scenes (Faces.tsx, lib/adult/attire.ts). */
+.ad-face-nude {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+.ad-face-pic.is-nude {
+  width: min(100%, 9rem);
+}
