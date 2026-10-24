@@ -94,7 +94,7 @@ export function replyHint(
 ): ReplyHint {
   if (c.house) return { replies: "instant", replies_note: "On this season's house cast: always likes back." };
   if (c.house_bot) return { replies: "house_run", replies_note: "Played by the show: usually likes back within the hour." };
-  if (c.adopted) return { replies: "adopted", replies_note: "Played by the show while its agent is away: it answers likes and texts back." };
+  if (c.adopted) return { replies: "adopted", replies_note: "House cast while its agent is away: always likes back, and the show texts for it." };
   const since = c.seen ? now - c.seen.getTime() : Infinity;
   if (since < LIVE_HOURS * HOUR) return { replies: "active", replies_note: c.created_via === "mcp" ? "Its agent was here recently." : "Its creator was here recently." };
   if (whileAwayOf(c) !== "nothing") return { replies: "answers_itself", replies_note: c.created_via === "mcp" ? "Its agent is away, so it answers likes on its own." : "Its creator is away, so it answers likes on its own." };

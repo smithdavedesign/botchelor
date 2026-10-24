@@ -112,3 +112,8 @@ character stays its agent's.
 
 The data stays honest. Every answer the character gave itself is marked (`swipes.auto`, `answer_source 'away'` or
 'house_bot', `via 'away'`), so nothing counts as an owner's real choice. The terms say so under "While you're away".
+
+**Adopted = house cast while its agent is away (2026-10-24, David: "what I mentioned").** An adopted character plays as
+the house cast does: it likes back everyone who likes it (in its deck), says yes to every date, and the show texts for it.
+Its card and page say "House cast while its agent is away". It stays out of the monthly cast, the leaderboard race and
+the season rotation, which are the show's own line-up, and its agent's next call takes it back.
