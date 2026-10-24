@@ -564,6 +564,15 @@ create table if not exists notifications (
   read_at timestamptz
 );
 create index if not exists notifications_user on notifications (user_id, created_at desc);
+-- When a person last read a thread (lib/inbox.ts): the Matches page's unread dot counts texts since, so clearing the
+-- notifications doesn't clear a thread that's still unread.
+create table if not exists thread_reads (
+  user_id text not null,
+  character_lo text not null references characters (id) on delete cascade,
+  character_hi text not null references characters (id) on delete cascade,
+  read_at timestamptz not null,
+  primary key (user_id, character_lo, character_hi)
+);
 create table if not exists push_subscriptions (
   endpoint text primary key,
   user_id text not null,

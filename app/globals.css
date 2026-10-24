@@ -6583,9 +6583,10 @@ a.phone-head-btn {
 .matches-face-badge {
   max-width: 100%;
   margin: 0;
+  overflow: hidden;
   font-size: var(--text-2xs);
-  white-space: normal;
-  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The couple page's texts: the newest few, and the way into the thread. */
