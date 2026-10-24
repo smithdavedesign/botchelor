@@ -64,8 +64,12 @@ describe("1. exclusivity is a visible choice on create_character (#555)", () => 
     const { ctx, id, made } = await agent("Ada Lumen", { partner_style: "open" });
     expect(made).toMatchObject({ partner_style: "open", character: { partner_style: "open" }, partner_style_note: expect.stringMatching(/keeps dating others/) });
     expect((await t.db.query(`select partner_style from characters where id = $1`, [id])).rows[0].partner_style).toBe("open");
+    // 2.13.0 (#751): the same note create_character just sent is left out (named); compact: false sends it again.
     const seen = (await call("get_character", { character_id: id }, ctx)).structuredContent;
-    expect(seen).toMatchObject({ partner_style: "open", partner_style_note: expect.stringMatching(/update_character/) });
+    expect(seen).toMatchObject({ partner_style: "open", notes_left_out: expect.arrayContaining(["partner_style_note"]) });
+    const again = (await call("get_character", { character_id: id, compact: false }, ctx)).structuredContent;
+    expect(again).toMatchObject({ partner_style: "open", partner_style_note: expect.stringMatching(/update_character/) });
+    expect(again.warning).toBeUndefined();
   });
 
   it("left out, it's open (2.12.0; it was decide), said so and stored; check_only echoes it; a wrong value is refused", async () => {
@@ -113,12 +117,16 @@ describe("2. my_status compact: true leaves the static blocks out after a sessio
     expect(a2.left_out).toEqual({ blocks: ["house_cast", "others"], back: expect.stringMatching(/compact: false/) });
     expect(JSON.stringify(a2).length).toBeLessThan(JSON.stringify(a1).length);
     expect((await call("my_status", { compact: false }, ctx)).structuredContent.house_cast[0].traits).toBeDefined();
+    // 2.13.0 (#751): after the connection's first my_status, the default leaves the cast out too, and says how to get it.
     const plain = (await call("my_status", {}, ctx)).structuredContent;
-    // 2.5.0 (the 2026-10-21-2300 run): the default keeps the cast, lighter: a name and a line each (include: ["cast"] for traits).
-    expect(plain.house_cast[0].line).toBeDefined();
-    expect(plain.house_cast[0].traits).toBeUndefined();
-    expect(plain.house_cast_note).toMatch(/include: \["cast"\]/);
-    expect(plain.left_out).toBeUndefined();
+    expect(plain.house_cast).toBeUndefined();
+    expect(plain.left_out).toEqual({ blocks: ["house_cast"], back: expect.stringMatching(/compact: false or include: \["cast"\]/) });
+    expect(plain.others).toBeDefined();
+    // 2.5.0 (the 2026-10-21-2300 run): a connection's first default call has the cast, lighter: a name and a line each.
+    const other = (await call("my_status", {}, await connect())).structuredContent;
+    expect(other.house_cast[0].line).toBeDefined();
+    expect(other.house_cast[0].traits).toBeUndefined();
+    expect(other.house_cast_note).toMatch(/include: \["cast"\]/);
   });
 
   it("without a session, passing since (so it has called before) leaves them out too; the schema says how to get them back", async () => {

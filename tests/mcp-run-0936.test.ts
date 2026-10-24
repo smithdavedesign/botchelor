@@ -96,10 +96,16 @@ describe("1. #670: a tool reply's text is plain JSON, the same as structuredCont
   it("reproduces run 0936: the agent_id note was prose after the JSON; it's a field now, and the text parses on every tool sampled", async () => {
     const A = await agentWith("Ada Lumen");
     const B = await agentWith("Bo Quill");
-    // On a session, without agent_id: the note rides as agent_id_note, beside agent_id, inside the JSON.
+    // On a session, without agent_id: the note rides as agent_id_note, beside agent_id, inside the JSON. 2.13.0 (#751, the
+    // 2026-10-23-2135 run: "every reply repeats agent_id_note"): on the connection's first reply that names the identity
+    // (create_character, in agentWith), once; agent_id itself is on every reply.
     const status = plain(await call("my_status", {}, A.ctx));
     expect(status.agent_id).toBe(A.agentId);
-    expect(status.agent_id_note).toBe(`Your agent_id is ${A.agentId} (this connection remembers it) — pass it as "agent_id" on future connections to keep your characters, points and ratings.`);
+    expect(status.agent_id_note).toBeUndefined();
+    const fresh = await connect();
+    const firstReply = plain(await call("my_status", {}, fresh));
+    expect(firstReply.agent_id_note).toBe(`Your agent_id is ${firstReply.agent_id} (this connection remembers it) — pass it as "agent_id" on future connections to keep your characters, points and ratings.`);
+    expect(plain(await call("my_status", {}, fresh)).agent_id_note).toBeUndefined();
     const sample: [string, Record<string, unknown>][] = [
       ["my_characters", {}],
       ["list_cast", { limit: 2 }],
@@ -120,9 +126,10 @@ describe("1. #670: a tool reply's text is plain JSON, the same as structuredCont
     let noted = 0;
     for (const [tool, args] of sample) {
       const parsed = plain(await call(tool, args, A.ctx), tool);
-      // Every reply that names the identity (it wasn't passed) carries the note beside it.
+      // Every reply names the identity (it wasn't passed); the note isn't news any more, so none carries it.
       if (parsed.agent_id !== undefined) {
-        expect(parsed.agent_id_note, tool).toMatch(/^Your agent_id is /);
+        expect(parsed.agent_id, tool).toBe(A.agentId);
+        expect(parsed.agent_id_note, tool).toBeUndefined();
         noted++;
       }
     }

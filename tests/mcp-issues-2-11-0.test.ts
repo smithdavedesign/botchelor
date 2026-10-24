@@ -264,7 +264,8 @@ describe("#622: swipe preview and undo (David's call: neither can reveal a like 
       expect(p.target.liked_you).toBe(c.liked_you);
       expect(p.would).toBe(c.liked_you || c.house ? "match" : "like");
     }
-    expect(ok(await call("swipe", { character_id: A.id, target_id: HOUSE.id, preview: true }, A.ctx)).would_note).toMatch(/house cast always likes back/);
+    // compact: false (2.13.0, #751): the previews above may have sent this would_note already.
+    expect(ok(await call("swipe", { character_id: A.id, target_id: HOUSE.id, preview: true, compact: false }, A.ctx)).would_note).toMatch(/house cast always likes back/);
     expect(await swipesCount()).toBe(n);
     // And the like itself still matches as the preview said.
     expect(ok(await call("swipe", { character_id: A.id, target_id: B.id, like: true }, A.ctx)).matched).toBe(true);
@@ -448,13 +449,18 @@ describe("#633: a short first my_status, and the compact flag said up front", ()
     const s = ok(first);
     for (const k of ["cursor", "next", "next_calls", "characters", "dates_left", "agents_date_budget_today", "house_cast", "house_cast_note", "agent_id"]) expect(s).toHaveProperty(k);
     expect(Object.keys(s.house_cast[0]).sort()).toEqual(["id", "line", "name"]);
-    for (const k of ["points_from", "points_note", "dates_note", "agents_on_now", "others", "others_note", "agents_date_budget_note", "compact_tip"]) expect(s).not.toHaveProperty(k);
-    expect(s.left_out.blocks).toEqual(expect.arrayContaining(["points_note", "others", "agents_on_now"]));
+    for (const k of ["points_from", "points_note", "dates_note", "agents_on_now_note", "others", "others_note", "agents_date_budget_note", "compact_tip"]) expect(s).not.toHaveProperty(k);
+    expect(s.left_out.blocks).toEqual(expect.arrayContaining(["points_note", "others", "agents_on_now_note"]));
+    // 2.13.0 (the 2026-10-23-2135 run: "the first my_status hides the agents on now count"): the count is in it.
+    expect(s.agents_on_now).toEqual(expect.any(Number));
+    expect(s.left_out.blocks).not.toContain("agents_on_now");
     expect(s.left_out.back).toMatch(/include: \["all"\] has every block now, and any later my_status has them too\. compact: true keeps every reply short/);
     const later = ok(await call("my_status", {}, ctx));
     for (const k of ["points_from", "points_note", "others", "agents_on_now"]) expect(later).toHaveProperty(k);
-    expect(later.left_out).toBeUndefined();
-    expect(first.content[0].text.length).toBeLessThan(JSON.stringify(later).length - 1000);
+    // 2.13.0 (#751): a later my_status leaves the house cast out (this connection's first had it), and says so.
+    expect(later.left_out).toEqual({ blocks: ["house_cast"], back: expect.stringMatching(/compact: false or include: \["cast"\]/) });
+    // Against everything (compact: false): a later default one is short too now (2.13.0, #751).
+    expect(first.content[0].text.length).toBeLessThan(JSON.stringify(ok(await call("my_status", { compact: false }, ctx))).length - 1000);
     expect(first.content[0].text.length).toBeLessThan(4000);
   });
 
@@ -477,7 +483,8 @@ describe("#633: a short first my_status, and the compact flag said up front", ()
   it("the quickstart says compact: true exists and that the first my_status is short, and stays inside its size", async () => {
     const { init } = await connect();
     const text: string = init.instructions;
-    expect(text).toMatch(/^Shorter replies: compact: true \(my_status, and swipe_deck cards\); the first my_status is short already \(include: \["all"\] adds the rest\)\.$/m);
+    // 2.13.0 (#751): what's short by default now, and how to have it all.
+    expect(text).toMatch(/^Shorter replies: a note you already had is left out \(notes_left_out\); compact: false sends all\.$/m);
     expect(text).toMatch(/a date you write shows where it's heading from its first step \(heading\)/);
     expect(text.length).toBeLessThan(4000);
     expect(text.split(/\s+/).length).toBeLessThan(600);

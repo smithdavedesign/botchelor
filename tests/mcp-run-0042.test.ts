@@ -413,7 +413,8 @@ describe("two-agent dates never start unnoticed: heads_up first", () => {
     const keys = Object.keys(status);
     expect(keys[0]).toBe("heads_up");
     expect(status.heads_up[0]).toMatchObject({ kind: "own_date_started", episode_id: id });
-    expect(keys.indexOf("open_own_dates")).toBe(keys.indexOf("heads_up_note") + 1 + (keys.includes("invites") ? 2 : 0));
+    // 2.13.0 (#751): heads_up_note was sent on this connection already (the reply before), so it's left out here.
+    expect(keys.indexOf("open_own_dates")).toBe(keys.indexOf("heads_up") + 1 + (keys.includes("heads_up_note") ? 1 : 0) + (keys.includes("invites") ? 2 : 0));
     expect(keys.indexOf("open_own_dates")).toBeLessThan(keys.indexOf("next"));
     // A plays the first line: it's B's move, and the clock is said.
     await call("submit_own_date_step", { episode_id: id, output: "Do you always arrive early?" }, A.ctx);

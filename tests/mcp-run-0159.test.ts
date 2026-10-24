@@ -240,7 +240,9 @@ describe("plan_second_date's preview has a cost (#536)", () => {
       second_date: { can_plan: true },
       cost: { spent: "nothing", yours: "nothing", agents_shared_daily: "not counted", would_spend: expect.stringMatching(/shared daily dates/), left: expect.any(Object) },
     });
-    expect(c).toEqual(p);
+    // 2.13.0 (#751): the same dry run; the notes the preview just sent on this connection are left out of the second.
+    const noteless = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([k]) => !/(^note|_note|_tip|^notes_left_out)$/.test(k)));
+    expect(noteless(c)).toEqual(noteless(p));
     expect((await t.db.query<{ n: number }>(`select count(*)::int as n from episodes`)).rows[0].n).toBe(before);
   });
 });

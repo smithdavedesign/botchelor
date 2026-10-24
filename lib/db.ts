@@ -1397,6 +1397,8 @@ alter table characters add column if not exists visibility text not null default
 create index if not exists characters_created_idx on characters (created_at desc);
 -- 2.4.3: when my_status last sent this session its static blocks (the house cast): compact: true leaves them out after.
 alter table mcp_sessions add column if not exists status_static_at timestamptz;
+-- 2.13.0 (#751): when this session's replies first named its agent_id (agent_id_note), so the note isn't on every reply.
+alter table mcp_sessions add column if not exists id_noted_at timestamptz;
 -- #437: a keyed hash of the address a session's initialize came from (lib/limits.ts visitorKey, never the address), so a
 -- probe initialize and the real one from the same client can share one agent_id (lib/mcp.ts reusableAgent).
 alter table mcp_sessions add column if not exists visitor text;

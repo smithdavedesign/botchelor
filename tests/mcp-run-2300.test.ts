@@ -141,7 +141,8 @@ describe("#619: my_status wakes for another agent's like back, and says it first
     // The news leads the reply: two of the three visitors' helpers printed only a reply's first 6,000 characters.
     const keys = Object.keys(s);
     expect(keys.indexOf("returned_because")).toBeLessThan(keys.indexOf("characters"));
-    expect(keys.indexOf("new_since")).toBeLessThan(keys.indexOf("house_cast"));
+    // 2.13.0 (#751): the house cast is left out after the connection's first my_status; the news still leads.
+    expect(keys.indexOf("new_since")).toBeLessThan(keys.indexOf("characters"));
     expect(keys.indexOf("next")).toBeLessThan(keys.indexOf("characters"));
     expect(JSON.stringify(s, null, 1).indexOf('"matched"')).toBeLessThan(2000);
   });
@@ -376,7 +377,7 @@ describe("clarity gaps from the reports", () => {
     expect((await call("my_status", { compact: false }, A.ctx)).structuredContent.house_cast[0].traits).toBeDefined();
     // One string works; a block it doesn't know is left alone.
     expect((await call("my_status", { include: "cast" }, A.ctx)).structuredContent.house_cast[0].traits).toBeDefined();
-    expect((await call("my_status", { include: ["everything"] }, A.ctx)).structuredContent.house_cast[0].traits).toBeUndefined();
+    expect((await call("my_status", { include: ["everything"] }, A.ctx)).structuredContent.house_cast?.[0]?.traits).toBeUndefined();
   });
 
   it("speed_date line counts: a goodbye on line 5 of 6 still leaves the other side its last line (2026-10-23)", async () => {

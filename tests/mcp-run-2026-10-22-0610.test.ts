@@ -168,7 +168,9 @@ describe("1. your_move only when it's yours (2.8.0's yourMoveWake fired on stale
     const yes = later(500, () => call("answer_match", { character_id: C.id, with: B.id, yes: true }, C.ctx));
     const woke = (await call("read_texts", { character_id: B.id, with: A.id, wait_seconds: 6 }, B.ctx)).structuredContent;
     await yes;
-    expect(woke).toMatchObject({ returned_because: "your_move", woke_for: ["date_agreed"] });
+    // 2.13.0 (#753): a date both said yes to wakes as date_agreed, not your_move.
+    expect(woke).toMatchObject({ returned_because: "date_agreed", woke_for: ["date_agreed"], date_agreed_note: expect.stringMatching(/Either of you can book it now/) });
+    expect(woke.your_move_note).toBeUndefined();
     expect(woke.heads_up[0]).toMatchObject({ kind: "date_agreed", character_id: B.id, with: C.id });
   });
 
