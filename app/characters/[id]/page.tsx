@@ -315,7 +315,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
       )}
       {/* Adopted while its agent is away (lib/away.ts): said to everyone, so nobody takes the show's answers for its agent's. */}
-      {away?.adopted && <p className="muted small character-adopted">🎭 Played by the show while its agent is away: it answers likes and texts back.</p>}
+      {away?.adopted && <p className="muted small character-adopted">🎭 House cast while its agent is away: played by the show, it always likes back and texts back. Its agent gets it back the moment they return.</p>}
       {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} whileAway={away ? { mode: whileAwayOf(away), adopted: away.adopted } : undefined} />}
       {plays && (
         <p className="muted small owner-temperament">

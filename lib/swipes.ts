@@ -357,8 +357,8 @@ const likeBackChance = (score: number): number => Math.max(0.35, Math.min(0.9, 0
  */
 export async function answerLikeIfAway(db: Db, characterId: string, likerId: string, now = Date.now()): Promise<MatchView | null | undefined> {
   const c = (
-    await db.query<{ owner_id: string | null; created_via: string; while_away: string | null; is_house: boolean; seen: string | Date | null }>(
-      `select c.owner_id, c.created_via, c.while_away, c.is_house, ${characterSeenSql("c")} as seen from characters c where c.id = $1`,
+    await db.query<{ owner_id: string | null; created_via: string; while_away: string | null; is_house: boolean; seen: string | Date | null; adopted: boolean }>(
+      `select c.owner_id, c.created_via, c.while_away, c.is_house, ${characterSeenSql("c")} as seen, c.adopted_at is not null as adopted from characters c where c.id = $1`,
       [characterId],
     )
   ).rows[0];
@@ -370,7 +370,8 @@ export async function answerLikeIfAway(db: Db, characterId: string, likerId: str
   const liker = (await deckPool(db, c.owner_id, mine, { only: likerId, includeSwiped: true }))[0];
   if (!liker) return undefined;
   const score = (await rankFor(db, c.owner_id, toProfile(mine), [toProfile(liker)]))[0]?.score ?? 0;
-  const liked = (seedFrom("away-like", characterId, likerId) % 10_000) / 10_000 < likeBackChance(score);
+  // Adopted (its agent gone a week, lib/away.ts): it plays as house cast does, and likes everyone back (David, 2026-10-24).
+  const liked = c.adopted || (seedFrom("away-like", characterId, likerId) % 10_000) / 10_000 < likeBackChance(score);
   const stored = await db.query(`insert into swipes (swiper, target, liked, auto) values ($1, $2, $3, true) on conflict do nothing returning swiper`, [characterId, likerId, liked]);
   if (!stored.rows.length) return undefined;
   return liked ? await createMatch(db, characterId, likerId) : null;
@@ -494,7 +495,7 @@ async function notInDeckWhy(db: Db, userId: string, mine: Mine, targetId: string
   return generic;
 }
 
-type Side = { id: string; name: string; owner_id: string | null; is_house: boolean; created_via: string; while_away: string | null; seen: string | Date | null };
+type Side = { id: string; name: string; owner_id: string | null; is_house: boolean; created_via: string; while_away: string | null; seen: string | Date | null; adopted?: boolean };
 
 /** A person's character's own answer about a date with `other`: likelier the better they suit, seeded so it's repeatable. */
 async function personAnswers(db: Db, me: Side, other: Side, lo: string, hi: string): Promise<boolean> {
@@ -528,13 +529,13 @@ async function decideAnswers(
   const awayHi = await away(hi);
   const isAway = (me: Side) => (me.id === lo.id ? awayLo : awayHi);
   const answer = async (me: Side, other: Side) =>
-    me.is_house ? true : me.created_via === "mcp" && !isAway(me) ? null : await personAnswers(db, me, other, lo.id, hi.id);
+    me.is_house ? true : me.created_via === "mcp" && !isAway(me) ? null : me.adopted ? true : await personAnswers(db, me, other, lo.id, hi.id);
   const source = (me: Side): AnswerSource | null => (me.is_house ? "house" : me.created_via === "mcp" ? (isAway(me) ? "away" : null) : "synthetic");
   return { lo: await answer(lo, hi), hi: await answer(hi, lo), source_lo: source(lo), source_hi: source(hi) };
 }
 
 async function sides(db: Db, lo: string, hi: string): Promise<[Side, Side] | null> {
-  const { rows } = await db.query<Side>(`select c.id, c.name, c.owner_id, c.is_house, c.created_via, c.while_away, ${characterSeenSql("c")} as seen from characters c where c.id = any($1)`, [[lo, hi]]);
+  const { rows } = await db.query<Side>(`select c.id, c.name, c.owner_id, c.is_house, c.created_via, c.while_away, ${characterSeenSql("c")} as seen, c.adopted_at is not null as adopted from characters c where c.id = any($1)`, [[lo, hi]]);
   const a = rows.find((r) => r.id === lo);
   const b = rows.find((r) => r.id === hi);
   return a && b ? [a, b] : null;
@@ -744,7 +745,8 @@ export async function answerMatchIfAway(db: Db, characterId: string, withId: str
   if ((side === "lo" ? m.yes_lo : m.yes_hi) !== null || me.is_house || me.created_via !== "mcp") return false;
   if (!answersItself({ ...me, seen: me.seen ? new Date(me.seen) : null }, now)) return false;
   if (await isHouseBotAgent(db, me.owner_id).catch(() => false)) return false;
-  const yes = await personAnswers(db, me, other, m.lo, m.hi);
+  // Adopted: says yes, as the house cast does.
+  const yes = me.adopted ? true : await personAnswers(db, me, other, m.lo, m.hi);
   const set = await db.query(
     `update matches set ${side === "lo" ? "yes_lo" : "yes_hi"} = $3, ${side === "lo" ? "answer_source_lo" : "answer_source_hi"} = 'away'
       where character_lo = $1 and character_hi = $2 and ${side === "lo" ? "yes_lo" : "yes_hi"} is null returning 1`,
