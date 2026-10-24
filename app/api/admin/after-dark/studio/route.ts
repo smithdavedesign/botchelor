@@ -4,13 +4,16 @@ import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
 import { removeShare, sharePicture } from "@/lib/adult/shares";
 import {
+  animatePicture,
   bodyShoot,
+  deleteSetup,
   moreLikeThis,
   pairMenu,
   pairShoot,
   recast,
   redoShoot,
   restyle,
+  saveSetup,
   RESTYLE_DETAILS,
   RESTYLE_STEPS,
   saveRestyleLooks,
@@ -40,6 +43,17 @@ const Choices = z
   .object(Object.fromEntries(GROUP_IDS.filter((g) => g !== "accessories").map((g) => [g, z.string().max(60).optional()])) as Record<string, z.ZodOptional<z.ZodString>>)
   .extend({ accessories: z.array(z.string().max(60)).max(3).optional() })
   .strict();
+/** A shoot together's choices, as a setup keeps them (the partner is picked when it runs). */
+const PairChoices = z
+  .object({
+    act: z.string().max(40).optional(),
+    swap: z.boolean().optional(),
+    outfit: z.string().max(40).optional(),
+    framing: z.enum(FRAMINGS).optional(),
+    place: z.string().max(40).optional(),
+    light: z.string().max(40).nullable().optional(),
+  })
+  .strict();
 /** A restyle's changes: a pick per look step or detail (lib/adult/studio.ts restyleWords checks each). */
 const Changes = z.object(Object.fromEntries([...RESTYLE_STEPS, ...RESTYLE_DETAILS].map((k) => [k, z.string().max(40).optional()]))).strict();
 
@@ -66,6 +80,9 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("upscale"), character_id: id, image_id: id, own_key }),
   z.object({ action: z.literal("share"), character_id: id, image_id: id, to_character: id, kind: z.enum(["after_dark", "photo"]) }),
   z.object({ action: z.literal("unshare"), character_id: id, share_id: id }),
+  z.object({ action: z.literal("save_setup"), character_id: id, name: z.string().max(80), kind: z.enum(["shoot", "pair"]), choices: z.union([Choices, PairChoices]), model }),
+  z.object({ action: z.literal("delete_setup"), character_id: id, setup_id: id }),
+  z.object({ action: z.literal("animate"), character_id: id, image_id: id, motion: z.string().max(30), seconds: z.union([z.literal(5), z.literal(10)]) }),
   z.object({ action: z.literal("use_body"), character_id: id, image_id: id.nullable() }),
   z.object({ action: z.literal("limits"), character_id: id, intensity: z.string().max(20).optional(), hard_nos: z.array(z.string().max(30)).max(30).optional() }),
   z.object({ action: z.literal("strength"), character_id: id, strength: z.string().max(20) }),
@@ -131,6 +148,16 @@ export const POST = handle(async (req: Request) => {
       const r = await sharePicture(db, viewer, { image_id: input.image_id, to_character: input.to_character, kind: input.kind });
       return r.ok ? after(input.character_id, { share: r.share }) : failed(r);
     }
+    case "save_setup": {
+      const r = await saveSetup(db, viewer, input.character_id, { name: input.name, kind: input.kind, choices: input.choices, model: input.model });
+      return r.ok ? after(input.character_id, { setup: r.setup }) : failed(r);
+    }
+    case "delete_setup": {
+      const ok = await deleteSetup(db, viewer, input.setup_id);
+      return ok ? after(input.character_id, {}) : json({ error: "not_found", message: "No setup of yours with that id." }, 404);
+    }
+    case "animate":
+      return job(input.character_id, await animatePicture(db, viewer, input.character_id, { image_id: input.image_id, motion: input.motion, seconds: input.seconds }, base));
     case "unshare": {
       // The sharer takes an After Dark share back (a photo already in their texts stays: it was sent).
       const ok = await removeShare(db, viewer, input.share_id);

@@ -87,6 +87,8 @@ export const StudioConfig = z.object({
     })
     .default({ photos: true, after_dark: true, pg_max_nsfw: 0.15 }),
   own_keys: z.object({ venice: z.boolean().default(true), replicate: z.boolean().default(true) }).default({ venice: true, replicate: true }),
+  /** Animate (v3): the video model (null: After Dark's own, `reel_model`, Wan 3.0 by default). */
+  animate: z.object({ model: z.string().trim().min(1).max(120).nullable().default(null) }).default({ model: null }),
   /** Upscale on Venice's upscaler: how much larger, and what one costs (added to an own key's month). */
   upscale: z
     .object({ scale: z.union([z.literal(2), z.literal(4)]).default(2), usd: z.number().min(0).max(10).default(0.02) })

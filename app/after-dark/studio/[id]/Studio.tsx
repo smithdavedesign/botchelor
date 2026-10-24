@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 import RateMedia from "@/app/after-dark/[a]/[b]/RateMedia";
 import { HARD_NOS, INTENSITIES, INTENSITY } from "@/lib/adult/limits";
 import type { Media } from "@/lib/adult/media";
-import type { PairMenu, Shoot, StudioState } from "@/lib/adult/studio";
+import type { PairMenu, Setup, Shoot, StudioState } from "@/lib/adult/studio";
 import { LEVEL_LABEL, optionById, STRENGTHS, type GroupId, type Level, type ShootChoices } from "@/lib/adult/studio-catalog";
 
 const media = (id: string) => `/api/admin/after-dark/media/${id}`;
@@ -14,20 +14,23 @@ const TABS = [
   { id: "pair", label: "Together" },
   { id: "identity", label: "Identity" },
   { id: "gallery", label: "Gallery" },
+  { id: "setups", label: "Setups" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
 const STRENGTH_LABEL: Record<(typeof STRENGTHS)[number], string> = { loose: "Loose", balanced: "Balanced", strict: "Strict" };
 const tokens = (n: number) => (n === 0 ? "free" : `${n} token${n === 1 ? "" : "s"}`);
 const PROVIDER_LABEL = { venice: "Venice", replicate: "Replicate" } as const;
 const SHARE_STATUS: Record<string, string> = { pending: "asked", accepted: "accepted", sent: "sent to their texts" };
+/** How often the page asks after an animation still being made. */
+const POLL_MS = 20_000;
 
 type PairPick = { act: string; swap: boolean; outfit: string; framing: string; place: string; light: string };
 const NO_PAIR_PICK: PairPick = { act: "", swap: false, outfit: "", framing: "medium", place: "", light: "" };
 
 /**
  * The Studio for one character (lib/adult/studio.ts): a shoot from the menus, a shoot of two (Together), their identity
- * (restyle, recast, body reference, limits, strength), and their gallery, where a picture can be made more of, made
- * larger, or shared. Every action answers with the Studio's state after it.
+ * (restyle, recast, body reference, limits, strength), their gallery, where a picture can be made more of, made larger,
+ * animated or shared, and the setups saved to run again. Every action answers with the Studio's state after it.
  */
 export default function Studio({ initial }: { initial: StudioState }) {
   const [s, setS] = useState(initial);
@@ -52,6 +55,8 @@ export default function Studio({ initial }: { initial: StudioState }) {
   const [pairMenu, setPairMenu] = useState<PairMenu | null>(null);
   const [pairPick, setPairPick] = useState<PairPick>(NO_PAIR_PICK);
   const [sharing, setSharing] = useState<{ image: string; to: string; kind: "after_dark" | "photo" } | null>(null);
+  const [animating, setAnimating] = useState<{ image: string; motion: string; seconds: 5 | 10 } | null>(null);
+  const [setupName, setSetupName] = useState("");
   const c = s.character;
   const first = c.name.split(/\s+/)[0];
   const picked = editModels.find((m) => m.id === editModel) ?? editModels[0];
@@ -74,6 +79,53 @@ export default function Studio({ initial }: { initial: StudioState }) {
     else if (pictures.length) setNote({ text: `${pictures.length} new picture${pictures.length === 1 ? "" : "s"}.` });
     else if (opts.done) setNote({ text: opts.done });
     return res.data;
+  }
+
+  // While an animation is being made, ask after it now and then: it lands in the gallery when it's checked and kept.
+  const making = s.animating.length;
+  useEffect(() => {
+    if (!making) return;
+    const t = setInterval(async () => {
+      const res = await fetch(`/api/admin/after-dark/studio?character=${encodeURIComponent(c.id)}`)
+        .then((r) => r.json())
+        .catch(() => null);
+      if (!res?.state) return;
+      const next = res.state as StudioState;
+      if (next.animating.length < making) setNote({ text: "An animation is done: it's in the gallery (or, if it didn't come through, its tokens are back)." });
+      setS(next);
+    }, POLL_MS);
+    return () => clearInterval(t);
+  }, [making, c.id]);
+
+  /** Saves the shoot's (or Together's) choices under a name, to run again on any of their characters. */
+  function saveSetup(kind: "shoot" | "pair", choices: Record<string, unknown>, model: string | undefined) {
+    if (!setupName.trim()) return setNote({ text: "Give the setup a name first.", error: true });
+    void act("save_setup", { action: "save_setup", character_id: c.id, name: setupName, kind, choices, model }, { done: `Saved "${setupName.trim()}".` }).then((d) => d && setSetupName(""));
+  }
+
+  const setupRow = (kind: "shoot" | "pair", choices: Record<string, unknown>, model: string | undefined) => (
+    <div className="ad-studio-go">
+      <input type="text" maxLength={40} placeholder="Name these choices" value={setupName} onChange={(e) => setSetupName(e.target.value)} disabled={Boolean(busy)} aria-label="Setup name" />
+      <button type="button" className="button-ghost" disabled={Boolean(busy) || !setupName.trim()} onClick={() => saveSetup(kind, choices, model)}>
+        Save as a setup
+      </button>
+    </div>
+  );
+
+  /** A saved setup's choices on its tab, ready to shoot (a Together one still needs someone picked). */
+  function loadSetup(x: Setup) {
+    if (x.kind === "shoot") {
+      setChoices(x.choices as ShootChoices);
+      if (x.model && s.models.some((m) => m.id === x.model && m.job === "edit")) setEditModel(x.model);
+      setTab("shoot");
+    } else {
+      const ch = x.choices as Partial<Record<keyof PairPick, unknown>>;
+      const str = (v: unknown) => (typeof v === "string" ? v : "");
+      setPairPick({ act: str(ch.act), swap: ch.swap === true, outfit: str(ch.outfit), framing: str(ch.framing) || "medium", place: str(ch.place), light: str(ch.light) });
+      if (x.model && s.models.some((m) => m.id === x.model && m.job === "edit")) setEditModel(x.model);
+      setTab("pair");
+      if (!partner) setNote({ text: `"${x.name}" is on the Together tab: pick who with, then shoot.` });
+    }
   }
 
   /** "Use this face": the existing face route (lib/adult/steering.ts), with the others it was picked from. */
@@ -142,13 +194,19 @@ export default function Studio({ initial }: { initial: StudioState }) {
         const went = s.shares[p.id] ?? [];
         const open = sharing?.image === p.id ? sharing : null;
         const to = s.share_to.find((x) => x.character_id === open?.to);
+        const video = p.kind === "video";
+        const anim = animating?.image === p.id ? animating : null;
         return (
           <li key={p.id} className="card ad-studio-item">
-            {/* eslint-disable-next-line @next/next/no-img-element -- private, presigned media; not for next/image */}
-            <img src={media(p.id)} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" />
+            {video ? (
+              <video src={media(p.id)} controls playsInline preload="metadata" aria-label={`${c.name}, a clip`} />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element -- private, presigned media; not for next/image
+              <img src={media(p.id)} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" />
+            )}
             <div className="ad-studio-item-tools">
               <RateMedia id={p.id} kind={p.kind} rating={p.rating ?? null} tags={p.tags ?? []} />
-              {!opts.pair &&
+              {!opts.pair && !video &&
                 (s.identity.face === p.id ? (
                   <span className="badge">The face</span>
                 ) : (
@@ -157,6 +215,7 @@ export default function Studio({ initial }: { initial: StudioState }) {
                   </button>
                 ))}
               {!opts.pair &&
+                !video &&
                 (s.identity.body === p.id ? (
                   <span className="badge">The body</span>
                 ) : (
@@ -167,7 +226,7 @@ export default function Studio({ initial }: { initial: StudioState }) {
                   )
                 ))}
             </div>
-            {!opts.pair && (
+            {!opts.pair && !video && (
               <div className="ad-studio-item-tools">
                 <button
                   type="button"
@@ -189,6 +248,18 @@ export default function Studio({ initial }: { initial: StudioState }) {
                     {busy === `up:${p.id}` ? "Upscaling…" : `Upscale ${s.upscale.scale}×`}
                   </button>
                 )}
+                {s.motions.length > 0 && !onOwn && (
+                  <button
+                    type="button"
+                    className="button-ghost small"
+                    aria-expanded={Boolean(anim)}
+                    disabled={Boolean(busy) || making > 0}
+                    title={making ? "One is being animated: one at a time" : "A 5 or 10 second clip of this picture"}
+                    onClick={() => setAnimating(anim ? null : { image: p.id, motion: s.motions[0].id, seconds: 5 })}
+                  >
+                    Animate…
+                  </button>
+                )}
                 {s.share_to.length > 0 && (s.share.after_dark || s.share.photos) && (
                   <button
                     type="button"
@@ -200,6 +271,34 @@ export default function Studio({ initial }: { initial: StudioState }) {
                     Share…
                   </button>
                 )}
+              </div>
+            )}
+            {anim && (
+              <div className="ad-studio-share">
+                <div className="ad-chip-row" role="group" aria-label="How it moves">
+                  {s.motions.map((m) => (
+                    <button key={m.id} type="button" className={`ad-chip${anim.motion === m.id ? " on" : ""}`} aria-pressed={anim.motion === m.id} disabled={Boolean(busy)} onClick={() => setAnimating({ ...anim, motion: m.id })}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="ad-chip-row" role="group" aria-label="How long">
+                  {([5, 10] as const).map((sec) => (
+                    <button key={sec} type="button" className={`ad-chip${anim.seconds === sec ? " on" : ""}`} aria-pressed={anim.seconds === sec} disabled={Boolean(busy)} onClick={() => setAnimating({ ...anim, seconds: sec })}>
+                      {sec} s
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="primary small"
+                  disabled={Boolean(busy)}
+                  onClick={() =>
+                    void act(`animate:${p.id}`, { action: "animate", character_id: c.id, image_id: p.id, motion: anim.motion, seconds: anim.seconds }, { title: "Animating" }).then((d) => d && setAnimating(null))
+                  }
+                >
+                  Animate · {tokens(anim.seconds === 10 ? s.prices.animate_10 : s.prices.animate_5)}
+                </button>
               </div>
             )}
             {open && (
@@ -330,6 +429,12 @@ export default function Studio({ initial }: { initial: StudioState }) {
           {note.text}
         </p>
       )}
+      {making > 0 && (
+        <p className="muted small" role="status">
+          🎬 Animating, started {Math.max(1, Math.round((Date.now() - new Date(s.animating[0].created_at).getTime()) / 60_000))} min ago. It lands in the gallery once
+          it&apos;s checked (a few minutes); you can leave and come back.
+        </p>
+      )}
 
       {tab === "shoot" && (
         <div className="ad-studio-panel">
@@ -374,8 +479,9 @@ export default function Studio({ initial }: { initial: StudioState }) {
           </div>
           <p className="muted small">
             Anything left unpicked is left to them (and their light to what your ratings have taught it). Their face is Picture 1
-            {s.identity.body ? ", their body reference Picture 2" : ""}.
+            {s.identity.body && s.identity.strength !== "loose" ? ", their body reference Picture 2" : ""}.
           </p>
+          {setupRow("shoot", choices, picked?.id)}
         </div>
       )}
 
@@ -478,6 +584,7 @@ export default function Studio({ initial }: { initial: StudioState }) {
                 </button>
               </div>
               <p className="muted small">Pick what they&apos;re doing, what they wear, the framing and the place. Pictures of the two of them also land in their pair&apos;s gallery.</p>
+              {setupRow("pair", { act: pairPick.act || undefined, swap: pairPick.swap, outfit: pairPick.outfit || undefined, framing: pairPick.framing || undefined, place: pairPick.place || undefined, light: pairPick.light || null }, pairModel?.id)}
             </>
           )}
           {s.pair_gallery.length > 0 && (
@@ -654,6 +761,48 @@ export default function Studio({ initial }: { initial: StudioState }) {
             </div>
           )}
           {s.gallery.length ? gallery(s.gallery) : <p className="muted">Nothing yet: their pictures land here.</p>}
+        </div>
+      )}
+
+      {tab === "setups" && (
+        <div className="ad-studio-panel">
+          <p className="muted small">Choices you saved, to run again on any of your characters. A place of one character&apos;s own isn&apos;t kept.</p>
+          {s.setups.length === 0 ? (
+            <p className="muted">None yet: pick choices on Shoot or Together, then Save as a setup.</p>
+          ) : (
+            <ul className="ad-shared-list">
+              {s.setups.map((x) => {
+                const m = s.models.find((y) => y.id === (x.model ?? picked?.id) && y.job === "edit") ?? picked;
+                return (
+                  <li key={x.id} className="card ad-studio-setup">
+                    <strong>{x.name}</strong>{" "}
+                    <span className="muted small">
+                      {x.kind === "pair" ? "Together" : "Alone"}
+                      {x.model ? ` · ${s.models.find((y) => y.id === x.model)?.label ?? x.model}` : ""}
+                    </span>
+                    <div className="ad-studio-item-tools">
+                      <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => loadSetup(x)}>
+                        Use
+                      </button>
+                      {x.kind === "shoot" && m && (
+                        <button
+                          type="button"
+                          className="primary small"
+                          disabled={Boolean(busy) || !usable(m)}
+                          onClick={() => void act(`setup:${x.id}`, { action: "shoot", character_id: c.id, choices: x.choices, model: m.id, ...own }, { title: x.name })}
+                        >
+                          {busy === `setup:${x.id}` ? "Shooting…" : `Shoot it · ${tokens(price(m.price))}`}
+                        </button>
+                      )}
+                      <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => void act(`del:${x.id}`, { action: "delete_setup", character_id: c.id, setup_id: x.id }, { done: `Deleted "${x.name}".` })}>
+                        delete
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
     </section>
