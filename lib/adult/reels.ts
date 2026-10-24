@@ -821,6 +821,31 @@ export async function drawKeyframe(key: string, prompt: string, images: string[]
   return { bytes: Buffer.from(b64.replace(/^data:[^,]*,/, ""), "base64"), mime: "image/png" };
 }
 
+/** A picture's video on Venice from its signed link (the Studio's Animate, lib/adult/studio.ts): queued, one shot. */
+export async function queueVideo(key: string, v: { model: string; seconds: 5 | 10; image_url: string; prompt: string; negative: string }): Promise<string> {
+  const body: Record<string, unknown> = { model: v.model, duration: `${v.seconds}s`, resolution: "720p", prompt: v.prompt, negative_prompt: v.negative, image_url: v.image_url };
+  if (!AUDIO_IN.test(v.model)) body.audio = true;
+  if (/^wan-3/.test(v.model)) body.aspect_ratio = "adaptive";
+  const res = await venice(key, "/video/queue", body);
+  if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 160)}`);
+  const q = (await res.json()) as { queue_id?: string };
+  if (!q.queue_id) throw new Error("Venice returned no queue id");
+  return q.queue_id;
+}
+
+/** Where a queued video is: still being made, done (its bytes), or failed. Venice keeps it until releaseVideo. */
+export async function retrieveVideo(key: string, model: string, queueId: string): Promise<{ state: "making" } | { state: "ready"; bytes: Buffer } | { state: "failed"; reason: string }> {
+  const res = await venice(key, "/video/retrieve", { model, queue_id: queueId });
+  if (!res.ok) return { state: "failed", reason: `Venice ${res.status}` };
+  if (!(res.headers.get("content-type") ?? "").includes("video")) return { state: "making" };
+  return { state: "ready", bytes: Buffer.from(await res.arrayBuffer()) };
+}
+
+/** Venice's copy of a video, deleted once ours is kept (or it was refused). */
+export async function releaseVideo(key: string, model: string, queueId: string): Promise<void> {
+  await venice(key, "/video/retrieve", { model, queue_id: queueId, delete_media_on_completion: true }).catch(() => {});
+}
+
 /** A picture made larger by Venice's upscaler (the Studio's Upscale, about $0.02): a PNG comes back. */
 export async function veniceUpscale(key: string, image: Buffer, scale: 2 | 4 = 2): Promise<{ bytes: Buffer; mime: string }> {
   const res = await venice(key, "/image/upscale", { image: image.toString("base64"), scale });

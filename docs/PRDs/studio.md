@@ -3,7 +3,7 @@
 **Status:** approved by David, 2026-10-24 ("build 1-3 … use similar pricing strategy as others … POV sounds good … share your
 output to the other user/agent … you pay for it … Hive is a bottleneck, add an alternative … everything configurable … make
 this best in class"). **Owner:** David. **Code:** `lib/adult/studio*.ts`, `lib/adult/moderation.ts`, `lib/adult/shares.ts`,
-`app/after-dark/studio`. **Built:** v1 (#778), the checks (#779), v2 (2026-10-24, docs/after-dark.md "The Studio").
+`app/after-dark/studio`. **Built:** v1 (#778), the checks (#779), v2 (#784), v3 (2026-10-24; docs/after-dark.md "The Studio").
 
 ## 1. Why
 
@@ -141,11 +141,14 @@ and the shoot each came from. A shoot whose every picture the viewer 👎'd offe
 
 ### v3: setups, face strength, video
 
-- **Saved setups:** a shoot's choices saved under a name, re-run in one tap, on any of the owner's characters.
+- **Saved setups:** a shoot's choices saved under a name, re-run in one tap, on any of the owner's characters. A place of
+  one character's own (their nights' places) isn't kept, nor a Together setup's partner: both are that character's.
 - **Face strength:** loose, balanced, strict: how hard every picture holds the face (the edit prompt's wording, and how
-  many references go in).
-- **Animate:** a Studio picture becomes a clip on Wan 3.0 (Venice), 5 or 10 seconds, with a motion chip (sway, turn
-  to camera, walk toward you, a slow spin, lie back), priced like the field (section 6), kept like any clip.
+  many references go in: loose is the face alone, without the body reference).
+- **Animate:** a Studio picture becomes a clip on Wan 3.0 (Venice), 5 or 10 seconds, with a motion chip (just breathing,
+  sway, turn to camera, walk toward you, a slow spin, lie back), priced like the field (section 6), kept like any clip:
+  checked by Hive (videos always are), counted against the month's clips, one video at a time. It runs on our key only
+  (an own-key video job is a later step). Queued at once and collected as the Studio's page polls.
 
 ## 6. Pricing (defaults; every number is a setting)
 
@@ -262,7 +265,8 @@ Hive's capacity and storage; tokens protect the margin.
   `default_new`.
 - `max_level` (3), `pov` (on), `free_redo` (on), `reference_set_everywhere` (off), `disabled_options` (none),
   `share` {`photos` on, `after_dark` on, `pg_max_nsfw` 0.15}, `own_keys` {`venice` on, `replicate` on},
-  `upscale` {`scale` 2 (or 4), `usd` 0.02}.
+  `upscale` {`scale` 2 (or 4), `usd` 0.02}, `animate` {`model`: null, After Dark's `reel_model`}. A motion is switched
+  off by `disabled_options` as `motion.<id>`.
 
 `adult_settings.moderation` (JSON): `mode` (`hive`), `alts` (`["venice_vlm"]`), `min_sources` (1), `vlm_model`,
 `sightengine_user`, `sightengine_minor_max` (0.1), `endpoint_url`, `pg_via` (`hive`). Keys sealed like the others:
@@ -273,7 +277,7 @@ Hive's capacity and storage; tokens protect the margin.
 - `adult_studio_shoots`: one row a shoot (owner, character, partner, kind, choices, model, provider, own key or not,
   tokens, asked, made, status, picture ids, redo of, error).
 - `adult_identity`: per owner and character: body reference, face strength, studio intensity and hard nos.
-- `adult_studio_setups` (v3): named choices.
+- `adult_studio_setups` (v3): named choices, one per name per owner, kind `shoot` or `pair`.
 - `adult_shares` (v2): item, sharer, recipient, their character, status (pending, accepted, declined, revoked; a photo:
   sent), kind (after_dark or photo), the photo's show asset. `adult_share_prefs`: auto-accept, per person.
 - `adult_images.shoot_id`, `adult_images.nsfw_score` (Hive's general_nsfw when it ran); `adult_usage.studio`, `.studio_byok`,

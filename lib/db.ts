@@ -2068,6 +2068,19 @@ create table if not exists adult_share_prefs (
   updated_at timestamptz not null default now()
 );
 alter table couple_texts add column if not exists photo text;
+-- Studio v3 (docs/PRDs/studio.md): a shoot's choices saved under a name (one per name), run again on any of the owner's
+-- characters; kind 'shoot' (one of them) or 'pair' (together, the partner picked when it runs).
+create table if not exists adult_studio_setups (
+  id text primary key,
+  owner_id text not null,
+  name text not null,
+  kind text not null check (kind in ('shoot', 'pair')),
+  choices jsonb not null default '{}',
+  model text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, name)
+);
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.

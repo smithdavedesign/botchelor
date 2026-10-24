@@ -399,5 +399,33 @@ export function bodyPrompt(subject: Subject, nude: boolean): string {
   ].join(" ");
 }
 
+/* ------------------------------------------------- animate (v3) ------------------------------------------------- */
+
+/** How a picture moves when it's animated (v3): one chip, fixed words, nothing typed. `disabled_options` takes "motion.<id>". */
+export const ANIMATE_MOTIONS: readonly { id: string; label: string; words: string }[] = [
+  { id: "breathe", label: "Just breathing", words: "stays where they are, breathing slowly, a small smile, hair moving slightly" },
+  { id: "sway", label: "Sway", words: "sways slowly, shifting their weight from one hip to the other" },
+  { id: "turn", label: "Turn to camera", words: "turns slowly to face the camera and holds its gaze" },
+  { id: "walk", label: "Walk toward you", words: "walks slowly toward the camera, eyes on it" },
+  { id: "spin", label: "A slow spin", words: "turns in one slow, full spin, then faces the camera again" },
+  { id: "lie_back", label: "Lie back", words: "lies back slowly and settles, looking at the camera" },
+];
+export const ANIMATE_SECONDS = [5, 10] as const;
+export type AnimateSeconds = (typeof ANIMATE_SECONDS)[number];
+
+/**
+ * A Studio picture's clip prompt: the one person in it, kept exactly as they are, doing the motion, one steady shot.
+ * The level is the picture's, so its closing words match it.
+ */
+export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string): string {
+  const who = subject.noun === "person" ? "person" : subject.noun;
+  return [
+    `The ${who} in the picture ${motion}.`,
+    "Only this one person, exactly as in the picture: the same face, body and clothes (or none), in the same place and light.",
+    "One continuous shot, the camera steady: no cuts, nobody else comes in. Realistic, unhurried motion.",
+    TAIL[level],
+  ].join(" ");
+}
+
 /** The studio intensity's highest level (the pair limits' intensities, lib/adult/limits.ts INTENSITIES). */
 export const LEVEL_FOR_INTENSITY: Record<string, Level> = { slow_burn: 0, flirty: 1, spicy: 2, explicit: 3, filthy: 3 };

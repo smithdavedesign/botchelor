@@ -9,7 +9,7 @@ import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { setStudioPausesForTests } from "@/lib/adult/studio";
-import { VARIATION_HINTS, variationPrompt } from "@/lib/adult/studio-catalog";
+import { ANIMATE_MOTIONS, animatePrompt, VARIATION_HINTS, variationPrompt } from "@/lib/adult/studio-catalog";
 import { DEFAULT_STUDIO_CONFIG, mergeStudioConfig } from "@/lib/adult/studio-config";
 import { claimAdmin } from "@/lib/admins";
 import { assignJob, saveConnection } from "@/lib/connections";
@@ -20,8 +20,8 @@ import { setSeasonCastForTests } from "@/lib/season-cast";
 import { loadChain } from "@/lib/text-chain";
 import { api, BASE_URL, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
-// Studio v2 (lib/adult/studio.ts, lib/adult/shares.ts, docs/PRDs/studio.md): pair shoots, more like this, upscaling,
-// own keys and sharing. No live calls: Venice, Replicate and Hive are stubbed.
+// Studio v2 and v3 (lib/adult/studio.ts, lib/adult/shares.ts, docs/PRDs/studio.md): pair shoots, more like this,
+// upscaling, own keys, sharing; saved setups, face strength, animate. No live calls: Venice, Replicate and Hive are stubbed.
 
 const YOUNG = /\b(teen\w*|young\w*|girl\w*|boy\w*|school\w*|student\w*|petite|little|tiny|child\w*|kid\w*|underage|minor\w*|babysit\w*|cheerlead\w*|braces|pigtail\w*|barely|innocent|virgin)\b/i;
 
@@ -85,16 +85,18 @@ afterEach(() => {
 
 const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const BIG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);
-const mod = (nsfw: number) => ({ output: [{ classes: [{ class: "yes_child_present", value: 0.01 }, { class: "no_child_present", value: 0.99 }, { class: "general_nsfw", value: nsfw }] }] });
+const mod = (nsfw: number, child = 0.01) => ({ output: [{ classes: [{ class: "yes_child_present", value: child }, { class: "no_child_present", value: 1 - child }, { class: "general_nsfw", value: nsfw }] }] });
 const answer = (a: string) => ({ choices: [{ message: { role: "assistant", content: JSON.stringify({ answer: a }) } }] });
-/** Hive, stubbed: adults, and how explicit it scores each picture. */
-function fakeHive(nsfw = 0.9) {
-  setCheckFetchForTests(async (input: RequestInfo | URL) => Response.json(String(input) === HIVE_VLM ? answer("ADULTS") : mod(nsfw)));
+/** Hive, stubbed: adults, and how explicit it scores each picture (`child`: its child head fires). */
+function fakeHive(nsfw = 0.9, child = 0.01) {
+  setCheckFetchForTests(async (input: RequestInfo | URL) => Response.json(String(input) === HIVE_VLM ? answer("ADULTS") : mod(nsfw, child)));
 }
 /** Venice's multi-edit and upscaler, stubbed: what each was sent, and with which key. */
 function fakeVenice() {
   const edits: { model: string; prompt: string; images: string[]; key: string }[] = [];
   const upscales: { image: string; scale: number; key: string }[] = [];
+  // A video (the Studio's Animate): queued, then still being made until `video.ready`.
+  const video = { ready: false, queued: [] as Record<string, unknown>[], released: 0 };
   setReelFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body ?? "{}"));
     const key = String(new Headers(init?.headers).get("authorization") ?? "");
@@ -106,10 +108,21 @@ function fakeVenice() {
       upscales.push({ image: body.image, scale: body.scale, key });
       return new Response(new Uint8Array(BIG), { headers: { "content-type": "image/png" } });
     }
+    if (String(input).endsWith("/video/queue")) {
+      video.queued.push(body);
+      return Response.json({ queue_id: `q-${video.queued.length}` });
+    }
+    if (String(input).endsWith("/video/retrieve")) {
+      if (body.delete_media_on_completion) {
+        video.released++;
+        return Response.json({ ok: true });
+      }
+      return video.ready ? new Response(new Uint8Array(BIG), { headers: { "content-type": "video/mp4" } }) : Response.json({ status: "PROCESSING" });
+    }
     return new Response("?", { status: 500 });
   });
   setMediaFetchForTests(async () => Response.json({ images: [Buffer.from(PNG).toString("base64")] }));
-  return { edits, upscales };
+  return { edits, upscales, video };
 }
 
 const signedIn = (userId: string) => sessionCookies({ userId, authenticated: true })[0].split(";")[0];
@@ -346,5 +359,105 @@ describe("sharing", () => {
     expect(asset).toMatchObject({ kind: "photo", review_status: "approved" });
     const chain = await loadChain(t.db, me.character, agentChar.id, { userId: me.id, owner: true });
     expect(chain.find((x) => x.kind === "text" && x.photo)).toMatchObject({ text: "📷", via: "photo", photo: `/api/assets/${asset.id}` });
+  });
+});
+
+describe("v3: setups, face strength and animate", () => {
+  it("writes each motion to the lines, and an animation's prompt keeps the one person as they are", () => {
+    for (const m of ANIMATE_MOTIONS) {
+      expect(checkAdultText({ words: m.words }).ok, m.id).toBe(true);
+      expect(YOUNG.test(m.words), m.id).toBe(false);
+    }
+    const p = animatePrompt({ noun: "woman" }, 0, ANIMATE_MOTIONS[2].words);
+    expect(p).toMatch(/^The woman in the picture turns slowly to face the camera/);
+    expect(p).toContain("Only this one person, exactly as in the picture");
+    expect(p).toMatch(/Photorealistic\. Everyone shown is an adult\.$/);
+  });
+
+  it("saves a shoot's choices under a name (replaced by name, without a place of one character's own), runs it, and deletes it", async () => {
+    const me = await setup({ admin: true });
+    fakeHive();
+    const { edits } = fakeVenice();
+    const saved = await (
+      await post({ action: "save_setup", character_id: me.character, name: "  Golden  hour ", kind: "shoot", choices: { pose: "standing", light: "golden", place: "own:0" }, model: "qwen-image-2-1-turbo-edit" }, me.cookie)
+    ).json();
+    expect(saved.setup).toMatchObject({ name: "Golden hour", kind: "shoot", choices: { pose: "standing", light: "golden" }, model: "qwen-image-2-1-turbo-edit" });
+    expect(saved.setup.choices.place).toBeUndefined();
+    const again = await (await post({ action: "save_setup", character_id: me.character, name: "Golden hour", kind: "shoot", choices: { pose: "front" } }, me.cookie)).json();
+    expect(again.state.setups).toHaveLength(1);
+    expect(again.state.setups[0]).toMatchObject({ choices: { pose: "front" }, model: null });
+    // A setup together keeps no partner and no place of their night.
+    const pair = await (await post({ action: "save_setup", character_id: me.character, name: "Slow dance", kind: "pair", choices: { act: "dance", outfit: "dressed_up", framing: "wide", place: "night:0" } }, me.cookie)).json();
+    expect(pair.setup.choices).toEqual({ act: "dance", outfit: "dressed_up", framing: "wide" });
+    // Run: the shoot with its choices.
+    const shot = await (await post({ action: "shoot", character_id: me.character, choices: again.state.setups.find((x: { name: string }) => x.name === "Golden hour").choices }, me.cookie)).json();
+    expect(shot.shoot.made).toBe(4);
+    expect(edits.at(-1)!.prompt).toContain("Pose:");
+    expect((await post({ action: "save_setup", character_id: me.character, name: "   ", kind: "shoot", choices: {} }, me.cookie)).status).toBe(422);
+    const gone = await (await post({ action: "delete_setup", character_id: me.character, setup_id: pair.setup.id }, me.cookie)).json();
+    expect(gone.state.setups.map((x: { name: string }) => x.name)).toEqual(["Golden hour"]);
+    expect((await post({ action: "delete_setup", character_id: me.character, setup_id: pair.setup.id }, me.cookie)).status).toBe(404);
+  });
+
+  it("holds the face loosely with the face alone: no body reference", async () => {
+    const me = await setup({ admin: true });
+    fakeHive();
+    const { edits } = fakeVenice();
+    const body = await (await post({ action: "body", character_id: me.character }, me.cookie)).json();
+    await post({ action: "use_body", character_id: me.character, image_id: body.pictures[0].id }, me.cookie);
+    await post({ action: "shoot", character_id: me.character, choices: {} }, me.cookie);
+    expect(edits.at(-1)!.images).toHaveLength(2);
+    await post({ action: "strength", character_id: me.character, strength: "loose" }, me.cookie);
+    await post({ action: "shoot", character_id: me.character, choices: {} }, me.cookie);
+    expect(edits.at(-1)!.images).toHaveLength(1);
+    expect(edits.at(-1)!.prompt).toContain("recognisably the same person");
+  });
+
+  it("animates a picture of them alone: queued from its link, collected as the page asks, checked by Hive, kept; tokens back when it isn't", async () => {
+    const me = await setup();
+    fakeHive();
+    const { video } = fakeVenice();
+    const res = await post({ action: "animate", character_id: me.character, image_id: "face-1", motion: "turn", seconds: 10 }, me.cookie);
+    expect(res.status).toBe(200);
+    const out = await res.json();
+    expect(out.shoot).toMatchObject({ kind: "animate", status: "making", tokens: 5, model: "wan-3-0-image-to-video" });
+    expect(await used(me.id)).toBe(5);
+    expect(video.queued).toHaveLength(1);
+    expect(video.queued[0]).toMatchObject({ model: "wan-3-0-image-to-video", duration: "10s", aspect_ratio: "adaptive" });
+    expect(String(video.queued[0].image_url)).toContain("/media/face-1?until=");
+    expect(String(video.queued[0].prompt)).toContain("turns slowly to face the camera");
+    expect(String(video.queued[0].negative_prompt)).toContain("a second person");
+    expect(out.state.animating).toHaveLength(1);
+    // One at a time; a motion that isn't on the menu.
+    expect((await post({ action: "animate", character_id: me.character, image_id: "face-1", motion: "sway", seconds: 5 }, me.cookie)).status).toBe(409);
+    expect((await post({ action: "animate", character_id: me.character, image_id: "face-1", motion: "moonwalk", seconds: 5 }, me.cookie)).status).toBe(422);
+    // Still being made: the page's state says so.
+    let s = await (await get(me.cookie, `character=${me.character}`)).json();
+    expect(s.state.animating).toHaveLength(1);
+    // Done: checked, kept as a clip in their gallery, counted, and Venice's copy released.
+    video.ready = true;
+    s = await (await get(me.cookie, `character=${me.character}`)).json();
+    expect(s.state.animating).toHaveLength(0);
+    expect(s.state.shoots[0]).toMatchObject({ kind: "animate", status: "ready", made: 1 });
+    const clip = s.state.gallery.find((g: { kind: string }) => g.kind === "video");
+    expect(clip).toMatchObject({ id: s.state.shoots[0].pictures[0] });
+    expect((await t.db.query<{ clips: number }>(`select clips from adult_usage where owner_id = $1`, [me.id])).rows[0].clips).toBe(1);
+    expect(video.released).toBe(1);
+    // The next: its video refused by the check (the child head fires): discarded, logged, its tokens back.
+    video.ready = false;
+    expect((await post({ action: "animate", character_id: me.character, image_id: "face-1", motion: "sway", seconds: 5 }, me.cookie)).status).toBe(200);
+    expect(await used(me.id)).toBe(8);
+    video.ready = true;
+    fakeHive(0.9, 0.97);
+    s = await (await get(me.cookie, `character=${me.character}`)).json();
+    expect(s.state.shoots[0]).toMatchObject({ kind: "animate", status: "failed", tokens: 0 });
+    expect(s.state.shoots[0].error).toMatch(/the check discarded it/);
+    expect(await used(me.id)).toBe(5);
+    expect((await t.db.query<{ reason: string }>(`select reason from adult_rejections where reason like 'studio animate%'`)).rows).toHaveLength(1);
+    // The month's clips: none left, nothing spent.
+    await saveAdultSettings(t.db, { caps: { clips: 1 } });
+    fakeHive();
+    expect((await post({ action: "animate", character_id: me.character, image_id: "face-1", motion: "sway", seconds: 5 }, me.cookie)).status).toBe(429);
+    expect(await used(me.id)).toBe(5);
   });
 });

@@ -2051,6 +2051,19 @@ configurable … best in class"). What's built, by phase:
     `character_assets` photo and a 📷 text in the two characters' thread (`couple_texts.photo`, via `photo`): on the phone,
     and in an agent's `read_texts` as `photo_url`.
 
+**v3** (the page's **Setups** tab and each picture's Animate):
+- **Setups** (`adult_studio_setups`): Save as a setup on Shoot or Together keeps the choices and the model under a name
+  (one per name; 30 at most), without a place of one character's own or a partner. Use loads one onto its tab; a shoot's
+  setup can Shoot it in one tap, on whichever character's Studio is open.
+- **Face strength:** loose now also leaves the body reference out (the face alone), besides the prompt's wording.
+- **Animate:** a picture of one of them alone becomes a 5 or 10 s clip on After Dark's video model (`studio.animate.model`,
+  else `reel_model`: Wan 3.0) from a motion chip (`ANIMATE_MOTIONS`, each a fixed phrase; `motion.<id>` in
+  `disabled_options` takes one off). Hive's gate first (videos are Hive's alone), one video at a time (a reel or clip
+  blocks it too), the month's clips cap, `prices.animate_5` / `animate_10` tokens. Queued on Venice from the picture's
+  signed link; `collectAnimations` (run by the Studio's state, which the page polls every 20 s while one is making)
+  retrieves it, Hive checks it, and it's kept as a video in their gallery (`shoot_id`, `source_image`), counted as a
+  clip, and Venice's copy deleted. Refused by the check, failed, or not back in an hour: tokens back, logged when refused.
+
 ### The checks: an alternative to Hive (2026-10-24)
 
 David: "Hive is a bottleneck atm, so it might be worth adding an alternative too. Everything should be configurable."

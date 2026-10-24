@@ -19,6 +19,8 @@
  *    on Venice's upscaler, each checked and kept like any other.
  *  - **Their own key (v2):** any job on the Venice or Replicate key they connected (Connections, After Dark pictures):
  *    `prices.own_key` tokens, their key's month and cap, our check still on every picture.
+ *  - **Setups, Animate (v3):** a shoot's choices saved under a name and run on any of their characters; a picture of one
+ *    of them made a 5 or 10 s clip on After Dark's video model, queued and collected as the page polls, checked by Hive.
  *  - **Price and caps:** a shoot's tokens are taken first (admins free), given back whole when nothing came through; one
  *    free redo for a shoot the viewer 👎'd whole; monthly caps per person (lib/adult/usage.ts).
  *  - **The check:** every picture passes the output check before it's kept (lib/adult/check.ts), as everywhere.
@@ -37,13 +39,29 @@ import { eligibleIds } from "./characters";
 import { mediaLimits } from "./clips";
 import type { CheckResult } from "./check";
 import { isPublicPlace } from "./continuity";
-import { HivePausedError, hivePausedErrorMessage } from "./hive-limit";
+import { HivePausedError, hivePausedErrorMessage, hivePausedUntil } from "./hive-limit";
 import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { HARD_NO_IDS, INTENSITIES, type Intensity } from "./limits";
 import { baselinePrompt, ensureBaseline, listMedia, mediaByIds, NEGATIVE_PROMPT, physicalLook, replicatePictureInput, signedMediaUrl, venicePicture, type Media } from "./media";
 import { PICTURE_PRESETS, type PresetId } from "./rating-tags";
 import { FRAMING_LABEL, OUTFITS, picturePlaces, planPicture } from "./pictures-menu";
-import { baselines, drawKeyframe, NUDE_FROM, nudeBaselines, reelCast, reelNight, replicateKeyframeInput, replicateSetImage, setPictures, veniceUpscale } from "./reels";
+import {
+  baselines,
+  busyMessage,
+  busyReel,
+  drawKeyframe,
+  NUDE_FROM,
+  nudeBaselines,
+  queueVideo,
+  reelCast,
+  reelNight,
+  releaseVideo,
+  replicateKeyframeInput,
+  replicateSetImage,
+  retrieveVideo,
+  setPictures,
+  veniceUpscale,
+} from "./reels";
 import { eligiblePair } from "./scenes";
 import { sharePartners, sharesOf, type OutgoingShare, type SharePartner } from "./shares";
 import { STAGES } from "./stages";
@@ -51,6 +69,9 @@ import { runModel } from "./replicate";
 import { adultKeys, getAdultSettings } from "./settings";
 import { choosePreset, faceReferenceId, NO_STEERING, steeringFor, withSteering } from "./steering";
 import {
+  ANIMATE_MOTIONS,
+  ANIMATE_SECONDS,
+  animatePrompt,
   bodyPrompt,
   groupById,
   LEVEL_FOR_INTENSITY,
@@ -63,6 +84,7 @@ import {
   studioMenu,
   VARIATION_HINTS,
   variationPrompt,
+  type AnimateSeconds,
   type Level,
   type Noun,
   type ShootChoices,
@@ -72,7 +94,7 @@ import {
 } from "./studio-catalog";
 import type { StudioConfig, StudioModel } from "./studio-config";
 import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
-import { countUse, usageLeft } from "./usage";
+import { countUse, overCap, usageLeft } from "./usage";
 
 /* ------------------------------------------------- who may ------------------------------------------------- */
 
@@ -176,7 +198,7 @@ async function drawOne(db: Db, m: StudioModel, keys: Keys, prompt: string, image
 
 /* --------------------------------------------------- jobs --------------------------------------------------- */
 
-export type ShootKind = "shoot" | "restyle" | "recast" | "body" | "pair" | "variations" | "upscale";
+export type ShootKind = "shoot" | "restyle" | "recast" | "body" | "pair" | "variations" | "upscale" | "animate";
 export type Shoot = {
   id: string;
   kind: ShootKind;
@@ -408,10 +430,11 @@ export async function shoot(db: Db, viewer: string, characterId: string, input: 
   }
   const face = await faceLink(db, viewer, c, baseUrl);
   if (typeof face !== "string") return face;
-  // Picture 1 the face, Picture 2 their body reference (when they have one and the model takes it), then the place's set.
+  // Picture 1 the face, Picture 2 their body reference (when they have one, the model takes it, and the face isn't held
+  // loosely: loose is the face alone), then the place's set.
   const images = [face];
   const refs = { body: false, set: false };
-  if (identity.body && model.max_images >= 2) {
+  if (identity.body && identity.strength !== "loose" && model.max_images >= 2) {
     images.push(signedMediaUrl(identity.body, baseUrl));
     refs.body = true;
   }
@@ -819,7 +842,7 @@ export async function moreLikeThis(db: Db, viewer: string, characterId: string, 
   const face = await faceLink(db, viewer, c, baseUrl);
   if (typeof face !== "string") return face;
   const images = [face];
-  const body = Boolean(identity.body) && identity.body !== src.id && model.max_images >= 3;
+  const body = Boolean(identity.body) && identity.strength !== "loose" && identity.body !== src.id && model.max_images >= 3;
   if (body) images.push(signedMediaUrl(identity.body!, baseUrl));
   images.push(signedMediaUrl(src.id, baseUrl));
   const subject = subjectOf(c, viewer, src.level >= 2);
@@ -865,6 +888,184 @@ export async function upscalePicture(db: Db, viewer: string, characterId: string
       return veniceUpscale(keys.venice, bytes, config.upscale.scale);
     },
   });
+}
+
+/* ------------------------------------------------- saved setups ------------------------------------------------- */
+
+/** A shoot's choices saved under a name (v3), run again on any of the owner's characters. */
+export type Setup = { id: string; name: string; kind: "shoot" | "pair"; choices: Record<string, unknown>; model: string | null; created_at: string };
+const SETUPS_MAX = 30;
+
+export async function listSetups(db: Db, viewer: string): Promise<Setup[]> {
+  const { rows } = await db.query<Omit<Setup, "created_at"> & { created_at: string | Date }>(
+    `select id, name, kind, choices, model, created_at from adult_studio_setups where owner_id = $1 order by name limit ${SETUPS_MAX}`,
+    [viewer],
+  );
+  return rows.map((r) => ({ ...r, choices: r.choices ?? {}, created_at: new Date(r.created_at).toISOString() }));
+}
+
+/**
+ * Saves (or replaces, by name) a setup. A place of one character's own (their nights' places) isn't kept: it's theirs,
+ * and the setup runs on any of the owner's characters. The choices are checked again when it runs.
+ */
+export async function saveSetup(
+  db: Db,
+  viewer: string,
+  characterId: string,
+  input: { name: string; kind: "shoot" | "pair"; choices: Record<string, unknown>; model?: string | null },
+): Promise<{ ok: true; setup: Setup } | StudioFail> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const name = input.name.trim().replace(/\s+/g, " ");
+  if (!name || name.length > 40) return fail(422, "invalid", "A name of up to 40 characters.");
+  if (!checkAdultText({ name }).ok || crossesTaboo(name)) return fail(422, "not_allowed", "Pick another name.");
+  const choices: Record<string, unknown> = { ...input.choices };
+  if (typeof choices.place === "string" && /^(own|night):/.test(choices.place)) delete choices.place;
+  delete choices.partner;
+  const model = input.model && access.config.models.some((m) => m.id === input.model) ? input.model : null;
+  const n = (await db.query<{ n: number; mine: boolean }>(`select count(*)::int as n, bool_or(name = $2) as mine from adult_studio_setups where owner_id = $1`, [viewer, name])).rows[0];
+  if (n && n.n >= SETUPS_MAX && !n.mine) return fail(409, "too_many", `Up to ${SETUPS_MAX} setups: delete one first.`);
+  const row = (
+    await db.query<Omit<Setup, "created_at"> & { created_at: string | Date }>(
+      `insert into adult_studio_setups (id, owner_id, name, kind, choices, model) values ($1, $2, $3, $4, $5::jsonb, $6)
+       on conflict (owner_id, name) do update set kind = excluded.kind, choices = excluded.choices, model = excluded.model, updated_at = now()
+       returning id, name, kind, choices, model, created_at`,
+      [crypto.randomUUID(), viewer, name, input.kind, JSON.stringify(choices), model],
+    )
+  ).rows[0];
+  return { ok: true, setup: { ...row, created_at: new Date(row.created_at).toISOString() } };
+}
+
+export async function deleteSetup(db: Db, viewer: string, id: string): Promise<boolean> {
+  return (await db.query(`delete from adult_studio_setups where id = $1 and owner_id = $2 returning id`, [id, viewer])).rows.length > 0;
+}
+
+/* ---------------------------------------------------- animate ---------------------------------------------------- */
+
+/** On every Studio clip: away from anyone young-looking, and from what breaks a shot of one (a second person, a cut). */
+const ANIMATE_NEGATIVE =
+  "child, teen, minor, young-looking, cartoon, anime, distorted face, extra limbs, text, watermark, " +
+  "a second person, extra people, a duplicate person, scene cut, scene change, morphing face";
+/** An animation not back after this long is given up, and its tokens come back. */
+const ANIMATE_GIVE_UP_MS = 60 * 60 * 1000;
+
+const animatingNow = async (db: Db, viewer: string): Promise<boolean> =>
+  (
+    await db.query(
+      `select 1 from adult_studio_shoots where owner_id = $1 and kind = 'animate' and status = 'making' and created_at > now() - ($2::int * interval '1 millisecond') limit 1`,
+      [viewer, ANIMATE_GIVE_UP_MS],
+    )
+  ).rows.length > 0;
+
+export type AnimateInput = { image_id: string; motion: string; seconds: number };
+
+/**
+ * Animate (v3): one of their pictures of the character alone becomes a clip on After Dark's video model (Wan 3.0 on
+ * Venice), from a motion chip, 5 or 10 seconds. Queued now and collected as the page polls (collectAnimations): the
+ * video is checked by Hive before it's kept, like every clip. One video at a time; the month's clips cap; the price
+ * `animate_5` or `animate_10`, given back when it doesn't come through.
+ */
+export async function animatePicture(db: Db, viewer: string, characterId: string, input: AnimateInput, baseUrl: string): Promise<JobResult> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const { character: c, config, admin } = access;
+  const motion = ANIMATE_MOTIONS.find((m) => m.id === input.motion);
+  if (!motion || config.disabled_options.includes(`motion.${motion.id}`)) return fail(422, "unknown_option", "Pick one of the motions.");
+  if (!(ANIMATE_SECONDS as readonly number[]).includes(input.seconds)) return fail(422, "invalid", "5 or 10 seconds.");
+  const seconds = input.seconds as AnimateSeconds;
+  const src = await soloPicture(db, viewer, c.id, input.image_id);
+  if (!src) return fail(404, "not_found", "Pick one of your pictures of them alone.");
+  const { maxLevel } = shootLimits(await identityOf(db, viewer, c.id), config);
+  if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel].toLowerCase()}: their studio limit.`);
+  const keys = await adultKeys(db);
+  if (!keys.venice) return fail(409, "not_set_up", "Animating needs the Venice key in After Dark's settings.");
+  // A video is checked by Hive alone (the alternatives read stills): none starts while it's out.
+  const gate = await mediaGate(db, { video: true });
+  if (!gate.ok) return fail(503, "hive_paused", gate.message);
+  // One video at a time (an animation, a clip or a night's reel): Hive rate-limits a burst.
+  if (await animatingNow(db, viewer)) return fail(409, "busy", "One is already being animated: it takes a few minutes.");
+  const busy = await busyReel(db, viewer);
+  if (busy) return fail(409, "busy", busyMessage(busy));
+  const capped = await overCap(db, viewer, "clips");
+  if (capped) return fail(429, "over_cap", capped);
+  const tokens = seconds === 10 ? config.prices.animate_10 : config.prices.animate_5;
+  const pays = tokens > 0 && !admin;
+  if (pays && !(await spendBoughtTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the shop page.`);
+  const model = config.animate.model ?? (await getAdultSettings(db)).reel_model;
+  let queueId: string;
+  try {
+    const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion.words);
+    queueId = await queueVideo(keys.venice, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative: ANIMATE_NEGATIVE });
+  } catch (err) {
+    if (pays) await refundBoughtTokens(db, viewer, tokens);
+    return fail(502, "not_made", `It couldn't be animated (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${pays ? " Your tokens are back." : ""}`);
+  }
+  const row = (
+    await db.query<Parameters<typeof shootRow>[0]>(
+      `insert into adult_studio_shoots (id, owner_id, character_id, kind, choices, model, provider, tokens, asked, status)
+       values ($1, $2, $3, 'animate', $4::jsonb, $5, 'venice', $6, 1, 'making')
+       returning id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at`,
+      [crypto.randomUUID(), viewer, c.id, JSON.stringify({ source: src.id, motion: motion.id, seconds, queue_id: queueId, level: src.level }), model, pays ? tokens : 0],
+    )
+  ).rows[0];
+  return { ok: true, shoot: shootRow(row), pictures: [], refunded: false, message: `Animating: it takes a few minutes, and lands in the gallery.` };
+}
+
+/**
+ * The viewer's animations still being made, collected (the page asks as it polls, a few at a time): a finished video
+ * is checked by Hive and kept in the character's gallery, or discarded and logged; one not back in time is given up.
+ * Anything not kept gives its tokens back. While Hive is out for the day they wait at Venice, unchecked.
+ */
+export async function collectAnimations(db: Db, viewer: string): Promise<void> {
+  const { rows } = await db.query<{ id: string; character_id: string; model: string; tokens: number; choices: { source: string; motion: string; queue_id: string }; created_at: string | Date }>(
+    `select id, character_id, model, tokens, choices, created_at from adult_studio_shoots where owner_id = $1 and kind = 'animate' and status = 'making' order by created_at limit 3`,
+    [viewer],
+  );
+  if (!rows.length) return;
+  /** It didn't come through: failed, and its tokens back (only by the poll that settled it, so never twice). */
+  const failed = async (r: (typeof rows)[number], error: string) => {
+    const done = await db.query(`update adult_studio_shoots set status = 'failed', error = $2, tokens = 0, updated_at = now() where id = $1 and status = 'making' returning id`, [r.id, error.slice(0, 200)]);
+    if (done.rows.length && r.tokens > 0) await refundBoughtTokens(db, viewer, r.tokens);
+  };
+  const keys = await adultKeys(db);
+  if (await hivePausedUntil(db)) return;
+  for (const r of rows) {
+    if (Date.now() - new Date(r.created_at).getTime() > ANIMATE_GIVE_UP_MS) {
+      await failed(r, "gave up waiting");
+      continue;
+    }
+    if (!keys.venice) continue;
+    const got = await retrieveVideo(keys.venice, r.model, r.choices.queue_id);
+    if (got.state === "making") continue;
+    if (got.state === "failed") {
+      await failed(r, got.reason);
+      continue;
+    }
+    const verdict = await checkMedia(db, { base64: got.bytes.toString("base64"), mime: "video/mp4" }, "video");
+    // The check couldn't run: asked again on the next poll, and nothing more goes to Hive this one.
+    if (!verdict.ok && verdict.reason.startsWith("the check couldn't run")) break;
+    if (!verdict.ok) {
+      await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'studio', $3)`, [crypto.randomUUID(), viewer, `studio animate: ${verdict.reason}`.slice(0, 300)]).catch(() => {});
+      await failed(r, `the check discarded it (${verdict.reason.slice(0, 120)})`);
+      await releaseVideo(keys.venice, r.model, r.choices.queue_id);
+      continue;
+    }
+    // Claimed first: two polls at once never keep it twice.
+    const vid = crypto.randomUUID();
+    const claimed = await db.query(
+      `update adult_studio_shoots set status = 'ready', made = 1, pictures = $2::jsonb, error = null, updated_at = now() where id = $1 and status = 'making' returning id`,
+      [r.id, JSON.stringify([vid])],
+    );
+    if (!claimed.rows.length) continue;
+    const kept = await keepBytes("after-dark", vid, got.bytes, "video/mp4");
+    await db.query(
+      `insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, model, shoot_id)
+       values ($1, $2, $3, 'video', $4, 'video/mp4', $5, $6, 'ready', $7, 'venice', false, $8, $9)`,
+      [vid, viewer, r.character_id, `Studio clip: ${r.choices.motion}`, kept.data, kept.object_key, r.choices.source, r.model, r.id],
+    );
+    await countUse(db, viewer, "clips");
+    await releaseVideo(keys.venice, r.model, r.choices.queue_id);
+  }
 }
 
 /* ----------------------------------------------------- redo ----------------------------------------------------- */
@@ -932,12 +1133,19 @@ export type StudioState = {
   own_key: { provider: "venice" | "replicate" | null; model: string | null; allowed: boolean; problem: string | null };
   /** Upscales left this month (null: uncapped), and how much larger. */
   upscale: { scale: number; left: number | null };
+  /** Saved setups (v3): the owner's, for any of their characters. */
+  setups: Setup[];
+  /** Animate (v3): the motions on offer, and the viewer's animations still being made (the page polls while there are). */
+  motions: { id: string; label: string }[];
+  animating: Shoot[];
 };
 
 export async function studioState(db: Db, viewer: string, characterId: string): Promise<{ ok: true; state: StudioState } | StudioFail> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config, admin, noun, gender } = access;
+  // Animations finished since the page last asked: checked and kept first, so they're in the gallery below.
+  await collectAnimations(db, viewer).catch((err) => console.log(JSON.stringify({ event: "studio_animate_collect_failed", detail: err instanceof Error ? err.message.slice(0, 200) : "error" })));
   const keys = await adultKeys(db);
   const checker = await checkReady(db);
   const identity = await identityOf(db, viewer, c.id);
@@ -997,6 +1205,9 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
         problem: usable.state === "over_cap" || usable.state === "failing" ? usable.message : null,
       },
       upscale: { scale: config.upscale.scale, left: upscalesLeft },
+      setups: await listSetups(db, viewer),
+      motions: ANIMATE_MOTIONS.filter((m) => !config.disabled_options.includes(`motion.${m.id}`)).map(({ id, label }) => ({ id, label })),
+      animating: shoots.filter((x) => x.kind === "animate" && x.status === "making"),
     },
   };
 }
