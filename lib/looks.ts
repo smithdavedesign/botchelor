@@ -14,6 +14,7 @@
  * client component) and the API share this file.
  */
 import { z } from "zod";
+import type { KindId } from "./kinds";
 
 export const GENDERS = ["woman", "man"] as const;
 export type Gender = (typeof GENDERS)[number];
@@ -393,12 +394,13 @@ function subjectWords({ gender, looks }: Subject): string {
 }
 
 /** A show (PG) tile's prompt: a clean studio photograph, fully dressed. */
-export function pgPrompt(s: Subject, framing: string, anime = false): string {
+export function pgPrompt(s: Subject, framing: string, anime = false, detail?: string): string {
   const [medium, finish] = anime
     ? ["Clean modern anime illustration", "Cel shading, a clearly grown adult character with mature adult proportions"]
     : ["Photorealistic studio photograph", "85mm lens, sharp focus, natural skin texture"];
   return [
     `${medium} of ${subjectWords(s)}.`,
+    ...(detail ? [`${detail}.`] : []),
     `Wearing ${s.outfit}.`,
     `${framing}.`,
     `${finish}. Soft even studio lighting, plain warm light-grey backdrop, a single person, tasteful, no nudity, no text, no watermark.`,
@@ -492,10 +494,36 @@ export const isTileId = (id: string): boolean => /^(pg|nsfw)-(woman|man)-[a-z_]+
 
 /* --------------------------------------------- the portrait --------------------------------------------- */
 
-/** A character's portrait from its picks (lib/looks-draw.ts drawLooksPortrait): head and shoulders, dressed, PG. */
-export function looksPortraitPrompt(l: Looks, age: number): string | null {
+/**
+ * What a character's kind (lib/kinds.ts) looks like in its portrait: fixed words, like every other part of the prompt
+ * (nothing typed reaches the image model). A human, or "something else", adds nothing.
+ */
+const KIND_LOOK_WORDS: Partial<Record<KindId, string>> = {
+  vampire: "A vampire: very pale skin, faintly red eyes, a small hint of fangs in the smile, an elegant old-world air",
+  werewolf: "A werewolf in human form: thick untamed hair, amber eyes, a faint wildness about them",
+  ghost: "A ghost: pale and softly translucent, with a faint silvery glow and an old-fashioned air",
+  robot: "A friendly humanoid robot: a sculpted metal face with a warm expression, visible mechanical seams and joints, softly glowing eyes",
+  alien: "A humanoid alien: softly coloured otherworldly skin, large luminous eyes, subtle markings at the temples",
+  witch: "A witch: silver rings, a few dried herbs tucked into the hair, a knowing look",
+  fae: "One of the fae: delicate pointed ears, a few leaves woven into the hair, faintly luminous skin",
+  merfolk: "A merperson on land: faint iridescent scales along the neck and cheekbones, sea-glass eyes, damp hair",
+  monster: "A friendly monster: an unusual but charming non-human face, kind eyes",
+  animal: "A talking animal: an anthropomorphic animal character with expressive eyes",
+};
+
+/**
+ * A character's portrait from its picks (lib/looks-draw.ts drawLooksPortrait): head and shoulders, dressed, PG. The age
+ * is the look's own pick, else the character's capped at the oldest look (a 212-year-old vampire is drawn 60 at most,
+ * not 212), and its kind adds its own fixed words.
+ */
+export function looksPortraitPrompt(l: Looks, age: number, kind?: KindId | null): string | null {
   if (!l.gender) return null;
   const d = DEFAULTS[l.gender];
-  const looks = { ...d, ...l, breasts: undefined, after_dark: undefined, age } as Looks & { age: number };
-  return pgPrompt({ gender: l.gender, looks, outfit: outfitWords(l.gender, l.outfit ?? d.outfit, false) }, "Head-and-shoulders portrait, facing the camera, warm natural smile", l.style === "anime");
+  const looks = { ...d, ...l, breasts: undefined, after_dark: undefined, age: l.age ?? Math.min(age, LOOK_MAX_AGE) } as Looks & { age: number };
+  return pgPrompt(
+    { gender: l.gender, looks, outfit: outfitWords(l.gender, l.outfit ?? d.outfit, false) },
+    "Head-and-shoulders portrait, facing the camera, warm natural smile",
+    l.style === "anime",
+    kind ? KIND_LOOK_WORDS[kind] : undefined,
+  );
 }
