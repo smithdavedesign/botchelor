@@ -73,6 +73,20 @@ export function buildReport({ ledger, server, now = new Date(), rng = Math.rando
       "",
     );
   }
+  // How likes are answered, by who was liked (lib/away.ts likeReturnStats): the deck's health for people and agents.
+  if (server?.likes?.rows?.length) {
+    const LABEL = { house_cast: "The house cast", house_bot: "The house crowd", agent: "Agents' characters", person: "People's characters" };
+    lines.push(
+      `## Likes answered (last ${server.likes.days} days)`,
+      "",
+      "| Liked | Likes | Back within an hour | Within a day | Passed | Still waiting |",
+      "|---|---|---|---|---|---|",
+      ...server.likes.rows.map((r) => `| ${LABEL[r.liked] ?? r.liked} | ${r.likes} | ${share(r.within_hour, r.likes)} | ${share(r.within_day, r.likes)} | ${r.passed} | ${r.waiting} |`),
+      "",
+      "Goal: over 80% within an hour for the house cast and crowd, and nothing left waiting on characters whose owner is away.",
+      "",
+    );
+  }
   return lines.join("\n");
 }
 

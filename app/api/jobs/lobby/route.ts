@@ -5,6 +5,7 @@ import { refreshLobby } from "@/lib/watch";
 import { airDueDates } from "@/lib/air";
 import { autoplayQuietOwnDates } from "@/lib/own-date";
 import { retryDueSets } from "@/lib/sets";
+import { runWhileAway } from "@/lib/away";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -25,7 +26,10 @@ async function run(req: Request): Promise<Response> {
   const handed_over = await autoplayQuietOwnDates(db).catch(() => 0);
   // Drawn sets whose check couldn't run (a Hive 429): their kept pictures are checked again, a few at a time (lib/sets.ts).
   const sets_rechecked = (await retryDueSets(db, 3).catch(() => [])).length;
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked });
+  // While they're away (lib/away.ts): likes and match questions on characters whose owners are gone get the character's
+  // own answer, the crowd's are backed up when David's Mac is off, and agents gone a week have their characters played.
+  const away = await runWhileAway(db).catch(() => ({}));
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked, ...away });
 }
 
 export const GET = handle(run);

@@ -13,6 +13,7 @@
  * and can be booked like any other. Likes stay secret, and a match is the two owners' until a date airs.
  */
 import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
+import { answersItself, AWAY_PENALTY, characterSeenSql, nobodyAnswers, replyHint, type Replies, type ReplyHint } from "./activity";
 import { audienceAllows } from "./audience";
 import { buildTextMessages, dayOf, insertText, SHOW_THREAD_CHARS, threadFor } from "./between-dates";
 import { loadCharacter, type Character } from "./character";
@@ -73,6 +74,13 @@ export type DeckCard = {
    * Only this flag, on its own card: never a list of who liked you.
    */
   liked_you: boolean;
+  /**
+   * Whether a like here will be answered, and how soon (lib/activity.ts replyHint, David 2026-10-24): the house cast at
+   * once, a house-run character within the hour, an active owner's when they're next here, an away owner's on its own;
+   * "away" when nobody will for now. Only this card's own state, never who liked whom.
+   */
+  replies: Replies;
+  replies_note: string;
 };
 
 type Refusal = { ok: false; status: number; error: string; message: string; missing?: string[] };
@@ -95,7 +103,7 @@ export type SwipeResult = { ok: true; liked: boolean; match: MatchView | null } 
 
 const promptLabel = new Map<string, string>(PROFILE_PROMPTS.map((p) => [p.id, p.label]));
 
-function toCard(p: DatingProfile, why: string[], likedYou = false): DeckCard {
+function toCard(p: DatingProfile, why: string[], likedYou: boolean, hint: ReplyHint): DeckCard {
   return {
     id: p.id,
     name: p.name,
@@ -118,7 +126,24 @@ function toCard(p: DatingProfile, why: string[], likedYou = false): DeckCard {
     made_by: p.made_by,
     why,
     liked_you: likedYou,
+    ...hint,
   };
+}
+
+/** What replyHint needs for each card: how it was made, its while-away mode and when its owner was last here. */
+async function replyHints(db: Db, cards: readonly DatingProfile[], bots: ReadonlySet<string>): Promise<Map<string, ReplyHint>> {
+  const { rows } = await db.query<{ id: string; created_via: string | null; while_away: string | null; seen: string | Date | null; adopted: boolean }>(
+    `select c.id, c.created_via, c.while_away, ${characterSeenSql("c")} as seen, c.adopted_at is not null as adopted from characters c where c.id = any($1)`,
+    [cards.map((p) => p.id)],
+  );
+  const meta = new Map(rows.map((r) => [r.id, r]));
+  return new Map(
+    cards.map((p) => {
+      const m = meta.get(p.id);
+      const hint = replyHint({ house: p.made_by === "house", house_bot: bots.has(p.id), created_via: m?.created_via ?? null, while_away: m?.while_away ?? null, seen: m?.seen ? new Date(m.seen) : null, adopted: m?.adopted ?? false });
+      return [p.id, hint];
+    }),
+  );
 }
 
 type Mine = ProfileRow & { taken: boolean };
@@ -189,23 +214,27 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
     db.query<{ swiper: string }>(`select swiper from swipes where target = $1 and liked`, [mine.id]),
   ]);
   const likedMine = new Set(likers.rows.map((r) => r.swiper));
+  // The house crowd (lib/house-bots.ts) and whether each card will answer a like (lib/activity.ts): a card nobody will
+  // answer for now ranks down (David, 2026-10-24: "dead characters"), unless it already liked yours.
+  const bots = await houseBotCharacterIds(db, ranked.map((m) => m.id));
+  const hints = await replyHints(db, ranked, bots);
   // Drawn-to (lib/kinds.ts): a small nudge toward the kinds this character is into. Only the deck's order: rankFor also
   // decides a person's character's answer to a match and find_matches, which stay as they were. Never a filter.
   const drawnTo = toProfile(mine).extras.drawn_to ?? [];
   const kindOf = new Map(pool.map((p) => [p.id, p.extras.kind ?? null]));
-  const boost = (id: string) => (likedMine.has(id) ? 2 : 0) + drawnToBoost(drawnTo, kindOf.get(id));
+  const away = (id: string) => !likedMine.has(id) && nobodyAnswers(hints.get(id)!);
+  const boost = (id: string) => (likedMine.has(id) ? 2 : 0) + drawnToBoost(drawnTo, kindOf.get(id)) - (away(id) ? AWAY_PENALTY : 0);
   for (const m of ranked) {
     const kind = kindOf.get(m.id);
     if (drawnToBoost(drawnTo, kind)) m.why.push(`${shortName(mine.name)} is drawn to ${kindName(kind!, "many").toLowerCase()}`);
   }
   ranked.sort((a, b) => b.score + boost(b.id) - (a.score + boost(a.id)));
-  // The house crowd (lib/house-bots.ts) fills in around everyone else: at most a third of a page.
-  const bots = opts.only ? new Set<string>() : await houseBotCharacterIds(db, ranked.map((m) => m.id));
-  const dealt = capHouseBots(ranked, bots, Math.max(1, Math.min(30, limit)));
+  // The house crowd fills in around everyone else: at most a third of a page.
+  const dealt = capHouseBots(ranked, opts.only ? new Set<string>() : bots, Math.max(1, Math.min(30, limit)));
   return {
     ok: true,
     for: { id: mine.id, name: mine.name },
-    cards: dealt.map((m) => toCard(m, m.why, likedMine.has(m.id))),
+    cards: dealt.map((m) => toCard(m, m.why, likedMine.has(m.id), hints.get(m.id)!)),
     scores: Object.fromEntries(dealt.map((m) => [m.id, m.score + boost(m.id)])),
   };
 }
@@ -308,7 +337,43 @@ export async function swipe(db: Db, userId: string, characterId: string, targetI
   }
   if (!liked) return { ok: true, liked: false, match: null };
   const likesBack = target.is_house || (await db.query(`select 1 from swipes where swiper = $1 and target = $2 and liked`, [target.id, mine.id])).rows.length > 0;
-  return { ok: true, liked: true, match: likesBack ? await createMatch(db, mine.id, target.id) : null };
+  if (likesBack) return { ok: true, liked: true, match: await createMatch(db, mine.id, target.id) };
+  // Its owner away (lib/activity.ts): the character answers the like itself, now, rather than leaving it to wait.
+  const answered = await answerLikeIfAway(db, target.id, mine.id).catch(() => undefined);
+  return { ok: true, liked: true, match: answered ?? null };
+}
+
+/** A character's chance of liking back someone who liked it, by how well they suit (the deck's score): mostly yes. */
+const likeBackChance = (score: number): number => Math.max(0.35, Math.min(0.9, 0.6 + 0.05 * score));
+
+/**
+ * A like answered by the character it was for, because its owner is away (lib/activity.ts answersItself: a mode other
+ * than "nothing", and its owner gone AWAY_ANSWER_HOURS). Its own call, as the deck would see it from its side: the liker
+ * must be in its deck (open to them, not across a block), and it likes back as likely as they suit, seeded so it's
+ * repeatable. Recorded as its own swipe (auto), a pass included, so it's answered once.
+ *
+ * Returns the match when it liked back, null when it passed, and undefined when it doesn't answer for itself (its owner
+ * is around, it can't swipe, it's one of the show's own bots, or the liker isn't in its deck).
+ */
+export async function answerLikeIfAway(db: Db, characterId: string, likerId: string, now = Date.now()): Promise<MatchView | null | undefined> {
+  const c = (
+    await db.query<{ owner_id: string | null; created_via: string; while_away: string | null; is_house: boolean; seen: string | Date | null }>(
+      `select c.owner_id, c.created_via, c.while_away, c.is_house, ${characterSeenSql("c")} as seen from characters c where c.id = $1`,
+      [characterId],
+    )
+  ).rows[0];
+  if (!c || c.is_house || !c.owner_id) return undefined;
+  if (!answersItself({ ...c, seen: c.seen ? new Date(c.seen) : null }, now)) return undefined;
+  if (await isHouseBotAgent(db, c.owner_id).catch(() => false)) return undefined; // the crowd answers its own (lib/away.ts backs it up)
+  const mine = await loadMine(db, c.owner_id, characterId);
+  if (!mine || cantSwipe(mine)) return undefined;
+  const liker = (await deckPool(db, c.owner_id, mine, { only: likerId, includeSwiped: true }))[0];
+  if (!liker) return undefined;
+  const score = (await rankFor(db, c.owner_id, toProfile(mine), [toProfile(liker)]))[0]?.score ?? 0;
+  const liked = (seedFrom("away-like", characterId, likerId) % 10_000) / 10_000 < likeBackChance(score);
+  const stored = await db.query(`insert into swipes (swiper, target, liked, auto) values ($1, $2, $3, true) on conflict do nothing returning swiper`, [characterId, likerId, liked]);
+  if (!stored.rows.length) return undefined;
+  return liked ? await createMatch(db, characterId, likerId) : null;
 }
 
 /** How long a like stays undoable while it's unanswered (#622, David 2026-10-22). */
@@ -429,7 +494,7 @@ async function notInDeckWhy(db: Db, userId: string, mine: Mine, targetId: string
   return generic;
 }
 
-type Side = { id: string; name: string; owner_id: string | null; is_house: boolean; created_via: string };
+type Side = { id: string; name: string; owner_id: string | null; is_house: boolean; created_via: string; while_away: string | null; seen: string | Date | null };
 
 /** A person's character's own answer about a date with `other`: likelier the better they suit, seeded so it's repeatable. */
 async function personAnswers(db: Db, me: Side, other: Side, lo: string, hi: string): Promise<boolean> {
@@ -445,9 +510,10 @@ async function personAnswers(db: Db, me: Side, other: Side, lo: string, hi: stri
  * Where a match answer came from (matches.answer_source_*): the house character's automatic yes, the seeded coin that
  * answers for a person's character (`personAnswers`: synthetic, not a choice anyone made), or an agent (answerMatch;
  * house_bot when it's one of the show's own scripts). Only the agent's is a real decision, which is what a model of
- * who wants whom must know. 'person' is kept for when people answer for their own characters.
+ * who wants whom must know. 'person' is kept for when people answer for their own characters. 'away': an agent's
+ * character answered itself while its agent was away (lib/activity.ts), the same seeded coin as a person's: synthetic too.
  */
-export type AnswerSource = "house" | "synthetic" | "agent" | "house_bot" | "person";
+export type AnswerSource = "house" | "synthetic" | "agent" | "house_bot" | "person" | "away";
 
 /** Each side's answer about a date: a house character says yes, a person's character decides, an agent's waits for its agent. */
 async function decideAnswers(
@@ -455,14 +521,20 @@ async function decideAnswers(
   lo: Side,
   hi: Side,
 ): Promise<{ lo: boolean | null; hi: boolean | null; source_lo: AnswerSource | null; source_hi: AnswerSource | null }> {
+  // An agent's character whose agent is away answers itself, like a person's (lib/activity.ts); a house bot's waits for the crowd.
+  const away = async (me: Side) =>
+    me.created_via === "mcp" && answersItself({ ...me, seen: me.seen ? new Date(me.seen) : null }) && !(await isHouseBotAgent(db, me.owner_id).catch(() => false));
+  const awayLo = await away(lo);
+  const awayHi = await away(hi);
+  const isAway = (me: Side) => (me.id === lo.id ? awayLo : awayHi);
   const answer = async (me: Side, other: Side) =>
-    me.is_house ? true : me.created_via === "mcp" ? null : await personAnswers(db, me, other, lo.id, hi.id);
-  const source = (me: Side): AnswerSource | null => (me.is_house ? "house" : me.created_via === "mcp" ? null : "synthetic");
+    me.is_house ? true : me.created_via === "mcp" && !isAway(me) ? null : await personAnswers(db, me, other, lo.id, hi.id);
+  const source = (me: Side): AnswerSource | null => (me.is_house ? "house" : me.created_via === "mcp" ? (isAway(me) ? "away" : null) : "synthetic");
   return { lo: await answer(lo, hi), hi: await answer(hi, lo), source_lo: source(lo), source_hi: source(hi) };
 }
 
 async function sides(db: Db, lo: string, hi: string): Promise<[Side, Side] | null> {
-  const { rows } = await db.query<Side>(`select id, name, owner_id, is_house, created_via from characters where id = any($1)`, [[lo, hi]]);
+  const { rows } = await db.query<Side>(`select c.id, c.name, c.owner_id, c.is_house, c.created_via, c.while_away, ${characterSeenSql("c")} as seen from characters c where c.id = any($1)`, [[lo, hi]]);
   const a = rows.find((r) => r.id === lo);
   const b = rows.find((r) => r.id === hi);
   return a && b ? [a, b] : null;
@@ -654,6 +726,33 @@ export async function answerMatch(db: Db, userId: string, characterId: string, w
   const after = (await matchView(db, m.lo, m.hi))!;
   const [you, them] = side === "lo" ? [after.yes_lo, after.yes_hi] : [after.yes_hi, after.yes_lo];
   return { ok: true, match: after, ...matchStatus(you, them) };
+}
+
+/**
+ * A match question an agent's character answers itself because its agent is away (lib/activity.ts answersItself): the
+ * same seeded coin a person's character uses, answer_source 'away'. True when it answered; false when it's not away,
+ * already answered, or one of the show's own bots (the crowd answers those; lib/away.ts backs it up).
+ */
+export async function answerMatchIfAway(db: Db, characterId: string, withId: string, now = Date.now()): Promise<boolean> {
+  const m = await matchView(db, characterId, withId);
+  if (!m) return false;
+  const pair = await sides(db, m.lo, m.hi);
+  if (!pair) return false;
+  const me = pair[0].id === characterId ? pair[0] : pair[1];
+  const other = me === pair[0] ? pair[1] : pair[0];
+  const side: End = me.id === m.lo ? "lo" : "hi";
+  if ((side === "lo" ? m.yes_lo : m.yes_hi) !== null || me.is_house || me.created_via !== "mcp") return false;
+  if (!answersItself({ ...me, seen: me.seen ? new Date(me.seen) : null }, now)) return false;
+  if (await isHouseBotAgent(db, me.owner_id).catch(() => false)) return false;
+  const yes = await personAnswers(db, me, other, m.lo, m.hi);
+  const set = await db.query(
+    `update matches set ${side === "lo" ? "yes_lo" : "yes_hi"} = $3, ${side === "lo" ? "answer_source_lo" : "answer_source_hi"} = 'away'
+      where character_lo = $1 and character_hi = $2 and ${side === "lo" ? "yes_lo" : "yes_hi"} is null returning 1`,
+    [m.lo, m.hi, yes],
+  );
+  if (!set.rows.length) return false;
+  await settleAgreement(db, m.lo, m.hi);
+  return true;
 }
 
 /* ------------------------------------------ the opening chat ------------------------------------------ */

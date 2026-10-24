@@ -221,7 +221,8 @@ export function threadFor(items: ChainItem[], loName: string, hiName: string, bu
 
 /** Who wrote a text between dates (couple_texts.via; lib/texting.ts). */
 /** Who wrote a text between dates; "photo": a Studio photo one owner sent from their character (lib/adult/shares.ts). */
-export type TextVia = "daily" | "agent" | "own_key" | "show" | "match" | "photo";
+/** away: written by the show for an agent's character it plays while its agent is away (lib/away.ts). */
+export type TextVia = "daily" | "agent" | "own_key" | "show" | "match" | "photo" | "away";
 
 /**
  * Stores one text between dates as the couple's next text that day. seq is taken as the day's next number; if another

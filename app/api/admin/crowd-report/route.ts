@@ -1,6 +1,7 @@
 import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
+import { likeReturnStats } from "@/lib/away";
 import { crowdActivity, welcomeReport } from "@/lib/welcome";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,11 @@ export const GET = handle(async (req) => {
   const days = Number.isFinite(raw) ? Math.min(90, Math.max(1, Math.floor(raw))) : 7;
   const db = await getDb();
   const now = new Date();
-  const [welcome, activity] = await Promise.all([welcomeReport(db, now), crowdActivity(db, new Date(now.getTime() - days * 86_400_000))]);
-  return json({ generated_at: now.toISOString(), days, welcome, activity });
+  const [welcome, activity, likes] = await Promise.all([
+    welcomeReport(db, now),
+    crowdActivity(db, new Date(now.getTime() - days * 86_400_000)),
+    // How likes are answered, by who was liked (lib/away.ts): the swipe deck's health, people's and agents' alike.
+    likeReturnStats(db, days),
+  ]);
+  return json({ generated_at: now.toISOString(), days, welcome, activity, likes });
 });

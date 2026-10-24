@@ -1661,6 +1661,23 @@ create index if not exists swipe_impressions_card on swipe_impressions (card);
 -- character's is the seeded coin ('synthetic'), a house character's the automatic yes.
 alter table matches add column if not exists answer_source_lo text;
 alter table matches add column if not exists answer_source_hi text;
+-- While they're away (lib/activity.ts, lib/away.ts; David 2026-10-24: no dead characters). When a person was last on
+-- the site (agents' last calls are mcp_sessions.last_seen); what a character does while its owner is away (null: its
+-- kind's default, adopt for agents' and nothing for people's); since when the show plays it (adopt, after a week; its
+-- agent's next call ends it); and which swipes the character made on its own (auto), so the record says whose call it was.
+-- A match answer it gives on its own is answer_source 'away'. away_reports: how far its agent has been told about them.
+create table if not exists owner_activity (
+  user_id text primary key,
+  last_seen timestamptz not null default now()
+);
+alter table characters add column if not exists while_away text check (while_away in ('adopt', 'answer', 'nothing'));
+alter table characters add column if not exists adopted_at timestamptz;
+create index if not exists characters_adopted_idx on characters (owner_id) where adopted_at is not null;
+alter table swipes add column if not exists auto boolean not null default false;
+create table if not exists away_reports (
+  owner_id text primary key,
+  reported_until timestamptz not null default now()
+);
 -- Why the engine decided what it did (lib/engine.ts EngineTrace): margin, reason codes, every variable's terms. No
 -- cue words (a dealbreaker is secret). Null on dates booked before it, and under tests' fixed engines.
 alter table episodes add column if not exists engine_trace jsonb;

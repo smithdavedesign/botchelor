@@ -187,6 +187,9 @@ export async function startTestDb() {
         "user_connections",
         "agent_links",
         "agent_status_cursors",
+        // While they're away (lib/activity.ts): when owners were last here, and what their agents were told.
+        "owner_activity",
+        "away_reports",
         "agent_link_codes",
         "mcp_calls",
         "sim_ratings",

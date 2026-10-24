@@ -9,6 +9,7 @@ import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { accessHere } from "@/lib/adult/place";
+import { touchOwner } from "@/lib/activity";
 import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
 import { siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
@@ -91,6 +92,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // agent reading the page) it shows the fresh weekly allowance as "free dates", not as someone's count (run 2026-10-22-0215).
   const cookieStore = await cookies();
   const viewerId = userIdFromCookieStore(cookieStore);
+  // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
+  if (viewerId) await touchOwner(await getDb(), viewerId).catch(() => {});
   // After Dark's link shows only to someone it's open to (lib/adult/entitlement.ts), and only where it's offered
   // (lib/jurisdiction.ts); everyone else never sees it.
   const afterDark = viewerId
