@@ -426,6 +426,58 @@ async function main() {
       if (size === "phone") await step("phone: Gallery: no sideways scroll", () => noSideways("the Gallery tab"));
     }
 
+    console.log("\nAfter Dark around the Studio");
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await step("the character page offers the Studio (an admin, a house character)", async () => {
+      await page.goto(`${app.base}/characters/${HER}`);
+      const card = page.locator("section.character-studio");
+      await card.waitFor({ timeout: 15_000 });
+      const open = card.getByRole("link", { name: "Open the Studio" });
+      assert((await open.getAttribute("href"))?.endsWith(`/after-dark/studio/${HER}`), `the link goes to ${await open.getAttribute("href")}`);
+      await open.click();
+      await page.locator(".ad-studio-group").first().waitFor({ timeout: 30_000 });
+    });
+
+    await step("the pair picker: faces, then who with, then a way in; Start over brings every face back", async () => {
+      await page.goto(`${app.base}/after-dark`);
+      const picker = page.locator(".ad-pair-picker");
+      await picker.waitFor({ timeout: 15_000 });
+      assert((await picker.locator("li.card").count()) === 0 || (await picker.getByRole("heading", { name: "Continue" }).count()) > 0, "a list of new pairs is still shown");
+      const faces = picker.locator(".ad-cast-chips button.ad-cast-chip");
+      const all = await faces.count();
+      assert(all >= 2, `faces: ${all}`);
+      await faces.first().click();
+      assert((await picker.locator(".ad-pair-picked button.ad-cast-chip.on").count()) === 1, "the first pick isn't shown as picked");
+      const partners = await faces.count();
+      assert(partners >= 1 && partners < all, `after one pick, ${partners} of ${all} faces show`);
+      await picker.getByRole("button", { name: "Start over" }).click();
+      assert((await faces.count()) === all, "Start over didn't bring every face back");
+      await faces.first().click();
+      await faces.first().click();
+      const go = picker.locator(".ad-pair-go a");
+      await go.waitFor({ timeout: 5_000 });
+      assert(/^(Start|Continue) /.test((await go.innerText()).trim()), `the way in says "${await go.innerText()}"`);
+      await picker.getByRole("button", { name: "Start over" }).click();
+      assert((await go.count()) === 0 && (await faces.count()) === all, "Start over after both picks didn't reset");
+    });
+
+    await step("the scene's gallery: sections, and a 👎 moves a picture to Not liked (and back)", async () => {
+      const [a, b] = [HER, HIM].sort();
+      await page.goto(`${app.base}/after-dark/${a}/${b}`);
+      const gallery = page.locator("section", { has: page.getByRole("heading", { name: "Gallery", exact: true }) }).last();
+      await gallery.getByRole("heading", { name: "Pictures", exact: true }).waitFor({ timeout: 20_000 });
+      const pictures = gallery.locator(".ad-gallery-section", { has: page.getByRole("heading", { name: "Pictures", exact: true }) });
+      const before = await pictures.locator("li").count();
+      await pictures.locator("li").first().getByRole("button", { name: "Not right", exact: true }).first().click();
+      const notLiked = gallery.locator(".ad-gallery-disliked");
+      await notLiked.waitFor({ timeout: 10_000 });
+      assert((await notLiked.locator("li").count()) === 1, "the 👎 didn't move to Not liked");
+      assert((await pictures.locator("li").count()) === before - 1, "it's still under Pictures");
+      await notLiked.locator("li").first().getByRole("button", { name: "Not right", exact: true }).first().click();
+      await page.waitForTimeout(800);
+      assert((await gallery.locator(".ad-gallery-disliked").count()) === 0, "taking the 👎 back didn't move it back");
+    });
+
     await step("no page errors or console errors", async () => {
       assert(errors.length === 0, errors.slice(0, 5).join(" | "));
     });

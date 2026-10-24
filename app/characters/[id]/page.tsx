@@ -28,7 +28,7 @@ import { describeTemperament } from "@/lib/temperament";
 import { connections, describeDrift, describeForgets, loadCharacterMemory, loadForgets, stageFor } from "@/lib/memory";
 import { getCharacterRatings } from "@/lib/ratings";
 import { relationshipsOf, viewRelationship } from "@/lib/relationships";
-import { userIdFromCookieStore } from "@/lib/http";
+import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { endingLabel } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
 import Reviews from "./Reviews";
@@ -43,6 +43,11 @@ import OriginBadge from "@/app/OriginBadge";
 import { originOf, originsOf } from "@/lib/origin";
 import { ctaMine, dateCta } from "@/lib/date-cta";
 import DateThisCharacter from "./DateThisCharacter";
+import { accessHere } from "@/lib/adult/place";
+import { adultAvailable } from "@/lib/adult/mode";
+import { studioAccess } from "@/lib/adult/studio";
+import { mediaAllowed } from "@/lib/jurisdiction";
+import { afterDarkHref } from "@/lib/after-dark-host";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +152,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       : null;
   // One partner or more (lib/partners.ts): public as a badge, the setting for the owner.
   const partnerStyle = c.house ? null : await partnerStyleOf(db, id);
+  // The After Dark Studio for this character (lib/adult/studio.ts; David, 2026-10-24): its owner (or an admin, for the
+  // house cast), where After Dark is open to them and pictures are allowed where they are (lib/jurisdiction.ts).
+  const studio = await (async () => {
+    const auth = authFromCookieStore(await cookies());
+    if (!auth?.authenticated) return null;
+    const here = await accessHere(db, auth).catch(() => null);
+    if (!here?.entitled.ok || !mediaAllowed(here) || !(await adultAvailable(db))) return null;
+    const r = await studioAccess(db, auth.userId, id);
+    if (r.ok) return { href: afterDarkHref(`/after-dark/studio/${id}`), ready: true };
+    return r.error === "not_switched_on" ? { href: afterDarkHref("/after-dark"), ready: false } : null;
+  })().catch(() => null);
   // What it does while its owner is away (lib/activity.ts), for the owner's controls.
   const away = c.house
     ? null
@@ -280,6 +296,23 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             </>
           )}
         </p>
+      )}
+      {studio && (
+        <section className="card character-studio">
+          <h2>🎨 Studio</h2>
+          {studio.ready ? (
+            <p>
+              Shoots of {shortName(c.name)}, their face and look, and their gallery, in After Dark.{" "}
+              <Link className="button" href={studio.href}>
+                Open the Studio
+              </Link>
+            </p>
+          ) : (
+            <p className="muted">
+              Switch {shortName(c.name)} into After Dark first, then the Studio opens for them. <Link href={studio.href}>After Dark</Link>
+            </p>
+          )}
+        </section>
       )}
       {/* Adopted while its agent is away (lib/away.ts): said to everyone, so nobody takes the show's answers for its agent's. */}
       {away?.adopted && <p className="muted small character-adopted">🎭 Played by the show while its agent is away: it answers likes and texts back.</p>}

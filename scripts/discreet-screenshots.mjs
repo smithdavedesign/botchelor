@@ -180,7 +180,7 @@ async function main() {
     await step("an admin's After Dark lists a pair, before any PIN", async () => {
       const page = await admin.newPage();
       await page.goto(`${base}/after-dark`);
-      scenePath = (await page.locator(".after-dark li.card a").first().getAttribute("href")) ?? "";
+      scenePath = (await page.locator("[data-first-scene]").getAttribute("data-first-scene")) ?? "";
       assert(scenePath.startsWith("/after-dark/"), `a scene link (got ${scenePath || "none"})`);
       assert((await page.title()) === "Botchelor", `the neutral title is on by default (got "${await page.title()}")`);
       await page.close();

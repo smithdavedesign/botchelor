@@ -594,6 +594,14 @@ export default function SceneWriter({
  * Their pictures and clips. A picture can be made to move (a clip takes a minute or more on fal.ai). Each one can be
  * rated, and a picture of one of them alone kept as their face (lib/adult/steering.ts).
  */
+/** The gallery's sections, in order; the 👎s go in Not liked at the bottom, whatever they are. */
+const SECTIONS: [string, (m: Media) => boolean][] = [
+  ["Baselines", (m) => m.kind === "baseline"],
+  ["Pictures", (m) => m.kind === "scene"],
+  ["Clips", (m) => m.kind === "video" && !m.in_reel],
+  ["Shots from videos of the night", (m) => m.kind === "video" && Boolean(m.in_reel)],
+];
+
 function Gallery({
   items,
   problem,
@@ -613,6 +621,7 @@ function Gallery({
   const [pending, setPending] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [facing, setFacing] = useState<string | null>(null);
+  const [rated, setRated] = useState<Record<string, 1 | -1 | null>>({});
   async function keepFace(m: Media) {
     if (!onFace || !m.character_id) return;
     setFacing(m.id);
@@ -655,24 +664,9 @@ function Gallery({
       </>
     );
   }
-  return (
-    <section>
-      <h2>Gallery</h2>
-      {problemNote}
-      {items.some((m) => m.clip) && (
-        <>
-          <label htmlFor="after-dark-motion">Clip motion (optional)</label>
-          <input id="after-dark-motion" value={motion} maxLength={300} onChange={(e) => setMotion(e.target.value)} placeholder="She turns toward the camera…" />
-        </>
-      )}
-      {items.some((m) => m.kind !== "video" && !m.clip) && <p className="muted small">Explicit pictures can&apos;t be made into clips yet.</p>}
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      <ul className="after-dark-gallery">
-        {items.map((m) => {
+  // Sections (David, 2026-10-24): what it is, then the 👎s at the bottom. A rating moves it at once (rated, above).
+  const ratingOf = (m: Media) => (m.id in rated ? rated[m.id] : (m.rating ?? null));
+  const item = (m: Media) => {
           const status = pending[m.id] ?? m.status;
           return (
             <li key={m.id}>
@@ -701,7 +695,7 @@ function Gallery({
                   Make it move
                 </button>
               )}
-              {status === "ready" && <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} />}
+              {status === "ready" && <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))} />}
               {status === "ready" && m.kind !== "video" && m.character_id && !m.character_b && onFace && (
                 // One of them alone: it can be the face every picture and video of them keeps.
                 faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id ? (
@@ -714,8 +708,40 @@ function Gallery({
               )}
             </li>
           );
-        })}
-      </ul>
+  };
+
+  return (
+    <section>
+      <h2>Gallery</h2>
+      {problemNote}
+      {items.some((m) => m.clip) && (
+        <>
+          <label htmlFor="after-dark-motion">Clip motion (optional)</label>
+          <input id="after-dark-motion" value={motion} maxLength={300} onChange={(e) => setMotion(e.target.value)} placeholder="She turns toward the camera…" />
+        </>
+      )}
+      {items.some((m) => m.kind !== "video" && !m.clip) && <p className="muted small">Explicit pictures can&apos;t be made into clips yet.</p>}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {SECTIONS.map(([title, fits]) => {
+        const these = items.filter((m) => ratingOf(m) !== -1 && fits(m));
+        return these.length ? (
+          <div key={title} className="ad-gallery-section">
+            <h3>{title}</h3>
+            <ul className="after-dark-gallery">{these.map(item)}</ul>
+          </div>
+        ) : null;
+      })}
+      {items.some((m) => ratingOf(m) === -1) && (
+        <div className="ad-gallery-section ad-gallery-disliked">
+          <h3>Not liked</h3>
+          <p className="muted small">Your 👎s, kept out of the way here. Taken back, they go back where they were; archived shots are in the Library.</p>
+          <ul className="after-dark-gallery">{items.filter((m) => ratingOf(m) === -1).map(item)}</ul>
+        </div>
+      )}
     </section>
   );
 }

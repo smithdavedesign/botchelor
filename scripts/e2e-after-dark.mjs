@@ -121,10 +121,17 @@ async function main() {
         const page = await ctx.newPage();
         assert((await page.goto(`${base}/after-dark`)).ok(), "/after-dark should open for an admin");
         await page.getByRole("heading", { name: "Scenes" }).waitFor({ timeout: 10_000 });
-        const first = page.locator(".after-dark li.card a").first();
-        scenePath = (await first.getAttribute("href")) ?? "";
-        assert(scenePath.startsWith("/after-dark/"), `a scene link should be listed (got ${scenePath || "none"})`);
-        await first.click();
+        // The pair picker (app/after-dark/PairPicker.tsx): a face, then who they're with, then Start; Start over clears it.
+        const faces = page.locator(".ad-pair-picker .ad-cast-chips button.ad-cast-chip");
+        await faces.first().click();
+        await page.locator(".ad-pair-picked").getByRole("button", { name: "Start over" }).click();
+        assert((await faces.count()) >= 2, "Start over should bring every face back");
+        await faces.first().click();
+        await page.locator(".ad-pair-picker .ad-cast-chips button.ad-cast-chip").first().click();
+        const start = page.locator(".ad-pair-go a");
+        scenePath = (await start.getAttribute("href")) ?? "";
+        assert(scenePath.startsWith("/after-dark/"), `picking two should show the way in (got ${scenePath || "none"})`);
+        await start.click();
         await page.locator("#after-dark-direction").fill("they share a cab home");
         await page.locator(".after-dark-form button[type=submit]").click();
         await page.locator(".after-dark-lines").getByText(SAFE[1]).waitFor({ timeout: 30_000 });

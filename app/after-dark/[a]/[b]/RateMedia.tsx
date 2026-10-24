@@ -14,7 +14,20 @@ const said = new Map<string, Rated>();
  * and videos of the character steer by it (lib/adult/steering.ts): the face, fixed words, the light. Personal, and never
  * a dataset.
  */
-export default function RateMedia({ id, kind, rating = null, tags = [] }: { id: string; kind: string; rating?: 1 | -1 | null; tags?: string[] }) {
+export default function RateMedia({
+  id,
+  kind,
+  rating = null,
+  tags = [],
+  onRated,
+}: {
+  id: string;
+  kind: string;
+  rating?: 1 | -1 | null;
+  tags?: string[];
+  /** Told each saved rating, so the gallery can move a 👎 to Not liked (David, 2026-10-24). */
+  onRated?: (rating: 1 | -1 | null) => void;
+}) {
   const [now, setNow] = useState<Rated>(() => said.get(id) ?? { rating, tags });
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -27,6 +40,7 @@ export default function RateMedia({ id, kind, rating = null, tags = [] }: { id: 
     const next: Rated = { rating: r === 0 ? null : r, tags: (res.data.tags as string[] | undefined) ?? [] };
     said.set(id, next);
     setNow(next);
+    onRated?.(next.rating);
   }
   const offs = Object.entries(tagsFor(kind));
   return (
