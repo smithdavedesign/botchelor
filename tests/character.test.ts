@@ -61,7 +61,7 @@ describe("assembleCharacter", () => {
     expect(c.memory).toBe(MEMORY);
     // The soul's words name no temperament ("honesty"), so the base is what its own traits and voice describe
     // (lib/temperament.ts: "curious" opens it up); effective = base + the memory's bounded drift.
-    expect(c.baseSignals).toEqual(sheetSignals(SHEET));
+    expect(c.baseSignals).toEqual({ ...sheetSignals(SHEET), sheet: true }); // #728: marked as no soul spoke
     expect(c.baseSignals).toEqual(soulBaseSignals(SOUL, SHEET));
     expect(c.signals.openness).toBeCloseTo(c.baseSignals.openness + 0.08, 5);
   });

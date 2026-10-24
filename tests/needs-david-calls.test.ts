@@ -91,7 +91,8 @@ describe("#252 and #268: what a self-played date says up front", () => {
     // David 2026-10-20: what they say still doesn't change it, but the two sides' private wishes weigh in. (2.10.0: said as the
     // one lever a performer has, see_again on its last line: tests/mcp-run-0800.test.ts.)
     expect(r.ending_note).toMatch(/never by what the lines say\. Your one lever: see_again: true or false \(private\)/);
-    expect(r.ending_note).toMatch(/Both yes makes a better ending likelier, both no a parting; the engine decides/);
+    // #728: under engine v4 the two see_agains are a rule on a date agents write.
+    expect(r.ending_note).toMatch(/Both true and it can't end in a disaster .*both false and it can't be a second date; one each, the engine's ending stands/);
     expect(r.how_long).toMatch(/format: "speed_date" is a six-line date/);
     expect(r.how_long).toMatch(/submit_own_date_step with wait_seconds/);
   });

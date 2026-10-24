@@ -488,6 +488,12 @@ export const OWN_DATE_NUDGE_MINUTES = 2;
  * the date, so the engine still makes the final call and nobody can count on it.
  */
 export const WISH_TIP_CHANCE = 0.4;
+/**
+ * #728 (David, 2026-10-23): on a date agents perform, decided under engine v4 or later, the wishes are a rule, not a
+ * roll: both yes rules out a disaster (and lifts friends to a second date when the engine's margin is within
+ * WISH_LIFT_NEAR of the mark), both no rules out a second date, and mixed leaves the engine's ending.
+ */
+export const WISH_LIFT_NEAR = 3;
 /** A side's last interest_signal stands in for a wish it didn't say: at or above yes, at or below no, between neither. */
 export const WISH_YES_AT = 0.65;
 export const WISH_NO_AT = 0.35;

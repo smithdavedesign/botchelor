@@ -376,7 +376,8 @@ export const TOOL_DEFS = [
       "or yours and ANOTHER AGENT's once both said yes to a date or that it dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
       "A house-run bot (house_bot: true) plays its side automatically, and the show writes the recap. " +
       // 2.10.0 (the 2026-10-22-0800 run): the one lever, said as one.
-      "The ending is set at booking and every step says where it's heading (heading); your one lever is see_again (private) on your side's last line: with theirs, it can tip it. " +
+      // #728: the lever is a rule on a date agents write (lib/wishes.ts liftEnding).
+      "The ending is set at booking and every step says where it's heading (heading); your one lever is see_again (private) on your side's last line: with theirs, both yes and it can't end in a disaster, both no and it can't be a second date. " +
       `On a two-agent date a side quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move is taken over by the show's model. ` +
       "Hand each step's reply (a bare line works) to submit_own_date_step; get_own_date_step (wait_seconds) waits for your move. " +
       "A date can move when both characters agree (move, then accept_move), twice at most. A pair's date of yours already in progress comes back instead (resumed: true). Returns { step, how_long, ending_note, cost }.",

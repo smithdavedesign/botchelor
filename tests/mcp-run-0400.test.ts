@@ -500,7 +500,8 @@ describe("endings that read against the dialogue", () => {
     // Line 9 (A's) is in the last act: A's step says which way it lands; the ending field and line stay out, as before.
     const mine = (await call("get_own_date_step", { episode_id: id }, A.ctx)).structuredContent.step;
     expect(mine).toMatchObject({ stage: "turn", turn_number: 9, act_index: 2 });
-    expect(mine.act_note).toBe(actNote("friends"));
+    // #728: engine v4's rule, said for this date (a test outcome has no margin, so friends isn't close to a second date).
+    expect(mine.act_note).toBe(actNote("friends", undefined, { near: false }));
     expect(mine.act_note).toMatch(/closing as friends: land it warmly, as easy company, with no romance and no ask for another date/);
     expect(mine.ending).toBeUndefined();
     expect(mine.instructions).not.toMatch(/ending: friends/);

@@ -8,6 +8,15 @@
  * A nudge, never an override: the roll is seeded by the date (so a replay lands the same way), and nobody sees the seed,
  * so two yeses make a good ending likelier without guaranteeing it.
  *
+ * #728 (David, 2026-10-23): on a date agents perform (their own two characters, or a two-agent date) decided under engine
+ * v4 or later, the lines count for more, and the wishes are a rule instead of a roll (liftEnding):
+ *  - both yes: never a disaster (at least friends), and a second date when the engine's margin is within WISH_LIFT_NEAR
+ *    of the mark;
+ *  - both no: never a second date;
+ *  - one yes and one no (or no wish either way): the engine's ending stands.
+ * And a side that didn't send see_again counts by its interest_signal across the last act (the average), not one line.
+ * Show-model dates, and agents' dates decided before v4, keep the roll, so they replay exactly as they did.
+ *
  * Where a wish comes from: an agent performing a side may send "see_again" (true or false) with that side's last line
  * (lib/own-date.ts); a side it didn't say it for, or the show's model played (go_on_date, a handed-over side), is read
  * from that character's own last interest_signal (WISH_YES_AT and above is yes, WISH_NO_AT and below no).
@@ -16,8 +25,8 @@
  * written shows its lines without interest (lib/game.ts). Only a tip says, with the ending, that both wanted it.
  */
 import type { Turn } from "./conversation";
-import { getEngine, seedFrom, type Outcome, type SideOutcome } from "./engine";
-import { ENDINGS, WISH_NO_AT, WISH_TIP_CHANCE, WISH_YES_AT, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
+import { getEngine, marks, seedFrom, type Outcome, type SideOutcome } from "./engine";
+import { ENDINGS, WISH_LIFT_NEAR, WISH_NO_AT, WISH_TIP_CHANCE, WISH_YES_AT, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 
 /** true: wants to see them again; false: doesn't; null: no wish either way. */
 export type Wish = boolean | null;
@@ -36,19 +45,58 @@ export function interestWish(interest: number | undefined): Wish {
   return interest >= WISH_YES_AT ? true : interest <= WISH_NO_AT ? false : null;
 }
 
-/** Each side's wish: what its performer said, or else its own last line's interest. */
-export function resolveWishes(stored: StoredWishes | null | undefined, transcript: readonly Turn[]): Wishes {
+/**
+ * How the wishes count on one date (#728): `lift` on a date agents perform decided under engine v4 or later (the rule,
+ * and a side's interest across the last act standing in for an unsent see_again); else the roll, as before.
+ */
+export type WishRule = { lift: boolean; margin?: number; version?: number | null };
+/** The rule for a date: agents performed it (episodes.performed_by = 'agent') and its engine version is 4 or later. */
+export const wishRule = (agents: boolean, version: number | null | undefined, margin?: number): WishRule => ({
+  lift: agents && (version ?? 1) >= 4,
+  ...(typeof margin === "number" ? { margin } : {}),
+  version: version ?? null,
+});
+
+/** One side's interest across the last act it spoke in (the average, to two places), or its last line's when that's all. */
+export function sustainedInterest(transcript: readonly Turn[], side: "a" | "b"): number | undefined {
+  const mine = transcript.filter((t) => t.side === side && typeof t.interest === "number" && Number.isFinite(t.interest));
+  if (!mine.length) return undefined;
+  const act = Math.max(...mine.map((t) => t.act ?? 0));
+  const last = mine.filter((t) => (t.act ?? 0) === act);
+  return Math.round((last.reduce((n, t) => n + t.interest, 0) / last.length) * 100) / 100;
+}
+
+/**
+ * Each side's wish: what its performer said, or else its own last line's interest (under the lift rule: its interest
+ * across the last act).
+ */
+export function resolveWishes(stored: StoredWishes | null | undefined, transcript: readonly Turn[], rule?: Pick<WishRule, "lift">): Wishes {
   const side = (s: "a" | "b"): Wish => {
     const said = stored?.[s];
     if (typeof said === "boolean") return said;
     if (stored?.engine) return null; // settled: it counted as no wish
+    if (rule?.lift) return interestWish(sustainedInterest(transcript, s));
     return interestWish([...transcript].reverse().find((t) => t.side === s)?.interest);
   };
   return { a: side("a"), b: side("b") };
 }
 
+/**
+ * The lift rule (#728): both yes is never a disaster, and lifts friends to a second date when the engine's margin is
+ * within WISH_LIFT_NEAR of the mark; both no is never a second date; mixed, the engine's ending.
+ */
+export function liftEnding(ending: Ending, wishes: Wishes, margin: number | undefined, version: number | null | undefined = 4): Ending {
+  if (wishes.a === null || wishes.a !== wishes.b) return ending;
+  if (wishes.a === false) return ending === "second_date" ? "friends" : ending;
+  const near = typeof margin === "number" && margin >= marks(version).secondDateAt - WISH_LIFT_NEAR;
+  if (ending === "disaster") return "friends";
+  if (ending === "friends" && near) return "second_date";
+  return ending;
+}
+
 /** The ending once the wishes weigh in: at most one step, and only when both sides agree. */
-export function weighEnding(ending: Ending, wishes: Wishes, seed: number): Ending {
+export function weighEnding(ending: Ending, wishes: Wishes, seed: number, rule?: WishRule): Ending {
+  if (rule?.lift) return liftEnding(ending, wishes, rule.margin, rule.version);
   if (wishes.a === null || wishes.a !== wishes.b) return ending;
   const at = ENDINGS.indexOf(ending);
   // ENDINGS runs best to worst: a step better is one index down.
@@ -62,10 +110,10 @@ export function weighEnding(ending: Ending, wishes: Wishes, seed: number): Endin
  * The outcome with the wishes weighed in. Unchanged unless they tip it; when they do, both sides' wants_another follow
  * the wish they shared (the afterglow's verdict), and a second date isn't anyone's rejection.
  */
-export function applyWishes(outcome: Outcome, wishes: Wishes, seed: number): Outcome {
+export function applyWishes(outcome: Outcome, wishes: Wishes, seed: number, rule?: WishRule): Outcome {
   // A test that forced its outcome gets exactly that outcome (lib/engine.ts fixedEngine).
   if (getEngine().exact) return outcome;
-  const ending = weighEnding(outcome.ending, wishes, seed);
+  const ending = weighEnding(outcome.ending, wishes, seed, rule && { ...rule, margin: rule.margin ?? outcome.margin });
   if (ending === outcome.ending) return outcome;
   const both = wishes.a === true;
   const sides = outcome.sides.map((s): SideOutcome => ({ ...s, wants_another: both })) as [SideOutcome, SideOutcome];
@@ -86,10 +134,11 @@ export const settledWishes = (wishes: Wishes, engineEnding: Ending, sent?: { a: 
 const wishWord = (w: Wish): string => (w === true ? "yes" : w === false ? "no" : "no wish either way");
 
 /** What a side's last interest_signal read as, standing in for a see_again it didn't send, with the bars. */
-function standIn(interest: number | undefined): string {
+function standIn(interest: number | undefined, sustained = false): string {
   if (typeof interest !== "number" || !Number.isFinite(interest)) return "it counted as no wish either way";
   const w = interestWish(interest);
-  return `its interest_signal (${interest}) stood in: ${w === null ? "no wish either way" : `a ${wishWord(w)}`} (${WISH_YES_AT} or more counts as yes, ${WISH_NO_AT} or less as no)`;
+  const what = sustained ? `its interest_signal across the last act (average ${interest})` : `its interest_signal (${interest})`;
+  return `${what} stood in: ${w === null ? "no wish either way" : `a ${wishWord(w)}`} (${WISH_YES_AT} or more counts as yes, ${WISH_NO_AT} or less as no)`;
 }
 
 /** One side's wish on a finished date, as that side's own owner reads it (wishReport). */
@@ -117,6 +166,8 @@ export function wishReport(o: {
   mine: readonly ("a" | "b")[];
   /** Sides whose lines the show's model played at the end (a hand-over, autoplay). */
   showPlayed?: readonly ("a" | "b")[];
+  /** #728: the date's wish rule (the lift rule on an agents' date under engine v4+). */
+  rule?: Pick<WishRule, "lift">;
 }): { tipped: boolean; engine_ending?: Ending; yours: SeenWish[]; theirs?: "private" | { character: string; see_again: Wish }; note: string } | null {
   const s = o.stored;
   if (!s?.engine || !o.mine.length) return null;
@@ -126,15 +177,16 @@ export function wishReport(o: {
   const first = (x: "a" | "b") => name(x).split(" ")[0];
   const seen = (x: "a" | "b"): SeenWish => {
     const from: SeenWish["from"] = !s.sent ? "unknown" : s.sent[x] ? "see_again" : o.showPlayed?.includes(x) ? "the_show" : "interest_signal";
-    const interest = [...o.transcript].reverse().find((t) => t.side === x)?.interest;
+    const interest = o.rule?.lift ? sustainedInterest(o.transcript, x) : [...o.transcript].reverse().find((t) => t.side === x)?.interest;
     return { character: name(x), see_again: wish(x), from, ...(from !== "see_again" && typeof interest === "number" ? { interest_signal: interest } : {}) };
   };
   const yours = o.mine.map(seen);
   const said = yours.map((y, i) => {
     const who = first(o.mine[i]);
     if (y.from === "see_again") return `${who} said ${wishWord(y.see_again)} (see_again: ${String(y.see_again)}).`;
-    if (y.from === "the_show") return `The show's model played ${who}'s last line, so ${standIn(y.interest_signal)}.`;
-    if (y.from === "interest_signal") return `No see_again on ${who}'s last line, so ${standIn(y.interest_signal)}. Next time, send see_again: true or false with that line: it's how you steer.`;
+    const lift = Boolean(o.rule?.lift);
+    if (y.from === "the_show") return `The show's model played ${who}'s last line, so ${standIn(y.interest_signal, lift)}.`;
+    if (y.from === "interest_signal") return `No see_again on ${who}'s last line, so ${standIn(y.interest_signal, lift)}. Next time, send see_again: true or false with that line: it's how you steer.`;
     return `${who}'s wish counted as ${wishWord(y.see_again)}.`;
   });
   const solo = o.mine.length === 2;
@@ -142,15 +194,20 @@ export function wishReport(o: {
   const edge = (w: Wish) => (w === true && o.ending === "second_date") || (w === false && o.ending === "disaster");
   const own = `${o.ending} is the engine's own ending`;
   let outcome: string;
+  const lift = Boolean(o.rule?.lift);
   if (tipped) {
-    outcome = `Both said ${wishWord(s.a ?? null)}: it tipped toward ${s.a ? "a better ending" : "a parting"}: ${o.ending}, where the engine alone had ${s.engine}.`;
+    outcome = lift
+      ? `Both said ${wishWord(s.a ?? null)}, and on a date its performers write that ${s.a ? "lifts it" : "rules out a second date"}: ${o.ending}, where the engine alone had ${s.engine}.`
+      : `Both said ${wishWord(s.a ?? null)}: it tipped toward ${s.a ? "a better ending" : "a parting"}: ${o.ending}, where the engine alone had ${s.engine}.`;
   } else if (solo) {
     const [wa, wb] = [wish("a"), wish("b")];
     outcome =
       wa !== null && wa === wb
         ? edge(wa)
           ? `Both said ${wishWord(wa)}, but ${o.ending} is already the ${wa ? "best" : "worst"} ending: nothing to tip.`
-          : `Both said ${wishWord(wa)}, but the engine kept ${o.ending} this time (a tip comes only some of the time).`
+          : lift
+            ? `Both said ${wishWord(wa)}: that rules out ${wa ? "a disaster, and lifts friends to a second date only when the numbers are close; these weren't" : "a second date, and this one wasn't heading for one"}, so ${o.ending} stands.`
+            : `Both said ${wishWord(wa)}, but the engine kept ${o.ending} this time (a tip comes only some of the time).`
         : wa === null || wb === null
           ? `With no wish either way on one side, nothing could tip it: ${own}.`
           : `${first("a")} said ${wishWord(wa)}, ${first("b")} ${wishWord(wb)}: mixed, so no tip; ${own}.`;
@@ -158,7 +215,9 @@ export function wishReport(o: {
     const mine = wish(o.mine[0]);
     outcome = edge(mine)
       ? `${o.ending} is already the ${mine ? "best" : "worst"} ending, so ${first(o.mine[0])}'s ${wishWord(mine)} had nothing to tip.`
-      : `${first(other!)}'s wish stays private (only an agreement that tips the ending is told). The wishes tip an ending only when both agree, and then only some of the time: they didn't tip this one, so ${own}.`;
+      : lift
+        ? `${first(other!)}'s wish stays private (only an agreement that moves the ending is told). The wishes move an ending only when both agree (both yes: never a disaster; both no: never a second date): they didn't move this one, so ${own}.`
+        : `${first(other!)}'s wish stays private (only an agreement that tips the ending is told). The wishes tip an ending only when both agree, and then only some of the time: they didn't tip this one, so ${own}.`;
   }
   return {
     tipped,

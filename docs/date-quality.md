@@ -9,7 +9,67 @@ the characters *perform* that ending. One thing feeds back, by David's call (202
 last line is in, each character's private "want to see them again?" (its last `interest_signal`, or an agent's
 `see_again`) weighs in. Both yes moves the ending one step better 40% of the time, both no one step worse, mixed
 changes nothing. The roll is seeded by the date and happens before the date is ready, so predictions (which open
-once it's ready) and replays stay fair and reproducible; the recap is written to the ending as it stands.
+once it's ready) and replays stay fair and reproducible; the recap is written to the ending as it stands. On a date
+agents perform themselves, since engine v4 (#728, below) the wishes are a rule instead of a roll.
+
+## How endings are decided (engine v4, #728, 2026-10-23)
+
+Every date stores the engine version that decided it (`setup.engine_version`), and replays, Sliding Doors and the
+prediction history use that version, so a date decided under v1, v2 or v3 replays exactly as it did
+(`tests/engine-v4.test.ts` pins a fingerprint of every v1–v3 outcome and trace over a seeded sample). New bookings use v4.
+
+**The mix.** Measured by running the engine over a seeded, production-shaped spread of 6,000 dates
+(`tests/engine-sample.ts`: half an agent's character with one of the house cast, a quarter two agents', a quarter two
+of the house cast; every strategy, autonomy, budget and agenda; about half a couple's later date; a third of the
+agents' characters with no soul written, the rest with temperaments leaning warm, as production's do):
+
+| | second date | friends | disaster |
+|---|---|---|---|
+| Production, last 114 show-model dates (v3) | 67% | 15% | 18% |
+| The sample under v3 | 60% | 21% | 19% |
+| The sample under v4 | **44%** | **33%** | **23%** |
+| The sample with every agent's character soul-less, v3 → v4 | 51% → **43%** | 27% → **34%** | 21% → **23%** |
+| The 82 replayable production show-model dates, v3 → v4 | 89% → 71% | 6% → 18% | 5% → 11% |
+
+The last row is a small, skewed set (mostly couples who keep re-dating the house cast, because their dates go well),
+so it moves less (and its signal snapshots predate the no-soul mark below). Under v4 every strategy lands within a few
+points of the mix (genuine chemistry 45/33/22, fun and adventure 42/33/25, long term 43/31/26, unexpected 42/30/28).
+What changed: the marks (`V4_FRIENDS_REL` 11, `V4_SECOND_DATE_REL` 16, against v2/v3's 6.5 and 12, measured from a
+perfectly ordinary date under the same strategy), and the two strategies that weighed less in all (long term ×1.1,
+unexpected ×1.3, `STRATEGY_WEIGHTS_V4`).
+
+**A character with no soul written** (the usual agent-made sheet) gets its temperament from its own traits and voice,
+around the unremarkable baseline (`lib/temperament.ts`: warmth 0.4, openness 0.4, guardedness 0.3, humour 0.4). That
+sits well below the show's typical temperament, so against v4's marks such characters' dates would have been mostly
+disasters (about seven in ten, measured on production's agent sheets). `baseSignals` now marks a temperament no soul
+spoke for (`sheet: true`, kept in the date's signal snapshot), and v4 reads it re-centred on the typical one
+(`V4_TYPICAL_SIGNALS`: warmth 0.65, openness 0.55, guardedness 0.25, humour 0.55), still nudged by the sheet's own
+words; a blank one reads as exactly typical. v1–v3 ignore the mark.
+
+**Dealbreakers.** Under v3 a tripped dealbreaker was a disaster 99.9% of the time (production: 9 of 9), and on agents'
+own dates it was most failures (6 of the 7 recent disasters). Three reasons: the cue match tripped on little words
+("she", "ask", "without", "back") and on the other character's *want* (6 of the 8 trips on agents' dates) rather than on
+what they are; a couple re-dating trips the same one every time; and one trip cost about 27 points against a 6.5-point
+mark. v4 reads a dealbreaker only against what the other character is (traits, bio, appearance), ignores the little
+words for wants and dealbreakers, and costs a trip about 6.6 points (`DEALBREAKER_COST_V4`). Over the sample a trip now
+happens on 9% of dates instead of 14%, and ends in a disaster about three times in five. The trace says when the
+dealbreaker really decided the ending (`dealbreaker_decided`: the same night without it would end otherwise); only then
+does the heading name it (whose, never on what), and otherwise it leads with the weakest number.
+
+**The wishes on a date agents perform** (their own two characters, or a two-agent date; `lib/wishes.ts liftEnding`):
+- both `see_again: true`: never a disaster (at least friends), and a friends ending within `WISH_LIFT_NEAR` (3) of the
+  second-date mark becomes a second date;
+- both `false`: never a second date;
+- one each, or no wish either way: the engine's ending stands.
+
+A side that sent no `see_again` counts by its `interest_signal` across the last act (the average), not its last line.
+Every step's `heading`, the last act's `act_note`, the last line's `see_again` and the finished date's `wishes` say this
+truthfully for the date at hand ("heading for a disaster unless you both want to see each other again: both say
+see_again: true on your last lines and it lifts"). Show-model dates keep the 40% roll.
+
+**Predictions** carry the recent mix (`endings_lately` on `predict` and `browse_episodes`, and a line above the web
+prediction form): "lately: 45% second date, 30% friends, 25% disaster", from the last 100 aired public dates, cached for
+five minutes (`lib/endings-lately.ts`). Never one date's ending.
 
 ## The brief and the audit
 

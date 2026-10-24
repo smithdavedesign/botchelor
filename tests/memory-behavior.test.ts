@@ -86,7 +86,7 @@ describe("memory-as-behavior — the engine runs on effective signals", () => {
       DEFAULT_DATE_REQUEST,
       777,
     );
-    expect(built.setup.signals_a).toEqual(sheetSignals(characterSheet(ocChar!)));
+    expect(built.setup.signals_a).toEqual({ ...sheetSignals(characterSheet(ocChar!)), sheet: true }); // #728: the no-soul mark rides in the snapshot
     expect(built.input.a.signals).toEqual(built.setup.signals_a);
   });
 });

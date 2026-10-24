@@ -169,21 +169,13 @@ describe("wishes on a date an agent performs", () => {
     expect(view).not.toMatch(/"interest"/); // still being written: lines without interest
     await call("submit_own_date_step", { episode_id: mixed.id, output: validEpisodeDraft() }, ctx);
 
-    // Both yes: a second date often enough that a few dates show one, and the "why" says the wishes tipped it.
-    let tipped: Awaited<ReturnType<typeof playTo>> | null = null;
-    for (let n = 0; n < 25 && !tipped; n++) {
-      // Up to 25 dates of 7 calls each in well under a minute: past submit_own_date_step's free-path cap (60 a minute) on an
-      // unlucky run of rolls, which no agent playing for real would meet. The cap isn't what this tests.
-      resetRateLimitsForTests();
-      const r = await playTo(ctx, a, b, { a: true, b: true });
-      const seed = Number((await t.db.query<Any>(`select seed::text as seed from episodes where id = $1`, [r.id])).rows[0].seed);
-      // Whichever way it lands, it lands where the date's own roll says, and the recap step says so.
-      const expected = weighEnding("friends", { a: true, b: true }, seed);
-      expect(r.step.ending).toBe(expected);
-      await call("submit_own_date_step", { episode_id: r.id, output: validEpisodeDraft() }, ctx);
-      if (expected === "second_date") tipped = r;
-    }
-    expect(tipped).not.toBeNull();
+    // Both yes (#728: on an agents' date under engine v4 the wishes are a rule, not a roll): a friends ending close to a
+    // second date (its margin within WISH_LIFT_NEAR of the mark) becomes one every time, and the "why" says the wishes did it.
+    setEngineForTests(fixedEngine({ ending: "friends", margin: 13 }, { wishes: true }));
+    resetRateLimitsForTests();
+    const tipped = await playTo(ctx, a, b, { a: true, b: true });
+    expect(tipped.step.ending).toBe("second_date");
+    await call("submit_own_date_step", { episode_id: tipped.id, output: validEpisodeDraft() }, ctx);
     expect((await t.db.query<Any>(`select ending, status, wishes from episodes where id = $1`, [tipped!.id])).rows[0]).toEqual({
       ending: "second_date",
       status: "ready",

@@ -61,8 +61,8 @@ import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { dateShape, moveProblem, segmentBudget, settleLine, type DateShape } from "./moves";
 import { venueName, venuePhrase, type PlaceId } from "./venues";
-import { applyWishes, resolveWishes, settledWishes, type StoredWishes, wishReport } from "./wishes";
-import { dateHeading, forTwoAgents, headingLine, type Heading } from "./heading";
+import { applyWishes, resolveWishes, settledWishes, type StoredWishes, wishReport, wishRule } from "./wishes";
+import { dateHeading, forTwoAgents, headingLine, nearSecondDate, type Heading } from "./heading";
 
 /** How many unfinished self-performed dates one identity may have at once. */
 export const OWN_DATE_MAX_OPEN = 3;
@@ -819,7 +819,9 @@ async function rebuild(db: Db, row: Row) {
   built.setup.moves = row.setup?.moves === true;
   // A side said "done" in the goodbye stretch (#491): the date ends there.
   if (row.setup?.end_by) built.setup.end_by = row.setup.end_by;
-  let decided = getEngine().decide(built.input, built.seed, row.setup?.engine_version ?? 1);
+  // The calibration it was booked with (buildDate stamps today's): its heading, trace and wish rule read the same one.
+  built.setup.engine_version = row.setup?.engine_version ?? 1;
+  let decided = getEngine().decide(built.input, built.seed, built.setup.engine_version);
   // Once the last line is in, the two sides' wishes weigh in (lib/wishes.ts). A date finished before they did keeps its ending.
   const transcript = row.transcript ?? [];
   if (transcript.length && transcript.length >= shapeFor(built, formatId, transcript).total && (row.status === "generating" || row.wishes?.engine)) {
@@ -835,8 +837,10 @@ async function rebuild(db: Db, row: Row) {
  */
 async function settleEnding(db: Db, row: Row, decided: Outcome, seed: number): Promise<Outcome> {
   const transcript = row.transcript ?? [];
-  const wishes = resolveWishes(row.wishes, transcript);
-  const final = applyWishes(decided, wishes, seed);
+  // #728: on a date agents perform under engine v4+, the wishes are a rule (lib/wishes.ts liftEnding), not a roll.
+  const rule = wishRule(true, row.setup?.engine_version, decided.margin);
+  const wishes = resolveWishes(row.wishes, transcript, rule);
+  const final = applyWishes(decided, wishes, seed, rule);
   if (!row.wishes?.engine && row.status === "generating") {
     // 2.10.0: which sides sent see_again (before settling, row.wishes holds only those), so the finished date can say.
     const kept = settledWishes(wishes, decided.ending, { a: typeof row.wishes?.a === "boolean", b: typeof row.wishes?.b === "boolean" });
@@ -859,8 +863,15 @@ async function settleEnding(db: Db, row: Row, decided: Outcome, seed: number): P
 function headingOf(built: BuiltDate, decided: Outcome): Heading {
   const trace = decideTraced(built.input, built.seed, built.setup.engine_version).trace;
   const names: [string, string] = [built.characters[0].name, built.characters[1].name];
-  return dateHeading(decided, names, built.input.a.strategy, trace && trace.ending === decided.ending ? trace : null, false, built.input.date_number);
+  return dateHeading(decided, names, built.input.a.strategy, trace && trace.ending === decided.ending ? trace : null, false, built.input.date_number, built.setup.engine_version);
 }
+
+/**
+ * #728: on a date agents perform under engine v4+, the wishes are a rule (lib/wishes.ts liftEnding); null before, when they
+ * were a roll. `near`: a both-yes would lift a friends ending to a second date.
+ */
+const liftOf = (built: BuiltDate, decided: Outcome): { near: boolean } | null =>
+  (built.setup.engine_version ?? 1) >= 4 ? { near: nearSecondDate(decided.margin, built.setup.engine_version) } : null;
 
 /**
  * The turn step's one line on where the date is headed (#204); on a two-agent date forViewer puts the heading's line there
@@ -888,8 +899,16 @@ export const lastAct = (ending: Ending, dateNumber?: number | null): string =>
  * 2.10.0 (the 2026-10-22-0800 run: "your lines shape how it plays, not how it ends" hid the one lever there is): the lever
  * first.
  */
-export const actNote = (ending: Ending, dateNumber?: number | null): string =>
-  `Last act: as the date stands, it's ${lastAct(ending, dateNumber)}. What can still tip it is each side's private see_again on its last line, not what the lines say.`;
+export const actNote = (ending: Ending, dateNumber?: number | null, lift?: { near: boolean } | null): string =>
+  lift
+    ? `Last act: as the date stands, it's ${lastAct(ending, dateNumber)}. What can still move it is both sides' private see_again on their last lines, not what the lines say: ${LIFT_SAYS[ending](lift.near)}.`
+    : `Last act: as the date stands, it's ${lastAct(ending, dateNumber)}. What can still tip it is each side's private see_again on its last line, not what the lines say.`;
+/** #728: what both see_agains do to a date heading each way, under the lift rule (lib/wishes.ts liftEnding). */
+const LIFT_SAYS: Record<Ending, (near: boolean) => string> = {
+  disaster: () => "both true and it lifts to friends; anything else and the disaster stands",
+  friends: (near) => (near ? "both true and it lifts to a second date (it's close); anything else and it stays friends" : "it's not close enough to a second date for both true to lift it, so it stays friends"),
+  second_date: () => "both false and it drops to friends; anything else and the second date stands",
+};
 
 /**
  * What a side's last-line step leads with (2.10.0, the 2026-10-22-0800 run: all three visitors said "friends" in the dialogue,
@@ -905,10 +924,15 @@ export const seeAgainLead = (seeAgain: string): string => (seeAgain.includes(LEA
  * On a side's last line as planned: the private "want to see them again?" it may send (lib/wishes.ts), in full. Shown on
  * both kinds of date; on a two-agent date it's the only say an agent has in the ending, and the other side never sees it.
  */
-export const seeAgainLine = (speaker: string, other: string) =>
-  `${lastLineLead(speaker, other)} Both yes makes a better ending likelier, both no a parting, mixed changes nothing, and the engine still makes the final call; ` +
+export const seeAgainLine = (speaker: string, other: string, lift = false) =>
+  `${lastLineLead(speaker, other)} ` +
+  (lift
+    ? "Both yes and it can't end in a disaster (and a close friends ending becomes a second date), both no and it can't be a second date, one each and the engine's ending stands; "
+    : "Both yes makes a better ending likelier, both no a parting, mixed changes nothing, and the engine still makes the final call; ") +
   `the other side never sees yours. Send it with the line, as {"dialogue": "…", "see_again": true} (a bare string can't carry it). ` +
-  `Left out, this line's interest_signal stands in: ${WISH_YES_AT} or more counts as yes, ${WISH_NO_AT} or less as no.`;
+  (lift
+    ? `Left out, ${speaker}'s interest_signal across the last act (the average) stands in: ${WISH_YES_AT} or more counts as yes, ${WISH_NO_AT} or less as no.`
+    : `Left out, this line's interest_signal stands in: ${WISH_YES_AT} or more counts as yes, ${WISH_NO_AT} or less as no.`);
 const SEE_AGAIN_REPLY = ',"see_again":"true or false, private: does this character want another date? With theirs, it can tip the ending."}';
 /** A last line's filled reply (2.10.0): the example carries see_again, as the line that can tip the ending must. */
 export const LAST_LINE_EXAMPLE = '{"dialogue":"Same time next storm?","action":"grins","emotion":"hopeful","interest_signal":0.8,"see_again":true}';
@@ -1036,7 +1060,7 @@ function stepFor(
       turn_number: turn + 1,
       of,
       // 2.10.0: near the top, as the step's instructions lead with it.
-      ...(lastLine ? { see_again: seeAgainLine(speaker.name, other.name) } : {}),
+      ...(lastLine ? { see_again: seeAgainLine(speaker.name, other.name, liftOf(built, decided) !== null) } : {}),
       // 2.11.0 (#656): where it's heading, on every turn from the first (forViewer gives a two-agent side its own lever).
       heading: headingOf(built, decided),
       side,
@@ -1049,7 +1073,7 @@ function stepFor(
       ...(turn ? { last_lines: transcript.slice(-2).map((t) => `${built.characters[t.side === "a" ? 0 : 1].name}: ${t.dialogue}${t.action ? ` (${t.action})` : ""}`) } : {}),
       where: venueName(shape.place),
       // 2.8.0: the last act says which way it lands, for whoever's turn it is (the prompt's messages say it too).
-      ...(act === DATE_ACTS.length - 1 ? { act_note: actNote(decided.ending, built.input.date_number) } : {}),
+      ...(act === DATE_ACTS.length - 1 ? { act_note: actNote(decided.ending, built.input.date_number, liftOf(built, decided)) } : {}),
       ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay).` } : {}),
       instructions:
         // 2.10.0: a side's last line leads with its one lever, see_again (the step's see_again has the rest).
@@ -1286,7 +1310,15 @@ function wishesFor(row: Row, userId: string, transcript: readonly Turn[], ending
   const mine: ("a" | "b")[] =
     row.partner_performer === null ? (row.creator_id === userId ? ["a", "b"] : []) : row.creator_id === userId ? ["a"] : row.partner_performer === userId ? ["b"] : [];
   const performers = performersOf(row);
-  return wishReport({ stored: row.wishes, transcript, ending, names: [row.a_name, row.b_name], mine, showPlayed: (["a", "b"] as const).filter((s) => performers[s] === SHOW) });
+  return wishReport({
+    stored: row.wishes,
+    transcript,
+    ending,
+    names: [row.a_name, row.b_name],
+    mine,
+    showPlayed: (["a", "b"] as const).filter((s) => performers[s] === SHOW),
+    rule: wishRule(true, row.setup?.engine_version),
+  });
 }
 
 /** The done step for this agent, with reflection prompts only for the side(s) it performs. */

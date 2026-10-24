@@ -49,6 +49,7 @@ import { setReflectionEnabledForTests } from "@/lib/reflection";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { setPublicLaunchDayForTests } from "@/lib/our-traffic";
 import { setCheckSleepForTests } from "@/lib/adult/check";
+import { clearEndingsLatelyForTests } from "@/lib/endings-lately";
 import { setWelcomeFromForTests } from "@/lib/welcome";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
@@ -133,6 +134,8 @@ export async function startTestDb() {
   return {
     db,
     async reset() {
+      // The recent ending mix is cached per database (lib/endings-lately.ts): a reset starts it over.
+      clearEndingsLatelyForTests();
       for (const table of [
         // The data plan's tables: rows between two house characters would otherwise outlive a reset.
         "ml_consents",

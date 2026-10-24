@@ -36,6 +36,8 @@ type Props = {
   visibility?: string;
   /** When an unaired date airs on its own (ISO), for its host. */
   airsAt?: string | null;
+  /** #728: how recent aired public dates ended, in a line (lib/endings-lately.ts), so a pick isn't blind. */
+  lately?: string | null;
 };
 
 /** The host takes a date offline (private) or puts it back on the air (public). */
@@ -47,7 +49,7 @@ function setVisibility(episodeId: string, visibility: "public" | "private") {
 }
 
 export default function EpisodeActions(props: Props) {
-  const { episodeId, sharePath, shareBase, isCreator, isHost, revealed, names, dramaQuestion, myPick, myDramaPick, dateNumber, visibility, airsAt } = props;
+  const { episodeId, sharePath, shareBase, isCreator, isHost, revealed, names, dramaQuestion, myPick, myDramaPick, dateNumber, visibility, airsAt, lately } = props;
   const offline = visibility === "private";
   const { busy, error, setError, run } = useAction();
   const share = <EpisodeShare path={sharePath} base={shareBase} names={names} dateNumber={dateNumber} />;
@@ -117,6 +119,7 @@ export default function EpisodeActions(props: Props) {
   return (
     <section className="card">
       <h2>How does it end?</h2>
+      {lately && <p className="muted">{lately.charAt(0).toUpperCase() + lately.slice(1)}.</p>}
       <form className="choices" onSubmit={predict}>
         {ENDINGS.map((ending) => (
           <label key={ending}>

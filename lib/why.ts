@@ -5,7 +5,7 @@
  * finished, not how far they moved. Deterministic, free, and no spoiler beyond the ending it explains (it never says
  * which side wanted more, or whose dealbreaker it was).
  */
-import { DEALBREAKER_PENALTY, endingScore, type SideOutcome } from "./engine";
+import { dealbreakerPenalty, endingScore, type SideOutcome } from "./engine";
 import { weakSpotLine } from "./heading";
 import { DATE_VARIABLES, endingLabel, STRATEGY_LABELS, type DateVariable, type Ending, type Strategy } from "./rules";
 
@@ -36,12 +36,12 @@ export function endingNumbers(box: Box | null | undefined, sides: readonly SideO
   if (!box || !sides || !strategy || (version ?? 1) < 2 || !DATE_VARIABLES.every((v) => box[v])) return null;
   const dealbreakers = sides.filter((s) => s.dealbreaker_hit).length;
   const finals = Object.fromEntries(DATE_VARIABLES.map((v) => [v, box[v]!.final])) as Record<DateVariable, number>;
-  const s = endingScore(strategy, finals, dealbreakers);
+  const s = endingScore(strategy, finals, dealbreakers, version ?? 1);
   const w = s.weights;
   return (
     `By the numbers: a date played for ${STRATEGY_LABELS[strategy].toLowerCase()} counts chemistry ${pct(w.chemistry)}, attraction ` +
     `${pct(w.attraction)} and trust ${pct(w.trust)}, minus ${pct(w.awkwardness)} of awkwardness` +
-    `${dealbreakers ? ` and ${DEALBREAKER_PENALTY} for ${dealbreakers === 1 ? "the tripped dealbreaker" : "each tripped dealbreaker"}` : ""}. ` +
+    `${dealbreakers ? ` and ${dealbreakerPenalty(version)} for ${dealbreakers === 1 ? "the tripped dealbreaker" : "each tripped dealbreaker"}` : ""}. ` +
     `This one came out ${signed(s.rel)} against an ordinary date: friends needs ${signed(s.friendsAt)}, ${endingLabel("second_date", dateNumber).toLowerCase()} ${signed(s.secondDateAt)}.`
   );
 }
@@ -88,7 +88,7 @@ export function endingWhy(
     const despite = at(box, best) >= 60 ? `, and that outweighed ${say(box, best)}` : "";
     // MCP 2.11.0 (#656, the 2026-10-22-0936 run: "a warm date ended as a disaster although the box score looked fine"): the
     // number that cost it most, in plain words (lib/heading.ts weighs them as the ending does).
-    const weak = weakSpotLine(box, strategy);
+    const weak = weakSpotLine(box, strategy, version);
     line = `A disaster: ${reasons.length ? `${reasons.join(", ")}${despite}` : `nothing landed hard enough (best was ${say(box, best)})`}.${weak ? ` ${weak}` : ""}`;
   }
   const numbers = endingNumbers(box, sides, strategy, version, dateNumber);
