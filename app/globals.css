@@ -8109,6 +8109,13 @@ a.phone-head-btn {
   gap: var(--space-2);
   margin: var(--space-3) 0;
   border-bottom: 1px solid var(--ad-line, var(--line));
+  /* Five tabs are wider than a phone: they scroll sideways in their own bar, never the page. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ad-studio-tabs button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .ad-studio-tabs button {
   border: 0;
@@ -8141,6 +8148,15 @@ a.phone-head-btn {
 }
 .ad-studio-go select {
   max-width: 100%;
+}
+/* A model picker's long option names shrink the picker, not widen the page. */
+.ad-studio-go > label {
+  min-width: 0;
+  max-width: 100%;
+}
+.ad-studio-panel select {
+  max-width: 100%;
+  min-width: 0;
 }
 .ad-studio-grid {
   list-style: none;
