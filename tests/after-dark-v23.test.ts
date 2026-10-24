@@ -177,8 +177,10 @@ describe("the Filthy intensity, one above Explicit", () => {
     // Explicit's prompt is untouched by it.
     const explicit = prompt("explicit", 4);
     expect(explicit.system).toContain("Explicit sexual content is allowed and expected when the scene goes there; write it frankly, in each character's own voice.");
-    expect(explicit.system).toContain("Stay this person when it gets intimate: their humour and the way they talk still show");
-    expect(explicit.user).toContain("their humour and their way of talking keep showing");
+    // v2.5: from undressing on, Explicit's voice rule is their rhythm and delivery; before it, as it was.
+    expect(explicit.system).toContain("Stay this person when it gets intimate, in rhythm and delivery");
+    expect(prompt("explicit", 2).system).toContain("Stay this person when it gets intimate: their humour and the way they talk still show");
+    expect(prompt("explicit", 2).user).toContain("their humour and their way of talking keep showing");
     expect(explicit.system).not.toContain("filthy");
   });
 

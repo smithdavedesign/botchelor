@@ -814,6 +814,160 @@ export function recentTopicWords(lines: readonly Pick<Line, "who" | "text">[], w
   return [...counts.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).slice(0, max).map(([w]) => w);
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// The clinical register, from undressing on (prompt v2.5)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * A word in the clinical, report-writing register, by its shape: the abstract endings a manual or an inspection is
+ * written in ("structural integrity", "containment", "synchronization", "acoustics", "salinity", "capacity").
+ * Morphology, not a vocabulary: no character's words are listed. CLINICAL_EXCEPT holds the words of those shapes that
+ * any intimate scene says plainly.
+ */
+const CLINICAL_SHAPE = /^[a-z]{3,}(?:ity|ities|ation|ations|ition|itions|sion|sions|ment|ments|ance|ence|ics|ology|ural|ical|ization|ient|ency)$/;
+const CLINICAL_EXCEPT = new Set(
+  (
+    "sensation sensations position positions attention tension anticipation intensity pleasure moment moments connection emotion emotions " +
+    "passion excitement desire physical permission confession obsession expression attraction affection satisfaction submission domination " +
+    "penetration session question questions mention conversation situation decision invitation intention imagination devotion temptation " +
+    "patience presence silence absence experience confidence chance dance glance romance distance instance violence sentence balance " +
+    "performance surrender reality city pity ability natural vacation nation station ration motion lotion potion notion promotion " +
+    "commitment comment comments element apartment basement payment treatment agreement statement entertainment amusement embarrassment " +
+    "encouragement punishment torment amazement appointment fragment instrument document government environment equipment " +
+    "personality sexuality vulnerability possibility curiosity electricity eternity gravity security insecurity identity " +
+    "difference preference reference audience evidence science conscience innocence influence existence violence obedience defiance " +
+    "magical musical classical typical tropical cynical practical ancient patient client convenient"
+  ).split(/\s+/),
+);
+
+/** The clinical-register words a line says out loud, its *actions* out (an action may watch "with clinical detachment"). */
+export function clinicalWordsIn(text: string, allowed: readonly string[] = []): string[] {
+  const free = new Set(allowed.flatMap((s) => tokens(s)));
+  return tokens(text.replace(/\*[^*]*\*/g, " ")).filter((w) => CLINICAL_SHAPE.test(w) && !CLINICAL_EXCEPT.has(w) && !free.has(w));
+}
+
+/**
+ * v2.5: from undressing on, one of a speaker's lines in CLINICAL_EVERY at most says a clinical-register word (David's
+ * Chud × Juniper night, replayed on v2.4: "structural integrity", "the acoustics", "calibration", nearly every line
+ * mid-sex). The prompt rations the wry asides to the same share; this holds the register the asides were written in.
+ */
+export const CLINICAL_EVERY = 6;
+
+/** Their lines among the last CLINICAL_EVERY - 1 of theirs with a clinical word (clinicalWordsIn). */
+export function recentClinicalLines<T extends Pick<Line, "who" | "text">>(lines: readonly T[], who: "a" | "b", allowed: readonly string[] = []): T[] {
+  return lines
+    .filter((l) => l.who === who)
+    .slice(-(CLINICAL_EVERY - 1))
+    .filter((l) => clinicalWordsIn(l.text, allowed).length > 0);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The voice without its subjects, from undressing on (prompt v2.5)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** Words a list item starts on ("the gulls", "her podcast"): a fragment starting on one carries on the clause before it. */
+const LIST_START = new Set("the a an her his their my your its our some any every all both".split(" "));
+/** Joining words a fragment can start on before its own first word ("and never laughs", "or the sea"). */
+const JOINER = /^(?:and|or|but|then|also)\s+/i;
+/** The subjects a list names: the last word of each of its "and"/"or" parts ("the sea", "ghosts and the gulls"). */
+const subjectsIn = (list: string): string[] => list.split(/\s+(?:and|or)\s+/i).flatMap((part) => tokens(part).slice(-1));
+/** The preposition a clause opens a list of subjects with ("drifts toward the sea, ghosts…", "jokes about…"). */
+const PREPOSITION = /\s+(?:about|toward|towards|into|of|on|at|for|with|to|from|over|around|like)\s+/i;
+
+/**
+ * Whether a fragment of a voice line continues a list from the fragment before it, rather than starting a clause of its
+ * own: it starts on a determiner ("the gulls") or on a topic word ("ghosts and the gulls"). A clause starts on its verb
+ * or its own subject ("drifts toward the sea", "never laughs at her own jokes", "short sentences").
+ */
+function continuesList(fragment: string, topics: readonly string[]): boolean {
+  const first = tokens(fragment.replace(JOINER, ""))[0] ?? "";
+  return LIST_START.has(first) || topicWordsIn(first, topics).length > 0;
+}
+
+/**
+ * A character's voice without the clauses that name their topics (v2.5; David's Chud × Juniper night, replayed blind on
+ * v2.4: Juniper's deadpan "technical" quip came back nearly every line mid-sex, and her house voice says she "drifts
+ * toward the sea, ghosts and the gulls"). From undressing on, the prompt gives their voice's rhythm and delivery, not its
+ * subjects: "Asks odd, sincere questions, drifts toward the sea, ghosts and the gulls, and never laughs at her own jokes."
+ * becomes "Asks odd, sincere questions, and never laughs at her own jokes."
+ *
+ * Generic: `topics` are the sheet's own topic words (topicsOf). A voice is read a sentence at a time, in fragments
+ * between its commas, semicolons and colons. A fragment saying a topic word goes; so does a list it's part of: the
+ * clause that opens the list ("drifts toward the sea") and the items after it ("the gulls"), by continuesList. A
+ * fragment whose topic is only after an "and" keeps what's before it ("asks odd questions and talks about ghosts" keeps
+ * "asks odd questions"). `cut` is the words of the clauses that went, as stems, that aren't a topic already and could be
+ * one ("sea"): the budget counts them too, from undressing on.
+ */
+export function voiceWithoutTopics(voice: string, topics: readonly string[]): { voice: string; cut: string[] } {
+  if (!voice.trim() || !topics.length) return { voice, cut: [] };
+  const cutWords: string[] = [];
+  const sentences = voice.match(/[^.!?]+(?:[.!?]+|$)/g) ?? [voice];
+  const out: string[] = [];
+  for (const raw of sentences) {
+    const sentence = raw.trim();
+    if (!sentence) continue;
+    const end = /[.!?]+$/.exec(sentence)?.[0] ?? "";
+    const body = sentence.slice(0, sentence.length - end.length);
+    // Fragments and the separator before each (the first has none).
+    const parts = body.split(/(\s*[,;:]\s*)/);
+    const frags: { sep: string; text: string }[] = [];
+    for (let i = 0; i < parts.length; i += 2) frags.push({ sep: i ? parts[i - 1] : "", text: parts[i] });
+    const gone = frags.map(() => false);
+    const comma = (i: number) => frags[i].sep.trim() === ",";
+    frags.forEach((f, i) => {
+      if (gone[i] || !topicWordsIn(f.text, topics).length) return;
+      if (!continuesList(f.text, topics)) {
+        // "asks odd questions and talks about ghosts": what's before the "and" stays, when it names nothing.
+        const and = /\s+and\s+/i.exec(f.text);
+        const head = and ? f.text.slice(0, and.index) : "";
+        if (and && head && !topicWordsIn(head, topics).length && !continuesList(f.text.slice(and.index + and[0].length), topics)) {
+          frags[i] = { ...f, text: head };
+          return;
+        }
+        gone[i] = true;
+      } else {
+        gone[i] = true;
+        // A list's items: back through the items before it to the clause that opens it with a preposition ("drifts
+        // toward the sea"), which goes too, but for a noun phrase before its preposition ("physical sentences about…").
+        // Items with no such clause before them are a list of their own ("easy compliments, dance metaphors"): they stay.
+        const items: number[] = [];
+        for (let j = i; j > 0 && comma(j); j--) {
+          const prev = frags[j - 1].text;
+          if (continuesList(prev, topics)) {
+            items.push(j - 1);
+            continue;
+          }
+          const prep = PREPOSITION.exec(prev);
+          if (prep) {
+            const keep = prev.slice(0, prep.index).trim();
+            // The subjects listed with a topic are subjects too ("the sea"): they and the item's words are what's cut.
+            cutWords.push(...[prev.slice(prep.index + prep[0].length), f.text, ...items.map((k) => frags[k].text)].flatMap(subjectsIn));
+            for (const k of items) gone[k] = true;
+            if (keep.split(/\s+/).length >= 2 && !topicWordsIn(keep, topics).length) frags[j - 1] = { ...frags[j - 1], text: keep };
+            else gone[j - 1] = true;
+          }
+          break;
+        }
+      }
+      // And on through the items after it ("…, the gulls"), up to a clause of its own ("and never laughs").
+      for (let j = i + 1; j < frags.length && comma(j) && !JOINER.test(frags[j].text) && continuesList(frags[j].text, topics); j++) gone[j] = true;
+    });
+    const kept = frags.filter((_, i) => !gone[i]);
+    if (!kept.length) continue;
+    let text = kept.map((f, i) => (i ? f.sep : "") + f.text).join("");
+    // A sentence that lost its start: no joining word in front, and a capital.
+    if (gone[0]) text = text.replace(JOINER, "");
+    text = text.replace(/[\s,;:]+$/, "").trim();
+    if (!text) continue;
+    out.push(`${text[0].toUpperCase()}${text.slice(1)}${end || "."}`);
+  }
+  const stop = topicStopWords();
+  const cut = [...new Set(cutWords.map((w) => w.replace(/'s$/, "")).filter((w) => w.length >= 3 && !stop.has(w) && !LIST_START.has(w)).map(stem))].filter(
+    (s) => s.length >= 3 && !stop.has(s) && !placeIn(s) && !topics.some((t) => sameTopic(s, t)),
+  );
+  return { voice: out.join(" "), cut };
+}
+
 /** One character's phrase habits over their lines (after `before`'s): lines reusing a worn phrase, endings on a question, top phrases. */
 function phraseHabits(lines: readonly Line[], before: readonly Line[], who: "a" | "b", names: ReadonlySet<string>) {
   const counts = countPhrases(before.filter((l) => l.who === who), names);
@@ -839,6 +993,11 @@ export type Drift = {
   name: string;
   lines: number;
   sheet_detail_rate: number;
+  /**
+   * v2.5: the same over their lines before undressing only (null when they have none): v2.4+ cuts their sheet's words
+   * from undressing on on purpose, so the explicit lines would only pull the rate down (the model simulation reads this).
+   */
+  sheet_detail_rate_early: number | null;
   cliche_rate: number;
   cliches: Record<string, number>;
   worn_phrase_rate: number;
@@ -847,6 +1006,9 @@ export type Drift = {
   hook: { word: string; share: number } | null;
   tell_uses: number;
 };
+
+/** Lines from before undressing (a line with no stage counts as early: it was saved before stages were). */
+const early = (lines: readonly Line[]): Line[] => lines.filter((l) => (l.stage ?? 0) < STAGES.indexOf("undressing"));
 
 export function driftOf(lines: readonly Line[], a: QualitySide, b: QualitySide, before: readonly Line[] = []): { a: Drift; b: Drift } {
   const names = phraseNames(a.name, b.name);
@@ -859,6 +1021,7 @@ export function driftOf(lines: readonly Line[], a: QualitySide, b: QualitySide, 
       name: side.name,
       lines: theirs.length,
       sheet_detail_rate: sheetDetailRate(theirs, side, [(who === "a" ? b : a).name]),
+      sheet_detail_rate_early: early(theirs).length ? sheetDetailRate(early(theirs), side, [(who === "a" ? b : a).name]) : null,
       cliche_rate: c.rate,
       cliches: c.phrases,
       worn_phrase_rate: h.lines ? round(h.worn / h.lines) : 0,

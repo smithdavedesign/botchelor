@@ -199,7 +199,8 @@ describe("(2) hooks: a flagged theme held to one line in six this chapter (pie i
   });
 
   it("the v2 voice rule asks for their job or a hobby now and then, not in every line", () => {
-    const [system, user] = prompt([]).map((m) => m.content);
+    // Before undressing (v2.5: from undressing on, the voice rule is their rhythm and delivery only).
+    const [system, user] = prompt([], { stage: 2 }).map((m) => m.content);
     expect(system).toContain("their humour and the way they talk still show, and their job or a hobby comes up now and then, not in every line");
     expect(user).toContain("their humour and their way of talking keep showing, their work or a hobby now and then (not in every line)");
     expect(user).not.toContain("their tells keep showing");

@@ -99,6 +99,10 @@ import {
   topicWordsIn,
   topicWordsSaid,
   topPhrases,
+  voiceWithoutTopics,
+  CLINICAL_EVERY,
+  clinicalWordsIn,
+  recentClinicalLines,
   touchesHook,
   WORN_AT,
   wornIn,
@@ -386,24 +390,35 @@ const sheetOf = (c: Character | null, side: "a" | "b", catchphraseUsed = false) 
  * dates use (lib/adult/voice.ts voiceKitLines: details, public facts, all four tells by name, never-says, sample lines)
  * and up to five of their own best lines from their show dates, as "how {name} talks", when they have any.
  */
-const sheetV2 = (c: Character | null, side: "a" | "b", catchphraseUsed = false, styles: readonly string[] = []) =>
-  c
-    ? [
+const sheetV2 = (c: Character | null, side: "a" | "b", catchphraseUsed = false, styles: readonly string[] = [], topics: readonly string[] = []) => {
+  if (!c) return `${side.toUpperCase()}: unknown`;
+  // v2.5, from undressing on (`topics`: both sheets' topic words): the voice's rhythm and delivery, not its subjects, and
+  // only the sample lines that name none of them.
+  const voice = c.voice && topics.length ? voiceWithoutTopics(c.voice, topics).voice : c.voice;
+  const plainLine = (line: string) => !topics.length || !topicWordsIn(line, topics).length;
+  const kit = voiceKitLines(c).flatMap((line) => {
+    if (!topics.length || !line.startsWith("Sounds like")) return [line];
+    const [head, ...samples] = line.split("\n");
+    const kept = samples.filter(plainLine);
+    return kept.length ? [[head, ...kept].join("\n")] : [];
+  });
+  const shown = styles.filter(plainLine);
+  return [
         `${side.toUpperCase()}: ${c.name}, ${c.age}${c.pronouns ? `, ${c.pronouns}` : ""}.`,
         `Bio: ${c.bio}`,
         `Traits: ${c.persona.traits.join(", ")}. Wants: ${c.persona.want}.`,
-        c.voice ? `Voice: ${c.voice}` : "",
-        ...voiceKitLines(c),
+        voice ? `Voice: ${voice}` : "",
+        ...kit,
         catchphraseLine(c, catchphraseUsed),
         // v2.1: Dolphin copied these word for word (the A/B of 2026-10-21 dropped three): they show the voice, nothing more.
-        styles.length
-          ? `How ${c.name.split(/\s+/)[0]} talks (their own lines from their show dates, only to show the voice: never reuse one, or any part of one):\n${styles.map((s) => `- "${s}"`).join("\n")}`
+        shown.length
+          ? `How ${c.name.split(/\s+/)[0]} talks (their own lines from their show dates, only to show the voice: never reuse one, or any part of one):\n${shown.map((s) => `- "${s}"`).join("\n")}`
           : "",
         c.look.appearance ? `Looks: ${c.look.appearance}` : "",
       ]
         .filter(Boolean)
-        .join("\n")
-    : `${side.toUpperCase()}: unknown`;
+        .join("\n");
+};
 
 /**
  * Prompt v2's rules for staying themselves: only the two of them, their sheets when it heats up, no stock phrasing, and
@@ -411,14 +426,15 @@ const sheetV2 = (c: Character | null, side: "a" | "b", catchphraseUsed = false, 
  * on prod, 2026-10-22: her bakery in 137 of 298 lines, his pottery in 73, her pencil spun 31 times, during sex too): their
  * job and hobbies come up now and then, not in every line, and their tells are left to the craft rules.
  */
-function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }, plain = false): string[] {
+function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }, plain = false, explicit = false): string[] {
   const banned = bannedPhrases([a, b].filter((c): c is Character => Boolean(c)).map((c) => sheetText(sideOfCharacter(c))));
   const pronouns = (c: Character | null, name: string) => `${name.split(/\s+/)[0]}: ${c?.pronouns?.trim() || "none given, so use their name"}`;
   return [
     `Only the two of them are in this scene: ${names.a} and ${names.b}. Nobody else speaks, arrives or is named, and each calls the other by their own name.`,
     // v2.3 (David, 2026-10-23: a baker turned every line of a filthy steer into a baking pun): at Filthy's late stages the
     // voice is attitude and rhythm, and the jokes and the job are a seasoning.
-    plain ? FILTHY_VOICE : VOICE_RULE,
+    // v2.5: from undressing on, their rhythm and delivery, not their subjects (LOVERS_VOICE).
+    plain ? FILTHY_VOICE : explicit ? LOVERS_VOICE : VOICE_RULE,
     `Never write these stock phrases, or anything in their register: ${banned.join(", ")}.`,
     `Their pronouns, from their sheets: ${pronouns(a, names.a)}; ${pronouns(b, names.b)}. Use only these, for them, their bodies and their places.`,
   ];
@@ -430,12 +446,25 @@ function voiceRules(a: Character | null, b: Character | null, names: { a: string
  */
 const LOVERS_RULE =
   "- In the heat of it they talk like lovers: short, direct, physical, in the moment. Their job and hobbies come up rarely now, never as an extended metaphor.";
-/** v2.4, the same in the line rule, from undressing on. */
-const LOVERS_LINE = "From here they talk like lovers, about each other and this moment: no jargon, jokes or comparisons from their work, whatever their sheets say about their humour. ";
+/** v2.4, the same in the line rule, from undressing on; v2.5 with the asides' share. */
+const LOVERS_LINE =
+  "From here they talk like lovers, about each other and this moment: no jargon, jokes or comparisons from their work, whatever their sheets say about their humour. About one line in six at most is a dry aside; the rest say what they feel, want or do, plainly. ";
+/**
+ * v2.5, from undressing on (Chud × Juniper replayed on v2.4: her deadpan "technical" quip nearly every line mid-sex,
+ * "structural integrity", "the acoustics", "calibration", "protocol"): the wry asides rationed, and in plain words.
+ */
+const ASIDES_RULE =
+  "- Dry asides are rationed: about one line in six may be commentary on what's happening (a deadpan remark, a joke, a comparison, an observer's or technician's word for it). The rest say what they feel, want or do, plainly, in their own rhythm: a deadpan character says it short and flat, not clinically.";
 
 /** v2's rule for staying themselves (every intensity, and Filthy before undressing). */
 const VOICE_RULE =
   "Stay this person when it gets intimate: their humour and the way they talk still show, and their job or a hobby comes up now and then, not in every line; no generic romance-novel phrasing. They sound like their sheets, not like a paperback.";
+/**
+ * v2.5, from undressing on (every intensity but Filthy's plain talk, which has FILTHY_VOICE): VOICE_RULE without "their
+ * job or a hobby comes up now and then", which the lovers and work rules contradicted.
+ */
+const LOVERS_VOICE =
+  "Stay this person when it gets intimate, in rhythm and delivery: how bold or shy they are, how fast or slow, how they ask, tease and answer, the length and pace of what they say. No generic romance-novel phrasing. They sound like themselves, not like a paperback.";
 /** v2.3, Filthy from undressing on: the voice in how they talk dirty, not in puns. */
 const FILTHY_VOICE =
   "Stay this person when it gets intimate, in attitude and rhythm: how bold or shy they are, how they ask, tease and answer, the length and pace of what they say. Now it's gone this far, the jokes and their job are a light seasoning, a line now and then at most: no puns, no wordplay on their work, no coy stand-ins for what they mean. No generic romance-novel phrasing either. They sound like themselves, talking dirty.";
@@ -528,6 +557,9 @@ function craftLines(
       "- Keep track of how they're positioned: once a line sets it (on top, from behind, against the wall), the lines only show what each of them could see, reach or do from there (from behind, their eyes don't meet), until a line changes it.",
       LOVERS_RULE,
       `- What they say stays off their work and hobbies${work.length ? `, ${work.join(" and ")}` : ""}: no terms, jargon, jokes or comparisons from them, whatever their voice says about their humour. They're themselves in how they talk (bold or shy, quick or slow, dry or warm), not in their job's words. One can come up plainly now and then, never as the way they say what they're doing or feeling.`,
+      // v2.5 (Chud × Juniper replayed on v2.4: he teased with her lighthouse, her foghorns, "get this ship moving").
+      `- Neither of them borrows the other's work or hobbies either: ${first("a")} doesn't tease with ${first("b")}'s, nor ${first("b")} with ${first("a")}'s.`,
+      ASIDES_RULE,
     );
   }
   if (now.plain) {
@@ -577,16 +609,30 @@ function craftLines(
     for (const tell of now.tellsUsed?.[who] ?? []) notes.push(`- ${first(who)} has shown ${poss(who)} tell (${tell}) ${times(TELL_CAP)} this chapter: not again.`);
   }
   // v2.4: work and hobbies past their share of the last lines, named like worn phrases (their next line can't say them).
+  // v2.5: from undressing on, either sheet's words count against whoever says them.
   const every = topicEvery(now.stage);
+  const held = topicsAt(a, b, names, now.stage, now.steered);
   for (const who of ["a", "b"] as const) {
-    const own = topicsAllowed(who === "a" ? a : b, names, now.steered);
+    const own = held[who];
     const recent = recentTopicLines(lines, who, own, every);
     if (!recent.length) continue;
     const words = recentTopicWords(lines, who, own, every);
     const of = Math.min(every - 1, lines.filter((l) => l.who === who).length);
     notes.push(
-      `- ${first(who)} talked about ${poss(who)} work or hobbies in ${recent.length} of ${poss(who)} last ${of} lines, and that's one line in ${every} at most${now.stage >= UNDRESSING ? " from here" : ""}. Don't lean on these words again: ${words.map((w) => `"${w}"`).join(", ")}; a line that says one loses it.`,
+      `- ${first(who)} talked about ${now.stage >= UNDRESSING ? `work or hobbies (${({ her: "hers", his: "his", their: "theirs" } as Record<string, string>)[poss(who)] ?? poss(who)} or ${first(other(who))}'s)` : `${poss(who)} work or hobbies`} in ${recent.length} of ${poss(who)} last ${of} lines, and that's one line in ${every} at most${now.stage >= UNDRESSING ? " from here" : ""}. Don't lean on these words again: ${words.map((w) => `"${w}"`).join(", ")}; a line that says one loses it.`,
     );
+  }
+  // v2.5: from undressing on, a speaker past the clinical register's share is told which words, like a worn phrase.
+  if (now.stage >= UNDRESSING) {
+    const free = (now.steered ?? []).filter((s): s is string => Boolean(s));
+    for (const who of ["a", "b"] as const) {
+      const recent = recentClinicalLines(lines, who, free);
+      if (!recent.length) continue;
+      const words = [...new Set(recent.flatMap((l) => clinicalWordsIn(l.text, free)))].slice(0, 6);
+      notes.push(
+        `- ${first(who)} said something clinical in ${recent.length} of ${poss(who)} last ${Math.min(CLINICAL_EVERY - 1, lines.filter((l) => l.who === who).length)} lines (${words.map((w) => `"${w}"`).join(", ")}): that's one line in ${CLINICAL_EVERY} at most. From here ${poss(who)} lines say plainly what ${kind(who) ?? "they"} ${(kind(who) ?? "they") === "they" ? "feel, want or do" : "feels, wants or does"}; a line in that register loses it.`,
+      );
+    }
   }
   if (now.publicPlace && now.stage >= 1) {
     notes.push(
@@ -692,16 +738,18 @@ export function sceneMessages(
   const register = intensityLine(limits.intensity);
   const cap = INTENSITY[limits.intensity].maxStage;
   const capped = cap < STAGES.length - 1;
+  // v2.5: from undressing on, both sheets' topic words, which their voices are given without (sheetV2).
+  const explicitTopics = v2 && now.stage >= UNDRESSING ? topicsAt(a, b, [names.a, names.b], now.stage).a : [];
   const system = [
     "You write a private, adults-only scene for one reader: two characters from a dating show, alone together.",
     register ? `Both characters are adults (18 or older) and both are willing. ${register}` : filthy ? FILTHY_RULE : EXPLICIT_RULE,
     "Two rules never move: nobody in the scene is under 18 or described as a child, and no real, identifiable person appears or is named.",
     ...hardNoLines(limits.hard_nos),
-    ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }, plain) : []),
+    ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }, plain, now.stage >= UNDRESSING) : []),
     "",
-    v2 ? sheetV2(a, "a", now.catchphraseUsed?.a, now.styles?.a) : sheetOf(a, "a", now.catchphraseUsed?.a),
+    v2 ? sheetV2(a, "a", now.catchphraseUsed?.a, now.styles?.a, explicitTopics) : sheetOf(a, "a", now.catchphraseUsed?.a),
     "",
-    v2 ? sheetV2(b, "b", now.catchphraseUsed?.b, now.styles?.b) : sheetOf(b, "b", now.catchphraseUsed?.b),
+    v2 ? sheetV2(b, "b", now.catchphraseUsed?.b, now.styles?.b, explicitTopics) : sheetOf(b, "b", now.catchphraseUsed?.b),
     "",
     // What they're into and how the viewer frames them (lib/adult/profile.ts), and tonight's scenario: only when set.
     ...profileLines(names, now.profile?.turnOns ?? { a: [], b: [] }, now.profile?.framing ?? null),
@@ -783,7 +831,8 @@ export function sceneMessages(
   const user =
     `Write the next ${LINES_PER_TURN} lines of the scene, alternating between ${first("a")} and ${first("b")}${v2 ? `, starting with ${first(next)}` : ""}. ` +
     `Each line is ${v2 ? "a few words to 3 sentences (now and then only an action)" : "1 to 3 sentences"} in that character's own voice, vivid and specific, never a stock line ("you feel amazing"). ` +
-    (v2 ? (plain ? FILTHY_LINE_RULE : LINE_RULE) : "") +
+    // v2.5: from undressing on, LINE_RULE's "their work or a hobby now and then" is out; the lovers line says it all.
+    (v2 ? (plain ? FILTHY_LINE_RULE : now.stage >= UNDRESSING ? "" : LINE_RULE) : "") +
     (v2 && now.stage >= UNDRESSING ? LOVERS_LINE : "") +
     `Put what they do in "action" (a short phrase) and what they say in "text"; keep actions out of the text. Write both in English.` +
     (direction
@@ -1005,7 +1054,7 @@ const CRITIC_WINDOW = SCENE_IN_PROMPT;
 export type DroppedLine = { who: "a" | "b"; text: string; reason: string };
 
 /** What v2.2's craft guards (and v2.4's topic budget) took out on the way in, in lines that lost a part or went (dropRepeats). */
-export type CraftCuts = { hooks: number; tells: number; actions: number; openings: number; build_ups: number; topics: number };
+export type CraftCuts = { hooks: number; tells: number; actions: number; openings: number; build_ups: number; topics: number; clinical: number };
 
 /**
  * v2.4's topic budget for a step (lib/adult/quality.ts topicsOf): the stage it's written at (one line in 6 says their
@@ -1014,9 +1063,27 @@ export type CraftCuts = { hooks: number; tells: number; actions: number; opening
  */
 export type TopicBudget = { stage: number; steered?: readonly (string | null | undefined)[] };
 
-/** A character's topic words, without the ones a steer or whisper asks for. */
-const topicsAllowed = (c: Character | null, names: readonly string[], steered: readonly (string | null | undefined)[] = []): string[] =>
-  topicsOf(c, names).filter((topic) => !steered.some((s) => s && topicWordsIn(s, [topic]).length));
+/**
+ * The topic words each one's lines are held to at a stage, without the ones a steer or whisper asks for. Before
+ * undressing, their own sheet's (v2.4). From undressing on (v2.5; David's Chud × Juniper night, replayed on v2.4: Chud
+ * teased with hers, "my favorite lighthouse", "foghorns"), both sheets', and the subjects either voice lists with them
+ * ("drifts toward the sea, ghosts and the gulls": lib/adult/quality.ts voiceWithoutTopics), for both of them.
+ */
+export function topicsAt(
+  a: Character | null,
+  b: Character | null,
+  names: readonly string[],
+  stage: number,
+  steered: readonly (string | null | undefined)[] = [],
+): { a: string[]; b: string[] } {
+  const allowed = (topics: readonly string[]) => topics.filter((topic) => !steered.some((s) => s && topicWordsIn(s, [topic]).length));
+  const own = { a: topicsOf(a, names), b: topicsOf(b, names) };
+  if (stage < UNDRESSING) return { a: allowed(own.a), b: allowed(own.b) };
+  const both = [...new Set([...own.a, ...own.b])];
+  const listed = [a, b].flatMap((c) => (c?.voice ? voiceWithoutTopics(c.voice, both).cut : []));
+  const all = allowed([...new Set([...both, ...listed])]);
+  return { a: all, b: all };
+}
 
 /**
  * The new lines minus repeats (David, 2026-10-21: Star × Chud's lines 102–106 were 84–88 again): a line said before
@@ -1050,13 +1117,17 @@ export function dropRepeats(
   const counts = opts.worn ? { a: countPhrases(night.filter((l) => l.who === "a"), named), b: countPhrases(night.filter((l) => l.who === "b"), named) } : null;
   let worn = 0;
   // v2.2: the hooks flagged tonight (once flagged, held to their share), and each one's tells.
-  const cuts: CraftCuts = { hooks: 0, tells: 0, actions: 0, openings: 0, build_ups: 0, topics: 0 };
+  const cuts: CraftCuts = { hooks: 0, tells: 0, actions: 0, openings: 0, build_ups: 0, topics: 0, clinical: 0 };
   const pair = [a?.name ?? "", b?.name ?? ""];
   const hooks = opts.craft ? { a: flaggedHooks(night, "a", pair), b: flaggedHooks(night, "b", pair) } : { a: [], b: [] };
   const tells = { a: sheetTells(a), b: sheetTells(b) };
   // v2.4: each one's own topic words, and how many of their lines in a row may say them at this stage.
-  const topics = opts.topics ? { a: topicsAllowed(a, pair, opts.topics.steered), b: topicsAllowed(b, pair, opts.topics.steered) } : { a: [], b: [] };
+  // v2.5: from undressing on, both sheets' words (topicsAt).
+  const topics = opts.topics ? topicsAt(a, b, pair, opts.topics.stage, opts.topics.steered) : { a: [], b: [] };
   const every = topicEvery(opts.topics?.stage ?? 0);
+  // v2.5: from undressing on, the clinical register held to one of their lines in CLINICAL_EVERY (a word the owner's
+  // steer or a whisper says is theirs to ask for).
+  const clinical = opts.topics && opts.topics.stage >= UNDRESSING ? (opts.topics.steered ?? []).filter((s): s is string => Boolean(s)) : null;
   for (const l of written) {
     const before = [...night, ...kept];
     const mine = [...chapter, ...kept].filter((x) => x.who === l.who);
@@ -1188,6 +1259,22 @@ export function dropRepeats(
         text = cut;
       }
     }
+    // v2.5: a clinical word again before CLINICAL_EVERY of their lines have gone by: the sentences saying one go (never
+    // the action, nor a proposal to go somewhere), and the line when nothing it says is left.
+    if (clinical) {
+      const words = clinicalWordsIn(text, clinical);
+      if (words.length && recentClinicalLines(before, l.who, clinical).length) {
+        const cut = withoutPart(text, (s) => !s.trim().startsWith("*") && clinicalWordsIn(s, clinical).length > 0 && !proposesMove(s));
+        if (cut !== text) {
+          cuts.clinical++;
+          if (!cut) {
+            drop(l, `the clinical register again ("${words[0]}"; one of their lines in ${CLINICAL_EVERY} at most)`);
+            continue;
+          }
+          text = cut;
+        }
+      }
+    }
     const line = text === l.text ? l : { ...l, text };
     kept.push(line);
     if (counts) for (const p of phrasesIn(line.text, named)) counts[l.who].set(p, (counts[l.who].get(p) ?? 0) + 1);
@@ -1312,6 +1399,8 @@ export type StepFlags = {
    */
   topics_cut: number;
   fragments_repaired: number;
+  /** v2.5: lines that lost a part, or went, for the clinical register past its share from undressing on (dropRepeats). */
+  clinical_cut?: number;
   empty_retry?: boolean;
   /** The director: lines dropped for saying a whisper out loud; suggestions replaced by a plain one, or left out. */
   whispers_said?: number;
@@ -1356,12 +1445,12 @@ function repeatNote(repeated: readonly DroppedLine[]): string {
   const openings = [...new Set(repeated.map((d) => openingOf(d.text)).filter(Boolean))].slice(0, 6);
   const worn = [...new Set(repeated.map((d) => /^a worn phrase \("([^"]+)"/.exec(d.reason)?.[1]).filter((x): x is string => Boolean(x)))];
   // v2.4: lines dropped for their work or hobbies (the topic budget), named by the word that cost them.
-  const topics = [...new Set(repeated.map((d) => /^their work or hobbies again \("([^"]+)"/.exec(d.reason)?.[1]).filter((x): x is string => Boolean(x)))];
+  const topics = [...new Set(repeated.map((d) => /^(?:their work or hobbies|the clinical register) again \("([^"]+)"/.exec(d.reason)?.[1]).filter((x): x is string => Boolean(x)))];
   return (
     `Your last reply only said again what's been said tonight, and a new action in front doesn't make a line new.` +
     (openings.length ? ` These can't come back, in any form: ${openings.map((o) => `"${o}"`).join(", ")}.` : "") +
     (worn.length ? ` These phrases are worn out: ${worn.map((w) => `"${w}"`).join(", ")}.` : "") +
-    (topics.length ? ` Leave their work and hobbies out of these lines (${topics.map((w) => `"${w}"`).join(", ")}): they're about the two of them.` : "") +
+    (topics.length ? ` Leave their work, their hobbies and any clinical words out of these lines (${topics.map((w) => `"${w}"`).join(", ")}): they're about the two of them.` : "") +
     ` Write ${LINES_PER_TURN} new lines that move the scene on, with something they haven't said or done yet. Reply with the JSON again.`
   );
 }
@@ -1458,7 +1547,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const flags: StepFlags = {
     calls: 0, retried: false, held: 0, repeats: 0, names_repaired: 0, names_dropped: 0, alternation_merged: 0, alternation_dropped: 0, alternation_boundary: 0,
     refused: 0, moralising: 0, refusal_reply: false, citations: [], worn_phrases: 0, show_copies_cut: 0, public_dropped: 0,
-    hooks_cut: 0, tells_cut: 0, actions_cut: 0, openings_cut: 0, build_ups_cut: 0, topics_cut: 0, fragments_repaired: 0, whispers_said: 0, suggestions_replaced: 0, hard_nos: 0, intensity_dropped: 0,
+    hooks_cut: 0, tells_cut: 0, actions_cut: 0, openings_cut: 0, build_ups_cut: 0, topics_cut: 0, clinical_cut: 0, fragments_repaired: 0, whispers_said: 0, suggestions_replaced: 0, hard_nos: 0, intensity_dropped: 0,
     prompt: v2 ? SCENE_PROMPT_REVISION : "v1",
     ...(writesFilthy(v2, limits) ? { filthy: true } : {}),
     ...(carry ? { carry: { stage: carry.stage, place: carry.place, first: carry.first, floor: carry.floor } } : {}),
@@ -1605,6 +1694,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     flags.openings_cut += reps.cuts.openings;
     flags.build_ups_cut += reps.cuts.build_ups;
     flags.topics_cut += reps.cuts.topics;
+    flags.clinical_cut = (flags.clinical_cut ?? 0) + reps.cuts.clinical;
     flags.alternation_merged += turns.merged;
     flags.alternation_dropped += turns.dropped.length;
     dropped.push(...drops, ...reps.dropped, ...turns.dropped);
