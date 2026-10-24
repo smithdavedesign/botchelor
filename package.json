@@ -10,6 +10,7 @@
     "test": "vitest run",
     "e2e": "node scripts/e2e.mjs",
     "e2e:after-dark": "node scripts/e2e-after-dark.mjs",
+    "e2e:studio": "node scripts/e2e-studio.mjs",
     "e2e:visual": "node scripts/visual.mjs",
     "e2e:live": "node scripts/e2e-live.mjs",
     "seed": "node scripts/seed.mjs",

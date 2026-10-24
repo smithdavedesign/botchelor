@@ -38,17 +38,20 @@ function ago(iso: string, now: number): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-/** The next step as a badge, for the ones worth acting on (the thread's action bar has the button). */
-function dateBadge(t: Thread): string | null {
+/**
+ * The next step as a badge, for the ones worth acting on (the thread's action bar has the button). `short` is for the
+ * new-match faces, whose column fits a word or two on one line.
+ */
+function dateBadge(t: Thread, short = false): string | null {
   switch (t.next?.kind) {
     case "book":
-      return "📅 Book their date";
+      return short ? "📅 Book" : "📅 Book their date";
     case "filming":
       return "🎬 On now";
     case "dated":
-      return t.next.aired ? null : "🎬 Date ready";
+      return t.next.aired ? null : short ? "🎬 Ready" : "🎬 Date ready";
     case "declined":
-      return "Not this time";
+      return short ? "Passed" : "Not this time";
     default:
       return null;
   }
@@ -109,16 +112,19 @@ export default async function MatchesPage({ searchParams }: Props) {
             New matches
           </h2>
           <ul className="matches-faces">
-            {inbox.fresh.map((t) => (
-              <li key={t.with.id}>
-                <Link href={thread(t)} className="matches-face">
-                  <Avatar seed={t.with.id} name={t.with.name} hue={t.with.hue} house={t.with.house} portraitSrc={t.with.portrait} size={68} />
-                  <span className="matches-face-name">{shortName(t.with.name)}</span>
-                  {t.new_match && !dateBadge(t) && <span className="badge matches-face-badge matches-new">New</span>}
-                  {dateBadge(t) && <span className="badge matches-face-badge">{dateBadge(t)}</span>}
-                </Link>
-              </li>
-            ))}
+            {inbox.fresh.map((t) => {
+              const badge = dateBadge(t, true);
+              return (
+                <li key={t.with.id}>
+                  <Link href={thread(t)} className="matches-face" title={dateBadge(t) ?? undefined}>
+                    <Avatar seed={t.with.id} name={t.with.name} hue={t.with.hue} house={t.with.house} portraitSrc={t.with.portrait} size={68} />
+                    <span className="matches-face-name">{shortName(t.with.name)}</span>
+                    {t.new_match && !badge && <span className="badge matches-face-badge matches-new">New</span>}
+                    {badge && <span className="badge matches-face-badge">{badge}</span>}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
