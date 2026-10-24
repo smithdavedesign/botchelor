@@ -496,6 +496,11 @@ function Thread({ items, me, characters, today }: { items: ChainItem[]; me: End;
           <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={26} />}
         <p className="phone-bubble">
           <span className="sr-only">{shortName(c.name)}: </span>
+          {/* A photo sent from the Studio (lib/adult/shares.ts): dressed, checked, a show asset like a portrait. */}
+          {item.photo && (
+            // eslint-disable-next-line @next/next/no-img-element -- an approved show asset, sized by the bubble
+            <img className="phone-photo" src={item.photo} alt={`A photo from ${shortName(c.name)}`} loading="lazy" />
+          )}
           {item.text}
         </p>
       </div>,

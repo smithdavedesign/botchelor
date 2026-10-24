@@ -727,7 +727,7 @@ create index if not exists character_assets_character_idx on character_assets (c
 alter table character_assets add column if not exists tokens_spent integer not null default 0;
 alter table character_assets drop constraint if exists character_assets_kind_check;
 alter table character_assets add constraint character_assets_kind_check
-  check (kind in ('portrait', 'expression', 'background', 'decoration', 'clip'));
+  check (kind in ('portrait', 'expression', 'background', 'decoration', 'clip', 'photo'));
 
 -- M8. Watch parties: a synchronized "date room" over one pre-generated episode, with live reactions,
 -- chat and audience polls (the feature brief's Model A — the audience reacts, it never steers the
@@ -1850,7 +1850,7 @@ create table if not exists user_connections (
 );
 create table if not exists user_connection_jobs (
   user_id text not null,
-  job text not null check (job in ('text', 'image', 'video')),
+  job text not null check (job in ('text', 'image', 'video', 'after_dark')),
   provider text not null,
   model text,
   created_at timestamptz not null default now(),
@@ -1906,6 +1906,17 @@ alter table user_connection_jobs add column if not exists presence_penalty real;
 -- cap notices went (once a month each).
 alter table user_connection_jobs add column if not exists cap_usd double precision;
 alter table user_connection_jobs add column if not exists on_cap text;
+-- The Studio's own-key job (docs/PRDs/studio.md section 7): After Dark pictures on someone's Venice or Replicate key.
+-- Widen the CHECK on an existing database once, as adult_images' kinds were.
+do $$ begin
+  if exists (
+    select 1 from pg_constraint where conname = 'user_connection_jobs_job_check'
+       and pg_get_constraintdef(oid) not like '%after_dark%'
+  ) then
+    alter table user_connection_jobs drop constraint if exists user_connection_jobs_job_check;
+    alter table user_connection_jobs add constraint user_connection_jobs_job_check check (job in ('text', 'image', 'video', 'after_dark'));
+  end if;
+end $$;
 create table if not exists user_connection_usage (
   user_id text not null references accounts (user_id) on delete cascade,
   job text not null,
@@ -2017,6 +2028,32 @@ alter table adult_settings add column if not exists moderation_endpoint_cipherte
 alter table adult_settings add column if not exists moderation_endpoint_nonce text;
 alter table adult_settings add column if not exists moderation_endpoint_last4 text;
 alter table adult_images add column if not exists nsfw_score double precision;
+-- Studio v2 (lib/adult/shares.ts; David, 2026-10-24: "share your output to the other user or agent so they can see it
+-- too, but you pay for it"). A share is one picture to the owner of a character theirs has dated: in After Dark (a
+-- request they accept first: status pending, accepted, declined, revoked), or as a dressed photo in the two characters'
+-- texts (status sent; couple_texts.photo is its show asset, character_assets kind 'photo'). adult_share_prefs: whether a
+-- person takes After Dark shares from characters theirs have dated without being asked.
+create table if not exists adult_shares (
+  id text primary key,
+  item_id text not null references adult_images (id) on delete cascade,
+  owner_id text not null,
+  from_character text not null references characters (id) on delete cascade,
+  recipient_id text not null,
+  to_character text not null references characters (id) on delete cascade,
+  kind text not null check (kind in ('after_dark', 'photo')),
+  status text not null check (status in ('pending', 'accepted', 'declined', 'revoked', 'sent')),
+  photo_asset text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (item_id, recipient_id, kind)
+);
+create index if not exists adult_shares_recipient_idx on adult_shares (recipient_id, status, created_at desc);
+create table if not exists adult_share_prefs (
+  user_id text primary key,
+  auto_accept boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+alter table couple_texts add column if not exists photo text;
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.

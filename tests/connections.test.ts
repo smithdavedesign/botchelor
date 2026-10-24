@@ -212,7 +212,8 @@ describe("errors in plain words (plainError)", () => {
     }
     expect(plainError("openrouter", "no_credit")).toEqual({ kind: "no_credit", message: "OpenRouter: out of credit.", fix: { label: "Top up", href: "https://openrouter.ai/settings/credits" } });
     expect(plainError("openai", "model_unavailable", { model: "gpt-x" }).message).toBe("OpenAI doesn't offer gpt-x on this key.");
-    expect(plainError("venice", "invalid_key").fix?.href).toBeNull(); // not a provider a person connects: no link to guess
+    expect(plainError("hive", "invalid_key").fix?.href).toBeNull(); // not a provider a person connects: no link to guess
+    expect(plainError("venice", "invalid_key").fix?.href).toBe("https://venice.ai/settings/api"); // the Studio's own-key job
   });
 });
 
@@ -233,7 +234,9 @@ describe("the shared pieces the page uses", () => {
   });
 
   it("offers each job only the providers that can do it, with a recommended model", () => {
-    expect(providersFor("text")).toEqual([...USER_PROVIDERS]);
+    expect(providersFor("text")).toEqual(USER_PROVIDERS.filter((p) => p !== "venice" && p !== "replicate"));
+    expect(providersFor("after_dark")).toEqual(["venice", "replicate"]);
+    expect(defaultModelFor("venice", "after_dark")).toBe("qwen-edit-uncensored");
     expect(providersFor("image")).toEqual(["openai"]);
     expect(providersFor("video")).toEqual(["google"]);
     expect(defaultModelFor("openrouter", "text")).toBe("openai/gpt-4.1-mini");
@@ -250,6 +253,7 @@ describe("the shared pieces the page uses", () => {
       ["text", "unset", "Free model", "Using: Botchelor's free model"],
       ["image", "unset", "Not set up", "Not set up: portraits need your own OpenAI key."],
       ["video", "unset", "Not set up", "Not set up: clips need your own Google key, with billing on."],
+      ["after_dark", "unset", "Not set up", "Using: Botchelor's models, for tokens"],
     ]);
     const conn = { provider: "openrouter", last4: "abcd", verified_at: "2026-10-23T11:58:00Z", last_used_at: "2026-10-23T11:00:00Z", last_error: null, created_at: "2026-10-20T00:00:00Z", jobs: ["text" as const] };
     const ok = jobCards({ connections: [conn], jobs: [{ job: "text", provider: "openrouter", model: "deepseek/deepseek-chat-v3.1" }] }, now)[0];

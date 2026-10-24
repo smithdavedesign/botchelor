@@ -9,11 +9,13 @@ import { adultAvailable } from "@/lib/adult/mode";
 import { getPrivacy, lockedForCookies } from "@/lib/adult/privacy";
 import { listCastPairs } from "@/lib/adult/scenes";
 import { getAdultSettings } from "@/lib/adult/settings";
+import { sharedWithMe } from "@/lib/adult/shares";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import PrivacyCard from "./PrivacyCard";
 import Switches from "./Switches";
 import PairPicker from "./PairPicker";
+import SharedWithYou from "./SharedWithYou";
 import { currentView } from "./view";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +49,13 @@ export default async function AfterDarkPage() {
     );
   }
   const owner = auth!.userId;
-  const [pairs, switchable, privacy, adSettings] = await Promise.all([listCastPairs(db, owner), listSwitchable(db, owner), getPrivacy(db, owner), getAdultSettings(db)]);
+  const [pairs, switchable, privacy, adSettings, shared] = await Promise.all([
+    listCastPairs(db, owner),
+    listSwitchable(db, owner),
+    getPrivacy(db, owner),
+    getAdultSettings(db),
+    sharedWithMe(db, owner),
+  ]);
   // The Studio (lib/adult/studio.ts): their own characters that are in, and for an admin the house cast that's in too.
   const studio = adSettings.studio.open_to === "entitled" || admin ? switchable.filter((c) => c.on && (!c.house || admin)) : [];
   return (
@@ -59,6 +67,9 @@ export default async function AfterDarkPage() {
           <Link className="button-ghost" href="/after-dark/shorts">
             📺 Shorts
           </Link>
+          <a className="button-ghost" href="#shared">
+            💌 Shared{shared.shares.some((x) => x.status === "pending") ? ` (${shared.shares.filter((x) => x.status === "pending").length})` : ""}
+          </a>
           <a className="button-ghost" href="#privacy">
             🔒 Privacy
           </a>
@@ -102,6 +113,7 @@ export default async function AfterDarkPage() {
           <h2>Scenes</h2>
           <PairPicker pairs={pairs} />
         </section>
+        <SharedWithYou initial={shared} />
         <div id="privacy">
           <PrivacyCard initial={privacy} />
         </div>

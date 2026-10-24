@@ -49,7 +49,7 @@ export const OUTFITS: readonly Outfit[] = [
 ];
 export const outfitById = (id: string): Outfit | null => OUTFITS.find((o) => o.id === id) ?? null;
 
-const FRAMING_LABEL: Record<Framing, string> = { wide: "Wide: all of them and the room", medium: "Medium: from the thighs up", close: "Close: their faces" };
+export const FRAMING_LABEL: Record<Framing, string> = { wide: "Wide: all of them and the room", medium: "Medium: from the thighs up", close: "Close: their faces" };
 
 /** What's asked for: the act (who leads swapped, or not), what they wear, the framing, and the place (one of the menu's). */
 export type PictureChoice = { act: string; swap?: boolean; outfit: string; framing: Framing; place: string };
@@ -130,7 +130,7 @@ type PicturePlan = { promptFor: (withSet: boolean) => string; place: string; sta
  */
 export function planPicture(
   choice: PictureChoice,
-  ctx: { cast: readonly [ReelPerson, ReelPerson]; stage: number; places: readonly PicturePlace[]; limits: MediaLimits },
+  ctx: { cast: readonly [ReelPerson, ReelPerson]; stage: number; places: readonly PicturePlace[]; limits: MediaLimits; light?: string },
 ): { ok: true; plan: PicturePlan } | { ok: false; status: number; error: string; message: string } {
   const no = (error: string, message: string, status = 422) => ({ ok: false as const, status, error, message });
   const act = actById(choice.act);
@@ -150,11 +150,11 @@ export function planPicture(
   const stage = Math.max(act.dress, outfit.dress);
   const frame = `${filled.pose} ${FRAMING_WORDS[choice.framing]}`;
   const prompt = (withSet: boolean) =>
-    keyframePrompt(ctx.cast as [ReelPerson, ReelPerson], frame, placeWords(where.place, ctx.cast), stage, withSet, { explicit: ctx.limits.explicit, clothes: outfit.words });
+    keyframePrompt(ctx.cast as [ReelPerson, ReelPerson], frame, placeWords(where.place, ctx.cast), stage, withSet, { explicit: ctx.limits.explicit, clothes: outfit.words, light: ctx.light });
   // Every word the choices put in front of a picture model, held to David's lines (the menu's words were written to
   // them; this is the backstop). Not the prompt's own fixed words: "Make one photograph" reads to the age check as
   // "make [her] one", and it's right to be that strict.
-  const words = `${frame} ${outfit.words} ${placeWords(where.place, ctx.cast)}`;
+  const words = `${frame} ${outfit.words} ${placeWords(where.place, ctx.cast)} ${ctx.light ?? ""}`;
   if (!checkAdultText({ words }).ok || crossesTaboo(words) || ctx.limits.hit(words)) return no("not_allowed", "That picture crosses one of the lines After Dark never crosses.");
   return { ok: true, plan: { promptFor: prompt, place: where.place, stage } };
 }

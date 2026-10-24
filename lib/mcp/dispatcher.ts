@@ -4018,6 +4018,8 @@ const agentText = (t: ChainText, self: End) => ({
   day: t.day,
   kind: t.source === "afterglow" ? "morning_after" : "between_dates",
   ...(t.episode_id ? { episode_id: t.episode_id } : {}),
+  // A photo sent with it (lib/adult/shares.ts): a dressed Studio picture, at this public link.
+  ...(t.photo ? { photo_url: `${siteUrl()}${t.photo}` } : {}),
 });
 
 /**

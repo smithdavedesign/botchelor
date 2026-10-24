@@ -124,7 +124,9 @@ describe("/account/keys: Connections", () => {
     await t.db.query(`insert into adult_media_cooldowns (provider, until, status) values ('hive', now() + interval '2 hours', 429)`);
     const html = await page();
     expect(html).toContain("🌙 After Dark");
-    expect(html).toContain("your own keys are never used there");
+    expect(html).toContain("Studio pictures can also run on your own key");
+    // After Dark is open to an admin: its own job's card too.
+    expect(html).toContain("After Dark pictures");
     expect(html).toContain("Something&#x27;s paused");
     expect(html).toMatch(/Hive ⏸ until <time dateTime="[^"]+">\d\d:\d\d UTC<\/time>/);
     expect(html).toContain('href="/admin/after-dark/providers"');
