@@ -1,6 +1,7 @@
 "use client";
 
 import { shortName } from "@/lib/names";
+import { takenNote } from "@/lib/partners-shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -100,6 +101,16 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
     return (
       <p className="notice">
         💞 Their {next} is booked. <Link href={`/episodes/${state.planned_episode_id}`}>Watch it</Link>
+      </p>
+    );
+  }
+  if (state.reason === "taken") {
+    // They both want one, but yours is with someone else and wants only them: the tag, why, and where to change it.
+    const mine = shortName(state.my_character_name);
+    return (
+      <p className="taken-note" role="note">
+        <span className="badge taken-tag">💍 {state.taken_with ? `With ${shortName(state.taken_with)}` : "Taken"}</span> They both want a {next}, but{" "}
+        {takenNote(mine, state.taken_with ?? null)} <Link href={`/characters/${state.my_character_id}#partners-${state.my_character_id}`}>Change it on {mine}&apos;s page</Link>
       </p>
     );
   }

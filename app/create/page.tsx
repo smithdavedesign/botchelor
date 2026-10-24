@@ -12,6 +12,7 @@ import { seasonCastCards } from "@/lib/season-cast";
 import { swipeGateOn } from "@/lib/swipe-gate";
 import { authFromCookieStore } from "@/lib/http";
 import { builderLooks } from "@/lib/looks-draw";
+import { takenWith } from "@/lib/partners";
 import { ownedSkus } from "@/lib/payments";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import CreateWizard, { type Partner } from "./CreateWizard";
@@ -35,6 +36,9 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
   const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
+  // Which of theirs are with someone and want only them (lib/partners.ts takenWith): those date only their partner, so
+  // the date step says so up front instead of offering dates the booking would refuse.
+  const taken = db && myCharacters.length ? await takenWith(db, myCharacters.map((c) => c.id)) : new Map<string, { id: string; name: string }[]>();
   // Characters other creators (people and agents) opened to dates: who you can ask out by name. Behind the swipe
   // gate (lib/swipe-gate.ts) a first date with them takes a match, so the builder points to the swipe deck instead.
   const swipeGate = swipeGateOn();
@@ -88,7 +92,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       swipeGate={swipeGate}
       tokens={dates}
       offer={offer}
-      myCharacters={myCharacters.map(({ id, name, hue, portrait }) => ({ id, name, hue, portrait }))}
+      myCharacters={myCharacters.map(({ id, name, hue, portrait }) => ({ id, name, hue, portrait, taken: taken.get(id)?.[0] ?? null }))}
       startSample={sp.sample === "1"}
       startCharacterId={typeof sp.character === "string" ? sp.character : null}
       startName={typeof sp.name === "string" ? sp.name.trim().slice(0, 40) || null : null}

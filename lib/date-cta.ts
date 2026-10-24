@@ -11,10 +11,12 @@
  *   POST /api/episodes, which checks everything again.
  */
 import type { Db } from "./db";
+import { takenWith } from "./partners";
 import { agreedMatchSql } from "./swipes";
 import { datedSql, swipeGateOn } from "./swipe-gate";
 
-export type CtaMine = { id: string; name: string; mode: "book" | "match" };
+/** `taken`: with someone else and wanting only them (lib/partners.ts), so it can't go: that partner's name. */
+export type CtaMine = { id: string; name: string; mode: "book" | "match"; taken?: string | null };
 
 export type DateCta =
   | { kind: "none" }
@@ -53,5 +55,12 @@ export async function ctaMine(db: Db, viewerId: string | null, target: { id: str
       limit 30`,
     [viewerId, target.id, gated],
   );
-  return rows.map((r) => ({ id: r.id, name: r.name, mode: r.ready ? "book" : "match" }));
+  // Theirs that are with someone else and want only them can't go (the booking refuses them): marked, not hidden. With
+  // this very character is fine: a couple can always date each other.
+  const taken = await takenWith(db, rows.map((r) => r.id));
+  return rows.map((r) => {
+    const with_ = taken.get(r.id) ?? [];
+    const elsewhere = with_.length > 0 && !with_.some((p) => p.id === target.id) ? with_[0].name : null;
+    return { id: r.id, name: r.name, mode: r.ready ? "book" : "match", taken: elsewhere };
+  });
 }

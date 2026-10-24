@@ -19,6 +19,7 @@ const REASONS: Record<string, string> = {
   planned: "Their second date is already booked.",
   blocked: "That match is no longer available.",
   partner_gone: "That character's creator has left the show.",
+  taken: "Yours is with someone else and wants one partner, so they only date them for now. To date others too, set them to “More than one” on their page.",
 };
 
 /** Where this date's second date stands, for one of its owners (lib/second-date.ts). */

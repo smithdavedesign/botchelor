@@ -10,6 +10,7 @@
  */
 import type { Db } from "./db";
 import { dateNumberSql } from "./date-number";
+import { takenWith } from "./partners";
 import { loadRelationship } from "./relationships";
 import { DELETED_OWNER } from "./rules";
 import { secondDateFreeNow } from "./allowance";
@@ -58,8 +59,13 @@ export type SecondDateState = {
   mutual: boolean;
   /** Whether this viewer can plan or say yes to it right now. */
   can_plan: boolean;
-  /** Why not, when they can't: "not_mutual" | "planned" | "blocked" | "not_ready" | "partner_gone". */
+  /**
+   * Why not, when they can't: "not_mutual" | "planned" | "blocked" | "not_ready" | "partner_gone" | "taken" (the
+   * viewer's character is with someone else and wants only them: `taken_with`).
+   */
   reason: string | null;
+  /** Who the viewer's character is with, when that's why ("taken"). */
+  taken_with?: string | null;
   /** The second date, once it's booked. */
   planned_episode_id: string | null;
   /** The other character's owner has to say yes too (their character isn't house or open to dates). */
@@ -69,6 +75,7 @@ export type SecondDateState = {
   they_asked: boolean;
   /** This viewer's character (side A of the second date) and the one they'd meet again. */
   my_character_id: string;
+  my_character_name: string;
   partner_character_id: string;
   partner_name: string;
   /** The plan from their morning-after texts (both sides' last plan-like text). */
@@ -92,23 +99,29 @@ export async function secondDateState(db: Db, episodeId: string, userId: string)
   // Both characters yours: your yes is theirs too.
   const needsTheirYes = partnerOwner !== null && partnerOwner !== userId && !partnerOpen;
   const asks = (await db.query<{ user_id: string }>(`select user_id from second_date_requests where episode_id = $1`, [episodeId])).rows.map((r) => r.user_id);
+  // Theirs is with someone else and wants only them (lib/partners.ts): the booking would refuse it, so it says so here.
+  const withWhom = (await takenWith(db, [d[`${mine}_id`]]).catch(() => new Map<string, { id: string; name: string }[]>())).get(d[`${mine}_id`]) ?? [];
+  const takenWithName = withWhom.length && !withWhom.some((p) => p.id === d[`${theirs}_id`]) ? withWhom[0].name : null;
   const reason =
     d.status !== "ready" ? "not_ready"
     : !mutual ? "not_mutual"
     : d.planned ? "planned"
     : d.blocked ? "blocked"
     : partnerOwner === DELETED_OWNER ? "partner_gone"
+    : takenWithName ? "taken"
     : null;
   const rel = await loadRelationship(db, d.a_id, d.b_id).catch(() => null);
   return {
     mutual,
     can_plan: reason === null,
     reason,
+    taken_with: takenWithName,
     planned_episode_id: d.planned,
     needs_their_yes: needsTheirYes,
     you_asked: asks.includes(userId),
     they_asked: partnerOwner !== null && asks.includes(partnerOwner),
     my_character_id: d[`${mine}_id`],
+    my_character_name: d[`${mine}_name`],
     partner_character_id: d[`${theirs}_id`],
     partner_name: d[`${theirs}_name`],
     plan: (rel?.plans ?? []).filter((p) => p.episode_id === episodeId).map((p) => p.text),

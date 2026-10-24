@@ -6311,11 +6311,42 @@ button.table-more {
   opacity: 0.55;
   filter: grayscale(0.8);
 }
-.character-tab-taken {
+.character-tab-taken,
+.taken-tag {
   margin-left: 0;
   background: color-mix(in srgb, var(--muted) 16%, var(--card));
   color: var(--ink);
   white-space: nowrap;
+}
+/* Wherever a date is offered (the builder's date step, a character's "send one of yours", a couple's next date): one
+   of yours that's taken says so, with the 💍 tag, and the dates it can't go on are shown closed, the same dashed and
+   faded way as a taken tab. */
+.taken-note {
+  border: 1px dashed color-mix(in srgb, var(--muted) 60%, var(--card));
+}
+.taken-note .taken-tag {
+  margin-right: var(--space-2);
+}
+.send-taken-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+}
+.send-row.is-closed .avatar,
+.send-blind.is-closed > strong {
+  opacity: 0.55;
+  filter: grayscale(0.8);
+}
+.send-row.is-closed .send-row-meta {
+  color: var(--muted);
+}
+/* Sized to its words in the row's column (which stretches its children). */
+.send-row .taken-tag {
+  align-self: flex-start;
+  justify-self: start;
+  width: fit-content;
+  margin-top: var(--space-1, 0.25rem);
 }
 /* After the taken rule, so the one on screen keeps its pink name even when it's taken. */
 .character-tab[aria-current="page"] {
