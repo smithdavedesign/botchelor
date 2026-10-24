@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AI_FICTION_AFTER_DARK, AiFiction } from "@/app/AiLabel";
 import { DISCREET_ATTR, discreetValue } from "@/lib/adult/discreet";
 import type { AfterDarkView } from "@/lib/adult/privacy";
 import DiscreetMedia from "./DiscreetMedia";
@@ -17,6 +18,8 @@ export default function AfterDarkFrame({ view, children }: { view: AfterDarkView
   return (
     <div className="ad-discreet" {...hook}>
       {children}
+      {/* The AI disclosure on every After Dark page (EU AI Act Art. 50; docs/after-dark.md 2026-10-24). */}
+      <AiFiction text={AI_FICTION_AFTER_DARK} className="ad-ai-fiction" />
       {view.blur && <DiscreetMedia />}
     </div>
   );

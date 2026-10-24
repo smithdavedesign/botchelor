@@ -164,6 +164,8 @@ export async function startTestDb() {
         "adult_light_picks",
         "adult_images",
         "adult_characters",
+        // Turn-ons are kept per character, and the house cast outlives a reset: their rows (and the consent on them) would too.
+        "adult_profiles",
         "adult_scenes",
         "adult_nights",
         "adult_reels",
@@ -176,6 +178,7 @@ export async function startTestDb() {
         "adult_media_cooldowns",
         "agent_feedback",
         "user_feedback",
+        "content_reports",
         // Connections (lib/connections.ts): a person's own keys, and the jobs that use them (cascaded), and their spend.
         "user_connection_usage",
         "user_connections",

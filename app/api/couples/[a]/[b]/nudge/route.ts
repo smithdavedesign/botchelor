@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { clearNudge, NUDGE_MAX, setNudge } from "@/lib/between-dates";
+import { crisisAware, str } from "@/lib/crisis";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 
@@ -10,9 +11,10 @@ const Input = z.object({ character_id: z.string().min(1).max(64), note: z.string
 /**
  * An owner leaves their character a note about the person it's been dating ("bring up the boat"): it colours their
  * texts and goes into their next date together, then it's used (lib/between-dates.ts). character_id is the owner's
- * character, one of the couple.
+ * character, one of the couple. The note is checked for self-harm intent (lib/crisis.ts): the reply then carries
+ * crisis_resources.
  */
-export const POST = handle(async (req: Request, ctx: Ctx) => {
+export const POST = crisisAware("nudge_note", (body) => [str(body.note)], handle(async (req: Request, ctx: Ctx) => {
   const { a, b } = await ctx.params;
   const sess = session(req);
   const input = parseBody(Input, await readJson(req), "invalid_request");
@@ -21,7 +23,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const result = await setNudge(await getDb(), sess.userId, input.character_id, other, input.note);
   if (!result.ok) return json({ error: result.error, message: result.message }, result.status, sess);
   return json({ character_id: input.character_id, about: other, note: result.note }, 200, sess);
-});
+}));
 
 const Clear = z.object({ character_id: z.string().min(1).max(64) });
 

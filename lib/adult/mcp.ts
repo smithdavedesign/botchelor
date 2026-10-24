@@ -12,7 +12,9 @@ import { loadCharacter } from "../character";
 import { advanceReel, listReels, makeReel, reelNight } from "./reels";
 import { siteUrl } from "../site";
 import { adultAvailable } from "./mode";
-import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX } from "./limits";
+import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX, storedHardNos, type HardNos } from "./limits";
+import { PROFILE_CONSENT_TEXT } from "./profile";
+import { crisisCheck, crisisField } from "../crisis";
 import { continueScene, listCastPairs, openScene, saveLimits, sceneNotes, type LimitsInput } from "./scenes";
 import { getAdultSettings, saveAdultSettings } from "./settings";
 
@@ -32,11 +34,17 @@ const LIMIT_PROPS: Record<string, JsonSchema> = {
   },
   hard_nos: {
     type: "object",
-    description: "Replaces the pair's hard nos, as the Limits panel does: chips from the list, plus up to 8 of your own, a few words each.",
+    description:
+      "Replaces the pair's hard nos, as the Limits panel does: chips from the list, plus up to 8 of your own, a few words each. Stored only with consent: true " +
+      "(or consent given on the page); without it after_dark_write holds them for this step only, and after_dark_scene refuses.",
     properties: {
       chips: { type: "array", items: { type: "string", enum: HARD_NO_IDS }, maxItems: HARD_NO_IDS.length },
       own: { type: "array", items: { type: "string", maxLength: OWN_LEN }, maxItems: OWN_MAX },
     },
+  },
+  consent: {
+    type: "boolean",
+    description: `true: the person agrees to this, which storing hard_nos needs (GDPR "sex life" data): "${PROFILE_CONSENT_TEXT}"`,
   },
 };
 
@@ -165,7 +173,7 @@ async function sceneOwner(db: Db): Promise<string | null> {
   return (await db.query<{ user_id: string }>(`select user_id from admins order by user_id limit 1`)).rows[0]?.user_id ?? null;
 }
 
-export async function runAdultTool(db: Db, name: string, args: Record<string, unknown>): Promise<{ data: Record<string, unknown> } | { error: string }> {
+export async function runAdultTool(db: Db, name: string, args: Record<string, unknown>): Promise<{ data: Record<string, unknown> } | { error: string; details?: Record<string, unknown> }> {
   // After Dark on a host of its own (lib/after-dark-host.ts): its tools run there, never on the show's deployment.
   const elsewhere = afterDarkElsewhere();
   if (elsewhere) return { error: `After Dark runs on its own host now: connect to ${elsewhere}/api/mcp (with the admin key) for its tools.` };
@@ -188,13 +196,31 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
   if (!owner) return { error: "No admin account to hold the scenes: claim admin on /admin first." };
   const a = String(args.a ?? "");
   const b = String(args.b ?? "");
+  // The self-harm check on a steer's own words (lib/crisis.ts): crisis_resources rides on whatever this answers.
+  const crisis = name === "after_dark_write" ? crisisCheck("mcp_after_dark", typeof args.direction === "string" ? args.direction : null) : null;
+  const crisisDetails = crisis ? { details: { crisis_resources: crisis } } : {};
   // The pair's limits, when a scene call carries them: saved first, through the Limits panel's path (lib/adult/scenes.ts).
+  // Hard nos are stored only with consent: true (or consent given before, on the page); without it, after_dark_write
+  // holds them for this step only and stores nothing of them, and after_dark_scene (which only saves) refuses.
+  let sessionHardNos: HardNos | null = null;
   if (name === "after_dark_scene" || name === "after_dark_write") {
     const arg = limitsArg(args);
-    if ("error" in arg) return { error: arg.error };
+    if ("error" in arg) return { error: arg.error, ...crisisDetails };
     if (arg.limits) {
-      const saved = await saveLimits(db, owner, a, b, arg.limits);
-      if (!saved.ok) return { error: saved.status === 404 ? "Pick two characters who are in after dark (after_dark_pairs lists them)." : saved.message };
+      const first = await saveLimits(db, owner, a, b, arg.limits, { consent: args.consent === true });
+      let failure = first.ok ? null : first;
+      if (failure?.consent_required && name === "after_dark_write" && arg.limits.hard_nos) {
+        sessionHardNos = storedHardNos(arg.limits.hard_nos);
+        failure = null;
+        if (arg.limits.intensity !== undefined) {
+          const again = await saveLimits(db, owner, a, b, { intensity: arg.limits.intensity });
+          failure = again.ok ? null : again;
+        }
+      }
+      if (failure) {
+        const message = failure.consent_required ? `${failure.message} Send consent: true with hard_nos to store them.` : failure.message;
+        return { error: failure.status === 404 ? "Pick two characters who are in after dark (after_dark_pairs lists them)." : message, ...crisisDetails };
+      }
     }
   }
   switch (name) {
@@ -211,10 +237,18 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       return { data: { scene, gallery: await listMedia(db, [scene.a.id, scene.b.id], owner), written_by } };
     }
     case "after_dark_write": {
-      const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge");
+      const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge", { sessionHardNos });
+      // Hard nos sent without consent held for this step and were never stored: said so, with what consent covers.
+      const unsaved = sessionHardNos ? { hard_nos_saved: false, consent_needed: `${PROFILE_CONSENT_TEXT} (send consent: true to store them)` } : {};
       return r.ok
-        ? { data: { scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, ...(r.picture_note ? { picture_note: r.picture_note } : {}), ...(r.auto_picture ? { auto_picture: "drawing" } : {}) } }
-        : { error: r.message };
+        ? {
+            data: {
+              ...crisisField(crisis),
+              scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures,
+              ...(r.picture_note ? { picture_note: r.picture_note } : {}), ...(r.auto_picture ? { auto_picture: "drawing" } : {}), ...unsaved,
+            },
+          }
+        : { error: r.message, ...crisisDetails };
     }
     case "after_dark_switch": {
       const ok = await setAdultSwitch(db, owner, String(args.character_id ?? ""), args.on === true);

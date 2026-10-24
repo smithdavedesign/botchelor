@@ -4,7 +4,7 @@ import { adultViewer } from "@/lib/adult/mode";
 import { listMedia } from "@/lib/adult/media";
 import { WHISPER_MAX } from "@/lib/adult/director";
 import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX } from "@/lib/adult/limits";
-import { FRAMING_IDS, setTurnOns, TURN_ON_IDS } from "@/lib/adult/profile";
+import { FRAMING_IDS, hasProfileConsent, PROFILE_CONSENT_TEXT, recordProfileConsent, setTurnOns, TURN_ON_IDS } from "@/lib/adult/profile";
 import { SCENARIOS } from "@/lib/adult/scenarios";
 import {
   continueScene,
@@ -25,6 +25,7 @@ import {
 } from "@/lib/adult/scenes";
 import { isAdmin } from "@/lib/admins";
 import { refundBoughtTokens, SET_SCENE_TOKEN_COST, spendBoughtTokens } from "@/lib/allowance";
+import { crisisAware, str, type CrisisSurface } from "@/lib/crisis";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -68,7 +69,14 @@ const Input = z.object({
   // Beat pictures (lib/adult/beats.ts): the viewer's answer to an offered moment, or Picture this at a line.
   beat: z.object({ id, answer: z.enum(["now", "later"]) }).optional(),
   picture_now: z.object({ line: z.number().int().min(0).max(10_000) }).optional(),
+  // GDPR Art. 9 (lib/adult/profile.ts PROFILE_CONSENT_TEXT): the ticked consent, sent with a save of turn-ons or hard
+  // nos (consent), or on its own when the box is ticked (profile_consent: what was saved before is now under it).
+  consent: z.literal(true).optional(),
+  profile_consent: z.literal(true).optional(),
 });
+
+/** The consent's state, for the Limits and "What they're into" panels. */
+const consentView = async (db: Awaited<ReturnType<typeof getDb>>, viewer: string) => ({ given: await hasProfileConsent(db, viewer), text: PROFILE_CONSENT_TEXT });
 
 /** Not found for everyone but a signed-in admin while after dark is open (lib/adult/mode.ts). */
 const hidden = () => json({ error: "not_found" }, 404);
@@ -81,8 +89,10 @@ export const GET = handle(async (req: Request) => {
   // Each one's turn-ons, for a character whose profile the viewer may set (theirs; an admin's house cast).
   if (q.get("profile") === "1") {
     const profile = await profileView(db, admin, q.get("a") ?? "", q.get("b") ?? "");
-    return profile ? json({ profile }) : hidden();
+    return profile ? json({ profile, consent: await consentView(db, admin) }) : hidden();
   }
+  // Whether the viewer has agreed to their turn-ons and hard nos being stored (the Limits panel asks when it opens).
+  if (q.get("consent") === "1") return json({ consent: await consentView(db, admin) });
   // What they remember, for the page's memory panel (owner-scoped).
   if (q.get("memory") === "1") {
     const memory = await memoryView(db, admin, q.get("a") ?? "", q.get("b") ?? "");
@@ -92,7 +102,12 @@ export const GET = handle(async (req: Request) => {
   return scene ? json({ scene, gallery: await listMedia(db, [scene.a.id, scene.b.id], admin) }) : hidden();
 });
 
-export const POST = handle(async (req: Request) => {
+// A steer and a whisper are the viewer's own words: checked for self-harm intent (lib/crisis.ts), the reply then
+// carries crisis_resources whatever else it says.
+const ownWords = (b: Record<string, unknown>) => [str(b.direction), str((b.whisper as { text?: unknown } | undefined)?.text)];
+const surface = (b: Record<string, unknown>): CrisisSurface => (b.whisper ? "after_dark_whisper" : "after_dark_steer");
+
+export const POST = crisisAware(surface, ownWords, handle(async (req: Request) => {
   const db = await getDb();
   const admin = await adultViewer(db, req);
   if (!admin) return hidden();
@@ -129,17 +144,21 @@ export const POST = handle(async (req: Request) => {
     const scene = await saveFraming(db, admin, input.a, input.b, input.framing);
     return scene ? json({ scene }) : hidden();
   }
+  if (input.profile_consent && !input.turn_ons && !input.limits) {
+    await recordProfileConsent(db, admin);
+    return json({ consent: { given: true, text: PROFILE_CONSENT_TEXT } });
+  }
   if (input.turn_ons) {
     // Only for one of this pair, in the viewer's After Dark.
     if (!(await openScene(db, admin, input.a, input.b)) || ![input.a, input.b].includes(input.turn_ons.character_id)) return hidden();
-    const r = await setTurnOns(db, admin, input.turn_ons.character_id, input.turn_ons.ids);
-    if (!r.ok) return json({ error: "not_saved", message: r.message }, r.status);
-    return json({ profile: await profileView(db, admin, input.a, input.b) });
+    const r = await setTurnOns(db, admin, input.turn_ons.character_id, input.turn_ons.ids, { consent: input.consent });
+    if (!r.ok) return json({ error: r.consent_required ? "consent_required" : "not_saved", message: r.message, ...(r.consent_required ? { consent_text: PROFILE_CONSENT_TEXT } : {}) }, r.status);
+    return json({ profile: await profileView(db, admin, input.a, input.b), consent: await consentView(db, admin) });
   }
   if (input.limits) {
-    const r = await saveLimits(db, admin, input.a, input.b, input.limits);
-    if (!r.ok) return json({ error: "not_saved", message: r.message }, r.status);
-    return json({ scene: r.scene });
+    const r = await saveLimits(db, admin, input.a, input.b, input.limits, { consent: input.consent });
+    if (!r.ok) return json({ error: r.consent_required ? "consent_required" : "not_saved", message: r.message, ...(r.consent_required ? { consent_text: PROFILE_CONSENT_TEXT } : {}) }, r.status);
+    return json({ scene: r.scene, consent: await consentView(db, admin) });
   }
   if (input.memory_edit) {
     const r = await editMemory(db, admin, input.a, input.b, input.memory_edit);
@@ -177,4 +196,4 @@ export const POST = handle(async (req: Request) => {
     // A redo can take back a chapter's close, so its night list may have changed.
     ...(input.redo ? { nights: await listNights(db, admin, input.a, input.b) } : {}),
   });
-});
+}));

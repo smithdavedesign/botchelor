@@ -72,13 +72,66 @@ export async function turnOnsOf(db: Db, characterId: string): Promise<TurnOnId[]
   return storedTurnOns(r.rows[0]?.turn_ons);
 }
 
-/** Sets a character's turn-ons, for a viewer who may (mayEditProfile); not found for anyone else. */
-export async function setTurnOns(db: Db, viewer: string, characterId: string, ids: readonly string[]): Promise<{ ok: true; turn_ons: TurnOnId[] } | { ok: false; status: number; message: string }> {
+// ---------------------------------------------------------------------------------------------------------------------
+// Consent (GDPR Art. 9: turn-ons and hard nos are "sex life" data; docs/after-dark-legal-review.md "Other laws")
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** What the person ticks before anything of their profile is stored (the Limits and "What they're into" panels, MCP). */
+export const PROFILE_CONSENT_TEXT = "I agree Botchelor stores my turn-ons and hard nos to shape my scenes. Only I see them; I can delete them any time.";
+export const CONSENT_NEEDED = `Nothing was saved. Tick the consent first: "${PROFILE_CONSENT_TEXT}"`;
+
+/** SQL: an adult_scenes row has at least one hard no saved. */
+export const HAS_HARD_NOS_SQL =
+  "(jsonb_array_length(coalesce(hard_nos -> 'chips', '[]'::jsonb)) + jsonb_array_length(coalesce(hard_nos -> 'own', '[]'::jsonb))) > 0";
+
+export type ConsentRefusal ={ ok: false; status: 403; message: string; consent_required: true };
+export const consentRefusal = (): ConsentRefusal => ({ ok: false, status: 403, message: CONSENT_NEEDED, consent_required: true });
+
+/**
+ * Whether the person has agreed: kept with what it covers (consented_at on a character's turn-ons they saved, or on one
+ * of their pairs' hard nos), so deleting the profile takes the consent with it and the box is asked again.
+ */
+export async function hasProfileConsent(db: Db, viewer: string): Promise<boolean> {
+  const { rows } = await db.query<{ ok: boolean }>(
+    `select exists (select 1 from adult_profiles where consented_by = $1 and consented_at is not null)
+         or exists (select 1 from adult_scenes where owner_id = $1 and hard_nos_consented_at is not null) as ok`,
+    [viewer],
+  );
+  return Boolean(rows[0]?.ok);
+}
+
+/**
+ * The person ticks the box: their profile from before consent was asked for (turn-ons they saved, their pairs' hard nos)
+ * is now under it. With nothing saved yet, nothing is stored: the next save carries the tick (consent: true).
+ */
+export async function recordProfileConsent(db: Db, viewer: string): Promise<void> {
+  await db.query(`update adult_profiles set consented_at = now(), consented_by = $1 where updated_by = $1 or consented_by = $1`, [viewer]);
+  await db.query(`update adult_scenes set hard_nos_consented_at = now() where owner_id = $1 and ${HAS_HARD_NOS_SQL}`, [viewer]);
+}
+
+/**
+ * Sets a character's turn-ons, for a viewer who may (mayEditProfile); not found for anyone else. Saving any needs the
+ * person's consent (given now, `consent: true`, or before: hasProfileConsent), else nothing is stored. Clearing them
+ * needs none (it stores nothing: the row goes).
+ */
+export async function setTurnOns(
+  db: Db,
+  viewer: string,
+  characterId: string,
+  ids: readonly string[],
+  opts: { consent?: boolean } = {},
+): Promise<{ ok: true; turn_ons: TurnOnId[] } | { ok: false; status: number; message: string; consent_required?: true }> {
   if (!(await mayEditProfile(db, viewer, characterId))) return { ok: false, status: 404, message: "Only a character's owner sets what they're into (an admin, for the house cast)." };
   const turn_ons = storedTurnOns(ids);
+  if (!turn_ons.length) {
+    await db.query(`delete from adult_profiles where character_id = $1`, [characterId]);
+    return { ok: true, turn_ons };
+  }
+  if (opts.consent !== true && !(await hasProfileConsent(db, viewer))) return consentRefusal();
   await db.query(
-    `insert into adult_profiles (character_id, turn_ons, updated_by, updated_at) values ($1, $2::jsonb, $3, now())
-     on conflict (character_id) do update set turn_ons = excluded.turn_ons, updated_by = excluded.updated_by, updated_at = now()`,
+    `insert into adult_profiles (character_id, turn_ons, updated_by, updated_at, consented_at, consented_by) values ($1, $2::jsonb, $3, now(), now(), $3)
+     on conflict (character_id) do update set turn_ons = excluded.turn_ons, updated_by = excluded.updated_by, updated_at = now(),
+       consented_at = now(), consented_by = excluded.consented_by`,
     [characterId, JSON.stringify(turn_ons), viewer],
   );
   return { ok: true, turn_ons };

@@ -41,7 +41,7 @@ import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { textModelHistory, writtenBy, type WrittenBy } from "./model-log";
 import { fileSteps, flagStep, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
 import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensityOf, limitsHit, NO_LIMITS, overIntensity, OWN_LEN, OWN_MAX, plainTalk, storedHardNos, type HardNos, type Intensity, type PairLimits } from "./limits";
-import { framingOf, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
+import { consentRefusal, framingOf, hasProfileConsent, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
 import { scenarioById, type Scenario } from "./scenarios";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import {
@@ -2117,7 +2117,15 @@ export function linesCrossed(r: SafetyResult): string {
 }
 
 /** What a step can bring besides the steer: a whisper to one of the two, and whether it's a redo (logged as one). */
-export type StepOptions = { whisper?: { to: "a" | "b"; text: string } | null; redo?: boolean };
+export type StepOptions = {
+  whisper?: { to: "a" | "b"; text: string } | null;
+  redo?: boolean;
+  /**
+   * Hard nos for this step only, on top of the pair's saved ones, never stored: what a person who hasn't consented to
+   * storing them (lib/adult/profile.ts) sent with the request (after_dark_write over MCP).
+   */
+  sessionHardNos?: HardNos | null;
+};
 
 /**
  * Writes the next lines of a pair's scene (writeSceneStep) on After Dark's model and saves them: the scene, the month's
@@ -2128,6 +2136,10 @@ export type StepOptions = { whisper?: { to: "a" | "b"; text: string } | null; re
 export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge", opts: StepOptions = {}): Promise<ContinueResult> {
   const scene = await loadScene(db, adminId, x, y);
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
+  // Unsaved hard nos sent with this step hold for it like saved ones (nothing writes a scene's hard_nos but saveLimits).
+  if (opts.sessionHardNos && hasHardNos(opts.sessionHardNos)) {
+    scene.hard_nos = storedHardNos({ chips: [...scene.hard_nos.chips, ...opts.sessionHardNos.chips], own: [...scene.hard_nos.own, ...opts.sessionHardNos.own] });
+  }
   // Every step goes in the admin's log (lib/adult/steps.ts): what was asked, and what came of it or the error.
   const pairIds = { a: scene.a.id, b: scene.b.id };
   const whisperText = opts.whisper ? cleanWhisper(opts.whisper.text) : "";
@@ -2576,8 +2588,19 @@ export type LimitsInput = { intensity?: string; hard_nos?: { chips?: string[]; o
  * Sets the viewer's limits for a pair (lib/adult/limits.ts): the intensity and the hard nos, per owner and pair (they
  * outlive Start over). The viewer's own hard nos are held to the two lines like anything typed, OWN_MAX of OWN_LEN
  * characters at most. The last step's suggestions are held to the new limits at once.
+ *
+ * Hard nos are "sex life" data (GDPR Art. 9): saving any needs the person's consent (`consent: true` now, or given
+ * before: lib/adult/profile.ts hasProfileConsent), else nothing at all is stored, the intensity included. Clearing them
+ * needs none.
  */
-export async function saveLimits(db: Db, ownerId: string, x: string, y: string, input: LimitsInput): Promise<{ ok: true; scene: AdultScene } | { ok: false; status: number; message: string }> {
+export async function saveLimits(
+  db: Db,
+  ownerId: string,
+  x: string,
+  y: string,
+  input: LimitsInput,
+  opts: { consent?: boolean } = {},
+): Promise<{ ok: true; scene: AdultScene } | { ok: false; status: number; message: string; consent_required?: true }> {
   const scene = await loadScene(db, ownerId, x, y);
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
   const intensity = input.intensity === undefined ? scene.intensity : intensityOf(input.intensity);
@@ -2592,15 +2615,18 @@ export async function saveLimits(db: Db, ownerId: string, x: string, y: string, 
       return { ok: false, status: 422, message: "One of those crosses the two lines (nobody under 18, no real people): they already never happen, so there's no need to list them." };
     }
     hard_nos = storedHardNos({ chips: input.hard_nos.chips ?? [], own });
+    if (hasHardNos(hard_nos) && opts.consent !== true && !(await hasProfileConsent(db, ownerId))) return consentRefusal();
   }
+  // When hard nos were sent: consented now if there are any, nothing to consent to if they were cleared.
+  const consented = input.hard_nos ? hasHardNos(hard_nos) : null;
   const limits: PairLimits = { intensity, hard_nos };
   const suggestions = await heldAgain(db, scene, limits, scene.suggestions);
-  await db.query(`update adult_scenes set intensity = $2, hard_nos = $3::jsonb, suggestions = $4::jsonb, updated_at = now() where id = $1`, [
-    scene.id,
-    intensity,
-    JSON.stringify(hard_nos),
-    JSON.stringify(suggestions),
-  ]);
+  await db.query(
+    `update adult_scenes set intensity = $2, hard_nos = $3::jsonb, suggestions = $4::jsonb, updated_at = now(),
+       hard_nos_consented_at = case when $5::boolean is null then hard_nos_consented_at when $5::boolean then now() else null end
+     where id = $1`,
+    [scene.id, intensity, JSON.stringify(hard_nos), JSON.stringify(suggestions), consented],
+  );
   return { ok: true, scene: publicScene({ ...scene, intensity, hard_nos, suggestions }) };
 }
 

@@ -7,6 +7,7 @@
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { AiFiction } from "@/app/AiLabel";
 import {
   detailsFor,
   genderTileId,
@@ -232,6 +233,8 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
                 })}
               </ul>
             )}
+            {/* The example pictures were drawn by a model: one label for the grid, not one per tile. */}
+            {step.id !== "age" && <AiFiction text="Example pictures are AI-generated." className="looks-ai-note" />}
           </>
         ) : (
           <div className="looks-summary">

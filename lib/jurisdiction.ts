@@ -30,7 +30,7 @@ export const US_AGE_CHECK_STATES: Readonly<Record<string, string>> = {
 };
 
 /** Countries whose law wants a certified age check for adult content. */
-const AGE_CHECK_COUNTRIES: Readonly<Record<string, string>> = {
+export const AGE_CHECK_COUNTRIES: Readonly<Record<string, string>> = {
   FR: "France requires certified age checks for adult sites (Arcom).",
   IT: "Italy requires certified age checks on every visit (AGCOM).",
   DE: "Germany requires a closed adult user group (JMStV).",
@@ -45,7 +45,7 @@ const ILLEGAL_THERE = [
 ] as const;
 
 /** Countries where the scenes may run but pictures, video and voiced lines may not. */
-const TEXT_ONLY_COUNTRIES: Readonly<Record<string, string>> = {
+export const TEXT_ONLY_COUNTRIES: Readonly<Record<string, string>> = {
   GB: "UK law (the Online Safety Act) requires a strict age check for pictures and video, so here After Dark is the scenes only.",
   JP: "Japanese law restricts explicit images, so here After Dark is the scenes only.",
 };

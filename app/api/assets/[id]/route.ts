@@ -1,3 +1,4 @@
+import { AI_HEADERS, markAiImage } from "@/lib/ai-mark";
 import { getApprovedAsset } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
@@ -23,11 +24,13 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   if (!asset?.url || !DATA_PNG.test(asset.url)) return json({ error: "asset_not_found" }, 404);
   const [, type] = DATA_PNG.exec(asset.url)!;
   const bytes = Buffer.from(asset.url.slice(asset.url.indexOf(",") + 1), "base64");
-  const headers = { "cache-control": "public, max-age=31536000, immutable" };
+  // Every picture here was made by a model: it goes out with the "AI-generated" mark in its XMP and its headers
+  // (lib/ai-mark.ts). A no-op for one stored with it; an older one is marked as it's sent.
+  const headers = { "cache-control": "public, max-age=31536000, immutable", ...AI_HEADERS };
   // ?w= asks for a small copy (app/Avatar.tsx): a 1024px PNG of ~1.4 MB was drawn at 38–96px, 40 times on /watch.
   const small = await resized(bytes, new URL(req.url).searchParams.get("w"));
-  if (small) return new Response(new Uint8Array(small), { status: 200, headers: { ...headers, "content-type": "image/webp" } });
-  return new Response(bytes, { status: 200, headers: { ...headers, "content-type": `image/${type}` } });
+  if (small) return new Response(new Uint8Array(markAiImage(small)), { status: 200, headers: { ...headers, "content-type": "image/webp" } });
+  return new Response(new Uint8Array(markAiImage(bytes)), { status: 200, headers: { ...headers, "content-type": `image/${type}` } });
 });
 
 /** The widths a small copy comes in (each one cached by the CDN for a year), so ?w= can't mint endless variants. */
