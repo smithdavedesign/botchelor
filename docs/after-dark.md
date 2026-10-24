@@ -2243,6 +2243,13 @@ configurable … best in class"). What's built, by phase:
   retrieves it, Hive checks it, and it's kept as a video in their gallery (`shoot_id`, `source_image`), counted as a
   clip, and Venice's copy deleted. Refused by the check, failed, or not back in an hour: tokens back, logged when refused.
 
+**Screenshots** (`npm run screenshots:studio`, PG placeholders from the repo's own portraits, nothing drawn):
+`docs/screenshots/studio-*.png`: the shoot's menus, a shoot together, the gallery's share and animate panels, setups,
+"Shared with you" as the recipient sees it, and the After Dark pictures card in Connections, desktop and phone.
+
+<img src="screenshots/studio-together-desktop.png" width="480" alt="The Studio's Together tab: Dex picked, a slow dance, dressed up, a wide shot on the rooftop">
+<img src="screenshots/studio-shared-with-you-desktop.png" width="480" alt="Shared with you: a request waiting with Show it and No thanks, and an accepted picture with remove">
+
 ### The checks: an alternative to Hive (2026-10-24)
 
 David: "Hive is a bottleneck atm, so it might be worth adding an alternative too. Everything should be configurable."
