@@ -56,5 +56,10 @@
     "playwright-core": "^1.64.0",
     "typescript": "^5.9.3",
     "vitest": "^5.0.4"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "$zod"
+    }
   }
 }
