@@ -44,6 +44,15 @@ export type CharacterSheet = {
 
 /** Owner-only signals derived from the private soul. 0..1, where 0 means "absent / neutral". */
 export type SoulSignals = { warmth: number; openness: number; guardedness: number; humor: number };
+/** The signals a date runs on (SideSetup.signals, the setup's snapshot): the four, and where they came from. */
+export type DateSignals = SoulSignals & {
+  /**
+   * #728: no soul spoke for this temperament: it's the unremarkable baseline nudged by the character's own traits and voice
+   * (lib/temperament.ts baseSignals). It rides in the date's signal snapshot (setup.signals_a/b), so a replay reads it too.
+   * Engine v4 centres such a temperament on the show's typical one (V4_TYPICAL_SIGNALS); earlier versions ignore it.
+   */
+  sheet?: boolean;
+};
 export const NEUTRAL_SIGNALS: SoulSignals = { warmth: 0, openness: 0, guardedness: 0, humor: 0 };
 
 /** The raw private soul the owner writes. Owner-only; never returned to spectators (PRD guardrail). */
@@ -59,7 +68,7 @@ export type SoulProfile = {
 /** One side's full setup for a date: their character, soul, and the owner's dials for this date. */
 export type SideSetup = {
   sheet: CharacterSheet;
-  signals: SoulSignals;
+  signals: DateSignals;
   autonomy: Autonomy;
   strategy: Strategy;
   agendaId: AgendaId;
@@ -131,14 +140,14 @@ export type Outcome = {
  *      they left off (their running chemistry and trust) instead of a stranger's baseline. First dates are unchanged.
  *   v4 (2026-10-23, #728): a fairer mix, and a dealbreaker as one factor among several. Over a seeded, production-shaped
  *      spread of 6,000 dates (house and agent characters, every strategy, autonomy, budget and agenda; tests/engine-sample.ts)
- *      v3 ended 62% second date, 19% friends and 19% disaster (production's show-model dates: 67/15/18), and a tripped
+ *      v3 ended 60% second date, 21% friends and 19% disaster (production's show-model dates: 67/15/18), and a tripped
  *      dealbreaker was a disaster 99.9% of the time (production: 9 of 9). Why it dominated agents' own dates: the cue
  *      match tripped on little words ("she", "ask", "without") and on what the *other* character wants rather than what
  *      they are (6 of the 8 trips on agents' dates), a couple re-dating trips the same one every time, and one trip cost
  *      about 27 points against a 6.5-point mark. v4 matches a dealbreaker on what the other is (traits, bio, appearance),
  *      ignores those little words for wants and dealbreakers, costs a trip about a quarter as much (~6.6 points), moves
- *      the marks (friends 10.5, a second date 15.5) and scales up the two strategies that weighed less in all
- *      (STRATEGY_WEIGHTS_V4): 46/32/22 over the same spread, every strategy within a few points of it, and a tripped
+ *      the marks (friends 11, a second date 16), reads a soul-less temperament as the show's typical one (V4_TYPICAL_SIGNALS) and scales up the two strategies that weighed less in all
+ *      (STRATEGY_WEIGHTS_V4): 44/33/23 over the same spread (43/34/23 with every agent character soul-less), every strategy within a few points of it, and a tripped
  *      dealbreaker ends in a disaster about three times in five. On a date agents perform, both sides' wishes also count
  *      for more (lib/wishes.ts). v1 to v3 replay exactly as they were.
  */
@@ -309,6 +318,20 @@ export const V2_FRIENDS_REL = 6.5;
 /** v2: a character with no soul and no trained image is an unremarkable temperament, not an absence of one. */
 export const UNREMARKABLE_SIGNALS: SoulSignals = { warmth: 0.4, openness: 0.4, guardedness: 0.3, humor: 0.4 };
 const isBlank = (s: SoulSignals) => s.warmth === 0 && s.openness === 0 && s.guardedness === 0 && s.humor === 0;
+/**
+ * v4 (#728): the show's typical temperament, the centre of the characters whose souls speak (production's replayable
+ * dates averaged warmth 0.54 to 0.74, guardedness 0.24 to 0.3). Under v4's marks a character with no soul written
+ * (blank, or read off its sheet around UNREMARKABLE_SIGNALS) would otherwise read as colder than nearly everyone it
+ * meets, and its dates would mostly end in disaster; v4 reads it as typical instead, still nudged by its own words.
+ */
+export const V4_TYPICAL_SIGNALS: SoulSignals = { warmth: 0.65, openness: 0.55, guardedness: 0.25, humor: 0.55 };
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+/** v4: a soul-less temperament, re-centred from the unremarkable baseline onto the typical one. */
+function typicalFor(s: SoulSignals): SoulSignals {
+  if (isBlank(s)) return V4_TYPICAL_SIGNALS;
+  const at = (k: "warmth" | "openness" | "guardedness" | "humor") => clamp01(s[k] - UNREMARKABLE_SIGNALS[k] + V4_TYPICAL_SIGNALS[k]);
+  return { warmth: at("warmth"), openness: at("openness"), guardedness: at("guardedness"), humor: at("humor") };
+}
 
 /** The score a date with every variable at its starting value would get under a strategy (v2's zero point). */
 function neutralScore(strategy: Strategy, version: number | null | undefined): number {
@@ -324,8 +347,8 @@ export const DEALBREAKER_PENALTY = 11;
  * over a representative spread of dates roughly 40–50% end in a second date, 25–35% as friends and 20–30% in a
  * disaster (tests/engine-v4.test.ts pins the bands).
  */
-export const V4_SECOND_DATE_REL = 15.5;
-export const V4_FRIENDS_REL = 10.5;
+export const V4_SECOND_DATE_REL = 16;
+export const V4_FRIENDS_REL = 11;
 /** v4: what a tripped dealbreaker takes off a date's score directly (on top of what it does to the four numbers). */
 export const V4_DEALBREAKER_PENALTY = 2;
 
@@ -426,7 +449,11 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 function decideCore(input: DateInput, seed: number, version: EngineVersion, withTrace: boolean): { outcome: Outcome; trace: EngineTrace | null } {
     const v2 = version >= 2;
     // v2 reads a blank temperament (no soul, no trained image) as unremarkable rather than as zero.
-    const sig = (side: SideSetup): SoulSignals => (v2 && isBlank(side.signals) ? UNREMARKABLE_SIGNALS : side.signals);
+    // v4 (#728): a temperament no soul spoke for reads as the show's typical one (nudged by its own words), not a cold one.
+    const sig = (side: SideSetup): SoulSignals =>
+      version >= 4 && (side.signals.sheet || isBlank(side.signals))
+        ? typicalFor(side.signals)
+        : v2 && isBlank(side.signals) ? UNREMARKABLE_SIGNALS : side.signals;
     const sigA = sig(input.a);
     const sigB = sig(input.b);
     const rand = rng(seed);

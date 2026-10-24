@@ -40,8 +40,9 @@ describe("a temperament from the character's own words", () => {
     const words: SoulSignals = { warmth: 0.33, openness: 0, guardedness: 0, humor: 0 };
     expect(baseSignals({ signals: set }, words, sheet)).toBe(set);
     expect(baseSignals({ signals: null }, words, sheet)).toBe(words);
-    expect(baseSignals({ signals: null }, NEUTRAL_SIGNALS, sheet)).toBe(sheet); // a soul that names no temperament
-    expect(baseSignals(null, null, sheet)).toBe(sheet);
+    // A soul that names no temperament, or none: the sheet, marked as no soul spoke (#728: engine v4 centres it on the typical one).
+    expect(baseSignals({ signals: null }, NEUTRAL_SIGNALS, sheet)).toEqual({ ...sheet, sheet: true });
+    expect(baseSignals(null, null, sheet)).toEqual({ ...sheet, sheet: true });
   });
 
   it("reads in plain words for the owner", () => {
@@ -110,7 +111,7 @@ describe("in the live flow", () => {
   it("a soul-less character plays from its sheet; set it with the sliders; null hands it back to its words", async () => {
     const owner = newUserCookie();
     const id = (await (await api.createCharacter(validCharacter({ traits: ["warm", "funny", "curious"] }), owner)).json()).id;
-    expect((await loadCharacter(t.db, id))!.baseSignals).toEqual(sheetSignals({ traits: ["warm", "funny", "curious"] }));
+    expect((await loadCharacter(t.db, id))!.baseSignals).toEqual({ ...sheetSignals({ traits: ["warm", "funny", "curious"] }), sheet: true });
 
     const set = { warmth: 0.2, openness: 0.3, guardedness: 0.8, humor: 0.25 };
     expect((await api.editCharacter(id, { temperament: set }, owner)).status).toBe(200);
@@ -118,7 +119,7 @@ describe("in the live flow", () => {
 
     expect((await api.editCharacter(id, { temperament: null }, owner)).status).toBe(200);
     expect(await t.count("souls", `character_id = '${id}'`)).toBe(0); // nothing private left behind
-    expect((await loadCharacter(t.db, id))!.baseSignals).toEqual(sheetSignals({ traits: ["warm", "funny", "curious"] }));
+    expect((await loadCharacter(t.db, id))!.baseSignals).toEqual({ ...sheetSignals({ traits: ["warm", "funny", "curious"] }), sheet: true });
 
     expect((await api.editCharacter(id, { temperament: { warmth: 2, openness: 0, guardedness: 0, humor: 0 } }, owner)).status).toBe(422);
   });

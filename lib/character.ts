@@ -17,7 +17,7 @@
  * is untouched: it still decides from the sheet + signals; this object just gathers and presents them.
  */
 import type { Db } from "./db";
-import { deriveSoulSignals, NEUTRAL_SIGNALS, type CharacterSheet, type SoulSignals } from "./engine";
+import { deriveSoulSignals, NEUTRAL_SIGNALS, type CharacterSheet, type DateSignals, type SoulSignals } from "./engine";
 import { loadSoul, soulText, type StoredSoul } from "./souls";
 import { characterPortrait } from "./portraits";
 import { loadCharacterMemory, MEMORY_SIGNAL_CAP, type CharacterMemory } from "./memory";
@@ -49,9 +49,9 @@ export type Character = {
   dealbreaker: string;
   soul: StoredSoul | null;
   /** The signals from the soul / image, before any learned drift. */
-  baseSignals: SoulSignals;
+  baseSignals: DateSignals;
   /** The effective engine signals: baseSignals nudged by the learned memory, clamped to 0..1. */
-  signals: SoulSignals;
+  signals: DateSignals;
   memory: CharacterMemory | null;
   /** The public, aired date record (lib/game.ts). Zeros until loadCharacter fills it. */
   record: CharacterRecord;
@@ -96,15 +96,15 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
  * sliders) win, then the private soul's words, then the temperament its own traits and voice describe. Without
  * a sheet (old callers), a soul-less character is blank, which the engine reads as unremarkable.
  */
-export function soulBaseSignals(soul: StoredSoul | null, sheet?: Pick<CharacterSheet, "traits" | "voice">): SoulSignals {
+export function soulBaseSignals(soul: StoredSoul | null, sheet?: Pick<CharacterSheet, "traits" | "voice">): DateSignals {
   return baseSignals(soul, soul ? deriveSoulSignals(soul) : null, sheet ? sheetSignals(sheet) : NEUTRAL_SIGNALS);
 }
 
 /** The effective engine signals: base plus the memory's bounded drift, clamped to 0..1 per axis. */
-export function effectiveSignals(base: SoulSignals, memory: CharacterMemory | null): SoulSignals {
+export function effectiveSignals(base: DateSignals, memory: CharacterMemory | null): DateSignals {
   const d = memory?.signal_delta ?? {};
   const axis = (k: keyof SoulSignals) => clamp01(base[k] + clampDelta(d[k]));
-  return { warmth: axis("warmth"), openness: axis("openness"), guardedness: axis("guardedness"), humor: axis("humor") };
+  return { warmth: axis("warmth"), openness: axis("openness"), guardedness: axis("guardedness"), humor: axis("humor"), ...(base.sheet ? { sheet: true } : {}) };
 }
 
 /** A stored delta is already bounded, but clamp defensively so a bad row can never swing a result. */

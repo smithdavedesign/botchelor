@@ -13,7 +13,7 @@
  * the async worker use the snapshot, so changing how signals are read never rewrites a settled date. The
  * engine's own maths is untouched. Pure and client-safe (the builder previews it as you type).
  */
-import { LEXICON, NEUTRAL_SIGNALS, UNREMARKABLE_SIGNALS, type CharacterSheet, type SoulSignals } from "./engine";
+import { LEXICON, NEUTRAL_SIGNALS, UNREMARKABLE_SIGNALS, type CharacterSheet, type DateSignals, type SoulSignals } from "./engine";
 
 const AXES = ["warmth", "openness", "guardedness", "humor"] as const;
 
@@ -84,10 +84,11 @@ export function baseSignals(
   soul: { signals: SoulSignals | null } | null,
   fromSoulText: SoulSignals | null,
   sheet: SoulSignals | null,
-): SoulSignals {
+): DateSignals {
   if (soul?.signals) return soul.signals;
   if (fromSoulText && !isBlank(fromSoulText)) return fromSoulText;
-  return sheet ?? NEUTRAL_SIGNALS;
+  // #728: marked as read off the sheet (no soul spoke), so engine v4 can centre it on the show's typical temperament.
+  return { ...(sheet ?? NEUTRAL_SIGNALS), sheet: true };
 }
 
 /** A temperament in plain words, for the owner (third person): "warm, quick to joke". */

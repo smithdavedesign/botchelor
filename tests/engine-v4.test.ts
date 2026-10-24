@@ -14,11 +14,14 @@ import {
   setEngineForTests,
   V4_FRIENDS_REL,
   V4_SECOND_DATE_REL,
+  V4_TYPICAL_SIGNALS,
   type DateInput,
   type Outcome,
   type SideSetup,
 } from "@/lib/engine";
+import { effectiveSignals } from "@/lib/character";
 import { dateHeading, forTwoAgents } from "@/lib/heading";
+import { baseSignals, sheetSignals } from "@/lib/temperament";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { resetRateLimitsForTests } from "@/lib/rate-limit";
 import { ENDINGS, STRATEGIES, WISH_LIFT_NEAR, type Ending } from "@/lib/rules";
@@ -33,7 +36,7 @@ const mix = (version: 1 | 2 | 3 | 4, sample = SAMPLE) => mixOf(sample, (input, s
 describe("engine v4: the mix", () => {
   it("new dates are decided with v4", () => {
     expect(CURRENT_ENGINE_VERSION).toBe(4);
-    expect([V4_FRIENDS_REL, V4_SECOND_DATE_REL]).toEqual([10.5, 15.5]);
+    expect([V4_FRIENDS_REL, V4_SECOND_DATE_REL]).toEqual([11, 16]);
   });
 
   it("over the seeded, production-shaped spread, v4 ends 40–50% second date, 25–35% friends, 20–30% disaster (v3 didn't)", () => {
@@ -46,6 +49,43 @@ describe("engine v4: the mix", () => {
     expect(v4.disaster).toBeLessThanOrEqual(0.3);
     // The measured problem: v3 over the same spread leans on second dates (production: 67% of show-model dates).
     expect(mix(3).second_date).toBeGreaterThan(0.55);
+  });
+
+  it("a character with no soul written (the usual agent-made sheet) lands in the same bands: it reads as typical, not cold", () => {
+    // Every agent-made character in the sample soul-less: its temperament read off its traits (lib/temperament.ts), marked.
+    const noSoul = sampleDates(6000, 728, { noSoul: true });
+    expect(noSoul.filter((d) => d.input.a.signals.sheet || d.input.b.signals.sheet).length).toBeGreaterThan(4000);
+    const v4 = mix(4, noSoul);
+    expect(v4.second_date).toBeGreaterThanOrEqual(0.4);
+    expect(v4.second_date).toBeLessThanOrEqual(0.5);
+    expect(v4.friends).toBeGreaterThanOrEqual(0.25);
+    expect(v4.friends).toBeLessThanOrEqual(0.35);
+    expect(v4.disaster).toBeGreaterThanOrEqual(0.2);
+    expect(v4.disaster).toBeLessThanOrEqual(0.3);
+    // Without the re-centring (the same signals with no mark), v4's marks would make most of them disasters.
+    const unmarked = noSoul.map(({ input, seed }) => ({
+      input: { ...input, a: { ...input.a, signals: { ...input.a.signals, sheet: undefined } }, b: { ...input.b, signals: { ...input.b.signals, sheet: undefined } } },
+      seed,
+    }));
+    expect(mix(4, unmarked).disaster).toBeGreaterThan(v4.disaster + 0.1);
+  });
+
+  it("the no-soul mark: baseSignals sets it, memory drift keeps it, and only v4 reads it", () => {
+    const sheet = sheetSignals({ traits: ["curious", "deadpan", "loyal"] });
+    expect(baseSignals(null, null, sheet)).toEqual({ ...sheet, sheet: true });
+    expect(baseSignals(null, null, null)).toEqual({ ...NEUTRAL_SIGNALS, sheet: true });
+    expect(baseSignals({ signals: { warmth: 0.9, openness: 0.5, guardedness: 0.1, humor: 0.7 } }, null, sheet).sheet).toBeUndefined();
+    expect(effectiveSignals({ ...sheet, sheet: true }, null).sheet).toBe(true);
+    const input = (marked: boolean): DateInput => ({
+      a: side({}, { signals: { ...sheet, ...(marked ? { sheet: true } : {}) } }),
+      b: side({ name: "Bo Quill" }, { signals: { ...sheet, ...(marked ? { sheet: true } : {}) } }),
+    });
+    for (const v of [1, 2, 3] as const) expect(deterministicEngine.decide(input(true), 5, v)).toEqual(deterministicEngine.decide(input(false), 5, v));
+    expect(deterministicEngine.decide(input(true), 5, 4).margin).toBeGreaterThan(deterministicEngine.decide(input(false), 5, 4).margin!);
+    // A blank temperament reads as the typical one under v4.
+    const blank: DateInput = { a: side({}), b: side({ name: "Bo Quill" }) };
+    const typical: DateInput = { a: side({}, { signals: V4_TYPICAL_SIGNALS }), b: side({ name: "Bo Quill" }, { signals: V4_TYPICAL_SIGNALS }) };
+    expect(deterministicEngine.decide(blank, 5, 4)).toEqual(deterministicEngine.decide(typical, 5, 4));
   });
 
   it("every strategy can still end any of the three ways, and none is doomed", () => {
@@ -62,7 +102,7 @@ describe("engine v4: the mix", () => {
     // main before v4 (f7946b3). A change to an old version's maths, or to the sample, changes it.
     const h = createHash("sha256");
     for (const { input, seed } of sampleDates(3000, 667)) for (const v of [1, 2, 3] as const) h.update(JSON.stringify(deterministicTraced(input, seed, v)));
-    expect(h.digest("hex")).toBe("0e1937685481c0a7af75bb2a40612e5a234e76df12375a5f10b585eff01ae3eb");
+    expect(h.digest("hex")).toBe("20c894ec50c992633ecf6a1286cd136a99b8db389647183ceb409bd7e76ec67c");
   });
 });
 

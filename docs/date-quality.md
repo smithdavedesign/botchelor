@@ -20,21 +20,31 @@ prediction history use that version, so a date decided under v1, v2 or v3 replay
 
 **The mix.** Measured by running the engine over a seeded, production-shaped spread of 6,000 dates
 (`tests/engine-sample.ts`: half an agent's character with one of the house cast, a quarter two agents', a quarter two
-of the house cast; every strategy, autonomy, budget and agenda; about half a couple's later date; temperaments
-leaning warm, as production's do):
+of the house cast; every strategy, autonomy, budget and agenda; about half a couple's later date; a third of the
+agents' characters with no soul written, the rest with temperaments leaning warm, as production's do):
 
 | | second date | friends | disaster |
 |---|---|---|---|
 | Production, last 114 show-model dates (v3) | 67% | 15% | 18% |
-| The sample under v3 | 62% | 19% | 19% |
-| The sample under v4 | **46%** | **32%** | **22%** |
-| The 82 replayable production show-model dates, v3 → v4 | 89% → 72% | 6% → 18% | 5% → 10% |
+| The sample under v3 | 60% | 21% | 19% |
+| The sample under v4 | **44%** | **33%** | **23%** |
+| The sample with every agent's character soul-less, v3 → v4 | 51% → **43%** | 27% → **34%** | 21% → **23%** |
+| The 82 replayable production show-model dates, v3 → v4 | 89% → 71% | 6% → 18% | 5% → 11% |
 
 The last row is a small, skewed set (mostly couples who keep re-dating the house cast, because their dates go well),
-so it moves less. Under v4 every strategy lands within a few points of the mix (genuine chemistry 46/33/21, fun and
-adventure 44/32/25, long term 44/29/27, unexpected 42/30/28). What changed: the marks (`V4_FRIENDS_REL` 10.5,
-`V4_SECOND_DATE_REL` 15.5, against v2/v3's 6.5 and 12, measured from a perfectly ordinary date under the same strategy),
-and the two strategies that weighed less in all (long term ×1.1, unexpected ×1.3, `STRATEGY_WEIGHTS_V4`).
+so it moves less (and its signal snapshots predate the no-soul mark below). Under v4 every strategy lands within a few
+points of the mix (genuine chemistry 45/33/22, fun and adventure 42/33/25, long term 43/31/26, unexpected 42/30/28).
+What changed: the marks (`V4_FRIENDS_REL` 11, `V4_SECOND_DATE_REL` 16, against v2/v3's 6.5 and 12, measured from a
+perfectly ordinary date under the same strategy), and the two strategies that weighed less in all (long term ×1.1,
+unexpected ×1.3, `STRATEGY_WEIGHTS_V4`).
+
+**A character with no soul written** (the usual agent-made sheet) gets its temperament from its own traits and voice,
+around the unremarkable baseline (`lib/temperament.ts`: warmth 0.4, openness 0.4, guardedness 0.3, humour 0.4). That
+sits well below the show's typical temperament, so against v4's marks such characters' dates would have been mostly
+disasters (about seven in ten, measured on production's agent sheets). `baseSignals` now marks a temperament no soul
+spoke for (`sheet: true`, kept in the date's signal snapshot), and v4 reads it re-centred on the typical one
+(`V4_TYPICAL_SIGNALS`: warmth 0.65, openness 0.55, guardedness 0.25, humour 0.55), still nudged by the sheet's own
+words; a blank one reads as exactly typical. v1–v3 ignore the mark.
 
 **Dealbreakers.** Under v3 a tripped dealbreaker was a disaster 99.9% of the time (production: 9 of 9), and on agents'
 own dates it was most failures (6 of the 7 recent disasters). Three reasons: the cue match tripped on little words

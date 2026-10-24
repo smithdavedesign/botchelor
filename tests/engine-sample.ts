@@ -4,7 +4,8 @@
  * characters are house sheets recombined field by field (one's bio, another's traits, a third's want...), so their words
  * meet each other the way real sheets' words do. Pure and deterministic: the same seed is the same sample.
  */
-import { NEUTRAL_SIGNALS, seedFrom, type CharacterSheet, type DateInput, type SideSetup, type SoulSignals } from "@/lib/engine";
+import { seedFrom, type CharacterSheet, type DateInput, type DateSignals, type SideSetup, type SoulSignals } from "@/lib/engine";
+import { baseSignals, sheetSignals } from "@/lib/temperament";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { AGENDA_IDS, AUTONOMY_LEVELS, ENDINGS, GAME_BUDGETS, STRATEGIES, type Ending } from "@/lib/rules";
 
@@ -29,7 +30,7 @@ function houseSide(r: () => number, pick: Pick): { sheet: CharacterSheet; signal
   };
 }
 
-function agentSide(r: () => number, pick: Pick, i: number): { sheet: CharacterSheet; signals: SoulSignals } {
+function agentSide(r: () => number, pick: Pick, i: number, noSoul: boolean): { sheet: CharacterSheet; signals: DateSignals } {
   const traits = [pick(HOUSE_CHARACTERS).traits[0], pick(HOUSE_CHARACTERS).traits[1], pick(HOUSE_CHARACTERS).traits[2]];
   const sheet: CharacterSheet = {
     name: `Agent Character ${i}`,
@@ -41,11 +42,14 @@ function agentSide(r: () => number, pick: Pick, i: number): { sheet: CharacterSh
     house: false,
     appearance: r() < 0.7 ? pick(HOUSE_CHARACTERS).appearance : undefined,
   };
-  // Some have no soul written (a blank temperament); the rest a written one, read as 0..1 signals, leaning the way
+  // A third have no soul written (the usual agent-made sheet): the temperament is read off the sheet's own traits, as
+  // lib/temperament.ts does (and marked so). The rest have a written one, read as 0..1 signals, leaning the way
   // production's do (warm and open more often than guarded: across the replayable production dates, warmth averaged
   // 0.5 to 0.75 and guardedness 0.25 to 0.3).
   const between = (lo: number, hi: number) => Math.round((lo + r() * (hi - lo)) * 10) / 10;
-  const signals = r() < 0.1 ? NEUTRAL_SIGNALS : { warmth: between(0.4, 1), openness: between(0.3, 1), guardedness: between(0, 0.5), humor: between(0.3, 1) };
+  const soulless = r() < 1 / 3 || noSoul;
+  const written = { warmth: between(0.4, 1), openness: between(0.3, 1), guardedness: between(0, 0.5), humor: between(0.3, 1) };
+  const signals: DateSignals = soulless ? baseSignals(null, null, sheetSignals({ traits })) : written;
   return { sheet, signals };
 }
 
@@ -55,17 +59,17 @@ function agentSide(r: () => number, pick: Pick, i: number): { sheet: CharacterSh
  * the defaults (as most bookings leave them) but every strategy, autonomy and budget turns up; and about half a couple's
  * later date, which in production mostly follows a good one.
  */
-export function sampleDates(n: number, seed = 728): { input: DateInput; seed: number }[] {
+export function sampleDates(n: number, seed = 728, opts: { noSoul?: boolean } = {}): { input: DateInput; seed: number }[] {
   const r = rng(seed);
   const pick: Pick = (list) => list[Math.floor(r() * list.length)];
   const usually = <T,>(usual: T, list: readonly T[], p = 0.65): T => (r() < p ? usual : pick(list));
   const out: { input: DateInput; seed: number }[] = [];
   for (let i = 0; i < n; i++) {
     const kind = i % 4; // 0, 1: agent with house; 2: agent with agent; 3: house with house
-    const one = kind === 3 ? houseSide(r, pick) : agentSide(r, pick, i * 2);
-    let two = kind === 2 ? agentSide(r, pick, i * 2 + 1) : houseSide(r, pick);
+    const one = kind === 3 ? houseSide(r, pick) : agentSide(r, pick, i * 2, Boolean(opts.noSoul));
+    let two = kind === 2 ? agentSide(r, pick, i * 2 + 1, Boolean(opts.noSoul)) : houseSide(r, pick);
     while (two.sheet.name === one.sheet.name) two = houseSide(r, pick);
-    const side = (c: { sheet: CharacterSheet; signals: SoulSignals }, booker: boolean): SideSetup => ({
+    const side = (c: { sheet: CharacterSheet; signals: DateSignals }, booker: boolean): SideSetup => ({
       sheet: c.sheet,
       signals: c.signals,
       autonomy: booker ? usually("balanced", AUTONOMY_LEVELS) : "balanced",
