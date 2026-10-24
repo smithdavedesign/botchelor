@@ -1981,3 +1981,21 @@ configurable … best in class"). What's built, by phase:
   refunded whole. **Caps:** `cap_studio` 400, `cap_studio_byok` 1,000, `cap_upscales` 50 a month, and every cap is now
   editable on the settings page.
 - **Tables:** `adult_studio_shoots`, `adult_identity`; `adult_images.shoot_id`; `adult_settings.studio` (JSON).
+
+### The checks: an alternative to Hive (2026-10-24)
+
+David: "Hive is a bottleneck atm, so it might be worth adding an alternative too. Everything should be configurable."
+`lib/adult/moderation.ts` (`checkMedia`, `mediaGate`, `checkReady`) now sits in front of every check; the settings
+page's **🛡 The checks** section sets it (`adult_settings.moderation`, `lib/adult/moderation-config.ts`).
+- **Alternatives:** `venice_vlm` (the same three-answer age question to a vision model on Venice, `qwen3-vl-235b-a22b`
+  by default: Venice-run, no daily cap, ~$0.0003 a check; it reads generated faces), `sightengine` (`face-age`'s minor
+  probability; an unscored "artificial" face refuses), `endpoint` (our own URL answering ADULTS/MINOR/UNSURE).
+- **Modes:** `hive` (the default, unchanged), `hive_then_alt` (the alternatives only when Hive gives no verdict: paused,
+  busy, down), `both` (Hive and every alternative must pass), `alt` (no Hive for pictures). Any alternative's refusal
+  refuses; `min_sources` say how many must run and pass. Videos always wait for Hive.
+- **The show's own pictures** (place sets, look tiles, season portraits) go to Hive, or with `pg_via: "alt"` to the
+  alternatives asked the show's question (SAFE/UNSAFE/UNSURE), leaving Hive's 100 a day for After Dark.
+- **The draw gate:** while Hive's breaker is open a picture is drawn only when the mode lets a ready alternative stand in.
+- A pass now carries Hive's `general_nsfw` score (`CheckResult.nsfw`), kept on Studio pictures (`adult_images.nsfw_score`)
+  for the texts' photos (v2).
+- Keys sealed like the others: `sightengine_key` (its api_secret; the api_user is a setting), `moderation_endpoint_key`.

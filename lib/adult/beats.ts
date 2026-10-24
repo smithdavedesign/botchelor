@@ -24,7 +24,7 @@ import { siteUrl } from "../site";
 import { actById, actFor, actRuledOut, crossesTaboo, FRAMING_WORDS, type MediaLimits } from "./acts";
 import { mediaLimits } from "./clips";
 import { climaxIn } from "./craft";
-import { hiveGate } from "./hive-limit";
+import { checkReady, mediaGate } from "./moderation";
 import { recentActions } from "./media";
 import { keepPictureOfBoth } from "./pictures-menu";
 import { keyframePrompt, placeWords, reelCast, withoutNames, type ReelPerson } from "./reels";
@@ -185,7 +185,7 @@ export async function beatPicturesReady(db: Db): Promise<boolean> {
   const settings = await getAdultSettings(db);
   if (!settings.beat_pictures) return false;
   const keys = await adultKeys(db);
-  return Boolean((settings.media_provider === "replicate" ? keys.replicate : keys.venice) && keys.hive);
+  return Boolean(settings.media_provider === "replicate" ? keys.replicate : keys.venice) && (await checkReady(db));
 }
 
 /** The running chapter's beats, for the page (filed chapters' beats have their night). */
@@ -263,7 +263,7 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<boolean
   try {
     const settings = await getAdultSettings(db);
     const keys = await adultKeys(db);
-    const gate = await hiveGate(db, keys.hive);
+    const gate = await mediaGate(db);
     if (!gate.ok) return fail(gate.reason);
     const capped = await overCap(db, beat.owner_id, "pictures");
     if (capped) return fail(capped);

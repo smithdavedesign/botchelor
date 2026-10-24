@@ -1994,6 +1994,17 @@ alter table adult_usage add column if not exists upscales integer not null defau
 alter table adult_settings add column if not exists cap_studio integer not null default 400;
 alter table adult_settings add column if not exists cap_studio_byok integer not null default 1000;
 alter table adult_settings add column if not exists cap_upscales integer not null default 50;
+-- Which checker checks (lib/adult/moderation.ts; David, 2026-10-24: "Hive is a bottleneck, add an alternative"): the
+-- mode and the alternatives in adult_settings.moderation (JSON), Sightengine's secret and our own endpoint's key sealed
+-- like the others; and the NSFW score Hive's moderation gave a picture it passed (a photo for the texts needs a low one).
+alter table adult_settings add column if not exists moderation jsonb;
+alter table adult_settings add column if not exists sightengine_ciphertext text;
+alter table adult_settings add column if not exists sightengine_nonce text;
+alter table adult_settings add column if not exists sightengine_last4 text;
+alter table adult_settings add column if not exists moderation_endpoint_ciphertext text;
+alter table adult_settings add column if not exists moderation_endpoint_nonce text;
+alter table adult_settings add column if not exists moderation_endpoint_last4 text;
+alter table adult_images add column if not exists nsfw_score double precision;
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
