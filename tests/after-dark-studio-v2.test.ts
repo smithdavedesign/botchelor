@@ -11,6 +11,7 @@ import { saveAdultSettings } from "@/lib/adult/settings";
 import { setStudioPausesForTests } from "@/lib/adult/studio";
 import { ANIMATE_MOTIONS, animatePrompt, VARIATION_HINTS, variationPrompt } from "@/lib/adult/studio-catalog";
 import { DEFAULT_STUDIO_CONFIG, mergeStudioConfig } from "@/lib/adult/studio-config";
+import { deleteAfterDarkData } from "@/lib/account";
 import { claimAdmin } from "@/lib/admins";
 import { assignJob, saveConnection } from "@/lib/connections";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -333,6 +334,12 @@ describe("sharing", () => {
     // Not someone they've dated: refused.
     const stranger = await person("Noor Ellis", { entitled: true });
     expect((await post({ action: "share", character_id: me.character, image_id: pic, to_character: stranger.character, kind: "after_dark" }, me.cookie)).status).toBe(404);
+    // Deleting an account takes its shares with it, either side, and its share setting.
+    await deleteAfterDarkData(t.db, them.id);
+    expect((await t.db.query(`select 1 from adult_shares where recipient_id = $1`, [them.id])).rows).toHaveLength(0);
+    expect((await t.db.query(`select 1 from adult_share_prefs where user_id = $1`, [them.id])).rows).toHaveLength(0);
+    await deleteAfterDarkData(t.db, me.id);
+    expect((await t.db.query(`select 1 from adult_shares`)).rows).toHaveLength(0);
   });
 
   it("sends a dressed, clean picture into their texts as a photo an agent can read, and nothing else", async () => {
@@ -397,6 +404,9 @@ describe("v3: setups, face strength and animate", () => {
     const gone = await (await post({ action: "delete_setup", character_id: me.character, setup_id: pair.setup.id }, me.cookie)).json();
     expect(gone.state.setups.map((x: { name: string }) => x.name)).toEqual(["Golden hour"]);
     expect((await post({ action: "delete_setup", character_id: me.character, setup_id: pair.setup.id }, me.cookie)).status).toBe(404);
+    // Deleting the account takes them with it.
+    await deleteAfterDarkData(t.db, me.id);
+    expect((await t.db.query(`select 1 from adult_studio_setups`)).rows).toHaveLength(0);
   });
 
   it("holds the face loosely with the face alone: no body reference", async () => {

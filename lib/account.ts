@@ -434,6 +434,8 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["adult_beats", "owner_id"], ["adult_monologues", "owner_id"], ["adult_voice_lines", "owner_id"], ["adult_reels", "owner_id"],
   ["adult_steps", "owner_id"], ["adult_facts", "owner_id"], ["adult_memories", "owner_id"], ["adult_rejections", "owner_id"],
   ["adult_light_picks", "owner_id"], ["adult_face_refs", "owner_id"], ["adult_nude_refs", "owner_id"], ["adult_identity", "owner_id"],
+  // The Studio's shares (as the sharer, and as the one shared with), share settings and saved setups.
+  ["adult_shares", "owner_id"], ["adult_shares", "recipient_id"], ["adult_share_prefs", "user_id"], ["adult_studio_setups", "owner_id"],
   ["adult_images", "owner_id"], ["adult_studio_shoots", "owner_id"],
   ["adult_steer_resets", "owner_id"], ["adult_shorts", "owner_id"], ["adult_nights", "owner_id"], ["adult_scenes", "owner_id"],
   ["adult_characters", "owner_id"], ["adult_switches", "owner_id"], ["adult_usage", "owner_id"], ["adult_privacy", "user_id"],
