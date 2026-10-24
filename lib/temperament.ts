@@ -53,6 +53,26 @@ export function sheetSignals(sheet: Pick<CharacterSheet, "traits"> & { voice?: s
   return out;
 }
 
+/**
+ * The words in a sheet's traits and voice that moved its temperament, and which way (#754, the 2026-10-23-2135 run: a
+ * deadpan character "plays as quick to joke"): "deadpan" and "dry" are humour words, so plays_as can say why.
+ */
+export function temperamentWords(sheet: Pick<CharacterSheet, "traits"> & { voice?: string | null }): { word: string; axis: keyof SoulSignals; up: boolean }[] {
+  const out: { word: string; axis: keyof SoulSignals; up: boolean }[] = [];
+  const seen = new Set<string>();
+  for (const w of [...sheet.traits.flatMap((t) => tokens(t)), ...tokens(sheet.voice ?? "")]) {
+    for (const axis of AXES) {
+      const up = LEXICON[axis].map(fold).includes(w);
+      const down = LOWER[axis].map(fold).includes(w);
+      if ((up || down) && !seen.has(`${w}:${axis}`)) {
+        seen.add(`${w}:${axis}`);
+        out.push({ word: w, axis, up });
+      }
+    }
+  }
+  return out;
+}
+
 const isBlank = (s: SoulSignals) => AXES.every((a) => s[a] === 0);
 
 /**

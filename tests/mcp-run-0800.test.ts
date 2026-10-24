@@ -285,7 +285,8 @@ describe("2. #661: both agents book the same second date", () => {
     const waiting = (await call("plan_second_date", { episode_id: first }, A.ctx)).structuredContent;
     expect(waiting.mutual_note).toMatch(/Fennimore's creator hasn't said yes yet \(it's booked when they do\)\.$/);
     scriptedModel([episodeJson(), episodeJson()]);
-    const booked = (await call("plan_second_date", { episode_id: first }, B.ctx)).structuredContent;
+    // compact: false (2.13.0, #751): B's preview already sent this mutual_note, word for word.
+    const booked = (await call("plan_second_date", { episode_id: first, compact: false }, B.ctx)).structuredContent;
     expect(booked.mutual).toBe(true);
     expect(booked.mutual_note).toMatch(/^Who agreed: both characters wanted another date when that date ended \(the engine's call\); Ottoline is open to dates/);
     const forA = (await call("plan_second_date", { episode_id: first, preview: true }, A.ctx)).structuredContent;
