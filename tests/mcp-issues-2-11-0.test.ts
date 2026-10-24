@@ -95,12 +95,15 @@ describe("#656: a date you perform shows where it's heading from its first step"
     const stored = (await t.db.query<{ ending: string }>(`select ending from episodes where id = $1`, [first.step.episode_id])).rows[0].ending;
     expect(h.ending).toBe(stored);
     expect(h.ending).toBe(first.step.ending);
-    expect(h.says).toMatch(/^(heading for a second date: \w+ carries it|closing as friends: \w+ is there, but \w+ never gets going|heading for a disaster: .*is the weak spot)$/);
+    // #728 (engine v4): the heading leads with what both see_agains would do, then the factor.
+    expect(h.says).toMatch(
+      /^(heading for a second date unless neither wants another: both say see_again: false on your last lines and it drops to friends\. \w+ carries it|closing as friends(: \w+ is there|\. \w+ is there| and close to a second date: both say see_again: true on your last lines and it lifts to one\. \w+ is there), but \w+ never gets going|heading for a disaster unless you both want to see each other again: both say see_again: true on your last lines and it lifts\. .*is the weak spot)$/i,
+    );
     expect(first.heading).toBe(h.says);
     expect(h.factors.length).toBeGreaterThanOrEqual(2);
     expect(h.factors.length).toBeLessThanOrEqual(3);
     expect(h.factors.some((f: string) => /, mostly from /.test(f))).toBe(true);
-    expect(h.note).toMatch(/^Set at booking from the two characters' numbers, not from how the lines read: play the lines toward it \(.* reads as .*\)\. The one lever is each side's private see_again on its last line/);
+    expect(h.note).toMatch(/^Set at booking from the two characters' numbers: play the lines toward it \(.* reads as .*\), or both send see_again to move it\. The lever is each side's private see_again on its last line: both yes and it can't end in a disaster/);
     // Qualitative words only: no hidden number reaches the performer.
     expect(JSON.stringify(h)).not.toMatch(/\d/);
     // The first reply says it, ahead of the step, and how to read it.
@@ -123,7 +126,7 @@ describe("#656: a date you perform shows where it's heading from its first step"
     const mine = started.step.heading;
     expect(mine).toMatchObject({ ending: "friends", ending_label: "Just friends" });
     expect(mine.says).toMatch(/^closing as friends: /);
-    expect(mine.note).toMatch(/Your one lever is your side's private see_again on its last line: with theirs, it can tip it\.$/);
+    expect(mine.note).toMatch(/Your lever is your side's private see_again on its last line; with theirs: both yes and it can't end in a disaster \(and a close friends ending becomes a second date\), both no and it can't be a second date, one each and the engine's ending stands\.$/);
     // Still not the fields a date between your own two carries (next_calls and the recap read those).
     expect(started.step.ending).toBeUndefined();
     expect(started.step.ending_label).toBeUndefined();
@@ -140,7 +143,7 @@ describe("#656: a date you perform shows where it's heading from its first step"
     // The same direction the last act's act_note gives.
     for (let i = 1; i < 8; i++) ok(await call("submit_own_date_step", { episode_id: id, output: line(i) }, (i % 2 === 0 ? A : B).ctx));
     const last = ok(await call("get_own_date_step", { episode_id: id }, A.ctx)).step;
-    expect(last.act_note).toBe(actNote("friends"));
+    expect(last.act_note).toBe(actNote("friends", undefined, { near: false }));
     expect(last.heading.ending).toBe("friends");
   });
 

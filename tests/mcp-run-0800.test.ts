@@ -81,7 +81,7 @@ describe("1. the see_again lever, where it matters", () => {
     const endings = (ctx.init.instructions as string).split("\n").find((l) => l.startsWith("Endings: "));
     expect(endings).toBe(`Endings: ${ENDING_RULE}.`);
     // 2.11.0 (#656): and a date you write shows where it's heading from its first step.
-    expect(ENDING_RULE).toMatch(/^set when a date is booked .*never by what the lines say; a date you write shows where it's heading from its first step \(heading\); your one lever is see_again: true or false \(private\) with your character's last line: both yes makes a better ending likelier, both no a parting, and the engine decides$/);
+    expect(ENDING_RULE).toMatch(/^set when a date is booked .*never by what the lines say; a date you write shows where it's heading from its first step \(heading\); your one lever is see_again \(private\) with your character's last line: both true and it can't end in a disaster, both false and it can't be a second date$/);
     // The 2.9.0 wording that hid the lever is gone everywhere an agent reads it first.
     expect(ctx.init.instructions).not.toMatch(/shape how it plays, not how it ends|your lines don't \(only/);
     const own = await ownPair();
@@ -89,7 +89,7 @@ describe("1. the see_again lever, where it matters", () => {
     const started = (await call("start_own_date", { character_id: own.a, partner_id: own.b }, own.ctx)).structuredContent;
     expect(started.ending_note.startsWith(OWN_ENDING_NOTE)).toBe(true);
     expect(OWN_ENDING_NOTE).toBe(
-      "How it ends: set now, at booking (who it's with and the sheets), never by what the lines say. Your one lever: see_again: true or false (private) with your character's last line (its step says when). Both yes makes a better ending likelier, both no a parting; the engine decides.",
+      "How it ends: set now, at booking (who it's with and the sheets), never by what the lines say. Your one lever: see_again: true or false (private) with your character's last line (its step says when). Both true and it can't end in a disaster (a close friends ending becomes a second date); both false and it can't be a second date; one each, the engine's ending stands.",
     );
     const keys = Object.keys(started);
     expect(keys.indexOf("ending_note")).toBeLessThan(keys.indexOf("step"));
@@ -114,7 +114,7 @@ describe("1. the see_again lever, where it matters", () => {
     // The step (compact by default after the first): led by it, the format an object with see_again first, and the example.
     expect(r.step.instructions.startsWith(lead)).toBe(true);
     expect(r.step.see_again.startsWith(lead)).toBe(true);
-    expect(r.step.see_again).toMatch(/Send it with the line, as \{"dialogue": "…", "see_again": true\} \(a bare string can't carry it\)\. Left out, this line's interest_signal stands in: 0\.65 or more counts as yes, 0\.35 or less as no\.$/);
+    expect(r.step.see_again).toMatch(/Send it with the line, as \{"dialogue": "…", "see_again": true\} \(a bare string can't carry it\)\. Left out, Ada Lumen's interest_signal across the last act \(the average\) stands in: 0\.65 or more counts as yes, 0\.35 or less as no\.$/);
     expect(r.step.reply_format).toMatch(/^\{"dialogue": "the line", "see_again": true or false \(private: does Ada Lumen want another date\?\)/);
     expect(r.step.example_reply).toBe(LAST_LINE_EXAMPLE);
     expect(JSON.parse(LAST_LINE_EXAMPLE)).toMatchObject({ see_again: true });
@@ -131,7 +131,8 @@ describe("1. the see_again lever, where it matters", () => {
     expect(f.reply_format).toMatch(/"see_again":"true or false, private: does this character want another date\? With theirs, it can tip the ending\."\}$/);
     expect(f.example_reply).toBe(LAST_LINE_EXAMPLE);
     // The last act's note names the lever first, not "your lines shape how it plays".
-    expect(r.step.act_note).toMatch(/What can still tip it is each side's private see_again on its last line, not what the lines say\.$/);
+    // #728: under engine v4, what both see_agains would do to it, truthfully.
+    expect(r.step.act_note).toMatch(/What can still move it is both sides' private see_again on their last lines, not what the lines say: /);
   });
 
   it("on a two-agent date the finished date says how the wishes counted: your own (sent, or the interest_signal that stood in, and how to steer), theirs private", async () => {
@@ -154,8 +155,8 @@ describe("1. the see_again lever, where it matters", () => {
       yours: [{ character: "Hestia Moonwhistle", see_again: null, from: "interest_signal", interest_signal: 0.6 }],
       theirs: "private",
       note:
-        "No see_again on Hestia's last line, so its interest_signal (0.6) stood in: no wish either way (0.65 or more counts as yes, 0.35 or less as no). Next time, send see_again: true or false with that line: it's how you steer. " +
-        "Ottoline's wish stays private (only an agreement that tips the ending is told). The wishes tip an ending only when both agree, and then only some of the time: they didn't tip this one, so second_date is the engine's own ending.",
+        "No see_again on Hestia's last line, so its interest_signal across the last act (average 0.6) stood in: no wish either way (0.65 or more counts as yes, 0.35 or less as no). Next time, send see_again: true or false with that line: it's how you steer. " +
+        "Ottoline's wish stays private (only an agreement that moves the ending is told). The wishes move an ending only when both agree (both yes: never a disaster; both no: never a second date): they didn't move this one, so second_date is the engine's own ending.",
     });
     // A's no stays A's: nothing in B's reply carries it.
     expect(JSON.stringify(last)).not.toMatch(/"see_again":false/);

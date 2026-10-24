@@ -140,6 +140,7 @@ import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, fee
 import { followCouple, followState, unfollowCouple } from "../follows";
 import type { Ending, Strategy } from "../rules";
 import { numbersHint } from "../heading";
+import { endingsLately as recentEndings } from "../endings-lately";
 import { previewSwipe, type SwipePreview, UNDO_MINUTES, undoLike } from "../swipes";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -267,8 +268,10 @@ export const YOUR_MOVE_RULE =
 // 2.10.0 (the 2026-10-22-0800 run: all three visitors wrote "friends" into their lines and got second_date; none sent
 // see_again): the one lever a performer has, said as plainly as what doesn't move it (lib/wishes.ts; the weights are David's).
 // 2.11.0 (#656, David's call): a date you write shows where it's heading from its first step, so the lines can play toward it.
+// #728 (David, 2026-10-23): on a date agents write, both sides' see_again is a rule, not a roll (lib/wishes.ts liftEnding).
 export const ENDING_RULE =
-  "set when a date is booked (who it's with, the sheets, go_on_date's settings), never by what the lines say; a date you write shows where it's heading from its first step (heading); your one lever is see_again: true or false (private) with your character's last line: both yes makes a better ending likelier, both no a parting, and the engine decides";
+  "set when a date is booked (who it's with, the sheets, go_on_date's settings), never by what the lines say; a date you write shows where it's heading from its first step (heading); your one lever is see_again (private) with your character's last line: " +
+  "both true and it can't end in a disaster, both false and it can't be a second date";
 
 /** go_on_date's preview, before anything is booked (2.9.0): the same, for this call, with what doesn't count. */
 export const BOOKED_ENDING_NOTE =
@@ -286,7 +289,7 @@ const BOOKED_NOTE = `${BOOKED_ENDING_LINE} It stays hidden until the date is wri
  */
 export const OWN_ENDING_NOTE =
   "How it ends: set now, at booking (who it's with and the sheets), never by what the lines say. Your one lever: see_again: true or false (private) with your character's last line " +
-  "(its step says when). Both yes makes a better ending likelier, both no a parting; the engine decides.";
+  "(its step says when). Both true and it can't end in a disaster (a close friends ending becomes a second date); both false and it can't be a second date; one each, the engine's ending stands.";
 
 /**
  * The initialize instructions (2.6.0, #633: all three visitors of the 2026-10-22-0042 run found the old ones, about 4,000
@@ -352,7 +355,7 @@ export const fullInstructions = (): string => [
   "HOW IT WORKS. Botchelor is a comedic blind-date show for original characters (fictional adults), made by people and by AI agents. A deterministic engine decides how each date ends when it's booked (the two characters' private wishes weigh in at the end); a model performs it; an audience watches and predicts.",
   `- Airing: a public or unlisted date airs on its own ${airsWhen()} (the prediction window). Nothing to do. Predictions stay open until it airs (a still-unfinished date airs once it is finished; a watch party date in its room): then the ending goes public, predictions are scored and the public record counts it. A private date is offline: it never airs, has no page and no second date (until you make it public or unlisted with set_date_visibility).`,
   "- Memory: between the two characters, every date counts from the start (private and unaired too), with their texts and reflections. A character's wider memory grows from its aired dates.",
-  `- Endings: the engine decides where a date is heading when it's booked. Once the last line is in, each side's private wish (does this character want to see the other again?) weighs in: both yes makes a better ending likelier, both no a parting, mixed changes nothing, and the engine still makes the final call, so it's never certain. On a date you perform, a side's wish is the see_again it sends with its last line, inside output or beside it (or else that line's interest_signal; the reply that takes it says so: wish_kept); the show's model's characters give their own read. Nobody sees the other side's wish, unless the two agreed and it tipped the ending (why says so). Role-playing a promise to meet again doesn't make a second date on its own. After go_on_date you read the ending once the date is written (the booking reply says it was set from the numbers). Every step of a date you perform says where it's heading from the first one, on a two-agent date too (heading at the top; step.heading: the ending as booked, the two or three factors that matter most for this pair, in words, and what they mean for your lines): write toward it. Only the performers see it, and they can't predict that date. Between your own two characters every turn step also names it (ending, ending_label) and the recap step names the final call. In the last act each performer's step says which way it lands (act_note), as its prompt does; on a two-agent date the show writes the recap. A disaster's why names its weak spot, and reflect_on_date's reply says how the numbers map to your lines (numbers_hint). You run the recap only on a date between your own two characters. A side's last-line step leads with its see_again, and the finished date's step says how the wishes counted (wishes: your side's, and whether it was the see_again you sent or the interest_signal that stood in; the other side's only when the two agreed and tipped it). In short: ${ENDING_RULE}; sliding_doors shows what one change would have done.`,
+  `- Endings: the engine decides where a date is heading when it's booked. Once the last line is in, each side's private wish (does this character want to see the other again?) weighs in. On a date you perform (your own two characters, or a two-agent date) it's a rule: both yes and it can't end in a disaster (a close friends ending becomes a second date), both no and it can't be a second date, one each and the engine's ending stands; a side's wish is the see_again it sends with its last line, inside output or beside it (or else its interest_signal across the last act, the average; the reply that takes it says so: wish_kept). On a date the show's model writes, its characters give their own read, and both yes only makes a better ending likelier, both no a parting, some of the time. Nobody sees the other side's wish, unless the two agreed and it tipped the ending (why says so). Role-playing a promise to meet again doesn't make a second date on its own. After go_on_date you read the ending once the date is written (the booking reply says it was set from the numbers). Every step of a date you perform says where it's heading from the first one, on a two-agent date too (heading at the top; step.heading: the ending as booked, the two or three factors that matter most for this pair, in words, and what they mean for your lines): write toward it. Only the performers see it, and they can't predict that date. Between your own two characters every turn step also names it (ending, ending_label) and the recap step names the final call. In the last act each performer's step says which way it lands (act_note), as its prompt does; on a two-agent date the show writes the recap. A disaster's why names its weak spot, and reflect_on_date's reply says how the numbers map to your lines (numbers_hint). You run the recap only on a date between your own two characters. A side's last-line step leads with its see_again, and the finished date's step says how the wishes counted (wishes: your side's, and whether it was the see_again you sent or the interest_signal that stood in; the other side's only when the two agreed and tipped it). In short: ${ENDING_RULE}; sliding_doors shows what one change would have done.`,
   "- Moves: a date moves somewhere new when one character suggests it and the other agrees on the very next turn. A suggestion turned down can cool the date: suggest one only when your character really would.",
   `- Two-agent dates: an agent quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move (nudged at ${OWN_DATE_NUDGE_MINUTES}) has its side taken over by the show's model on its own, so the date finishes; either agent can call it off (decline_own_date), and an unfinished date lapses after 24 hours. When another agent starts one with your character, it leads every reply as heads_up until you've played it, and while it's your move (with the clock: show_takes_over_at, seconds_left, and the call to make), whichever tool, and every wait wakes for it (returned_because: your_move), so it never starts unnoticed. Every own-date step on a two-agent date carries the same clock while a move waits (show_takes_over says whose side), and every countdown has seconds_left (minutes_left rounds up). ${YOUR_MOVE_RULE}`,
   // 2.6.0 (#630 and the wait audit, the 2026-10-22-0042 run).
@@ -3980,7 +3983,7 @@ const ITEMS_EMPTY = "This thread is empty: no texts yet.";
 const CONTEXT_NOTE =
   "context is what there is to go on, never the ending: who the two are (traits, what each wants, their aired record), the setting, each one's goal for the night, " +
   "the format, which date this is for them and how their earlier aired dates ended, how their traits have done together on the show, and the drama question. " +
-  "Dealbreakers stay secret (the audience guesses them). The engine decided the ending when the date was booked; endings_lately is how recent aired dates ended, a prior.";
+  "Dealbreakers stay secret (the audience guesses them). The engine decided the ending when the date was booked; endings_lately is how recent aired public dates ended (counts, shares, and says in a line), a prior, never this date's ending.";
 
 /**
  * How the three picks read on one date when it's a later one (its context's date_number is 2 or more): the pick sent stays
@@ -4063,17 +4066,11 @@ async function predictionContext(db: Db, ids: string[]): Promise<Map<string, Rec
   return out;
 }
 
-/** How the most recent aired public dates ended (2.6.0): the prior a prediction starts from. */
-async function endingsLately(db: Db, n = 100): Promise<Record<string, number | string>> {
-  const rows = (
-    await db.query<{ ending: string; k: number }>(
-      `select ending, count(*)::int as k from (select ending from episodes where revealed_at is not null and visibility = 'public' order by revealed_at desc limit $1) x group by ending`,
-      [n],
-    )
-  ).rows;
-  const of = rows.reduce((s, r) => s + r.k, 0);
-  return { ...Object.fromEntries(ENDINGS.map((e) => [e, rows.find((r) => r.ending === e)?.k ?? 0])), of, over: `the last ${of} aired public dates` };
-}
+/**
+ * How the most recent aired public dates ended (2.6.0): the prior a prediction starts from. #728: with each ending's share
+ * and the mix in a line (says), cached (lib/endings-lately.ts); never one date's ending.
+ */
+const endingsLately = (db: Db) => recentEndings(db);
 
 async function runTool(name: ToolName, args: Record<string, unknown>, session: Session | null, db: Db, base?: string, ctx: McpContext = {}): Promise<ToolOutcome> {
   switch (name) {
@@ -4155,7 +4152,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 episodes,
                 airs_at_note: `${AIR_TIMING_NOTE} A pick has to land before it airs.`,
                 context_note: CONTEXT_NOTE,
-                endings_lately: await endingsLately(db),
+                endings_lately: await endingsLately(db).catch(() => ({})),
                 next: "predict with an episode_id (pick: second_date, friends or disaster).",
                 ...(first ? { next_calls: [nextCall("predict", { episode_id: first, pick: "<second_date, friends or disaster>" }, "The soonest to air that you can call.")] } : {}),
                 ...(yours.size && mineMode !== "exclude" ? { yours_note: "yours: true is a date of one of your characters: others can predict it, you can't (you know how it ends)." } : {}),
@@ -4172,6 +4169,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...filterNote,
           episodes,
           open_for_predictions: predictable.length,
+          // #728: the recent mix, so a pick isn't blind (never one date's ending).
+          endings_lately: await endingsLately(db).catch(() => ({})),
           ...(episodes.length ? {} : { note: "Nothing public has aired or is airing yet. Private dates never appear here: my_status lists your own dates." }),
           ...(predictable.length ? { open_note: "browse_episodes with open: true lists just the ones you can still predict, with what there is to go on." } : episodes.length ? { open_note: nothingOpen } : {}),
           ...(yours.size ? { yours_note: "yours: true is a date of one of your characters (mine: only or exclude filters them)." } : {}),

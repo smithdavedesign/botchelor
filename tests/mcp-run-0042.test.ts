@@ -4,6 +4,7 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { CORE_MCP_TOOLS, CORE_TOOL_ORDER, handleMcpMessage, MCP_RESOURCES, MCP_SERVER_INFO, MCP_TOOLS, START_HERE, TOOL_COSTS, type McpContext } from "@/lib/mcp";
 import { costTable, FULL_INSTRUCTIONS_URI, fullInstructions, HEADS_UP_RULE, SINCE_FORMAT } from "@/lib/mcp/dispatcher";
 import { listNotifications } from "@/lib/notifications";
+import { clearEndingsLatelyForTests, latelyFrom } from "@/lib/endings-lately";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { episodeJson, scriptedModel, scriptOutcome, startTestDb, validCharacter, validEpisodeDraft } from "./helpers";
 
@@ -334,6 +335,44 @@ describe("predictions: something to go on, never the ending", () => {
     expect(picked.context).toEqual(context);
     expect(JSON.stringify(picked.context)).not.toContain("disaster");
     expect(picked.next_calls[0]).toMatchObject({ tool: "browse_episodes", args: { open: true } });
+  });
+
+  it("#728: predict and browse_episodes carry how recent aired public dates ended, in a line, cached, never this date's ending", async () => {
+    const host = await agentWith("Hal Brooks");
+    const viewer = await agentWith("Vi Lark");
+    for (const ending of ["second_date", "second_date", "friends"] as const) {
+      const d = await houseDate(host.ctx, host.id, ending);
+      await t.db.query(`update episodes set revealed_at = now(), visibility = 'public' where id = $1`, [d.episode.id]);
+    }
+    // An aired private date never counts.
+    const other = await agentWith("Ola Finch");
+    const offline = await houseDate(other.ctx, other.id, "disaster");
+    await t.db.query(`update episodes set revealed_at = now(), visibility = 'private' where id = $1`, [offline.episode.id]);
+    const booked = await houseDate(other.ctx, other.id, "disaster");
+    const mix = {
+      second_date: 2,
+      friends: 1,
+      disaster: 0,
+      of: 3,
+      shares: { second_date: 67, friends: 33, disaster: 0 },
+      says: "lately: 67% second date, 33% friends, 0% disaster (the last 3 aired public dates)",
+    };
+    const open = (await call("browse_episodes", { open: true }, viewer.ctx)).structuredContent;
+    expect(open.endings_lately).toMatchObject(mix);
+    expect((await call("browse_episodes", {}, viewer.ctx)).structuredContent.endings_lately).toMatchObject(mix);
+    const picked = (await call("predict", { episode_id: booked.episode.id, pick: "friends" }, viewer.ctx)).structuredContent;
+    expect(picked.endings_lately).toMatchObject(mix);
+    // The open date's own ending (a disaster) is nowhere in what the viewer reads, the mix aside.
+    const { endings_lately: _mix, ...rest } = picked;
+    void _mix;
+    expect(JSON.stringify(rest)).not.toMatch(/disaster/);
+    expect(JSON.stringify(open.episodes)).not.toMatch(/disaster/);
+    // Cached: a date airing now shows up once the cache turns over, not on the very next call.
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [booked.episode.id]);
+    expect((await call("browse_episodes", {}, viewer.ctx)).structuredContent.endings_lately.of).toBe(3);
+    clearEndingsLatelyForTests();
+    expect((await call("browse_episodes", {}, viewer.ctx)).structuredContent.endings_lately).toMatchObject({ of: 4, disaster: 1 });
+    expect(latelyFrom({ second_date: 0, friends: 0, disaster: 0 }).says).toMatch(/no public date has aired yet/);
   });
 
   it("a couple's earlier aired dates are in context; this date's ending isn't", async () => {

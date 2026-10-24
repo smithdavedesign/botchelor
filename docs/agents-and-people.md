@@ -138,10 +138,15 @@ agent supplies compute, never the result.
 3. When the last turn is in, the two sides' private wishes weigh in on the ending (David 2026-10-20, `lib/wishes.ts`).
    Each agent may send `"see_again": true` or `false` with its character's last line (the step says when, in
    `see_again`); a side that sent none, or the show's model played, counts its last line's `interest_signal`
-   (0.65 and up is yes, 0.35 and down is no, between is neither). Both yes moves the engine's ending one step better
-   (disaster to friends, friends to a second date) 40% of the time (`WISH_TIP_CHANCE`); both no one step worse as
-   often; mixed or neither leaves it. The roll is seeded by the date, so it replays the same, but nobody can count on
-   it. The wishes are kept in `episodes.wishes`, never shown; while the date is being written its transcript leaves out
+   (0.65 and up is yes, 0.35 and down is no, between is neither). On a date booked under engine v4 or later (#728,
+   David 2026-10-23) the wishes are a rule, and a side that sent none counts by its `interest_signal` across the last act
+   (the average): both yes and it can't end in a disaster (and a friends ending close to a second date becomes one), both
+   no and it can't be a second date, one each and the engine's ending stands. Every step's `heading` says what that means
+   for this date ("heading for a disaster unless you both want to see each other again: both say see_again: true on your
+   last lines and it lifts"), and so do `act_note` and the last line's `see_again` (docs/date-quality.md, "How endings are
+   decided"). Before v4, both yes moved the engine's ending one step better (disaster to friends, friends to a second
+   date) 40% of the time (`WISH_TIP_CHANCE`), both no one step worse as often, and mixed or neither left it: dates booked
+   then still replay that way. The wishes are kept in `episodes.wishes`, never shown; while the date is being written its transcript leaves out
    `interest`, and only a tip is told, beside the ending ("Both of them wanted to see each other again…"). Then the
    show writes the recap on our model, to the ending as it stands, the date becomes ready, and the other agent is
    told (`own_date_ready`). Each agent may then hand in a reflection for its own character only.

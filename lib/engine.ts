@@ -129,9 +129,21 @@ export type Outcome = {
  *      5) and trust rose for 99% of five-date couples, whatever happened on them. Under v3 it's 87% and 82%, with as
  *      many couples reaching date 5 (tests/engine-arcs.test.ts, docs/relationship-sim-evidence.md). v3 also starts a couple's box score where
  *      they left off (their running chemistry and trust) instead of a stranger's baseline. First dates are unchanged.
+ *   v4 (2026-10-23, #728): a fairer mix, and a dealbreaker as one factor among several. Over a seeded, production-shaped
+ *      spread of 6,000 dates (house and agent characters, every strategy, autonomy, budget and agenda; tests/engine-sample.ts)
+ *      v3 ended 62% second date, 19% friends and 19% disaster (production's show-model dates: 67/15/18), and a tripped
+ *      dealbreaker was a disaster 99.9% of the time (production: 9 of 9). Why it dominated agents' own dates: the cue
+ *      match tripped on little words ("she", "ask", "without") and on what the *other* character wants rather than what
+ *      they are (6 of the 8 trips on agents' dates), a couple re-dating trips the same one every time, and one trip cost
+ *      about 27 points against a 6.5-point mark. v4 matches a dealbreaker on what the other is (traits, bio, appearance),
+ *      ignores those little words for wants and dealbreakers, costs a trip about a quarter as much (~6.6 points), moves
+ *      the marks (friends 10.5, a second date 15.5) and scales up the two strategies that weighed less in all
+ *      (STRATEGY_WEIGHTS_V4): 46/32/22 over the same spread, every strategy within a few points of it, and a tripped
+ *      dealbreaker ends in a disaster about three times in five. On a date agents perform, both sides' wishes also count
+ *      for more (lib/wishes.ts). v1 to v3 replay exactly as they were.
  */
-export type EngineVersion = 1 | 2 | 3;
-export const CURRENT_ENGINE_VERSION: EngineVersion = 3;
+export type EngineVersion = 1 | 2 | 3 | 4;
+export const CURRENT_ENGINE_VERSION: EngineVersion = 4;
 
 export interface Engine {
   decide(input: DateInput, seed: number, version?: EngineVersion): Outcome;
@@ -178,6 +190,34 @@ function firstShared(needle: Set<string>, haystackText: string): string | null {
 /** Everything the *other* character visibly is: how one side reads the other for wants and dealbreakers. */
 function surface(sheet: CharacterSheet): string {
   return `${sheet.traits.join(" ")} ${sheet.bio} ${sheet.want} ${sheet.appearance ?? ""}`;
+}
+
+/**
+ * v4 (#728): little words that say nothing about who someone is, so they never meet a want or trip a dealbreaker. In
+ * production every dealbreaker an agent's date tripped on was one of these or a word of the other character's *want*.
+ * In normalised form (norm: a trailing "s" dropped on longer words).
+ */
+const V4_WEAK_WORDS = new Set([
+  "she", "her", "hers", "him", "his", "himself", "herself", "our", "ours", "we", "what", "which", "where", "why", "how",
+  "without", "within", "ask", "asked", "asking", "back", "big", "small", "little", "make", "made", "making", "thing",
+  "way", "even", "still", "also", "only", "much", "many", "lot", "good", "bad", "new", "old", "other", "time", "day",
+  "night", "has", "have", "had", "was", "were", "did", "doe", "don", "won", "all", "each", "both", "own", "same", "while",
+  "once", "here", "there", "now", "off", "yet", "ever", "anything", "something", "everything", "nothing", "everyone",
+  "kind", "sort", "type", "keep", "take", "give", "got", "let", "put", "see", "seem", "try", "use", "used", "going",
+  "come", "know", "think", "feel", "look", "find", "tell", "around", "through", "because", "until", "again", "first",
+  "last", "next", "well", "right", "real", "actually", "please",
+]);
+
+/** v4: the cues that can carry a want or a dealbreaker: cues() without the little words. */
+function strongCues(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of cues(text)) if (!V4_WEAK_WORDS.has(w)) out.add(w);
+  return out;
+}
+
+/** v4: what the other character *is* (traits, bio, appearance), which is what trips a dealbreaker; what they want isn't. */
+function presence(sheet: CharacterSheet): string {
+  return `${sheet.traits.join(" ")} ${sheet.bio} ${sheet.appearance ?? ""}`;
 }
 
 /* ---------------------------------- soul signals ---------------------------------- */
@@ -248,6 +288,19 @@ const STRATEGY_WEIGHTS: Record<Strategy, [number, number, number, number]> = {
   long_term: [0.2, 0.2, 0.55, 0.3],
   unexpected: [0.3, 0.3, 0.25, 0.35],
 };
+/**
+ * v4 (#728): the same leanings, with the two strategies that weighed less in all (and so landed lower against the same
+ * marks) scaled up to the others' reach: under v4's marks, long_term ended 38/30/32 and unexpected 21/34/46 over the
+ * sample (tests/engine-sample.ts), against ~48/29/23 for the other two. Scaled (×1.1 and ×1.3), all four sit near the mix.
+ */
+const STRATEGY_WEIGHTS_V4: Record<Strategy, [number, number, number, number]> = {
+  ...STRATEGY_WEIGHTS,
+  long_term: [0.22, 0.22, 0.6, 0.33],
+  unexpected: [0.39, 0.39, 0.33, 0.46],
+};
+/** A strategy's ending weights under an engine version. */
+const weightsFor = (strategy: Strategy, version: number | null | undefined): [number, number, number, number] =>
+  ((version ?? 1) >= 4 ? STRATEGY_WEIGHTS_V4 : STRATEGY_WEIGHTS)[strategy];
 const SECOND_DATE_AT = 56;
 const FRIENDS_AT = 42;
 /** v2: how far above (or below) a perfectly neutral date's score the date must land, under its own strategy. */
@@ -258,31 +311,55 @@ export const UNREMARKABLE_SIGNALS: SoulSignals = { warmth: 0.4, openness: 0.4, g
 const isBlank = (s: SoulSignals) => s.warmth === 0 && s.openness === 0 && s.guardedness === 0 && s.humor === 0;
 
 /** The score a date with every variable at its starting value would get under a strategy (v2's zero point). */
-function neutralScore(strategy: Strategy): number {
-  const [wc, wa, wt, wk] = STRATEGY_WEIGHTS[strategy];
+function neutralScore(strategy: Strategy, version: number | null | undefined): number {
+  const [wc, wa, wt, wk] = weightsFor(strategy, version);
   return wc * START.chemistry + wa * START.attraction + wt * START.trust - wk * START.awkwardness;
 }
 
-/** What a tripped dealbreaker takes off a date's score. */
+/** What a tripped dealbreaker takes off a date's score (v1 to v3). */
 export const DEALBREAKER_PENALTY = 11;
+
+/**
+ * v4 (#728): the marks, measured from a perfectly neutral date under the same strategy as v2's are, re-centred so that
+ * over a representative spread of dates roughly 40–50% end in a second date, 25–35% as friends and 20–30% in a
+ * disaster (tests/engine-v4.test.ts pins the bands).
+ */
+export const V4_SECOND_DATE_REL = 15.5;
+export const V4_FRIENDS_REL = 10.5;
+/** v4: what a tripped dealbreaker takes off a date's score directly (on top of what it does to the four numbers). */
+export const V4_DEALBREAKER_PENALTY = 2;
+
+/** What one tripped dealbreaker does to each number, and to the score directly, by version (v4: about half as much). */
+type DealbreakerCost = { chemistry: number; attraction: number; trust: number; awkwardness: number; penalty: number };
+const DEALBREAKER_COST_V1: DealbreakerCost = { chemistry: 13, attraction: 6, trust: 10, awkwardness: 15, penalty: DEALBREAKER_PENALTY };
+const DEALBREAKER_COST_V4: DealbreakerCost = { chemistry: 4, attraction: 2, trust: 3, awkwardness: 4, penalty: V4_DEALBREAKER_PENALTY };
+const dealbreakerCost = (version: EngineVersion): DealbreakerCost => (version >= 4 ? DEALBREAKER_COST_V4 : DEALBREAKER_COST_V1);
+/** What a tripped dealbreaker takes off a date's score directly, under a version (the box score's why says it). */
+export const dealbreakerPenalty = (version: number | null | undefined): number => dealbreakerCost((version ?? 1) >= 4 ? 4 : 3).penalty;
+
+/** A v2+ date's marks for friends and a second date, by version. */
+export function marks(version: number | null | undefined): { friendsAt: number; secondDateAt: number } {
+  return (version ?? 1) >= 4 ? { friendsAt: V4_FRIENDS_REL, secondDateAt: V4_SECOND_DATE_REL } : { friendsAt: V2_FRIENDS_REL, secondDateAt: V2_SECOND_DATE_REL };
+}
 
 /**
  * The number a v2+ ending is decided on, from where the four variables finished: the initiating side's
  * strategy-weighted score, minus the penalty for each tripped dealbreaker, measured against a perfectly ordinary date
  * under the same strategy (`rel`), with the marks it had to clear. decide() uses it, and so does the box score's
- * "why" (lib/why.ts), so the explanation can never drift from the decision.
+ * "why" (lib/why.ts), so the explanation can never drift from the decision. `version`: the date's engine version (v2
+ * and v3 share their marks; left out, theirs).
  */
 export function endingScore(
   strategy: Strategy,
   finals: Record<DateVariable, number>,
   dealbreakers: number,
+  version: number | null = 3,
 ): { rel: number; friendsAt: number; secondDateAt: number; weights: Record<DateVariable, number> } {
-  const [wc, wa, wt, wk] = STRATEGY_WEIGHTS[strategy];
-  const score = wc * finals.chemistry + wa * finals.attraction + wt * finals.trust - wk * finals.awkwardness - DEALBREAKER_PENALTY * dealbreakers;
+  const [wc, wa, wt, wk] = weightsFor(strategy, version);
+  const score = wc * finals.chemistry + wa * finals.attraction + wt * finals.trust - wk * finals.awkwardness - dealbreakerPenalty(version) * dealbreakers;
   return {
-    rel: score - neutralScore(strategy),
-    friendsAt: V2_FRIENDS_REL,
-    secondDateAt: V2_SECOND_DATE_REL,
+    rel: score - neutralScore(strategy, version),
+    ...marks(version),
     weights: { chemistry: wc, attraction: wa, trust: wt, awkwardness: wk },
   };
 }
@@ -301,16 +378,18 @@ type SideRead = {
 };
 
 /** How one side reads the other: want met, dealbreaker tripped, agenda met or clashed. */
-function readSide(self: SideSetup, other: SideSetup): SideRead {
+function readSide(self: SideSetup, other: SideSetup, version: EngineVersion): SideRead {
   const otherSurface = surface(other.sheet);
   const a = agenda(self.agendaId);
   const seeks = new Set(a.seeks.map(norm));
   const avoids = new Set(a.avoids.map(norm));
   const seekHit = seeks.size > 0 && firstShared(seeks, otherSurface) !== null;
   const avoidHit = avoids.size > 0 && firstShared(avoids, otherSurface) !== null;
+  // v4 (#728): a want or a dealbreaker is read on its meaningful words only, and a dealbreaker on what the other *is*.
+  const v4 = version >= 4;
   return {
-    wantCue: firstShared(cues(self.sheet.want), otherSurface),
-    dealbreakerCue: firstShared(cues(self.sheet.dealbreaker), otherSurface),
+    wantCue: firstShared(v4 ? strongCues(self.sheet.want) : cues(self.sheet.want), otherSurface),
+    dealbreakerCue: v4 ? firstShared(strongCues(self.sheet.dealbreaker), presence(other.sheet)) : firstShared(cues(self.sheet.dealbreaker), otherSurface),
     // seek-type agendas are met by a matching cue; avoid-type agendas are met when the thing stays absent.
     agendaMet: a.seeks.length > 0 ? seekHit : !avoidHit,
     agendaClash: avoidHit,
@@ -353,10 +432,13 @@ function decideCore(input: DateInput, seed: number, version: EngineVersion, with
     const rand = rng(seed);
     const jitter = (level: Autonomy) => (rand() - 0.5) * 2 * JITTER[level];
 
-    const ra = readSide(input.a, input.b);
-    const rb = readSide(input.b, input.a);
+    const ra = readSide(input.a, input.b, version);
+    const rb = readSide(input.b, input.a, version);
 
     const dealbreakers = (ra.dealbreakerCue ? 1 : 0) + (rb.dealbreakerCue ? 1 : 0);
+    // v4 (#728): a tripped dealbreaker costs about half what it did, so it's one factor among several.
+    const db = dealbreakerCost(version);
+    const { friendsAt, secondDateAt } = marks(version);
     const wantsMet = (ra.wantCue ? 1 : 0) + (rb.wantCue ? 1 : 0);
     const agendasMet = (ra.agendaMet ? 1 : 0) + (rb.agendaMet ? 1 : 0);
     const clashes = (ra.agendaClash ? 1 : 0) + (rb.agendaClash ? 1 : 0);
@@ -402,20 +484,20 @@ function decideCore(input: DateInput, seed: number, version: EngineVersion, with
     const jChem = jitter(input.a.autonomy);
     const chemistry = clamp(
       START.chemistry + 6 * traitResonance + 12 * humor + 9 * warmth + budget + strategyChem +
-        3 * noteBump - 13 * dealbreakers + histChem + jChem,
+        3 * noteBump - db.chemistry * dealbreakers + histChem + jChem,
     );
     const jAttr = jitter(input.b.autonomy);
     const attraction = clamp(
-      START.attraction + 11 * openness + 8 * wantsMet + 5 * agendasMet - 6 * dealbreakers + jAttr,
+      START.attraction + 11 * openness + 8 * wantsMet + 5 * agendasMet - db.attraction * dealbreakers + jAttr,
     );
     const jTrust = jitter(input.a.autonomy);
     const trust = clamp(
-      START.trust + 13 * warmth - 15 * guarded + strategyTrust + 3 * noteBump - 10 * dealbreakers +
+      START.trust + 13 * warmth - 15 * guarded + strategyTrust + 3 * noteBump - db.trust * dealbreakers +
         4 * familiarity + histTrust + jTrust,
     );
     const jAwk = jitter(input.b.autonomy);
     const awkwardness = clamp(
-      START.awkwardness + 15 * dealbreakers + 12 * guarded + 7 * clashes - 11 * humor - 4 * noteBump -
+      START.awkwardness + db.awkwardness * dealbreakers + 12 * guarded + 7 * clashes - 11 * humor - 4 * noteBump -
         3 * familiarity + jAwk,
     );
 
@@ -433,19 +515,19 @@ function decideCore(input: DateInput, seed: number, version: EngineVersion, with
     };
 
     // Ending: the initiating side's strategy decides which variables matter. A tripped dealbreaker hurts.
-    const [wc, wa, wt, wk] = STRATEGY_WEIGHTS[input.a.strategy];
-    const score = wc * chemistry + wa * attraction + wt * trust - wk * awkwardness - DEALBREAKER_PENALTY * dealbreakers;
-    const { rel } = endingScore(input.a.strategy, { chemistry, attraction, trust, awkwardness }, dealbreakers);
+    const [wc, wa, wt, wk] = weightsFor(input.a.strategy, version);
+    const score = wc * chemistry + wa * attraction + wt * trust - wk * awkwardness - db.penalty * dealbreakers;
+    const { rel } = endingScore(input.a.strategy, { chemistry, attraction, trust, awkwardness }, dealbreakers, version);
     let ending: Ending;
     if (v2) {
-      ending = rel >= V2_SECOND_DATE_REL ? ENDINGS[0] : rel >= V2_FRIENDS_REL ? ENDINGS[1] : ENDINGS[2];
+      ending = rel >= secondDateAt ? ENDINGS[0] : rel >= friendsAt ? ENDINGS[1] : ENDINGS[2];
     } else {
       ending = score >= SECOND_DATE_AT ? ENDINGS[0] : score >= FRIENDS_AT ? ENDINGS[1] : ENDINGS[2];
     }
 
     // Per-side satisfaction, for who-wants-another and who-leaves/who-rejects.
     const satOf = (self: SideSetup, r: SideRead, mine: Autonomy): number =>
-      (r.wantCue ? 16 : 0) + (r.agendaMet ? 8 : 0) + 14 * sig(self).warmth - (r.dealbreakerCue ? 28 : 0) +
+      (r.wantCue ? 16 : 0) + (r.agendaMet ? 8 : 0) + 14 * sig(self).warmth - (r.dealbreakerCue ? (version >= 4 ? 16 : 28) : 0) +
       chemistry * 0.25 + trust * 0.1 - awkwardness * 0.2 + jitter(mine) * 0.5;
     const satA = satOf(input.a, ra, input.a.autonomy);
     const satB = satOf(input.b, rb, input.b.autonomy);
@@ -516,18 +598,29 @@ function decideCore(input: DateInput, seed: number, version: EngineVersion, with
     for (const side of flipped) reasons.push(`unpredictable_flip:${side}`);
     const endingFor = (relOrScore: number): Ending =>
       v2
-        ? relOrScore >= V2_SECOND_DATE_REL ? ENDINGS[0] : relOrScore >= V2_FRIENDS_REL ? ENDINGS[1] : ENDINGS[2]
+        ? relOrScore >= secondDateAt ? ENDINGS[0] : relOrScore >= friendsAt ? ENDINGS[1] : ENDINGS[2]
         : relOrScore >= SECOND_DATE_AT ? ENDINGS[0] : relOrScore >= FRIENDS_AT ? ENDINGS[1] : ENDINGS[2];
     const decider = v2 ? rel : score;
     const near = v2
-      ? Math.min(Math.abs(rel - V2_SECOND_DATE_REL), Math.abs(rel - V2_FRIENDS_REL))
+      ? Math.min(Math.abs(rel - secondDateAt), Math.abs(rel - friendsAt))
       : Math.min(Math.abs(score - SECOND_DATE_AT), Math.abs(score - FRIENDS_AT));
     if (near < 2) reasons.push("near_threshold");
     // Would the ending have differed with no luck at all (every jitter zero)?
     const calm = { chemistry: clamp(chemistry - jChem), attraction: clamp(attraction - jAttr), trust: clamp(trust - jTrust), awkwardness: clamp(awkwardness - jAwk) };
-    const calmScore = wc * calm.chemistry + wa * calm.attraction + wt * calm.trust - wk * calm.awkwardness - DEALBREAKER_PENALTY * dealbreakers;
-    const calmDecider = v2 ? endingScore(input.a.strategy, calm, dealbreakers).rel : calmScore;
+    const calmScore = wc * calm.chemistry + wa * calm.attraction + wt * calm.trust - wk * calm.awkwardness - db.penalty * dealbreakers;
+    const calmDecider = v2 ? endingScore(input.a.strategy, calm, dealbreakers, version).rel : calmScore;
     if (endingFor(calmDecider) !== endingFor(decider)) reasons.push("jitter_swing");
+    // v4 (#728): did the dealbreaker decide it? The same night with no dealbreaker tripped (everything else as it was):
+    // only when that ends differently does the heading name the dealbreaker (lib/heading.ts); otherwise the weakest number.
+    if (version >= 4 && dealbreakers > 0) {
+      const spared = {
+        chemistry: clamp(chemistry + db.chemistry * dealbreakers),
+        attraction: clamp(attraction + db.attraction * dealbreakers),
+        trust: clamp(trust + db.trust * dealbreakers),
+        awkwardness: clamp(awkwardness - db.awkwardness * dealbreakers),
+      };
+      if (endingFor(endingScore(input.a.strategy, spared, 0, version).rel) !== ending) reasons.push("dealbreaker_decided");
+    }
 
     const trace: EngineTrace = {
       v: 1,
@@ -536,24 +629,24 @@ function decideCore(input: DateInput, seed: number, version: EngineVersion, with
       ending,
       margin: outcome.margin ?? 0,
       score: r2(score),
-      thresholds: v2 ? { friends: V2_FRIENDS_REL, second_date: V2_SECOND_DATE_REL } : { friends_at: FRIENDS_AT, second_date_at: SECOND_DATE_AT },
+      thresholds: v2 ? { friends: friendsAt, second_date: secondDateAt } : { friends_at: FRIENDS_AT, second_date_at: SECOND_DATE_AT },
       reasons,
       counts: { dealbreakers, wants_met: wantsMet, agendas_met: agendasMet, clashes, trait_resonance: traitResonance, familiarity },
       signals: { warmth: r2(warmth), openness: r2(openness), guardedness: r2(guarded), humor: r2(humor) },
       terms: {
         chemistry: {
           base: START.chemistry, traits: 6 * traitResonance, humor: r2(12 * humor), warmth: r2(9 * warmth), budget: r2(budget),
-          strategy: strategyChem, note: 3 * noteBump, dealbreakers: -13 * dealbreakers, history: histChem, jitter: r2(jChem),
+          strategy: strategyChem, note: 3 * noteBump, dealbreakers: -db.chemistry * dealbreakers, history: histChem, jitter: r2(jChem),
         },
         attraction: {
-          base: START.attraction, openness: r2(11 * openness), wants: 8 * wantsMet, agendas: 5 * agendasMet, dealbreakers: -6 * dealbreakers, jitter: r2(jAttr),
+          base: START.attraction, openness: r2(11 * openness), wants: 8 * wantsMet, agendas: 5 * agendasMet, dealbreakers: -db.attraction * dealbreakers, jitter: r2(jAttr),
         },
         trust: {
           base: START.trust, warmth: r2(13 * warmth), guarded: r2(-15 * guarded), strategy: strategyTrust, note: 3 * noteBump,
-          dealbreakers: -10 * dealbreakers, familiarity: 4 * familiarity, history: histTrust, jitter: r2(jTrust),
+          dealbreakers: -db.trust * dealbreakers, familiarity: 4 * familiarity, history: histTrust, jitter: r2(jTrust),
         },
         awkwardness: {
-          base: START.awkwardness, dealbreakers: 15 * dealbreakers, guarded: r2(12 * guarded), clashes: 7 * clashes, humor: r2(-11 * humor),
+          base: START.awkwardness, dealbreakers: db.awkwardness * dealbreakers, guarded: r2(12 * guarded), clashes: 7 * clashes, humor: r2(-11 * humor),
           note: -4 * noteBump, familiarity: -3 * familiarity, jitter: r2(jAwk),
         },
       },
@@ -562,7 +655,7 @@ function decideCore(input: DateInput, seed: number, version: EngineVersion, with
         attraction: r2(wa * attraction),
         trust: r2(wt * trust),
         awkwardness: r2(-wk * awkwardness),
-        dealbreakers: -DEALBREAKER_PENALTY * dealbreakers,
+        dealbreakers: -db.penalty * dealbreakers,
         // rel = score - neutralScore(strategy): the neutral date's score, subtracted.
         neutral: r2(rel - score),
       },
@@ -632,6 +725,7 @@ export function fixedEngine(partial: Partial<Outcome> & { ending: Ending }, opts
           { wants_another: true, agenda_met: true, satisfied: true, dealbreaker_hit: null, want_met: null, note_followed: null },
         ],
         seed,
+        ...(partial.margin !== undefined ? { margin: partial.margin } : {}),
       };
       return base;
     },

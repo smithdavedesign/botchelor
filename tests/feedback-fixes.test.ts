@@ -61,7 +61,7 @@ describe("the why line shows the arithmetic (run 5: 62 a disaster, 68 friends)",
       for (const autonomy of ["guided", "balanced", "unpredictable"] as const) {
         for (let seed = 1; seed <= 25; seed++) {
           const input: DateInput = { a: side(strategy, autonomy, sheet("Mira")), b: side("genuine_chemistry", "balanced", sheet("Rafe", { bio: "A baker who hates surprises and maps." })) };
-          const o = deterministicEngine.decide(input, seed * 7919);
+          const o = deterministicEngine.decide(input, seed * 7919, 3); // v3 marks below; v4 has its own (tests/engine-v4.test.ts)
           const line = endingNumbers(o.variables, o.sides, strategy, 3)!;
           const rel = Number(line.match(/came out ([+−])(\d+\.\d)/)!.slice(1).join("").replace("−", "-"));
           // One decimal of rounding either side of a mark is the only slack.

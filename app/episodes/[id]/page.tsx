@@ -33,6 +33,7 @@ import DealbreakerQuiz from "./DealbreakerQuiz";
 import EpisodeActions from "./EpisodeActions";
 import RecapToggle from "./RecapToggle";
 import { airIfDue, airWindowMinutes } from "@/lib/air";
+import { endingsLately } from "@/lib/endings-lately";
 import SafetyActions from "./SafetyActions";
 import SlidingDoors from "./SlidingDoors";
 import WatchPartyLaunch from "./WatchPartyLaunch";
@@ -179,6 +180,8 @@ export default async function EpisodePage({
           .then((r) => (r.rows[0] ? new Date(r.rows[0].at).toISOString() : null))
           .catch(() => null)
       : null;
+  // #728: how recent aired public dates ended, beside the prediction form, so a pick isn't blind (never this date's ending).
+  const lately = episode && !episode.revealed && !episode.is_creator ? await endingsLately(db).then((l) => (l.of ? l.says : null)).catch(() => null) : null;
   // Hidden after reports: a 404 for everyone except its creators (see ./not-found.tsx).
   if (!episode || (episode.hidden && !episode.is_creator)) notFound();
 
@@ -381,6 +384,7 @@ export default async function EpisodePage({
             dateNumber={dateNo}
             visibility={episode.visibility}
             airsAt={airsAt}
+            lately={lately}
           />
         </div>
 
