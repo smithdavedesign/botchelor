@@ -14,10 +14,24 @@ import { UnlinkAgentButton } from "./AgentLinks";
 import { linkedAgents } from "@/lib/agent-links";
 import { accessHere } from "@/lib/adult/place";
 import { afterDarkHref } from "@/lib/after-dark-host";
-import { authFromCookieStore } from "@/lib/http";
+import { authFromCookieStore, type Auth } from "@/lib/http";
+import { billingOn, subscriptionState } from "@/lib/adult/billing";
+import type { Db } from "@/lib/db";
 import CharacterName from "@/app/CharacterName";
 
 export const dynamic = "force-dynamic";
+
+/** "October 24, 2026", in UTC. */
+const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+
+/** What the After Dark card shows, or null for no card: where it isn't offered, or for someone it's never been open to. */
+async function afterDarkCard(db: Db, auth: Auth | null) {
+  const here = await accessHere(db, auth);
+  if (here.mode === "blocked" || !auth?.authenticated) return null;
+  const sub = await subscriptionState(db, auth.userId);
+  if (!here.entitled.ok && sub.status === "none") return null;
+  return { open: here.entitled.ok, sub, billing: billingOn() };
+}
 export const metadata: Metadata = { title: "Account · Botchelor", robots: { index: false, follow: false } };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -43,19 +57,50 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
     await tryCloseDueSeasons(db);
     badges = await listMyBadges(db, viewerId);
   }
+  const afterDark = await afterDarkCard(db, auth);
   return (
     <>
       <h1>Your account</h1>
       <AccountPanel next={next} emailConfirmed={emailConfirmed} />
 
-      {/* After Dark: only for an account it's open to. The "subscribe to unlock" row comes with the payment processor. */}
-      {(await accessHere(db, authFromCookieStore(await cookies())).then((h) => h.entitled.ok && h.mode !== "blocked")) && (
-        <section className="card">
+      {/* After Dark: for an account it's open to, or one with a subscription (lib/adult/billing.ts), never where it isn't offered. */}
+      {afterDark && (
+        <section className="card" data-after-dark-card>
           <h2>🌙 After Dark</h2>
           <p className="muted">The private adult season. Switch your characters in and out there.</p>
-          <Link className="button" href={afterDarkHref("/after-dark")}>
-            Open After Dark
-          </Link>
+          {afterDark.sub.status === "active" && (
+            <p data-subscription="active">Subscribed: renews monthly{afterDark.sub.periodEnd ? `, next on ${day(afterDark.sub.periodEnd)}` : ""}.</p>
+          )}
+          {afterDark.sub.status === "cancelled" && (
+            <p data-subscription="cancelled">
+              Cancelled: no more charges. Open until {afterDark.sub.periodEnd ? day(afterDark.sub.periodEnd) : "the end of the month"}.
+            </p>
+          )}
+          {afterDark.sub.status === "lapsed" && <p data-subscription="lapsed">Your subscription has ended.</p>}
+          {afterDark.open ? (
+            <Link className="button" href={afterDarkHref("/after-dark")}>
+              Open After Dark
+            </Link>
+          ) : (
+            afterDark.billing && (
+              <Link className="button" href={afterDarkHref("/after-dark/subscribe")}>
+                Subscribe again
+              </Link>
+            )
+          )}
+          {afterDark.sub.status === "active" && (
+            <p className="muted small">
+              {afterDark.sub.cancelUrl && (
+                <>
+                  <a href={afterDark.sub.cancelUrl} rel="noopener noreferrer" target="_blank" data-cancel-processor>
+                    Cancel with {afterDark.sub.processor === "segpay" ? "Segpay" : "Verotel"}
+                  </a>
+                  {" · "}
+                </>
+              )}
+              <Link href="/cancel">How to cancel</Link>
+            </p>
+          )}
         </section>
       )}
 

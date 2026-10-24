@@ -1298,8 +1298,9 @@ alter table adult_access_requests add column if not exists status text not null 
 alter table adult_access_requests add column if not exists decided_at timestamptz;
 
 -- Who may use after dark besides an admin (docs/after-dark.md #2): an active subscription (from the adult payment
--- processor's webhook) AND a passed age check (from the age-verification provider). Nothing writes these yet: until the
--- processor and the age check exist, after dark stays admin-only.
+-- processor's webhook) AND a passed age check (from the age-verification provider). 2026-10-24: the processors'
+-- postbacks write the subscription (lib/adult/billing.ts; 'cancelled' keeps access until period_end) and subscribing
+-- records the 18+ self-declaration; until a processor is configured, after dark stays admin-only.
 create table if not exists adult_entitlements (
   user_id text primary key,
   subscription_status text not null default 'none' check (subscription_status in ('none', 'active', 'lapsed', 'cancelled')),
@@ -1322,6 +1323,57 @@ create table if not exists adult_viewer_places (
   region text,
   seen_at timestamptz not null default now()
 );
+-- After Dark's subscription billing (lib/adult/billing.ts, 2026-10-24): Segpay first, Verotel as backup, both off until
+-- their settings exist. One order per checkout started; its id is the reference the processor hands back (Verotel
+-- referenceID, Segpay REF1), and sale_id the processor's subscription once paid (Verotel saleID, Segpay purchaseid).
+-- user_id is cleared when the account is deleted: the order stays, unlinked, for a chargeback dispute.
+create table if not exists adult_billing_orders (
+  id text primary key,
+  user_id text,
+  processor text not null check (processor in ('segpay', 'verotel')),
+  price_usd numeric(8, 2) not null,
+  sale_id text,
+  created_at timestamptz not null default now(),
+  paid_at timestamptz
+);
+create index if not exists adult_billing_orders_user_idx on adult_billing_orders (user_id, created_at desc);
+create index if not exists adult_billing_orders_sale_idx on adult_billing_orders (processor, sale_id);
+-- Every postback received, verified or not applied. event_key is the processor's transaction id when it sends one (the
+-- same transaction twice is applied once), else a fingerprint of the postback. params keeps identifiers, amounts and
+-- dates only: never card digits, names, emails, addresses or IPs. user_id is cleared when the account is deleted.
+create table if not exists adult_billing_events (
+  id text primary key,
+  processor text not null,
+  event_key text not null,
+  fingerprint text not null,
+  kind text not null,
+  raw_event text not null,
+  order_id text,
+  user_id text,
+  sale_id text,
+  amount text,
+  currency text,
+  params jsonb not null default '{}'::jsonb,
+  outcome text not null,
+  received_at timestamptz not null default now(),
+  unique (processor, event_key)
+);
+create index if not exists adult_billing_events_received_idx on adult_billing_events (received_at desc);
+create index if not exists adult_billing_events_sale_idx on adult_billing_events (processor, sale_id, received_at desc);
+-- An account a chargeback or a refund ended: subscribing again waits for an admin to look (reviewed_at). Deleted with
+-- the account.
+create table if not exists adult_billing_flags (
+  user_id text primary key,
+  reason text not null,
+  processor text not null,
+  flagged_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by text
+);
+-- When the current run of a subscription began (for California's yearly reminder, on each anniversary) and when that
+-- reminder last went.
+alter table adult_entitlements add column if not exists subscribed_at timestamptz;
+alter table adult_entitlements add column if not exists renewal_reminded_at timestamptz;
 -- Each person's own character switches (their characters, and the house characters they bring along).
 create table if not exists adult_switches (
   owner_id text not null,

@@ -73,6 +73,103 @@ fully isolated from the existing Stripe setup (the botchelor Stripe account stay
 **David provisions:** open a CCBill (or Segpay) merchant account, set it up, hand the API/webhook credentials to
 the keychain (`~/ai-stack/bin/secrets`, never in a file). Propose: start with one processor; add a backup later.
 
+> **2026-10-24: built and off.** Segpay (primary) and Verotel (backup) are wired end to end; nothing runs until their
+> settings are in the environment. See "Billing" below. Still pending: David opens the merchant accounts.
+
+## Billing — Segpay first, Verotel as backup (2026-10-24)
+
+Built complete and **off**: with no processor's settings in the environment, the subscribe page keeps its waitlist and
+every billing route answers not found. Code: `lib/adult/billing.ts` (orders, applying postbacks, the account page's
+state, California's notices, the admin view), `lib/adult/billing-segpay.ts`, `lib/adult/billing-verotel.ts`; tests in
+`tests/after-dark-billing.test.ts`. Stripe and `lib/payments.ts` are untouched.
+
+**The flow.** A signed-in person (never an anonymous cookie, an agent or a crawler, never from a blocked place: 451)
+ticks two boxes on `/after-dark/subscribe` (18 or older; it renews monthly until they cancel). `POST
+/api/after-dark/subscribe` records the 18+ self-declaration once (`adult_entitlements.age_verified_at`, `age_method
+'self_declared'`, `age_country`), opens an order (`adult_billing_orders`) and returns the processor's checkout link.
+The order id travels as Verotel's `referenceID` / Segpay's `REF1` and comes back in the postbacks, which drive
+`adult_entitlements`:
+
+| Postback | Effect |
+|---|---|
+| initial (Verotel `initial`/`upgrade`; Segpay Sale/Auth/Initial/Yes) | active, until `nextChargeOn` (Verotel) or `iint` days (Segpay), else a month; confirmation email |
+| rebill (Verotel `rebill`; Segpay Sale/Auth/Conversion·Rebill·Instant Conversion/Yes), uncancel (Verotel `uncancel`; Segpay Reactivation) | active, until the next charge |
+| extend (Verotel) | until the new date; a cancelled one stays cancelled |
+| cancel (Verotel `cancel`; Segpay Cancellation) | `cancelled`: no more charges, access until `period_end` (`canAfterDark` lets it in until then) |
+| expiry (Verotel `expiry`; Segpay Disable) | `lapsed` now |
+| chargeback, refund (Verotel `chargeback`, full `credit`; Segpay Charge, Credit, Void, RDRreversal, Revoke) | `lapsed` now, and the account is flagged (`adult_billing_flags`): subscribing again is refused until an admin clears it on `/admin/after-dark/providers` |
+| declined, partial credit, CBReversal, anything new | recorded, no change |
+
+Every postback is recorded in `adult_billing_events` (identifiers, amounts and dates only: no card digits, names,
+emails, addresses or IPs). The same transaction id twice is applied once; a postback without one (Verotel's cancel,
+expiry, extend; Segpay's member postbacks) is a duplicate when it matches the last one recorded for that subscription.
+Deleting an account deletes its subscription and flag and keeps its orders and postbacks with `user_id` cleared, for
+chargeback disputes (`lib/account.ts` `AFTER_DARK_UNLINKED`). Note: deleting an account doesn't cancel the processor's
+billing (neither gives us an API key to do it); the subscriber cancels on the processor's site first.
+
+**California (Bus. & Prof. Code § 17600 ff., AB 2863 from 2025-07-01).** Express consent to the renewal terms (the
+second box, separate from the rest); the terms in the confirmation (the return page and a confirmation email to the
+account's confirmed address); a yearly reminder on each anniversary (`sendRenewalReminders`, in the daily job); online
+cancellation (the account page links the processor's own cancel page and `/cancel`). Emails are discreet: subject "Your
+Botchelor subscription", nothing in them says what the site is.
+
+### Settings (keychain → the deployment's environment; never in a file)
+
+| Name | What |
+|---|---|
+| `SEGPAY_PACKAGE_ID`, `SEGPAY_PRICE_POINT_ID` | the package and the $12.99 monthly price point from Segpay's Merchant Portal (the pay page's `x-eticketid=<package>:<price point>`) |
+| `SEGPAY_POSTBACK_SECRET` | 32+ random characters of ours, made with `openssl rand -hex 32`; it goes in the postback URLs below. Segpay signs nothing, so this is the check |
+| `SEGPAY_POSTBACK_IPS` | optional: Segpay's postback addresses, comma-separated (ask Segpay for the list) |
+| `VEROTEL_SHOP_ID`, `VEROTEL_SIGNATURE_KEY` | the website's shop ID and FlexPay signature key in Verotel's Control Center |
+| `VEROTEL_PERIOD` | optional: the billing period, default `P1M` (Verotel's docs show day periods such as `P30D`: set that if Verotel refuses months) |
+| `AD_SUBSCRIPTION_PRICE_USD` | optional, default 12.99. Verotel charges this; Segpay charges its price point, so they must match |
+| `AD_SUBSCRIPTION_NAME` | optional, default "Botchelor After Dark": the name on Verotel's order page |
+
+A processor is on when all its required settings are set; with both, Segpay is offered first and Verotel as the other
+choice.
+
+### What David pastes into each merchant portal
+
+The host is `https://ad.botchelor.com` once After Dark runs on its own host (docs/after-dark-hosting.md), else
+`https://botchelor.com` while it's still on Vercel. Use After Dark's own host as soon as it exists: a processor may
+not follow the show's redirect.
+
+**Verotel** (Control Center → Setup Websites → the website → FlexPay Options):
+- FlexPay postback URL: `https://ad.botchelor.com/api/after-dark/billing/verotel`
+- Success URL: `https://ad.botchelor.com/after-dark/subscribe?done=1`, decline URL `…/after-dark/subscribe?declined=1`
+  (each checkout sends these too).
+- Signature: SHA-256 (FlexPay version 4). We answer `OK`; a first sale we can't place is answered with an error, so
+  Verotel refunds it.
+
+**Segpay** (Merchant Portal → My Websites → Manage Postbacks; set Expected Response `OK`, Error Response `ERROR`, turn on
+retries): one Transaction postback and three Member Management postbacks, each the URL below with these macros:
+- Transaction: `ad.botchelor.com/api/after-dark/billing/segpay?secret=<SEGPAY_POSTBACK_SECRET>&action=<action>&stage=<stage>&approved=<approved>&trantype=<trantype>&purchaseid=<purchaseid>&tranid=<tranid>&relatedtranid=<relatedtranid>&price=<price>&currencycode=<currencycode>&eticketid=<eticketid>&iint=<iint>&rint=<rint>&ref1=<extra ref1>&transtime=<transtime>`
+- Cancellation, Disable and Reactivation: `ad.botchelor.com/api/after-dark/billing/segpay?secret=<SEGPAY_POSTBACK_SECRET>&action=<action>&purchaseid=<purchaseid>&nextbilldate=<nextbilldate>`
+- The payment page's Base URL / approval link: `https://ad.botchelor.com/after-dark/subscribe?done=1` (each checkout
+  sends `x-auth-link` and `x-decl-link` too).
+
+### The application checklist (docs/after-dark-legal-review.md "Payments")
+
+1. An LLC and an EIN (David's call, with the lawyer).
+2. After Dark live on `ad.botchelor.com`, off Vercel.
+3. Site pages: terms, privacy, refunds and cancellation (`/cancel`), a content policy naming the banned themes, a
+   complaint and takedown page (7 business days; 48 hours for intimate images), the 2257 exemption statement, a support
+   email, and the age gate.
+4. A one-page moderation write-up (the output checks, the text filters, logs and a monthly report) and a test login
+   for their reviewers.
+5. Government ID and a bank letter.
+6. Email both processors a one-page description first and get their AI answer in writing.
+
+Apply at: Segpay https://segpay.com/verticals/high-risk/ · Verotel https://verotel.com/en/productchoice.html
+
+Then: put the settings in the keychain and the deployment, paste the postback URLs, run one test purchase on each
+processor's test mode, and watch `/admin/after-dark/providers` → Subscriptions for the postbacks.
+
+**Sources (read 2026-10-24):** Verotel FlexPay v4, https://controlcenter.verotel.com/flexpay-doc/subscription.html and
+the reference client https://github.com/verotel/flexpay-php-client; Segpay,
+https://gethelp.segpay.com/docs/Content/DeveloperDocs/ProcessingAPI/06-Postbacks.htm,
+…/07-PostbackParameters.htm, …/Postbacks-TransactionMatrix.htm and …/02-Parameters-PopulateFields.htm.
+
 ## #4 Age verification — now legally mandatory, not optional
 
 As of mid-2026 roughly **26 US states require age verification for adult content** (post *Free Speech Coalition v.
