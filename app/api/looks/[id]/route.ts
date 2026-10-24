@@ -1,5 +1,6 @@
-import { canAfterDark } from "@/lib/adult/entitlement";
 import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
+import { accessHere } from "@/lib/adult/place";
+import { mediaAllowed } from "@/lib/jurisdiction";
 import { lockedForRequest } from "@/lib/adult/privacy";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json } from "@/lib/http";
@@ -24,7 +25,8 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   const db = await getDb();
   const nsfw = id.startsWith("nsfw-");
   const auth = nsfw ? authFromRequest(req) : null;
-  if (nsfw && !(await canAfterDark(db, auth)).ok) return json({ error: "not_found" }, 404);
+  // An After Dark tile is a picture: not where pictures aren't allowed (lib/jurisdiction.ts), admins excepted.
+  if (nsfw && !(await accessHere(db, auth, req.headers).then((h) => h.entitled.ok && mediaAllowed(h)))) return json({ error: "not_found" }, 404);
   // Nor to a device locked by the account's After Dark PIN (lib/adult/privacy.ts).
   if (nsfw && (await lockedForRequest(db, auth!.userId, req))) return json({ error: "not_found" }, 404);
   const tile = await getTile(db, id, { bytes: !nsfw });

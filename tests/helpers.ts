@@ -48,6 +48,7 @@ import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setReflectionEnabledForTests } from "@/lib/reflection";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { setPublicLaunchDayForTests } from "@/lib/our-traffic";
+import { setPlaceForTests } from "@/lib/place";
 import { setCheckSleepForTests } from "@/lib/adult/check";
 import { clearEndingsLatelyForTests } from "@/lib/endings-lately";
 import { setWelcomeFromForTests } from "@/lib/welcome";
@@ -126,6 +127,8 @@ export async function startTestDb() {
   // The analytics count people from the public launch (lib/our-traffic.ts PUBLIC_LAUNCH_DAY); in tests they count from
   // any day, so the fixtures can sit before it. tests/insights.test.ts turns the launch day on for its own test.
   setPublicLaunchDayForTests(null);
+  // After Dark's regional rules (lib/jurisdiction.ts): tests connect from an open place unless they say otherwise.
+  setPlaceForTests({ country: "US", region: "CA" });
   // The output check's waits between Hive retries (lib/adult/check.ts) don't hold up the suite.
   setCheckSleepForTests(async () => {});
   // The welcome experiment (lib/welcome.ts) is off in tests by default: a person's character would otherwise get likes

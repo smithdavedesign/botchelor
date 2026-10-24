@@ -19,9 +19,9 @@ import type { Db } from "../db";
 import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, FRAMINGS, type Framing, type MediaLimits, type MenuAct } from "./acts";
-import { checkOutput } from "./check";
 import { fallbackNote, runMedia } from "./fallback";
-import { hiveGate, hivePausedErrorMessage, hivePausedMessage, HivePausedError, underHiveLimit } from "./hive-limit";
+import { hivePausedErrorMessage, hivePausedMessage, HivePausedError } from "./hive-limit";
+import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { mediaLimits, nightStands } from "./clips";
 import { isPublicPlace } from "./continuity";
 import { ensureBaseline, signedMediaUrl, type Media } from "./media";
@@ -174,7 +174,7 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
   const onReplicate = settings.media_provider === "replicate";
-  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
+  if (!(onReplicate ? keys.replicate : keys.venice) || !(await checkReady(db))) {
     return { ok: false, status: 409, error: "not_set_up", message: `Pictures need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
   }
   const [ca, cb] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b)]);
@@ -187,7 +187,7 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   const reject = (reason: string) =>
     db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'scene', $3)`, [crypto.randomUUID(), ownerId, `menu picture: ${reason}`.slice(0, 300)]).catch(() => {});
   // Hive over its daily limit (lib/adult/hive-limit.ts): refused before anything is drawn or spent.
-  const gate = await hiveGate(db, keys.hive);
+  const gate = await mediaGate(db);
   if (!gate.ok) {
     await reject(gate.reason);
     return { ok: false, status: 503, error: "hive_paused", message: gate.message };
@@ -265,7 +265,7 @@ export async function keepPictureOfBoth(
     return { ok: false, status: 502, error: "not_made", message: `The picture couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).` };
   }
   // The output check on the picture itself, before anything is kept, whoever made it: a refusal is discarded, never stored.
-  const verdict = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image"));
+  const verdict = await checkMedia(db, { base64: file.bytes.toString("base64"), mime: file.mime }, "image");
   if (!verdict.ok) {
     // Hive out of its daily allowance: discarded, logged, and the pause says until when.
     if (verdict.paused) {

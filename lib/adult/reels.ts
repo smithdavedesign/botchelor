@@ -48,9 +48,10 @@ import { checkAdultText } from "../safety";
 import { getSet } from "../sets";
 import { normalizeScene, setPath } from "../venues";
 import { crossesTaboo } from "./acts";
-import { checkOutput, type CheckResult } from "./check";
+import type { CheckResult } from "./check";
+import { checkMedia } from "./moderation";
 import { providerError, runMedia } from "./fallback";
-import { hiveGate, hivePausedErrorMessage, hivePausedReason, HivePausedError, hivePausedUntil, underHiveLimit } from "./hive-limit";
+import { hiveGate, hivePausedErrorMessage, hivePausedReason, HivePausedError, hivePausedUntil } from "./hive-limit";
 import type { PlaceStop } from "./continuity";
 import { beatPictureFor } from "./beats";
 import { ensureBaseline, ensureNudeBaseline, lookWords, signedMediaUrl } from "./media";
@@ -803,9 +804,12 @@ export async function setPictures(db: Db, places: readonly (string | null)[]): P
   return out;
 }
 
-/** One keyframe from Venice's multi-image edit: it answers with the picture itself. */
-export async function drawKeyframe(key: string, prompt: string, images: string[]): Promise<{ bytes: Buffer; mime: string }> {
-  const res = await venice(key, "/image/multi-edit", { modelId: KEYFRAME_MODEL, prompt, images, safe_mode: false, aspect_ratio: "3:4", output_format: "png" });
+/**
+ * One keyframe from Venice's multi-image edit: it answers with the picture itself. `model` is another edit model (the
+ * Studio's picker, lib/adult/studio.ts); the keyframe model by default.
+ */
+export async function drawKeyframe(key: string, prompt: string, images: string[], model: string = KEYFRAME_MODEL): Promise<{ bytes: Buffer; mime: string }> {
+  const res = await venice(key, "/image/multi-edit", { modelId: model, prompt, images, safe_mode: false, aspect_ratio: "3:4", output_format: "png" });
   if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 160)}`);
   if (res.headers.get("x-venice-is-content-violation") === "true") throw new Error("Venice flagged the keyframe as against its terms");
   const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
@@ -950,11 +954,11 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
       if (checked++) await pause(CHECK_PAUSE_MS);
       const media = { base64: d.file.bytes.toString("base64"), mime: d.file.mime };
       // The age question alone: this keyframe's moderation comes with its shot's (lib/adult/check.ts "keyframe").
-      let verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "keyframe"));
+      let verdict = await checkMedia(db, media, "keyframe");
       // Asked once more after a pause when Hive was busy or down; never when it's out for the day.
       if (couldntRun(verdict) && !hiveOut(verdict)) {
         await pause(CHECK_AGAIN_MS);
-        verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "keyframe"));
+        verdict = await checkMedia(db, media, "keyframe");
       }
       if (!verdict.ok) {
         // Never stored either way; only a refusal is logged as one, and a keyframe thrown away because Hive was out.
@@ -1271,7 +1275,7 @@ async function collectReplicateShot(
     failShot(s, err.status === 403 || err.status === 404 || err.status === 410 ? "Replicate no longer has the video (it deletes what a model made an hour after)" : err.message);
     return "waiting";
   }
-  const verdict = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: "video/mp4" }, "video"));
+  const verdict = await checkMedia(db, { base64: file.bytes.toString("base64"), mime: "video/mp4" }, "video");
   if (!verdict.ok && couldntRun(verdict)) {
     s.retry_at = askAgainAt(verdict, now);
     s.reason = waitReason(verdict);
@@ -1378,7 +1382,7 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     if (!(res.headers.get("content-type") ?? "").includes("video")) continue; // still being made
     const bytes = Buffer.from(await res.arrayBuffer());
     checked++;
-    const verdict = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: bytes.toString("base64"), mime: "video/mp4" }, "video"));
+    const verdict = await checkMedia(db, { base64: bytes.toString("base64"), mime: "video/mp4" }, "video");
     // The check couldn't run (Hive busy, down, or out for the day): not a refusal yet. Try again after a wait (or once
     // the pause is over), and send nothing more to Hive this poll.
     if (!verdict.ok && couldntRun(verdict)) {

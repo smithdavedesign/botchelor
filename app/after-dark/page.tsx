@@ -8,6 +8,7 @@ import { canAfterDark } from "@/lib/adult/entitlement";
 import { adultAvailable } from "@/lib/adult/mode";
 import { getPrivacy, lockedForCookies } from "@/lib/adult/privacy";
 import { listCastPairs } from "@/lib/adult/scenes";
+import { getAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import PrivacyCard from "./PrivacyCard";
@@ -46,7 +47,9 @@ export default async function AfterDarkPage() {
     );
   }
   const owner = auth!.userId;
-  const [pairs, switchable, privacy] = await Promise.all([listCastPairs(db, owner), listSwitchable(db, owner), getPrivacy(db, owner)]);
+  const [pairs, switchable, privacy, adSettings] = await Promise.all([listCastPairs(db, owner), listSwitchable(db, owner), getPrivacy(db, owner), getAdultSettings(db)]);
+  // The Studio (lib/adult/studio.ts): their own characters that are in, and for an admin the house cast that's in too.
+  const studio = adSettings.studio.open_to === "entitled" || admin ? switchable.filter((c) => c.on && (!c.house || admin)) : [];
   return (
     <div className="after-dark-mode">
       <article className="after-dark">
@@ -82,6 +85,19 @@ export default async function AfterDarkPage() {
           is shown anywhere in the show. Two lines hold: nobody under 18, and no real people.
         </p>
         <Switches initial={switchable} />
+        {studio.length > 0 && (
+          <section className="card">
+            <h2>🎨 Studio</h2>
+            <p className="muted small">A private photo shoot of one of them: the face and body every picture keeps, and pictures you compose from menus.</p>
+            <nav className="ad-studio-links" aria-label="Studio">
+              {studio.map((c) => (
+                <Link key={c.id} className="button-ghost" href={`/after-dark/studio/${c.id}`}>
+                  {c.name}
+                </Link>
+              ))}
+            </nav>
+          </section>
+        )}
         <section>
           <h2>Scenes</h2>
           <PairPicker pairs={pairs} />

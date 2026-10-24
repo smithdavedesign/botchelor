@@ -10,6 +10,7 @@ import { listReels } from "@/lib/adult/reels";
 import { hiveNotice } from "@/lib/adult/hive-limit";
 import { listNights, openScene } from "@/lib/adult/scenes";
 import { getAdultSettings } from "@/lib/adult/settings";
+import { studioAccess } from "@/lib/adult/studio";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
 import SceneWriter from "./SceneWriter";
@@ -17,6 +18,7 @@ import ShortsPanel from "./ShortsPanel";
 import TwoSidesPanel from "./TwoSidesPanel";
 import { housePair } from "@/lib/adult/shorts";
 import CharacterName from "@/app/CharacterName";
+import { currentHere } from "../../view";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After dark · Botchelor", robots: { index: false, follow: false } };
@@ -38,6 +40,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
   const db = await getDb();
   const admin = await adultViewerFromCookies(db, await cookies());
   if (!admin) notFound();
+  const here = await currentHere();
   const scene = await openScene(db, admin, a, b);
   if (!scene) notFound();
   const characters = [refOf(scene.a.id, scene.a.name, await getPublicCharacter(db, scene.a.id)), refOf(scene.b.id, scene.b.name, await getPublicCharacter(db, scene.b.id))] as [CharacterRef, CharacterRef];
@@ -53,6 +56,20 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
       <p className="muted">
         {scene.date ? `Picking up from their latest date: ${scene.date.setting ?? "a date"}.` : "They haven't been on a date yet: this is how they meet."}
       </p>
+      {/* The Studio (lib/adult/studio.ts) for whichever of the two it's the viewer's to use on. */}
+      {await (async () => {
+        const open = [];
+        for (const c of [scene.a, scene.b]) if ((await studioAccess(db, admin, c.id)).ok) open.push(c);
+        return open.length ? (
+          <p className="ad-studio-links">
+            {open.map((c) => (
+              <Link key={c.id} className="button-ghost small" href={`/after-dark/studio/${c.id}`}>
+                🎨 {c.name.split(/\s+/)[0]}&apos;s studio
+              </Link>
+            ))}
+          </p>
+        ) : null;
+      })()}
       {(await isAdmin(db, admin)) && (
         // The writer's private notes on every line (why it was said, the memory it drew on): admins only, never on stage.
         <p className="muted small">
@@ -76,6 +93,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         hive={await hiveNotice(db)}
         faces={await facesFor(db, admin, [scene.a.id, scene.b.id])}
         steer={await steerSummary(db, admin, [scene.a.id, scene.b.id])}
+        textOnly={here.mode === "text_only" ? here.reason : null}
       />
     </article>
     </div>

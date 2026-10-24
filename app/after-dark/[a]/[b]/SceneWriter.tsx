@@ -47,6 +47,7 @@ export default function SceneWriter({
   hive = null,
   faces: firstFaces = {},
   steer: firstSteer = {},
+  textOnly = null,
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -64,6 +65,8 @@ export default function SceneWriter({
   faces?: Faces;
   /** What this viewer's ratings of each steer (lib/adult/steering.ts steerSummary). */
   steer?: Record<string, SteerSummary>;
+  /** Why only the scenes show here (lib/jurisdiction.ts text_only): no pictures, video or voiced lines. Null: all of it. */
+  textOnly?: string | null;
 }) {
   // Shown until the pause is over, then the buttons come back (the next one probes Hive first).
   const [hivePause, setHivePause] = useState(hive);
@@ -310,8 +313,8 @@ export default function SceneWriter({
           onSetScene={async (place) => void (await send({ set_scene: place }))}
           suggestions={scene.suggestions}
           onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
-          beats={scene.beats ?? []}
-          onBeat={(id, answer) => beatAction({ beat: { id, answer } })}
+          beats={textOnly ? [] : (scene.beats ?? [])}
+          onBeat={textOnly ? undefined : (id, answer) => beatAction({ beat: { id, answer } })}
           onPictureNow={(line) => beatAction({ picture_now: { line } })}
           onMakeVideo={(scope) => makeVideo(scope)}
           videoChapters={runningNight(
@@ -336,7 +339,7 @@ export default function SceneWriter({
       {scene.chapter > SOFT_CHAPTERS && (
         <p className="muted small">This night has run {scene.chapter - 1} chapters. It might be a good place to end it: Start over files it, and the next night begins fresh.</p>
       )}
-      <ListenLines lines={scene.lines} a={scene.a.id} b={scene.b.id} names={[nameOf("a"), nameOf("b")]} />
+      {!textOnly && <ListenLines lines={scene.lines} a={scene.a.id} b={scene.b.id} names={[nameOf("a"), nameOf("b")]} />}
       {scene.lines.length ? (
         <ol className="after-dark-lines">
           {scene.lines.map((l, i) => {
@@ -556,19 +559,27 @@ export default function SceneWriter({
           {mediaPaused}
         </p>
       )}
-      <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
-      <Reels reels={reelList} onChange={putReel} />
-      <FacesPanel
-        characters={characters}
-        faces={faces}
-        gallery={gallery}
-        onFace={pickFace}
-        steer={steer}
-        onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
-        onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
-        paused={mediaPaused}
-      />
-      <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} faces={faces} onFace={pickFace} />
+      {textOnly ? (
+        <p className="muted small" data-text-only>
+          {textOnly}
+        </p>
+      ) : (
+        <>
+          <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
+          <Reels reels={reelList} onChange={putReel} />
+          <FacesPanel
+            characters={characters}
+            faces={faces}
+            gallery={gallery}
+            onFace={pickFace}
+            steer={steer}
+            onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
+            onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
+            paused={mediaPaused}
+          />
+          <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} faces={faces} onFace={pickFace} />
+        </>
+      )}
     </section>
   );
 }

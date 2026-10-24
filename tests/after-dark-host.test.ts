@@ -202,8 +202,13 @@ describe("on the show, with After Dark moved out (AFTER_DARK_ORIGIN)", () => {
 describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
   it("serves After Dark's pages and the 18+ gate, kept out of search, and sends the show's pages to the show", () => {
     asAfterDark();
-    const res = middleware(new NextRequest(`${AD}/after-dark/a/b`, { headers: { "user-agent": CHROME, cookie: "bz_adult=1" } }));
+    // With a fresh signed place (lib/place.ts; the middleware reads only its expiry), the page is served.
+    const placed = `bz_adult=1; bz_place=place.v1.US.CA.${Math.floor(Date.now() / 1000) + 600}.sig`;
+    const res = middleware(new NextRequest(`${AD}/after-dark/a/b`, { headers: { "user-agent": CHROME, cookie: placed } }));
     expect(fingerprint(res)).toBe("200 - next -");
+    // Without one, past the 18+ gate, it goes through the sign-in hop for one (2026-10-24, lib/jurisdiction.ts).
+    expect(page(`${AD}/after-dark/a/b`, { cookie: "bz_adult=1" })).toBe(`307 ${AD}/api/auth/carry?to=%2Fafter-dark%2Fa%2Fb - -`);
+    expect(page(`${AD}/after-dark/a/b`, { cookie: "bz_adult=1; bz_place_tried=1" })).toBe("200 - next -");
     expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(page(`${AD}/after-dark`)).toBe(`307 ${AD}/gate?from=%2Fafter-dark - -`); // the gate, here, as on the show
     expect(page(`${AD}/gate?from=/after-dark`)).toBe("200 - next -");
@@ -339,11 +344,14 @@ describe("signing in across to After Dark's host (app/api/auth/carry)", () => {
     expect(verifySession(cookieOf(landed, "bz_sess"))).toEqual({ uid: UID, authenticated: true });
   });
 
-  it("goes straight to the page for a browser the show doesn't know, with nothing set", async () => {
+  it("brings only where it's connecting from for a browser the show doesn't know: no identity is set", async () => {
     const { back, landed } = await walk("/after-dark", "");
-    expect(back.toString()).toBe(`${AD}/after-dark`);
+    expect(`${back.origin}${back.pathname}`).toBe(`${AD}/api/auth/carry`);
     expect(back.searchParams.get("t")).toBeNull();
+    expect(back.searchParams.get("pl")).toMatch(/^place\.v1\./);
+    expect(landed.headers.get("location")).toBe("/after-dark");
     expect(landed.headers.getSetCookie().some((c) => c.startsWith("bz_sess="))).toBe(false);
+    expect(landed.headers.getSetCookie().some((c) => c.startsWith("bz_place=place.v1."))).toBe(true);
   });
 
   it("never lets someone else's token set an identity on After Dark's host", async () => {

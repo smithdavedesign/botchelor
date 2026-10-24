@@ -2,6 +2,7 @@ import { afterDarkElsewhere, afterDarkOnly } from "@/lib/after-dark-host";
 import { ADULT_COOKIE, safeFrom } from "@/lib/age";
 import { isCarryNonce, newCarryNonce, signCarry, verifyCarry } from "@/lib/auth";
 import { authFromRequest, handle, safeEqual, sessionCookies } from "@/lib/http";
+import { placeCookie, requestPlace, signPlace, verifyPlace, PLACE_TRIED_COOKIE } from "@/lib/place";
 import { OLD_HOSTS, requestHost, siteUrl } from "@/lib/site";
 
 const ONE_YEAR = 60 * 60 * 24 * 365;
@@ -53,11 +54,20 @@ export const GET = handle(async (req: Request) => {
   const elsewhere = afterDarkElsewhere();
   const toAfterDark = elsewhere && host === new URL(canonical).host ? elsewhere : null;
 
+  // After Dark's host keeps where the visitor is from the show's signed word (lib/place.ts), for After Dark's regional
+  // rules (lib/jurisdiction.ts): only with this browser's own nonce, like the identity.
+  const placeFrom = (mine: string | undefined): string[] => {
+    if (!afterDarkHost) return [];
+    const where = isCarryNonce(mine) ? verifyPlace(url.searchParams.get("pl"), process.env, Date.now(), mine) : null;
+    const set = where ? placeCookie(where) : null;
+    return [`${PLACE_TRIED_COOKIE}=1; Path=/; Max-Age=60; HttpOnly; SameSite=Lax${secure()}`, ...(set ? [set] : [])];
+  };
+
   const token = url.searchParams.get("t");
   if (token !== null) {
     const claims = verifyCarry(token);
     const mine = cookie(req, NONCE_COOKIE);
-    const cookies = [nonceCookie("", 0)];
+    const cookies = [nonceCookie("", 0), ...placeFrom(mine)];
     // botchelor.com never replaces an identity it has; After Dark's host takes the show's, which is the one that counts.
     if (claims && isCarryNonce(mine) && safeEqual(claims.nonce, mine) && (afterDarkHost || !authFromRequest(req))) {
       cookies.push(...sessionCookies({ userId: claims.uid, authenticated: claims.authenticated }));
@@ -66,14 +76,22 @@ export const GET = handle(async (req: Request) => {
     return redirect(to, cookies);
   }
 
+  // Only a place, for a visitor with no identity to bring (After Dark's subscribe page still needs to know where they are).
+  if (url.searchParams.get("pl") !== null) {
+    const mine = cookie(req, NONCE_COOKIE);
+    return redirect(to, [nonceCookie("", 0), ...placeFrom(mine)]);
+  }
+
   const nonce = url.searchParams.get("n");
   if (nonce !== null) {
     const target = onOldHost ? canonical : toAfterDark;
     const auth = target && isCarryNonce(nonce) ? authFromRequest(req) : null;
     const adult = cookie(req, ADULT_COOKIE) === "1";
     const carry = auth ? signCarry({ uid: auth.userId, authenticated: auth.authenticated, adult, nonce }) : null;
-    if (!carry) return redirect(`${target ?? canonical}${to}`);
-    return redirect(`${target}/api/auth/carry?${new URLSearchParams({ t: carry, to })}`);
+    // To After Dark's host, where this browser connects from, read from the show's (Vercel's) headers and bound to the nonce.
+    const pl = toAfterDark && target === toAfterDark && isCarryNonce(nonce) ? signPlace(requestPlace(req.headers), process.env, Date.now(), nonce) : null;
+    if (!carry) return pl ? redirect(`${target}/api/auth/carry?${new URLSearchParams({ pl, to })}`) : redirect(`${target ?? canonical}${to}`);
+    return redirect(`${target}/api/auth/carry?${new URLSearchParams({ t: carry, ...(pl ? { pl } : {}), to })}`);
   }
 
   if (onOldHost) return redirect(`${canonical}/api/auth/carry?${new URLSearchParams({ from: host, to })}`);

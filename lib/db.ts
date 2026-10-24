@@ -1308,6 +1308,20 @@ create table if not exists adult_entitlements (
   provider text,
   updated_at timestamptz not null default now()
 );
+-- 2026-10-24 (docs/after-dark-legal-review.md): how the age was checked and where. Outside the places that want a real
+-- check (lib/jurisdiction.ts) it's the person's own 18+ declaration ('self_declared'); a provider's check names itself.
+alter table adult_entitlements add column if not exists age_method text;
+alter table adult_entitlements add column if not exists age_country text;
+-- The mode After Dark last had for someone, from where they last connected (lib/adult/place.ts): background work that
+-- has no request (a chapter's picture, a video of the night) asks here, so text-only or blocked places get no media.
+-- A country and a US state, never an address or an IP; kept only while the account is.
+create table if not exists adult_viewer_places (
+  user_id text primary key,
+  mode text not null check (mode in ('open', 'text_only', 'blocked')),
+  country text,
+  region text,
+  seen_at timestamptz not null default now()
+);
 -- Each person's own character switches (their characters, and the house characters they bring along).
 create table if not exists adult_switches (
   owner_id text not null,
@@ -1967,6 +1981,63 @@ create index if not exists adult_media_ratings_item_idx on adult_media_ratings (
 alter table adult_profiles add column if not exists consented_at timestamptz;
 alter table adult_profiles add column if not exists consented_by text;
 alter table adult_scenes add column if not exists hard_nos_consented_at timestamptz;
+
+-- The After Dark Studio (lib/adult/studio.ts, docs/PRDs/studio.md; David, 2026-10-24). A shoot is one request: its
+-- kind (a shoot of the character alone, a restyle, a recast, a body reference), what was chosen, the model and who ran
+-- it (ours, or the owner's own key), the tokens taken, and the pictures it made (adult_images.shoot_id). adult_identity
+-- is a viewer's own settings for a character: the body reference shoots add after the face, how strictly pictures keep
+-- the face, and the studio's own limits for pictures of them alone. The settings' studio JSON holds every price, size,
+-- model and switch (lib/adult/studio-config.ts); the monthly caps are columns, like the others (lib/adult/usage.ts).
+create table if not exists adult_studio_shoots (
+  id text primary key,
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  partner_id text references characters (id) on delete cascade,
+  kind text not null,
+  choices jsonb not null default '{}',
+  model text,
+  provider text,
+  own_key boolean not null default false,
+  tokens integer not null default 0,
+  asked integer not null default 0,
+  made integer not null default 0,
+  status text not null default 'making',
+  pictures jsonb not null default '[]',
+  redo_of text,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists adult_studio_shoots_owner_idx on adult_studio_shoots (owner_id, character_id, created_at desc);
+create table if not exists adult_identity (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  body_image_id text references adult_images (id) on delete set null,
+  strength text,
+  intensity text,
+  hard_nos jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (owner_id, character_id)
+);
+alter table adult_images add column if not exists shoot_id text;
+alter table adult_settings add column if not exists studio jsonb;
+alter table adult_usage add column if not exists studio integer not null default 0;
+alter table adult_usage add column if not exists studio_byok integer not null default 0;
+alter table adult_usage add column if not exists upscales integer not null default 0;
+alter table adult_settings add column if not exists cap_studio integer not null default 400;
+alter table adult_settings add column if not exists cap_studio_byok integer not null default 1000;
+alter table adult_settings add column if not exists cap_upscales integer not null default 50;
+-- Which checker checks (lib/adult/moderation.ts; David, 2026-10-24: "Hive is a bottleneck, add an alternative"): the
+-- mode and the alternatives in adult_settings.moderation (JSON), Sightengine's secret and our own endpoint's key sealed
+-- like the others; and the NSFW score Hive's moderation gave a picture it passed (a photo for the texts needs a low one).
+alter table adult_settings add column if not exists moderation jsonb;
+alter table adult_settings add column if not exists sightengine_ciphertext text;
+alter table adult_settings add column if not exists sightengine_nonce text;
+alter table adult_settings add column if not exists sightengine_last4 text;
+alter table adult_settings add column if not exists moderation_endpoint_ciphertext text;
+alter table adult_settings add column if not exists moderation_endpoint_nonce text;
+alter table adult_settings add column if not exists moderation_endpoint_last4 text;
+alter table adult_images add column if not exists nsfw_score double precision;
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.

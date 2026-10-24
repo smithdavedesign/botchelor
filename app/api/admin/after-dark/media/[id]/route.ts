@@ -1,4 +1,5 @@
 import { adultViewer } from "@/lib/adult/mode";
+import { mediaRefusal } from "@/lib/adult/place";
 import { mediaBytes, mediaLink, mediaLinkValid, mediaRef } from "@/lib/adult/media";
 import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
 import { getDb } from "@/lib/db";
@@ -15,6 +16,11 @@ const KEEP = "private, max-age=31536000, immutable";
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const db = await getDb();
   const admin = await adultViewer(db, req);
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice. A provider's signed link is unaffected.
+  if (admin) {
+    const refused = await mediaRefusal(db, admin);
+    if (refused) return refused;
+  }
   const { id } = await params;
   // Or a picture's short-lived signed link (lib/adult/media.ts signedMediaUrl): a video provider fetching a start frame.
   const q = new URL(req.url).searchParams;

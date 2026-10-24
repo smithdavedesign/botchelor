@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { afterDarkMetadata } from "@/lib/adult/discreet";
 import AfterDarkFrame from "./Frame";
-import { currentView } from "./view";
+import Unavailable from "./Unavailable";
+import { currentHere, currentView } from "./view";
 import "./discreet.css";
 
 /**
@@ -13,7 +14,22 @@ export async function generateMetadata(): Promise<Metadata> {
   return afterDarkMetadata((await currentView()).neutralTitle);
 }
 
-/** The PIN prompt for a locked device, else the pages inside discreet mode's blur hook (app/after-dark/Frame.tsx). */
+/**
+ * The PIN prompt for a locked device, else the pages inside discreet mode's blur hook (app/after-dark/Frame.tsx). Where
+ * After Dark isn't offered (lib/jurisdiction.ts) every page under it is the same notice instead, for everyone but admins;
+ * where it's text only, a line says so above the page.
+ */
 export default async function AfterDarkLayout({ children }: { children: ReactNode }) {
-  return <AfterDarkFrame view={await currentView()}>{children}</AfterDarkFrame>;
+  const here = await currentHere();
+  if (here.mode === "blocked") return <Unavailable reason={here.reason} />;
+  return (
+    <AfterDarkFrame view={await currentView()}>
+      {here.mode === "text_only" && (
+        <p className="muted small ad-text-only" data-text-only-notice>
+          {here.reason}
+        </p>
+      )}
+      {children}
+    </AfterDarkFrame>
+  );
 }

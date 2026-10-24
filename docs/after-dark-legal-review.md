@@ -6,7 +6,18 @@ re-read at the source that day: the UK Online Safety Act's text-only exclusion (
 policy (updated 2026-04-21). Builds on `docs/after-dark.md` §3 Payments, §4 Age verification and §6 Hosting, and on
 `docs/after-dark-moderation-options.md`._
 
-## The short version
+## What's built (2026-10-24, David: "I take all your recommendations")
+
+- **Content lines:** non-consent, bestiality and sexual violence or gore are refused in steers, lines, whispers,
+  scenarios and media prompts, as the age lines were (`lib/safety.ts` EXCLUDED_THEMES; blood family and step-family
+  already were). The scene prompt says so too.
+- **Regional rules:** `lib/jurisdiction.ts` and `lib/place.ts`. Blocked places get the not-available page and no
+  teasers, nav link, account card or After Dark looks. Text-only places (the UK, Japan) get the scenes, but every
+  picture, video and voice route answers 451 and no automatic picture is drawn for them. An unknown place is blocked.
+  Admins, the operator, are exempt.
+- **Account deletion** now removes every After Dark record of the person (`lib/account.ts` deleteAfterDarkData).
+
+
 
 - **"Every site just asks for 18+" was true in 2024, not now.** Where the laws apply, self-declaring is non-compliant,
   and the bigger AI-companion sites have added real checks: SpicyChat (Persona, in 26 US states plus the UK, France,

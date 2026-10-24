@@ -7,8 +7,21 @@
 import { isAdmin } from "../admins";
 import type { Db } from "../db";
 
-export type UsageKind = "writes" | "pictures" | "clips" | "voice_lines" | "monologues";
-const LABEL: Record<UsageKind, string> = { writes: "scene steps", pictures: "pictures", clips: "clips", voice_lines: "voiced lines", monologues: "nights told from both sides" };
+export const USAGE_KINDS = ["writes", "pictures", "clips", "voice_lines", "monologues", "studio", "studio_byok", "upscales"] as const;
+export type UsageKind = (typeof USAGE_KINDS)[number];
+const LABEL: Record<UsageKind, string> = {
+  writes: "scene steps",
+  pictures: "pictures",
+  clips: "clips",
+  voice_lines: "voiced lines",
+  monologues: "nights told from both sides",
+  // The Studio (lib/adult/studio.ts): pictures on our models, on the owner's own key, and upscales.
+  studio: "Studio pictures",
+  studio_byok: "Studio pictures on your own key",
+  upscales: "upscales",
+};
+/** The caps' defaults (the columns' own), for the settings page. */
+export const DEFAULT_CAPS: Record<UsageKind, number> = { writes: 300, pictures: 30, clips: 5, voice_lines: 2000, monologues: 20, studio: 400, studio_byok: 1000, upscales: 50 };
 
 export const monthOf = (d: Date = new Date()) => d.toISOString().slice(0, 7);
 
@@ -28,10 +41,10 @@ export async function usageLeft(db: Db, ownerId: string, kind: UsageKind, now: D
   return Math.max(0, cap - used);
 }
 
-export async function countUse(db: Db, ownerId: string, kind: UsageKind, now: Date = new Date()): Promise<void> {
+export async function countUse(db: Db, ownerId: string, kind: UsageKind, now: Date = new Date(), n = 1): Promise<void> {
   await db.query(
-    `insert into adult_usage (owner_id, month, ${kind}) values ($1, $2, 1)
-     on conflict (owner_id, month) do update set ${kind} = adult_usage.${kind} + 1`,
-    [ownerId, monthOf(now)],
+    `insert into adult_usage (owner_id, month, ${kind}) values ($1, $2, $3::int)
+     on conflict (owner_id, month) do update set ${kind} = adult_usage.${kind} + $3::int`,
+    [ownerId, monthOf(now), n],
   );
 }
