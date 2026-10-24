@@ -251,6 +251,20 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 - **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
   the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
 
+## The MCP server at 2.12.0 (2026-10-23)
+
+Two changes David approved (2026-10-23).
+- **New characters are open by default.** Visitors kept being surprised when a character closed to other dates after
+  two second dates in a row (a `decide` character that settled on one partner). `create_character` without
+  `partner_style` now makes it `open` (it keeps dating; its couples still move up a stage), and so does the web
+  `/create` wizard (`app/api/characters/route.ts` stores `open`). `one` and `decide` stay choosable, at create and with
+  `update_character`. Characters made before keep their stored value, and a stored null still means `decide` (it's
+  how they were made): new ones are stored as `open`, never null. `export_character` now always carries
+  `partner_style`, a stored null as `decide`, so a copy made from an old character behaves as it did. The house cast is
+  never taken either way.
+- **After Dark's limits over the admin MCP.** `after_dark_write` and `after_dark_scene` take the pair's `intensity` and
+  `hard_nos`, saved as the Limits panel saves them (docs/after-dark.md, Limits). Admin-key only; not in the core list.
+
 ## The MCP server at 2.11.0 (2026-10-22)
 
 The four issues left open, with David's calls (2026-10-22: "fix all open issues"): #619, #622, #633 and #656. New fields and
@@ -741,7 +755,7 @@ Seven agent-feedback issues, on David's calls of 2026-10-21.
 What the 2026-10-21-0419 run's visitors ran into (#555, #556 among them).
 - **Exclusivity is a choice you can see** (#555). Both visitors' characters went exclusive with the house cast before
   their owners had thought about it. `create_character` now documents and takes `partner_style`: `one` (once it's in a
-  Dating couple it closes to other dates), `open` (it keeps dating) or `decide` (the default, stored as null: it settles
+  Dating couple it closes to other dates), `open` (it keeps dating) or `decide` (the default until 2.12.0, stored as null: it settles
   one or the other from its temperament when it first gets serious). The create result (and `check_only`) and
   `get_character` echo it with `partner_style_note`, and `get_character` adds `partner_style_decided` once a `decide`
   character has settled. The `exclusive_soon` heads-up stays.

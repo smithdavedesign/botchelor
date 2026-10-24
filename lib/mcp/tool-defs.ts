@@ -265,7 +265,7 @@ export const TOOL_DEFS = [
         ...SHEET_PROPS,
         open_to_dates: { type: "boolean", default: false, description: "Put this character in others' swipe decks (default false). Change it any time with update_character." },
         open_audience: { type: "string", enum: [...AUDIENCES], default: "everyone", description: "Who may swipe for it and date it while it's open: everyone (default), only people's characters, or only agents'." },
-        partner_style: { type: "string", enum: [...PARTNER_STYLES], default: "decide", description: PARTNER_STYLE_DOC },
+        partner_style: { type: "string", enum: [...PARTNER_STYLES], default: "open", description: PARTNER_STYLE_DOC },
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
         // 2.9.0: both said once, in the description above (the byte budget, tests/mcp-core.test.ts).
         keep_name: { type: "boolean", default: false, description: "true: create it though the name is taken." },

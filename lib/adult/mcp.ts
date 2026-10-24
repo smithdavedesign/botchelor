@@ -12,11 +12,52 @@ import { loadCharacter } from "../character";
 import { advanceReel, listReels, makeReel, reelNight } from "./reels";
 import { siteUrl } from "../site";
 import { adultAvailable } from "./mode";
-import { continueScene, listCastPairs, openScene, sceneNotes } from "./scenes";
+import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX } from "./limits";
+import { continueScene, listCastPairs, openScene, saveLimits, sceneNotes, type LimitsInput } from "./scenes";
 import { getAdultSettings, saveAdultSettings } from "./settings";
 
 type JsonSchema = Record<string, unknown>;
 const id = { type: "string", maxLength: 64 };
+
+/**
+ * The viewer's limits for the pair (lib/adult/limits.ts), as the Limits panel sets them (POST /api/admin/after-dark
+ * {limits}): the same values, saved by the same saveLimits, so its rules hold here too (a "dirty_talk" hard no keeps
+ * filthy written as explicit). after_dark_write saves them before the step; after_dark_scene saves them and writes nothing.
+ */
+const LIMIT_PROPS: Record<string, JsonSchema> = {
+  intensity: {
+    type: "string",
+    enum: [...INTENSITIES],
+    description: "Saves the pair's intensity, as the Limits panel does (explicit when never set). filthy: plain dirty talk from undressing on, unless dirty_talk is a hard no.",
+  },
+  hard_nos: {
+    type: "object",
+    description: "Replaces the pair's hard nos, as the Limits panel does: chips from the list, plus up to 8 of your own, a few words each.",
+    properties: {
+      chips: { type: "array", items: { type: "string", enum: HARD_NO_IDS }, maxItems: HARD_NO_IDS.length },
+      own: { type: "array", items: { type: "string", maxLength: OWN_LEN }, maxItems: OWN_MAX },
+    },
+  },
+};
+
+/** The limits in a call's arguments, checked as the Limits panel's route checks them; null when there are none. */
+export function limitsArg(args: Record<string, unknown>): { limits: LimitsInput | null } | { error: string } {
+  const limits: LimitsInput = {};
+  if (args.intensity !== undefined) {
+    if (!(INTENSITIES as readonly unknown[]).includes(args.intensity)) return { error: `intensity is one of ${INTENSITIES.join(", ")}.` };
+    limits.intensity = args.intensity as string;
+  }
+  if (args.hard_nos !== undefined) {
+    const h = args.hard_nos && typeof args.hard_nos === "object" ? (args.hard_nos as { chips?: unknown; own?: unknown }) : null;
+    const chips = h ? (h.chips ?? []) : null;
+    const own = h ? (h.own ?? []) : null;
+    if (!Array.isArray(chips) || !Array.isArray(own) || own.some((o) => typeof o !== "string")) return { error: "hard_nos is { chips: [...], own: [...] }." };
+    const unknown = chips.find((c) => !HARD_NO_IDS.includes(c as string));
+    if (unknown !== undefined) return { error: `${JSON.stringify(unknown)} isn't a hard no: chips are ${HARD_NO_IDS.join(", ")}.` };
+    limits.hard_nos = { chips: chips as string[], own: own as string[] };
+  }
+  return { limits: Object.keys(limits).length ? limits : null };
+}
 
 export const ADULT_TOOLS: { name: string; title: string; description: string; inputSchema: JsonSchema; annotations: Record<string, boolean> }[] = [
   {
@@ -31,16 +72,18 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     title: "After dark: read a scene",
     description:
       "Admin only. A pair's scene so far, their gallery (picture and clip ids, each with the provider that made it and whether that was the fallback), " +
-      "and which text model wrote each chapter (written_by: from its steps, else the settings history, else 'not recorded').",
-    inputSchema: { type: "object", required: ["a", "b"], properties: { a: id, b: id } },
-    annotations: { readOnlyHint: true },
+      "and which text model wrote each chapter (written_by: from its steps, else the settings history, else 'not recorded'). " +
+      "With intensity or hard_nos it saves those first (the pair's limits, as the Limits panel sets them) and writes no lines.",
+    inputSchema: { type: "object", required: ["a", "b"], properties: { a: id, b: id, ...LIMIT_PROPS } },
+    annotations: { readOnlyHint: false },
   },
   {
     name: "after_dark_write",
     title: "After dark: write the next lines",
     description:
       "Admin only. Writes the next lines of a pair's scene on after dark's model, optionally steered. Nobody under 18 and no real people, " +
-      "always; anything else between the two adults is allowed. Pictures come when the scene turns explicit, or when they ask each other for one.",
+      "always; anything else between the two adults is allowed. Pictures come when the scene turns explicit, or when they ask each other for one. " +
+      "intensity and hard_nos, when given, are saved as the pair's limits first, and hold for this step and after.",
     inputSchema: {
       type: "object",
       required: ["a", "b"],
@@ -49,6 +92,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         b: id,
         direction: { type: "string", maxLength: 300, description: 'With steer_mode direct, words in quotes ("…") are spoken nearly as written, by whoever the steer names.' },
         steer_mode: { type: "string", enum: ["nudge", "direct"], description: "nudge (default): worked toward at the scene's own pace. direct: done now, can skip ahead." },
+        ...LIMIT_PROPS,
       },
     },
     annotations: { readOnlyHint: false },
@@ -142,6 +186,15 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
   if (!owner) return { error: "No admin account to hold the scenes: claim admin on /admin first." };
   const a = String(args.a ?? "");
   const b = String(args.b ?? "");
+  // The pair's limits, when a scene call carries them: saved first, through the Limits panel's path (lib/adult/scenes.ts).
+  if (name === "after_dark_scene" || name === "after_dark_write") {
+    const arg = limitsArg(args);
+    if ("error" in arg) return { error: arg.error };
+    if (arg.limits) {
+      const saved = await saveLimits(db, owner, a, b, arg.limits);
+      if (!saved.ok) return { error: saved.status === 404 ? "Pick two characters who are in after dark (after_dark_pairs lists them)." : saved.message };
+    }
+  }
   switch (name) {
     case "after_dark_pairs":
       return { data: { pairs: await listCastPairs(db, owner), characters: await listSwitchable(db, owner) } };

@@ -508,8 +508,8 @@ things, and asked for a fourth:
   then), never a pun"*, and a craft note says so. Before undressing it's Explicit's rules. The hook and worn-phrase
   critics are unchanged, so a pun loop is still cut. **A hard no wins:** with "dirty talk" among the pair's hard nos,
   Filthy writes Explicit's prompt, and the hard-no check still drops a crude line. Set it in the Limits panel (🎚, the
-  fifth choice) or with `limits: {intensity: "filthy"}` on `POST /api/admin/after-dark`, like the other levels (#702 has
-  no MCP setter; `after_dark_scene` shows the scene's intensity). The step's flags say `filthy: true`. The stage floor
+  fifth choice), with `limits: {intensity: "filthy"}` on `POST /api/admin/after-dark`, or with `intensity: "filthy"` on
+  the admin MCP `after_dark_write` / `after_dark_scene`, like the other levels (MCP 2.12.0: see the Limits section). The step's flags say `filthy: true`. The stage floor
   (`lib/adult/stage-floor.ts`) reads a few more plain words, in the dialogue as in the actions, so `stageShown`, the
   limit check and the director agree with plainer talk. A Direct steer's quoted line is held to the limits like the
   rest of the steer: one that asks past the intensity (its stage, or crude words below Explicit) or for a hard no is
@@ -1146,6 +1146,15 @@ edited or deleted. Edits pass `checkAdultText`; the PG note, which reaches their
 show's own `checkShowText` (nothing sexual, no innuendo) and stays under 300 characters. An edited fact drops its quote.
 Owner-scoped: a viewer sees and edits only what their own nights wrote (a note or fact another owner's night wrote is
 404 to them). A rewind of a step that didn't close a chapter leaves the recap as it is now, so an edit made since stays.
+
+**Over MCP (2.12.0, 2026-10-23).** The admin tools set the same limits the panel does, through the same `saveLimits`:
+`after_dark_write` and `after_dark_scene` take an optional `intensity` (`slow_burn`, `flirty`, `spicy`, `explicit`,
+`filthy`: `INTENSITIES`, the enum the route and panel use) and `hard_nos` (`{chips: [HARD_NO_IDS…], own: [up to 8, 40
+characters each]}`, replacing the pair's hard nos as the panel does). `after_dark_write` saves them before the step is
+written, so the step is held to them; `after_dark_scene` saves them and writes nothing (it's no longer read-only), and
+returns the scene with them. Their rules are the panel's: a `dirty_talk` hard no keeps Filthy written as Explicit, own
+hard nos that cross the two lines are refused, an unknown level or chip is an error and nothing is saved. The tool count
+is the same.
 
 **Screenshots** (`SHOTS=limits npm run screenshots:after-dark`): `docs/screenshots/after-dark-limits-*.png`.
 

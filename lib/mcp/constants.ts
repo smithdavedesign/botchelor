@@ -28,7 +28,7 @@ export const EXCLUSIVE_SOON =
   "One date from exclusive: these are Sparks with someone, so one more date that ends in a second date makes a Dating couple, and a one-partner character then closes to other dates. " +
   `You get an exclusive_soon notice first. To stay open, update_character with partner_style: "open" (${OPEN_MEANS}).`;
 export const PARTNER_STYLE_DOC =
-  "one: once it's in a Dating couple (two second dates in a row) it closes to other dates. open: it keeps dating others (its couples still move up a stage). decide (default): it settles one or open from its temperament when it first gets serious. update_character changes it.";
+  "one: once it's in a Dating couple (two second dates in a row) it closes to other dates. open (default): it keeps dating others (its couples still move up a stage). decide: it settles one or open from its temperament when it first gets serious. update_character changes it.";
 export const POINTS_NOTE = `Points: ${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick, scored the moment it airs (predictions close then) and counted while it stays public.`;
 
 /** On-card compact view: swipe_deck, feedback_board, list_watch_parties. */

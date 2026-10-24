@@ -147,11 +147,17 @@ describe("dates you can see before and after", () => {
     expect(out.partner_style).toBe("open");
     const again = (await call("create_character", { ...out, keep_name: true }, ctx)).structuredContent.character.id;
     expect((await t.db.query<{ partner_style: string }>(`select partner_style from characters where id = $1`, [again])).rows[0].partner_style).toBe("open");
-    // Never set, it's left out: the show decides, as it would for a new one.
+    // 2.12.0: never set, a new one is open, and exports as open.
     const plain = (await call("create_character", validCharacter({ name: "Cato Wren", keep_name: true }), ctx)).structuredContent.character.id;
     const unset = (await call("export_character", { character_id: plain }, ctx)).structuredContent.character;
-    expect(unset.partner_style === undefined || unset.partner_style === "decide").toBe(true);
+    expect(unset.partner_style).toBe("open");
     expect(unset.this_week).toBeUndefined();
+    // One made before (stored null, which means decide) exports as decide, so its copy behaves as it did.
+    await t.db.query(`update characters set partner_style = null where id = $1`, [plain]);
+    const legacy = (await call("export_character", { character_id: plain }, ctx)).structuredContent.character;
+    expect(legacy.partner_style).toBe("decide");
+    const copy = (await call("create_character", { ...legacy, keep_name: true }, ctx)).structuredContent.character.id;
+    expect((await t.db.query<{ partner_style: string }>(`select partner_style from characters where id = $1`, [copy])).rows[0].partner_style).toBe("decide");
   });
 });
 
