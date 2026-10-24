@@ -287,7 +287,7 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
   const capKind = spec.cap ?? (own ? "studio_byok" : "studio");
   const left = await usageLeft(db, viewer, capKind);
   if (left !== null && left < asked) return fail(429, "over_cap", `That's ${asked} and ${left} are left this month. They reset on the 1st.`);
-  const gate = await mediaGate(db);
+  const gate = await mediaGate(db, { owner: viewer });
   if (!gate.ok) return fail(503, "hive_paused", gate.message);
   const pays = spec.tokens > 0 && !access.admin;
   if (pays && !(await spendBoughtTokens(db, viewer, spec.tokens))) {
@@ -324,7 +324,7 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
     }
     if (paused) continue;
     if (checked++) await pause(CHECK_GAP_MS);
-    const verdict: CheckResult = await checkMedia(db, { base64: d.file.bytes.toString("base64"), mime: d.file.mime }, "image");
+    const verdict: CheckResult = await checkMedia(db, { base64: d.file.bytes.toString("base64"), mime: d.file.mime }, "image", { owner: viewer });
     if (!verdict.ok) {
       lastError = verdict.reason;
       if (verdict.paused) paused = verdict.paused;

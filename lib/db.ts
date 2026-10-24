@@ -564,6 +564,15 @@ create table if not exists notifications (
   read_at timestamptz
 );
 create index if not exists notifications_user on notifications (user_id, created_at desc);
+-- When a person last read a thread (lib/inbox.ts): the Matches page's unread dot counts texts since, so clearing the
+-- notifications doesn't clear a thread that's still unread.
+create table if not exists thread_reads (
+  user_id text not null,
+  character_lo text not null references characters (id) on delete cascade,
+  character_hi text not null references characters (id) on delete cascade,
+  read_at timestamptz not null,
+  primary key (user_id, character_lo, character_hi)
+);
 create table if not exists push_subscriptions (
   endpoint text primary key,
   user_id text not null,
@@ -2181,6 +2190,14 @@ create table if not exists adult_studio_setups (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (owner_id, name)
+);
+-- Who writes the scenes (lib/adult/writer-config.ts; David, 2026-10-24): the writers a person can pick and the default,
+-- as JSON; and each person's own pick (adult_prefs.writer_model, null: the default), which goes with their account.
+alter table adult_settings add column if not exists writer jsonb;
+create table if not exists adult_prefs (
+  user_id text primary key,
+  writer_model text,
+  updated_at timestamptz not null default now()
 );
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start

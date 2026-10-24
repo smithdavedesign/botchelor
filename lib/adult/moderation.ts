@@ -20,6 +20,7 @@
  * season portraits) go to Hive or, with `pg_via: "alt"`, to the alternatives asked the show's question (no nudity,
  * everyone an adult), which leaves Hive's 100 for After Dark. Videos stay on Hive: the alternatives don't read video.
  */
+import { isAdmin } from "../admins";
 import type { Db } from "../db";
 import { AGE_FORMAT, AGE_QUESTION, checkOutput, checkSet, vlmAnswer, type Checkable, type CheckKind, type CheckResult } from "./check";
 import { hiveGate, underHiveLimit, type HiveGate } from "./hive-limit";
@@ -173,13 +174,27 @@ const hiveCheck = (db: Db, keys: Keys, media: Checkable, kind: MediaKind): Promi
 /** Hive gave no verdict (paused, busy, down, or no key): the alternatives may stand in, in `hive_then_alt`. */
 const noVerdict = (v: CheckResult): boolean => !v.ok && /^(the check couldn't run|the output check isn't set up)/.test(v.reason);
 
+/** Whose picture it is, when the caller knows (an admin's own go to `admin_checker`). */
+export type CheckFor = { owner?: string | null };
+
 /**
- * The check, by the configured mode. Never throws; fails closed. The verdict says which checkers passed it (`via`) when
- * an alternative did.
+ * Whether an admin's own picture is checked by the alternatives instead of Hive (`admin_checker: "alt"`, the default):
+ * the owner is an admin and an alternative is ready. Never for a video, nor for the show's own pictures.
  */
-export async function checkMedia(db: Db, media: Checkable, kind: MediaKind): Promise<CheckResult & { via?: string[] }> {
+async function adminOnAlts(db: Db, m: ModerationConfig, keys: Keys, kind: MediaKind, who: CheckFor): Promise<boolean> {
+  if (!who.owner || m.admin_checker !== "alt" || kind === "video" || isPg(kind)) return false;
+  if (!readyAlts(m, keys).length) return false;
+  return isAdmin(db, who.owner);
+}
+
+/**
+ * The check, by the configured mode (an admin's own pictures, by `admin_checker`). Never throws; fails closed. The
+ * verdict says which checkers passed it (`via`) when an alternative did.
+ */
+export async function checkMedia(db: Db, media: Checkable, kind: MediaKind, who: CheckFor = {}): Promise<CheckResult & { via?: string[] }> {
   const m = (await getAdultSettings(db)).moderation;
   const keys = await adultKeys(db);
+  if (await adminOnAlts(db, m, keys, kind, who)) return runAlts(m, keys, media, kind);
   if (isPg(kind)) return m.pg_via === "alt" ? runAlts(m, keys, media, kind) : hiveCheck(db, keys, media, kind);
   if (m.mode === "alt") return runAlts(m, keys, media, kind);
   const h = await hiveCheck(db, keys, media, kind);
@@ -196,13 +211,14 @@ export async function checkMedia(db: Db, media: Checkable, kind: MediaKind): Pro
 
 /**
  * Asked before anything is drawn: Hive's breaker (hiveGate), unless the mode lets the alternatives check while Hive is
- * paused (`hive_then_alt` with one ready), or doesn't use Hive at all (`alt`, or the show's `pg_via: "alt"`). Videos
- * (`video: true`) always need Hive.
+ * paused (`hive_then_alt` with one ready), or doesn't use Hive at all (`alt`, the show's `pg_via: "alt"`, or an admin's
+ * own picture with `admin_checker: "alt"`). Videos (`video: true`) always need Hive.
  */
-export async function mediaGate(db: Db, opts: { pg?: boolean; video?: boolean; probe?: boolean } = {}): Promise<HiveGate> {
+export async function mediaGate(db: Db, opts: { pg?: boolean; video?: boolean; probe?: boolean } & CheckFor = {}): Promise<HiveGate> {
   const m = (await getAdultSettings(db)).moderation;
   const keys = await adultKeys(db);
   const alts = readyAlts(m, keys).length > 0;
+  if (await adminOnAlts(db, m, keys, opts.video ? "video" : opts.pg ? "pg_image" : "image", opts)) return { ok: true };
   if (!opts.video && ((opts.pg && m.pg_via === "alt") || (!opts.pg && m.mode === "alt"))) {
     return alts ? { ok: true } : { ok: false, until: new Date(Date.now() + 60_000).toISOString(), message: "No checker is set up: add one in After Dark's settings.", reason: "not drawn: no alternative checker is set up" };
   }

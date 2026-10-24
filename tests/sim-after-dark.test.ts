@@ -120,6 +120,13 @@ describe("the After Dark simulation's inputs", () => {
     expect(parseArms("cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1", undefined).map((a) => a.hosts)).toEqual([null, null]);
   });
 
+  it("runs a local: model on this machine's Ollama, with no OpenRouter hosts", () => {
+    expect(parseArms("local:tiger-gemma-12b, z-ai/glm-4.7", "deepinfra")).toEqual([
+      { model: "local:tiger-gemma-12b", local: "tiger-gemma-12b", hosts: null },
+      { model: "z-ai/glm-4.7", hosts: ["deepinfra"] },
+    ]);
+  });
+
   it("gives each model its own penalties in --models' order, the app's own where a place is empty, and names them in the key", () => {
     expect(parsePenalties("0.3,0", 2)).toEqual([0.3, 0]);
     expect(parsePenalties(",0", 2)).toEqual([null, 0]);

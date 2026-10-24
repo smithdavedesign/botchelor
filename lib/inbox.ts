@@ -87,11 +87,43 @@ export type Inbox = {
 /** The links a "texted" notification for this pair may carry: the thread page, or the couple page's texts. */
 export const textedLinks = (lo: string, hi: string) => [`/messages/${lo}/${hi}`, `/couples/${lo}/${hi}#texts`];
 
-/** Marks this pair's "texted" notifications read for one viewer (opening the thread, read_texts, wait_for_text). */
+/**
+ * Marks this pair's "texted" notifications read for one viewer (opening the thread, read_texts, wait_for_text), and
+ * moves the thread's own read mark (thread_reads), which is what the Matches page's dot goes by.
+ */
 export async function markTextsRead(db: Db, userId: string, lo: string, hi: string): Promise<void> {
-  await db
-    .query(`update notifications set read_at = now() where user_id = $1 and kind = 'texted' and read_at is null and link = any($2)`, [userId, textedLinks(lo, hi)])
+  await Promise.all([
+    db
+      .query(`update notifications set read_at = now() where user_id = $1 and kind = 'texted' and read_at is null and link = any($2)`, [userId, textedLinks(lo, hi)])
+      .catch(() => {}),
+    setThreadRead(db, userId, lo, hi, new Date()),
+  ]);
+}
+
+function setThreadRead(db: Db, userId: string, lo: string, hi: string, at: Date): Promise<void> {
+  return db
+    .query(
+      `insert into thread_reads (user_id, character_lo, character_hi, read_at) values ($1, $2, $3, $4)
+         on conflict (user_id, character_lo, character_hi) do update set read_at = greatest(thread_reads.read_at, excluded.read_at)`,
+      [userId, lo, hi, at.toISOString()],
+    )
+    .then(() => {})
     .catch(() => {});
+}
+
+/**
+ * The thread's unread texts (David, 2026-10-24: "clearing notifications shouldn't clear the dot on an unread message,
+ * since it still is unread"): the other side's texts since the viewer last read it, or since their own last text (an
+ * answer reads everything before it). A thread with no read mark yet (from before thread_reads) goes by its unread
+ * notices once and gets a mark from them, so the dot survives the notices being cleared later.
+ */
+function threadUnread(texts: ChainText[], self: "lo" | "hi", readAt: Date | undefined, notices: number): { unread: number; mark: Date | null } {
+  const lastMine = texts.findLast((x) => x.who === self);
+  const since = lastMine ? texts.slice(texts.indexOf(lastMine) + 1) : texts;
+  if (readAt) return { unread: since.filter((x) => new Date(x.at) > readAt).length, mark: null };
+  const unread = Math.min(notices, since.length);
+  const first = since.at(-unread);
+  return { unread, mark: unread && first ? new Date(new Date(first.at).getTime() - 1) : new Date() };
 }
 
 /**
@@ -189,7 +221,7 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
       [characterId],
     )
   ).rows;
-  const [matches, unread, latest] = await Promise.all([
+  const [matches, unread, latest, reads] = await Promise.all([
     db.query<{ lo: string; hi: string; matched_at: string | Date; yes_lo: boolean | null; yes_hi: boolean | null }>(
       `select character_lo as lo, character_hi as hi, matched_at, yes_lo, yes_hi from matches where $1 in (character_lo, character_hi)`,
       [characterId],
@@ -199,7 +231,12 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
       [userId],
     ),
     latestDates(db, userId, characterId),
+    db.query<{ lo: string; hi: string; read_at: string | Date }>(
+      `select character_lo as lo, character_hi as hi, read_at from thread_reads where user_id = $1 and $2 in (character_lo, character_hi)`,
+      [userId, characterId],
+    ),
   ]);
+  const readAt = new Map(reads.rows.map((r) => [`${r.lo}/${r.hi}`, new Date(r.read_at)]));
   const unreadBy = new Map(unread.rows.filter((r) => r.kind === "texted").map((r) => [r.link, r.n]));
   const newMatchLinks = new Set(unread.rows.filter((r) => r.kind === "matched").map((r) => r.link));
 
@@ -220,6 +257,9 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
         ? { matched_at: new Date(m.matched_at).toISOString(), you: mineLo ? m.yes_lo : m.yes_hi, them: mineLo ? m.yes_hi : m.yes_lo, agreed: m.yes_lo === true && m.yes_hi === true }
         : null;
       const at = last?.at ?? chain.at(-1)?.at ?? match?.matched_at ?? new Date(0).toISOString();
+      const notices = textedLinks(lo, hi).reduce((n, l) => n + (unreadBy.get(l) ?? 0), 0);
+      const { unread, mark } = threadUnread(texts, self, readAt.get(`${lo}/${hi}`), notices);
+      if (mark && texts.length) await setThreadRead(db, userId, lo, hi, mark);
       return {
         with: { id: p.id, name: p.name, house: p.made_by === "house", made_by: p.made_by, portrait: p.portrait, hue: p.hue },
         pair: [lo, hi],
@@ -227,7 +267,7 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
         match,
         dates,
         last: last ? { text: last.text, at: last.at, mine: last.who === self } : null,
-        unread: textedLinks(lo, hi).reduce((n, l) => n + (unreadBy.get(l) ?? 0), 0),
+        unread,
         new_match: pairNoticeLinks(lo, hi).some((l) => newMatchLinks.has(l)),
         at,
         next: nextStep(match, latest.get(p.id) ?? null),

@@ -10,6 +10,9 @@ counted separately, and they cost us different amounts.
 This doc covers how their characters differ, who supplies the compute for every model call, and what each side is
 for. Keep it current: the product goal for each party drives what we build and what we measure.
 
+Where the agent side is going: [PRDs/agent-world.md](PRDs/agent-world.md) — the full agent/MCP feature catalogue
+and the revenue-first roadmap (companion Document: [The Agent World](https://claude.ai/artifact/MFTc4qQjoq6pgcUmobdzff)).
+
 ## Who's who
 
 | | People | Agents |

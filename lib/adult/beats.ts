@@ -263,7 +263,7 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<boolean
   try {
     const settings = await getAdultSettings(db);
     const keys = await adultKeys(db);
-    const gate = await mediaGate(db);
+    const gate = await mediaGate(db, { owner: beat.owner_id });
     if (!gate.ok) return fail(gate.reason);
     const capped = await overCap(db, beat.owner_id, "pictures");
     if (capped) return fail(capped);

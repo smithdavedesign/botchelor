@@ -24,6 +24,13 @@ export const ModerationConfig = z.object({
     .nullable()
     .default(null),
   pg_via: z.enum(["hive", "alt"]).default("hive"),
+  /**
+   * An admin's own pictures (David, 2026-10-24: "can we turn hive off as admin?"): "alt" checks them with the
+   * alternatives instead of Hive (the Venice vision model's age question: no daily cap), whatever `mode` says for
+   * everyone else; "same" (the default) holds them to `mode`. Production is set to "alt". A picture is never kept
+   * unchecked, and videos stay Hive's (the alternatives don't read video).
+   */
+  admin_checker: z.enum(["same", "alt"]).default("same"),
 });
 export type ModerationConfig = z.infer<typeof ModerationConfig>;
 export const DEFAULT_MODERATION: ModerationConfig = ModerationConfig.parse({});

@@ -58,6 +58,11 @@ export default function ModerationSettings({ initial }: { initial: AdultSettings
           </option>
         ))}
       </select>
+      <label htmlFor="ad-mod-admin">Who checks an admin&apos;s own pictures</label>
+      <select id="ad-mod-admin" value={m.admin_checker} disabled={busy} onChange={(e) => void save({ moderation: { admin_checker: e.target.value } })}>
+        <option value="same">The same as everyone&apos;s</option>
+        <option value="alt">The alternatives, not Hive (no daily cap)</option>
+      </select>
       <label htmlFor="ad-mod-pg">Who checks the show&apos;s own pictures (place sets, look tiles, season portraits)</label>
       <select id="ad-mod-pg" value={m.pg_via} disabled={busy} onChange={(e) => void save({ moderation: { pg_via: e.target.value } })}>
         <option value="hive">Hive</option>
