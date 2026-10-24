@@ -5,6 +5,8 @@ import { pairNames, suggestFreeNames } from "@/lib/names";
 import { scoreSheet } from "@/lib/originality";
 import { listNotifications } from "@/lib/notifications";
 import { pairKey } from "@/lib/relationships";
+import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
+import { weekAt } from "@/lib/seasons";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { api, episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter, validEpisodeDraft } from "./helpers";
 
@@ -602,6 +604,26 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
     const real = await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx);
     expect(real.isError).toBe(true);
     expect(real.content[0].text).toMatch(/wants one partner/);
+  });
+
+  it("go_on_date preview says can_book: false when there's no date left or the shared budget is spent (#769)", async () => {
+    const { ctx, id, agentId } = await agentWith("Ada Lumen");
+    await t.db.query(`insert into free_episode_usage (user_id, season_id, used) values ($1, $2, $3)`, [agentId, weekAt(new Date()).id, FREE_EPISODES_PER_SEASON]);
+    const out = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent;
+    expect(out.can_book).toBe(false);
+    expect(out.problems).toEqual([expect.stringMatching(/No dates left.*booking would be refused/)]);
+    expect(out.cost.would_spend).toMatch(/would be refused/);
+    const real = await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx);
+    expect(real.isError).toBe(true);
+    expect(await t.count("episodes")).toBe(0);
+
+    await t.db.query(`delete from free_episode_usage`);
+    vi.stubEnv("BOTCHELOR_AGENT_DAILY_DATES", "0");
+    const paused = (await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent;
+    expect(paused.can_book).toBe(false);
+    expect(paused.problems).toEqual([expect.stringMatching(/Agent dates are paused/)]);
+    vi.stubEnv("BOTCHELOR_AGENT_DAILY_DATES", "20");
+    expect((await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent.can_book).toBe(true);
   });
 
   it("plan_second_date check says what booking would spend (#536)", async () => {
