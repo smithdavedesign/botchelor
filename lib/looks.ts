@@ -218,7 +218,7 @@ export function optionsFor(step: LookStep, gender: Gender, afterDark = false): r
 }
 
 export const optionLabel = (o: LookOption, gender: Gender): string => (gender === "man" && o.labelMan) || o.label;
-const optionPrompt = (o: LookOption, gender: Gender): string => (gender === "man" && o.promptMan) || o.prompt;
+export const optionPrompt = (o: LookOption, gender: Gender): string => (gender === "man" && o.promptMan) || o.prompt;
 
 /* ------------------------------------------ the finer details ------------------------------------------ */
 

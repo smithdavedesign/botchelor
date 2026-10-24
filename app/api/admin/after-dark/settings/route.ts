@@ -5,6 +5,7 @@ import { MODEL_ID } from "@/lib/adult/replicate";
 import { getAdultSettings, MEDIA_PROVIDERS, PROMPT_VERSIONS, saveAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { lockedForRequest } from "@/lib/adult/privacy";
+import { USAGE_KINDS } from "@/lib/adult/usage";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 
 /** A Replicate model (owner/name, or owner/name:version), or "" for the default. */
@@ -49,6 +50,9 @@ const Input = z.object({
   auto_scene_pictures: z.boolean().optional(),
   beat_pictures: z.boolean().optional(),
   media_fallback: z.boolean().optional(),
+  // The Studio's settings (lib/adult/studio-config.ts validates every value on save), and the monthly caps.
+  studio: z.record(z.string().max(40), z.unknown()).optional(),
+  caps: z.object(Object.fromEntries(USAGE_KINDS.map((k) => [k, z.number().int().min(0).max(1_000_000).optional()]))).strict().optional(),
 });
 
 /** A signed-in admin on a device that isn't locked by their PIN (lib/adult/privacy.ts): their id, else null. */
@@ -71,6 +75,12 @@ export const POST = handle(async (req: Request) => {
   const { db, admin } = await unlockedAdmin(req);
   if (!admin) return json({ error: "not_found" }, 404);
   const input = parseBody(Input, await readJson(req), "invalid_settings");
-  // Who saved it goes in the settings history with each model or provider change.
-  return json({ settings: await saveAdultSettings(db, input, admin) });
+  // Who saved it goes in the settings history with each model or provider change. A Studio value that doesn't fit its
+  // rules (lib/adult/studio-config.ts) is refused, with what was wrong.
+  try {
+    return json({ settings: await saveAdultSettings(db, input, admin) });
+  } catch (err) {
+    if (input.studio !== undefined) return json({ error: "invalid_settings", message: `Studio: ${err instanceof Error ? err.message.slice(0, 300) : "invalid"}` }, 422);
+    throw err;
+  }
 });

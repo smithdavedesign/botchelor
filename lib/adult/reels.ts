@@ -803,9 +803,12 @@ export async function setPictures(db: Db, places: readonly (string | null)[]): P
   return out;
 }
 
-/** One keyframe from Venice's multi-image edit: it answers with the picture itself. */
-export async function drawKeyframe(key: string, prompt: string, images: string[]): Promise<{ bytes: Buffer; mime: string }> {
-  const res = await venice(key, "/image/multi-edit", { modelId: KEYFRAME_MODEL, prompt, images, safe_mode: false, aspect_ratio: "3:4", output_format: "png" });
+/**
+ * One keyframe from Venice's multi-image edit: it answers with the picture itself. `model` is another edit model (the
+ * Studio's picker, lib/adult/studio.ts); the keyframe model by default.
+ */
+export async function drawKeyframe(key: string, prompt: string, images: string[], model: string = KEYFRAME_MODEL): Promise<{ bytes: Buffer; mime: string }> {
+  const res = await venice(key, "/image/multi-edit", { modelId: model, prompt, images, safe_mode: false, aspect_ratio: "3:4", output_format: "png" });
   if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 160)}`);
   if (res.headers.get("x-venice-is-content-violation") === "true") throw new Error("Venice flagged the keyframe as against its terms");
   const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();

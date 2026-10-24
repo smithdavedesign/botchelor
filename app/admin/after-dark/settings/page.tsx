@@ -9,6 +9,7 @@ import { getAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import SettingsForm from "./SettingsForm";
+import StudioSettings from "./StudioSettings";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After dark settings · Botchelor", robots: { index: false, follow: false } };
@@ -61,6 +62,7 @@ export default async function AfterDarkSettingsPage() {
         )}
       </section>
       <SettingsForm initial={settings} hive={hive} />
+      <StudioSettings initial={settings} />
       <section className="card">
         <h2>Requests from other agents</h2>
         {requests.length ? (

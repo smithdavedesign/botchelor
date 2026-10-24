@@ -2004,3 +2004,26 @@ since they are supposed to be naked?"
     and leaves the everyday face alone.
 - **Not changed:** a clip that keeps going from a keyframe drawn before this still carries what that keyframe wears
   ("keep what each of them is wearing or not").
+
+## The Studio (2026-10-24)
+
+The PRD is docs/PRDs/studio.md (David: "build 1-3 … similar pricing … POV … share … an alternative to Hive … everything
+configurable … best in class"). What's built, by phase:
+
+**v1** (`lib/adult/studio.ts`, `studio-catalog.ts`, `studio-config.ts`; `/after-dark/studio/[id]`; `POST/GET
+/api/admin/after-dark/studio`):
+- **Who:** the owner's own characters switched into After Dark; an admin's house cast too. `studio.open_to` is `admins`
+  until payments and age checks are live. Linked from the hub ("🎨 Studio") and each pair page.
+- **Shoot:** menus (pose, framing, angle, POV, wardrobe, up to three accessories, place incl. their own drawn places,
+  light, expression), each option a fixed phrase with a level (0 dressed … 3 explicit); held to the viewer's studio
+  intensity and hard nos for the character, the configured maximum, and to suggestive in public. `shoot_size` (4) pictures
+  by the chosen edit model from the face they keep (Picture 1), their body reference (Picture 2) and the place's set.
+  Ratings steer it; the light test picks the light when they don't.
+- **Identity:** Restyle (the looks builder's chips as an edit of the face: 3 baselines to pick from; "Save to their look"
+  writes `extras.looks` and the appearance line when it was the builder's), Recast (3 new baselines on a new-picture
+  model), Body reference (2, dressed or nude; "Use as body"), face strength (loose, balanced, strict), studio limits.
+- **Gallery:** their pictures alone with 👍/👎, Use this face, Use as body; a free redo for a shoot they 👎'd whole.
+- **Prices** (bought tokens, admins free): shoot 1 standard / 2 pro, restyle 1, recast 1, body 1; nothing came through:
+  refunded whole. **Caps:** `cap_studio` 400, `cap_studio_byok` 1,000, `cap_upscales` 50 a month, and every cap is now
+  editable on the settings page.
+- **Tables:** `adult_studio_shoots`, `adult_identity`; `adult_images.shoot_id`; `adult_settings.studio` (JSON).

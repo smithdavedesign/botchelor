@@ -1,0 +1,342 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { GET as studioGet, POST as studioPost } from "@/app/api/admin/after-dark/studio/route";
+import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
+import { crossesTaboo } from "@/lib/adult/acts";
+import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
+import { setMediaFetchForTests } from "@/lib/adult/media";
+import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
+import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
+import { getAdultSettings, saveAdultSettings } from "@/lib/adult/settings";
+import { rateMedia } from "@/lib/adult/steering";
+import { restyleMenu, restyleWords, setStudioPausesForTests, studioAccess } from "@/lib/adult/studio";
+import {
+  ALL_OPTION_IDS,
+  bodyPrompt,
+  planShoot,
+  restylePrompt,
+  shootPrompt,
+  STUDIO_GROUPS,
+  STUDIO_PROMPT_MAX,
+  studioMenu,
+  type ShootLimits,
+  type Subject,
+} from "@/lib/adult/studio-catalog";
+import { DEFAULT_STUDIO_CONFIG, mergeStudioConfig, studioConfigOf } from "@/lib/adult/studio-config";
+import { claimAdmin } from "@/lib/admins";
+import { HOUSE_CHARACTERS } from "@/lib/house";
+import { sessionCookies } from "@/lib/http";
+import { checkAdultText } from "@/lib/safety";
+import { setSeasonCastForTests } from "@/lib/season-cast";
+import { api, BASE_URL, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
+
+// The After Dark Studio (lib/adult/studio*.ts, docs/PRDs/studio.md; David, 2026-10-24). No live calls: Venice, Replicate
+// and Hive are stubbed, and every option's words are stand-ins written to the lines.
+
+/** Words that read young: none may appear in an option a picture model reads (on top of checkAdultText). */
+const YOUNG = /\b(teen\w*|young\w*|girl\w*|boy\w*|school\w*|student\w*|petite|little|tiny|child\w*|kid\w*|underage|minor\w*|babysit\w*|cheerlead\w*|braces|pigtail\w*|barely|innocent|virgin)\b/i;
+
+const ALL: ShootLimits = { maxLevel: 3, hardNos: [], disabled: new Set(), pov: true };
+const her: Subject = { noun: "woman", age: 18, look: "long copper-red hair, green eyes", outfit: "a fitted white t-shirt and blue jeans" };
+
+describe("the Studio's menus", () => {
+  it("are written to the lines: every option's words, for anyone, pass the checks and read adult", () => {
+    expect(new Set(ALL_OPTION_IDS).size).toBe(ALL_OPTION_IDS.length);
+    for (const g of STUDIO_GROUPS) {
+      for (const o of g.options) {
+        for (const words of [o.words, o.man, o.person].filter((w): w is string => Boolean(w))) {
+          expect(checkAdultText({ words }).ok, `${g.id}.${o.id}: ${words}`).toBe(true);
+          expect(crossesTaboo(words), `${g.id}.${o.id}`).toBe(false);
+          expect(YOUNG.test(words), `${g.id}.${o.id}: ${words}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("plans a shoot at its highest choice's level, nothing past suggestive in public, within the limits and hard nos", () => {
+    const ok = planShoot({ pose: "standing", wardrobe: "lingerie", place: "hotel", accessories: ["choker", "heels"] }, ALL, her);
+    expect(ok.ok && ok.plan.level).toBe(1);
+    expect(ok.ok && ok.plan.place).toBe("a luxury hotel suite with a city view");
+    const pub = planShoot({ wardrobe: "nude", place: "beach" }, ALL, her);
+    expect(pub).toMatchObject({ ok: false, error: "public" });
+    const flirty = planShoot({ wardrobe: "nude" }, { ...ALL, maxLevel: 1 }, her);
+    expect(flirty).toMatchObject({ ok: false, error: "locked" });
+    expect(planShoot({ pose: "toy" }, { ...ALL, hardNos: ["toys"] }, her)).toMatchObject({ ok: false, error: "locked" });
+    expect(planShoot({ pov: "kneel" }, { ...ALL, hardNos: ["oral"] }, her)).toMatchObject({ ok: false, error: "locked" });
+    expect(planShoot({ pov: "looking" }, { ...ALL, pov: false }, her)).toMatchObject({ ok: false, error: "locked" });
+    expect(planShoot({ pose: "nope" }, ALL, her)).toMatchObject({ ok: false, error: "unknown_option" });
+    expect(planShoot({ accessories: ["glasses", "choker", "pearls", "watch"] }, ALL, her)).toMatchObject({ ok: false, error: "too_many" });
+    expect(planShoot({ pose: "standing" }, { ...ALL, disabled: new Set(["pose.standing"]) }, her)).toMatchObject({ ok: false, error: "locked" });
+    // A place of their own, public or not.
+    expect(planShoot({ place: "own:0", wardrobe: "nude" }, ALL, her, { place: "her bedroom", public: false })).toMatchObject({ ok: true });
+    expect(planShoot({ place: "own:0", wardrobe: "nude" }, ALL, her, { place: "the bar", public: true })).toMatchObject({ ok: false, error: "public" });
+    // The menu says why a choice is locked.
+    const menu = studioMenu({ ...ALL, maxLevel: 1, hardNos: ["toys"] }, "woman");
+    const pose = menu.find((g) => g.id === "pose")!;
+    expect(pose.options.find((o) => o.id === "toy")!.locked).toMatch(/studio limit/);
+    expect(menu.find((g) => g.id === "accessories")!.options.some((o) => o.id === "garter")).toBe(true);
+    expect(studioMenu(ALL, "man").find((g) => g.id === "accessories")!.options.some((o) => o.id === "garter")).toBe(false);
+  });
+
+  it("writes the shoot's prompt: their face first, an adult never under 21, each choice, the level's closing words, within the limit", () => {
+    const planned = planShoot({ pose: "front", pov: "beside", wardrobe: "nude", light: "golden", expression: "sultry" }, ALL, her);
+    if (!planned.ok) throw new Error(planned.message);
+    const p = shootPrompt(planned.plan, her, { body: true, set: false });
+    expect(p).toMatch(/^Make one photograph of the woman from Picture 1, with the body from Picture 2\./);
+    expect(p).toContain("A 21-year-old adult woman, long copper-red hair, green eyes.");
+    expect(p).toContain("Not their clothes: fully nude.");
+    expect(p).toContain("Camera: a first-person view from the pillow beside her");
+    expect(p).toMatch(/Uncensored, photorealistic\. Everyone shown is an adult\.$/);
+    expect(p.length).toBeLessThanOrEqual(STUDIO_PROMPT_MAX);
+    const withSet = shootPrompt(planned.plan, her, { body: false, set: true }, "strict");
+    expect(withSet).toMatch(/^Make one photograph of the woman from Picture 1, in the place from Picture 2\./);
+    expect(withSet).toContain("identical to their own picture");
+    expect(restylePrompt(her, ["copper-red hair"], "natural light")).toContain("Change only this: copper-red hair.");
+    expect(bodyPrompt(her, false)).toContain("Full body, head to toe");
+    expect(bodyPrompt(her, true)).toContain("Wearing fully nude");
+  });
+
+  it("restyles with the looks builder's own chips, and takes a detail away with none", () => {
+    expect(restyleWords("woman", { hair_style: "short", hair_color: "red", glasses: "none" })).toEqual({ ok: true, words: ["a short chin-length copper-red bob", "no glasses"] });
+    expect(restyleWords("man", { facial_hair: "stubble" })).toEqual({ ok: true, words: ["light even stubble"] });
+    expect(restyleWords("woman", { hair_style: "buzz" })).toMatchObject({ ok: false });
+    expect(restyleWords("woman", {})).toMatchObject({ ok: false });
+    expect(restyleMenu("man").some((g) => g.id === "breasts")).toBe(false);
+    expect(restyleMenu(null).some((g) => g.id === "hair_style")).toBe(false);
+  });
+
+  it("keeps every setting configurable, with defaults, and refuses a bad save", () => {
+    expect(studioConfigOf(null)).toEqual(DEFAULT_STUDIO_CONFIG);
+    expect(DEFAULT_STUDIO_CONFIG.prices.shoot).toEqual({ standard: 1, pro: 2 });
+    // A hand-edited row keeps what parses.
+    expect(studioConfigOf({ shoot_size: 2, prices: "nope" }).shoot_size).toBe(2);
+    expect(mergeStudioConfig(DEFAULT_STUDIO_CONFIG, { prices: { restyle: 3 } }).prices).toMatchObject({ restyle: 3, recast: 1 });
+    expect(() => mergeStudioConfig(DEFAULT_STUDIO_CONFIG, { shoot_size: 9 })).toThrow();
+    expect(() => mergeStudioConfig(DEFAULT_STUDIO_CONFIG, { default_edit: "lustify-v8" })).toThrow(/default_edit/);
+  });
+});
+
+let t: Awaited<ReturnType<typeof startTestDb>>;
+beforeAll(async () => {
+  t = await startTestDb();
+});
+afterAll(async () => {
+  await t.close();
+});
+beforeEach(async () => {
+  await t.reset();
+  vi.spyOn(console, "log").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.stubEnv("SESSION_SECRET", "a-test-session-secret-that-is-long-enough-0123456789");
+  vi.stubEnv("ADULT_MODE", "1");
+  vi.stubEnv("VERCEL", "");
+  vi.stubEnv("VERCEL_ENV", "");
+  vi.stubEnv("REPLICATE_API_TOKEN", "");
+  setSeasonCastForTests([HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id]);
+  setReelPausesForTests(false);
+  setReplicatePausesForTests(false);
+  setStudioPausesForTests(false);
+  setCheckSleepForTests(async () => {});
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  setSeasonCastForTests(null);
+  setReelFetchForTests(null);
+  setReplicateFetchForTests(null);
+  setMediaFetchForTests(null);
+  setCheckFetchForTests(null);
+  setCheckSleepForTests(null);
+  setReelPausesForTests(true);
+  setReplicatePausesForTests(true);
+  setStudioPausesForTests(true);
+});
+
+const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+const CLEAN_MOD = { output: [{ classes: [{ class: "yes_child_present", value: 0.01 }, { class: "no_child_present", value: 0.99 }, { class: "general_nsfw", value: 0.9 }] }] };
+const answer = (a: string) => ({ choices: [{ message: { role: "assistant", content: JSON.stringify({ answer: a }) } }] });
+function fakeHive(age = "ADULTS") {
+  const seen: string[] = [];
+  setCheckFetchForTests(async (input: RequestInfo | URL) => {
+    const vlm = String(input) === HIVE_VLM;
+    seen.push(vlm ? "vlm" : "moderation");
+    return Response.json(vlm ? answer(age) : CLEAN_MOD);
+  });
+  return seen;
+}
+/** Venice's multi-edit and image generation, stubbed: what each was sent. */
+function fakeVenice(edit: () => Response = () => new Response(new Uint8Array(PNG), { headers: { "content-type": "image/png" } })) {
+  const edits: { model: string; prompt: string; images: string[] }[] = [];
+  const news: { model: string; prompt: string }[] = [];
+  setReelFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    if (String(input).endsWith("/image/multi-edit")) {
+      edits.push({ model: body.modelId, prompt: body.prompt, images: body.images });
+      return edit();
+    }
+    return new Response("?", { status: 500 });
+  });
+  setMediaFetchForTests(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    news.push({ model: body.model, prompt: body.prompt });
+    return Response.json({ images: [Buffer.from(PNG).toString("base64")] });
+  });
+  return { edits, news };
+}
+
+const signedIn = (userId: string) => sessionCookies({ userId, authenticated: true })[0].split(";")[0];
+const post = (body: unknown, cookie: string) =>
+  studioPost(new Request(`${BASE_URL}/api/admin/after-dark/studio`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) }));
+const state = async (cookie: string, id: string) => studioGet(new Request(`${BASE_URL}/api/admin/after-dark/studio?character=${id}`, { headers: { cookie } }));
+
+/** After Dark on, with Venice and Hive; an owner (admin or not) with a character of theirs switched in and a face to keep. */
+async function setup(opts: { admin?: boolean; openTo?: "admins" | "entitled" } = {}) {
+  const raw = newUserCookie();
+  const owner = userIdOf(raw);
+  const character = (await (await api.createCharacter(validCharacter({ name: "Mara Quill", pronouns: "she/her", age: 19 }), raw)).json()) as { id: string };
+  const adminId = userIdOf(newUserCookie());
+  await claimAdmin(t.db, adminId);
+  if (opts.admin) await claimAdmin(t.db, owner);
+  else await t.db.query(`insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())`, [owner]);
+  await saveAdultSettings(t.db, {
+    enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", image_provider: "venice", auto_scene_pictures: false,
+    ...(opts.openTo ? { studio: { open_to: opts.openTo } } : {}),
+  });
+  await t.db.query(`insert into adult_switches (owner_id, character_id) values ($1, $2)`, [owner, character.id]);
+  await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ('face-1', $1, $2, 'baseline', 'p', 'image/png', $3)`, [owner, character.id, Buffer.from(PNG)]);
+  return { owner, cookie: signedIn(owner), character: character.id, adminCookie: signedIn(adminId) };
+}
+const used = async (who: string) => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [who])).rows[0]?.used ?? 0;
+
+describe("who may use the Studio", () => {
+  it("is admins only by default, then everyone After Dark is open to; never on another person's character", async () => {
+    const { owner, cookie, character, adminCookie } = await setup();
+    expect((await state(cookie, character)).status).toBe(404);
+    await saveAdultSettings(t.db, { studio: { open_to: "entitled" } });
+    expect((await state(cookie, character)).status).toBe(200);
+    // An admin can't use another person's character; the house cast, yes.
+    expect((await state(adminCookie, character)).status).toBe(404);
+    expect((await state(adminCookie, HOUSE_CHARACTERS[0].id)).status).toBe(200);
+    // Switched out of After Dark: refused, with why.
+    await t.db.query(`delete from adult_switches where owner_id = $1`, [owner]);
+    expect((await studioAccess(t.db, owner, character)).ok).toBe(false);
+    expect((await state(cookie, character)).status).toBe(409);
+  });
+});
+
+describe("a shoot", () => {
+  it("draws the shoot's pictures from their face, checks each, keeps them as theirs, and counts them", async () => {
+    const { owner, cookie, character } = await setup({ admin: true });
+    const seen = fakeHive();
+    const { edits } = fakeVenice();
+    const res = await post({ action: "shoot", character_id: character, choices: { pose: "lying_back", wardrobe: "nude", pov: "beside", light: "warm" } }, cookie);
+    expect(res.status).toBe(200);
+    const out = await res.json();
+    expect(out.shoot).toMatchObject({ kind: "shoot", status: "ready", asked: 4, made: 4, tokens: 0, model: "qwen-edit-uncensored" });
+    expect(out.pictures).toHaveLength(4);
+    expect(edits).toHaveLength(4);
+    expect(edits[0].model).toBe("qwen-edit-uncensored");
+    expect(edits[0].images).toHaveLength(1);
+    expect(edits[0].images[0]).toMatch(/\/api\/admin\/after-dark\/media\/face-1\?until=/);
+    expect(edits[0].prompt).toContain("A 21-year-old adult woman");
+    expect(seen.filter((x) => x === "vlm")).toHaveLength(4);
+    const rows = (await t.db.query<{ kind: string; character_b: string | null; shoot_id: string; model: string; preset: string | null }>(`select kind, character_b, shoot_id, model, preset from adult_images where shoot_id is not null`)).rows;
+    expect(rows).toHaveLength(4);
+    expect(rows.every((r) => r.kind === "scene" && r.character_b === null && r.shoot_id === out.shoot.id && r.model === "qwen-edit-uncensored" && r.preset === "warm")).toBe(true);
+    expect((await t.db.query<{ studio: number }>(`select studio from adult_usage where owner_id = $1`, [owner])).rows[0].studio).toBe(4);
+    // The page's state has them in the gallery, from that shoot.
+    expect(out.state.gallery.filter((g: { id: string }) => out.state.shoot_of[g.id] === out.shoot.id)).toHaveLength(4);
+  });
+
+  it("costs a subscriber the model's tier, gives the tokens back when nothing comes through, and refuses an over-limit shoot before spending", async () => {
+    const { owner, cookie, character } = await setup({ openTo: "entitled" });
+    fakeHive();
+    fakeVenice();
+    expect((await post({ action: "shoot", character_id: character, choices: {} }, cookie)).status).toBe(402);
+    await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 10, 'test')`, [crypto.randomUUID(), owner]);
+    expect((await (await post({ action: "shoot", character_id: character, choices: {} }, cookie)).json()).shoot.tokens).toBe(1);
+    expect(await used(owner)).toBe(1);
+    expect((await (await post({ action: "shoot", character_id: character, choices: {}, model: "seedream-v5-pro-edit" }, cookie)).json()).shoot.tokens).toBe(2);
+    expect(await used(owner)).toBe(3);
+    // Every picture refused by the age check: nothing kept, logged, tokens back.
+    fakeHive("MINOR");
+    const refused = await (await post({ action: "shoot", character_id: character, choices: {} }, cookie)).json();
+    expect(refused.shoot).toMatchObject({ status: "failed", made: 0, tokens: 0 });
+    expect(refused.refunded).toBe(true);
+    expect(refused.message).toMatch(/Your tokens are back/);
+    expect(await used(owner)).toBe(3);
+    expect((await t.db.query<{ reason: string }>(`select reason from adult_rejections`)).rows[0].reason).toMatch(/^studio shoot: age check: MINOR/);
+    // Their studio limit: flirty stops nude before anything is spent.
+    fakeHive();
+    expect((await post({ action: "limits", character_id: character, intensity: "flirty" }, cookie)).status).toBe(200);
+    const locked = await post({ action: "shoot", character_id: character, choices: { wardrobe: "nude" } }, cookie);
+    expect(locked.status).toBe(422);
+    expect(await used(owner)).toBe(3);
+    // The month's cap: fewer left than a shoot makes.
+    await saveAdultSettings(t.db, { caps: { studio: 9 } });
+    expect((await post({ action: "shoot", character_id: character, choices: {} }, cookie)).status).toBe(429);
+  });
+
+  it("adds their body reference as Picture 2, and a free redo for a shoot they 👎'd whole, once", async () => {
+    const { owner, cookie, character } = await setup({ admin: true });
+    fakeHive();
+    const { edits } = fakeVenice();
+    const body = await (await post({ action: "body", character_id: character }, cookie)).json();
+    expect(body.shoot).toMatchObject({ kind: "body", made: 2 });
+    expect(edits[0].prompt).toContain("Full body, head to toe");
+    expect((await post({ action: "use_body", character_id: character, image_id: body.pictures[0].id }, cookie)).status).toBe(200);
+    const shot = await (await post({ action: "shoot", character_id: character, choices: { framing: "full" } }, cookie)).json();
+    expect(edits.at(-1)!.images).toHaveLength(2);
+    expect(edits.at(-1)!.prompt).toContain("with the body from Picture 2");
+    expect(shot.state.identity.body).toBe(body.pictures[0].id);
+    // Not redoable until every picture is 👎'd.
+    expect((await post({ action: "redo", shoot_id: shot.shoot.id }, cookie)).status).toBe(409);
+    for (const p of shot.pictures) await rateMedia(t.db, owner, p.id, -1, ["pose"]);
+    const s = await (await state(cookie, character)).json();
+    expect(s.state.shoots.find((x: { id: string }) => x.id === shot.shoot.id).redo).toBe(true);
+    const redo = await (await post({ action: "redo", shoot_id: shot.shoot.id }, cookie)).json();
+    expect(redo.shoot).toMatchObject({ redo_of: shot.shoot.id, tokens: 0, made: 4 });
+    // What the 👎s said is in the redo's prompt.
+    expect(edits.at(-1)!.prompt).toMatch(/a natural, relaxed pose/i);
+    expect((await post({ action: "redo", shoot_id: shot.shoot.id }, cookie)).status).toBe(409);
+  });
+});
+
+describe("identity", () => {
+  it("restyles as edits of the face (baselines to pick from), saves the looks to their own character, and recasts with a new-picture model", async () => {
+    const { owner, cookie, character } = await setup({ admin: true });
+    fakeHive();
+    const { edits, news } = fakeVenice();
+    const r = await (await post({ action: "restyle", character_id: character, changes: { hair_color: "red", hair_style: "short" } }, cookie)).json();
+    expect(r.shoot).toMatchObject({ kind: "restyle", made: 3 });
+    expect(r.pictures.every((p: { kind: string }) => p.kind === "baseline")).toBe(true);
+    expect(edits[0].prompt).toContain("Change only this: a short chin-length copper-red bob.");
+    const saved = await (await post({ action: "save_looks", character_id: character, changes: { hair_color: "red", hair_style: "short" } }, cookie)).json();
+    const row = (await t.db.query<{ extras: { looks?: { hair_color?: string; gender?: string } } }>(`select extras from characters where id = $1`, [character])).rows[0];
+    expect(row.extras.looks).toMatchObject({ hair_color: "red", gender: "woman" });
+    expect(saved.appearance).toContain("copper-red bob");
+    const n = await (await post({ action: "recast", character_id: character, model: "chroma" }, cookie)).json();
+    expect(n.shoot).toMatchObject({ kind: "recast", made: 3, model: "chroma" });
+    expect(news).toHaveLength(3);
+    expect(news[0].model).toBe("chroma");
+    expect(news[0].prompt).toMatch(/waist-up, facing the camera/);
+    // A model off the list, or of the wrong kind, is refused.
+    expect((await post({ action: "recast", character_id: character, model: "qwen-edit-uncensored" }, cookie)).status).toBe(422);
+    expect(owner).toBeTruthy();
+  });
+});
+
+describe("the settings", () => {
+  it("save the Studio's configuration and the caps, and refuse a bad value with why", async () => {
+    const { adminCookie } = await setup({ admin: true });
+    const save = (body: unknown) =>
+      settingsPost(new Request(`${BASE_URL}/api/admin/after-dark/settings`, { method: "POST", headers: { "content-type": "application/json", cookie: adminCookie }, body: JSON.stringify(body) }));
+    const ok = await (await save({ studio: { prices: { restyle: 2 }, pov: false }, caps: { studio: 120 } })).json();
+    expect(ok.settings.studio.prices.restyle).toBe(2);
+    expect(ok.settings.studio.pov).toBe(false);
+    expect(ok.settings.caps.studio).toBe(120);
+    const bad = await save({ studio: { shoot_size: 12 } });
+    expect(bad.status).toBe(422);
+    expect((await bad.json()).message).toMatch(/^Studio:/);
+    expect((await getAdultSettings(t.db)).studio.shoot_size).toBe(4);
+  });
+});

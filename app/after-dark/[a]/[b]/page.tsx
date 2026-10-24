@@ -10,6 +10,7 @@ import { listReels } from "@/lib/adult/reels";
 import { hiveNotice } from "@/lib/adult/hive-limit";
 import { listNights, openScene } from "@/lib/adult/scenes";
 import { getAdultSettings } from "@/lib/adult/settings";
+import { studioAccess } from "@/lib/adult/studio";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
 import SceneWriter from "./SceneWriter";
@@ -53,6 +54,20 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
       <p className="muted">
         {scene.date ? `Picking up from their latest date: ${scene.date.setting ?? "a date"}.` : "They haven't been on a date yet: this is how they meet."}
       </p>
+      {/* The Studio (lib/adult/studio.ts) for whichever of the two it's the viewer's to use on. */}
+      {await (async () => {
+        const open = [];
+        for (const c of [scene.a, scene.b]) if ((await studioAccess(db, admin, c.id)).ok) open.push(c);
+        return open.length ? (
+          <p className="ad-studio-links">
+            {open.map((c) => (
+              <Link key={c.id} className="button-ghost small" href={`/after-dark/studio/${c.id}`}>
+                🎨 {c.name.split(/\s+/)[0]}&apos;s studio
+              </Link>
+            ))}
+          </p>
+        ) : null;
+      })()}
       {(await isAdmin(db, admin)) && (
         // The writer's private notes on every line (why it was said, the memory it drew on): admins only, never on stage.
         <p className="muted small">
