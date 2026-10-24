@@ -3816,10 +3816,21 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
   const partnerTakenBy = partner && !partner.house ? await takenBy(partner.id, characterId) : null;
   // #558, #465: the booking refuses a pair with a date still being made, or a second date or proposal still pending.
   const pending = owned && mine && partner ? await pairPending(db, userId, mine, partner) : null;
+  // #769: the two refusals the booking makes before the model runs: no date of theirs left (unless it's a second date
+  // this week's free one covers), or the agents' shared daily budget spent.
+  const outOfDates =
+    left !== null && left.left === 0 &&
+    !(owned && mine && partner && (await plannableSecondDate(db, userId, mine.id, partner.id).catch(() => null)) && (await secondDateFreeNow(db, userId).catch(() => false)));
   const problems = [
     mineTakenBy && mine ? takenMessage(shortName(mine.name), { mine: true, partner: mineTakenBy }) : null,
     partnerTakenBy && partner ? takenMessage(shortName(partner.name), { mine: false, partner: partnerTakenBy }) : null,
     pending ? pending.message : null,
+    outOfDates ? `No dates left: this week's ${left.free_per_season} free ones are used and there are no pack dates, so booking would be refused. Free dates come back at ${left.resets_at}.` : null,
+    today.used >= today.cap
+      ? today.cap === 0
+        ? "Agent dates are paused right now, so booking would be refused."
+        : `The show's model is fully booked for agents today (${today.cap} dates), so booking would be refused. Try again after ${today.resets_at}.`
+      : null,
   ].filter((x): x is string => x !== null);
   // A private partner shows its name only, to anyone but its owner, so its traits stay out of the preview and the chemistry.
   const hidden = partner ? (await privateIds(db, [partner.id], userId)).has(partner.id) : false;
