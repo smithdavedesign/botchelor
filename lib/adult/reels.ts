@@ -53,7 +53,8 @@ import { providerError, runMedia } from "./fallback";
 import { hiveGate, hivePausedErrorMessage, hivePausedReason, HivePausedError, hivePausedUntil, underHiveLimit } from "./hive-limit";
 import type { PlaceStop } from "./continuity";
 import { beatPictureFor } from "./beats";
-import { ensureBaseline, lookWords, signedMediaUrl } from "./media";
+import { ensureBaseline, ensureNudeBaseline, lookWords, signedMediaUrl } from "./media";
+import { nudeSql } from "./attire";
 import { adultModel } from "./mode";
 import { REEL_STALLED_MS } from "./reel-timing";
 import { cancelPrediction, createPrediction, downloadOutput, getPrediction, isDone, noOutput, outputUrls, ReplicateError, runModel, type Prediction, type ReplicateFile } from "./replicate";
@@ -85,7 +86,7 @@ export const KEYFRAME_MODEL = "qwen-edit-uncensored";
 const KEYFRAME_PROMPT_MAX = 1500;
 /** From "undressing" (stage 4 of 5) on, a keyframe is explicit; before it, they're dressed; from "sex", nude. */
 const UNDRESSED_FROM = 3;
-const NUDE_FROM = 4;
+export const NUDE_FROM = 4;
 /**
  * What they wear in a keyframe, by how far the night had gone, never what their portrait wears (2026-10-22, the first
  * live reel: told to keep each "exactly as in their own picture", Lexi kept her portrait's lingerie through the sex).
@@ -760,20 +761,35 @@ async function veniceSpeech(key: string, text: string, voice: string): Promise<R
  * The two faces a keyframe keeps: for a viewer, each one's face reference (lib/adult/steering.ts faceReferenceId: the face
  * they picked, else their best-rated baseline, else the admins' newest); with none, each one's newest baseline.
  */
-export async function baselines(db: Db, a: string, b: string, viewerId: string | null = null): Promise<[string, string] | null> {
+export async function baselines(db: Db, a: string, b: string, viewerId: string | null = null, opts: { nude?: boolean } = {}): Promise<[string, string] | null> {
   if (viewerId) {
-    const [pa, pb] = await Promise.all([faceReferenceId(db, viewerId, a), faceReferenceId(db, viewerId, b)]);
+    const [pa, pb] = await Promise.all([faceReferenceId(db, viewerId, a, opts), faceReferenceId(db, viewerId, b, opts)]);
     return pa && pb ? [pa, pb] : null;
   }
   const { rows } = await db.query<{ id: string; character_id: string }>(
     `select distinct on (character_id) id, character_id from adult_images
-      where status = 'ready' and kind = 'baseline' and character_b is null and character_id in ($1, $2)
+      where status = 'ready' and kind = 'baseline' and character_b is null and character_id in ($1, $2)${opts.nude ? ` and ${nudeSql("adult_images")}` : ""}
       order by character_id, created_at desc`,
     [a, b],
   );
   const of = (c: string) => rows.find((r) => r.character_id === c)?.id;
   const [pa, pb] = [of(a), of(b)];
   return pa && pb ? [pa, pb] : null;
+}
+
+/**
+ * The two faces an undressed moment (the night at sex: NUDE_FROM) starts from: each one's nude baseline (lib/adult/attire.ts),
+ * made first for one who wears something and has none yet, since an edit keeps whatever the pictures it starts from wear.
+ * Null when one can't be had: the caller keeps the dressed ones, as before. Hive out stops it like any picture.
+ */
+export async function nudeBaselines(db: Db, ownerId: string, a: Character, b: Character): Promise<[string, string] | null> {
+  try {
+    for (const c of [a, b]) await ensureNudeBaseline(db, ownerId, c);
+  } catch (err) {
+    if (err instanceof HivePausedError) throw err;
+    console.log(JSON.stringify({ event: "after_dark_nude_baseline_failed", detail: err instanceof Error ? err.message.slice(0, 200) : "error" }));
+  }
+  return baselines(db, a.id, b.id, ownerId, { nude: true });
 }
 
 /** The drawn sets for the places the shots happen in (lib/sets.ts), as data URIs, by place; null where none is ready. */
@@ -853,6 +869,8 @@ export type ShotContext = {
   keyframeFor?: (s: ReelShot, set: string | null, place: string | null) => { prompt: string; continueFrom: string | null; withSet: boolean };
   /** What a shot steers away from on top of SHOT_NEGATIVE: the viewer's video ratings (lib/adult/steering.ts; startShots fills it). */
   avoid?: string;
+  /** The faces a shot of the night at sex starts from (nudeBaselines); unset or null, `bases` for every shot. */
+  nudeBases?: [string, string] | null;
 };
 
 /** One keyframe from Replicate's edit model, its bytes downloaded at once. */
@@ -887,9 +905,11 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
   const configured: MediaProvider = ctx.provider ?? (ctx.replicate ? "replicate" : "venice");
   const providers = { configured, available: (p: MediaProvider) => (p === "replicate" ? Boolean(ctx.replicate) : Boolean(ctx.venice)) };
   const sets = await setPictures(db, shots.map((s) => ctx.places[s.line] ?? null));
-  const faces = ctx.bases.map((id) => signedMediaUrl(id, ctx.baseUrl));
+  // Undressed (the night at sex), a shot starts from their nude baselines: an edit keeps what its pictures wear.
+  const facesAt = (stage: number) => (stage >= NUDE_FROM && ctx.nudeBases ? ctx.nudeBases : ctx.bases).map((id) => signedMediaUrl(id, ctx.baseUrl));
   const drawn = await Promise.all(
     shots.map(async (s) => {
+      const faces = facesAt(ctx.stages[s.line] ?? 0);
       // A beat picture to start from: nothing to draw, and it passed the full check when it was kept.
       if (s.from_beat && s.media_id) return { reused: true as const };
       const place = ctx.places[s.line] ?? null;
@@ -1170,7 +1190,9 @@ export async function makeReel(
     const replicate = keys.replicate
       ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora }
       : null;
-    await startShots(db, ownerId, shots, { pair: [a, b], cast, places, stages, bases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate, provider: settings.media_provider });
+    // A shot of the night at sex starts from their nude baselines (made now for one who wears something and has none).
+    const nudeBases = shots.some((s) => !s.from_beat && (stages[s.line] ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, ca, cb) : null;
+    await startShots(db, ownerId, shots, { pair: [a, b], cast, places, stages, bases, nudeBases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate, provider: settings.media_provider });
     const made = reelMadeOn(shots);
     await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [id, JSON.stringify(shots), made.provider, made.fell_back]);
     return { ok: true, reel: await settleIfDone(db, id) };

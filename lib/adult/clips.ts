@@ -29,6 +29,8 @@ import { ensureBaseline } from "./media";
 import { adultModel } from "./mode";
 import {
   baselines,
+  NUDE_FROM,
+  nudeBaselines,
   busyMessage,
   busyReel,
   continuePrompt,
@@ -406,6 +408,8 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
       places: where,
       stages,
       bases,
+      // A clip at sex starts from their nude baselines (lib/adult/reels.ts nudeBaselines): an edit keeps what they wear.
+      nudeBases: plan.stage >= NUDE_FROM ? await nudeBaselines(db, ownerId, ca, cb) : null,
       venice: keys.venice ?? "",
       hive: keys.hive,
       model: settings.reel_model,
