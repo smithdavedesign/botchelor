@@ -177,6 +177,20 @@ describe("adopted by the show after a week", () => {
     expect(notes.filter((n: Any) => n.kind === "while_away")).toHaveLength(1);
   });
 
+  it("plays as house cast does while adopted: likes everyone back and says yes to a date", async () => {
+    const them = await agent("Ione Brask");
+    await away(them, 8);
+    expect(await adoptQuietCharacters(t.db)).toBe(1);
+    for (const n of ["Wren Kestrel", "Pim Alder", "Lark Osei"]) {
+      const me = await person(n);
+      const r = await swipe(t.db, me.userId, me.id, them.id, true);
+      if (!r.ok) throw new Error(r.message);
+      expect(r.match).not.toBeNull();
+      const m = r.match!;
+      expect(m.lo === them.id ? m.yes_lo : m.yes_hi).toBe(true);
+    }
+  });
+
   it("leaves out the show's own bots, test names, and characters set to answer or nothing", async () => {
     const a = await agent("Ione Brask", { while_away: "answer" });
     const b = await agent("Quinn Tester");
