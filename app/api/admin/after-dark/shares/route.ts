@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
+import { mediaRefusal } from "@/lib/adult/place";
 import { answerShare, removeShare, setAutoAccept, sharedWithMe } from "@/lib/adult/shares";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
@@ -19,6 +20,9 @@ export const GET = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   return json(await sharedWithMe(db, viewer));
 });
 
@@ -27,6 +31,9 @@ export const POST = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const input = parseBody(Input, await readJson(req), "invalid_request");
   if (input.action === "auto_accept") await setAutoAccept(db, viewer, input.on);
   else {

@@ -65,8 +65,12 @@ const covers = (root: string, pathname: string) =>
 /** After Dark's pages: they move with it. */
 export const AFTER_DARK_PAGES = ["/after-dark/", "/admin/after-dark/"] as const;
 
-/** After Dark's own APIs: they move with it, as do the looks builder's After Dark tiles (app/api/looks/[id], ids nsfw-…). */
-export const AFTER_DARK_APIS = ["/api/admin/after-dark/", "/api/jobs/eval-after-dark"] as const;
+/**
+ * After Dark's own APIs: they move with it, as do the looks builder's After Dark tiles (app/api/looks/[id], ids nsfw-…).
+ * /api/after-dark/ is its billing: subscribing, and the processors' postbacks (paste After Dark's own address into the
+ * merchant portals once it has one: a processor may not follow the show's redirect).
+ */
+export const AFTER_DARK_APIS = ["/api/admin/after-dark/", "/api/jobs/eval-after-dark", "/api/after-dark/"] as const;
 
 /**
  * What else After Dark's own host serves, because its pages need it. A new API that an After Dark page calls goes here
