@@ -1,5 +1,6 @@
 import { mediaBytes, mediaLink, mediaRef } from "@/lib/adult/media";
 import { adultViewer } from "@/lib/adult/mode";
+import { mediaRefusal } from "@/lib/adult/place";
 import { shortMediaAllowed } from "@/lib/adult/shorts";
 import { getDb } from "@/lib/db";
 
@@ -16,6 +17,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return missing();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const { id, mediaId } = await params;
   if (!(await shortMediaAllowed(db, viewer, id, mediaId))) return missing();
   const ref = await mediaRef(db, mediaId, null);

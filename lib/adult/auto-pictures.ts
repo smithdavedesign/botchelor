@@ -21,6 +21,7 @@ import { inBackground } from "../sets";
 import { hivePausedUntil } from "./hive-limit";
 import { makePicture, outputCheckReady, pictureKeyReady, recentActions, scenePrompt, type Media } from "./media";
 import { getAdultSettings } from "./settings";
+import { mediaAllowedFor } from "./place";
 
 /** What an automatic picture needs from the scene: which one, its chapter, where they are, how far it's gone, the lines. */
 export type AutoPictureScene = { id: string; chapter: number; place: string | null; set_place: string | null; stage: number; lines: readonly { text: string }[] };
@@ -86,6 +87,8 @@ export async function autoPicturesSettled(): Promise<void> {
 export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictureScene, a: Character | null, b: Character | null): Promise<boolean> {
   try {
     if (!a || !b || !(await autoPicturesReady(db))) return false;
+    // Text only where the viewer last connected from (lib/adult/place.ts): no picture is drawn for them.
+    if (!(await mediaAllowedFor(db, ownerId))) return false;
     const key = autoPictureKey(scene.chapter, scene.set_place ?? scene.place);
     const failed = failedAt.get(`${scene.id}|${key}`);
     if (failed !== undefined && clock() - failed < RETRY_AFTER_MS) return false;

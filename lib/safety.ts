@@ -8,7 +8,7 @@
 
 export type RejectReason = "minor" | "sexual" | "real_person" | "innuendo";
 /** After Dark's themes that never happen (checkAdultText): family and step-family, teacher and student, school, age-play. */
-export type ExcludedTheme = "family" | "teacher_student" | "school" | "age_play";
+export type ExcludedTheme = "family" | "teacher_student" | "school" | "age_play" | "non_consent" | "bestiality" | "sexual_violence";
 export type SafetyResult = { ok: true } | { ok: false; reason: RejectReason; field: string; theme?: ExcludedTheme };
 
 /** What a refused character sheet is told: /create's save (POST /api/characters) and the OC chemistry test say the same. */
@@ -246,6 +246,22 @@ const EXCLUDED_THEMES: [ExcludedTheme, RegExp][] = [
   ["school", / (?:classroom|classrooms|homeroom|schoolyard|playground|prom night|principal s office) /],
   ["age_play", / (?:age ?play|ageplay|ddlg|mdlg|cgl|abdl|diaper|diapers|pacifier|binky|little one) /],
   ["age_play", new RegExp(` (?:${ROLE})\\b[a-z ]{0,24}\\b(?:younger|underage|a kid|a child|a minor) `)],
+  // 2026-10-24 (docs/after-dark-legal-review.md "Content lines", David's OK): every adult processor and card network bans
+  // these in text as well as pictures, roleplayed or not. Phrases, so "she pins him to the wall", "a dog-eared book",
+  // "the sleepy bar" or "she bit her lip until it bled" pass.
+  ["non_consent", / (?:rape|raped|rapes|raping|rapist|rapey|molest\w*|sexual assault|sexually assault\w*|non ?con|non ?consensual|non ?consent|cnc|no means yes|free use) /],
+  ["non_consent", / (?:against (?:her|his|their|my|your) will|without (?:her|his|their|my|your) consent|(?:says|said|saying|screams|screamed|begs|begged) no but) /],
+  ["non_consent", / (?:drugged|drugging|drugs her|drugs him|roofie\w*|spiked (?:her|his) drink) /],
+  ["non_consent", / (?:while|as) (?:she|he|they) (?:s |is |are |was |were )?(?:asleep|sleeping|unconscious|passed out|blacked out) /],
+  ["non_consent", / (?:asleep|sleeping|unconscious|passed out|blacked out) (?:sex|fuck\w*|girl|woman|man|guy|body) /],
+  ["non_consent", / (?:forced|force|forces|forcing) (?:her|him|them|me|you) (?:to )?(?:have sex|fuck|suck|strip|kneel|submit|take it|swallow) /],
+  ["non_consent", / (?:kidnap\w*|abduct\w*|captive sex|sex slave|blackmail\w* (?:her|him|them) into) /],
+  ["bestiality", / (?:bestiality|beastiality|zoophil\w*) /],
+  ["bestiality", / (?:fuck\w*|sex with|mount\w*|knotted by|bred by|breeding with|rides|riding|sucks|sucking) (?:a |an |the |his |her |their |my |your )?(?:dog|dogs|horse|horses|stallion|animal|animals|pony|goat|pig|beast|wolf|wolves) /],
+  ["sexual_violence", / (?:snuff|necrophil\w*|corpse|mutilat\w*|dismember\w*|disembowel\w*|gore|guro|tortur\w*) /],
+  ["sexual_violence", / (?:knife|blood|gun|needle) play /],
+  ["sexual_violence", / (?:choke|chokes|choking|strangle\w*) (?:her|him|them|me|you) (?:to death|until (?:she|he|they) (?:dies|die|passes out|pass out|blacks out|black out)|unconscious) /],
+  ["sexual_violence", / (?:kill|kills|killing|murder\w*|stab\w*) (?:her|him|them|me|you) (?:while|during|after|as) /],
 ];
 
 /** The excluded theme a text plays, or null (After Dark only: the show is held to checkFields and checkShowText). */
@@ -258,7 +274,8 @@ export function excludedTheme(text: string): ExcludedTheme | null {
 /**
  * After dark (lib/adult): adult content is allowed there, so this keeps only the lines that hold everywhere: nobody
  * under 18 (in any form, including an age in passing, and nothing that suggests one: no school setting, no age-play), no
- * family or step-family and no teacher/student roleplay (excludedTheme), and no real, identifiable people.
+ * family or step-family and no teacher/student roleplay, no non-consent, bestiality or sexual violence (excludedTheme),
+ * and no real, identifiable people.
  */
 export function checkAdultText(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
   for (const [field, value] of Object.entries(fields)) {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
+import { mediaRefusal } from "@/lib/adult/place";
 import { pollClip, startClip } from "@/lib/adult/media";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
@@ -13,6 +14,9 @@ export const POST = handle(async (req: Request) => {
   const db = await getDb();
   const admin = await adultViewer(db, req);
   if (!admin) return json({ error: "not_found" }, 404);
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, admin);
+  if (refused) return refused;
   const input = parseBody(Input, await readJson(req), "invalid_request");
   try {
     return json({ clip: await startClip(db, admin, input.image_id, input.motion ?? "") });
@@ -26,6 +30,9 @@ export const GET = handle(async (req: Request) => {
   const db = await getDb();
   const admin = await adultViewer(db, req);
   if (!admin) return json({ error: "not_found" }, 404);
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, admin);
+  if (refused) return refused;
   const id = new URL(req.url).searchParams.get("id") ?? "";
   return json({ status: await pollClip(db, id, admin) });
 });

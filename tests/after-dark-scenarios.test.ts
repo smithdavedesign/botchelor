@@ -101,6 +101,45 @@ describe("the themes that never happen", () => {
     for (const text of ["a schoolgirl outfit", "barely legal", "she's a teen", "jailbait"]) expect(checkAdultText({ direction: text })).toMatchObject({ ok: false, reason: "minor" });
   });
 
+  it("refuse non-consent, animals and sexual violence, roleplayed or not (the processors' lines, 2026-10-24)", () => {
+    for (const [text, theme] of [
+      ["he rapes her", "non_consent"],
+      ["a cnc scene", "non_consent"],
+      ["take her against her will", "non_consent"],
+      ["she says no but he keeps going", "non_consent"],
+      ["he drugged her wine", "non_consent"],
+      ["touch her while she's asleep", "non_consent"],
+      ["he forced her to kneel", "non_consent"],
+      ["roleplay a kidnapping", "non_consent"],
+      ["bestiality", "bestiality"],
+      ["sex with a dog", "bestiality"],
+      ["knife play", "sexual_violence"],
+      ["choke her until she passes out", "sexual_violence"],
+      ["torture him slowly", "sexual_violence"],
+      ["kill her while they're at it", "sexual_violence"],
+    ] as const) {
+      expect(excludedTheme(text), text).toBe(theme);
+      expect(checkAdultText({ direction: text }), text).toMatchObject({ ok: false, theme });
+    }
+  });
+
+  it("let rough-but-willing and everyday lines through", () => {
+    for (const text of [
+      "She pins him to the wall and he grins: yes.",
+      "Pull my hair, she says. Harder.",
+      "A dog-eared paperback on the nightstand.",
+      "They walked her dog along the pier first.",
+      "The sleepy bar was nearly empty.",
+      "She bit her lip until it nearly bled.",
+      "He forced a laugh.",
+      "She fell asleep on his chest afterwards.",
+      "Tie my wrists, she asks, and he does, gently.",
+    ]) {
+      expect(excludedTheme(text), text).toBeNull();
+      expect(checkAdultText({ line: text }).ok, text).toBe(true);
+    }
+  });
+
   it("let everyday lines through: a ballroom instructor's class, a sister who set them up, a little game", () => {
     for (const text of [
       "My sister set us up, honestly.",
