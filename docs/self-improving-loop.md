@@ -218,6 +218,7 @@ Settings go in `~/.botchelor-loop/env`, one `KEY=value` a line, never keys:
 | `LOOP_STUB` | 0 | 1 runs the arena on the stub date model: no key, nothing paid |
 | `LOOP_MAX_ISSUES` | 5 | new issues per run |
 | `LOOP_FIX` | 1 | 0 stops the fixer (triage only) |
+| `LOOP_MEASURE` | 0 | 1: a measurement run. The arena and the visitors' reports only: no triage or issues, no housekeeping, no observer, no fixer, and nothing posted to botchelor.com or Slack (the ratings stay in the run: `post-ratings.mjs <run>` posts them later). Local arena only. For a batch that measures the show as it stands (David, 2026-10-24) |
 | `LOOP_MAX_FIXES` | 3 | |
 | `LOOP_DEADLINE_MIN` | 160 | 06:10 + 160 min = 08:50 |
 | `LOOP_STALE_DAYS` | 14 | days without activity before an issue is closed as stale |
@@ -230,6 +231,7 @@ scripts/loop/install.sh                                   # clone + launchd job 
 npm run sim:visitors                                      # a visitor run now: 2 visitors + triage, no fixer
 LOOP_VISITORS=3 LOOP_FIX=1 npm run sim:visitors           # …or with more visitors and the fixer
 LOOP_ENV=prod npm run sim:visitors                       # …or on botchelor.com itself
+LOOP_MEASURE=1 npm run sim:visitors                      # …or a measurement run: reports only, nothing filed or posted
 launchctl kickstart gui/$(id -u)/com.user.botchelor-loop  # the full morning run, now
 launchctl bootout gui/$(id -u)/com.user.botchelor-loop    # stop it
 LOOP_STUB=1 node scripts/loop/arena.mjs /tmp/arena 4420   # the arena alone, free (after next build): READY + world

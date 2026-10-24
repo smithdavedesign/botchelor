@@ -8,6 +8,7 @@
 //   4. triage (claude -p) turns their feedback, and real agents' feedback from botchelor.com, into GitHub issues;
 //   5. one fixer (claude -p) works the top issues: a PR each, merged once every check is green;
 //   then the visitors' ratings go to botchelor.com for /admin/analytics (post-ratings.mjs).
+// LOOP_MEASURE=1 stops after step 3: the visitors' reports, and nothing filed, fixed or posted.
 // One run at a time (a lock), events to the system log, and a summary under ~/.botchelor-loop/runs/<date>/.
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -32,6 +33,10 @@ const VISITOR_STAGGER_MINUTES = Number(env("LOOP_VISITOR_STAGGER_MINUTES", "4"))
 const MAX_ISSUES = Number(env("LOOP_MAX_ISSUES", "5"));
 const MAX_FIXES = Number(env("LOOP_MAX_FIXES", "3"));
 const FIX = env("LOOP_FIX", "1") !== "0";
+// A measurement run (David, 2026-10-24: "run a production simulation / loop 25 times … without giving any direct …
+// feedback"): the arena and the visitors' reports only. No triage or issues, no housekeeping, no observer, no fixer, and
+// nothing posted to botchelor.com or Slack, so a batch of runs measures the show as it stands. Local arena only.
+const MEASURE = env("LOOP_MEASURE", "0") === "1";
 const DEADLINE = Date.now() + Number(env("LOOP_DEADLINE_MIN", "160")) * 60_000; // 06:10 + 2h40 = 08:50
 const VISITOR_MODEL = env("LOOP_VISITOR_MODEL", "sonnet");
 const TRIAGE_MODEL = env("LOOP_TRIAGE_MODEL", "sonnet");
@@ -175,6 +180,7 @@ async function housekeeping(state) {
 }
 
 async function main() {
+  if (MEASURE && REMOTE_BASE) return log("LOOP_MEASURE=1 runs on the local arena only: visitors on a live server change it");
   mkdirSync(RUN, { recursive: true });
   if (existsSync(LOCK)) {
     const age = Date.now() - Number(readFileSync(LOCK, "utf8").split(" ")[1] || 0);
@@ -183,8 +189,9 @@ async function main() {
   writeFileSync(LOCK, `${process.pid} ${Date.now()}`);
   const state = existsSync(STATE) ? JSON.parse(readFileSync(STATE, "utf8")) : {};
   const summary = { day, started_at: new Date().toISOString() };
-  emit("run_started", "info", `visitors=${VISITORS} fix=${FIX} env=${REMOTE_BASE ?? "local"}`);
+  emit("run_started", "info", `visitors=${VISITORS} fix=${FIX && !MEASURE} env=${REMOTE_BASE ?? "local"}${MEASURE ? " measure" : ""}`);
   summary.env = REMOTE_BASE ?? "local";
+  if (MEASURE) summary.measure = true;
   let arena, agent;
   try {
     // 1. A clean build of main.
@@ -278,70 +285,76 @@ async function main() {
     arena?.kill("SIGTERM");
     summary.model_spend_usd = Math.round(((before - (await credits(gatewayKey))) || 0) * 10000) / 10000;
 
-    // 4. Triage: tonight's feedback plus real agents' on botchelor.com since the last run.
-    let live = [];
-    let livePassword = null;
-    try {
-      livePassword = keychain("vault/botchelor/FRONTIER_PASSWORD");
-      live = await feedbackFrom("https://botchelor.com", livePassword, state.last_live_feedback_at ?? null);
-    } catch {
-      /* no password: local feedback only */
-    }
-    writeFileSync(join(RUN, "feedback-live.json"), JSON.stringify(live, null, 2));
-    summary.feedback_live = live.length;
-    const newest = live.map((f) => f.created_at).sort().at(-1);
-    const reports = Array.from({ length: VISITORS }, (_, i) => join(RUN, `visitor-${i + 1}.md`)).filter(existsSync);
-    if (summary.feedback_local || live.length || reports.length) {
-      const triage = readFileSync(join(HERE, "triage-prompt.md"), "utf8")
-        .replaceAll("{{FEEDBACK}}", `${join(RUN, "feedback-local.json")} and ${join(RUN, "feedback-live.json")}`)
-        .replaceAll("{{REPORTS}}", reports.join(", ") || "(none)")
-        .replaceAll("{{MAX_ISSUES}}", String(MAX_ISSUES))
-        .replaceAll("{{OUT}}", join(RUN, "triage.md"));
-      await claude(triage, {
-        cwd: REPO,
-        model: TRIAGE_MODEL,
-        // Edit(path) rules cover writing new files too (Write(path) rules don't apply to files), and an absolute path
-        // needs a leading "//": a single "/" is read as relative to the settings folder, so triage.md was denied.
-        tools: ["Read", "Grep", "Glob", `Edit(/${RUN}/**)`, "Bash(gh issue:*)", "Bash(gh label:*)", "Bash(git log:*)", "Bash(git show:*)"],
-        timeoutMin: 25,
-        out: join(RUN, "triage.log"),
-      });
-    }
-    if (newest) state.last_live_feedback_at = newest;
-    // So /admin/feedback shows the visitors' feedback too (David, 2026-10-17), labelled as this loop run.
-    if (livePassword && summary.feedback_local) {
+    // 4. Triage: tonight's feedback plus real agents' on botchelor.com since the last run. Not in a measurement run.
+    if (!MEASURE) {
+      let live = [];
+      let livePassword = null;
       try {
-        const local = JSON.parse(readFileSync(join(RUN, "feedback-local.json"), "utf8"));
-        const res = await fetch("https://botchelor.com/api/admin/feedback", {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-frontier-key": livePassword },
-          body: JSON.stringify({ source: `loop ${day}`, rows: local }),
-        });
-        summary.feedback_posted = res.ok ? (await res.json()).added : `failed (${res.status})`;
+        livePassword = keychain("vault/botchelor/FRONTIER_PASSWORD");
+        live = await feedbackFrom("https://botchelor.com", livePassword, state.last_live_feedback_at ?? null);
       } catch {
-        summary.feedback_posted = "failed";
+        /* no password: local feedback only */
+      }
+      writeFileSync(join(RUN, "feedback-live.json"), JSON.stringify(live, null, 2));
+      summary.feedback_live = live.length;
+      const newest = live.map((f) => f.created_at).sort().at(-1);
+      const reports = Array.from({ length: VISITORS }, (_, i) => join(RUN, `visitor-${i + 1}.md`)).filter(existsSync);
+      if (summary.feedback_local || live.length || reports.length) {
+        const triage = readFileSync(join(HERE, "triage-prompt.md"), "utf8")
+          .replaceAll("{{FEEDBACK}}", `${join(RUN, "feedback-local.json")} and ${join(RUN, "feedback-live.json")}`)
+          .replaceAll("{{REPORTS}}", reports.join(", ") || "(none)")
+          .replaceAll("{{MAX_ISSUES}}", String(MAX_ISSUES))
+          .replaceAll("{{OUT}}", join(RUN, "triage.md"));
+        await claude(triage, {
+          cwd: REPO,
+          model: TRIAGE_MODEL,
+          // Edit(path) rules cover writing new files too (Write(path) rules don't apply to files), and an absolute path
+          // needs a leading "//": a single "/" is read as relative to the settings folder, so triage.md was denied.
+          tools: ["Read", "Grep", "Glob", `Edit(/${RUN}/**)`, "Bash(gh issue:*)", "Bash(gh label:*)", "Bash(git log:*)", "Bash(git show:*)"],
+          timeoutMin: 25,
+          out: join(RUN, "triage.log"),
+        });
+      }
+      if (newest) state.last_live_feedback_at = newest;
+      // So /admin/feedback shows the visitors' feedback too (David, 2026-10-17), labelled as this loop run.
+      if (livePassword && summary.feedback_local) {
+        try {
+          const local = JSON.parse(readFileSync(join(RUN, "feedback-local.json"), "utf8"));
+          const res = await fetch("https://botchelor.com/api/admin/feedback", {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-frontier-key": livePassword },
+            body: JSON.stringify({ source: `loop ${day}`, rows: local }),
+          });
+          summary.feedback_posted = res.ok ? (await res.json()).added : `failed (${res.status})`;
+        } catch {
+          summary.feedback_posted = "failed";
+        }
       }
     }
 
     // 5. Housekeeping: close stale issues, and nudge David about the ones waiting on him.
-    try {
-      Object.assign(summary, await housekeeping(state));
-    } catch (err) {
-      summary.housekeeping_error = err instanceof Error ? err.message : String(err);
+    if (!MEASURE) {
+      try {
+        Object.assign(summary, await housekeeping(state));
+      } catch (err) {
+        summary.housekeeping_error = err instanceof Error ? err.message : String(err);
+      }
     }
 
     // 5b. The After Dark observer (scripts/eval/observer-nightly.sh, botchelor-2c's #583): read-only checks on the pairs
     // that changed in the last day, one summary row to /admin/analytics, no model. Its outcome goes in the summary, so a
     // failure is seen rather than swallowed; ten minutes at most, so it never holds up the fixer.
-    try {
-      const out = sh("zsh", ["scripts/eval/observer-nightly.sh"], { timeout: 10 * 60_000 });
-      summary.observer = out.trim().split("\n").at(-1)?.slice(0, 300) || "ok";
-    } catch (err) {
-      summary.observer = `failed: ${(err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 200)}`;
+    if (!MEASURE) {
+      try {
+        const out = sh("zsh", ["scripts/eval/observer-nightly.sh"], { timeout: 10 * 60_000 });
+        summary.observer = out.trim().split("\n").at(-1)?.slice(0, 300) || "ok";
+      } catch (err) {
+        summary.observer = `failed: ${(err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 200)}`;
+      }
     }
 
     // 6. One fixer.
-    if (FIX && Date.now() < DEADLINE - 20 * 60_000) {
+    if (FIX && !MEASURE && Date.now() < DEADLINE - 20 * 60_000) {
       const fix = readFileSync(join(HERE, "fix-prompt.md"), "utf8").replaceAll("{{MAX_FIXES}}", String(MAX_FIXES)).replaceAll("{{OUT}}", join(RUN, "fixes.md"));
       await claude(fix, { cwd: REPO, model: FIX_MODEL, tools: "all", timeoutMin: Math.floor((DEADLINE - Date.now()) / 60_000), out: join(RUN, "fix.log") });
       sh("git", ["checkout", "-q", "--detach", "origin/main"]);
@@ -365,11 +378,15 @@ async function main() {
     // 7. The visitors' ratings to botchelor.com, for the Quality tab on /admin/analytics (sim_ratings). post-ratings.mjs
     // reads the summary just written (sha, times), so it runs after it, failed runs included; a run without reports
     // posts nothing. Its outcome goes in the summary, a minute at most.
-    try {
-      const out = sh("node", [join(HERE, "post-ratings.mjs"), RUN], { timeout: 60_000 });
-      summary.ratings_posted = out.trim().split("\n").at(-1)?.slice(0, 200) || "ok";
-    } catch (err) {
-      summary.ratings_posted = `failed: ${(err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 200)}`;
+    // A measurement run keeps its ratings here: `node scripts/loop/post-ratings.mjs <run>` posts them later.
+    if (MEASURE) summary.ratings_posted = "not posted (LOOP_MEASURE=1)";
+    else {
+      try {
+        const out = sh("node", [join(HERE, "post-ratings.mjs"), RUN], { timeout: 60_000 });
+        summary.ratings_posted = out.trim().split("\n").at(-1)?.slice(0, 200) || "ok";
+      } catch (err) {
+        summary.ratings_posted = `failed: ${(err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 200)}`;
+      }
     }
     writeFileSync(join(RUN, "summary.json"), JSON.stringify(summary, null, 2));
     writeFileSync(STATE, JSON.stringify(state, null, 2));
