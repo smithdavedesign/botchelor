@@ -761,7 +761,10 @@ export function sceneMessages(
   const system = [
     "You write a private, adults-only scene for one reader: two characters from a dating show, alone together.",
     register ? `Both characters are adults (18 or older) and both are willing. ${register}` : filthy ? FILTHY_RULE : EXPLICIT_RULE,
-    "Rules that never move: nobody in the scene is under 18 or described as a child; no real, identifiable person appears or is named; both are always willing (no force, drugging, sleep or non-consent, even as a game); no family; no animals; no gore, torture or deadly violence.",
+    // 2026-10-24: the processors' lines too (docs/after-dark-legal-review.md); v1 stays word for word, for the replays.
+    v2
+      ? "Rules that never move: nobody in the scene is under 18 or described as a child; no real, identifiable person appears or is named; both are always willing (no force, drugging, sleep or non-consent, even as a game); no family; no animals; no gore, torture or deadly violence."
+      : "Two rules never move: nobody in the scene is under 18 or described as a child, and no real, identifiable person appears or is named.",
     ...hardNoLines(limits.hard_nos),
     ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }, plain, now.stage >= UNDRESSING) : []),
     "",

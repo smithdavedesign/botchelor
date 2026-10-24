@@ -301,7 +301,8 @@ describe("turn-ons and framing", () => {
     };
     walk(join(root, "lib"));
     walk(join(root, "app"));
-    expect(hits.filter((p) => !p.startsWith("lib/adult/") && p !== "lib/db.ts")).toEqual([]);
+    // lib/account.ts only deletes them, with a deleted account's kept characters (deleteAccount).
+    expect(hits.filter((p) => !p.startsWith("lib/adult/") && p !== "lib/db.ts" && p !== "lib/account.ts")).toEqual([]);
   });
 
   it("are curated: about twenty turn-ons and seven framings, none of them family, teacher and student, school or age-play", () => {
