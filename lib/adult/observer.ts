@@ -26,8 +26,19 @@ import { stageShown } from "./stage-floor";
 import { driftOf, sensoryDetail, sideOfObserved, whyRestatesTrait, type Drift } from "./quality";
 
 export type ObservedLine = { who: "a" | "b"; text: string; why?: string | null; memory?: string | null; moved_to?: string | null; stage?: number | null };
-/** v2.3: a step's flags as the observer reads them: a Direct steer's quoted lines, and whether each was said. */
-export type ObservedStep = { line_from: number | null; flags: { quotes?: { text: string; who: "a" | "b" | null; kept: boolean }[]; quote_kept?: boolean } | null };
+/**
+ * v2.3: a step's flags as the observer reads them: a Direct steer's quoted lines, and whether each was said. v2.5: what
+ * the owner asked for, so a move they ordered isn't one "nobody agreed to": the step's kind ("set_scene" for Set the
+ * scene and a scenario's start, else a write), its lines, and a write's steer and mode.
+ */
+export type ObservedStep = {
+  line_from: number | null;
+  line_to?: number | null;
+  kind?: string | null;
+  direction?: string | null;
+  steer_mode?: string | null;
+  flags: { quotes?: { text: string; who: "a" | "b" | null; kept: boolean }[]; quote_kept?: boolean } | null;
+};
 export type ObservedChapter = {
   chapter: number; source: "night" | "scene"; id: string; lines: ObservedLine[]; set_place: string | null; place: string | null; moves?: MoveLog[] | null; sets_requested?: string[];
   steps?: ObservedStep[];
@@ -94,6 +105,46 @@ export type ObserverReport = {
 
 /** How many of a chapter's first lines the restart check reads. */
 const CHAPTER_START = 12;
+
+/**
+ * v2.5: a line carrying an act on without the words stageShown reads it by (the restart check only, never the stage
+ * floor): mid-sex, a chapter's first lines say "between her legs" and "moans" more than the act's own words. David's
+ * Chud × Juniper night, replayed: chapter 2 carried straight on mid-sex and was read as stage 1.
+ */
+const CARRYING_ON = /\b(moan(s|ed|ing)?|between (her|his|their|my|your|[\p{L}]+['’]s) (legs|thighs)|writh\w*|hips? (buck|rock|roll|grind)\w*|dripping)\b/iu;
+
+/**
+ * v2.5: the lines the owner ordered a move in, by their own hand: the write after a Set the scene (or a scenario's start)
+ * arrives where they set it, and a Direct steer that names a place or a movement is done now. Neither is a move "nobody
+ * agreed to". `arrivals` is where each Set the scene put them, by the line it starts at.
+ */
+export function ownerMoves(steps: readonly ObservedStep[], lines: number): { ordered: Set<number>; arrivals: Map<number, string> } {
+  const ordered = new Set<number>();
+  const arrivals = new Map<number, string>();
+  const span = (s: ObservedStep) => {
+    const from = s.line_from ?? null;
+    if (from === null) return [];
+    const to = Math.min(lines - 1, s.line_to ?? from);
+    return Array.from({ length: Math.max(0, to - from + 1) }, (_, k) => from + k);
+  };
+  let set: string | null = null;
+  for (const s of steps) {
+    if (s.kind === "set_scene") {
+      set = s.direction?.trim() || null;
+      continue;
+    }
+    if (s.kind && s.kind !== "write") continue;
+    const at = span(s);
+    if (set) {
+      for (const i of at) ordered.add(i);
+      if (at.length) arrivals.set(at[0], set);
+      set = null;
+    }
+    const steer = s.direction ?? "";
+    if (s.steer_mode === "direct" && steer && (placeIn(steer) || MOVEMENT.test(steer) || proposesMove(steer))) for (const i of at) ordered.add(i);
+  }
+  return { ordered, arrivals };
+}
 
 /** A line that takes them somewhere: a movement in its action ("stepping onto the balcony", "opens the car door"). */
 const MOVEMENT =
@@ -215,8 +266,19 @@ export function observeNight(input: ObserverInput): ObserverReport {
       if (at.length > 1) add("catchphrase", ch.chapter, at[0], at[at.length - 1], `${first(who)} says the catchphrase ${phrase} ${at.length} times this chapter (lines ${at.join(", ")})`);
     }
 
-    // Places: moves nobody agreed to, "my place?" at their place, and the engine's own log.
+    // Places: moves nobody agreed to, "my place?" at their place, and the engine's own log. v2.5: a move the owner
+    // ordered (Set the scene, a Direct steer naming a place) is agreed, and a Set the scene puts them there.
+    const owner = ownerMoves(ch.steps ?? [], lines.length);
     lines.forEach((l, i) => {
+      const arrived = owner.arrivals.get(i);
+      if (arrived) {
+        const head = canonicalSet(arrived).head;
+        if (head && !(loc && samePlace(loc, head))) {
+          summary.agreed_moves++;
+          loc = head;
+          if (!HOME_ROOMS.has(head)) homeOf = null;
+        }
+      }
       const home = proposesMove(l.text) ? homeProposed(l.text, l.who) : null;
       if (home && homeOf === home) {
         summary.my_place_when_there++;
@@ -229,7 +291,7 @@ export function observeNight(input: ObserverInput): ObserverReport {
       const action = actionOf(l.text);
       const to = l.moved_to ? canonicalSet(l.moved_to).head : MOVEMENT.test(action) ? placeIn(action) : null;
       if (!to || (loc && samePlace(loc, to))) return;
-      const agreed = Boolean(l.moved_to) || Boolean(agreedMove(lines.slice(Math.max(0, i - 6), i + 1), 0));
+      const agreed = Boolean(l.moved_to) || owner.ordered.has(i) || Boolean(agreedMove(lines.slice(Math.max(0, i - 6), i + 1), 0));
       if (agreed) summary.agreed_moves++;
       else {
         summary.unprovoked_moves++;
@@ -329,7 +391,8 @@ export function observeNight(input: ObserverInput): ObserverReport {
     const ended = before.at(-1)?.stage ?? null;
     if (ended === null || ended < 3 || before.slice(-12).some((l) => climaxIn(l.text)) || !ch.lines.length) continue;
     const start = ch.lines.slice(0, CHAPTER_START);
-    const shown = Math.max(...start.map((l) => stageShown(l.text) ?? 0));
+    // v2.5: a line carrying the act on counts as where the last chapter ended.
+    const shown = Math.max(...start.map((l) => (CARRYING_ON.test(l.text) ? ended : (stageShown(l.text) ?? 0))));
     if (shown < ended) {
       summary.chapter_restarts++;
       add("chapter_restart", ch.chapter, 0, start.length - 1, `the last chapter ended at stage ${ended + 1}, but these first lines show no more than stage ${shown + 1}: it started over instead of carrying on`);

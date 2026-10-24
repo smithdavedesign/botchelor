@@ -270,7 +270,8 @@ describe("the prompt", () => {
 
   it("names the topic words already past their share, like worn phrases, and none that the steer asks for", () => {
     const system = prompt(4)[0].content;
-    expect(system).toContain(`- Juniper talked about her work or hobbies in 1 of her last 6 lines, and that's one line in 12 at most from here. Don't lean on these words again: "lighthouse"; a line that says one loses it.`);
+    // v2.5: from undressing on, either sheet's words count, so the note says whose they may be.
+    expect(system).toContain(`- Juniper talked about work or hobbies (hers or Chud's) in 1 of her last 6 lines, and that's one line in 12 at most from here. Don't lean on these words again: "lighthouse"; a line that says one loses it.`);
     expect(system).not.toContain("- Chud talked about his work");
     // At stage 1 her lighthouse is six of her lines back: nothing to say.
     expect(prompt(1)[0].content).not.toContain("talked about her work");
@@ -290,7 +291,7 @@ describe("the prompt", () => {
     const r = await step(model, { scene: at(4) });
     expect(r.ok).toBe(true);
     expect(calls).toHaveLength(2);
-    expect(calls[1][1].content).toContain(`Leave their work and hobbies out of these lines ("ghost"): they're about the two of them.`);
+    expect(calls[1][1].content).toContain(`Leave their work, their hobbies and any clinical words out of these lines ("ghost"): they're about the two of them.`);
   });
 });
 

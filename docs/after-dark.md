@@ -625,6 +625,85 @@ dropped names (the "'s" came in bursts: 15 of one run's 60 lines), this looks li
 their names, "That", "It" and the JSON's keys. Both at 0 for DeepSeek is the next thing to try, in
 `/admin/after-dark/settings`.
 
+### v2.5: the voice without its subjects, and the wry asides rationed (2026-10-24)
+
+v2 changed in place again (`prompt_version` is still `"v2"`; a step's flags say `prompt: "v2.5"`). David approved it on
+2026-10-24. His real Chud × Juniper night, replayed blind on v2.4 (#722), still had Juniper making a deadpan "technical"
+quip nearly every line, even mid-sex ("structural integrity", "the acoustics", "calibration", "protocol"). Sea and
+lighthouse metaphors came back in the group half (buoys, the tide, foghorns). Her job words had already fallen from 5.0
+to 1.2 per 10 lines on v2.4. The register was what was left. Two things drove it: her house voice says she "drifts toward
+the sea, ghosts and the gulls", and v2.4's topic budget counted only each speaker's own sheet, so Chud borrowed hers
+freely ("my favorite lighthouse", "get this ship moving").
+
+Everything below starts at undressing, the stage where v2.4's lovers rule starts. Nothing changes before it.
+
+- **The voice without its subjects** (`lib/adult/quality.ts` `voiceWithoutTopics`). Each sheet's `Voice:` line loses
+  the clauses that name a topic word, from either sheet (v2.4's `topicsOf`). The rhythm and delivery stay. The voice is
+  read a sentence at a time, in fragments between its commas, semicolons and colons. A fragment that names a topic goes,
+  and so does the list it belongs to: the clause that opens the list with a preposition ("drifts toward the sea") and
+  the items after it. Two kinds of fragment stay: a list of peers with no such clause in front ("easy compliments, dance
+  metaphors, light flirting" keeps the compliments and the flirting), and a noun phrase before the preposition ("short,
+  physical sentences about heights…"). Juniper's voice becomes *"Dry and unhurried: short sentences, long pauses, a flat
+  delivery on her strangest lines. Asks odd, sincere questions, and never laughs at her own jokes."* Nothing is
+  hard-coded to her. The sample lines ("Sounds like", and their best show lines) that say a topic word are left out
+  too. The voice rule becomes their rhythm and delivery (`LOVERS_VOICE`). The line rule's "their work or a hobby now
+  and then" is gone, because the lovers rules contradicted it.
+- **Both sheets' words** (`lib/adult/scenes.ts` `topicsAt`). Each speaker's budget (one topic line in 12) counts both
+  sheets' topic words. It also counts the subjects a voice listed alongside them (Juniper's "sea"). A craft rule says
+  so: *"Neither of them borrows the other's work or hobbies either: Chud doesn't tease with Juniper's, nor Juniper with
+  Chud's."* The note names whose words they may be (*"Chud talked about work or hobbies (his or Juniper's)…"*). A word
+  that the steer or a whisper names is still the owner's to ask for.
+- **The wry asides, rationed** (the prompt). A craft rule: *"Dry asides are rationed: about one line in six may be
+  commentary on what's happening (a deadpan remark, a joke, a comparison, an observer's or technician's word for it).
+  The rest say what they feel, want or do, plainly, in their own rhythm: a deadpan character says it short and flat,
+  not clinically."* The line rule says the same in one sentence.
+- **The clinical register, held to its share** (`clinicalWordsIn`, `CLINICAL_EVERY` = 6, in `dropRepeats`). The guard
+  reads the shape of the words, not a vocabulary: the abstract endings that a manual or an inspection report is written
+  in (-ity, -ation, -ment, -ics, -ural…, so "structural integrity", "containment", "acoustics", "salinity"). An
+  exception list holds the words of those shapes that any intimate scene says plainly (sensation, position, tension,
+  pleasure…). Actions don't count, and a word the steer or a whisper says is allowed. Past one line in six, the
+  sentences that say one go (as the topic budget does), and the line goes when nothing it says is left. It's counted in
+  `CraftCuts.clinical` and the step's `clinical_cut`. A speaker past the share also gets a note naming the words.
+
+**The sim's scoring** (`scripts/sim-after-dark.mjs`, `lib/adult/observer.ts`, `scripts/eval/after-dark-observer.mjs`):
+
+- `voice_sheet_detail` reads `sheet_detail_rate_early`, a character's sheet share over their lines before undressing,
+  because v2.4+ cuts sheet words after it on purpose. An older report falls back to the whole night's rate.
+- The observer reads the owner's steps too. The write after a Set the scene (or a scenario's start) arrives where it was
+  set, and moves the observer's place there. A Direct steer that names a place or a movement orders the move. Neither is
+  an "unprovoked move" any more (`ownerMoves`). On the replayed night that took the v2.4 run from 4 unprovoked moves to
+  1. The one left (into the bedroom on a plain continue) is real.
+- The chapter-restart check counts a line that carries the act on ("between her legs", "moans", "writhes") as where the
+  last chapter ended. The check reads only the chapter's first lines, and the stage floor is unchanged. Re-checked on the
+  replay: chapter 2's first lines carried straight on, and stageShown read them as stage 2 because nothing in them used
+  its words. A few lines later the model did slide back to a doorframe and her thigh. That slide is the register
+  problem, not a restart.
+
+**The replay** (local only, nothing written to production). David's night was rebuilt read-only from production, the
+way #719 describes: Chud's sheet, the adult_steps of the pair on 2026-10-23 06:52–07:29 UTC (the elevator scenario
+first, 31 steps, with Set the scene and turn-ons Chud dirty_talk and Juniper being_told). It ran through
+`npm run sim:after-dark` on DeepSeek V3.1, once on main (v2.4) and once on this branch. Both are scored with the new
+scoring. The transcripts stay in a scratchpad. Juniper's lines from undressing on (63 in each run):
+
+| | v2.4 (main) | v2.5 |
+|---|---|---|
+| Her lines that are a dry or technical aside (read blind, both runs shuffled together) | 55 of 63 (87%) | 27 of 63 (43%) |
+| Her lines with a clinical-register word (`clinicalWordsIn`) | 28 (44%) | 3 (5%) |
+| Her sheet's words, per 10 of her lines | 0.5 | 0.5 |
+| Sea and broadcasting words, per 10 of her lines | 2.9 | 1.9 |
+| Her lines touching the sea, broadcasting or her job | 15 (24%) | 11 (17%) |
+| Chud's lines using her words or the sea (of 65–68) | 4 | 2 (one is the owner's own steer, "sea serpent") |
+| Steps that failed | 0 of 31 | 1 of 31 ("only repeated lines", the next step carried on) |
+| Quoted lines in Direct steers said | 10 of 12 | 9 of 11 |
+| Composite | 61 (58 on the old scoring) | 63 |
+
+The clinical guard cut 1 line and the topic budget 5. Most of the change came from the prompt. What's left: about
+two in five of her lines are still asides, which is more than one in six. In the group half the sea comes back in
+words no sheet has (the tide, a storm front, a squall, the fog), and a new tic took over ("'Kay." nine times, and many
+lines that are only an action). The composite's `voice_sheet_detail` is 0 in both runs. The elevator scenario reaches
+undressing by the third step, so only about ten lines come before it.
+
+
 ### Ages and counts (2026-10-23)
 
 The two lines refused ordinary steers as "nobody under 18": After Dark's age-in-passing patterns (`checkAdultText`,

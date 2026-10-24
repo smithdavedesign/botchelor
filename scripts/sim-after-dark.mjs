@@ -350,6 +350,7 @@ const round = (x, d = 3) => Math.round(x * 10 ** d) / 10 ** d;
 /**
  * The composite 0–100 for an After Dark night: voice 30, memory 20, craft 20, flow 20, safety 10. Each part is a straight
  * line between a bad and a good value of one measure (written next to it), so a score can be read back to its causes.
+ * v2.5: the sheet's share is read before undressing, and a move the owner ordered isn't an unagreed one (the observer).
  */
 export function scoreNight(report, steps, all = []) {
   const s = report?.summary ?? {};
@@ -361,7 +362,9 @@ export function scoreNight(report, steps, all = []) {
   const count = (check) => findings.filter((f) => f.check === check).length;
   const lin = (x, bad, good) => clamp01((x - bad) / (good - bad));
   const parts = {
-    voice_sheet_detail: { max: 15, value: avg(drift.map((d) => d.sheet_detail_rate ?? 0)), from: [0.2, 0.6] },
+    // v2.5: their sheet before undressing only (sheet_detail_rate_early): from undressing on, v2.4+ cuts their sheet's
+    // words on purpose. A report from before it existed reads the whole night's rate.
+    voice_sheet_detail: { max: 15, value: avg(drift.map((d) => d.sheet_detail_rate_early ?? d.sheet_detail_rate ?? 0)), from: [0.2, 0.6] },
     voice_stock_phrases: { max: 10, value: avg(drift.map((d) => d.cliche_rate ?? 0)), from: [5, 0] },
     voice_hooks: { max: 5, value: Math.max(0, ...drift.map((d) => d.hook?.share ?? 0)), from: [0.4, 0.15] },
     memory_cited: { max: 12, value: s.share_memory ?? 0, from: [0, 0.25] },

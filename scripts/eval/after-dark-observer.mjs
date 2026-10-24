@@ -177,12 +177,14 @@ export async function fromDb(q, o) {
       const prev = i ? iso(run[i - 1].created_at) : (nights.filter((n) => iso(n.created_at) < iso(run[0].created_at)).map((n) => iso(n.created_at)).pop() ?? earliest);
       const sets = prev ? (await q(`select label from place_sets where created_at > $1 and created_at <= $2 order by created_at`, [prev, end])).map((r) => r.label) : undefined;
       if (c.recap) memories.push(c.recap);
-      // v2.3: the steps that wrote it (their flags carry a Direct steer's quoted lines, and whether each was said).
+      // v2.3: the steps that wrote it (their flags carry a Direct steer's quoted lines, and whether each was said). v2.5:
+      // and the owner's Set the scene steps, with each write's steer and mode, so a move the owner ordered is agreed.
+      const which = `((kind = 'write' and status = 'ok') or (kind = 'set_scene' and status = 'ok'))`;
       const steps = hasSteps
         ? await q(
             c.source === "night"
-              ? `select line_from, flags from adult_steps where night_id = $1 and kind = 'write' and status = 'ok' order by created_at`
-              : `select line_from, flags from adult_steps where scene_id = $1 and night_id is null and chapter = $2 and kind = 'write' and status = 'ok' order by created_at`,
+              ? `select kind, line_from, line_to, direction, steer_mode, flags from adult_steps where night_id = $1 and ${which} order by created_at`
+              : `select kind, line_from, line_to, direction, steer_mode, flags from adult_steps where scene_id = $1 and night_id is null and chapter = $2 and ${which} order by created_at`,
             c.source === "night" ? [c.id] : [c.id, c.chapter ?? 1],
           )
         : [];
