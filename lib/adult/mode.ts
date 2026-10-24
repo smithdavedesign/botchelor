@@ -12,6 +12,7 @@ import type { Db } from "../db";
 import { authFromCookieStore, authFromRequest } from "../http";
 import { openAICompatibleModel, type Model } from "../model";
 import { canAfterDark } from "./entitlement";
+import { pageHeaders, viewerAccess } from "./place";
 import { lockedForCookies, lockedForRequest } from "./privacy";
 import { adultKeys, cloudReady, getAdultSettings } from "./settings";
 
@@ -135,13 +136,18 @@ export async function signedInAdmin(db: Db, auth: { userId: string; authenticate
  */
 export async function adultViewer(db: Db, req: Request): Promise<string | null> {
   const auth = authFromRequest(req);
-  if (!(await canAfterDark(db, auth)).ok || !(await adultAvailable(db))) return null;
+  const entitled = await canAfterDark(db, auth);
+  if (!entitled.ok || !(await adultAvailable(db))) return null;
+  // 2026-10-24 (lib/jurisdiction.ts): where it isn't offered, the same not-found as for a stranger; admins are exempt.
+  if ((await viewerAccess(db, auth!.userId, entitled.why === "admin", req.headers)).mode === "blocked") return null;
   return (await lockedForRequest(db, auth!.userId, req)) ? null : auth!.userId;
 }
 
 /** The same, for a server page (its cookie store). A locked device's page sees null; its layout asks for the PIN. */
 export async function adultViewerFromCookies(db: Db, store: { get(name: string): { value: string } | undefined }): Promise<string | null> {
   const auth = authFromCookieStore(store);
-  if (!(await canAfterDark(db, auth)).ok || !(await adultAvailable(db))) return null;
+  const entitled = await canAfterDark(db, auth);
+  if (!entitled.ok || !(await adultAvailable(db))) return null;
+  if ((await viewerAccess(db, auth!.userId, entitled.why === "admin", await pageHeaders())).mode === "blocked") return null;
   return (await lockedForCookies(db, auth!.userId, store)) ? null : auth!.userId;
 }

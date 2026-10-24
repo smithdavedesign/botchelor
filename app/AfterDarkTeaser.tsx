@@ -1,6 +1,6 @@
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
-import { canAfterDark } from "@/lib/adult/entitlement";
+import { accessHere } from "@/lib/adult/place";
 import { fillerLines, teasersFor } from "@/lib/adult/teaser";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { detectBot } from "@/lib/bots";
@@ -20,7 +20,10 @@ export default async function AfterDarkTeaser({ pair, character }: { pair?: [str
   const db = await getDb();
   const teasers = await teasersFor(db, { pair, character }).catch(() => []);
   if (!teasers.length) return null;
-  const open = (await canAfterDark(db, authFromCookieStore(await cookies()))).ok;
+  // Where After Dark isn't offered (lib/jurisdiction.ts), no teaser either: not even that it exists.
+  const here = await accessHere(db, authFromCookieStore(await cookies()), h);
+  if (here.mode === "blocked") return null;
+  const open = here.entitled.ok;
   return (
     <section className="card ad-teaser" aria-label="After Dark">
       <h2>🌙 After Dark</h2>

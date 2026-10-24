@@ -14,6 +14,8 @@ import { recordAsset, reviewAsset } from "./assets";
 import { canAfterDark } from "./adult/entitlement";
 import { hivePausedMessage, hivePausedUntil } from "./adult/hive-limit";
 import { checkMedia, checkReady, mediaGate } from "./adult/moderation";
+import { accessHere } from "./adult/place";
+import { mediaAllowed } from "./jurisdiction";
 import { NEGATIVE_PROMPT, VENICE_IMAGE } from "./adult/media";
 import { adultKeys, getAdultSettings } from "./adult/settings";
 import type { Db } from "./db";
@@ -310,7 +312,8 @@ export async function gateAfterDarkLooks<E extends { looks?: Looks } | null | un
 
 /** What the builder needs for a viewer: the drawn tiles it may see, and whether After Dark's tab opens for them. */
 export async function builderLooks(db: Db, auth: { userId: string; authenticated: boolean } | null): Promise<{ tiles: string[]; afterDark: boolean }> {
-  const afterDark = (await canAfterDark(db, auth).catch(() => ({ ok: false }))).ok;
+  // Its tiles are pictures: the tab opens only where pictures are allowed (lib/jurisdiction.ts), admins excepted.
+  const afterDark = await accessHere(db, auth).then((h) => h.entitled.ok && mediaAllowed(h), () => false);
   const [pg, nsfw] = await Promise.all([readyTiles(db, "pg").catch(() => []), afterDark ? readyTiles(db, "nsfw").catch(() => []) : Promise.resolve([])]);
   return { tiles: [...pg, ...nsfw], afterDark };
 }

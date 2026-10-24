@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
+import { mediaRefusal } from "@/lib/adult/place";
 import { VOICE_BATCH_MAX, voiceLines } from "@/lib/adult/voice-lines";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
@@ -27,6 +28,9 @@ export const POST = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return json({ error: "not_found" }, 404);
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const input = parseBody(Input, await readJson(req), "invalid_request");
   const r = await voiceLines(db, viewer, input);
   if (!r.ok) return json({ error: r.error, message: r.message }, r.status);
