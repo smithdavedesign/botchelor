@@ -86,10 +86,10 @@ export const DEFAULT_PROMPT_VERSION: PromptVersion = "v2";
 /**
  * Which revision of v2 runs: v2 changes in place (v2.1 craft, v2.2 continuity, v2.3 the heat, a Direct steer's quoted
  * lines and a chapter carrying on, v2.4 their work and hobbies held to a share of their lines, v2.5 the voice without its
- * subjects, both sheets' words and the wry asides rationed from undressing on: docs/after-dark.md), so each step's flags
- * say which one wrote it.
+ * subjects, both sheets' words and the wry asides rationed from undressing on, v2.6 the aside check, the tic guard and the
+ * quotes' owners: docs/after-dark.md), so each step's flags say which one wrote it.
  */
-export const SCENE_PROMPT_REVISION = "v2.5";
+export const SCENE_PROMPT_REVISION = "v2.6";
 
 export type AdultSettings = {
   enabled: boolean;

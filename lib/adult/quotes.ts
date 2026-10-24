@@ -75,7 +75,13 @@ export function steerQuotes(steer: string | null, names: Who, pronouns: Pronouns
     .map((q, i) => {
       const before = steer.slice(i ? found[i - 1].end : 0, q.start);
       const after = steer.slice(q.end, found[i + 1]?.start ?? steer.length).slice(0, 40);
-      const who = namedIn(before, names, pronouns, true) ?? (/^\s*[,.]?\s*(?:says|said|asks|asked|whispers|moans|tells|groans|growls|gasps)\b/i.test(after) ? namedIn(after, names, pronouns, false) : null);
+      // v2.6 (Chud × Juniper: '"Do as you are told" he shoves…' went to nobody, and Juniper said it): a quote that opens
+      // the steer, followed straight away by a name or a pronoun only one of them goes by, is that one's.
+      const subject = !before.trim() ? /^\s*[,.]?\s*([\p{L}']+)/u.exec(after)?.[1] : undefined;
+      const who =
+        namedIn(before, names, pronouns, true) ??
+        (/^\s*[,.]?\s*(?:says|said|asks|asked|whispers|moans|tells|groans|growls|gasps)\b/i.test(after) ? namedIn(after, names, pronouns, false) : null) ??
+        (subject ? namedIn(subject, names, pronouns, false) : null);
       return { text: q.text, who };
     })
     .filter((q) => quoteTokens(q.text).length > 0);

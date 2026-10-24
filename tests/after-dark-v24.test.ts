@@ -290,7 +290,10 @@ describe("the prompt", () => {
     const { model, calls } = scripted(reply([{ who: "b", text: "Ghost stories again." }]), reply([{ who: "b", text: "*kisses him* Stay." }]));
     const r = await step(model, { scene: at(4) });
     expect(r.ok).toBe(true);
-    expect(calls).toHaveLength(2);
+    // v2.6: the aside check's call comes after the scene's two (a scene reply is no answer to it: the lines stand).
+    expect(calls).toHaveLength(3);
+    expect(calls[2][0].content).toMatch(/^You are an editor/);
+    expect(r.ok && r.flags.aside_check_failed).toBe(true);
     expect(calls[1][1].content).toContain(`Leave their work, their hobbies and any clinical words out of these lines ("ghost"): they're about the two of them.`);
   });
 });

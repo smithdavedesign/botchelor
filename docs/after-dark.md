@@ -703,6 +703,71 @@ words no sheet has (the tide, a storm front, a squall, the fog), and a new tic t
 lines that are only an action). The composite's `voice_sheet_detail` is 0 in both runs. The elevator scenario reaches
 undressing by the third step, so only about ten lines come before it.
 
+### v2.6: the aside check, the tic guard and the quotes' owners (2026-10-24)
+
+v2 changed in place again (`prompt_version` is still `"v2"`; a step's flags say `prompt: "v2.6"`). On the v2.5 replay of
+David's Chud × Juniper night, 43% of her lines from undressing on were still asides (the target is about one in six),
+the sea came back in words no sheet has (tide, storm front, squall, fog), she said "'Kay." nine times, and a quote the
+Direct steer gave Chud was said by her. Everything below starts at undressing, as v2.4 and v2.5 do.
+
+- **The aside check** (`lib/adult/asides.ts` `checkAsides`, run in `writeSceneStep` after the stage is stamped). One
+  extra short call per step, on the same After Dark text model and pinned hosts, with a JSON-only prompt. It reads the
+  scene's last 12 lines (H1…) and the step's new lines (N1…), marks every line that is commentary rather than desire,
+  feeling or action (a deadpan remark, a joke, a technician's word for it, a metaphor from the sea, the weather,
+  machinery, jobs or reports), and gives a plain rewrite of each new line it marks. Per speaker, past one in six of
+  their recent and new lines that say something (rounded down, at least one: `asideAllowance`), the newest excess
+  asides take their rewrite. The rewrite keeps the line's action, speaker and intent. It never touches a line before
+  undressing, a move, a proposal to go somewhere, or a line carrying a steer's quote. The sea and the weather are in the
+  check's own definition, so there's no word list for them. Every rewrite runs through the guards a written line does
+  (`screenRewrite`): `checkAdultText`, the hard nos and the intensity, a refusal, the names, the steer and whispers not
+  copied, a quote not given to the wrong speaker, no further than the line it replaces showed (`stageShown`), and
+  `dropRepeats`' repeat and craft guards against tonight and the step's other lines. A rewrite that a guard would cut
+  is not used, and the line stays as written. It fails open: an error, a reply it can't read, or 6 s gone by
+  (`ASIDE_TIMEOUT_MS`) keeps every line as written. Flags: `asides_rewritten`, `aside_check_failed`, `asides_marked`,
+  `aside_check_ms`, `aside_usage` (its tokens and cost). The step's `usage` includes the call, and the month's cap
+  still counts steps.
+- **The tic guard** (`ticsIn`, `withoutTics`, `TIC_CAP` = 2, in `dropRepeats`). It's generic: any sentence of two words
+  or fewer that the same speaker has already said twice this chapter loses that sentence. The action stays, even
+  alone, and the line goes when nothing is left. A word the steer or a whisper says is allowed. The prompt names the
+  interjection (*"Juniper keeps saying the same short word ("kay"): not again"*). It also notes a run of action-only
+  lines (3 of their last 6): their next lines say something too.
+- **The quotes' owners** (`misattributedQuote`, `withoutQuote`, in the step's guard). A quote the steer gave one of
+  them by name, said by the other, comes out of that line. It moves to the right speaker's nearest line in the reply
+  (after its action) when they have one that doesn't already say it. Otherwise the missing-quote retry asks for it.
+  Counted in `quotes_misattributed` and `quotes_moved`. v2.4 had the same bug, and so did the parser: a quote that opens
+  the steer and is followed by a pronoun only one of them goes by (*'"Do as you are told" he shoves…'*) went to
+  nobody. On the v2.4 replay, Juniper said it. Now it's Chud's (`steerQuotes`).
+
+**Cost:** one extra small call per step from undressing on. On the replay that was 773 tokens in and 31 out on average,
+which is 0.048¢ a step at CoreWeave's price ($0.55 / $1.65 per million). A step is about 0.2¢, so that's roughly a
+quarter more. It took 0.8 s at the median (2.2 s at the most). None of the 29 checks failed or timed out.
+
+**The replay** (local only, nothing written to production), as v2.5's: the same steers and turn-ons, through
+`npm run sim:after-dark` on DeepSeek V3.1, once on main (v2.5) and twice on this branch. The first branch run rounded
+the share to the nearest line, and the second (what ships) rounds it down. All three runs' lines from undressing on
+were shuffled together and read blind by a separate agent:
+
+| | v2.5 (main) | v2.6, rounded | v2.6 (ships) |
+|---|---|---|---|
+| Her lines that are an aside (blind) | 26 of 67 (39%) | 20 of 72 (28%) | 14 of 68 (21%) |
+| …of her lines that say something | 26 of 51 (51%) | 20 of 55 (36%) | 14 of 56 (25%) |
+| Sea and broadcasting words, per 10 of her lines | 0.7 | 1.0 | 1.2 |
+| "'Kay." (her lines) / her most repeated interjection | 0 / "alright" 2 | 0 / "well" 2 | 0 / "harder" 3 |
+| Her action-only lines | 24% | 24% | 18% |
+| Misattributed quotes | 0 | 0 | 0 |
+| Quoted lines in Direct steers said | 9 of 12 | 10 of 12 | 10 of 12 |
+| Steps that failed | 0 of 31 | 0 of 31 | 0 of 31 |
+| Step time, median / p90 | 6.1 s / 23.8 s | 6.7 s / 21.6 s | 6.9 s / 16.2 s |
+| Lines rewritten by the check | | 13 | 12 |
+| Composite | 76 | 69 | 69 |
+
+This v2.5 rerun came out cleaner than v2.5's own report (39% asides against 43%, no "'Kay." against nine, no
+misattribution against two), so a single night is noisy. The composite moves with it: v2.5 scored 63 on its first run
+and 76 on this one. The 7 points between v2.5 and v2.6 here are `voice_sheet_detail`, which reads the ten lines before
+undressing that v2.6 doesn't touch, plus place detail and one cross-chapter near-repeat. What's left: about one in five
+of her lines is still an aside, so the check misses some, and the sea's words held at about one per 10 lines ("the
+gulls would approve", "louder than a foghorn"), the same range as v2.5's two runs (0.7 and 1.9).
+
 
 ### Ages and counts (2026-10-23)
 
