@@ -52,6 +52,7 @@ import { checkOutput, type CheckResult } from "./check";
 import { providerError, runMedia } from "./fallback";
 import { hiveGate, hivePausedErrorMessage, hivePausedReason, HivePausedError, hivePausedUntil, underHiveLimit } from "./hive-limit";
 import type { PlaceStop } from "./continuity";
+import { beatPictureFor } from "./beats";
 import { ensureBaseline, lookWords, signedMediaUrl } from "./media";
 import { adultModel } from "./mode";
 import { REEL_STALLED_MS } from "./reel-timing";
@@ -150,6 +151,11 @@ export type ReelShot = {
   chapter?: number | null;
   night_id?: string | null;
   chapter_line?: number;
+  /**
+   * It starts from one of the night's beat pictures (lib/adult/beats.ts), already in the gallery and checked, instead of
+   * a keyframe drawn for it: `media_id` and `frame_id` are that picture.
+   */
+  from_beat?: boolean;
   /**
    * When it was moved to the Archive (archiveShot): kept, never deleted, and out of every player until it's put back
    * (lib/adult/clip-chains.ts playable).
@@ -868,7 +874,8 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
  * Hive rate-limits a burst; a check that couldn't run is asked once more after a pause) and kept, and its video
  * queued. A keyframe gets the age question only (lib/adult/check.ts "keyframe"): it starts its shot and nothing else
  * until that shot has passed moderation. A shot whose keyframe can't be drawn or doesn't pass is dropped, and its share
- * of the tokens comes back when the reel settles.
+ * of the tokens comes back when the reel settles. A shot starting from a beat picture (`from_beat`) has nothing drawn
+ * or checked here: its video is queued from that picture.
  */
 export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctxIn: ShotContext): Promise<void> {
   // What this viewer's ratings of the pair's videos said was off (lib/adult/steering.ts), into each shot's negative prompt.
@@ -880,6 +887,8 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
   const faces = ctx.bases.map((id) => signedMediaUrl(id, ctx.baseUrl));
   const drawn = await Promise.all(
     shots.map(async (s) => {
+      // A beat picture to start from: nothing to draw, and it passed the full check when it was kept.
+      if (s.from_beat && s.media_id) return { reused: true as const };
       const place = ctx.places[s.line] ?? null;
       const drawnSet = place ? (sets.get(place) ?? null) : null;
       const own = ctx.keyframeFor?.(s, drawnSet, place);
@@ -911,47 +920,49 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
   for (const [k, s] of shots.entries()) {
     const d = drawn[k];
     if (!d) continue;
-    if (paused) {
-      // Drawn before the pause began, and can't be checked now: discarded, never stored, its share of tokens back.
-      Object.assign(s, { status: "failed", reason: hivePausedReason(paused).slice(0, 200) });
-      await logPaused(db, ownerId, `keyframe: ${hivePausedReason(paused)}`);
-      continue;
-    }
-    if (checked++) await pause(CHECK_PAUSE_MS);
-    const media = { base64: d.file.bytes.toString("base64"), mime: d.file.mime };
-    // The age question alone: this keyframe's moderation comes with its shot's (lib/adult/check.ts "keyframe").
-    let verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "keyframe"));
-    // Asked once more after a pause when Hive was busy or down; never when it's out for the day.
-    if (couldntRun(verdict) && !hiveOut(verdict)) {
-      await pause(CHECK_AGAIN_MS);
-      verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "keyframe"));
-    }
-    if (!verdict.ok) {
-      // Never stored either way; only a refusal is logged as one, and a keyframe thrown away because Hive was out.
-      paused = hiveOut(verdict);
+    if (!("reused" in d)) {
       if (paused) {
-        Object.assign(s, { status: "failed", reason: waitReason(verdict) });
-        await logPaused(db, ownerId, `keyframe: ${verdict.reason}`);
+        // Drawn before the pause began, and can't be checked now: discarded, never stored, its share of tokens back.
+        Object.assign(s, { status: "failed", reason: hivePausedReason(paused).slice(0, 200) });
+        await logPaused(db, ownerId, `keyframe: ${hivePausedReason(paused)}`);
         continue;
       }
-      const busy = couldntRun(verdict);
-      Object.assign(s, { status: busy ? "failed" : "discarded", reason: verdict.reason.slice(0, 200) });
-      if (!busy) {
-        await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'reel', $3)`, [crypto.randomUUID(), ownerId, `keyframe: ${verdict.reason}`.slice(0, 300)]).catch(() => {});
+      if (checked++) await pause(CHECK_PAUSE_MS);
+      const media = { base64: d.file.bytes.toString("base64"), mime: d.file.mime };
+      // The age question alone: this keyframe's moderation comes with its shot's (lib/adult/check.ts "keyframe").
+      let verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "keyframe"));
+      // Asked once more after a pause when Hive was busy or down; never when it's out for the day.
+      if (couldntRun(verdict) && !hiveOut(verdict)) {
+        await pause(CHECK_AGAIN_MS);
+        verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "keyframe"));
       }
-      continue;
+      if (!verdict.ok) {
+        // Never stored either way; only a refusal is logged as one, and a keyframe thrown away because Hive was out.
+        paused = hiveOut(verdict);
+        if (paused) {
+          Object.assign(s, { status: "failed", reason: waitReason(verdict) });
+          await logPaused(db, ownerId, `keyframe: ${verdict.reason}`);
+          continue;
+        }
+        const busy = couldntRun(verdict);
+        Object.assign(s, { status: busy ? "failed" : "discarded", reason: verdict.reason.slice(0, 200) });
+        if (!busy) {
+          await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'reel', $3)`, [crypto.randomUUID(), ownerId, `keyframe: ${verdict.reason}`.slice(0, 300)]).catch(() => {});
+        }
+        continue;
+      }
+      // Kept, out of the gallery (a 'frame'), as the shot's start: shown on its own only once the shot has passed.
+      const id = crypto.randomUUID();
+      const kept = await keepBytes("after-dark", id, d.file.bytes, d.file.mime);
+      await db.query(
+        `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back) values ($1, $2, $3, $4, 'frame', $5, $6, $7, $8, 'ready', $9, $10)`,
+        [id, ownerId, ctx.pair[0], ctx.pair[1], d.prompt, d.file.mime, kept.data, kept.object_key, d.provider, d.fell_back],
+      );
+      s.media_id = id;
+      s.frame_id = id;
+      s.frame_provider = d.provider;
+      if (d.fell_back) s.fell_back = true;
     }
-    // Kept, out of the gallery (a 'frame'), as the shot's start: shown on its own only once the shot has passed.
-    const id = crypto.randomUUID();
-    const kept = await keepBytes("after-dark", id, d.file.bytes, d.file.mime);
-    await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back) values ($1, $2, $3, $4, 'frame', $5, $6, $7, $8, 'ready', $9, $10)`,
-      [id, ownerId, ctx.pair[0], ctx.pair[1], d.prompt, d.file.mime, kept.data, kept.object_key, d.provider, d.fell_back],
-    );
-    s.media_id = id;
-    s.frame_id = id;
-    s.frame_provider = d.provider;
-    if (d.fell_back) s.fell_back = true;
     // Queuing its video is a new job too (nothing is running yet), so it may go to the other provider; once queued, it's
     // collected where it went (`provider`), never switched.
     try {
@@ -1137,6 +1148,8 @@ export async function makeReel(
       shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "queued", ...(onReplicate ? { provider: "replicate" as const } : {}), ...(from ?? {}) });
     }
     if (!shots.length) throw new Error("no usable lines");
+    // A shot whose moment already has a beat picture starts from it (lib/adult/beats.ts): the video looks like the pictures.
+    if (night) await reuseBeatPictures(db, ownerId, [a, b], shots, night, starts, places, stages);
     // What it filmed: one chapter, or the whole night and its chapters.
     const scope: ReelScope = whole ? "night" : "chapter";
     const chapters = night?.chapters ?? null;
@@ -1164,6 +1177,32 @@ export async function makeReel(
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
     if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: hivePausedErrorMessage(err, pays && price > 0) };
     return { ok: false, status: 502, error: "not_started", message: `The video couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.` };
+  }
+}
+
+/**
+ * Each shot's beat picture, where its chapter has one at or before its line at the same stage and place (beatPictureFor),
+ * each picture used once: the shot then starts from it, not from a keyframe drawn for it.
+ */
+export async function reuseBeatPictures(
+  db: Db,
+  ownerId: string,
+  pair: readonly [string, string],
+  shots: ReelShot[],
+  night: Pick<ReelNight, "chapters" | "chapterOf">,
+  starts: readonly number[],
+  places: readonly (string | null)[],
+  stages: readonly number[],
+): Promise<void> {
+  const used = new Set<string>();
+  for (const s of shots) {
+    const k = night.chapterOf[s.line] ?? 0;
+    const part = night.chapters[k];
+    if (!part) continue;
+    const pic = await beatPictureFor(db, ownerId, pair, part, s.line - (starts[k] ?? 0), stages[s.line] ?? 0, places[s.line] ?? null).catch(() => null);
+    if (!pic || used.has(pic)) continue;
+    used.add(pic);
+    Object.assign(s, { media_id: pic, frame_id: pic, from_beat: true });
   }
 }
 

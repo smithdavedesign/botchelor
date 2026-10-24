@@ -112,7 +112,7 @@ async function seed(scenePath) {
     await put("steer-scene-a", a, null, "scene", "image/png", media.lit(a, "warm"), 40, "warm");
     await put("steer-scene-ab", a, b, "scene", "image/png", media.still, 35);
     // A 👎 on her scene picture: what was off, open.
-    await db.query("insert into adult_media_ratings (owner_id, media_id, rating, tags) values ($1, 'steer-scene-a', -1, '[\"face\", \"blurry\"]'::jsonb)", [owner]);
+    await db.query("insert into adult_media_thumbs (owner_id, media_id, rating, tags) values ($1, 'steer-scene-a', -1, '[\"face\", \"blurry\"]'::jsonb)", [owner]);
     for (const n of [1, 2, 3, 4, 5, 6, 7]) await put(`steer-frame-${n}`, a, b, "frame", "image/png", media.still, 30);
     for (const n of [1, 2, 3, 4, 5, 6, 7]) await put(`steer-video-${n}`, a, b, "video", "video/mp4", media.clips[(n - 1) % 3], 30);
     // Each video made from its keyframe, so the keyframe can be shown (a poster in the Archive: lib/adult/media.ts FRAME_SHOWN).

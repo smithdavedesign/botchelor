@@ -36,13 +36,13 @@ export async function rateMedia(db: Db, viewerId: string, mediaId: string, ratin
   const m = (await db.query<{ kind: string; status: string }>(MEDIA_FOR_VIEWER, [mediaId, viewerId])).rows[0];
   if (!m || m.status !== "ready" || !["baseline", "scene", "video"].includes(m.kind)) return { ok: false, status: 404, error: "not_found", message: "No picture or video of yours with that id." };
   if (rating === 0) {
-    await db.query(`delete from adult_media_ratings where owner_id = $1 and media_id = $2`, [viewerId, mediaId]);
+    await db.query(`delete from adult_media_thumbs where owner_id = $1 and media_id = $2`, [viewerId, mediaId]);
     return { ok: true, rating: 0, tags: [] };
   }
   const allowed = tagsFor(m.kind);
   const kept = rating < 0 ? [...new Set(tags.filter((t) => t in allowed))] : [];
   await db.query(
-    `insert into adult_media_ratings (owner_id, media_id, rating, tags) values ($1, $2, $3, $4::jsonb)
+    `insert into adult_media_thumbs (owner_id, media_id, rating, tags) values ($1, $2, $3, $4::jsonb)
      on conflict (owner_id, media_id) do update set rating = excluded.rating, tags = excluded.tags, updated_at = now()`,
     [viewerId, mediaId, rating, JSON.stringify(kept)],
   );
@@ -53,7 +53,7 @@ export async function rateMedia(db: Db, viewerId: string, mediaId: string, ratin
 export async function ratingsFor(db: Db, viewerId: string, mediaIds: string[]): Promise<Map<string, { rating: -1 | 1; tags: string[] }>> {
   if (!mediaIds.length) return new Map();
   const { rows } = await db.query<{ media_id: string; rating: -1 | 1; tags: string[] }>(
-    `select media_id, rating, tags from adult_media_ratings where owner_id = $1 and media_id = any($2)`,
+    `select media_id, rating, tags from adult_media_thumbs where owner_id = $1 and media_id = any($2)`,
     [viewerId, mediaIds],
   );
   return new Map(rows.map((r) => [r.media_id, { rating: r.rating, tags: r.tags ?? [] }]));
@@ -72,7 +72,7 @@ export async function steeringFor(db: Db, viewerId: string, characterIds: (strin
   const { rows } = await db.query<{ video: boolean; rating: number; tags: string[] }>(
     `select video, rating, tags from (
        select i.kind = 'video' as video, r.rating, r.tags, row_number() over (partition by i.kind = 'video' order by r.updated_at desc) as n
-         from adult_media_ratings r join adult_images i on i.id = r.media_id
+         from adult_media_thumbs r join adult_images i on i.id = r.media_id
         where r.owner_id = $1 and (i.character_id = any($2) or i.character_b = any($2))
      ) newest where n <= $3`,
     [viewerId, ids, STEER_WINDOW],
@@ -114,7 +114,7 @@ export async function faceReferenceId(db: Db, viewerId: string, characterId: str
   if (picked) return picked.image_id;
   const { rows } = await db.query<{ id: string }>(
     `select i.id from adult_images i
-      left join adult_media_ratings r on r.media_id = i.id and r.owner_id = $1
+      left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $1
       where i.character_id = $2 and i.character_b is null and i.kind = 'baseline' and i.status = 'ready'
       order by (coalesce(r.rating, 0) < 0),
                ((i.owner_id = $1) and coalesce(r.rating, 0) > 0) desc,
@@ -163,7 +163,7 @@ export async function setFaceReference(db: Db, viewerId: string, characterId: st
      on conflict (owner_id, character_id) do update set image_id = excluded.image_id, set_at = now()`,
     [viewerId, characterId, imageId],
   );
-  await db.query(`insert into adult_media_ratings (owner_id, media_id, rating) values ($1, $2, 1) on conflict (owner_id, media_id) do nothing`, [viewerId, imageId]);
+  await db.query(`insert into adult_media_thumbs (owner_id, media_id, rating) values ($1, $2, 1) on conflict (owner_id, media_id) do nothing`, [viewerId, imageId]);
   return { ok: true, image_id: imageId };
 }
 
@@ -201,7 +201,7 @@ export function betaSample(a: number, b: number, rng: () => number = Math.random
 export async function presetTally(db: Db, viewerId: string, characterId: string): Promise<Record<PresetId, { up: number; down: number }>> {
   const out = Object.fromEntries(PICTURE_PRESETS.map((p) => [p.id, { up: 0, down: 0 }])) as Record<PresetId, { up: number; down: number }>;
   const { rows } = await db.query<{ preset: string; rating: number }>(
-    `select i.preset, r.rating from adult_media_ratings r join adult_images i on i.id = r.media_id
+    `select i.preset, r.rating from adult_media_thumbs r join adult_images i on i.id = r.media_id
       where r.owner_id = $1 and i.character_id = $2 and i.character_b is null and i.kind in ('baseline', 'scene') and i.preset is not null`,
     [viewerId, characterId],
   );

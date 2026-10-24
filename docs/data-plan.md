@@ -327,7 +327,7 @@ them. Expect it to drop when this ships: the #666 count included private, unfini
 ## What's never collected
 
 - **After Dark:** none of the plan's capture runs on it, and the export never reads its votes. After Dark line votes exist
-  (admin-only, `line_feedback` kind `after_dark`) but go nowhere. Its picture and video ratings (`adult_media_ratings`,
+  (admin-only, `line_feedback` kind `after_dark`) but go nowhere. Its picture and video ratings (`adult_media_thumbs`,
   2026-10-24) steer only the rater's own next pictures of that character (lib/adult/steering.ts, docs/after-dark.md), are
   owner-scoped, go with the picture, and no export reads them. Using it for training would need the privacy page's
   promise changed first.

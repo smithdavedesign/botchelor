@@ -1710,10 +1710,11 @@ create table if not exists adult_shorts (
   updated_at timestamptz not null default now()
 );
 create index if not exists adult_shorts_published on adult_shorts (published_at desc);
--- After Dark's ratings (David, 2026-10-24: "allow users to score … and use that for the next run on the same character";
--- lib/adult/steering.ts): a viewer's 👍/👎 on one of their pictures or videos, with what was off. Theirs alone: they steer
--- only that viewer's next pictures of the same character, go with the picture, and never reach a dataset (docs/data-plan.md).
-create table if not exists adult_media_ratings (
+-- After Dark's 👍/👎, apart from the library's stars below (David, 2026-10-24: "allow users to score … and use that for
+-- the next run on the same character"; lib/adult/steering.ts): a viewer's 👍/👎 on one of their pictures or videos, with
+-- what was off. Theirs alone: they steer only that viewer's next pictures of the same character, go with the picture,
+-- and never reach a dataset (docs/data-plan.md).
+create table if not exists adult_media_thumbs (
   owner_id text not null,
   media_id text not null references adult_images (id) on delete cascade,
   rating smallint not null check (rating in (-1, 1)),
@@ -1722,7 +1723,7 @@ create table if not exists adult_media_ratings (
   updated_at timestamptz not null default now(),
   primary key (owner_id, media_id)
 );
-create index if not exists adult_media_ratings_recent on adult_media_ratings (owner_id, updated_at desc);
+create index if not exists adult_media_thumbs_recent on adult_media_thumbs (owner_id, updated_at desc);
 -- The face a viewer picked for a character (lib/adult/steering.ts faceReferenceId): what their pictures, keyframes and
 -- videos of that character keep. Unset, the face is their own best-rated baseline, else the admins' newest.
 create table if not exists adult_face_refs (
@@ -1890,6 +1891,45 @@ create table if not exists user_connection_usage (
   updated_at timestamptz not null default now(),
   primary key (user_id, job, month)
 );
+
+-- Beat pictures (lib/adult/beats.ts; David, 2026-10-24): the moments of a chapter worth a picture (undressing, sex, each
+-- new position, the climax, the afterglow), each offered to the viewer as it plays, drawn when they say yes or press
+-- Picture this, else when the chapter closes. night_id is the saved night the chapter was filed as (null: still running);
+-- picture_id the gallery picture, which a video of the night starts its shot from (lib/adult/reels.ts).
+create table if not exists adult_beats (
+  id text primary key,
+  owner_id text not null,
+  scene_id text not null,
+  character_a text not null,
+  character_b text not null,
+  chapter integer not null,
+  line integer not null,
+  act text not null,
+  kind text not null,
+  stage integer not null,
+  place text,
+  status text not null default 'offered' check (status in ('offered', 'later', 'drawing', 'drawn', 'failed')),
+  picture_id text,
+  night_id text,
+  created_at timestamptz not null default now()
+);
+create index if not exists adult_beats_scene_idx on adult_beats (scene_id, chapter, line);
+create index if not exists adult_beats_pair_idx on adult_beats (owner_id, character_a, character_b, chapter);
+alter table adult_settings add column if not exists beat_pictures boolean;
+
+-- The After Dark library (lib/adult/library.ts; David, 2026-10-24): which model drew a picture (null: from before it was
+-- kept, when only its provider was), and each viewer's 1–5 stars on a picture or a video (item_id: an adult_images or an
+-- adult_reels id).
+alter table adult_images add column if not exists model text;
+create table if not exists adult_media_ratings (
+  user_id text not null,
+  item_id text not null,
+  item_kind text not null check (item_kind in ('image', 'reel')),
+  rating smallint not null check (rating between 1 and 5),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, item_id)
+);
+create index if not exists adult_media_ratings_item_idx on adult_media_ratings (item_id);
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.

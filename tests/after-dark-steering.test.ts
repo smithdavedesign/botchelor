@@ -99,7 +99,7 @@ async function picture(owner: string, character: string, opts: { kind?: string; 
 /** A rating made `ago` minutes ago (steeringFor reads the newest). */
 async function rateAt(viewer: string, id: string, r: -1 | 1, tags: string[], ago: number) {
   expect((await rateMedia(t.db, viewer, id, r, tags)).ok).toBe(true);
-  await t.db.query(`update adult_media_ratings set updated_at = now() - make_interval(mins => $3) where owner_id = $1 and media_id = $2`, [viewer, id, ago]);
+  await t.db.query(`update adult_media_thumbs set updated_at = now() - make_interval(mins => $3) where owner_id = $1 and media_id = $2`, [viewer, id, ago]);
 }
 
 describe("rating a picture or video", () => {
@@ -110,9 +110,9 @@ describe("rating a picture or video", () => {
     expect(await rateMedia(t.db, id, pic, 1, ["face"])).toEqual({ ok: true, rating: 1, tags: [] });
     const vid = await picture(id, JUNIPER, { kind: "video", b: RAFE });
     expect(await rateMedia(t.db, id, vid, -1, ["motion", "outfit"])).toEqual({ ok: true, rating: -1, tags: ["motion"] });
-    expect((await t.db.query(`select 1 from adult_media_ratings where owner_id = $1`, [id])).rows).toHaveLength(2);
+    expect((await t.db.query(`select 1 from adult_media_thumbs where owner_id = $1`, [id])).rows).toHaveLength(2);
     expect(await rateMedia(t.db, id, pic, 0)).toEqual({ ok: true, rating: 0, tags: [] });
-    expect((await t.db.query(`select media_id from adult_media_ratings where owner_id = $1`, [id])).rows).toEqual([{ media_id: vid }]);
+    expect((await t.db.query(`select media_id from adult_media_thumbs where owner_id = $1`, [id])).rows).toEqual([{ media_id: vid }]);
   });
 
   it("is theirs only: someone else's picture, one not ready, or a keyframe is not found; an admin can rate any", async () => {
@@ -125,7 +125,7 @@ describe("rating a picture or video", () => {
     const { id: adminId } = await admin();
     expect(await rateMedia(t.db, adminId, pic, -1, ["body"])).toMatchObject({ ok: true, rating: -1 });
     // Each viewer's own: the owner's rating is unaffected by the admin's.
-    expect((await t.db.query(`select owner_id from adult_media_ratings`)).rows).toEqual([{ owner_id: adminId }]);
+    expect((await t.db.query(`select owner_id from adult_media_thumbs`)).rows).toEqual([{ owner_id: adminId }]);
   });
 
   it("goes when the picture does", async () => {
@@ -133,7 +133,7 @@ describe("rating a picture or video", () => {
     const pic = await picture(id, JUNIPER);
     await rateMedia(t.db, id, pic, -1, ["face"]);
     await t.db.query(`delete from adult_images where id = $1`, [pic]);
-    expect((await t.db.query(`select 1 from adult_media_ratings`)).rows).toHaveLength(0);
+    expect((await t.db.query(`select 1 from adult_media_thumbs`)).rows).toHaveLength(0);
   });
 
   it("over its route: hidden from anyone After Dark isn't open to, a 404 for another's picture, the rating back", async () => {
@@ -283,7 +283,7 @@ describe("the face a viewer's pictures and videos keep", () => {
     const scene = await picture(sub.id, JUNIPER, { kind: "scene", ago: 1 });
     expect(await setFaceReference(t.db, sub.id, JUNIPER, scene)).toEqual({ ok: true, image_id: scene });
     expect(await faceReferenceId(t.db, sub.id, JUNIPER)).toBe(scene);
-    expect((await t.db.query(`select rating from adult_media_ratings where owner_id = $1 and media_id = $2`, [sub.id, scene])).rows).toEqual([{ rating: 1 }]);
+    expect((await t.db.query(`select rating from adult_media_thumbs where owner_id = $1 and media_id = $2`, [sub.id, scene])).rows).toEqual([{ rating: 1 }]);
     expect(await facesFor(t.db, sub.id, [JUNIPER, RAFE])).toEqual({ [JUNIPER]: { image_id: scene, picked: true }, [RAFE]: { image_id: null, picked: false } });
     // Back to the default.
     expect(await setFaceReference(t.db, sub.id, JUNIPER, null)).toEqual({ ok: true, image_id: adminNew });
