@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { requestJson } from "@/app/request";
 import type { AdultSettings } from "@/lib/adult/settings";
-import { ALT_CHECKERS, MODERATION_MODES, type AltChecker, type ModerationConfig, type ModerationMode } from "@/lib/adult/moderation-config";
+import { DEFAULT_ADMIN_CHECKER, ALT_CHECKERS, MODERATION_MODES, type AltChecker, type ModerationConfig, type ModerationMode } from "@/lib/adult/moderation-config";
 
 const MODE_LABEL: Record<ModerationMode, string> = {
   hive: "Hive only (as before)",
@@ -59,9 +59,9 @@ export default function ModerationSettings({ initial }: { initial: AdultSettings
         ))}
       </select>
       <label htmlFor="ad-mod-admin">Who checks an admin&apos;s own pictures</label>
-      <select id="ad-mod-admin" value={m.admin_checker} disabled={busy} onChange={(e) => void save({ moderation: { admin_checker: e.target.value } })}>
-        <option value="same">The same as everyone&apos;s</option>
+      <select id="ad-mod-admin" value={m.admin_checker ?? DEFAULT_ADMIN_CHECKER} disabled={busy} onChange={(e) => void save({ moderation: { admin_checker: e.target.value } })}>
         <option value="alt">The alternatives, not Hive (no daily cap)</option>
+        <option value="same">The same as everyone&apos;s</option>
       </select>
       <label htmlFor="ad-mod-pg">Who checks the show&apos;s own pictures (place sets, look tiles, season portraits)</label>
       <select id="ad-mod-pg" value={m.pg_via} disabled={busy} onChange={(e) => void save({ moderation: { pg_via: e.target.value } })}>

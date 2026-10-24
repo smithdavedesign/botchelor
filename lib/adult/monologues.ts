@@ -23,7 +23,7 @@ import { checkAdultText } from "../safety";
 import { eligiblePair } from "./scenes";
 import { jsonOf, loadPairFacts } from "./facts";
 import { adultModel } from "./mode";
-import { writerFor } from "./writer";
+import { writerChoice } from "./writer";
 import { hasWatched, pairNights, shortLines, type NightGroup, type NightRow } from "./shorts";
 import { STAGES } from "./stages";
 import { countUse, overCap, usageLeft } from "./usage";
@@ -274,15 +274,16 @@ async function sidesOf(db: Db, requester: string, owner: string, pair: [string, 
   const [a, b] = await Promise.all([sceneCharacter(db, pair[0]), sceneCharacter(db, pair[1])]);
   if (!a || !b) return refuse(404, "not_found", "One of them is gone.");
   const input: SidesInput = { a, b, ...nightInput(rows), memories: await memoriesAsOf(db, owner, a, b, until) };
-  // Written by the night's owner's own writer (lib/adult/writer.ts), like their scenes.
-  const model = await adultModel(db, process.env, { model: await writerFor(db, owner) });
+  // Written by the night's owner's own writer (lib/adult/writer.ts), like their scenes, with room for its thinking.
+  const writer = await writerChoice(db, owner);
+  const model = await adultModel(db, process.env, { model: writer.id });
   let note: string | null = null;
   let got: { a: Side; b: Side } | null = null;
   let cost = 0;
   for (let attempt = 0; attempt < 2 && !got; attempt++) {
     let raw: string;
     try {
-      raw = await model.complete(sidesMessages(input, note), { temperature: 0.8, maxTokens: REPLY_TOKENS, onUsage: (u: Usage) => (cost += u.cost ?? 0) });
+      raw = await model.complete(sidesMessages(input, note), { temperature: 0.8, maxTokens: REPLY_TOKENS + writer.think_tokens, onUsage: (u: Usage) => (cost += u.cost ?? 0) });
     } catch (err) {
       console.warn(`[after-dark] two sides of night ${nightId}: the model didn't answer (${err instanceof Error ? err.message.slice(0, 160) : "error"})`);
       return refuse(502, "model_error", "The writer didn't answer. Try again in a minute.");

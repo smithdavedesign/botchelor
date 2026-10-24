@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { pauseHive } from "@/lib/adult/hive-limit";
-import { checkMedia, mediaGate, setModerationFetchForTests, SIGHTENGINE_CHECK, VENICE_CHAT } from "@/lib/adult/moderation";
+import { adminCheckerOf, checkMedia, mediaGate, setAdminCheckerDefaultForTests, setModerationFetchForTests, SIGHTENGINE_CHECK, VENICE_CHAT } from "@/lib/adult/moderation";
 import { DEFAULT_MODERATION, mergeModerationConfig, moderationConfigOf } from "@/lib/adult/moderation-config";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
@@ -12,7 +12,13 @@ import { startTestDb } from "./helpers";
 
 describe("the checks' settings", () => {
   it("default to Hive as before, keep what parses, and refuse a bad value", () => {
-    expect(DEFAULT_MODERATION).toMatchObject({ mode: "hive", alts: ["venice_vlm"], min_sources: 1, pg_via: "hive", vlm_model: "qwen3-vl-235b-a22b", admin_checker: "same" });
+    expect(DEFAULT_MODERATION).toMatchObject({ mode: "hive", alts: ["venice_vlm"], min_sources: 1, pg_via: "hive", vlm_model: "qwen3-vl-235b-a22b" });
+    // Unset, an admin's own pictures go to the alternatives (production's default; the tests' setup holds them to Hive).
+    expect(DEFAULT_MODERATION.admin_checker).toBeUndefined();
+    setAdminCheckerDefaultForTests(null);
+    expect(adminCheckerOf(DEFAULT_MODERATION)).toBe("alt");
+    expect(adminCheckerOf({ ...DEFAULT_MODERATION, admin_checker: "same" })).toBe("same");
+    setAdminCheckerDefaultForTests("same");
     expect(moderationConfigOf({ mode: "both", min_sources: 9 })).toMatchObject({ mode: "both", min_sources: 1 });
     expect(mergeModerationConfig(DEFAULT_MODERATION, { mode: "hive_then_alt" }).mode).toBe("hive_then_alt");
     expect(() => mergeModerationConfig(DEFAULT_MODERATION, { endpoint_url: "http://plain" })).toThrow();

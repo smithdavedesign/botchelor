@@ -10,6 +10,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Every test starts with the picture checkers' alternatives stubbed to refuse (tests/setup-no-live-checks.ts).
+    setupFiles: ["tests/setup-no-live-checks.ts"],
     // PGlite (WASM Postgres) boots in about a second; leave headroom on slow CI.
     testTimeout: 20_000,
     hookTimeout: 30_000,

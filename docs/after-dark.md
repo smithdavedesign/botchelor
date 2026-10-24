@@ -2276,7 +2276,12 @@ against 11): "yes do it and allow a user to switch the model in After Dark", and
 **The writer** (`lib/adult/writer-config.ts`, `lib/adult/writer.ts`, `adult_settings.writer`, `adult_prefs`):
 - The scene steps and the two sides of a night are written by each person's **writer**: the one they picked
   (✍️ The writer, a card on the After Dark home page, and in the steer bar's ⋯ More), else the default, GLM-4.6. The
-  writers on offer are GLM-4.6 ("the richest writing; about 45 s a step") and DeepSeek V3.1 ("fast; about 10 s").
+  writers on offer are GLM-4.6 ("the richest writing; slow, about 1 to 2 min a step") and DeepSeek V3.1 ("fast; about
+  10 s"). Measured on real steps 2026-10-24: GLM-4.6 0.35–0.45¢ and 90–100 s a call, DeepSeek 0.23–0.25¢ and 6–8 s
+  (docs/costs.md "The scene writer").
+- **Thinking room** (`think_tokens`): GLM-4.6 thinks ~960 tokens before it writes, billed as output and counted against
+  the reply's budget, which left a 1,600-token step about 600 for its lines (one call in four ran out). Each writer's
+  `think_tokens` (GLM-4.6: 1,200) is added to every reply budget it writes under: the scene step's and the two sides'.
 - Recaps, memory, facts and a clip's direction stay on the settings' `text_model` (DeepSeek V3.1 :nitro in
   production), so they don't wait four times as long.
 - Both run on the reviewed hosts only (`adultProviderRouting`: CoreWeave and DeepInfra); the sim ran GLM-4.6 there,
@@ -2285,10 +2290,13 @@ against 11): "yes do it and allow a user to switch the model in After Dark", and
   falls back to the default. A step records the writer it asked for when OpenRouter doesn't name the model that answered.
 - `adult_prefs` goes with the account (`lib/account.ts`).
 
-**Admins' own pictures** (`moderation.admin_checker`): "alt" checks an admin's own pictures (scene pictures, baselines,
-menu and beat pictures, keyframes, Studio pictures) with the alternatives instead of Hive, the Venice vision model's
-three-answer age question, with no daily cap; their draw gate opens while Hive is paused. "same" (the code default)
-holds them to `mode` like everyone's. Production is set to "alt". No picture is ever kept unchecked: the check is the
+**Admins' own pictures** (`moderation.admin_checker`; David: "set it on production so I'm not hive blocked"): "alt"
+checks an admin's own pictures (scene pictures, baselines, menu and beat pictures, keyframes, Studio pictures) with the
+alternatives instead of Hive, the Venice vision model's three-answer age question (~0.03¢, no daily cap); their draw
+gate opens while Hive is paused. "same" holds them to `mode` like everyone's. Unset, it's "alt"
+(`DEFAULT_ADMIN_CHECKER`), so production runs that without a settings change; the tests' setup
+(`tests/setup-no-live-checks.ts`) holds it to "same" unless a test sets it, and stubs every alternative to refuse, so no
+test calls a checker over the network. No picture is ever kept unchecked: the check is the
 guard against a picture that reads as under 18, which the law forbids whoever sees it, and Venice's and Replicate's
 terms require. Videos stay Hive's (the alternatives don't read video).
 

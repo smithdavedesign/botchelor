@@ -24,7 +24,7 @@ import { isAdmin } from "../admins";
 import type { Db } from "../db";
 import { AGE_FORMAT, AGE_QUESTION, checkOutput, checkSet, vlmAnswer, type Checkable, type CheckKind, type CheckResult } from "./check";
 import { hiveGate, underHiveLimit, type HiveGate } from "./hive-limit";
-import type { AltChecker, ModerationConfig } from "./moderation-config";
+import { DEFAULT_ADMIN_CHECKER, type AdminChecker, type AltChecker, type ModerationConfig } from "./moderation-config";
 import { adultKeys, getAdultSettings } from "./settings";
 
 /** What's being checked: an After Dark picture or keyframe (the age question), a video, or one of the show's own (PG). */
@@ -177,12 +177,23 @@ const noVerdict = (v: CheckResult): boolean => !v.ok && /^(the check couldn't ru
 /** Whose picture it is, when the caller knows (an admin's own go to `admin_checker`). */
 export type CheckFor = { owner?: string | null };
 
+let adminCheckerDefault: AdminChecker = DEFAULT_ADMIN_CHECKER;
+/**
+ * Tests hold an admin's pictures to the mode (Hive) unless a test sets `admin_checker` itself
+ * (tests/setup-no-live-checks.ts); null puts the real default back.
+ */
+export function setAdminCheckerDefaultForTests(v: AdminChecker | null): void {
+  adminCheckerDefault = v ?? DEFAULT_ADMIN_CHECKER;
+}
+/** Who checks an admin's own pictures: the setting, or the default when it's unset. */
+export const adminCheckerOf = (m: ModerationConfig): AdminChecker => m.admin_checker ?? adminCheckerDefault;
+
 /**
  * Whether an admin's own picture is checked by the alternatives instead of Hive (`admin_checker: "alt"`, the default):
  * the owner is an admin and an alternative is ready. Never for a video, nor for the show's own pictures.
  */
 async function adminOnAlts(db: Db, m: ModerationConfig, keys: Keys, kind: MediaKind, who: CheckFor): Promise<boolean> {
-  if (!who.owner || m.admin_checker !== "alt" || kind === "video" || isPg(kind)) return false;
+  if (!who.owner || adminCheckerOf(m) !== "alt" || kind === "video" || isPg(kind)) return false;
   if (!readyAlts(m, keys).length) return false;
   return isAdmin(db, who.owner);
 }

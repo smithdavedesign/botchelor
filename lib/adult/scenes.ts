@@ -15,7 +15,7 @@ import { eligibleIds } from "./characters";
 import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, recentActions, scenePrompt, type Media } from "./media";
 import { countUse, overCap } from "./usage";
 import { adultModel, adultModelId } from "./mode";
-import { writerFor } from "./writer";
+import { writerChoice } from "./writer";
 import { drawLabel, ensureSet, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
@@ -1357,6 +1357,8 @@ export const samplingOf = (s: Pick<AdultSettings, "text_temperature" | "frequenc
  */
 export type StepInput = {
   model: Model;
+  /** The writer's thinking room (lib/adult/writer-config.ts think_tokens), added to SCENE_REPLY_TOKENS. */
+  thinkTokens?: number;
   a: Character | null;
   b: Character | null;
   /** The pair as stored (lower id first), with their names. */
@@ -1607,7 +1609,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const served = (): Served => ({ model: servedModels.join(", ") || null, provider: servedHosts.join(", ") || null });
   const options: ModelOptions = {
     temperature,
-    maxTokens: SCENE_REPLY_TOKENS,
+    maxTokens: SCENE_REPLY_TOKENS + (input.thinkTokens ?? 0),
     ...(frequency_penalty !== null ? { frequencyPenalty: frequency_penalty } : {}),
     ...(presence_penalty !== null ? { presencePenalty: presence_penalty } : {}),
     ...(repetition_penalty !== null ? { repetitionPenalty: repetition_penalty } : {}),
@@ -2181,10 +2183,11 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const whispers: Whispers = { ...scene.whispers, ...(whisper ? { [whisper.to]: { text: whisper.text, steps_left: WHISPER_STEPS } } : {}) };
   const ctx = await stepContext(db, adminId, scene.a.id, scene.b.id);
   const { a, b } = ctx;
-  // Their own writer (lib/adult/writer.ts): the one they picked, else the default.
-  const writer = await writerFor(db, adminId);
+  // Their own writer (lib/adult/writer.ts): the one they picked, else the default, with room for its thinking.
+  const { id: writer, think_tokens } = await writerChoice(db, adminId);
   const step = await writeSceneStep({
     model: await adultModel(db, process.env, { model: writer }),
+    thinkTokens: think_tokens,
     a,
     b,
     pair: { a: scene.a, b: scene.b },

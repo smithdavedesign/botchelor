@@ -1,11 +1,16 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { POST as scenePost } from "@/app/api/admin/after-dark/route";
 import { GET as writerGet, POST as writerPost } from "@/app/api/admin/after-dark/writer/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { deleteAfterDarkData } from "@/lib/account";
+import { setAdultModelForTests } from "@/lib/adult/mode";
+import { SCENE_REPLY_TOKENS } from "@/lib/adult/scenes";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { setWriter, writerFor, writerOptions } from "@/lib/adult/writer";
 import { DEFAULT_WRITER_CONFIG, mergeWriterConfig, writerConfigOf } from "@/lib/adult/writer-config";
 import { claimAdmin } from "@/lib/admins";
+import { HOUSE_CHARACTERS } from "@/lib/house";
+import { setSeasonCastForTests } from "@/lib/season-cast";
 import { sessionCookies } from "@/lib/http";
 import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
 
@@ -40,6 +45,8 @@ beforeEach(async () => {
 });
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  setSeasonCastForTests(null);
 });
 
 const signedIn = (userId: string) => sessionCookies({ userId, authenticated: true })[0].split(";")[0];
@@ -77,5 +84,31 @@ describe("each person's writer", () => {
     expect((await bad.json()).message).toMatch(/^Writer:/);
     const ok = await (await save({ writer: { default: "deepseek/deepseek-chat-v3.1:nitro" } })).json();
     expect(ok.settings.writer.default).toBe("deepseek/deepseek-chat-v3.1:nitro");
+  });
+});
+
+describe("a writer that thinks first", () => {
+  it("gets its thinking room on top of the step's reply, so the thinking never crowds out the lines", async () => {
+    expect(DEFAULT_WRITER_CONFIG.models.map((m) => [m.id, m.think_tokens])).toEqual([
+      ["z-ai/glm-4.6", 1200],
+      ["deepseek/deepseek-chat-v3.1:nitro", 0],
+    ]);
+    setAdultModelForTests(null);
+    setSeasonCastForTests([HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id]);
+    const sent: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      sent.push(JSON.parse(String(init.body)));
+      return Response.json({ choices: [{ message: { content: JSON.stringify({ lines: [{ who: "a", text: "You came." }, { who: "b", text: "I said I would." }] }) } }] });
+    });
+    const me = userIdOf(newUserCookie());
+    await claimAdmin(t.db, me);
+    await saveAdultSettings(t.db, { enabled: true, openrouter_key: "sk-or-test-0000" });
+    const step = () =>
+      scenePost(new Request(`${BASE_URL}/api/admin/after-dark`, { method: "POST", headers: { "content-type": "application/json", cookie: signedIn(me) }, body: JSON.stringify({ a: HOUSE_CHARACTERS[0].id, b: HOUSE_CHARACTERS[1].id }) }));
+    expect((await step()).status).toBe(200);
+    expect(sent[0]).toMatchObject({ model: "z-ai/glm-4.6", max_tokens: SCENE_REPLY_TOKENS + 1200 });
+    await setWriter(t.db, me, "deepseek/deepseek-chat-v3.1:nitro");
+    expect((await step()).status).toBe(200);
+    expect(sent.at(-1)).toMatchObject({ model: "deepseek/deepseek-chat-v3.1:nitro", max_tokens: SCENE_REPLY_TOKENS });
   });
 });

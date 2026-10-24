@@ -8,6 +8,10 @@ export const MODERATION_MODES = ["hive", "hive_then_alt", "both", "alt"] as cons
 export type ModerationMode = (typeof MODERATION_MODES)[number];
 export const ALT_CHECKERS = ["venice_vlm", "sightengine", "endpoint"] as const;
 export type AltChecker = (typeof ALT_CHECKERS)[number];
+export const ADMIN_CHECKERS = ["alt", "same"] as const;
+export type AdminChecker = (typeof ADMIN_CHECKERS)[number];
+/** Who checks an admin's own pictures when the setting is left unset (lib/adult/moderation.ts adminCheckerOf). */
+export const DEFAULT_ADMIN_CHECKER: AdminChecker = "alt";
 
 export const ModerationConfig = z.object({
   mode: z.enum(MODERATION_MODES).default("hive"),
@@ -25,12 +29,12 @@ export const ModerationConfig = z.object({
     .default(null),
   pg_via: z.enum(["hive", "alt"]).default("hive"),
   /**
-   * An admin's own pictures (David, 2026-10-24: "can we turn hive off as admin?"): "alt" checks them with the
-   * alternatives instead of Hive (the Venice vision model's age question: no daily cap), whatever `mode` says for
-   * everyone else; "same" (the default) holds them to `mode`. Production is set to "alt". A picture is never kept
-   * unchecked, and videos stay Hive's (the alternatives don't read video).
+   * An admin's own pictures (David, 2026-10-24: "can we turn hive off as admin? … set it on production so I'm not hive
+   * blocked"): "alt" checks them with the alternatives instead of Hive (the Venice vision model's age question: no daily
+   * cap), whatever `mode` says for everyone else; "same" holds them to `mode`. Unset: DEFAULT_ADMIN_CHECKER ("alt"). A
+   * picture is never kept unchecked, and videos stay Hive's (the alternatives don't read video).
    */
-  admin_checker: z.enum(["same", "alt"]).default("same"),
+  admin_checker: z.enum(ADMIN_CHECKERS).optional(),
 });
 export type ModerationConfig = z.infer<typeof ModerationConfig>;
 export const DEFAULT_MODERATION: ModerationConfig = ModerationConfig.parse({});

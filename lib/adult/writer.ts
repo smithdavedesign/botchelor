@@ -20,6 +20,12 @@ export async function writerFor(db: Db, userId: string): Promise<string> {
   return (await writerOptions(db, userId)).chosen;
 }
 
+/** Their writer whole: its id, and how much it thinks before it writes (added to each reply's budget). */
+export async function writerChoice(db: Db, userId: string): Promise<{ id: string; think_tokens: number }> {
+  const o = await writerOptions(db, userId);
+  return { id: o.chosen, think_tokens: o.models.find((m) => m.id === o.chosen)?.think_tokens ?? 0 };
+}
+
 /** Picks a writer (null: back to the default). False when it isn't one of the writers on offer. */
 export async function setWriter(db: Db, userId: string, id: string | null): Promise<boolean> {
   if (id !== null && !(await getAdultSettings(db)).writer.models.some((m) => m.id === id)) return false;
