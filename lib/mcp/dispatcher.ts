@@ -449,7 +449,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   set_open_to_dates: FREE,
   go_on_date: `Costs ${ONE_DATE}; a date that can't be booked, a proposal to a closed character's creator and preview: true spend nothing.`,
   // 2.13.0 (the 2026-10-23-2135 run: "free" here beside autoplay's "shared daily date"): what each word means, in both.
-  start_own_date: "Free while you write the lines: no weekly date, token or shared daily date (those count what the show's model writes, as autoplay_own_date does). preview: true starts nothing.",
+  start_own_date: "Free while you write the lines: no weekly date, token or shared daily date (autoplay_own_date, where the show's model writes, uses one). preview: true starts nothing.",
   submit_own_date_step: TAKE_OVER,
   my_own_dates: FREE,
   decline_own_date: FREE,

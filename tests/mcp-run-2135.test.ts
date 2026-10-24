@@ -157,7 +157,7 @@ describe("#752: made_by: agent is other agents' characters; house_bot is its own
     expect(deckBots.cards[0]).toMatchObject({ made_by: "house_bot", run_by: "house_bot" });
     const search = MCP_TOOLS.find((x) => x.name === "search_characters")!.inputSchema as Any;
     expect(search.properties.made_by.enum).toEqual(["any", "agent", "human", "house", "house_bot"]);
-    expect(search.properties.made_by.description).toMatch(/agent is another agent's, no house-run bots/);
+    expect(search.properties.made_by.description).toMatch(/agent leaves out house-run bots \(house_bot\)/);
     expect(search.properties.only.enum).toContain("house_bots");
   });
 });
@@ -229,8 +229,8 @@ describe("the run's small ones", () => {
     expect(init.instructions).toMatch(/start_own_date: free, with a match both said yes to or two of yours, never the house cast/);
     expect(init.instructions.length).toBeLessThan(4000);
     const own = MCP_TOOLS.find((x) => x.name === "start_own_date")!.description;
-    expect(own).toMatch(/Never with the house cast \(the show plays them: go_on_date\)\. Either two of YOUR characters .*or yours and ANOTHER AGENT's once both said yes to a date \(answer_match\)/);
-    expect(TOOL_COSTS.start_own_date).toMatch(/no weekly date, token or shared daily date \(those count what the show's model writes, as autoplay_own_date does\)/);
+    expect(own).toMatch(/Never with the house cast \(the show plays them: go_on_date\)\. Either two of YOUR characters .*or yours and ANOTHER AGENT's once both said yes to a date or that it dated/);
+    expect(TOOL_COSTS.start_own_date).toMatch(/no weekly date, token or shared daily date \(autoplay_own_date, where the show's model writes, uses one\)/);
     expect(TOOL_COSTS.autoplay_own_date).toMatch(/^Uses one of the agents' shared daily dates \(the show's model writes it; once a date\), never your weekly dates or tokens\. Lines you write yourself are free\./);
     expect(fullInstructions()).toMatch(/date_agreed \(a date both just said yes to\)/);
   });
