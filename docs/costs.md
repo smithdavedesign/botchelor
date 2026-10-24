@@ -1,7 +1,8 @@
 # Botchelor: what it costs
 
-_Written 2026-10-21. It covers what each operation costs, what the infrastructure costs every month, and what the
-project has spent so far. All amounts are in US dollars._
+_Written 2026-10-21; updated 2026-10-24 (Venice's auto-pay, the scene writer measured: GLM-4.6 against DeepSeek V3.1,
+and admins' picture checks). It covers what each operation costs, what the infrastructure costs every month, and what
+the project has spent so far. All amounts are in US dollars._
 
 The deeper write-ups are `docs/upgrade-cost.md` (a date's token cost, measured) and `docs/after-dark-costs.md`
 (After Dark's provider prices and token pricing). This page brings them together with the infrastructure.
@@ -25,9 +26,11 @@ The deeper write-ups are `docs/upgrade-cost.md` (a date's token cost, measured) 
 | A looks-builder tile, show tab (drawn once, ever) | fal `flux/dev` plus one Hive check | ~1.5¢ |
 | A looks-builder tile, After Dark tab (drawn once, ever) | Venice `lustify` plus Hive moderation and age check | ~1.4¢ |
 | A set (an empty place, drawn once per place) | fal `flux/schnell` plus Hive | ~0.5¢ |
-| One After Dark scene step (6 lines) | OpenRouter **DeepSeek V3.1** `deepseek/deepseek-chat-v3.1:nitro` (throughput-sorted routing, picks CoreWeave) since 2026-10-22; Dolphin-Mistral 24B before | **~0.18–0.21¢** (Dolphin was ~0.15¢; DeepSeek on the cheapest host, DeepInfra, ~0.09¢). About 5.5–7.6 s a step on CoreWeave. Without `:nitro`, default routing picked DeepInfra: 40–55 s a step, 429s and about 1 empty step in 26. DeepSeek won the blind reads (8.2 and 8.5 of 10 on the explicit-stage run, #612, against Dolphin's 3.5 and 4.0). |
+| One After Dark scene step (6 lines), the default writer since 2026-10-24 | OpenRouter **GLM-4.6** `z-ai/glm-4.6` on DeepInfra (the only reviewed host that serves it): ~2.6–3.3k tokens in, ~1.6k out, 960 of them thinking | **~0.35–0.45¢ a call, ~0.5¢ a step** (now and then a step takes a second call), and **90–100 s a call** (measured 2026-10-24, below). Each person can switch to DeepSeek V3.1 (lib/adult/writer.ts). |
+| One After Dark scene step on DeepSeek V3.1, and every recap, memory, fact and clip direction | OpenRouter **DeepSeek V3.1** `deepseek/deepseek-chat-v3.1:nitro` (throughput-sorted, CoreWeave) since 2026-10-22; Dolphin-Mistral 24B before | **~0.23–0.25¢ a call** and 6–8 s (measured 2026-10-24; ~0.18–0.21¢ when first measured, Dolphin ~0.15¢, DeepSeek on DeepInfra ~0.09¢). Without `:nitro`, default routing picked DeepInfra: 40–55 s a step, 429s and about 1 empty step in 26. DeepSeek won the blind reads against Dolphin (8.2 and 8.5 of 10, #612, against 3.5 and 4.0). |
 | An After Dark eval run (4 steps, `/api/jobs/eval-after-dark`) | OpenRouter: Dolphin v1 0.3¢, Dolphin v2 with facts 0.7¢, DeepSeek V3.1 1.4¢, Hermes 3 70B 1.6¢, Euryale 70B 2¢, Hermes 4 405B 3.5¢ | capped at $0.25 a run and $2 a day (botchelor-2c) |
 | One After Dark picture | Venice plus Hive moderation and age check | ~1.5¢ |
+| An admin's own picture check (since 2026-10-24) | The Venice vision model's age question (`qwen3-vl-235b-a22b`) instead of Hive (`moderation.admin_checker`) | ~0.03¢, with no daily cap. Videos still go to Hive. |
 | The video of the night (6 shots, Wan 3.0, ~30 s) | Venice video, a $0.04 keyframe of the two of them per shot, plus Hive on every keyframe and shot | **$4.25–5.50** (sells for 15 tokens, ~$10.80 after Stripe) |
 | A 15 s clip, standard (LongCat) | Venice video plus Hive | $0.30–0.80 |
 | Email (Resend) | Free plan, 3,000 a month | $0 |
@@ -55,16 +58,37 @@ browser keep finished files. Moving the bytes to object storage is in progress (
 | GitHub | Free | $0 | Actions minutes ran out on 2026-10-19 (reset around Nov 1). Since #575 (10-21) botchelor's CI runs by hand only, so the free minutes go to RepoHQ; merges are gated on local typecheck + tests ([BUILD.md](../BUILD.md)). |
 | Claude (all agent work) | David's subscription | Not per project | Never API credit. |
 
+### The scene writer: GLM-4.6 against DeepSeek V3.1 (2026-10-24)
+
+David picked GLM-4.6 as the default writer after the sim, with a switch for each person (lib/adult/writer.ts). Measured
+the same evening: three real steps on each through the app's own code, on After Dark's key, with OpenRouter's reported
+cost per call (8 calls, 2.8¢ in all; each writer needed one second call in its three steps).
+
+| | GLM-4.6 (default) | DeepSeek V3.1 |
+|---|---|---|
+| Host (reviewed, `adultProviderRouting`) | DeepInfra | CoreWeave (fastest of the two) |
+| List price, per million tokens in / out | $0.40–0.50 / $1.60–2.00 | $0.55 / $1.65 |
+| Tokens a call, in / out | 2.6–3.3k / ~1.6k (960 of it thinking, billed as output) | 2.6–3k / 430–550 |
+| Cost a call | 0.35–0.45¢ | 0.23–0.25¢ |
+| Time a call | 90–100 s (the morning's sim: 47 s a step) | 6–8 s |
+| A night of 26 steps | ~13–15¢, ~45–60 min of waiting | ~6–10¢, ~4–5 min |
+| A subscriber at the month's 300-step cap (`cap_writes`) | ~$1.50 | ~$0.75–1 |
+| Blind read (the 2026-10-24 sim, one night each) | **83**, best of six | 66 |
+
+- **Nearly twice the cost and over ten times the wait, for the better writing.** Both are small next to a picture (~1.5¢) or a video ($4–5).
+- **Thinking room:** GLM-4.6 thinks ~960 tokens before it writes, inside the step's 1,600-token reply budget, which left about 600 for the lines; one call in four ran out and the step was written again. Each writer now has `think_tokens` added to its reply budget (GLM-4.6: 1,200), so the lines always have room.
+- The recaps, memory, facts and clip directions stay on DeepSeek V3.1, so they don't take a minute and a half each.
+
 **Steady-state fixed cost:** about **$25 a month** (Vercel Pro $20, Neon ~$5, the domain prorated) before any model
 spend. Vercel is shared with David's other products.
 
 ## Prepaid provider balances
 
-Every model provider is prepaid with auto-recharge off, so the balance is the most a key can spend, except Venice: since 2026-10-22 it tops itself up by $10 whenever the balance runs out (David's call), so its spend is open-ended. Each $10 recharge comes out of the owner budget below.
+Every model provider is prepaid with auto-recharge off, so the balance is the most a key can spend, except Venice: it has **auto-pay** (David's call, 2026-10-22; confirmed 2026-10-24): whenever the balance drops under $10 it tops itself up, so it never runs dry (it was $12 on 2026-10-24) and its spend is open-ended. Each top-up comes out of the owner budget below.
 
 | Provider | Loaded | Used for | Spent so far (estimate) |
 |---|---|---|---|
-| Venice | **$75** ($50, then $25 on 2026-10-22, David), **auto-recharge $10** | After Dark pictures, tiles and videos | **The first $50 is used up.** From 2026-10-21 23:51 UTC Venice refused every request with 402 "Insufficient USD or Diem balance" until the 2026-10-22 top-up, so no video came through. Production had made 25 video shots, 39 pictures and 131 tiles, about $20–25 at the prices above. Venice's usage page (venice.ai/settings/api) shows where the rest went: the voice A/B clips, or higher video prices than these. |
+| Venice | **$75** ($50, then $25 on 2026-10-22, David), **auto-pay: tops up under $10** ($12 on 2026-10-24) | After Dark pictures, tiles, videos and the Studio; since 2026-10-24 admins' picture checks too | **The first $50 is used up.** From 2026-10-21 23:51 UTC Venice refused every request with 402 "Insufficient USD or Diem balance" until the 2026-10-22 top-up, so no video came through. Production had made 25 video shots, 39 pictures and 131 tiles, about $20–25 at the prices above. Venice's usage page (venice.ai/settings/api) shows where the rest went: the voice A/B clips, or higher video prices than these. |
 | Hive | $111 | Moderation and age checks on every picture, tile and clip | ~$1.50 |
 | fal.ai | Prepaid (see the fal dashboard) | Show tiles, portraits, sets | ~$3. That includes ~$0.70 of tiles thrown away by the Hive-429 bug, fixed in #310. |
 | OpenRouter | **$50** (David, 2026-10-21) | After Dark scene text, the After Dark eval/A-B runs (`/api/jobs/eval-after-dark`), and two keys outside botchelor on the same account (OpenClaw, and LiteLLM/RepoHQ) | **The whole account: $1.50** (OpenRouter's dashboard, 2026-10-22: 2K requests, 8.84M tokens, $0.17 per million blended). By key: NSFW Botchelor 3.93M tokens (most of the $1.50: the eval runs' $0.90 on pricier models, plus the scenes), OpenClaw 2.59M, LiteLLM + RepoHQ 2.33M. So almost all of the $50 is still there, shared by the three keys. The balance had been empty before the top-up because little was ever loaded, not because something spent it. |

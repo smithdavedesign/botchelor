@@ -421,7 +421,8 @@ describe("the model call", () => {
     let seen: { maxTokens?: number } | undefined;
     setAdultModelForTests({ complete: async (_m, o) => ((seen = o), JSON.stringify({ lines: [{ who: "a", text: "Hi." }] })) });
     await post({ a: CAST_A, b: CAST_B }, cookie);
-    expect(seen?.maxTokens).toBe(1600);
+    // The step's reply (1,600) plus the default writer's thinking room (GLM-4.6: 1,200, lib/adult/writer-config.ts).
+    expect(seen?.maxTokens).toBe(1600 + 1200);
   });
 });
 
