@@ -200,6 +200,7 @@ describe("download and delete", () => {
     const { userId, character } = await person();
     await deleteAccount(t.db, userId);
     expect(await profileRow(character.id)).toBeUndefined();
-    expect((await sceneRow()).hard_nos).toEqual({});
+    // Their scenes go with the account altogether (lib/account.ts deleteAfterDarkData), hard nos and all.
+    expect(await sceneRow()).toBeUndefined();
   });
 });
