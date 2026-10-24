@@ -73,11 +73,43 @@ describe("listThreads", () => {
     for (const link of textedLinks(lo, hi)) {
       await t.db.query(`insert into notifications (id, user_id, kind, title, link) values (gen_random_uuid()::text, $1, 'texted', 'Bo texted', $2)`, [me.userId, link]);
     }
-    expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(2);
+    // Two notices, one text: the dot counts texts.
+    expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(1);
     expect(await unreadTexts(t.db, me.userId)).toBe(2);
     await markTextsRead(t.db, me.userId, lo, hi);
     expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(0);
     expect(await unreadTexts(t.db, me.userId)).toBe(0);
+  });
+
+  it("clearing the notifications leaves an unread thread unread; reading it or answering it clears it", async () => {
+    const me = await character("Ada Lumen");
+    const bo = await character("Bo Quill");
+    const [lo, hi] = pairKey(me.id, bo.id);
+    await text(me.id, bo.id, bo.id, "First.", 10);
+    await markTextsRead(t.db, me.userId, lo, hi);
+    await text(me.id, bo.id, bo.id, "Hey you.", 0);
+    await text(me.id, bo.id, bo.id, "Still there?", 0);
+    await t.db.query(`insert into notifications (id, user_id, kind, title, link) values (gen_random_uuid()::text, $1, 'texted', 'Bo texted (2 new)', $2)`, [me.userId, `/messages/${lo}/${hi}`]);
+    await t.db.query(`delete from notifications where user_id = $1`, [me.userId]);
+    expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(2);
+    await text(me.id, bo.id, me.id, "Here!", 0);
+    expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(0);
+    await text(me.id, bo.id, bo.id, "Yay.", 0);
+    expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(1);
+    await markTextsRead(t.db, me.userId, lo, hi);
+    expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(0);
+  });
+
+  it("a thread from before read marks goes by its notices once, then keeps its dot when they're cleared", async () => {
+    const me = await character("Ada Lumen");
+    const bo = await character("Bo Quill");
+    const [lo, hi] = pairKey(me.id, bo.id);
+    await text(me.id, bo.id, bo.id, "Old, read.", 30);
+    await text(me.id, bo.id, bo.id, "New one.", 1);
+    await t.db.query(`insert into notifications (id, user_id, kind, title, link) values (gen_random_uuid()::text, $1, 'texted', 'Bo texted', $2)`, [me.userId, `/messages/${lo}/${hi}`]);
+    expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(1);
+    await t.db.query(`update notifications set read_at = now() where user_id = $1`, [me.userId]);
+    expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(1);
   });
 
   it("someone else's character has no inbox for you", async () => {
