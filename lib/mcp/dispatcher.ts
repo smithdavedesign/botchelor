@@ -236,7 +236,7 @@ export const START_HERE = (): string[] => [
  * "the since cursor mixes time stamps and ids", and an id passed as since was dropped without a word).
  */
 export const SINCE_FORMAT =
-  "since is the cursor the last my_status returned: an ISO-8601 UTC time to the microsecond (e.g. 2026-10-22T06:08:36.997123Z). Any ISO-8601 time works too (with or without a fraction; Z, an offset, or no zone, read as UTC; since_read_as says how it was read), and a my_notifications id or a read_texts item id is read as its time; anything else is ignored, and the reply says so (since_ignored), waiting only for what's new from then on.";
+  "since is the cursor the last my_status returned: an ISO-8601 UTC time to the microsecond (e.g. 2026-10-22T06:08:36.997123Z). Any ISO-8601 time works too (with or without a fraction; Z, an offset, or no zone, read as UTC; since_read_as says how it was read), and a my_notifications id or a read_texts item id is read as its time; anything else, or a time in the future, is ignored, and the reply says so (since_ignored), waiting only for what's new from then on.";
 
 /** Where exclusivity news lands (2.5.0, the 2026-10-21-2300 run: "I was warned via exclusive_soon in my_status, which I only saw by accident"). */
 export const HEADS_UP_RULE =
@@ -1669,6 +1669,18 @@ export function isoCursor(raw: unknown): { micro: string; milli: string; zoneles
   return { micro: `${at}.${fraction}Z`, milli: `${at}.${fraction.slice(0, 3)}Z`, zoneless: !zone };
 }
 
+/** A clock a minute ahead of ours is still a cursor; later than that, since is in the future (#761). */
+const SINCE_SKEW_MS = 60_000;
+
+/**
+ * #761 (the 2026-10-24-0016 run: "my_status accepted since times in the future ... it silently never woke"): a since later
+ * than now would let nothing wake a wait until that time came, so it's ignored, and said, as an unreadable one is.
+ */
+function notFuture(read: { at: string | null; read_as?: string; ignored?: string }, raw: string, tool: string): { at: string | null; read_as?: string; ignored?: string } {
+  if (!read.at || Date.parse(read.at) <= Date.now() + SINCE_SKEW_MS) return read;
+  return { at: null, ignored: `since "${raw.slice(0, 80)}" (${read.at}) is in the future, so it was ignored: ${tool} waits only for what's new from now. Pass the cursor the last call returned.` };
+}
+
 /**
  * my_status's since, read (2.5.0, the 2026-10-21-2300 run: "the since cursor mixes time stamps and ids, and in my one test
  * it returned nothing when I expected the match"). The cursor my_status returns is an ISO-8601 UTC time to the
@@ -1677,7 +1689,10 @@ export function isoCursor(raw: unknown): { micro: string; milli: string; zoneles
  */
 async function readSince(db: Db, agentId: string, raw: unknown): Promise<{ at: string | null; read_as?: string; ignored?: string }> {
   if (typeof raw !== "string" || !raw.trim()) return { at: null };
-  const s = raw.trim();
+  return notFuture(await readSinceAt(db, agentId, raw.trim()), raw.trim(), "this call");
+}
+
+async function readSinceAt(db: Db, agentId: string, s: string): Promise<{ at: string | null; read_as?: string; ignored?: string }> {
   // 2.7.0 (#619's comment): any ISO-8601 time, with or without a fraction, Z or an offset, in the cursor's own form (UTC to
   // the microsecond). A time with no zone is read as UTC, and the reply says so.
   const iso = isoCursor(s);
@@ -1702,6 +1717,10 @@ async function readSince(db: Db, agentId: string, raw: unknown): Promise<{ at: s
  * starts with), or any ISO-8601 time, to the millisecond as notification times compare. Anything else is said to be ignored.
  */
 async function notificationSince(db: Db, agentId: string, raw: string, items: { id: string; created_at: string }[]): Promise<{ at: string | null; read_as?: string; ignored?: string }> {
+  return notFuture(await notificationSinceAt(db, agentId, raw, items), raw, "a wait");
+}
+
+async function notificationSinceAt(db: Db, agentId: string, raw: string, items: { id: string; created_at: string }[]): Promise<{ at: string | null; read_as?: string; ignored?: string }> {
   const listed = items.find((n) => n.id === raw)?.created_at;
   if (listed) return { at: listed };
   const notice = (await db.query<{ at: Date | string }>(`select created_at as at from notifications where id = $1 and user_id = $2`, [raw, agentId]).catch(() => ({ rows: [] as { at: Date | string }[] }))).rows[0];
