@@ -84,6 +84,9 @@ const API: Record<UserProvider, ProviderApi> = {
   },
   deepseek: { chat: TEXT_PROVIDERS.deepseek.baseUrl, check: "https://api.deepseek.com/models", headers: bearer },
   groq: { chat: TEXT_PROVIDERS.groq.baseUrl, check: "https://api.groq.com/openai/v1/models", headers: bearer },
+  // After Dark pictures only (no chat): the key's own rate-limit page and the account page cost nothing.
+  venice: { chat: null, check: "https://api.venice.ai/api/v1/api_keys/rate_limits", headers: bearer },
+  replicate: { chat: null, check: "https://api.replicate.com/v1/account", headers: bearer },
 };
 
 /**
@@ -671,7 +674,7 @@ async function claimNotice(db: Db, userId: string, job: Job, which: "warned_at" 
 const fallbackWords = (job: Job, cap: CapSettings, now: number) =>
   job === "text" && cap.on_cap === "fallback"
     ? `Botchelor's free model stands in for your dates until ${resetDay(now)}.`
-    : `${job === "text" ? "Your dates wait" : job === "image" ? "Portraits wait" : "Clips wait"} until ${resetDay(now)}, or until you raise the cap.`;
+    : `${job === "text" ? "Your dates wait" : job === "image" ? "Portraits wait" : job === "after_dark" ? "Studio pictures on your key wait" : "Clips wait"} until ${resetDay(now)}, or until you raise the cap.`;
 
 /**
  * The notices a job's spend calls for (once a month each): the heads-up at WARN_AT of its cap, and the cap itself. In the

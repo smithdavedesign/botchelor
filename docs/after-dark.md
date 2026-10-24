@@ -2028,6 +2028,29 @@ configurable … best in class"). What's built, by phase:
   editable on the settings page.
 - **Tables:** `adult_studio_shoots`, `adult_identity`; `adult_images.shoot_id`; `adult_settings.studio` (JSON).
 
+**v2** (`lib/adult/studio.ts`, `lib/adult/shares.ts`; the page's **Together** tab and each picture's tools; `GET
+/api/admin/after-dark/studio?partner=` for a pair's menu; `/api/admin/after-dark/shares` for the recipient):
+- **Together:** a shoot of the character with anyone else in the viewer's After Dark, from the picture menu's acts,
+  outfits and framings (`planPicture`), the night's places and the Studio's own, and a light. Held to the pair's own
+  limits within `studio.max_level` (dressed: to kissing; suggestive: to undressing; nude: everything, sensual; explicit:
+  everything), not to how far their night has gone. Their two faces (the nude ones from sex on) and the place's set;
+  `shoot_size` pictures for `prices.pair[tier]`, kept under the pair (they show in the pair's gallery too).
+- **More like this:** `shoot_size` pictures like one of theirs (it goes in after the face and body), at that picture's
+  level, each slightly different (`VARIATION_HINTS`). **Upscale:** Venice's `/image/upscale` (2x by default), checked,
+  kept beside it, counted as an upscale (`cap_upscales`).
+- **Their own key:** Connections has a fourth job, **After Dark pictures** (Venice or Replicate), shown only to someone
+  After Dark is open to on an unlocked device (the page and the API). With "On my own key" ticked, any Studio job runs on
+  it for `prices.own_key` (0) tokens, counts against `cap_studio_byok`, and adds each model's `usd` to the key's month
+  (Connections' cap and notices). A key that can't be used now is refused with why; ours is one untick away.
+- **Sharing** (only the sharer's own characters' pictures, to the owner of a character theirs has dated):
+  - **In After Dark:** a request with a neutral notice ("Something was shared with you"), shown in the hub's 💌 **Shared
+    with you** once accepted (or straight away, with auto-accept on); either side can take it away; served by the media
+    route to the recipient while accepted (`sharedWith`), never their face, never re-shared. Agents can't be sent one.
+    Whether the recipient has After Dark is never told to the sharer: one who hasn't isn't notified.
+  - **As a photo:** a dressed Studio picture (level 0) scored at most `share.pg_max_nsfw` (0.15) becomes an approved
+    `character_assets` photo and a 📷 text in the two characters' thread (`couple_texts.photo`, via `photo`): on the phone,
+    and in an agent's `read_texts` as `photo_url`.
+
 ### The checks: an alternative to Hive (2026-10-24)
 
 David: "Hive is a bottleneck atm, so it might be worth adding an alternative too. Everything should be configurable."

@@ -22,6 +22,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { dataColumn, keepBytes, objectStore, readBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { checkMedia, checkReady, mediaGate } from "./moderation";
+import { sharedWith } from "./shares";
 import { fallbackNote, providerError, runMedia, type Ran } from "./fallback";
 import { hivePausedMessage, HivePausedError, hivePausedUntil } from "./hive-limit";
 import { attireOf, nudeSql } from "./attire";
@@ -532,6 +533,35 @@ export async function pollClip(db: Db, id: string, viewerId: string): Promise<st
 }
 
 /** The gallery: a character's pictures and clips (both of a pair's, when given two), newest first. */
+/** A gallery's columns: each file, the viewer's (`$2`) rating of it, and whether it's a face they picked. */
+const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.status, i.created_at, i.mime, (i.kind <> 'video' and i.remote_url is not null) as clip,
+            i.scene_chapter as chapter, i.scene_place as place, i.provider, coalesce(i.fell_back, false) as fell_back, i.preset,
+            r.rating, coalesce(r.tags, '[]'::jsonb) as tags, coalesce(f.character_id, n.character_id) as face_of,
+            (i.kind = 'baseline' and ${nudeSql("i")}) as nude
+       from adult_images i
+       left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $2
+       left join adult_face_refs f on f.image_id = i.id and f.owner_id = $2
+       left join adult_nude_refs n on n.image_id = i.id and n.owner_id = $2`;
+const mediaRow = ({ face_of, ...r }: Media & { face_of: string | null }): Media => ({
+  ...r,
+  rating: r.rating ?? null,
+  created_at: new Date(r.created_at).toISOString(),
+  note: fallbackNote(r.provider, r.fell_back),
+  face: Boolean(face_of),
+});
+
+/** These pictures, newest first: the viewer's own (an admin's, anyone's) and ready (the Studio's pair shoots, lib/adult/studio.ts). */
+export async function mediaByIds(db: Db, ids: string[], viewerId: string): Promise<Media[]> {
+  if (!ids.length) return [];
+  const { rows } = await db.query<Media & { face_of: string | null }>(
+    `${MEDIA_SELECT}
+      where i.id = any($1) and i.status = 'ready' and (i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
+      order by i.created_at desc limit 60`,
+    [ids, viewerId],
+  );
+  return rows.map(mediaRow);
+}
+
 export async function listMedia(db: Db, ids: string[], viewerId: string | null = null): Promise<Media[]> {
   // Theirs alone, or of these characters together: never a picture or video with someone else in it (a character's
   // night with another partner stays on that pair's page). A reel's keyframes and voices stay with its shots, and a shot
@@ -539,14 +569,7 @@ export async function listMedia(db: Db, ids: string[], viewerId: string | null =
   // can open (theirs; an admin's, everyone's: viewableBy), their rating of each, and which are the faces they picked
   // (lib/adult/steering.ts).
   const { rows } = await db.query<Media & { face_of: string | null }>(
-    `select i.id, i.character_id, i.character_b, i.kind, i.status, i.created_at, i.mime, (i.kind <> 'video' and i.remote_url is not null) as clip,
-            i.scene_chapter as chapter, i.scene_place as place, i.provider, coalesce(i.fell_back, false) as fell_back, i.preset,
-            r.rating, coalesce(r.tags, '[]'::jsonb) as tags, coalesce(f.character_id, n.character_id) as face_of,
-            (i.kind = 'baseline' and ${nudeSql("i")}) as nude
-       from adult_images i
-       left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $2
-       left join adult_face_refs f on f.image_id = i.id and f.owner_id = $2
-       left join adult_nude_refs n on n.image_id = i.id and n.owner_id = $2
+    `${MEDIA_SELECT}
       where i.character_id = any($1) and (i.character_b is null or i.character_b = any($1)) and i.kind not in ('frame', 'audio')
         and ($2::text is null or i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
         and (i.kind <> 'video' or not exists (
@@ -555,7 +578,7 @@ export async function listMedia(db: Db, ids: string[], viewerId: string | null =
       order by i.created_at desc limit 60`,
     [ids, viewerId],
   );
-  return rows.map(({ face_of, ...r }) => ({ ...r, rating: r.rating ?? null, created_at: new Date(r.created_at).toISOString(), note: fallbackNote(r.provider, r.fell_back), face: Boolean(face_of) }));
+  return rows.map(mediaRow);
 }
 
 /**
@@ -596,7 +619,8 @@ export const FRAME_SHOWN =
 const readyFor = (id: string, viewerId: string | null): { where: string; params: string[] } =>
   viewerId === null
     ? { where: `id = $1 and status = 'ready'`, params: [id] }
-    : { where: `id = $1 and status = 'ready' and ${viewableBy(2)} and ${FRAME_SHOWN}`, params: [id, viewerId] };
+    : // Theirs (an admin's, anyone's), or one shared with them that they accepted (lib/adult/shares.ts): to look at only.
+      { where: `id = $1 and status = 'ready' and (${viewableBy(2)} or ${sharedWith(2)}) and ${FRAME_SHOWN}`, params: [id, viewerId] };
 
 /** Where a ready file is: its bucket key (when it's been moved there), and its mime. Null when there's no such file. */
 export async function mediaRef(db: Db, id: string, viewerId: string | null): Promise<{ mime: string; key: string | null } | null> {

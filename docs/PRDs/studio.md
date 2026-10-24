@@ -2,7 +2,8 @@
 
 **Status:** approved by David, 2026-10-24 ("build 1-3 … use similar pricing strategy as others … POV sounds good … share your
 output to the other user/agent … you pay for it … Hive is a bottleneck, add an alternative … everything configurable … make
-this best in class"). **Owner:** David. **Code:** `lib/adult/studio*.ts`, `lib/adult/moderation.ts`, `app/after-dark/studio`.
+this best in class"). **Owner:** David. **Code:** `lib/adult/studio*.ts`, `lib/adult/moderation.ts`, `lib/adult/shares.ts`,
+`app/after-dark/studio`. **Built:** v1 (#778), the checks (#779), v2 (2026-10-24, docs/after-dark.md "The Studio").
 
 ## 1. Why
 
@@ -125,11 +126,15 @@ and the shoot each came from. A shoot whose every picture the viewer 👎'd offe
 - **Bring your own key** (Connections, `/account/keys`): a new job, **After Dark pictures**, with two providers, Venice
   and Replicate, shown only to someone After Dark is open to. A shoot on their key costs 0 tokens; the provider bills
   them; our check still runs on every picture (so it counts against a separate monthly cap, section 10). Their model
-  pick is any model from the Studio's list for that provider. A failed key falls back to ours (tokens) or pauses,
-  as Connections' cap rule says.
+  pick is any model from the Studio's list for that provider (the one picked under Connections is the default). A key
+  that can't be used now (over its monthly cap, or failing) is refused with why, and the Studio offers ours: never
+  tokens taken without asking (built 2026-10-24; this replaced "falls back to ours or pauses").
 - **Pair shoots:** the character with a partner from their After Dark (an eligible pair): the act menu
   (`lib/adult/acts.ts`), wardrobe, place, light, camera, POV off. This folds in the picture menu (`lib/adult/pictures-menu.ts`),
-  which keeps working on the pair page.
+  which keeps working on the pair page. A shoot is staged, not a moment of their night: it's held to the pair's own
+  limits (their intensity and hard nos) within the Studio's highest level (dressed: up to kissing; suggestive: up to
+  undressing; nude: everything, sensual; explicit: everything), never to how far their night has gone. Places: the
+  night's (with its drawn set), then the Studio's own.
 - **More like this:** 4 variations of one picture (it becomes Picture 3 of the edit).
 - **Upscale:** 2× on Venice's upscaler (free by default, capped monthly).
 - **Sharing** (section 8).
@@ -205,10 +210,16 @@ offence in several places, the UK's "cyberflashing" offence among them) or who c
    characters' text thread, from the sender's character. The partner's owner sees it in the thread; an agent sees it in
    `read_texts` (its URL and that it's a photo). This is how an agent can see it.
 2. **Share in After Dark** (any level): the recipient must be someone After Dark is open to. They get a neutral request
-   ("A character you've dated shared an After Dark picture with you"), no picture, in their After Dark; only when they
-   accept does it show, in **Shared with you**. They can remove it; the sharer can take it back. A recipient may switch on
-   "accept After Dark shares automatically" for characters theirs has dated. Never re-shared; never usable as their face;
-   never animated by them. An agent's account can't open After Dark, so this kind isn't offered for an agent's character.
+   ("Something was shared with you"), no picture, in their After Dark; only when they accept does it show, in **Shared
+   with you**. They can remove it; the sharer can take it back. A recipient may switch on "accept After Dark shares
+   automatically" for characters theirs has dated. Never re-shared; never usable as their face; never animated by them.
+   An agent's account can't open After Dark, so this kind isn't offered for an agent's character. Whether a person can
+   open After Dark is never told to the sharer (that would say who subscribes): a request to someone who can't waits,
+   unannounced, and the sharer sees "asked" either way.
+
+Only the sharer's own characters' pictures can be shared (an admin's, the house cast's too), never a picture they made
+of someone else's character. A photo with no Hive score (an alternative checked it) passes the show's own picture check
+at the moment it's shared.
 
 ## 9. The checks, and an alternative to Hive
 
@@ -245,11 +256,13 @@ Hive's capacity and storage; tokens protect the margin.
 - `open_to`: `admins` (default) or `entitled` (everyone After Dark is open to).
 - `shoot_size` (4), `restyle_candidates` (3), `recast_candidates` (3), `body_candidates` (2).
 - `prices`: `shoot` {standard 1, pro 2}, `pair` {standard 1, pro 2}, `restyle` 1, `recast` 1, `body` 1, `variations` 1,
-  `upscale` 0, `animate` {5: 3, 10: 5}, `byok` 0, `share` 0.
-- `caps`: `studio` 400, `byok` 1000, `upscale` 50.
-- `models`: the list (section 7); `default_edit`, `default_new`.
+  `upscale` 0, `animate_5` 3, `animate_10` 5, `own_key` 0, `share` 0.
+- Caps (their own columns, `adult_settings.cap_*`): `studio` 400, `studio_byok` 1000, `upscales` 50.
+- `models`: the list (section 7), each with its `usd` a picture (what's added to an own key's month); `default_edit`,
+  `default_new`.
 - `max_level` (3), `pov` (on), `free_redo` (on), `reference_set_everywhere` (off), `disabled_options` (none),
-  `share` {`photos` on, `after_dark` on, `pg_max_nsfw` 0.15}, `byok` {`venice` on, `replicate` on}.
+  `share` {`photos` on, `after_dark` on, `pg_max_nsfw` 0.15}, `own_keys` {`venice` on, `replicate` on},
+  `upscale` {`scale` 2 (or 4), `usd` 0.02}.
 
 `adult_settings.moderation` (JSON): `mode` (`hive`), `alts` (`["venice_vlm"]`), `min_sources` (1), `vlm_model`,
 `sightengine_user`, `sightengine_minor_max` (0.1), `endpoint_url`, `pg_via` (`hive`). Keys sealed like the others:
@@ -261,11 +274,12 @@ Hive's capacity and storage; tokens protect the margin.
   tokens, asked, made, status, picture ids, redo of, error).
 - `adult_identity`: per owner and character: body reference, face strength, studio intensity and hard nos.
 - `adult_studio_setups` (v3): named choices.
-- `adult_shares` (v2): item, sharer, recipient, their character, status (pending, accepted, declined, revoked), kind
-  (after_dark or photo).
+- `adult_shares` (v2): item, sharer, recipient, their character, status (pending, accepted, declined, revoked; a photo:
+  sent), kind (after_dark or photo), the photo's show asset. `adult_share_prefs`: auto-accept, per person.
 - `adult_images.shoot_id`, `adult_images.nsfw_score` (Hive's general_nsfw when it ran); `adult_usage.studio`, `.studio_byok`,
   `.upscales`; `adult_settings.cap_studio`, `.cap_studio_byok`, `.cap_upscales`, `.studio`, `.moderation`.
-- `couple_texts.photo_asset_id` (v2): a photo in the text thread.
+- `couple_texts.photo` (v2): a photo in the text thread (a `character_assets` row of kind `photo`, approved).
+- `user_connection_jobs.job` takes `after_dark` (v2): Connections' After Dark pictures.
 
 **Body references everywhere** (`reference_set_everywhere`): keyframes in nights, clips, the picture menu and beat
 pictures would send face and body for each of the two, plus the set: five pictures. `qwen-edit-uncensored` doesn't list

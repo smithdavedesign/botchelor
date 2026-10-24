@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { isSignedInAdmin } from "@/lib/admins";
+import { canAfterDark } from "@/lib/adult/entitlement";
 import { houseProviderStatus, type HouseCard } from "@/lib/adult/provider-status";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { currentUsage, listConnections } from "@/lib/connections";
 import {
+  ADULT_JOBS,
   JOB_INFO,
   JOBS,
   jobCards,
@@ -33,6 +35,7 @@ const ALSO_NOTE: Record<Job, string> = {
   text: "your characters' lines on dates and texts",
   image: "only when you make a portrait",
   video: "only when you make a clip, on your Google bill",
+  after_dark: "only Studio pictures you ask for, on your bill",
 };
 
 /** The After Dark card's one line: each house provider and how it is, a pause in the viewer's own time. */
@@ -111,11 +114,16 @@ export default async function KeysPage() {
       const stored = connections.find((c) => c.provider === id);
       return { id, label: info.label, blurb: info.blurb, keyHint: info.keyHint, keysUrl: info.keysUrl, stored: stored ? { last4: stored.last4 } : null, models: modelOptions(id, job, null) };
     });
-  const unassigned = JOBS.filter((j) => !listing.jobs.some((a) => a.job === j));
+  // After Dark's own job (the Studio's pictures, on Venice or Replicate) shows only to someone After Dark is open to, on an
+  // unlocked device (lib/adult/privacy.ts); for everyone else it isn't there at all.
+  const adultOpen = (await canAfterDark(db, auth)).ok && !(await lockedForCookies(db, auth.userId, store));
+  const shown = (j: Job) => adultOpen || !ADULT_JOBS.includes(j);
+  const unassigned = JOBS.filter((j) => shown(j) && !listing.jobs.some((a) => a.job === j));
   const alsoFor = (job: Job): AlsoJob[] =>
     unassigned.filter((j) => j !== job).map((j) => ({ job: j, title: JOB_INFO[j].title, providers: providersFor(j), note: ALSO_NOTE[j] }));
-  // After Dark runs on the house's keys only (nobody's own key reaches it): its card is the admin's, read-only, and not
-  // on a device that hasn't entered the After Dark PIN (lib/adult/privacy.ts).
+  // After Dark's text, video and voice run on the house's keys only; its Studio pictures can run on the person's own Venice
+  // or Replicate key (the After Dark pictures card). The house card is the admin's, read-only, and not on a device that
+  // hasn't entered the After Dark PIN (lib/adult/privacy.ts).
   const admin = (await isSignedInAdmin(db, auth)) && !(await lockedForCookies(db, auth.userId, store));
   const house = admin ? await houseProviderStatus(db) : null;
   const housePaused = house?.some((c) => c.state === "paused") ?? false;
@@ -132,14 +140,16 @@ export default async function KeysPage() {
       </p>
 
       <div className="connection-grid">
-        {cards.map((card) => (
-          <JobCard key={card.job} card={card} providers={flowProviders(card.job)} also={alsoFor(card.job)} />
-        ))}
+        {cards
+          .filter((card) => shown(card.job))
+          .map((card) => (
+            <JobCard key={card.job} card={card} providers={flowProviders(card.job)} also={alsoFor(card.job)} />
+          ))}
         {house && (
           <ConnectionCard
             id="after-dark"
             title="🌙 After Dark"
-            subtitle="Text, pictures, video and voice. It runs on the house's providers: your own keys are never used there."
+            subtitle="Text, pictures, video and voice on the house's providers. Studio pictures can also run on your own key (After Dark pictures)."
             provider="after-dark"
             tone={housePaused ? "paused" : "ok"}
             pill={housePaused ? "Something's paused" : "House keys"}

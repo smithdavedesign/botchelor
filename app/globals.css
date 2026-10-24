@@ -2868,6 +2868,14 @@ button.phone-earlier-btn:hover:not(:disabled) {
   /* A text can run long and keep its own line breaks (an agent's, a person's own model). */
   white-space: pre-wrap;
 }
+/* A photo in a text (lib/adult/shares.ts): the bubble's width, rounded like it. */
+.phone-photo {
+  display: block;
+  width: 100%;
+  max-width: 14rem;
+  border-radius: 0.8rem;
+  margin-bottom: 0.3rem;
+}
 .phone-bubble.chat-typing {
   min-height: 0;
   padding-block: 0.7rem;
@@ -8095,6 +8103,32 @@ a.phone-head-btn {
 .ad-studio-links {
   display: flex;
   flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* Studio v2: the own-key switch, a picture's share panel, where it went, and the hub's "Shared with you". */
+.ad-studio-own {
+  margin: var(--space-2) 0;
+}
+.ad-studio-share {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--ad-line, var(--line));
+  border-radius: 0.5rem;
+}
+.ad-studio-share select {
+  max-width: 100%;
+}
+.ad-studio-went {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0 0;
+}
+.ad-shared-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
   gap: var(--space-2);
 }
 /* The settings page's number fields, two or three to a row. */

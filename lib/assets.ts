@@ -9,7 +9,7 @@
  */
 import type { Db } from "./db";
 
-export const ASSET_KINDS = ["portrait", "expression", "background", "decoration", "clip"] as const;
+export const ASSET_KINDS = ["portrait", "expression", "background", "decoration", "clip", "photo"] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
 /** 'drawn' is what the app does today (generated from character data, no file). The rest need review. */

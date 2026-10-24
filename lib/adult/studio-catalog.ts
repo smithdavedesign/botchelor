@@ -352,6 +352,29 @@ function fit(before: string[], middle: string, after: string[]): string {
   return [...before, mid, ...after].filter(Boolean).join(" ");
 }
 
+/** What makes each picture of "More like this" differ from the one it's like, in turn. */
+export const VARIATION_HINTS = [
+  "the pose shifted slightly",
+  "the camera moved slightly to one side",
+  "a moment later, the expression changed slightly",
+  "the camera slightly closer",
+] as const;
+
+/**
+ * "More like this": the person from Picture 1 (with the body from Picture 2, when it's sent) as in the picture it's like,
+ * the last one sent, slightly different. The level is that picture's, so the closing words are the same.
+ */
+export function variationPrompt(subject: Subject, level: Level, refs: { body: boolean }, hint: string, strength: Strength = "balanced"): string {
+  const who = subject.noun === "person" ? "person" : subject.noun;
+  const like = refs.body ? 3 : 2;
+  const age = Math.max(IMAGE_MIN_AGE, Math.round(subject.age || IMAGE_MIN_AGE));
+  return fit(
+    [`Make one photograph of the ${who} from Picture 1${refs.body ? ", with the body from Picture 2" : ""}, like Picture ${like}.`, `A ${age}-year-old adult ${who}${subject.look ? `, ${subject.look}` : ""}.`, KEEP[strength]],
+    `The same clothes (or none), place, light and framing as Picture ${like}, with ${hint}. Only this one person in the picture, the face clearly visible.`,
+    [TAIL[level]],
+  );
+}
+
 /** A restyle's prompt: the same person as Picture 1, only these looks changed, framed like a baseline (the face clear). */
 export function restylePrompt(subject: Subject, changes: string[], light: string): string {
   const who = subject.noun === "person" ? "person" : subject.noun;
