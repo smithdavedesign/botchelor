@@ -41,13 +41,13 @@ export default function AdminPage() {
                 <strong>
                   {t.label} →
                 </strong>
+                {t.count && (
+                  <span className="admin-tile-count">
+                    <NewFeedbackCount />
+                  </span>
+                )}
                 <span className="muted small">{t.note}</span>
               </Link>
-              {t.count && (
-                <span className="admin-tile-count">
-                  <NewFeedbackCount />
-                </span>
-              )}
             </li>
           ))}
         </ul>
