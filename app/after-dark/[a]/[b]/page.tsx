@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { isAdmin } from "@/lib/admins";
 import { listMedia } from "@/lib/adult/media";
-import { facesFor } from "@/lib/adult/steering";
+import { facesFor, steerSummary } from "@/lib/adult/steering";
 import { listReels } from "@/lib/adult/reels";
 import { hiveNotice } from "@/lib/adult/hive-limit";
 import { listNights, openScene } from "@/lib/adult/scenes";
@@ -75,6 +75,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         reelTokens={(await getAdultSettings(db)).reel_tokens}
         hive={await hiveNotice(db)}
         faces={await facesFor(db, admin, [scene.a.id, scene.b.id])}
+        steer={await steerSummary(db, admin, [scene.a.id, scene.b.id])}
       />
     </article>
     </div>

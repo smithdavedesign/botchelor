@@ -24,6 +24,7 @@ import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 import { hiveNoticeText, type HiveNotice } from "@/lib/adult/hive-notice";
 import CharacterName from "@/app/CharacterName";
 import FacesPanel, { type Faces } from "./Faces";
+import type { SteerSummary } from "@/lib/adult/steering";
 import RateMedia from "./RateMedia";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
@@ -42,6 +43,7 @@ export default function SceneWriter({
   reelTokens = 15,
   hive = null,
   faces: firstFaces = {},
+  steer: firstSteer = {},
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -57,6 +59,8 @@ export default function SceneWriter({
   hive?: HiveNotice | null;
   /** The face each of them keeps for this viewer (lib/adult/steering.ts facesFor). */
   faces?: Faces;
+  /** What this viewer's ratings of each steer (lib/adult/steering.ts steerSummary). */
+  steer?: Record<string, SteerSummary>;
 }) {
   // Shown until the pause is over, then the buttons come back (the next one probes Hive first).
   const [hivePause, setHivePause] = useState(hive);
@@ -105,9 +109,13 @@ export default function SceneWriter({
   const [scene, setScene] = useState(initial);
   const [gallery, setGallery] = useState(firstGallery);
   const [faces, setFaces] = useState(firstFaces);
-  /** "Use this face" (null: back to the default): what went wrong, or null (lib/adult/steering.ts setFaceReference). */
-  async function pickFace(characterId: string, imageId: string | null): Promise<string | null> {
-    const res = await requestJson("/api/admin/after-dark/face", { character_id: characterId, image_id: imageId }).catch(() => null);
+  const [steer, setSteer] = useState(firstSteer);
+  /**
+   * "Use this face" (null: back to the default): what went wrong, or null (lib/adult/steering.ts setFaceReference).
+   * `rivals`: the others it was picked from in "Draw three", for the light test.
+   */
+  async function pickFace(characterId: string, imageId: string | null, rivals: string[] = []): Promise<string | null> {
+    const res = await requestJson("/api/admin/after-dark/face", { character_id: characterId, image_id: imageId, ...(rivals.length ? { rivals } : {}) }).catch(() => null);
     if (!res) return "That didn't reach the server. Check your connection and try again.";
     if (!res.ok) return res.message;
     setFaces((f) => ({ ...f, [characterId]: { image_id: (res.data.image_id as string | null) ?? null, picked: imageId !== null } }));
@@ -532,6 +540,8 @@ export default function SceneWriter({
         faces={faces}
         gallery={gallery}
         onFace={pickFace}
+        steer={steer}
+        onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
         onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
         paused={mediaPaused}
       />

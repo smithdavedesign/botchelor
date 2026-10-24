@@ -11,7 +11,10 @@
  *  - What was off becomes fixed words (steeringFor): a tag on any 👎 among their last dozen ratings of the character's
  *    pictures adds its fix to the next picture's prompt or negative prompt; on their videos, to the next shot's.
  *  - Which light and lens suits the character (choosePreset): a Thompson-sampling test over PICTURE_PRESETS, scored by
- *    their 👍 and 👎 on that character's pictures.
+ *    their 👍 and 👎 on that character's pictures, and by the faces they pick from "Draw three" (the two passed over
+ *    count half a 👎 each).
+ *  - What it's learned shows on the page (steerSummary), and "Start fresh" (resetSteering) sets it aside without deleting
+ *    a rating: those from before stop counting for that character.
  */
 import type { Db } from "../db";
 import { PICTURE_PRESETS, TAG_FIXES, tagsFor, type PresetId, type RatingTag } from "./rating-tags";
@@ -73,7 +76,8 @@ export async function steeringFor(db: Db, viewerId: string, characterIds: (strin
     `select video, rating, tags from (
        select i.kind = 'video' as video, r.rating, r.tags, row_number() over (partition by i.kind = 'video' order by r.updated_at desc) as n
          from adult_media_thumbs r join adult_images i on i.id = r.media_id
-        where r.owner_id = $1 and (i.character_id = any($2) or i.character_b = any($2))
+         ${SINCE_RESETS}
+        where r.owner_id = $1 and (i.character_id = any($2) or i.character_b = any($2)) and ${COUNTS_SINCE_RESETS}
      ) newest where n <= $3`,
     [viewerId, ids, STEER_WINDOW],
   );
@@ -83,6 +87,45 @@ export async function steeringFor(db: Db, viewerId: string, characterIds: (strin
   const fixes = (on: Set<string>, k: "positive" | "negative" | "video") => all.filter((t) => on.has(t)).map((t) => TAG_FIXES[t][k]).filter((x): x is string => Boolean(x));
   return { tags: all.filter((t) => pictures.has(t) || videos.has(t)), positive: fixes(pictures, "positive"), negative: fixes(pictures, "negative"), video: fixes(videos, "video") };
 }
+
+/**
+ * "Start fresh" (resetSteering): a rating counts only if it was made after the viewer's reset of every character in the
+ * picture. SQL for a query over `adult_media_thumbs r join adult_images i`.
+ */
+const SINCE_RESETS = `left join adult_steer_resets ra on ra.owner_id = r.owner_id and ra.character_id = i.character_id
+         left join adult_steer_resets rb on rb.owner_id = r.owner_id and rb.character_id = i.character_b`;
+const COUNTS_SINCE_RESETS = `r.updated_at > coalesce(ra.reset_at, '-infinity'::timestamptz) and r.updated_at > coalesce(rb.reset_at, '-infinity'::timestamptz)`;
+
+/** Whether the viewer 👎'd this picture or video (a beat picture they 👎'd doesn't start a shot: lib/adult/beats.ts). */
+export async function thumbsDown(db: Db, viewerId: string, mediaId: string): Promise<boolean> {
+  return (await db.query(`select 1 from adult_media_thumbs where owner_id = $1 and media_id = $2 and rating < 0`, [viewerId, mediaId])).rows.length > 0;
+}
+
+/** "Start fresh": what this viewer's ratings of the character steer is set aside from now (nothing is deleted). */
+export async function resetSteering(db: Db, viewerId: string, characterId: string): Promise<void> {
+  await db.query(
+    `insert into adult_steer_resets (owner_id, character_id) values ($1, $2) on conflict (owner_id, character_id) do update set reset_at = now()`,
+    [viewerId, characterId],
+  );
+}
+
+export type SteerSummary = { avoid: RatingTag[]; light: PresetId | null };
+
+/**
+ * What the viewer's ratings steer for each character, for the page (David's competitor research, 2026-10-24: show it,
+ * and let them reset it): the tags it steers away from, and the light that has done best (a preset with a 👍, by its
+ * mean), or null while there's nothing to go on.
+ */
+export async function steerSummary(db: Db, viewerId: string, characterIds: string[]): Promise<Record<string, SteerSummary>> {
+  const out: Record<string, SteerSummary> = {};
+  for (const id of characterIds) {
+    const [steer, tally] = await Promise.all([steeringFor(db, viewerId, [id]), presetTally(db, viewerId, id)]);
+    const lit = PICTURE_PRESETS.filter((p) => tally[p.id].up > 0).sort((p, q) => mean(tally[q.id]) - mean(tally[p.id]));
+    out[id] = { avoid: steer.tags, light: lit[0]?.id ?? null };
+  }
+  return out;
+}
+const mean = (t: { up: number; down: number }) => (1 + t.up) / (2 + t.up + t.down);
 
 /** A picture prompt with the viewer's fixes in, before the closing words about adults (the prompt's last sentence). */
 export function withSteering(prompt: string, steer: Steering, presetWords: string | null = null): string {
@@ -149,7 +192,7 @@ export type FaceResult = { ok: true; image_id: string | null } | { ok: false; st
  * becomes the face their pictures and videos of the character keep. Picking a face is also a 👍 on it. `imageId` null
  * goes back to the default (faceReferenceId's 2 to 4).
  */
-export async function setFaceReference(db: Db, viewerId: string, characterId: string, imageId: string | null): Promise<FaceResult> {
+export async function setFaceReference(db: Db, viewerId: string, characterId: string, imageId: string | null, rivals: string[] = []): Promise<FaceResult> {
   if (imageId === null) {
     await db.query(`delete from adult_face_refs where owner_id = $1 and character_id = $2`, [viewerId, characterId]);
     return { ok: true, image_id: await faceReferenceId(db, viewerId, characterId) };
@@ -164,7 +207,28 @@ export async function setFaceReference(db: Db, viewerId: string, characterId: st
     [viewerId, characterId, imageId],
   );
   await db.query(`insert into adult_media_thumbs (owner_id, media_id, rating) values ($1, $2, 1) on conflict (owner_id, media_id) do nothing`, [viewerId, imageId]);
+  await recordLightPick(db, viewerId, characterId, imageId, rivals);
   return { ok: true, image_id: imageId };
+}
+
+/**
+ * A face picked from "Draw three" is a ranking of the lights: the kept one's 👍 already counts, and each light passed over
+ * counts half a 👎 (half, because the pick is of the face as much as the light). Only the viewer's own baselines of the
+ * character alone, with a preset, count as rivals.
+ */
+async function recordLightPick(db: Db, viewerId: string, characterId: string, imageId: string, rivals: string[]): Promise<void> {
+  const others = [...new Set(rivals.filter((r) => r !== imageId))].slice(0, 4);
+  if (!others.length) return;
+  const { rows } = await db.query<{ id: string; preset: string }>(
+    `select id, preset from adult_images where id = any($1) and owner_id = $2 and character_id = $3 and character_b is null
+        and kind = 'baseline' and status = 'ready' and preset is not null`,
+    [[imageId, ...others], viewerId, characterId],
+  );
+  const picked = rows.find((r) => r.id === imageId)?.preset;
+  if (!picked) return;
+  const passed = [...new Set(rows.filter((r) => r.id !== imageId).map((r) => r.preset))].filter((p) => p !== picked);
+  if (!passed.length) return;
+  await db.query(`insert into adult_light_picks (owner_id, character_id, picked, passed) values ($1, $2, $3, $4::jsonb)`, [viewerId, characterId, picked, JSON.stringify(passed)]);
 }
 
 /* ------------------------------------------------- the presets ------------------------------------------------- */
@@ -197,17 +261,33 @@ export function betaSample(a: number, b: number, rng: () => number = Math.random
   return x / (x + gamma(b, rng));
 }
 
-/** Each preset's 👍 and 👎 from this viewer on this character's pictures. */
+/**
+ * Each preset's 👍 and 👎 from this viewer on this character's pictures, plus half a 👎 for each light passed over in a
+ * "Draw three" pick; since their last "Start fresh".
+ */
 export async function presetTally(db: Db, viewerId: string, characterId: string): Promise<Record<PresetId, { up: number; down: number }>> {
   const out = Object.fromEntries(PICTURE_PRESETS.map((p) => [p.id, { up: 0, down: 0 }])) as Record<PresetId, { up: number; down: number }>;
   const { rows } = await db.query<{ preset: string; rating: number }>(
     `select i.preset, r.rating from adult_media_thumbs r join adult_images i on i.id = r.media_id
-      where r.owner_id = $1 and i.character_id = $2 and i.character_b is null and i.kind in ('baseline', 'scene') and i.preset is not null`,
+       left join adult_steer_resets z on z.owner_id = r.owner_id and z.character_id = i.character_id
+      where r.owner_id = $1 and i.character_id = $2 and i.character_b is null and i.kind in ('baseline', 'scene') and i.preset is not null
+        and r.updated_at > coalesce(z.reset_at, '-infinity'::timestamptz)`,
     [viewerId, characterId],
   );
   for (const r of rows) {
     const p = out[r.preset as PresetId];
     if (p) p[r.rating > 0 ? "up" : "down"]++;
+  }
+  const picks = await db.query<{ passed: string[] }>(
+    `select p.passed from adult_light_picks p left join adult_steer_resets z on z.owner_id = p.owner_id and z.character_id = p.character_id
+      where p.owner_id = $1 and p.character_id = $2 and p.created_at > coalesce(z.reset_at, '-infinity'::timestamptz)`,
+    [viewerId, characterId],
+  );
+  for (const pick of picks.rows) {
+    for (const id of pick.passed ?? []) {
+      const p = out[id as PresetId];
+      if (p) p.down += 0.5;
+    }
   }
   return out;
 }

@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { POST as baselinesPost } from "@/app/api/admin/after-dark/baselines/route";
 import { POST as facePost } from "@/app/api/admin/after-dark/face/route";
 import { POST as ratePost } from "@/app/api/admin/after-dark/rate/route";
+import { POST as steerPost } from "@/app/api/admin/after-dark/steer/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { baselinePrompt, drawBaselineChoices, listMedia, makePicture, setMediaFetchForTests } from "@/lib/adult/media";
@@ -15,7 +16,9 @@ import {
   NO_STEERING,
   presetTally,
   rateMedia,
+  resetSteering,
   setFaceReference,
+  steerSummary,
   steeringFor,
   STEER_WINDOW,
   withSteering,
@@ -384,5 +387,59 @@ describe("the gallery", () => {
     expect(await listMedia(t.db, [JUNIPER, RAFE], sub.id)).toMatchObject([{ id: mine, rating: -1, face: true }]);
     expect(await listMedia(t.db, [JUNIPER, RAFE], adminId)).toHaveLength(2);
     expect((await listMedia(t.db, [JUNIPER, RAFE], adminId)).every((m) => m.rating === null && !m.face)).toBe(true);
+  });
+});
+
+describe("what the page shows, and Start fresh", () => {
+  it("sums up what the ratings steer and the light that's done best; Start fresh sets it aside and deletes nothing", async () => {
+    const { id } = await admin();
+    const warm = await picture(id, JUNIPER, { kind: "scene", preset: "warm" });
+    const studio = await picture(id, JUNIPER, { kind: "scene", preset: "studio" });
+    await rateAt(id, warm, 1, [], 20);
+    await rateAt(id, studio, -1, ["blurry", "pose"], 10);
+    expect(await steerSummary(t.db, id, [JUNIPER, RAFE])).toEqual({ [JUNIPER]: { avoid: ["pose", "blurry"], light: "warm" }, [RAFE]: { avoid: [], light: null } });
+    await resetSteering(t.db, id, JUNIPER);
+    expect(await steerSummary(t.db, id, [JUNIPER])).toEqual({ [JUNIPER]: { avoid: [], light: null } });
+    expect(await steeringFor(t.db, id, [JUNIPER])).toEqual(NO_STEERING);
+    // Kept: the ratings are all still there.
+    expect((await t.db.query(`select 1 from adult_media_thumbs where owner_id = $1`, [id])).rows).toHaveLength(2);
+    // A rating since counts again; another character's are untouched.
+    await rateMedia(t.db, id, studio, -1, ["anatomy"]);
+    expect((await steeringFor(t.db, id, [JUNIPER])).tags).toEqual(["anatomy"]);
+    const rafe = await picture(id, RAFE, { kind: "scene" });
+    await rateMedia(t.db, id, rafe, -1, ["outfit"]);
+    expect((await steeringFor(t.db, id, [RAFE])).tags).toEqual(["outfit"]);
+    // A picture of the two of them, rated before Juniper's reset, no longer counts for either of them.
+    const both = await picture(id, RAFE, { kind: "scene", b: JUNIPER });
+    await rateAt(id, both, -1, ["body"], 30);
+    expect((await steeringFor(t.db, id, [RAFE])).tags).toEqual(["outfit"]);
+  });
+
+  it("learns from a face picked out of Draw three: each light passed over counts half a 👎", async () => {
+    const { id } = await admin();
+    const [natural, warm, studio] = [await picture(id, JUNIPER, { preset: "natural" }), await picture(id, JUNIPER, { preset: "warm" }), await picture(id, JUNIPER, { preset: "studio" })];
+    const notMine = await picture((await subscriber()).id, JUNIPER, { preset: "natural" });
+    expect(await setFaceReference(t.db, id, JUNIPER, warm, [natural, studio, notMine, "no-such-picture"])).toEqual({ ok: true, image_id: warm });
+    expect(await presetTally(t.db, id, JUNIPER)).toEqual({ natural: { up: 0, down: 0.5 }, warm: { up: 1, down: 0 }, studio: { up: 0, down: 0.5 } });
+    // From the gallery (no rivals) it's a 👍 and no ranking.
+    await setFaceReference(t.db, id, JUNIPER, natural);
+    expect(await presetTally(t.db, id, JUNIPER)).toEqual({ natural: { up: 1, down: 0.5 }, warm: { up: 1, down: 0 }, studio: { up: 0, down: 0.5 } });
+    // Start fresh sets the picks aside too.
+    await resetSteering(t.db, id, JUNIPER);
+    expect(await presetTally(t.db, id, JUNIPER)).toEqual({ natural: { up: 0, down: 0 }, warm: { up: 0, down: 0 }, studio: { up: 0, down: 0 } });
+  });
+
+  it("over its routes: Start fresh hidden for a character outside After Dark; a face with its rivals teaches the light test", async () => {
+    const sub = await subscriber();
+    await setUp((await admin()).cookie);
+    expect((await call(steerPost, "/api/admin/after-dark/steer", { character_id: "nobody", reset: true }, sub.cookie)).status).toBe(404);
+    expect((await call(steerPost, "/api/admin/after-dark/steer", { character_id: JUNIPER }, sub.cookie)).status).toBe(422);
+    const studio = await picture(sub.id, JUNIPER, { kind: "scene", preset: "studio" });
+    await rateMedia(t.db, sub.id, studio, -1, ["blurry"]);
+    const res = await call(steerPost, "/api/admin/after-dark/steer", { character_id: JUNIPER, reset: true }, sub.cookie);
+    expect(await res.json()).toEqual({ steer: { avoid: [], light: null } });
+    const [a, b] = [await picture(sub.id, JUNIPER, { preset: "natural" }), await picture(sub.id, JUNIPER, { preset: "warm" })];
+    expect((await call(facePost, "/api/admin/after-dark/face", { character_id: JUNIPER, image_id: b, rivals: [a] }, sub.cookie)).status).toBe(200);
+    expect((await presetTally(t.db, sub.id, JUNIPER)).natural).toEqual({ up: 0, down: 0.5 });
   });
 });

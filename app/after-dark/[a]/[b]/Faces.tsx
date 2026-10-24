@@ -4,9 +4,14 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import CharacterName from "@/app/CharacterName";
 import type { Media } from "@/lib/adult/media";
+import { PICTURE_PRESETS, PICTURE_TAGS, VIDEO_TAGS, type RatingTag } from "@/lib/adult/rating-tags";
+import type { SteerSummary } from "@/lib/adult/steering";
 import type { CharacterRef } from "@/lib/game";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
+
+/** A tag as the line under a face says it: "odd pose", "jerky or morphing". */
+const tagWords = (t: RatingTag) => ((PICTURE_TAGS as Record<string, string>)[t] ?? (VIDEO_TAGS as Record<string, string>)[t] ?? t).toLowerCase();
 
 /** Each one's face for this viewer (lib/adult/steering.ts facesFor), and whether they picked it. */
 export type Faces = Record<string, { image_id: string | null; picked: boolean }>;
@@ -15,21 +20,26 @@ export type Faces = Record<string, { image_id: string | null; picked: boolean }>
  * The face each of them keeps (lib/adult/steering.ts): every picture and video of them starts from it. It's the one
  * the viewer picked ("Use this face", here or on any picture of them alone), else their best-rated waist-up picture.
  * "Draw three to pick from" makes three waist-up pictures of one of them, one in each light (lib/adult/media.ts
- * drawBaselineChoices): the framing never changes, so it's the face that's compared.
+ * drawBaselineChoices): the framing never changes, so it's the face that's compared. Under each face, what the viewer's
+ * ratings of them steer, and "Start fresh" (lib/adult/steering.ts steerSummary, resetSteering).
  */
 export default function FacesPanel({
   characters,
   faces,
   gallery,
   onFace,
+  steer = {},
+  onSteerReset,
   onPictures,
   paused = null,
 }: {
   characters: [CharacterRef, CharacterRef];
   faces: Faces;
   gallery: Media[];
-  /** Picks a face (null: back to the default); resolves to what went wrong, or null. */
-  onFace: (characterId: string, imageId: string | null) => Promise<string | null>;
+  /** Picks a face (null: back to the default), with the others it was picked from; resolves to what went wrong, or null. */
+  onFace: (characterId: string, imageId: string | null, rivals?: string[]) => Promise<string | null>;
+  steer?: Record<string, SteerSummary>;
+  onSteerReset?: (characterId: string, next: SteerSummary) => void;
   onPictures: (pictures: Media[]) => void;
   paused?: string | null;
 }) {
@@ -37,12 +47,22 @@ export default function FacesPanel({
     <section className="ad-faces">
       <h2>Their faces</h2>
       <p className="muted small">
-        Every picture and video of them keeps this face. Pick the one most like them; your 👍 and 👎 on their pictures steer the rest, for you alone.
+        Every picture and video of them keeps this face. Pick the one most like them; your 👍 and 👎 on their pictures steer the rest. Your ratings only
+        change your own pictures: they never train a model.
       </p>
       <ul className="ad-faces-list">
         {characters.map((c) => (
           <li key={c.id}>
-            <FaceCard character={c} face={faces[c.id] ?? { image_id: null, picked: false }} gallery={gallery} onFace={onFace} onPictures={onPictures} paused={paused} />
+            <FaceCard
+              character={c}
+              face={faces[c.id] ?? { image_id: null, picked: false }}
+              gallery={gallery}
+              onFace={onFace}
+              steer={steer[c.id] ?? { avoid: [], light: null }}
+              onSteerReset={onSteerReset}
+              onPictures={onPictures}
+              paused={paused}
+            />
           </li>
         ))}
       </ul>
@@ -55,13 +75,17 @@ function FaceCard({
   face,
   gallery,
   onFace,
+  steer,
+  onSteerReset,
   onPictures,
   paused,
 }: {
   character: CharacterRef;
   face: Faces[string];
   gallery: Media[];
-  onFace: (characterId: string, imageId: string | null) => Promise<string | null>;
+  onFace: (characterId: string, imageId: string | null, rivals?: string[]) => Promise<string | null>;
+  steer: SteerSummary;
+  onSteerReset?: (characterId: string, next: SteerSummary) => void;
   onPictures: (pictures: Media[]) => void;
   paused: string | null;
 }) {
@@ -86,14 +110,27 @@ function FaceCard({
     if (failed) setNote(`${failed} of the three didn't come through.`);
   }
 
+  /** Keeps a face; picked from the three, the other two tell the light test which lights were passed over. */
   async function use(id: string | null) {
     setBusy(true);
     setNote(null);
-    const error = await onFace(character.id, id);
+    const rivals = id && choices.some((m) => m.id === id) ? choices.filter((m) => m.id !== id).map((m) => m.id) : [];
+    const error = await onFace(character.id, id, rivals);
     setBusy(false);
     if (error) return setNote(error);
     if (id) setChoices([]);
   }
+
+  /** "Start fresh": what their ratings of this character steer is set aside (nothing is deleted). */
+  async function startFresh() {
+    setBusy(true);
+    setNote(null);
+    const res = await requestJson("/api/admin/after-dark/steer", { character_id: character.id, reset: true }).catch(() => null);
+    setBusy(false);
+    if (!res?.ok) return setNote(res?.message ?? "That didn't reach the server. Check your connection and try again.");
+    onSteerReset?.(character.id, (res.data.steer as SteerSummary | undefined) ?? { avoid: [], light: null });
+  }
+  const light = PICTURE_PRESETS.find((p) => p.id === steer.light);
 
   return (
     <div className="ad-face">
@@ -109,6 +146,11 @@ function FaceCard({
         </p>
       )}
       {face.image_id && <p className="muted small">{face.picked ? "You picked this face." : "Picked for you: your best-rated picture of them, else the newest."}</p>}
+      {/* What their ratings steer (lib/adult/steering.ts steerSummary): a viewer sees it working, and can set it aside. */}
+      <p className="muted small ad-face-steer">
+        {steer.avoid.length ? `Your ratings steer away from: ${steer.avoid.map(tagWords).join(", ")}.` : "Nothing for your ratings to steer yet."}
+        {light ? ` Light that suits them: ${light.label.toLowerCase()}.` : ""}
+      </p>
       <div className="ad-face-actions">
         <button
           type="button"
@@ -122,6 +164,17 @@ function FaceCard({
         {face.picked && (
           <button type="button" className="button-ghost small" disabled={busy} onClick={() => void use(null)}>
             Let it pick for me
+          </button>
+        )}
+        {(steer.avoid.length > 0 || light) && (
+          <button
+            type="button"
+            className="button-ghost small"
+            disabled={busy}
+            onClick={() => void startFresh()}
+            title="Set aside what your ratings of them have steered so far. Nothing is deleted."
+          >
+            Start fresh
           </button>
         )}
       </div>
