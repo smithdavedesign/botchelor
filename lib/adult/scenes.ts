@@ -111,6 +111,7 @@ import { DEFAULT_PROMPT_VERSION, getAdultSettings, SCENE_PROMPT_REVISION, type A
 import { carriesQuote, quotedSpans, quotesKept, steerQuotes, withoutQuotes, type QuoteCheck, type SteerQuote } from "./quotes";
 import { kickAutoPicture } from "./auto-pictures";
 import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
+import { ACTION_ONLY_MAX, ACTION_ONLY_WINDOW, actionOnlyRun, checkAsides, misattributedQuote, overusedTics, TIC_CAP, withoutQuote, withoutTics } from "./asides";
 export { SOFT_CHAPTERS } from "./stages";
 
 /**
@@ -633,6 +634,16 @@ function craftLines(
         `- ${first(who)} said something clinical in ${recent.length} of ${poss(who)} last ${Math.min(CLINICAL_EVERY - 1, lines.filter((l) => l.who === who).length)} lines (${words.map((w) => `"${w}"`).join(", ")}): that's one line in ${CLINICAL_EVERY} at most. From here ${poss(who)} lines say plainly what ${kind(who) ?? "they"} ${(kind(who) ?? "they") === "they" ? "feel, want or do" : "feels, wants or does"}; a line in that register loses it.`,
       );
     }
+    // v2.6 (Chud × Juniper replayed on v2.5: "'Kay." nine times, and run after run of lines that were only an action):
+    // an interjection said TIC_CAP times is named like a worn phrase, and a run of action-only lines is pointed out.
+    for (const who of ["a", "b"] as const) {
+      const tics = overusedTics(lines, who).slice(0, 4);
+      if (tics.length) notes.push(`- ${first(who)} keeps saying the same short word (${tics.map((t) => `"${t}"`).join(", ")}): not again; a line that says it loses it.`);
+      const run = actionOnlyRun(lines, who);
+      if (run >= ACTION_ONLY_MAX) {
+        notes.push(`- ${run} of ${first(who)}'s last ${ACTION_ONLY_WINDOW} lines were only an action: ${poss(who)} next lines say something too, what ${kind(who) ?? "they"} ${(kind(who) ?? "they") === "they" ? "feel or want" : "feels or wants"}, in ${poss(who)} own words.`);
+      }
+    }
   }
   if (now.publicPlace && now.stage >= 1) {
     notes.push(
@@ -1054,7 +1065,7 @@ const CRITIC_WINDOW = SCENE_IN_PROMPT;
 export type DroppedLine = { who: "a" | "b"; text: string; reason: string };
 
 /** What v2.2's craft guards (and v2.4's topic budget) took out on the way in, in lines that lost a part or went (dropRepeats). */
-export type CraftCuts = { hooks: number; tells: number; actions: number; openings: number; build_ups: number; topics: number; clinical: number };
+export type CraftCuts = { hooks: number; tells: number; actions: number; openings: number; build_ups: number; topics: number; clinical: number; tics: number };
 
 /**
  * v2.4's topic budget for a step (lib/adult/quality.ts topicsOf): the stage it's written at (one line in 6 says their
@@ -1117,7 +1128,7 @@ export function dropRepeats(
   const counts = opts.worn ? { a: countPhrases(night.filter((l) => l.who === "a"), named), b: countPhrases(night.filter((l) => l.who === "b"), named) } : null;
   let worn = 0;
   // v2.2: the hooks flagged tonight (once flagged, held to their share), and each one's tells.
-  const cuts: CraftCuts = { hooks: 0, tells: 0, actions: 0, openings: 0, build_ups: 0, topics: 0, clinical: 0 };
+  const cuts: CraftCuts = { hooks: 0, tells: 0, actions: 0, openings: 0, build_ups: 0, topics: 0, clinical: 0, tics: 0 };
   const pair = [a?.name ?? "", b?.name ?? ""];
   const hooks = opts.craft ? { a: flaggedHooks(night, "a", pair), b: flaggedHooks(night, "b", pair) } : { a: [], b: [] };
   const tells = { a: sheetTells(a), b: sheetTells(b) };
@@ -1275,6 +1286,19 @@ export function dropRepeats(
         }
       }
     }
+    // v2.6: the same short interjection past TIC_CAP times this chapter by its speaker ("'Kay." nine times) loses that
+    // sentence; an action stays, even alone, and the line goes when nothing's left.
+    if (clinical) {
+      const tic = withoutTics(text, mine.map((x) => x.text), clinical);
+      if (tic.cut.length) {
+        cuts.tics++;
+        if (!tic.text) {
+          drop(l, `a tic again ("${tic.cut[0]}"; ${TIC_CAP} times a chapter at most)`);
+          continue;
+        }
+        text = tic.text;
+      }
+    }
     const line = text === l.text ? l : { ...l, text };
     kept.push(line);
     if (counts) for (const p of phrasesIn(line.text, named)) counts[l.who].set(p, (counts[l.who].get(p) ?? 0) + 1);
@@ -1401,6 +1425,20 @@ export type StepFlags = {
   fragments_repaired: number;
   /** v2.5: lines that lost a part, or went, for the clinical register past its share from undressing on (dropRepeats). */
   clinical_cut?: number;
+  /**
+   * v2.6, from undressing on (lib/adult/asides.ts): lines that lost an interjection said past TIC_CAP this chapter;
+   * a steer's quote said by the wrong one of them (taken out of that line) and moved to its speaker's line; and the
+   * aside check: lines it rewrote plainly, whether it failed (an error, a timeout, an unreadable reply: the lines stood),
+   * how many lines it marked, and how long it took.
+   */
+  tics_cut?: number;
+  quotes_misattributed?: number;
+  quotes_moved?: number;
+  asides_rewritten?: number;
+  aside_check_failed?: boolean;
+  asides_marked?: number;
+  aside_check_ms?: number;
+  aside_usage?: { input: number; output: number; cost?: number };
   empty_retry?: boolean;
   /** The director: lines dropped for saying a whisper out loud; suggestions replaced by a plain one, or left out. */
   whispers_said?: number;
@@ -1642,6 +1680,35 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       }
       inScene.push(played.text === l.text ? l : { ...l, text: played.text });
     }
+    // v2.6: a quote the steer gave one of them by name, said by the other (Chud × Juniper replayed on v2.5, twice), goes
+    // to its speaker's nearest line (after its action) when they have one here that doesn't say it, and comes out of
+    // the wrong line either way; the line goes when nothing's left of it.
+    for (let i = 0; i < inScene.length; i++) {
+      const l = inScene[i];
+      const q = misattributedQuote(quotes, l);
+      if (!q) continue;
+      const out = withoutQuote(l.text, q.text);
+      const owner = q.who!;
+      if (!inScene.some((x) => x.who === owner && carriesQuote([q], x))) {
+        const near = inScene.map((x, j) => ({ x, j })).filter((y) => y.x.who === owner).sort((y, z) => Math.abs(y.j - i) - Math.abs(z.j - i) || z.j - y.j)[0];
+        if (near && out.said) {
+          const action = /^\s*\*[^*]+\*/.exec(near.x.text)?.[0]?.trim() ?? "";
+          const rest = near.x.text.slice(near.x.text.indexOf(action) + action.length).trim();
+          const moved = [action, out.said, rest].filter(Boolean).join(" ");
+          if (checkAdultText({ line: moved }).ok) {
+            inScene[near.j] = { ...near.x, text: moved };
+            flags.quotes_moved = (flags.quotes_moved ?? 0) + 1;
+          }
+        }
+      }
+      flags.quotes_misattributed = (flags.quotes_misattributed ?? 0) + 1;
+      if (out.text) inScene[i] = { ...l, text: out.text };
+      else {
+        drops.push({ who: l.who, text: l.text, reason: `said the steer's quote meant for ${givenName(names[owner])}` });
+        inScene.splice(i, 1);
+        i--;
+      }
+    }
     // v2.1: in a public place, a line showing more than kissing goes (publicCap), until these lines agree to go somewhere
     // (a yes here, or one just before and them going here: lib/adult/continuity.ts shownMove).
     let publicDropped = 0;
@@ -1695,12 +1762,41 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     flags.build_ups_cut += reps.cuts.build_ups;
     flags.topics_cut += reps.cuts.topics;
     flags.clinical_cut = (flags.clinical_cut ?? 0) + reps.cuts.clinical;
+    if (reps.cuts.tics) flags.tics_cut = (flags.tics_cut ?? 0) + reps.cuts.tics;
     flags.alternation_merged += turns.merged;
     flags.alternation_dropped += turns.dropped.length;
     dropped.push(...drops, ...reps.dropped, ...turns.dropped);
     // Only repeats stood in the way (the note, and the message, say so as before).
     const onlyRepeats = reps.dropped.length > 0 && refused + named + publicDropped + turns.dropped.length + hardHits.length + limited === 0;
     return { raw, written, safe, kept: turns.kept, boundary: turns.boundary, onlyRepeats, repeated: reps.dropped, hardHits };
+  };
+
+  /**
+   * v2.6: an aside check's rewrite of a kept line, held to everything a written line is: the two lines, the hard nos and
+   * the intensity, a refusal, the names, the steer and whispers not copied, a quote not given to the wrong one, no further
+   * than the line it replaces showed, and the repeat and craft guards against tonight and the step's other lines.
+   * Null (the line stays as written) when it doesn't pass.
+   */
+  const screenRewrite = (l: SceneLine, proposed: string, others: readonly SceneLine[]): string | null => {
+    if (!checkAdultText({ line: proposed }).ok) return null;
+    if (hardNoHit(proposed, limits.hard_nos) || limitsHit(proposed, { intensity: limits.intensity, hard_nos: { chips: [], own: [] } })) return null;
+    if (refusalIn(proposed)) return null;
+    const g = guardNames(proposed, { a: names.a, b: names.b, cast: input.cast });
+    if (g.stranger) return null;
+    let text: string | null = withoutSteerCopy(g.text, copyRule)?.text ?? null;
+    for (const w of whispered) text = text === null ? null : (withoutSteerCopy(text, w)?.text ?? null);
+    if (!text || text !== g.text) return null;
+    if ((stageShown(text) ?? 0) > Math.max(stageShown(l.text) ?? 0, l.stage ?? 0)) return null;
+    if (misattributedQuote(quotes, { who: l.who, text })) return null;
+    const reps = dropRepeats([{ ...l, text }], [...night, ...others], [...scene.lines, ...others], a, b, {
+      worn: true,
+      craft: true,
+      quotes,
+      topics: { stage: Math.max(scene.stage, l.stage ?? 0), steered: [steer, ...whispered] },
+    });
+    if (reps.kept.length !== 1 || reps.kept[0].text !== text) return null;
+    if ((showLines.length && repeatOf(text, showLines)) || copiedRun(text, ownLines[l.who])) return null;
+    return text;
   };
 
   let out: ReturnType<typeof guard>;
@@ -1874,7 +1970,47 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   // stage floor raises a claim that ran behind the lines), until a climax or when the last chapter ended in an afterglow.
   if (floor !== null && claimed < floor) flags.stage_floor_raised = true;
   const { perLine, stage } = stagesFor(kept, Math.max(scene.stage, floor ?? 0), floor !== null ? Math.max(claimed, floor) : claimed);
-  const stamped = kept.map((l, i) => ({ ...l, stage: perLine[i] }));
+  let stamped = kept.map((l, i) => ({ ...l, stage: perLine[i] }));
+  // v2.6, from undressing on (lib/adult/asides.ts): one short call on the same model marks the dry or technical asides
+  // and the metaphor commentary, and the excess past about one line in six of a speaker's takes a plain rewrite. Each
+  // rewrite goes through the guards a written line does, and the line stays as written when it doesn't pass. Fail-open.
+  if (v2 && stamped.some((l) => (l.stage ?? 0) >= UNDRESSING)) {
+    const batch = stamped;
+    const check = await checkAsides(
+      input.model,
+      {
+        history: night,
+        batch,
+        names,
+        quotes,
+        // A line before undressing, a move, a proposal to go somewhere, or a quoted steer line is never rewritten.
+        keep: (i) => (batch[i].stage ?? 0) < UNDRESSING || Boolean(batch[i].moved_to) || proposesMove(batch[i].text) || (quotes.length > 0 && carriesQuote(quotes, batch[i])),
+      },
+      {
+        // Its tokens and cost are the step's (the month's cap counts steps), and logged on their own for the check's cost.
+        onUsage: (u) => {
+          usage.push(u);
+          flags.aside_usage = { input: u.input, output: u.output, ...(typeof u.cost === "number" ? { cost: u.cost } : {}) };
+        },
+        onServed: options.onServed,
+      },
+    );
+    flags.aside_check_ms = check.ms;
+    flags.asides_marked = check.marked;
+    if (check.failed) flags.aside_check_failed = true;
+    let rewritten = 0;
+    const next = [...batch];
+    for (const [i, proposed] of check.proposed) {
+      const l = batch[i];
+      const others = next.filter((_, j) => j !== i);
+      const text = screenRewrite(l, proposed, others);
+      if (!text) continue;
+      next[i] = { ...l, text };
+      rewritten++;
+    }
+    flags.asides_rewritten = rewritten;
+    stamped = next;
+  }
   if (quotes.length) {
     flags.quotes = quotesKept(quotes, stamped);
     flags.quote_kept = flags.quotes.every((q) => q.kept);

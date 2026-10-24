@@ -203,8 +203,9 @@ describe("the wry asides rationed, and the clinical register held to its share, 
     expect(at(2)).not.toContain("said something clinical");
   });
 
-  it("through a step: the cut is counted in the flags, and the step says it's v2.5", async () => {
-    expect(SCENE_PROMPT_REVISION).toBe("v2.5");
+  it("through a step: the cut is counted in the flags, and the step says which revision wrote it", async () => {
+    // v2.6 changed v2 in place again (tests/after-dark-v26.test.ts).
+    expect(SCENE_PROMPT_REVISION).toBe("v2.6");
     const calls: ChatMessage[][] = [];
     const model: Model = {
       complete: async (m) => {
@@ -239,7 +240,7 @@ describe("the wry asides rationed, and the clinical register held to its share, 
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.lines.map((l) => l.text)).toEqual(["Then hold on.", "Don't stop."]);
-    expect(r.flags).toMatchObject({ prompt: "v2.5", clinical_cut: 1 });
+    expect(r.flags).toMatchObject({ prompt: "v2.6", clinical_cut: 1 });
   });
 });
 

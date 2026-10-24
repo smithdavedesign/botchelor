@@ -1369,6 +1369,8 @@ describe("the steer: a nudge by default, direct on request", () => {
     let prompt = "";
     setAdultModelForTests({
       complete: async (msgs: { content: string }[]) => {
+        // v2.6: the aside check's own call (from undressing on) isn't the scene's prompt.
+        if (msgs[0].content.startsWith("You are an editor")) return JSON.stringify({ asides: [] });
         prompt = msgs[1].content;
         return JSON.stringify({ lines: [{ who: "a", text: "Hi." }], stage: 5 });
       },
