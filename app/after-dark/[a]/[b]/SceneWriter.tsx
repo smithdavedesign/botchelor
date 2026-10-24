@@ -114,11 +114,21 @@ export default function SceneWriter({
    * "Use this face" (null: back to the default): what went wrong, or null (lib/adult/steering.ts setFaceReference).
    * `rivals`: the others it was picked from in "Draw three", for the light test.
    */
-  async function pickFace(characterId: string, imageId: string | null, rivals: string[] = []): Promise<string | null> {
-    const res = await requestJson("/api/admin/after-dark/face", { character_id: characterId, image_id: imageId, ...(rivals.length ? { rivals } : {}) }).catch(() => null);
+  async function pickFace(characterId: string, imageId: string | null, rivals: string[] = [], opts: { nude?: boolean } = {}): Promise<string | null> {
+    const res = await requestJson("/api/admin/after-dark/face", {
+      character_id: characterId,
+      image_id: imageId,
+      ...(rivals.length ? { rivals } : {}),
+      ...(opts.nude ? { nude: true } : {}),
+    }).catch(() => null);
     if (!res) return "That didn't reach the server. Check your connection and try again.";
     if (!res.ok) return res.message;
-    setFaces((f) => ({ ...f, [characterId]: { image_id: (res.data.image_id as string | null) ?? null, picked: imageId !== null } }));
+    // The server says which face it was: a nude baseline is the face of their undressed moments (lib/adult/attire.ts).
+    const face = { image_id: (res.data.image_id as string | null) ?? null, picked: imageId !== null };
+    setFaces((f) => {
+      const was = f[characterId] ?? { image_id: null, picked: false, nude: null };
+      return { ...f, [characterId]: res.data.nude ? { ...was, nude: face } : { ...was, ...face } };
+    });
     return null;
   }
   const [direction, setDirection] = useState("");
@@ -646,7 +656,7 @@ function Gallery({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" />
               )}
-              <span className="badge">{m.kind}</span>
+              <span className="badge">{m.nude ? `${m.kind} · undressed` : m.kind}</span>
               {m.kind === "scene" && (m.chapter || m.place) && (
                 // Drawn for a chapter and a place (lib/adult/auto-pictures.ts).
                 <span className="muted small ad-picture-where">{[m.chapter ? `Chapter ${m.chapter}` : "", m.place ?? ""].filter(Boolean).join(" · ")}</span>
@@ -663,7 +673,7 @@ function Gallery({
               {status === "ready" && <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} />}
               {status === "ready" && m.kind !== "video" && m.character_id && !m.character_b && onFace && (
                 // One of them alone: it can be the face every picture and video of them keeps.
-                faces[m.character_id]?.image_id === m.id ? (
+                faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id ? (
                   <span className="badge ad-face-badge">✓ Their face</span>
                 ) : (
                   <button type="button" className="button-ghost small" disabled={facing === m.id} onClick={() => void keepFace(m)}>

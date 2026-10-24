@@ -221,7 +221,7 @@ describe("a viewer's next video", () => {
     expect((await rateMedia(t.db, id, first.shots[0].media_id!, -1, ["motion"])).ok).toBe(true);
     expect((await listReels(t.db, id, RAFE, JUNIPER))[0].shots[0]).toMatchObject({ rating: -1, tags: ["motion"] });
     await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ('juniper-liked', $1, $2, 'scene', 'p', 'image/png', $3)`, [id, JUNIPER, Buffer.from(PNG)]);
-    expect(await setFaceReference(t.db, id, JUNIPER, "juniper-liked")).toEqual({ ok: true, image_id: "juniper-liked" });
+    expect(await setFaceReference(t.db, id, JUNIPER, "juniper-liked")).toEqual({ ok: true, image_id: "juniper-liked", nude: false });
     seen.length = 0;
     const next = (await (await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).json()).reel as Reel;
     expect(next.status).toBe("making");

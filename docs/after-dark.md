@@ -54,6 +54,8 @@ to generated output, which is the one place they currently don't reach.
 
 ## #3 Payments — not Stripe (adult rules forbid it)
 
+_2026-10-24: superseded in part by `docs/after-dark-legal-review.md` (Segpay first, Verotel backup; the banned themes processors require in text too; where age checks are required)._
+
 Visa/MC via Stripe/PayPal prohibit adult content, so the subscription runs on a **high-risk / adult processor**,
 fully isolated from the existing Stripe setup (the botchelor Stripe account stays untouched).
 
@@ -1958,6 +1960,50 @@ docs/after-dark-moderation-options.md. The first three of its recommendations:
   one's 👍 counts as before, and each light passed over counts half a 👎 in `presetTally`: half, because the pick is of
   the face as much as the light. The page sends the other two as `rivals` with `POST /api/admin/after-dark/face`. Only
   the viewer's own baselines of the character alone, with a preset, count.
+
+## Undressed moments start from a nude baseline (2026-10-24)
+
+David, 2026-10-24: "if we have our character set up with underwear, their sex scenes and baselines have it on no matter
+the situation. Do we use that character [outfit] to generate baselines, because in sex scenes we need a new baseline
+since they are supposed to be naked?"
+
+**Why it happened:**
+- A baseline is drawn in the outfit its character picked: the looks builder's outfit, or After Dark's own for its owner.
+  A swimsuit stays a swimsuit; only Nude or no outfit gives a nude baseline (`baselinePrompt`).
+- Every picture of the two of them is an edit of their two baselines: a video's keyframes, a clip, a menu picture, a
+  beat picture. The edit model keeps what the pictures it starts from wear, even when the prompt says "both are nude".
+- Pictures drawn from the prompt alone (automatic chapter pictures, `scenePrompt`) already left the outfit out once they
+  undress.
+
+**Now** (`lib/adult/attire.ts`):
+- **Two baselines.** A character who wears something has a second, nude baseline: the same look and the same fixed
+  framing, without the outfit (`baselinePrompt(…, { nude: true })`, `ensureNudeBaseline`). It's drawn the first time
+  one is needed, as one more picture against the month's cap. A character who wears nothing uses its own baseline,
+  which is nude already.
+- **Which one a picture starts from:**
+
+  | Stage | Baselines | Why |
+  |---|---|---|
+  | At sex (`NUDE_FROM`, stage 4) | Their nude baselines (`nudeBaselines`) | No clothes to carry over |
+  | Undressing (stage 3) and before | Their dressed baselines | "Down to their underwear" starts from what they wear |
+
+  - **Videos:** each shot uses the faces for its own moment, so a whole night's video changes over at sex.
+  - **Clips, menu pictures and beat pictures** use the baselines for their stage.
+  - **Fallback:** if a nude baseline can't be drawn, the dressed ones are used, as before. Hive out still stops it.
+- **Which nude baseline:**
+  - **Picks:** for a viewer, the nude face they picked (`adult_nude_refs`), else the face they picked if it's nude,
+    else the usual order (their own 👍 first) among nude baselines.
+  - **Dressed moments:** a dressed baseline now comes before a newer nude one, so the nude one never undresses a dressed
+    moment.
+- **Stored:** `adult_images.attire` (`nude` or `dressed`), set on every new baseline. Older rows are read from their
+  prompt: a nude baseline's says ". Nude, alone,".
+- **On the page:**
+  - **"Their faces":** a character who wears something shows "In intimate scenes", with the nude face, **Draw three,
+    undressed** (`POST /api/admin/after-dark/baselines {nude: true}`), and Let it pick for me.
+  - **The gallery:** labels a nude baseline "baseline · undressed". "Use this face" on it sets the intimate-scenes face,
+    and leaves the everyday face alone.
+- **Not changed:** a clip that keeps going from a keyframe drawn before this still carries what that keyframe wears
+  ("keep what each of them is wearing or not").
 
 ## The Studio (2026-10-24)
 

@@ -25,7 +25,7 @@ import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { mediaLimits, nightStands } from "./clips";
 import { isPublicPlace } from "./continuity";
 import { ensureBaseline, signedMediaUrl, type Media } from "./media";
-import { baselines, drawKeyframe, drawReplicateKeyframe, KEYFRAME_MODEL, keyframePrompt, placeWords, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
+import { baselines, drawKeyframe, drawReplicateKeyframe, KEYFRAME_MODEL, keyframePrompt, NUDE_FROM, nudeBaselines, placeWords, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { STAGES } from "./stages";
@@ -226,7 +226,7 @@ export async function keepPictureOfBoth(
   db: Db,
   ownerId: string,
   [ca, cb]: [Character, Character],
-  plan: { promptFor: (withSet: boolean) => string; place: string | null },
+  plan: { promptFor: (withSet: boolean) => string; place: string | null; stage?: number },
   ctx: {
     keys: Awaited<ReturnType<typeof adultKeys>>;
     settings: Awaited<ReturnType<typeof getAdultSettings>>;
@@ -241,7 +241,9 @@ export async function keepPictureOfBoth(
   let prompt = plan.promptFor(false);
   try {
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
-    const bases = await baselines(db, ca.id, cb.id, ownerId);
+    // At sex (NUDE_FROM), from their nude baselines: an edit keeps what the pictures it starts from wear (lib/adult/attire.ts).
+    const nude = (plan.stage ?? 0) >= NUDE_FROM ? await nudeBaselines(db, ownerId, ca, cb) : null;
+    const bases = nude ?? (await baselines(db, ca.id, cb.id, ownerId));
     if (!bases) throw new Error("a picture of each of them is needed first");
     const faces = bases.map((id) => signedMediaUrl(id, baseUrl));
     const set = plan.place ? ((await setPictures(db, [plan.place])).get(plan.place) ?? null) : null;

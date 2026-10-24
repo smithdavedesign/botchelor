@@ -16,7 +16,9 @@
  *  - What it's learned shows on the page (steerSummary), and "Start fresh" (resetSteering) sets it aside without deleting
  *    a rating: those from before stop counting for that character.
  */
+import { loadCharacter } from "../character";
 import type { Db } from "../db";
+import { nudeSql, wearsSomething } from "./attire";
 import { PICTURE_PRESETS, TAG_FIXES, tagsFor, type PresetId, type RatingTag } from "./rating-tags";
 
 /** How many of a viewer's newest ratings of a character's pictures (and, apart, of their videos) steer the next one. */
@@ -26,7 +28,7 @@ export type Steering = { tags: RatingTag[]; positive: string[]; negative: string
 export const NO_STEERING: Steering = { tags: [], positive: [], negative: [], video: [] };
 
 /** A picture or video the viewer may rate or pick: theirs, or anyone's for an admin. `$1` is the media id, `$2` the viewer. */
-const MEDIA_FOR_VIEWER = `select kind, character_id, character_b, status from adult_images
+const MEDIA_FOR_VIEWER = `select kind, character_id, character_b, status, (kind = 'baseline' and ${nudeSql("adult_images")}) as nude from adult_images
   where id = $1 and (owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))`;
 
 export type RateResult = { ok: true; rating: -1 | 0 | 1; tags: string[] } | { ok: false; status: number; error: string; message: string };
@@ -144,22 +146,30 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
  *  2. else their own 👍 baseline, newest first; else their own newest baseline they haven't 👎'd;
  *  3. else the admins' newest baseline they haven't 👎'd (a subscriber's redraw never changes anyone else's face);
  *  4. else any baseline, the newest.
- * Null when the character has no baseline yet.
+ * A dressed baseline comes before a nude one in 2 to 4: a character who wears something keeps it on until they undress.
+ * `nude`, for an undressed moment: only a nude baseline (lib/adult/attire.ts). The nude face they picked, else the face
+ * they picked if it's nude, else the same order among nude baselines. Null when the character has no such baseline yet
+ * (the caller makes one: lib/adult/media.ts ensureNudeBaseline).
  */
-export async function faceReferenceId(db: Db, viewerId: string, characterId: string): Promise<string | null> {
-  const picked = (
-    await db.query<{ image_id: string }>(
-      `select f.image_id from adult_face_refs f join adult_images i on i.id = f.image_id and i.status = 'ready'
-        where f.owner_id = $1 and f.character_id = $2`,
-      [viewerId, characterId],
-    )
-  ).rows[0];
-  if (picked) return picked.image_id;
+export async function faceReferenceId(db: Db, viewerId: string, characterId: string, opts: { nude?: boolean } = {}): Promise<string | null> {
+  const nude = opts.nude === true;
+  const onlyNude = nude ? ` and ${nudeSql("i")}` : "";
+  const pickedIn = async (table: "adult_face_refs" | "adult_nude_refs") =>
+    (
+      await db.query<{ image_id: string }>(
+        `select f.image_id from ${table} f join adult_images i on i.id = f.image_id and i.status = 'ready'${onlyNude}
+          where f.owner_id = $1 and f.character_id = $2`,
+        [viewerId, characterId],
+      )
+    ).rows[0]?.image_id ?? null;
+  const picked = nude ? ((await pickedIn("adult_nude_refs")) ?? (await pickedIn("adult_face_refs"))) : await pickedIn("adult_face_refs");
+  if (picked) return picked;
   const { rows } = await db.query<{ id: string }>(
     `select i.id from adult_images i
       left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $1
-      where i.character_id = $2 and i.character_b is null and i.kind = 'baseline' and i.status = 'ready'
+      where i.character_id = $2 and i.character_b is null and i.kind = 'baseline' and i.status = 'ready'${onlyNude}
       order by (coalesce(r.rating, 0) < 0),
+               ${nudeSql("i")},
                ((i.owner_id = $1) and coalesce(r.rating, 0) > 0) desc,
                (i.owner_id = $1) desc,
                exists (select 1 from admins a where a.user_id = i.owner_id) desc,
@@ -170,45 +180,69 @@ export async function faceReferenceId(db: Db, viewerId: string, characterId: str
   return rows[0]?.id ?? null;
 }
 
-/** Each character's face for this viewer (faceReferenceId), and whether it's one they picked, for the page's faces panel. */
-export async function facesFor(db: Db, viewerId: string, characterIds: string[]): Promise<Record<string, { image_id: string | null; picked: boolean }>> {
-  const picked = new Set(
-    (
-      await db.query<{ character_id: string }>(
-        `select f.character_id from adult_face_refs f join adult_images i on i.id = f.image_id and i.status = 'ready' where f.owner_id = $1 and f.character_id = any($2)`,
-        [viewerId, characterIds],
-      )
-    ).rows.map((r) => r.character_id),
-  );
-  const out: Record<string, { image_id: string | null; picked: boolean }> = {};
-  for (const id of characterIds) out[id] = { image_id: await faceReferenceId(db, viewerId, id), picked: picked.has(id) };
+/** One character's faces for a viewer: the one everything keeps, and for a character who wears something, the nude one. */
+export type FaceInfo = { image_id: string | null; picked: boolean; nude: { image_id: string | null; picked: boolean } | null };
+
+/** Each character's faces for this viewer (faceReferenceId), and whether they picked them, for the page's faces panel. */
+export async function facesFor(db: Db, viewerId: string, characterIds: string[]): Promise<Record<string, FaceInfo>> {
+  const pickedIn = async (table: "adult_face_refs" | "adult_nude_refs") =>
+    new Set(
+      (
+        await db.query<{ character_id: string }>(
+          `select f.character_id from ${table} f join adult_images i on i.id = f.image_id and i.status = 'ready' where f.owner_id = $1 and f.character_id = any($2)`,
+          [viewerId, characterIds],
+        )
+      ).rows.map((r) => r.character_id),
+    );
+  const [picked, pickedNude] = [await pickedIn("adult_face_refs"), await pickedIn("adult_nude_refs")];
+  const out: Record<string, FaceInfo> = {};
+  for (const id of characterIds) {
+    const c = await loadCharacter(db, id);
+    const dressed = c ? wearsSomething(c, viewerId) : false;
+    out[id] = {
+      image_id: await faceReferenceId(db, viewerId, id),
+      picked: picked.has(id),
+      nude: dressed ? { image_id: await faceReferenceId(db, viewerId, id, { nude: true }), picked: pickedNude.has(id) } : null,
+    };
+  }
   return out;
 }
 
-export type FaceResult = { ok: true; image_id: string | null } | { ok: false; status: number; error: string; message: string };
+export type FaceResult = { ok: true; image_id: string | null; nude?: boolean } | { ok: false; status: number; error: string; message: string };
 
 /**
  * "Use this face": one of the viewer's pictures of the character alone (a baseline, or a scene picture of just them)
- * becomes the face their pictures and videos of the character keep. Picking a face is also a 👍 on it. `imageId` null
- * goes back to the default (faceReferenceId's 2 to 4).
+ * becomes the face their pictures and videos of the character keep. Picking a face is also a 👍 on it. For a character
+ * who wears something, a nude baseline picked is the face of their undressed moments instead (`adult_nude_refs`), and
+ * the face for everything else stays. `imageId` null goes back to the default (faceReferenceId's 2 to 4), for the nude
+ * face with `nude`.
  */
-export async function setFaceReference(db: Db, viewerId: string, characterId: string, imageId: string | null, rivals: string[] = []): Promise<FaceResult> {
+export async function setFaceReference(
+  db: Db,
+  viewerId: string,
+  characterId: string,
+  imageId: string | null,
+  rivals: string[] = [],
+  opts: { nude?: boolean } = {},
+): Promise<FaceResult> {
   if (imageId === null) {
-    await db.query(`delete from adult_face_refs where owner_id = $1 and character_id = $2`, [viewerId, characterId]);
-    return { ok: true, image_id: await faceReferenceId(db, viewerId, characterId) };
+    await db.query(`delete from ${opts.nude ? "adult_nude_refs" : "adult_face_refs"} where owner_id = $1 and character_id = $2`, [viewerId, characterId]);
+    return { ok: true, image_id: await faceReferenceId(db, viewerId, characterId, opts), nude: opts.nude === true };
   }
-  const m = (await db.query<{ kind: string; character_id: string | null; character_b: string | null; status: string }>(MEDIA_FOR_VIEWER, [imageId, viewerId])).rows[0];
+  const m = (await db.query<{ kind: string; character_id: string | null; character_b: string | null; status: string; nude: boolean }>(MEDIA_FOR_VIEWER, [imageId, viewerId])).rows[0];
   if (!m || m.status !== "ready" || !["baseline", "scene"].includes(m.kind) || m.character_id !== characterId || m.character_b) {
     return { ok: false, status: 404, error: "not_found", message: "Pick one of your pictures of them alone." };
   }
+  const c = m.nude ? await loadCharacter(db, characterId) : null;
+  const table = c && wearsSomething(c, viewerId) ? "adult_nude_refs" : "adult_face_refs";
   await db.query(
-    `insert into adult_face_refs (owner_id, character_id, image_id) values ($1, $2, $3)
+    `insert into ${table} (owner_id, character_id, image_id) values ($1, $2, $3)
      on conflict (owner_id, character_id) do update set image_id = excluded.image_id, set_at = now()`,
     [viewerId, characterId, imageId],
   );
   await db.query(`insert into adult_media_thumbs (owner_id, media_id, rating) values ($1, $2, 1) on conflict (owner_id, media_id) do nothing`, [viewerId, imageId]);
   await recordLightPick(db, viewerId, characterId, imageId, rivals);
-  return { ok: true, image_id: imageId };
+  return { ok: true, image_id: imageId, nude: table === "adult_nude_refs" };
 }
 
 /**

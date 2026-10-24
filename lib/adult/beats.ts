@@ -284,7 +284,7 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<boolean
       db,
       beat.owner_id,
       [ca, cb],
-      { place: beat.place, promptFor: (withSet) => keyframePrompt(cast, frame, place, stage, withSet, { explicit: limits.explicit }) },
+      { place: beat.place, stage, promptFor: (withSet) => keyframePrompt(cast, frame, place, stage, withSet, { explicit: limits.explicit }) },
       { keys, settings, baseUrl, reject, scene: { chapter: beat.chapter, place: beat.place } },
     );
     if (!kept.ok) return fail(kept.message);

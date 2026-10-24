@@ -1736,6 +1736,18 @@ create table if not exists adult_face_refs (
 -- Which picture preset drew it (lib/adult/rating-tags.ts PICTURE_PRESETS): what the per-character test learns from
 -- (lib/adult/steering.ts choosePreset).
 alter table adult_images add column if not exists preset text;
+-- A baseline's attire, 'nude' or 'dressed' in the outfit its character picked (lib/adult/attire.ts). Null before
+-- 2026-10-24: read from the prompt. A character who wears something gets a nude baseline too, for undressed moments.
+alter table adult_images add column if not exists attire text;
+-- The face a viewer picked for a character's undressed moments: one of their nude baselines (lib/adult/steering.ts
+-- faceReferenceId), apart from the face they picked for everything else (adult_face_refs).
+create table if not exists adult_nude_refs (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  image_id text not null references adult_images (id) on delete cascade,
+  set_at timestamptz not null default now(),
+  primary key (owner_id, character_id)
+);
 -- "Start fresh" on what a viewer's ratings of a character steer (lib/adult/steering.ts resetSteering): their ratings and
 -- light picks from before reset_at stop counting for that character. Nothing is deleted.
 create table if not exists adult_steer_resets (

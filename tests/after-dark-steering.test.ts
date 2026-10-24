@@ -284,12 +284,12 @@ describe("the face a viewer's pictures and videos keep", () => {
     expect(await faceReferenceId(t.db, sub.id, JUNIPER)).toBe(adminNew);
     // A scene picture of them alone can be picked; that's a 👍 on it too, and it wins.
     const scene = await picture(sub.id, JUNIPER, { kind: "scene", ago: 1 });
-    expect(await setFaceReference(t.db, sub.id, JUNIPER, scene)).toEqual({ ok: true, image_id: scene });
+    expect(await setFaceReference(t.db, sub.id, JUNIPER, scene)).toEqual({ ok: true, image_id: scene, nude: false });
     expect(await faceReferenceId(t.db, sub.id, JUNIPER)).toBe(scene);
     expect((await t.db.query(`select rating from adult_media_thumbs where owner_id = $1 and media_id = $2`, [sub.id, scene])).rows).toEqual([{ rating: 1 }]);
-    expect(await facesFor(t.db, sub.id, [JUNIPER, RAFE])).toEqual({ [JUNIPER]: { image_id: scene, picked: true }, [RAFE]: { image_id: null, picked: false } });
+    expect(await facesFor(t.db, sub.id, [JUNIPER, RAFE])).toEqual({ [JUNIPER]: { image_id: scene, picked: true, nude: null }, [RAFE]: { image_id: null, picked: false, nude: null } });
     // Back to the default.
-    expect(await setFaceReference(t.db, sub.id, JUNIPER, null)).toEqual({ ok: true, image_id: adminNew });
+    expect(await setFaceReference(t.db, sub.id, JUNIPER, null)).toEqual({ ok: true, image_id: adminNew, nude: false });
   });
 
   it("can only be one of their own pictures of that character alone", async () => {
@@ -329,7 +329,7 @@ describe("the face a viewer's pictures and videos keep", () => {
     expect((await call(facePost, "/api/admin/after-dark/face", { character_id: "not-a-character", image_id: pic }, sub.cookie)).status).toBe(404);
     expect((await call(facePost, "/api/admin/after-dark/face", { character_id: JUNIPER, image_id: pic }, (await subscriber()).cookie)).status).toBe(404);
     const res = await call(facePost, "/api/admin/after-dark/face", { character_id: JUNIPER, image_id: pic }, sub.cookie);
-    expect(await res.json()).toEqual({ image_id: pic });
+    expect(await res.json()).toEqual({ image_id: pic, nude: false });
   });
 });
 
@@ -419,7 +419,7 @@ describe("what the page shows, and Start fresh", () => {
     const { id } = await admin();
     const [natural, warm, studio] = [await picture(id, JUNIPER, { preset: "natural" }), await picture(id, JUNIPER, { preset: "warm" }), await picture(id, JUNIPER, { preset: "studio" })];
     const notMine = await picture((await subscriber()).id, JUNIPER, { preset: "natural" });
-    expect(await setFaceReference(t.db, id, JUNIPER, warm, [natural, studio, notMine, "no-such-picture"])).toEqual({ ok: true, image_id: warm });
+    expect(await setFaceReference(t.db, id, JUNIPER, warm, [natural, studio, notMine, "no-such-picture"])).toEqual({ ok: true, image_id: warm, nude: false });
     expect(await presetTally(t.db, id, JUNIPER)).toEqual({ natural: { up: 0, down: 0.5 }, warm: { up: 1, down: 0 }, studio: { up: 0, down: 0.5 } });
     // From the gallery (no rivals) it's a 👍 and no ranking.
     await setFaceReference(t.db, id, JUNIPER, natural);
