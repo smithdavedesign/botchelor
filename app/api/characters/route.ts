@@ -130,9 +130,12 @@ export const POST = handle(async (req) => {
 
   const id = crypto.randomUUID();
   const hue = input.avatar_hue && input.avatar_hue > 0 ? input.avatar_hue : null;
+  // One partner or more (lib/partners.ts): a new character is open (David, 2026-10-23: visitors were surprised when one
+  // closed to other dates after two second dates). Stored as "open", never null: null is what older ones have, and still
+  // means decide for them. create_character sets the agent's choice over this.
   await db.query(
-    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates, extras, this_week, open_audience)
-     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16)`,
+    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates, extras, this_week, open_audience, partner_style)
+     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, 'open')`,
     [
       id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue,
       input.pronouns ?? null, input.voice ?? null, input.open_to_dates === true, JSON.stringify(extras),

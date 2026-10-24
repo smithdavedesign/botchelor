@@ -1,6 +1,7 @@
 /**
  * One partner or more than one. Each character has a relationship style: "one" (monogamous), "open"
- * (consensual non-monogamy / polyamory), or "decide" (the default): the character settles it itself, from its
+ * (consensual non-monogamy / polyamory; the default for new characters since 2026-10-23), or "decide" (the default
+ * before, and what a stored null still means): the character settles it itself, from its
  * own temperament, the first time it's in a relationship. Deterministic, like everything that shapes a date.
  *
  * In a relationship means the couple's stage (lib/relationships.ts, every date counted) is dating or going steady.

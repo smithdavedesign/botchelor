@@ -82,8 +82,8 @@ const DISASTER = {
 };
 const swipesCount = async () => (await t.db.query<{ n: number }>(`select count(*)::int as n from swipes`)).rows[0].n;
 
-it("is MCP 2.11.0", () => {
-  expect(MCP_SERVER_INFO.version).toBe("2.11.0");
+it("is MCP 2.11.0 or later", () => {
+  expect(MCP_SERVER_INFO.version.localeCompare("2.11.0", undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
 });
 
 describe("#656: a date you perform shows where it's heading from its first step", () => {

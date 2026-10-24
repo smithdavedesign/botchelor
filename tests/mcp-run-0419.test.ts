@@ -52,10 +52,11 @@ it("is MCP 2.4.3", () => {
 describe("1. exclusivity is a visible choice on create_character (#555)", () => {
   it("documents partner_style with its values, default and meaning", () => {
     const p = (MCP_TOOLS.find((x) => x.name === "create_character")!.inputSchema as Any).properties.partner_style;
-    expect(p).toMatchObject({ type: "string", enum: ["one", "open", "decide"], default: "decide" });
+    expect(p).toMatchObject({ type: "string", enum: ["one", "open", "decide"], default: "open" });
     // 2.7.0: open also says the couple stage still moves (the 2026-10-22-0215 run: "I set open, and the stage still advanced").
     // 2.9.0 (the 2026-10-22-0610 run): "one great date can be enough" was off by one: Dating takes two second dates in a row.
-    expect(p.description).toMatch(/one: once it's in a Dating couple \(two second dates in a row\) it closes to other dates\. open: it keeps dating others \(its couples still move up a stage\)\. decide \(default\)/);
+    // 2.12.0 (David, 2026-10-23): open is the default (it was decide).
+    expect(p.description).toMatch(/one: once it's in a Dating couple \(two second dates in a row\) it closes to other dates\. open \(default\): it keeps dating others \(its couples still move up a stage\)\. decide: it settles/);
     expect(ENUM_SOURCES["create_character.partner_style"]).toEqual(["one", "open", "decide"]);
   });
 
@@ -67,12 +68,12 @@ describe("1. exclusivity is a visible choice on create_character (#555)", () => 
     expect(seen).toMatchObject({ partner_style: "open", partner_style_note: expect.stringMatching(/update_character/) });
   });
 
-  it("left out, it's decide (the character's own call), said so; check_only echoes it; a wrong value is refused", async () => {
+  it("left out, it's open (2.12.0; it was decide), said so and stored; check_only echoes it; a wrong value is refused", async () => {
     const { ctx, id, made } = await agent("Ada Lumen");
-    expect(made.partner_style).toBe("decide");
-    expect(made.partner_style_note).toMatch(/Its own call \(the default\).*closes to other dates once it's in a Dating couple/);
-    expect((await t.db.query(`select partner_style from characters where id = $1`, [id])).rows[0].partner_style).toBeNull();
-    expect((await call("get_character", { character_id: id }, ctx)).structuredContent.partner_style).toBe("decide");
+    expect(made.partner_style).toBe("open");
+    expect(made.partner_style_note).toMatch(/More than one \(the default\): it keeps dating others/);
+    expect((await t.db.query(`select partner_style from characters where id = $1`, [id])).rows[0].partner_style).toBe("open");
+    expect((await call("get_character", { character_id: id }, ctx)).structuredContent.partner_style).toBe("open");
     const checked = (await call("create_character", validCharacter({ name: "Bo Quill", partner_style: "one", check_only: true }), ctx)).structuredContent;
     expect(checked).toMatchObject({ saved: false, partner_style: "one", partner_style_note: expect.stringMatching(/One partner: once it's in a Dating couple/) });
     const bad = await call("create_character", validCharacter({ name: "Cy Moss", partner_style: "poly" }), ctx);

@@ -53,7 +53,8 @@ const PROFILE = {
 };
 async function agentWith(name: string, extra: Record<string, unknown> = {}, client?: string) {
   const ctx = await connect(client);
-  const r = await call("create_character", validCharacter({ name, open_to_dates: true, extras: PROFILE, keep_name: true, ...extra }), ctx);
+  // decide, as these were written for (2.12.0 made open the default).
+  const r = await call("create_character", validCharacter({ name, open_to_dates: true, extras: PROFILE, keep_name: true, partner_style: "decide", ...extra }), ctx);
   if (r.isError) throw new Error(r.content[0].text);
   return { ctx, id: r.structuredContent.character.id as string, agentId: r.structuredContent.agent_id as string };
 }
@@ -346,7 +347,8 @@ describe("#642: the first-time path and errors teach the shape", () => {
 describe("exclusivity said where it bites, and a closed character can't be dated on a two-agent date", () => {
   it("create_character names partner_style and offers update_character with partner_style open in next_calls; open says the couple stage still moves", async () => {
     const ctx = await connect();
-    const s = (await call("create_character", validCharacter({ name: "Ada Lumen", keep_name: true }), ctx)).structuredContent;
+    // 2.12.0: left out it's open (no call offered: see below), so decide is chosen here.
+    const s = (await call("create_character", validCharacter({ name: "Ada Lumen", keep_name: true, partner_style: "decide" }), ctx)).structuredContent;
     expect(s.partner_style).toBe("decide");
     expect(s.next_calls).toContainEqual({
       tool: "update_character",
@@ -355,6 +357,9 @@ describe("exclusivity said where it bites, and a closed character can't be dated
     });
     const open = (await call("create_character", validCharacter({ name: "Bo Quill", keep_name: true, partner_style: "open" }), ctx)).structuredContent;
     expect(open.next_calls.some((c: Any) => c.args.partner_style === "open")).toBe(false);
+    const byDefault = (await call("create_character", validCharacter({ name: "Cy Moss", keep_name: true }), ctx)).structuredContent;
+    expect(byDefault.partner_style).toBe("open");
+    expect(byDefault.next_calls.some((c: Any) => c.args.partner_style === "open")).toBe(false);
     expect(open.partner_style_note).toContain(PARTNER_STYLE_MEANS.open);
     expect(PARTNER_STYLE_MEANS.open).toMatch(/Its couples still move up a stage \(Sparks, Dating\) as their dates go: open only means it never closes to other dates/);
     const upd = (await call("update_character", { character_id: s.character.id, partner_style: "open" }, ctx)).structuredContent;
@@ -402,7 +407,7 @@ describe("exclusivity said where it bites, and a closed character can't be dated
     }
     expect((await t.db.query<Any>(`select stage from relationships where $1 in (character_a, character_b) and $2 in (character_a, character_b)`, [A.id, B.id])).rows[0].stage).toBe("dating");
     // Nothing aired, so nothing settled her yet: the hole the run hit (her agent started a date with Brannoch).
-    expect((await t.db.query<Any>(`select partner_style, partner_style_decided, open_to_dates from characters where id = $1`, [A.id])).rows[0]).toEqual({ partner_style: null, partner_style_decided: null, open_to_dates: true });
+    expect((await t.db.query<Any>(`select partner_style, partner_style_decided, open_to_dates from characters where id = $1`, [A.id])).rows[0]).toEqual({ partner_style: "decide", partner_style_decided: null, open_to_dates: true });
     // Brannoch's agent asks Hesper (a preview runs the same checks): she settles on one partner first, and it's refused.
     const theirs = await call("start_own_date", { character_id: C.id, partner_id: A.id, preview: true }, C.ctx);
     expect(theirs.isError).toBe(true);

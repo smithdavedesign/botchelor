@@ -73,7 +73,7 @@ describe("one partner or more", () => {
   });
 
   it("left to decide: decided once, the first time they're in a relationship, and the owner hears it", async () => {
-    const { ownerA, a } = await couple("sparks");
+    const { ownerA, a } = await couple("sparks", "decide"); // new characters are open (2.12.0): decide is chosen
     expect((await partnerStyleOf(t.db, a.id))?.decided).toBeNull(); // sparks isn't a relationship yet
     const [lo, hi] = [a.id, (await t.db.query<{ id: string }>(`select id from characters where name = 'Ira Fenn'`)).rows[0].id].sort();
     await t.db.query(`update relationships set stage = 'dating' where character_a = $1 and character_b = $2`, [lo, hi]);
@@ -101,6 +101,8 @@ describe("rolling out to couples that already exist", () => {
     const ownerA = newUserCookie();
     const a = await (await api.createCharacter(validCharacter({ name: "Cass Vega", open_to_dates: true }), ownerA)).json();
     const b = await (await api.createCharacter(validCharacter({ name: "Ira Fenn", open_to_dates: true }), newUserCookie())).json();
+    // Made before 2.12.0: stored null, which still means decide (new characters are open).
+    await t.db.query(`update characters set partner_style = null where id = $1`, [a.id]);
     const [lo, hi] = [a.id, b.id].sort();
     await t.db.query(`insert into relationships (character_a, character_b, dates, second_dates, stage) values ($1, $2, 3, 2, 'dating')`, [lo, hi]);
     expect(await partnerStyleOf(t.db, a.id)).toMatchObject({ decided: null, effective: null, taken: false });
@@ -131,7 +133,7 @@ describe("which of yours are taken: the faces on /swipe and /matches (app/Charac
     };
     const one = await make("Cass Vega", "one");
     const open = await make("Ola Brandt", "open");
-    const undecided = await make("Una Pike"); // left to decide, and hasn't yet: never taken
+    const undecided = await make("Una Pike", "decide"); // left to decide, and hasn't yet: never taken
     const cooled = await make("Fay Doyle", "one"); // one partner, but they're only friends now
     const dex = await make("Dex Marlow", undefined, newUserCookie());
     const sam = await make("Sam Reyes", undefined, newUserCookie());
