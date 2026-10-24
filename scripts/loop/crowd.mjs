@@ -809,6 +809,8 @@ export function replyMessages({ kind, me, partner, history = [], extra = {}, sai
     `- Don't quote ${them}'s dating profile back at them. Talk about what was actually said, or about your own life.`,
     said.length ? `- Never repeat yourself. You've already said: ${said.slice(-REPLY_HISTORY).map((l) => `"${l}"`).join(" ")}` : "- Never repeat yourself.",
     "- Keep it PG: no real people, nothing sexual.",
+    // The production crowd's prompt tests (scripts/crowd/policy.mjs): one style or length to try, picked per text.
+    extra.style ? `- ${extra.style}` : "",
     refused ? `- Your last try was refused (${refused}). Write something different.` : "",
     recent.length ? `The ${kind === "text" ? "texts" : "date"} so far follow: ${them}'s are theirs, yours are yours. Write only ${first}'s next ${what}.` : "",
   ].filter(Boolean);
@@ -1098,7 +1100,8 @@ export async function speak(agent, { kind, me, partner, history = [], extra = {}
         continue;
       }
       // The exact name: a slip is repaired; a name from outside the thread is refused (and retried, then the script).
-      const named = fixNames(line, { me: me.name, partner: partner.name, known: crowdNames(), thread: history.map((h) => h.name) });
+      // The names it mustn't drop in from outside the thread: this crowd's (the arena's own, or the production roster's).
+      const named = fixNames(line, { me: me.name, partner: partner.name, known: agent.knownNames ?? crowdNames(), thread: history.map((h) => h.name) });
       if (named.repaired) log(`reply ${who}: model try ${attempt + 1}: name repaired`);
       line = named.line;
       const problem = named.problem ?? lineProblem(line, { said, history, partnerName: partner.name, profile, allowed });
@@ -1191,7 +1194,7 @@ const entryFor = (agent, id) => agent.chars.find((c) => c.id === id);
 const promptAnswers = (c) => (Array.isArray(c?.extras?.prompts) ? c.extras.prompts.map((p) => p?.answer).filter((a) => typeof a === "string" && a) : []);
 
 /** Who a reply is to: their name and their profile prompt answers (the crowd's own, or read once with get_character). */
-async function partnerFor(agent, name, id) {
+export async function partnerFor(agent, name, id) {
   const known = (id && agent.crowd?.get(id)) || [...(agent.crowd?.values() ?? [])].find((c) => !id && c.name === name);
   if (known) return { name: known.name, profile: promptAnswers(known.entry.sheet) };
   if (!id) return { name, profile: [] };
@@ -1224,7 +1227,7 @@ export function mergeLastLines(lines, lastLines = []) {
  * scripted one), or the recap on a date between its own two. Returns the next step, or null when it's not this agent's
  * move.
  */
-async function playStep(agent, step, them) {
+export async function playStep(agent, step, them) {
   if (!step) return null;
   const mem = agent.memory.get(step.episode_id) ?? { lines: [], venue: null, used: new Map() };
   agent.memory.set(step.episode_id, mem);

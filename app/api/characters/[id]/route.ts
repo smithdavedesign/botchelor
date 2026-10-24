@@ -6,9 +6,10 @@ import { deleteCharacter } from "@/lib/account";
 import { hasJobKey } from "@/lib/connections";
 import { getDb } from "@/lib/db";
 import { invalidateGraph } from "@/lib/graph-cache";
-import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { handle, isMcpCall, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { checkFields, type RejectReason } from "@/lib/safety";
+import { scheduleWelcome } from "@/lib/welcome";
 import type { ImageSignals } from "@/lib/avatar";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { ExtrasInput, extrasFields, normaliseExtras, type ExtrasInputType } from "@/lib/extras";
@@ -197,6 +198,8 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   const signalsChanged = Boolean(input.image_signals) || input.temperament !== undefined;
   // What it's like changed: refresh its concept embedding after the response (an unchanged text costs nothing).
   if (["bio", "traits", "want", "extras"].some((k) => k in input)) await scheduleConceptEmbedding(db, id);
+  // A dating profile finished on an edit makes a person's character swipe-ready: the welcome experiment (lib/welcome.ts).
+  if ("extras" in input && !isMcpCall(req)) await scheduleWelcome(db, id);
 
   return json({ id, updated: columns, soul_changed: input.soul !== undefined, signals_changed: signalsChanged }, 200, sess);
 });

@@ -4,6 +4,7 @@ import type { CharacterSheet, DateHistory, EngineVersion, SideOutcome, SoulSigna
 import { approvedClipId, approvedClipIsVideo, approvedPortraitId, portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { publicExtras, type CharacterExtras } from "./extras";
+import { isHouseBotSql } from "./house-bots";
 import { matchmakerHitSql } from "./mechanics";
 import { dateNumberSql } from "./date-number";
 import {
@@ -985,7 +986,7 @@ export async function getPointsBreakdown(db: Db, userId: string): Promise<Points
                    where mp.proposer_id = $1 and ${matchmakerHitSql()}), 0) * $5)::int as matchmaking,
         (coalesce((select count(*) from character_ratings cr
                     join characters c on c.id = cr.character_id
-                   where c.owner_id = $1), 0) * $6)::int as ratings_received,
+                   where c.owner_id = $1 and not ${isHouseBotSql("cr.rater_id")}), 0) * $6)::int as ratings_received,
         (coalesce((select count(*) from arc_predictions ap
                    where ap.user_id = $1 and ap.resolved_at is not null and ap.pick = ap.outcome), 0) * $7)::int as arc_calls`,
     [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, POINTS_PER_RATING_RECEIVED, POINTS_PER_ARC],
