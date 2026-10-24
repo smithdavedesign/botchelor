@@ -90,6 +90,7 @@ const section = (path: string) => `/${path.split("/")[1] ?? ""}`;
  */
 function renewPlace(req: NextRequest): NextResponse | null {
   if (!afterDarkOnly() || !req.nextUrl.pathname.startsWith("/after-dark")) return null;
+  if (req.cookies.get(ADULT_COOKIE)?.value !== "1") return null; // the 18+ gate comes first
   if (placeCookieFresh(req.cookies.get(PLACE_COOKIE)?.value) || req.cookies.has(PLACE_TRIED_COOKIE)) return null;
   if (detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"))) return null;
   const url = req.nextUrl.clone();
