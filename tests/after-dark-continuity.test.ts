@@ -336,7 +336,7 @@ describe("sets that couldn't be checked are tried again", () => {
     expect(await ensureSet(t.db, "bedroom")).toBe("failed");
     const row = (await t.db.query<{ status: string; reason: string; attempts: number; has: boolean; due: boolean }>(`select status, reason, attempts, data is not null as has, retry_at > now() as due from place_sets`)).rows[0];
     expect(row).toMatchObject({ status: "failed", attempts: 1, has: true, due: true });
-    expect(row.reason).toMatch(/^unchecked: the check couldn't run \(Hive answered 429\)/);
+    expect(row.reason).toMatch(/^unchecked: the check couldn't run \(Hive answered 429: slow down\)/);
     // Waiting: a transparent pixel, never cached, never a 404 in the console.
     const waiting = await serve("bedroom");
     expect(waiting.status).toBe(200);
@@ -347,11 +347,17 @@ describe("sets that couldn't be checked are tried again", () => {
     const before = hiveCalls;
     expect(await retryDueSets(t.db, 3, 0)).toEqual([]);
     expect(hiveCalls).toBe(before);
-    // Due, cool-down over (and the pause that 429 started, Hive's daily limit: lib/adult/hive-limit.ts): only the check
-    // runs again (no new drawing), and it's ready.
+    // Due, cool-down over: only the check runs again (no new drawing). Hive still answers 429: the second check in a row
+    // that couldn't run, so Hive's breaker opens (lib/adult/hive-limit.ts) and nothing more is sent while it's paused.
+    await t.db.query(`update place_sets set retry_at = now() - interval '1 minute', updated_at = now() - interval '10 minutes'`);
+    expect(await retryDueSets(t.db, 3, 0)).toEqual([{ label: "bedroom", status: "failed" }]);
+    expect(hiveCalls).toBeGreaterThan(before);
+    expect(draws).toBe(1);
+    const paused = hiveCalls;
     await t.db.query(`update place_sets set retry_at = now() - interval '1 minute', updated_at = now() - interval '10 minutes'`);
     expect(await retryDueSets(t.db, 3, 0)).toEqual([]);
-    expect(hiveCalls).toBe(before);
+    expect(hiveCalls).toBe(paused);
+    // The pause over: the check runs again, and it's ready.
     await t.db.query(`update adult_media_cooldowns set until = now() - interval '1 minute' where provider = 'hive'`);
     hive = Response.json(CLEAN);
     expect(await retryDueSets(t.db, 3, 0)).toEqual([{ label: "bedroom", status: "ready" }]);

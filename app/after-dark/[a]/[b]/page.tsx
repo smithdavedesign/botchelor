@@ -6,6 +6,7 @@ import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { isAdmin } from "@/lib/admins";
 import { listMedia } from "@/lib/adult/media";
 import { listReels } from "@/lib/adult/reels";
+import { hiveNotice } from "@/lib/adult/hive-limit";
 import { listNights, openScene } from "@/lib/adult/scenes";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
@@ -71,6 +72,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}
         reelTokens={(await getAdultSettings(db)).reel_tokens}
+        hive={await hiveNotice(db)}
       />
     </article>
     </div>

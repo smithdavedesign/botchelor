@@ -21,7 +21,7 @@ import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, FRAMINGS, type Framing, type MediaLimits, type MenuAct } from "./acts";
 import { checkOutput } from "./check";
 import { fallbackNote, runMedia } from "./fallback";
-import { hiveGate, hivePausedMessage, HivePausedError, underHiveLimit } from "./hive-limit";
+import { hiveGate, hivePausedErrorMessage, hivePausedMessage, HivePausedError, underHiveLimit } from "./hive-limit";
 import { mediaLimits, nightStands } from "./clips";
 import { isPublicPlace } from "./continuity";
 import { ensureBaseline, signedMediaUrl, type Media } from "./media";
@@ -227,7 +227,7 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   } catch (err) {
     await giveBack();
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
-    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: `${err.message}${tokensBack}` };
+    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: hivePausedErrorMessage(err, pays && price > 0) };
     return { ok: false, status: 502, error: "not_made", message: `The picture couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${tokensBack}` };
   }
   // The output check on the picture itself, before anything is kept, whoever made it: a refusal is discarded, never stored.

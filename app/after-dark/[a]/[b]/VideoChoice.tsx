@@ -20,6 +20,7 @@ export default function VideoChoice({
   scene,
   tokens,
   busy = false,
+  paused = null,
   onMake,
 }: {
   /** The running night's chapters with lines, oldest first (lib/adult/nights.ts runningNight). */
@@ -28,6 +29,8 @@ export default function VideoChoice({
   scene: { chapter: number; lines: number };
   tokens: number;
   busy?: boolean;
+  /** Hive's breaker is open (lib/adult/hive-limit.ts): disabled, with this as the tooltip. */
+  paused?: string | null;
   onMake: (scope: ReelScope) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
@@ -43,8 +46,8 @@ export default function VideoChoice({
         type="button"
         className="secondary small"
         onClick={() => void onMake("night")}
-        disabled={busy || whole < MIN_LINES}
-        title={`A short film of the night, in their own voices (${price})`}
+        disabled={busy || Boolean(paused) || whole < MIN_LINES}
+        title={paused ?? `A short film of the night, in their own voices (${price})`}
       >
         🎬 Video of the night · {price}
       </button>
@@ -57,7 +60,7 @@ export default function VideoChoice({
   const picked = options.find((o) => o.scope === scope)!;
   return (
     <span className="ad-video-choice">
-      <button type="button" className="secondary small" aria-expanded={open} onClick={() => setOpen((v) => !v)} disabled={busy} title="A short film, in their own voices: of this chapter or the whole night">
+      <button type="button" className="secondary small" aria-expanded={open} onClick={() => setOpen((v) => !v)} disabled={busy || Boolean(paused)} title={paused ?? "A short film, in their own voices: of this chapter or the whole night"}>
         🎬 Video · {price}
       </button>
       {open && (
@@ -72,7 +75,7 @@ export default function VideoChoice({
             <button
               type="button"
               className="primary small"
-              disabled={busy || picked.lines < MIN_LINES}
+              disabled={busy || Boolean(paused) || picked.lines < MIN_LINES}
               onClick={async () => {
                 setOpen(false);
                 await onMake(scope);

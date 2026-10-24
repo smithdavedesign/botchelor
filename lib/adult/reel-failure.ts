@@ -9,10 +9,10 @@ export function reelFailureNote(shots: Pick<ReelShot, "status" | "reason">[]): s
   const reasons = shots.filter((s) => s.status === "failed" && s.reason && s.reason !== "stopped").map((s) => s.reason as string);
   if (!reasons.length) return null;
   const any = (re: RegExp) => reasons.some((r) => re.test(r));
-  // Hive over its daily limit (lib/adult/hive-limit.ts, 2026-10-23): nothing it couldn't check was kept.
+  // Hive's breaker open (lib/adult/hive-limit.ts, 2026-10-23): nothing it couldn't check was kept.
   const until = pausedUntil(reasons);
   if (until || any(/Hive answered 429/)) {
-    return `The safety check every picture has to pass is over its daily limit, so its shots couldn't be checked and weren't kept. Try again ${until ? `after ${until}` : "later"}.`;
+    return `Hive (the safety check) has hit its limit, so its shots couldn't be checked and weren't kept. Try again ${until ? `after ${until}` : "later"}.`;
   }
   if (any(/Venice 402|insufficient (usd|balance)|diem balance/i)) return "Venice, which makes the videos, is out of credits: top it up at venice.ai/settings/api, then make the video again.";
   if (any(/Venice 40[13]\b/)) return "Venice refused the key: check the Venice key in After Dark's settings.";
@@ -31,7 +31,8 @@ export function reelFailureNote(shots: Pick<ReelShot, "status" | "reason">[]): s
 /** "21:45 UTC" from a reason that says Hive is paused until then (lib/adult/hive-limit.ts hivePausedReason); null otherwise. */
 export function pausedUntil(reasons: readonly (string | null | undefined)[]): string | null {
   for (const r of reasons) {
-    const m = r?.match(/over its daily limit, paused until (\d\d:\d\d UTC)/);
+    // "Hive is paused until …" now; "over its daily limit, paused until …" on shots kept from before the breaker (#740).
+    const m = r?.match(/(?:Hive is paused|over its daily limit, paused) until (\d\d:\d\d UTC)/);
     if (m) return m[1];
   }
   return null;

@@ -47,7 +47,18 @@ function ActChips({ acts, picked, onPick, lockedAbove }: { acts: MenuAct[]; pick
  * from the server, so they only offer what the night has reached, nothing past kissing somewhere public, and nothing the
  * pair's limits rule out.
  */
-export default function MediaMenu({ scene, onReel, onPicture }: { scene: AdultScene; onReel: (r: Reel) => void; onPicture: (m: Media) => void }) {
+export default function MediaMenu({
+  scene,
+  onReel,
+  onPicture,
+  paused = null,
+}: {
+  scene: AdultScene;
+  onReel: (r: Reel) => void;
+  onPicture: (m: Media) => void;
+  /** Hive's breaker is open (lib/adult/hive-limit.ts): the make buttons are disabled with this as their tooltip (the page shows the notice above). */
+  paused?: string | null;
+}) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"clip" | "picture">("clip");
   const [clips, setClips] = useState<ClipOffer | null>(null);
@@ -145,7 +156,7 @@ export default function MediaMenu({ scene, onReel, onPicture }: { scene: AdultSc
             <legend>From here</legend>
             <p className="muted small">A 5–10 second shot of the two of them at the scene&apos;s latest moment, the way the lines have it.</p>
             <p className="ad-panel-actions">
-              <button type="button" className="secondary small" disabled={busy || !clips.here.available} onClick={() => void make("clips", { here: true })}>
+              <button type="button" className="secondary small" disabled={busy || Boolean(paused) || !clips.here.available} title={paused ?? undefined} onClick={() => void make("clips", { here: true })}>
                 🎬 Clip from here · {priceWords(clips.price)}
               </button>
               {!clips.here.available && clips.here.why && <span className="muted small"> {clips.here.why}.</span>}
@@ -163,7 +174,7 @@ export default function MediaMenu({ scene, onReel, onPicture }: { scene: AdultSc
               </p>
             )}
             <p className="ad-panel-actions">
-              <button type="button" className="primary small" disabled={busy || !clipAct || Boolean(clipAct.why)} onClick={() => clipAct && void make("clips", { act: clipAct.id, swap })}>
+              <button type="button" className="primary small" disabled={busy || Boolean(paused) || !clipAct || Boolean(clipAct.why)} title={paused ?? undefined} onClick={() => clipAct && void make("clips", { act: clipAct.id, swap })}>
                 {busy ? "Setting it up…" : `🎬 Make this clip · ${priceWords(clips.price)}`}
               </button>
             </p>
@@ -222,7 +233,8 @@ export default function MediaMenu({ scene, onReel, onPicture }: { scene: AdultSc
             <button
               type="button"
               className="primary small"
-              disabled={busy || !pictureActOk || !pickedOutfit || !where || pictures.left === 0}
+              disabled={busy || Boolean(paused) || !pictureActOk || !pickedOutfit || !where || pictures.left === 0}
+              title={paused ?? undefined}
               onClick={() => pictureAct && pickedOutfit && where && void make("pictures", { act: pictureAct.id, swap, outfit: pickedOutfit.id, framing, place: where.place })}
             >
               {busy ? "Drawing it…" : `📸 Take the picture · ${priceWords(pictures.price)}`}
@@ -244,7 +256,7 @@ export default function MediaMenu({ scene, onReel, onPicture }: { scene: AdultSc
  * 🎞 In the theater: a clip of the moment on stage (the line it's showing, of the running scene or a saved night). It's
  * made like any clip and announced on the window, so the page's videos list shows it when the theater closes.
  */
-export function ClipHere({ a, b, at, nightId }: { a: string; b: string; at: number; nightId: string | null }) {
+export function ClipHere({ a, b, at, nightId, paused = null }: { a: string; b: string; at: number; nightId: string | null; paused?: string | null }) {
   const [price, setPrice] = useState<number | null>(null);
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
@@ -276,9 +288,9 @@ export function ClipHere({ a, b, at, nightId }: { a: string; b: string; at: numb
       <button
         type="button"
         className="secondary small"
-        disabled={asking || at < 1}
+        disabled={asking || Boolean(paused) || at < 1}
         onClick={() => void make()}
-        title={`A 5–10 s clip of the two of them at this moment${price === null ? "" : ` (${priceWords(price)})`}`}
+        title={paused ?? `A 5–10 s clip of the two of them at this moment${price === null ? "" : ` (${priceWords(price)})`}`}
       >
         {asking ? "🎞 …" : `🎞 Clip${price ? ` · ${price}` : ""}`}
       </button>

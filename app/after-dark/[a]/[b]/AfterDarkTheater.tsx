@@ -85,6 +85,7 @@ export default function AfterDarkTheater({
   videoChapters = [],
   videoTokens = 15,
   videoNote = null,
+  mediaPaused = null,
   feedbackRef = null,
   suggestions = [],
   onSuggest,
@@ -112,6 +113,8 @@ export default function AfterDarkTheater({
   videoChapters?: readonly NightChapter[];
   videoTokens?: number;
   videoNote?: string | null;
+  /** Hive's breaker is open (lib/adult/hive-limit.ts): the clip and video buttons are disabled, with this as their tooltip. */
+  mediaPaused?: string | null;
   /**
    * What these lines are, for their 👍/👎 (lib/line-feedback.ts): the running scene's id, or the saved night's. A scene's
    * votes move to the night its chapter is filed as, so the running scene's are read again when its lines are replaced.
@@ -221,9 +224,9 @@ export default function AfterDarkTheater({
                   ⏭
                 </button>
                 <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
-                <ClipHere a={a.id} b={b.id} at={shown.length - 1} nightId={live ? null : feedbackRef} />
+                <ClipHere a={a.id} b={b.id} at={shown.length - 1} nightId={live ? null : feedbackRef} paused={mediaPaused} />
                 {onMakeVideo && (
-                  <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} onMake={onMakeVideo} />
+                  <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} />
                 )}
               </div>
             </div>

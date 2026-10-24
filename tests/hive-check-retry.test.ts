@@ -1,7 +1,7 @@
 // The output check asks a busy Hive again instead of throwing the picture away (2026-10-23: a picture was discarded
 // because one 429 meant "the check couldn't run").
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { checkOutput, HIVE_MODERATION, HIVE_RETRIES, HIVE_VLM, retryAfterMs, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { checkOutput, HIVE_MODERATION, HIVE_RETRIES, HIVE_VLM, probeHive, retryAfterHeaderMs, retryAfterMs, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 
 const MOD_OK = { status: [{ response: { output: [{ classes: [{ class: "no_child_present", score: 0.99 }, { class: "yes_child_present", score: 0.01 }] }] } }] };
 const VLM_OK = { choices: [{ message: { content: JSON.stringify({ answer: "ADULTS" }) } }] };
@@ -60,7 +60,7 @@ describe("the output check and a busy Hive", () => {
     script({ mod: Array.from({ length: HIVE_RETRIES + 1 }, () => ({ status: 429 })) });
     const out = await checkOutput("k", IMG);
     expect(out.ok).toBe(false);
-    expect(out).toMatchObject({ reason: expect.stringContaining("couldn't run (Hive answered 429)") });
+    expect(out).toMatchObject({ reason: "the check couldn't run (Hive answered 429: busy)", unavailable: { status: 429, retry_after_ms: null } });
     expect(calls).toHaveLength(HIVE_RETRIES + 1);
   });
 
@@ -87,5 +87,64 @@ describe("the output check and a busy Hive", () => {
     expect(retryAfterMs("600")).toBe(8000);
     expect(retryAfterMs(new Date(10_000).toUTCString(), 5_000)).toBe(5000);
     expect(retryAfterMs("soon")).toBeNull();
+  });
+});
+
+// What Hive said (lib/adult/check.ts hiveSaid, 2026-10-23): its own words go in the error, adult_rejections and the log.
+describe("Hive's reply in the error", () => {
+  const KEY = "placeholder-hive-secret-1234";
+  const raw = (status: number, body: string, headers: Record<string, string> = {}) => new Response(body, { status, headers });
+  function always(res: () => Response | Promise<Response>) {
+    setCheckFetchForTests(async () => res());
+  }
+
+  it("keeps Hive's message from a JSON body, and counts a 429 as Hive not answering", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    always(() => raw(429, JSON.stringify({ status_code: 429, message: "Too Many Requests" })));
+    const out = await checkOutput(KEY, IMG);
+    expect(out).toEqual({ ok: false, reason: "the check couldn't run (Hive answered 429: Too Many Requests)", unavailable: { status: 429, retry_after_ms: null } });
+    expect(warn).toHaveBeenCalledWith("[after-dark] the Hive check couldn't run: Hive answered 429: Too Many Requests");
+    // The key is only ever in the request header: never in the reason or the log.
+    expect(JSON.stringify(out)).not.toContain(KEY);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(KEY);
+    warn.mockRestore();
+  });
+
+  it("keeps a text body as it came, on one line, cut to about 200 characters; Retry-After uncapped for the breaker", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    always(() => raw(429, "quota exceeded\n for this plan", { "retry-after": "900" }));
+    expect(await checkOutput(KEY, IMG)).toMatchObject({ reason: "the check couldn't run (Hive answered 429: quota exceeded for this plan)", unavailable: { status: 429, retry_after_ms: 900_000 } });
+    always(() => raw(503, "x".repeat(500)));
+    const long = await checkOutput(KEY, IMG);
+    const said = (long as { reason: string }).reason.replace("the check couldn't run (Hive answered 503: ", "").replace(/\)$/, "");
+    expect(said).toHaveLength(200);
+    expect(said.endsWith("…")).toBe(true);
+    expect(long).toMatchObject({ unavailable: { status: 503 } });
+    vi.restoreAllMocks();
+  });
+
+  it("an unreachable Hive counts as not answering (no status); a refused key doesn't", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    setCheckFetchForTests(async () => {
+      throw new TypeError("fetch failed");
+    });
+    expect(await checkOutput(KEY, IMG)).toEqual({ ok: false, reason: "the check couldn't run (Hive couldn't be reached (fetch failed))", unavailable: { status: null, retry_after_ms: null } });
+    always(() => raw(401, JSON.stringify({ error: "invalid key" })));
+    expect(await checkOutput(KEY, IMG)).toEqual({ ok: false, reason: "the check couldn't run (Hive answered 401: invalid key)" });
+    vi.restoreAllMocks();
+  });
+
+  it("the probe says the same: down with Hive's words and Retry-After, ok, or unknown", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    always(() => raw(429, JSON.stringify({ message: "Too Many Requests" }), { "retry-after": "120" }));
+    expect(await probeHive(KEY)).toEqual({ result: "down", status: 429, retry_after_ms: 120_000, error: "Hive answered 429: Too Many Requests" });
+    always(() => raw(502, ""));
+    expect(await probeHive(KEY)).toEqual({ result: "down", status: 502, retry_after_ms: null, error: "Hive answered 502" });
+    always(() => raw(200, "{}"));
+    expect(await probeHive(KEY)).toEqual({ result: "ok" });
+    always(() => raw(403, "forbidden"));
+    expect(await probeHive(KEY)).toEqual({ result: "unknown", status: 403, error: "Hive answered 403: forbidden" });
+    expect(retryAfterHeaderMs("7200")).toBe(7_200_000);
+    vi.restoreAllMocks();
   });
 });

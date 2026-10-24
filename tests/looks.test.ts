@@ -151,13 +151,19 @@ describe("drawing the tiles", () => {
     expect(await drawTile(t.db, spec)).toBe("failed");
     expect((await serve(spec.id)).status).toBe(404);
     await t.db.query(`update look_tiles set updated_at = now() - interval '1 hour' where id = $1`, [spec.id]);
-    // Hive kept answering 429: its daily limit, so pictures are paused (lib/adult/hive-limit.ts) and a batch draws and
-    // sends nothing until that's over.
+    // One check that couldn't run is a blip: the next batch screens it again, without drawing it again. Hive down again
+    // is the second in a row, which opens its breaker (lib/adult/hive-limit.ts).
     let sent = 0;
     setCheckFetchForTests(async () => {
       sent++;
       return new Response("?", { status: 500 });
     });
+    expect(await drawMissingTiles(t.db, { only: [spec.id] })).toEqual([{ id: spec.id, status: "failed" }]);
+    expect(sent).toBeGreaterThan(0);
+    expect(calls).toHaveLength(1);
+    // Paused now: a batch draws and sends nothing until that's over.
+    sent = 0;
+    await t.db.query(`update look_tiles set updated_at = now() - interval '1 hour' where id = $1`, [spec.id]);
     expect(await drawMissingTiles(t.db, { only: [spec.id] })).toEqual([]);
     expect(sent).toBe(0);
     // The pause over, the next batch picks it up and only screens it.

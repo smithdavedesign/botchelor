@@ -2,13 +2,17 @@
 
 import { useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
+import type { HiveState } from "@/lib/adult/hive-limit";
 import type { AdultSettings } from "@/lib/adult/settings";
 
 /** A number field's value: a number, or null when it's empty (the setting's default, or none). */
 const numberOrNull = (v: string): number | null => (v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
-/** The switch, the models and the provider keys. A key field left empty keeps the saved key. */
-export default function SettingsForm({ initial }: { initial: AdultSettings }) {
+/**
+ * The switch, the models and the provider keys. A key field left empty keeps the saved key. `hive`: the safety check's
+ * breaker (lib/adult/hive-limit.ts), shown by the Hive key.
+ */
+export default function SettingsForm({ initial, hive = null }: { initial: AdultSettings; hive?: HiveState | null }) {
   const [s, setS] = useState(initial);
   // The sampling fields as typed, so one can be emptied (back to its default) and retyped.
   const samplingOf = (x: AdultSettings) => ({
@@ -230,6 +234,7 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
       <details className="ad-settings-section">
         <summary>
           <h3>The output check: Hive</h3>
+          {hive && hive.state !== "ok" && <span className={hive.state === "paused" ? "error small" : "muted small"}> {hive.state === "paused" ? `paused until ${hive.until ? hive.until.slice(11, 16) : "?"} UTC` : hive.state === "failing" ? "failing" : "probing next"}</span>}
         </summary>
         <p className="muted small">
           Every picture and clip is checked after it&apos;s made and discarded if Hive&apos;s moderation sees a child, or its vision model
@@ -239,6 +244,12 @@ export default function SettingsForm({ initial }: { initial: AdultSettings }) {
         </p>
         <label htmlFor="ad-hive-key">Hive secret key {s.hive_last4 && <span className="muted small">saved, ends …{s.hive_last4}</span>}</label>
         <input id="ad-hive-key" type="password" autoComplete="off" value={hiveKey} onChange={(e) => setHiveKey(e.target.value)} />
+        {hive && (
+          <p className={hive.state === "paused" ? "error small" : "muted small"} role="status" data-hive-state={hive.state}>
+            <strong>Hive right now:</strong> {hive.summary}
+            {hive.state === "paused" ? " Nothing is drawn (or paid for) while it's paused, and the scene page says until when." : ""}
+          </p>
+        )}
       </details>
       <p className="ad-settings-actions">
         <button type="submit" className="primary" disabled={busy}>

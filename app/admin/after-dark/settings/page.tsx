@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { mediaPauses, pauseClock } from "@/lib/adult/hive-limit";
+import { hiveState, mediaPauses, pauseClock } from "@/lib/adult/hive-limit";
 import { signedInAdmin } from "@/lib/adult/mode";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { getAdultSettings } from "@/lib/adult/settings";
@@ -21,8 +21,9 @@ export default async function AfterDarkSettingsPage() {
   // Behind the admin's PIN too, when there is one (lib/adult/privacy.ts): the layout asks for it instead.
   if (!admin || (await lockedForCookies(db, admin, store))) notFound();
   const settings = await getAdultSettings(db);
-  // Hive over its daily limit (lib/adult/hive-limit.ts) and the media providers' cooldowns (lib/adult/fallback.ts).
+  // Hive's breaker (lib/adult/hive-limit.ts) and the media providers' cooldowns (lib/adult/fallback.ts).
   const pauses = await mediaPauses(db);
+  const hive = await hiveState(db);
   const requests = (
     await db.query<{ id: string; client_name: string | null; reason: string; created_at: string | Date }>(
       `select id, client_name, reason, created_at from adult_access_requests order by created_at desc limit 50`,
@@ -50,16 +51,16 @@ export default async function AfterDarkSettingsPage() {
                   : `pause ended at ${pauseClock(p.until)}; the next picture or video asks Hive first`}
                 {p.reason ? <span className="muted small"> · {p.reason}</span> : null}
                 {p.what.startsWith("Hive") && p.active ? (
-                  <p className="muted small">Over its daily limit: no picture, keyframe or video is drawn until it&apos;s over, and the page says until when.</p>
+                  <p className="muted small">Hive isn&apos;t answering checks: no picture, keyframe or video is drawn until it does, and the page says until when.</p>
                 ) : null}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="muted">Nothing is paused: no Hive daily-limit pause, and no media provider cooling down.</p>
+          <p className="muted">Nothing is paused: Hive is answering, and no media provider is cooling down.</p>
         )}
       </section>
-      <SettingsForm initial={settings} />
+      <SettingsForm initial={settings} hive={hive} />
       <section className="card">
         <h2>Requests from other agents</h2>
         {requests.length ? (

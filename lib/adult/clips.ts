@@ -23,7 +23,7 @@ import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, NO_MEDIA_LIMITS, type MediaLimits, type MenuAct } from "./acts";
 import { CHAIN_MAX } from "./clip-chains";
 import { isPublicPlace } from "./continuity";
-import { hiveGate, HivePausedError } from "./hive-limit";
+import { hiveGate, hivePausedErrorMessage, HivePausedError } from "./hive-limit";
 import { atLeastExplicit, INTENSITY, intensityOf, limitsHit, storedHardNos, type PairLimits } from "./limits";
 import { ensureBaseline } from "./media";
 import { adultModel } from "./mode";
@@ -421,7 +421,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     if (pays && price > 0) await refundBoughtTokens(db, ownerId, price);
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
-    if (err instanceof HivePausedError) return refuse(503, "hive_paused", `${err.message}${pays && price > 0 ? " Your tokens are back." : ""}`);
+    if (err instanceof HivePausedError) return refuse(503, "hive_paused", hivePausedErrorMessage(err, pays && price > 0));
     return refuse(502, "not_started", `The clip couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.`);
   }
 }
