@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { AUDIENCES } from "@/lib/audience";
 import { getDb } from "@/lib/db";
-import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { handle, isMcpCall, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { ExtrasInput, extrasFields, normaliseExtras } from "@/lib/extras";
+import { scheduleWelcome } from "@/lib/welcome";
 import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
@@ -148,6 +149,8 @@ export const POST = handle(async (req) => {
   if (hasSoul || signals) await saveSoul(db, id, soul ?? normaliseSoul({}), input.soul?.local_only ?? false, signals);
   // Its concept embedding, after the response (lib/originality-concept.ts; off unless enabled).
   await scheduleConceptEmbedding(db, id);
+  // A person's character, swipe-ready: the welcome experiment (lib/welcome.ts), after the response. Never an agent's.
+  if (!isMcpCall(req)) await scheduleWelcome(db, id);
 
   const { attest: _attest, keep_name: _keep, check_only: _check, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, ...character } = input;
   return json(

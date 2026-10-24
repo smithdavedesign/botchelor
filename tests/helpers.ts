@@ -49,6 +49,7 @@ import { setReflectionEnabledForTests } from "@/lib/reflection";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { setPublicLaunchDayForTests } from "@/lib/our-traffic";
 import { setCheckSleepForTests } from "@/lib/adult/check";
+import { setWelcomeFromForTests } from "@/lib/welcome";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
 import type { Ending } from "@/lib/rules";
@@ -126,6 +127,9 @@ export async function startTestDb() {
   setPublicLaunchDayForTests(null);
   // The output check's waits between Hive retries (lib/adult/check.ts) don't hold up the suite.
   setCheckSleepForTests(async () => {});
+  // The welcome experiment (lib/welcome.ts) is off in tests by default: a person's character would otherwise get likes
+  // from any house-run bot in the suite. tests/house-crowd.test.ts turns it on.
+  setWelcomeFromForTests("2099-01-01T00:00:00Z");
   return {
     db,
     async reset() {
