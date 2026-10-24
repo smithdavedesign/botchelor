@@ -22,8 +22,10 @@
     "screenshots:share": "node scripts/share-screenshots.mjs",
     "screenshots:chemistry": "node scripts/chemistry-screenshots.mjs",
     "screenshots:after-dark": "node scripts/after-dark-screenshots.mjs",
+    "screenshots:studio": "node scripts/studio-screenshots.mjs",
     "screenshots:after-dark-media": "node scripts/after-dark-media-screenshots.mjs",
     "screenshots:after-dark-shorts": "node scripts/after-dark-shorts-screenshots.mjs",
+    "screenshots:after-dark-steering": "node scripts/after-dark-steering-screenshots.mjs",
     "screenshots:connections": "node scripts/connections-screenshots.mjs",
     "portraits": "node scripts/portraits.mjs",
     "payment:live": "node scripts/payment-live.mjs",
@@ -56,5 +58,10 @@
     "playwright-core": "^1.64.0",
     "typescript": "^5.9.3",
     "vitest": "^5.0.4"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "$zod"
+    }
   }
 }

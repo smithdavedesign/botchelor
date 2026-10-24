@@ -162,6 +162,13 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
             <span className="muted small">(one per chapter and place, about 1.5¢ each with its checks)</span>
           </span>
         </label>
+        <label className="ad-check-row">
+          <input type="checkbox" id="ad-beat-pictures" checked={s.beat_pictures} disabled={busy} onChange={(e) => void save({ beat_pictures: e.target.checked })} />
+          <span>
+            A picture of each moment that matters: undressing, sex, each new position, the climax, the afterglow{" "}
+            <span className="muted small">(offered as the theater plays, drawn when the chapter closes if never asked for; at most 6 a chapter, about 5¢ each with its checks, one Hive check each)</span>
+          </span>
+        </label>
       </details>
       <details className="ad-settings-section">
         <summary>

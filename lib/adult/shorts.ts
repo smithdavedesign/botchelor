@@ -22,6 +22,7 @@ import type { Db } from "../db";
 import { pairKey } from "../relationships";
 import { checkAdultText, checkShowText } from "../safety";
 import { seasonCastIds } from "../season-cast";
+import { playable } from "./clip-chains";
 import type { PlaceStop } from "./continuity";
 import { canAfterDark } from "./entitlement";
 import { FRAME_SHOWN } from "./media";
@@ -126,7 +127,8 @@ export function defaultCover(group: Pick<NightGroup, "since" | "until">, options
   return options.filter((o) => t(o) <= group.until.getTime()).sort((p, q) => t(q) - t(p))[0]?.id ?? null;
 }
 
-const readyShots = (shots: readonly ReelShot[] | null | undefined) => (shots ?? []).filter((s) => s.status === "ready" && s.media_id);
+/** The shots of a video that play: in, and not in the Archive (lib/adult/clip-chains.ts playable). */
+const readyShots = (shots: readonly ReelShot[] | null | undefined) => (shots ?? []).filter(playable);
 
 /**
  * Whether a video filmed these lines: every shot of it that came through says one of them, by the same one of the two,

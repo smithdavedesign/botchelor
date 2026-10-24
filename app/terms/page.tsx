@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { CONTACT_HEADING, Contact, LAST_UPDATED, OnThisPage, TERMS_HEADINGS, TermsSections } from "../legal/sections";
+import { CONTACT_HEADING, Contact, LAST_UPDATED, OnThisPage, PolicyLinks, TERMS_HEADINGS, TermsSections } from "../legal/sections";
 
 export const metadata: Metadata = { title: "Terms · Botchelor" };
 // Rendered per request, so a CONTACT_EMAIL added after the build shows without a redeploy.
 export const dynamic = "force-dynamic";
 
-/** Terms of use and sale, with the refund policy. */
+/** Terms of use and sale, with the refund and cancellation policy. */
 export default function TermsPage() {
   return (
     <article className="legal-page">
@@ -15,9 +14,7 @@ export default function TermsPage() {
       <OnThisPage headings={[...TERMS_HEADINGS, CONTACT_HEADING]} />
       <TermsSections />
       <Contact />
-      <p>
-        See also the <Link href="/privacy">privacy notice</Link>. <Link href="/">Back to the show</Link>
-      </p>
+      <PolicyLinks current="/terms" />
     </article>
   );
 }

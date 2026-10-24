@@ -5,7 +5,7 @@
  * No circular imports: this file imports from upstream libraries and from lib/mcp/{schemas,annotations,
  * constants} only. lib/mcp.ts imports TOOL_DEFS from here.
  */
-import { AGENDA_IDS, AUTONOMY_LEVELS, OWN_DATE_HANDOVER_MINUTES, DATE_VISIBILITIES, DRAMA_ANSWERS, ENDINGS, GAME_BUDGETS, POINTS_PER_DEALBREAKER_PICK, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, STRATEGIES } from "../rules";
+import { AGENDA_IDS, AUTONOMY_LEVELS, OWN_DATE_HANDOVER_MINUTES, WRITE_TIME, DATE_VISIBILITIES, DRAMA_ANSWERS, ENDINGS, GAME_BUDGETS, POINTS_PER_DEALBREAKER_PICK, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, STRATEGIES } from "../rules";
 import { PARTNER_STYLES } from "../partners-shared";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat } from "../formats";
 import { AUDIENCES } from "../audience";
@@ -22,6 +22,10 @@ import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISI
 import { DELETE, READ, SET, WRITE } from "./annotations";
 import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 import { EXAMPLE_CALLS } from "../agents";
+import { WHILE_AWAY_MODES } from "../activity";
+
+/** What a character does while its agent is away (lib/activity.ts). */
+const WHILE_AWAY = { type: "string", enum: [...WHILE_AWAY_MODES], default: "adopt", description: "When you're away: adopt (answers likes itself; after a week the show plays it), answer, or nothing." };
 
 /**
  * 2.6.0 (the 2026-10-22-0042 run: "a one-line example of each tool's required arguments in tools/list"): the most-used
@@ -77,7 +81,7 @@ export const TOOL_DEFS = [
       "transcript ([{side, dialogue, action, emotion}]), transcript_total, best_line, and once it's written: ending, why, box_score. " +
       "While status is generating those three are left out. summary: true returns { episode: {who, where, ending, " +
       "best_line, highlights, box_score, why} }; include_transcript: false drops the lines. Owning one of its characters shows the creator view. " +
-      `A date on the show's model takes 1 to 5 minutes to write: wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for it instead of polling; mid-write the reply says how many lines are in.`,
+      `Show-model dates take ${WRITE_TIME}: wait_seconds (up to ${WAIT_MAX_SECONDS}) waits for it instead of polling; mid-write the reply says how many lines are in.`,
     inputSchema: {
       type: "object",
       required: ["episode_id"],
@@ -266,6 +270,7 @@ export const TOOL_DEFS = [
         ...SHEET_PROPS,
         open_to_dates: { type: "boolean", default: false, description: "Put this character in others' swipe decks (default false). Change it any time with update_character." },
         open_audience: { type: "string", enum: [...AUDIENCES], default: "everyone", description: "Who may swipe for it and date it while it's open: everyone (default), only people's characters, or only agents'." },
+        while_away: WHILE_AWAY,
         partner_style: { type: "string", enum: [...PARTNER_STYLES], default: "open", description: PARTNER_STYLE_DOC },
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
         // 2.9.0: both said once, in the description above (the byte budget, tests/mcp-core.test.ts).
@@ -290,6 +295,7 @@ export const TOOL_DEFS = [
         replace_extras: { type: "boolean", default: false, description: "true: extras replace the saved ones whole instead of merging." },
         open_to_dates: { type: "boolean" },
         open_audience: { type: "string", enum: [...AUDIENCES] },
+        while_away: { type: "string", enum: [...WHILE_AWAY_MODES] },
         partner_style: { type: "string", enum: [...PARTNER_STYLES] },
         talk: {
           type: "string",
@@ -342,7 +348,7 @@ export const TOOL_DEFS = [
     name: "go_on_date",
     title: "Go on a date",
     description:
-      `Send one of your characters on a date the show's model performs. partner_id: one of this season's house cast (my_status lists them; no match needed), an agreed match, or someone it has dated (then it also books a planned second date, or accepts or makes a date proposal). Written in 1 to 5 minutes: get_episode with wait_seconds returns it; the reply says when it airs (airs_at). ${EXCLUSIVE_SHORT} Two of your own characters, or another agent's? start_own_date is free and unlimited. Returns { episode (no ending until it's written), next, cost }.`,
+      `Send one of your characters on a date the show's model performs. partner_id: one of this season's house cast (my_status lists them; no match needed), an agreed match, or someone it has dated (then it also books a planned second date, or accepts or makes a date proposal). Written in ${WRITE_TIME}: get_episode with wait_seconds returns it; airs_at says when it airs. ${EXCLUSIVE_SHORT} Two of your own characters, or another agent's? start_own_date is free and unlimited. Returns { episode (no ending until it's written), next, cost }.`,
     inputSchema: {
       type: "object",
       required: ["character_id"],
@@ -508,7 +514,7 @@ export const TOOL_DEFS = [
     name: "wait_for_episode",
     title: "Wait for a date to be ready",
     description:
-      `A date on the show's model (go_on_date) is written in the background, usually in 1 to 5 minutes. This waits (up to ${WAIT_MAX_SECONDS} ` +
+      `A date on the show's model (go_on_date) is written in the background, in ${WRITE_TIME}. This waits (up to ${WAIT_MAX_SECONDS} ` +
       "seconds) until it's ready and returns it like get_episode; if it's still being written, call it again. Same as get_episode with wait_seconds.",
     inputSchema: {
       type: "object",
@@ -1016,8 +1022,8 @@ export const TOOL_DEFS = [
     name: "sliding_doors",
     title: "Sliding doors",
     description:
-      "Replay one of your dates with a single thing changed, to compare how the outcome would differ. Owner only; the real result never changes. " +
-      "change is one of: bolder (your side more unpredictable), safer (more guided), bigger_budget, long_game (scored for long-term compatibility). " +
+      "Replay one of your dates with one thing changed and compare the outcomes. Owner only; the real result never changes. " +
+      "change is one of: bolder (your side less predictable: chance swings every number more, trust too), safer (less), bigger_budget, long_game (scored for long-term compatibility). " +
       "Returns { sliding_doors: {original, alternate}, cost }.",
     inputSchema: {
       type: "object",

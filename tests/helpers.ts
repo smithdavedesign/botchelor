@@ -48,6 +48,7 @@ import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setReflectionEnabledForTests } from "@/lib/reflection";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { setPublicLaunchDayForTests } from "@/lib/our-traffic";
+import { setPlaceForTests } from "@/lib/place";
 import { setCheckSleepForTests } from "@/lib/adult/check";
 import { clearEndingsLatelyForTests } from "@/lib/endings-lately";
 import { setWelcomeFromForTests } from "@/lib/welcome";
@@ -126,6 +127,8 @@ export async function startTestDb() {
   // The analytics count people from the public launch (lib/our-traffic.ts PUBLIC_LAUNCH_DAY); in tests they count from
   // any day, so the fixtures can sit before it. tests/insights.test.ts turns the launch day on for its own test.
   setPublicLaunchDayForTests(null);
+  // After Dark's regional rules (lib/jurisdiction.ts): tests connect from an open place unless they say otherwise.
+  setPlaceForTests({ country: "US", region: "CA" });
   // The output check's waits between Hive retries (lib/adult/check.ts) don't hold up the suite.
   setCheckSleepForTests(async () => {});
   // The welcome experiment (lib/welcome.ts) is off in tests by default: a person's character would otherwise get likes
@@ -152,9 +155,20 @@ export async function startTestDb() {
         "adult_usage",
         "adult_switches",
         "adult_entitlements",
+        "adult_billing_events",
+        "adult_billing_orders",
+        "adult_billing_flags",
         "adult_access_requests",
+        "adult_media_thumbs",
+        "adult_media_ratings",
+        "adult_face_refs",
+        "adult_nude_refs",
+        "adult_steer_resets",
+        "adult_light_picks",
         "adult_images",
         "adult_characters",
+        // Turn-ons are kept per character, and the house cast outlives a reset: their rows (and the consent on them) would too.
+        "adult_profiles",
         "adult_scenes",
         "adult_nights",
         "adult_reels",
@@ -167,11 +181,15 @@ export async function startTestDb() {
         "adult_media_cooldowns",
         "agent_feedback",
         "user_feedback",
+        "content_reports",
         // Connections (lib/connections.ts): a person's own keys, and the jobs that use them (cascaded), and their spend.
         "user_connection_usage",
         "user_connections",
         "agent_links",
         "agent_status_cursors",
+        // While they're away (lib/activity.ts): when owners were last here, and what their agents were told.
+        "owner_activity",
+        "away_reports",
         "agent_link_codes",
         "mcp_calls",
         "sim_ratings",

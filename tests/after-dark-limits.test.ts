@@ -76,7 +76,7 @@ function scripted(...replies: unknown[]) {
   } as never);
   return prompts;
 }
-const limits = (cookie: string, l: Record<string, unknown>) => post({ a: CAST_A, b: CAST_B, limits: l }, cookie);
+const limits = (cookie: string, l: Record<string, unknown>) => post({ a: CAST_A, b: CAST_B, limits: l, consent: true }, cookie);
 
 describe("the checks", () => {
   const H = (chips: string[], own: string[] = []): HardNos => ({ chips, own });

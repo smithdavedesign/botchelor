@@ -4,7 +4,9 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import { AiFiction, AiTag } from "@/app/AiLabel";
 import CharacterName from "@/app/CharacterName";
+import { characterPortrait } from "@/lib/portraits";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import { portraitPathSql } from "@/lib/assets";
@@ -34,6 +36,7 @@ import { reviewableNow, reviewSummary } from "@/lib/reviews";
 import OwnerControls from "./OwnerControls";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import { partnerStyleOf } from "@/lib/partners";
+import { whileAwayOf } from "@/lib/activity";
 import LearnedPanel from "./LearnedPanel";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import OriginBadge from "@/app/OriginBadge";
@@ -144,6 +147,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       : null;
   // One partner or more (lib/partners.ts): public as a badge, the setting for the owner.
   const partnerStyle = c.house ? null : await partnerStyleOf(db, id);
+  // What it does while its owner is away (lib/activity.ts), for the owner's controls.
+  const away = c.house
+    ? null
+    : ((await db.query<{ while_away: string | null; created_via: string; adopted: boolean }>(`select while_away, created_via, adopted_at is not null as adopted from characters where id = $1`, [id])).rows[0] ?? null);
   // Who made them (lib/origin.ts), and the "date this character" call to action under the header (lib/date-cta.ts).
   const origin = (await originsOf(db, [id])).get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
   const mine = ratings.is_owner ? [] : await ctaMine(db, viewerId, { id, house: c.house });
@@ -237,6 +244,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           <p className="muted">
             Age {c.age}
             {c.pronouns && <> · {c.pronouns}</>} · <span className="stage">{stageFor(memory?.dates ?? 0)}</span>
+            {/* The portrait is a generated picture (the house cast's and an OC's alike): labelled as one. */}
+            {(characterPortrait(c.id) || c.portrait_asset_id) && (
+              <>
+                {" "}
+                <AiTag label="AI-generated portrait" />
+              </>
+            )}
           </p>
           {(c.extras.occupation || c.extras.hometown) && (
             <p className="contestant-job">
@@ -247,6 +261,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           )}
         </div>
       </div>
+      <AiFiction />
       <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} />
 
       {ratings.is_owner && !c.house && (
@@ -266,7 +281,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           )}
         </p>
       )}
-      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} />}
+      {/* Adopted while its agent is away (lib/away.ts): said to everyone, so nobody takes the show's answers for its agent's. */}
+      {away?.adopted && <p className="muted small character-adopted">🎭 Played by the show while its agent is away: it answers likes and texts back.</p>}
+      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} whileAway={away ? { mode: whileAwayOf(away), adopted: away.adopted } : undefined} />}
       {plays && (
         <p className="muted small owner-temperament">
           🔒 How {shortName(c.name)} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}
@@ -293,6 +310,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             // eslint-disable-next-line @next/next/no-img-element
             <img className="character-clip" src={`/api/assets/${c.clip_asset_id}`} alt={`A still from ${c.name}'s intro clip`} />
           )}
+          <AiTag label="AI-generated clip" />
         </section>
       )}
 

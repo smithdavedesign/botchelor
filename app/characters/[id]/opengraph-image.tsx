@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { markedImageResponse } from "@/lib/ai-mark";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { approvedPortraitDataUrl } from "@/lib/assets";
 import { getDb } from "@/lib/db";
@@ -30,7 +31,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   const name = c?.name ?? "Botchelor";
   const palette = avatarPalette(c?.id ?? id, c?.hue ?? null);
 
-  return new ImageResponse(
+  const card = new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", padding: 70, background: PAPER, color: INK, borderTop: `24px solid ${ACCENT}`, fontFamily: "sans-serif", alignItems: "center", gap: 56 }}>
         {portrait ? (
@@ -64,4 +65,6 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     ),
     size,
   );
+  // A card with a generated portrait in it is marked AI-generated, in its PNG's XMP and its headers (lib/ai-mark.ts).
+  return portrait ? markedImageResponse(card) : card;
 }

@@ -8,12 +8,15 @@ import { canAfterDark } from "@/lib/adult/entitlement";
 import { adultAvailable } from "@/lib/adult/mode";
 import { getPrivacy, lockedForCookies } from "@/lib/adult/privacy";
 import { listCastPairs } from "@/lib/adult/scenes";
+import { getAdultSettings } from "@/lib/adult/settings";
+import { sharedWithMe } from "@/lib/adult/shares";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import PrivacyCard from "./PrivacyCard";
 import Switches from "./Switches";
 import PairPicker from "./PairPicker";
-import { currentView } from "./view";
+import SharedWithYou from "./SharedWithYou";
+import { currentHere, currentView } from "./view";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +49,16 @@ export default async function AfterDarkPage() {
     );
   }
   const owner = auth!.userId;
-  const [pairs, switchable, privacy] = await Promise.all([listCastPairs(db, owner), listSwitchable(db, owner), getPrivacy(db, owner)]);
+  const [pairs, switchable, privacy, adSettings, shared, here] = await Promise.all([
+    listCastPairs(db, owner),
+    listSwitchable(db, owner),
+    getPrivacy(db, owner),
+    getAdultSettings(db),
+    sharedWithMe(db, owner),
+    currentHere(),
+  ]);
+  // The Studio (lib/adult/studio.ts): their own characters that are in, and for an admin the house cast that's in too.
+  const studio = adSettings.studio.open_to === "entitled" || admin ? switchable.filter((c) => c.on && (!c.house || admin)) : [];
   return (
     <div className="after-dark-mode">
       <article className="after-dark">
@@ -56,13 +68,24 @@ export default async function AfterDarkPage() {
           <Link className="button-ghost" href="/after-dark/shorts">
             📺 Shorts
           </Link>
+          <a className="button-ghost" href="#shared">
+            💌 Shared{shared.shares.some((x) => x.status === "pending") ? ` (${shared.shares.filter((x) => x.status === "pending").length})` : ""}
+          </a>
           <a className="button-ghost" href="#privacy">
             🔒 Privacy
           </a>
           {admin && (
-            <Link className="button-ghost" href="/admin/after-dark/settings">
-              ⚙ Settings
-            </Link>
+            <>
+              <Link className="button-ghost" href="/admin/after-dark/graph">
+                🕸 Graph
+              </Link>
+              <Link className="button-ghost" href="/admin/after-dark/library">
+                🗂 Library
+              </Link>
+              <Link className="button-ghost" href="/admin/after-dark/settings">
+                ⚙ Settings
+              </Link>
+            </>
           )}
           <Link className="button-ghost" href="/">
             ← Back to the show
@@ -74,10 +97,24 @@ export default async function AfterDarkPage() {
           is shown anywhere in the show. Two lines hold: nobody under 18, and no real people.
         </p>
         <Switches initial={switchable} />
+        {studio.length > 0 && (
+          <section className="card">
+            <h2>🎨 Studio</h2>
+            <p className="muted small">A private photo shoot of one of them: the face and body every picture keeps, and pictures you compose from menus.</p>
+            <nav className="ad-studio-links" aria-label="Studio">
+              {studio.map((c) => (
+                <Link key={c.id} className="button-ghost" href={`/after-dark/studio/${c.id}`}>
+                  {c.name}
+                </Link>
+              ))}
+            </nav>
+          </section>
+        )}
         <section>
           <h2>Scenes</h2>
           <PairPicker pairs={pairs} />
         </section>
+        <SharedWithYou initial={shared} textOnly={here.mode === "text_only" ? here.reason : null} />
         <div id="privacy">
           <PrivacyCard initial={privacy} />
         </div>

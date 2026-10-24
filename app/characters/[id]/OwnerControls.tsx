@@ -8,6 +8,7 @@ import { requestJson } from "../../request";
 import { TALK, TALK_LEVELS, type TalkLevel } from "@/lib/talk";
 import { PARTNER_STYLE_LABELS, PARTNER_STYLES, type PartnerStyle } from "@/lib/partners-shared";
 import { AUDIENCE_LABELS, AUDIENCES, type Audience } from "@/lib/audience";
+import { WHILE_AWAY_MODES, type WhileAway } from "@/lib/activity";
 import { DEFAULT_PORTRAIT_STYLE, PORTRAIT_STYLE_LABELS, PORTRAIT_STYLES, type PortraitStyle } from "@/lib/image";
 
 type Props = {
@@ -25,6 +26,14 @@ type Props = {
   private?: boolean;
   /** One partner or more (lib/partners.ts): the owner's choice, what the character decided, and who they're with. */
   partners?: { choice: PartnerStyle; decided: "one" | "open" | null; taken: boolean; partners: { id: string; name: string }[] };
+  /** What they do while you're away (lib/activity.ts), and whether the show is playing them now (an agent's, after a week). */
+  whileAway?: { mode: WhileAway; adopted: boolean };
+};
+
+const WHILE_AWAY_LABELS: Record<WhileAway, string> = {
+  adopt: "Answer likes, and after a week the show plays them",
+  answer: "Answer likes and date questions themselves",
+  nothing: "Wait for me",
 };
 
 type Message = { text: string; error?: boolean; link?: { href: string; label: string } };
@@ -104,6 +113,23 @@ export default function OwnerControls(props: Props) {
       router.refresh();
     } else {
       setPartnerStyle(prev);
+      setMessage({ text: res.message ?? "Couldn't save that.", error: true });
+    }
+  }
+
+  const [whileAway, setWhileAway] = useState<WhileAway>(props.whileAway?.mode ?? "nothing");
+
+  async function changeWhileAway(next: WhileAway) {
+    const prev = whileAway;
+    setWhileAway(next);
+    setBusy(true);
+    const res = await requestJson(`/api/characters/${props.id}`, { while_away: next }, "PATCH").catch(() => ({ ok: false, message: "Network error." }));
+    setBusy(false);
+    if (res.ok) {
+      setMessage(null);
+      router.refresh();
+    } else {
+      setWhileAway(prev);
       setMessage({ text: res.message ?? "Couldn't save that.", error: true });
     }
   }
@@ -214,6 +240,26 @@ export default function OwnerControls(props: Props) {
               </option>
             ))}
           </select>
+        </div>
+      )}
+      {props.whileAway && (
+        <div className="owner-talk">
+          <label htmlFor={`away-${props.id}`}>While you&apos;re away</label>
+          <select id={`away-${props.id}`} value={whileAway} disabled={busy} onChange={(e) => void changeWhileAway(e.target.value as WhileAway)}>
+            {/* Only an agent's character can be played by the show (lib/away.ts); a person's answers likes, or waits. */}
+            {WHILE_AWAY_MODES.filter((m) => m !== "adopt" || props.whileAway?.mode === "adopt").map((m) => (
+              <option key={m} value={m}>
+                {WHILE_AWAY_LABELS[m]}
+              </option>
+            ))}
+          </select>
+          <p className="muted small">
+            {props.whileAway.adopted
+              ? `The show is playing ${shortName(props.name)} while you're away. It's yours again the next time you're here.`
+              : whileAway === "nothing"
+                ? `Likes on ${shortName(props.name)} wait until you're back.`
+                : `After a day away, ${shortName(props.name)} answers likes on their own, by how well you'd suit. Their answers are marked as theirs, not yours.`}
+          </p>
         </div>
       )}
       {props.partners && (

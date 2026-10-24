@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { HARD_NOS, INTENSITIES, INTENSITY, OWN_LEN, OWN_MAX, type HardNos, type Intensity } from "@/lib/adult/limits";
+import { PROFILE_CONSENT_TEXT } from "@/lib/adult/profile";
 
 /**
  * The viewer's limits for this pair (lib/adult/limits.ts): how far and how frank it goes (the intensity dial), and the
@@ -17,14 +18,25 @@ export default function Limits({
   intensity: Intensity;
   hardNos: HardNos;
   busy: boolean;
-  /** Saves the limits; whether they went through (the page says why when they didn't). */
-  onSave: (limits: { intensity: Intensity; hard_nos: HardNos }) => Promise<boolean>;
+  /**
+   * Saves the limits, with the person's ticked consent to storing their hard nos when they gave it now; whether they went
+   * through (the page says why when they didn't).
+   */
+  onSave: (limits: { intensity: Intensity; hard_nos: HardNos }, consent: boolean) => Promise<boolean>;
 }) {
   const [level, setLevel] = useState<Intensity>(intensity);
   const [chips, setChips] = useState<string[]>(hardNos.chips);
   const [own, setOwn] = useState<string[]>(hardNos.own);
   const [typed, setTyped] = useState("");
   const [saved, setSaved] = useState(false);
+  // GDPR Art. 9 (lib/adult/profile.ts): hard nos are stored only once the person has ticked the consent. Null: not asked yet.
+  const [consented, setConsented] = useState<boolean | null>(null);
+  const [ticked, setTicked] = useState(false);
+  const [needsTick, setNeedsTick] = useState(false);
+  async function loadConsent() {
+    const r = await fetch("/api/admin/after-dark?consent=1").then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    setConsented(Boolean(r?.consent?.given));
+  }
   const count = hardNos.chips.length + hardNos.own.length;
   const changed =
     level !== intensity || chips.slice().sort().join() !== hardNos.chips.slice().sort().join() || own.join("\n") !== hardNos.own.join("\n");
@@ -41,11 +53,17 @@ export default function Limits({
     setTyped("");
   }
   async function save() {
-    if (await onSave({ intensity: level, hard_nos: { chips, own } })) setSaved(true);
+    const any = chips.length + own.length > 0;
+    if (any && !consented && !ticked) return setNeedsTick(true);
+    setNeedsTick(false);
+    if (await onSave({ intensity: level, hard_nos: { chips, own } }, ticked)) {
+      setSaved(true);
+      if (any) setConsented(true);
+    }
   }
 
   return (
-    <details className="ad-panel ad-limits">
+    <details className="ad-panel ad-limits" onToggle={(e) => (e.currentTarget.open && consented === null ? void loadConsent() : undefined)}>
       <summary>
         🎚 Limits: <strong>{INTENSITY[intensity].label}</strong>
         {count ? ` · ${count} hard no${count === 1 ? "" : "s"}` : " · no hard nos"}
@@ -115,6 +133,24 @@ export default function Limits({
             Add
           </button>
         </div>
+        {consented !== true && (
+          <label className={`check ad-consent${needsTick ? " needs-tick" : ""}`}>
+            <input
+              type="checkbox"
+              checked={ticked}
+              onChange={(e) => {
+                setTicked(e.target.checked);
+                setNeedsTick(false);
+              }}
+            />
+            <span>{PROFILE_CONSENT_TEXT}</span>
+          </label>
+        )}
+        {needsTick && (
+          <p className="error small" role="alert">
+            Tick the box above to save hard nos. Without it nothing is stored.
+          </p>
+        )}
       </fieldset>
       <p className="ad-panel-actions">
         <button type="button" className="primary" disabled={busy || !changed} onClick={() => void save()}>

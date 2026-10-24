@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
+import { AiTag } from "@/app/AiLabel";
+import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
+import type { CrisisResources } from "@/lib/crisis";
+import type { PublicBeat } from "@/lib/adult/beats";
 import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkTheater from "./AfterDarkTheater";
@@ -22,6 +26,9 @@ import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 import { hiveNoticeText, type HiveNotice } from "@/lib/adult/hive-notice";
 import CharacterName from "@/app/CharacterName";
+import FacesPanel, { type Faces } from "./Faces";
+import type { SteerSummary } from "@/lib/adult/steering";
+import RateMedia from "./RateMedia";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -38,6 +45,9 @@ export default function SceneWriter({
   reels = [],
   reelTokens = 15,
   hive = null,
+  faces: firstFaces = {},
+  steer: firstSteer = {},
+  textOnly = null,
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -51,6 +61,12 @@ export default function SceneWriter({
   reelTokens?: number;
   /** Hive's breaker, while it's paused (lib/adult/hive-limit.ts): pictures and videos can't be made until it's over. */
   hive?: HiveNotice | null;
+  /** The face each of them keeps for this viewer (lib/adult/steering.ts facesFor). */
+  faces?: Faces;
+  /** What this viewer's ratings of each steer (lib/adult/steering.ts steerSummary). */
+  steer?: Record<string, SteerSummary>;
+  /** Why only the scenes show here (lib/jurisdiction.ts text_only): no pictures, video or voiced lines. Null: all of it. */
+  textOnly?: string | null;
 }) {
   // Shown until the pause is over, then the buttons come back (the next one probes Hive first).
   const [hivePause, setHivePause] = useState(hive);
@@ -98,9 +114,34 @@ export default function SceneWriter({
   const [watching, setWatching] = useState<AdultNight | null>(null);
   const [scene, setScene] = useState(initial);
   const [gallery, setGallery] = useState(firstGallery);
+  const [faces, setFaces] = useState(firstFaces);
+  const [steer, setSteer] = useState(firstSteer);
+  /**
+   * "Use this face" (null: back to the default): what went wrong, or null (lib/adult/steering.ts setFaceReference).
+   * `rivals`: the others it was picked from in "Draw three", for the light test.
+   */
+  async function pickFace(characterId: string, imageId: string | null, rivals: string[] = [], opts: { nude?: boolean } = {}): Promise<string | null> {
+    const res = await requestJson("/api/admin/after-dark/face", {
+      character_id: characterId,
+      image_id: imageId,
+      ...(rivals.length ? { rivals } : {}),
+      ...(opts.nude ? { nude: true } : {}),
+    }).catch(() => null);
+    if (!res) return "That didn't reach the server. Check your connection and try again.";
+    if (!res.ok) return res.message;
+    // The server says which face it was: a nude baseline is the face of their undressed moments (lib/adult/attire.ts).
+    const face = { image_id: (res.data.image_id as string | null) ?? null, picked: imageId !== null };
+    setFaces((f) => {
+      const was = f[characterId] ?? { image_id: null, picked: false, nude: null };
+      return { ...f, [characterId]: res.data.nude ? { ...was, nude: face } : { ...was, ...face } };
+    });
+    return null;
+  }
   const [direction, setDirection] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  const [crisis, setCrisis] = useState<CrisisResources | null>(null);
+  const crisisNotice = crisis ? <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} /> : null;
   // Autoplay (lib/adult/autoplay.ts): one switch for the page and the theater. Each paces its own steps.
   const [autoplay, setAutoplay] = useState(false);
   // Rewind, Redo and Start over: in a "⋯ More" fold on a phone (the sticky bar took 400px), always out on a wider screen.
@@ -135,6 +176,12 @@ export default function SceneWriter({
     const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
     writing.current = false;
     setBusy(false);
+    // The viewer's own steer or whisper read as wanting to hurt themselves (lib/crisis.ts): the help stays until closed.
+    const help = crisisFrom(res?.data);
+    if (help) {
+      setCrisis(help);
+      setAutoplay(false);
+    }
     if (!res || !res.ok) setAutoplay(false);
     if (!res) {
       setNote({ text: "Network error. Try again.", error: true });
@@ -189,10 +236,30 @@ export default function SceneWriter({
     return true;
   }
 
+  /**
+   * Beat pictures (lib/adult/beats.ts): the viewer's answer to a moment worth a picture, or Picture this at a line. Apart
+   * from send(): nothing is written, so autoplay's "nothing new" stop doesn't apply.
+   */
+  async function beatAction(body: { beat: { id: string; answer: "now" | "later" } } | { picture_now: { line: number } }) {
+    const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
+    if (!res || !res.ok) {
+      setNote({ text: res ? res.message : "Network error. Try again.", error: true });
+      return;
+    }
+    setScene(res.data.scene as AdultScene);
+    const beat = res.data.beat as PublicBeat | undefined;
+    if (beat?.status === "drawing") {
+      lookForPictures();
+      setNote({ text: `📸 ${beat.label}: drawing it now. It lands in the gallery below in a minute or so.` });
+    }
+  }
+  // The moment the page is waiting on: the first offered, unanswered (the page shows every line at once).
+  const offered = (scene.beats ?? []).find((x) => x.status === "offered") ?? null;
+
   // Autoplay on the page (the theater paces it by what's left to play): a pause to read, then the next lines. Not while
-  // the tab is hidden, so a forgotten tab doesn't write all night.
+  // the tab is hidden, so a forgotten tab doesn't write all night. A moment offered for a picture waits for its answer.
   useEffect(() => {
-    if (!autoplay || theater || watching || busy) return;
+    if (!autoplay || theater || watching || busy || offered) return;
     const step = () => {
       if (document.visibilityState === "hidden") return document.addEventListener("visibilitychange", step, { once: true });
       void send({});
@@ -204,7 +271,7 @@ export default function SceneWriter({
     };
     // send is a fresh closure each render; the scene it writes from changes with `busy`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoplay, theater, watching, busy]);
+  }, [autoplay, theater, watching, busy, offered]);
   // Following along: while the end is in view, each step's new lines scroll in.
   const lineCount = scene.lines.length;
   useEffect(() => {
@@ -246,6 +313,9 @@ export default function SceneWriter({
           onSetScene={async (place) => void (await send({ set_scene: place }))}
           suggestions={scene.suggestions}
           onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
+          beats={textOnly ? [] : (scene.beats ?? [])}
+          onBeat={textOnly ? undefined : (id, answer) => beatAction({ beat: { id, answer } })}
+          onPictureNow={(line) => beatAction({ picture_now: { line } })}
           onMakeVideo={(scope) => makeVideo(scope)}
           videoChapters={runningNight(
             nightList.map((n) => ({ id: n.id, chapter: n.chapter, created_at: n.created_at, lines: n.lines.length })),
@@ -256,6 +326,7 @@ export default function SceneWriter({
           mediaPaused={mediaPaused}
           feedbackRef={scene.id}
           onExit={() => setTheater(false)}
+          crisis={crisisNotice}
         />
       )}
       {(scene.lines.length > 0 || scene.chapter > 1) && (
@@ -268,7 +339,7 @@ export default function SceneWriter({
       {scene.chapter > SOFT_CHAPTERS && (
         <p className="muted small">This night has run {scene.chapter - 1} chapters. It might be a good place to end it: Start over files it, and the next night begins fresh.</p>
       )}
-      <ListenLines lines={scene.lines} a={scene.a.id} b={scene.b.id} names={[nameOf("a"), nameOf("b")]} />
+      {!textOnly && <ListenLines lines={scene.lines} a={scene.a.id} b={scene.b.id} names={[nameOf("a"), nameOf("b")]} />}
       {scene.lines.length ? (
         <ol className="after-dark-lines">
           {scene.lines.map((l, i) => {
@@ -291,7 +362,20 @@ export default function SceneWriter({
           {note.text}
         </p>
       )}
+      {!theater && crisisNotice}
       <span ref={endRef} aria-hidden="true" />
+      {offered && !theater && (
+        <div className="ad-beat-banner" role="status">
+          <strong>📸 {offered.label}</strong>
+          <span className="muted small">Picture this moment? It&apos;s drawn from the last few lines.</span>
+          <button type="button" className="primary small" onClick={() => void beatAction({ beat: { id: offered.id, answer: "now" } })}>
+            Picture it
+          </button>
+          <button type="button" className="button-ghost small" onClick={() => void beatAction({ beat: { id: offered.id, answer: "later" } })} title="Carry on. Picture this whenever you like; if you never do, it's drawn when the chapter ends.">
+            Not now
+          </button>
+        </div>
+      )}
       {/* Sticks to the bottom of the screen while it's scrolled past, until it reaches its own place under the lines. */}
       <form className="after-dark-form" onSubmit={onSubmit}>
         {!atEnd && scene.lines.length > 8 && (
@@ -376,6 +460,17 @@ export default function SceneWriter({
           <label className="after-dark-autoplay" title="It carries on by itself, no button needed, until the chapter ends">
             <input type="checkbox" checked={autoplay} onChange={(e) => switchAutoplay(e.target.checked)} /> Autoplay
           </label>
+          {scene.lines.length > 0 && (
+            <button
+              type="button"
+              className="button-ghost small"
+              disabled={busy || Boolean(mediaPaused)}
+              onClick={() => void beatAction({ picture_now: { line: scene.lines.length - 1 } })}
+              title={mediaPaused ?? "A picture of the two of them as the scene stands now, from the last few lines"}
+            >
+              📸 Picture this
+            </button>
+          )}
           {(scene.lines.length > 0 || Boolean(scene.rewind?.depth)) && (
             <div className={`ad-more${more ? " open" : ""}`}>
               <button type="button" className="button-ghost small ad-more-toggle" aria-expanded={more} onClick={() => setMore((v) => !v)}>
@@ -400,7 +495,7 @@ export default function SceneWriter({
           steer bar, which settles into its place above them, so it never covers them. */}
       <div className="ad-panels">
         <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
-        <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits) => send({ limits })} />
+        <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits, consent) => send({ limits, ...(consent ? { consent: true } : {}) })} />
         <Profile scene={scene} characters={characters} onScene={setScene} />
         <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
       </div>
@@ -464,18 +559,62 @@ export default function SceneWriter({
           {mediaPaused}
         </p>
       )}
-      <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
-      <Reels reels={reelList} onChange={putReel} />
-      <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
+      {textOnly ? (
+        <p className="muted small" data-text-only>
+          {textOnly}
+        </p>
+      ) : (
+        <>
+          <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
+          <Reels reels={reelList} onChange={putReel} />
+          <FacesPanel
+            characters={characters}
+            faces={faces}
+            gallery={gallery}
+            onFace={pickFace}
+            steer={steer}
+            onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
+            onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
+            paused={mediaPaused}
+          />
+          <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} faces={faces} onFace={pickFace} />
+        </>
+      )}
     </section>
   );
 }
 
-/** Their pictures and clips. A picture can be made to move (a clip takes a minute or more on fal.ai). */
-function Gallery({ items, problem, onAdd, paused = null }: { items: Media[]; problem: string | null; onAdd: (m: Media) => void; paused?: string | null }) {
+/**
+ * Their pictures and clips. A picture can be made to move (a clip takes a minute or more on fal.ai). Each one can be
+ * rated, and a picture of one of them alone kept as their face (lib/adult/steering.ts).
+ */
+function Gallery({
+  items,
+  problem,
+  onAdd,
+  paused = null,
+  faces = {},
+  onFace,
+}: {
+  items: Media[];
+  problem: string | null;
+  onAdd: (m: Media) => void;
+  paused?: string | null;
+  faces?: Faces;
+  onFace?: (characterId: string, imageId: string | null) => Promise<string | null>;
+}) {
   const [motion, setMotion] = useState("");
   const [pending, setPending] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [facing, setFacing] = useState<string | null>(null);
+  async function keepFace(m: Media) {
+    if (!onFace || !m.character_id) return;
+    setFacing(m.id);
+    setError(null);
+    const wrong = await onFace(m.character_id, m.id);
+    setFacing(null);
+    if (wrong) setError(wrong);
+  }
 
   // Poll each pending clip every 6 seconds until it's ready or failed.
   useEffect(() => {
@@ -541,7 +680,8 @@ function Gallery({ items, problem, onAdd, paused = null }: { items: Media[]; pro
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" />
               )}
-              <span className="badge">{m.kind}</span>
+              <span className="badge">{m.nude ? `${m.kind} · undressed` : m.kind}</span>
+              <AiTag />
               {m.kind === "scene" && (m.chapter || m.place) && (
                 // Drawn for a chapter and a place (lib/adult/auto-pictures.ts).
                 <span className="muted small ad-picture-where">{[m.chapter ? `Chapter ${m.chapter}` : "", m.place ?? ""].filter(Boolean).join(" · ")}</span>
@@ -554,6 +694,17 @@ function Gallery({ items, problem, onAdd, paused = null }: { items: Media[]; pro
                 <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)} disabled={Boolean(paused)} title={paused ?? undefined}>
                   Make it move
                 </button>
+              )}
+              {status === "ready" && <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} />}
+              {status === "ready" && m.kind !== "video" && m.character_id && !m.character_b && onFace && (
+                // One of them alone: it can be the face every picture and video of them keeps.
+                faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id ? (
+                  <span className="badge ad-face-badge">✓ Their face</span>
+                ) : (
+                  <button type="button" className="button-ghost small" disabled={facing === m.id} onClick={() => void keepFace(m)}>
+                    {facing === m.id ? "Keeping it…" : "Use this face"}
+                  </button>
+                )
               )}
             </li>
           );

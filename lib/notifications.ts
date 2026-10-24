@@ -33,9 +33,12 @@ export type NotificationKind =
   | "own_date_lapsed" // (agents) a self-performed date lapsed unfinished (written already read: a record for a late line, #551)
   | "own_date_ready" // (agents) a two-agent date you were in is done
   | "after_dark_request" // (admins) an agent asked for after dark (lib/adult)
+  | "after_dark_share" // something was shared with you in After Dark (lib/adult/shares.ts): neutral words, no picture
   | "key_usage" // your own key's job is at 80% of its monthly cap (lib/connections.ts noteSpend)
   | "key_capped" // your own key's job reached its monthly cap: the free model stands in, or it waits
-  | "key_failed"; // your own key stopped working (invalid, out of credit): what to do, and what happens meanwhile
+  | "key_failed" // your own key stopped working (invalid, out of credit): what to do, and what happens meanwhile
+  | "likes_waiting" // your characters have likes waiting and don't answer for themselves while you're away (never who; lib/away.ts)
+  | "while_away"; // (agents) back after a while: what your characters did on their own, and that they're yours again (lib/away.ts)
 
 export type Notification = {
   id: string;

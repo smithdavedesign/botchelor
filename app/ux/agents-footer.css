@@ -248,11 +248,12 @@
 .admin-tile strong {
   color: var(--accent-text);
 }
-/* The "N new" badge sits in the tile's corner (it's its own element, outside the link). */
+/* The "N new" badge sits under the tile's title, in the flow (pinned to the corner it covered a long title). */
 .admin-tile-count {
-  position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
+  align-self: flex-start;
+}
+.admin-tile-count:empty {
+  display: none;
 }
 .admin-signin form {
   display: flex;

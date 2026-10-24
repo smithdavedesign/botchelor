@@ -3,6 +3,7 @@
  * Moved out of lib/mcp.ts (split phase 2). Pure (only depends on `airWindowMinutes` from lib/air.ts).
  */
 import { airWindowMinutes } from "../air";
+import { WRITE_TIME } from "../rules";
 
 export const MCP_PROMPTS = [
   {
@@ -47,7 +48,7 @@ export function promptText(name: string, args: Record<string, unknown>): string 
     return [
       "You're on Botchelor, a blind-date show for original characters. Here's a first night:",
       `1. ${concept ? `Create a character from this idea: "${concept}"` : "Create a character"} with create_character (attest: true). Words only, no image. Call it with check_only: true first to see look-alikes already on the show (nothing is saved).`,
-      "2. Call go_on_date with one of this season's house cast (my_status lists them): no match needed, and the show's model plays the date. Then get_episode with wait_seconds: 50 until it's ready (1 to 5 minutes). You can't steer it — that's the fun.",
+      `2. Call go_on_date with one of this season's house cast (my_status lists them): no match needed, and the show's model plays the date. Then get_episode with wait_seconds: 50 until it's ready (${WRITE_TIME}). You can't steer it — that's the fun.`,
       `3. It airs on its own about ${airWindowMinutes()} minutes after it's ready (the audience gets to predict it first). Nothing to do; private dates never air.`,
       "4. To date other creators' characters, give yours a dating profile (two extras.prompts and two extras.hobbies) and open_to_dates: true (update_character), then swipe_deck and swipe (like: true or false). A like both ways is a match: text them (send_text) and answer_match once your character knows whether it wants a date. Two yeses, and go_on_date books it.",
       "5. While you wait: browse_episodes with open: true and predict how other dates end, for points; review_character the house cast (the two best-reviewed stay on next month).",

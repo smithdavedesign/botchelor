@@ -6,7 +6,7 @@
  */
 
 /** What a key can be used for. Each job has at most one key (one connection) at a time. */
-export const JOBS = ["text", "image", "video"] as const;
+export const JOBS = ["text", "image", "video", "after_dark"] as const;
 export type Job = (typeof JOBS)[number];
 export const isJob = (v: unknown): v is Job => typeof v === "string" && (JOBS as readonly string[]).includes(v);
 
@@ -44,7 +44,18 @@ export const JOB_INFO: Record<Job, JobInfo> = {
     anchor: "clips",
     costHint: "about 20¢ a clip on your Google bill",
   },
+  // The After Dark Studio's pictures (lib/adult/studio.ts; David, 2026-10-24): shown only to someone After Dark is open to.
+  after_dark: {
+    title: "After Dark pictures",
+    what: "Studio pictures of your own characters, on your own Venice or Replicate key, free of tokens. Every picture is still checked before it's kept.",
+    free: "Botchelor's models, for tokens",
+    anchor: "after-dark-pictures",
+    costHint: "the model's price, about 2–6¢ a picture on your bill",
+  },
 };
+
+/** The jobs only someone After Dark is open to sees (the Connections page leaves them out for everyone else). */
+export const ADULT_JOBS: readonly Job[] = ["after_dark"];
 
 /**
  * Providers whose chat API is OpenAI-compatible at a known base URL. No custom endpoints (SSRF / prompt theft).
@@ -120,7 +131,7 @@ export type TextProvider = keyof typeof TEXT_PROVIDERS;
 export const isTextProvider = (p: string): p is TextProvider => p in TEXT_PROVIDERS;
 
 /** The providers a person can connect, in the order the connect flow offers them. */
-export const USER_PROVIDERS = ["openrouter", "openai", "google", "anthropic", "deepseek", "groq"] as const;
+export const USER_PROVIDERS = ["openrouter", "openai", "google", "anthropic", "deepseek", "groq", "venice", "replicate"] as const;
 export type UserProvider = (typeof USER_PROVIDERS)[number];
 export const isUserProvider = (p: unknown): p is UserProvider => typeof p === "string" && (USER_PROVIDERS as readonly string[]).includes(p);
 
@@ -185,6 +196,24 @@ export const PROVIDER_INFO: Record<UserProvider, ProviderInfo> = {
     keysUrl: "https://platform.deepseek.com/api_keys",
     billingUrl: "https://platform.deepseek.com/top_up",
   },
+  venice: {
+    label: "Venice",
+    mark: "VE",
+    jobs: ["after_dark"],
+    blurb: "After Dark pictures on Venice's own uncensored models; you pay Venice directly.",
+    keyHint: "A Venice API key",
+    keysUrl: "https://venice.ai/settings/api",
+    billingUrl: "https://venice.ai/settings/api",
+  },
+  replicate: {
+    label: "Replicate",
+    mark: "RE",
+    jobs: ["after_dark"],
+    blurb: "After Dark pictures on Replicate's open models; you pay Replicate directly.",
+    keyHint: "Starts with r8_",
+    keysUrl: "https://replicate.com/account/api-tokens",
+    billingUrl: "https://replicate.com/account/billing",
+  },
   groq: {
     label: "Groq",
     mark: "GQ",
@@ -209,6 +238,21 @@ export type ModelChoice = { id: string; note: string; recommended?: boolean };
 export const IMAGE_MODEL = "gpt-image-2";
 export const VIDEO_MODEL = "veo-3.1-lite-generate-preview";
 
+
+/**
+ * The After Dark Studio's models on someone's own key (lib/adult/studio-config.ts DEFAULT_STUDIO_MODELS, the edit ones):
+ * the job's default is the one a shoot uses unless the Studio's picker says otherwise.
+ */
+export const AFTER_DARK_MODELS: Partial<Record<string, ModelChoice[]>> = {
+  venice: [
+    { id: "qwen-edit-uncensored", note: "keeps the face; run by Venice, about 4¢ a picture", recommended: true },
+    { id: "qwen-image-2-1-turbo-edit", note: "fast, about 2¢" },
+    { id: "qwen-image-2-1-pro-edit", note: "up to 10 references, about 5¢" },
+    { id: "seedream-v5-pro-edit", note: "fine detail, about 6¢" },
+  ],
+  replicate: [{ id: "qwen/qwen-image-edit-2511", note: "keeps the face, about 3¢ a picture", recommended: true }],
+};
+
 /** The curated models a job can run on a provider, the recommended one first. Empty: the provider can't do the job. */
 export function curatedModels(provider: string, job: Job): ModelChoice[] {
   if (job === "text") {
@@ -217,6 +261,7 @@ export function curatedModels(provider: string, job: Job): ModelChoice[] {
     return p.models.map((m) => ({ id: m.id, note: m.note, ...(m.id === p.defaultModel ? { recommended: true } : {}) }));
   }
   if (job === "image") return provider === "openai" ? [{ id: IMAGE_MODEL, note: "OpenAI's current image model", recommended: true }] : [];
+  if (job === "after_dark") return AFTER_DARK_MODELS[provider] ?? [];
   return provider === "google" ? [{ id: VIDEO_MODEL, note: "Veo 3.1 Lite: 4 s at 720p, about $0.20 a clip", recommended: true }] : [];
 }
 
@@ -346,6 +391,7 @@ const UNSET_STATUS: Record<Job, string> = {
   text: "Using: Botchelor's free model",
   image: "Not set up: portraits need your own OpenAI key.",
   video: "Not set up: clips need your own Google key, with billing on.",
+  after_dark: "Using: Botchelor's models, for tokens",
 };
 
 /**
@@ -362,7 +408,7 @@ export function keyMeta(c: Pick<ConnectionSummary, "last4" | "verified_at" | "la
 }
 
 /** What waits at the cap for each job, when it isn't the free model standing in. */
-const WAITS: Record<Job, string> = { text: "your dates wait", image: "portraits wait", video: "clips wait" };
+const WAITS: Record<Job, string> = { text: "your dates wait", image: "portraits wait", video: "clips wait", after_dark: "Studio pictures on your key wait" };
 
 /** Every job's card, from a person's connections, assignments and this month's spend. Pure: the page and the tests share it. */
 export function jobCards(
@@ -378,7 +424,9 @@ export function jobCards(
       .filter((x) => isUserProvider(x.provider) && PROVIDER_INFO[x.provider].jobs.includes(job) && x.provider !== a?.provider)
       .map((x) => ({ provider: x.provider, label: providerLabel(x.provider), last4: x.last4 }));
     if (!a || !c) {
-      return { job, title: info.title, what: info.what, state: "unset", pill: info.free ? "Free model" : "Not set up", status: UNSET_STATUS[job], meta: [], provider: null, model: null, feel: null, cap: null, usage: null, error: null, reusable };
+      // After Dark pictures without a key run on Botchelor's models for tokens: not free, so not "Free model".
+      const pill = !info.free ? "Not set up" : job === "after_dark" ? "For tokens" : "Free model";
+      return { job, title: info.title, what: info.what, state: "unset", pill, status: UNSET_STATUS[job], meta: [], provider: null, model: null, feel: null, cap: null, usage: null, error: null, reusable };
     }
     const model = a.model ?? defaultModelFor(a.provider, job);
     const error = c.last_error;
@@ -507,6 +555,7 @@ export function tagsFor(provider: string, id: string, extra: { free?: boolean; v
 export function modelFitsJob(job: Job, id: string): boolean {
   if (job === "image") return /^gpt-image/.test(id) && !/^gpt-image-1$/.test(id);
   if (job === "video") return /^veo/.test(id);
+  if (job === "after_dark") return Object.values(AFTER_DARK_MODELS).some((ms) => ms?.some((m) => m.id === id));
   return !/(embed|tts|whisper|dall-e|gpt-image|imagen|veo|moderation|realtime|audio|transcribe|speech|guard|aqa|search-preview|computer-use|instruct$|^babbage|^davinci)/i.test(id);
 }
 
@@ -537,7 +586,7 @@ export function modelOptions(provider: string, job: Job, listed: string[] | null
     out.push(modelOption(provider, job, id));
   };
   for (const m of curated) add(m.id);
-  if (job === "video") return out; // the clip pipeline is tuned to Veo 3.1 Lite (lib/video.ts): one model
+  if (job === "video" || job === "after_dark") return out; // clips are tuned to Veo 3.1 Lite (lib/video.ts); the Studio has its own list
   for (const id of [...(listed ?? [])].filter((m) => modelFitsJob(job, m)).sort()) add(id);
   return out;
 }

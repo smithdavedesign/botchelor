@@ -54,12 +54,13 @@ type Refusal = Extract<TextResult, { ok: false }>;
 const refuse = (status: number, error: string, message: string): Refusal => ({ ok: false, status, error, message });
 
 /** The two characters of a couple, from the sender's side. `rel` is null for a match that hasn't dated yet. */
-type Pair = { me: Character; them: Character; rel: Relationship | null; lo: string; hi: string; mine: End; theirs: End; theirOwner: string | null };
+/** adopted: the other character is played by the show while its agent is away (lib/away.ts), so it texts back like a house one. */
+type Pair = { me: Character; them: Character; rel: Relationship | null; lo: string; hi: string; mine: End; theirs: End; theirOwner: string | null; adopted: boolean };
 
 /** Whether `userId` may text as `from` to `to`: owns it, they've dated (a date this owner can see), and no block. */
 async function pairFor(db: Db, userId: string, from: string, to: string): Promise<Pair | Refusal> {
   if (!from || !to || from === to) return refuse(422, "invalid_pair", "character_id is the character you text as; `to` is the one you're texting.");
-  const rows = (await db.query<{ id: string; owner_id: string | null }>(`select id, owner_id from characters where id = any($1)`, [[from, to]])).rows;
+  const rows = (await db.query<{ id: string; owner_id: string | null; adopted: boolean }>(`select id, owner_id, adopted_at is not null as adopted from characters where id = any($1)`, [[from, to]])).rows;
   const fromRow = rows.find((r) => r.id === from);
   const toRow = rows.find((r) => r.id === to);
   if (!fromRow || !toRow) return refuse(404, "not_found", "No such character.");
@@ -88,7 +89,7 @@ async function pairFor(db: Db, userId: string, from: string, to: string): Promis
   if (!me || !them) return refuse(404, "not_found", "No such character.");
   const [lo, hi] = pairKey(from, to);
   const mine: End = from === lo ? "lo" : "hi";
-  return { me, them, rel, lo, hi, mine, theirs: mine === "lo" ? "hi" : "lo", theirOwner: toRow.owner_id };
+  return { me, them, rel, lo, hi, mine, theirs: mine === "lo" ? "hi" : "lo", theirOwner: toRow.owner_id, adopted: toRow.adopted && toRow.owner_id !== userId };
 }
 
 /**
@@ -151,8 +152,8 @@ function writeLine(model: Model, messages: ChatMessage[], max: number, me: Chara
 /** How many replies a house character has left today on the show's model: for this couple, and show-wide. */
 async function houseRepliesLeft(db: Db, lo: string, hi: string): Promise<{ couple: number; show: number }> {
   const { rows } = await db.query<{ couple: number; show: number }>(
-    `select (select count(*)::int from couple_texts where character_lo = $1 and character_hi = $2 and day = $3::date and via = 'show') as couple,
-            (select count(*)::int from couple_texts where day = $3::date and via = 'show') as show`,
+    `select (select count(*)::int from couple_texts where character_lo = $1 and character_hi = $2 and day = $3::date and via in ('show', 'away')) as couple,
+            (select count(*)::int from couple_texts where day = $3::date and via in ('show', 'away')) as show`,
     [lo, hi, dayOf(new Date())],
   );
   return { couple: houseReplyCap() - (rows[0]?.couple ?? 0), show: houseReplyDailyCap() - (rows[0]?.show ?? 0) };
@@ -183,7 +184,7 @@ async function houseReply(db: Db, p: Pair, creatorId: string, ownModel: Model | 
   });
   const line = await writeLine(ownModel ?? getModel(undefined, false), messages, ownModel ? TEXT_MAX : AFTERGLOW_TEXT_MAX, house, p.me, thread);
   if (!line) return { text: null, note: `${name} didn't text back this time.` };
-  return { text: await store(db, p, p.theirs, line, ownModel ? "own_key" : "show") };
+  return { text: await store(db, p, p.theirs, line, ownModel ? "own_key" : p.adopted ? "away" : "show") };
 }
 
 /**
@@ -206,7 +207,8 @@ export async function sendText(db: Db, o: { userId: string; from: string; to: st
   }
   const sent = await store(db, p, p.mine, text, "agent");
   const told = await tell(db, p, text, o.userId);
-  if (p.theirOwner !== null) return { ok: true, sent, reply: null, couplePage: couplePage(p), told };
+  // Another owner's character answers when its owner does, unless the show plays it while its agent is away (lib/away.ts).
+  if (p.theirOwner !== null && !p.adopted) return { ok: true, sent, reply: null, couplePage: couplePage(p), told };
   const reply = await houseReply(db, p, o.userId, null);
   return { ok: true, sent, reply: reply.text, ...(reply.note ? { note: reply.note } : {}), couplePage: couplePage(p) };
 }
@@ -236,7 +238,7 @@ export async function writeOwnText(db: Db, o: { userId: string; from: string; to
   if (!line) return refuse(502, "no_text", "Your model didn't come back with a text. Try again.");
   const sent = await store(db, p, p.mine, line, "own_key");
   const told = await tell(db, p, line, o.userId);
-  if (p.theirOwner !== null) return { ok: true, sent, reply: null, couplePage: couplePage(p), told };
+  if (p.theirOwner !== null && !p.adopted) return { ok: true, sent, reply: null, couplePage: couplePage(p), told };
   const reply = await houseReply(db, p, o.userId, o.model);
   return { ok: true, sent, reply: reply.text, ...(reply.note ? { note: reply.note } : {}), couplePage: couplePage(p) };
 }

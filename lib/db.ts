@@ -727,7 +727,7 @@ create index if not exists character_assets_character_idx on character_assets (c
 alter table character_assets add column if not exists tokens_spent integer not null default 0;
 alter table character_assets drop constraint if exists character_assets_kind_check;
 alter table character_assets add constraint character_assets_kind_check
-  check (kind in ('portrait', 'expression', 'background', 'decoration', 'clip'));
+  check (kind in ('portrait', 'expression', 'background', 'decoration', 'clip', 'photo'));
 
 -- M8. Watch parties: a synchronized "date room" over one pre-generated episode, with live reactions,
 -- chat and audience polls (the feature brief's Model A — the audience reacts, it never steers the
@@ -1298,8 +1298,9 @@ alter table adult_access_requests add column if not exists status text not null 
 alter table adult_access_requests add column if not exists decided_at timestamptz;
 
 -- Who may use after dark besides an admin (docs/after-dark.md #2): an active subscription (from the adult payment
--- processor's webhook) AND a passed age check (from the age-verification provider). Nothing writes these yet: until the
--- processor and the age check exist, after dark stays admin-only.
+-- processor's webhook) AND a passed age check (from the age-verification provider). 2026-10-24: the processors'
+-- postbacks write the subscription (lib/adult/billing.ts; 'cancelled' keeps access until period_end) and subscribing
+-- records the 18+ self-declaration; until a processor is configured, after dark stays admin-only.
 create table if not exists adult_entitlements (
   user_id text primary key,
   subscription_status text not null default 'none' check (subscription_status in ('none', 'active', 'lapsed', 'cancelled')),
@@ -1308,6 +1309,71 @@ create table if not exists adult_entitlements (
   provider text,
   updated_at timestamptz not null default now()
 );
+-- 2026-10-24 (docs/after-dark-legal-review.md): how the age was checked and where. Outside the places that want a real
+-- check (lib/jurisdiction.ts) it's the person's own 18+ declaration ('self_declared'); a provider's check names itself.
+alter table adult_entitlements add column if not exists age_method text;
+alter table adult_entitlements add column if not exists age_country text;
+-- The mode After Dark last had for someone, from where they last connected (lib/adult/place.ts): background work that
+-- has no request (a chapter's picture, a video of the night) asks here, so text-only or blocked places get no media.
+-- A country and a US state, never an address or an IP; kept only while the account is.
+create table if not exists adult_viewer_places (
+  user_id text primary key,
+  mode text not null check (mode in ('open', 'text_only', 'blocked')),
+  country text,
+  region text,
+  seen_at timestamptz not null default now()
+);
+-- After Dark's subscription billing (lib/adult/billing.ts, 2026-10-24): Segpay first, Verotel as backup, both off until
+-- their settings exist. One order per checkout started; its id is the reference the processor hands back (Verotel
+-- referenceID, Segpay REF1), and sale_id the processor's subscription once paid (Verotel saleID, Segpay purchaseid).
+-- user_id is cleared when the account is deleted: the order stays, unlinked, for a chargeback dispute.
+create table if not exists adult_billing_orders (
+  id text primary key,
+  user_id text,
+  processor text not null check (processor in ('segpay', 'verotel')),
+  price_usd numeric(8, 2) not null,
+  sale_id text,
+  created_at timestamptz not null default now(),
+  paid_at timestamptz
+);
+create index if not exists adult_billing_orders_user_idx on adult_billing_orders (user_id, created_at desc);
+create index if not exists adult_billing_orders_sale_idx on adult_billing_orders (processor, sale_id);
+-- Every postback received, verified or not applied. event_key is the processor's transaction id when it sends one (the
+-- same transaction twice is applied once), else a fingerprint of the postback. params keeps identifiers, amounts and
+-- dates only: never card digits, names, emails, addresses or IPs. user_id is cleared when the account is deleted.
+create table if not exists adult_billing_events (
+  id text primary key,
+  processor text not null,
+  event_key text not null,
+  fingerprint text not null,
+  kind text not null,
+  raw_event text not null,
+  order_id text,
+  user_id text,
+  sale_id text,
+  amount text,
+  currency text,
+  params jsonb not null default '{}'::jsonb,
+  outcome text not null,
+  received_at timestamptz not null default now(),
+  unique (processor, event_key)
+);
+create index if not exists adult_billing_events_received_idx on adult_billing_events (received_at desc);
+create index if not exists adult_billing_events_sale_idx on adult_billing_events (processor, sale_id, received_at desc);
+-- An account a chargeback or a refund ended: subscribing again waits for an admin to look (reviewed_at). Deleted with
+-- the account.
+create table if not exists adult_billing_flags (
+  user_id text primary key,
+  reason text not null,
+  processor text not null,
+  flagged_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by text
+);
+-- When the current run of a subscription began (for California's yearly reminder, on each anniversary) and when that
+-- reminder last went.
+alter table adult_entitlements add column if not exists subscribed_at timestamptz;
+alter table adult_entitlements add column if not exists renewal_reminded_at timestamptz;
 -- Each person's own character switches (their characters, and the house characters they bring along).
 create table if not exists adult_switches (
   owner_id text not null,
@@ -1595,6 +1661,23 @@ create index if not exists swipe_impressions_card on swipe_impressions (card);
 -- character's is the seeded coin ('synthetic'), a house character's the automatic yes.
 alter table matches add column if not exists answer_source_lo text;
 alter table matches add column if not exists answer_source_hi text;
+-- While they're away (lib/activity.ts, lib/away.ts; David 2026-10-24: no dead characters). When a person was last on
+-- the site (agents' last calls are mcp_sessions.last_seen); what a character does while its owner is away (null: its
+-- kind's default, adopt for agents' and nothing for people's); since when the show plays it (adopt, after a week; its
+-- agent's next call ends it); and which swipes the character made on its own (auto), so the record says whose call it was.
+-- A match answer it gives on its own is answer_source 'away'. away_reports: how far its agent has been told about them.
+create table if not exists owner_activity (
+  user_id text primary key,
+  last_seen timestamptz not null default now()
+);
+alter table characters add column if not exists while_away text check (while_away in ('adopt', 'answer', 'nothing'));
+alter table characters add column if not exists adopted_at timestamptz;
+create index if not exists characters_adopted_idx on characters (owner_id) where adopted_at is not null;
+alter table swipes add column if not exists auto boolean not null default false;
+create table if not exists away_reports (
+  owner_id text primary key,
+  reported_until timestamptz not null default now()
+);
 -- Why the engine decided what it did (lib/engine.ts EngineTrace): margin, reason codes, every variable's terms. No
 -- cue words (a dealbreaker is secret). Null on dates booked before it, and under tests' fixed engines.
 alter table episodes add column if not exists engine_trace jsonb;
@@ -1710,6 +1793,62 @@ create table if not exists adult_shorts (
   updated_at timestamptz not null default now()
 );
 create index if not exists adult_shorts_published on adult_shorts (published_at desc);
+-- After Dark's 👍/👎, apart from the library's stars below (David, 2026-10-24: "allow users to score … and use that for
+-- the next run on the same character"; lib/adult/steering.ts): a viewer's 👍/👎 on one of their pictures or videos, with
+-- what was off. Theirs alone: they steer only that viewer's next pictures of the same character, go with the picture,
+-- and never reach a dataset (docs/data-plan.md).
+create table if not exists adult_media_thumbs (
+  owner_id text not null,
+  media_id text not null references adult_images (id) on delete cascade,
+  rating smallint not null check (rating in (-1, 1)),
+  tags jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (owner_id, media_id)
+);
+create index if not exists adult_media_thumbs_recent on adult_media_thumbs (owner_id, updated_at desc);
+-- The face a viewer picked for a character (lib/adult/steering.ts faceReferenceId): what their pictures, keyframes and
+-- videos of that character keep. Unset, the face is their own best-rated baseline, else the admins' newest.
+create table if not exists adult_face_refs (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  image_id text not null references adult_images (id) on delete cascade,
+  set_at timestamptz not null default now(),
+  primary key (owner_id, character_id)
+);
+-- Which picture preset drew it (lib/adult/rating-tags.ts PICTURE_PRESETS): what the per-character test learns from
+-- (lib/adult/steering.ts choosePreset).
+alter table adult_images add column if not exists preset text;
+-- A baseline's attire, 'nude' or 'dressed' in the outfit its character picked (lib/adult/attire.ts). Null before
+-- 2026-10-24: read from the prompt. A character who wears something gets a nude baseline too, for undressed moments.
+alter table adult_images add column if not exists attire text;
+-- The face a viewer picked for a character's undressed moments: one of their nude baselines (lib/adult/steering.ts
+-- faceReferenceId), apart from the face they picked for everything else (adult_face_refs).
+create table if not exists adult_nude_refs (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  image_id text not null references adult_images (id) on delete cascade,
+  set_at timestamptz not null default now(),
+  primary key (owner_id, character_id)
+);
+-- "Start fresh" on what a viewer's ratings of a character steer (lib/adult/steering.ts resetSteering): their ratings and
+-- light picks from before reset_at stop counting for that character. Nothing is deleted.
+create table if not exists adult_steer_resets (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  reset_at timestamptz not null default now(),
+  primary key (owner_id, character_id)
+);
+-- A face picked from "Draw three" (lib/adult/steering.ts setFaceReference): the light of the one kept, and the lights of
+-- the two passed over, which count half a 👎 each in the per-character light test (presetTally).
+create table if not exists adult_light_picks (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  picked text not null,
+  passed jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists adult_light_picks_owner on adult_light_picks (owner_id, character_id);
 create table if not exists adult_short_views (
   short_id text not null references adult_shorts (id) on delete cascade,
   user_id text not null,
@@ -1794,7 +1933,7 @@ create table if not exists user_connections (
 );
 create table if not exists user_connection_jobs (
   user_id text not null,
-  job text not null check (job in ('text', 'image', 'video')),
+  job text not null check (job in ('text', 'image', 'video', 'after_dark')),
   provider text not null,
   model text,
   created_at timestamptz not null default now(),
@@ -1850,6 +1989,17 @@ alter table user_connection_jobs add column if not exists presence_penalty real;
 -- cap notices went (once a month each).
 alter table user_connection_jobs add column if not exists cap_usd double precision;
 alter table user_connection_jobs add column if not exists on_cap text;
+-- The Studio's own-key job (docs/PRDs/studio.md section 7): After Dark pictures on someone's Venice or Replicate key.
+-- Widen the CHECK on an existing database once, as adult_images' kinds were.
+do $$ begin
+  if exists (
+    select 1 from pg_constraint where conname = 'user_connection_jobs_job_check'
+       and pg_get_constraintdef(oid) not like '%after_dark%'
+  ) then
+    alter table user_connection_jobs drop constraint if exists user_connection_jobs_job_check;
+    alter table user_connection_jobs add constraint user_connection_jobs_job_check check (job in ('text', 'image', 'video', 'after_dark'));
+  end if;
+end $$;
 create table if not exists user_connection_usage (
   user_id text not null references accounts (user_id) on delete cascade,
   job text not null,
@@ -1864,6 +2014,173 @@ create table if not exists user_connection_usage (
   capped_at timestamptz,
   updated_at timestamptz not null default now(),
   primary key (user_id, job, month)
+);
+
+-- Beat pictures (lib/adult/beats.ts; David, 2026-10-24): the moments of a chapter worth a picture (undressing, sex, each
+-- new position, the climax, the afterglow), each offered to the viewer as it plays, drawn when they say yes or press
+-- Picture this, else when the chapter closes. night_id is the saved night the chapter was filed as (null: still running);
+-- picture_id the gallery picture, which a video of the night starts its shot from (lib/adult/reels.ts).
+create table if not exists adult_beats (
+  id text primary key,
+  owner_id text not null,
+  scene_id text not null,
+  character_a text not null,
+  character_b text not null,
+  chapter integer not null,
+  line integer not null,
+  act text not null,
+  kind text not null,
+  stage integer not null,
+  place text,
+  status text not null default 'offered' check (status in ('offered', 'later', 'drawing', 'drawn', 'failed')),
+  picture_id text,
+  night_id text,
+  created_at timestamptz not null default now()
+);
+create index if not exists adult_beats_scene_idx on adult_beats (scene_id, chapter, line);
+create index if not exists adult_beats_pair_idx on adult_beats (owner_id, character_a, character_b, chapter);
+alter table adult_settings add column if not exists beat_pictures boolean;
+
+-- The After Dark library (lib/adult/library.ts; David, 2026-10-24): which model drew a picture (null: from before it was
+-- kept, when only its provider was), and each viewer's 1–5 stars on a picture or a video (item_id: an adult_images or an
+-- adult_reels id).
+alter table adult_images add column if not exists model text;
+create table if not exists adult_media_ratings (
+  user_id text not null,
+  item_id text not null,
+  item_kind text not null check (item_kind in ('image', 'reel')),
+  rating smallint not null check (rating between 1 and 5),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, item_id)
+);
+create index if not exists adult_media_ratings_item_idx on adult_media_ratings (item_id);
+-- Explicit consent for the After Dark profile (GDPR Art. 9 "sex life" data; lib/adult/profile.ts PROFILE_CONSENT_TEXT;
+-- 2026-10-24): when, and by whom, a character's turn-ons were saved under the person's ticked consent, and when a pair's
+-- hard nos were. Null: saved before consent was asked for (only admins had After Dark then). Nothing new is stored
+-- without it; deleting the profile (lib/adult/profile-data.ts) clears both with the data.
+alter table adult_profiles add column if not exists consented_at timestamptz;
+alter table adult_profiles add column if not exists consented_by text;
+alter table adult_scenes add column if not exists hard_nos_consented_at timestamptz;
+
+-- Complaints and takedown requests from the /report form (lib/content-reports.ts; the policy pages of 2026-10-24): what
+-- was reported (a link or an id, as typed; episode_id when it names one of our dates), why, the reporter's words and, only
+-- if they gave one, an email for the reply. reporter_id is the session that sent it, and goes (with the email) when that
+-- account is deleted; the report itself stays as the record of what was reported and what we did. flag_reason is the
+-- content filter's or the spam check's note, never a refusal. An admin resolves it, hides the reported date, or dismisses it.
+create table if not exists content_reports (
+  id text primary key,
+  created_at timestamptz not null default now(),
+  reporter_id text,
+  account boolean not null default false,
+  category text not null check (category in ('minor', 'real_person', 'non_consent', 'intimate_image', 'copyright', 'other')),
+  target text check (char_length(target) <= 500),
+  episode_id text,
+  details text check (char_length(details) <= 4000),
+  contact_email text check (char_length(contact_email) <= 254),
+  user_agent text,
+  flagged boolean not null default false,
+  flag_reason text,
+  status text not null default 'open' check (status in ('open', 'resolved', 'hidden', 'dismissed')),
+  decided_at timestamptz,
+  decided_by text,
+  note text check (char_length(note) <= 1000)
+);
+create index if not exists content_reports_open_idx on content_reports (status, created_at);
+create index if not exists content_reports_reporter_idx on content_reports (reporter_id);
+-- The After Dark Studio (lib/adult/studio.ts, docs/PRDs/studio.md; David, 2026-10-24). A shoot is one request: its
+-- kind (a shoot of the character alone, a restyle, a recast, a body reference), what was chosen, the model and who ran
+-- it (ours, or the owner's own key), the tokens taken, and the pictures it made (adult_images.shoot_id). adult_identity
+-- is a viewer's own settings for a character: the body reference shoots add after the face, how strictly pictures keep
+-- the face, and the studio's own limits for pictures of them alone. The settings' studio JSON holds every price, size,
+-- model and switch (lib/adult/studio-config.ts); the monthly caps are columns, like the others (lib/adult/usage.ts).
+create table if not exists adult_studio_shoots (
+  id text primary key,
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  partner_id text references characters (id) on delete cascade,
+  kind text not null,
+  choices jsonb not null default '{}',
+  model text,
+  provider text,
+  own_key boolean not null default false,
+  tokens integer not null default 0,
+  asked integer not null default 0,
+  made integer not null default 0,
+  status text not null default 'making',
+  pictures jsonb not null default '[]',
+  redo_of text,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists adult_studio_shoots_owner_idx on adult_studio_shoots (owner_id, character_id, created_at desc);
+create table if not exists adult_identity (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  body_image_id text references adult_images (id) on delete set null,
+  strength text,
+  intensity text,
+  hard_nos jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (owner_id, character_id)
+);
+alter table adult_images add column if not exists shoot_id text;
+alter table adult_settings add column if not exists studio jsonb;
+alter table adult_usage add column if not exists studio integer not null default 0;
+alter table adult_usage add column if not exists studio_byok integer not null default 0;
+alter table adult_usage add column if not exists upscales integer not null default 0;
+alter table adult_settings add column if not exists cap_studio integer not null default 400;
+alter table adult_settings add column if not exists cap_studio_byok integer not null default 1000;
+alter table adult_settings add column if not exists cap_upscales integer not null default 50;
+-- Which checker checks (lib/adult/moderation.ts; David, 2026-10-24: "Hive is a bottleneck, add an alternative"): the
+-- mode and the alternatives in adult_settings.moderation (JSON), Sightengine's secret and our own endpoint's key sealed
+-- like the others; and the NSFW score Hive's moderation gave a picture it passed (a photo for the texts needs a low one).
+alter table adult_settings add column if not exists moderation jsonb;
+alter table adult_settings add column if not exists sightengine_ciphertext text;
+alter table adult_settings add column if not exists sightengine_nonce text;
+alter table adult_settings add column if not exists sightengine_last4 text;
+alter table adult_settings add column if not exists moderation_endpoint_ciphertext text;
+alter table adult_settings add column if not exists moderation_endpoint_nonce text;
+alter table adult_settings add column if not exists moderation_endpoint_last4 text;
+alter table adult_images add column if not exists nsfw_score double precision;
+-- Studio v2 (lib/adult/shares.ts; David, 2026-10-24: "share your output to the other user or agent so they can see it
+-- too, but you pay for it"). A share is one picture to the owner of a character theirs has dated: in After Dark (a
+-- request they accept first: status pending, accepted, declined, revoked), or as a dressed photo in the two characters'
+-- texts (status sent; couple_texts.photo is its show asset, character_assets kind 'photo'). adult_share_prefs: whether a
+-- person takes After Dark shares from characters theirs have dated without being asked.
+create table if not exists adult_shares (
+  id text primary key,
+  item_id text not null references adult_images (id) on delete cascade,
+  owner_id text not null,
+  from_character text not null references characters (id) on delete cascade,
+  recipient_id text not null,
+  to_character text not null references characters (id) on delete cascade,
+  kind text not null check (kind in ('after_dark', 'photo')),
+  status text not null check (status in ('pending', 'accepted', 'declined', 'revoked', 'sent')),
+  photo_asset text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (item_id, recipient_id, kind)
+);
+create index if not exists adult_shares_recipient_idx on adult_shares (recipient_id, status, created_at desc);
+create table if not exists adult_share_prefs (
+  user_id text primary key,
+  auto_accept boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+alter table couple_texts add column if not exists photo text;
+-- Studio v3 (docs/PRDs/studio.md): a shoot's choices saved under a name (one per name), run again on any of the owner's
+-- characters; kind 'shoot' (one of them) or 'pair' (together, the partner picked when it runs).
+create table if not exists adult_studio_setups (
+  id text primary key,
+  owner_id text not null,
+  name text not null,
+  kind text not null check (kind in ('shoot', 'pair')),
+  choices jsonb not null default '{}',
+  model text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, name)
 );
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start

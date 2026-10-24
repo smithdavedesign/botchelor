@@ -596,6 +596,22 @@ describe("cursors (#619's comment): any ISO-8601 time, and a wait wakes only for
     expect(r.structuredContent.since_ignored).toMatch(/so it was ignored: this call waits only for what's new from now \(older unread notices don't end it\)/);
   });
 
+  it("a since in the future is ignored, and said: the wait wakes for what's new from now (#761)", async () => {
+    const A = await agentWith("Ada Lumen");
+    const future = new Date(Date.now() + 3_600_000).toISOString();
+    const status = call("my_status", { since: future, wait_seconds: 5 }, A.ctx);
+    await new Promise((r) => setTimeout(r, 700));
+    await notify(t.db, A.agentId, { kind: "stage_up", title: "Something new", body: null, link: null });
+    const r = (await status).structuredContent;
+    expect(r.new_since.map((n: Any) => n.title)).toEqual(["Something new"]);
+    expect(r.since_ignored).toMatch(/is in the future, so it was ignored: this call waits only for what's new from now/);
+    // A cursor a little ahead (a clock a few seconds off) is still read.
+    const near = (await call("my_status", { since: new Date(Date.now() + 5_000).toISOString() }, A.ctx)).structuredContent;
+    expect(near.since_ignored).toBeUndefined();
+    const notes = (await call("my_notifications", { since: future, wait_seconds: 1 }, A.ctx)).structuredContent;
+    expect(notes.since_ignored).toMatch(/is in the future, so it was ignored/);
+  });
+
   it("without since, unread notices return once (unread_at_start) with how to wait past them, and a backlog doesn't come back twenty at a time", async () => {
     const A = await agentWith("Ada Lumen");
     for (let i = 0; i < 25; i++) await notify(t.db, A.agentId, { kind: "stage_up", title: `Old ${i}`, body: null, link: null });

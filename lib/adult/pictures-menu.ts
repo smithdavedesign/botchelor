@@ -14,18 +14,18 @@
  */
 import { isAdmin } from "../admins";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
-import { loadCharacter } from "../character";
+import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, FRAMINGS, type Framing, type MediaLimits, type MenuAct } from "./acts";
-import { checkOutput } from "./check";
 import { fallbackNote, runMedia } from "./fallback";
-import { hiveGate, hivePausedErrorMessage, hivePausedMessage, HivePausedError, underHiveLimit } from "./hive-limit";
+import { hivePausedErrorMessage, hivePausedMessage, HivePausedError } from "./hive-limit";
+import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { mediaLimits, nightStands } from "./clips";
 import { isPublicPlace } from "./continuity";
 import { ensureBaseline, signedMediaUrl, type Media } from "./media";
-import { baselines, drawKeyframe, drawReplicateKeyframe, keyframePrompt, placeWords, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
+import { baselines, drawKeyframe, drawReplicateKeyframe, KEYFRAME_MODEL, keyframePrompt, NUDE_FROM, nudeBaselines, placeWords, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { STAGES } from "./stages";
@@ -49,7 +49,7 @@ export const OUTFITS: readonly Outfit[] = [
 ];
 export const outfitById = (id: string): Outfit | null => OUTFITS.find((o) => o.id === id) ?? null;
 
-const FRAMING_LABEL: Record<Framing, string> = { wide: "Wide: all of them and the room", medium: "Medium: from the thighs up", close: "Close: their faces" };
+export const FRAMING_LABEL: Record<Framing, string> = { wide: "Wide: all of them and the room", medium: "Medium: from the thighs up", close: "Close: their faces" };
 
 /** What's asked for: the act (who leads swapped, or not), what they wear, the framing, and the place (one of the menu's). */
 export type PictureChoice = { act: string; swap?: boolean; outfit: string; framing: Framing; place: string };
@@ -130,7 +130,7 @@ type PicturePlan = { promptFor: (withSet: boolean) => string; place: string; sta
  */
 export function planPicture(
   choice: PictureChoice,
-  ctx: { cast: readonly [ReelPerson, ReelPerson]; stage: number; places: readonly PicturePlace[]; limits: MediaLimits },
+  ctx: { cast: readonly [ReelPerson, ReelPerson]; stage: number; places: readonly PicturePlace[]; limits: MediaLimits; light?: string },
 ): { ok: true; plan: PicturePlan } | { ok: false; status: number; error: string; message: string } {
   const no = (error: string, message: string, status = 422) => ({ ok: false as const, status, error, message });
   const act = actById(choice.act);
@@ -150,11 +150,11 @@ export function planPicture(
   const stage = Math.max(act.dress, outfit.dress);
   const frame = `${filled.pose} ${FRAMING_WORDS[choice.framing]}`;
   const prompt = (withSet: boolean) =>
-    keyframePrompt(ctx.cast as [ReelPerson, ReelPerson], frame, placeWords(where.place, ctx.cast), stage, withSet, { explicit: ctx.limits.explicit, clothes: outfit.words });
+    keyframePrompt(ctx.cast as [ReelPerson, ReelPerson], frame, placeWords(where.place, ctx.cast), stage, withSet, { explicit: ctx.limits.explicit, clothes: outfit.words, light: ctx.light });
   // Every word the choices put in front of a picture model, held to David's lines (the menu's words were written to
   // them; this is the backstop). Not the prompt's own fixed words: "Make one photograph" reads to the age check as
   // "make [her] one", and it's right to be that strict.
-  const words = `${frame} ${outfit.words} ${placeWords(where.place, ctx.cast)}`;
+  const words = `${frame} ${outfit.words} ${placeWords(where.place, ctx.cast)} ${ctx.light ?? ""}`;
   if (!checkAdultText({ words }).ok || crossesTaboo(words) || ctx.limits.hit(words)) return no("not_allowed", "That picture crosses one of the lines After Dark never crosses.");
   return { ok: true, plan: { promptFor: prompt, place: where.place, stage } };
 }
@@ -174,7 +174,7 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
   const onReplicate = settings.media_provider === "replicate";
-  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
+  if (!(onReplicate ? keys.replicate : keys.venice) || !(await checkReady(db))) {
     return { ok: false, status: 409, error: "not_set_up", message: `Pictures need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
   }
   const [ca, cb] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b)]);
@@ -187,7 +187,7 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   const reject = (reason: string) =>
     db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'scene', $3)`, [crypto.randomUUID(), ownerId, `menu picture: ${reason}`.slice(0, 300)]).catch(() => {});
   // Hive over its daily limit (lib/adult/hive-limit.ts): refused before anything is drawn or spent.
-  const gate = await hiveGate(db, keys.hive);
+  const gate = await mediaGate(db);
   if (!gate.ok) {
     await reject(gate.reason);
     return { ok: false, status: 503, error: "hive_paused", message: gate.message };
@@ -203,59 +203,96 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
     if (pays && price > 0) await refundBoughtTokens(db, ownerId, price);
   };
   const tokensBack = pays && price > 0 ? ` Your token${price === 1 ? " is" : "s are"} back.` : "";
+  const kept = await keepPictureOfBoth(db, ownerId, [ca, cb], plan, { keys, settings, baseUrl, reject });
+  if (!kept.ok) {
+    await giveBack();
+    if (kept.error === "hive_paused" && kept.pausedErr) return { ok: false, status: 503, error: "hive_paused", message: hivePausedErrorMessage(kept.pausedErr, pays && price > 0) };
+    return { ok: false, status: kept.status, error: kept.error, message: `${kept.message}${tokensBack}` };
+  }
+  return { ok: true, picture: kept.picture };
+}
+
+/** Why a picture of both wasn't kept; `pausedErr` when a baseline made first found Hive out. */
+export type KeepFailure = { ok: false; status: number; error: "hive_paused" | "check_busy" | "discarded" | "not_made"; message: string; pausedErr?: HivePausedError };
+
+/**
+ * A picture of both of them, drawn and kept: their two baselines (made first if they have none) and the place's drawn
+ * set when there is one, made into one picture by the multi-image edit on the configured provider (the other when it's
+ * limited), checked by Hive (moderation and the age question) before anything is kept, then stored in the pair's
+ * gallery as a scene picture and counted for the month. The caller has already held it to the lines and limits, checked
+ * the gate and the cap, and taken any price. Menu pictures and beat pictures (lib/adult/beats.ts) both come through here.
+ */
+export async function keepPictureOfBoth(
+  db: Db,
+  ownerId: string,
+  [ca, cb]: [Character, Character],
+  plan: { promptFor: (withSet: boolean) => string; place: string | null; stage?: number },
+  ctx: {
+    keys: Awaited<ReturnType<typeof adultKeys>>;
+    settings: Awaited<ReturnType<typeof getAdultSettings>>;
+    baseUrl: string;
+    reject: (reason: string) => Promise<unknown>;
+    scene?: { chapter: number; place: string | null };
+  },
+): Promise<{ ok: true; picture: Media } | KeepFailure> {
+  const { keys, settings, baseUrl, reject } = ctx;
   let file: { bytes: Buffer; mime: string };
   let made: { provider: MediaProvider; fell_back: boolean };
   let prompt = plan.promptFor(false);
   try {
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
-    const bases = await baselines(db, a, b);
+    // At sex (NUDE_FROM), from their nude baselines: an edit keeps what the pictures it starts from wear (lib/adult/attire.ts).
+    const nude = (plan.stage ?? 0) >= NUDE_FROM ? await nudeBaselines(db, ownerId, ca, cb) : null;
+    const bases = nude ?? (await baselines(db, ca.id, cb.id, ownerId));
     if (!bases) throw new Error("a picture of each of them is needed first");
     const faces = bases.map((id) => signedMediaUrl(id, baseUrl));
-    const set = (await setPictures(db, [plan.place])).get(plan.place) ?? null;
+    const set = plan.place ? ((await setPictures(db, [plan.place])).get(plan.place) ?? null) : null;
     // With the place's drawn set as Picture 3, the prompt says to keep its room and its light.
     prompt = plan.promptFor(Boolean(set));
     // One picture, one job: drawn on the other provider when the configured one is limited (lib/adult/fallback.ts).
     const drawn = await runMedia(db, "keyframe", (p) => {
       if (p === "replicate") {
         const r = { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora };
-        return drawReplicateKeyframe(r, prompt, set ? [...faces, replicateSetImage(set, plan.place, baseUrl)] : faces);
+        return drawReplicateKeyframe(r, prompt, set && plan.place ? [...faces, replicateSetImage(set, plan.place, baseUrl)] : faces);
       }
       return drawKeyframe(keys.venice!, prompt, set ? [...faces, set] : faces);
     });
     file = drawn.value;
     made = { provider: drawn.provider, fell_back: drawn.fell_back };
   } catch (err) {
-    await giveBack();
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
-    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: hivePausedErrorMessage(err, pays && price > 0) };
-    return { ok: false, status: 502, error: "not_made", message: `The picture couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${tokensBack}` };
+    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: err.message, pausedErr: err };
+    return { ok: false, status: 502, error: "not_made", message: `The picture couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).` };
   }
   // The output check on the picture itself, before anything is kept, whoever made it: a refusal is discarded, never stored.
-  const verdict = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image"));
+  const verdict = await checkMedia(db, { base64: file.bytes.toString("base64"), mime: file.mime }, "image");
   if (!verdict.ok) {
-    await giveBack();
     // Hive out of its daily allowance: discarded, logged, and the pause says until when.
     if (verdict.paused) {
       await reject(verdict.reason);
-      return { ok: false, status: 503, error: "hive_paused", message: `${hivePausedMessage(verdict.paused, { discarded: true })}${tokensBack}` };
+      return { ok: false, status: 503, error: "hive_paused", message: hivePausedMessage(verdict.paused, { discarded: true }) };
     }
     const busy = verdict.reason.startsWith("the check couldn't run");
     if (!busy) await reject(verdict.reason);
     return busy
-      ? { ok: false, status: 503, error: "check_busy", message: `The safety check couldn't look at it just now, so it wasn't kept. Try again in a few minutes.${tokensBack}` }
-      : { ok: false, status: 422, error: "discarded", message: `The safety check discarded that picture (${verdict.reason}).${tokensBack}` };
+      ? { ok: false, status: 503, error: "check_busy", message: "The safety check couldn't look at it just now, so it wasn't kept. Try again in a few minutes." }
+      : { ok: false, status: 422, error: "discarded", message: `The safety check discarded that picture (${verdict.reason}).` };
   }
   const id = crypto.randomUUID();
   const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back) values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10)`,
-    [id, ownerId, a, b, prompt.slice(0, 2000), file.mime, kept.data, kept.object_key, made.provider, made.fell_back],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, scene_chapter, scene_place, model)
+     values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10, $11, $12, $13)`,
+    [
+      id, ownerId, ca.id, cb.id, prompt.slice(0, 2000), file.mime, kept.data, kept.object_key, made.provider, made.fell_back, ctx.scene?.chapter ?? null, ctx.scene?.place ?? null,
+      made.provider === "replicate" ? settings.replicate_keyframe_model : KEYFRAME_MODEL,
+    ],
   );
   await countUse(db, ownerId, "pictures");
   return {
     ok: true,
     picture: {
-      id, character_id: a, character_b: b, kind: "scene", status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: false,
+      id, character_id: ca.id, character_b: cb.id, kind: "scene", status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: false,
       provider: made.provider, fell_back: made.fell_back, note: fallbackNote(made.provider, made.fell_back),
     },
   };

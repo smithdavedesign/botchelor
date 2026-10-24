@@ -352,14 +352,14 @@ describe("the output check (Hive)", () => {
     expect(vlmAnswer(vlmSays('{"answer": "ADULTS AND MINOR"}'))).not.toBe("ADULTS");
     expect(vlmAnswer(vlmSays('{"answer": "ADUL'))).not.toBe("ADULTS");
     const seen = fakeHive();
-    expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/pic.png")).toEqual({ ok: true });
+    expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/pic.png")).toEqual({ ok: true, nsfw: 0.98 });
     expect(seen).toEqual(["Bearer placeholder-hive", "Bearer placeholder-hive"]);
     expect(await checkOutput(null, "https://cdn.fal.test/pic.png")).toMatchObject({ ok: false });
   });
 
   it("asks the VLM for an answer held to three labels by a JSON schema (Hive's terms: not generative use)", async () => {
     fakeHive();
-    expect(await checkOutput("placeholder-hive", { base64: "UklGRg==", mime: "image/webp" })).toEqual({ ok: true });
+    expect(await checkOutput("placeholder-hive", { base64: "UklGRg==", mime: "image/webp" })).toEqual({ ok: true, nsfw: 0.98 });
     expect(vlmBodies).toHaveLength(1);
     const body = vlmBodies[0];
     expect(body).toMatchObject({ model: "hive/vision-language-model", temperature: 0 });
@@ -379,7 +379,7 @@ describe("the output check (Hive)", () => {
 
   it("checks a clip's frames with moderation only (its picture already passed the age check)", async () => {
     const seen = fakeHive({});
-    expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/clip.mp4", "video")).toEqual({ ok: true });
+    expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/clip.mp4", "video")).toEqual({ ok: true, nsfw: 0.98 });
     expect(seen).toHaveLength(1);
   });
 });
@@ -693,6 +693,21 @@ describe("what a picture's prompt knows", () => {
     expect(baselinePrompt(star({ ...picked, after_dark: { outfit: "bikini", butt: "large" } }), "owner-1")).toMatch(/a large full round butt\. Wearing a tiny string bikini/);
     expect(baselinePrompt(star({ ...picked, after_dark: { outfit: "nude" } }), "owner-1")).toMatch(/^Explicit, uncensored adult photograph, .*\. Nude, alone/);
     expect(baselinePrompt(star({ ...picked, outfit: undefined }), "owner-1")).toMatch(/\. Nude, alone/);
+  });
+
+  it("draws the finer details in every picture, and the private grooming pick only undressed, in the owner's, below a waist-up frame", () => {
+    const s = star({ ...picked, outfit: undefined, skin_tone: "deeper", marks: "freckles", glasses: "wire", tattoos: "sleeve", after_dark: { grooming: "trimmed" } });
+    const base = baselinePrompt(s, "owner-1");
+    expect(base).toMatch(/Latina, a deeper skin tone, .*a large full bust, a light dusting of freckles across the nose and cheeks, thin round wire-framed glasses, a full sleeve tattoo covering one arm\. Nude, alone, waist-up/);
+    // The baseline's frame stops at the waist: nothing below it is named.
+    expect(base).not.toMatch(/pubic/);
+    const inBed = { place: "his flat", stage: 4, explicit: true, recent: [] };
+    expect(scenePrompt(chud, s, "b", "in bed", inBed, "owner-1")).toMatch(/a full sleeve tattoo covering one arm, neatly trimmed pubic hair\. Setting/);
+    expect(scenePrompt(chud, s, "b", "in bed", inBed, "someone-else")).not.toMatch(/pubic/);
+    expect(scenePrompt(chud, s, "b", "by the pool", { place: "the pool", stage: 1, recent: [] }, "owner-1")).not.toMatch(/pubic/);
+    // Two women with no hair picked are told apart some other way, never by the grooming pick.
+    const bare = star({ gender: "woman", ethnicity: "latina", after_dark: { grooming: "trimmed" } });
+    expect(reelCast(bare, star({ gender: "woman", ethnicity: "asian" }), "owner-1")[0].tag).toBe("the woman with Latina");
   });
 
   it("keeps the private After Dark picks to the owner's pictures, and the outfit until they undress", () => {

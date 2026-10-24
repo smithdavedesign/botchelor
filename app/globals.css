@@ -996,6 +996,92 @@ button.chosen {
   vertical-align: middle;
 }
 
+/* ---------------- AI labels and the crisis notice (app/AiLabel.tsx, app/CrisisNotice.tsx) ---------------- */
+
+/* "AI-generated" beside a generated picture or video: quiet, never louder than the thing it labels. */
+.ai-tag {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+/* On the picture's own corner (its parent is positioned). */
+.ai-tag-over {
+  position: absolute;
+  left: var(--space-2);
+  top: var(--space-2);
+  z-index: 2;
+  border-color: transparent;
+  background: rgba(10, 6, 18, 0.62);
+  color: #fff;
+  pointer-events: none;
+}
+/* The one line where people meet characters. */
+.ai-fiction {
+  margin: var(--space-2) 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+/* At the foot of every After Dark page (app/after-dark/Frame.tsx). */
+.ai-fiction.ad-ai-fiction {
+  margin: var(--space-4) auto;
+  padding: 0 var(--space-4);
+  text-align: center;
+}
+/* Under the text thread, above the compose bar: always there, never in the way. */
+.ai-fiction.phone-ai-line {
+  margin: 0;
+  padding: 0.2rem var(--space-3);
+  text-align: center;
+  font-size: var(--text-2xs);
+}
+/* Under the looks builder's picture grid. */
+.ai-fiction.looks-ai-note {
+  text-align: center;
+}
+/* The consent box before turn-ons or hard nos are stored (lib/adult/profile.ts PROFILE_CONSENT_TEXT). */
+.ad-consent {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: var(--space-3) 0;
+  font-size: var(--text-sm);
+}
+.ad-consent.needs-tick span {
+  color: var(--bad-text);
+}
+
+/* Shown when someone's own words read as wanting to hurt themselves (lib/crisis.ts). Calm, not an alarm. */
+.crisis-notice {
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent-2);
+  border-radius: var(--control-radius, 12px);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+.crisis-notice p {
+  margin: 0 0 var(--space-2);
+}
+.crisis-notice ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.crisis-notice li {
+  margin: 0.15rem 0;
+}
+
 /* The dealt venue (lib/venues.ts), painted with its own backdrop gradient behind the location's name. */
 .venue {
   display: block;
@@ -2867,6 +2953,14 @@ button.phone-earlier-btn:hover:not(:disabled) {
   overflow-wrap: anywhere;
   /* A text can run long and keep its own line breaks (an agent's, a person's own model). */
   white-space: pre-wrap;
+}
+/* A photo in a text (lib/adult/shares.ts): the bubble's width, rounded like it. */
+.phone-photo {
+  display: block;
+  width: 100%;
+  max-width: 14rem;
+  border-radius: 0.8rem;
+  margin-bottom: 0.3rem;
 }
 .phone-bubble.chat-typing {
   min-height: 0;
@@ -6722,6 +6816,8 @@ a.phone-head-btn {
   display: grid;
   gap: 0.35rem;
   justify-items: start;
+  /* Packed at the top: a tall neighbour (a 👎's chips open) doesn't stretch this one's badge and buttons. */
+  align-content: start;
 }
 .after-dark-gallery img,
 .after-dark-gallery video {
@@ -6857,6 +6953,42 @@ a.phone-head-btn {
   font-style: italic;
   color: #e2c8ff;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+}
+/* Beat pictures (lib/adult/beats.ts): the theater stops on a moment worth a picture and asks. */
+.ad-beat-offer {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  z-index: 4;
+  width: min(26rem, calc(100% - 32px));
+  padding: var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: rgba(16, 8, 22, 0.92);
+  color: #f4ecff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+.ad-beat-offer p {
+  margin: 0 0 var(--space-2);
+}
+.ad-beat-offer .muted {
+  display: block;
+  color: #cbb8e0;
+}
+.ad-beat-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ad-beat-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
 }
 .ad-theater-bar {
   position: absolute;
@@ -7135,6 +7267,46 @@ a.phone-head-btn {
   list-style: none;
   margin: var(--space-2) 0;
   padding: 0;
+}
+/* The finer details (lib/looks.ts LOOK_DETAILS): a row of chip toggles per detail, on the look's summary. */
+.looks-details {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+.looks-details h4 {
+  margin: 0;
+}
+.looks-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.looks-detail-title {
+  flex: 0 0 100%;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--muted);
+}
+.looks-detail button.chip {
+  margin: 0;
+  min-height: 32px;
+  padding: 0.3rem 0.75rem;
+  border: 1.5px solid var(--line);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.looks-detail button.chip:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--accent);
+}
+.looks-detail button.chip-on {
+  border-color: var(--accent);
+  background: var(--soft);
 }
 .looks-nav {
   display: flex;
@@ -7522,6 +7694,177 @@ a.phone-head-btn {
   font-size: 1.2rem;
   cursor: pointer;
 }
+/* Under a player, the shot on screen: 👍/👎 and Remove this shot (Reels.tsx SeamlessPlayer). */
+.ad-shot-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+/* In the shot bar the rating's buttons sit in its row (This shot: 👍 👎 Remove this shot), what's off on a row below. */
+.ad-shot-bar .ad-rate {
+  display: contents;
+}
+.ad-shot-bar .ad-rate-tags {
+  order: 1;
+}
+/* 👍/👎 on a picture or video, and what was off on a 👎 (RateMedia.tsx, lib/adult/steering.ts). */
+.ad-rate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.ad-rate-btn {
+  min-width: 40px;
+  min-height: 36px;
+  padding: 0 0.6rem;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.ad-rate-btn:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--accent);
+}
+.ad-rate-btn.on {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.ad-rate-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex-basis: 100%;
+}
+.ad-rate-tags button.chip {
+  margin: 0;
+  min-height: 32px;
+  padding: 0.3rem 0.7rem;
+  border: 1.5px solid var(--line);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.ad-rate-tags button.chip-on {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+/* The Archive (Reels.tsx): shots taken out of their videos, kept. Folded until opened. */
+.ad-archive {
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.ad-archive summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.ad-archive-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-archived-shot p {
+  margin: var(--space-1) 0;
+}
+.ad-archived-poster {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius);
+  background: #000;
+  box-shadow: none;
+  cursor: pointer;
+}
+.ad-archived-poster img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.7;
+}
+.ad-archived-play {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 1.2rem;
+}
+/* Their faces (Faces.tsx, lib/adult/steering.ts): the face each keeps, and three to pick from. */
+.ad-faces-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-face {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.ad-face p {
+  margin: 0;
+}
+.ad-face-pic {
+  width: min(100%, 14rem);
+  border-radius: 0.8rem;
+}
+.ad-face-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ad-face-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-face-choices li {
+  display: grid;
+  gap: 0.35rem;
+}
+.ad-face-choices img {
+  width: 100%;
+  border-radius: 0.6rem;
+}
+.ad-face-choices button {
+  padding-inline: 0.3rem;
+  font-size: var(--text-xs);
+}
+.ad-face-badge {
+  margin-left: 0;
+}
 .after-dark-night-film {
   margin-bottom: var(--space-4);
 }
@@ -7755,6 +8098,162 @@ a.phone-head-btn {
   background: rgba(255, 159, 128, 0.16);
   color: #ffd2c4;
   font-weight: 700;
+}
+.ad-chip:disabled {
+  opacity: 0.45;
+}
+
+/* The After Dark Studio (lib/adult/studio.ts): tabs, chip groups, the go row, the pictures. */
+.ad-studio-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  border-bottom: 1px solid var(--ad-line, var(--line));
+  /* Five tabs are wider than a phone: they scroll sideways in their own bar, never the page. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ad-studio-tabs button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.ad-studio-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ad-ink, var(--ink));
+  padding: var(--space-2) var(--space-3);
+}
+.ad-studio-tabs button.on {
+  border-bottom-color: #ff9f80;
+  font-weight: 700;
+}
+.ad-studio-group {
+  border: 0;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+}
+.ad-studio-group legend {
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+.ad-studio-go {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  margin: var(--space-3) 0;
+}
+.ad-studio-go select {
+  max-width: 100%;
+}
+/* A model picker's long option names shrink the picker, not widen the page. */
+.ad-studio-go > label {
+  min-width: 0;
+  max-width: 100%;
+}
+.ad-studio-panel select {
+  max-width: 100%;
+  min-width: 0;
+}
+.ad-studio-grid {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--space-3);
+}
+.ad-studio-item img,
+.ad-studio-refs img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  background: #000;
+}
+.ad-studio-item-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-2);
+}
+.ad-studio-refs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 12rem));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.ad-studio-refs figure {
+  margin: 0;
+}
+.ad-studio-empty {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 4;
+  border: 1px dashed var(--ad-line, var(--line));
+  border-radius: 0.5rem;
+  padding: var(--space-3);
+  text-align: center;
+  font-size: var(--text-sm);
+}
+.ad-studio-fresh {
+  margin: var(--space-4, 1rem) 0;
+}
+.ad-studio-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* Studio v2: the own-key switch, a picture's share panel, where it went, and the hub's "Shared with you". */
+.ad-studio-own {
+  margin: var(--space-2) 0;
+}
+.ad-studio-share {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--ad-line, var(--line));
+  border-radius: 0.5rem;
+}
+.ad-studio-share select {
+  max-width: 100%;
+}
+.ad-studio-went {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0 0;
+}
+.ad-shared-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+/* Studio v3: a clip in the gallery fills its tile like a picture; a saved setup is a small card. */
+.ad-studio-item video {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  background: #000;
+}
+.ad-studio-setup {
+  padding: var(--space-2) var(--space-3);
+}
+/* The settings page's number fields, two or three to a row. */
+.ad-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+.ad-settings-grid label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: var(--text-sm);
 }
 .ad-chip:hover:not(:disabled) {
   transform: none;
@@ -9143,6 +9642,62 @@ section:has(> .ad-pairs) {
   border-radius: 0.5rem;
   background: #000;
 }
+/* The After Dark library (lib/adult/library.ts): filters, a grid of cards, stars, pages. */
+.ad-library-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: end;
+  margin: var(--space-3) 0;
+}
+.ad-library-filters select {
+  max-width: 12rem;
+}
+.ad-library-grid {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space-3);
+}
+.ad-library-item > img,
+.ad-library-item > video {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  background: #000;
+}
+.ad-library-item .ad-shots {
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+}
+.ad-library-meta {
+  margin: var(--space-2) 0 0;
+}
+.ad-stars {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ad-star {
+  border: 0;
+  background: none;
+  padding: 0 0.1rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted, #888);
+}
+.ad-star.on {
+  color: #f5b301;
+}
+.ad-library-pages {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  margin: var(--space-4, 1.5rem) 0;
+}
 .ad-lines {
   padding-left: 1.4rem;
 }
@@ -9477,4 +10032,15 @@ details > summary.small {
 .looks-dots li {
   flex: 1 0 24px;
   max-width: 44px;
+}
+
+/* The face a character who wears something keeps in intimate scenes (Faces.tsx, lib/adult/attire.ts). */
+.ad-face-nude {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+.ad-face-pic.is-nude {
+  width: min(100%, 9rem);
 }

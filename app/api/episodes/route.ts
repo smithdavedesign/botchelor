@@ -10,6 +10,7 @@ import { getDb, type Db } from "@/lib/db";
 import { decideTraced } from "@/lib/engine";
 import { getEpisodeView, listFeed, toEpisodeJson, type CharacterRef, type StoredEpisode } from "@/lib/game";
 import { handle, json, parseBody, readJson, session, userIdFromRequest, type Session } from "@/lib/http";
+import { crisisAware, str } from "@/lib/crisis";
 import { frontierAuthorized } from "@/lib/model";
 import { generationPaused, PAUSED_MESSAGE } from "@/lib/compute";
 import { DATE_START_LIMITS, overLimit, visitorKey } from "@/lib/limits";
@@ -177,7 +178,9 @@ async function blindMatch(db: Db, userId: string, ownId: string): Promise<Charac
   return rows[0];
 }
 
-export const POST = handle(async (req) => {
+// The date's note is the owner's own words: checked for self-harm intent (lib/crisis.ts), the reply then carries
+// crisis_resources whatever else it says.
+export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(async (req) => {
   const sess = session(req);
   // M10 kill switch: a paused system takes no date and spends nothing (PRD: an episode fails closed).
   if (generationPaused()) return json({ error: "generation_paused", message: PAUSED_MESSAGE }, 503, sess);
@@ -381,7 +384,7 @@ export const POST = handle(async (req) => {
       });
     }
   }
-});
+}));
 
 type EpisodeInputData = z.infer<typeof EpisodeInput>;
 

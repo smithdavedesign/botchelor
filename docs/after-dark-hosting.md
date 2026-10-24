@@ -88,8 +88,13 @@ These come first, and most of them need David to sign up, pay or decide:
    (`docs/after-dark.md` #3).
 2. **Age verification on After Dark's host**, in the subscribe flow (Yoti, Persona or Veriff), with counsel on the
    state-by-state rules (`docs/after-dark.md` #4).
-3. **The UK stays blocked until the age check is "highly effective"** (Online Safety Act, Ofcom's Part 5 guidance; a
-   self-declared age or a checkbox isn't). Blocking it at the edge:
+3. **Regional rules: built (2026-10-24, `lib/jurisdiction.ts`).** After Dark is blocked in the 27 US age-check states,
+   France, Italy, Germany, Australia, Brazil and where pornography is illegal, and text only in the UK and Japan (no
+   pictures, video or voice). On this host no location header is trusted: the show signs the visitor's country and
+   state into the sign-in hop (`bz_place`, an hour, bound to the hop's nonce; `lib/place.ts`), and the middleware sends a
+   page visit without a fresh one through the hop again. The edge blocks below are an optional second layer, and the
+   original note on them follows. The UK used to be blocked outright here; it's text only now, because the Online
+   Safety Act's Part 5 leaves text-only content out (s.79(4)):
    - Media: Bunny pull zone → **Traffic Manager** → Blocked countries → United Kingdom. Bunny blocks at DNS, so the
      connection never reaches the CDN.
    - Pages: DigitalOcean App Platform has no country blocking we can rely on. Either put ad.botchelor.com behind a Bunny
@@ -171,6 +176,9 @@ Run it once now, and **again right before switching** for whatever was made in b
 nothing: both deployments read those from the database.
 
 ## 3. DigitalOcean App Platform
+
+**Quicker (2026-10-24):** Apps → Create App → Import from app spec → `.do/app.yaml` in the repo has every setting below.
+Then replace each `CHANGE_ME` secret in the dashboard (Encrypt), and check the steps below match.
 
 1. **Create the app:** Apps → Create App → GitHub → `smithdavedesign/botchelor`, branch `main`, autodeploy on. Source
    directory `/`. It's detected as Node.js (a Web Service).

@@ -1,7 +1,9 @@
 import { mediaBytes, mediaLink, mediaRef } from "@/lib/adult/media";
 import { adultViewer } from "@/lib/adult/mode";
+import { mediaRefusal } from "@/lib/adult/place";
 import { shortMediaAllowed } from "@/lib/adult/shorts";
 import { getDb } from "@/lib/db";
+import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
 
 /**
  * A Short's cover, or a shot of its video (the video, its keyframe, its voice), to an entitled viewer
@@ -16,6 +18,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return missing();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const { id, mediaId } = await params;
   if (!(await shortMediaAllowed(db, viewer, id, mediaId))) return missing();
   const ref = await mediaRef(db, mediaId, null);
@@ -29,5 +34,5 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
   const file = await mediaBytes(db, mediaId, null);
   if (!file) return missing();
-  return new Response(new Uint8Array(file.data), { headers: { "content-type": file.mime, "cache-control": KEEP, "x-robots-tag": "noindex" } });
+  return new Response(aiBody(file.data, file.mime), { headers: { "content-type": file.mime, "cache-control": KEEP, "x-robots-tag": "noindex", ...AI_HEADERS } });
 }

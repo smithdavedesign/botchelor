@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { afterDarkOnly, afterDarkOrigin, afterDarkPageMove } from "@/lib/after-dark-host";
 import { ADULT_COOKIE } from "@/lib/age";
+import { PLACE_COOKIE, PLACE_TRIED_COOKIE, placeCookieFresh } from "@/lib/jurisdiction";
 import { track } from "@/lib/analytics";
 import { detectBot } from "@/lib/bots";
 import { OLD_HOSTS, siteUrl } from "@/lib/site";
@@ -70,6 +71,8 @@ const AGENT_DOCS: Record<string, string> = {
   "/sitemap.xml": "sitemap.xml",
 };
 const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"]);
+/** The policy pages: no adult content, and a person reporting or cancelling shouldn't have to pass the 18+ gate first. */
+const UNGATED_PAGES: ReadonlySet<string> = new Set(["/terms", "/privacy", "/legal", "/content-policy", "/2257", "/report", "/cancel"]);
 /** A bounded page family for metric tags ("/characters/abc" → "/characters"): never a raw path or id. */
 const section = (path: string) => `/${path.split("/")[1] ?? ""}`;
 
@@ -82,8 +85,25 @@ const section = (path: string) => `/${path.split("/")[1] ?? ""}`;
  * Crawlers and AI agents (lib/bots.ts) go straight through: they can't tick a box, and the gate exists for
  * people. Each pass is logged as a `bot_visit` so we can see who's reading the show.
  */
+/**
+ * After Dark's own host has no location header it can trust, so it keeps the show's signed word for where the visitor
+ * is (lib/place.ts), an hour at a time: a page visit without a fresh one goes through the sign-in hop, which brings it.
+ * Bots never need one; a hop that just ran and couldn't bring one (bz_place_tried) isn't repeated, so it never loops.
+ */
+function renewPlace(req: NextRequest): NextResponse | null {
+  if (!afterDarkOnly() || !req.nextUrl.pathname.startsWith("/after-dark")) return null;
+  if (req.cookies.get(ADULT_COOKIE)?.value !== "1") return null; // the 18+ gate comes first
+  if (placeCookieFresh(req.cookies.get(PLACE_COOKIE)?.value) || req.cookies.has(PLACE_TRIED_COOKIE)) return null;
+  if (detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"))) return null;
+  const url = req.nextUrl.clone();
+  url.pathname = "/api/auth/carry";
+  url.search = "";
+  url.searchParams.set("to", `${req.nextUrl.pathname}${req.nextUrl.search}`);
+  return NextResponse.redirect(url, 307);
+}
+
 export function middleware(req: NextRequest): NextResponse {
-  const moved = moveToCanonical(req) ?? moveForAfterDark(req);
+  const moved = moveToCanonical(req) ?? moveForAfterDark(req) ?? renewPlace(req);
   if (moved) return moved; // the query (?repohq-notrack=1 included) travels with it and is handled on arrival
   const res = route(req);
   // After Dark's own host stays out of search (lib/after-dark-host.ts); its robots.txt says so too.
@@ -117,8 +137,11 @@ function route(req: NextRequest): NextResponse {
     metric("agent.referral_visit", 1, { source, section: section(pathname) });
   }
 
-  // The gate itself, and unsubscribing from email (lib/email.ts): leaving must never take a hurdle.
-  if (pathname === "/gate" || pathname.startsWith("/email/") || req.cookies.get(ADULT_COOKIE)?.value === "1") return NextResponse.next();
+  // The gate itself, unsubscribing from email (lib/email.ts), and the policy pages (terms, privacy, reporting, cancelling):
+  // leaving, complaining or reading the rules must never take a hurdle, and they hold nothing adult.
+  if (pathname === "/gate" || pathname.startsWith("/email/") || UNGATED_PAGES.has(pathname) || req.cookies.get(ADULT_COOKIE)?.value === "1") {
+    return NextResponse.next();
+  }
 
   const bot = detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"));
   if (bot) {

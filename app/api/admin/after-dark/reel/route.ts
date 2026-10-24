@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
-import { advanceReel, listReels, makeReel, REEL_SCOPES, reelNight, stopReel } from "@/lib/adult/reels";
+import { mediaRefusal } from "@/lib/adult/place";
+import { advanceReel, archiveShot, listReels, makeReel, REEL_SCOPES, reelNight, stopReel } from "@/lib/adult/reels";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -11,6 +12,8 @@ export const maxDuration = 300;
 const id = z.string().min(1).max(64);
 // scope: one chapter, or the whole night (every chapter since it began; the default, the same as one when there is one).
 const Input = z.object({ a: id, b: id, night_id: id.optional(), scope: z.enum(REEL_SCOPES).optional() });
+// One shot of a video (`media_id`, the shot itself) into the Archive, or back out (`archived` false).
+const ArchiveInput = z.object({ id, media_id: id, archived: z.boolean() });
 
 /** Not found for everyone but a viewer after dark is open to (lib/adult/mode.ts). */
 const hidden = () => json({ error: "not_found" }, 404);
@@ -23,6 +26,9 @@ export const POST = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const input = parseBody(Input, await readJson(req), "invalid_request");
   const night = await reelNight(db, viewer, input.a, input.b, input.night_id, input.scope ?? "night");
   if (!night) return hidden();
@@ -36,6 +42,9 @@ export const GET = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const q = new URL(req.url).searchParams;
   const reelId = q.get("id");
   if (reelId) {
@@ -50,6 +59,26 @@ export const DELETE = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const reel = await stopReel(db, viewer, new URL(req.url).searchParams.get("id") ?? "");
   return reel ? json({ reel }) : hidden();
+});
+
+/**
+ * Move a shot out of its video into the Archive, or put it back (lib/adult/reels.ts archiveShot): it's kept either way,
+ * never deleted, and plays only from the Archive while it's there.
+ */
+export const PATCH = handle(async (req: Request) => {
+  const db = await getDb();
+  const viewer = await adultViewer(db, req);
+  if (!viewer) return hidden();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
+  const input = parseBody(ArchiveInput, await readJson(req), "invalid_request");
+  const r = await archiveShot(db, viewer, input.id, input.media_id, input.archived);
+  if (!r.ok) return json({ error: r.error, message: r.message }, r.status);
+  return json({ reel: r.reel });
 });

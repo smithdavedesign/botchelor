@@ -3,6 +3,8 @@ import { backfillTranscripts } from "@/lib/backfill";
 import { resolveExpiredArcs } from "@/lib/arcs";
 import { sendDailyTexts } from "@/lib/between-dates";
 import { sendDigests } from "@/lib/email";
+import { sendRenewalReminders } from "@/lib/adult/billing";
+import { nudgeLikesWaiting } from "@/lib/away";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { recentPublicUrls, submitIndexNow } from "@/lib/indexnow";
@@ -54,6 +56,11 @@ async function run(req: Request): Promise<Response> {
   );
   // The daily email digest for players who opted in (lib/email.ts), after today's texts so they're in it.
   const digests = await sendDigests(db).catch(() => 0);
+  // After Dark subscribers' yearly renewal reminder on each anniversary (California's automatic renewal law;
+  // lib/adult/billing.ts). Nothing while no payment processor is configured.
+  const renewalReminders = await sendRenewalReminders(db).catch(() => 0);
+  // "Likes waiting" (never who) to owners away a day whose characters don't answer for themselves (lib/away.ts).
+  const likesNudged = await nudgeLikesWaiting(db).catch(() => 0);
   // Rate-limit rows only live as long as their longest window (lib/limits.ts).
   await pruneRateHits(db).catch(() => {});
   await pruneMcpCalls(db).catch(() => {});
@@ -79,6 +86,7 @@ async function run(req: Request): Promise<Response> {
     season_candidates_made: candidates?.made.length ?? 0,
     season_candidate_errors: candidates?.errors.length ?? 0,
     cast_baselines_made: baselines.made,
+    likes_nudged: likesNudged,
     embeddings_made: embeddings.made,
     embeddings_failed: embeddings.failed,
     embeddings_skipped: embeddings.skipped,
@@ -96,6 +104,7 @@ async function run(req: Request): Promise<Response> {
     indexnow_status: indexnow.status,
     texted_couples: texts.couples,
     email_digests: digests,
+    ad_renewal_reminders: renewalReminders,
     arcs_settled: arcsSettled,
     texts_failed: texts.failed,
   });

@@ -41,7 +41,7 @@ import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { textModelHistory, writtenBy, type WrittenBy } from "./model-log";
 import { fileSteps, flagStep, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
 import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensityOf, limitsHit, NO_LIMITS, overIntensity, OWN_LEN, OWN_MAX, plainTalk, storedHardNos, type HardNos, type Intensity, type PairLimits } from "./limits";
-import { framingOf, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
+import { consentRefusal, framingOf, hasProfileConsent, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
 import { scenarioById, type Scenario } from "./scenarios";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import {
@@ -110,6 +110,7 @@ import {
 import { DEFAULT_PROMPT_VERSION, getAdultSettings, SCENE_PROMPT_REVISION, type AdultSettings, type PromptVersion } from "./settings";
 import { carriesQuote, quotedSpans, quotesKept, steerQuotes, withoutQuotes, type QuoteCheck, type SteerQuote } from "./quotes";
 import { kickAutoPicture } from "./auto-pictures";
+import { chapterBeats, clearBeats, fileBeats, recordBeats, rewindBeats, type PublicBeat } from "./beats";
 import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
 import { ACTION_ONLY_MAX, ACTION_ONLY_WINDOW, actionOnlyRun, checkAsides, misattributedQuote, overusedTics, TIC_CAP, withoutQuote, withoutTics } from "./asides";
 export { SOFT_CHAPTERS } from "./stages";
@@ -165,6 +166,11 @@ export type AdultScene = {
   /** How the viewer frames the two of them (lib/adult/profile.ts), and the scenario tonight started from (lib/adult/scenarios.ts). */
   framing: FramingId | null;
   scenario: string | null;
+  /**
+   * The running chapter's moments worth a picture (lib/adult/beats.ts): offered as the theater reaches each, drawn when
+   * the viewer says yes or picks their moment, else when the chapter closes. Absent where a scene isn't loaded with them.
+   */
+  beats?: PublicBeat[];
 };
 
 /** What a step was asked: its steer, how strongly, and a whisper sent with it. A redo asks the same again. */
@@ -322,6 +328,7 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     hard_nos: storedHardNos(row.hard_nos),
     framing: framingOf(row.framing),
     scenario: row.scenario && scenarioById(row.scenario) ? row.scenario : null,
+    beats: await chapterBeats(db, row.id, row.chapter ?? 1),
   };
 }
 
@@ -754,7 +761,10 @@ export function sceneMessages(
   const system = [
     "You write a private, adults-only scene for one reader: two characters from a dating show, alone together.",
     register ? `Both characters are adults (18 or older) and both are willing. ${register}` : filthy ? FILTHY_RULE : EXPLICIT_RULE,
-    "Two rules never move: nobody in the scene is under 18 or described as a child, and no real, identifiable person appears or is named.",
+    // 2026-10-24: the processors' lines too (docs/after-dark-legal-review.md); v1 stays word for word, for the replays.
+    v2
+      ? "Rules that never move: nobody in the scene is under 18 or described as a child; no real, identifiable person appears or is named; both are always willing (no force, drugging, sleep or non-consent, even as a game); no family; no animals; no gore, torture or deadly violence."
+      : "Two rules never move: nobody in the scene is under 18 or described as a child, and no real, identifiable person appears or is named.",
     ...hardNoLines(limits.hard_nos),
     ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }, plain, now.stage >= UNDRESSING) : []),
     "",
@@ -2100,11 +2110,22 @@ export function linesCrossed(r: SafetyResult): string {
   if (r.theme === "teacher_student") return "no teacher and student roleplay";
   if (r.theme === "school") return "no school settings";
   if (r.theme === "age_play") return "no age-play";
+  if (r.theme === "non_consent") return "both always willing: no non-consent, force, drugging or sleep";
+  if (r.theme === "bestiality") return "no animals";
+  if (r.theme === "sexual_violence") return "no gore, torture or deadly violence";
   return r.reason === "real_person" ? "no real people" : "nobody under 18, or anything that suggests it";
 }
 
 /** What a step can bring besides the steer: a whisper to one of the two, and whether it's a redo (logged as one). */
-export type StepOptions = { whisper?: { to: "a" | "b"; text: string } | null; redo?: boolean };
+export type StepOptions = {
+  whisper?: { to: "a" | "b"; text: string } | null;
+  redo?: boolean;
+  /**
+   * Hard nos for this step only, on top of the pair's saved ones, never stored: what a person who hasn't consented to
+   * storing them (lib/adult/profile.ts) sent with the request (after_dark_write over MCP).
+   */
+  sessionHardNos?: HardNos | null;
+};
 
 /**
  * Writes the next lines of a pair's scene (writeSceneStep) on After Dark's model and saves them: the scene, the month's
@@ -2115,6 +2136,10 @@ export type StepOptions = { whisper?: { to: "a" | "b"; text: string } | null; re
 export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge", opts: StepOptions = {}): Promise<ContinueResult> {
   const scene = await loadScene(db, adminId, x, y);
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
+  // Unsaved hard nos sent with this step hold for it like saved ones (nothing writes a scene's hard_nos but saveLimits).
+  if (opts.sessionHardNos && hasHardNos(opts.sessionHardNos)) {
+    scene.hard_nos = storedHardNos({ chips: [...scene.hard_nos.chips, ...opts.sessionHardNos.chips], own: [...scene.hard_nos.own, ...opts.sessionHardNos.own] });
+  }
   // Every step goes in the admin's log (lib/adult/steps.ts): what was asked, and what came of it or the error.
   const pairIds = { a: scene.a.id, b: scene.b.id };
   const whisperText = opts.whisper ? cleanWhisper(opts.whisper.text) : "";
@@ -2206,6 +2231,12 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     [scene.id, JSON.stringify(lines), place, stage, stage_from, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40)), JSON.stringify(suggestions), JSON.stringify(nextWhispers), JSON.stringify(stack)],
   );
   await countUse(db, adminId, "writes");
+  // The moments in these lines worth a picture (lib/adult/beats.ts): offered as the theater reaches each. Never fails the step.
+  await recordBeats(
+    db,
+    { id: scene.id, owner: adminId, a: scene.a.id, b: scene.b.id, chapter: scene.chapter, lines, from: scene.lines.length, before: scene.stage, placeBefore: scene.set_place ?? scene.place, placeNow: set_place ?? place },
+    [a, b],
+  );
   // The facts these lines drew on: one more use each (lib/adult/facts.ts).
   await bumpFacts(db, step.lines.flatMap((l) => l.fact_ids ?? []));
   // Pictures (lib/adult/media.ts), only with a fal key: each character's baseline the first time it turns explicit,
@@ -2244,7 +2275,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // one that didn't come (Hive busy, 2026-10-23) is drawn on a later step; the claim keeps it to one per chapter and
   // place. Claimed now, drawn after the response; never fails the step.
   const autoPicture = await kickAutoPicture(db, adminId, { id: scene.id, chapter: scene.chapter, place: place ?? ctx.date?.setting ?? null, set_place, stage, lines }, a, b);
-  let after: LoadedScene = { ...scene, ...next, suggestions, whispers: nextWhispers, picture_note: note, undo: stack };
+  let after: LoadedScene = { ...scene, ...next, suggestions, whispers: nextWhispers, picture_note: note, undo: stack, beats: await chapterBeats(db, scene.id, scene.chapter) };
   // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one. What the close
   // changed goes with the step's undo, so a rewind takes it back too.
   if (lines.length >= CHAPTER_LINES) {
@@ -2373,6 +2404,8 @@ async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene:
   // saved night, before the scene's lines are cleared.
   await moveLineFeedback(db, scene.id, nightId);
   await fileSteps(db, scene.id, scene.chapter, nightId);
+  // The chapter's moments go with it, and those never pictured are drawn now (lib/adult/beats.ts).
+  await fileBeats(db, scene.id, scene.chapter, nightId);
   // The PG notes as they were, so a rewind of the step that closed this chapter can put them back.
   const notes = await notesBetween(db, scene.a.id, scene.b.id);
   await rememberAfterDark(db, ownerId, a, b, recap, scene.lines);
@@ -2390,7 +2423,7 @@ async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene:
     recap,
     stage_from,
   ]);
-  return { scene: { ...scene, lines: [], prev_tail, chapter, recap, stage_from, moves: [] }, undo: { night_id: nightId, notes, facts } };
+  return { scene: { ...scene, lines: [], prev_tail, chapter, recap, stage_from, moves: [], beats: [] }, undo: { night_id: nightId, notes, facts } };
 }
 
 /**
@@ -2468,6 +2501,8 @@ export async function rewindScene(db: Db, ownerId: string, x: string, y: string,
     gone = scene.lines.slice(before.line_count);
   }
   await restoreFactUses(db, top.bumped);
+  // The moments past the lines kept are gone too; a chapter's close taken back brings its own home first.
+  await rewindBeats(db, scene.id, top.chapter_close ? before.chapter : scene.chapter, lines.length, top.chapter_close?.night_id ?? null);
   // Votes on lines that are gone would land on whatever is written there next.
   await db.query(`delete from line_feedback where kind = 'after_dark' and ref_id = $1 and line_index >= $2`, [scene.id, lines.length]).catch(() => {});
   if (top.step_id) await markRewound(db, top.step_id, publicLines(gone));
@@ -2484,6 +2519,7 @@ export async function rewindScene(db: Db, ownerId: string, x: string, y: string,
     ...scene, lines, ...chapterBack, place: before.place, stage: before.stage, stage_from: before.stage_from, set_place: before.set_place, cut_to: before.cut_to,
     place_history: before.place_history, moves: before.moves, picture_note: before.picture_note, suggestions: [], whispers: storedWhispers(before.whispers), undo,
   };
+  restored.beats = await chapterBeats(db, scene.id, restored.chapter);
   // The suggestions it had then, held to the limits as they are now.
   restored.suggestions = await heldAgain(db, restored, limitsOf(scene), storedSuggestions(before.suggestions));
   await db.query(
@@ -2552,8 +2588,19 @@ export type LimitsInput = { intensity?: string; hard_nos?: { chips?: string[]; o
  * Sets the viewer's limits for a pair (lib/adult/limits.ts): the intensity and the hard nos, per owner and pair (they
  * outlive Start over). The viewer's own hard nos are held to the two lines like anything typed, OWN_MAX of OWN_LEN
  * characters at most. The last step's suggestions are held to the new limits at once.
+ *
+ * Hard nos are "sex life" data (GDPR Art. 9): saving any needs the person's consent (`consent: true` now, or given
+ * before: lib/adult/profile.ts hasProfileConsent), else nothing at all is stored, the intensity included. Clearing them
+ * needs none.
  */
-export async function saveLimits(db: Db, ownerId: string, x: string, y: string, input: LimitsInput): Promise<{ ok: true; scene: AdultScene } | { ok: false; status: number; message: string }> {
+export async function saveLimits(
+  db: Db,
+  ownerId: string,
+  x: string,
+  y: string,
+  input: LimitsInput,
+  opts: { consent?: boolean } = {},
+): Promise<{ ok: true; scene: AdultScene } | { ok: false; status: number; message: string; consent_required?: true }> {
   const scene = await loadScene(db, ownerId, x, y);
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
   const intensity = input.intensity === undefined ? scene.intensity : intensityOf(input.intensity);
@@ -2568,15 +2615,18 @@ export async function saveLimits(db: Db, ownerId: string, x: string, y: string, 
       return { ok: false, status: 422, message: "One of those crosses the two lines (nobody under 18, no real people): they already never happen, so there's no need to list them." };
     }
     hard_nos = storedHardNos({ chips: input.hard_nos.chips ?? [], own });
+    if (hasHardNos(hard_nos) && opts.consent !== true && !(await hasProfileConsent(db, ownerId))) return consentRefusal();
   }
+  // When hard nos were sent: consented now if there are any, nothing to consent to if they were cleared.
+  const consented = input.hard_nos ? hasHardNos(hard_nos) : null;
   const limits: PairLimits = { intensity, hard_nos };
   const suggestions = await heldAgain(db, scene, limits, scene.suggestions);
-  await db.query(`update adult_scenes set intensity = $2, hard_nos = $3::jsonb, suggestions = $4::jsonb, updated_at = now() where id = $1`, [
-    scene.id,
-    intensity,
-    JSON.stringify(hard_nos),
-    JSON.stringify(suggestions),
-  ]);
+  await db.query(
+    `update adult_scenes set intensity = $2, hard_nos = $3::jsonb, suggestions = $4::jsonb, updated_at = now(),
+       hard_nos_consented_at = case when $5::boolean is null then hard_nos_consented_at when $5::boolean then now() else null end
+     where id = $1`,
+    [scene.id, intensity, JSON.stringify(hard_nos), JSON.stringify(suggestions), consented],
+  );
   return { ok: true, scene: publicScene({ ...scene, intensity, hard_nos, suggestions }) };
 }
 
@@ -2780,6 +2830,10 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
     // The lines' thumbs (lib/line-feedback.ts) and their steps (lib/adult/steps.ts) go with them to the saved night.
     await moveLineFeedback(db, scene.id, nightId);
     await fileSteps(db, scene.id, scene.chapter, nightId);
+    // Its moments too, and those never pictured are drawn now (lib/adult/beats.ts).
+    await fileBeats(db, scene.id, scene.chapter, nightId);
+  } else if (scene) {
+    await clearBeats(db, scene.id);
   }
   if (scene) {
     await logStep(db, adminId, { a: pair[0], b: pair[1] }, scene.id, {

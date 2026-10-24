@@ -169,6 +169,53 @@ What happens when Hive stops answering (2026-10-23, `lib/adult/hive-limit.ts`; d
 
 Ours is priced as a short film, not a clip: the person's own night, with both characters in it, in their own voices. At $12 (15 tokens) for about 30 s, we're level with OurDream's voiced price or below it. Lower it in settings if people don't buy.
 
+### A three-tier image and video generator (pricing page, screenshot 2026-10-24)
+
+An adult image and video generator's pricing page. David shared the screenshot; the site isn't named in it. Every plan
+is shown as a daily price and billed monthly. Credits ("S") pay for generations, one credit per image.
+
+| | Pro | Platinum ("Recommended") | Diamond ("Best value") |
+|---|---|---|---|
+| Price | $1/day, billed $30/month | $2/day, billed $60/month | $5/day, billed $150/month |
+| Credits a month | 300 (up to 300 images) | 750 | 2,250 |
+| Per credit | $0.10 | $0.08 | $0.067 |
+| "Up to N refills" (in credits) | 30 | 75 | 750 |
+| Who it's pitched at | images and nudes | videos and "extreme" content; faster queue, more credits | power users and creators: most credits, longest videos, top priority |
+| "Extreme" generation | no | yes | yes |
+| Videos | no | up to 6 s | up to 18 s |
+| Extend a video | no | up to 12 s | infinitely |
+| Extensions (add-ons) | up to 2 | up to 4, strength adjustable | up to 8, strength adjustable |
+| Priority queue | no | over Pro | over Pro and Platinum |
+| Queue size | 15 images | 45 | 100 |
+| Upscale videos to 4K | no | yes | yes |
+| Saved characters: stable face and body | no | yes | yes |
+| Compilations (a cut of several clips) | up to 30 s, standard effects | up to 60 s, premium effects | up to 120 s, premium effects |
+| Expand images (outpainting) | no | yes | yes |
+
+**Every plan includes:** private generations, upscaled images, saved and reusable characters, face or pose reference
+uploads, training your own model (marked with an asterisk, probably limited), editing a generation, and downloading
+images and videos.
+
+Not clear from the page: what a refill is (bought top-ups, or a daily refill), how many credits a video costs, and the
+asterisked limits.
+
+**What it means for us:**
+- **Pictures are priced far below ours.** They charge $0.07 to $0.10 a picture inside the plan; our shot-menu picture is
+  1 bought token, about $0.72. Our cost is about $0.035 to $0.045 a picture. We can't sell pictures at 7–10× their price
+  for long; pictures likely belong inside the subscription (more than 30 a month), with tokens for videos.
+- **They sell tiers, not tokens, for video.** Video, extending and longer clips are what lift a plan from $30 to $60 or
+  $150; there's no per-video price. Ours is $9.99 a month plus 15 tokens (about $12) a 30-second video. A higher tier
+  with some videos included would sit closer to how this market pays.
+- **What they gate behind higher tiers is cheap for us:** priority, queue size and longer compilations cost little;
+  stable face and body is what our baselines already do, for every subscriber.
+- **Our edge isn't in their list.** Theirs is a generator: one person or a scene from a prompt. Ours is the person's own
+  night between two characters, with both in every shot, in their own voices. That justifies a higher video price than
+  a 6-second clip, not a higher picture price.
+- **Volume would hit Hive first.** Hive's self-serve plan allows 100 moderation checks a day (see "Hive's limit"
+  above), the real cause of the 2026-10-23 refusals. One Pro-style subscriber using 300 pictures a month is about 10 a
+  day. Before offering anything like their picture volumes, Hive's limit has to be raised through Hive Sales.
+- **Daily framing:** "$1/day" for a $30 month is a common anchor; worth testing on our subscribe page.
+
 ## The subscription
 
 After Dark opens only with a subscription and a passed age check. The monthly caps (in After Dark's settings) limit

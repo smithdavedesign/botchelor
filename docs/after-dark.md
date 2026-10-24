@@ -54,6 +54,8 @@ to generated output, which is the one place they currently don't reach.
 
 ## #3 Payments — not Stripe (adult rules forbid it)
 
+_2026-10-24: superseded in part by `docs/after-dark-legal-review.md` (Segpay first, Verotel backup; the banned themes processors require in text too; where age checks are required)._
+
 Visa/MC via Stripe/PayPal prohibit adult content, so the subscription runs on a **high-risk / adult processor**,
 fully isolated from the existing Stripe setup (the botchelor Stripe account stays untouched).
 
@@ -70,6 +72,103 @@ fully isolated from the existing Stripe setup (the botchelor Stripe account stay
 
 **David provisions:** open a CCBill (or Segpay) merchant account, set it up, hand the API/webhook credentials to
 the keychain (`~/ai-stack/bin/secrets`, never in a file). Propose: start with one processor; add a backup later.
+
+> **2026-10-24: built and off.** Segpay (primary) and Verotel (backup) are wired end to end; nothing runs until their
+> settings are in the environment. See "Billing" below. Still pending: David opens the merchant accounts.
+
+## Billing — Segpay first, Verotel as backup (2026-10-24)
+
+Built complete and **off**: with no processor's settings in the environment, the subscribe page keeps its waitlist and
+every billing route answers not found. Code: `lib/adult/billing.ts` (orders, applying postbacks, the account page's
+state, California's notices, the admin view), `lib/adult/billing-segpay.ts`, `lib/adult/billing-verotel.ts`; tests in
+`tests/after-dark-billing.test.ts`. Stripe and `lib/payments.ts` are untouched.
+
+**The flow.** A signed-in person (never an anonymous cookie, an agent or a crawler, never from a blocked place: 451)
+ticks two boxes on `/after-dark/subscribe` (18 or older; it renews monthly until they cancel). `POST
+/api/after-dark/subscribe` records the 18+ self-declaration once (`adult_entitlements.age_verified_at`, `age_method
+'self_declared'`, `age_country`), opens an order (`adult_billing_orders`) and returns the processor's checkout link.
+The order id travels as Verotel's `referenceID` / Segpay's `REF1` and comes back in the postbacks, which drive
+`adult_entitlements`:
+
+| Postback | Effect |
+|---|---|
+| initial (Verotel `initial`/`upgrade`; Segpay Sale/Auth/Initial/Yes) | active, until `nextChargeOn` (Verotel) or `iint` days (Segpay), else a month; confirmation email |
+| rebill (Verotel `rebill`; Segpay Sale/Auth/Conversion·Rebill·Instant Conversion/Yes), uncancel (Verotel `uncancel`; Segpay Reactivation) | active, until the next charge |
+| extend (Verotel) | until the new date; a cancelled one stays cancelled |
+| cancel (Verotel `cancel`; Segpay Cancellation) | `cancelled`: no more charges, access until `period_end` (`canAfterDark` lets it in until then) |
+| expiry (Verotel `expiry`; Segpay Disable) | `lapsed` now |
+| chargeback, refund (Verotel `chargeback`, full `credit`; Segpay Charge, Credit, Void, RDRreversal, Revoke) | `lapsed` now, and the account is flagged (`adult_billing_flags`): subscribing again is refused until an admin clears it on `/admin/after-dark/providers` |
+| declined, partial credit, CBReversal, anything new | recorded, no change |
+
+Every postback is recorded in `adult_billing_events` (identifiers, amounts and dates only: no card digits, names,
+emails, addresses or IPs). The same transaction id twice is applied once; a postback without one (Verotel's cancel,
+expiry, extend; Segpay's member postbacks) is a duplicate when it matches the last one recorded for that subscription.
+Deleting an account deletes its subscription and flag and keeps its orders and postbacks with `user_id` cleared, for
+chargeback disputes (`lib/account.ts` `AFTER_DARK_UNLINKED`). Note: deleting an account doesn't cancel the processor's
+billing (neither gives us an API key to do it); the subscriber cancels on the processor's site first.
+
+**California (Bus. & Prof. Code § 17600 ff., AB 2863 from 2025-07-01).** Express consent to the renewal terms (the
+second box, separate from the rest); the terms in the confirmation (the return page and a confirmation email to the
+account's confirmed address); a yearly reminder on each anniversary (`sendRenewalReminders`, in the daily job); online
+cancellation (the account page links the processor's own cancel page and `/cancel`). Emails are discreet: subject "Your
+Botchelor subscription", nothing in them says what the site is.
+
+### Settings (keychain → the deployment's environment; never in a file)
+
+| Name | What |
+|---|---|
+| `SEGPAY_PACKAGE_ID`, `SEGPAY_PRICE_POINT_ID` | the package and the $12.99 monthly price point from Segpay's Merchant Portal (the pay page's `x-eticketid=<package>:<price point>`) |
+| `SEGPAY_POSTBACK_SECRET` | 32+ random characters of ours, made with `openssl rand -hex 32`; it goes in the postback URLs below. Segpay signs nothing, so this is the check |
+| `SEGPAY_POSTBACK_IPS` | optional: Segpay's postback addresses, comma-separated (ask Segpay for the list) |
+| `VEROTEL_SHOP_ID`, `VEROTEL_SIGNATURE_KEY` | the website's shop ID and FlexPay signature key in Verotel's Control Center |
+| `VEROTEL_PERIOD` | optional: the billing period, default `P1M` (Verotel's docs show day periods such as `P30D`: set that if Verotel refuses months) |
+| `AD_SUBSCRIPTION_PRICE_USD` | optional, default 12.99. Verotel charges this; Segpay charges its price point, so they must match |
+| `AD_SUBSCRIPTION_NAME` | optional, default "Botchelor After Dark": the name on Verotel's order page |
+
+A processor is on when all its required settings are set; with both, Segpay is offered first and Verotel as the other
+choice.
+
+### What David pastes into each merchant portal
+
+The host is `https://ad.botchelor.com` once After Dark runs on its own host (docs/after-dark-hosting.md), else
+`https://botchelor.com` while it's still on Vercel. Use After Dark's own host as soon as it exists: a processor may
+not follow the show's redirect.
+
+**Verotel** (Control Center → Setup Websites → the website → FlexPay Options):
+- FlexPay postback URL: `https://ad.botchelor.com/api/after-dark/billing/verotel`
+- Success URL: `https://ad.botchelor.com/after-dark/subscribe?done=1`, decline URL `…/after-dark/subscribe?declined=1`
+  (each checkout sends these too).
+- Signature: SHA-256 (FlexPay version 4). We answer `OK`; a first sale we can't place is answered with an error, so
+  Verotel refunds it.
+
+**Segpay** (Merchant Portal → My Websites → Manage Postbacks; set Expected Response `OK`, Error Response `ERROR`, turn on
+retries): one Transaction postback and three Member Management postbacks, each the URL below with these macros:
+- Transaction: `ad.botchelor.com/api/after-dark/billing/segpay?secret=<SEGPAY_POSTBACK_SECRET>&action=<action>&stage=<stage>&approved=<approved>&trantype=<trantype>&purchaseid=<purchaseid>&tranid=<tranid>&relatedtranid=<relatedtranid>&price=<price>&currencycode=<currencycode>&eticketid=<eticketid>&iint=<iint>&rint=<rint>&ref1=<extra ref1>&transtime=<transtime>`
+- Cancellation, Disable and Reactivation: `ad.botchelor.com/api/after-dark/billing/segpay?secret=<SEGPAY_POSTBACK_SECRET>&action=<action>&purchaseid=<purchaseid>&nextbilldate=<nextbilldate>`
+- The payment page's Base URL / approval link: `https://ad.botchelor.com/after-dark/subscribe?done=1` (each checkout
+  sends `x-auth-link` and `x-decl-link` too).
+
+### The application checklist (docs/after-dark-legal-review.md "Payments")
+
+1. An LLC and an EIN (David's call, with the lawyer).
+2. After Dark live on `ad.botchelor.com`, off Vercel.
+3. Site pages: terms, privacy, refunds and cancellation (`/cancel`), a content policy naming the banned themes, a
+   complaint and takedown page (7 business days; 48 hours for intimate images), the 2257 exemption statement, a support
+   email, and the age gate.
+4. A one-page moderation write-up (the output checks, the text filters, logs and a monthly report) and a test login
+   for their reviewers.
+5. Government ID and a bank letter.
+6. Email both processors a one-page description first and get their AI answer in writing.
+
+Apply at: Segpay https://segpay.com/verticals/high-risk/ · Verotel https://verotel.com/en/productchoice.html
+
+Then: put the settings in the keychain and the deployment, paste the postback URLs, run one test purchase on each
+processor's test mode, and watch `/admin/after-dark/providers` → Subscriptions for the postbacks.
+
+**Sources (read 2026-10-24):** Verotel FlexPay v4, https://controlcenter.verotel.com/flexpay-doc/subscription.html and
+the reference client https://github.com/verotel/flexpay-php-client; Segpay,
+https://gethelp.segpay.com/docs/Content/DeveloperDocs/ProcessingAPI/06-Postbacks.htm,
+…/07-PostbackParameters.htm, …/Postbacks-TransactionMatrix.htm and …/02-Parameters-PopulateFields.htm.
 
 ## #4 Age verification — now legally mandatory, not optional
 
@@ -1750,3 +1849,421 @@ answered 429))" and a 502 from the video start.
   API and MCP `after_dark_settings` return the same as `hive`.
 - **Cost:** paused means no drawing spend (docs/after-dark-costs.md). An outage costs the two pictures before it opens,
   then one probe per pause.
+
+## Beat pictures: a picture of each moment that matters (2026-10-24)
+
+**What David asked.** "Generating a image baseline of the scene and then asking for the video is way more effective…
+when things get explicit in our theater stop and take a image of the scene at the place." A few key pictures a chapter,
+of undressing, sex, the climax and each new position. The viewer can choose ("the theater stops and says generate
+this scene"); if they say no they pick their moment; if they never choose, the chapter's close draws them. Videos reuse
+them.
+
+**Why.** Every clip David liked started from a picture that already showed the two of them in the moment (the bake-off
+above), and the chapter's automatic picture (lib/adult/auto-pictures.ts) is a text-to-image picture, drawn once per
+chapter and place, so a night that undresses and has sex in one bedroom got one picture from when they walked in, with
+faces that don't match the baselines.
+
+**The moments** (`findBeats`, lib/adult/beats.ts, pure): read from each step's new lines, by the stage each line carries
+and plain words, the way the stage floor reads a stage.
+- **Undressing**: the first line at undressing.
+- **Sex**: the first line at sex, in the position its first three lines name (else face to face).
+- **A new position**: a line naming a position the chapter hasn't had (going down, from behind, spooning, in a lap, on
+  top, face to face: the act menu's, lib/adult/acts.ts).
+- **The climax** (craft.ts `climaxIn`), in the position they're in; **the afterglow** four lines after it.
+- At most 6 found a chapter (`BEATS_PER_CHAPTER`); an act the pair's limits rule out is never found. A moment the viewer
+  picks (Picture this) is always drawn, on top of these.
+
+**The flow.**
+- **In the theater:** when playback reaches a moment, it stops (useReplay's `hold`) and asks "📸 Sex: on top. Picture this
+  moment?". **Picture it** draws it now; **Not now** carries on. 📸 in the tools pictures the line on screen whenever the
+  viewer likes: the latest moment still waiting at or before it, or, with none, that moment itself (its position, or its
+  stage: undressing, a kiss, close together).
+- **On the page:** the same as a banner over the steer, and a 📸 Picture this button. Page autoplay waits while a moment
+  is offered and unanswered.
+- **The chapter's close** (and Start over) files the chapter's moments with its saved night and draws every one never
+  pictured, one after another after the response. Agents over MCP never answer, so theirs are drawn this way.
+- **A rewind** takes back the moments past the lines it keeps (written again, they're found again); taking back a
+  chapter's close brings its moments home first.
+
+**The picture** (`keepPictureOfBoth`, lib/adult/pictures-menu.ts, shared with the picture menu): the two baselines and
+the place's set, made into one picture by the multi-image edit (Venice qwen-edit-uncensored, or Replicate), checked by
+Hive (moderation and the age question) before it's kept, stored in the gallery as a scene picture with its chapter and
+place. The still is the act's (who is where, both faces visible), its bed dropped where the place has none, plus "What
+is happening:" from the last three actions before it, names taken out; a moment that wouldn't pass David's lines or the
+pair's limits keeps only the act's still. Clothes by the stage, explicit by the intensity, as every keyframe. Free, like
+the automatic picture; counted against the month's pictures; nothing drawn while Hive is paused.
+
+**Videos** (`reuseBeatPictures`, lib/adult/reels.ts): a shot starts from the latest drawn moment at or before its line in
+its chapter (the running chapter's, or the saved night's), when the stage and the place still match, each picture once a
+video. Nothing is drawn or checked for that shot's keyframe (the picture passed the full check when it was kept); its
+video is queued from the picture. The video looks like the pictures, and each reused shot saves a keyframe ($0.04) and
+a Hive check.
+
+**Storage:** `adult_beats` (scene, pair, chapter, line, act, kind, stage, place, status offered / later / drawing / drawn
+/ failed, picture_id, night_id), additive. `adult_settings.beat_pictures` (null is on), in the settings page, its route
+and MCP `after_dark_settings`. The scene carries the running chapter's `beats`; POST /api/admin/after-dark takes
+`beat: { id, answer: "now" | "later" }` and `picture_now: { line }`.
+
+**Cost:** about 5¢ a picture with its checks, up to 6 a chapter found, so up to about 30¢ a chapter, less what videos
+reuse. Each picture is one Hive check (moderation plus the age question): with the self-serve daily limit, a busy day of
+chapters can reach it, so a paid Hive plan comes before subscribers use it.
+
+## The library: every picture and video, rated (2026-10-24)
+
+**What David asked.** A link to the graph from the After Dark page, and a new page with all the NSFW clips, pictures and
+videos, sortable by characters, user rating, type and the model that made it, with pages.
+
+- **Links:** the After Dark page's row of buttons has 🕸 Graph and 🗂 Library for admins.
+- **The page:** `/admin/after-dark/library` (`lib/adult/library.ts`, `app/admin/after-dark/library`). Everyone's, read
+  as a moderator like the graph: signed-in admins on an unlocked device only, a 404 to everyone else. An item is a ready
+  picture or portrait (adult_images `scene`, `baseline`; a scene with a video's mime is an old fal clip), or a video of
+  a night or a clip (adult_reels) with at least one shot through. Keyframes and lone shots aren't items.
+- **Sort:** newest (the default), oldest, rating (the average, unrated last, then how many rated it), characters (the
+  pair's names in order), type, model. **Filters:** type, character (either of the pair), model. 24 a page, with
+  previous and next; the filters and sort are the page's search params, so a view can be linked.
+- **Model:** a picture's, kept from 2026-10-24 (`adult_images.model`: the Venice or Replicate picture model, fal's face
+  or picture model, the multi-image edit for menu and beat pictures); older pictures say their provider, "model not
+  recorded". A video's is its shots' (they always kept theirs), several joined when they differ.
+- **Stars:** 1–5 per viewer per item (`adult_media_ratings`), tapped on the card; the same star again takes it back.
+  `POST /api/admin/after-dark/ratings { id, stars }`.
+- Videos load only when played (`preload="none"`), as on the graph.
+
+## Ratings that steer, their faces, finer looks, and the Archive (2026-10-24)
+
+David, 2026-10-24: "Allow users to score after night ai generated images and videos and we use that as training data
+for the next run on the same character. Also can we add more customization allowed before generating the baseline
+images?", then "Build 1 and 2 and allow a user to remove a clip from the larger video (in case it fails) which should put
+it in a section called archive, dont delete tho".
+
+**Not a dataset.** The privacy page promises After Dark is never used for training (docs/data-plan.md), so this isn't
+training. Nothing is pooled or fine-tuned. A viewer's own ratings steer that viewer's own next pictures and videos of the
+same character, and nobody else's. Ratings are owner-scoped (`adult_media_thumbs`, keyed by viewer and picture), go
+when the picture or character goes (cascade), and are never read by an export. They're apart from the library's stars
+(an admin's 1–5 on /admin/after-dark/library, `adult_media_ratings`, above), which sort that page and steer nothing.
+
+### Ratings (`lib/adult/rating-tags.ts`, `lib/adult/steering.ts`)
+
+- **On every picture and video:** 👍/👎 (`RateMedia.tsx`), in the gallery and under every player for the shot on screen.
+- **What's off, on a 👎:** fixed chips, never typed.
+  - Pictures: doesn't look like them, wrong body, wrong outfit, odd pose, extra fingers or limbs, blurry, not explicit
+    enough, too explicit.
+  - Videos: wrong person, jerky or morphing, extra fingers or limbs, blurry, wrong voice, not explicit enough, too
+    explicit.
+  - `POST /api/admin/after-dark/rate {media_id, rating: 1 | -1 | 0, tags}`: theirs, or anyone's for an admin.
+- **What a tag does (`TAG_FIXES`):** each tag maps to fixed words that go into the next picture's prompt, its negative
+  prompt, or a shot's negative prompt. "Odd pose" adds "a natural, relaxed pose" and steers away from "awkward pose,
+  contorted body". "Jerky or morphing" keeps a shot away from "morphing, warping, flickering, jittery motion, melting
+  faces".
+  - Explicitness never goes up from a rating: "Not explicit enough" changes nothing (the night's stage and the pair's
+    limits decide). "Too explicit" tones it down. "Wrong voice" is a setting, so it's only kept as a record.
+- **Which ratings count (`steeringFor`):** a tag on any 👎 among the viewer's newest 12 ratings of the character steers
+  the next one.
+  - Pictures and videos are counted apart: picture ratings steer pictures, video ratings steer shots. Picking a face (a
+    👍 on a picture) therefore never quiets a complaint about a video.
+  - A 👎 keeps steering past a 👍 on the next one (the fix worked) until 12 newer ratings push it out, or the viewer
+    changes it.
+  - A pair's pictures and videos count for both of them.
+- **Where the words go:**
+  - `makePicture` adds the fixes before the prompt's closing "Everyone shown is an adult." and adds the negatives to
+    `NEGATIVE_PROMPT` (Venice, Replicate and fal alike).
+  - `startShots` adds the video fixes to `SHOT_NEGATIVE`. That only reaches Venice: Replicate's Wan input takes no
+    negative prompt.
+  - The output check is unchanged: every picture and shot still goes through Hive.
+
+### The face they keep
+
+- **Which face (`faceReferenceId`):**
+  1. the one they picked ("Use this face"), while it's still there;
+  2. else their own 👍 baseline;
+  3. else their own newest baseline they haven't 👎'd;
+  4. else the admins' newest baseline they haven't 👎'd;
+  5. else any baseline.
+- **Where it's used:** every keyframe of a video or clip starts from it (`baselines(db, a, b, viewer)` in reels, clips
+  and the picture menu), and so does fal's face-reference picture.
+- **Per viewer:** one subscriber's redraw or pick never changes another's face.
+- **Picking:**
+  - "Use this face" is on every picture of one character alone, in the gallery and the "Their faces" panel. It's also a 👍.
+  - `POST /api/admin/after-dark/face {character_id, image_id | null}`; null goes back to the default.
+
+### Three to pick from
+
+- "Draw three to pick from" (`POST /api/admin/after-dark/baselines`, `drawBaselineChoices`) draws three waist-up
+  baselines, one in each of `PICTURE_PRESETS`' lights: natural, warm and moody, soft studio.
+- The framing never changes (waist-up, facing the camera, face clear), so the face is what's compared.
+- Each one is a picture against the month's cap. It stops at the cap, and at Hive's breaker.
+
+### The per-character light test
+
+- A solo scene picture's light and lens is a Thompson-sampling test over the three presets (`choosePreset`), scored by
+  that viewer's 👍/👎 on that character's pictures in each.
+- The preset is stored on the picture (`adult_images.preset`). A picture of the two of them uses none.
+
+### Finer looks (`lib/looks.ts` `LOOK_DETAILS`)
+
+- **On the looks builder's summary:** chip rows, no tiles, none needed, nothing typed.
+  - skin shade (lighter, deeper);
+  - freckles or a beauty mark;
+  - makeup;
+  - glasses;
+  - piercings;
+  - tattoos (one small, a few, a sleeve);
+  - chest hair (men).
+  - On the After Dark tab only: grooming (shaved, trimmed, natural), stored with After Dark's private picks.
+- **Where they go:** into After Dark's pictures, the portrait, and the appearance line while it fits in 140 characters.
+  Never into the tiles.
+- **Grooming:** only in the owner's pictures, only once they're undressed, and never in a waist-up picture (the baseline,
+  or the words a keyframe uses to tell two of them apart).
+
+### The Archive
+
+- **Removing a shot:** "Remove this shot" under any player (a night's video, the whole night, a chain of clips) takes the
+  shot on screen out of its video (`PATCH /api/admin/after-dark/reel {id, media_id, archived}`).
+  - Nothing is deleted. The shot is marked `archived_at` in the reel's shots and stops playing everywhere
+    (`lib/adult/clip-chains.ts` `playable`): the players, the whole night's film, a Short, Keep going.
+  - It's listed in a folded **Archive** under Their videos (and leaves the gallery), plays from there, and "Put it back"
+    returns it to its place.
+- **Rules:**
+  - Theirs only.
+  - Not while the video is still being made: its poll rewrites the shots.
+  - A video or a chain of clips with every shot archived leaves the list and shows only in the Archive.
+- **Keep going:** goes back to the last clip that still plays. A clip kept going from there takes the archived one's
+  place in the chain. Keep going from an archived clip is refused: "That clip is in the Archive. Put it back to keep
+  going from it."
+
+### Also
+
+- **The gallery lists only what the viewer can open:** theirs (an admin, everyone's). Before this, a subscriber was
+  listed pictures they couldn't load.
+- **Screenshots:** `npm run screenshots:after-dark-steering` (PG placeholders, no provider called) drives the faces, the
+  ratings, a shot taken out and put back, and the finer looks, desktop and phone: `docs/screenshots/after-dark-faces-*`,
+  `after-dark-gallery-rate-*`, `after-dark-shot-rate-*`, `after-dark-archive-*` and `looks-details-*`.
+- **Cost:** nothing new per step. "Draw three" is three pictures from the monthly cap; a rating is a row.
+
+### Follow-ups from the competitor research (2026-10-24)
+
+What other products do is in docs/after-dark-competitors-steering.md. Getting past Hive's daily cap is in
+docs/after-dark-moderation-options.md. The first three of its recommendations:
+
+- **A picture the viewer 👎'd never starts a video.** `beatPictureFor` (lib/adult/beats.ts) skips a beat picture
+  its viewer 👎'd, so the shot draws a fresh, steered keyframe. A shot costs far more than a keyframe, so it isn't
+  spent on a picture they said was wrong.
+- **They see what it learned, and can start fresh.** Under each face in "Their faces":
+  - "Your ratings steer away from: odd pose, blurry. Light that suits them: warm and moody." (`steerSummary`)
+  - **Start fresh** (`POST /api/admin/after-dark/steer`, `adult_steer_resets`) sets aside the ratings and light picks
+    from before then, for that character. Nothing is deleted. A rating counts only if it was made after the reset of
+    every character in the picture.
+  - The panel says it: "Your ratings only change your own pictures: they never train a model."
+- **"Draw three" teaches the light test.** A face picked from the three is a ranking (`adult_light_picks`). The kept
+  one's 👍 counts as before, and each light passed over counts half a 👎 in `presetTally`: half, because the pick is of
+  the face as much as the light. The page sends the other two as `rivals` with `POST /api/admin/after-dark/face`. Only
+  the viewer's own baselines of the character alone, with a preset, count.
+
+## Undressed moments start from a nude baseline (2026-10-24)
+
+David, 2026-10-24: "if we have our character set up with underwear, their sex scenes and baselines have it on no matter
+the situation. Do we use that character [outfit] to generate baselines, because in sex scenes we need a new baseline
+since they are supposed to be naked?"
+
+**Why it happened:**
+- A baseline is drawn in the outfit its character picked: the looks builder's outfit, or After Dark's own for its owner.
+  A swimsuit stays a swimsuit; only Nude or no outfit gives a nude baseline (`baselinePrompt`).
+- Every picture of the two of them is an edit of their two baselines: a video's keyframes, a clip, a menu picture, a
+  beat picture. The edit model keeps what the pictures it starts from wear, even when the prompt says "both are nude".
+- Pictures drawn from the prompt alone (automatic chapter pictures, `scenePrompt`) already left the outfit out once they
+  undress.
+
+**Now** (`lib/adult/attire.ts`):
+- **Two baselines.** A character who wears something has a second, nude baseline: the same look and the same fixed
+  framing, without the outfit (`baselinePrompt(…, { nude: true })`, `ensureNudeBaseline`). It's drawn the first time
+  one is needed, as one more picture against the month's cap. A character who wears nothing uses its own baseline,
+  which is nude already.
+- **Which one a picture starts from:**
+
+  | Stage | Baselines | Why |
+  |---|---|---|
+  | At sex (`NUDE_FROM`, stage 4) | Their nude baselines (`nudeBaselines`) | No clothes to carry over |
+  | Undressing (stage 3) and before | Their dressed baselines | "Down to their underwear" starts from what they wear |
+
+  - **Videos:** each shot uses the faces for its own moment, so a whole night's video changes over at sex.
+  - **Clips, menu pictures and beat pictures** use the baselines for their stage.
+  - **Fallback:** if a nude baseline can't be drawn, the dressed ones are used, as before. Hive out still stops it.
+- **Which nude baseline:**
+  - **Picks:** for a viewer, the nude face they picked (`adult_nude_refs`), else the face they picked if it's nude,
+    else the usual order (their own 👍 first) among nude baselines.
+  - **Dressed moments:** a dressed baseline now comes before a newer nude one, so the nude one never undresses a dressed
+    moment.
+- **Stored:** `adult_images.attire` (`nude` or `dressed`), set on every new baseline. Older rows are read from their
+  prompt: a nude baseline's says ". Nude, alone,".
+- **On the page:**
+  - **"Their faces":** a character who wears something shows "In intimate scenes", with the nude face, **Draw three,
+    undressed** (`POST /api/admin/after-dark/baselines {nude: true}`), and Let it pick for me.
+  - **The gallery:** labels a nude baseline "baseline · undressed". "Use this face" on it sets the intimate-scenes face,
+    and leaves the everyday face alone.
+- **Not changed:** a clip that keeps going from a keyframe drawn before this still carries what that keyframe wears
+  ("keep what each of them is wearing or not").
+
+## AI marking, crisis notice and profile consent (2026-10-24)
+
+Three items from `docs/after-dark-legal-review.md` "Other laws", on the PG show and After Dark alike.
+
+**1. EU AI Act Art. 50: "AI-generated", machine-readable and visible** (due 2026-12-02 for systems already on the market):
+- **The mark** (`lib/ai-mark.ts`): an XMP packet with `Iptc4xmpExt:DigitalSourceType` =
+  `http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia`, plus `photoshop:Credit` and a
+  `dc:description` saying "AI-generated by Botchelor". Written in place, with no decode or re-encode (so no quality is
+  lost and no native library is needed): an APP1 segment in a JPEG, an iTXt chunk in a PNG, an `XMP ` chunk in a WebP
+  (a simple VP8/VP8L file becomes VP8X). An older XMP packet is replaced; Exif and a provider's own C2PA are kept. It's
+  a no-op on bytes that already carry it and never throws. sharp reads it back (`tests/ai-mark.test.ts`). sharp's own
+  `withXmp` would re-encode, so it isn't used.
+- **Where it's written** (on store, then on serve for anything stored before):
+
+  | Pictures | Stored with it | Served with it |
+  |---|---|---|
+  | After Dark pictures, beats, keyframes; the looks tiles | `keepBytes` (`lib/object-store.ts`), for every `image/*` | `/api/admin/after-dark/media/:id`, the Shorts media route, `/api/looks/:id` |
+  | BYOK and season portraits, clip stills (`character_assets` data URLs) | `recordAsset` (source `generated`), `setAssetMedia` | `/api/assets/:id`, its small `?w=` copies too |
+  | Venue sets (`place_sets`) | `lib/sets.ts` `draw` | `/api/sets/:slug` |
+  | House portraits and venue backdrops (`public/cast`) | Stamped once by `scripts/stamp-ai-marks.mjs` (pixels checked identical) | `next.config.ts` headers on `/cast/*` |
+  | Share cards with a generated portrait (`/characters/:id` and `/episodes/:id` opengraph images, `/api/og/episode/:id`) | n/a | `markedImageResponse` |
+
+- **Videos and voices:** no MP4 or WAV metadata (that needs ffmpeg). Their routes send `X-AI-Generated: true` and
+  `Link: </content-policy>; rel="describedby"` (`AI_HEADERS`, on every generated file, pictures included). A file in the
+  private bucket is uploaded with `x-amz-meta-ai-generated: true`, which S3-compatible stores send back as a header
+  on a presigned read.
+- **Gaps:**
+  - A video or voice read from Bunny's CDN carries no header (Bunny has no per-file metadata headers).
+  - A picture put in the bucket before this and read by its presigned link is unmarked: the redirect skips our
+    route. A backfill would be the copy script's loop with `markAiImage` (not built).
+  - No C2PA: signing needs a certificate.
+- **Visible** (`app/AiLabel.tsx`, `.ai-tag` and `.ai-fiction` in `app/globals.css`):
+  - An "AI-generated" pill on every After Dark gallery item, on the reel and Short players (on the video's corner), and
+    on Short covers.
+  - "AI-generated portrait" beside a character's portrait on their page, and "AI-generated clip" under an intro clip.
+  - "Example pictures are AI-generated." under the looks builder's grid: one label for the grid, not one per tile.
+  - The line "Characters and dates are AI-generated fiction." on character pages and under the text thread. Every
+    After Dark page ends with its own line (`Frame.tsx`). Episodes already carry their notice (`app/Notices.tsx`).
+  - **Venue backdrops behind a scene are exempt from the pill** (decorative). The scene's own AI line covers them, and
+    their files are still marked.
+
+**2. AI and crisis notice** (New York's AI companion law, California SB 243). Published at `/safety`
+(`app/safety/page.tsx`, the same text as `docs/safety-protocol.md`; the legal pages link it):
+- **The check** (`lib/crisis.ts` `crisisIntent`): a small, conservative phrase list ("kill myself", "want to die",
+  "end my life", "suicide", "self harm", "hurt myself", "don't want to live"…). Figures of speech are let go ("suicide
+  mission", "die of embarrassment"). It reads only the person's own words, never a model's line.
+- **Where:** the thread's nudge, a standing note, a date's note, After Dark steers and whispers (the `crisisAware` route
+  wrapper), MCP `send_text`, and `after_dark_write`'s direction.
+- **On a hit:**
+  - The reply carries `crisis_resources`, whatever its status: US 988 (call or text), UK & Ireland Samaritans
+    116 123, elsewhere findahelpline.com.
+  - The page shows them (`app/CrisisNotice.tsx`): under the thread, the note form, the scene, and in the theater. A date
+    whose note tripped it opens from a link, not at once. Nothing is blocked.
+  - The only record is `track("crisis_notice_shown", { surface })`, with no id and no words.
+- **The disclosure in the thread:** the AI line is always on screen above the compose bar. That covers New York's "at
+  the start and every 3 hours" for the whole session.
+
+**3. Explicit opt-in for the turn-ons / hard-nos profile** (GDPR Art. 9, "sex life" data):
+- **The consent:** "I agree Botchelor stores my turn-ons and hard nos to shape my scenes. Only I see them; I can delete
+  them any time." (`PROFILE_CONSENT_TEXT`).
+- **Where it's kept:** with what it covers. `adult_profiles.consented_at` / `consented_by` for a character's turn-ons,
+  and `adult_scenes.hard_nos_consented_at` for a pair's hard nos (`lib/db.ts`). Deleting the data takes the consent with
+  it.
+- **No consent, nothing stored:**
+  - `setTurnOns` and `saveLimits` refuse a save with any turn-ons or hard nos (403 `consent_required`), and store
+    nothing of that request, the intensity included. Clearing needs no consent. The intensity alone saves without it.
+  - The Limits and "What they're into" panels show the box. Ticking it (`profile_consent: true`) brings anything saved
+    before consent was asked for under it.
+- **MCP:**
+  - `after_dark_scene` needs `consent: true` to store hard nos.
+  - `after_dark_write` without it holds the hard nos for that step only (`StepOptions.sessionHardNos`, never written)
+    and says `hard_nos_saved: false`.
+- **Download and delete:**
+  - The privacy card on `/after-dark` has **Download it** (JSON) and **Delete my After Dark profile**
+    (`GET`/`DELETE /api/admin/after-dark/profile`, `lib/adult/profile-data.ts`). They work for any signed-in account on
+    an unlocked device, subscription or not.
+  - Delete removes their own characters' turn-ons and every pair's hard nos and intensity. A house character's
+    turn-ons an admin set are the show's: they're downloaded and stay, but the admin's consent on them is cleared.
+  - Account deletion runs the same delete (`lib/account.ts`).
+- **Before this:** rows have no `consented_at`. Only admins had After Dark then, so that data is David's own. It still
+  shapes scenes; ticking the box or deleting brings it under the rule.
+
+## The Studio (2026-10-24)
+
+The PRD is docs/PRDs/studio.md (David: "build 1-3 … similar pricing … POV … share … an alternative to Hive … everything
+configurable … best in class"). What's built, by phase:
+
+**v1** (`lib/adult/studio.ts`, `studio-catalog.ts`, `studio-config.ts`; `/after-dark/studio/[id]`; `POST/GET
+/api/admin/after-dark/studio`):
+- **Who:** the owner's own characters switched into After Dark; an admin's house cast too. `studio.open_to` is `admins`
+  until payments and age checks are live. Linked from the hub ("🎨 Studio") and each pair page.
+- **Shoot:** menus (pose, framing, angle, POV, wardrobe, up to three accessories, place incl. their own drawn places,
+  light, expression), each option a fixed phrase with a level (0 dressed … 3 explicit); held to the viewer's studio
+  intensity and hard nos for the character, the configured maximum, and to suggestive in public. `shoot_size` (4) pictures
+  by the chosen edit model from the face they keep (Picture 1), their body reference (Picture 2) and the place's set.
+  Ratings steer it; the light test picks the light when they don't.
+- **Identity:** Restyle (the looks builder's chips as an edit of the face: 3 baselines to pick from; "Save to their look"
+  writes `extras.looks` and the appearance line when it was the builder's), Recast (3 new baselines on a new-picture
+  model), Body reference (2, dressed or nude; "Use as body"), face strength (loose, balanced, strict), studio limits.
+- **Gallery:** their pictures alone with 👍/👎, Use this face, Use as body; a free redo for a shoot they 👎'd whole.
+- **Prices** (bought tokens, admins free): shoot 1 standard / 2 pro, restyle 1, recast 1, body 1; nothing came through:
+  refunded whole. **Caps:** `cap_studio` 400, `cap_studio_byok` 1,000, `cap_upscales` 50 a month, and every cap is now
+  editable on the settings page.
+- **Tables:** `adult_studio_shoots`, `adult_identity`; `adult_images.shoot_id`; `adult_settings.studio` (JSON).
+
+**v2** (`lib/adult/studio.ts`, `lib/adult/shares.ts`; the page's **Together** tab and each picture's tools; `GET
+/api/admin/after-dark/studio?partner=` for a pair's menu; `/api/admin/after-dark/shares` for the recipient):
+- **Together:** a shoot of the character with anyone else in the viewer's After Dark, from the picture menu's acts,
+  outfits and framings (`planPicture`), the night's places and the Studio's own, and a light. Held to the pair's own
+  limits within `studio.max_level` (dressed: to kissing; suggestive: to undressing; nude: everything, sensual; explicit:
+  everything), not to how far their night has gone. Their two faces (the nude ones from sex on) and the place's set;
+  `shoot_size` pictures for `prices.pair[tier]`, kept under the pair (they show in the pair's gallery too).
+- **More like this:** `shoot_size` pictures like one of theirs (it goes in after the face and body), at that picture's
+  level, each slightly different (`VARIATION_HINTS`). **Upscale:** Venice's `/image/upscale` (2x by default), checked,
+  kept beside it, counted as an upscale (`cap_upscales`).
+- **Their own key:** Connections has a fourth job, **After Dark pictures** (Venice or Replicate), shown only to someone
+  After Dark is open to on an unlocked device (the page and the API). With "On my own key" ticked, any Studio job runs on
+  it for `prices.own_key` (0) tokens, counts against `cap_studio_byok`, and adds each model's `usd` to the key's month
+  (Connections' cap and notices). A key that can't be used now is refused with why; ours is one untick away.
+- **Sharing** (only the sharer's own characters' pictures, to the owner of a character theirs has dated):
+  - **In After Dark:** a request with a neutral notice ("Something was shared with you"), shown in the hub's 💌 **Shared
+    with you** once accepted (or straight away, with auto-accept on); either side can take it away; served by the media
+    route to the recipient while accepted (`sharedWith`), never their face, never re-shared. Agents can't be sent one.
+    Whether the recipient has After Dark is never told to the sharer: one who hasn't isn't notified.
+  - **As a photo:** a dressed Studio picture (level 0) scored at most `share.pg_max_nsfw` (0.15) becomes an approved
+    `character_assets` photo and a 📷 text in the two characters' thread (`couple_texts.photo`, via `photo`): on the phone,
+    and in an agent's `read_texts` as `photo_url`.
+
+**v3** (the page's **Setups** tab and each picture's Animate):
+- **Setups** (`adult_studio_setups`): Save as a setup on Shoot or Together keeps the choices and the model under a name
+  (one per name; 30 at most), without a place of one character's own or a partner. Use loads one onto its tab; a shoot's
+  setup can Shoot it in one tap, on whichever character's Studio is open.
+- **Face strength:** loose now also leaves the body reference out (the face alone), besides the prompt's wording.
+- **Animate:** a picture of one of them alone becomes a 5 or 10 s clip on After Dark's video model (`studio.animate.model`,
+  else `reel_model`: Wan 3.0) from a motion chip (`ANIMATE_MOTIONS`, each a fixed phrase; `motion.<id>` in
+  `disabled_options` takes one off). Hive's gate first (videos are Hive's alone), one video at a time (a reel or clip
+  blocks it too), the month's clips cap, `prices.animate_5` / `animate_10` tokens. Queued on Venice from the picture's
+  signed link; `collectAnimations` (run by the Studio's state, which the page polls every 20 s while one is making)
+  retrieves it, Hive checks it, and it's kept as a video in their gallery (`shoot_id`, `source_image`), counted as a
+  clip, and Venice's copy deleted. Refused by the check, failed, or not back in an hour: tokens back, logged when refused.
+
+**Screenshots** (`npm run screenshots:studio`, PG placeholders from the repo's own portraits, nothing drawn):
+`docs/screenshots/studio-*.png`: the shoot's menus, a shoot together, the gallery's share and animate panels, setups,
+"Shared with you" as the recipient sees it, and the After Dark pictures card in Connections, desktop and phone.
+
+<img src="screenshots/studio-together-desktop.png" width="480" alt="The Studio's Together tab: Dex picked, a slow dance, dressed up, a wide shot on the rooftop">
+<img src="screenshots/studio-shared-with-you-desktop.png" width="480" alt="Shared with you: a request waiting with Show it and No thanks, and an accepted picture with remove">
+
+### The checks: an alternative to Hive (2026-10-24)
+
+David: "Hive is a bottleneck atm, so it might be worth adding an alternative too. Everything should be configurable."
+`lib/adult/moderation.ts` (`checkMedia`, `mediaGate`, `checkReady`) now sits in front of every check; the settings
+page's **🛡 The checks** section sets it (`adult_settings.moderation`, `lib/adult/moderation-config.ts`).
+- **Alternatives:** `venice_vlm` (the same three-answer age question to a vision model on Venice, `qwen3-vl-235b-a22b`
+  by default: Venice-run, no daily cap, ~$0.0003 a check; it reads generated faces), `sightengine` (`face-age`'s minor
+  probability; an unscored "artificial" face refuses), `endpoint` (our own URL answering ADULTS/MINOR/UNSURE).
+- **Modes:** `hive` (the default, unchanged), `hive_then_alt` (the alternatives only when Hive gives no verdict: paused,
+  busy, down), `both` (Hive and every alternative must pass), `alt` (no Hive for pictures). Any alternative's refusal
+  refuses; `min_sources` say how many must run and pass. Videos always wait for Hive.
+- **The show's own pictures** (place sets, look tiles, season portraits) go to Hive, or with `pg_via: "alt"` to the
+  alternatives asked the show's question (SAFE/UNSAFE/UNSURE), leaving Hive's 100 a day for After Dark.
+- **The draw gate:** while Hive's breaker is open a picture is drawn only when the mode lets a ready alternative stand in.
+- A pass now carries Hive's `general_nsfw` score (`CheckResult.nsfw`), kept on Studio pictures (`adult_images.nsfw_score`)
+  for the texts' photos (v2).
+- Keys sealed like the others: `sightengine_key` (its api_secret; the api_user is a setting), `moderation_endpoint_key`.

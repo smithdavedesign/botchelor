@@ -17,6 +17,7 @@ export const metadata: Metadata = { title: "Admin · Botchelor", robots: { index
 /** Admin: password-gated tools — reports to review, who the agents are, and a frontier (paid) model comparison. */
 export default function AdminPage() {
   const tiles = [
+    { href: "/admin/reports", label: "Complaints and takedowns", note: "reports from /report: a minor, a real person, an intimate image (48 hours), copyright and the rest (7 business days)" },
     { href: "/admin/analytics", label: "Analytics", note: "people, agents and quality: trends, the funnel, top characters, and who connects over MCP" },
     { href: "/admin/season", label: "Seasons", note: "this month's cast and next month's newcomers to approve" },
     { href: "/admin/feedback?tab=people", label: "People's feedback", note: "notes people send from the site: a 0-10 rating, ideas, bugs", count: true },
@@ -40,13 +41,13 @@ export default function AdminPage() {
                 <strong>
                   {t.label} →
                 </strong>
+                {t.count && (
+                  <span className="admin-tile-count">
+                    <NewFeedbackCount />
+                  </span>
+                )}
                 <span className="muted small">{t.note}</span>
               </Link>
-              {t.count && (
-                <span className="admin-tile-count">
-                  <NewFeedbackCount />
-                </span>
-              )}
             </li>
           ))}
         </ul>

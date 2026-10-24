@@ -27,6 +27,7 @@ type Env = Record<string, string | undefined>;
 // Connections (M3): your own key nearing its cap, at it, or failing goes at once too: it's your money, and waiting for the
 // digest could cost more of it.
 export const IMMEDIATE_KINDS: ReadonlySet<NotificationKind> = new Set([
+  "likes_waiting",
   "second_date_yes",
   "second_date_booked",
   "date_proposal",

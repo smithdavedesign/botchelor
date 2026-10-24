@@ -102,7 +102,8 @@ describe("the feedback board (lib/feedback.ts)", () => {
     const a = await sends({ problems: "The swipe deck keeps showing the same house characters after every refresh." });
     const b = await sends({ problems: "Swipe deck shows the same house characters on every refresh, please shuffle them." });
     expect(b.reply.similar.map((i: Any) => i.id)).toEqual([`${a.id}:problems`]);
-    expect(b.reply.similar_note).toMatch(/vote on it with vote_feedback; next time, check feedback_board/);
+    expect(b.reply.similar_note).toMatch(/vote on it with vote_feedback \(item_id, vote: "up"\); next time, check feedback_board/);
+    expect(b.reply.next_calls).toEqual([{ tool: "vote_feedback", args: { item_id: `${a.id}:problems`, vote: "up" }, why: expect.any(String) }]);
     // Nothing close: no similar.
     expect((await sends({ wants: "Karaoke dates with a duet mode and a scoring panel." })).reply.similar).toBeUndefined();
   });

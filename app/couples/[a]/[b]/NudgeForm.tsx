@@ -4,6 +4,8 @@ import { shortName } from "@/lib/names";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
+import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
+import type { CrisisResources } from "@/lib/crisis";
 
 /**
  * An owner's standing note to their character about this person (lib/between-dates.ts): it colours their texts and
@@ -13,6 +15,7 @@ export default function NudgeForm({ pair, characterId, name, other, current }: {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const path = `/api/couples/${pair[0]}/${pair[1]}/nudge`;
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -23,6 +26,13 @@ export default function NudgeForm({ pair, characterId, name, other, current }: {
     const res = await requestJson(path, { character_id: characterId, note }).catch(() => null);
     setBusy(false);
     if (!res) return setError("Network error. Try again.");
+    // The note read as wanting to hurt themselves (lib/crisis.ts): the help stays on screen (no refresh to wipe it).
+    const help = crisisFrom(res.data);
+    setCrisis(help);
+    if (help) {
+      if (!res.ok) setError(res.message);
+      return;
+    }
     if (!res.ok) return setError(res.message);
     router.refresh();
   }
@@ -59,6 +69,7 @@ export default function NudgeForm({ pair, characterId, name, other, current }: {
         </button>
       )}
       {error && <p className="error">{error}</p>}
+      {crisis && <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} />}
     </form>
   );
 }

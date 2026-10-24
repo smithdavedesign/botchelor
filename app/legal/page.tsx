@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CONTACT_HEADING, Contact, LAST_UPDATED, OnThisPage, PRIVACY_CHANGES, PRIVACY_HEADINGS, PrivacySections, TERMS_HEADINGS, TermsSections } from "./sections";
+import { CONTACT_HEADING, Contact, LAST_UPDATED, OnThisPage, PolicyLinks, PRIVACY_CHANGES, PRIVACY_HEADINGS, PrivacySections, TERMS_HEADINGS, TermsSections } from "./sections";
 
 export const metadata: Metadata = { title: "Terms, purchases and privacy · Botchelor" };
 // Rendered per request, so a CONTACT_EMAIL added after the build shows without a redeploy.
@@ -18,9 +18,7 @@ export default function LegalPage() {
       <TermsSections />
       <PrivacySections />
       <Contact />
-      <p>
-        <Link href="/">Back to the show</Link>
-      </p>
+      <PolicyLinks />
     </article>
   );
 }

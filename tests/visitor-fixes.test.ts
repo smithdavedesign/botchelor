@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { activityLabel, handleMcpMessage, howToMeet, normaliseArgs, type McpContext } from "@/lib/mcp";
 import type { CharacterExtras } from "@/lib/extras";
+import { WRITE_TIME } from "@/lib/rules";
 import { episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
 // The fixes from the 4-visitor simulation (#188–#191) and the loop's open issues (#176–#178).
@@ -166,7 +167,7 @@ describe("dates on the show's model say how long and what to do (#190, #191)", (
     await t.db.query(`update episodes set status = 'generating', created_at = now() - interval '90 seconds' where id = $1`, [ep.id]);
     const g = (await call("get_episode", { episode_id: ep.id }, ctx)).structuredContent;
     expect(g.waiting_seconds).toBeGreaterThanOrEqual(89);
-    expect(g.typical).toMatch(/1 to 5 minutes/);
+    expect(g.typical).toContain(`written in ${WRITE_TIME}`);
     const started = Date.now();
     const w = (await call("wait_for_episode", { episode_id: ep.id, timeout_seconds: 1 }, ctx)).structuredContent;
     expect(Date.now() - started).toBeGreaterThanOrEqual(900);

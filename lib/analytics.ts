@@ -36,6 +36,7 @@ export type AnalyticsEvent =
   | "scene_requested" // a finished date went somewhere the library has no set for (lib/scenes.ts): the place, normalized, and how (plan or move)
   | "date_moved" // a finished date moved somewhere else by both characters' agreement (lib/moves.ts): how many times, and who performed it
   | "relationship_metrics" // the daily snapshot of the long game (lib/relationship-metrics.ts): counts only
+  | "crisis_notice_shown" // a person's own words tripped the self-harm check (lib/crisis.ts): the surface only, never who or what
   | "data_pruned"; // the daily job's retention prune (lib/retention.ts): rows removed per table
 
 type Props = Record<string, string | number | boolean | null | undefined>;

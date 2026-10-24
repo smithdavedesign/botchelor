@@ -7,15 +7,19 @@
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { AiFiction } from "@/app/AiLabel";
 import {
+  detailsFor,
   genderTileId,
   LOOK_AGES,
+  LOOK_DETAILS,
   looksAppearance,
   optionLabel,
   optionsFor,
   stepsFor,
   tileId,
   type Gender,
+  type LookDetail,
   type LookStep,
   type Looks,
 } from "@/lib/looks";
@@ -54,10 +58,32 @@ function choose(looks: Looks, step: LookStep, adTab: boolean, id: string): Looks
       if (s.only && s.only !== g) delete next[k];
       else if (!optionsFor(s, g).some((o) => o.id === next[k])) delete next[k];
     }
-    if (next.after_dark) next.after_dark = g === "woman" ? { butt: next.after_dark.butt } : {};
+    for (const d of LOOK_DETAILS) if (d.only && d.only !== g) delete next[d.id as keyof Looks];
+    if (next.after_dark) {
+      const { butt, grooming } = next.after_dark;
+      next.after_dark = { ...(g === "woman" && butt ? { butt } : {}), ...(grooming ? { grooming } : {}) };
+    }
     return next;
   }
   return { ...looks, [step.id]: id };
+}
+
+/** A finer detail's current pick (lib/looks.ts LOOK_DETAILS; After Dark's under looks.after_dark). */
+function detailOf(looks: Looks, d: LookDetail): string | undefined {
+  if (d.afterDark) return looks.after_dark?.[d.id as "grooming"];
+  return looks[d.id as keyof Omit<Looks, "after_dark" | "age">] as string | undefined;
+}
+
+/** A detail picked, or taken off (`id` undefined: None). */
+function chooseDetail(looks: Looks, d: LookDetail, id: string | undefined): Looks {
+  if (d.afterDark) {
+    const ad: NonNullable<Looks["after_dark"]> = { ...looks.after_dark, [d.id]: id };
+    if (!id) delete ad[d.id as "grooming"];
+    return { ...looks, after_dark: ad };
+  }
+  const next = { ...looks, [d.id]: id } as Looks;
+  if (!id) delete next[d.id as keyof Looks];
+  return next;
 }
 
 /** What a locked After Dark tile shows: the show's nearest tile, blurred. */
@@ -101,6 +127,13 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
     // Like the reference flow: a pick moves on by itself, after a beat to see it chosen.
     if (advance.current) window.clearTimeout(advance.current);
     advance.current = window.setTimeout(() => setI((n) => Math.min(n + 1, stepsFor((next.gender ?? "woman") as Gender, adTab).length)), 280);
+  }
+
+  function pickDetail(d: LookDetail, id: string | undefined) {
+    if (locked) return;
+    const next = chooseDetail(looks, d, id);
+    setLooks(next);
+    onAppearance(looksAppearance(next));
   }
 
   function pickAge(n: number) {
@@ -200,6 +233,8 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
                 })}
               </ul>
             )}
+            {/* The example pictures were drawn by a model: one label for the grid, not one per tile. */}
+            {step.id !== "age" && <AiFiction text="Example pictures are AI-generated." className="looks-ai-note" />}
           </>
         ) : (
           <div className="looks-summary">
@@ -220,6 +255,35 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
                   );
                 })}
             </ul>
+            {looks.gender && (
+              // The finer details: fixed choices, no pictures, none needed (lib/looks.ts LOOK_DETAILS).
+              <div className="looks-details">
+                <h4>
+                  Finer details <span className="muted small">· optional</span>
+                </h4>
+                {detailsFor(gender, adTab).map((d) => {
+                  const v = detailOf(looks, d) ?? "";
+                  return (
+                    <div key={d.id} className="looks-detail" role="radiogroup" aria-label={d.title}>
+                      <span className="looks-detail-title">{d.title}</span>
+                      {[{ id: "", label: "None" }, ...d.options].map((o) => (
+                        <button
+                          key={o.id || "none"}
+                          type="button"
+                          role="radio"
+                          aria-checked={v === o.id}
+                          className={`chip${v === o.id ? " chip-on" : ""}`}
+                          onClick={() => pickDetail(d, o.id || undefined)}
+                          tabIndex={locked ? -1 : undefined}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <p className="muted small">
               This becomes their appearance line, and their portrait is drawn from it when you create them. Tap a pick to change it.
             </p>

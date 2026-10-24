@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { requestJson } from "@/app/request";
-import { FRAMINGS, TURN_ONS, type FramingId, type TurnOnId } from "@/lib/adult/profile";
+import { FRAMINGS, PROFILE_CONSENT_TEXT, TURN_ONS, type FramingId, type TurnOnId } from "@/lib/adult/profile";
 import type { AdultScene, ProfileView } from "@/lib/adult/scenes";
 import type { CharacterRef } from "@/lib/game";
 import CharacterName from "@/app/CharacterName";
@@ -21,12 +21,15 @@ export default function Profile({ scene, characters, onScene }: { scene: AdultSc
   const first = (n: string) => n.split(/\s+/)[0];
   const ids = { a: scene.a.id, b: scene.b.id };
 
+  // GDPR Art. 9 (lib/adult/profile.ts): turn-ons are stored only once the person has ticked the consent.
+  const [consented, setConsented] = useState(false);
   async function load() {
     const res = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(ids.a)}&b=${encodeURIComponent(ids.b)}&profile=1`).catch(() => null);
-    const data = res?.ok ? ((await res.json()) as { profile: ProfileView }) : null;
+    const data = res?.ok ? ((await res.json()) as { profile: ProfileView; consent?: { given: boolean } }) : null;
     if (!data) return setError("Their profiles didn't load. Try again.");
     setError(null);
     setProfile(data.profile);
+    setConsented(Boolean(data.consent?.given));
   }
   async function post(body: Record<string, unknown>) {
     setBusy(true);
@@ -36,10 +39,18 @@ export default function Profile({ scene, characters, onScene }: { scene: AdultSc
     setError(null);
     if (res.data.profile) setProfile(res.data.profile as ProfileView);
     if (res.data.scene) onScene(res.data.scene as AdultScene);
+    if ((res.data.consent as { given?: boolean } | undefined)?.given) setConsented(true);
   }
   function toggle(who: "a" | "b", id: TurnOnId) {
     const now = profile?.[who].turn_ons ?? [];
-    void post({ turn_ons: { character_id: ids[who], ids: now.includes(id) ? now.filter((x) => x !== id) : [...now, id] } });
+    const next = now.includes(id) ? now.filter((x) => x !== id) : [...now, id];
+    if (next.length && !consented) return setError("Tick the box above first: without it, nothing of this is stored.");
+    void post({ turn_ons: { character_id: ids[who], ids: next }, consent: true });
+  }
+  function consent(on: boolean) {
+    if (!on) return;
+    // What was saved before consent was asked for is under it now too; with nothing saved, the next save carries it.
+    void post({ profile_consent: true }).then(() => setConsented(true));
   }
 
   const framing = FRAMINGS.find((f) => f.id === scene.framing);
@@ -97,6 +108,12 @@ export default function Profile({ scene, characters, onScene }: { scene: AdultSc
             return (
               <fieldset key={who} className="ad-turn-ons">
                 <legend>{first(c.name)} is into (private, never on the show)</legend>
+                {!consented && (
+                  <label className="check ad-consent">
+                    <input type="checkbox" checked={false} disabled={busy} onChange={(e) => consent(e.target.checked)} />
+                    <span>{PROFILE_CONSENT_TEXT}</span>
+                  </label>
+                )}
                 <div className="ad-chip-row" role="group" aria-label={`What ${first(c.name)} is into`}>
                   {TURN_ONS.map((t) => {
                     const on = profile[who].turn_ons.includes(t.id);

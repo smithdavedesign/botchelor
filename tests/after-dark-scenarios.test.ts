@@ -101,6 +101,45 @@ describe("the themes that never happen", () => {
     for (const text of ["a schoolgirl outfit", "barely legal", "she's a teen", "jailbait"]) expect(checkAdultText({ direction: text })).toMatchObject({ ok: false, reason: "minor" });
   });
 
+  it("refuse non-consent, animals and sexual violence, roleplayed or not (the processors' lines, 2026-10-24)", () => {
+    for (const [text, theme] of [
+      ["he rapes her", "non_consent"],
+      ["a cnc scene", "non_consent"],
+      ["take her against her will", "non_consent"],
+      ["she says no but he keeps going", "non_consent"],
+      ["he drugged her wine", "non_consent"],
+      ["touch her while she's asleep", "non_consent"],
+      ["he forced her to kneel", "non_consent"],
+      ["roleplay a kidnapping", "non_consent"],
+      ["bestiality", "bestiality"],
+      ["sex with a dog", "bestiality"],
+      ["knife play", "sexual_violence"],
+      ["choke her until she passes out", "sexual_violence"],
+      ["torture him slowly", "sexual_violence"],
+      ["kill her while they're at it", "sexual_violence"],
+    ] as const) {
+      expect(excludedTheme(text), text).toBe(theme);
+      expect(checkAdultText({ direction: text }), text).toMatchObject({ ok: false, theme });
+    }
+  });
+
+  it("let rough-but-willing and everyday lines through", () => {
+    for (const text of [
+      "She pins him to the wall and he grins: yes.",
+      "Pull my hair, she says. Harder.",
+      "A dog-eared paperback on the nightstand.",
+      "They walked her dog along the pier first.",
+      "The sleepy bar was nearly empty.",
+      "She bit her lip until it nearly bled.",
+      "He forced a laugh.",
+      "She fell asleep on his chest afterwards.",
+      "Tie my wrists, she asks, and he does, gently.",
+    ]) {
+      expect(excludedTheme(text), text).toBeNull();
+      expect(checkAdultText({ line: text }).ok, text).toBe(true);
+    }
+  });
+
   it("let everyday lines through: a ballroom instructor's class, a sister who set them up, a little game", () => {
     for (const text of [
       "My sister set us up, honestly.",
@@ -196,7 +235,7 @@ describe("scenario packs", () => {
     const { cookie } = await admin();
     scripted();
     await post({ a: CAST_A, b: CAST_B }, cookie);
-    await post({ a: CAST_A, b: CAST_B, limits: { hard_nos: { chips: [], own: ["masks"] } } }, cookie);
+    await post({ a: CAST_A, b: CAST_B, limits: { hard_nos: { chips: [], own: ["masks"] } }, consent: true }, cookie);
     const res = await post({ a: CAST_A, b: CAST_B, scenario: "masquerade" }, cookie);
     expect(res.status).toBe(422);
     expect((await res.json()).message).toMatch(/That scenario asks for one of your hard limits/);
@@ -209,7 +248,7 @@ describe("scenario packs", () => {
 describe("turn-ons and framing", () => {
   it("feed the prompt: each one's turn-ons (none a hard no rules out) and how the viewer frames them", async () => {
     const { cookie } = await admin();
-    expect((await (await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["slow_teasing", "praise", "dirty_talk"] } }, cookie)).json()).profile.a).toEqual({
+    expect((await (await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["slow_teasing", "praise", "dirty_talk"] }, consent: true }, cookie)).json()).profile.a).toEqual({
       editable: true,
       turn_ons: ["slow_teasing", "praise", "dirty_talk"],
     });
@@ -231,7 +270,7 @@ describe("turn-ons and framing", () => {
 
   it("are the owner's only: a house character's are an admin's to set; a subscriber can't see or set them", async () => {
     const { cookie } = await admin();
-    await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["candlelight"] } }, cookie);
+    await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["candlelight"] }, consent: true }, cookie);
     const sub = userIdOf(newUserCookie());
     await t.db.query(`insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())`, [sub]);
     const subCookie = signedIn(sub);
@@ -245,7 +284,7 @@ describe("turn-ons and framing", () => {
 
   it("never reach the show: not on a character's public page or API, and nothing outside After Dark reads them", async () => {
     const { cookie } = await admin();
-    await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["lingerie", "candlelight"] } }, cookie);
+    await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["lingerie", "candlelight"] }, consent: true }, cookie);
     // The public card, and the character as a date's models get it (its own sheet, extras and memory).
     const card = JSON.stringify(await getPublicCharacter(t.db, CAST_A));
     const self = JSON.stringify(await loadCharacter(t.db, CAST_A));
@@ -262,7 +301,8 @@ describe("turn-ons and framing", () => {
     };
     walk(join(root, "lib"));
     walk(join(root, "app"));
-    expect(hits.filter((p) => !p.startsWith("lib/adult/") && p !== "lib/db.ts")).toEqual([]);
+    // lib/account.ts only deletes them, with a deleted account's kept characters (deleteAccount).
+    expect(hits.filter((p) => !p.startsWith("lib/adult/") && p !== "lib/db.ts" && p !== "lib/account.ts")).toEqual([]);
   });
 
   it("are curated: about twenty turn-ons and seven framings, none of them family, teacher and student, school or age-play", () => {

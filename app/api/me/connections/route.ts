@@ -1,22 +1,31 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { handle, json, parseBody, readJson } from "@/lib/http";
+import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { checkKey, currentUsage, listConnections, removeConnection, saveConnection, assignJob, unassignJob } from "@/lib/connections";
 import { checkLimit, connectionsGate, ModelId, PastedKey } from "@/lib/connections-http";
-import { CAP_MAX_USD, JOB_INFO, JOBS, jobCards, ON_CAP, PRESET_IDS, PROVIDER_INFO, isUserProvider, providersFor, type Feel, type Job } from "@/lib/connections-shared";
+import { ADULT_JOBS, CAP_MAX_USD, JOB_INFO, JOBS, jobCards, ON_CAP, PRESET_IDS, PROVIDER_INFO, isUserProvider, providersFor, type Feel, type Job } from "@/lib/connections-shared";
+import { canAfterDark } from "@/lib/adult/entitlement";
+import { lockedForRequest } from "@/lib/adult/privacy";
 
 export const dynamic = "force-dynamic";
+
+/** Whether After Dark's own job is for this person on this device: After Dark open to them, the device not PIN-locked. */
+async function adultOpen(req: Request, userId: string): Promise<boolean> {
+  const db = await getDb();
+  return (await canAfterDark(db, authFromRequest(req))).ok && !(await lockedForRequest(db, userId, req));
+}
 
 /**
  * A signed-in person's connections (docs/PRDs/connections.md): their own provider keys and the job each one does. The
  * key is write-only: it's checked live, sealed and stored, and from then on only its last four and its status come
- * back, from every route here.
+ * back, from every route here. After Dark's own job is there only for someone it's open to (as on the page).
  */
-async function view(userId: string) {
+async function view(req: Request, userId: string) {
   const db = await getDb();
   const listing = await listConnections(db, userId);
+  const open = await adultOpen(req, userId);
   return {
-    cards: jobCards(listing, Date.now(), await currentUsage(db, userId)),
+    cards: jobCards(listing, Date.now(), await currentUsage(db, userId)).filter((c) => open || !ADULT_JOBS.includes(c.job)),
     connections: listing.connections.map(({ provider, last4, verified_at, last_used_at, last_error, last_error_at, created_at, jobs }) => ({
       provider,
       last4,
@@ -33,7 +42,7 @@ async function view(userId: string) {
 export const GET = handle(async (req) => {
   const gate = connectionsGate(req);
   if (gate.error) return gate.error;
-  return json(await view(gate.userId));
+  return json(await view(req, gate.userId));
 });
 
 const SaveInput = z.object({
@@ -75,6 +84,8 @@ export const PUT = handle(async (req) => {
     }
   }
   const db = await getDb();
+  // After Dark's own job (the Studio's pictures) is only for someone After Dark is open to.
+  if (jobs.some((j) => ADULT_JOBS.includes(j)) && !(await adultOpen(req, gate.userId))) return json({ error: "not_found" }, 404);
   const stored = (await listConnections(db, gate.userId)).connections.find((c) => c.provider === provider);
   if (input.key) {
     const limited = checkLimit(gate.userId);
@@ -96,7 +107,7 @@ export const PUT = handle(async (req) => {
   };
   if (input.job) await assignJob(db, gate.userId, input.job, provider, input.model ?? null, feel, { cap_usd: input.cap_usd ?? null, on_cap: input.on_cap });
   for (const job of input.also ?? []) if (job !== input.job) await assignJob(db, gate.userId, job, provider, null);
-  return json({ saved: true, ...(await view(gate.userId)) });
+  return json({ saved: true, ...(await view(req, gate.userId)) });
 });
 
 const RemoveInput = z.union([
@@ -111,5 +122,5 @@ export const DELETE = handle(async (req) => {
   const input = parseBody(RemoveInput, await readJson(req), "invalid_connection");
   const db = await getDb();
   const removed = input.job ? await unassignJob(db, gate.userId, input.job) : await removeConnection(db, gate.userId, input.provider!);
-  return json({ removed, ...(await view(gate.userId)) });
+  return json({ removed, ...(await view(req, gate.userId)) });
 });

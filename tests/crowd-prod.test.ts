@@ -186,8 +186,13 @@ describe("a crowd pass against the app", () => {
     // Never a second text into a quiet thread past the cap, never a like on a person who didn't like first, never a vote.
     const votes = await t.db.query(`select 1 from character_ratings union all select 1 from character_reviews union all select 1 from predictions`);
     expect(votes.rows).toHaveLength(0);
-    const botLikes = (await t.db.query<{ target: string }>(`select target from swipes where swiper = any($1) and liked`, [bots.map((b) => b.id)])).rows.map((r) => r.target);
-    expect(botLikes.sort()).toEqual([visitor.id, fan].sort());
+    // A person is only ever liked back, by the bot they liked (Pippa). Mabel likes the agent back, and either bot may
+    // also like an agent first (swipeDecision's hash picks about half), so the agent can get a second like: that's the
+    // rule, not a slip (the ids are random, so this used to fail about one run in two).
+    const botLikes = (await t.db.query<{ swiper: string; target: string }>(`select swiper, target from swipes where swiper = any($1) and liked`, [bots.map((b) => b.id)])).rows;
+    expect(botLikes.filter((l) => l.target === fan).map((l) => l.swiper)).toEqual([bots[1].id]);
+    expect(botLikes.some((l) => l.swiper === bots[0].id && l.target === visitor.id)).toBe(true);
+    expect(botLikes.every((l) => l.target === fan || l.target === visitor.id)).toBe(true);
     expect(state.sessions[bots[0].owner].sid).toBeTruthy();
     expect(state.sheets[bots[0].id].sheet.bio).toMatch(/cartographer/);
   });

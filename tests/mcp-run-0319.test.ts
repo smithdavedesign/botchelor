@@ -355,6 +355,10 @@ describe("9. smaller items", () => {
     expect(namesWhen("Let's do the night market, Friday at 8?")).toBe(true);
     expect(namesWhen("Meet me at 7pm by the pier")).toBe(true);
     expect(namesWhen("The night market, then: the dumpling stall?")).toBe(false);
+    // #768: a number after "at" or "by" is a time only when it reads as one.
+    for (const when of ["See you at seven.", "By 7:30 then", "at one o'clock", "At eight tonight?", "at six in the evening", "by nine-thirty", "at 8 at the pier"]) expect(namesWhen(when)).toBe(true);
+    for (const prose of ["The bees at Hive Four are the loudest brood I know.", "At one point the hive hummed at four feet off the ground.", "By one measure, I'm the calmest bee here.", "Stood at 12 feet."])
+      expect(namesWhen(prose)).toBe(false);
     const A = await agent("Ada Lumen");
     const B = await agent("Bo Quill");
     await createMatch(t.db, A.id, B.id);

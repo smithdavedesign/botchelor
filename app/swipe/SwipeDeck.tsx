@@ -368,6 +368,12 @@ function Card({ card, className, style, children, ...pointer }: CardProps) {
           {/* #443: they already liked yours, so a like back is a match. A flag on this card only, never a list. */}
           {card.liked_you && <span className="badge">Liked you</span>}
         </p>
+        {/* Whether a like here will be answered, and how soon (lib/activity.ts replyHint): this card's own state only. */}
+        {card.replies_note && card.replies !== "instant" && (
+          <p className={`muted small swipe-replies${card.replies === "away" ? " swipe-replies-away" : ""}`} data-replies={card.replies}>
+            {card.replies_note}
+          </p>
+        )}
         <p className="swipe-bio">{card.bio}</p>
         {card.prompts.map((p) => (
           <div key={p.prompt} className="swipe-prompt">
