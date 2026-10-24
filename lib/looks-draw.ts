@@ -18,6 +18,7 @@ import { NEGATIVE_PROMPT, VENICE_IMAGE } from "./adult/media";
 import { adultKeys, getAdultSettings } from "./adult/settings";
 import type { Db } from "./db";
 import { dataColumn, keepBytes, objectStore, readBytes } from "./object-store";
+import type { KindId } from "./kinds";
 import { looksPortraitPrompt, tileSpecs, type Looks, type TileSpec, type TileVariant } from "./looks";
 
 /** FLUX [dev] on fal: faces and fabric good enough to choose from, about 1.3¢ for a tile this size. */
@@ -259,8 +260,8 @@ export type PortraitResult = { ok: true; asset_id: string } | { ok: false; statu
  * (Hive-screened generation from fixed option words, nothing typed). Capped per character and per day.
  */
 export async function drawLooksPortrait(db: Db, characterId: string, env: Record<string, string | undefined> = process.env): Promise<PortraitResult> {
-  const c = (await db.query<{ age: number; extras: { looks?: Looks } | null }>(`select age, extras from characters where id = $1`, [characterId])).rows[0];
-  const prompt = c?.extras?.looks ? looksPortraitPrompt(c.extras.looks, c.age) : null;
+  const c = (await db.query<{ age: number; extras: { looks?: Looks; kind?: KindId } | null }>(`select age, extras from characters where id = $1`, [characterId])).rows[0];
+  const prompt = c?.extras?.looks ? looksPortraitPrompt(c.extras.looks, c.age, c.extras.kind) : null;
   if (!prompt) return { ok: false, status: 400, error: "no_looks", message: "Pick their looks first (at least who they are), then draw a portrait." };
   const used = await db.query<{ mine: number; today: number }>(
     `select count(*) filter (where character_id = $1)::int as mine,

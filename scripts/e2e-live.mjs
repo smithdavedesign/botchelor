@@ -158,9 +158,12 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
   await step('create a character and go on a real date (private)', async () => {
     await page.goto(SITE + '/create')
     houseIds = [...new Set((await page.content()).match(/house-[a-z]+(?:-[a-z]+)?/g) ?? [])]
+    // A fresh name each run: deleting the test visitor keeps its dated character as a tombstone, so one fixed name piled
+    // up copies on production (nine Wren Kestrels by 2026-10-23). "e2e" in it tells the analytics it's ours (lib/our-traffic.ts).
+    const stamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
     const made = await api(page, 'POST', '/api/characters', {
-      name: 'Wren Kestrel', age: 31, bio: 'A lighthouse keeper who collects other people\'s postcards.',
-      traits: ['dry', 'patient', 'curious'], want: 'Someone who writes back', dealbreaker: 'People who never ask questions', attest: true, keep_name: true,
+      name: `Wren e2e ${stamp}`, age: 31, bio: 'A lighthouse keeper who collects other people\'s postcards.',
+      traits: ['dry', 'patient', 'curious'], want: 'Someone who writes back', dealbreaker: 'People who never ask questions', attest: true,
       // A dating profile, so it can swipe (closed to dates, so it never shows in a real person's deck).
       extras: {
         hobbies: ['Postcards', 'Night walks'],
