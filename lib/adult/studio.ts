@@ -25,9 +25,10 @@ import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { crossesTaboo } from "./acts";
 import { eligibleIds } from "./characters";
-import { checkOutput, type CheckResult } from "./check";
+import type { CheckResult } from "./check";
 import { isPublicPlace } from "./continuity";
-import { hiveGate, HivePausedError, hivePausedErrorMessage, underHiveLimit } from "./hive-limit";
+import { HivePausedError, hivePausedErrorMessage } from "./hive-limit";
+import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { HARD_NO_IDS, INTENSITIES, type Intensity } from "./limits";
 import { baselinePrompt, ensureBaseline, listMedia, NEGATIVE_PROMPT, physicalLook, replicatePictureInput, signedMediaUrl, venicePicture, type Media } from "./media";
 import { PICTURE_PRESETS, type PresetId } from "./rating-tags";
@@ -213,14 +214,14 @@ const shootRow = (r: {
 async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok: true }>, spec: JobSpec): Promise<JobResult> {
   const c = access.character;
   const keys = await adultKeys(db);
-  if (!keys.hive) return fail(409, "not_set_up", "Pictures need the Hive key in After Dark's settings (every picture is checked before it's kept).");
+  if (!(await checkReady(db))) return fail(409, "not_set_up", "Pictures need a checker in After Dark's settings (every picture is checked before it's kept).");
   if (spec.model.provider === "venice" ? !keys.venice : !keys.replicate) {
     return fail(409, "not_set_up", `${spec.model.label} needs the ${spec.model.provider === "venice" ? "Venice" : "Replicate"} key in After Dark's settings.`);
   }
   const asked = spec.prompts.length;
   const left = await usageLeft(db, viewer, "studio");
   if (left !== null && left < asked) return fail(429, "over_cap", `That's ${asked} pictures and ${left} are left this month. They reset on the 1st.`);
-  const gate = await hiveGate(db, keys.hive);
+  const gate = await mediaGate(db);
   if (!gate.ok) return fail(503, "hive_paused", gate.message);
   const pays = spec.tokens > 0 && !access.admin;
   if (pays && !(await spendBoughtTokens(db, viewer, spec.tokens))) {
@@ -252,7 +253,7 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
     }
     if (paused) continue;
     if (checked++) await pause(CHECK_GAP_MS);
-    const verdict: CheckResult = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: d.file.bytes.toString("base64"), mime: d.file.mime }, "image"));
+    const verdict: CheckResult = await checkMedia(db, { base64: d.file.bytes.toString("base64"), mime: d.file.mime }, "image");
     if (!verdict.ok) {
       lastError = verdict.reason;
       if (verdict.paused) paused = verdict.paused;
@@ -264,9 +265,9 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
     const pid = crypto.randomUUID();
     const store = await keepBytes("after-dark", pid, d.file.bytes, d.file.mime);
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_place, shoot_id)
-       values ($1, $2, $3, null, $4, $5, $6, $7, $8, 'ready', $9, false, $10, $11, $12, $13)`,
-      [pid, viewer, c.id, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, id],
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_place, shoot_id, nsfw_score)
+       values ($1, $2, $3, null, $4, $5, $6, $7, $8, 'ready', $9, false, $10, $11, $12, $13, $14)`,
+      [pid, viewer, c.id, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, id, verdict.nsfw ?? null],
     );
     await countUse(db, viewer, "studio");
     kept.push({
@@ -644,6 +645,7 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
   if (!access.ok) return access;
   const { character: c, config, admin, noun, gender } = access;
   const keys = await adultKeys(db);
+  const checker = await checkReady(db);
   const identity = await identityOf(db, viewer, c.id);
   const [places, gallery, shootRows, tokens, left] = await Promise.all([
     ownPlaces(db, viewer, c.id),
@@ -669,7 +671,7 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
       menu: studioMenu(shootLimits(identity, config), noun),
       restyle: restyleMenu(gender),
       places,
-      models: config.models.map((m) => ({ ...m, ready: Boolean(m.provider === "venice" ? keys.venice : keys.replicate) && Boolean(keys.hive), price: priceOf(m) })),
+      models: config.models.map((m) => ({ ...m, ready: Boolean(m.provider === "venice" ? keys.venice : keys.replicate) && checker, price: priceOf(m) })),
       prices: config.prices,
       sizes: { shoot: config.shoot_size, restyle: config.restyle_candidates, recast: config.recast_candidates, body: config.body_candidates },
       free_redo: config.free_redo,

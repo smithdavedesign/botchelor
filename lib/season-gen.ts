@@ -21,8 +21,8 @@ import { checkShowText } from "./safety";
 import { DEFAULT_SEASON_CAST_SIZE, seasonCastIds, SURVIVORS } from "./season-cast";
 import { nextSeasonStart, seasonIdOf } from "./season-window";
 import { saveSoul } from "./souls";
-import { checkOutput } from "./adult/check";
-import { hiveGate, HivePausedError, underHiveLimit } from "./adult/hive-limit";
+import { HivePausedError } from "./adult/hive-limit";
+import { checkMedia, checkReady, mediaGate } from "./adult/moderation";
 import { ensureBaseline, outputCheckReady, physicalLook, venicePicture } from "./adult/media";
 import { adultKeys } from "./adult/settings";
 
@@ -185,18 +185,17 @@ export async function makePortrait(db: Db, characterId: string): Promise<string>
   const c = await loadCharacter(db, characterId);
   if (!c) return "no such character";
   const keys = await adultKeys(db).catch(() => null);
-  if (!keys?.venice || !keys.hive) return "portraits need the Venice and Hive keys (After Dark settings)";
+  if (!keys?.venice || !(await checkReady(db, { pg: true }))) return "portraits need the Venice key and a checker (After Dark settings)";
   const prompt = portraitPrompt(c.look.physical ?? physicalLook(c), c.age);
   // Hive over its daily limit (lib/adult/hive-limit.ts): not drawn, so not paid for; the admin can make it again later.
-  const gate = await hiveGate(db, keys.hive);
+  const gate = await mediaGate(db, { pg: true });
   if (!gate.ok) {
     await db.query(`update season_candidates set check_note = $2 where character_id = $1`, [characterId, gate.reason.slice(0, 200)]);
     return gate.reason;
   }
   try {
     const pic = await venicePicture(db, prompt, { safe: true });
-    const hive = keys.hive;
-    const verdict = await underHiveLimit(db, () => checkOutput(hive, { base64: pic.bytes.toString("base64"), mime: pic.mime }, "image"));
+    const verdict = await checkMedia(db, { base64: pic.bytes.toString("base64"), mime: pic.mime }, "pg_image");
     if (!verdict.ok) {
       await db.query(`update season_candidates set check_note = $2 where character_id = $1`, [characterId, `portrait discarded: ${verdict.reason}`]);
       return `discarded by the check: ${verdict.reason}`;

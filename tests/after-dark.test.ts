@@ -352,14 +352,14 @@ describe("the output check (Hive)", () => {
     expect(vlmAnswer(vlmSays('{"answer": "ADULTS AND MINOR"}'))).not.toBe("ADULTS");
     expect(vlmAnswer(vlmSays('{"answer": "ADUL'))).not.toBe("ADULTS");
     const seen = fakeHive();
-    expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/pic.png")).toEqual({ ok: true });
+    expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/pic.png")).toEqual({ ok: true, nsfw: 0.98 });
     expect(seen).toEqual(["Bearer placeholder-hive", "Bearer placeholder-hive"]);
     expect(await checkOutput(null, "https://cdn.fal.test/pic.png")).toMatchObject({ ok: false });
   });
 
   it("asks the VLM for an answer held to three labels by a JSON schema (Hive's terms: not generative use)", async () => {
     fakeHive();
-    expect(await checkOutput("placeholder-hive", { base64: "UklGRg==", mime: "image/webp" })).toEqual({ ok: true });
+    expect(await checkOutput("placeholder-hive", { base64: "UklGRg==", mime: "image/webp" })).toEqual({ ok: true, nsfw: 0.98 });
     expect(vlmBodies).toHaveLength(1);
     const body = vlmBodies[0];
     expect(body).toMatchObject({ model: "hive/vision-language-model", temperature: 0 });
@@ -379,7 +379,7 @@ describe("the output check (Hive)", () => {
 
   it("checks a clip's frames with moderation only (its picture already passed the age check)", async () => {
     const seen = fakeHive({});
-    expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/clip.mp4", "video")).toEqual({ ok: true });
+    expect(await checkOutput("placeholder-hive", "https://cdn.fal.test/clip.mp4", "video")).toEqual({ ok: true, nsfw: 0.98 });
     expect(seen).toHaveLength(1);
   });
 });

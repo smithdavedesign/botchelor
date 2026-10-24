@@ -48,9 +48,10 @@ import { checkAdultText } from "../safety";
 import { getSet } from "../sets";
 import { normalizeScene, setPath } from "../venues";
 import { crossesTaboo } from "./acts";
-import { checkOutput, type CheckResult } from "./check";
+import type { CheckResult } from "./check";
+import { checkMedia } from "./moderation";
 import { providerError, runMedia } from "./fallback";
-import { hiveGate, hivePausedErrorMessage, hivePausedReason, HivePausedError, hivePausedUntil, underHiveLimit } from "./hive-limit";
+import { hiveGate, hivePausedErrorMessage, hivePausedReason, HivePausedError, hivePausedUntil } from "./hive-limit";
 import type { PlaceStop } from "./continuity";
 import { beatPictureFor } from "./beats";
 import { ensureBaseline, ensureNudeBaseline, lookWords, signedMediaUrl } from "./media";
@@ -953,11 +954,11 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
       if (checked++) await pause(CHECK_PAUSE_MS);
       const media = { base64: d.file.bytes.toString("base64"), mime: d.file.mime };
       // The age question alone: this keyframe's moderation comes with its shot's (lib/adult/check.ts "keyframe").
-      let verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "keyframe"));
+      let verdict = await checkMedia(db, media, "keyframe");
       // Asked once more after a pause when Hive was busy or down; never when it's out for the day.
       if (couldntRun(verdict) && !hiveOut(verdict)) {
         await pause(CHECK_AGAIN_MS);
-        verdict = await underHiveLimit(db, () => checkOutput(ctx.hive, media, "keyframe"));
+        verdict = await checkMedia(db, media, "keyframe");
       }
       if (!verdict.ok) {
         // Never stored either way; only a refusal is logged as one, and a keyframe thrown away because Hive was out.
@@ -1274,7 +1275,7 @@ async function collectReplicateShot(
     failShot(s, err.status === 403 || err.status === 404 || err.status === 410 ? "Replicate no longer has the video (it deletes what a model made an hour after)" : err.message);
     return "waiting";
   }
-  const verdict = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: file.bytes.toString("base64"), mime: "video/mp4" }, "video"));
+  const verdict = await checkMedia(db, { base64: file.bytes.toString("base64"), mime: "video/mp4" }, "video");
   if (!verdict.ok && couldntRun(verdict)) {
     s.retry_at = askAgainAt(verdict, now);
     s.reason = waitReason(verdict);
@@ -1381,7 +1382,7 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     if (!(res.headers.get("content-type") ?? "").includes("video")) continue; // still being made
     const bytes = Buffer.from(await res.arrayBuffer());
     checked++;
-    const verdict = await underHiveLimit(db, () => checkOutput(keys.hive, { base64: bytes.toString("base64"), mime: "video/mp4" }, "video"));
+    const verdict = await checkMedia(db, { base64: bytes.toString("base64"), mime: "video/mp4" }, "video");
     // The check couldn't run (Hive busy, down, or out for the day): not a refusal yet. Try again after a wait (or once
     // the pause is over), and send nothing more to Hive this poll.
     if (!verdict.ok && couldntRun(verdict)) {
