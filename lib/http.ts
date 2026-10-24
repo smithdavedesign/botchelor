@@ -11,6 +11,10 @@ import { signSession, verifySession } from "./auth";
 export const USER_COOKIE = "bz_uid";
 export const SESSION_COOKIE = "bz_sess";
 export const MAX_BODY_BYTES = 10_000;
+/** The address MCP tools call an API route on, in-process (lib/mcp/dispatcher.ts callRoute). */
+export const MCP_CALL_URL = "https://botchelor.vercel.app/api/_mcp";
+/** Whether a route is being called by an MCP tool (an agent) rather than by someone's browser. */
+export const isMcpCall = (req: Request): boolean => new URL(req.url).pathname === new URL(MCP_CALL_URL).pathname;
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 

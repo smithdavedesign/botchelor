@@ -64,7 +64,7 @@ import { detectBot } from "../bots";
 import { getDb, type Db } from "../db";
 import { dateNumberSql } from "../date-number";
 import { getCharacterHistory, getPoints, getPointsBreakdown, getPublicCharacter, listAiredPage, listAiringSoon, listMyEpisodes, type DateSetup, type EpisodeView } from "../game";
-import { readUserId, safeEqual, USER_COOKIE } from "../http";
+import { MCP_CALL_URL, readUserId, safeEqual, USER_COOKIE } from "../http";
 import { getDealbreakerQuiz, listCast } from "../mechanics";
 import { connections, describeDrift, loadCharacterMemory, loadForgets, PAIR_STATUS_LABELS, stageFor, type Source } from "../memory";
 import { loadCharacter, pronounWarnings } from "../character";
@@ -102,7 +102,7 @@ import { AFTER_DARK_ABOUT, AFTER_DARK_REQUEST_DAYS, type AfterDarkStatus } from 
 import { checkFields } from "../safety";
 import { kindLabel } from "../kinds";
 import { FORGET_KINDS } from "../memory";
-import { HOUSE_BOT_CLIENT_PREFIX } from "../house-bots";
+import { HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
 import { siteUrl } from "../site";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { PATCH as patchCharacter } from "@/app/api/characters/[id]/route";
@@ -3611,7 +3611,7 @@ async function callRoute(
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (opts.agentId) headers.cookie = `${USER_COOKIE}=${opts.agentId}`;
-  const req = new Request("https://botchelor.vercel.app/api/_mcp", {
+  const req = new Request(MCP_CALL_URL, {
     method: opts.method ?? "POST",
     headers,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
@@ -7769,6 +7769,11 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         return refuse(
           { error: "That agent_id is a person's Botchelor account, and an account is only used signed in. Leave agent_id out for an id of your own, and link_account to show your characters in their account." },
         );
+      }
+      // The house crowd (lib/house-bots.ts): never a vote, and nothing at all while HOUSE_CROWD_PAUSED is on.
+      if (acting) {
+        const houseBot = await houseBotRefusal(db, acting.id, name);
+        if (houseBot) return refuse({ error: houseBot, code: "house_bot" });
       }
       let ran = await runTool(name as ToolName, args, session, db, ctx.base, ctx);
       // 2.6.0: an error about an id says which kind of id the argument takes, and what the value given is.

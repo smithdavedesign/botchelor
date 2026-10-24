@@ -8,6 +8,7 @@
  */
 import { recordChoice } from "./choice-history";
 import type { Db } from "./db";
+import { isHouseBotSql } from "./house-bots";
 import { checkFields } from "./safety";
 
 export const REVIEW_MAX = 280;
@@ -90,14 +91,15 @@ export type Popularity = { id: string; score: number; reviews: number; likes: nu
 /**
  * How loved each character was in a window: the reviews written in it, averaged with a prior so three 5-star reviews
  * don't beat forty 4.6s, then the ratings (lib/ratings.ts) as a tiebreak. Most loved first; a full tie goes by id.
+ * The house crowd's bots never count (lib/house-bots.ts): who stays on is the audience's call.
  */
 export async function popularity(db: Db, ids: string[], from: Date, to: Date): Promise<Popularity[]> {
   if (!ids.length) return [];
   const { rows } = await db.query<{ id: string; total: number; n: number; likes: number }>(
     `select c.id,
-            coalesce((select sum(stars) from character_reviews r where r.character_id = c.id and r.updated_at >= $2 and r.updated_at < $3), 0)::int as total,
-            (select count(*) from character_reviews r where r.character_id = c.id and r.updated_at >= $2 and r.updated_at < $3)::int as n,
-            (select count(*) from character_ratings g where g.character_id = c.id)::int as likes
+            coalesce((select sum(stars) from character_reviews r where r.character_id = c.id and r.updated_at >= $2 and r.updated_at < $3 and not ${isHouseBotSql("r.reviewer_id")}), 0)::int as total,
+            (select count(*) from character_reviews r where r.character_id = c.id and r.updated_at >= $2 and r.updated_at < $3 and not ${isHouseBotSql("r.reviewer_id")})::int as n,
+            (select count(*) from character_ratings g where g.character_id = c.id and not ${isHouseBotSql("g.rater_id")})::int as likes
        from unnest($1::text[]) as c(id)`,
     [ids, from.toISOString(), to.toISOString()],
   );

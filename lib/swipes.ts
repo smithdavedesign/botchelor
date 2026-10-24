@@ -21,7 +21,7 @@ import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { factLine, PROFILE_PROMPTS, profileComplete, profileMissing } from "./extras";
 import { inlineGenerationEnabled } from "./jobs";
-import { isHouseBotAgent } from "./house-bots";
+import { capHouseBots, houseBotCharacterIds, isHouseBotAgent } from "./house-bots";
 import { archetypeLabel, drawnToBoost, goalLabel, kindLabel, kindName } from "./kinds";
 import { getModel, type ChatMessage, type Model } from "./model";
 import { shortName } from "./names";
@@ -199,7 +199,9 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
     if (drawnToBoost(drawnTo, kind)) m.why.push(`${shortName(mine.name)} is drawn to ${kindName(kind!, "many").toLowerCase()}`);
   }
   ranked.sort((a, b) => b.score + boost(b.id) - (a.score + boost(a.id)));
-  const dealt = ranked.slice(0, Math.max(1, Math.min(30, limit)));
+  // The house crowd (lib/house-bots.ts) fills in around everyone else: at most a third of a page.
+  const bots = opts.only ? new Set<string>() : await houseBotCharacterIds(db, ranked.map((m) => m.id));
+  const dealt = capHouseBots(ranked, bots, Math.max(1, Math.min(30, limit)));
   return {
     ok: true,
     for: { id: mine.id, name: mine.name },
