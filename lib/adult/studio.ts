@@ -12,6 +12,15 @@
  *    like a baseline, which "Use this face" can make the face, and "Save to their look" writes to the character.
  *  - **Recast:** new baselines drawn from their look by a text-to-image model.
  *  - **Body reference:** a full-body picture of them alone, which shoots add after the face.
+ *  - **Pair shoot (v2):** the character with someone else in their After Dark, from the picture menu's acts, outfits and
+ *    framings (lib/adult/pictures-menu.ts), held to the pair's own limits within the Studio's highest level, never to how
+ *    far their night has gone: a shoot is staged, not a moment of the night.
+ *  - **More like this, Upscale (v2):** pictures like one of theirs (it goes in after the face and body), or one made larger
+ *    on Venice's upscaler, each checked and kept like any other.
+ *  - **Their own key (v2):** any job on the Venice or Replicate key they connected (Connections, After Dark pictures):
+ *    `prices.own_key` tokens, their key's month and cap, our check still on every picture.
+ *  - **Setups, Animate (v3):** a shoot's choices saved under a name and run on any of their characters; a picture of one
+ *    of them made a 5 or 10 s clip on After Dark's video model, queued and collected as the page polls, checked by Hive.
  *  - **Price and caps:** a shoot's tokens are taken first (admins free), given back whole when nothing came through; one
  *    free redo for a shoot the viewer 👎'd whole; monthly caps per person (lib/adult/usage.ts).
  *  - **The check:** every picture passes the output check before it's kept (lib/adult/check.ts), as everywhere.
@@ -21,29 +30,61 @@ import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allo
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { LOOK_DETAILS, LOOK_STEPS, hairWords, looksAppearance, looksPictureWords, normaliseLooks, optionPrompt, optionsFor, type Gender, type Looks } from "../looks";
-import { keepBytes } from "../object-store";
+import { dataColumn, keepBytes, readBytes } from "../object-store";
+import { pairKey } from "../relationships";
 import { checkAdultText } from "../safety";
-import { crossesTaboo } from "./acts";
+import { actById, actMenu, crossesTaboo, FRAMINGS, type Framing, type MediaLimits, type MenuAct } from "./acts";
+import { nudeSql } from "./attire";
 import { eligibleIds } from "./characters";
+import { mediaLimits } from "./clips";
 import type { CheckResult } from "./check";
 import { isPublicPlace } from "./continuity";
-import { HivePausedError, hivePausedErrorMessage } from "./hive-limit";
+import { HivePausedError, hivePausedErrorMessage, hivePausedUntil } from "./hive-limit";
 import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { HARD_NO_IDS, INTENSITIES, type Intensity } from "./limits";
-import { baselinePrompt, ensureBaseline, listMedia, NEGATIVE_PROMPT, physicalLook, replicatePictureInput, signedMediaUrl, venicePicture, type Media } from "./media";
+import { baselinePrompt, ensureBaseline, listMedia, mediaByIds, NEGATIVE_PROMPT, physicalLook, replicatePictureInput, signedMediaUrl, venicePicture, type Media } from "./media";
 import { PICTURE_PRESETS, type PresetId } from "./rating-tags";
-import { drawKeyframe, replicateKeyframeInput, replicateSetImage, setPictures } from "./reels";
+import { FRAMING_LABEL, OUTFITS, picturePlaces, planPicture } from "./pictures-menu";
+import {
+  baselines,
+  busyMessage,
+  busyReel,
+  drawKeyframe,
+  NUDE_FROM,
+  nudeBaselines,
+  queueVideo,
+  reelCast,
+  reelNight,
+  releaseVideo,
+  replicateKeyframeInput,
+  replicateSetImage,
+  retrieveVideo,
+  setPictures,
+  veniceUpscale,
+} from "./reels";
+import { eligiblePair } from "./scenes";
+import { sharePartners, sharesOf, type OutgoingShare, type SharePartner } from "./shares";
+import { STAGES } from "./stages";
 import { runModel } from "./replicate";
 import { adultKeys, getAdultSettings } from "./settings";
 import { choosePreset, faceReferenceId, NO_STEERING, steeringFor, withSteering } from "./steering";
 import {
+  ANIMATE_MOTIONS,
+  ANIMATE_SECONDS,
+  animatePrompt,
   bodyPrompt,
+  groupById,
   LEVEL_FOR_INTENSITY,
+  LEVEL_LABEL,
+  optionById,
   planShoot,
   restylePrompt,
   shootPrompt,
   STRENGTHS,
   studioMenu,
+  VARIATION_HINTS,
+  variationPrompt,
+  type AnimateSeconds,
   type Level,
   type Noun,
   type ShootChoices,
@@ -52,7 +93,8 @@ import {
   type Subject,
 } from "./studio-catalog";
 import type { StudioConfig, StudioModel } from "./studio-config";
-import { countUse, usageLeft } from "./usage";
+import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
+import { countUse, overCap, usageLeft } from "./usage";
 
 /* ------------------------------------------------- who may ------------------------------------------------- */
 
@@ -156,7 +198,7 @@ async function drawOne(db: Db, m: StudioModel, keys: Keys, prompt: string, image
 
 /* --------------------------------------------------- jobs --------------------------------------------------- */
 
-export type ShootKind = "shoot" | "restyle" | "recast" | "body";
+export type ShootKind = "shoot" | "restyle" | "recast" | "body" | "pair" | "variations" | "upscale" | "animate";
 export type Shoot = {
   id: string;
   kind: ShootKind;
@@ -197,6 +239,14 @@ type JobSpec = {
   choices: unknown;
   place: string | null;
   redoOf?: string | null;
+  /** A picture of the two of them (an eligible pair, lib/adult/scenes.ts): the other one. */
+  partner?: string | null;
+  /** On the viewer's own Venice or Replicate key (Connections' After Dark pictures job), not ours. */
+  ownKey?: boolean;
+  /** What the pictures count against: Studio pictures (the default), or upscales. */
+  cap?: "studio" | "upscales";
+  /** Draws each picture itself instead of the model (an upscale). */
+  draw?: (keys: Keys, p: { prompt: string }) => Promise<{ bytes: Buffer; mime: string }>;
 };
 
 const shootRow = (r: {
@@ -213,14 +263,30 @@ const shootRow = (r: {
  */
 async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok: true }>, spec: JobSpec): Promise<JobResult> {
   const c = access.character;
-  const keys = await adultKeys(db);
+  const house = await adultKeys(db);
   if (!(await checkReady(db))) return fail(409, "not_set_up", "Pictures need a checker in After Dark's settings (every picture is checked before it's kept).");
-  if (spec.model.provider === "venice" ? !keys.venice : !keys.replicate) {
+  // Their own key (Connections, After Dark pictures): its provider must be the model's, and it must be usable this month.
+  let keys: Keys = { venice: house.venice, replicate: house.replicate, hive: house.hive };
+  let own: { provider: string } | null = null;
+  if (spec.ownKey) {
+    const usable = await jobUsability(db, viewer, "after_dark");
+    if (usable.state === "none") return fail(409, "no_own_key", "Connect a Venice or Replicate key under Connections (After Dark pictures) first.");
+    if (usable.state !== "ok") return fail(409, "own_key_paused", usable.message);
+    const jk = await jobKey(db, viewer, "after_dark");
+    if (!jk) return fail(409, "no_own_key", "Connect a Venice or Replicate key under Connections (After Dark pictures) first.");
+    if (!access.config.own_keys[jk.provider as "venice" | "replicate"]) return fail(403, "own_key_off", "Own keys for that provider are switched off in the settings.");
+    if (jk.provider !== spec.model.provider) return fail(422, "wrong_model", `${spec.model.label} doesn't run on your ${jk.provider === "venice" ? "Venice" : "Replicate"} key: pick one of its models.`);
+    keys = { venice: jk.provider === "venice" ? jk.apiKey : null, replicate: jk.provider === "replicate" ? jk.apiKey : null, hive: house.hive };
+    own = { provider: jk.provider };
+  } else if (spec.model.provider === "venice" ? !keys.venice : !keys.replicate) {
     return fail(409, "not_set_up", `${spec.model.label} needs the ${spec.model.provider === "venice" ? "Venice" : "Replicate"} key in After Dark's settings.`);
   }
   const asked = spec.prompts.length;
-  const left = await usageLeft(db, viewer, "studio");
-  if (left !== null && left < asked) return fail(429, "over_cap", `That's ${asked} pictures and ${left} are left this month. They reset on the 1st.`);
+  // A picture of two is kept under the pair's order, as every picture of a pair is (lib/relationships.ts pairKey).
+  const [first, second] = spec.partner ? pairKey(c.id, spec.partner) : [c.id, null];
+  const capKind = spec.cap ?? (own ? "studio_byok" : "studio");
+  const left = await usageLeft(db, viewer, capKind);
+  if (left !== null && left < asked) return fail(429, "over_cap", `That's ${asked} and ${left} are left this month. They reset on the 1st.`);
   const gate = await mediaGate(db);
   if (!gate.ok) return fail(503, "hive_paused", gate.message);
   const pays = spec.tokens > 0 && !access.admin;
@@ -229,16 +295,21 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
   }
   const id = crypto.randomUUID();
   await db.query(
-    `insert into adult_studio_shoots (id, owner_id, character_id, kind, choices, model, provider, own_key, tokens, asked, status, redo_of)
-     values ($1, $2, $3, $4, $5::jsonb, $6, $7, false, $8, $9, 'making', $10)`,
-    [id, viewer, c.id, spec.kind, JSON.stringify(spec.choices ?? {}), spec.model.id, spec.model.provider, pays ? spec.tokens : 0, asked, spec.redoOf ?? null],
+    `insert into adult_studio_shoots (id, owner_id, character_id, partner_id, kind, choices, model, provider, own_key, tokens, asked, status, redo_of)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, 'making', $12)`,
+    [id, viewer, c.id, spec.partner ?? null, spec.kind, JSON.stringify(spec.choices ?? {}), spec.model.id, spec.model.provider, Boolean(own), pays ? spec.tokens : 0, asked, spec.redoOf ?? null],
   );
   // Every picture at once (each a minute or so), then checked one at a time.
   const drawn = await Promise.all(
     spec.prompts.map((p) =>
-      drawOne(db, spec.model, keys, p.prompt, spec.images, spec.negative).then(
+      (spec.draw ? spec.draw(keys, p) : drawOne(db, spec.model, keys, p.prompt, spec.images, spec.negative)).then(
         (file) => ({ file, p }),
-        (err: unknown) => ({ error: err instanceof Error ? err.message.slice(0, 200) : "error" }),
+        (err: unknown) => {
+          // A refusal of their own key (invalid, out of credit) goes on its Connections card, as a portrait's does.
+          const status = (err as { status?: number })?.status;
+          if (own && status) void recordJobFailure(db, viewer, "after_dark", own.provider, `${err instanceof Error ? err.message : "error"} (HTTP ${status})`);
+          return { error: err instanceof Error ? err.message.slice(0, 200) : "error" };
+        },
       ),
     ),
   );
@@ -266,16 +337,19 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
     const store = await keepBytes("after-dark", pid, d.file.bytes, d.file.mime);
     await db.query(
       `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_place, shoot_id, nsfw_score)
-       values ($1, $2, $3, null, $4, $5, $6, $7, $8, 'ready', $9, false, $10, $11, $12, $13, $14)`,
-      [pid, viewer, c.id, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, id, verdict.nsfw ?? null],
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ready', $10, false, $11, $12, $13, $14, $15)`,
+      [pid, viewer, first, second, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, id, verdict.nsfw ?? null],
     );
-    await countUse(db, viewer, "studio");
+    await countUse(db, viewer, capKind);
     kept.push({
-      id: pid, character_id: c.id, character_b: null, kind: spec.pictureKind, status: "ready", created_at: new Date().toISOString(), mime: d.file.mime, clip: false,
+      id: pid, character_id: first, character_b: second, kind: spec.pictureKind, status: "ready", created_at: new Date().toISOString(), mime: d.file.mime, clip: false,
       place: spec.place, provider: spec.model.provider, fell_back: false, note: null, preset: d.p.preset, rating: null, tags: [], face: false,
     });
   }
   const made = kept.length;
+  // On their own key, what the provider billed them: every picture it drew, kept or not (the job's monthly cap).
+  const drawnCount = drawn.filter((d) => !("error" in d)).length;
+  if (own && drawnCount) await recordJobSpend(db, viewer, "after_dark", own.provider, Math.round(spec.model.usd * drawnCount * 10000) / 10000);
   const status: Shoot["status"] = made === 0 ? "failed" : made < asked ? "partial" : "ready";
   const refunded = made === 0 && pays;
   if (refunded) await refundBoughtTokens(db, viewer, spec.tokens);
@@ -314,7 +388,7 @@ const wordsOk = (words: string): boolean => checkAdultText({ words }).ok && !cro
 
 /* --------------------------------------------------- a shoot --------------------------------------------------- */
 
-export type ShootInput = { choices: ShootChoices; model?: string | null };
+export type ShootInput = { choices: ShootChoices; model?: string | null; own_key?: boolean };
 
 /** The places of the character's nights (the viewer's, with a drawn set), for the place menu: "own:<n>". */
 export async function ownPlaces(db: Db, viewer: string, characterId: string): Promise<{ id: string; label: string; public: boolean }[]> {
@@ -356,10 +430,11 @@ export async function shoot(db: Db, viewer: string, characterId: string, input: 
   }
   const face = await faceLink(db, viewer, c, baseUrl);
   if (typeof face !== "string") return face;
-  // Picture 1 the face, Picture 2 their body reference (when they have one and the model takes it), then the place's set.
+  // Picture 1 the face, Picture 2 their body reference (when they have one, the model takes it, and the face isn't held
+  // loosely: loose is the face alone), then the place's set.
   const images = [face];
   const refs = { body: false, set: false };
-  if (identity.body && model.max_images >= 2) {
+  if (identity.body && identity.strength !== "loose" && model.max_images >= 2) {
     images.push(signedMediaUrl(identity.body, baseUrl));
     refs.body = true;
   }
@@ -377,10 +452,11 @@ export async function shoot(db: Db, viewer: string, characterId: string, input: 
     images,
     negative: [NEGATIVE_PROMPT, ...steer.negative].join(", "),
     model,
-    tokens: opts.free ? 0 : config.prices.shoot[model.tier],
+    tokens: opts.free ? 0 : input.own_key ? config.prices.own_key : config.prices.shoot[model.tier],
     choices: { ...input.choices, level: plan.level },
     place: plan.place,
     redoOf: opts.redoOf ?? null,
+    ownKey: input.own_key === true,
   });
 }
 
@@ -454,7 +530,7 @@ export function restyleWords(gender: Gender | null, changes: RestyleChanges): { 
   return kept.length ? { ok: true, words: kept } : { ok: false, message: "Pick at least one thing to change." };
 }
 
-export async function restyle(db: Db, viewer: string, characterId: string, input: { changes: RestyleChanges; model?: string | null }, baseUrl: string): Promise<JobResult> {
+export async function restyle(db: Db, viewer: string, characterId: string, input: { changes: RestyleChanges; model?: string | null; own_key?: boolean }, baseUrl: string): Promise<JobResult> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config } = access;
@@ -472,7 +548,8 @@ export async function restyle(db: Db, viewer: string, characterId: string, input
     return { prompt: restylePrompt(subject, w.words, p.light), preset: p.id };
   });
   return runJob(db, viewer, access, {
-    kind: "restyle", pictureKind: "baseline", prompts, images: [face], negative: NEGATIVE_PROMPT, model, tokens: config.prices.restyle, choices: { changes: input.changes }, place: null,
+    kind: "restyle", pictureKind: "baseline", prompts, images: [face], negative: NEGATIVE_PROMPT, model, tokens: input.own_key ? config.prices.own_key : config.prices.restyle,
+    choices: { changes: input.changes }, place: null, ownKey: input.own_key === true,
   });
 }
 
@@ -511,7 +588,7 @@ export async function saveRestyleLooks(db: Db, viewer: string, characterId: stri
 
 /* -------------------------------------------------- recast -------------------------------------------------- */
 
-export async function recast(db: Db, viewer: string, characterId: string, input: { model?: string | null }): Promise<JobResult> {
+export async function recast(db: Db, viewer: string, characterId: string, input: { model?: string | null; own_key?: boolean }): Promise<JobResult> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config } = access;
@@ -523,13 +600,14 @@ export async function recast(db: Db, viewer: string, characterId: string, input:
     return { prompt: withSteering(baselinePrompt(c, viewer, p.light), steer, null), preset: p.id };
   });
   return runJob(db, viewer, access, {
-    kind: "recast", pictureKind: "baseline", prompts, images: [], negative: [NEGATIVE_PROMPT, ...steer.negative].join(", "), model, tokens: config.prices.recast, choices: {}, place: null,
+    kind: "recast", pictureKind: "baseline", prompts, images: [], negative: [NEGATIVE_PROMPT, ...steer.negative].join(", "), model,
+    tokens: input.own_key ? config.prices.own_key : config.prices.recast, choices: {}, place: null, ownKey: input.own_key === true,
   });
 }
 
 /* ----------------------------------------------- body reference ----------------------------------------------- */
 
-export async function bodyShoot(db: Db, viewer: string, characterId: string, input: { nude?: boolean; model?: string | null }, baseUrl: string): Promise<JobResult> {
+export async function bodyShoot(db: Db, viewer: string, characterId: string, input: { nude?: boolean; model?: string | null; own_key?: boolean }, baseUrl: string): Promise<JobResult> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config } = access;
@@ -544,7 +622,7 @@ export async function bodyShoot(db: Db, viewer: string, characterId: string, inp
   if (!wordsOk(subjectOf(c, viewer, nude).look)) return fail(422, "not_allowed", "Their look crosses one of the lines After Dark never crosses.");
   return runJob(db, viewer, access, {
     kind: "body", pictureKind: "scene", prompts: Array.from({ length: config.body_candidates }, () => ({ prompt, preset: null })), images: [face], negative: NEGATIVE_PROMPT,
-    model, tokens: config.prices.body, choices: { nude }, place: null,
+    model, tokens: input.own_key ? config.prices.own_key : config.prices.body, choices: { nude }, place: null, ownKey: input.own_key === true,
   });
 }
 
@@ -587,6 +665,409 @@ export async function setStrength(db: Db, viewer: string, characterId: string, s
   return { ok: true, identity: await identityOf(db, viewer, characterId) };
 }
 
+/* ------------------------------------------------- a pair shoot ------------------------------------------------- */
+
+const KISSING = STAGES.indexOf("kissing");
+const UNDRESSING = STAGES.indexOf("undressing");
+const LAST_STAGE = STAGES.length - 1;
+/** How far a pair shoot may go at each of the Studio's levels (`max_level`): dressed to kissing, suggestive to undressing. */
+const STAGE_FOR_LEVEL: Record<Level, number> = { 0: KISSING, 1: UNDRESSING, 2: LAST_STAGE, 3: LAST_STAGE };
+
+/**
+ * A pair shoot's limits: the pair's own (their intensity and hard nos, set on the pair page) within the Studio's highest
+ * level, explicit only at its top. Never how far their night has gone: a shoot is staged (the pair page's menu is the night).
+ */
+async function pairLimits(db: Db, viewer: string, pair: [string, string], config: StudioConfig): Promise<MediaLimits> {
+  const own = await mediaLimits(db, viewer, ...pair);
+  const level = config.max_level as Level;
+  return { ...own, maxStage: Math.min(own.maxStage, STAGE_FOR_LEVEL[level]), explicit: own.explicit && level >= 3 };
+}
+
+/** Where a pair shoot can be: the places their night has been (with its drawn set), then the Studio's own. */
+async function pairPlaces(db: Db, viewer: string, pair: [string, string]): Promise<{ id: string; label: string; place: string; public: boolean }[]> {
+  const night = await reelNight(db, viewer, ...pair).catch(() => null);
+  const theirs = night ? picturePlaces(night.where).map((p, i) => ({ id: `night:${i}`, label: `${p.place} (theirs)`, place: p.place, public: p.public })) : [];
+  return [...theirs, ...groupById("place").options.map((o) => ({ id: o.id, label: o.label, place: o.words, public: Boolean(o.public) }))];
+}
+
+/** Who can be in a pair shoot with the character: everyone else in the viewer's After Dark. */
+async function pairPartners(db: Db, viewer: string, characterId: string): Promise<{ id: string; name: string }[]> {
+  const ids = [...(await eligibleIds(db, viewer))].filter((id) => id !== characterId);
+  if (!ids.length) return [];
+  return (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1) order by name`, [ids])).rows;
+}
+
+async function pairOf(db: Db, viewer: string, characterId: string, partnerId: string): Promise<{ pair: [string, string]; cast: ReturnType<typeof reelCast>; people: [Character, Character] } | null> {
+  const pair = await eligiblePair(db, viewer, characterId, partnerId);
+  if (!pair) return null;
+  const [ca, cb] = await Promise.all([loadCharacter(db, pair[0]), loadCharacter(db, pair[1])]);
+  return ca && cb ? { pair, cast: reelCast(ca, cb, viewer), people: [ca, cb] } : null;
+}
+
+/** A pair shoot's menu for one partner: the acts and outfits the limits allow, the framings, places and lights, the price. */
+export type PairMenu = {
+  partner: { id: string; name: string };
+  acts: (MenuAct & { outfits: readonly string[] })[];
+  outfits: { id: string; label: string; private: boolean }[];
+  framings: { id: Framing; label: string }[];
+  places: { id: string; label: string; public: boolean }[];
+  lights: { id: string; label: string }[];
+  price: StudioConfig["prices"]["pair"];
+};
+
+export async function pairMenu(db: Db, viewer: string, characterId: string, partnerId: string): Promise<{ ok: true; menu: PairMenu } | StudioFail> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const p = await pairOf(db, viewer, characterId, partnerId);
+  if (!p) return fail(404, "not_found", "Pick someone in their After Dark.");
+  const limits = await pairLimits(db, viewer, p.pair, access.config);
+  const outfitOk = (o: (typeof OUTFITS)[number]) => o.minStage <= limits.maxStage && limits.hit(o.words) === null;
+  const partner = p.people.find((x) => x.id !== characterId)!;
+  return {
+    ok: true,
+    menu: {
+      partner: { id: partner.id, name: partner.name },
+      acts: actMenu({ stage: limits.maxStage, publicPlace: false }, p.cast, [p.people[0].name, p.people[1].name], limits).map((a) => ({
+        ...a,
+        outfits: actById(a.id)!.outfits.filter((id) => OUTFITS.some((o) => o.id === id && outfitOk(o))),
+      })),
+      outfits: OUTFITS.filter(outfitOk).map((o) => ({ id: o.id, label: o.label, private: o.dress >= UNDRESSING })),
+      framings: FRAMINGS.map((id) => ({ id, label: FRAMING_LABEL[id] })),
+      places: (await pairPlaces(db, viewer, p.pair)).map(({ id, label, public: pub }) => ({ id, label, public: pub })),
+      lights: groupById("light").options.map((o) => ({ id: o.id, label: o.label })),
+      price: access.config.prices.pair,
+    },
+  };
+}
+
+/** What a pair shoot asks for: the partner, the act (who leads swapped, or not), what they wear, the framing, place and light. */
+export type PairInput = { partner: string; act: string; swap?: boolean; outfit: string; framing: Framing; place: string; light?: string | null; model?: string | null; own_key?: boolean };
+
+/**
+ * A pair shoot: `shoot_size` pictures of the two of them, from their two faces (the nude ones from sex on, as the night's
+ * pictures do) and the place's drawn set, planned by the picture menu's rules (lib/adult/pictures-menu.ts planPicture).
+ */
+export async function pairShoot(db: Db, viewer: string, characterId: string, input: PairInput, baseUrl: string): Promise<JobResult> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const { config } = access;
+  const model = studioModel(config, "edit", input.model);
+  if (!model) return fail(422, "unknown_model", "Pick one of the Studio's edit models.");
+  if (model.max_images < 2) return fail(422, "wrong_model", `${model.label} takes one picture, and a picture of two needs both faces.`);
+  const p = await pairOf(db, viewer, characterId, input.partner);
+  if (!p) return fail(404, "not_found", "Pick someone in their After Dark.");
+  const limits = await pairLimits(db, viewer, p.pair, config);
+  const places = await pairPlaces(db, viewer, p.pair);
+  const where = places.find((x) => x.id === input.place);
+  if (!where) return fail(422, "unknown_place", "Pick one of the places.");
+  const light = input.light ? optionById("light", input.light) : null;
+  if (input.light && !light) return fail(422, "unknown_option", "That light isn't on the menu.");
+  const planned = planPicture(
+    { act: input.act, swap: input.swap === true, outfit: input.outfit, framing: input.framing, place: where.place },
+    { cast: p.cast, stage: limits.maxStage, places: places.map((x) => ({ place: x.place, now: false, public: x.public, home: null })), limits, light: light?.words },
+  );
+  if (!planned.ok) return fail(planned.status, planned.error, planned.message);
+  const { plan } = planned;
+  const [ca, cb] = p.people;
+  let bases: [string, string] | null;
+  try {
+    for (const x of p.people) await ensureBaseline(db, viewer, x);
+    // From sex on, their nude faces: an edit keeps what the pictures it starts from wear (lib/adult/attire.ts).
+    bases = (plan.stage >= NUDE_FROM ? await nudeBaselines(db, viewer, ca, cb) : null) ?? (await baselines(db, ca.id, cb.id, viewer));
+  } catch (err) {
+    return fail(err instanceof HivePausedError ? 503 : 502, "no_face", `A first picture of each of them couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).`);
+  }
+  if (!bases) return fail(409, "no_face", "A picture of each of them is needed first.");
+  const images = bases.map((id) => signedMediaUrl(id, baseUrl));
+  const set = (await setPictures(db, [plan.place])).get(plan.place) ?? null;
+  const withSet = Boolean(set) && model.max_images >= 3;
+  if (set && withSet) images.push(model.provider === "replicate" ? replicateSetImage(set, plan.place, baseUrl) : set);
+  const prompt = plan.promptFor(withSet);
+  const preset = PICTURE_PRESETS.find((x) => x.id === input.light)?.id ?? null;
+  return runJob(db, viewer, access, {
+    kind: "pair",
+    pictureKind: "scene",
+    prompts: Array.from({ length: config.shoot_size }, () => ({ prompt, preset })),
+    images,
+    negative: NEGATIVE_PROMPT,
+    model,
+    tokens: input.own_key ? config.prices.own_key : config.prices.pair[model.tier],
+    choices: { partner: input.partner, act: input.act, swap: input.swap === true, outfit: input.outfit, framing: input.framing, place: input.place, light: input.light ?? null, stage: plan.stage },
+    place: plan.place,
+    partner: input.partner,
+    ownKey: input.own_key === true,
+  });
+}
+
+/* ------------------------------------------- more like this, upscale ------------------------------------------- */
+
+type Solo = { id: string; kind: string; preset: PresetId | null; place: string | null; mime: string; level: Level; data: Buffer | Uint8Array | null; object_key: string | null };
+
+/**
+ * One of the viewer's ready pictures of the character alone, with its level: the Studio shoot's it came from, or (from
+ * anywhere else) nude for a nude baseline or a nude body reference, else dressed.
+ */
+async function soloPicture(db: Db, viewer: string, characterId: string, imageId: string): Promise<Solo | null> {
+  const r = (
+    await db.query<Omit<Solo, "level"> & { shoot_level: number | null; nude: boolean }>(
+      `select i.id, i.kind, i.preset, i.scene_place as place, i.mime, ${dataColumn("i")}, i.object_key,
+              (select (s.choices->>'level')::int from adult_studio_shoots s where s.id = i.shoot_id and s.kind in ('shoot', 'variations', 'upscale')) as shoot_level,
+              ((i.kind = 'baseline' and ${nudeSql("i")})
+                or exists (select 1 from adult_studio_shoots s where s.id = i.shoot_id and s.kind = 'body' and (s.choices->>'nude')::boolean)) as nude
+         from adult_images i
+        where i.id = $1 and i.character_id = $2 and i.character_b is null and i.kind in ('scene', 'baseline') and i.status = 'ready'
+          and (i.owner_id = $3 or exists (select 1 from admins a where a.user_id = $3))`,
+      [imageId, characterId, viewer],
+    )
+  ).rows[0];
+  if (!r) return null;
+  const { shoot_level, nude, ...rest } = r;
+  const level = (shoot_level !== null && shoot_level >= 0 && shoot_level <= 3 ? shoot_level : nude ? 2 : 0) as Level;
+  return { ...rest, preset: PICTURE_PRESETS.find((x) => x.id === r.preset)?.id ?? null, level };
+}
+
+/** "More like this": `shoot_size` pictures like one of theirs of the character alone, after the face and body. */
+export async function moreLikeThis(db: Db, viewer: string, characterId: string, input: { image_id: string; model?: string | null; own_key?: boolean }, baseUrl: string): Promise<JobResult> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const { character: c, config } = access;
+  const model = studioModel(config, "edit", input.model);
+  if (!model) return fail(422, "unknown_model", "Pick one of the Studio's edit models.");
+  if (model.max_images < 2) return fail(422, "wrong_model", `${model.label} takes one picture: pick one that takes the face and the picture it's like.`);
+  const src = await soloPicture(db, viewer, c.id, input.image_id);
+  if (!src) return fail(404, "not_found", "Pick one of your pictures of them alone.");
+  const identity = await identityOf(db, viewer, c.id);
+  const { maxLevel } = shootLimits(identity, config);
+  if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel].toLowerCase()}: their studio limit.`);
+  const face = await faceLink(db, viewer, c, baseUrl);
+  if (typeof face !== "string") return face;
+  const images = [face];
+  const body = Boolean(identity.body) && identity.strength !== "loose" && identity.body !== src.id && model.max_images >= 3;
+  if (body) images.push(signedMediaUrl(identity.body!, baseUrl));
+  images.push(signedMediaUrl(src.id, baseUrl));
+  const subject = subjectOf(c, viewer, src.level >= 2);
+  const prompts = Array.from({ length: config.shoot_size }, (_, i) => ({ prompt: variationPrompt(subject, src.level, { body }, VARIATION_HINTS[i % VARIATION_HINTS.length], identity.strength), preset: src.preset }));
+  return runJob(db, viewer, access, {
+    kind: "variations",
+    pictureKind: "scene",
+    prompts,
+    images,
+    negative: NEGATIVE_PROMPT,
+    model,
+    tokens: input.own_key ? config.prices.own_key : config.prices.variations,
+    choices: { source: src.id, level: src.level },
+    place: src.place,
+    ownKey: input.own_key === true,
+  });
+}
+
+/** Upscale: one of their pictures of the character alone made larger on Venice's upscaler, checked and kept beside it. */
+export async function upscalePicture(db: Db, viewer: string, characterId: string, input: { image_id: string; own_key?: boolean }): Promise<JobResult> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const { character: c, config } = access;
+  const src = await soloPicture(db, viewer, c.id, input.image_id);
+  if (!src) return fail(404, "not_found", "Pick one of your pictures of them alone.");
+  const bytes = await readBytes(src);
+  if (!bytes) return fail(404, "not_found", "That picture's file is missing.");
+  const model: StudioModel = { id: "upscale", provider: "venice", job: "edit", tier: "standard", label: "Venice's upscaler", runner: "venice", max_images: 1, note: "", usd: config.upscale.usd };
+  return runJob(db, viewer, access, {
+    kind: "upscale",
+    pictureKind: "scene",
+    prompts: [{ prompt: `Picture ${src.id}, upscaled ${config.upscale.scale}x`, preset: src.preset }],
+    images: [],
+    negative: "",
+    model,
+    tokens: input.own_key ? config.prices.own_key : config.prices.upscale,
+    choices: { source: src.id, level: src.level, scale: config.upscale.scale },
+    place: src.place,
+    ownKey: input.own_key === true,
+    cap: "upscales",
+    draw: (keys) => {
+      if (!keys.venice) throw new Error("No Venice key for the upscaler.");
+      return veniceUpscale(keys.venice, bytes, config.upscale.scale);
+    },
+  });
+}
+
+/* ------------------------------------------------- saved setups ------------------------------------------------- */
+
+/** A shoot's choices saved under a name (v3), run again on any of the owner's characters. */
+export type Setup = { id: string; name: string; kind: "shoot" | "pair"; choices: Record<string, unknown>; model: string | null; created_at: string };
+const SETUPS_MAX = 30;
+
+export async function listSetups(db: Db, viewer: string): Promise<Setup[]> {
+  const { rows } = await db.query<Omit<Setup, "created_at"> & { created_at: string | Date }>(
+    `select id, name, kind, choices, model, created_at from adult_studio_setups where owner_id = $1 order by name limit ${SETUPS_MAX}`,
+    [viewer],
+  );
+  return rows.map((r) => ({ ...r, choices: r.choices ?? {}, created_at: new Date(r.created_at).toISOString() }));
+}
+
+/**
+ * Saves (or replaces, by name) a setup. A place of one character's own (their nights' places) isn't kept: it's theirs,
+ * and the setup runs on any of the owner's characters. The choices are checked again when it runs.
+ */
+export async function saveSetup(
+  db: Db,
+  viewer: string,
+  characterId: string,
+  input: { name: string; kind: "shoot" | "pair"; choices: Record<string, unknown>; model?: string | null },
+): Promise<{ ok: true; setup: Setup } | StudioFail> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const name = input.name.trim().replace(/\s+/g, " ");
+  if (!name || name.length > 40) return fail(422, "invalid", "A name of up to 40 characters.");
+  if (!checkAdultText({ name }).ok || crossesTaboo(name)) return fail(422, "not_allowed", "Pick another name.");
+  const choices: Record<string, unknown> = { ...input.choices };
+  if (typeof choices.place === "string" && /^(own|night):/.test(choices.place)) delete choices.place;
+  delete choices.partner;
+  const model = input.model && access.config.models.some((m) => m.id === input.model) ? input.model : null;
+  const n = (await db.query<{ n: number; mine: boolean }>(`select count(*)::int as n, bool_or(name = $2) as mine from adult_studio_setups where owner_id = $1`, [viewer, name])).rows[0];
+  if (n && n.n >= SETUPS_MAX && !n.mine) return fail(409, "too_many", `Up to ${SETUPS_MAX} setups: delete one first.`);
+  const row = (
+    await db.query<Omit<Setup, "created_at"> & { created_at: string | Date }>(
+      `insert into adult_studio_setups (id, owner_id, name, kind, choices, model) values ($1, $2, $3, $4, $5::jsonb, $6)
+       on conflict (owner_id, name) do update set kind = excluded.kind, choices = excluded.choices, model = excluded.model, updated_at = now()
+       returning id, name, kind, choices, model, created_at`,
+      [crypto.randomUUID(), viewer, name, input.kind, JSON.stringify(choices), model],
+    )
+  ).rows[0];
+  return { ok: true, setup: { ...row, created_at: new Date(row.created_at).toISOString() } };
+}
+
+export async function deleteSetup(db: Db, viewer: string, id: string): Promise<boolean> {
+  return (await db.query(`delete from adult_studio_setups where id = $1 and owner_id = $2 returning id`, [id, viewer])).rows.length > 0;
+}
+
+/* ---------------------------------------------------- animate ---------------------------------------------------- */
+
+/** On every Studio clip: away from anyone young-looking, and from what breaks a shot of one (a second person, a cut). */
+const ANIMATE_NEGATIVE =
+  "child, teen, minor, young-looking, cartoon, anime, distorted face, extra limbs, text, watermark, " +
+  "a second person, extra people, a duplicate person, scene cut, scene change, morphing face";
+/** An animation not back after this long is given up, and its tokens come back. */
+const ANIMATE_GIVE_UP_MS = 60 * 60 * 1000;
+
+const animatingNow = async (db: Db, viewer: string): Promise<boolean> =>
+  (
+    await db.query(
+      `select 1 from adult_studio_shoots where owner_id = $1 and kind = 'animate' and status = 'making' and created_at > now() - ($2::int * interval '1 millisecond') limit 1`,
+      [viewer, ANIMATE_GIVE_UP_MS],
+    )
+  ).rows.length > 0;
+
+export type AnimateInput = { image_id: string; motion: string; seconds: number };
+
+/**
+ * Animate (v3): one of their pictures of the character alone becomes a clip on After Dark's video model (Wan 3.0 on
+ * Venice), from a motion chip, 5 or 10 seconds. Queued now and collected as the page polls (collectAnimations): the
+ * video is checked by Hive before it's kept, like every clip. One video at a time; the month's clips cap; the price
+ * `animate_5` or `animate_10`, given back when it doesn't come through.
+ */
+export async function animatePicture(db: Db, viewer: string, characterId: string, input: AnimateInput, baseUrl: string): Promise<JobResult> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const { character: c, config, admin } = access;
+  const motion = ANIMATE_MOTIONS.find((m) => m.id === input.motion);
+  if (!motion || config.disabled_options.includes(`motion.${motion.id}`)) return fail(422, "unknown_option", "Pick one of the motions.");
+  if (!(ANIMATE_SECONDS as readonly number[]).includes(input.seconds)) return fail(422, "invalid", "5 or 10 seconds.");
+  const seconds = input.seconds as AnimateSeconds;
+  const src = await soloPicture(db, viewer, c.id, input.image_id);
+  if (!src) return fail(404, "not_found", "Pick one of your pictures of them alone.");
+  const { maxLevel } = shootLimits(await identityOf(db, viewer, c.id), config);
+  if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel].toLowerCase()}: their studio limit.`);
+  const keys = await adultKeys(db);
+  if (!keys.venice) return fail(409, "not_set_up", "Animating needs the Venice key in After Dark's settings.");
+  // A video is checked by Hive alone (the alternatives read stills): none starts while it's out.
+  const gate = await mediaGate(db, { video: true });
+  if (!gate.ok) return fail(503, "hive_paused", gate.message);
+  // One video at a time (an animation, a clip or a night's reel): Hive rate-limits a burst.
+  if (await animatingNow(db, viewer)) return fail(409, "busy", "One is already being animated: it takes a few minutes.");
+  const busy = await busyReel(db, viewer);
+  if (busy) return fail(409, "busy", busyMessage(busy));
+  const capped = await overCap(db, viewer, "clips");
+  if (capped) return fail(429, "over_cap", capped);
+  const tokens = seconds === 10 ? config.prices.animate_10 : config.prices.animate_5;
+  const pays = tokens > 0 && !admin;
+  if (pays && !(await spendBoughtTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the shop page.`);
+  const model = config.animate.model ?? (await getAdultSettings(db)).reel_model;
+  let queueId: string;
+  try {
+    const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion.words);
+    queueId = await queueVideo(keys.venice, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative: ANIMATE_NEGATIVE });
+  } catch (err) {
+    if (pays) await refundBoughtTokens(db, viewer, tokens);
+    return fail(502, "not_made", `It couldn't be animated (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${pays ? " Your tokens are back." : ""}`);
+  }
+  const row = (
+    await db.query<Parameters<typeof shootRow>[0]>(
+      `insert into adult_studio_shoots (id, owner_id, character_id, kind, choices, model, provider, tokens, asked, status)
+       values ($1, $2, $3, 'animate', $4::jsonb, $5, 'venice', $6, 1, 'making')
+       returning id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at`,
+      [crypto.randomUUID(), viewer, c.id, JSON.stringify({ source: src.id, motion: motion.id, seconds, queue_id: queueId, level: src.level }), model, pays ? tokens : 0],
+    )
+  ).rows[0];
+  return { ok: true, shoot: shootRow(row), pictures: [], refunded: false, message: `Animating: it takes a few minutes, and lands in the gallery.` };
+}
+
+/**
+ * The viewer's animations still being made, collected (the page asks as it polls, a few at a time): a finished video
+ * is checked by Hive and kept in the character's gallery, or discarded and logged; one not back in time is given up.
+ * Anything not kept gives its tokens back. While Hive is out for the day they wait at Venice, unchecked.
+ */
+export async function collectAnimations(db: Db, viewer: string): Promise<void> {
+  const { rows } = await db.query<{ id: string; character_id: string; model: string; tokens: number; choices: { source: string; motion: string; queue_id: string }; created_at: string | Date }>(
+    `select id, character_id, model, tokens, choices, created_at from adult_studio_shoots where owner_id = $1 and kind = 'animate' and status = 'making' order by created_at limit 3`,
+    [viewer],
+  );
+  if (!rows.length) return;
+  /** It didn't come through: failed, and its tokens back (only by the poll that settled it, so never twice). */
+  const failed = async (r: (typeof rows)[number], error: string) => {
+    const done = await db.query(`update adult_studio_shoots set status = 'failed', error = $2, tokens = 0, updated_at = now() where id = $1 and status = 'making' returning id`, [r.id, error.slice(0, 200)]);
+    if (done.rows.length && r.tokens > 0) await refundBoughtTokens(db, viewer, r.tokens);
+  };
+  const keys = await adultKeys(db);
+  if (await hivePausedUntil(db)) return;
+  for (const r of rows) {
+    if (Date.now() - new Date(r.created_at).getTime() > ANIMATE_GIVE_UP_MS) {
+      await failed(r, "gave up waiting");
+      continue;
+    }
+    if (!keys.venice) continue;
+    const got = await retrieveVideo(keys.venice, r.model, r.choices.queue_id);
+    if (got.state === "making") continue;
+    if (got.state === "failed") {
+      await failed(r, got.reason);
+      continue;
+    }
+    const verdict = await checkMedia(db, { base64: got.bytes.toString("base64"), mime: "video/mp4" }, "video");
+    // The check couldn't run: asked again on the next poll, and nothing more goes to Hive this one.
+    if (!verdict.ok && verdict.reason.startsWith("the check couldn't run")) break;
+    if (!verdict.ok) {
+      await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'studio', $3)`, [crypto.randomUUID(), viewer, `studio animate: ${verdict.reason}`.slice(0, 300)]).catch(() => {});
+      await failed(r, `the check discarded it (${verdict.reason.slice(0, 120)})`);
+      await releaseVideo(keys.venice, r.model, r.choices.queue_id);
+      continue;
+    }
+    // Claimed first: two polls at once never keep it twice.
+    const vid = crypto.randomUUID();
+    const claimed = await db.query(
+      `update adult_studio_shoots set status = 'ready', made = 1, pictures = $2::jsonb, error = null, updated_at = now() where id = $1 and status = 'making' returning id`,
+      [r.id, JSON.stringify([vid])],
+    );
+    if (!claimed.rows.length) continue;
+    const kept = await keepBytes("after-dark", vid, got.bytes, "video/mp4");
+    await db.query(
+      `insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, model, shoot_id)
+       values ($1, $2, $3, 'video', $4, 'video/mp4', $5, $6, 'ready', $7, 'venice', false, $8, $9)`,
+      [vid, viewer, r.character_id, `Studio clip: ${r.choices.motion}`, kept.data, kept.object_key, r.choices.source, r.model, r.id],
+    );
+    await countUse(db, viewer, "clips");
+    await releaseVideo(keys.venice, r.model, r.choices.queue_id);
+  }
+}
+
 /* ----------------------------------------------------- redo ----------------------------------------------------- */
 
 /** Whether a shoot can be redone free: the setting on, a shoot (not a restyle), every picture 👎'd by its owner, not redone. */
@@ -606,8 +1087,8 @@ async function redoable(db: Db, viewer: string, s: Shoot, config: StudioConfig):
 /** The free redo: the same choices and model, no tokens, steered by what the 👎s said was off. */
 export async function redoShoot(db: Db, viewer: string, shootId: string, baseUrl: string): Promise<JobResult> {
   const r = (
-    await db.query<Parameters<typeof shootRow>[0] & { character_id: string; choices: ShootChoices & { level?: number } }>(
-      `select id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at, character_id, choices from adult_studio_shoots where id = $1 and owner_id = $2`,
+    await db.query<Parameters<typeof shootRow>[0] & { character_id: string; choices: ShootChoices & { level?: number }; own_key: boolean }>(
+      `select id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at, character_id, choices, own_key from adult_studio_shoots where id = $1 and owner_id = $2`,
       [shootId, viewer],
     )
   ).rows[0];
@@ -616,7 +1097,7 @@ export async function redoShoot(db: Db, viewer: string, shootId: string, baseUrl
   if (!access.ok) return access;
   if (!(await redoable(db, viewer, shootRow(r), access.config))) return fail(409, "not_redoable", "A free redo is for a shoot whose every picture you 👎'd, once.");
   const { level: _level, ...choices } = r.choices ?? {};
-  return shoot(db, viewer, r.character_id, { choices, model: r.model }, baseUrl, { redoOf: r.id, free: true });
+  return shoot(db, viewer, r.character_id, { choices, model: r.model, own_key: r.own_key }, baseUrl, { redoOf: r.id, free: true });
 }
 
 /* ----------------------------------------------------- state ----------------------------------------------------- */
@@ -638,16 +1119,38 @@ export type StudioState = {
   gallery: Media[];
   /** Which pictures came from which shoot. */
   shoot_of: Record<string, string>;
+  /** Pair shoots (v2): everyone else in the viewer's After Dark, and the pictures of the pair shoots. */
+  partners: { id: string; name: string }[];
+  pair_gallery: Media[];
+  /** Sharing (v2): who the character's pictures can go to (their own characters only), the switches, and where each went. */
+  share_to: SharePartner[];
+  share: { photos: boolean; after_dark: boolean };
+  shares: Record<string, OutgoingShare[]>;
+  /**
+   * Their own key (v2, Connections' After Dark pictures): its provider, the model they picked there (the Studio's
+   * default on it), whether the settings allow it, and why it can't be used now.
+   */
+  own_key: { provider: "venice" | "replicate" | null; model: string | null; allowed: boolean; problem: string | null };
+  /** Upscales left this month (null: uncapped), and how much larger. */
+  upscale: { scale: number; left: number | null };
+  /** Saved setups (v3): the owner's, for any of their characters. */
+  setups: Setup[];
+  /** Animate (v3): the motions on offer, and the viewer's animations still being made (the page polls while there are). */
+  motions: { id: string; label: string }[];
+  animating: Shoot[];
 };
 
 export async function studioState(db: Db, viewer: string, characterId: string): Promise<{ ok: true; state: StudioState } | StudioFail> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config, admin, noun, gender } = access;
+  // Animations finished since the page last asked: checked and kept first, so they're in the gallery below.
+  await collectAnimations(db, viewer).catch((err) => console.log(JSON.stringify({ event: "studio_animate_collect_failed", detail: err instanceof Error ? err.message.slice(0, 200) : "error" })));
   const keys = await adultKeys(db);
   const checker = await checkReady(db);
   const identity = await identityOf(db, viewer, c.id);
-  const [places, gallery, shootRows, tokens, left] = await Promise.all([
+  const mine = c.ownerId === viewer || (admin && c.house);
+  const [places, gallery, shootRows, tokens, left, upscalesLeft, partners, shareTo, ownRow, usable] = await Promise.all([
     ownPlaces(db, viewer, c.id),
     listMedia(db, [c.id], viewer),
     db.query<Parameters<typeof shootRow>[0]>(
@@ -657,8 +1160,18 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
     ),
     admin ? Promise.resolve(null) : episodeAllowance(db, viewer).then((a) => a.pack_left),
     usageLeft(db, viewer, "studio"),
+    usageLeft(db, viewer, "upscales"),
+    pairPartners(db, viewer, c.id),
+    mine ? sharePartners(db, viewer, c.id) : Promise.resolve([]),
+    db.query<{ provider: string; model: string | null }>(`select provider, model from user_connection_jobs where user_id = $1 and job = 'after_dark'`, [viewer]),
+    jobUsability(db, viewer, "after_dark"),
   ]);
   const shoots = shootRows.rows.map(shootRow);
+  // The pair shoots' pictures, still there (a pair picture lives in the pair's gallery too).
+  const pairIds = shoots.filter((s) => s.kind === "pair").flatMap((s) => s.pictures);
+  const pair_gallery = await mediaByIds(db, pairIds, viewer);
+  const ownProvider = ownRow.rows[0]?.provider === "venice" || ownRow.rows[0]?.provider === "replicate" ? (ownRow.rows[0].provider as "venice" | "replicate") : null;
+  const solo = gallery.filter((g) => g.character_b === null);
   for (const s of shoots) s.redo = await redoable(db, viewer, s, config);
   const shoot_of: Record<string, string> = {};
   for (const s of shoots) for (const p of s.pictures) shoot_of[p] = s.id;
@@ -678,8 +1191,23 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
       tokens,
       left,
       shoots,
-      gallery: gallery.filter((g) => g.character_b === null),
+      gallery: solo,
       shoot_of,
+      partners,
+      pair_gallery,
+      share_to: shareTo,
+      share: { photos: config.share.photos, after_dark: config.share.after_dark },
+      shares: mine ? await sharesOf(db, viewer, solo.map((g) => g.id)) : {},
+      own_key: {
+        provider: ownProvider,
+        model: ownProvider ? (ownRow.rows[0].model ?? null) : null,
+        allowed: ownProvider ? config.own_keys[ownProvider] : false,
+        problem: usable.state === "over_cap" || usable.state === "failing" ? usable.message : null,
+      },
+      upscale: { scale: config.upscale.scale, left: upscalesLeft },
+      setups: await listSetups(db, viewer),
+      motions: ANIMATE_MOTIONS.filter((m) => !config.disabled_options.includes(`motion.${m.id}`)).map(({ id, label }) => ({ id, label })),
+      animating: shoots.filter((x) => x.kind === "animate" && x.status === "making"),
     },
   };
 }

@@ -727,7 +727,7 @@ create index if not exists character_assets_character_idx on character_assets (c
 alter table character_assets add column if not exists tokens_spent integer not null default 0;
 alter table character_assets drop constraint if exists character_assets_kind_check;
 alter table character_assets add constraint character_assets_kind_check
-  check (kind in ('portrait', 'expression', 'background', 'decoration', 'clip'));
+  check (kind in ('portrait', 'expression', 'background', 'decoration', 'clip', 'photo'));
 
 -- M8. Watch parties: a synchronized "date room" over one pre-generated episode, with live reactions,
 -- chat and audience polls (the feature brief's Model A — the audience reacts, it never steers the
@@ -1916,7 +1916,7 @@ create table if not exists user_connections (
 );
 create table if not exists user_connection_jobs (
   user_id text not null,
-  job text not null check (job in ('text', 'image', 'video')),
+  job text not null check (job in ('text', 'image', 'video', 'after_dark')),
   provider text not null,
   model text,
   created_at timestamptz not null default now(),
@@ -1972,6 +1972,17 @@ alter table user_connection_jobs add column if not exists presence_penalty real;
 -- cap notices went (once a month each).
 alter table user_connection_jobs add column if not exists cap_usd double precision;
 alter table user_connection_jobs add column if not exists on_cap text;
+-- The Studio's own-key job (docs/PRDs/studio.md section 7): After Dark pictures on someone's Venice or Replicate key.
+-- Widen the CHECK on an existing database once, as adult_images' kinds were.
+do $$ begin
+  if exists (
+    select 1 from pg_constraint where conname = 'user_connection_jobs_job_check'
+       and pg_get_constraintdef(oid) not like '%after_dark%'
+  ) then
+    alter table user_connection_jobs drop constraint if exists user_connection_jobs_job_check;
+    alter table user_connection_jobs add constraint user_connection_jobs_job_check check (job in ('text', 'image', 'video', 'after_dark'));
+  end if;
+end $$;
 create table if not exists user_connection_usage (
   user_id text not null references accounts (user_id) on delete cascade,
   job text not null,
@@ -2026,7 +2037,39 @@ create table if not exists adult_media_ratings (
   primary key (user_id, item_id)
 );
 create index if not exists adult_media_ratings_item_idx on adult_media_ratings (item_id);
+-- Explicit consent for the After Dark profile (GDPR Art. 9 "sex life" data; lib/adult/profile.ts PROFILE_CONSENT_TEXT;
+-- 2026-10-24): when, and by whom, a character's turn-ons were saved under the person's ticked consent, and when a pair's
+-- hard nos were. Null: saved before consent was asked for (only admins had After Dark then). Nothing new is stored
+-- without it; deleting the profile (lib/adult/profile-data.ts) clears both with the data.
+alter table adult_profiles add column if not exists consented_at timestamptz;
+alter table adult_profiles add column if not exists consented_by text;
+alter table adult_scenes add column if not exists hard_nos_consented_at timestamptz;
 
+-- Complaints and takedown requests from the /report form (lib/content-reports.ts; the policy pages of 2026-10-24): what
+-- was reported (a link or an id, as typed; episode_id when it names one of our dates), why, the reporter's words and, only
+-- if they gave one, an email for the reply. reporter_id is the session that sent it, and goes (with the email) when that
+-- account is deleted; the report itself stays as the record of what was reported and what we did. flag_reason is the
+-- content filter's or the spam check's note, never a refusal. An admin resolves it, hides the reported date, or dismisses it.
+create table if not exists content_reports (
+  id text primary key,
+  created_at timestamptz not null default now(),
+  reporter_id text,
+  account boolean not null default false,
+  category text not null check (category in ('minor', 'real_person', 'non_consent', 'intimate_image', 'copyright', 'other')),
+  target text check (char_length(target) <= 500),
+  episode_id text,
+  details text check (char_length(details) <= 4000),
+  contact_email text check (char_length(contact_email) <= 254),
+  user_agent text,
+  flagged boolean not null default false,
+  flag_reason text,
+  status text not null default 'open' check (status in ('open', 'resolved', 'hidden', 'dismissed')),
+  decided_at timestamptz,
+  decided_by text,
+  note text check (char_length(note) <= 1000)
+);
+create index if not exists content_reports_open_idx on content_reports (status, created_at);
+create index if not exists content_reports_reporter_idx on content_reports (reporter_id);
 -- The After Dark Studio (lib/adult/studio.ts, docs/PRDs/studio.md; David, 2026-10-24). A shoot is one request: its
 -- kind (a shoot of the character alone, a restyle, a recast, a body reference), what was chosen, the model and who ran
 -- it (ours, or the owner's own key), the tokens taken, and the pictures it made (adult_images.shoot_id). adult_identity
@@ -2083,6 +2126,45 @@ alter table adult_settings add column if not exists moderation_endpoint_cipherte
 alter table adult_settings add column if not exists moderation_endpoint_nonce text;
 alter table adult_settings add column if not exists moderation_endpoint_last4 text;
 alter table adult_images add column if not exists nsfw_score double precision;
+-- Studio v2 (lib/adult/shares.ts; David, 2026-10-24: "share your output to the other user or agent so they can see it
+-- too, but you pay for it"). A share is one picture to the owner of a character theirs has dated: in After Dark (a
+-- request they accept first: status pending, accepted, declined, revoked), or as a dressed photo in the two characters'
+-- texts (status sent; couple_texts.photo is its show asset, character_assets kind 'photo'). adult_share_prefs: whether a
+-- person takes After Dark shares from characters theirs have dated without being asked.
+create table if not exists adult_shares (
+  id text primary key,
+  item_id text not null references adult_images (id) on delete cascade,
+  owner_id text not null,
+  from_character text not null references characters (id) on delete cascade,
+  recipient_id text not null,
+  to_character text not null references characters (id) on delete cascade,
+  kind text not null check (kind in ('after_dark', 'photo')),
+  status text not null check (status in ('pending', 'accepted', 'declined', 'revoked', 'sent')),
+  photo_asset text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (item_id, recipient_id, kind)
+);
+create index if not exists adult_shares_recipient_idx on adult_shares (recipient_id, status, created_at desc);
+create table if not exists adult_share_prefs (
+  user_id text primary key,
+  auto_accept boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+alter table couple_texts add column if not exists photo text;
+-- Studio v3 (docs/PRDs/studio.md): a shoot's choices saved under a name (one per name), run again on any of the owner's
+-- characters; kind 'shoot' (one of them) or 'pair' (together, the partner picked when it runs).
+create table if not exists adult_studio_setups (
+  id text primary key,
+  owner_id text not null,
+  name text not null,
+  kind text not null check (kind in ('shoot', 'pair')),
+  choices jsonb not null default '{}',
+  model text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, name)
+);
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.

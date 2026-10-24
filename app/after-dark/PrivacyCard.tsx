@@ -8,6 +8,9 @@ import { NEUTRAL_TITLE, PIN_MAX, PIN_MIN, PIN_RE, UNLOCK_HOURS, type Privacy } f
 type PinMode = null | "set" | "change" | "remove";
 type Note = { text: string; error: boolean } | null;
 
+/** The person's After Dark profile: GET downloads it as JSON, DELETE wipes it (lib/adult/profile-data.ts). */
+const PROFILE_API = "/api/admin/after-dark/profile";
+
 const digits = (v: string) => v.replace(/\D/g, "").slice(0, PIN_MAX);
 
 /** A PIN field: digits only, shown as dots, with its own label. */
@@ -45,6 +48,7 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
+  const [confirming, setConfirming] = useState(false);
 
   async function save(body: Record<string, unknown>, done: string) {
     setBusy(true);
@@ -79,6 +83,18 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
     if (next !== again) return setNote({ text: "The two PINs don't match.", error: true });
     const body = mode === "change" ? { set_pin: next, current_pin: current } : { set_pin: next };
     if (await save(body, mode === "change" ? "PIN changed. Other devices need the new one." : "PIN on. Other devices need it from now on.")) pinFor(null);
+  }
+
+  /** Wipes the turn-ons and hard nos (app/api/admin/after-dark/profile DELETE); the consent goes with them. */
+  async function deleteProfile() {
+    setBusy(true);
+    setNote(null);
+    const res = await requestJson(PROFILE_API, {}, "DELETE").catch(() => null);
+    setBusy(false);
+    setConfirming(false);
+    if (!res?.ok) return setNote({ text: res?.message ?? "That didn't delete. Try again.", error: true });
+    setNote({ text: "Deleted: your turn-ons and hard nos are gone. Nothing is stored again until you tick the consent.", error: false });
+    router.refresh();
   }
 
   async function lockNow() {
@@ -154,6 +170,32 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
                 Set a PIN
               </button>
             )}
+          </div>
+        )}
+      </fieldset>
+      <fieldset className="ad-privacy-profile">
+        <legend>Your turn-ons and hard nos</legend>
+        <p className="muted small">
+          What you saved for your characters and your limits for each pair. Only you see them, and they&apos;re stored only with your consent.
+        </p>
+        {confirming ? (
+          <div className="ad-privacy-actions">
+            <span className="small">Delete them for good? Your scenes keep going, without them.</span>
+            <button type="button" className="secondary small danger" disabled={busy} onClick={() => void deleteProfile()}>
+              {busy ? "…" : "Yes, delete"}
+            </button>
+            <button type="button" className="button-ghost small" disabled={busy} onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="ad-privacy-actions">
+            <a className="button-ghost small" href={PROFILE_API} download>
+              Download it
+            </a>
+            <button type="button" className="secondary small" disabled={busy} onClick={() => setConfirming(true)}>
+              Delete my After Dark profile
+            </button>
           </div>
         )}
       </fieldset>

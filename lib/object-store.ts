@@ -30,6 +30,7 @@
  */
 import { createHash, createHmac } from "node:crypto";
 import { AwsClient } from "aws4fetch";
+import { markAiImage } from "./ai-mark";
 
 export type ObjectStore = {
   put(key: string, bytes: Buffer, mime: string): Promise<void>;
@@ -107,7 +108,9 @@ export function s3Store(cfg: StoreConfig): ObjectStore {
         send(key, {
           method: "PUT",
           body: new Uint8Array(bytes),
-          headers: { "content-type": mime, "cache-control": KEEP, "x-amz-content-sha256": hash, "x-amz-meta-sha256": hash },
+          // x-amz-meta-ai-generated: the store sends it back as a header with the file, so a video or a voice read by a
+          // presigned link is marked AI-generated too (lib/ai-mark.ts; everything kept here was made by a model).
+          headers: { "content-type": mime, "cache-control": KEEP, "x-amz-content-sha256": hash, "x-amz-meta-sha256": hash, "x-amz-meta-ai-generated": "true" },
         }),
       );
       if (!res.ok) throw new Error(`object store refused ${key} (${res.status}): ${(await res.text()).slice(0, 200)}`);
@@ -250,7 +253,11 @@ export function mediaKey(area: MediaArea, id: string, bytes: Buffer, mime: strin
  * before. An upload that fails falls back to the column, so a picture that was paid for is never lost; the copy
  * script moves it later.
  */
-export async function keepBytes(area: MediaArea, id: string, bytes: Buffer, mime: string): Promise<{ data: Buffer | null; object_key: string | null }> {
+export async function keepBytes(area: MediaArea, id: string, original: Buffer, mime: string): Promise<{ data: Buffer | null; object_key: string | null }> {
+  // Everything kept here was made by a model (After Dark's pictures, keyframes, clips and voices; the looks tiles): a
+  // picture gets the machine-readable "AI-generated" mark before it's stored anywhere (lib/ai-mark.ts, EU AI Act Art.
+  // 50). Videos and audio are marked by their routes' headers instead.
+  const bytes = mime.startsWith("image/") ? markAiImage(original) : original;
   let store: ObjectStore | null;
   try {
     store = objectStore();

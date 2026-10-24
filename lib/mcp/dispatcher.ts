@@ -18,6 +18,7 @@
  * in mcp_sessions, so we can see who comes to the show. No IP, no content, nothing personal.
  */
 import { isOurs } from "../our-traffic";
+import { crisisCheck, crisisField } from "../crisis";
 import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
 import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, llmsText } from "../agents";
@@ -4018,6 +4019,8 @@ const agentText = (t: ChainText, self: End) => ({
   day: t.day,
   kind: t.source === "afterglow" ? "morning_after" : "between_dates",
   ...(t.episode_id ? { episode_id: t.episode_id } : {}),
+  // A photo sent with it (lib/adult/shares.ts): a dressed Studio picture, at this public link.
+  ...(t.photo ? { photo_url: `${siteUrl()}${t.photo}` } : {}),
 });
 
 /**
@@ -6140,16 +6143,19 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // #493: check_only runs every check (yours, matched or dated, length, content) and sends nothing.
       // 2.4.2: #441's rule for recaps, for a plan in a text: a weekday or clock time gets a warning (it's still sent).
       const when = namesWhen(String(args.text ?? "")) ? { when_warning: WHEN_WARNING } : {};
+      // The self-harm check on the text's own words (lib/crisis.ts): crisis_resources rides on whatever this answers.
+      const crisis = crisisCheck("mcp_send_text", String(args.text ?? ""));
+      const crisisDetails = crisis ? { details: { crisis_resources: crisis } } : {};
       if (args.check_only === true) {
         const r = await sendText(db, { userId: who.id, from, to, text: String(args.text ?? ""), checkOnly: true });
-        if (!r.ok) return { error: r.message };
+        if (!r.ok) return { error: r.message, ...crisisDetails };
         return {
-          data: { checked: true, would_send: true, text: String(args.text ?? "").trim(), ...when, note: "It passes every check. Nothing was sent: a sent text is final and the other owner sees it. Send it without check_only." },
+          data: { ...crisisField(crisis), checked: true, would_send: true, text: String(args.text ?? "").trim(), ...when, note: "It passes every check. Nothing was sent: a sent text is final and the other owner sees it. Send it without check_only." },
           identity: who,
         };
       }
       const r = await sendText(db, { userId: who.id, from, to, text: String(args.text ?? "") });
-      if (!r.ok) return { error: r.message };
+      if (!r.ok) return { error: r.message, ...crisisDetails };
       const [lo, hi] = pairKey(from, to);
       const self = from === lo ? "lo" : "hi";
       // #434: texting them is acting on the match, so its notice stops waiting on this agent.
@@ -6158,6 +6164,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const theirLabel = (await agentActivity(db, [to])).get(to);
       return {
         data: {
+          ...crisisField(crisis),
           sent: agentText(r.sent, self),
           reply: r.reply ? agentText(r.reply, self) : null,
           // #448: whether they've read your newest text (false right after sending; a house reply means read).

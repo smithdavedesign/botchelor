@@ -352,6 +352,29 @@ function fit(before: string[], middle: string, after: string[]): string {
   return [...before, mid, ...after].filter(Boolean).join(" ");
 }
 
+/** What makes each picture of "More like this" differ from the one it's like, in turn. */
+export const VARIATION_HINTS = [
+  "the pose shifted slightly",
+  "the camera moved slightly to one side",
+  "a moment later, the expression changed slightly",
+  "the camera slightly closer",
+] as const;
+
+/**
+ * "More like this": the person from Picture 1 (with the body from Picture 2, when it's sent) as in the picture it's like,
+ * the last one sent, slightly different. The level is that picture's, so the closing words are the same.
+ */
+export function variationPrompt(subject: Subject, level: Level, refs: { body: boolean }, hint: string, strength: Strength = "balanced"): string {
+  const who = subject.noun === "person" ? "person" : subject.noun;
+  const like = refs.body ? 3 : 2;
+  const age = Math.max(IMAGE_MIN_AGE, Math.round(subject.age || IMAGE_MIN_AGE));
+  return fit(
+    [`Make one photograph of the ${who} from Picture 1${refs.body ? ", with the body from Picture 2" : ""}, like Picture ${like}.`, `A ${age}-year-old adult ${who}${subject.look ? `, ${subject.look}` : ""}.`, KEEP[strength]],
+    `The same clothes (or none), place, light and framing as Picture ${like}, with ${hint}. Only this one person in the picture, the face clearly visible.`,
+    [TAIL[level]],
+  );
+}
+
 /** A restyle's prompt: the same person as Picture 1, only these looks changed, framed like a baseline (the face clear). */
 export function restylePrompt(subject: Subject, changes: string[], light: string): string {
   const who = subject.noun === "person" ? "person" : subject.noun;
@@ -373,6 +396,34 @@ export function bodyPrompt(subject: Subject, nude: boolean): string {
     `Keep the same face, hair, skin tone and body${subject.look ? ` (${subject.look})` : ""}. Wearing ${worn}.`,
     "Full body, head to toe, standing straight and facing the camera, arms relaxed at the sides, against a plain light-grey studio backdrop, soft even light, the face clearly visible.",
     `${nude ? "Uncensored, photorealistic" : "Photorealistic"}. Everyone shown is an adult.`,
+  ].join(" ");
+}
+
+/* ------------------------------------------------- animate (v3) ------------------------------------------------- */
+
+/** How a picture moves when it's animated (v3): one chip, fixed words, nothing typed. `disabled_options` takes "motion.<id>". */
+export const ANIMATE_MOTIONS: readonly { id: string; label: string; words: string }[] = [
+  { id: "breathe", label: "Just breathing", words: "stays where they are, breathing slowly, a small smile, hair moving slightly" },
+  { id: "sway", label: "Sway", words: "sways slowly, shifting their weight from one hip to the other" },
+  { id: "turn", label: "Turn to camera", words: "turns slowly to face the camera and holds its gaze" },
+  { id: "walk", label: "Walk toward you", words: "walks slowly toward the camera, eyes on it" },
+  { id: "spin", label: "A slow spin", words: "turns in one slow, full spin, then faces the camera again" },
+  { id: "lie_back", label: "Lie back", words: "lies back slowly and settles, looking at the camera" },
+];
+export const ANIMATE_SECONDS = [5, 10] as const;
+export type AnimateSeconds = (typeof ANIMATE_SECONDS)[number];
+
+/**
+ * A Studio picture's clip prompt: the one person in it, kept exactly as they are, doing the motion, one steady shot.
+ * The level is the picture's, so its closing words match it.
+ */
+export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string): string {
+  const who = subject.noun === "person" ? "person" : subject.noun;
+  return [
+    `The ${who} in the picture ${motion}.`,
+    "Only this one person, exactly as in the picture: the same face, body and clothes (or none), in the same place and light.",
+    "One continuous shot, the camera steady: no cuts, nobody else comes in. Realistic, unhurried motion.",
+    TAIL[level],
   ].join(" ");
 }
 

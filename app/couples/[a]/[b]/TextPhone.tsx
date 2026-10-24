@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import Avatar from "@/app/Avatar";
+import { AiFiction } from "@/app/AiLabel";
+import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import PhoneFrame from "@/app/PhoneFrame";
+import type { CrisisResources } from "@/lib/crisis";
 import type { CharacterRef } from "@/lib/game";
 import { shortName } from "@/lib/names";
 import type { End } from "@/lib/relationships";
@@ -55,6 +58,7 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
   const [hint, setHint] = useState("");
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(null);
+  const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const latest = useRef(initial.items);
   latest.current = items;
   const [cursor, setCursor] = useState(initial.cursor);
@@ -158,6 +162,8 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
         body: JSON.stringify({ character_id: self.id, ...(hint.trim() ? { hint: hint.trim() } : {}) }),
       });
       const data = await res.json().catch(() => ({}));
+      // The owner's own nudge read as wanting to hurt themselves (lib/crisis.ts): the help, whether or not it sent.
+      setCrisis(crisisFrom(data));
       if (!res.ok) {
         setStatus({ text: typeof data.message === "string" ? data.message : "That didn't send. Try again.", error: true });
       } else {
@@ -388,6 +394,9 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
             {status.text}
           </p>
         )}
+        {crisis && <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} />}
+        {/* Always there, quietly: who's texting (New York's and California's companion laws: tell people it's AI). */}
+        <AiFiction className="phone-ai-line" />
         {ownKey ? (
           <form className="phone-compose phone-compose-form" onSubmit={send}>
             <input
@@ -496,6 +505,11 @@ function Thread({ items, me, characters, today }: { items: ChainItem[]; me: End;
           <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={26} />}
         <p className="phone-bubble">
           <span className="sr-only">{shortName(c.name)}: </span>
+          {/* A photo sent from the Studio (lib/adult/shares.ts): dressed, checked, a show asset like a portrait. */}
+          {item.photo && (
+            // eslint-disable-next-line @next/next/no-img-element -- an approved show asset, sized by the bubble
+            <img className="phone-photo" src={item.photo} alt={`A photo from ${shortName(c.name)}`} loading="lazy" />
+          )}
           {item.text}
         </p>
       </div>,

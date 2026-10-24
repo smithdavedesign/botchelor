@@ -4,7 +4,9 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import { AiFiction, AiTag } from "@/app/AiLabel";
 import CharacterName from "@/app/CharacterName";
+import { characterPortrait } from "@/lib/portraits";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import { portraitPathSql } from "@/lib/assets";
@@ -237,6 +239,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           <p className="muted">
             Age {c.age}
             {c.pronouns && <> · {c.pronouns}</>} · <span className="stage">{stageFor(memory?.dates ?? 0)}</span>
+            {/* The portrait is a generated picture (the house cast's and an OC's alike): labelled as one. */}
+            {(characterPortrait(c.id) || c.portrait_asset_id) && (
+              <>
+                {" "}
+                <AiTag label="AI-generated portrait" />
+              </>
+            )}
           </p>
           {(c.extras.occupation || c.extras.hometown) && (
             <p className="contestant-job">
@@ -247,6 +256,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           )}
         </div>
       </div>
+      <AiFiction />
       <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} />
 
       {ratings.is_owner && !c.house && (
@@ -293,6 +303,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             // eslint-disable-next-line @next/next/no-img-element
             <img className="character-clip" src={`/api/assets/${c.clip_asset_id}`} alt={`A still from ${c.name}'s intro clip`} />
           )}
+          <AiTag label="AI-generated clip" />
         </section>
       )}
 

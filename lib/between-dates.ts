@@ -220,22 +220,23 @@ export function threadFor(items: ChainItem[], loName: string, hiName: string, bu
 }
 
 /** Who wrote a text between dates (couple_texts.via; lib/texting.ts). */
-export type TextVia = "daily" | "agent" | "own_key" | "show" | "match";
+/** Who wrote a text between dates; "photo": a Studio photo one owner sent from their character (lib/adult/shares.ts). */
+export type TextVia = "daily" | "agent" | "own_key" | "show" | "match" | "photo";
 
 /**
  * Stores one text between dates as the couple's next text that day. seq is taken as the day's next number; if another
  * text took it at the same moment, it tries the next.
  */
-export async function insertText(db: Db, lo: string, hi: string, who: End, text: string, via: TextVia, now = new Date()): Promise<{ day: string; seq: number; at: string }> {
+export async function insertText(db: Db, lo: string, hi: string, who: End, text: string, via: TextVia, now = new Date(), photo: string | null = null): Promise<{ day: string; seq: number; at: string }> {
   const day = dayOf(now);
   for (let attempt = 0; attempt < 5; attempt++) {
     const { rows } = await db.query<{ seq: number; created_at: string | Date }>(
-      `insert into couple_texts (character_lo, character_hi, day, seq, who, text, via)
-       select $1, $2, $3::date, coalesce(max(seq), 0) + 1, $4, $5, $6
+      `insert into couple_texts (character_lo, character_hi, day, seq, who, text, via, photo)
+       select $1, $2, $3::date, coalesce(max(seq), 0) + 1, $4, $5, $6, $7
          from couple_texts where character_lo = $1 and character_hi = $2 and day = $3::date
        on conflict do nothing
        returning seq, created_at`,
-      [lo, hi, day, who, text, via],
+      [lo, hi, day, who, text, via, photo],
     );
     if (rows[0]) {
       // A plan made by text ("Thursday, the 12:03 platform") is the couple's plan for their next date: refresh their

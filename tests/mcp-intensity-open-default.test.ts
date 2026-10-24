@@ -119,7 +119,7 @@ describe("after_dark_write and after_dark_scene take the pair's intensity and ha
   it("a dirty_talk hard no keeps filthy written as explicit, as the panel's limits do", async () => {
     await claimAdmin(t.db, userIdOf(newUserCookie()));
     const prompts = scripted();
-    const r = await runAdultTool(t.db, "after_dark_write", { a: CAST_A, b: CAST_B, intensity: "filthy", hard_nos: { chips: ["dirty_talk"] } });
+    const r = await runAdultTool(t.db, "after_dark_write", { a: CAST_A, b: CAST_B, intensity: "filthy", hard_nos: { chips: ["dirty_talk"] }, consent: true });
     expect("data" in r).toBe(true);
     const s = await stored();
     expect(s).toMatchObject({ intensity: "filthy", hard_nos: { chips: ["dirty_talk"], own: [] } });
@@ -152,7 +152,7 @@ describe("after_dark_write and after_dark_scene take the pair's intensity and ha
     expect((await t.db.query("select 1 from adult_scenes")).rows).toHaveLength(0);
     const tooMany = await runAdultTool(t.db, "after_dark_scene", { a: CAST_A, b: CAST_B, hard_nos: { own: Array.from({ length: 9 }, (_, i) => `tickling ${i}`) } });
     expect("error" in tooMany && tooMany.error).toMatch(/Up to 8/);
-    const ok = await runAdultTool(t.db, "after_dark_scene", { a: CAST_A, b: CAST_B, hard_nos: { chips: ["biting"], own: ["tickling"] } });
+    const ok = await runAdultTool(t.db, "after_dark_scene", { a: CAST_A, b: CAST_B, hard_nos: { chips: ["biting"], own: ["tickling"] }, consent: true });
     expect("data" in ok && (ok.data.scene as { hard_nos: unknown }).hard_nos).toEqual({ chips: ["biting"], own: ["tickling"] });
     expect(limitsArg({})).toEqual({ limits: null });
   });

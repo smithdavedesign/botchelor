@@ -1,3 +1,4 @@
+import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
 import { accessHere } from "@/lib/adult/place";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { lockedForRequest } from "@/lib/adult/privacy";
@@ -40,5 +41,6 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   }
   if (!tile.data) return json({ error: "not_found" }, 404);
   const cache = tile.variant === "nsfw" ? "private, max-age=3600" : "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
-  return new Response(new Uint8Array(tile.data), { status: 200, headers: { "content-type": tile.mime, "cache-control": cache } });
+  // Drawn by a model: marked AI-generated in its XMP (a tile drawn before the mark gets it here) and its headers.
+  return new Response(aiBody(tile.data, tile.mime), { status: 200, headers: { "content-type": tile.mime, "cache-control": cache, ...AI_HEADERS } });
 });

@@ -31,6 +31,8 @@ export type ChainText = {
   episode_id: string | null;
   /** Who wrote a text between dates (couple_texts.via): the show ('daily', 'show'), an agent or a person's own key. */
   via?: string;
+  /** A photo sent with it (a Studio picture, lib/adult/shares.ts): the show asset's path, /api/assets/<id>. */
+  photo?: string;
 };
 
 /** A moment in their story that isn't a text or a date: they matched in the swipe deck, or both said yes to a date. */

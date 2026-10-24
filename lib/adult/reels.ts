@@ -615,16 +615,18 @@ export function keyframePrompt(
   place: string | null,
   stage: number,
   withSet: boolean,
-  opts: { explicit?: boolean; clothes?: string } = {},
+  opts: { explicit?: boolean; clothes?: string; light?: string } = {},
 ): string {
   const [a, b] = cast;
   const head = `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together${withSet ? ", in the place from Picture 3" : ""}.`;
   const where = place ? `The place: ${place}.` : "";
+  // A chosen light (the Studio's shoots together, lib/adult/studio.ts) instead of the set's own.
+  const light = opts.light ? `Light: ${opts.light}.` : "";
   // What they wear: by how far the night had gone, or a picture's chosen outfit (lib/adult/pictures-menu.ts).
   const keep =
     `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${opts.clothes ?? clothesAt(stage)}.` +
-    `${withSet ? " Keep the place, its furniture and its light from Picture 3." : ""} Two people only, both faces visible.`;
-  return fitPrompt([head, whoIsWho(cast)], frame, [where, keep, tailAt(stage, opts.explicit ?? true)]);
+    `${withSet ? (opts.light ? " Keep the place and its furniture from Picture 3." : " Keep the place, its furniture and its light from Picture 3.") : ""} Two people only, both faces visible.`;
+  return fitPrompt([head, whoIsWho(cast)], frame, [where, light, keep, tailAt(stage, opts.explicit ?? true)]);
 }
 
 /** Which of them is which picture, when "the woman" and "the man" don't already say it. */
@@ -817,6 +819,42 @@ export async function drawKeyframe(key: string, prompt: string, images: string[]
   const b64 = ((await res.json().catch(() => ({}))) as { images?: string[] }).images?.[0];
   if (!b64) throw new Error("Venice returned no keyframe");
   return { bytes: Buffer.from(b64.replace(/^data:[^,]*,/, ""), "base64"), mime: "image/png" };
+}
+
+/** A picture's video on Venice from its signed link (the Studio's Animate, lib/adult/studio.ts): queued, one shot. */
+export async function queueVideo(key: string, v: { model: string; seconds: 5 | 10; image_url: string; prompt: string; negative: string }): Promise<string> {
+  const body: Record<string, unknown> = { model: v.model, duration: `${v.seconds}s`, resolution: "720p", prompt: v.prompt, negative_prompt: v.negative, image_url: v.image_url };
+  if (!AUDIO_IN.test(v.model)) body.audio = true;
+  if (/^wan-3/.test(v.model)) body.aspect_ratio = "adaptive";
+  const res = await venice(key, "/video/queue", body);
+  if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 160)}`);
+  const q = (await res.json()) as { queue_id?: string };
+  if (!q.queue_id) throw new Error("Venice returned no queue id");
+  return q.queue_id;
+}
+
+/** Where a queued video is: still being made, done (its bytes), or failed. Venice keeps it until releaseVideo. */
+export async function retrieveVideo(key: string, model: string, queueId: string): Promise<{ state: "making" } | { state: "ready"; bytes: Buffer } | { state: "failed"; reason: string }> {
+  const res = await venice(key, "/video/retrieve", { model, queue_id: queueId });
+  if (!res.ok) return { state: "failed", reason: `Venice ${res.status}` };
+  if (!(res.headers.get("content-type") ?? "").includes("video")) return { state: "making" };
+  return { state: "ready", bytes: Buffer.from(await res.arrayBuffer()) };
+}
+
+/** Venice's copy of a video, deleted once ours is kept (or it was refused). */
+export async function releaseVideo(key: string, model: string, queueId: string): Promise<void> {
+  await venice(key, "/video/retrieve", { model, queue_id: queueId, delete_media_on_completion: true }).catch(() => {});
+}
+
+/** A picture made larger by Venice's upscaler (the Studio's Upscale, about $0.02): a PNG comes back. */
+export async function veniceUpscale(key: string, image: Buffer, scale: 2 | 4 = 2): Promise<{ bytes: Buffer; mime: string }> {
+  const res = await venice(key, "/image/upscale", { image: image.toString("base64"), scale });
+  if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 160)}`);
+  const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+  if (!type.startsWith("image/")) throw new Error("Venice returned no picture");
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (!bytes.length || bytes.length > MAX_PICTURE_BYTES) throw new Error("Venice returned no usable picture");
+  return { bytes, mime: type };
 }
 
 /** Hive gave no verdict (busy, down, over its daily limit): a reason to ask again, not a refusal. */

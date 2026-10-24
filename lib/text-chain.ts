@@ -35,11 +35,12 @@ const iso = (d: string | Date) => new Date(d).toISOString();
 const chainId = (at: string, order: number, what: string) => `${at}#${String(order).padStart(3, "0")}#${what}`;
 
 /** A stored text between dates (couple_texts) as a chain item: the same id whether it's loaded or just sent. */
-export function betweenText(t: { who: End; text: string; day: string; seq: number; created_at: string | Date; via?: string | null }): ChainText {
+export function betweenText(t: { who: End; text: string; day: string; seq: number; created_at: string | Date; via?: string | null; photo?: string | null }): ChainText {
   const at = iso(t.created_at);
   return {
     kind: "text", id: chainId(at, t.seq, `t:${t.day}:${t.seq}`), at, day: t.day, who: t.who, text: t.text, source: "between", episode_id: null,
     ...(t.via ? { via: t.via } : {}),
+    ...(t.photo ? { photo: `/api/assets/${t.photo}` } : {}),
   };
 }
 
@@ -74,8 +75,8 @@ export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer)
   const [lo, hi] = pairKey(x, y);
   const [eps, texts, match] = await Promise.all([
     db.query<ChainEpisode>(CHAIN_EPISODES, [lo, hi, REPORT_HIDE_THRESHOLD]),
-    db.query<{ who: End; text: string; day: string; seq: number; created_at: string | Date; via: string | null }>(
-      `select who, text, to_char(day, 'YYYY-MM-DD') as day, seq, created_at, via from couple_texts where character_lo = $1 and character_hi = $2`,
+    db.query<{ who: End; text: string; day: string; seq: number; created_at: string | Date; via: string | null; photo: string | null }>(
+      `select who, text, to_char(day, 'YYYY-MM-DD') as day, seq, created_at, via, photo from couple_texts where character_lo = $1 and character_hi = $2`,
       [lo, hi],
     ),
     db.query<{ matched_at: string | Date; agreed_at: string | Date | null }>(`select matched_at, agreed_at from matches where character_lo = $1 and character_hi = $2`, [lo, hi]),

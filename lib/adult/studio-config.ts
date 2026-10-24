@@ -23,20 +23,22 @@ export const StudioModel = z.object({
   /** How many pictures an edit model takes (face, body, the place): Venice lists it per model. */
   max_images: z.number().int().min(1).max(10).default(3),
   note: z.string().max(120).default(""),
+  /** About what one picture costs on the provider, in USD: what's added to someone's own key's month (Connections' cap). */
+  usd: z.number().min(0).max(10).default(0.04),
 });
 export type StudioModel = z.infer<typeof StudioModel>;
 
 /** The list on the picker by default (Venice's prices and limits on 2026-10-24: docs/PRDs/studio.md section 7). */
 export const DEFAULT_STUDIO_MODELS: StudioModel[] = [
-  { id: "qwen-edit-uncensored", provider: "venice", job: "edit", tier: "standard", label: "Qwen Edit", runner: "venice", max_images: 3, note: "keeps the face; the default" },
-  { id: "qwen-image-2-1-turbo-edit", provider: "venice", job: "edit", tier: "standard", label: "Qwen Turbo Edit", runner: "third_party", max_images: 6, note: "fast" },
-  { id: "qwen-image-2-1-pro-edit", provider: "venice", job: "edit", tier: "pro", label: "Qwen Pro Edit", runner: "third_party", max_images: 10, note: "up to 10 references" },
-  { id: "seedream-v5-pro-edit", provider: "venice", job: "edit", tier: "pro", label: "Seedream Pro Edit", runner: "third_party", max_images: 6, note: "fine detail" },
-  { id: "qwen/qwen-image-edit-2511", provider: "replicate", job: "edit", tier: "standard", label: "Qwen Edit (Replicate)", runner: "replicate", max_images: 3, note: "the backup" },
-  { id: "lustify-v8", provider: "venice", job: "new", tier: "standard", label: "Lustify", runner: "venice", max_images: 1, note: "photoreal; the default for a new face" },
-  { id: "chroma", provider: "venice", job: "new", tier: "standard", label: "Chroma", runner: "venice", max_images: 1, note: "" },
-  { id: "qwen-image-3", provider: "venice", job: "new", tier: "pro", label: "Qwen Image 3", runner: "third_party", max_images: 1, note: "" },
-  { id: "qwen/qwen-image", provider: "replicate", job: "new", tier: "standard", label: "Qwen Image (Replicate)", runner: "replicate", max_images: 1, note: "the backup" },
+  { id: "qwen-edit-uncensored", provider: "venice", job: "edit", tier: "standard", label: "Qwen Edit", runner: "venice", max_images: 3, note: "keeps the face; the default", usd: 0.04 },
+  { id: "qwen-image-2-1-turbo-edit", provider: "venice", job: "edit", tier: "standard", label: "Qwen Turbo Edit", runner: "third_party", max_images: 6, note: "fast", usd: 0.02 },
+  { id: "qwen-image-2-1-pro-edit", provider: "venice", job: "edit", tier: "pro", label: "Qwen Pro Edit", runner: "third_party", max_images: 10, note: "up to 10 references", usd: 0.05 },
+  { id: "seedream-v5-pro-edit", provider: "venice", job: "edit", tier: "pro", label: "Seedream Pro Edit", runner: "third_party", max_images: 6, note: "fine detail", usd: 0.06 },
+  { id: "qwen/qwen-image-edit-2511", provider: "replicate", job: "edit", tier: "standard", label: "Qwen Edit (Replicate)", runner: "replicate", max_images: 3, note: "the backup", usd: 0.03 },
+  { id: "lustify-v8", provider: "venice", job: "new", tier: "standard", label: "Lustify", runner: "venice", max_images: 1, note: "photoreal; the default for a new face", usd: 0.01 },
+  { id: "chroma", provider: "venice", job: "new", tier: "standard", label: "Chroma", runner: "venice", max_images: 1, note: "", usd: 0.01 },
+  { id: "qwen-image-3", provider: "venice", job: "new", tier: "pro", label: "Qwen Image 3", runner: "third_party", max_images: 1, note: "", usd: 0.04 },
+  { id: "qwen/qwen-image", provider: "replicate", job: "new", tier: "standard", label: "Qwen Image (Replicate)", runner: "replicate", max_images: 1, note: "the backup", usd: 0.025 },
 ];
 
 const tiers = z.object({ standard: z.number().int().min(0).max(100), pro: z.number().int().min(0).max(100) });
@@ -85,6 +87,12 @@ export const StudioConfig = z.object({
     })
     .default({ photos: true, after_dark: true, pg_max_nsfw: 0.15 }),
   own_keys: z.object({ venice: z.boolean().default(true), replicate: z.boolean().default(true) }).default({ venice: true, replicate: true }),
+  /** Animate (v3): the video model (null: After Dark's own, `reel_model`, Wan 3.0 by default). */
+  animate: z.object({ model: z.string().trim().min(1).max(120).nullable().default(null) }).default({ model: null }),
+  /** Upscale on Venice's upscaler: how much larger, and what one costs (added to an own key's month). */
+  upscale: z
+    .object({ scale: z.union([z.literal(2), z.literal(4)]).default(2), usd: z.number().min(0).max(10).default(0.02) })
+    .default({ scale: 2, usd: 0.02 }),
 });
 export type StudioConfig = z.infer<typeof StudioConfig>;
 
