@@ -6,6 +6,7 @@
  * LLC is formed, set OPERATOR to its legal name (e.g. "Botchelor LLC, a Wyoming limited liability company") and
  * GOVERNING_STATE to the state it's formed in. Pure: no env reads except contactEmail().
  */
+import { AGE_CHECK_COUNTRIES, TEXT_ONLY_COUNTRIES, US_AGE_CHECK_STATES } from "./jurisdiction";
 
 /** The legal person who runs the service and is the other party to the terms. */
 export const OPERATOR = "David Smith";
@@ -55,13 +56,15 @@ export const DMCA_AGENT = OPERATOR;
 
 /**
  * Where After Dark won't open, as the Terms and the content policy say it (docs/after-dark-legal-review.md, 2026-10-24):
- * the US states with adult age-verification laws, and the countries whose laws need an age check we don't offer. The
- * UK gets text only (the Online Safety Act's Part 5 leaves text out). Keep in step with the gate's own list when it lands.
+ * the US states with adult age-verification laws, and the countries whose laws need an age check we don't offer, and the
+ * text-only ones (the UK: the Online Safety Act's Part 5 leaves text out; Japan). Read from the gate's own rules
+ * (lib/jurisdiction.ts), so the pages always say what the code does.
  */
-export const AFTER_DARK_BLOCKED_US_STATES = [
-  "Alabama", "Arizona", "Arkansas", "Florida", "Georgia", "Idaho", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
-  "Mississippi", "Missouri", "Montana", "Nebraska", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "South Carolina",
-  "South Dakota", "Tennessee", "Texas", "Utah", "Virginia", "West Virginia", "Wyoming",
-] as const;
-export const AFTER_DARK_BLOCKED_COUNTRIES = ["France", "Italy", "Germany", "Australia", "Brazil"] as const;
-export const AFTER_DARK_TEXT_ONLY = ["the United Kingdom"] as const;
+export const AFTER_DARK_BLOCKED_US_STATES: readonly string[] = Object.values(US_AGE_CHECK_STATES);
+/** A country's English name from its code, "the" where English says it ("the United Kingdom"). */
+const countryName = (code: string): string => {
+  const name = new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
+  return /^(United|Netherlands|Philippines|Czech)/.test(name) ? `the ${name}` : name;
+};
+export const AFTER_DARK_BLOCKED_COUNTRIES: readonly string[] = Object.keys(AGE_CHECK_COUNTRIES).map(countryName);
+export const AFTER_DARK_TEXT_ONLY: readonly string[] = Object.keys(TEXT_ONLY_COUNTRIES).map(countryName);

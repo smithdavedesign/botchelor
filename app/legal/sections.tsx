@@ -576,8 +576,11 @@ export function PrivacySections() {
         <li>
           From the connection you use, our host tells us the country you&apos;re in (and, for After Dark, the US state).
           We use it to apply the law where you are: whether to ask before setting analytics cookies, and where After Dark
-          can be offered. We don&apos;t store it with your account or keep a history of it; at most it&apos;s kept in a
-          short-lived signed cookie so we don&apos;t have to check on every page.
+          can be offered. We keep no history of it. On After Dark&apos;s own site it&apos;s kept for an hour in a signed
+          cookie, so we don&apos;t have to check on every page. For someone who uses After Dark, we keep only the latest:
+          the country, the US state and what After Dark could be there (open, text only or not offered), so work that runs
+          without you (a chapter&apos;s picture, say) follows the same rules. It&apos;s replaced each time and deleted with
+          your account.
         </li>
         <li>
           The 18+ confirmation at the entry gate is remembered in a cookie for a year. When After Dark opens, your

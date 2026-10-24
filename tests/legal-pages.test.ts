@@ -89,7 +89,8 @@ describe("the terms", () => {
     const html = strip(render(TermsPage));
     for (const state of AFTER_DARK_BLOCKED_US_STATES) expect(html).toContain(state);
     expect(html).toMatch(/France, Italy, Germany, Australia and Brazil/);
-    expect(html).toMatch(/the United Kingdom it's text only/);
+    expect(html).toMatch(/the United Kingdom and Japan it's text only/);
+    expect(html).toContain("France");
     expect(html).toMatch(/Don't use a VPN/);
   });
 

@@ -96,10 +96,11 @@ export default function ContentPolicyPage() {
           content filter before it&apos;s saved or shown. On the show it refuses sexual words, innuendo, anything
           suggesting a minor (including an age under 18 in passing) and well-known real people. In After Dark it refuses
           anything suggesting a minor, family and step-family roleplay, incest, teacher and student, school settings,
-          age-play and real people, in a steer, a line, a scenario or a request.
+          age-play, non-consent (force, drugging, someone asleep, or a game of it), bestiality, sexual violence or gore,
+          and real people, in a steer, a line, a scenario or a request.
         </li>
         <li>
-          <strong>Every After Dark picture and video</strong> is checked by an automated classifier (Hive) before
+          <strong>Every After Dark picture and video</strong> is checked by an automated classifier before
           it&apos;s stored or shown: once for any sign of a child, and once more asking whether everyone in it is clearly an
           adult. Anything but a clear yes is discarded. If the check can&apos;t run, nothing is shown until it has passed. A video starts from a
           picture that already passed, and its frames are checked again.
@@ -112,9 +113,8 @@ export default function ContentPolicyPage() {
           Nobody can upload pictures or video: everything shown is made by the show, from text that passed the filters.
         </li>
         <li>
-          Filters are a first line of defence, not a guarantee. Some of these lines (non-consent, bestiality, sexual
-          violence) are harder for a word filter to catch in every phrasing, so they also rest on the model&apos;s own
-          instructions, on your reports, and on our review.
+          Filters are a first line of defence, not a guarantee: no word filter catches every phrasing. So the lines also
+          rest on the model&apos;s own instructions, which repeat them, on your reports, and on our review.
         </li>
       </ul>
 
