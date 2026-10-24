@@ -1736,6 +1736,24 @@ create table if not exists adult_face_refs (
 -- Which picture preset drew it (lib/adult/rating-tags.ts PICTURE_PRESETS): what the per-character test learns from
 -- (lib/adult/steering.ts choosePreset).
 alter table adult_images add column if not exists preset text;
+-- "Start fresh" on what a viewer's ratings of a character steer (lib/adult/steering.ts resetSteering): their ratings and
+-- light picks from before reset_at stop counting for that character. Nothing is deleted.
+create table if not exists adult_steer_resets (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  reset_at timestamptz not null default now(),
+  primary key (owner_id, character_id)
+);
+-- A face picked from "Draw three" (lib/adult/steering.ts setFaceReference): the light of the one kept, and the lights of
+-- the two passed over, which count half a 👎 each in the per-character light test (presetTally).
+create table if not exists adult_light_picks (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  picked text not null,
+  passed jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists adult_light_picks_owner on adult_light_picks (owner_id, character_id);
 create table if not exists adult_short_views (
   short_id text not null references adult_shorts (id) on delete cascade,
   user_id text not null,

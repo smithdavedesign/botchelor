@@ -156,6 +156,8 @@ export async function startTestDb() {
         "adult_media_thumbs",
         "adult_media_ratings",
         "adult_face_refs",
+        "adult_steer_resets",
+        "adult_light_picks",
         "adult_images",
         "adult_characters",
         "adult_scenes",

@@ -28,6 +28,7 @@ import { hiveGate } from "./hive-limit";
 import { recentActions } from "./media";
 import { keepPictureOfBoth } from "./pictures-menu";
 import { keyframePrompt, placeWords, reelCast, withoutNames, type ReelPerson } from "./reels";
+import { thumbsDown } from "./steering";
 import { adultKeys, getAdultSettings } from "./settings";
 import { overCap } from "./usage";
 
@@ -415,5 +416,8 @@ export async function beatPictureFor(
   const b = rows[0];
   if (!b) return null;
   const same = (x: string | null, y: string | null) => (x ?? "").trim().toLowerCase() === (y ?? "").trim().toLowerCase();
-  return b.stage === stage && same(b.place, place) ? b.picture_id : null;
+  if (b.stage !== stage || !same(b.place, place)) return null;
+  // One the viewer 👎'd isn't started from: the shot draws a keyframe of its own, steered by what they said
+  // (lib/adult/steering.ts). A shot costs far more than a keyframe, so it isn't spent on a picture they said was wrong.
+  return (await thumbsDown(db, ownerId, b.picture_id!)) ? null : b.picture_id;
 }

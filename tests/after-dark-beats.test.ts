@@ -3,6 +3,7 @@ import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { NO_MEDIA_LIMITS } from "@/lib/adult/acts";
 import { BEATS_PER_CHAPTER, beatFrame, beatLabel, beatPictureFor, beatPicturesSettled, fileBeats, findBeats, poseHere, positionIn, rewindBeats } from "@/lib/adult/beats";
+import { rateMedia } from "@/lib/adult/steering";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { reelCast, reuseBeatPictures, setReelFetchForTests, setReelPausesForTests, type ReelShot } from "@/lib/adult/reels";
@@ -272,6 +273,11 @@ describe("a video of the night", () => {
     expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 0, 4, "her bedroom")).toBeNull();
     expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 3, "her bedroom")).toBeNull();
     expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "the kitchen")).toBeNull();
+    // One the viewer 👎'd doesn't start a shot (a fresh, steered keyframe does), and does again once the 👎 is taken back.
+    expect(await rateMedia(t.db, id, pic, -1, ["face"])).toMatchObject({ ok: true });
+    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "her bedroom")).toBeNull();
+    await rateMedia(t.db, id, pic, 0);
+    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "her bedroom")).toBe(pic);
     const shots: ReelShot[] = [2, 5].map((line) => ({ line, who: "a", text: "Now.", motion: "m", status: "queued" }));
     await reuseBeatPictures(t.db, id, pair, shots, { chapters: [{ chapter: 1, night_id: null, lines: 7 }], chapterOf: Array(7).fill(0) }, [0], Array(7).fill("her bedroom"), Array(7).fill(4));
     expect(shots.map((s) => [s.from_beat ?? false, s.media_id ?? null])).toEqual([

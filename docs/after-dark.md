@@ -1939,3 +1939,22 @@ when the picture or character goes (cascade), and are never read by an export. T
   ratings, a shot taken out and put back, and the finer looks, desktop and phone: `docs/screenshots/after-dark-faces-*`,
   `after-dark-gallery-rate-*`, `after-dark-shot-rate-*`, `after-dark-archive-*` and `looks-details-*`.
 - **Cost:** nothing new per step. "Draw three" is three pictures from the monthly cap; a rating is a row.
+
+### Follow-ups from the competitor research (2026-10-24)
+
+What other products do is in docs/after-dark-competitors-steering.md. Getting past Hive's daily cap is in
+docs/after-dark-moderation-options.md. The first three of its recommendations:
+
+- **A picture the viewer 👎'd never starts a video.** `beatPictureFor` (lib/adult/beats.ts) skips a beat picture
+  its viewer 👎'd, so the shot draws a fresh, steered keyframe. A shot costs far more than a keyframe, so it isn't
+  spent on a picture they said was wrong.
+- **They see what it learned, and can start fresh.** Under each face in "Their faces":
+  - "Your ratings steer away from: odd pose, blurry. Light that suits them: warm and moody." (`steerSummary`)
+  - **Start fresh** (`POST /api/admin/after-dark/steer`, `adult_steer_resets`) sets aside the ratings and light picks
+    from before then, for that character. Nothing is deleted. A rating counts only if it was made after the reset of
+    every character in the picture.
+  - The panel says it: "Your ratings only change your own pictures: they never train a model."
+- **"Draw three" teaches the light test.** A face picked from the three is a ranking (`adult_light_picks`). The kept
+  one's 👍 counts as before, and each light passed over counts half a 👎 in `presetTally`: half, because the pick is of
+  the face as much as the light. The page sends the other two as `rivals` with `POST /api/admin/after-dark/face`. Only
+  the viewer's own baselines of the character alone, with a preset, count.

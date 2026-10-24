@@ -278,6 +278,17 @@ async function main() {
       // Put the face back to the default for the next size.
       await page.locator(".ad-faces").getByRole("button", { name: "Let it pick for me" }).first().click();
       await page.locator(".ad-faces").getByText("You picked this face.").waitFor({ state: "detached", timeout: 15_000 });
+      if (size === "phone") {
+        // Start fresh: what the ratings steered is set aside (nothing deleted), and stays so after a reload.
+        // The first card: the 👎 on its scene picture, and the one on the pair's video, both count for it.
+        const card = () => page.locator(".ad-faces .ad-face").first();
+        await card().getByRole("button", { name: "Start fresh" }).click();
+        await card().getByText("Nothing for your ratings to steer yet.").waitFor({ timeout: 15_000 });
+        await page.reload();
+        await page.locator(".ad-faces").waitFor({ timeout: 30_000 });
+        assert((await card().getByText("Nothing for your ratings to steer yet.").count()) === 1, "Start fresh didn't hold after a reload");
+        console.log("  ✓ phone: Start fresh set the steering aside, and it held after a reload");
+      }
     }
 
     // The looks builder's finer details on /create: chips on the look's summary. A fresh visitor each time (no draft).
