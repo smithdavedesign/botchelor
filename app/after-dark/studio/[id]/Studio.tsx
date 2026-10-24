@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
 import RateMedia from "@/app/after-dark/[a]/[b]/RateMedia";
 import { HARD_NOS, INTENSITIES, INTENSITY } from "@/lib/adult/limits";
@@ -57,6 +57,7 @@ export default function Studio({ initial }: { initial: StudioState }) {
   const [sharing, setSharing] = useState<{ image: string; to: string; kind: "after_dark" | "photo" } | null>(null);
   const [animating, setAnimating] = useState<{ image: string; motion: string; seconds: 5 | 10 } | null>(null);
   const [setupName, setSetupName] = useState("");
+  const setupNameRef = useRef<HTMLInputElement>(null);
   const c = s.character;
   const first = c.name.split(/\s+/)[0];
   const picked = editModels.find((m) => m.id === editModel) ?? editModels[0];
@@ -99,14 +100,29 @@ export default function Studio({ initial }: { initial: StudioState }) {
 
   /** Saves the shoot's (or Together's) choices under a name, to run again on any of their characters. */
   function saveSetup(kind: "shoot" | "pair", choices: Record<string, unknown>, model: string | undefined) {
-    if (!setupName.trim()) return setNote({ text: "Give the setup a name first.", error: true });
+    // The button stays clickable without a name (David, 2026-10-24: a greyed-out Save read as broken): it says what's
+    // missing and puts the cursor in the name box.
+    if (!setupName.trim()) {
+      setupNameRef.current?.focus();
+      return setNote({ text: "Give the setup a name first.", error: true });
+    }
     void act("save_setup", { action: "save_setup", character_id: c.id, name: setupName, kind, choices, model }, { done: `Saved "${setupName.trim()}".` }).then((d) => d && setSetupName(""));
   }
 
   const setupRow = (kind: "shoot" | "pair", choices: Record<string, unknown>, model: string | undefined) => (
     <div className="ad-studio-go">
-      <input type="text" maxLength={40} placeholder="Name these choices" value={setupName} onChange={(e) => setSetupName(e.target.value)} disabled={Boolean(busy)} aria-label="Setup name" />
-      <button type="button" className="button-ghost" disabled={Boolean(busy) || !setupName.trim()} onClick={() => saveSetup(kind, choices, model)}>
+      <input
+        ref={setupNameRef}
+        type="text"
+        maxLength={40}
+        placeholder="Name these choices"
+        value={setupName}
+        onChange={(e) => setSetupName(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && saveSetup(kind, choices, model)}
+        disabled={Boolean(busy)}
+        aria-label="Setup name"
+      />
+      <button type="button" className="button-ghost" disabled={Boolean(busy)} onClick={() => saveSetup(kind, choices, model)}>
         Save as a setup
       </button>
     </div>
