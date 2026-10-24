@@ -1710,6 +1710,32 @@ create table if not exists adult_shorts (
   updated_at timestamptz not null default now()
 );
 create index if not exists adult_shorts_published on adult_shorts (published_at desc);
+-- After Dark's 👍/👎, apart from the library's stars below (David, 2026-10-24: "allow users to score … and use that for
+-- the next run on the same character"; lib/adult/steering.ts): a viewer's 👍/👎 on one of their pictures or videos, with
+-- what was off. Theirs alone: they steer only that viewer's next pictures of the same character, go with the picture,
+-- and never reach a dataset (docs/data-plan.md).
+create table if not exists adult_media_thumbs (
+  owner_id text not null,
+  media_id text not null references adult_images (id) on delete cascade,
+  rating smallint not null check (rating in (-1, 1)),
+  tags jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (owner_id, media_id)
+);
+create index if not exists adult_media_thumbs_recent on adult_media_thumbs (owner_id, updated_at desc);
+-- The face a viewer picked for a character (lib/adult/steering.ts faceReferenceId): what their pictures, keyframes and
+-- videos of that character keep. Unset, the face is their own best-rated baseline, else the admins' newest.
+create table if not exists adult_face_refs (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  image_id text not null references adult_images (id) on delete cascade,
+  set_at timestamptz not null default now(),
+  primary key (owner_id, character_id)
+);
+-- Which picture preset drew it (lib/adult/rating-tags.ts PICTURE_PRESETS): what the per-character test learns from
+-- (lib/adult/steering.ts choosePreset).
+alter table adult_images add column if not exists preset text;
 create table if not exists adult_short_views (
   short_id text not null references adult_shorts (id) on delete cascade,
   user_id text not null,

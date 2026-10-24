@@ -9,9 +9,14 @@ import { publicExtras, normaliseExtras } from "@/lib/extras";
 import { sessionCookies } from "@/lib/http";
 import {
   BASELINES,
+  detailsFor,
   IMAGE_MIN_AGE,
+  LOOK_DETAILS,
   LOOK_STEPS,
   looksAppearance,
+  LooksInput,
+  looksPictureWords,
+  looksPortraitPrompt,
   nearestBaseline,
   normaliseLooks,
   optionsFor,
@@ -111,6 +116,35 @@ describe("the catalog", () => {
     expect(normaliseLooks({ gender: "woman", facial_hair: "full_beard", hair_style: "buzz", eyes: "blue" })).toEqual({ gender: "woman", eyes: "blue" });
     expect(normaliseLooks({ gender: "man", after_dark: { butt: "large", outfit: "towel" } })).toEqual({ gender: "man", after_dark: { outfit: "towel" } });
     expect(LOOK_STEPS.find((s) => s.id === "butt")?.afterDark).toBe(true);
+  });
+
+  it("takes the finer details as fixed choices, drops the ones that don't fit, and keeps grooming with After Dark's picks", () => {
+    expect(detailsFor("woman", false).map((d) => d.id)).toEqual(["skin_tone", "marks", "makeup", "glasses", "piercings", "tattoos"]);
+    expect(detailsFor("man", true).map((d) => d.id)).toEqual(["skin_tone", "marks", "makeup", "glasses", "piercings", "tattoos", "body_hair", "grooming"]);
+    expect(LooksInput.safeParse({ gender: "woman", tattoos: "sleeve", after_dark: { grooming: "trimmed" } }).success).toBe(true);
+    // Nothing typed: an option that isn't on the list is refused.
+    expect(LooksInput.safeParse({ gender: "woman", tattoos: "a dragon on her back" }).success).toBe(false);
+    expect(LooksInput.safeParse({ gender: "woman", after_dark: { grooming: "anything" } }).success).toBe(false);
+    expect(normaliseLooks({ gender: "woman", body_hair: "hairy", glasses: "wire" })).toEqual({ gender: "woman", glasses: "wire" });
+    expect(normaliseLooks({ gender: "man", body_hair: "hairy", after_dark: { grooming: "natural" } })).toEqual({ gender: "man", body_hair: "hairy", after_dark: { grooming: "natural" } });
+    const e = normaliseExtras({ looks: { gender: "woman", marks: "freckles", after_dark: { grooming: "shaved" } } });
+    expect(publicExtras(e).looks).toEqual({ gender: "woman", marks: "freckles" });
+    // Every detail's words are fixed phrases with no "{" to fill.
+    for (const d of LOOK_DETAILS) for (const o of d.options) expect(o.prompt).not.toMatch(/[{}]/);
+  });
+
+  it("puts the details in the appearance line while it fits, in the portrait, and in After Dark's pictures, never in a tile", () => {
+    const l = { gender: "woman" as const, ethnicity: "latina", skin_tone: "lighter", eyes: "green", marks: "freckles", glasses: "thick", tattoos: "small", after_dark: { grooming: "trimmed" } };
+    expect(looksAppearance(l)).toBe("Latina, a lighter skin tone, vivid green eyes, a light dusting of freckles across the nose and cheeks, thick black-framed glasses");
+    const portrait = looksPortraitPrompt(l, 30)!;
+    expect(portrait).toContain("Latin American woman with warm tan skin and Latin features, a lighter skin tone");
+    expect(portrait).toContain("one small fine-line tattoo on the inner wrist");
+    expect(portrait).not.toMatch(/pubic/);
+    expect(looksPictureWords(l, true)).toMatchObject({ undressed: "neatly trimmed pubic hair" });
+    expect(looksPictureWords(l, true).body).toContain("thick black-framed glasses");
+    expect(looksPictureWords(l, false).undressed).toBeNull();
+    expect(looksPictureWords({ gender: "man", body_hair: "light" }, false).body).toBe("a lightly hairy chest");
+    for (const spec of tileSpecs()) expect(spec.prompt).not.toMatch(/freckles|glasses|tattoo|piercing|makeup|pubic|skin tone/);
   });
 
   it("keeps After Dark's picks off every public view", () => {

@@ -2,10 +2,19 @@
  * Clips as the videos list shows them (app/after-dark/[a]/[b]/Reels.tsx): a clip and the ones kept going from it are one
  * chain, played as one film. Pure, for the page (lib/adult/clips.ts makes them).
  */
-import type { Reel } from "./reels";
+import type { Reel, ReelShot } from "./reels";
 
 /** Shots a clip can be kept going to, in all (about 30 s): Keep going stops being offered there. */
 export const CHAIN_MAX = 6;
+
+/**
+ * A shot that plays: it came through and it isn't in the Archive (lib/adult/reels.ts archiveShot). Every player, the
+ * whole night's film, a Short and Keep going go by this; an archived shot is kept, and plays only from the Archive.
+ */
+export const playable = (s: ReelShot): boolean => s.status === "ready" && Boolean(s.media_id) && !s.archived_at;
+
+/** A clip that came through with every shot of it in the Archive: it plays nothing, and is listed in the Archive. */
+export const archivedClip = (c: Reel): boolean => c.status === "ready" && !c.shots.some(playable);
 
 /**
  * The pair's clips as chains, each from its first clip on, newest chain first. A clip carries on with the first clip
@@ -27,8 +36,13 @@ export function clipChains(clips: readonly Reel[]): Reel[][] {
     const alive = kids.filter((k) => k.status !== "failed");
     const failed = kids.filter((k) => k.status === "failed");
     if (alive.length) {
-      next.set(from, alive[0]);
+      // One that plays before one whose shots all went to the Archive: Keep going goes back to the last clip that plays
+      // (keepGoingFrom), so what's been kept going from there since takes the archived one's place, and the archived one
+      // (nothing kept going from it) leaves the chain for the Archive.
+      const pick = alive.find((k) => !archivedClip(k)) ?? alive[0];
+      next.set(from, pick);
       failed.forEach((k) => dropped.add(k.id));
+      if (!archivedClip(pick)) alive.filter((k) => k !== pick && archivedClip(k) && !children.has(k.id)).forEach((k) => dropped.add(k.id));
     } else {
       // Only failures: the newest one shows (why it didn't come through), the older tries go.
       next.set(from, failed[failed.length - 1]);
@@ -48,12 +62,14 @@ export function clipChains(clips: readonly Reel[]): Reel[][] {
 
 /**
  * The clip a chain keeps going from: its last one that's in with a keyframe (past one at the end that failed, so it can
- * be tried again), while the chain has room. Null otherwise, or while its last is still being made.
+ * be tried again, and past any at the end whose shots all went to the Archive), while the chain has room up to it. Null
+ * otherwise, or while its last is still being made.
  */
 export function keepGoingFrom(chain: readonly Reel[]): Reel | null {
   const done = chain.filter((c) => c.status !== "failed");
-  const last = done[done.length - 1];
-  if (!last || last.status !== "ready" || done.length >= CHAIN_MAX) return null;
+  const at = done.findLastIndex((c) => !archivedClip(c));
+  const last = done[at];
+  if (!last || last.status !== "ready" || at + 1 >= CHAIN_MAX) return null;
   if (chain[chain.length - 1].status === "making") return null;
-  return last.shots.some((s) => s.status === "ready" && s.frame_id) ? last : null;
+  return last.shots.some((s) => playable(s) && s.frame_id) ? last : null;
 }

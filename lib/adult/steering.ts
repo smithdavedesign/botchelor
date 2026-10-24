@@ -1,0 +1,224 @@
+/**
+ * After Dark learning from its viewers (David, 2026-10-24: "allow users to score … and use that as training data for the
+ * next run on the same character … we need to train to get better results"). Not a dataset and not a trained model (the
+ * privacy page promises After Dark never goes into one: docs/data-plan.md): a viewer's own ratings steer that viewer's own
+ * next pictures and videos of the same character, and go when the picture or the character does.
+ *
+ *  - A rating is 👍/👎 on one of their pictures or videos, with what was off (lib/adult/rating-tags.ts).
+ *  - The face they keep: the one they picked ("Use this face"), else their own best-rated baseline, else the admins'
+ *    newest (faceReferenceId). Every keyframe and video of the character starts from it (lib/adult/reels.ts baselines),
+ *    and fal's face-reference pictures too (lib/adult/media.ts).
+ *  - What was off becomes fixed words (steeringFor): a tag on any 👎 among their last dozen ratings of the character's
+ *    pictures adds its fix to the next picture's prompt or negative prompt; on their videos, to the next shot's.
+ *  - Which light and lens suits the character (choosePreset): a Thompson-sampling test over PICTURE_PRESETS, scored by
+ *    their 👍 and 👎 on that character's pictures.
+ */
+import type { Db } from "../db";
+import { PICTURE_PRESETS, TAG_FIXES, tagsFor, type PresetId, type RatingTag } from "./rating-tags";
+
+/** How many of a viewer's newest ratings of a character's pictures (and, apart, of their videos) steer the next one. */
+export const STEER_WINDOW = 12;
+
+export type Steering = { tags: RatingTag[]; positive: string[]; negative: string[]; video: string[] };
+export const NO_STEERING: Steering = { tags: [], positive: [], negative: [], video: [] };
+
+/** A picture or video the viewer may rate or pick: theirs, or anyone's for an admin. `$1` is the media id, `$2` the viewer. */
+const MEDIA_FOR_VIEWER = `select kind, character_id, character_b, status from adult_images
+  where id = $1 and (owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))`;
+
+export type RateResult = { ok: true; rating: -1 | 0 | 1; tags: string[] } | { ok: false; status: number; error: string; message: string };
+
+/**
+ * Sets the viewer's rating of one of their pictures or videos: 1 (👍) or -1 (👎) with what was off, or 0 to take it back.
+ * Tags outside the picture's or video's own list are dropped; a 👍 keeps none.
+ */
+export async function rateMedia(db: Db, viewerId: string, mediaId: string, rating: -1 | 0 | 1, tags: string[] = []): Promise<RateResult> {
+  const m = (await db.query<{ kind: string; status: string }>(MEDIA_FOR_VIEWER, [mediaId, viewerId])).rows[0];
+  if (!m || m.status !== "ready" || !["baseline", "scene", "video"].includes(m.kind)) return { ok: false, status: 404, error: "not_found", message: "No picture or video of yours with that id." };
+  if (rating === 0) {
+    await db.query(`delete from adult_media_thumbs where owner_id = $1 and media_id = $2`, [viewerId, mediaId]);
+    return { ok: true, rating: 0, tags: [] };
+  }
+  const allowed = tagsFor(m.kind);
+  const kept = rating < 0 ? [...new Set(tags.filter((t) => t in allowed))] : [];
+  await db.query(
+    `insert into adult_media_thumbs (owner_id, media_id, rating, tags) values ($1, $2, $3, $4::jsonb)
+     on conflict (owner_id, media_id) do update set rating = excluded.rating, tags = excluded.tags, updated_at = now()`,
+    [viewerId, mediaId, rating, JSON.stringify(kept)],
+  );
+  return { ok: true, rating, tags: kept };
+}
+
+/** The viewer's ratings of these pictures and videos, by id. */
+export async function ratingsFor(db: Db, viewerId: string, mediaIds: string[]): Promise<Map<string, { rating: -1 | 1; tags: string[] }>> {
+  if (!mediaIds.length) return new Map();
+  const { rows } = await db.query<{ media_id: string; rating: -1 | 1; tags: string[] }>(
+    `select media_id, rating, tags from adult_media_thumbs where owner_id = $1 and media_id = any($2)`,
+    [viewerId, mediaIds],
+  );
+  return new Map(rows.map((r) => [r.media_id, { rating: r.rating, tags: r.tags ?? [] }]));
+}
+
+/**
+ * What this viewer's ratings say to their next picture or video of these characters (one, or a pair): every tag on a 👎
+ * among their newest STEER_WINDOW ratings, with its fix (lib/adult/rating-tags.ts TAG_FIXES). Pictures steer pictures
+ * and videos steer videos: a picture's fixes come from their ratings of pictures with any of them in, a shot's from their
+ * ratings of videos, so picking a face (a 👍 on a picture) never quiets what they said about a video. A 👎 keeps steering
+ * past a 👍 on the next one (the fix worked) until a dozen newer ratings push it out, or it's changed.
+ */
+export async function steeringFor(db: Db, viewerId: string, characterIds: (string | null | undefined)[]): Promise<Steering> {
+  const ids = characterIds.filter((x): x is string => Boolean(x));
+  if (!ids.length) return NO_STEERING;
+  const { rows } = await db.query<{ video: boolean; rating: number; tags: string[] }>(
+    `select video, rating, tags from (
+       select i.kind = 'video' as video, r.rating, r.tags, row_number() over (partition by i.kind = 'video' order by r.updated_at desc) as n
+         from adult_media_thumbs r join adult_images i on i.id = r.media_id
+        where r.owner_id = $1 and (i.character_id = any($2) or i.character_b = any($2))
+     ) newest where n <= $3`,
+    [viewerId, ids, STEER_WINDOW],
+  );
+  const off = (video: boolean) => new Set(rows.filter((r) => r.video === video && r.rating < 0).flatMap((r) => r.tags ?? []));
+  const [pictures, videos] = [off(false), off(true)];
+  const all = Object.keys(TAG_FIXES) as RatingTag[];
+  const fixes = (on: Set<string>, k: "positive" | "negative" | "video") => all.filter((t) => on.has(t)).map((t) => TAG_FIXES[t][k]).filter((x): x is string => Boolean(x));
+  return { tags: all.filter((t) => pictures.has(t) || videos.has(t)), positive: fixes(pictures, "positive"), negative: fixes(pictures, "negative"), video: fixes(videos, "video") };
+}
+
+/** A picture prompt with the viewer's fixes in, before the closing words about adults (the prompt's last sentence). */
+export function withSteering(prompt: string, steer: Steering, presetWords: string | null = null): string {
+  const extra = [presetWords, steer.positive.length ? `${cap(steer.positive.join(", "))}.` : null].filter(Boolean).join(" ");
+  if (!extra) return prompt;
+  const closing = /\s*Everyone shown is an adult\.\s*$/;
+  return closing.test(prompt) ? prompt.replace(closing, ` ${extra} Everyone shown is an adult.`) : `${prompt} ${extra}`;
+}
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/* ------------------------------------------------- the face ------------------------------------------------- */
+
+/**
+ * The picture of a character this viewer's pictures and videos keep the face from:
+ *  1. the one they picked ("Use this face"), while it's still there;
+ *  2. else their own 👍 baseline, newest first; else their own newest baseline they haven't 👎'd;
+ *  3. else the admins' newest baseline they haven't 👎'd (a subscriber's redraw never changes anyone else's face);
+ *  4. else any baseline, the newest.
+ * Null when the character has no baseline yet.
+ */
+export async function faceReferenceId(db: Db, viewerId: string, characterId: string): Promise<string | null> {
+  const picked = (
+    await db.query<{ image_id: string }>(
+      `select f.image_id from adult_face_refs f join adult_images i on i.id = f.image_id and i.status = 'ready'
+        where f.owner_id = $1 and f.character_id = $2`,
+      [viewerId, characterId],
+    )
+  ).rows[0];
+  if (picked) return picked.image_id;
+  const { rows } = await db.query<{ id: string }>(
+    `select i.id from adult_images i
+      left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $1
+      where i.character_id = $2 and i.character_b is null and i.kind = 'baseline' and i.status = 'ready'
+      order by (coalesce(r.rating, 0) < 0),
+               ((i.owner_id = $1) and coalesce(r.rating, 0) > 0) desc,
+               (i.owner_id = $1) desc,
+               exists (select 1 from admins a where a.user_id = i.owner_id) desc,
+               i.created_at desc
+      limit 1`,
+    [viewerId, characterId],
+  );
+  return rows[0]?.id ?? null;
+}
+
+/** Each character's face for this viewer (faceReferenceId), and whether it's one they picked, for the page's faces panel. */
+export async function facesFor(db: Db, viewerId: string, characterIds: string[]): Promise<Record<string, { image_id: string | null; picked: boolean }>> {
+  const picked = new Set(
+    (
+      await db.query<{ character_id: string }>(
+        `select f.character_id from adult_face_refs f join adult_images i on i.id = f.image_id and i.status = 'ready' where f.owner_id = $1 and f.character_id = any($2)`,
+        [viewerId, characterIds],
+      )
+    ).rows.map((r) => r.character_id),
+  );
+  const out: Record<string, { image_id: string | null; picked: boolean }> = {};
+  for (const id of characterIds) out[id] = { image_id: await faceReferenceId(db, viewerId, id), picked: picked.has(id) };
+  return out;
+}
+
+export type FaceResult = { ok: true; image_id: string | null } | { ok: false; status: number; error: string; message: string };
+
+/**
+ * "Use this face": one of the viewer's pictures of the character alone (a baseline, or a scene picture of just them)
+ * becomes the face their pictures and videos of the character keep. Picking a face is also a 👍 on it. `imageId` null
+ * goes back to the default (faceReferenceId's 2 to 4).
+ */
+export async function setFaceReference(db: Db, viewerId: string, characterId: string, imageId: string | null): Promise<FaceResult> {
+  if (imageId === null) {
+    await db.query(`delete from adult_face_refs where owner_id = $1 and character_id = $2`, [viewerId, characterId]);
+    return { ok: true, image_id: await faceReferenceId(db, viewerId, characterId) };
+  }
+  const m = (await db.query<{ kind: string; character_id: string | null; character_b: string | null; status: string }>(MEDIA_FOR_VIEWER, [imageId, viewerId])).rows[0];
+  if (!m || m.status !== "ready" || !["baseline", "scene"].includes(m.kind) || m.character_id !== characterId || m.character_b) {
+    return { ok: false, status: 404, error: "not_found", message: "Pick one of your pictures of them alone." };
+  }
+  await db.query(
+    `insert into adult_face_refs (owner_id, character_id, image_id) values ($1, $2, $3)
+     on conflict (owner_id, character_id) do update set image_id = excluded.image_id, set_at = now()`,
+    [viewerId, characterId, imageId],
+  );
+  await db.query(`insert into adult_media_thumbs (owner_id, media_id, rating) values ($1, $2, 1) on conflict (owner_id, media_id) do nothing`, [viewerId, imageId]);
+  return { ok: true, image_id: imageId };
+}
+
+/* ------------------------------------------------- the presets ------------------------------------------------- */
+
+/** A standard normal draw (Box-Muller), from `rng` (uniform in [0, 1)). */
+function normal(rng: () => number): number {
+  const u = Math.max(rng(), 1e-12);
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng());
+}
+/** A Gamma(shape, 1) draw (Marsaglia and Tsang). */
+function gamma(shape: number, rng: () => number): number {
+  if (shape < 1) return gamma(shape + 1, rng) * Math.pow(Math.max(rng(), 1e-12), 1 / shape);
+  const d = shape - 1 / 3;
+  const c = 1 / Math.sqrt(9 * d);
+  for (;;) {
+    let x: number;
+    let v: number;
+    do {
+      x = normal(rng);
+      v = 1 + c * x;
+    } while (v <= 0);
+    v = v * v * v;
+    const u = rng();
+    if (u < 1 - 0.0331 * x ** 4 || Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+  }
+}
+/** A Beta(a, b) draw. */
+export function betaSample(a: number, b: number, rng: () => number = Math.random): number {
+  const x = gamma(a, rng);
+  return x / (x + gamma(b, rng));
+}
+
+/** Each preset's 👍 and 👎 from this viewer on this character's pictures. */
+export async function presetTally(db: Db, viewerId: string, characterId: string): Promise<Record<PresetId, { up: number; down: number }>> {
+  const out = Object.fromEntries(PICTURE_PRESETS.map((p) => [p.id, { up: 0, down: 0 }])) as Record<PresetId, { up: number; down: number }>;
+  const { rows } = await db.query<{ preset: string; rating: number }>(
+    `select i.preset, r.rating from adult_media_thumbs r join adult_images i on i.id = r.media_id
+      where r.owner_id = $1 and i.character_id = $2 and i.character_b is null and i.kind in ('baseline', 'scene') and i.preset is not null`,
+    [viewerId, characterId],
+  );
+  for (const r of rows) {
+    const p = out[r.preset as PresetId];
+    if (p) p[r.rating > 0 ? "up" : "down"]++;
+  }
+  return out;
+}
+
+/** The preset for the viewer's next picture of the character: each one's Beta(1 + 👍, 1 + 👎) drawn once, the highest goes. */
+export async function choosePreset(db: Db, viewerId: string, characterId: string, rng: () => number = Math.random): Promise<(typeof PICTURE_PRESETS)[number]> {
+  const t = await presetTally(db, viewerId, characterId);
+  let best: { p: (typeof PICTURE_PRESETS)[number]; draw: number } | null = null;
+  for (const p of PICTURE_PRESETS) {
+    const draw = betaSample(1 + t[p.id].up, 1 + t[p.id].down, rng);
+    if (!best || draw > best.draw) best = { p, draw };
+  }
+  return best!.p;
+}

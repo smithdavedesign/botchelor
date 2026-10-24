@@ -241,7 +241,7 @@ export async function keepPictureOfBoth(
   let prompt = plan.promptFor(false);
   try {
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
-    const bases = await baselines(db, ca.id, cb.id);
+    const bases = await baselines(db, ca.id, cb.id, ownerId);
     if (!bases) throw new Error("a picture of each of them is needed first");
     const faces = bases.map((id) => signedMediaUrl(id, baseUrl));
     const set = plan.place ? ((await setPictures(db, [plan.place])).get(plan.place) ?? null) : null;

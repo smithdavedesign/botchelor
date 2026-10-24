@@ -220,6 +220,107 @@ export function optionsFor(step: LookStep, gender: Gender, afterDark = false): r
 export const optionLabel = (o: LookOption, gender: Gender): string => (gender === "man" && o.labelMan) || o.label;
 const optionPrompt = (o: LookOption, gender: Gender): string => (gender === "man" && o.promptMan) || o.prompt;
 
+/* ------------------------------------------ the finer details ------------------------------------------ */
+
+/**
+ * The finer details (David, 2026-10-24: "can we add more customization allowed before generating the baseline
+ * images?"): fixed choices picked as chips on the look's summary, no picture tiles and nothing typed. None is needed;
+ * each one picked goes into the character's pictures like a step's pick (looksPictureWords: After Dark's baseline and
+ * every picture after it; the portrait; the appearance line while it fits). What a baseline frames stays fixed
+ * (waist-up, facing the camera, face clear): a detail changes who's in it, never the shot.
+ */
+export const LOOK_DETAIL_IDS = ["skin_tone", "marks", "makeup", "glasses", "piercings", "tattoos", "body_hair", "grooming"] as const;
+export type LookDetailId = (typeof LOOK_DETAIL_IDS)[number];
+export type LookDetail = { id: LookDetailId; title: string; only?: Gender; afterDark?: true; options: readonly LookOption[] };
+
+export const LOOK_DETAILS: readonly LookDetail[] = [
+  {
+    id: "skin_tone",
+    title: "Skin shade",
+    options: [
+      { id: "lighter", label: "Lighter", prompt: "a lighter skin tone" },
+      { id: "deeper", label: "Deeper", prompt: "a deeper skin tone" },
+    ],
+  },
+  {
+    id: "marks",
+    title: "Freckles or a beauty mark",
+    options: [
+      { id: "freckles", label: "Freckles", prompt: "a light dusting of freckles across the nose and cheeks" },
+      { id: "lots", label: "Lots of freckles", prompt: "lots of freckles across the face and shoulders" },
+      { id: "beauty_mark", label: "Beauty mark", prompt: "a small beauty mark above the lip" },
+    ],
+  },
+  {
+    id: "makeup",
+    title: "Makeup",
+    options: [
+      { id: "natural", label: "Natural", prompt: "natural barely-there makeup" },
+      { id: "glam", label: "Glam", prompt: "glamorous makeup with winged eyeliner and red lipstick" },
+      { id: "smoky", label: "Smoky eyes", prompt: "dark smoky eye makeup" },
+    ],
+  },
+  {
+    id: "glasses",
+    title: "Glasses",
+    options: [
+      { id: "wire", label: "Wire frames", prompt: "thin round wire-framed glasses" },
+      { id: "thick", label: "Thick frames", prompt: "thick black-framed glasses" },
+    ],
+  },
+  {
+    id: "piercings",
+    title: "Piercings",
+    options: [
+      { id: "ears", label: "Earrings", prompt: "small gold hoop earrings" },
+      { id: "nose", label: "Nose stud", prompt: "a small nose stud" },
+      { id: "several", label: "Several", prompt: "several ear piercings and a small nose ring" },
+    ],
+  },
+  {
+    id: "tattoos",
+    title: "Tattoos",
+    options: [
+      { id: "small", label: "One small", prompt: "one small fine-line tattoo on the inner wrist" },
+      { id: "few", label: "A few", prompt: "a few small tattoos on the arms" },
+      { id: "sleeve", label: "Sleeve", prompt: "a full sleeve tattoo covering one arm" },
+    ],
+  },
+  {
+    id: "body_hair",
+    title: "Chest hair",
+    only: "man",
+    options: [
+      { id: "smooth", label: "Smooth", prompt: "a smooth hairless chest" },
+      { id: "light", label: "Light", prompt: "a lightly hairy chest" },
+      { id: "hairy", label: "Hairy", prompt: "a hairy chest" },
+    ],
+  },
+  {
+    id: "grooming",
+    title: "Grooming",
+    afterDark: true,
+    options: [
+      { id: "shaved", label: "Shaved", prompt: "a completely shaved pubic area" },
+      { id: "trimmed", label: "Trimmed", prompt: "neatly trimmed pubic hair" },
+      { id: "natural", label: "Natural", prompt: "natural untrimmed pubic hair" },
+    ],
+  },
+];
+
+/** The details a gender picks on a tab (After Dark's own only there). */
+export function detailsFor(gender: Gender, afterDark: boolean): LookDetail[] {
+  return LOOK_DETAILS.filter((d) => (!d.only || d.only === gender) && (!d.afterDark || afterDark));
+}
+
+const detailIds = (id: LookDetailId) => LOOK_DETAILS.find((d) => d.id === id)!.options.map((o) => o.id) as [string, ...string[]];
+const detailWords = (id: LookDetailId, option: string | undefined): string | undefined =>
+  option ? LOOK_DETAILS.find((d) => d.id === id)?.options.find((o) => o.id === option)?.prompt : undefined;
+
+/** The details anyone sees, as words, after the body (the skin's shade goes with the ethnicity): marks, makeup, glasses, piercings, tattoos. */
+const shownDetailWords = (l: Looks): string[] =>
+  (["marks", "makeup", "glasses", "piercings", "tattoos"] as const).map((id) => detailWords(id, l[id])).filter((x): x is string => Boolean(x));
+
 /* ------------------------------------------- what's stored ------------------------------------------- */
 
 const ids = (step: LookStepId, extra: readonly LookOption[] = []) => {
@@ -241,11 +342,20 @@ export const LooksInput = z
     breasts: z.enum(ids("breasts")).optional(),
     facial_hair: z.enum(ids("facial_hair")).optional(),
     outfit: z.enum(ids("outfit")).optional(),
+    /** The finer details (LOOK_DETAILS). */
+    skin_tone: z.enum(detailIds("skin_tone")).optional(),
+    marks: z.enum(detailIds("marks")).optional(),
+    makeup: z.enum(detailIds("makeup")).optional(),
+    glasses: z.enum(detailIds("glasses")).optional(),
+    piercings: z.enum(detailIds("piercings")).optional(),
+    tattoos: z.enum(detailIds("tattoos")).optional(),
+    body_hair: z.enum(detailIds("body_hair")).optional(),
     /** After Dark's picks: private, and kept only for an account that can open After Dark. */
     after_dark: z
       .object({
         butt: z.enum(ids("butt")).optional(),
         outfit: z.enum(ids("outfit", [...AFTER_DARK_OUTFITS, ...AFTER_DARK_OUTFITS_MAN])).optional(),
+        grooming: z.enum(detailIds("grooming")).optional(),
       })
       .strict()
       .optional(),
@@ -263,6 +373,11 @@ export function normaliseLooks(l: Looks | null | undefined): Looks | undefined {
     if (step.afterDark || step.id === "gender" || step.id === "age" || out[k] === undefined) continue;
     const valid = g ? (!step.only || step.only === g) && optionsFor(step, g).some((o) => o.id === out[k]) : !step.only;
     if (!valid) delete out[k];
+  }
+  for (const d of LOOK_DETAILS) {
+    const k = d.id as keyof Looks;
+    if (d.afterDark || out[k] === undefined) continue;
+    if (d.only && d.only !== g) delete out[k];
   }
   if (out.after_dark) {
     const ad = { ...out.after_dark };
@@ -310,10 +425,12 @@ export function looksAppearance(l: Looks | undefined): string {
   const parts = [
     l.style === "anime" ? "anime-style" : "",
     l.ethnicity ? optionLabel(pick("ethnicity", g, l.ethnicity)!, g).replace(" / Afro", "") : "",
+    detailWords("skin_tone", l.skin_tone) ?? "",
     hairWords(g, l.hair_style, l.hair_color),
     pick("eyes", g, l.eyes)?.prompt ?? "",
     pick("facial_hair", g, l.facial_hair)?.prompt ?? "",
     pick("body", g, l.body)?.prompt ?? "",
+    ...shownDetailWords(l),
   ].filter(Boolean);
   const kept: string[] = [];
   for (const p of parts) if ([...kept, p].join(", ").length <= 140) kept.push(p);
@@ -326,24 +443,29 @@ export function looksAppearance(l: Looks | undefined): string {
  * `own` says whether the picture is the owner's; the After Dark outfit wins over the show's. Realistic only: After
  * Dark never draws anime.
  */
-export function looksPictureWords(l: Looks | undefined, own: boolean): { body: string; outfit: string | null } {
-  if (!l?.gender) return { body: "", outfit: null };
+export function looksPictureWords(l: Looks | undefined, own: boolean): { body: string; outfit: string | null; undressed: string | null } {
+  if (!l?.gender) return { body: "", outfit: null, undressed: null };
   const g = l.gender;
   const body = [
     l.ethnicity ? optionLabel(pick("ethnicity", g, l.ethnicity)!, g).replace(" / Afro", "") : "",
+    detailWords("skin_tone", l.skin_tone),
     hairWords(g, l.hair_style, l.hair_color),
     pick("eyes", g, l.eyes)?.prompt,
     pick("facial_hair", g, l.facial_hair)?.prompt,
     pick("body", g, l.body)?.prompt,
     pick("breasts", g, l.breasts)?.prompt,
     own ? pick("butt", g, l.after_dark?.butt, true)?.prompt : undefined,
+    ...shownDetailWords(l),
+    g === "man" ? detailWords("body_hair", l.body_hair) : undefined,
   ]
     .filter(Boolean)
     .join(", ");
+  // What shows only once they've undressed: the private grooming pick, in the owner's own pictures.
+  const undressed = (own && detailWords("grooming", l.after_dark?.grooming)) || null;
   const adOutfit = own ? pick("outfit", g, l.after_dark?.outfit, true) : undefined;
-  if (adOutfit) return { body, outfit: adOutfit.id === "nude" ? null : optionPrompt(adOutfit, g) };
+  if (adOutfit) return { body, outfit: adOutfit.id === "nude" ? null : optionPrompt(adOutfit, g), undressed };
   const outfit = pick("outfit", g, l.outfit);
-  return { body, outfit: outfit ? optionPrompt(outfit, g) : null };
+  return { body, outfit: outfit ? optionPrompt(outfit, g) : null, undressed };
 }
 
 /* ---------------------------------------------- the tiles ---------------------------------------------- */
@@ -382,12 +504,14 @@ type Subject = { gender: Gender; looks: Looks & { age: number }; outfit: string 
 function subjectWords({ gender, looks }: Subject): string {
   return [
     `a ${Math.max(IMAGE_MIN_AGE, looks.age)}-year-old ${ethnicityWords(gender, looks.ethnicity)}`,
+    detailWords("skin_tone", looks.skin_tone),
     hairWords(gender, looks.hair_style, looks.hair_color),
     pick("eyes", gender, looks.eyes)?.prompt,
     gender === "man" ? pick("facial_hair", gender, looks.facial_hair)?.prompt : undefined,
     pick("body", gender, looks.body)?.prompt,
     gender === "woman" && looks.breasts ? pick("breasts", gender, looks.breasts)?.prompt : undefined,
     looks.after_dark?.butt ? pick("butt", gender, looks.after_dark.butt, true)?.prompt : undefined,
+    ...shownDetailWords(looks),
   ]
     .filter(Boolean)
     .join(", ");

@@ -2,13 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
-import { clipChains, keepGoingFrom } from "@/lib/adult/clip-chains";
+import { archivedClip, clipChains, keepGoingFrom, playable } from "@/lib/adult/clip-chains";
 import type { BusyReel, Reel, ReelShot } from "@/lib/adult/reels";
 import { chaptersLabel } from "@/lib/adult/nights";
 import { pausedUntil, reelFailureNote } from "@/lib/adult/reel-failure";
 import { REEL_STALLED_MS } from "@/lib/adult/reel-timing";
+import RateMedia from "./RateMedia";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
+
+/** A shot as a player plays it: with the video it's from, so it can be taken out of it (the Archive). */
+type PlayShot = ReelShot & { reel: string };
+
+/** Lets a preloaded copy of a file go (a link played as it is, when the copy couldn't be made, has nothing to let go). */
+const drop = (url: string) => url.startsWith("blob:") && URL.revokeObjectURL(url);
 
 /**
  * Their videos of the night (lib/adult/reels.ts). A reel still being made is polled until it's done (the poll is what
@@ -33,8 +40,9 @@ export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r
   }, [making, onChange]);
 
   if (!reels.length) return null;
-  // Videos of the night, and clips (lib/adult/clips.ts) apart: a clip is a moment, not part of the night's film.
-  const nights = reels.filter((r) => r.kind !== "clip");
+  // Videos of the night, and clips (lib/adult/clips.ts) apart: a clip is a moment, not part of the night's film. A video
+  // whose every shot went to the Archive is listed there, not here.
+  const nights = reels.filter((r) => r.kind !== "clip" && !archivedClip(r));
   const clips = reels.filter((r) => r.kind === "clip");
   // The whole night: from the bottom of the list (the oldest video) up.
   const night = [...nights].reverse().flatMap((r) => readyShots(r));
@@ -47,7 +55,7 @@ export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r
           <h3>
             The whole night <span className="muted small">· {finished} videos, oldest first · {night.length} shots</span>
           </h3>
-          <SeamlessPlayer shots={night} />
+          <SeamlessPlayer shots={night} onChange={onChange} />
         </div>
       )}
       {clips.length > 0 && <Clips clips={clips} onChange={onChange} />}
@@ -62,18 +70,105 @@ export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r
           ))}
         </ul>
       )}
+      <Archive reels={reels} onChange={onChange} />
     </section>
   );
 }
 
-const readyShots = (r: Reel): ReelShot[] => (r.status === "making" ? [] : r.shots.filter((s) => s.status === "ready" && s.media_id));
+/** The shots of a video that play, in order: in, and not in the Archive (lib/adult/clip-chains.ts playable). */
+const readyShots = (r: Reel): PlayShot[] => (r.status === "making" ? [] : r.shots.filter(playable).map((s) => ({ ...s, reel: r.id })));
+
+/** Takes a shot out of its video into the Archive, or puts it back: the video as it is now, or what went wrong. */
+async function archive(s: PlayShot, archived: boolean): Promise<{ reel: Reel } | { error: string }> {
+  const res = await requestJson("/api/admin/after-dark/reel", { id: s.reel, media_id: s.media_id, archived }, "PATCH").catch(() => null);
+  if (!res) return { error: "That didn't reach the server. Check your connection and try again." };
+  return res.ok ? { reel: res.data.reel as Reel } : { error: res.message };
+}
+
+/**
+ * The Archive (David, 2026-10-24: "allow a user to remove a clip from the larger video (in case it fails) which should
+ * put it in a section called archive, dont delete tho"): every shot taken out of its video, newest first. Kept, never
+ * deleted: each one plays here on its own, and Put it back returns it to its place in its video.
+ */
+function Archive({ reels, onChange }: { reels: Reel[]; onChange: (r: Reel) => void }) {
+  const shots = reels
+    .filter((r) => r.status !== "making")
+    .flatMap((r) =>
+      r.shots
+        .filter((s) => s.status === "ready" && s.media_id && s.archived_at)
+        .map((s) => ({ ...s, reel: r.id, from: r.kind === "clip" ? (r.clip?.label ?? "A clip") : r.chapters?.length ? chaptersLabel(r.chapters) : "A video of the night" })),
+    )
+    .sort((p, q) => (q.archived_at ?? "").localeCompare(p.archived_at ?? ""));
+  if (!shots.length) return null;
+  return (
+    <details className="ad-archive">
+      <summary>
+        🗄 Archive{" "}
+        <span className="muted small">
+          · {shots.length} shot{shots.length === 1 ? "" : "s"} taken out of their videos, kept
+        </span>
+      </summary>
+      <ul className="ad-archive-list">
+        {shots.map((s) => (
+          <li key={`${s.reel}:${s.media_id}`}>
+            <ArchivedShot shot={s} onChange={onChange} />
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function ArchivedShot({ shot, onChange }: { shot: PlayShot & { from: string }; onChange: (r: Reel) => void }) {
+  const [watching, setWatching] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function putBack() {
+    setBusy(true);
+    setError(null);
+    const r = await archive(shot, false);
+    setBusy(false);
+    if ("error" in r) return setError(r.error);
+    onChange(r.reel);
+  }
+  return (
+    <div className="ad-archived-shot">
+      {watching ? (
+        <SeamlessPlayer shots={[shot]} />
+      ) : (
+        <button type="button" className="ad-archived-poster" onClick={() => setWatching(true)} aria-label="Watch this shot">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {shot.frame_id ? <img src={mediaUrl(shot.frame_id)} alt="" loading="lazy" /> : null}
+          <span className="ad-archived-play" aria-hidden>
+            ▶
+          </span>
+        </button>
+      )}
+      <p className="small ad-archived-from">
+        <strong>{shot.from}</strong>
+        {shot.text ? <span className="muted"> · “{shot.text}”</span> : null}
+      </p>
+      <p>
+        <button type="button" className="secondary small" disabled={busy} onClick={() => void putBack()}>
+          {busy ? "Putting it back…" : "Put it back"}
+        </button>
+      </p>
+      {error && (
+        <p className="error small" role="status">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /**
  * Their clips (lib/adult/clips.ts), each with the ones kept going from it as one film, newest first. "Keep going" carries
  * the last one on: its keyframe is the picture the next shot starts from. The price is the pair's clip menu's.
  */
 function Clips({ clips, onChange }: { clips: Reel[]; onChange: (r: Reel) => void }) {
-  const chains = clipChains(clips);
+  // A chain whose every clip went to the Archive is listed there, not here.
+  const chains = clipChains(clips).filter((chain) => !chain.every(archivedClip));
   const pair = clips.find((c) => c.a && c.b);
   const [price, setPrice] = useState<number | null>(null);
   useEffect(() => {
@@ -88,6 +183,7 @@ function Clips({ clips, onChange }: { clips: Reel[]; onChange: (r: Reel) => void
     };
   }, [pair?.a, pair?.b]);
   const making = clips.some((c) => c.status === "making");
+  if (!chains.length) return null;
   return (
     <div className="ad-clips">
       <h3>
@@ -132,7 +228,7 @@ function ClipChain({ chain, price, making, onChange }: { chain: Reel[]; price: n
           {chain.length > 1 ? `, kept going ${chain.length - 1} time${chain.length === 2 ? "" : "s"}` : ""}
         </span>
       </p>
-      {shots.length > 0 && <SeamlessPlayer shots={shots} />}
+      {shots.length > 0 && <SeamlessPlayer shots={shots} onChange={onChange} />}
       {last.status === "making" ? (
         <ReelPlayer reel={last} onChange={onChange} what="clip" />
       ) : (
@@ -225,9 +321,11 @@ function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: 
   }
   const discarded = reel.shots.filter((s) => s.status === "discarded").length;
   const failed = reel.shots.filter((s) => s.status === "failed").length;
+  const archived = reel.shots.filter((s) => s.status === "ready" && s.archived_at).length;
   return (
     <>
-      <SeamlessPlayer shots={shots} />
+      <SeamlessPlayer shots={shots} onChange={onChange} />
+      {archived > 0 && <p className="muted small">{archived} shot(s) taken out, in the Archive below.</p>}
       {discarded > 0 && <p className="muted small">{discarded} shot(s) discarded by the check.</p>}
       {failed > 0 && (
         <p className={why ? "error small" : "muted small"}>
@@ -245,8 +343,11 @@ function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: 
  * A shot made on Replicate is silent, its line said beside it (`audio_id`, lib/adult/reels.ts): that voice is
  * preloaded with it, starts with the shot, pauses and resumes with it at the shot's time, and a line longer than its
  * shot finishes on the shot's last frame before the next one starts.
+ *
+ * Under it, the shot on screen: 👍/👎 (lib/adult/steering.ts), and with `onChange`, Remove this shot, which takes it out
+ * of its video into the Archive (nothing is deleted). The shots already fetched are kept for the shots that are left.
  */
-function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
+function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r: Reel) => void }) {
   const key = shots.map((s) => `${s.media_id}${s.audio_id ? `+${s.audio_id}` : ""}`).join(",");
   const [urls, setUrls] = useState<string[] | null>(null);
   const [loaded, setLoaded] = useState(0);
@@ -260,11 +361,14 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
   // Each shot's own voice, when it has one (null: the video's own sound, or none).
   const voices = useRef<(HTMLAudioElement | null)[]>([]);
   const stage = useRef<HTMLDivElement>(null);
+  // Each file fetched (or being fetched), by id: a shot taken out (or put back) doesn't fetch the rest again.
+  const fetched = useRef(new Map<string, Promise<string>>());
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   // Preload: every shot (and its voice) as a blob in memory, so no cut waits on the network.
   useEffect(() => {
     let cancelled = false;
-    const made: string[] = [];
     setUrls(null);
     setLoaded(0);
     setFailed(false);
@@ -272,13 +376,20 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
     setI(0);
     // A file in the bucket redirects to it; read across origins, that needs the bucket's CORS rule. Without it (a
     // network error, not a status), the player plays the link itself instead of a preloaded copy.
-    const load = async (id: string) => {
-      const res = await fetch(mediaUrl(id)).catch(() => null);
-      if (!res) return mediaUrl(id);
-      if (!res.ok) throw new Error(String(res.status));
-      const url = URL.createObjectURL(await res.blob());
-      made.push(url);
-      return url;
+    const load = (id: string) => {
+      let file = fetched.current.get(id);
+      if (!file) {
+        file = (async () => {
+          const res = await fetch(mediaUrl(id)).catch(() => null);
+          if (!res) return mediaUrl(id);
+          if (!res.ok) throw new Error(String(res.status));
+          return URL.createObjectURL(await res.blob());
+        })();
+        fetched.current.set(id, file);
+        // One that failed isn't kept: the next try fetches it again.
+        file.catch(() => fetched.current.delete(id));
+      }
+      return file;
     };
     (async () => {
       try {
@@ -290,6 +401,13 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
           }),
         );
         if (cancelled) return;
+        // What these shots no longer need goes.
+        const keep = new Set(shots.flatMap((s) => [s.media_id, s.audio_id]).filter(Boolean));
+        for (const [id, file] of fetched.current) {
+          if (keep.has(id)) continue;
+          fetched.current.delete(id);
+          file.then(drop, () => {});
+        }
         voices.current = out.map(([, voice]) => {
           if (!voice) return null;
           const a = new Audio(voice);
@@ -309,10 +427,29 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
         a.pause();
       });
       voices.current = [];
-      made.forEach((u) => URL.revokeObjectURL(u));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+  // Gone from the page: every fetched copy goes with it.
+  useEffect(() => {
+    const files = fetched.current;
+    return () => {
+      for (const file of files.values()) file.then(drop, () => {});
+      files.clear();
+    };
+  }, []);
+
+  /** Remove this shot: out of its video, into the Archive (lib/adult/reels.ts archiveShot). */
+  async function remove(s: PlayShot) {
+    if (!onChange) return;
+    players.forEach((p) => p.current?.pause());
+    setRemoving(true);
+    setRemoveError(null);
+    const r = await archive(s, true);
+    setRemoving(false);
+    if ("error" in r) return setRemoveError(r.error);
+    onChange(r.reel);
+  }
 
   // Keep the player for shot i on it, and the other one on shot i+1, loaded and paused.
   useEffect(() => {
@@ -474,6 +611,28 @@ function SeamlessPlayer({ shots }: { shots: ReelShot[] }) {
           )}
         </div>
       </div>
+      {ready && shot?.media_id && (
+        <figcaption className="ad-shot-bar">
+          <span className="muted small">This shot:</span>
+          <RateMedia key={shot.media_id} id={shot.media_id} kind="video" rating={shot.rating ?? null} tags={shot.tags ?? []} />
+          {onChange && (
+            <button
+              type="button"
+              className="button-ghost small"
+              disabled={removing}
+              onClick={() => void remove(shot)}
+              title="Take it out of the video, into the Archive below. Nothing is deleted: you can put it back."
+            >
+              {removing ? "Taking it out…" : "Remove this shot"}
+            </button>
+          )}
+          {removeError && (
+            <span className="error small" role="status">
+              {removeError}
+            </span>
+          )}
+        </figcaption>
+      )}
     </figure>
   );
 }
