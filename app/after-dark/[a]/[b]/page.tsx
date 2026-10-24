@@ -17,6 +17,7 @@ import ShortsPanel from "./ShortsPanel";
 import TwoSidesPanel from "./TwoSidesPanel";
 import { housePair } from "@/lib/adult/shorts";
 import CharacterName from "@/app/CharacterName";
+import { currentHere } from "../../view";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After dark · Botchelor", robots: { index: false, follow: false } };
@@ -38,6 +39,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
   const db = await getDb();
   const admin = await adultViewerFromCookies(db, await cookies());
   if (!admin) notFound();
+  const here = await currentHere();
   const scene = await openScene(db, admin, a, b);
   if (!scene) notFound();
   const characters = [refOf(scene.a.id, scene.a.name, await getPublicCharacter(db, scene.a.id)), refOf(scene.b.id, scene.b.name, await getPublicCharacter(db, scene.b.id))] as [CharacterRef, CharacterRef];
@@ -76,6 +78,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         hive={await hiveNotice(db)}
         faces={await facesFor(db, admin, [scene.a.id, scene.b.id])}
         steer={await steerSummary(db, admin, [scene.a.id, scene.b.id])}
+        textOnly={here.mode === "text_only" ? here.reason : null}
       />
     </article>
     </div>

@@ -4,6 +4,7 @@ import { eligibleIds } from "@/lib/adult/characters";
 import { HivePausedError } from "@/lib/adult/hive-limit";
 import { drawBaselineChoices } from "@/lib/adult/media";
 import { adultViewer } from "@/lib/adult/mode";
+import { mediaRefusal } from "@/lib/adult/place";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 
@@ -25,6 +26,9 @@ export const POST = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
+  // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
+  const refused = await mediaRefusal(db, viewer);
+  if (refused) return refused;
   const input = parseBody(Input, await readJson(req), "invalid_request");
   if (!(await eligibleIds(db, viewer)).has(input.character_id)) return hidden();
   const c = await loadCharacter(db, input.character_id);

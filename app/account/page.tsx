@@ -12,7 +12,7 @@ import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import AccountPanel from "./AccountPanel";
 import { UnlinkAgentButton } from "./AgentLinks";
 import { linkedAgents } from "@/lib/agent-links";
-import { canAfterDark } from "@/lib/adult/entitlement";
+import { accessHere } from "@/lib/adult/place";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { authFromCookieStore } from "@/lib/http";
 import CharacterName from "@/app/CharacterName";
@@ -49,7 +49,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
       <AccountPanel next={next} emailConfirmed={emailConfirmed} />
 
       {/* After Dark: only for an account it's open to. The "subscribe to unlock" row comes with the payment processor. */}
-      {(await canAfterDark(db, authFromCookieStore(await cookies()))).ok && (
+      {(await accessHere(db, authFromCookieStore(await cookies())).then((h) => h.entitled.ok && h.mode !== "blocked")) && (
         <section className="card">
           <h2>🌙 After Dark</h2>
           <p className="muted">The private adult season. Switch your characters in and out there.</p>
