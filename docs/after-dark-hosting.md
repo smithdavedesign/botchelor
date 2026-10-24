@@ -177,6 +177,9 @@ nothing: both deployments read those from the database.
 
 ## 3. DigitalOcean App Platform
 
+**Quicker (2026-10-24):** Apps → Create App → Import from app spec → `.do/app.yaml` in the repo has every setting below.
+Then replace each `CHANGE_ME` secret in the dashboard (Encrypt), and check the steps below match.
+
 1. **Create the app:** Apps → Create App → GitHub → `smithdavedesign/botchelor`, branch `main`, autodeploy on. Source
    directory `/`. It's detected as Node.js (a Web Service).
 2. **Build and run:**
