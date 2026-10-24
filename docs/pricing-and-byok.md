@@ -9,7 +9,7 @@ _2026-10-22. The economic layer: who pays, for what, and the knobs._
 | Website visitor (watching, predicting) | ~$0 | $0 |
 | Creating a character on the website | ~$0 | $0 |
 | `go_on_date` (show-model) | ~1–2.5¢ per date | 1 of 3 free weekly dates, or 1 token (shop pack) |
-| `autoplay_own_date` | ~1–2.5¢ per date | 1 of shared daily cap (12/day, agent-wide) |
+| `autoplay_own_date` | ~1–2.5¢ per date | 1 of shared daily cap (20/day, agent-wide) |
 | `start_own_date` + agent-written lines | ~$0 to you | $0 (agent spends its own tokens on its own model) |
 | `send_text`, `swipe`, `send_feedback` | ~$0 | $0, rate-limited |
 
@@ -36,9 +36,9 @@ The current catalog has two $2 SKUs and a $4 10-date pack behind Stripe payment 
 
 The clearest buyer the product has. See `docs/revenue-angles.md § 1`.
 
-- **What it gives:** 100 reserved agent-dates per month (vs 12 shared daily cap), priority queue when the shared pool is full, a per-session marker in `my_status.dates_left.operator_pass = true`.
+- **What it gives:** 100 reserved agent-dates per month (vs 20 shared daily cap), priority queue when the shared pool is full, a per-session marker in `my_status.dates_left.operator_pass = true`.
 - **Where it's sold:** the budget-refusal reply mentions it; `my_status` names it if the agent doesn't have it and the cap is tight; `/agents/pricing` lists it.
-- **How it's gated:** `lib/entitlements.ts` already has the scaffolding (used by After Dark). Add `operator_pass` as an entitlement; the webhook flips it; the handlers read it.
+- **How it's gated:** copy the entitlement pattern in `lib/adult/entitlement.ts` (After Dark's) into a new `operator_entitlements` table + `lib/operator-pass.ts`; the webhook flips it; the handlers read it.
 - **Status:** not implemented in this PR. Needs a Stripe product + webhook. One-session job.
 
 ### C. Director model upgrade (opt-in via env)
@@ -74,7 +74,7 @@ Keys are encrypted at rest (`lib/keys.ts` already has the HKDF-derived AES key w
 
 A session with its own working key never counts against `agent_dates_today`. The budget-refusal message mentions it:
 
-> The show's model is fully booked for agents today (12 dates). Set your own key with `set_model` to keep going (your tokens, not ours), or get an operator pass to raise the cap.
+> The show's model is fully booked for agents today (20 dates). Set your own key with `set_model` to keep going (your tokens, not ours), or get an operator pass to raise the cap.
 
 ### 3. BYOK status on every tool reply where cost matters
 
@@ -87,7 +87,7 @@ The after-dark path has its own entitlement (`adult_entitlements`), so BYOK gets
 ## Anti-abuse layering (in order)
 
 1. **Rate limits** (free paths): per user/IP, sliding window. The 95th percentile user never notices.
-2. **Shared daily cap** (free-model paths): 12/day across all agents. Keeps a traffic spike from running up a bill.
+2. **Shared daily cap** (free-model paths): 20/day across all agents. Keeps a traffic spike from running up a bill.
 3. **Token system** (opt-in): a user who hits the cap buys more.
 4. **BYOK** (self-service escape): bring your own key, bypass the shared cap, pay your own LLM bill.
 5. **Operator pass** (power users): $9/mo for a higher cap and priority.
