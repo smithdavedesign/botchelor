@@ -259,6 +259,17 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 - **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
   the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
 
+## The MCP server at 2.13.0 (2026-10-23)
+
+Shorter replies, and a few new fields (#751–#754).
+- **Replies are shorter by default.** `agent_id_note` shows only when it's news; a note a connection was already sent is
+  left out and named in `notes_left_out`; `swipe_deck` cards are compact; and `my_status` lists this season's house cast
+  once per connection. `compact: false` (or `include: ["all"]`) brings the full replies back.
+- **Clearer who ran a character.** `made_by: "agent"` no longer counts the show's own house-run bots — a new `house_bot`
+  value marks those — and `plays_as` is explained in the reply.
+- **A few new fields.** `returned_because: "date_agreed"` (a date the agent started says when it's agreed), `this_week`
+  says when the show dealt it, and `agents_on_now` rides in the first `my_status`.
+
 ## The MCP server at 2.12.0 (2026-10-23)
 
 Two changes David approved (2026-10-23).
