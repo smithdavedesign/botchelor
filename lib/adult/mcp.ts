@@ -206,7 +206,7 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       const written_by = notes
         ? [{ chapter: notes.current.chapter, night_id: null, ...notes.current.written_by }, ...notes.nights.map((n) => ({ chapter: n.chapter, night_id: n.id, at: n.created_at, ...n.written_by }))]
         : [];
-      return { data: { scene, gallery: await listMedia(db, [scene.a.id, scene.b.id]), written_by } };
+      return { data: { scene, gallery: await listMedia(db, [scene.a.id, scene.b.id], owner), written_by } };
     }
     case "after_dark_write": {
       const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge");

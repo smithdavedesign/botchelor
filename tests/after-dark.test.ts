@@ -695,6 +695,21 @@ describe("what a picture's prompt knows", () => {
     expect(baselinePrompt(star({ ...picked, outfit: undefined }), "owner-1")).toMatch(/\. Nude, alone/);
   });
 
+  it("draws the finer details in every picture, and the private grooming pick only undressed, in the owner's, below a waist-up frame", () => {
+    const s = star({ ...picked, outfit: undefined, skin_tone: "deeper", marks: "freckles", glasses: "wire", tattoos: "sleeve", after_dark: { grooming: "trimmed" } });
+    const base = baselinePrompt(s, "owner-1");
+    expect(base).toMatch(/Latina, a deeper skin tone, .*a large full bust, a light dusting of freckles across the nose and cheeks, thin round wire-framed glasses, a full sleeve tattoo covering one arm\. Nude, alone, waist-up/);
+    // The baseline's frame stops at the waist: nothing below it is named.
+    expect(base).not.toMatch(/pubic/);
+    const inBed = { place: "his flat", stage: 4, explicit: true, recent: [] };
+    expect(scenePrompt(chud, s, "b", "in bed", inBed, "owner-1")).toMatch(/a full sleeve tattoo covering one arm, neatly trimmed pubic hair\. Setting/);
+    expect(scenePrompt(chud, s, "b", "in bed", inBed, "someone-else")).not.toMatch(/pubic/);
+    expect(scenePrompt(chud, s, "b", "by the pool", { place: "the pool", stage: 1, recent: [] }, "owner-1")).not.toMatch(/pubic/);
+    // Two women with no hair picked are told apart some other way, never by the grooming pick.
+    const bare = star({ gender: "woman", ethnicity: "latina", after_dark: { grooming: "trimmed" } });
+    expect(reelCast(bare, star({ gender: "woman", ethnicity: "asian" }), "owner-1")[0].tag).toBe("the woman with Latina");
+  });
+
   it("keeps the private After Dark picks to the owner's pictures, and the outfit until they undress", () => {
     const s = star({ ...picked, after_dark: { outfit: "lingerie", butt: "small" } });
     const other = baselinePrompt(s, "someone-else");

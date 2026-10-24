@@ -1750,3 +1750,113 @@ answered 429))" and a 502 from the video start.
   API and MCP `after_dark_settings` return the same as `hive`.
 - **Cost:** paused means no drawing spend (docs/after-dark-costs.md). An outage costs the two pictures before it opens,
   then one probe per pause.
+
+## Ratings that steer, their faces, finer looks, and the Archive (2026-10-24)
+
+David, 2026-10-24: "Allow users to score after night ai generated images and videos and we use that as training data
+for the next run on the same character. Also can we add more customization allowed before generating the baseline
+images?", then "Build 1 and 2 and allow a user to remove a clip from the larger video (in case it fails) which should put
+it in a section called archive, dont delete tho".
+
+**Not a dataset.** The privacy page promises After Dark is never used for training (docs/data-plan.md), so this isn't
+training. Nothing is pooled or fine-tuned. A viewer's own ratings steer that viewer's own next pictures and videos of the
+same character, and nobody else's. Ratings are owner-scoped (`adult_media_ratings`, keyed by viewer and picture), go
+when the picture or character goes (cascade), and are never read by an export.
+
+### Ratings (`lib/adult/rating-tags.ts`, `lib/adult/steering.ts`)
+
+- **On every picture and video:** 👍/👎 (`RateMedia.tsx`), in the gallery and under every player for the shot on screen.
+- **What's off, on a 👎:** fixed chips, never typed.
+  - Pictures: doesn't look like them, wrong body, wrong outfit, odd pose, extra fingers or limbs, blurry, not explicit
+    enough, too explicit.
+  - Videos: wrong person, jerky or morphing, extra fingers or limbs, blurry, wrong voice, not explicit enough, too
+    explicit.
+  - `POST /api/admin/after-dark/rate {media_id, rating: 1 | -1 | 0, tags}`: theirs, or anyone's for an admin.
+- **What a tag does (`TAG_FIXES`):** each tag maps to fixed words that go into the next picture's prompt, its negative
+  prompt, or a shot's negative prompt. "Odd pose" adds "a natural, relaxed pose" and steers away from "awkward pose,
+  contorted body". "Jerky or morphing" keeps a shot away from "morphing, warping, flickering, jittery motion, melting
+  faces".
+  - Explicitness never goes up from a rating: "Not explicit enough" changes nothing (the night's stage and the pair's
+    limits decide). "Too explicit" tones it down. "Wrong voice" is a setting, so it's only kept as a record.
+- **Which ratings count (`steeringFor`):** a tag on any 👎 among the viewer's newest 12 ratings of the character steers
+  the next one.
+  - Pictures and videos are counted apart: picture ratings steer pictures, video ratings steer shots. Picking a face (a
+    👍 on a picture) therefore never quiets a complaint about a video.
+  - A 👎 keeps steering past a 👍 on the next one (the fix worked) until 12 newer ratings push it out, or the viewer
+    changes it.
+  - A pair's pictures and videos count for both of them.
+- **Where the words go:**
+  - `makePicture` adds the fixes before the prompt's closing "Everyone shown is an adult." and adds the negatives to
+    `NEGATIVE_PROMPT` (Venice, Replicate and fal alike).
+  - `startShots` adds the video fixes to `SHOT_NEGATIVE`. That only reaches Venice: Replicate's Wan input takes no
+    negative prompt.
+  - The output check is unchanged: every picture and shot still goes through Hive.
+
+### The face they keep
+
+- **Which face (`faceReferenceId`):**
+  1. the one they picked ("Use this face"), while it's still there;
+  2. else their own 👍 baseline;
+  3. else their own newest baseline they haven't 👎'd;
+  4. else the admins' newest baseline they haven't 👎'd;
+  5. else any baseline.
+- **Where it's used:** every keyframe of a video or clip starts from it (`baselines(db, a, b, viewer)` in reels, clips
+  and the picture menu), and so does fal's face-reference picture.
+- **Per viewer:** one subscriber's redraw or pick never changes another's face.
+- **Picking:**
+  - "Use this face" is on every picture of one character alone, in the gallery and the "Their faces" panel. It's also a 👍.
+  - `POST /api/admin/after-dark/face {character_id, image_id | null}`; null goes back to the default.
+
+### Three to pick from
+
+- "Draw three to pick from" (`POST /api/admin/after-dark/baselines`, `drawBaselineChoices`) draws three waist-up
+  baselines, one in each of `PICTURE_PRESETS`' lights: natural, warm and moody, soft studio.
+- The framing never changes (waist-up, facing the camera, face clear), so the face is what's compared.
+- Each one is a picture against the month's cap. It stops at the cap, and at Hive's breaker.
+
+### The per-character light test
+
+- A solo scene picture's light and lens is a Thompson-sampling test over the three presets (`choosePreset`), scored by
+  that viewer's 👍/👎 on that character's pictures in each.
+- The preset is stored on the picture (`adult_images.preset`). A picture of the two of them uses none.
+
+### Finer looks (`lib/looks.ts` `LOOK_DETAILS`)
+
+- **On the looks builder's summary:** chip rows, no tiles, none needed, nothing typed.
+  - skin shade (lighter, deeper);
+  - freckles or a beauty mark;
+  - makeup;
+  - glasses;
+  - piercings;
+  - tattoos (one small, a few, a sleeve);
+  - chest hair (men).
+  - On the After Dark tab only: grooming (shaved, trimmed, natural), stored with After Dark's private picks.
+- **Where they go:** into After Dark's pictures, the portrait, and the appearance line while it fits in 140 characters.
+  Never into the tiles.
+- **Grooming:** only in the owner's pictures, only once they're undressed, and never in a waist-up picture (the baseline,
+  or the words a keyframe uses to tell two of them apart).
+
+### The Archive
+
+- **Removing a shot:** "Remove this shot" under any player (a night's video, the whole night, a chain of clips) takes the
+  shot on screen out of its video (`PATCH /api/admin/after-dark/reel {id, media_id, archived}`).
+  - Nothing is deleted. The shot is marked `archived_at` in the reel's shots and stops playing everywhere
+    (`lib/adult/clip-chains.ts` `playable`): the players, the whole night's film, a Short, Keep going.
+  - It's listed in a folded **Archive** under Their videos (and leaves the gallery), plays from there, and "Put it back"
+    returns it to its place.
+- **Rules:**
+  - Theirs only.
+  - Not while the video is still being made: its poll rewrites the shots.
+  - A video or a chain of clips with every shot archived leaves the list and shows only in the Archive.
+- **Keep going:** goes back to the last clip that still plays. A clip kept going from there takes the archived one's
+  place in the chain. Keep going from an archived clip is refused: "That clip is in the Archive. Put it back to keep
+  going from it."
+
+### Also
+
+- **The gallery lists only what the viewer can open:** theirs (an admin, everyone's). Before this, a subscriber was
+  listed pictures they couldn't load.
+- **Screenshots:** `npm run screenshots:after-dark-steering` (PG placeholders, no provider called) drives the faces, the
+  ratings, a shot taken out and put back, and the finer looks, desktop and phone: `docs/screenshots/after-dark-faces-*`,
+  `after-dark-gallery-rate-*`, `after-dark-shot-rate-*`, `after-dark-archive-*` and `looks-details-*`.
+- **Cost:** nothing new per step. "Draw three" is three pictures from the monthly cap; a rating is a row.

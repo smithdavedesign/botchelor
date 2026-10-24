@@ -21,7 +21,7 @@ import { loadCharacter } from "../character";
 import type { Db } from "../db";
 import { checkAdultText } from "../safety";
 import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, NO_MEDIA_LIMITS, type MediaLimits, type MenuAct } from "./acts";
-import { CHAIN_MAX } from "./clip-chains";
+import { archivedClip, CHAIN_MAX, playable } from "./clip-chains";
 import { isPublicPlace } from "./continuity";
 import { hiveGate, hivePausedErrorMessage, HivePausedError } from "./hive-limit";
 import { atLeastExplicit, INTENSITY, intensityOf, limitsHit, storedHardNos, type PairLimits } from "./limits";
@@ -312,8 +312,8 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   let plan: Plan;
   if (parent) {
     if (parent.status !== "ready") return refuse(409, "not_ready", "Keep going carries on from a clip that came through.");
-    const before = [...parent.shots].reverse().find((s) => s.status === "ready" && s.frame_id);
-    if (!before?.frame_id) return refuse(409, "not_ready", "That clip has no picture to carry on from.");
+    const before = [...parent.shots].reverse().find((s) => playable(s) && s.frame_id);
+    if (!before?.frame_id) return refuse(409, "not_ready", archivedClip(parent) ? "That clip is in the Archive. Put it back to keep going from it." : "That clip has no picture to carry on from.");
     if ((await chainLength(db, ownerId, parent.clip)) >= CHAIN_MAX) return refuse(409, "chain_full", `That clip has been kept going ${CHAIN_MAX - 1} times, as far as it goes. Start a new one.`);
     const meta = parent.clip ?? { act: null, swap: false, from: null, stage: stands.stage, place: stands.place, label: "A clip" };
     const act = meta.act ? actById(meta.act) : null;
@@ -380,7 +380,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   try {
     // Each one's baseline, the faces every keyframe keeps; made now for one who has none.
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
-    const bases = await baselines(db, a, b);
+    const bases = await baselines(db, a, b, ownerId);
     if (!bases) throw new Error("a picture of each of them is needed first");
     const shots: ReelShot[] = [{ ...plan.shot, status: "queued", ...(onReplicate ? { provider: "replicate" as const } : {}) }];
     await db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, kind, clip) values ($1, $2, $3, $4, 'making', $5, $6::jsonb, 'clip', $7::jsonb)`, [

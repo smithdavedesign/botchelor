@@ -60,6 +60,7 @@ import { dropForeignActions, eligiblePair, type SceneLine } from "./scenes";
 import { groupNights, type NightChapter } from "./nights";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { STAGES } from "./stages";
+import { faceReferenceId, NO_STEERING, ratingsFor, steeringFor } from "./steering";
 
 export const VENICE = "https://api.venice.ai/api/v1";
 /** Shots in a reel, and how many words a shot can carry (people say about 2.5 words a second). */
@@ -149,6 +150,14 @@ export type ReelShot = {
   chapter?: number | null;
   night_id?: string | null;
   chapter_line?: number;
+  /**
+   * When it was moved to the Archive (archiveShot): kept, never deleted, and out of every player until it's put back
+   * (lib/adult/clip-chains.ts playable).
+   */
+  archived_at?: string;
+  /** Read with the reel for the one watching, never stored in it: their 👍/👎 on the shot and what was off (lib/adult/steering.ts). */
+  rating?: 1 | -1 | null;
+  tags?: string[];
 };
 /**
  * A clip (lib/adult/clips.ts): one shot made on request, from the menu's act or the scene's latest moment, and the clip
@@ -250,7 +259,7 @@ const voiceWords = (noun: ReelPerson["noun"], age: number) =>
 export function reelCast(a: Character, b: Character, viewer?: string | null): [ReelPerson, ReelPerson] {
   const one = (c: Character, other: Character): ReelPerson => {
     const noun = nounOf(c.pronouns);
-    const f = noun === nounOf(other.pronouns) ? feature(lookWords(c, true, viewer)) : "";
+    const f = noun === nounOf(other.pronouns) ? feature(lookWords(c, true, viewer, true)) : "";
     return {
       id: c.id,
       pronouns: c.pronouns,
@@ -741,7 +750,15 @@ async function veniceSpeech(key: string, text: string, voice: string): Promise<R
 }
 
 /** Each one's newest baseline that passed the check: the two faces every keyframe keeps. */
-export async function baselines(db: Db, a: string, b: string): Promise<[string, string] | null> {
+/**
+ * The two faces a keyframe keeps: for a viewer, each one's face reference (lib/adult/steering.ts faceReferenceId: the face
+ * they picked, else their best-rated baseline, else the admins' newest); with none, each one's newest baseline.
+ */
+export async function baselines(db: Db, a: string, b: string, viewerId: string | null = null): Promise<[string, string] | null> {
+  if (viewerId) {
+    const [pa, pb] = await Promise.all([faceReferenceId(db, viewerId, a), faceReferenceId(db, viewerId, b)]);
+    return pa && pb ? [pa, pb] : null;
+  }
   const { rows } = await db.query<{ id: string; character_id: string }>(
     `select distinct on (character_id) id, character_id from adult_images
       where status = 'ready' and kind = 'baseline' and character_b is null and character_id in ($1, $2)
@@ -825,6 +842,8 @@ export type ShotContext = {
    * going) or the place's set. Unset: a night's reel, the director's still in the line's place.
    */
   keyframeFor?: (s: ReelShot, set: string | null, place: string | null) => { prompt: string; continueFrom: string | null; withSet: boolean };
+  /** What a shot steers away from on top of SHOT_NEGATIVE: the viewer's video ratings (lib/adult/steering.ts; startShots fills it). */
+  avoid?: string;
 };
 
 /** One keyframe from Replicate's edit model, its bytes downloaded at once. */
@@ -851,7 +870,10 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
  * until that shot has passed moderation. A shot whose keyframe can't be drawn or doesn't pass is dropped, and its share
  * of the tokens comes back when the reel settles.
  */
-export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotContext): Promise<void> {
+export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctxIn: ShotContext): Promise<void> {
+  // What this viewer's ratings of the pair's videos said was off (lib/adult/steering.ts), into each shot's negative prompt.
+  const steer = await steeringFor(db, ownerId, ctxIn.pair).catch(() => NO_STEERING);
+  const ctx: ShotContext = { ...ctxIn, avoid: ctxIn.avoid ?? (steer.video.join(", ") || undefined) };
   const configured: MediaProvider = ctx.provider ?? (ctx.replicate ? "replicate" : "venice");
   const providers = { configured, available: (p: MediaProvider) => (p === "replicate" ? Boolean(ctx.replicate) : Boolean(ctx.venice)) };
   const sets = await setPictures(db, shots.map((s) => ctx.places[s.line] ?? null));
@@ -953,14 +975,14 @@ export function reelMadeOn(shots: readonly ReelShot[]): { provider: string | nul
 }
 
 /** Queues one shot's video from its keyframe. */
-async function queueShot(ctx: Pick<ShotContext, "cast" | "venice" | "model" | "baseUrl">, s: ReelShot): Promise<void> {
+async function queueShot(ctx: Pick<ShotContext, "cast" | "venice" | "model" | "baseUrl" | "avoid">, s: ReelShot): Promise<void> {
   const audioIn = AUDIO_IN.test(ctx.model);
   const body: Record<string, unknown> = {
     model: ctx.model,
     duration: s.text.split(" ").length <= WORDS_5S ? "5s" : "10s",
     resolution: "720p",
     prompt: shotPrompt(ctx.cast, s, audioIn),
-    negative_prompt: SHOT_NEGATIVE,
+    negative_prompt: ctx.avoid ? `${SHOT_NEGATIVE}, ${ctx.avoid}` : SHOT_NEGATIVE,
     image_url: signedMediaUrl(s.media_id!, ctx.baseUrl),
   };
   if (audioIn && s.text.trim()) {
@@ -1092,7 +1114,7 @@ export async function makeReel(
     // Each one's baseline, a portrait of them alone that passed the check: the faces every keyframe keeps. Made now if
     // they have none.
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
-    const bases = await baselines(db, a, b);
+    const bases = await baselines(db, a, b, ownerId);
     if (!bases) throw new Error("a picture of each of them is needed first");
     const where = opts.where ?? { place: null, set: null, history: [], date: null, stage: 0 };
     const cast = reelCast(ca, cb, ownerId);
@@ -1382,5 +1404,40 @@ export async function listReels(db: Db, ownerId: string, x: string, y: string): 
      (select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and kind = 'clip' order by created_at desc limit 40)`,
     [ownerId, ...pair],
   );
-  return rows.map(reelOf).sort((p, q) => q.created_at.localeCompare(p.created_at));
+  return withRatings(db, ownerId, rows.map(reelOf).sort((p, q) => q.created_at.localeCompare(p.created_at)));
+}
+
+/** Each shot that came through with the viewer's 👍/👎 on it (lib/adult/steering.ts), for the page's rating buttons. */
+export async function withRatings(db: Db, viewerId: string, reels: Reel[]): Promise<Reel[]> {
+  const ids = reels.flatMap((r) => r.shots.filter((s) => s.status === "ready" && s.media_id).map((s) => s.media_id!));
+  const rated = await ratingsFor(db, viewerId, ids);
+  return reels.map((r) => ({
+    ...r,
+    shots: r.shots.map((s) => {
+      const got = s.media_id ? rated.get(s.media_id) : undefined;
+      return s.status === "ready" ? { ...s, rating: got?.rating ?? null, tags: got?.tags ?? [] } : s;
+    }),
+  }));
+}
+
+export type ArchiveResult = { ok: true; reel: Reel } | { ok: false; status: number; error: string; message: string };
+
+/**
+ * Moves one shot that came through out of its video and into the Archive, or puts it back (David, 2026-10-24: "allow a
+ * user to remove a clip from the larger video (in case it fails) which should put it in a section called archive, dont
+ * delete tho"). Nothing is deleted: the shot stays in its reel, marked `archived_at`, and plays nowhere but the Archive
+ * (lib/adult/clip-chains.ts playable) until it's put back. Theirs only, and not while the video is still being made
+ * (its poll rewrites the shots).
+ */
+export async function archiveShot(db: Db, ownerId: string, reelId: string, mediaId: string, archived: boolean): Promise<ArchiveResult> {
+  const row = (await db.query<{ owner_id: string; status: string; shots: ReelShot[] }>(`select owner_id, status, shots from adult_reels where id = $1`, [reelId])).rows[0];
+  if (!row || row.owner_id !== ownerId) return { ok: false, status: 404, error: "not_found", message: "There's no video of yours with that id." };
+  if (row.status === "making") return { ok: false, status: 409, error: "still_making", message: "That video is still being made. Try again once it's done." };
+  const shot = row.shots.find((s) => s.status === "ready" && s.media_id === mediaId);
+  if (!shot) return { ok: false, status: 404, error: "not_found", message: "That video has no such shot." };
+  if (archived) shot.archived_at ??= new Date().toISOString();
+  else delete shot.archived_at;
+  await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status <> 'making'`, [reelId, JSON.stringify(row.shots)]);
+  const [reel] = await withRatings(db, ownerId, [(await getReel(db, reelId))!]);
+  return { ok: true, reel };
 }

@@ -208,7 +208,7 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   let prompt = plan.promptFor(false);
   try {
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
-    const bases = await baselines(db, a, b);
+    const bases = await baselines(db, a, b, ownerId);
     if (!bases) throw new Error("a picture of each of them is needed first");
     const faces = bases.map((id) => signedMediaUrl(id, baseUrl));
     const set = (await setPictures(db, [plan.place])).get(plan.place) ?? null;

@@ -22,6 +22,8 @@ import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 import { hiveNoticeText, type HiveNotice } from "@/lib/adult/hive-notice";
 import CharacterName from "@/app/CharacterName";
+import FacesPanel, { type Faces } from "./Faces";
+import RateMedia from "./RateMedia";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -38,6 +40,7 @@ export default function SceneWriter({
   reels = [],
   reelTokens = 15,
   hive = null,
+  faces: firstFaces = {},
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -51,6 +54,8 @@ export default function SceneWriter({
   reelTokens?: number;
   /** Hive's breaker, while it's paused (lib/adult/hive-limit.ts): pictures and videos can't be made until it's over. */
   hive?: HiveNotice | null;
+  /** The face each of them keeps for this viewer (lib/adult/steering.ts facesFor). */
+  faces?: Faces;
 }) {
   // Shown until the pause is over, then the buttons come back (the next one probes Hive first).
   const [hivePause, setHivePause] = useState(hive);
@@ -98,6 +103,15 @@ export default function SceneWriter({
   const [watching, setWatching] = useState<AdultNight | null>(null);
   const [scene, setScene] = useState(initial);
   const [gallery, setGallery] = useState(firstGallery);
+  const [faces, setFaces] = useState(firstFaces);
+  /** "Use this face" (null: back to the default): what went wrong, or null (lib/adult/steering.ts setFaceReference). */
+  async function pickFace(characterId: string, imageId: string | null): Promise<string | null> {
+    const res = await requestJson("/api/admin/after-dark/face", { character_id: characterId, image_id: imageId }).catch(() => null);
+    if (!res) return "That didn't reach the server. Check your connection and try again.";
+    if (!res.ok) return res.message;
+    setFaces((f) => ({ ...f, [characterId]: { image_id: (res.data.image_id as string | null) ?? null, picked: imageId !== null } }));
+    return null;
+  }
   const [direction, setDirection] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
@@ -466,16 +480,50 @@ export default function SceneWriter({
       )}
       <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
       <Reels reels={reelList} onChange={putReel} />
-      <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
+      <FacesPanel
+        characters={characters}
+        faces={faces}
+        gallery={gallery}
+        onFace={pickFace}
+        onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
+        paused={mediaPaused}
+      />
+      <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} faces={faces} onFace={pickFace} />
     </section>
   );
 }
 
-/** Their pictures and clips. A picture can be made to move (a clip takes a minute or more on fal.ai). */
-function Gallery({ items, problem, onAdd, paused = null }: { items: Media[]; problem: string | null; onAdd: (m: Media) => void; paused?: string | null }) {
+/**
+ * Their pictures and clips. A picture can be made to move (a clip takes a minute or more on fal.ai). Each one can be
+ * rated, and a picture of one of them alone kept as their face (lib/adult/steering.ts).
+ */
+function Gallery({
+  items,
+  problem,
+  onAdd,
+  paused = null,
+  faces = {},
+  onFace,
+}: {
+  items: Media[];
+  problem: string | null;
+  onAdd: (m: Media) => void;
+  paused?: string | null;
+  faces?: Faces;
+  onFace?: (characterId: string, imageId: string | null) => Promise<string | null>;
+}) {
   const [motion, setMotion] = useState("");
   const [pending, setPending] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [facing, setFacing] = useState<string | null>(null);
+  async function keepFace(m: Media) {
+    if (!onFace || !m.character_id) return;
+    setFacing(m.id);
+    setError(null);
+    const wrong = await onFace(m.character_id, m.id);
+    setFacing(null);
+    if (wrong) setError(wrong);
+  }
 
   // Poll each pending clip every 6 seconds until it's ready or failed.
   useEffect(() => {
@@ -554,6 +602,17 @@ function Gallery({ items, problem, onAdd, paused = null }: { items: Media[]; pro
                 <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)} disabled={Boolean(paused)} title={paused ?? undefined}>
                   Make it move
                 </button>
+              )}
+              {status === "ready" && <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} />}
+              {status === "ready" && m.kind !== "video" && m.character_id && !m.character_b && onFace && (
+                // One of them alone: it can be the face every picture and video of them keeps.
+                faces[m.character_id]?.image_id === m.id ? (
+                  <span className="badge ad-face-badge">✓ Their face</span>
+                ) : (
+                  <button type="button" className="button-ghost small" disabled={facing === m.id} onClick={() => void keepFace(m)}>
+                    {facing === m.id ? "Keeping it…" : "Use this face"}
+                  </button>
+                )
               )}
             </li>
           );

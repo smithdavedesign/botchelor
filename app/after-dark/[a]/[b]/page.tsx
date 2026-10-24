@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { isAdmin } from "@/lib/admins";
 import { listMedia } from "@/lib/adult/media";
+import { facesFor } from "@/lib/adult/steering";
 import { listReels } from "@/lib/adult/reels";
 import { hiveNotice } from "@/lib/adult/hive-limit";
 import { listNights, openScene } from "@/lib/adult/scenes";
@@ -66,13 +67,14 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
       <TwoSidesPanel a={scene.a} b={scene.b} />
       <SceneWriter
         initial={scene}
-        gallery={await listMedia(db, [scene.a.id, scene.b.id])}
+        gallery={await listMedia(db, [scene.a.id, scene.b.id], admin)}
         characters={characters}
         play={play === "1"}
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}
         reelTokens={(await getAdultSettings(db)).reel_tokens}
         hive={await hiveNotice(db)}
+        faces={await facesFor(db, admin, [scene.a.id, scene.b.id])}
       />
     </article>
     </div>

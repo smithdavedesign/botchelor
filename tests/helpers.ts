@@ -153,6 +153,8 @@ export async function startTestDb() {
         "adult_switches",
         "adult_entitlements",
         "adult_access_requests",
+        "adult_media_ratings",
+        "adult_face_refs",
         "adult_images",
         "adult_characters",
         "adult_scenes",

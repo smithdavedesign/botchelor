@@ -128,6 +128,13 @@ Details: [`docs/looks.md`](docs/looks.md). Code: [`lib/looks.ts`](lib/looks.ts),
 <img src="docs/screenshots/looks-after-dark-locked-mobile.png" width="240" alt="The After Dark tab on a phone, blurred, with a Subscribe to unlock card">
 </p>
 
+**Finer details (2026-10-24).** The look's summary adds rows of fixed choices, none of them needed: skin shade, freckles
+or a beauty mark, makeup, glasses, piercings, tattoos and chest hair, plus grooming on the After Dark tab. They go into
+the portrait, into the appearance line while it fits, and into After Dark's pictures, but never into a tile. Nothing
+typed reaches the image model. Captured by `npm run screenshots:after-dark-steering`.
+
+<img src="docs/screenshots/looks-details-phone.png" width="240" alt="The look's summary on a phone: Latina, with Freckles, Wire frames and One small tattoo picked under Finer details">
+
 ## Dates can move (live, 2026-10-18)
 
 Two characters can agree, mid-date, to take it somewhere else — the marquee "come back to mine?" case. One suggests a
