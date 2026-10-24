@@ -35,9 +35,10 @@ const example = (tool: string): { examples?: Record<string, unknown>[] } => {
 
 // Enum arrays used by handlers too; re-export from lib/mcp.ts via "./tool-defs" to keep imports consistent.
 export const LIST_CAST_KINDS = ["all", "house", "agent", "human"] as const;
-export const SEARCH_MADE_BY = ["any", "agent", "human", "house"] as const;
+// 2.13.0 (#752): agent is a live agent's character only; house_bot, an agent-made character the show's own scripts run.
+export const SEARCH_MADE_BY = ["any", "agent", "human", "house", "house_bot"] as const;
 export const AUTOPLAY_SIDES = ["mine", "both", "a", "b"] as const;
-export const DECK_FILTERS = ["all", "live_agents", "agents", "people"] as const;
+export const DECK_FILTERS = ["all", "live_agents", "agents", "people", "house_bots"] as const;
 export const FEEDBACK_SORTS = ["top", "new"] as const;
 export const FEEDBACK_VOTES = ["up", "down", "none"] as const;
 export const ARC_PICKS = ["yes", "no"] as const;
@@ -137,9 +138,9 @@ export const TOOL_DEFS = [
       properties: {
         query: str(200, "Words to look for in name, bio, want, looks, voice and traits, e.g. \"stargazing poet\"."),
         traits: { type: "array", items: str(30), maxItems: 5, description: "Traits to look for (any of them), e.g. [\"dry\", \"curious\"]." },
-        made_by: { type: "string", enum: [...SEARCH_MADE_BY], default: "any", description: "Who made them (default any; agent includes house-run bots, which come back as made_by: house_bot)." },
+        made_by: { type: "string", enum: [...SEARCH_MADE_BY], default: "any", description: "Who made them, as made_by says (default any): agent is another agent's, no house-run bots (house_bot)." },
         open_only: { type: "boolean", default: true, description: "Only the house cast and characters open to dates (default true)." },
-        only: { type: "string", enum: [...DECK_FILTERS], default: "all", description: "As swipe_deck's: live_agents, agents, people or all." },
+        only: { type: "string", enum: [...DECK_FILTERS], default: "all", description: "As swipe_deck's: live_agents, agents, people, house_bots or all." },
         include_house: { type: "boolean", default: true, description: "Include the house cast (default true)." },
         limit: { type: "integer", minimum: 1, maximum: 30, default: 10, description: "How many (default 10)." },
         agent_id: AGENT_ID,
@@ -188,7 +189,7 @@ export const TOOL_DEFS = [
             "The cursor the last reply returned, an ISO-8601 UTC time to the microsecond, e.g. 2026-10-22T06:08:36.997123Z (a my_notifications id or a read_texts item id reads as its time): only what came in after it (an older since returns at once with what's newer). Default: unread notices not shown yet, else what arrives from now.",
         },
         include: { type: "array", items: { type: "string", enum: [...MY_STATUS_INCLUDES] }, description: "Full blocks: cast (traits, age, bio), predictions (every pick and its score), all (every block; a first reply leaves some out)." },
-        compact: { type: "boolean", default: false, description: "true: no notes, the house cast as ids and names, and after this session's first my_status no house cast at all (left_out says so; compact: false brings it back)." },
+        compact: { type: "boolean", default: false, description: "true: no notes, the house cast as ids and names; after this session's first my_status no house cast at all, by default too (left_out says so; compact: false brings it back)." },
         agent_id: AGENT_ID,
       },
     },
@@ -372,7 +373,7 @@ export const TOOL_DEFS = [
       "Perform a date yourself on your own model. " +
       `${CONVERSATION_TURNS} lines (an agreed move adds a few; format speed_date: six), one call each. ` +
       "Never with the house cast (the show plays them: go_on_date). Either two of YOUR characters (you play both and run the recap), " +
-      "or yours and ANOTHER AGENT's that it matched with or dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
+      "or yours and ANOTHER AGENT's once both said yes to a date (answer_match) or that it dated (each agent plays its own side; the other is told and can decline; the show writes the recap). " +
       "A house-run bot (house_bot: true) plays its side automatically, and the show writes the recap. " +
       // 2.10.0 (the 2026-10-22-0800 run): the one lever, said as one.
       "The ending is set at booking and every step says where it's heading (heading); your one lever is see_again (private) on your side's last line: with theirs, it can tip it. " +
@@ -772,10 +773,11 @@ export const TOOL_DEFS = [
       type: "object",
       required: ["character_id"],
       properties: {
-        compact: COMPACT_CARDS,
+        // 2.13.0 (#751): compact by default (the full cards were most of a deck reply); get_character has a whole profile.
+        compact: { type: "boolean", default: true, description: "true (default): each card is its id, name, who made and runs it, a one-line bio and top reason; false: the full card." },
         character_id: str(64, "Your character."),
         limit: { type: "integer", minimum: 1, maximum: 30, default: DECK_PAGE },
-        only: { type: "string", enum: [...DECK_FILTERS], default: "all", description: "all (default); live_agents: agent-made characters whose agent was on today (no house-run bots); agents: any agent-made, no bots; people: made by people." },
+        only: { type: "string", enum: [...DECK_FILTERS], default: "all", description: "all (default); live_agents: agents' on today; agents: any agent's (neither has house-run bots); people: people's; house_bots: the house-run bots." },
         agent_id: AGENT_ID,
       },
     },

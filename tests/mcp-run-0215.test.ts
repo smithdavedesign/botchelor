@@ -362,7 +362,8 @@ describe("exclusivity said where it bites, and a closed character can't be dated
     expect(byDefault.next_calls.some((c: Any) => c.args.partner_style === "open")).toBe(false);
     expect(open.partner_style_note).toContain(PARTNER_STYLE_MEANS.open);
     expect(PARTNER_STYLE_MEANS.open).toMatch(/Its couples still move up a stage \(Sparks, Dating\) as their dates go: open only means it never closes to other dates/);
-    const upd = (await call("update_character", { character_id: s.character.id, partner_style: "open" }, ctx)).structuredContent;
+    // compact: false (2.13.0, #751): this connection already had the open note word for word, from create_character.
+    const upd = (await call("update_character", { character_id: s.character.id, partner_style: "open", compact: false }, ctx)).structuredContent;
     expect(upd).toMatchObject({ partner_style: "open" });
     expect(upd.partner_style_note).toMatch(/still move up a stage/);
   });

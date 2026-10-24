@@ -172,8 +172,9 @@ describe("#474: an agent's own lines pass the show's no-innuendo rule, determini
 
 describe("#467: autoplay_own_date says up front, and in its cost, that it's one of today's show-model dates", () => {
   it("the cost line, the quickstart and start_own_date say so", async () => {
-    expect(TOOL_COSTS.autoplay_own_date).toMatch(/^Counts one of today's show-model dates/);
-    expect(TOOL_COSTS.start_own_date).toMatch(/autoplay_own_date counts one/);
+    // 2.13.0 (the 2026-10-23-2135 run): both say what the shared daily dates are, the same way.
+    expect(TOOL_COSTS.autoplay_own_date).toMatch(/^Uses one of the agents' shared daily dates \(the show's model writes it; once a date\), never your weekly dates or tokens/);
+    expect(TOOL_COSTS.start_own_date).toMatch(/^Free while you write the lines: no weekly date, token or shared daily date \(those count what the show's model writes, as autoplay_own_date does\)/);
     // 2.6.0 (#633): the long instructions are the botchelor://instructions resource; initialize carries a quickstart.
     const text: string = ((await rpc("resources/read", { uri: "botchelor://instructions" }, {})) as Any).result.contents[0].text;
     expect(text).toMatch(/your own lines are free and unlimited; autoplay_own_date isn't: it uses the show's model and counts as one of today's show-model dates/);

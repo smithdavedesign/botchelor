@@ -279,7 +279,8 @@ describe("#649: a wait never sleeps through your move on a two-agent date", () =
     expect(init.instructions.length).toBeLessThan(4000);
     expect(init.instructions.split("\n").length).toBeLessThanOrEqual(30);
     expect(fullInstructions()).toContain(YOUR_MOVE_RULE);
-    expect(fullInstructions()).toMatch(/your_move: something needs you now/);
+    // 2.13.0 (#753): a date both just said yes to is date_agreed, not your_move.
+    expect(fullInstructions()).toMatch(/your_move \(your move on a two-agent date, or one another agent started with yours\) or date_agreed \(a date both just said yes to\): something needs you now/);
   });
 });
 
@@ -354,7 +355,11 @@ describe("smaller steps: after the first, the prompt is left out unless asked", 
     expect(first.step.messages.map((m: Any) => m.role)).toEqual(["system", "user"]);
     const id = first.step.episode_id;
     let reply: Any = null;
-    for (let i = 0; i < 4; i++) reply = await call("submit_own_date_step", { episode_id: id, output: line(i) }, ctx);
+    let second: Any = null;
+    for (let i = 0; i < 4; i++) {
+      reply = await call("submit_own_date_step", { episode_id: id, output: line(i) }, ctx);
+      second ??= reply.structuredContent;
+    }
     const got = await call("get_own_date_step", { episode_id: id }, ctx);
     // 2.7.0 sent 6,208 bytes here with these two characters (and 6,224 for the submit that handed turn 5 back).
     expect(JSON.stringify(got.structuredContent).length).toBeLessThan(3000);
@@ -362,8 +367,11 @@ describe("smaller steps: after the first, the prompt is left out unless asked", 
     const s = got.structuredContent;
     expect(s.step).toMatchObject({ stage: "turn", turn_number: 5, messages: [], prompt_left_out: true, last_lines: expect.any(Array) });
     expect(s.step.example_reply).toBeUndefined();
-    expect(s.step.reply_format).toMatch(/^Just the line as a string, or \{"dialogue","action","emotion","interest_signal": 0 to 1\}/);
-    expect(s.step.reply_format.length).toBeLessThan(260);
+    // 2.13.0 (#751): the short reply_format came with the second step; this connection had it, so turn 5 names it as left out.
+    expect(second.step.reply_format).toMatch(/^Just the line as a string, or \{"dialogue","action","emotion","interest_signal": 0 to 1\}/);
+    expect(second.step.reply_format.length).toBeLessThan(260);
+    expect(s.step.reply_format).toBeUndefined();
+    expect(s.notes_left_out).toContain("step.reply_format");
     expect(s.step.instructions).toMatch(/^Turn 5 of \d+: Thaddeus Quill speaks\. Write Thaddeus Quill's line as output .*compact: true adds this turn's prompt \(messages\), false all of it\.$/);
     expect(s.transcript).toHaveLength(4);
     const withPrompt = (await call("get_own_date_step", { episode_id: id, compact: true }, ctx)).structuredContent.step;
@@ -444,7 +452,7 @@ describe("#650: an unknown enum value is never quietly swapped for the default",
     expect(sidePreview).toMatchObject({ preview: true, ignored_values: { side: "nope" } });
     // Reads: noted, and the default used.
     const deck = (await call("swipe_deck", { character_id: A.id, only: "humans" }, A.ctx)).structuredContent;
-    expect(deck.warning).toMatch(/^"humans" isn't a only: used all \(the default\); only is one of all, live_agents, agents, people\./);
+    expect(deck.warning).toMatch(/^"humans" isn't a only: used all \(the default\); only is one of all, live_agents, agents, people, house_bots\./);
     expect(deck.only).toBeUndefined();
     const feed = (await call("browse_episodes", { mine: "nope" }, A.ctx)).structuredContent;
     expect(feed).toMatchObject({ ignored_values: { mine: "nope" } });

@@ -498,7 +498,8 @@ export type MatchStatus = "waiting_on_them" | "waiting_on_you" | "both_waiting" 
  * matched, and a date needs both to say yes.
  */
 export function matchStatus(you: boolean | null, them: boolean | null): { status: MatchStatus; note: string } {
-  if (you === true && them === true) return { status: "agreed", note: "Matched, and both said yes: the date is agreed and yours to book." };
+  // #753 (the 2026-10-23-2135 run: "yours to book", and the other agent booked it first): either side can.
+  if (you === true && them === true) return { status: "agreed", note: "Matched, and both said yes: the date is agreed, and either of you can book it now (if their side starts it first, you'll get a heads_up and get_own_date_step)." };
   if (you === false) return { status: "you_said_no", note: "Matched, but your character said no to a date (answers are final). You can still text." };
   if (them === false) return { status: "they_said_no", note: "Matched, but they said no to a date. You can still text." };
   if (you === null && them === null) return { status: "both_waiting", note: "Matched, not agreed yet: a date needs both to say yes, and neither side has answered (yours: answer_match)." };
