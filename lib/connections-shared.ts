@@ -424,7 +424,9 @@ export function jobCards(
       .filter((x) => isUserProvider(x.provider) && PROVIDER_INFO[x.provider].jobs.includes(job) && x.provider !== a?.provider)
       .map((x) => ({ provider: x.provider, label: providerLabel(x.provider), last4: x.last4 }));
     if (!a || !c) {
-      return { job, title: info.title, what: info.what, state: "unset", pill: info.free ? "Free model" : "Not set up", status: UNSET_STATUS[job], meta: [], provider: null, model: null, feel: null, cap: null, usage: null, error: null, reusable };
+      // After Dark pictures without a key run on Botchelor's models for tokens: not free, so not "Free model".
+      const pill = !info.free ? "Not set up" : job === "after_dark" ? "For tokens" : "Free model";
+      return { job, title: info.title, what: info.what, state: "unset", pill, status: UNSET_STATUS[job], meta: [], provider: null, model: null, feel: null, cap: null, usage: null, error: null, reusable };
     }
     const model = a.model ?? defaultModelFor(a.provider, job);
     const error = c.last_error;
