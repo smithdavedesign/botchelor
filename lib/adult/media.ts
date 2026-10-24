@@ -271,7 +271,7 @@ async function baselineFace(db: Db, characterId: string): Promise<string | null>
 /** The output check refused a picture: logged, and thrown as what the page says (the pause's own message when Hive was out). */
 async function discarded(db: Db, ownerId: string, kind: string, verdict: { reason: string; paused?: string }): Promise<never> {
   await logRejection(db, ownerId, kind, verdict.reason);
-  if (verdict.paused) throw new HivePausedError(verdict.paused, hivePausedMessage(verdict.paused, { discarded: true }));
+  if (verdict.paused) throw new HivePausedError(verdict.paused, hivePausedMessage(verdict.paused, { discarded: true }), true);
   throw new Error(`The picture was discarded by the output check (${verdict.reason}).`);
 }
 

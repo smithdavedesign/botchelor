@@ -14,16 +14,20 @@
  * FRAME_SHOWN).
  * The check FAILS CLOSED: no key, an error, or an unreadable reply is a refusal.
  * Self-serve Hive doesn't include its CSAM classifier (Enterprise only); add it before anyone but the admin uses this.
- * Self-serve Hive also stops at 100 moderation requests a day: lib/adult/hive-limit.ts pauses every picture and video
- * when a check ends on its 429, so nothing is drawn (or paid for) that couldn't be checked.
+ * Self-serve Hive also stops at 100 moderation requests a day, and since 2026-10-23 has answered 429 even to one request
+ * at a time: lib/adult/hive-limit.ts is a circuit breaker that pauses every picture and video after two checks in a row
+ * couldn't run, so nothing is drawn (or paid for) that couldn't be checked.
  */
 
 /**
- * A check's verdict. On a refusal, `limited` says the check ended on a Hive 429 after its retries (Hive's daily limit,
- * 2026-10-23: lib/adult/hive-limit.ts pauses every picture and video on it), and `paused` is until when that pause runs
- * (an ISO time), set by lib/adult/hive-limit.ts when the pause stopped this check or this check started it.
+ * A check's verdict. On a refusal, `unavailable` says the check couldn't run because Hive didn't answer it (429, 5xx or
+ * unreachable, after hive()'s own retries): Hive's HTTP status (null when unreachable) and how long it asked us to wait
+ * (Retry-After, uncapped; null when it didn't say). lib/adult/hive-limit.ts counts these toward its circuit breaker.
+ * `paused` is until when the breaker's pause runs (an ISO time), set by lib/adult/hive-limit.ts when the pause stopped
+ * this check or this check opened it.
  */
-export type CheckResult = { ok: true } | { ok: false; reason: string; limited?: boolean; paused?: string };
+export type HiveOutage = { status: number | null; retry_after_ms: number | null };
+export type CheckResult = { ok: true } | { ok: false; reason: string; unavailable?: HiveOutage; paused?: string };
 
 export const HIVE_MODERATION = "https://api.thehive.ai/api/v3/hive/visual-moderation";
 export const HIVE_VLM = "https://api.thehive.ai/api/v3/chat/completions";
@@ -90,12 +94,37 @@ export const HIVE_RETRIES = 2;
 const HIVE_BACKOFF_MS = [1500, 4000];
 const HIVE_WAIT_MAX_MS = 8000;
 
-/** How long Hive asked to wait (Retry-After, seconds or a date), capped; null when it didn't say. */
-export function retryAfterMs(header: string | null, now = Date.now()): number | null {
+/** How long Hive asked to wait (Retry-After, seconds or a date), uncapped; null when it didn't say. */
+export function retryAfterHeaderMs(header: string | null, now = Date.now()): number | null {
   if (!header) return null;
   const secs = Number(header);
   const ms = Number.isFinite(secs) ? secs * 1000 : Date.parse(header) - now;
-  return Number.isFinite(ms) && ms >= 0 ? Math.min(ms, HIVE_WAIT_MAX_MS) : null;
+  return Number.isFinite(ms) && ms >= 0 ? ms : null;
+}
+
+/** How long to wait before hive()'s next try: Retry-After, capped at HIVE_WAIT_MAX_MS; null when it didn't say. */
+export function retryAfterMs(header: string | null, now = Date.now()): number | null {
+  const ms = retryAfterHeaderMs(header, now);
+  return ms === null ? null : Math.min(ms, HIVE_WAIT_MAX_MS);
+}
+
+/**
+ * What Hive said with an error, for the error and the logs: its `message` (or `error`) when the body is JSON, else the
+ * text itself, on one line and cut to about 200 characters. Empty when it said nothing. The body never has our key in it.
+ */
+export async function hiveSaid(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  let said = text;
+  try {
+    const j = JSON.parse(text) as unknown;
+    const o = j && typeof j === "object" ? (j as Record<string, unknown>) : null;
+    const m = o ? (o.message ?? o.error ?? o.status_message ?? o.detail) : null;
+    if (typeof m === "string" && m.trim()) said = m;
+  } catch {
+    // Not JSON: the text as it came.
+  }
+  said = said.replace(/\s+/g, " ").trim();
+  return said.length > 200 ? `${said.slice(0, 199)}…` : said;
 }
 
 /** Every { class, value|score } pair in a reply, wherever it sits (per frame). */
@@ -137,25 +166,32 @@ function jsonObject(text: string): Record<string, unknown> | null {
   }
 }
 
-/** Hive answered with an error status (`status`), after any retries. */
+/**
+ * Hive answered with an error status (`status`; null when it couldn't be reached), after any retries: its own words in
+ * the message ("Hive answered 429: Too Many Requests"), and the Retry-After it sent (uncapped), if any.
+ */
 export class HiveError extends Error {
   constructor(
     message: string,
-    readonly status: number,
+    readonly status: number | null,
+    readonly retryAfterMs: number | null = null,
   ) {
     super(message);
   }
 }
 
-/** Whether a check failed because Hive kept answering 429: its rate limit, or (self-serve) its daily allowance. */
-const endedLimited = (err: unknown): boolean => err instanceof HiveError && err.status === 429;
+/** Whether Hive didn't answer: a 429, a 5xx, or unreachable (null). The breaker (lib/adult/hive-limit.ts) counts these. */
+export const hiveDown = (status: number | null): boolean => status === null || status === 429 || status >= 500;
+const outageOf = (err: unknown): HiveOutage | null =>
+  err instanceof HiveError && hiveDown(err.status) ? { status: err.status, retry_after_ms: err.retryAfterMs } : null;
 
 /**
  * One Hive call. A busy (429), down (5xx) or unreachable Hive is asked again, HIVE_RETRIES more times, after the wait it
  * asks for (Retry-After, capped) or a short backoff: on 2026-10-23 a picture was drawn, paid for and thrown away because
  * one 429 meant the check "couldn't run". Any other answer (a 4xx) fails at once. Whatever it ends on, a check that can't
- * run still refuses (the callers fail closed): nothing unchecked is ever kept. A 429 that outlasts the retries is Hive's
- * limit, not a burst: the check says so (`limited`), and lib/adult/hive-limit.ts pauses pictures and videos on it.
+ * run still refuses (the callers fail closed): nothing unchecked is ever kept. A 429, 5xx or unreachable Hive that
+ * outlasts the retries makes the check say so (`unavailable`), with Hive's own words in the reason; two such checks in a
+ * row open lib/adult/hive-limit.ts's breaker, which pauses pictures and videos. The key is only ever in the header.
  */
 async function hive(key: string, endpoint: string, payload: unknown): Promise<unknown> {
   const body = JSON.stringify(payload);
@@ -168,13 +204,23 @@ async function hive(key: string, endpoint: string, payload: unknown): Promise<un
         body,
       });
     } catch (err) {
-      if (attempt >= HIVE_RETRIES) throw err;
+      if (attempt >= HIVE_RETRIES) {
+        const e = new HiveError(`Hive couldn't be reached (${err instanceof Error ? err.message.slice(0, 160) : "error"})`, null);
+        console.warn(`[after-dark] the Hive check couldn't run: ${e.message}`);
+        throw e;
+      }
       await sleep(HIVE_BACKOFF_MS[attempt] ?? HIVE_WAIT_MAX_MS);
       continue;
     }
     if (res.ok) return res.json();
-    const busy = res.status === 429 || res.status >= 500;
-    if (!busy || attempt >= HIVE_RETRIES) throw new HiveError(`Hive answered ${res.status}`, res.status);
+    if (!hiveDown(res.status) || attempt >= HIVE_RETRIES) {
+      // Hive's own words go in the error (so in adult_rejections and on the page) and the log: "quota", "rate", or whatever.
+      const said = await hiveSaid(res);
+      const e = new HiveError(`Hive answered ${res.status}${said ? `: ${said}` : ""}`, res.status, retryAfterHeaderMs(res.headers.get("retry-after")));
+      console.warn(`[after-dark] the Hive check couldn't run: ${e.message}`);
+      throw e;
+    }
+    await res.text().catch(() => "");
     await sleep(retryAfterMs(res.headers.get("retry-after")) ?? HIVE_BACKOFF_MS[attempt] ?? HIVE_WAIT_MAX_MS);
   }
 }
@@ -197,10 +243,11 @@ export async function checkSet(key: string | null, media: string | { base64: str
   }
 }
 
-/** A check that couldn't run: a refusal (fail closed), `limited` when Hive kept answering 429. */
+/** A check that couldn't run: a refusal (fail closed), `unavailable` when Hive didn't answer (429, 5xx, unreachable). */
 function couldntRun(err: unknown): CheckResult {
   const reason = `the check couldn't run (${err instanceof Error ? err.message : "error"})`;
-  return endedLimited(err) ? { ok: false, reason, limited: true } : { ok: false, reason };
+  const unavailable = outageOf(err);
+  return unavailable ? { ok: false, reason, unavailable } : { ok: false, reason };
 }
 
 /** A file to check: fal's URL, or the bytes themselves (Venice returns them, with no URL). */
@@ -251,21 +298,36 @@ export async function checkOutput(key: string | null, media: Checkable, kind: Ch
 export const PROBE_PNG =
   "iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAABYElEQVR42u3SMQ0AAAzDsPKHULSlMGmvDSFKCg+RAANhIAyEgcBAGAgDYSAwEAbCQBgIDISBMBAGAgNhIAyEgTAQGAgDYSAMBAbCQBgIA4GBMBAGwkBgIAyEgTAQBgIDYSAMhIHAQBgIA2EgMBAGwkAYCAyEgTAQBgIDYSAMhIEwEBgIA2EgDAQGwkAYCAOBgTAQBsJAYCAMhIEwEAYCA2EgDISBwEAYCANhIDAQBsJAGAgMhIEwEAbCQGAgDISBMBAYCANhIAwEBsJAGAgDgYEwEAbCQGAgDISBMBAGAgNhIAyEgcBAGAgDYSAwEAbCQBgIDISBMBAGwkBgIAyEgTAQGAgDYSAMBAbCQBgIA4GBMBAGwkAYCAyEgTAQBgIDYSAMhIHAQBgIA2EgMBAGwkAYCAyEgTAQBsJAYCAMhIEwEBgIA2EgDAQGwkAYCAOBgTAQBsJAGAgMhIEwEAaCqwEyu+8uG/pLDgAAAABJRU5ErkJggg==";
 
+/** What the probe found: Hive answered ("ok"), didn't ("down": 429, 5xx, unreachable), or refused us otherwise. */
+export type ProbeResult =
+  | { result: "ok" }
+  | { result: "down"; status: number | null; retry_after_ms: number | null; error: string }
+  | { result: "unknown"; status: number; error: string };
+
 /**
- * Whether Hive is over its limit, for one moderation call on PROBE_PNG (no retry: the one call is the point). "ok": it
- * answered; "limited": it answered 429; "unknown": anything else (down, unreachable, a refused key), which says nothing
- * about the limit. Never throws.
+ * Whether Hive answers again, for one moderation call on PROBE_PNG (no retry: the one call is the point). "ok": it
+ * answered; "down": a 429, a 5xx or unreachable, with Hive's own words and its Retry-After; "unknown": any other answer
+ * (a refused key, say), which says nothing about whether Hive is up. Never throws.
  */
-export async function probeHive(key: string): Promise<"ok" | "limited" | "unknown"> {
+export async function probeHive(key: string): Promise<ProbeResult> {
   try {
     const res = await doFetch(HIVE_MODERATION, {
       method: "POST",
       headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${key}` },
       body: JSON.stringify({ input: [{ media_base64: PROBE_PNG }], processing_mode: "sync_with_fallback" }),
     });
-    await res.text().catch(() => "");
-    return res.ok ? "ok" : res.status === 429 ? "limited" : "unknown";
-  } catch {
-    return "unknown";
+    if (res.ok) {
+      await res.text().catch(() => "");
+      return { result: "ok" };
+    }
+    const said = await hiveSaid(res);
+    const error = `Hive answered ${res.status}${said ? `: ${said}` : ""}`;
+    if (!hiveDown(res.status)) return { result: "unknown", status: res.status, error };
+    console.warn(`[after-dark] the Hive probe found it still out: ${error}`);
+    return { result: "down", status: res.status, retry_after_ms: retryAfterHeaderMs(res.headers.get("retry-after")), error };
+  } catch (err) {
+    const error = `Hive couldn't be reached (${err instanceof Error ? err.message.slice(0, 160) : "error"})`;
+    console.warn(`[after-dark] the Hive probe found it still out: ${error}`);
+    return { result: "down", status: null, retry_after_ms: null, error };
   }
 }

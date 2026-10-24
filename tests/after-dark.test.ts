@@ -1009,21 +1009,24 @@ describe("the video of the night", () => {
     expect(logged.map((r) => r.reason)).toEqual([expect.stringMatching(/^keyframe: age check: MINOR/)]);
   });
 
-  it("asks Hive once more when it couldn't check a keyframe, then drops that shot", async () => {
+  it("asks Hive once more when it couldn't check a keyframe; down both times, the breaker opens and the other shots go too", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
     fakeVenice();
     let calls = 0;
     // The first keyframe: Hive down through both of its checks, each asked HIVE_RETRIES more times (lib/adult/check.ts):
-    // 2 × (1 + HIVE_RETRIES) failed answers. The others: fine. (A 429 that outlasts the retries is Hive's daily limit
-    // instead, and pauses everything: tests/hive-limit.test.ts.)
+    // 2 × (1 + HIVE_RETRIES) failed answers. Two checks in a row that couldn't run open Hive's circuit breaker
+    // (lib/adult/hive-limit.ts), so the other keyframes aren't sent: tests/hive-limit.test.ts has the rest.
     const busy = 2 * (1 + HIVE_RETRIES);
     setCheckFetchForTests(async (input: RequestInfo | URL) => (calls++ < busy ? new Response("down", { status: 503 }) : Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD)));
     threeShots();
     const started = (await (await make(cookie)).json()).reel as Reel;
-    expect(started.shots.map((s) => s.status)).toEqual(["failed", "queued", "queued"]);
-    expect(started.shots[0].reason).toMatch(/the check couldn't run/);
-    expect((await t.db.query(`select 1 from adult_rejections`)).rows).toHaveLength(0);
+    expect(calls).toBe(busy);
+    expect(started.shots.map((s) => s.status)).toEqual(["failed", "failed", "failed"]);
+    expect(started.shots.every((s) => /^the check couldn't run \(Hive is paused until \d\d:\d\d UTC\)$/.test(s.reason ?? ""))).toBe(true);
+    const logged = (await t.db.query<{ reason: string }>(`select reason from adult_rejections order by created_at`)).rows.map((r) => r.reason);
+    expect(logged[0]).toBe("keyframe: the check couldn't run (Hive answered 503: down)");
+    expect(logged).toHaveLength(3);
   });
 
   it("says why when Venice can't draw the keyframes, and gives the tokens back", async () => {
@@ -1078,7 +1081,7 @@ describe("the video of the night", () => {
     expect(await used()).toBe(15);
     expect((await make(cookie)).status).toBe(409);
     // Hive busy (down for a while): nothing discarded, and that shot waits before it's sent again (nothing more goes to
-    // Hive this poll). Its daily limit (a 429 that outlasts the retries) pauses every shot instead: tests/hive-limit.test.ts.
+    // Hive this poll). The second check in a row that can't run opens the breaker, which pauses every shot.
     let hiveCalls = 0;
     setCheckFetchForTests(async () => {
       hiveCalls++;
@@ -1093,8 +1096,11 @@ describe("the video of the night", () => {
     const calls = hiveCalls;
     await advance(started.id, cookie);
     expect(hiveCalls).toBe(calls);
-    // The wait is over.
+    // Two checks in a row couldn't run, so Hive's breaker opened (lib/adult/hive-limit.ts) and the third wasn't sent.
+    expect((await t.db.query(`select failures from adult_media_cooldowns where provider = 'hive'`)).rows).toEqual([{ failures: 2 }]);
+    // The wait is over, and so is the breaker's pause.
     await t.db.query(`update adult_reels set shots = (select jsonb_agg(x - 'retry_at') from jsonb_array_elements(shots) x) where id = $1`, [started.id]);
+    await t.db.query(`update adult_media_cooldowns set until = now() - interval '1 minute' where provider = 'hive'`);
     // Then one shot shows a child signal: discarded, never stored; the other two come through.
     let n = 0;
     setCheckFetchForTests(async () => Response.json(n++ === 0 ? { output: [{ classes: [{ class: "no_child_present", value: 0.5 }, { class: "yes_child_present", value: 0.5 }] }] } : CLEAN_MOD));

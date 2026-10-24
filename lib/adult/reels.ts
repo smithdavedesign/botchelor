@@ -50,7 +50,7 @@ import { normalizeScene, setPath } from "../venues";
 import { crossesTaboo } from "./acts";
 import { checkOutput, type CheckResult } from "./check";
 import { providerError, runMedia } from "./fallback";
-import { hiveGate, hivePausedReason, HivePausedError, hivePausedUntil, underHiveLimit } from "./hive-limit";
+import { hiveGate, hivePausedErrorMessage, hivePausedReason, HivePausedError, hivePausedUntil, underHiveLimit } from "./hive-limit";
 import type { PlaceStop } from "./continuity";
 import { ensureBaseline, lookWords, signedMediaUrl } from "./media";
 import { adultModel } from "./mode";
@@ -1140,7 +1140,7 @@ export async function makeReel(
     if (pays) await refundBoughtTokens(db, ownerId, price);
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
-    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: `${err.message}${pays && price > 0 ? " Your tokens are back." : ""}` };
+    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: hivePausedErrorMessage(err, pays && price > 0) };
     return { ok: false, status: 502, error: "not_started", message: `The video couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.` };
   }
 }

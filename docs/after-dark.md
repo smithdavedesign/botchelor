@@ -1491,6 +1491,8 @@ number, saved night id or null, and line count). Both are null on reels from bef
 
 ## Hive's daily limit (2026-10-23)
 
+*The 30-minute pause described here is now a circuit breaker: see "Hive's circuit breaker" below.*
+
 **What happened.** Self-serve Hive allows 100 visual-moderation requests a day (docs/after-dark-costs.md), and every
 picture check is two Hive calls (moderation, then the age question), each asked up to twice more on a 429. That
 morning's video tests used the day up by about 08:26 UTC, and from then on Hive answered every check
@@ -1553,3 +1555,45 @@ a shot's frames, the first of them its keyframe, so now:
   question.
 - **The arithmetic:** a 6-shot video is 6 moderation requests (one a shot) and 6 age checks, where it was 12 and 6; a
   clip is 1 and 1, where it was 2 and 1. The 100 a day are about 16 six-shot videos instead of 8.
+
+## Hive's circuit breaker (2026-10-23, replaces the 30-minute pause)
+
+**Why.** That evening Hive answered `429 {"status_code":429,"message":"Too Many Requests"}` to even a single isolated
+request, with no `Retry-After`: an account-level limit (quota or plan), not our burst rate, so the check's own retries
+(#732) can't help. Every picture attempt still drew first on Venice or Replicate (paid), then threw the picture away: 17
+rejections in production that day, all 429. David saw "The picture couldn't be made (… the check couldn't run (Hive
+answered 429))" and a 502 from the video start.
+
+**The breaker** (`lib/adult/hive-limit.ts`; the pause above was its first version):
+- **Storage.** The `hive` row of `adult_media_cooldowns` (the table the providers' cooldowns use, so every Vercel instance
+  sees it), with a new `failures` column: how many checks in a row couldn't run. `reason` and `status` are the last
+  failure's. A row from before the column (null) counts as open. Additive and idempotent.
+- **Opens** after 2 checks in a row couldn't run: Hive answered 429 or 5xx, or couldn't be reached, after the check's own
+  retries. One alone is a blip: that picture is discarded (and logged) as before, and nothing is paused.
+- **Pause:** 5 minutes when it opens, doubling with each further failure (10, 20, 40) up to 60. When Hive sends
+  `Retry-After`, that's the pause instead, capped at 60 minutes. A pause is never shortened.
+- **Closes** on any check Hive answers (a pass, or a refusal of its own): the row is deleted.
+- **One probe.** When the pause ends, the first draw claims the probe (an atomic update moves the pause on by a minute,
+  so every other draw on every instance is still refused) and sends one moderation call on a plain grey PNG. Down again
+  is a further failure: a longer pause, and that draw is refused. An answer closes the breaker and the draw goes ahead.
+  Any other answer (a refused key) says nothing about Hive's state: the lease is given back and the draw's own check
+  decides.
+- **Check before drawing.** Every path that would draw and then check asks first, so while it's paused nothing is drawn
+  or spent: `makePicture` (scene pictures, baselines, `ensureBaseline`, MCP `after_dark_baseline`, cast baselines), menu
+  pictures, the video of the night and clips (503, before the director or any token; nothing to refund), fal clips,
+  automatic chapter pictures (skipped quietly, not claimed, so a later step draws one once Hive is back), sets, look tiles
+  and portraits, and season portraits. The check itself and its fail-closed rule are unchanged.
+- **What the caller is told:** "Hive (the safety check) has hit its limit, so nothing is drawn until it answers again
+  (about N minutes). Your tokens are untouched." When a picture was drawn and its check opened the breaker: "… so this
+  one couldn't be checked and wasn't kept, and nothing more is drawn …", and the tokens come back.
+- **Hive's own words.** The check keeps Hive's reply (its JSON `message`, or the text, cut to about 200 characters) in
+  the error and the log: "Hive answered 429: Too Many Requests". So the reason (quota, rate, whatever Hive says) shows in
+  `adult_rejections` and on screen. A draw refused up front is logged as "not drawn: Hive is paused until 21:45 UTC (last:
+  Hive answered 429: Too Many Requests)". The key is only ever in the request header.
+- **Shown to David.** The scene page shows "Pictures and videos are paused: Hive, the safety check, is refusing (429)
+  until about 21:45 UTC." right above the clip-or-picture menu, and the clip, picture, video and Make it move buttons
+  (the theater's too) are disabled with it as their tooltip, until the pause ends. /admin/after-dark/settings shows
+  Hive's state by its key field (ok, failing, paused until a time, or probing next, with the last error); the settings
+  API and MCP `after_dark_settings` return the same as `hive`.
+- **Cost:** paused means no drawing spend (docs/after-dark-costs.md). An outage costs the two pictures before it opens,
+  then one probe per pause.

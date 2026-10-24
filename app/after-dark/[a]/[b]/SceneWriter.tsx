@@ -20,6 +20,7 @@ import { AUTOPLAY_PAGE_PAUSE_MS, autoplayStop } from "@/lib/adult/autoplay";
 import type { Heat } from "@/lib/adult/director";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
+import { hiveNoticeText, type HiveNotice } from "@/lib/adult/hive-notice";
 import CharacterName from "@/app/CharacterName";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
@@ -36,6 +37,7 @@ export default function SceneWriter({
   nights = [],
   reels = [],
   reelTokens = 15,
+  hive = null,
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -47,7 +49,17 @@ export default function SceneWriter({
   /** Their videos of the night, and what one costs in tokens (lib/adult/reels.ts). */
   reels?: Reel[];
   reelTokens?: number;
+  /** Hive's breaker, while it's paused (lib/adult/hive-limit.ts): pictures and videos can't be made until it's over. */
+  hive?: HiveNotice | null;
 }) {
+  // Shown until the pause is over, then the buttons come back (the next one probes Hive first).
+  const [hivePause, setHivePause] = useState(hive);
+  useEffect(() => {
+    if (!hivePause) return;
+    const t = setTimeout(() => setHivePause(null), Math.max(0, new Date(hivePause.until).getTime() - Date.now()));
+    return () => clearTimeout(t);
+  }, [hivePause]);
+  const mediaPaused = hivePause ? hiveNoticeText(hivePause) : null;
   const [reelList, setReelList] = useState(reels);
   const [reelNote, setReelNote] = useState<{ text: string; error?: boolean; busy?: BusyReel } | null>(null);
   const putReel = useCallback((r: Reel) => {
@@ -241,6 +253,7 @@ export default function SceneWriter({
           )}
           videoTokens={reelTokens}
           videoNote={reelNote?.text ?? null}
+          mediaPaused={mediaPaused}
           feedbackRef={scene.id}
           onExit={() => setTheater(false)}
         />
@@ -408,7 +421,7 @@ export default function SceneWriter({
                 <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
                   ▶ Play
                 </button>{" "}
-                <button type="button" className="button-ghost" onClick={() => void makeVideo("chapter", n.id)} title={`A short film of this chapter, in their voices (${reelTokens} tokens)`}>
+                <button type="button" className="button-ghost" onClick={() => void makeVideo("chapter", n.id)} disabled={Boolean(mediaPaused)} title={mediaPaused ?? `A short film of this chapter, in their voices (${reelTokens} tokens)`}>
                   🎬 Video · {reelTokens} tokens
                 </button>{" "}
                 {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
@@ -446,15 +459,20 @@ export default function SceneWriter({
           )}
         </div>
       )}
-      <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} />
+      {mediaPaused && (
+        <p className="error small" role="status" data-hive-paused>
+          {mediaPaused}
+        </p>
+      )}
+      <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
       <Reels reels={reelList} onChange={putReel} />
-      <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} />
+      <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
     </section>
   );
 }
 
 /** Their pictures and clips. A picture can be made to move (a clip takes a minute or more on fal.ai). */
-function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | null; onAdd: (m: Media) => void }) {
+function Gallery({ items, problem, onAdd, paused = null }: { items: Media[]; problem: string | null; onAdd: (m: Media) => void; paused?: string | null }) {
   const [motion, setMotion] = useState("");
   const [pending, setPending] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -533,7 +551,7 @@ function Gallery({ items, problem, onAdd }: { items: Media[]; problem: string | 
                 <span className="muted small ad-picture-fallback">{m.note}</span>
               )}
               {m.clip && (
-                <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)}>
+                <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)} disabled={Boolean(paused)} title={paused ?? undefined}>
                   Make it move
                 </button>
               )}

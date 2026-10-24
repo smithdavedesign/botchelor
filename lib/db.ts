@@ -1667,6 +1667,9 @@ create table if not exists adult_media_cooldowns (
   reason text,
   updated_at timestamptz not null default now()
 );
+-- Hive's circuit breaker (lib/adult/hive-limit.ts, 2026-10-23) is this table's 'hive' row: how many checks in a row
+-- couldn't run. Null on a row from before it (a pause, so open).
+alter table adult_media_cooldowns add column if not exists failures integer;
 -- Who made each picture, keyframe, video and voice ('venice', 'replicate', 'fal'), and whether it was the fallback.
 alter table adult_images add column if not exists provider text;
 alter table adult_images add column if not exists fell_back boolean;

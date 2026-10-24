@@ -174,8 +174,8 @@ function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: 
   if (reel.status === "making") {
     const minutes = Math.floor((Date.now() - new Date(reel.created_at).getTime()) / 60_000);
     const stalled = minutes * 60_000 > REEL_STALLED_MS;
-    // A shot the safety check couldn't look at yet (Hive busy) waits and is tried again; while Hive is over its daily
-    // limit, until that's over.
+    // A shot the safety check couldn't look at yet (Hive busy) waits and is tried again; while Hive's breaker is open
+    // (lib/adult/hive-limit.ts), until its pause is over.
     const checkBusy = reel.shots.some((s) => s.status === "queued" && s.retry_at);
     const hiveOut = pausedUntil(reel.shots.filter((s) => s.status === "queued").map((s) => s.reason));
     return (
@@ -186,7 +186,7 @@ function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: 
           {stalled
             ? "That's much longer than usual, so it looks stuck. Stop it and its tokens come back for the shots that didn't arrive."
             : hiveOut
-              ? `The safety check is over its daily limit, so the shots wait until it's back, after ${hiveOut}.`
+              ? `Hive (the safety check) has hit its limit, so the shots wait until it answers again, after ${hiveOut}.`
               : checkBusy
                 ? "The safety check is busy, so some shots wait and are tried again every 10 minutes."
                 : "It takes a few minutes; you can leave and come back."}

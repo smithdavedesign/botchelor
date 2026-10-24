@@ -3,7 +3,7 @@ import { GET } from "@/app/api/admin/after-dark/route";
 import { GET as picturesGet, POST as picturesPost } from "@/app/api/admin/after-dark/pictures/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { ACTS } from "@/lib/adult/acts";
-import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
+import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { mediaLimitsOf } from "@/lib/adult/clips";
 import { listMedia } from "@/lib/adult/media";
 import { setAdultModelForTests } from "@/lib/adult/mode";
@@ -46,6 +46,7 @@ afterEach(() => {
   setReelFetchForTests(null);
   setReplicateFetchForTests(null);
   setCheckFetchForTests(null);
+  setCheckSleepForTests(null);
   setReelPausesForTests(true);
   setReplicatePausesForTests(true);
 });
@@ -255,12 +256,16 @@ describe("a picture of both of them", () => {
     expect(discarded.status).toBe(422);
     expect((await discarded.json()).message).toMatch(/^The safety check discarded that picture \(age check: MINOR\)\. Your token is back\.$/);
     expect((await t.db.query<{ reason: string }>(`select reason from adult_rejections`)).rows.map((r) => r.reason)).toEqual(["menu picture: age check: MINOR"]);
-    // Hive out of its daily allowance (429 after its retries): not kept, the token back, and pictures pause
-    // (lib/adult/hive-limit.ts).
+    // Hive not answering (429 after its retries): not kept, the token back. Once is a blip; the second in a row opens
+    // the breaker, and pictures pause (lib/adult/hive-limit.ts).
+    setCheckSleepForTests(async () => {});
     fakeHive(() => new Response("slow down", { status: 429 }));
+    const blip = await picture(cookie, { act: "kiss", outfit: "tonight" });
+    expect(blip.status).toBe(503);
+    expect((await blip.json()).message).toBe("The safety check couldn't look at it just now, so it wasn't kept. Try again in a few minutes. Your token is back.");
     const out = await picture(cookie, { act: "kiss", outfit: "tonight" });
     expect(out.status).toBe(503);
-    expect((await out.json()).message).toMatch(/^Pictures and videos are paused: .* so this one couldn't be checked and wasn't kept\. Try again after \d\d:\d\d UTC \(in about 30 minutes\)\. Your token is back\.$/);
+    expect((await out.json()).message).toMatch(/^Hive \(the safety check\) has hit its limit, so this one couldn't be checked and wasn't kept, and nothing more is drawn until it answers again \(about 5 minutes\)\. Your token is back\.$/);
     // While it lasts, the next one is refused before anything is drawn or spent.
     const drawn = fakeVenice();
     const seen = fakeHive();
