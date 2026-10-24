@@ -23,6 +23,7 @@ import { checkAdultText } from "../safety";
 import { eligiblePair } from "./scenes";
 import { jsonOf, loadPairFacts } from "./facts";
 import { adultModel } from "./mode";
+import { writerFor } from "./writer";
 import { hasWatched, pairNights, shortLines, type NightGroup, type NightRow } from "./shorts";
 import { STAGES } from "./stages";
 import { countUse, overCap, usageLeft } from "./usage";
@@ -273,7 +274,8 @@ async function sidesOf(db: Db, requester: string, owner: string, pair: [string, 
   const [a, b] = await Promise.all([sceneCharacter(db, pair[0]), sceneCharacter(db, pair[1])]);
   if (!a || !b) return refuse(404, "not_found", "One of them is gone.");
   const input: SidesInput = { a, b, ...nightInput(rows), memories: await memoriesAsOf(db, owner, a, b, until) };
-  const model = await adultModel(db);
+  // Written by the night's owner's own writer (lib/adult/writer.ts), like their scenes.
+  const model = await adultModel(db, process.env, { model: await writerFor(db, owner) });
   let note: string | null = null;
   let got: { a: Side; b: Side } | null = null;
   let cost = 0;

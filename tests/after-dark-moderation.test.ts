@@ -4,6 +4,7 @@ import { pauseHive } from "@/lib/adult/hive-limit";
 import { checkMedia, mediaGate, setModerationFetchForTests, SIGHTENGINE_CHECK, VENICE_CHAT } from "@/lib/adult/moderation";
 import { DEFAULT_MODERATION, mergeModerationConfig, moderationConfigOf } from "@/lib/adult/moderation-config";
 import { saveAdultSettings } from "@/lib/adult/settings";
+import { claimAdmin } from "@/lib/admins";
 import { startTestDb } from "./helpers";
 
 // Which checker checks (lib/adult/moderation.ts; David, 2026-10-24: "Hive is a bottleneck, add an alternative … everything
@@ -11,7 +12,7 @@ import { startTestDb } from "./helpers";
 
 describe("the checks' settings", () => {
   it("default to Hive as before, keep what parses, and refuse a bad value", () => {
-    expect(DEFAULT_MODERATION).toMatchObject({ mode: "hive", alts: ["venice_vlm"], min_sources: 1, pg_via: "hive", vlm_model: "qwen3-vl-235b-a22b" });
+    expect(DEFAULT_MODERATION).toMatchObject({ mode: "hive", alts: ["venice_vlm"], min_sources: 1, pg_via: "hive", vlm_model: "qwen3-vl-235b-a22b", admin_checker: "same" });
     expect(moderationConfigOf({ mode: "both", min_sources: 9 })).toMatchObject({ mode: "both", min_sources: 1 });
     expect(mergeModerationConfig(DEFAULT_MODERATION, { mode: "hive_then_alt" }).mode).toBe("hive_then_alt");
     expect(() => mergeModerationConfig(DEFAULT_MODERATION, { endpoint_url: "http://plain" })).toThrow();
@@ -143,5 +144,40 @@ describe("mediaGate", () => {
     expect((await mediaGate(t.db, { video: true })).ok).toBe(false);
     await saveAdultSettings(t.db, { venice_key: "" });
     expect((await mediaGate(t.db)).ok).toBe(false);
+  });
+});
+
+describe("an admin's own pictures (David, 2026-10-24: Hive off for admins)", () => {
+  it("are checked by the Venice vision model, not Hive, still refused when it says so; everyone else's and videos stay Hive's", async () => {
+    await claimAdmin(t.db, "admin-1");
+    await saveAdultSettings(t.db, { moderation: { admin_checker: "alt" } });
+    const h = hive();
+    const a = alts();
+    expect(await checkMedia(t.db, PIC, "image", { owner: "admin-1" })).toMatchObject({ ok: true, via: ["venice_vlm"] });
+    expect(await checkMedia(t.db, PIC, "keyframe", { owner: "admin-1" })).toMatchObject({ ok: true });
+    expect(h).toHaveLength(0);
+    expect(a.filter((c) => c.url === VENICE_CHAT)).toHaveLength(2);
+    // Never kept unchecked: the vision model's refusal stands.
+    alts({ venice: "MINOR" });
+    expect((await checkMedia(t.db, PIC, "image", { owner: "admin-1" })).ok).toBe(false);
+    // Someone else's, and a video, go to Hive.
+    alts();
+    expect(await checkMedia(t.db, PIC, "image", { owner: "someone" })).toMatchObject({ ok: true, nsfw: 0.4 });
+    await checkMedia(t.db, { base64: PIC.base64, mime: "video/mp4" }, "video", { owner: "admin-1" });
+    expect(h.length).toBeGreaterThan(0);
+  });
+
+  it("draw while Hive is paused, unless set back to the same as everyone's", async () => {
+    await claimAdmin(t.db, "admin-1");
+    await saveAdultSettings(t.db, { moderation: { admin_checker: "alt" } });
+    await pauseHive(t.db, "test: Hive out for the day");
+    expect((await mediaGate(t.db, { owner: "admin-1" })).ok).toBe(true);
+    expect((await mediaGate(t.db, { owner: "someone" })).ok).toBe(false);
+    expect((await mediaGate(t.db, { owner: "admin-1", video: true })).ok).toBe(false);
+    await saveAdultSettings(t.db, { moderation: { admin_checker: "same" } });
+    expect((await mediaGate(t.db, { owner: "admin-1" })).ok).toBe(false);
+    hive();
+    alts();
+    expect(await checkMedia(t.db, PIC, "image", { owner: "admin-1" })).not.toMatchObject({ via: ["venice_vlm"] });
   });
 });

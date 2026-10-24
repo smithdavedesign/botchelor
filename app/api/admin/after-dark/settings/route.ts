@@ -52,6 +52,8 @@ const Input = z.object({
   media_fallback: z.boolean().optional(),
   // The Studio's settings (lib/adult/studio-config.ts validates every value on save), and the monthly caps.
   studio: z.record(z.string().max(40), z.unknown()).optional(),
+  // The scene writers people can pick, and the default (lib/adult/writer-config.ts validates on save).
+  writer: z.record(z.string().max(40), z.unknown()).optional(),
   // Which checker checks (lib/adult/moderation-config.ts validates on save), and the alternatives' keys ("" removes one).
   moderation: z.record(z.string().max(40), z.unknown()).optional(),
   sightengine_key: z.string().max(400).optional(),
@@ -85,6 +87,7 @@ export const POST = handle(async (req: Request) => {
     return json({ settings: await saveAdultSettings(db, input, admin) });
   } catch (err) {
     if (input.studio !== undefined) return json({ error: "invalid_settings", message: `Studio: ${err instanceof Error ? err.message.slice(0, 300) : "invalid"}` }, 422);
+    if (input.writer !== undefined) return json({ error: "invalid_settings", message: `Writer: ${err instanceof Error ? err.message.slice(0, 300) : "invalid"}` }, 422);
     if (input.moderation !== undefined) return json({ error: "invalid_settings", message: `Checks: ${err instanceof Error ? err.message.slice(0, 300) : "invalid"}` }, 422);
     throw err;
   }

@@ -322,7 +322,9 @@ describe("sampling", () => {
 
   it("After Dark's OpenRouter client sends the step's sampling and the usage accounting", async () => {
     setAdultModelForTests(null);
-    await saveAdultSettings(t.db, { openrouter_key: "sk-or-test-0000", text_model: "cognitivecomputations/dolphin-mistral-24b-venice-edition" });
+    // The scene step asks for the writer (lib/adult/writer.ts), here the only one on the list.
+    const dolphin = "cognitivecomputations/dolphin-mistral-24b-venice-edition";
+    await saveAdultSettings(t.db, { openrouter_key: "sk-or-test-0000", text_model: dolphin, writer: { models: [{ id: dolphin, label: "Dolphin", note: "" }], default: dolphin } });
     const sent: Record<string, unknown>[] = [];
     vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
       sent.push(JSON.parse(String(init.body)));

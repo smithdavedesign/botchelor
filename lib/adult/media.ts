@@ -326,8 +326,9 @@ export async function makePicture(
   const negative = [NEGATIVE_PROMPT, ...steer.negative].join(", ");
   const check = checkAdultText({ prompt: opts.prompt });
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
-  // Hive over its daily limit (lib/adult/hive-limit.ts): nothing is drawn (or paid for) while no checker can run.
-  const gate = await mediaGate(db);
+  // Hive over its daily limit (lib/adult/hive-limit.ts): nothing is drawn (or paid for) while no checker can run. An
+  // admin's own pictures go to the alternative checker instead (lib/adult/moderation.ts admin_checker).
+  const gate = await mediaGate(db, { owner: ownerId });
   if (!gate.ok) {
     await logRejection(db, ownerId, opts.kind, gate.reason);
     throw new HivePausedError(gate.until, gate.message);
@@ -337,7 +338,7 @@ export async function makePicture(
     const drawn = await drawPicture(db, opts.prompt, negative);
     const file = drawn.value;
     // The output check on the bytes themselves, before anything is stored, whoever made them: a failure is discarded.
-    const verdict = await checkMedia(db, { base64: file.bytes.toString("base64"), mime: file.mime }, "image");
+    const verdict = await checkMedia(db, { base64: file.bytes.toString("base64"), mime: file.mime }, "image", { owner: ownerId });
     if (!verdict.ok) return discarded(db, ownerId, opts.kind, verdict);
     const model = drawn.provider === "replicate" ? replicate_picture_model : venice_image_model;
     return storePicture(db, ownerId, opts, file, null, { provider: drawn.provider, fell_back: drawn.fell_back, model });
@@ -373,7 +374,7 @@ export async function makePicture(
   const url = body.images?.[0]?.url ?? body.image?.url;
   if (!url) throw new Error("fal.ai returned no picture.");
   // The output check, before anything is stored: a failure is discarded.
-  const verdict = await checkMedia(db, url, "image");
+  const verdict = await checkMedia(db, url, "image", { owner: ownerId });
   if (!verdict.ok) return discarded(db, ownerId, opts.kind, verdict);
   return storePicture(db, ownerId, opts, await download(url), url, { provider: "fal", fell_back: false, model });
 }

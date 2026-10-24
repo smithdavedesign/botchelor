@@ -29,6 +29,8 @@ import CharacterName from "@/app/CharacterName";
 import FacesPanel, { type Faces } from "./Faces";
 import type { SteerSummary } from "@/lib/adult/steering";
 import RateMedia from "./RateMedia";
+import WriterPicker from "../../WriterPicker";
+import type { WriterOptions } from "@/lib/adult/writer";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -48,6 +50,7 @@ export default function SceneWriter({
   faces: firstFaces = {},
   steer: firstSteer = {},
   textOnly = null,
+  writer = null,
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -67,6 +70,8 @@ export default function SceneWriter({
   steer?: Record<string, SteerSummary>;
   /** Why only the scenes show here (lib/jurisdiction.ts text_only): no pictures, video or voiced lines. Null: all of it. */
   textOnly?: string | null;
+  /** Who writes their scenes (lib/adult/writer.ts), for the ⋯ More menu's picker. */
+  writer?: WriterOptions | null;
 }) {
   // Shown until the pause is over, then the buttons come back (the next one probes Hive first).
   const [hivePause, setHivePause] = useState(hive);
@@ -477,6 +482,7 @@ export default function SceneWriter({
                 ⋯ More
               </button>
               <div className="ad-more-items">
+                {writer && <WriterPicker initial={writer} compact />}
                 <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ rewind: true })} title={scene.rewind?.depth ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
                   ↺ Rewind
                 </button>

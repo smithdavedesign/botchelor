@@ -992,11 +992,11 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
       if (checked++) await pause(CHECK_PAUSE_MS);
       const media = { base64: d.file.bytes.toString("base64"), mime: d.file.mime };
       // The age question alone: this keyframe's moderation comes with its shot's (lib/adult/check.ts "keyframe").
-      let verdict = await checkMedia(db, media, "keyframe");
+      let verdict = await checkMedia(db, media, "keyframe", { owner: ownerId });
       // Asked once more after a pause when Hive was busy or down; never when it's out for the day.
       if (couldntRun(verdict) && !hiveOut(verdict)) {
         await pause(CHECK_AGAIN_MS);
-        verdict = await checkMedia(db, media, "keyframe");
+        verdict = await checkMedia(db, media, "keyframe", { owner: ownerId });
       }
       if (!verdict.ok) {
         // Never stored either way; only a refusal is logged as one, and a keyframe thrown away because Hive was out.

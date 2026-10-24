@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { writerOptions } from "@/lib/adult/writer";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { isAdmin } from "@/lib/admins";
 import { listMedia } from "@/lib/adult/media";
@@ -94,6 +95,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         faces={await facesFor(db, admin, [scene.a.id, scene.b.id])}
         steer={await steerSummary(db, admin, [scene.a.id, scene.b.id])}
         textOnly={here.mode === "text_only" ? here.reason : null}
+        writer={await writerOptions(db, admin)}
       />
     </article>
     </div>

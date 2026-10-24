@@ -15,6 +15,7 @@ import { eligibleIds } from "./characters";
 import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, recentActions, scenePrompt, type Media } from "./media";
 import { countUse, overCap } from "./usage";
 import { adultModel, adultModelId } from "./mode";
+import { writerFor } from "./writer";
 import { drawLabel, ensureSet, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
@@ -2180,8 +2181,10 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const whispers: Whispers = { ...scene.whispers, ...(whisper ? { [whisper.to]: { text: whisper.text, steps_left: WHISPER_STEPS } } : {}) };
   const ctx = await stepContext(db, adminId, scene.a.id, scene.b.id);
   const { a, b } = ctx;
+  // Their own writer (lib/adult/writer.ts): the one they picked, else the default.
+  const writer = await writerFor(db, adminId);
   const step = await writeSceneStep({
-    model: await adultModel(db),
+    model: await adultModel(db, process.env, { model: writer }),
     a,
     b,
     pair: { a: scene.a, b: scene.b },
@@ -2201,7 +2204,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     profile: await sceneProfile(db, scene),
   });
   // Which model wrote it: what OpenRouter said answered, else the one asked for (lib/adult/steps.ts text_model).
-  const text = { model: step.served.model ?? (await adultModelId(db)), provider: step.served.provider };
+  const text = { model: step.served.model ?? (await adultModelId(db, process.env, { model: writer })), provider: step.served.provider };
   if (!step.ok) return failed(step.status, step.message, { direction: steer, dropped: step.dropped, flags: step.flags, whisper, text });
   const { meta, next } = step;
   const stepId = await logStep(db, adminId, pairIds, scene.id, {

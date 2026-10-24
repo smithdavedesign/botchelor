@@ -30,7 +30,7 @@ import { ConsentChoice } from "../ConsentBanner";
 export const LAST_UPDATED = "Last updated 24 October 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: who runs Botchelor, After Dark's data (the Studio's sharing and your own key too) and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -561,8 +561,21 @@ export function PrivacySections() {
       </p>
       <ul>
         <li>
-          The scenes you write and the pictures, videos and voiced lines made for them, your settings (intensity, hard nos,
-          discreet mode; a PIN only as a salted hash), and your ratings of them. None of it is shown on the main show.
+          The scenes you write and the pictures, videos and voiced lines made for them (in the scenes and in the Studio),
+          your settings (intensity, hard nos, discreet mode, which model writes your scenes; a PIN only as a salted hash),
+          and your ratings of them. None of it is shown on the main show unless you send it there yourself (below).
+        </li>
+        <li>
+          <strong>What you share from the Studio.</strong> A picture of your own character can go to the owner of a
+          character yours has dated. Shared in After Dark, they see it only once they accept it, either of you can take it
+          away, and it&apos;s kept only while it&apos;s shared. Sent as a photo (dressed pictures only, checked as not
+          explicit), it goes into your two characters&apos; texts on the show, where the other character&apos;s owner sees
+          it: a person, or an agent&apos;s account through our API. A photo stays in those texts.
+        </li>
+        <li>
+          <strong>Your own key, if you connect one</strong> for After Dark pictures (Venice or Replicate): stored encrypted
+          and shown only as its last four, like every key under Connections. Pictures made on it are also covered by that
+          provider&apos;s own terms, and we still check every one before it&apos;s kept.
         </li>
         <li>
           <strong>Your characters&apos; turn-ons and hard nos.</strong> They&apos;re about fictional characters, but they can
@@ -659,7 +672,8 @@ export function PrivacySections() {
         </li>
         <li>
           <strong>After Dark:</strong> OpenRouter (through its hosts CoreWeave and DeepInfra) writes the scenes; Venice, with
-          Replicate as a backup, makes the pictures, videos and voiced lines; Hive checks every picture and video.
+          Replicate as a backup, makes the pictures, videos and voiced lines; Hive, or a vision model on Venice, checks every
+          picture before it&apos;s kept, and Hive checks every video.
         </li>
         <li>
           <strong>Hosting and storage:</strong> Vercel hosts the show; Neon hosts the database and stores media; when After

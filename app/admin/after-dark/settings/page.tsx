@@ -11,6 +11,7 @@ import { authFromCookieStore } from "@/lib/http";
 import SettingsForm from "./SettingsForm";
 import ModerationSettings from "./ModerationSettings";
 import StudioSettings from "./StudioSettings";
+import WriterSettings from "./WriterSettings";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After dark settings · Botchelor", robots: { index: false, follow: false } };
@@ -63,6 +64,7 @@ export default async function AfterDarkSettingsPage() {
         )}
       </section>
       <SettingsForm initial={settings} hive={hive} />
+      <WriterSettings initial={settings} />
       <ModerationSettings initial={settings} />
       <StudioSettings initial={settings} />
       <section className="card">
