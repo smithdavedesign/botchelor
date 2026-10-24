@@ -25,7 +25,7 @@ import { hiveGate, hivePausedErrorMessage, hivePausedMessage, HivePausedError, u
 import { mediaLimits, nightStands } from "./clips";
 import { isPublicPlace } from "./continuity";
 import { ensureBaseline, signedMediaUrl, type Media } from "./media";
-import { baselines, drawKeyframe, drawReplicateKeyframe, keyframePrompt, placeWords, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
+import { baselines, drawKeyframe, drawReplicateKeyframe, KEYFRAME_MODEL, keyframePrompt, placeWords, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { STAGES } from "./stages";
@@ -279,9 +279,12 @@ export async function keepPictureOfBoth(
   const id = crypto.randomUUID();
   const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, scene_chapter, scene_place)
-     values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10, $11, $12)`,
-    [id, ownerId, ca.id, cb.id, prompt.slice(0, 2000), file.mime, kept.data, kept.object_key, made.provider, made.fell_back, ctx.scene?.chapter ?? null, ctx.scene?.place ?? null],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, scene_chapter, scene_place, model)
+     values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10, $11, $12, $13)`,
+    [
+      id, ownerId, ca.id, cb.id, prompt.slice(0, 2000), file.mime, kept.data, kept.object_key, made.provider, made.fell_back, ctx.scene?.chapter ?? null, ctx.scene?.place ?? null,
+      made.provider === "replicate" ? settings.replicate_keyframe_model : KEYFRAME_MODEL,
+    ],
   );
   await countUse(db, ownerId, "pictures");
   return {

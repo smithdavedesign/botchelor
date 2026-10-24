@@ -293,14 +293,15 @@ export async function makePicture(
     await logRejection(db, ownerId, opts.kind, gate.reason);
     throw new HivePausedError(gate.until, gate.message);
   }
-  const { image_model, image_base, image_provider } = await getAdultSettings(db);
+  const { image_model, image_base, image_provider, venice_image_model, replicate_picture_model } = await getAdultSettings(db);
   if (image_provider === "venice") {
     const drawn = await drawPicture(db, opts.prompt);
     const file = drawn.value;
     // The output check on the bytes themselves, before anything is stored, whoever made them: a failure is discarded.
     const verdict = await underHiveLimit(db, () => checkOutput(hive, { base64: file.bytes.toString("base64"), mime: file.mime }, "image"));
     if (!verdict.ok) return discarded(db, ownerId, opts.kind, verdict);
-    return storePicture(db, ownerId, opts, file, null, { provider: drawn.provider, fell_back: drawn.fell_back });
+    const model = drawn.provider === "replicate" ? replicate_picture_model : venice_image_model;
+    return storePicture(db, ownerId, opts, file, null, { provider: drawn.provider, fell_back: drawn.fell_back, model });
   }
   const key = await falKey(db);
   const run = (model: string, input: Record<string, unknown>) =>
@@ -312,10 +313,15 @@ export async function makePicture(
     });
   const face = opts.face_of ? await baselineFace(db, opts.face_of) : null;
   let res: Response | null = null;
+  let model = image_model;
   if (face) {
+    model = FACE_MODEL;
     res = await run(FACE_MODEL, { face_image_url: face, model_type: "SDXL-v2-plus", base_sdxl_model_repo: image_base, width: 768, height: 1024 });
     // No face found in the reference, or the model's down: the picture still comes, from the words alone.
-    if (!res.ok && res.status !== 401 && res.status !== 403) res = null;
+    if (!res.ok && res.status !== 401 && res.status !== 403) {
+      res = null;
+      model = image_model;
+    }
   }
   res ??= await run(image_model, {
     ...(image_model === "fal-ai/lora" ? { model_name: image_base, prompt_weighting: true } : {}),
@@ -330,7 +336,7 @@ export async function makePicture(
   // The output check, before anything is stored: a failure is discarded.
   const verdict = await underHiveLimit(db, () => checkOutput(hive, url, "image"));
   if (!verdict.ok) return discarded(db, ownerId, opts.kind, verdict);
-  return storePicture(db, ownerId, opts, await download(url), url, { provider: "fal", fell_back: false });
+  return storePicture(db, ownerId, opts, await download(url), url, { provider: "fal", fell_back: false, model });
 }
 
 /** Stores a picture that passed the output check, and counts it. */
@@ -340,7 +346,7 @@ async function storePicture(
   opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null } & PictureScene,
   file: { bytes: Buffer; mime: string },
   url: string | null,
-  made: { provider: string; fell_back: boolean },
+  made: { provider: string; fell_back: boolean; model?: string | null },
 ): Promise<Media> {
   await countUse(db, ownerId, "pictures");
   const id = crypto.randomUUID();
@@ -348,8 +354,8 @@ async function storePicture(
   const chapter = opts.scene_chapter ?? null;
   const place = opts.scene_place?.slice(0, 120) ?? null;
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place, provider, fell_back) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place, made.provider, made.fell_back],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place, provider, fell_back, model) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place, made.provider, made.fell_back, made.model ?? null],
   );
   return {
     id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null, chapter, place,
