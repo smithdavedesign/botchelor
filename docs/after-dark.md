@@ -1808,3 +1808,23 @@ and MCP `after_dark_settings`. The scene carries the running chapter's `beats`; 
 **Cost:** about 5¢ a picture with its checks, up to 6 a chapter found, so up to about 30¢ a chapter, less what videos
 reuse. Each picture is one Hive check (moderation plus the age question): with the self-serve daily limit, a busy day of
 chapters can reach it, so a paid Hive plan comes before subscribers use it.
+
+## The library: every picture and video, rated (2026-10-24)
+
+**What David asked.** A link to the graph from the After Dark page, and a new page with all the NSFW clips, pictures and
+videos, sortable by characters, user rating, type and the model that made it, with pages.
+
+- **Links:** the After Dark page's row of buttons has 🕸 Graph and 🗂 Library for admins.
+- **The page:** `/admin/after-dark/library` (`lib/adult/library.ts`, `app/admin/after-dark/library`). Everyone's, read
+  as a moderator like the graph: signed-in admins on an unlocked device only, a 404 to everyone else. An item is a ready
+  picture or portrait (adult_images `scene`, `baseline`; a scene with a video's mime is an old fal clip), or a video of
+  a night or a clip (adult_reels) with at least one shot through. Keyframes and lone shots aren't items.
+- **Sort:** newest (the default), oldest, rating (the average, unrated last, then how many rated it), characters (the
+  pair's names in order), type, model. **Filters:** type, character (either of the pair), model. 24 a page, with
+  previous and next; the filters and sort are the page's search params, so a view can be linked.
+- **Model:** a picture's, kept from 2026-10-24 (`adult_images.model`: the Venice or Replicate picture model, fal's face
+  or picture model, the multi-image edit for menu and beat pictures); older pictures say their provider, "model not
+  recorded". A video's is its shots' (they always kept theirs), several joined when they differ.
+- **Stars:** 1–5 per viewer per item (`adult_media_ratings`), tapped on the card; the same star again takes it back.
+  `POST /api/admin/after-dark/ratings { id, stars }`.
+- Videos load only when played (`preload="none"`), as on the graph.

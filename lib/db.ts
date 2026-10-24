@@ -1891,6 +1891,20 @@ create index if not exists adult_beats_scene_idx on adult_beats (scene_id, chapt
 create index if not exists adult_beats_pair_idx on adult_beats (owner_id, character_a, character_b, chapter);
 alter table adult_settings add column if not exists beat_pictures boolean;
 
+-- The After Dark library (lib/adult/library.ts; David, 2026-10-24): which model drew a picture (null: from before it was
+-- kept, when only its provider was), and each viewer's 1–5 stars on a picture or a video (item_id: an adult_images or an
+-- adult_reels id).
+alter table adult_images add column if not exists model text;
+create table if not exists adult_media_ratings (
+  user_id text not null,
+  item_id text not null,
+  item_kind text not null check (item_kind in ('image', 'reel')),
+  rating smallint not null check (rating between 1 and 5),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, item_id)
+);
+create index if not exists adult_media_ratings_item_idx on adult_media_ratings (item_id);
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

@@ -60,9 +60,17 @@ export default async function AfterDarkPage() {
             🔒 Privacy
           </a>
           {admin && (
-            <Link className="button-ghost" href="/admin/after-dark/settings">
-              ⚙ Settings
-            </Link>
+            <>
+              <Link className="button-ghost" href="/admin/after-dark/graph">
+                🕸 Graph
+              </Link>
+              <Link className="button-ghost" href="/admin/after-dark/library">
+                🗂 Library
+              </Link>
+              <Link className="button-ghost" href="/admin/after-dark/settings">
+                ⚙ Settings
+              </Link>
+            </>
           )}
           <Link className="button-ghost" href="/">
             ← Back to the show
