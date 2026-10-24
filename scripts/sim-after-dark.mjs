@@ -26,6 +26,8 @@
  * Text hosts: each model's app runs on the hosts in this run's own ADULT_TEXT_PROVIDERS (lib/adult/mode.ts; unset, the
  * app's reviewed two), or on the ones a model names after an @, joined by +
  * (cognitivecomputations/dolphin-mistral-24b-venice-edition@venice): a local run can try a host production doesn't use.
+ * A model written local:<name> runs on this machine's Ollama instead (ADULT_LLM_MODEL, lib/adult/mode.ts's local mode:
+ * no OpenRouter key is saved on that copy), for an open model no reviewed host serves (2026-10-24: Tiger-Gemma 12B).
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -69,6 +71,9 @@ export const STEERS = {
   20: "Afterward: how they are with each other now.",
 };
 
+/** The blind read's letters, one a model. */
+export const LETTERS = ["X", "Y", "Z", "W", "V", "U", "T", "S"];
+
 const hostList = (s, sep) => String(s ?? "").split(sep).map((h) => h.trim().toLowerCase()).filter(Boolean);
 
 /**
@@ -82,6 +87,7 @@ export function parseArms(spec, envHosts) {
     .map((s) => s.trim())
     .filter(Boolean)
     .map((s) => {
+      if (s.startsWith("local:")) return { model: s, local: s.slice("local:".length).trim(), hosts: null };
       const at = s.indexOf("@");
       const own = at > 0 ? hostList(s.slice(at + 1), "+") : [];
       const hosts = own.length ? own : hostList(envHosts, ",");
@@ -186,12 +192,13 @@ async function tool(base, name, input) {
   return { data: result.structuredContent ?? JSON.parse(text) };
 }
 
-function envFor(showrunnerPort, dataDir, hosts = null) {
+function envFor(showrunnerPort, dataDir, hosts = null, local = null) {
   const env = appEnv(showrunnerPort, dataDir);
   delete env.INDEXNOW_KEY; // never ping a search engine from a local run
-  for (const k of Object.keys(env)) if (/^(RESEND_|EMAIL_|FRONTIER_LLM_|FRONTIER_DEFAULT|SIM_|AD_OPENROUTER)/.test(k)) delete env[k];
+  for (const k of Object.keys(env)) if (/^(RESEND_|EMAIL_|FRONTIER_LLM_|FRONTIER_DEFAULT|SIM_|AD_OPENROUTER|ADULT_LLM_)/.test(k)) delete env[k];
   // The hosts this model's text may run on (parseArms): this app only, never a deployment's setting.
   if (hosts) env.ADULT_TEXT_PROVIDERS = hosts.join(",");
+  if (local) env.ADULT_LLM_MODEL = local;
   env.FRONTIER_PASSWORD = ADMIN_PASSWORD;
   env.SESSION_SECRET = SESSION_SECRET;
   env.SWIPE_GATE = "0"; // one owner's character and a house character, dated twice: no deck to match in first
@@ -268,13 +275,15 @@ async function takeStep(base, setup, step) {
 /** Step 4: one model's night on its own copy of the database, the same steers (STEERS, or the replayed plan's steps). */
 async function nightPhase(arm, dbDir, setup, showrunnerPort, plan, stepCount) {
   const { model } = arm;
-  const app = await startApp(await freePort(), envFor(showrunnerPort, dbDir, arm.hosts));
+  const app = await startApp(await freePort(), envFor(showrunnerPort, dbDir, arm.hosts, arm.local));
   const base = app.base;
   const steps = [];
   const t0 = Date.now();
   try {
     const penalties = typeof arm.penalty === "number" ? { frequency_penalty: arm.penalty, presence_penalty: arm.penalty } : {};
-    must(await req(base, "POST", "/api/admin/after-dark/settings", setup.owner, { enabled: true, openrouter_key: process.env.AD_OPENROUTER_KEY, text_model: model, ...penalties }), "After Dark's settings");
+    // A local arm saves no key, so the app calls Ollama (lib/adult/mode.ts).
+    const cloud = arm.local ? {} : { openrouter_key: process.env.AD_OPENROUTER_KEY, text_model: model };
+    must(await req(base, "POST", "/api/admin/after-dark/settings", setup.owner, { enabled: true, ...cloud, ...penalties }), "After Dark's settings");
     const on = await tool(base, "after_dark_switch", { character_id: setup.character.id, on: true });
     if (on.error) throw new Error(`switching ${setup.character.name} on: ${on.error}`);
     // A replayed night's turn-ons, before its first step (the page's turn-on chips; an admin sets the house cast's).
@@ -398,10 +407,11 @@ async function main() {
   const plan = steersFile ? parseSteers(JSON.parse(readFileSync(steersFile, "utf8"))) : null;
   const stepCount = Number(opt("steps", plan ? String(plan.steps.length) : "26"));
   if (!scoreOnly) {
-    if (!process.env.AD_OPENROUTER_KEY) throw new Error("AD_OPENROUTER_KEY needed: After Dark's OpenRouter key, read from the keychain by the caller");
+    const models = parseArms(opt("models", "cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1"), process.env.ADULT_TEXT_PROVIDERS);
+    if (models.length > LETTERS.length) throw new Error(`--models: at most ${LETTERS.length} for the blind read`);
+    if (models.some((m) => !m.local) && !process.env.AD_OPENROUTER_KEY) throw new Error("AD_OPENROUTER_KEY needed: After Dark's OpenRouter key, read from the keychain by the caller");
     if (DATE_MODEL === "paid" && !process.env.SIM_LLM_API_KEY) throw new Error("--date-model paid needs SIM_LLM_API_KEY (the AI Gateway key)");
     const newCharacter = characterFile ? parseCharacter(JSON.parse(readFileSync(characterFile, "utf8"))) : NEW_CHARACTER;
-    const models = parseArms(opt("models", "cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1"), process.env.ADULT_TEXT_PROVIDERS);
     const penalties = parsePenalties(opt("penalties", ""), models.length);
     const arms = models.map((arm, i) => ({ ...arm, penalty: penalties[i] }));
     rmSync(OUT, { recursive: true, force: true });
@@ -441,7 +451,7 @@ async function main() {
   const runs = JSON.parse(readFileSync(join(OUT, "runs.json"), "utf8"));
   // The blind read's letters, by run folder: drawn once and kept (letters.json), so a re-score names the same transcripts.
   const lettersFile = join(OUT, "letters.json");
-  const drawn = ["X", "Y", "Z", "W"].slice(0, runs.length).sort(() => (randomBytes(1)[0] % 2 ? 1 : -1));
+  const drawn = LETTERS.slice(0, runs.length).sort(() => (randomBytes(1)[0] % 2 ? 1 : -1));
   const letterOf = existsSync(lettersFile) ? JSON.parse(readFileSync(lettersFile, "utf8")) : Object.fromEntries(runs.map((r, i) => [basename(r.dir), drawn[i]]));
   writeFileSync(lettersFile, JSON.stringify(letterOf, null, 2));
   const key = {};
