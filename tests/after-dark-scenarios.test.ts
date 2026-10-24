@@ -196,7 +196,7 @@ describe("scenario packs", () => {
     const { cookie } = await admin();
     scripted();
     await post({ a: CAST_A, b: CAST_B }, cookie);
-    await post({ a: CAST_A, b: CAST_B, limits: { hard_nos: { chips: [], own: ["masks"] } } }, cookie);
+    await post({ a: CAST_A, b: CAST_B, limits: { hard_nos: { chips: [], own: ["masks"] } }, consent: true }, cookie);
     const res = await post({ a: CAST_A, b: CAST_B, scenario: "masquerade" }, cookie);
     expect(res.status).toBe(422);
     expect((await res.json()).message).toMatch(/That scenario asks for one of your hard limits/);
@@ -209,7 +209,7 @@ describe("scenario packs", () => {
 describe("turn-ons and framing", () => {
   it("feed the prompt: each one's turn-ons (none a hard no rules out) and how the viewer frames them", async () => {
     const { cookie } = await admin();
-    expect((await (await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["slow_teasing", "praise", "dirty_talk"] } }, cookie)).json()).profile.a).toEqual({
+    expect((await (await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["slow_teasing", "praise", "dirty_talk"] }, consent: true }, cookie)).json()).profile.a).toEqual({
       editable: true,
       turn_ons: ["slow_teasing", "praise", "dirty_talk"],
     });
@@ -231,7 +231,7 @@ describe("turn-ons and framing", () => {
 
   it("are the owner's only: a house character's are an admin's to set; a subscriber can't see or set them", async () => {
     const { cookie } = await admin();
-    await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["candlelight"] } }, cookie);
+    await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["candlelight"] }, consent: true }, cookie);
     const sub = userIdOf(newUserCookie());
     await t.db.query(`insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())`, [sub]);
     const subCookie = signedIn(sub);
@@ -245,7 +245,7 @@ describe("turn-ons and framing", () => {
 
   it("never reach the show: not on a character's public page or API, and nothing outside After Dark reads them", async () => {
     const { cookie } = await admin();
-    await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["lingerie", "candlelight"] } }, cookie);
+    await post({ a: CAST_A, b: CAST_B, turn_ons: { character_id: CAST_A, ids: ["lingerie", "candlelight"] }, consent: true }, cookie);
     // The public card, and the character as a date's models get it (its own sheet, extras and memory).
     const card = JSON.stringify(await getPublicCharacter(t.db, CAST_A));
     const self = JSON.stringify(await loadCharacter(t.db, CAST_A));

@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import { AiTag } from "@/app/AiLabel";
 import { boardName, CALL_POINTS, callBoard } from "@/lib/adult/predictions";
 import { listShorts, shortsAccess, teaserShorts, watchedOf } from "@/lib/adult/shorts";
 import { detectBot } from "@/lib/bots";
@@ -93,6 +94,7 @@ export default async function ShortsPage() {
                     </span>
                   )}
                   <span className={styles.title}>{s.title}</span>
+                  {s.cover && <AiTag label="AI-generated cover" />}
                 </Link>
                 <p className={`muted small ${styles.meta}`}>
                   <CharacterName character={{ ...s.a, house: true }} label={shortName(s.a.name)} link={false} /> ×{" "}

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { NUDGE_MAX } from "@/lib/between-dates";
+import { crisisAware, str } from "@/lib/crisis";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { jobUsability } from "@/lib/connections";
@@ -36,9 +37,10 @@ const Input = z.object({ character_id: z.string().min(1).max(64), hint: z.string
 /**
  * The owner's character texts the other, written on the owner's own model key (lib/texting.ts): as often and as long as
  * they like, since it's their model. A house character texts back on the same key. Without a key, the couple still gets
- * the show's daily text; this is for whenever they want more.
+ * the show's daily text; this is for whenever they want more. The owner's own nudge is checked for self-harm intent
+ * (lib/crisis.ts): the reply then carries crisis_resources, whatever else it says.
  */
-export const POST = handle(async (req: Request, ctx: Ctx) => {
+export const POST = crisisAware("text_hint", (body) => [str(body.hint)], handle(async (req: Request, ctx: Ctx) => {
   const { a, b } = await ctx.params;
   const sess = session(req);
   const input = parseBody(Input, await readJson(req), "invalid_request");
@@ -63,4 +65,4 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const r = await writeOwnText(db, { userId: sess.userId, from: input.character_id, to: input.character_id === a ? b : a, model, hint: input.hint });
   if (!r.ok) return json({ error: r.error, message: r.message }, r.status, sess);
   return json({ items: [r.sent, ...(r.reply ? [r.reply] : [])], ...(r.note ? { note: r.note } : {}) }, 200, sess);
-});
+}));

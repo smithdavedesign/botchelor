@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
+import { AiTag } from "@/app/AiLabel";
+import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
+import type { CrisisResources } from "@/lib/crisis";
 import type { PublicBeat } from "@/lib/adult/beats";
 import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
@@ -134,6 +137,8 @@ export default function SceneWriter({
   const [direction, setDirection] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  const [crisis, setCrisis] = useState<CrisisResources | null>(null);
+  const crisisNotice = crisis ? <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} /> : null;
   // Autoplay (lib/adult/autoplay.ts): one switch for the page and the theater. Each paces its own steps.
   const [autoplay, setAutoplay] = useState(false);
   // Rewind, Redo and Start over: in a "⋯ More" fold on a phone (the sticky bar took 400px), always out on a wider screen.
@@ -168,6 +173,12 @@ export default function SceneWriter({
     const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
     writing.current = false;
     setBusy(false);
+    // The viewer's own steer or whisper read as wanting to hurt themselves (lib/crisis.ts): the help stays until closed.
+    const help = crisisFrom(res?.data);
+    if (help) {
+      setCrisis(help);
+      setAutoplay(false);
+    }
     if (!res || !res.ok) setAutoplay(false);
     if (!res) {
       setNote({ text: "Network error. Try again.", error: true });
@@ -312,6 +323,7 @@ export default function SceneWriter({
           mediaPaused={mediaPaused}
           feedbackRef={scene.id}
           onExit={() => setTheater(false)}
+          crisis={crisisNotice}
         />
       )}
       {(scene.lines.length > 0 || scene.chapter > 1) && (
@@ -347,6 +359,7 @@ export default function SceneWriter({
           {note.text}
         </p>
       )}
+      {!theater && crisisNotice}
       <span ref={endRef} aria-hidden="true" />
       {offered && !theater && (
         <div className="ad-beat-banner" role="status">
@@ -479,7 +492,7 @@ export default function SceneWriter({
           steer bar, which settles into its place above them, so it never covers them. */}
       <div className="ad-panels">
         <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
-        <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits) => send({ limits })} />
+        <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits, consent) => send({ limits, ...(consent ? { consent: true } : {}) })} />
         <Profile scene={scene} characters={characters} onScene={setScene} />
         <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
       </div>
@@ -657,6 +670,7 @@ function Gallery({
                 <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" />
               )}
               <span className="badge">{m.nude ? `${m.kind} · undressed` : m.kind}</span>
+              <AiTag />
               {m.kind === "scene" && (m.chapter || m.place) && (
                 // Drawn for a chapter and a place (lib/adult/auto-pictures.ts).
                 <span className="muted small ad-picture-where">{[m.chapter ? `Chapter ${m.chapter}` : "", m.place ?? ""].filter(Boolean).join(" · ")}</span>

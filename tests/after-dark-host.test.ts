@@ -91,7 +91,11 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
     vi.stubEnv("AFTER_DARK_ONLY", "");
     vi.resetModules();
     const { default: config } = await import("@/next.config");
-    expect(config).toEqual({ serverExternalPackages: ["@electric-sql/pglite"] });
+    // Plus the "AI-generated" headers on the shipped cast pictures (lib/ai-mark.ts), which don't depend on the switch.
+    expect(config).toEqual({ serverExternalPackages: ["@electric-sql/pglite"], headers: expect.any(Function) });
+    expect(await config.headers!()).toEqual([
+      { source: "/cast/:file*", headers: [{ key: "x-ai-generated", value: "true" }, { key: "link", value: '</content-policy>; rel="describedby"' }] },
+    ]);
     expect(afterDarkNextConfig({}, SHOW)).toEqual({});
     expect(afterDarkNextConfig({ AFTER_DARK_ONLY: "1" }, SHOW)).toEqual({}); // only with an origin
   });

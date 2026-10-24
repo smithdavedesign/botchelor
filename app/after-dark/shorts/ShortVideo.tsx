@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ShortShot } from "@/lib/adult/shorts";
+import { AiTag } from "@/app/AiLabel";
 
 /**
  * A Short's video of the night (lib/adult/shorts.ts): its shots one after another, each with its line as a caption. A
@@ -61,6 +62,7 @@ export default function ShortVideo({ shots }: { shots: ShortShot[] }) {
   return (
     <figure className="after-dark-reel">
       <div className="ad-reel-stage">
+        <AiTag over />
         <video
           ref={video}
           key={shot.video}

@@ -1,5 +1,6 @@
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaBytes, mediaLink, mediaLinkValid, mediaRef } from "@/lib/adult/media";
+import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
 import { getDb } from "@/lib/db";
 
 /**
@@ -34,7 +35,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // redirect), as does any file still only in Postgres.
   const file = await mediaBytes(db, id, viewer);
   if (!file) return new Response("Not found", { status: 404 });
-  return new Response(new Uint8Array(file.data), {
-    headers: { "content-type": file.mime, "cache-control": admin ? KEEP : "private, no-store", "x-robots-tag": "noindex" },
+  // Made by a model: a picture marked AI-generated in its XMP (one stored before the mark gets it here); every file in
+  // its headers (lib/ai-mark.ts).
+  return new Response(aiBody(file.data, file.mime), {
+    headers: { "content-type": file.mime, "cache-control": admin ? KEEP : "private, no-store", "x-robots-tag": "noindex", ...AI_HEADERS },
   });
 }

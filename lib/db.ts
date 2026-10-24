@@ -1960,6 +1960,13 @@ create table if not exists adult_media_ratings (
   primary key (user_id, item_id)
 );
 create index if not exists adult_media_ratings_item_idx on adult_media_ratings (item_id);
+-- Explicit consent for the After Dark profile (GDPR Art. 9 "sex life" data; lib/adult/profile.ts PROFILE_CONSENT_TEXT;
+-- 2026-10-24): when, and by whom, a character's turn-ons were saved under the person's ticked consent, and when a pair's
+-- hard nos were. Null: saved before consent was asked for (only admins had After Dark then). Nothing new is stored
+-- without it; deleting the profile (lib/adult/profile-data.ts) clears both with the data.
+alter table adult_profiles add column if not exists consented_at timestamptz;
+alter table adult_profiles add column if not exists consented_by text;
+alter table adult_scenes add column if not exists hard_nos_consented_at timestamptz;
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
