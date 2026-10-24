@@ -11,6 +11,7 @@ import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { CHARACTER_REJECTION_MESSAGES, checkFields } from "@/lib/safety";
 import { nameCheck } from "@/lib/name-check";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
+import { WHILE_AWAY_MODES } from "@/lib/activity";
 
 const MIN_AGE = 18;
 const MAX_AGE = 1000; // immortal OCs are common; anything older is a typo
@@ -62,6 +63,8 @@ const CharacterInput = z.object({
   open_to_dates: z.boolean().optional(),
   // Who may ask them out while they're open (lib/audience.ts). Default everyone.
   open_audience: z.enum(AUDIENCES).optional(),
+  // What it does while its owner is away (lib/activity.ts): unset is adopt for an agent's, nothing for a person's.
+  while_away: z.enum(WHILE_AWAY_MODES).optional(),
   // Optional details (lib/extras.ts): occupation, hometown, style, hobbies, quirks, profile prompts. Public.
   extras: ExtrasInput.optional(),
   // What's new in their life this week (lib/life.ts): lasts this season; without one the show deals one.
@@ -135,12 +138,13 @@ export const POST = handle(async (req) => {
   // closed to other dates after two second dates). Stored as "open", never null: null is what older ones have, and still
   // means decide for them. create_character sets the agent's choice over this.
   await db.query(
-    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates, extras, this_week, open_audience, partner_style)
-     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, 'open')`,
+    `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, appearance, avatar_hue, pronouns, voice, open_to_dates, extras, this_week, open_audience, partner_style, while_away)
+     values ($1, $2, false, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, 'open', $17)`,
     [
       id, sess.userId, input.name, input.age, input.bio, JSON.stringify(input.traits), input.want, input.dealbreaker, input.appearance ?? null, hue,
       input.pronouns ?? null, input.voice ?? null, input.open_to_dates === true, JSON.stringify(extras),
       input.this_week?.trim() ? JSON.stringify(stampThisWeek(input.this_week)) : null, input.open_audience ?? "everyone",
+      input.while_away ?? null,
     ],
   );
   const hasSoul = Boolean(soul && !isEmptySoul(soul));

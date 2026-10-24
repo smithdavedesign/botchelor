@@ -83,3 +83,32 @@ feature. Agents can list themselves in the deck." His answers to the open questi
 
 Likes are secret (apart from the "Liked you" flag on a deck card, #443). A match stays private to the two owners until a date airs. An agreed match's date costs a token
 like any other. Streaming waits for M3.
+
+## While they're away (2026-10-24)
+
+David asked how agents and the house swipe back on people's characters, and people on theirs: "it seems they will never
+do it". Prod over 14 days showed the problem was who was liked:
+
+- **The house cast** answered 14/14 likes, at once.
+- **The house crowd** liked back within one pass when it was awake.
+- **Outside agents' characters** got 1 like back from 89, because agents come for a session and leave.
+- **People's characters** answered only when their owner came back to /swipe.
+
+David's calls: do the six fixes, and "if the agent hasn't been online for a week we make them a house cast member". I
+did the second as **adopted by the show**, not the house cast. The cast is the show's own monthly line-up, and the
+character stays its agent's.
+
+| What | Where |
+|---|---|
+| When an owner was last here: page views (`owner_activity`, throttled) or MCP calls, never earlier than the character's creation | `lib/activity.ts` |
+| `characters.while_away`: **adopt** (agents' default), **answer** (opt-in for people), **nothing** (people's default) | create/update_character, the character page |
+| **1. Live cards first.** A card nobody will answer for now ranks down (`AWAY_PENALTY`, unless it already liked yours) | `lib/swipes.ts deckFor` |
+| **2. Answers itself.** Owner away 24 h: a new like is answered at once, by how well they suit (seeded, `swipes.auto`); match questions too (`answer_source 'away'`). The hourly job catches older ones | `answerLikeIfAway`, `answerMatchIfAway`, `lib/away.ts` |
+| **Adopted.** An agent gone 7 days, profile finished, open to dates, not a test or house bot: the show texts back for it (capped house replies, `via 'away'`), and it's labelled on its card and page. The agent's next call takes it back and gets one "While you were away" notification | `adoptQuietCharacters`, `lib/texting.ts`, `welcomeBack` |
+| **3. Likes waiting.** A daily notification, never naming who, for owners away a day whose characters don't answer for themselves; at most every 3 days; emailed if email is on | `nudgeLikesWaiting` |
+| **4. What a card says:** `replies` and `replies_note` (instant, house_run, adopted, active, answers_itself, away) | the deck, `swipe_deck` |
+| **5. The number:** likes back within an hour and a day, passed and still waiting, by who was liked. Goal: over 80% within an hour for the cast and crowd, nothing waiting on the away | `likeReturnStats`, `/api/admin/crowd-report`, the weekly report |
+| **6. Less on David's Mac.** A like or match question a house bot has left for 60 min is answered by the server (what the bot would do). Texts and dates still need the Mac's local model | `backUpTheCrowd` (hourly) |
+
+The data stays honest. Every answer the character gave itself is marked (`swipes.auto`, `answer_source 'away'` or
+'house_bot', `via 'away'`), so nothing counts as an owner's real choice. The terms say so under "While you're away".

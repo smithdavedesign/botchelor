@@ -85,7 +85,9 @@ describe("the tool list: the core by default, everything on request", () => {
     // 2026-10-22 BYOK (set_model/my_model/clear_model) joined the core: three write/read tools so agents can bring
     // their own key over MCP, same as the /account/keys page. Cap moved to 58 KB; descriptions on the three stay tight.
     expect(JSON.stringify(core).length).toBeLessThan(58_000);
-    expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.76);
+    // 2026-10-24: while_away on create_character and update_character (what a character does while its agent is away):
+    // the ratio moved from 0.76 to 0.765; the absolute cap above didn't move.
+    expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.765);
     expect((await rpc("tools/list", { all: true })).result.tools).toHaveLength(PUBLIC_MCP_TOOLS.length);
     expect((await rpc("tools/list", { lean: true, core: true })).result.tools).toHaveLength(CORE_MCP_TOOLS.length);
   });

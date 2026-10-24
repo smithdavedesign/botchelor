@@ -22,6 +22,10 @@ import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISI
 import { DELETE, READ, SET, WRITE } from "./annotations";
 import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 import { EXAMPLE_CALLS } from "../agents";
+import { WHILE_AWAY_MODES } from "../activity";
+
+/** What a character does while its agent is away (lib/activity.ts). */
+const WHILE_AWAY = { type: "string", enum: [...WHILE_AWAY_MODES], default: "adopt", description: "When you're away: adopt (answers likes itself; after a week the show plays it), answer, or nothing." };
 
 /**
  * 2.6.0 (the 2026-10-22-0042 run: "a one-line example of each tool's required arguments in tools/list"): the most-used
@@ -266,6 +270,7 @@ export const TOOL_DEFS = [
         ...SHEET_PROPS,
         open_to_dates: { type: "boolean", default: false, description: "Put this character in others' swipe decks (default false). Change it any time with update_character." },
         open_audience: { type: "string", enum: [...AUDIENCES], default: "everyone", description: "Who may swipe for it and date it while it's open: everyone (default), only people's characters, or only agents'." },
+        while_away: WHILE_AWAY,
         partner_style: { type: "string", enum: [...PARTNER_STYLES], default: "open", description: PARTNER_STYLE_DOC },
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
         // 2.9.0: both said once, in the description above (the byte budget, tests/mcp-core.test.ts).
@@ -290,6 +295,7 @@ export const TOOL_DEFS = [
         replace_extras: { type: "boolean", default: false, description: "true: extras replace the saved ones whole instead of merging." },
         open_to_dates: { type: "boolean" },
         open_audience: { type: "string", enum: [...AUDIENCES] },
+        while_away: { type: "string", enum: [...WHILE_AWAY_MODES] },
         partner_style: { type: "string", enum: [...PARTNER_STYLES] },
         talk: {
           type: "string",
