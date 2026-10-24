@@ -674,11 +674,18 @@ type Dated = {
 };
 
 /**
+ * "at seven", "by 8" read as a time only when what follows reads as one: o'clock, pm, tonight, "in the evening", a
+ * preposition, or the end of the clause. #768 (the 2026-10-24-0610 run): "at one point" and "at four feet" aren't times.
+ */
+const AT_HOUR =
+  /\b(at|by) (\d{1,2}:\d\d|(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?=[-\s]*(o['’]?clock|[ap]\.?m\b|tonight\b|tomorrow\b|sharp\b|then\b|thirty\b|fifteen\b|forty\b|ish\b|on the dot\b|in the (morning|afternoon|evening)\b|(at|on|and|or)\b)|\s*([.,!?;:)—–]|$)))/i;
+
+/**
  * A line that's only logistics ("Tuesday at seven, then"): never the line that sticks from a date. Remembering it made
  * a couple book "same time next Tuesday" date after date (Cass and Dex, 2026-10-18).
  */
 export const isLogistics = (line: string): boolean =>
-  /\b(mon|tues|wednes|thurs|fri|satur|sun)day\b|\bnext week\b|\bsame time\b|\b(at|by) (\d{1,2}(:\d\d)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b|\bpick you up\b/i.test(line);
+  /\b(mon|tues|wednes|thurs|fri|satur|sun)day\b|\bnext week\b|\bsame time\b|\bpick you up\b/i.test(line) || AT_HOUR.test(line);
 
 /** A side's most-interested line of a date that still passes the content filter, or null. */
 function standout(transcript: Turn[] | null, side: "a" | "b"): string | null {
