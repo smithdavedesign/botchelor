@@ -10,12 +10,14 @@ import { getPrivacy, lockedForCookies } from "@/lib/adult/privacy";
 import { listCastPairs } from "@/lib/adult/scenes";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { sharedWithMe } from "@/lib/adult/shares";
+import { writerOptions } from "@/lib/adult/writer";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import PrivacyCard from "./PrivacyCard";
 import Switches from "./Switches";
 import PairPicker from "./PairPicker";
 import SharedWithYou from "./SharedWithYou";
+import WriterPicker from "./WriterPicker";
 import { currentHere, currentView } from "./view";
 
 export const dynamic = "force-dynamic";
@@ -49,13 +51,14 @@ export default async function AfterDarkPage() {
     );
   }
   const owner = auth!.userId;
-  const [pairs, switchable, privacy, adSettings, shared, here] = await Promise.all([
+  const [pairs, switchable, privacy, adSettings, shared, here, writer] = await Promise.all([
     listCastPairs(db, owner),
     listSwitchable(db, owner),
     getPrivacy(db, owner),
     getAdultSettings(db),
     sharedWithMe(db, owner),
     currentHere(),
+    writerOptions(db, owner),
   ]);
   // The Studio (lib/adult/studio.ts): their own characters that are in, and for an admin the house cast that's in too.
   const studio = adSettings.studio.open_to === "entitled" || admin ? switchable.filter((c) => c.on && (!c.house || admin)) : [];
@@ -114,6 +117,7 @@ export default async function AfterDarkPage() {
           <h2>Scenes</h2>
           <PairPicker pairs={pairs} />
         </section>
+        <WriterPicker initial={writer} />
         <SharedWithYou initial={shared} textOnly={here.mode === "text_only" ? here.reason : null} />
         <div id="privacy">
           <PrivacyCard initial={privacy} />

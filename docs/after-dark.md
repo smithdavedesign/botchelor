@@ -2267,3 +2267,28 @@ page's **🛡 The checks** section sets it (`adult_settings.moderation`, `lib/ad
 - A pass now carries Hive's `general_nsfw` score (`CheckResult.nsfw`), kept on Studio pictures (`adult_images.nsfw_score`)
   for the texts' photos (v2).
 - Keys sealed like the others: `sightengine_key` (its api_secret; the api_user is a setting), `moderation_endpoint_key`.
+
+## The writer, and admins' own checks (2026-10-24)
+
+David, after the 2026-10-24 sim (GLM-4.6 won the blind read, 83 against DeepSeek V3.1's 66, at about 47 s a step
+against 11): "yes do it and allow a user to switch the model in After Dark", and "can we turn hive off as admin?".
+
+**The writer** (`lib/adult/writer-config.ts`, `lib/adult/writer.ts`, `adult_settings.writer`, `adult_prefs`):
+- The scene steps and the two sides of a night are written by each person's **writer**: the one they picked
+  (✍️ The writer, a card on the After Dark home page, and in the steer bar's ⋯ More), else the default, GLM-4.6. The
+  writers on offer are GLM-4.6 ("the richest writing; about 45 s a step") and DeepSeek V3.1 ("fast; about 10 s").
+- Recaps, memory, facts and a clip's direction stay on the settings' `text_model` (DeepSeek V3.1 :nitro in
+  production), so they don't wait four times as long.
+- Both run on the reviewed hosts only (`adultProviderRouting`: CoreWeave and DeepInfra); the sim ran GLM-4.6 there,
+  26 steps without a failure. Add a writer only after a test step: one neither host serves fails with OpenRouter's 404.
+- The settings page's **✍️ The writer** sets the default and the list (JSON, validated). A pick no longer on the list
+  falls back to the default. A step records the writer it asked for when OpenRouter doesn't name the model that answered.
+- `adult_prefs` goes with the account (`lib/account.ts`).
+
+**Admins' own pictures** (`moderation.admin_checker`): "alt" checks an admin's own pictures (scene pictures, baselines,
+menu and beat pictures, keyframes, Studio pictures) with the alternatives instead of Hive, the Venice vision model's
+three-answer age question, with no daily cap; their draw gate opens while Hive is paused. "same" (the code default)
+holds them to `mode` like everyone's. Production is set to "alt". No picture is ever kept unchecked: the check is the
+guard against a picture that reads as under 18, which the law forbids whoever sees it, and Venice's and Replicate's
+terms require. Videos stay Hive's (the alternatives don't read video).
+

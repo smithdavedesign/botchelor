@@ -493,3 +493,22 @@ label.ad-check-row {
     margin-top: var(--space-1);
   }
 }
+
+/* Who writes the scenes (lib/adult/writer.ts): a small picker in the steer bar's ⋯ More, a card on the hub. */
+.ad-writer-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1, 0.25rem);
+  font-size: var(--text-sm);
+}
+.ad-writer-compact select {
+  max-width: 11rem;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+.ad-writer-compact .small {
+  margin: 0;
+}
+.ad-writer select {
+  max-width: 100%;
+}

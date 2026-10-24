@@ -8,6 +8,7 @@ import { needsReseal, reseal } from "../key-crypto";
 import { openSecret, sealSecret } from "../keys";
 import { mergeModerationConfig, moderationConfigOf, type ModerationConfig } from "./moderation-config";
 import { mergeStudioConfig, studioConfigOf, type StudioConfig } from "./studio-config";
+import { mergeWriterConfig, writerConfigOf, type WriterConfig } from "./writer-config";
 import { DEFAULT_CAPS, USAGE_KINDS, type UsageKind } from "./usage";
 
 /**
@@ -150,6 +151,8 @@ export type AdultSettings = {
   media_fallback: boolean;
   /** The Studio's every setting (lib/adult/studio-config.ts), defaults filled in. */
   studio: StudioConfig;
+  /** Who writes the scenes (lib/adult/writer-config.ts): the writers a person can pick, and the default. */
+  writer: WriterConfig;
   /** Each person's monthly cap per kind (lib/adult/usage.ts); admins are never capped. */
   caps: Record<UsageKind, number>;
   /** Which checker checks (lib/adult/moderation.ts), defaults filled in; and the alternatives' saved keys, last four. */
@@ -201,6 +204,7 @@ type Row = {
   beat_pictures: boolean | null;
   media_fallback: boolean | null;
   studio: unknown;
+  writer: unknown;
   moderation: unknown;
   sightengine_ciphertext: string | null;
   sightengine_nonce: string | null;
@@ -255,6 +259,7 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     beat_pictures: r?.beat_pictures ?? true,
     media_fallback: r?.media_fallback ?? true,
     studio: studioConfigOf(r?.studio),
+    writer: writerConfigOf(r?.writer),
     caps: Object.fromEntries(USAGE_KINDS.map((k) => [k, num(r?.[`cap_${k}`]) ?? DEFAULT_CAPS[k]])) as Record<UsageKind, number>,
     moderation: moderationConfigOf(r?.moderation),
     sightengine_last4: r?.sightengine_last4 ?? null,
@@ -344,6 +349,8 @@ export type SettingsPatch = {
   media_fallback?: boolean;
   /** Studio settings to change (lib/adult/studio-config.ts): the keys named replace the stored ones; a bad value throws. */
   studio?: Record<string, unknown>;
+  /** The writers (lib/adult/writer-config.ts): the keys named replace the stored ones; a bad value throws. */
+  writer?: Record<string, unknown>;
   /** Monthly caps to change, per kind (0 or more). */
   caps?: Partial<Record<UsageKind, number>>;
   /** Which checker checks (lib/adult/moderation-config.ts): the keys named replace the stored ones; a bad value throws. */
@@ -407,6 +414,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
   if (patch.beat_pictures !== undefined) put("beat_pictures", patch.beat_pictures);
   if (patch.media_fallback !== undefined) put("media_fallback", patch.media_fallback);
   if (patch.studio !== undefined) put("studio", JSON.stringify(mergeStudioConfig(before.studio, patch.studio)));
+  if (patch.writer !== undefined) put("writer", JSON.stringify(mergeWriterConfig(before.writer, patch.writer)));
   if (patch.moderation !== undefined) put("moderation", JSON.stringify(mergeModerationConfig(before.moderation, patch.moderation)));
   for (const k of USAGE_KINDS) {
     const v = patch.caps?.[k];

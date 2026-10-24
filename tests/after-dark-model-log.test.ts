@@ -78,21 +78,21 @@ describe("the model a step was written by", () => {
       },
     });
     expect((await call(POST, "/api/admin/after-dark", { a: RAFE, b: JUNIPER }, cookie)).status).toBe(200);
-    // One whose response doesn't say: the model it asked for.
+    // One whose response doesn't say: the model it asked for, their writer (GLM-4.6 unless they picked another).
     setAdultModelForTests({ complete: async () => reply.replace("You came.", "Here you are.").replace("I said I would.", "Of course.") }, "deepseek/deepseek-chat-v3.1");
     expect((await call(POST, "/api/admin/after-dark", { a: RAFE, b: JUNIPER }, cookie)).status).toBe(200);
     const rows = (await t.db.query<{ text_model: string; text_provider: string | null }>(`select text_model, text_provider from adult_steps where kind = 'write' order by created_at`)).rows;
     expect(rows).toEqual([
       { text_model: "deepseek/deepseek-chat-v3.1-0821", text_provider: "DeepInfra" },
-      { text_model: "deepseek/deepseek-chat-v3.1", text_provider: null },
+      { text_model: "z-ai/glm-4.6", text_provider: null },
     ]);
     const why = await (await whyGet(new Request(`${BASE_URL}/api/admin/after-dark/why?a=${RAFE}&b=${JUNIPER}`, { headers: { cookie } }))).json();
     const notes = why.notes ?? why;
-    expect(notes.current.steps.map((s: { text_model: string }) => s.text_model)).toEqual(["deepseek/deepseek-chat-v3.1-0821", "deepseek/deepseek-chat-v3.1"]);
-    expect(notes.current.written_by).toMatchObject({ models: ["deepseek/deepseek-chat-v3.1-0821", "deepseek/deepseek-chat-v3.1"], providers: ["DeepInfra"], source: "steps" });
+    expect(notes.current.steps.map((s: { text_model: string }) => s.text_model)).toEqual(["deepseek/deepseek-chat-v3.1-0821", "z-ai/glm-4.6"]);
+    expect(notes.current.written_by).toMatchObject({ models: ["deepseek/deepseek-chat-v3.1-0821", "z-ai/glm-4.6"], providers: ["DeepInfra"], source: "steps" });
     // And over MCP, per chapter.
     const scene = (await runAdultTool(t.db, "after_dark_scene", { a: RAFE, b: JUNIPER })) as { data: { written_by: { chapter: number; models: string[] }[] } };
-    expect(scene.data.written_by[0]).toMatchObject({ chapter: 1, models: ["deepseek/deepseek-chat-v3.1-0821", "deepseek/deepseek-chat-v3.1"] });
+    expect(scene.data.written_by[0]).toMatchObject({ chapter: 1, models: ["deepseek/deepseek-chat-v3.1-0821", "z-ai/glm-4.6"] });
   });
 });
 

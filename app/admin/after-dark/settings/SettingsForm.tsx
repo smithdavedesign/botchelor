@@ -104,6 +104,7 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
         <input id="ad-or-key" type="password" autoComplete="off" value={orKey} onChange={(e) => setOrKey(e.target.value)} placeholder="sk-or-…" />
         <label htmlFor="ad-text-model">Model</label>
         <input id="ad-text-model" value={s.text_model} onChange={(e) => setS({ ...s, text_model: e.target.value })} />
+        <small className="muted">Recaps, memory, facts and clip directions. The scenes themselves are written by the writer below.</small>
         <p className="muted small">
           How the scene writer samples. The penalties only see the reply being written, so they thin out a word said three times in one go; empty
           puts a field back to its default.
