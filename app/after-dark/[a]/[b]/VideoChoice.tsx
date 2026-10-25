@@ -43,19 +43,15 @@ export default function VideoChoice({
   const nums = chapters.map((c) => c.chapter).filter((n): n is number => typeof n === "number");
   const span = nums.length ? `chapters ${Math.min(...nums)}–${Math.max(...nums)}` : `${chapters.length} chapters`;
   const thisOne = `chapter ${scene.chapter}`;
+  // The video of the night always goes through the storyboard (check each shot's picture, then film) — no more blind
+  // one-tap render (David, 2026-10-24). onMake stays only as a fallback if the storyboard isn't wired here.
+  const go = onPlan ?? onMake;
   if (chapters.length <= 1) {
     const tooShort = whole < MIN_LINES;
     return (
-      <span className="ad-video-choice-single">
-        <button type="button" className="secondary small" onClick={() => void onMake("night")} disabled={busy || Boolean(paused) || tooShort} title={paused ?? `A short film of the night, in their own voices (${price})`}>
-          🎬 Video of the night · {price}
-        </button>
-        {onPlan && (
-          <button type="button" className="button-ghost small" onClick={() => void onPlan("night")} disabled={busy || Boolean(paused) || tooShort} title={paused ?? "Plan it: check each shot's picture before you film"}>
-            📋 Storyboard
-          </button>
-        )}
-      </span>
+      <button type="button" className="secondary small" onClick={() => void go("night")} disabled={busy || Boolean(paused) || tooShort} title={paused ?? "A short film of the night: check each shot's picture, then film"}>
+        🎬 Video of the night · {price}
+      </button>
     );
   }
   const options: { scope: ReelScope; label: string; covers: string; lines: number }[] = [
@@ -83,25 +79,12 @@ export default function VideoChoice({
               disabled={busy || Boolean(paused) || picked.lines < MIN_LINES}
               onClick={async () => {
                 setOpen(false);
-                await onMake(scope);
+                await go(scope);
               }}
+              title="Check each shot's picture, then film"
             >
-              🎬 Make it · {price}
+              🎬 Make the video · {price}
             </button>
-            {onPlan && (
-              <button
-                type="button"
-                className="secondary small"
-                disabled={busy || Boolean(paused) || picked.lines < MIN_LINES}
-                onClick={async () => {
-                  setOpen(false);
-                  await onPlan(scope);
-                }}
-                title="Plan it: check each shot's picture before you film"
-              >
-                📋 Storyboard
-              </button>
-            )}
             <button type="button" className="button-ghost small" onClick={() => setOpen(false)}>
               Cancel
             </button>
