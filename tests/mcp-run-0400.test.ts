@@ -299,7 +299,7 @@ describe("#648: a refused step says so first", () => {
     const keys = Object.keys(r);
     expect(keys.slice(0, 4)).toEqual(["accepted", "ok", "rejected", "message"]);
     expect(r).toMatchObject({ accepted: false, ok: false, rejected: expect.stringMatching(/accept_move/), your_move: true });
-    expect(r.summary).toMatch(/^Not accepted: .*accept_move.*\. Still your move: turn 3 of \d+, Ada Lumen speaks; resubmit Ada Lumen's line, fixed\.$/);
+    expect(r.summary).toMatch(/^Not accepted: .*accept_move.*\. Nothing was used up, so it's still your move: turn 3 of \d+, Ada Lumen speaks; resubmit Ada Lumen's line, fixed\.$/);
     expect(keys.indexOf("summary")).toBeLessThan(keys.indexOf("transcript"));
     expect(r.next_calls).toEqual([
       {
@@ -319,7 +319,7 @@ describe("#648: a refused step says so first", () => {
     const long = "The tide tables say one thing and the harbour master says another, and I believe neither of them tonight. ".repeat(3);
     const r = (await call("submit_own_date_step", { episode_id: first.episode_id, output: long }, ctx)).structuredContent;
     expect(Object.keys(r)[0]).toBe("accepted");
-    expect(r.summary).toMatch(/^Not accepted: That line is \d+ characters; a spoken line is at most 280\. Say it shorter\. Still your move: turn 1 of \d+, Ada Lumen speaks; resubmit Ada Lumen's line, fixed\.$/);
+    expect(r.summary).toMatch(/^Not accepted: That line is \d+ characters; a spoken line is at most 280\. Say it shorter\. Nothing was used up, so it's still your move: turn 1 of \d+, Ada Lumen speaks; resubmit Ada Lumen's line, fixed\.$/);
     expect(r.next_calls[0]).toMatchObject({ tool: "submit_own_date_step", args: { episode_id: first.episode_id, output: "<Ada Lumen's line, fixed>" } });
   });
 

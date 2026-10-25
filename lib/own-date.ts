@@ -379,6 +379,8 @@ export type OwnDateResult =
       resumed?: true;
       /** 2.10.1 (#672): the see_again the accepted line carried. */
       wish?: KeptWish;
+      /** #840: the line said yes to a move, so the date went somewhere else and got longer: where, and its length before and now. */
+      moved?: { to: string; of: number; was_of: number };
       /** 2.10.1 (#672): a see_again sent with something that carries none (the recap), and why. */
       wish_ignored?: string;
     }
@@ -1795,8 +1797,12 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     // 2.10.1 (#672, the 2026-10-22-0936 run: a see_again was dropped after its line was accepted): a see_again that went in
     // with this line is said in the reply, whose it is and whether this was that side's last line (it counts either way, once
     // the last line is in; a later one of the side's replaces it).
-    const kept: Partial<Extract<OwnDateResult, { ok: true }>> =
-      typeof parsed.wish === "boolean" ? { wish: { side: current.side, character: speaker.name, see_again: parsed.wish, last_line: Boolean(current.see_again) } } : {};
+    // #840 (run 2026-10-25-0346: "done: true at turn 15 failed because the date had grown"): an accepted move says so.
+    const movedTo = (line as Turn).moved_to;
+    const kept: Partial<Extract<OwnDateResult, { ok: true }>> = {
+      ...(typeof parsed.wish === "boolean" ? { wish: { side: current.side, character: speaker.name, see_again: parsed.wish, last_line: Boolean(current.see_again) } } : {}),
+      ...(movedTo ? { moved: { to: venueName(movedTo), of: shapeFor(built, formatId, next).total, was_of: shape.total } } : {}),
+    };
     const withWish = (r: OwnDateResult): OwnDateResult => (r.ok ? { ...r, ...kept } : r);
     // 2.4.2 (the 2026-10-21-0319 run): this agent's move is made, so its "Your move…" notice for this date resolves now,
     // not when the date ends (the shared helper, #527/#548). Before anything below can tell it of its next move.
