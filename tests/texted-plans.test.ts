@@ -35,8 +35,17 @@ describe("placeFor: where a text proposes going, as a place on the show", () => 
     ["Let's watch the sunrise from the top of the hill", "elsewhere@the top of the hill"],
     // A named place wins over a word that only hints at one ("walk" was the botanic park).
     ["A walk to the old lighthouse after?", "elsewhere@the old lighthouse"],
-    ["Want to catch a movie?", "elsewhere@the cinema"],
     ["Karaoke, and I'm picking the song", "karaoke_booth"],
+    // 2026-10-25: the phase-two venues, reachable at last (prod scene requests were landing on the placeholder).
+    ["Want to catch a movie?", "old_cinema"],
+    ["Everything at the night market, one stall at a time", "night_market"],
+    ["Milkshakes at the 24-hour diner?", "late_night_diner"],
+    ["Stargazing if the sky holds?", "stargazing_hill"],
+    ["That bookshop that stays open late", "late_bookshop"],
+    ["Walk the sea wall with me", "pier_at_night"],
+    ["There's a jazz bar under the bridge", "jazz_bar"],
+    // A named observatory is its own building, not the stargazing hill.
+    ["How about the planetarium?", "elsewhere@the planetarium"],
   ])("%s → %s", (text, place) => {
     expect(placeFor(text, NAMES.lo, NAMES.hi)).toBe(place);
   });

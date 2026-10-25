@@ -6,7 +6,7 @@
  *  - one of their homes ("my place", "back to yours") → "home@Chud's place": a living room and a kitchen (PG: never a
  *    bedroom);
  *  - a kind of place the library has ("coffee" → the corner café, "the east wing" → the museum after dark);
- *  - a place the library doesn't have, named with a place word ("the observatory") → "elsewhere@the observatory": the
+ *  - a place the library doesn't have, named with a place word ("the aquarium") → "elsewhere@the aquarium": the
  *    generic background with its own name, and a scene request (lib/scenes.ts);
  *  - nothing nameable → null, and the date is dealt a venue as before.
  */
@@ -42,6 +42,18 @@ const SPECIFIC: [RegExp, VenueId][] = [
   [/\b(horse ?back|horse ?riding|trail ride|horses?)\b/i, "trail_ride"],
   [/\b(comedy|stand-?up|open mic)\b/i, "comedy_club"],
   [/\b(climbing|bouldering|climb)\b/i, "climbing_wall"],
+  // 2026-10-25 (prod scene requests: "the night market", "the 24-hour diner", "the sea wall" all landed on the
+  // placeholder): the eight phase-two venues were never wired in here, so plans and moves to places the library has a
+  // reviewed set for were drawing throwaway sets instead. Named-place detection runs after SPECIFIC, so these win.
+  [/\b(night market|hawker|food stalls?)\b/i, "night_market"],
+  [/\b(diners?|milkshakes?)\b/i, "late_night_diner"],
+  [/\b(cinema|movies?|films?|picture house|matinee)\b/i, "old_cinema"],
+  // Just the activity: a named "the observatory" or "the planetarium" is its own building, and stays a named place.
+  [/\b(stargaz\w*|telescopes?)\b/i, "stargazing_hill"],
+  [/\b(book ?shops?|bookstores?|librar(?:y|ies))\b/i, "late_bookshop"],
+  [/\b(piers?|boardwalk|promenade|esplanade|seafront|sea ?wall|harbou?r wall|breakwater|jetty|quay(?:side)?)\b/i, "pier_at_night"],
+  [/\b(jazz|blues|saxophone|live music)\b/i, "jazz_bar"],
+  [/\b(city walk|night walk|evening stroll|long walk home)\b/i, "city_walk"],
 ];
 
 /**
@@ -58,7 +70,8 @@ const KINDS: [RegExp, VenueId, "near"?][] = [
   [/\b(arcade|pinball)\b/i, "retro_arcade"],
   [/\b(beach|ocean|shore)\b/i, "night_beach"],
   [/\b(park|garden|botanic|greenhouse|picnic)\b/i, "botanic_park"],
-  [/\b(food truck|street food|chill?i|tacos?|noodles?|ramen|dumplings?|night market|stall|diner|burgers?|pizza|fries|sandwich(?:es)?|brunch|breakfast|bagels?)\b/i, "corner_cafe", "near"],
+  // "night market" and "diner" moved to SPECIFIC (2026-10-25): they're venues of their own now.
+  [/\b(food truck|street food|chill?i|tacos?|noodles?|ramen|dumplings?|stall|burgers?|pizza|fries|sandwich(?:es)?|brunch|breakfast|bagels?)\b/i, "corner_cafe", "near"],
   [/\b(rooftop|cocktails?)\b/i, "rooftop_bar"],
   [/\b(bar)\b/i, "rooftop_bar", "near"],
   [/\b(restaurant|tasting menu)\b/i, "tasting_menu"],
@@ -70,24 +83,23 @@ const kind = (t: string, near: boolean): VenueId | undefined => KINDS.find(([re,
  * and their scene requests show which sets to make next.
  */
 const ACTIVITIES: [RegExp, string][] = [
-  [/\b(movies?|films?|cinema|picture house)\b/i, "the cinema"],
-  [/\b(concert|gig|live music)\b/i, "the concert"],
+  // 2026-10-25: cinema, observatory/planetarium, bookshop, pier and live music left this list for SPECIFIC: the
+  // phase-two venues (old_cinema, stargazing_hill, late_bookshop, pier_at_night, jazz_bar) are the library's own sets.
+  [/\b(concert|gig)\b/i, "the concert"],
+  [/\b(observatory)\b/i, "the observatory"],
+  [/\b(planetarium)\b/i, "the planetarium"],
   [/\b(theatre|theater|musical)\b/i, "the theatre"],
   [/\b(zoo)\b/i, "the zoo"],
   [/\b(aquarium)\b/i, "the aquarium"],
-  [/\b(planetarium)\b/i, "the planetarium"],
-  [/\b(observatory|stargaz\w*|telescopes?)\b/i, "the observatory"],
   [/\b(hik(?:e|es|ing)|trek(?:king)?)\b/i, "the hiking trail"],
   [/\b(bike ride|cycling|bikes)\b/i, "the bike path"],
   [/\b(swim(?:ming)?|lido)\b/i, "the lido"],
   [/\b(wine tasting|vineyard|winery)\b/i, "the vineyard"],
   [/\b(farmers'? market|flea market|market)\b/i, "the market"],
-  [/\b(book ?shop|bookstore|library)\b/i, "the bookshop"],
   [/\b(mini ?golf|crazy golf)\b/i, "the mini golf course"],
   [/\b(funfair|carnival|ferris wheel)\b/i, "the funfair"],
   [/\b(spa|sauna)\b/i, "the spa"],
   [/\b(boat trip|ferry)\b/i, "the ferry"],
-  [/\b(pier)\b/i, "the pier"],
   [/\b(lighthouse)\b/i, "the lighthouse"],
 ];
 
@@ -168,7 +180,7 @@ export function namedPlace(text: string): string | null {
 
 /**
  * Where a text points, and how strong a destination it is (lib/plans.ts agreedPlan). A real destination — one of their
- * homes, a specific venue ("the bowling alley"), or a place named with a going cue ("come to the observatory") — is
+ * homes, a specific venue ("the bowling alley"), or a place named with a going cue ("come to the aquarium") — is
  * `strong`. A bare kind-of-place word, which is often just logistics ("I'll bring the coffee" is not a café), is weak,
  * so a strong destination earlier in the exchange outranks it. Null when the text names nowhere.
  */
