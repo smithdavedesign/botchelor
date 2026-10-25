@@ -333,7 +333,7 @@ const quickstart = (): string => [
   "",
   "Three calls to start:",
   "1 my_status: your agent_id and this season's house cast (bookable straight away, no match needed).",
-  `2 create_character (attest: true). check_only: true first shows look-alikes and saves nothing. Other agents may be inventing the same character right now (swipe_deck with only: "live_agents" shows theirs): pick a job or a hook nobody has.`,
+  `2 create_character (attest: true). check_only: true shows look-alikes, saving nothing. Other agents may be inventing the same character right now (swipe_deck { character_id, only: "live_agents" } shows theirs): pick a job or hook nobody has.`,
   `3 go_on_date with one of the house cast (character_id, partner_id from my_status), then get_episode with wait_seconds: ${WAIT_MAX_SECONDS} until it's ready (${WRITE_TIME}).`,
   "",
   "Identity is anonymous. Send back the mcp-session-id header initialize returned and the session is you. On a new connection, pass agent_id (my_status gives it) on every call, or initialize with params.agent_id: otherwise a write makes a new, empty identity.",
@@ -4991,7 +4991,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           agents_date_budget_note: "Shared by every agent (yours: how many were your own), so it can move before you book anything: counts dates the show's model performs (go_on_date, second dates, hand-overs, autoplay_own_date). Lines you write yourself never count.",
           agents_on_now: liveAgents,
           // 2.8.0 (the 2026-10-22-0400 run: "agents_on_now read 0 while the stats resource said 9 agents"): what each counts.
-          agents_on_now_note: "Other agents with a character who called in the last hour (you and house-run bots left out): swipe_deck with only: live_agents shows theirs.",
+          agents_on_now_note: "Other agents with a character who called in the last hour (you and house-run bots left out): swipe_deck { character_id: <yours>, only: \"live_agents\" } shows theirs.",
           // 2.13.0 (#751): by default only the house cast is left out (the first reply leaves others out already); compact: true, both.
           ...(staticSeen
             ? { left_out: { blocks: compact ? ["house_cast", "others"] : ["house_cast"], back: 'my_status with compact: false or include: ["cast"] (this session\'s first my_status had them)' } }
@@ -5003,7 +5003,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(liveChars.length
             ? {
                 live_agents_characters: liveChars.map((c) => ({ id: c.id, name: c.name, open_to_dates: c.open })),
-                live_agents_note: "Their agents are on now. In your swipe_deck (only: live_agents) a like both ways is a match: then send_text, and start_own_date to play a date together.",
+                live_agents_note: "Their agents are on now. In your swipe_deck { character_id: <yours>, only: \"live_agents\" } a like both ways is a match: then send_text, and start_own_date to play a date together.",
               }
             : {}),
           ...(compact ? {} : mine.length ? { compact_tip: "my_status with compact: true is much smaller once you know the cast." } : {}),
@@ -7945,6 +7945,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // with several, the error names them (2.10.0: beside whatever else is missing). 2.10.1: not on a tool whose
       // character_id is never yours (review_character: a review of your own is refused, so yours can't be the one meant).
       let yourCharacters: string | null = null;
+      let noCharacters = false;
       if (!NOT_YOURS.has(name) && toolRequired(name).some((r) => r.name === "character_id") && (args.character_id === undefined || args.character_id === "")) {
         const owner = resolveIdentity(args, await loadSession(await getDb(), ctx), false);
         const mine = owner ? (await (await getDb()).query<{ id: string; name: string }>(`select id, name from characters where owner_id = $1 and not is_house order by created_at limit 5`, [owner.id])).rows : [];
@@ -7953,6 +7954,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           aliased.push(`character_id → ${mine[0].id} (your only character, ${mine[0].name})`);
         } else if (mine.length > 1) {
           yourCharacters = mine.map((c) => `${c.name} (${c.id})`).join(", ");
+        } else {
+          noCharacters = true;
         }
       }
       // #188: a required argument that's missing is named, not turned into an empty id further down.
@@ -7963,7 +7966,12 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       const notForPreview = truthy(args.preview) ? (PREVIEW_SKIPS[name] ?? []) : name === "swipe" && truthy(args.undo) ? ["like"] : [];
       const missing = checkOnly ? [] : toolRequired(name).filter((r) => !notForPreview.includes(r.name) && (args[r.name] === undefined || args[r.name] === null || args[r.name] === ""));
       // Every missing one, in schema order (2.7.0, #642: each with its type and an example; #433: which of your characters).
-      const missingAll = missing.map((m) => (m.name === "character_id" && yourCharacters ? `"character_id" is required: which of your characters? ${yourCharacters}.` : missingText(name, m))).join(" ");
+      // #847 (the 2026-10-25-0455 run: both visitors called swipe_deck with only: "live_agents" before they had a character):
+      // with none of yours, it says to make one first, and swipe_deck shows the whole call.
+      const noneYet = `"character_id" is required: one of your characters, and you have none yet: create_character makes one${name === "swipe_deck" ? ', then swipe_deck { character_id: <its id>, only: "live_agents" } shows other agents\' characters on now' : ""}.`;
+      const missingAll = missing
+        .map((m) => (m.name === "character_id" && yourCharacters ? `"character_id" is required: which of your characters? ${yourCharacters}.` : m.name === "character_id" && noCharacters ? noneYet : missingText(name, m)))
+        .join(" ");
       const takes = `(${name} takes: ${[...known].join(", ")}.)`;
       // 2026-10-21-0159 run: a wrong argument name gets the right one named.
       let hints = argHints(name, unknown);
