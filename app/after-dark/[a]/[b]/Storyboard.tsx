@@ -14,6 +14,7 @@ type BadgeKind = "planned" | "review" | "approved" | "dropped" | "refused" | "fa
 /** A shot's state for the grid: a drawn shot is reviewed and approved, or dropped/held back. */
 function shotBadge(s: ReelShot): { kind: BadgeKind; label: string } {
   if (s.archived_at) return { kind: "dropped", label: "Dropped" };
+  if (s.status === "ready" && s.from_video) return { kind: "approved", label: "🎬 Your video" };
   if (s.status === "frame_ready") return s.approved ? { kind: "approved", label: "✓ Approved" } : { kind: "review", label: "Needs review" };
   if (s.status === "discarded") return { kind: "refused", label: "✕ Held back" };
   if (s.status === "failed") return { kind: "failed", label: "Couldn't draw" };
@@ -58,13 +59,15 @@ export default function Storyboard({
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   // The owner's own words typed per shot (by its place in the storyboard), and which shot's words or picker is open.
   const [edits, setEdits] = useState<Record<number, string>>({});
-  const [open, setOpen] = useState<{ shot: number; what: "words" | "pictures" } | null>(null);
+  const [open, setOpen] = useState<{ shot: number; what: "words" | "pictures" | "videos" } | null>(null);
   // The pictures that fit each shot best (lib/adult/reels.ts shotSuggestions), loaded the first time a picker opens;
   // and the one picked in a picker, to use as is or draw like.
   const [suggested, setSuggested] = useState<Record<number, ShotSuggestion[]> | null>(null);
   const [picked, setPicked] = useState<{ shot: number; id: string } | null>(null);
   const first = (name: string) => name.split(/\s+/)[0];
   const choices = pictures.filter((m) => m.kind !== "video" && m.status === "ready");
+  // Videos the owner has already made of this pair (clips, studio animations), to drop into a shot as they are.
+  const videoChoices = pictures.filter((m) => m.kind === "video" && m.status === "ready");
 
   if (!reel) {
     return (
@@ -90,7 +93,9 @@ export default function Storyboard({
   const planned = shots.filter((s) => s.status === "planned").length;
   const kept = shots.filter((s) => s.status === "frame_ready" && !s.archived_at);
   const toApprove = kept.filter((s) => !s.approved).length;
-  const canFilm = kept.length > 0 && toApprove === 0;
+  // Videos the owner dropped in (useShotVideo) are already done, so they count toward having something to make.
+  const readyVideos = shots.filter((s) => s.status === "ready" && s.from_video && !s.archived_at).length;
+  const canFilm = (kept.length > 0 || readyVideos > 0) && toApprove === 0;
 
   async function call(body: Record<string, unknown>, which: typeof busy): Promise<Reel | null> {
     setBusy(which);
@@ -149,6 +154,16 @@ export default function Storyboard({
     if (await call({ action: "use_picture", id: draft.id, shot: i, image_id: imageId }, `shot:${i}`)) setOpen(null);
   }
 
+  /** Use a video the owner already made for this shot: the shot is done as it is, nothing filmed or spent. */
+  async function useVideo(i: number, videoId: string) {
+    if (await call({ action: "use_video", id: draft.id, shot: i, video_id: videoId }, `shot:${i}`)) setOpen(null);
+  }
+
+  function openVideos(i: number) {
+    setPicked(null);
+    setOpen(open?.shot === i && open.what === "videos" ? null : { shot: i, what: "videos" });
+  }
+
   /** Draw the shot like one of their pictures (its pose, framing and place), to their words when there are some. */
   async function drawLike(i: number, imageId: string) {
     const words = (edits[i] ?? shots[i].custom ?? "").trim();
@@ -191,7 +206,15 @@ export default function Storyboard({
             return (
               <li key={i} className={`ad-shot ad-shot-${b.kind}`}>
                 <div className="ad-shot-pic">
-                  {pic ? <img src={mediaUrl(pic)} alt="" loading="lazy" /> : <span className="ad-shot-placeholder">Shot {i + 1}</span>}
+                  {pic ? (
+                    s.from_video ? (
+                      <video src={mediaUrl(pic)} muted playsInline preload="metadata" aria-label="A video you made" />
+                    ) : (
+                      <img src={mediaUrl(pic)} alt="" loading="lazy" />
+                    )
+                  ) : (
+                    <span className="ad-shot-placeholder">Shot {i + 1}</span>
+                  )}
                   {/* For an admin, the badge opens what made the shot's picture (app/after-dark/MediaRequest.tsx). */}
                   {pic ? (
                     <MediaRequest id={pic} className={`ad-shot-badge ad-badge-${b.kind}`}>
@@ -228,6 +251,11 @@ export default function Storyboard({
                       <button type="button" className="button-ghost small" aria-expanded={choosing === "pictures"} disabled={busy !== null || !choices.length} title={choices.length ? undefined : "No pictures of them yet"} onClick={() => openPictures(i)}>
                         🖼 Use a picture
                       </button>
+                      {videoChoices.length > 0 && (
+                        <button type="button" className="button-ghost small" aria-expanded={choosing === "videos"} disabled={busy !== null} title="Use a video you've already made (a clip or a studio animation) for this shot" onClick={() => openVideos(i)}>
+                          🎬 Use a video
+                        </button>
+                      )}
                       <button type="button" className="button-ghost small" disabled={busy !== null || Boolean(paused)} title={paused ?? undefined} onClick={() => void drawOne(i)}>
                         {drawable || b.kind === "failed" || b.kind === "refused" ? "Redraw" : "Draw this one"}
                       </button>
@@ -290,6 +318,27 @@ export default function Storyboard({
                       )}
                     </div>
                   )}
+                  {choosing === "videos" && (
+                    <div className="ad-shot-picker">
+                      <p className="small muted">A video you&apos;ve already made — a clip or a studio animation</p>
+                      <ul className="ad-shot-pictures" aria-label="Their videos">
+                        {videoChoices.map((m) => (
+                          <li key={m.id}>
+                            <button type="button" disabled={busy !== null} onClick={() => setPicked({ shot: i, id: m.id })} aria-pressed={picked?.shot === i && picked.id === m.id} aria-label="This video">
+                              <video src={mediaUrl(m.id)} muted playsInline preload="metadata" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {picked?.shot === i && (
+                        <div className="ad-shot-buttons">
+                          <button type="button" className="secondary small" disabled={busy !== null} onClick={() => void useVideo(i, picked.id)} title="Use this video for the shot as it is: nothing is drawn or filmed">
+                            Use this video
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {drawable ? (
                     <div className="ad-shot-buttons">
                       <button type="button" className={`small ${s.approved ? "button-ghost" : "secondary"}`} disabled={busy !== null} onClick={() => void approve(s, !s.approved)}>
@@ -299,6 +348,10 @@ export default function Storyboard({
                         Drop
                       </button>
                     </div>
+                  ) : s.from_video && !s.archived_at ? (
+                    <button type="button" className="button-ghost small" disabled={busy !== null} onClick={() => void dropShot(s, true)}>
+                      Drop
+                    </button>
                   ) : s.archived_at ? (
                     <button type="button" className="button-ghost small" disabled={busy !== null} onClick={() => void dropShot(s, false)}>
                       Put back

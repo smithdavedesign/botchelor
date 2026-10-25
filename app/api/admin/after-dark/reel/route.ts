@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
-import { advanceReel, approveShot, archiveShot, drawReelFrames, filmReel, listReels, makeReel, planReel, redrawShot, refilmShot, REEL_SCOPES, reelNight, shotSuggestions, stopReel, useShotPicture } from "@/lib/adult/reels";
+import { advanceReel, approveShot, archiveShot, drawReelFrames, filmReel, listReels, makeReel, planReel, redrawShot, refilmShot, REEL_SCOPES, reelNight, shotSuggestions, stopReel, useShotPicture, useShotVideo } from "@/lib/adult/reels";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -22,6 +22,8 @@ const ApproveInput = z.object({ action: z.literal("approve"), id, media_id: id.n
 const RedrawInput = z.object({ action: z.literal("redraw"), id, shot: z.number().int().min(0).max(50).optional(), media_id: id.optional(), custom: z.string().max(400).optional(), reference: id.optional() });
 // Start one shot from a picture of the pair the owner already has (`image_id`).
 const PictureInput = z.object({ action: z.literal("use_picture"), id, shot: z.number().int().min(0).max(50), image_id: id });
+// Use one shot as a video of the pair the owner already made — a clip or a studio animation (`video_id`).
+const VideoInput = z.object({ action: z.literal("use_video"), id, shot: z.number().int().min(0).max(50), video_id: id });
 // Film one shot of a finished video again (`media_id`, the shot's video).
 const RefilmInput = z.object({ action: z.literal("refilm"), id, media_id: id });
 // One shot of a video (`media_id`, the shot itself) into the Archive, or back out (`archived` false).
@@ -64,6 +66,11 @@ export const POST = handle(async (req: Request) => {
   if (act === "use_picture") {
     const input = parseBody(PictureInput, body, "invalid_request");
     const r = await useShotPicture(db, viewer, input.id, input.shot, input.image_id);
+    return r.ok ? json({ reel: r.reel }) : fail(r);
+  }
+  if (act === "use_video") {
+    const input = parseBody(VideoInput, body, "invalid_request");
+    const r = await useShotVideo(db, viewer, input.id, input.shot, input.video_id);
     return r.ok ? json({ reel: r.reel }) : fail(r);
   }
   if (act === "refilm") {
