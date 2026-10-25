@@ -313,3 +313,37 @@ export function checkFields(fields: Record<string, string | readonly string[] | 
   }
   return { ok: true };
 }
+
+// The PG Studio's own words (an owner's words for a picture of their character, shown to anyone): the show's check, plus
+// what a show picture must not ask for even when the words aren't sexual on their own (underwear, sheer, topless…).
+// Swimwear words pass: the picture's check makes swimwear away from a beach "suggestive", never PG.
+const PG_PICTURE_TERMS = [
+  "lingerie", "underwear", "undies", "bra", "bras", "bralette", "panties", "panty", "knickers", "thong", "thongs", "g string",
+  "garter", "garters", "stockings and suspenders", "corset", "negligee", "teddy lingerie", "boudoir", "topless", "bottomless",
+  "shirtless and wet", "see through", "seethrough", "sheer top", "sheer dress", "transparent top", "nipple", "nipples",
+  "cleavage", "underboob", "sideboob", "busty", "booty", "butt", "buttocks", "ass", "crotch", "groin", "bulge", "thighs apart",
+  "spread legs", "legs spread", "bent over", "on all fours", "seductive", "sultry", "provocative", "suggestive", "risque",
+  "racy", "naughty", "steamy", "pin up", "pinup", "oiled", "wet t shirt", "body paint", "bodypaint", "censored",
+  "covering herself", "covering himself", "towel only", "in a towel", "bath", "bathtub", "shower", "in bed", "bedroom",
+];
+
+/** "looks like Taylor Swift", "dressed as Keanu Reeves": a picture made to look like a real, named person. */
+const LOOKALIKE = /\b(?:looks? like|looking like|resembl(?:e|es|ing)|look ?-?alike(?: of)?|dressed (?:up )?as|cosplay(?:ing)? as|in the likeness of|the face of)\s+[A-Z][\p{L}'-]+(?:\s+[A-Z][\p{L}'-]+)+/u;
+
+/**
+ * The PG Studio's word check (the plan's pgWordsOk): the show's check (no sex, no minors, no named real people, no
+ * innuendo), the picture terms above, and no "looks like <Name Surname>". Fails on the first field that crosses one.
+ */
+export function checkPgPictureText(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
+  const show = checkShowText(fields);
+  if (!show.ok) return show;
+  for (const [field, value] of Object.entries(fields)) {
+    const texts = value === undefined ? [] : typeof value === "string" ? [value] : value;
+    for (const text of texts) {
+      if (LOOKALIKE.test(text)) return { ok: false, reason: "real_person", field };
+      const plain = spaced(fold(text));
+      if (PG_PICTURE_TERMS.some((t) => hasPhrase(plain, t))) return { ok: false, reason: "sexual", field };
+    }
+  }
+  return { ok: true };
+}

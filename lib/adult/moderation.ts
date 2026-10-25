@@ -273,3 +273,89 @@ export async function checkReady(db: Db, opts: { pg?: boolean } = {}): Promise<b
 
 /** A verdict rather than no verdict: the checker looked and refused (a "the check couldn't run" is none). */
 export const isVerdict = (v: CheckResult): boolean => !v.ok && !/^(the check couldn't run|the output check isn't set up)/.test(v.reason);
+
+/* ------------------------------------------- the strict PG check ------------------------------------------- */
+
+/**
+ * The PG Studio's check (docs: ~/.claude/plans/allow-studio-for-after-memoized-bird.md PR 2; David, 2026-10-25: PG checks
+ * on the vision path, never Hive's 100 a day). One call to the Venice vision model with two fixed label questions, held
+ * to a JSON schema like the age check: what everyone is wearing, and whether everyone is an adult. It never passes
+ * nudity: the PG Studio stores only `pg` and `suggestive`, and anything more is discarded (and its tokens given back).
+ *
+ *  - CLOTHED → pg; SWIMWEAR → pg at a beach or a pool, suggestive anywhere else; REVEALING → suggestive;
+ *  - NUDITY or SEXUAL → refused; anyone not clearly an adult → refused; no answer or an error → refused (fails closed).
+ */
+export const CLOTHING_LABELS = ["CLOTHED", "SWIMWEAR", "REVEALING", "NUDITY", "SEXUAL"] as const;
+export type ClothingLabel = (typeof CLOTHING_LABELS)[number];
+
+export const RATING_QUESTION =
+  'Look at this image and answer two questions. "clothing": CLOTHED if everyone shown wears ordinary clothes that cover them (or nobody is shown); SWIMWEAR if anyone is in swimwear; REVEALING if anyone is in underwear, lingerie, see-through or very revealing clothing, or is posed in a sexualised way; NUDITY if any nudity shows (bare breasts, genitals or buttocks); SEXUAL if any sexual act or contact is shown. Pick the most explicit that applies. "age": ADULTS if every person shown clearly appears to be 18 or older (or nobody is shown); MINOR if anyone could be under 18; UNSURE if you can\'t tell. Reply with JSON only: {"clothing": "...", "age": "..."}.';
+const RATING_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "rating_check",
+    schema: {
+      type: "object",
+      properties: { clothing: { type: "string", enum: CLOTHING_LABELS }, age: { type: "string", enum: ["ADULTS", "MINOR", "UNSURE"] } },
+      required: ["clothing", "age"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+} as const;
+
+/** A PG Studio picture's verdict: kept with its rating, or refused (`checked`: the checker looked, rather than couldn't run). */
+export type RatingVerdict = { ok: true; rating: "pg" | "suggestive"; clothing: ClothingLabel; via: string } | { ok: false; reason: string; checked: boolean };
+
+/** How the two answers map to a rating (pure: the tests hold every row of the table). */
+export function ratingFromLabels(clothing: string, age: string, opts: { beach?: boolean } = {}): RatingVerdict {
+  const c = clothing.trim().toUpperCase();
+  const a = age.trim().toUpperCase();
+  if (a !== "ADULTS") return { ok: false, reason: `the PG check: ${a === "MINOR" ? "someone could be under 18" : "it couldn't tell everyone is an adult"}`, checked: true };
+  if (c === "CLOTHED") return { ok: true, rating: "pg", clothing: c, via: "venice_vlm" };
+  if (c === "SWIMWEAR") return { ok: true, rating: opts.beach ? "pg" : "suggestive", clothing: c, via: "venice_vlm" };
+  if (c === "REVEALING") return { ok: true, rating: "suggestive", clothing: c, via: "venice_vlm" };
+  if (c === "NUDITY" || c === "SEXUAL") return { ok: false, reason: `the PG check: ${c === "NUDITY" ? "nudity" : "sexual content"}`, checked: true };
+  return { ok: false, reason: "the PG check gave no answer", checked: false };
+}
+
+/**
+ * The strict PG check on a picture (bytes or a link). `beach`: the shoot is at a beach or a pool, where swimwear is PG.
+ * Never throws. With `MODERATION_DEV_OFF=1` off production and no Venice key, it passes as pg without a call (dev only,
+ * like every other check's dev switch).
+ */
+export async function checkRating(db: Db, media: Checkable, opts: { beach?: boolean } = {}): Promise<RatingVerdict> {
+  const m = (await getAdultSettings(db)).moderation;
+  const keys = await adultKeys(db);
+  if (!keys.venice) {
+    if (devModerationOff()) return { ok: true, rating: "pg", clothing: "CLOTHED", via: "dev" };
+    return { ok: false, reason: "the PG check couldn't run (no Venice key in After Dark's settings)", checked: false };
+  }
+  try {
+    const res = await doFetch(VENICE_CHAT, {
+      method: "POST",
+      headers: { authorization: `Bearer ${keys.venice}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        model: m.vlm_model,
+        temperature: 0,
+        max_tokens: 48,
+        response_format: RATING_FORMAT,
+        venice_parameters: { include_venice_system_prompt: false },
+        messages: [{ role: "user", content: [{ type: "text", text: RATING_QUESTION }, { type: "image_url", image_url: { url: dataUri(media) } }] }],
+      }),
+    });
+    if (!res.ok) return { ok: false, reason: `the PG check couldn't run (Venice answered ${res.status})`, checked: false };
+    const body = (await res.json()) as { choices?: { message?: { content?: unknown } }[] };
+    const content = body?.choices?.[0]?.message?.content;
+    const text = typeof content === "string" ? content : "";
+    let parsed: { clothing?: unknown; age?: unknown } = {};
+    try {
+      parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)) as typeof parsed;
+    } catch {
+      return { ok: false, reason: "the PG check gave no answer", checked: false };
+    }
+    return ratingFromLabels(String(parsed.clothing ?? ""), String(parsed.age ?? ""), opts);
+  } catch (err) {
+    return { ok: false, reason: `the PG check couldn't run (${err instanceof Error ? err.message.slice(0, 120) : "error"})`, checked: false };
+  }
+}
