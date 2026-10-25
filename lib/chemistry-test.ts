@@ -33,6 +33,7 @@ import { shortName } from "./names";
 import { AGENDA_IDS, DATE_VARIABLES, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY, type AgendaId, type DateVariable, type Ending } from "./rules";
 import { CHARACTER_REJECTION_MESSAGES, checkFields, type RejectReason } from "./safety";
 import { sheetSignals } from "./temperament";
+import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "./field-limits";
 
 export const CHEMISTRY_TEST_PATH = "/tools/oc-chemistry-test";
 export const CHEMISTRY_RESULT_PATH = `${CHEMISTRY_TEST_PATH}/result`;
@@ -49,7 +50,7 @@ export type FieldParam = `${Side}_${SheetField}`;
 export type ChemistryForm = Partial<Record<FieldParam, string>>;
 
 /** The longest each field may be: what /create's builder (app/create/CreateWizard.tsx) and its save take. */
-export const SHEET_LIMITS: Record<SheetField, number> = { name: 40, trait1: 30, trait2: 30, trait3: 30, want: 140, dealbreaker: 140 };
+export const SHEET_LIMITS: Record<SheetField, number> = { name: NAME_MAX, trait1: TRAIT_MAX, trait2: TRAIT_MAX, trait3: TRAIT_MAX, want: WANT_MAX, dealbreaker: DEALBREAKER_MAX };
 /** The most words a name may have, as on /create (POST /api/characters). */
 export const NAME_MAX_WORDS = 5;
 
