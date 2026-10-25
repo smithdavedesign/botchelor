@@ -394,7 +394,9 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [refilming, setRefilming] = useState(false);
 
-  // Preload: every shot (and its voice) as a blob in memory, so no cut waits on the network.
+  // Each shot's copy in memory once it's fetched (by its place), so a cut doesn't wait on the network.
+  const copies = useRef<string[]>([]);
+  // Preload: every shot as a blob in memory, behind the links it starts with.
   useEffect(() => {
     let cancelled = false;
     setUrls(null);
@@ -426,32 +428,29 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
       }
       return file;
     };
+    // Playable at once, from the links (2026-10-25: with every shot preloaded first, a night of 17 shots kept Play and
+    // Theater off for minutes). Each shot's copy is fetched behind it, in order, and used from its next start on.
+    copies.current = [];
+    setUrls(shots.map((s) => mediaUrl(s.media_id!)));
+    voices.current = shots.map((s) => {
+      if (!s.audio_id) return null;
+      const a = new Audio(mediaUrl(s.audio_id));
+      a.preload = "auto";
+      return a;
+    });
     (async () => {
-      try {
-        const out = await Promise.all(
-          shots.map(async (s) => {
-            const both = await Promise.all([load(s.media_id!), s.audio_id ? load(s.audio_id) : null]);
-            if (!cancelled) setLoaded((n) => n + 1);
-            return both;
-          }),
-        );
+      for (const [k, s] of shots.entries()) {
+        const copy = await load(s.media_id!).catch(() => null);
         if (cancelled) return;
-        // What these shots no longer need goes.
-        const keep = new Set(shots.flatMap((s) => [s.media_id, s.audio_id]).filter(Boolean));
-        for (const [id, file] of fetched.current) {
-          if (keep.has(id)) continue;
-          fetched.current.delete(id);
-          file.then(drop, () => {});
-        }
-        voices.current = out.map(([, voice]) => {
-          if (!voice) return null;
-          const a = new Audio(voice);
-          a.preload = "auto";
-          return a;
-        });
-        setUrls(out.map(([video]) => video));
-      } catch {
-        if (!cancelled) setFailed(true);
+        if (copy) copies.current[k] = copy;
+        setLoaded((n) => n + 1);
+      }
+      // What these shots no longer need goes.
+      const keep = new Set(shots.map((s) => s.media_id));
+      for (const [id, file] of fetched.current) {
+        if (keep.has(id)) continue;
+        fetched.current.delete(id);
+        file.then(drop, () => {});
       }
     })();
     return () => {
@@ -502,13 +501,15 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
     if (!urls) return;
     const cur = players[i % 2].current;
     const next = players[(i + 1) % 2].current;
-    if (cur && cur.dataset.src !== urls[i]) {
-      cur.src = urls[i];
-      cur.dataset.src = urls[i];
+    // A shot's fetched copy when there is one, its link until then; a player already on the shot keeps what it has.
+    const src = (k: number) => copies.current[k] ?? urls[k];
+    if (cur && cur.dataset.shot !== String(i)) {
+      cur.src = src(i);
+      cur.dataset.shot = String(i);
     }
-    if (next && i + 1 < urls.length && next.dataset.src !== urls[i + 1]) {
-      next.src = urls[i + 1];
-      next.dataset.src = urls[i + 1];
+    if (next && i + 1 < urls.length && next.dataset.shot !== String(i + 1)) {
+      next.src = src(i + 1);
+      next.dataset.shot = String(i + 1);
       next.load();
     }
     if (started && cur) {
@@ -655,6 +656,8 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
           <span className="ad-reel-count">
             {Math.min(i, shots.length - 1) + 1} / {shots.length}
           </span>
+          {/* Every shot's copy is fetched behind the play (David: no buffering between shots): how far that's got. */}
+          {loaded < shots.length && <span className="ad-reel-count ad-reel-preload">preloading {loaded}/{shots.length}</span>}
           {!theater && (
             <button type="button" className="ad-reel-theater-btn" onClick={() => setTheater(true)} disabled={!ready}>
               🎬 Theater

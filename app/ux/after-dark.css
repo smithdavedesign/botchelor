@@ -297,9 +297,34 @@ button.ad-tools-toggle {
 }
 /* Every control in the tool row the same height (the round icons are 2.2rem), so their tops line up — the pills (Clip,
    Video, Exit) are .secondary.small and were a touch taller (David, 2026-10-25: buttons slightly misaligned at the top). */
+/* One height for the whole row (2.2rem; 2.75rem on touch screens, where the round icons grow), and no margin: the base
+   button's margin-top pushed the round icons a rem below ✍️ and Exit (David, 2026-10-25: "bottom align them"). */
+.theater-tools {
+  --tool-h: 2.2rem;
+  align-items: center;
+}
+@media (pointer: coarse) {
+  .theater-tools {
+    --tool-h: 2.75rem;
+  }
+}
+.theater-tools button,
+.theater-tools .button,
+.theater-tools .theater-icon {
+  margin: 0;
+}
+.theater-tools .theater-icon {
+  width: var(--tool-h);
+  min-width: var(--tool-h);
+  height: var(--tool-h);
+}
+.theater-tools .ad-writer-logo button.ad-writer-logo-button {
+  height: var(--tool-h);
+  min-height: var(--tool-h);
+}
 .theater-tools .secondary.small {
-  height: 2.2rem;
-  min-height: 2.2rem;
+  height: var(--tool-h);
+  min-height: var(--tool-h);
   padding-top: 0;
   padding-bottom: 0;
   display: inline-flex;
