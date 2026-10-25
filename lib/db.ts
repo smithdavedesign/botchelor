@@ -1284,6 +1284,10 @@ alter table adult_reels add column if not exists clip jsonb;
 alter table adult_settings add column if not exists clip_tokens integer;
 -- A picture from the shot menu (lib/adult/pictures-menu.ts, 2026-10-22): its price in bought tokens.
 alter table adult_settings add column if not exists menu_picture_tokens integer;
+-- A chapter's price in bought tokens, and the pictures drawn for it without being asked (David, 2026-10-25: "allowing
+-- 1-3 generated images for each chapter as long as each chapter cost 1 token"). Null: the defaults in lib/adult/settings.ts.
+alter table adult_settings add column if not exists chapter_tokens integer;
+alter table adult_settings add column if not exists pictures_per_chapter integer;
 -- Every image the output check refused: never the image itself, only why (for the admin to see it's working).
 create table if not exists adult_rejections (
   id text primary key,

@@ -80,6 +80,7 @@ export default async function AfterDarkScenePage({ params }: Props) {
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}
         reelTokens={(await getAdultSettings(db)).reel_tokens}
+        chapterTokens={(await isAdmin(db, admin)) ? 0 : (await getAdultSettings(db)).chapter_tokens}
         hive={await hiveNotice(db)}
         faces={await facesFor(db, admin, [scene.a.id, scene.b.id])}
         steer={await steerSummary(db, admin, [scene.a.id, scene.b.id])}

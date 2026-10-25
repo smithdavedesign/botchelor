@@ -47,6 +47,7 @@ import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensity
 import { consentRefusal, framingOf, hasProfileConsent, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
 import { scenarioById, type Scenario } from "./scenarios";
 import { venueSituation } from "./scene-catalog";
+import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
 
 /**
  * Out in public: a set the place rules know is public, or any library venue but a home (its situation is a restaurant, a
@@ -2324,12 +2325,18 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // and a new one only when they asked and agreed in these lines. A failed picture never loses the lines.
   const pictures: Media[] = [];
   let picture_note: string | undefined;
+  const askedKey = `${scene.chapter}#asked:${scene.lines.length}`;
+  let asked: typeof meta.picture | null = null;
   if ((meta.explicit || meta.picture) && !(await outputCheckReady(db))) picture_note = PICTURES_OFF_NOTE;
   else if ((meta.explicit || meta.picture) && a && b && (await pictureKeyReady(db))) {
     try {
       if (meta.explicit) for (const c of [a, b]) { const made = await ensureBaseline(db, adminId, c); if (made) pictures.push(made); }
-      if (meta.picture) {
-        const forOne = meta.picture.of === "b" ? b.id : a.id;
+      // One of the chapter's unasked pictures (lib/adult/chapter-pictures.ts): once it has had them, the lines' ask is noted.
+      asked =
+        meta.picture && (await claimChapterPicture(db, scene.id, scene.chapter, askedKey, (await getAdultSettings(db)).pictures_per_chapter)) ? meta.picture : null;
+      if (meta.picture && !asked) picture_note = "This chapter's pictures are drawn: 📸 Picture this draws another.";
+      if (asked) {
+        const forOne = asked.of === "b" ? b.id : a.id;
         // The same context a chapter's picture gets (lib/adult/auto-pictures.ts autoPicturePrompt): the place's pronouns put
         // right, what it puts them in, and dressed for it.
         const home = place_history.at(-1)?.home ?? null;
@@ -2345,17 +2352,19 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
         };
         pictures.push(
           await makePicture(db, adminId, {
-            prompt: scenePrompt(a, b, meta.picture.of, meta.picture.description, pctx, adminId),
+            prompt: scenePrompt(a, b, asked.of, asked.description, pctx, adminId),
             kind: "scene",
             character_id: forOne,
-            character_b: meta.picture.of === "both" ? b.id : null,
+            character_b: asked.of === "both" ? b.id : null,
             // One of them: their baseline keeps the face the same (lib/adult/media.ts FACE_MODEL).
-            face_of: meta.picture.of === "both" ? null : forOne,
+            face_of: asked.of === "both" ? null : forOne,
           }),
         );
       }
     } catch (err) {
       picture_note = err instanceof Error ? err.message : "The picture didn't come through.";
+      // The lines' picture didn't come: its claim goes back, so it doesn't use up the chapter's pictures.
+      if (asked) await releaseChapterPicture(db, scene.id, askedKey).catch(() => {});
     }
   }
   // A picture made on the other provider because the configured one was limited (lib/adult/fallback.ts): the step says so.

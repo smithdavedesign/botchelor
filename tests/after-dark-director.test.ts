@@ -333,6 +333,8 @@ describe("rewind and redo", () => {
     const { cookie } = await admin();
     const sub = userIdOf(newUserCookie());
     await t.db.query(`insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())`, [sub]);
+    // The chapter's token (lib/adult/settings.ts chapter_tokens); a redo doesn't take another.
+    await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 1, 'test')`, [crypto.randomUUID(), sub]);
     const subCookie = signedIn(sub);
     void cookie;
     // The month's caps live in the settings row (300 steps by default).
