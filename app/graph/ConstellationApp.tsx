@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphData, GraphEdge, GraphNode } from "@/lib/graph";
 import { KINDS, type KindId } from "@/lib/kinds";
 import { communityColor, kindHue, type ColorBy } from "./colors";
@@ -46,6 +46,25 @@ export default function ConstellationApp({ data, initialFocus = null }: { data: 
     const t = setTimeout(() => setFocusId(start), 600);
     return () => clearTimeout(t);
   }, [start]);
+  // Full screen: the stage over the whole screen (and the browser's own full screen where it has one); Esc leaves.
+  const stage = useRef<HTMLDivElement>(null);
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    if (!full) return;
+    const el = stage.current;
+    if (el?.requestFullscreen && !document.fullscreenElement) void el.requestFullscreen().catch(() => {});
+    document.documentElement.classList.add("constellation-locked");
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    const onFs = () => !document.fullscreenElement && setFull(false);
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("fullscreenchange", onFs);
+      document.documentElement.classList.remove("constellation-locked");
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    };
+  }, [full]);
   const [query, setQuery] = useState("");
   const [origin, setOrigin] = useState<OriginFilter>("all");
   const [minDates, setMinDates] = useState(0);
@@ -92,8 +111,19 @@ export default function ConstellationApp({ data, initialFocus = null }: { data: 
   const smaller = clusters.length - coloured.length;
 
   return (
-    <div className="constellation-stage">
+    <div ref={stage} className={`constellation-stage${full ? " is-full" : ""}`}>
       <div className="constellation-hud" role="toolbar" aria-label="Find and filter the constellation">
+        {/* The whole screen for the sky (2026-10-25): the browser's full screen where it has one, a fixed overlay either way. */}
+        <button
+          type="button"
+          className="constellation-full-btn"
+          aria-pressed={full}
+          aria-label={full ? "Exit full screen" : "Full screen"}
+          onClick={() => setFull((v) => !v)}
+          title={full ? "Leave full screen (Esc)" : "Full screen"}
+        >
+          {full ? "✕" : "⛶"}
+        </button>
         <div className="constellation-search">
           <input
             type="search"
