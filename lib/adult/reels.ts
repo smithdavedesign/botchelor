@@ -173,6 +173,13 @@ export type ReelShot = {
   archived_at?: string;
   /** Archived by a 👎 on the shot (shotsFollowRating), so taking the 👎 back puts it back; one archived by hand stays. */
   archived_by?: "rating";
+  /**
+   * The storyboard (docs/PRDs/reel-storyboard.md; David, 2026-10-24): the owner's own words that lead this one shot's
+   * keyframe (so they can redraw it to exactly what they want), and whether they've approved its picture. A reel is only
+   * filmed once every kept shot is approved. A redraw clears the approval (the new picture needs a look).
+   */
+  custom?: string;
+  approved?: boolean;
   /** Read with the reel for the one watching, never stored in it: their 👍/👎 on the shot and what was off (lib/adult/steering.ts). */
   rating?: 1 | -1 | null;
   tags?: string[];
@@ -994,7 +1001,8 @@ export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx
       const drawnSet = place ? (sets.get(place) ?? null) : null;
       const own = ctx.keyframeFor?.(s, drawnSet, place);
       const set = own ? (own.withSet ? drawnSet : null) : drawnSet;
-      const prompt = own?.prompt ?? keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set));
+      // The shot's own words (the storyboard's per-shot redraw) lead its keyframe, so it's drawn to exactly what's asked.
+      const prompt = own?.prompt ?? keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set), { custom: s.custom });
       // Keep going: the shot before's keyframe is the third picture, in the set's place.
       const third = own?.continueFrom ? signedMediaUrl(own.continueFrom, ctx.baseUrl) : null;
       try {
@@ -1392,6 +1400,9 @@ export async function filmReel(db: Db, ownerId: string, reelId: string, baseUrl:
   if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
   const ready = row.shots.filter((s) => s.status === "frame_ready" && !s.archived_at);
   if (!ready.length) return { ok: false, status: 409, error: "no_frames", message: "Draw and keep at least one picture first, then film." };
+  // The movie is only made once the owner has approved every shot they're keeping (David, 2026-10-24).
+  const toApprove = ready.filter((s) => !s.approved).length;
+  if (toApprove) return { ok: false, status: 409, error: "needs_approval", message: `Approve every shot's picture first: ${toApprove} still to go.` };
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
   const onReplicate = settings.media_provider === "replicate";
@@ -1764,4 +1775,48 @@ export async function archiveShot(db: Db, ownerId: string, reelId: string, media
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status <> 'making'`, [reelId, JSON.stringify(row.shots)]);
   const [reel] = await withRatings(db, ownerId, [(await getReel(db, reelId))!]);
   return { ok: true, reel };
+}
+
+/** Load a draft reel of this owner's for editing its shots; null for not-found, someone else's, or not a draft. */
+async function editableDraft(db: Db, ownerId: string, reelId: string): Promise<ReelShot[] | ArchiveResult> {
+  const row = (await db.query<{ owner_id: string; status: string; shots: ReelShot[] }>(`select owner_id, status, shots from adult_reels where id = $1`, [reelId])).rows[0];
+  if (!row || row.owner_id !== ownerId) return { ok: false, status: 404, error: "not_found", message: "That storyboard isn't here." };
+  if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
+  return row.shots;
+}
+
+/**
+ * The owner approves (or un-approves) a drawn shot's picture in a draft storyboard (David, 2026-10-24: the movie is only
+ * made once every kept shot is approved). `mediaId` null approves every drawn, kept shot at once ("Approve all").
+ */
+export async function approveShot(db: Db, ownerId: string, reelId: string, mediaId: string | null, approved: boolean): Promise<ArchiveResult> {
+  const shots = await editableDraft(db, ownerId, reelId);
+  if (!Array.isArray(shots)) return shots;
+  const picks = shots.filter((s) => s.status === "frame_ready" && !s.archived_at && (mediaId === null || s.media_id === mediaId));
+  if (!picks.length) return { ok: false, status: 404, error: "not_found", message: "There's no drawn shot to approve." };
+  for (const s of picks) s.approved = approved;
+  await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(shots)]);
+  const [reel] = await withRatings(db, ownerId, [(await getReel(db, reelId))!]);
+  return { ok: true, reel };
+}
+
+/**
+ * Redraw one shot of a draft storyboard to the owner's own words (David, 2026-10-24): the shot's `custom` leads a fresh
+ * keyframe, drawn and checked now; its old picture is replaced and its approval cleared, so it needs a look again.
+ */
+export async function redrawShot(db: Db, ownerId: string, reelId: string, mediaId: string, custom: string | undefined, baseUrl: string): Promise<MakeReelResult> {
+  const shots = await editableDraft(db, ownerId, reelId);
+  if (!Array.isArray(shots)) return shots;
+  const shot = shots.find((s) => (s.status === "frame_ready" || s.status === "failed" || s.status === "discarded") && (s.media_id === mediaId || s.frame_id === mediaId));
+  if (!shot) return { ok: false, status: 404, error: "not_found", message: "There's no such shot to redraw." };
+  const clean = (custom ?? "").trim().replace(/\s+/g, " ").slice(0, 400) || undefined;
+  if (clean && (!checkAdultText({ words: clean }).ok || crossesTaboo(clean))) return { ok: false, status: 422, error: "not_allowed", message: "That crosses one of the lines After Dark never crosses." };
+  // Back to planned so drawReelFrames redraws just this one; its old keyframe and approval go.
+  Object.assign(shot, { status: "planned" as const, custom: clean, approved: false });
+  delete shot.media_id;
+  delete shot.frame_id;
+  delete shot.archived_at;
+  delete shot.reason;
+  await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(shots)]);
+  return drawReelFrames(db, ownerId, reelId, baseUrl);
 }

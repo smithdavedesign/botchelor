@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
-import { advanceReel, archiveShot, drawReelFrames, filmReel, listReels, makeReel, planReel, REEL_SCOPES, reelNight, stopReel } from "@/lib/adult/reels";
+import { advanceReel, approveShot, archiveShot, drawReelFrames, filmReel, listReels, makeReel, planReel, redrawShot, REEL_SCOPES, reelNight, stopReel } from "@/lib/adult/reels";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -15,6 +15,9 @@ const id = z.string().min(1).max(64);
 const Input = z.object({ a: id, b: id, night_id: id.optional(), scope: z.enum(REEL_SCOPES).optional(), action: z.enum(["make", "plan"]).optional() });
 // A stage of a draft storyboard (`id` is the reel): draw its keyframes, or film it.
 const StageInput = z.object({ action: z.enum(["draw", "film"]), id });
+// Reviewing a draft storyboard's shots: approve a shot's picture (media_id null = all), or redraw one to the owner's words.
+const ApproveInput = z.object({ action: z.literal("approve"), id, media_id: id.nullable(), approved: z.boolean() });
+const RedrawInput = z.object({ action: z.literal("redraw"), id, media_id: id, custom: z.string().max(400).optional() });
 // One shot of a video (`media_id`, the shot itself) into the Archive, or back out (`archived` false).
 const ArchiveInput = z.object({ id, media_id: id, archived: z.boolean() });
 
@@ -35,10 +38,21 @@ export const POST = handle(async (req: Request) => {
   const refused = await mediaRefusal(db, viewer);
   if (refused) return refused;
   const body = await readJson(req);
-  // A draft's own stages act on the stored reel, not a night.
-  if (body && typeof body === "object" && ((body as { action?: unknown }).action === "draw" || (body as { action?: unknown }).action === "film")) {
+  const act = body && typeof body === "object" ? (body as { action?: unknown }).action : undefined;
+  // A draft's own stages and shot-review act on the stored reel, not a night.
+  if (act === "draw" || act === "film") {
     const input = parseBody(StageInput, body, "invalid_request");
     const r = input.action === "draw" ? await drawReelFrames(db, viewer, input.id, requestBase(req)) : await filmReel(db, viewer, input.id, requestBase(req));
+    return r.ok ? json({ reel: r.reel }) : fail(r);
+  }
+  if (act === "approve") {
+    const input = parseBody(ApproveInput, body, "invalid_request");
+    const r = await approveShot(db, viewer, input.id, input.media_id, input.approved);
+    return r.ok ? json({ reel: r.reel }) : fail(r);
+  }
+  if (act === "redraw") {
+    const input = parseBody(RedrawInput, body, "invalid_request");
+    const r = await redrawShot(db, viewer, input.id, input.media_id, input.custom, requestBase(req));
     return r.ok ? json({ reel: r.reel }) : fail(r);
   }
   const input = parseBody(Input, body, "invalid_request");

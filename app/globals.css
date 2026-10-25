@@ -7225,11 +7225,34 @@ a.phone-head-btn {
 .ad-badge-dropped {
   color: #cdbce6;
 }
+.ad-badge-approved {
+  color: #8ff0b0;
+}
+.ad-badge-review {
+  color: #f4c430;
+}
 .ad-shot-body {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
   padding: var(--space-2);
+}
+.ad-shot-custom {
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #33264d;
+  border-radius: 0.35rem;
+  background: rgba(10, 5, 18, 0.5);
+  color: #f1e9ff;
+  font-size: 0.8rem;
+}
+.ad-shot-custom::placeholder {
+  color: #6a5a7f;
+}
+.ad-shot-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 .ad-shot-line {
   margin: 0;
