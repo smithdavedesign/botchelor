@@ -48,6 +48,7 @@ import DateThisCharacter from "./DateThisCharacter";
 import { accessHere } from "@/lib/adult/place";
 import { adultAvailable } from "@/lib/adult/mode";
 import { studioAccess } from "@/lib/adult/studio";
+import { pgAccess } from "@/lib/studio/pg";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { afterDarkHref } from "@/lib/after-dark-host";
 
@@ -165,6 +166,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     if (r.ok) return { href: afterDarkHref(`/after-dark/studio/${id}`), ready: true };
     return r.error === "not_switched_on" ? { href: afterDarkHref("/after-dark"), ready: false } : null;
   })().catch(() => null);
+  // The PG Studio (lib/studio/pg.ts): safe photo shoots, for the owner (or an admin, for the house cast).
+  const pgStudio = await (async () => {
+    const auth = authFromCookieStore(await cookies());
+    if (!auth?.authenticated) return false;
+    return (await pgAccess(db, auth.userId, id)).ok;
+  })().catch(() => false);
   // What it does while its owner is away (lib/activity.ts), for the owner's controls.
   const away = c.house
     ? null
@@ -307,6 +314,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             </>
           )}
         </p>
+      )}
+      {pgStudio && (
+        <section className="card character-studio">
+          <h2>📸 Studio</h2>
+          <p>
+            Photo shoots of {shortName(c.name)} for the show: outfits, places, accessories and styles, their face kept, every picture checked safe.{" "}
+            <Link className="button" href={`/characters/${c.id}/studio`}>
+              Open the Studio
+            </Link>
+          </p>
+        </section>
       )}
       {studio && (
         <section className="card character-studio">

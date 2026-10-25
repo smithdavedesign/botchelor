@@ -11116,3 +11116,106 @@ details > summary.small {
 .dir-basics + .chips {
   margin-top: 0.5rem;
 }
+
+/* ---------- The PG Studio (app/characters/[id]/studio): safe photo shoots ---------- */
+.pg-studio .segmented {
+  margin: var(--space-3) 0 var(--space-4);
+}
+.pg-groups {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.pg-group {
+  padding: 0;
+  overflow: hidden;
+}
+button.pg-group-head {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.pg-group-head:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--soft);
+}
+.pg-group-head .muted {
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+.pg-chips {
+  padding: 0 1rem 0.9rem;
+  margin: 0;
+}
+.pg-chips button.chip {
+  margin: 0;
+  padding: 0.3rem 0.75rem;
+  border: 1.5px solid var(--line);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.pg-chips button.chip:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--accent);
+}
+.pg-chips button.chip-on {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.pg-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.pg-go button {
+  margin: 0;
+}
+.pg-pictures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 46%), 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.pg-pictures li {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.pg-pictures img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+.pg-picture-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.5rem 0.65rem;
+}
+.pg-picture-meta button {
+  margin: 0 0 0 auto;
+}
