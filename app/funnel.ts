@@ -2,12 +2,14 @@
  * RepoHQ's funnel beacon: the owner's portfolio dashboard, whose growth loop reads it (idea-factory lib/growth.js).
  * `visit` once per browser session on any page, `activate` the first time this browser starts a date (the core
  * action, GROWTH.md), and `checkout` when someone clicks Buy, each with the page it happened on (beaconPath). A visit
- * from a shared episode link also carries its tag, `ref: "share"` (beaconRef).
+ * from a shared episode link also carries its tag, `ref: "share"`, and one from a shared Daily Date result `ref: "daily"`
+ * (beaconRef).
  * Fire-and-forget POSTs with no cookies; RepoHQ keeps a keyed hash of the IP, never the address. Nothing is sent from
  * previews or local runs, from automated browsers, when localStorage "repohq:notrack" is set (the owner's own
  * browsers), or when the visitor declined analytics cookies.
  */
 import { safeFrom } from "@/lib/age";
+import { DAILY_REF } from "@/lib/daily-shared";
 import { SHARE_REF } from "@/lib/episode-share";
 
 export const SIGNAL_URL = "https://repohq.vercel.app/api/ideas/signal";
@@ -43,8 +45,11 @@ export function beaconPath(pathname: string, search = ""): string {
   return path === "/ship" || path.startsWith("/ship/") ? "/ship" : path;
 }
 
-/** The tags a link may carry (?ref=…) and the only ones sent: an episode's share links (lib/episode-share.ts). */
-export const BEACON_REFS: readonly string[] = [SHARE_REF];
+/**
+ * The tags a link may carry (?ref=…) and the only ones sent: an episode's share links (lib/episode-share.ts), and a
+ * Daily Date result someone copied (lib/daily-shared.ts).
+ */
+export const BEACON_REFS: readonly string[] = [SHARE_REF, DAILY_REF];
 
 /**
  * The tag a visit came with: this page's ?ref, or on the 18+ gate the ?ref of the page the visitor was headed to (the

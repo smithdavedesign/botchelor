@@ -2,7 +2,36 @@
 
 ## Screenshots
 
-The OC chemistry test (2026-10-23): two original characters in; a score out of 100, the ending Botchelor's date engine
+The Daily Date (2026-10-25): one blind date a day at `/daily`, the same for everyone, between two of the show's house
+characters. Read their sheets, call how it ends without an account, and see the date. The streak stays in the browser,
+and "Copy result" copies a line that never names the ending or the characters. Captured from the production build by
+`npm run screenshots:daily` with every model variable unset, on sample dates between house characters. The same run is
+the Playwright test (`npm run e2e:daily`). It plays one UTC day, restarts the server a day later, moves the browser's clock
+on 24 hours, and checks "Streak: 2". Over HTTP it checks that nothing before a pick carries the ending or a later scene.
+Code: [`lib/daily.ts`](lib/daily.ts), [`lib/daily-shared.ts`](lib/daily-shared.ts), [`app/daily`](app/daily/page.tsx),
+[`app/api/daily`](app/api/daily/route.ts). Why and how it's measured: [GROWTH.md](GROWTH.md).
+
+![The home page on desktop with "Daily Date #2: guess how today's blind date ends. No account." first in the hero](docs/screenshots/daily-home-desktop.png)
+The home page links today's Daily Date first in the hero, above the fold.
+
+![/daily on desktop: Dex Okafor's and Marisol Pine's sheets, then "How does it end?" with Just friends picked and Lock it in](docs/screenshots/daily-pick-desktop.png)
+The pick: both house characters' public sheets, then three endings to choose from. No account.
+
+![The result on desktop: ✅ You called it, it ended A disaster, Streak: 2, the copyable line and the next Daily Date in 11h 59m](docs/screenshots/daily-result-desktop.png)
+After the pick: right or wrong, "Streak: 2" on the second day running, a spoiler-free line to copy, then the date itself.
+
+![The home page on a phone, the Daily Date link at the top of the hero](docs/screenshots/daily-home-mobile.png)
+On an iPhone 13 the link is still in the first screen.
+
+![/daily on a phone: the end of Nell's sheet, then the three endings with A disaster picked](docs/screenshots/daily-pick-mobile.png)
+The pick on a phone, for a visitor who called yesterday's right.
+
+![The result on a phone: ✅ You called it, Streak: 2 and Copy result](docs/screenshots/daily-result-mobile.png)
+The result on a phone, with the line to copy.
+
+## The OC chemistry test (2026-10-23)
+
+Two original characters in; a score out of 100, the ending Botchelor's date engine
 predicts and three one-line reasons out, on a link anyone can share. No model is called and nothing is stored. Captured
 from the production build by `npm run screenshots:chemistry`, with every model variable unset and sample characters only.
 The same run checks over HTTP the 200 and the `<title>`, the sitemap entry, the same score on reload, the og:title and

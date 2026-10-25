@@ -735,7 +735,7 @@ export function PrivacySections() {
         <li>
           Our own dashboard (RepoHQ) counts three things, with no cookies: a visit (once per browser session), your
           first date, and a click on Buy, each with the page it happened on (a ship name page counts as /ship, without
-          the names, and a chemistry test result as its page, without the characters). A visit from an episode link someone shared also says it came from a share link. It keeps a keyed
+          the names, and a chemistry test result as its page, without the characters). A visit from an episode link someone shared also says it came from a share link, and one from a Daily Date result someone copied says that. (A Daily Date pick comes to us only to be checked, and is kept with nothing about who made it; your streak stays in your browser.) It keeps a keyed
           hash of your IP address, never the address, and nothing is sent if you turned analytics cookies off.
         </li>
         <li>

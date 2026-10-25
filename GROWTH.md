@@ -317,3 +317,142 @@ change the landing page or the price.
 - `npm test` passes in full: 229 files, 2949 tests. `tsc --noEmit` is clean. The first full run caught the footer's
   order: `tests/user-feedback.test.ts` keeps "Give us feedback" last, beside the ship name generator, so the new link
   goes before them.
+
+## 2026-10-25: the Daily Date, one blind date a day to call, no account
+
+**Mission.** Build the Daily Date: one blind date a day to predict, with no account. RESEARCH.md's strongest
+behavioural evidence is the Love Island habit: Peacock reported that more than a quarter of mobile viewers took part in
+the season 7 prediction game. The growth brief says the launch kit dropped r/LoveIslandUSA because Botchelor had "no
+spectator-only hook". So each day there's one house-cast date at a fixed address. You call it without an account, and
+it ends in a result line you can copy that gives nothing away. That gives a spectator, someone with no character of
+their own, a reason to come back each day and something to post.
+
+**The number.** 59 unique visitors this week (RepoHQ's `visit`; 47 direct, 26 the week before). The brief's target is 50
+a week within 14 days of the merge. The week is already above that, so the read is whether it stays at or above 50, and
+how much of it the Daily Date brings (below).
+
+**What changed, and why**
+- **`/daily`**, today's game. It shows the day's number (#1 is Sunday 25 October 2026, UTC) and both house characters'
+  public sheets: age, bio, three traits, what they want and how they look. It also says where they met. Then comes a
+  form with exactly three choices: a second date, just friends, or a disaster. Nothing on the page says how it ends.
+  The server reads the two sheets through their own query (`dailyCard`), which never selects the ending or the scenes,
+  so neither the markup nor Next's payload can carry them. A day with nothing to deal says "still being filmed" and
+  shows no form.
+- **The deal** (`lib/daily.ts`). The pool is the house cast's own dates that have already aired publicly. The lobby
+  films those every day (`refreshLobby`), so no model is called and nothing is spent. Each day's date is dealt on the
+  day's first read and kept in a new table, `daily_dates`, keyed by the day's number, so the same UTC day always serves
+  the same date and two first reads can't deal two. The pick is the day's seeded choice (`seedFrom("daily-date", n)`)
+  among the dates no day has had yet, oldest first. Once every date has had a day, it's any date but yesterday's. A
+  stored day needs nothing but the database. A date reported off the air (or made private) after it was dealt is dealt
+  again on its own day, by an update that only lands if the day still holds it. A past day loses it.
+- **The pick** (`POST /api/daily { n, pick }`). It answers with the date: the ending, the scenes, the best line, why it
+  ended that way, and whether the pick was right. No account and no cookie, and nothing about the visitor is stored.
+  The streak lives in the browser's localStorage (`lib/daily-shared.ts`): right picks in a row, and a wrong or missed
+  day starts it over. A reload on a day already played shows the result again. After the pick, a countdown runs to the
+  next Daily Date (midnight UTC). A tab left open past midnight offers the new day.
+- **"Copy result"** copies `Botchelor Daily #12 ✅ Called it`, `Streak: 2` and `https://botchelor.com/daily?ref=daily`.
+  It never includes the ending or either character's name, so pasting it spoils nothing. The line shows as it will
+  paste, so it can still be copied by hand if the clipboard is blocked.
+- **`/daily/{n}`**, a past day with its ending: the sheets, how it ended, the scenes and a link to the whole episode.
+  Today's number redirects to `/daily`, where it's still a game. A day still to come, or one nobody dealt, is a 404.
+- **Findable.** `/daily` is in `sitemap.xml` and has its own title, description, canonical link and an og:title of
+  "Botchelor Daily #n: how does today's blind date end?". The home page links it first in the hero, as a small pill
+  above the heading: "🗓️ Daily Date #n: guess how today's blind date ends. No account."
+- **The beacon counts the tag.** A `visit` from `/daily?ref=daily` carries `ref: "daily"` (`BEACON_REFS` in
+  `app/funnel.ts`), on the 18+ gate too. `activate` and `checkout` are unchanged. The privacy page says so, and says a
+  pick comes to us only to be checked.
+- **The hourly lobby job** deals today's date in the day's first hour, so a day nobody visited still has one, and the
+  next day's "yesterday" link and `/daily/{n}` exist.
+- A `daily_pick` log event (the day's number, whether the pick was right and whether it was today's; never who).
+
+**How it's measured**
+- **The headline:** unique `visit`s a week on RepoHQ, as before. Success is 50 or more a week within 14 days of the
+  merge.
+- **Attribution:** `visit`s with `ref` = `daily` are people a copied result brought. `visit`s with `path` `/daily` are
+  everyone who landed on the game itself: a post, a bookmark or a shared line. A visitor who starts on the home page
+  and clicks through counts as `/`, as before. If the week holds at 50 or more but few visits carry `ref=daily` or
+  `path` `/daily`, the visitors came from somewhere else.
+- **Coming back:** the beacon counts a visit once per browser session with no cookies, so a returning player can't be
+  told apart from a new one there. The `daily_pick` events in the logs count picks per day. If picks a day grow while
+  new visits don't, people are coming back.
+- **Caveats:**
+  - If RepoHQ ignores an unknown `ref`, attribution falls back to `path` `/daily` and the referrers (reddit.com,
+    discord.com).
+  - The Daily Date needs aired house dates. The lobby's rooms air when someone starts watching one. If none had aired,
+    `/daily` would say "still being filmed" and offer no game.
+  - Posting it anywhere (r/LoveIslandUSA included) is David's call, under each community's rules. Nothing here posts.
+
+**Decisions made without asking** (no one to ask; recorded here):
+1. **Only dates that already aired.** An unaired house date can still be predicted for points on its own page.
+   Revealing its ending here would hand those points out. An aired one gives away nothing the show hasn't already.
+2. **#1 is the day it was built, 25 October 2026 (UTC).** The number is a pure function of the date, so a shared "#12"
+   means the same date to everyone. If it merges later, the first number anyone sees is a little higher. Days before
+   the first deal are 404s.
+3. **The sheet is the public card.** It shows what the character's own page shows, so no dealbreaker: that stays the
+   show's secret, as in Guess the Dealbreaker.
+4. **Before the pick: the sheets and where they met, nothing more.** The episode page shows the setting before the
+   finale airs too. The scenes, finale, best line and the "why" come only with the reveal.
+5. **The pick is checked on the server and not kept.** That way the page itself never has the answer. The streak is
+   the browser's. That's the "no account" promise, and there's nothing to delete.
+6. **A past day is `noindex`.** The same date is on its own episode page, which is the one to index. `/daily` is the
+   page to rank.
+7. **The 18+ gate stays on `/daily`,** as with the tools: crawlers pass it, and a person's visit counts for `/daily`
+   with its `ref`.
+8. **No new share card.** A page's own `openGraph` drops the image it would inherit, so `/daily` names the site's
+   existing card, which gives nothing away. A Daily-specific card would be the next experiment if links get shared and
+   not clicked.
+9. **The home link is a pill above the heading, not a line under the buttons.** Under the buttons, the Playwright run
+   measured it at 841px on a 1280×800 desktop, below the fold. The hero's narrow copy column wraps the buttons. At the
+   top it's in the first screen on desktop and on an iPhone 13. "Make your character" stays the main button.
+10. **No new dependency, and nothing to provision** (no `.provision` line). Checkout, Stripe and prices are untouched.
+11. **Step 0 (gstack):**
+    - It reuses what was there: the lobby's house dates, the public layer's rules (`publicDateSql`), the spectator view
+      (`getEpisodeView`, for the reveal and the "why"), `seedFrom`, the beacon's tag allowlist, the sitemap's
+      `PUBLIC_PATHS`, the site's share card and the e2e harness.
+    - It touches 9 existing files: the home page, the beacon, the sitemap list, the schema, the lobby job, the
+      analytics event list, the privacy sentence, the CSS and `package.json`. It adds two libraries (pure and
+      database), two pages, a game component, a sheet component, a story component and one route. That's over the
+      guideline's 8. Each is small, and there's no new service.
+    - The web search check wasn't run. Everything is a framework or browser built-in (route handlers,
+      `generateMetadata`, `redirect`/`notFound`, `navigator.clipboard`, `localStorage`, Playwright's `page.clock`),
+      checked against `node_modules/next/dist/docs`.
+
+**Self-review** against gstack's checklist:
+- **Pass 1 (CRITICAL):** nothing found.
+  - Every query takes its values as parameters. The SQL built in code is fixed aliases and the report threshold.
+  - The deal is atomic: the day number is the primary key (`on conflict do nothing`, then read back), and a re-deal is
+    an `update … where episode_id = <the old one>`.
+  - No `dangerouslySetInnerHTML`. The model-written scenes are rendered as React text, as on the episode page.
+  - The new values each have one consumer: `ref: "daily"` (the beacon's allowlist), the `daily_pick` event (logs
+    only) and the conversion surface `"daily"` (an analytics parameter). Nothing switches on them.
+- **Pass 2:** four fixes.
+  - The pool's "has scenes" test used `jsonb_array_length`, which throws on a non-array, and SQL doesn't promise which
+    test runs first. One odd row anywhere could have broken `/daily`. It's `jsonb_typeof(…) = 'array'` now, with a
+    test.
+  - `DailyCard` carried two fields nothing read. They're gone.
+  - The privacy sentence's first draft said picks are never sent to us. They are, to be checked, so it says that now.
+  - `/daily` had no og:image (above). It names the site's card now, and a test pins it to `app/opengraph-image.tsx`.
+- **Noted, not changed:** the reveal reads the date through `getEpisodeView`, which also reads its transcript, so a
+  pick costs about one episode page view in database transfer. Like `/api/predictions`, it has no rate limit. At this
+  traffic that's small. A slimmer query is the fix if it ever shows in the Neon usage.
+
+**Proof**
+- `tests/daily-date.test.ts` covers all five acceptance criteria in 25 tests, with the server's clock frozen (Date
+  only). It checks the gate and a crawler. It checks the page's number, sheets and three choices. The no-spoiler test
+  renders two days with the same two characters and different endings and checks that every ending's value and label
+  appears equally often on both. It also checks that nothing handed to the page's components (the RSC payload) has an
+  ending or scenes. It checks that the same day keeps its date while new dates air, that a new day gets a new one, and
+  the seeded deal against the pool. It checks what the pool leaves out (unaired, private, unlisted, reported, replays,
+  scenes that aren't a list, a person's OC). It checks `/daily/{n}`, every model variable unset, a re-deal, the hourly
+  job, the reveal route, the streak, the stored history, the copied line and the result's button. Last come og:title,
+  the sitemap, the home link and the beacon. Planting a leak (the last scene handed to the game component, never
+  rendered) fails the no-spoiler test.
+- `npm run e2e:daily` is the Playwright test. It starts the production build with every model variable unset, seeds
+  four sample house dates and runs the acceptance checks over HTTP, including the real HTML and RSC payload. Then
+  Chromium calls day one right ("Streak: 1"). The server restarts a day later (`scripts/fake-clock.mjs`, preloaded with
+  `NODE_OPTIONS`; the app has no test hook for time) and `page.clock.fastForward("24:00:00")` moves the browser's clock
+  on. The page offers the new day, calling it right shows "Streak: 2", a reload keeps it, and "Copy result" puts the
+  spoiler-free line on the clipboard. Finally `/daily/{yesterday}` shows its ending.
+- `npm run screenshots:daily` is the same run, saving the six README screenshots.
+- `npm test` passes in full (numbers below). `tsc --noEmit` is clean. The first full run caught one thing:
+  `tests/pages.test.ts` pins the sitemap's public pages exactly, and now lists `/daily` too.

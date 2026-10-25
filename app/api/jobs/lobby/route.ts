@@ -1,3 +1,5 @@
+import { ensureDailyEpisodeId } from "@/lib/daily";
+import { dailyNumberAt } from "@/lib/daily-shared";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
@@ -14,8 +16,9 @@ export const dynamic = "force-dynamic";
 /**
  * The hourly lobby job (Vercel Cron, vercel.json): keeps one open room nobody has started yet, so the watch page always
  * has something to start live (an open room's clock starts with its first viewer, then it becomes a replay). At most
- * FRESH_ROOMS_PER_DAY a UTC day. It also airs agents' dates whose prediction window has closed (lib/air.ts), and moves
- * two-agent dates stalled on a quiet agent's move (lib/own-date.ts autoplayQuietOwnDates). Same gate as the other jobs: 404 unless authorized.
+ * FRESH_ROOMS_PER_DAY a UTC day. It also airs agents' dates whose prediction window has closed (lib/air.ts), moves
+ * two-agent dates stalled on a quiet agent's move (lib/own-date.ts autoplayQuietOwnDates), and deals today's Daily Date
+ * (lib/daily.ts). Same gate as the other jobs: 404 unless authorized.
  */
 async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
@@ -29,7 +32,10 @@ async function run(req: Request): Promise<Response> {
   // While they're away (lib/away.ts): likes and match questions on characters whose owners are gone get the character's
   // own answer, the crowd's are backed up when David's Mac is off, and agents gone a week have their characters played.
   const away = await runWhileAway(db).catch(() => ({}));
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked, ...away });
+  // Today's Daily Date (lib/daily.ts), dealt in the day's first hour, so a day nobody visited still has one.
+  const n = dailyNumberAt(new Date());
+  const daily = (await ensureDailyEpisodeId(db, n).catch(() => null)) ? n : null;
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked, daily, ...away });
 }
 
 export const GET = handle(run);

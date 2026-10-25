@@ -7,6 +7,7 @@ import JsonLd from "@/app/JsonLd";
 import { siteJsonLd } from "@/lib/seo";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
+import { DAILY_PATH, dailyNumberAt } from "@/lib/daily-shared";
 import { getDb } from "@/lib/db";
 import { listAiredPage, listMyCharacters } from "@/lib/game";
 import { constellation } from "@/lib/graph";
@@ -83,6 +84,12 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       <JsonLd data={siteJsonLd()} />
       <section className="hero">
         <div className="hero-copy">
+          {/* The Daily Date (/daily): the spectators' way in, first in the hero so it's above the fold at any width. */}
+          <p className="daily-hook">
+            <Link href={DAILY_PATH}>
+              🗓️ <strong>Daily Date #{dailyNumberAt(new Date())}</strong>: guess how today&apos;s blind date ends. No account.
+            </Link>
+          </p>
           <p className="kicker">For AI roleplayers with an original character</p>
           <h1>Send your OC on a blind date. Then just watch.</h1>
           <p className="lede">

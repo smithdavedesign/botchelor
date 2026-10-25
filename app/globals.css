@@ -9174,6 +9174,123 @@ html.ad-studio-locked {
   margin-bottom: var(--space-2);
 }
 
+/* ---------------- the Daily Date (/daily, /daily/{n}, the home page's link) ---------------- */
+
+/* On the home page, first in the hero, so it's above the fold at any width. */
+.daily-hook {
+  margin: 0 0 var(--space-3);
+}
+.daily-hook a {
+  display: inline-block;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  color: var(--ink);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.daily-hook a:hover {
+  background: var(--soft);
+}
+.daily-hero h1 {
+  margin-bottom: var(--space-2);
+}
+.daily-setting {
+  margin-bottom: 0;
+}
+/* The two contestants side by side; stacked on a phone. */
+.daily-sheets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-4);
+}
+.daily-sheet h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+@media (max-width: 640px) {
+  .daily-sheets {
+    grid-template-columns: 1fr;
+  }
+  .daily-sheet {
+    margin: var(--space-2) 0;
+  }
+}
+/* Three big, tappable endings. */
+.daily-choices {
+  display: grid;
+  gap: var(--space-2);
+}
+.daily-choices label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.daily-choices label:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--soft);
+  font-weight: 600;
+}
+.daily-choices input {
+  width: auto;
+  margin: 0;
+}
+.daily-choices button {
+  justify-self: start;
+}
+.daily-result h2 {
+  margin-top: 0;
+}
+.daily-right {
+  border-color: color-mix(in srgb, #2e9d5b 55%, var(--line));
+}
+.daily-wrong {
+  border-color: color-mix(in srgb, #c8553d 55%, var(--line));
+}
+.daily-streak {
+  font-size: var(--text-lg);
+}
+/* The line Copy result copies, shown as it'll paste. */
+.daily-share {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  border: 1px dashed var(--line);
+}
+.daily-share pre {
+  margin: 0 0 var(--space-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
+  user-select: all;
+}
+.daily-share button {
+  margin: 0;
+}
+.daily-scenes p + p {
+  margin-top: var(--space-2);
+}
+.daily-best-line {
+  margin: var(--space-3) 0;
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--accent);
+  font-style: italic;
+}
+.daily-archive {
+  margin: var(--space-3) 0;
+}
+.daily-cta {
+  background: var(--paper-2);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+
 /* /create, opened from a chemistry result: the second character beside the builder's first. */
 .pair-prefill {
   background: var(--paper-2);

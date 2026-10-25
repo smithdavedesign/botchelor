@@ -2277,6 +2277,15 @@ create table if not exists adult_prefs (
   writer_model text,
   updated_at timestamptz not null default now()
 );
+-- The Daily Date (lib/daily.ts): the house-vs-house date each UTC day serves, dealt on the day's first read and kept, so
+-- a day always serves the same one. The day number is the key, so two first reads can't deal two dates. A date taken
+-- off the air later is dealt again on its own day only (dealt_at says when).
+create table if not exists daily_dates (
+  day_number integer primary key check (day_number >= 1),
+  episode_id text not null references episodes (id) on delete cascade,
+  dealt_at timestamptz not null default now()
+);
+create index if not exists daily_dates_episode_idx on daily_dates (episode_id);
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
