@@ -144,6 +144,7 @@ export async function startTestDb() {
         "ml_consents",
         "matchmaker_picks",
         "scheduled_dates",
+        "group_nights",
         "relationship_events",
         "swipe_impressions",
         "choice_history",

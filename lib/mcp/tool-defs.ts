@@ -376,6 +376,27 @@ export const TOOL_DEFS = [
     annotations: SET,
   },
   {
+    name: "double_date",
+    title: "Propose a double date",
+    description:
+      "Two couples, one table: each couple's date is its own episode (its own ending, predictions and memory), at the same place, each knowing who shares the table — and the episodes link each other. Your couple is character_id + partner_id (the partner may be the house cast); the other couple is with_character + with_partner, and with_character's owner is its booker: your own → both tables book now (you spend two dates); another creator's → they get an invite and accepting books both (each booker spends one date, under the usual booking rules — a non-house partner still takes your match). accept/decline answer an invite by its id; list: true shows yours. Invites lapse after 7 days.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: str(64, "Your couple's first character: one of yours."),
+        partner_id: str(64, "Your couple's other character."),
+        with_character: str(64, "The other couple's first character; its owner books that table."),
+        with_partner: str(64, "The other couple's other character."),
+        visibility: VISIBILITY,
+        accept: str(64, "An invite's id: books both tables (yours spends one of your dates)."),
+        decline: str(64, "An invite's id: not this time."),
+        list: { type: "boolean", description: "true: your open invites and recent nights." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
     name: "go_on_date",
     title: "Go on a date",
     description:

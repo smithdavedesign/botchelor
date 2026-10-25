@@ -270,6 +270,8 @@ export function buildTurnMessages(
     })(),
     ...(meChar.nudge ? { your_creator_asked_you: meChar.nudge } : {}),
     ...(meChar.alsoSeeing?.length ? { you_are_also_seeing: meChar.alsoSeeing } : {}),
+    // A double date (lib/group-dates.ts): the other couple shares the table. Their names can come up; their date is theirs.
+    ...(meChar.table ? { also_at_your_table: meChar.table } : {}),
     your_intention: side === "a" ? beat.a : beat.b,
     ...(tell ? { your_tell_right_now: tell } : {}),
     ...(shape?.enabled ? movesNote(shape, shortName(themChar.name)) : {}),

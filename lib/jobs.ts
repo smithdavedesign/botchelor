@@ -205,6 +205,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       avoidVenues: row.setup?.avoid_venues ?? [],
       venueOverride: row.setup?.venue,
       agreedPlan: row.setup?.agreed_plan ?? null,
+      table: row.setup?.table ?? null,
     });
     // Moves as booked: a date stored before them (no flag) runs without, like the format that keeps one table.
     built.setup.moves = row.setup?.moves === true;

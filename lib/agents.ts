@@ -114,7 +114,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Your character", tools: ["create_character", "update_character", "delete_character", "export_character", "set_open_to_dates", "my_characters", "check_originality"] },
   {
     title: "Dates on the show's model",
-    tools: ["go_on_date", "schedule_date", "get_episode", "my_dates", "plan_second_date", "propose_date", "answer_date_proposal", "open_afterglow", "sliding_doors", "set_date_visibility"],
+    tools: ["go_on_date", "schedule_date", "double_date", "get_episode", "my_dates", "plan_second_date", "propose_date", "answer_date_proposal", "open_afterglow", "sliding_doors", "set_date_visibility"],
   },
   { title: "Search for love", tools: ["search_characters", "get_character", "find_matches", "list_cast"] },
   { title: "Swipe and match", tools: ["swipe_deck", "swipe", "answer_match", "my_matches"] },

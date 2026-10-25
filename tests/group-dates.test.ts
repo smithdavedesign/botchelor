@@ -1,0 +1,179 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { handleMcpMessage, type McpContext } from "@/lib/mcp";
+import { siblingEpisode, DOUBLE_VENUE } from "@/lib/group-dates";
+import { api, episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter, newUserCookie } from "./helpers";
+import { seasonCastIds } from "@/lib/season-cast";
+
+let t: Awaited<ReturnType<typeof startTestDb>>;
+beforeAll(async () => {
+  t = await startTestDb();
+});
+afterAll(async () => {
+  await t.close();
+});
+beforeEach(async () => {
+  await t.reset();
+  vi.spyOn(console, "log").mockImplementation(() => {});
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Any = any;
+const send = async (method: string, params: Record<string, unknown> = {}, ctx: McpContext = {}): Promise<Any> =>
+  handleMcpMessage({ jsonrpc: "2.0", id: 1, method, params }, ctx);
+const call = async (name: string, args: Record<string, unknown> = {}, ctx: McpContext = {}): Promise<Any> =>
+  (await send("tools/call", { name, arguments: args }, ctx)).result;
+async function connect(): Promise<McpContext> {
+  const ctx: McpContext = { userAgent: "test-agent/1.0" };
+  await send("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: "double-test", version: "1" } }, ctx);
+  return { sessionId: ctx.issuedSessionId, userAgent: ctx.userAgent };
+}
+const PROFILE = {
+  prompts: [
+    { id: "simple_pleasures", answer: "A window seat and nowhere to be." },
+    { id: "geek_out", answer: "Old maps, and the places on them that don't exist any more." },
+  ],
+  hobbies: ["Hiking", "Old maps"],
+};
+/** An agent and one character of its own. */
+async function agent(name: string, extra: Record<string, unknown> = {}) {
+  const ctx = await connect();
+  const made = (await call("create_character", { ...validCharacter({ name }), extras: PROFILE, ...extra }, ctx)).structuredContent;
+  return { ctx, id: made.character.id as string, agentId: made.agent_id as string };
+}
+const house2 = () => seasonCastIds().find((id) => id !== HOUSE_PARTNER_ID)!;
+const house3 = () => seasonCastIds().filter((id) => id !== HOUSE_PARTNER_ID)[1]!;
+
+describe("double dates (lib/group-dates)", () => {
+  it("a self-double books both tables at once, at the booth for four, each knowing the other couple", async () => {
+    const a = await agent("Juni Marsh");
+    const second = (await call("create_character", { ...validCharacter({ name: "Lotte Hale" }), extras: PROFILE, agent_id: a.agentId }, a.ctx)).structuredContent
+      .character.id as string;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson()]);
+    const r = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: second, with_partner: house2(), agent_id: a.agentId },
+      a.ctx,
+    );
+    expect(r.isError).toBeUndefined();
+    const { episode_a, episode_b } = r.structuredContent.booked;
+    const rows = (await t.db.query<Any>(`select id, group_id, setup->>'venue' as venue, setup->>'table' as table from episodes order by created_at`)).rows;
+    expect(rows).toHaveLength(2);
+    expect(rows.map((x: Any) => x.id).sort()).toEqual([episode_a, episode_b].sort());
+    expect(rows[0].group_id).toBe(rows[1].group_id);
+    expect(rows[0].group_id).not.toBeNull();
+    for (const row of rows) {
+      expect(row.venue).toBe(DOUBLE_VENUE);
+      expect(row.table).toMatch(/double date/);
+      expect(row.table).toMatch(/share your table/);
+    }
+    // Each table's line names the OTHER couple, not itself.
+    expect(rows.find((x: Any) => x.id === episode_a)!.table).toMatch(/Lotte/);
+    expect(rows.find((x: Any) => x.id === episode_b)!.table).toMatch(/Juni/);
+    // One booker, one notice.
+    const notes = (await t.db.query<Any>(`select title from notifications where user_id = $1 and kind = 'double_date'`, [a.agentId])).rows;
+    expect(notes).toHaveLength(1);
+    expect(notes[0].title).toMatch(/booked/);
+    // Each episode's page can point at the other table.
+    expect((await siblingEpisode(t.db, episode_a))?.episode_id).toBe(episode_b);
+  });
+
+  it("an invite books both tables when the other booker accepts, and a decline says not this time", async () => {
+    const a = await agent("Juni Marsh");
+    const b = await agent("Pia Voss");
+    const invite = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: b.id, with_partner: house2(), agent_id: a.agentId },
+      a.ctx,
+    );
+    expect(invite.isError).toBeUndefined();
+    const nightId = invite.structuredContent.invited;
+    expect(nightId).toBeTruthy();
+    expect((await t.db.query<Any>(`select status from group_nights where id = $1`, [nightId])).rows[0].status).toBe("invited");
+    const asked = (await t.db.query<Any>(`select body from notifications where user_id = $1 and kind = 'double_invite'`, [b.agentId])).rows;
+    expect(asked).toHaveLength(1);
+    expect(asked[0].body).toContain(nightId);
+
+    // The wrong agent can't answer it.
+    expect((await call("double_date", { accept: nightId, agent_id: a.agentId }, a.ctx)).isError).toBe(true);
+
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson()]);
+    const accepted = await call("double_date", { accept: nightId, agent_id: b.agentId }, b.ctx);
+    expect(accepted.isError).toBeUndefined();
+    const { your_table, their_table } = accepted.structuredContent.booked;
+    const night = (await t.db.query<Any>(`select * from group_nights where id = $1`, [nightId])).rows[0];
+    expect(night.status).toBe("booked");
+    expect([night.episode_a, night.episode_b].sort()).toEqual([their_table, your_table].sort());
+    // Each booker paid for and owns its own table.
+    const creators = (await t.db.query<Any>(`select id, creator_id from episodes`)).rows;
+    expect(creators.find((x: Any) => x.id === their_table)!.creator_id).toBe(a.agentId);
+    expect(creators.find((x: Any) => x.id === your_table)!.creator_id).toBe(b.agentId);
+
+    // A fresh invite, declined: the proposer hears, nothing books.
+    const again = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: b.id, with_partner: house2(), agent_id: a.agentId },
+      a.ctx,
+    );
+    const declined = await call("double_date", { decline: again.structuredContent.invited, agent_id: b.agentId }, b.ctx);
+    expect(declined.isError).toBeUndefined();
+    const no = (await t.db.query<Any>(`select title from notifications where user_id = $1 and kind = 'double_date' and title like '%Not this time%'`, [a.agentId])).rows;
+    expect(no).toHaveLength(1);
+  });
+
+  it("refuses a house booker, a repeated character, and a table that isn't the night's", async () => {
+    const a = await agent("Juni Marsh");
+    const housed = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: house2(), with_partner: house3(), agent_id: a.agentId },
+      a.ctx,
+    );
+    expect(housed.isError).toBe(true);
+    expect(housed.content[0].text).toMatch(/house cast/);
+    const doubled = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: a.id, with_partner: house2(), agent_id: a.agentId },
+      a.ctx,
+    );
+    expect(doubled.isError).toBe(true);
+    expect(doubled.content[0].text).toMatch(/four different characters/);
+    // The booking route refuses a group_night that doesn't exist or isn't this couple's.
+    const cookie = newUserCookie();
+    const mine = await (await api.createCharacter(validCharacter({ name: "Wren Kestrel" }), cookie)).json();
+    const res = await api.createEpisode({ character_id: mine.id, partner_id: HOUSE_PARTNER_ID, group_night: crypto.randomUUID() }, cookie);
+    expect(res.status).toBe(404);
+    expect(userIdOf(cookie)).toBeTruthy();
+  });
+
+  it("when the other table can't book, the booked date goes ahead solo and both hear why", async () => {
+    const a = await agent("Juni Marsh");
+    const b = await agent("Pia Voss");
+    const x = await agent("Sol Vega", { open_to_dates: true });
+    const invite = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: b.id, with_partner: x.id, agent_id: a.agentId },
+      a.ctx,
+    );
+    const nightId = invite.structuredContent.invited;
+    // Sol closes to dates before the invite is answered: B's table can no longer book.
+    await t.db.query(`update characters set open_to_dates = false where id = $1`, [x.id]);
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson()]);
+    const accepted = await call("double_date", { accept: nightId, agent_id: b.agentId }, b.ctx);
+    expect(accepted.isError).toBe(true);
+    expect(accepted.content[0].text).toMatch(/other couple's table|couldn't be booked/);
+    const night = (await t.db.query<Any>(`select * from group_nights where id = $1`, [nightId])).rows[0];
+    expect(night.status).toBe("half_booked");
+    expect(night.episode_a).not.toBeNull();
+    // The solo date stands, untied from the night.
+    const episode = (await t.db.query<Any>(`select group_id from episodes where id = $1`, [night.episode_a])).rows[0];
+    expect(episode.group_id).toBeNull();
+    const told = (await t.db.query<Any>(`select title from notifications where user_id = $1 and kind = 'double_date'`, [a.agentId])).rows;
+    expect(told.some((n: Any) => /fell through/.test(n.title))).toBe(true);
+  });
+});
