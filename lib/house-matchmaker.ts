@@ -21,6 +21,22 @@ const SEEDS = 40;
 const TOP = 5;
 /** What the two directions' scores must add up to (one shared trait scores 3 a side). */
 const MUTUAL_MIN = 4;
+/** What meeting across a double date's table is worth (one shared trait is 3): seen beats inferred, but not by much. */
+const TABLE_BOOST = 3;
+
+/** Whether two characters sat at the same double date's table (on opposite tables), both tables aired publicly. */
+export async function sharedTable(db: Db, aId: string, bId: string): Promise<boolean> {
+  const { rows } = await db.query(
+    `select 1 from group_nights gn
+       join episodes ea on ea.id = gn.episode_a and ea.revealed_at is not null and ea.visibility = 'public'
+       join episodes eb on eb.id = gn.episode_b and eb.revealed_at is not null and eb.visibility = 'public'
+      where ($1 in (ea.character_a, ea.character_b) and $2 in (eb.character_a, eb.character_b))
+         or ($2 in (ea.character_a, ea.character_b) and $1 in (eb.character_a, eb.character_b))
+      limit 1`,
+    [aId, bId],
+  );
+  return rows.length > 0;
+}
 
 type Seed = { id: string; name: string; owner_id: string };
 
@@ -65,6 +81,14 @@ export async function dailyMatchmakerPicks(db: Db, now: Date = new Date(), limit
     const ba = liked.get(`${hi}>${lo}`);
     if (!ab || !ba || ab.score + ba.score < MUTUAL_MIN) continue;
     pairs.push({ lo: byId.get(lo)!, hi: byId.get(hi)!, mutual: ab.score + ba.score, why: ab.why.length >= ba.why.length ? ab.why : ba.why });
+  }
+  // Observed chemistry beats inferred (docs/PRDs/group-dates.md M3): a pair that shared a double date's table —
+  // publicly aired, and never a pair that has dated (those carry `relationship` and were skipped above) — ranks up.
+  for (const p of pairs) {
+    if (await sharedTable(db, p.lo.id, p.hi.id).catch(() => false)) {
+      p.mutual += TABLE_BOOST;
+      p.why.unshift("they've already shared a table on a double date");
+    }
   }
   pairs.sort((x, y) => y.mutual - x.mutual);
   if (!pairs.length) return 0;

@@ -718,6 +718,8 @@ create table if not exists character_memory (
   arc text,                                     -- one templated "who they've become" sentence (no model)
   updated_at timestamptz not null default now()
 );
+-- People a character met without dating them: the other couple at a double date's table (lib/memory.ts met).
+alter table character_memory add column if not exists met jsonb;
 -- Added 2026-10-15 for existing deployments: the recent post-date reflections fed into the self-view.
 alter table character_memory add column if not exists reflections jsonb not null default '[]';
 -- Added 2026-10-15 (lib/memory.ts): who a character has dated and how they stand (people; each entry's
