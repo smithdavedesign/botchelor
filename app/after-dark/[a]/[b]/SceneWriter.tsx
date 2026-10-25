@@ -721,6 +721,8 @@ function Gallery({
                 {m.nude ? `${m.kind} · undressed` : m.kind}
               </MediaRequest>
               <AiTag />
+              {/* What it shows, from its tags (lib/adult/tag-labels.ts): "Going down · Movie theater · POV". */}
+              {m.shows && <span className="small ad-picture-shows">{m.shows}</span>}
               {m.kind === "scene" && (m.chapter || m.place) && (
                 // Drawn for a chapter and a place (lib/adult/auto-pictures.ts).
                 <span className="muted small ad-picture-where">{[m.chapter ? `Chapter ${m.chapter}` : "", m.place ?? ""].filter(Boolean).join(" · ")}</span>

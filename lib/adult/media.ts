@@ -32,6 +32,7 @@ import { choosePreset, faceReferenceId, NO_STEERING, steeringFor, withSteering }
 import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
 import { cleanBody, currentRequests, logRequest, requestJson, withRequestLog } from "./request-log";
+import { showsLabel } from "./tag-labels";
 
 /** `clip`: the picture can be made to move (it's on fal; Venice's explicit pictures can't be). */
 export type Media = {
@@ -56,6 +57,14 @@ export type Media = {
   in_reel?: boolean;
   /** Pinned for their dates (the Studio's 📌, lib/adult/media-tags.ts): the theater ranks it first when it fits. */
   date_pin?: boolean;
+  /** Made in the Studio (a shoot), not on their dates. */
+  studio?: boolean;
+  /** Tagged as two of them together (lib/adult/media-tags.ts "who": "pair"). */
+  together?: boolean;
+  /** What it shows, from its tags ("Going down · Movie theater · POV"); null when it has no act, place or POV tag. */
+  shows?: string | null;
+  /** A picture of two (characterMedia): the other one, and their name. */
+  partner?: { id: string; name: string } | null;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -553,13 +562,21 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             (i.kind = 'video' and exists (select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
                                            where v.owner_id = i.owner_id and s->>'media_id' = i.id)) as in_reel,
             -- Pinned for their dates (lib/adult/media-tags.ts, the Studio's 📌).
-            exists (select 1 from adult_media_tags dt where dt.media_id = i.id and dt.kind = 'date' and not dt.removed) as date_pin
+            exists (select 1 from adult_media_tags dt where dt.media_id = i.id and dt.kind = 'date' and not dt.removed) as date_pin,
+            -- Made in the Studio (a shoot), or on their dates (the theater, a beat, a reel or clip).
+            (i.shoot_id is not null) as studio,
+            -- Tagged as the two of them together (lib/adult/media-tags.ts "who"), however it was made.
+            exists (select 1 from adult_media_tags wt where wt.media_id = i.id and wt.kind = 'who' and wt.value = 'pair' and not wt.removed) as together,
+            -- What it shows, for the tile's label (lib/adult/tag-labels.ts showsLabel).
+            (select json_agg(json_build_object('kind', st.kind, 'value', st.value) order by st.source = 'manual' desc, st.created_at)
+               from adult_media_tags st where st.media_id = i.id and not st.removed and st.kind in ('act', 'place', 'pov')) as show_tags
        from adult_images i
        left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $2
        left join adult_face_refs f on f.image_id = i.id and f.owner_id = $2
        left join adult_nude_refs n on n.image_id = i.id and n.owner_id = $2`;
-const mediaRow = ({ face_of, ...r }: Media & { face_of: string | null }): Media => ({
+const mediaRow = ({ face_of, show_tags, ...r }: Media & { face_of: string | null; show_tags?: { kind: string; value: string }[] | null }): Media => ({
   ...r,
+  shows: showsLabel(show_tags),
   rating: r.rating ?? null,
   created_at: new Date(r.created_at).toISOString(),
   note: fallbackNote(r.provider, r.fell_back),
@@ -579,6 +596,8 @@ export async function mediaByIds(db: Db, ids: string[], viewerId: string): Promi
 }
 
 export async function listMedia(db: Db, ids: string[], viewerId: string | null = null): Promise<Media[]> {
+  // Tagged first, for the tiles' labels (lib/adult/media-tags.ts): the back-fill of what's never been looked at.
+  if (viewerId) await (await import("./media-tags")).ensureTagged(db, viewerId, ids);
   // Theirs alone, or of these characters together: never a picture or video with someone else in it (a character's
   // night with another partner stays on that pair's page). A reel's keyframes and voices stay with its shots, and a shot
   // taken out of its video is in the Archive, not here (lib/adult/reels.ts archiveShot). With a viewer: only what they
@@ -597,6 +616,32 @@ export async function listMedia(db: Db, ids: string[], viewerId: string | null =
     [ids, viewerId],
   );
   return rows.map(mediaRow);
+}
+
+/**
+ * Everything of one character the viewer can open, with anyone (David, 2026-10-25: the Studio's Gallery has a Studio
+ * tab and an After Dark tab, and the Together tab shows their dates' media "to shoot with"): them alone and them with
+ * any partner, from the Studio and from their dates, newest first — tagged first (lib/adult/media-tags.ts), each with
+ * the partner it shows, if any. Like listMedia, no keyframes or voices, and a shot taken out of its video is in the Archive.
+ */
+export async function characterMedia(db: Db, characterId: string, viewerId: string, limit = 200): Promise<Media[]> {
+  const { ensureTagged } = await import("./media-tags");
+  await ensureTagged(db, viewerId, [characterId]);
+  const { rows } = await db.query<Media & { face_of: string | null; partner_id: string | null; partner_name: string | null }>(
+    `select m.*, p.id as partner_id, p.name as partner_name from (
+       ${MEDIA_SELECT}
+        where (i.character_id = $1 or i.character_b = $1) and i.kind not in ('frame', 'audio')
+          and (i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
+          and (i.kind <> 'video' or not exists (
+            select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
+             where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at'
+               and coalesce(s->>'archived_by', '') <> 'rating'))
+        order by i.created_at desc limit $3
+     ) m left join characters p on p.id = (case when m.character_id = $1 then m.character_b else m.character_id end)
+     order by m.created_at desc`,
+    [characterId, viewerId, limit],
+  );
+  return rows.map(({ partner_id, partner_name, ...r }) => ({ ...mediaRow(r), partner: partner_id ? { id: partner_id, name: partner_name ?? "" } : null }));
 }
 
 /**

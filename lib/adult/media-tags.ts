@@ -19,6 +19,7 @@
  */
 import type { Db } from "../db";
 import { ACTS } from "./acts";
+import { PLACES } from "./tag-labels";
 import { positionIn } from "./beats";
 import { adultModel } from "./mode";
 import { STUDIO_GROUPS, type Level } from "./studio-catalog";
@@ -29,33 +30,7 @@ export const TAG_SOURCES = ["choice", "derived", "model", "manual"] as const;
 export type TagSource = (typeof TAG_SOURCES)[number];
 export type MediaTag = { kind: TagKind; value: string; source: TagSource };
 
-/** The places a tag can name, and the words that mean each. The first match in a text wins per key; several can match. */
-export const PLACES: readonly { key: string; label: string; re: RegExp }[] = [
-  { key: "movie_theater", label: "Movie theater", re: /\b(movie ?theat(?:er|re)s?|cinemas?|movie ?house|picture ?house|the movies|theat(?:er|re) seats?)\b/ },
-  { key: "bedroom", label: "Bedroom", re: /\b(bed ?rooms?|in bed|on the bed|white sheets)\b/ },
-  { key: "hotel", label: "Hotel", re: /\b(hotel|suite)\b/ },
-  { key: "motel", label: "Motel", re: /\bmotel\b/ },
-  { key: "shower", label: "Shower", re: /\bshowers?\b/ },
-  { key: "bath", label: "Bath", re: /\b(bath ?tubs?|bath\b|bathroom|jacuzzi|hot ?tub)\b/ },
-  { key: "sofa", label: "Sofa", re: /\b(sofa|couch|living ?room)\b/ },
-  { key: "kitchen", label: "Kitchen", re: /\bkitchen\b/ },
-  { key: "candlelit", label: "Candlelit room", re: /\bcandle/ },
-  { key: "cabin", label: "Cabin", re: /\b(cabin|fireplace|lodge)\b/ },
-  { key: "sauna", label: "Sauna", re: /\bsauna\b/ },
-  { key: "studio", label: "Photo studio", re: /\b(studio backdrop|photo studio|grey backdrop)\b/ },
-  { key: "beach", label: "Beach", re: /\b(beach|shore|sand dunes?)\b/ },
-  { key: "pool", label: "Pool", re: /\b(swimming )?pool\b/ },
-  { key: "rooftop", label: "Rooftop", re: /\broof ?tops?\b/ },
-  { key: "bar", label: "Bar", re: /\b(bar|pub|cocktail lounge|nightclub|club)\b/ },
-  { key: "restaurant", label: "Restaurant", re: /\b(restaurant|diner|caf[eé]|bistro)\b/ },
-  { key: "car", label: "Car", re: /\b(car|back ?seat|front ?seat)\b/ },
-  { key: "office", label: "Office", re: /\b(office|desk)\b/ },
-  { key: "garden", label: "Garden or park", re: /\b(garden|park|forest|woods|meadow)\b/ },
-  { key: "gym", label: "Gym", re: /\b(gym|locker ?room)\b/ },
-  { key: "boat", label: "Boat", re: /\b(boat|yacht|ferry)\b/ },
-  { key: "balcony", label: "Balcony", re: /\b(balcony|terrace)\b/ },
-  { key: "elevator", label: "Elevator", re: /\b(elevator|lift)\b/ },
-];
+export { PLACES };
 const placeKeySet = new Set(PLACES.map((p) => p.key));
 
 /** The place keys a text names (a scene's place, a picture's, the owner's words). */

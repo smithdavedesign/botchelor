@@ -10751,8 +10751,10 @@ details > summary.small {
   gap: var(--space-1);
   align-items: center;
 }
+/* Each picker on its own line in a narrow tile: never wider than the tile. */
 .ad-media-tag-add select {
-  width: auto;
+  flex: 1 1 100%;
+  width: 100%;
   min-width: 0;
   max-width: 100%;
 }
@@ -10806,4 +10808,35 @@ details > summary.small {
 }
 .ad-shot-pick-tags:empty {
   display: none;
+}
+
+/* The Studio's Gallery: made here, or from their dates (Studio.tsx), and the Together tab's picture to shoot like. */
+.ad-studio-subtabs {
+  margin-bottom: var(--space-2);
+}
+.ad-studio-item-from {
+  margin: 0;
+}
+.ad-studio-reference {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin: var(--space-2) 0;
+}
+.ad-studio-reference img {
+  width: 3rem;
+  height: 4rem;
+  object-fit: cover;
+  border-radius: 0.4rem;
+  flex: none;
+}
+/* What a tile shows, from its tags (lib/adult/tag-labels.ts): "Going down · Movie theater · POV". */
+.ad-studio-item-shows,
+.ad-picture-shows {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ad-ink, #f1e9ff);
+}
+.ad-picture-shows {
+  display: block;
 }

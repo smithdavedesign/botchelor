@@ -104,6 +104,8 @@ async function seed(owner, recipient) {
     await shoot("shoot-pair", "pair", { partner: HIM, act: "dance", outfit: "dressed_up", framing: "wide", place: "rooftop", light: "golden", stage: 0 }, ["studio-pair-1", "studio-pair-2"], 40, { partner: HIM });
     await put("studio-pair-1", HIM, HER, "scene", "image/png", media.both, 40, { shoot: "shoot-pair", model: "qwen-edit-uncensored" });
     await put("studio-pair-2", HIM, HER, "scene", "image/png", media.bothGolden, 39, { shoot: "shoot-pair", model: "qwen-edit-uncensored" });
+    // A picture of the two of them from one of their dates (the theater): no Studio shoot.
+    await put("date-pair-1", HIM, HER, "scene", "image/png", media.both, 30, { model: "qwen-edit-uncensored" });
     // Saved setups.
     await db.query(
       `insert into adult_studio_setups (id, owner_id, name, kind, choices, model) values
@@ -293,6 +295,13 @@ async function main() {
       await under(page, ".ad-studio-panel");
       if (size === "phone") await noSideways(page, "a shoot together");
       await shot(page, `studio-together-${size}`);
+      // Their dates' media of the two of them, and the next shoot like one of those pictures.
+      const fromDate = page.locator(".ad-studio-item").filter({ has: page.locator('img[src*="date-pair-1"]') });
+      await fromDate.getByRole("button", { name: "Shoot like this" }).click();
+      await page.locator(".ad-studio-reference").waitFor({ timeout: 10_000 });
+      await page.evaluate(() => document.querySelector(".ad-studio-reference")?.scrollIntoView({ block: "center" }));
+      if (size === "phone") await noSideways(page, "shooting like a date's picture");
+      await shot(page, `studio-together-dates-${size}`);
       // The gallery: a picture's share panel open, where the others went, and the clip.
       await tab("Gallery");
       const first = page.locator(".ad-studio-item").filter({ has: page.locator('img[src*="studio-shot-2"]') });
@@ -303,6 +312,13 @@ async function main() {
       if (size === "phone") await noSideways(page, "the gallery's share panel");
       await shot(page, `studio-gallery-share-${size}`);
       await first.getByRole("button", { name: "Share…" }).click();
+      // The Gallery's After Dark tab: what came from their dates, alone and with whoever they were with; then back.
+      await page.getByRole("tab", { name: /^After Dark/ }).click();
+      await page.locator(".ad-studio-item-from").first().waitFor({ timeout: 10_000 });
+      await under(page, ".ad-studio-panel");
+      if (size === "phone") await noSideways(page, "the gallery's After Dark tab");
+      await shot(page, `studio-gallery-dates-${size}`);
+      await page.getByRole("tab", { name: /^Studio \(/ }).click();
       // What a picture shows (lib/adult/media-tags.ts): 📌 Use on dates, and its tags read from the shoot.
       await first.getByRole("button", { name: "🏷 Tags" }).click();
       await first.locator(".ad-media-tag").first().waitFor({ timeout: 15_000 });

@@ -29,7 +29,7 @@ const SHARE_STATUS: Record<string, string> = { pending: "asked", accepted: "acce
 /** How often the page asks after an animation still being made. */
 const POLL_MS = 20_000;
 
-type PairPick = { act: string; swap: boolean; outfit: string; framing: string; place: string; light: string; custom?: string; dialog?: string };
+type PairPick = { act: string; swap: boolean; outfit: string; framing: string; place: string; light: string; custom?: string; dialog?: string; reference?: string };
 const NO_PAIR_PICK: PairPick = { act: "", swap: false, outfit: "", framing: "medium", place: "", light: "" };
 
 /**
@@ -107,6 +107,12 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const [partner, setPartner] = useState("");
   const [pairMenu, setPairMenu] = useState<PairMenu | null>(null);
   const [pairPick, setPairPick] = useState<PairPick>(NO_PAIR_PICK);
+  // The Gallery's two tabs (David, 2026-10-25): what was made here, and what came from their dates.
+  const [galleryTab, setGalleryTab] = useState<"studio" | "dates">("studio");
+  // Their dates' media tagged as two of them, with whoever's picked on the Together tab (everyone, before anyone is).
+  /** After Shoot like this (far down the page): the picture it'll shoot like, next to the Shoot button, in view. */
+  const showReference = () => setTimeout(() => document.querySelector(".ad-studio-reference")?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+  const datesTogether = s.dates_gallery.filter((m) => m.together && m.partner && (!partner || m.partner.id === partner));
   // A gallery asset opened full screen (whole, never cropped — Lightbox.tsx; David, 2026-10-25).
   const [zoom, setZoom] = useState<{ id: string; video: boolean } | null>(null);
   const [sharing, setSharing] = useState<{ image: string; to: string; kind: "after_dark" | "photo" } | null>(null);
@@ -304,9 +310,11 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   );
 
   /** The pictures of them alone: rate, face, body, more like this, upscale, share (and where each went). */
-  const gallery = (pics: Media[], opts: { rivals?: string[]; pair?: boolean } = {}) => (
+  const gallery = (pics: Media[], opts: { rivals?: string[]; pair?: boolean; shootLike?: (p: Media) => void } = {}) => (
     <ul className="ad-studio-grid">
       {pics.map((p) => {
+        // Two of them (a Together shoot, or one from their dates): the pair's tools, not the solo ones.
+        const two = opts.pair || Boolean(p.character_b);
         const went = s.shares[p.id] ?? [];
         const open = sharing?.image === p.id ? sharing : null;
         const to = s.share_to.find((x) => x.character_id === open?.to);
@@ -332,11 +340,23 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 ⛶
               </button>
             </div>
+            {/* What it shows, from its tags (lib/adult/tag-labels.ts): "Going down · Movie theater · POV". */}
+            {p.shows && <p className="small ad-studio-item-shows">{p.shows}</p>}
+            {(p.partner || !p.studio) && (
+              <p className="small muted ad-studio-item-from">{[p.partner ? `With ${p.partner.name.split(/\s+/)[0]}` : "", p.studio ? "" : "from a date"].filter(Boolean).join(" · ")}</p>
+            )}
             {/* What it shows, for their dates and the storyboard (lib/adult/media-tags.ts): 📌 and the tags. */}
             <MediaTags id={p.id} pinned={p.date_pin} />
+            {opts.shootLike && two && !video && (
+              <div className="ad-studio-item-tools">
+                <button type="button" className={`small ${pairPick.reference === p.id ? "secondary" : "button-ghost"}`} disabled={Boolean(busy)} onClick={() => opts.shootLike!(p)} title="The next shoot together is posed, framed and placed like this picture">
+                  {pairPick.reference === p.id ? "✓ Shooting like this" : "Shoot like this"}
+                </button>
+              </div>
+            )}
             <div className="ad-studio-item-tools">
               <RateMedia id={p.id} kind={p.kind} rating={p.rating ?? null} tags={p.tags ?? []} />
-              {!opts.pair && !video &&
+              {!two && !video &&
                 (s.identity.face === p.id ? (
                   <span className="badge">The face</span>
                 ) : (
@@ -344,7 +364,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                     Use this face
                   </button>
                 ))}
-              {!opts.pair &&
+              {!two &&
                 !video &&
                 (s.identity.body === p.id ? (
                   <span className="badge">The body</span>
@@ -356,7 +376,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   )
                 ))}
             </div>
-            {!opts.pair && !video && (
+            {!two && !video && (
               <div className="ad-studio-item-tools">
                 <button
                   type="button"
@@ -404,7 +424,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               </div>
             )}
             {/* A pair picture can be animated too (keeps both of them); More-like-this and Upscale stay solo-only. */}
-            {opts.pair && !video && s.motions.length > 0 && !onOwn && (
+            {two && !video && s.motions.length > 0 && !onOwn && (
               <div className="ad-studio-item-tools">
                 <button
                   type="button"
@@ -793,6 +813,17 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 <textarea className="ad-studio-custom" rows={2} maxLength={CUSTOM_MAX} value={pairPick.custom ?? ""} placeholder="Describe exactly what the two of them are doing, in your words. It comes first in the prompt." disabled={Boolean(busy)} onChange={(e) => setPairPick((x) => ({ ...x, custom: e.target.value || undefined }))} />
                 <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={pairPick.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setPairPick((x) => ({ ...x, dialog: e.target.value || undefined }))} />
               </fieldset>
+              {pairPick.reference && (
+                // Shot like one of their pictures (From their dates, or a shoot together below): its pose, framing and place.
+                <p className="ad-studio-reference small">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- private media */}
+                  <img src={media(pairPick.reference)} alt="" />
+                  <span>Shooting like this picture: its pose, framing and place.</span>
+                  <button type="button" className="linklike" onClick={() => setPairPick((x) => ({ ...x, reference: undefined }))}>
+                    Don&apos;t
+                  </button>
+                </p>
+              )}
               <div className="ad-studio-go">
                 <label>
                   Model{" "}
@@ -817,6 +848,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                         light: pairPick.light || null,
                         ...(pairPick.custom?.trim() ? { custom: pairPick.custom.trim() } : {}),
                         ...(pairPick.dialog?.trim() ? { dialog: pairPick.dialog.trim() } : {}),
+                        ...(pairPick.reference ? { reference: pairPick.reference } : {}),
                         model: pairModel?.id,
                         ...own,
                       },
@@ -834,7 +866,30 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
           {s.pair_gallery.length > 0 && (
             <>
               <h2>Shoots together</h2>
-              {gallery(s.pair_gallery, { pair: true })}
+              {gallery(s.pair_gallery, {
+                pair: true,
+                shootLike: partner
+                  ? (p) => {
+                      setPairPick((x) => ({ ...x, reference: x.reference === p.id ? undefined : p.id }));
+                      showReference();
+                    }
+                  : undefined,
+              })}
+            </>
+          )}
+          {datesTogether.length > 0 && (
+            <>
+              {/* Their dates' media of the two of them (tagged together, lib/adult/media-tags.ts), to shoot with (David, 2026-10-25). */}
+              <h2>From their dates{pairMenu ? ` with ${pairMenu.partner.name.split(/\s+/)[0]}` : ""}</h2>
+              {gallery(datesTogether, {
+                pair: true,
+                shootLike: (p) => {
+                  const other = p.partner?.id;
+                  if (other && other !== partner) void choosePartner(other);
+                  setPairPick((x) => ({ ...x, reference: x.reference === p.id ? undefined : p.id }));
+                  showReference();
+                },
+              })}
             </>
           )}
         </div>
@@ -1038,7 +1093,25 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 ))}
             </div>
           )}
-          {s.gallery.length ? gallery(s.gallery) : <p className="muted">Nothing yet: their pictures land here.</p>}
+          <div className="ad-studio-tabs ad-studio-subtabs" role="tablist" aria-label="Where it was made">
+            {(
+              [
+                ["studio", `Studio (${s.studio_gallery.length})`],
+                ["dates", `After Dark (${s.dates_gallery.length})`],
+              ] as const
+            ).map(([id, label]) => (
+              <button key={id} type="button" role="tab" aria-selected={galleryTab === id} className={galleryTab === id ? "on" : ""} onClick={() => setGalleryTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {galleryTab === "studio" ? (
+            s.studio_gallery.length ? gallery(s.studio_gallery) : <p className="muted">Nothing yet: what you shoot here lands here.</p>
+          ) : s.dates_gallery.length ? (
+            gallery(s.dates_gallery)
+          ) : (
+            <p className="muted">Nothing from their dates yet: pictures and clips from the theater land here, alone and with whoever they were with.</p>
+          )}
         </div>
       )}
 

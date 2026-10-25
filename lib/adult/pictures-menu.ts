@@ -131,7 +131,17 @@ type PicturePlan = { promptFor: (withSet: boolean) => string; place: string; sta
  */
 export function planPicture(
   choice: PictureChoice,
-  ctx: { cast: readonly [ReelPerson, ReelPerson]; stage: number; places: readonly PicturePlace[]; limits: MediaLimits; light?: string; custom?: string; dialog?: string },
+  ctx: {
+    cast: readonly [ReelPerson, ReelPerson];
+    stage: number;
+    places: readonly PicturePlace[];
+    limits: MediaLimits;
+    light?: string;
+    custom?: string;
+    dialog?: string;
+    /** Drawn like a picture they already have (Picture 3: its pose, framing and place). */
+    reference?: boolean;
+  },
 ): { ok: true; plan: PicturePlan } | { ok: false; status: number; error: string; message: string } {
   const no = (error: string, message: string, status = 422) => ({ ok: false as const, status, error, message });
   const act = actById(choice.act);
@@ -151,7 +161,7 @@ export function planPicture(
   const stage = Math.max(act.dress, outfit.dress);
   const frame = `${filled.pose} ${FRAMING_WORDS[choice.framing]}`;
   const prompt = (withSet: boolean) =>
-    keyframePrompt(ctx.cast as [ReelPerson, ReelPerson], frame, placeWords(where.place, ctx.cast), stage, withSet, { explicit: ctx.limits.explicit, clothes: outfit.words, light: ctx.light, custom: ctx.custom, dialog: ctx.dialog });
+    keyframePrompt(ctx.cast as [ReelPerson, ReelPerson], frame, placeWords(where.place, ctx.cast), stage, withSet, { explicit: ctx.limits.explicit, clothes: outfit.words, light: ctx.light, custom: ctx.custom, dialog: ctx.dialog, reference: ctx.reference });
   // Every word the choices put in front of a picture model, the owner's own (custom, dialog) included, held to David's
   // lines (the menu's words were written to them; this is the backstop). Not the prompt's own fixed words: "Make one
   // photograph" reads to the age check as "make [her] one", and it's right to be that strict.

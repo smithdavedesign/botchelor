@@ -5,6 +5,7 @@ import { deriveTags, ensureTagged, modelTagPending, placeKeys, scoreMedia, setTa
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { sceneBackdrop, sceneClip, sceneMatch } from "@/lib/adult/scene-match";
+import { showsLabel } from "@/lib/adult/tag-labels";
 import { sessionCookies } from "@/lib/http";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, BASE_URL, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -89,6 +90,13 @@ describe("tags from what it was made with", () => {
     // A clip from that picture: its act, place and POV come with it.
     const clip = deriveTags({ ...base, kind: "video", mime: "video/mp4", shoot_kind: "animate", choices: { source: "x", level: 3 } }, pic);
     expect(clip).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "act", value: "oral" }), expect.objectContaining({ kind: "pov", value: "yes" }), expect.objectContaining({ kind: "place", value: "movie_theater" })]));
+  });
+
+  it("labels a tile with what it shows: the act, the place, POV; nothing when it has none", () => {
+    expect(showsLabel([{ kind: "act", value: "oral" }, { kind: "place", value: "movie_theater" }, { kind: "pov", value: "yes" }])).toBe("Going down · Movie theater · POV");
+    expect(showsLabel([{ kind: "place", value: "rooftop" }])).toBe("Rooftop");
+    expect(showsLabel([{ kind: "who", value: "solo" }])).toBeNull();
+    expect(showsLabel(null)).toBeNull();
   });
 
   it("scores the act most, then the place, the pair over a first-person one over one alone; never past how far the night has gone", () => {
