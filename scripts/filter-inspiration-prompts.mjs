@@ -29,9 +29,11 @@ for (const f of FILES) {
     out.push({ prompt, source: r.source, license });
   }
 }
-// Shuffle, cap to keep the bundle small.
+// Shuffle, cap to keep the client bundle reasonable (each prompt ~110 chars).
 for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
-const picked = out.slice(0, 250);
+const picked = out.slice(0, 600);
 console.log(`kept ${out.length} clean adult-portrait prompts; bundling ${picked.length}`);
 console.log("license mix:", Object.entries(picked.reduce((m, r) => ((m[r.license] = (m[r.license] || 0) + 1), m), {})).map(([k, v]) => `${k}:${v}`).join(" "));
-writeFileSync(process.argv[2], JSON.stringify(picked.map((r) => r.prompt), null, 0));
+// The shape the picker reads (app/after-dark/studio/[id]/inspiration.json): a note plus the prompts.
+const note = "Openly-licensed (CC0-1.0 / Apache-2.0 / MIT) adult portrait prompts, hard-filtered (person only; young-words and non-portrait dropped) from ~/ai-stack/open_prompts. Inspiration only: the user picks and edits; never auto-applied. See docs/after-dark.md.";
+writeFileSync(process.argv[2], JSON.stringify({ note, prompts: picked.map((r) => r.prompt) }, null, 0));
