@@ -36,7 +36,9 @@ import {
   type Suggestion,
   type Whispers,
 } from "./director";
-import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, proposesMove, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
+import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, placeLocked, proposesMove, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
+import { loadChain } from "../text-chain";
+import { placeParts, venuePhrase } from "../venues";
 import { activeLimit, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { textModelHistory, writtenBy, type WrittenBy } from "./model-log";
@@ -171,6 +173,12 @@ export type AdultScene = {
   /** This chapter's roleplay (lib/adult/roleplays.ts), picked in Set the scene: it ends when the chapter does. */
   roleplay?: { id: string; swap: boolean } | null;
   /**
+   * Where the two agreed by text to go (lib/plans.ts), before the night's first line: the night starts there, and Set the
+   * scene can't send them elsewhere until it has started (David, 2026-10-25: "if the bots have decided on the date from
+   * texting then let's lock it"). The texts that settled it, oldest first. Null once a line is written, or with no plan.
+   */
+  planned?: { place: string; texts: { who: "a" | "b"; text: string }[] } | null;
+  /**
    * The running chapter's moments worth a picture (lib/adult/beats.ts): offered as the theater reaches each, drawn when
    * the viewer says yes or picks their moment, else when the chapter closes. Absent where a scene isn't loaded with them.
    */
@@ -280,8 +288,45 @@ export async function openScene(db: Db, adminId: string, x: string, y: string): 
 /** A scene without its lines' private notes, and without its rewind stack (only how deep it is). */
 export const publicScene = (scene: AdultScene & { undo?: readonly StepUndo[] }): AdultScene => {
   const { undo, ...rest } = scene;
-  return { ...rest, lines: publicLines(rest.lines), prev_tail: publicLines(rest.prev_tail), rewind: undo ? rewindSummary(undo) : rest.rewind };
+  return {
+    ...rest,
+    lines: publicLines(rest.lines),
+    prev_tail: publicLines(rest.prev_tail),
+    rewind: undo ? rewindSummary(undo) : rest.rewind,
+    // A plan from their texts only holds until the night starts (loadScene): a scene with lines has its place stored.
+    planned: rest.lines.length ? null : (rest.planned ?? null),
+  };
 };
+
+/**
+ * Where the two agreed by text to go since their last date (lib/simulation.ts planFromChain, the same reading a show date
+ * uses), as the night's starting place: its name ("the pie factory", "Lexi's place"), its set, whose home it is, and the
+ * texts that settled it. Null with no plan, or when the chat can't be read (a night is never held up by it).
+ */
+async function textedPlan(
+  db: Db,
+  ownerId: string,
+  a: { id: string; name: string },
+  b: { id: string; name: string },
+): Promise<{ place: string; set: string; home: "a" | "b" | null; texts: { who: "a" | "b"; text: string }[] } | null> {
+  try {
+    const [lo] = pairKey(a.id, b.id);
+    const names = a.id === lo ? { lo: a.name, hi: b.name } : { lo: b.name, hi: a.name };
+    // Imported when needed: the show's date engine is a big module, and a night with lines never asks.
+    const { planFromChain } = await import("../simulation");
+    const plan = await planFromChain(db, await loadChain(db, a.id, b.id, { usableBy: ownerId }), lo, names);
+    if (!plan) return null;
+    const place = venuePhrase(plan.place);
+    if (!place || !checkAdultText({ place }).ok) return null;
+    const first = (n: string) => n.split(/\s+/)[0].toLowerCase();
+    const homeOf = placeParts(plan.place).id === "home" ? place.toLowerCase() : "";
+    const home = homeOf.startsWith(`${first(a.name)}'`) ? "a" : homeOf.startsWith(`${first(b.name)}'`) ? "b" : null;
+    const side = (who: "lo" | "hi"): "a" | "b" => ((who === "lo") === (a.id === lo) ? "a" : "b");
+    return { place, set: place.slice(0, 40), home, texts: plan.texts.map((t) => ({ who: side(t.who), text: t.text })) };
+  } catch {
+    return null;
+  }
+}
 
 /** The scene with everything stored on its lines, for writing more. Null for any pair outside this person's after dark. */
 async function loadScene(db: Db, adminId: string, x: string, y: string): Promise<LoadedScene | null> {
@@ -307,23 +352,28 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     )
   ).rows[0];
   const [ca, cb, date] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b), latestDate(db, a, b)]);
+  // A night not started yet, that nobody has placed: where they agreed by text, if they did (textedPlan).
+  const fresh = !(row.lines ?? []).length && (row.chapter ?? 1) === 1 && !row.set_place && !row.place;
+  const plan = fresh ? await textedPlan(db, adminId, { id: a, name: ca?.name ?? a }, { id: b, name: cb?.name ?? b }) : null;
   return {
     id: row.id,
     lines: (row.lines ?? []).map((l) => ({ ...l, text: dropForeignActions(l.text) })),
     a: { id: a, name: ca?.name ?? a },
     b: { id: b, name: cb?.name ?? b },
     date: date ? { setting: date.setting, ending: date.ending, venue: date.venue } : null,
-    place: row.place ?? null,
+    place: plan?.place ?? row.place ?? null,
     stage: row.stage ?? 0,
     stage_from: row.stage_from ?? 0,
     picture_note: row.picture_note ?? null,
-    set_place: row.set_place ?? null,
-    cut_to: row.cut_to ?? null,
+    // A plan places them as Set the scene would, without the token: the first lines open on arriving, and the step stores it.
+    set_place: plan?.set ?? row.set_place ?? null,
+    cut_to: plan?.place ?? row.cut_to ?? null,
     chapter: row.chapter ?? 1,
     recap: row.recap ?? null,
     prev_tail: row.prev_tail ?? [],
-    place_history: row.place_history ?? [],
-    moves: row.moves ?? [],
+    place_history: plan ? [{ place: plan.place, set: plan.set, home: plan.home, chapter: 1 }] : (row.place_history ?? []),
+    moves: plan ? [{ chapter: 1, at: 0, from: null, to: plan.set, taken: true, reason: "plan" }] : (row.moves ?? []),
+    planned: plan ? { place: plan.place, texts: plan.texts } : null,
     suggestions: storedSuggestions(row.suggestions),
     whispers: storedWhispers(row.whispers),
     rewind: rewindSummary(Array.isArray(row.undo) ? row.undo : []),
@@ -1945,6 +1995,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     homeNow,
     names,
     fromLines: v2,
+    locked: placeLocked(scene),
   });
   // The public cap goes by the same signal as the place (botchelor-41, 2026-10-22): a line past kissing that the guard let
   // through because these lines agreed to go goes after all when the move wasn't taken (a third this chapter, or nowhere
@@ -2440,6 +2491,10 @@ async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene:
   return { scene: { ...scene, lines: [], prev_tail, chapter, recap, stage_from, moves: [], beats: [] }, undo: { night_id: nightId, notes, facts } };
 }
 
+/** Why the place can't be changed yet: the two of them settled it by text. */
+export const plannedMessage = (scene: Pick<AdultScene, "a" | "b" | "planned">): string =>
+  `${scene.a.name.split(/\s+/)[0]} and ${scene.b.name.split(/\s+/)[0]} decided on ${scene.planned?.place ?? "where to go"} by text, so the night starts there. Pick a roleplay if you like; once they're there, you can take them somewhere else.`;
+
 /**
  * Set the scene (David, 2026-10-19: "set the venue to any scene… for 1 token", paid by the caller): the scene jumps to
  * the place typed, its set is drawn if it has none, and the next lines open on arriving there. Held to the two lines.
@@ -2451,6 +2506,7 @@ export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, 
   if (!placeCheck.ok) return { ok: false, status: 422, message: `That place crosses one of the lines that never move (${linesCrossed(placeCheck)}).` };
   const loaded = await loadScene(db, ownerId, x, y);
   if (!loaded) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
+  if (loaded.planned) return { ok: false, status: 409, message: plannedMessage(loaded) };
   const scene = loaded;
   // A name typed without its apostrophe ("Lexis bedroom") gets it back (lib/adult/craft.ts possessiveNames).
   const named = possessiveNames(label, { a: scene.a.name, b: scene.b.name }) ?? label;
@@ -2661,6 +2717,7 @@ export async function startScenario(db: Db, ownerId: string, x: string, y: strin
   if (!sc) return { ok: false, status: 404, message: "There's no such scenario." };
   const before = await loadScene(db, ownerId, x, y);
   if (!before) return { ok: false, status: 404, message: "Pick two characters who are in after dark." };
+  if (before.planned) return { ok: false, status: 409, message: plannedMessage(before) };
   // Curated and reviewed, and checked again here so an edit to the list can never slip past the lines.
   if (!checkAdultText({ title: sc.title, premise: sc.premise, place: sc.place, opening: sc.opening }).ok) return { ok: false, status: 422, message: "That scenario crosses one of the lines." };
   const refused = limitRefusal("steer", `${sc.premise} ${sc.opening}`, { ...before, stage: sc.stage });

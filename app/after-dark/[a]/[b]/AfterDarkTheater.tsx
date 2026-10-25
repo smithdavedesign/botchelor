@@ -59,12 +59,22 @@ export function stageFor(place: string | null, dateVenue: string | null): PlaceI
  * with the night instead of showing its end from the first hello. A line from before lines kept one shows nothing until
  * playback catches up with the latest, and a new chapter with no lines yet says which chapter it is.
  */
-export function stageLabel(scene: { lines: SceneLine[]; stage: number; chapter?: number }, shown: number, caughtUp: boolean): string | null {
-  if (!scene.lines.length) return scene.chapter && scene.chapter > 1 ? `Chapter ${scene.chapter}` : (STAGES[0] ?? null);
+export function stageLabel(scene: { lines: SceneLine[]; stage: number; chapter?: number; roleplay?: RoleplayPick }, shown: number, caughtUp: boolean): string | null {
+  // The chapter's roleplay leads the label (David, 2026-10-25: "they are role playing so we might need to update this"):
+  // "🙈 Blind date · talking and flirting". How far it's gone stays the heat (STAGES), whoever they're playing.
+  const rp = scene.roleplay ? roleplayById(scene.roleplay.id) : null;
+  const withRoleplay = (label: string | null) => (rp ? (label ? `${rp.icon} ${rp.title} · ${label}` : `${rp.icon} ${rp.title}`) : label);
+  if (!scene.lines.length) return withRoleplay(scene.chapter && scene.chapter > 1 ? `Chapter ${scene.chapter}` : (STAGES[0] ?? null));
   const at = scene.lines[Math.max(0, shown - 1)]?.stage;
-  if (typeof at === "number") return STAGES[at] ?? null;
-  return caughtUp ? (STAGES[scene.stage] ?? null) : null;
+  if (typeof at === "number") return withRoleplay(STAGES[at] ?? null);
+  return withRoleplay(caughtUp ? (STAGES[scene.stage] ?? null) : null);
 }
+
+/**
+ * Before the night's first line (David, 2026-10-25: "we shouldn't get the date started until the user hits play or sets
+ * the scene"): where they'll be and who they're playing, with Start. A later chapter carries straight on.
+ */
+export const awaitingStart = (scene: { lines: readonly unknown[]; chapter?: number }): boolean => !scene.lines.length && (scene.chapter ?? 1) === 1;
 
 /** The heats' labels on the suggestion chips (the page's are the same). */
 // "mild" is the wildcard now (lib/adult/director.ts): the key stays so stored scenes still read.
@@ -126,7 +136,19 @@ export default function AfterDarkTheater({
   scenes = [],
   onScenario,
 }: {
-  scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null; chapter?: number; roleplay?: RoleplayPick };
+  scene: {
+    lines: SceneLine[];
+    place: string | null;
+    stage: number;
+    dateVenue: string | null;
+    set?: string | null;
+    chapter?: number;
+    roleplay?: RoleplayPick;
+    /** Their latest date's setting, where an unplaced night picks up. */
+    dateSetting?: string | null;
+    /** Where they agreed by text to go (lib/adult/scenes.ts textedPlan): the night starts there, and the place is locked. */
+    planned?: { place: string } | null;
+  };
   characters: [CharacterRef, CharacterRef];
   busy?: boolean;
   note?: string | null;
@@ -224,9 +246,11 @@ export default function AfterDarkTheater({
   const caughtUp = shown.length >= turns.length;
   const left = turns.length - shown.length;
   // Autoplay: the next lines are on their way before the stage runs out (paused playback stops it writing further ahead).
+  // Never before the night has started: Start does that, so ticking Autoplay first doesn't begin it.
+  const waiting = live && awaitingStart(scene);
   useEffect(() => {
-    if (live && autoplay && !busy && left <= AUTOPLAY_THEATER_AHEAD) void onWrite?.("");
-  }, [live, autoplay, busy, left, onWrite]);
+    if (live && autoplay && !busy && !waiting && left <= AUTOPLAY_THEATER_AHEAD) void onWrite?.("");
+  }, [live, autoplay, busy, waiting, left, onWrite]);
   const offer = live && onBeat ? (beats.find((x) => x.status === "offered" && !answered.has(x.id) && x.line < shown.length) ?? null) : null;
   useEffect(() => setBeatHold(Boolean(offer)), [offer]);
   async function answer(id: string, a: "now" | "later") {
@@ -283,8 +307,35 @@ export default function AfterDarkTheater({
             lineA={lastOf(shown, "a")}
             lineB={lastOf(shown, "b")}
             actLabel={label}
-            placeholder={scene.lines.length ? "…" : "Press Next to begin."}
+            placeholder={waiting ? "" : scene.lines.length ? "…" : "Press Next to begin."}
           />
+          {waiting && (
+            <div className="ad-start-card" role="group" aria-label="Before the night starts">
+              <p className="kicker">Tonight</p>
+              <p className="ad-start-where">
+                📍{" "}
+                {scene.planned
+                  ? scene.planned.place
+                  : (scene.set ?? scene.place ?? (scene.dateSetting ? `${scene.dateSetting}, where their date was` : "Wherever they meet: pick a place, or let them choose"))}
+              </p>
+              {scene.planned && (
+                <p className="muted small ad-start-plan">
+                  💬 {firstName(a)} × {firstName(b)} decided on {scene.planned.place} by text.
+                </p>
+              )}
+              <p className="ad-start-rp">{scene.roleplay && roleplayById(scene.roleplay.id) ? `${roleplayById(scene.roleplay.id)!.icon} ${roleplayById(scene.roleplay.id)!.title}` : "💬 No roleplay: just the two of them"}</p>
+              <div className="ad-start-actions">
+                {onSetScene && (
+                  <button type="button" className="secondary small" disabled={busy} onClick={() => (setPicking(scene.planned ? "who" : "where"), setPickerOpened(true))}>
+                    {scene.planned ? "🎭 Pick a roleplay" : "📍 Scene & roleplay"}
+                  </button>
+                )}
+                <button type="button" className="primary" disabled={busy} onClick={() => void onWrite?.(direction.trim()).then((ok) => ok !== false && setDirection(""))}>
+                  {busy ? "Starting…" : "▶ Start the night"}
+                </button>
+              </div>
+            </div>
+          )}
           {latestAction && <p className="ad-theater-action">{latestAction}</p>}
           {offer && (
             <div className="ad-beat-offer" role="dialog" aria-label="Picture this moment?">
@@ -393,7 +444,13 @@ export default function AfterDarkTheater({
           </div>
           <div className="theater-tools">
             {live && onSetScene && (
-              <button type="button" className="secondary small ad-set-scene" onClick={() => (setPicking("where"), setPickerOpened(true))} disabled={busy} title="Take them anywhere (1 token), and pick who they are this chapter">
+              <button
+                type="button"
+                className="secondary small ad-set-scene"
+                onClick={() => (setPicking(waiting && scene.planned ? "who" : "where"), setPickerOpened(true))}
+                disabled={busy}
+                title={waiting && scene.planned ? `They decided on ${scene.planned.place} by text: pick who they are this chapter` : "Take them anywhere (1 token), and pick who they are this chapter"}
+              >
                 📍 <span className="ad-tool-word">Scene &amp; roleplay</span>
               </button>
             )}
@@ -544,6 +601,7 @@ export default function AfterDarkTheater({
             scenes={scenes}
             busy={busy}
             current={scene.set || scene.place}
+            locked={waiting && scene.planned ? `${firstName(a)} × ${firstName(b)} decided on ${scene.planned.place} by text, so the night starts there. Once they're there you can take them somewhere else.` : null}
             names={{ a: firstName(a), b: firstName(b) }}
             roleplay={scene.roleplay ?? null}
             onGo={onSetScene}

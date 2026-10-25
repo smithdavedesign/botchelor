@@ -26,6 +26,7 @@ export default function SetSceneModal({
   scenes,
   busy = false,
   current = null,
+  locked = null,
   names,
   roleplay = null,
   openAt = "where",
@@ -39,6 +40,11 @@ export default function SetSceneModal({
   busy?: boolean;
   /** Where they are now: its card says so. */
   current?: string | null;
+  /**
+   * Why the place can't change now (the two agreed it by text, lib/adult/scenes.ts textedPlan): the picker opens on the
+   * roleplays, staying put, and Where says this instead of its cards.
+   */
+  locked?: string | null;
   /** Their first names, for the roles ("Dex plays the boss"). */
   names: { a: string; b: string };
   /** This chapter's roleplay, if one is running. */
@@ -64,7 +70,7 @@ export default function SetSceneModal({
   // Each time it opens: the screen asked for, the running roleplay picked.
   useEffect(() => {
     if (!open) return;
-    setStep(openAt);
+    setStep(locked ? "who" : openAt);
     setPlace(null);
     setPick(roleplay);
     // Only on opening: the roleplay prop changes after a pick lands.
@@ -109,8 +115,8 @@ export default function SetSceneModal({
             <h2>📍 Scene &amp; roleplay</h2>
             <ol className="ad-scenes-steps" aria-label="Steps">
               <li className={step === "where" ? "on" : ""}>
-                <button type="button" className="linklike" onClick={() => setStep("where")}>
-                  1. Where
+                <button type="button" className="linklike" onClick={() => setStep("where")} disabled={Boolean(locked)} title={locked ?? undefined}>
+                  1. Where{locked ? " 🔒" : ""}
                 </button>
               </li>
               <li className={step === "who" ? "on" : ""}>2. Who they are this chapter</li>
@@ -132,9 +138,13 @@ export default function SetSceneModal({
                   <span className="muted">📍 They stay where they are</span>
                 )}
               </span>
-              <button type="button" className="button-ghost small" onClick={() => setStep("where")}>
-                ← {place ? "Somewhere else" : "Move them too"}
-              </button>
+              {locked ? (
+                <span className="muted small ad-rp-locked">🔒 {locked}</span>
+              ) : (
+                <button type="button" className="button-ghost small" onClick={() => setStep("where")}>
+                  ← {place ? "Somewhere else" : "Move them too"}
+                </button>
+              )}
             </div>
             <div className="ad-scenes-cats" role="radiogroup" aria-label="Roleplay category">
               <button type="button" role="radio" aria-checked={!rpCategory} className={!rpCategory ? "on" : ""} onClick={() => setRpCategory(null)}>
