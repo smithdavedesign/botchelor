@@ -196,6 +196,28 @@ describe("a keyframe is shown on its own only once its shot has passed", () => {
     expect((await pairContent(t.db, ...PAIR))!.pictures.map((p) => p.id)).toContain(frame);
   });
 
+  it("but in a draft storyboard of the owner's, before any video, the owner sees it (not another admin)", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeVenice();
+    fakeHive();
+    director([{ line: 2 }]);
+    // Plan a storyboard, then draw its pictures — a draft, no video.
+    const plan = (await (await call(reelPost, "/api/admin/after-dark/reel", { a: RAFE, b: JUNIPER, action: "plan" }, cookie)).json()).reel as Reel;
+    expect(plan.status).toBe("draft");
+    expect(plan.shots[0].status).toBe("planned");
+    const drawn = (await (await call(reelPost, "/api/admin/after-dark/reel", { action: "draw", id: plan.id }, cookie)).json()).reel as Reel;
+    expect(drawn.status).toBe("draft");
+    expect(drawn.shots[0].status).toBe("frame_ready");
+    const frame = drawn.shots[0].frame_id!;
+    // The owner checks the picture in their own storyboard before filming; no video exists yet.
+    expect((await serve(frame, { cookie })).status).toBe(200);
+    // It's still not a cover (no video has passed), and another admin can't see it: it's not their draft.
+    expect((await coverOptions(t.db, id, PAIR)).map((c) => c.id)).not.toContain(frame);
+    const other = await admin();
+    expect((await serve(frame, { cookie: other.cookie })).status).toBe(404);
+  });
+
   it("never, when moderation discards its shot", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);

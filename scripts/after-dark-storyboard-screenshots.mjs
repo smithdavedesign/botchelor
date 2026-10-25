@@ -78,8 +78,12 @@ function stillOf(a, b) {
   return readFileSync(still);
 }
 
-/** Seed three PG keyframe ('frame') pictures of the pair, with the app stopped (one process at a time on PGlite). */
-async function seedFrames(a, b) {
+/**
+ * Seed three PG keyframe ('frame') pictures and a real draft storyboard that references them (status 'draft'), with the
+ * app stopped (one process at a time on PGlite). The draft is what lets the media route serve the keyframes to the owner
+ * before any video (lib/adult/media.ts ownDraftFrame); the routed plan/draw responses below drive the panel.
+ */
+async function seedDraft(a, b, shots) {
   const db = new PGlite(DB_DIR);
   try {
     const owner = (await db.query("select user_id from admins limit 1")).rows[0].user_id;
@@ -87,6 +91,7 @@ async function seedFrames(a, b) {
     for (const n of [1, 2, 3]) {
       await db.query("insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, status) values ($1, $2, $3, $4, 'frame', 'PG placeholder', 'image/png', $5, 'ready')", [`sb-frame-${n}`, owner, a, b, still]);
     }
+    await db.query("insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots) values ('sb-demo', $1, $2, $3, 'draft', 0, $4::jsonb)", [owner, a, b, JSON.stringify(shots)]);
   } finally {
     await db.close();
   }
@@ -129,6 +134,8 @@ async function main() {
     const reg = await ctx.request.post(`${app.base}/api/auth/register`, { data: { handle: `shots${Date.now() % 1e6}`, password: "a-long-shots-password-1", attest: true } });
     assert(reg.ok(), `register: HTTP ${reg.status()}`);
     assert((await ctx.request.post(`${app.base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } })).ok(), "claiming admin");
+    // Discreet mode blurs every picture by default; off here so the shot pictures are clear (lib/adult/privacy.ts).
+    await ctx.request.post(`${app.base}/api/admin/after-dark/privacy`, { data: { blur: false } });
     const page = await ctx.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(`${app.base}/after-dark`);
@@ -142,10 +149,6 @@ async function main() {
       await page.locator(".after-dark-form button[type=submit]").click();
       await page.waitForFunction((n) => document.querySelectorAll(".after-dark-lines li").length > n, before, { timeout: 30_000 });
     }
-    await stopApp(app);
-    await seedFrames(a, b);
-    app = await startApp(port, env);
-
     // The storyboard's shots: picked (planned), then with each picture drawn and kept (frame_ready).
     const base = { id: "sb-demo", status: "draft", tokens: 0, a, b, created_at: new Date().toISOString() };
     const planned = {
@@ -157,6 +160,11 @@ async function main() {
       ],
     };
     const drawn = { ...base, shots: planned.shots.map((s, i) => ({ ...s, status: "frame_ready", media_id: `sb-frame-${i + 1}`, frame_id: `sb-frame-${i + 1}` })) };
+
+    await stopApp(app);
+    await seedDraft(a, b, drawn.shots);
+    app = await startApp(port, env);
+
     await page.route("**/api/admin/after-dark/reel", async (route) => {
       const req = route.request();
       if (req.method() !== "POST") return route.continue();

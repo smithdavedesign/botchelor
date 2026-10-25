@@ -28,6 +28,27 @@ The result on a phone: 71, a second date, and why.
 ![/create on a phone: the card from the chemistry test with Dex's traits, want and dealbreaker, and a link to build Dex first](docs/screenshots/chemistry-create-mobile.png)
 On `/create`, the second character's fields wait in a card, one click from a builder of their own.
 
+## The reel storyboard: check the pictures before you film (live, 2026-10-24)
+
+After Dark can turn a night into a short video. Now, instead of filming blind, **📋 Storyboard** plans the video first:
+the director picks the strongest moments, draws and checks a picture of the two of them for each shot, and you keep or
+drop each one — then **Film it** makes the videos only from the pictures you kept, so a wrong-looking shot is caught
+before any tokens are spent (a shot that fails still gives its share back). It builds on the same engine as the one-tap
+video; the keyframes are shown only to you, in your own draft, before the fully-moderated video is made. Code:
+[`lib/adult/reels.ts`](lib/adult/reels.ts) (`planReel` → `drawReelFrames` → `filmReel`),
+[`Storyboard.tsx`](app/after-dark/[a]/[b]/Storyboard.tsx); design: [`docs/PRDs/reel-storyboard.md`](docs/PRDs/reel-storyboard.md).
+Captured by `npm run screenshots:after-dark-storyboard` from the repo's own PG portraits, with no provider called.
+
+![The storyboard once its pictures are drawn: three shots of the two of them, each with its line and motion, Drop this shot, and Film it · 15 tokens](docs/screenshots/after-dark-storyboard-desktop.png)
+Each shot is a tile with its start picture, the line it films and the motion; keep the ones you want, then film.
+
+![The storyboard just planned: three shots picked, not yet drawn, with Draw the pictures](docs/screenshots/after-dark-storyboard-planned-desktop.png)
+Just planned: the shots are picked but nothing is drawn or spent until you draw the pictures.
+
+<img src="docs/screenshots/after-dark-storyboard-phone.png" width="240" alt="The storyboard with its pictures drawn, on a phone"> <img src="docs/screenshots/after-dark-storyboard-planned-phone.png" width="240" alt="The storyboard just planned, on a phone">
+
+On a phone the shots stack and the panel fills the screen.
+
 ## A free OC ship name generator (2026-10-20)
 
 Two names in, ship names out, on a link anyone can share that ends one click from `/create`. Captured from the
