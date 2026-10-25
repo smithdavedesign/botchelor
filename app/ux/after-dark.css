@@ -1102,6 +1102,8 @@ button.ad-scenes-clear {
     grid-template-columns: 1fr 1fr;
     padding: var(--space-2) var(--space-3) var(--space-4);
     gap: var(--space-2);
+  }
+}
 /* Trimming a video (TrimPanel.tsx; lib/adult/trim.ts): start, end, parts cut out, each with "Now". */
 .ad-trim {
   display: grid;
@@ -1167,5 +1169,85 @@ button.ad-trim-toggle.on,
     overflow: hidden;
     clip: rect(0 0 0 0);
     white-space: nowrap;
+  }
+}
+
+/* The reel player on a phone (Reels.tsx; 2026-10-25: "pretty noisy in mobile"): Play, the count, CC and ⋯ in the bar,
+   the rest in a small menu above it; the shot's actions behind "⋯ This shot". Wide screens keep everything in the row. */
+.ad-reel-more,
+.ad-reel-more-items,
+.ad-shot-actions {
+  display: contents;
+}
+button.ad-reel-more-toggle,
+button.ad-shot-more-toggle {
+  display: none;
+}
+button.ad-reel-cc {
+  flex-shrink: 0;
+  height: 2rem;
+  margin: 0;
+  padding: 0 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 0.35rem;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow: none;
+}
+button.ad-reel-cc.on {
+  background: #fff;
+  color: #14091f;
+}
+@media (max-width: 640px) {
+  .ad-reel-more {
+    position: relative;
+    display: inline-flex;
+  }
+  button.ad-reel-more-toggle {
+    display: inline-grid;
+  }
+  .ad-reel-more-items {
+    display: none;
+  }
+  .ad-reel-more.open .ad-reel-more-items {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.4rem);
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    width: max-content;
+    max-width: calc(100vw - 3rem);
+    padding: var(--space-2);
+    border: 1px solid #33264d;
+    border-radius: 0.8rem;
+    background: rgba(18, 10, 28, 0.95);
+  }
+  /* Inside the menu the two pills show their words again. */
+  .ad-reel-more.open .ad-reel-btn-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+  button.ad-shot-more-toggle {
+    display: inline-block;
+    margin: 0;
+  }
+  .ad-shot-actions {
+    display: none;
+  }
+  .ad-shot-actions.open {
+    display: flex;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
   }
 }

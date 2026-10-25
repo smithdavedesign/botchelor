@@ -91,6 +91,9 @@ async function refilmOne(s: PlayShot): Promise<{ reel: Reel } | { error: string 
   return res.ok ? { reel: res.data.reel as Reel } : { error: res.message };
 }
 
+/** Whether the reel's captions show, on this device (localStorage: "on" or "off"). */
+const CAPTIONS_KEY = "ad-reel-captions";
+
 /** The media bucket answered a cross-origin read with no CORS header (a network error): play links, don't preload. */
 const NO_PRELOAD = "ad-no-preload";
 const noPreload = () => {
@@ -404,6 +407,26 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
   const trimsRef = useRef(trims);
   trimsRef.current = trims;
   const [trimming, setTrimming] = useState(false);
+  // The phone's menus: the player's other controls, and the shot's actions.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [shotMenu, setShotMenu] = useState(false);
+  // Closed captions (the shot's line), on unless turned off on this device.
+  const [captions, setCaptionsState] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(CAPTIONS_KEY) === "off") setCaptionsState(false);
+    } catch {
+      /* no storage: captions stay on */
+    }
+  }, []);
+  const setCaptions = (on: boolean) => {
+    setCaptionsState(on);
+    try {
+      localStorage.setItem(CAPTIONS_KEY, on ? "on" : "off");
+    } catch {
+      /* not remembered: fine */
+    }
+  };
   // The shot that's already been sent on at its trimmed end (so the end isn't acted on twice).
   const doneAt = useRef(-1);
   useEffect(() => {
@@ -694,7 +717,7 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
           </div>
         )}
         {/* A clip from the act menu has no line in it: no caption. */}
-        {ready && started && shot.text && <p className="ad-reel-caption">“{shot.text}”</p>}
+        {ready && started && captions && shot.text && <p className="ad-reel-caption">“{shot.text}”</p>}
         {theater && (
           <button type="button" className="ad-reel-close" onClick={() => setTheater(false)} aria-label="Close theater">
             ✕
@@ -710,35 +733,47 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
               ▶
             </button>
           )}
-          <button type="button" className="theater-icon" onClick={restart} disabled={!ready} aria-label="From the start" title="From the start">
-            ⏮
-          </button>
-          {shots.length > 1 && (
-            <>
-              <button type="button" className="theater-icon" onClick={() => go(i - 1)} disabled={!ready || i === 0} aria-label="Previous shot" title="Previous shot">
-                ⏪
-              </button>
-              <button type="button" className="theater-icon" onClick={() => go(i + 1)} disabled={!ready || i >= shots.length - 1} aria-label="Next shot" title="Next shot">
-                ⏩
-              </button>
-            </>
-          )}
           <span className="ad-reel-count">
             {Math.min(i, shots.length - 1) + 1} / {shots.length}
           </span>
           {/* Every shot's copy is fetched behind the play (David: no buffering between shots): how far that's got. */}
           {loaded < shots.length && <span className="ad-reel-count ad-reel-preload">preloading {loaded}/{shots.length}</span>}
-          {videos > 1 && (
-            // Several videos back to back: straight to the next one's first shot.
-            <button type="button" className="ad-reel-theater-btn" onClick={() => nextVideo !== null && go(nextVideo)} disabled={!ready || nextVideo === null} title="Skip to the next video" aria-label="Next video">
-              ⏭<span className="ad-reel-btn-label"> Next video</span>
+          {/* Closed captions: the shot's line under it, shown or hidden (David, 2026-10-25), remembered on this device. */}
+          <button type="button" className={`ad-reel-cc${captions ? " on" : ""}`} aria-pressed={captions} onClick={() => setCaptions(!captions)} title={captions ? "Hide the captions" : "Show the captions"}>
+            CC
+          </button>
+          {/* The rest: in the row on a wide screen, in a small menu from ⋯ on a phone (2026-10-25: "pretty noisy"). */}
+          <div className={`ad-reel-more${moreOpen ? " open" : ""}`}>
+            <button type="button" className="theater-icon ad-reel-more-toggle" aria-expanded={moreOpen} aria-label="More controls" title="More controls" onClick={() => setMoreOpen((v) => !v)}>
+              ⋯
             </button>
-          )}
-          {!theater && (
-            <button type="button" className="ad-reel-theater-btn" onClick={() => setTheater(true)} disabled={!ready} aria-label="Theater">
-              🎬<span className="ad-reel-btn-label"> Theater</span>
-            </button>
-          )}
+            <div className="ad-reel-more-items">
+              <button type="button" className="theater-icon" onClick={restart} disabled={!ready} aria-label="From the start" title="From the start">
+                ⏮
+              </button>
+              {shots.length > 1 && (
+                <>
+                  <button type="button" className="theater-icon" onClick={() => go(i - 1)} disabled={!ready || i === 0} aria-label="Previous shot" title="Previous shot">
+                    ⏪
+                  </button>
+                  <button type="button" className="theater-icon" onClick={() => go(i + 1)} disabled={!ready || i >= shots.length - 1} aria-label="Next shot" title="Next shot">
+                    ⏩
+                  </button>
+                </>
+              )}
+              {videos > 1 && (
+                // Several videos back to back: straight to the next one's first shot.
+                <button type="button" className="ad-reel-theater-btn" onClick={() => nextVideo !== null && go(nextVideo)} disabled={!ready || nextVideo === null} title="Skip to the next video" aria-label="Next video">
+                  ⏭<span className="ad-reel-btn-label"> Next video</span>
+                </button>
+              )}
+              {!theater && (
+                <button type="button" className="ad-reel-theater-btn" onClick={() => setTheater(true)} disabled={!ready} aria-label="Theater">
+                  🎬<span className="ad-reel-btn-label"> Theater</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
       {ready && shot?.media_id && (
@@ -752,53 +787,59 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
               keyframe
             </MediaRequest>
           )}
-          <RateMedia
-            key={shot.media_id}
-            id={shot.media_id}
-            kind="video"
-            rating={shot.rating ?? null}
-            tags={shot.tags ?? []}
-            // A 👎 takes the shot out of its video (lib/adult/reels.ts shotsFollowRating): show the video without it.
-            onRated={() =>
-              shot.reel &&
-              onChange &&
-              void fetch(`/api/admin/after-dark/reel?id=${encodeURIComponent(shot.reel)}`)
-                .then((r) => r.json())
-                .then((res) => res?.reel && onChange(res.reel as Reel))
-                .catch(() => {})
-            }
-          />
-          {onChange && (
-            <button
-              type="button"
-              className="button-ghost small"
-              disabled={removing}
-              onClick={() => void remove(shot)}
-              title="Take it out of the video, into the Archive below. Nothing is deleted: you can put it back."
-            >
-              {removing ? "Taking it out…" : "Remove this shot"}
-            </button>
-          )}
-          {onChange && (
-            // Trim it (lib/adult/trim.ts): its start, its end, parts cut out; nothing re-encoded.
-            <button
-              type="button"
-              className={`button-ghost small${trims[shot.media_id] ? " on" : ""}`}
-              aria-expanded={trimming}
-              onClick={() => {
-                players[i % 2].current?.pause();
-                setTrimming((v) => !v);
-              }}
-            >
-              ✂️ {trims[shot.media_id] ? "Trimmed" : "Trim"}
-            </button>
-          )}
-          {onChange && shot.frame_id && (
-            // Film it again from its own start picture (lib/adult/reels.ts refilmShot): its share of the price, back if it fails.
-            <button type="button" className="button-ghost small" disabled={refilming} onClick={() => void refilm(shot)} title="Film this shot again from the same start picture">
-              {refilming ? "Starting…" : "🔁 Film again"}
-            </button>
-          )}
+          {/* On a phone, the shot's actions open from one button (2026-10-25: "pretty noisy"). */}
+          <button type="button" className="button-ghost small ad-shot-more-toggle" aria-expanded={shotMenu} onClick={() => setShotMenu((v) => !v)}>
+            ⋯ This shot
+          </button>
+          <div className={`ad-shot-actions${shotMenu ? " open" : ""}`}>
+            <RateMedia
+              key={shot.media_id}
+              id={shot.media_id}
+              kind="video"
+              rating={shot.rating ?? null}
+              tags={shot.tags ?? []}
+              // A 👎 takes the shot out of its video (lib/adult/reels.ts shotsFollowRating): show the video without it.
+              onRated={() =>
+                shot.reel &&
+                onChange &&
+                void fetch(`/api/admin/after-dark/reel?id=${encodeURIComponent(shot.reel)}`)
+                  .then((r) => r.json())
+                  .then((res) => res?.reel && onChange(res.reel as Reel))
+                  .catch(() => {})
+              }
+            />
+            {onChange && (
+              <button
+                type="button"
+                className="button-ghost small"
+                disabled={removing}
+                onClick={() => void remove(shot)}
+                title="Take it out of the video, into the Archive below. Nothing is deleted: you can put it back."
+              >
+                {removing ? "Taking it out…" : "Remove this shot"}
+              </button>
+            )}
+            {onChange && (
+              // Trim it (lib/adult/trim.ts): its start, its end, parts cut out; nothing re-encoded.
+              <button
+                type="button"
+                className={`button-ghost small${trims[shot.media_id] ? " on" : ""}`}
+                aria-expanded={trimming}
+                onClick={() => {
+                  players[i % 2].current?.pause();
+                  setTrimming((v) => !v);
+                }}
+              >
+                ✂️ {trims[shot.media_id] ? "Trimmed" : "Trim"}
+              </button>
+            )}
+            {onChange && shot.frame_id && (
+              // Film it again from its own start picture (lib/adult/reels.ts refilmShot): its share of the price, back if it fails.
+              <button type="button" className="button-ghost small" disabled={refilming} onClick={() => void refilm(shot)} title="Film this shot again from the same start picture">
+                {refilming ? "Starting…" : "🔁 Film again"}
+              </button>
+            )}
+          </div>
           {removeError && (
             <span className="error small" role="status">
               {removeError}
