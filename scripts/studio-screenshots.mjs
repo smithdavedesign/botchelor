@@ -177,7 +177,8 @@ async function main() {
     console.log(`  📸 docs/screenshots/${file}.png`);
   };
   const noSideways = async (page, name) => {
-    const scroll = await page.evaluate(() => document.documentElement.scrollWidth);
+    // On a phone the Studio is its own full-screen scroller (globals.css): it mustn't scroll sideways either.
+    const scroll = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, document.querySelector(".ad-studio-main")?.scrollWidth ?? 0));
     const width = page.viewportSize()?.width ?? 0;
     // What sticks out, when something does: the widest elements past the screen's right edge.
     const past = await page.evaluate((w) => {
@@ -191,11 +192,14 @@ async function main() {
     assert(scroll <= width, `${name}: the page scrolls sideways on a phone (${scroll}px wide on a ${width}px screen): ${past.join(", ")}`);
     console.log(`  ✓ ${name}: no sideways scroll on a phone`);
   };
-  /** Scrolls so `selector` sits just under the sticky header. */
+  /** Scrolls so `selector` sits just under the sticky header, or near the top of the Studio where it's the scroller (a phone). */
   const under = (page, selector) =>
     page.evaluate((sel) => {
       const el = document.querySelector(sel);
-      if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - (document.querySelector("header")?.getBoundingClientRect().height ?? 0) - 16);
+      if (!el) return;
+      const box = el.closest(".ad-studio-main");
+      if (box && getComputedStyle(box).position === "fixed") box.scrollTo(0, el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 16);
+      else window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - (document.querySelector("header")?.getBoundingClientRect().height ?? 0) - 16);
     }, selector);
   /** A signed-in admin with After Dark's blur off, in a browser context of their own. */
   const admin = async (handle) => {
@@ -248,6 +252,19 @@ async function main() {
         ["Light", "Golden hour"],
       ]) {
         await page.locator("fieldset.ad-studio-group", { has: page.locator("legend", { hasText: group }) }).getByRole("button", { name: option, exact: true }).first().click();
+      }
+      if (size === "phone") {
+        // A phone opens the Studio on the whole screen already: no switch, and its own way back.
+        const box = await page.evaluate(() => {
+          const r = document.querySelector(".ad-studio-main")?.getBoundingClientRect();
+          return r ? { position: getComputedStyle(document.querySelector(".ad-studio-main")).position, top: r.top, width: r.width } : null;
+        });
+        assert(box && box.position === "fixed" && box.top === 0 && box.width === w, `the Studio isn't full screen on a phone: ${JSON.stringify(box)}`);
+        assert(!(await page.getByRole("button", { name: "⛶ Full screen" }).isVisible()), "the full-screen switch shows on a phone");
+        assert(await page.getByRole("link", { name: "Back to After Dark" }).isVisible(), "no way back from the full-screen Studio on a phone");
+        console.log("  ✓ the Studio is full screen on a phone, with no switch and its own way back");
+        await page.evaluate(() => document.querySelector(".ad-studio-main")?.scrollTo(0, 0));
+        await shot(page, "studio-full-phone");
       }
       await under(page, ".ad-studio-group:nth-of-type(5)");
       if (size === "phone") await noSideways(page, "the shoot's menus");

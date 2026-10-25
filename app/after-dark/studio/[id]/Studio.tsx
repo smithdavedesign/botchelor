@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
 import RateMedia from "@/app/after-dark/[a]/[b]/RateMedia";
@@ -654,8 +655,12 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   return (
     <section className={`ad-studio-main${full ? " is-full" : ""}`} aria-label={full ? `${c.name}'s studio, full screen` : undefined}>
       <div className="ad-studio-head">
+        {/* On a phone the Studio is always the whole screen (globals.css), over the page's own way back: its own. */}
+        <Link href="/after-dark" className="ad-studio-back" aria-label="Back to After Dark">
+          ←
+        </Link>
         <h1>🎨 {c.name}&apos;s studio</h1>
-        <button type="button" className="button-ghost small" aria-pressed={full} onClick={() => setFull((x) => !x)} title={full ? "Back to the page (Esc)" : "The Studio on the whole screen"}>
+        <button type="button" className="button-ghost small ad-studio-full-toggle" aria-pressed={full} onClick={() => setFull((x) => !x)} title={full ? "Back to the page (Esc)" : "The Studio on the whole screen"}>
           {full ? "✕ Exit full screen" : "⛶ Full screen"}
         </button>
       </div>
