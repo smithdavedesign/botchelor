@@ -8312,6 +8312,33 @@ a.phone-head-btn {
   font-weight: 600;
   margin-bottom: var(--space-2);
 }
+/* The owner's own words: a slim field per section, and a wider box that leads the whole prompt. */
+.ad-studio-own {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #33264d;
+  border-radius: 0.4rem;
+  background: rgba(10, 5, 18, 0.5);
+  color: #f1e9ff;
+  font-size: var(--text-sm);
+}
+.ad-studio-custom {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #4a3a6a;
+  border-radius: 0.5rem;
+  background: rgba(10, 5, 18, 0.6);
+  color: #f1e9ff;
+  font-size: var(--text-sm);
+  resize: vertical;
+}
+.ad-studio-own::placeholder,
+.ad-studio-custom::placeholder {
+  color: #6a5a7f;
+}
 .ad-studio-go {
   display: flex;
   flex-wrap: wrap;

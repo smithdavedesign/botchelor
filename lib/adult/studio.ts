@@ -72,6 +72,7 @@ import { choosePreset, faceReferenceId, NO_STEERING, steeringFor, withSteering }
 import {
   ANIMATE_MOTIONS,
   ANIMATE_SECONDS,
+  type AnimateGuide,
   animatePrompt,
   bodyPrompt,
   groupById,
@@ -422,7 +423,9 @@ export async function shoot(db: Db, viewer: string, characterId: string, input: 
   if (!planned.ok) return fail(422, planned.error, planned.message);
   const { plan } = planned;
   const subject = subjectOf(c, viewer, plan.level >= 2);
-  if (!wordsOk(`${plan.parts.map((p) => p.words).join(" ")} ${subject.look}`)) return fail(422, "not_allowed", "That shoot crosses one of the lines After Dark never crosses.");
+  // Everything the picture is built from, the owner's own words (custom, extra) included, is held to the lines first.
+  const ownWords = [plan.custom ?? "", ...Object.values(plan.extra ?? {})].join(" ");
+  if (!wordsOk(`${plan.parts.map((p) => p.words).join(" ")} ${subject.look} ${ownWords}`)) return fail(422, "not_allowed", "That shoot crosses one of the lines After Dark never crosses.");
   // The light: theirs, or the one their light test picks (and the picture keeps it, so their ratings teach the test).
   let preset: PresetId | null = PICTURE_PRESETS.find((p) => p.id === input.choices.light)?.id ?? null;
   if (!input.choices.light) {
@@ -1005,20 +1008,25 @@ const animatingNow = async (db: Db, viewer: string): Promise<boolean> =>
     )
   ).rows.length > 0;
 
-export type AnimateInput = { image_id: string; motion: string; seconds: number };
+export type AnimateInput = { image_id: string; motion?: string; seconds: number } & AnimateGuide;
 
 /**
  * Animate (v3): one of their pictures of the character alone becomes a clip on After Dark's video model (Wan 3.0 on
- * Venice), from a motion chip, 5 or 10 seconds. Queued now and collected as the page polls (collectAnimations): the
- * video is checked by Hive before it's kept, like every clip. One video at a time; the month's clips cap; the price
- * `animate_5` or `animate_10`, given back when it doesn't come through.
+ * Venice), 5 or 10 seconds. The motion is a chip, the owner's own `guide` (David, 2026-10-24: "guide it again if it
+ * messed up"), or both; `dialog` is what they say, `transcript` the lines around the moment, for the mood. Queued now and
+ * collected as the page polls (collectAnimations): the video is checked by Hive before it's kept, like every clip. One
+ * video at a time; the month's clips cap; the price `animate_5` or `animate_10`, given back when it doesn't come through.
  */
 export async function animatePicture(db: Db, viewer: string, characterId: string, input: AnimateInput, baseUrl: string): Promise<JobResult> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config, admin } = access;
-  const motion = ANIMATE_MOTIONS.find((m) => m.id === input.motion);
-  if (!motion || config.disabled_options.includes(`motion.${motion.id}`)) return fail(422, "unknown_option", "Pick one of the motions.");
+  const motion = input.motion ? ANIMATE_MOTIONS.find((m) => m.id === input.motion) : undefined;
+  if (input.motion && (!motion || config.disabled_options.includes(`motion.${motion.id}`))) return fail(422, "unknown_option", "Pick one of the motions.");
+  const guide: AnimateGuide = { guide: input.guide, dialog: input.dialog, transcript: input.transcript };
+  if (!motion && !(guide.guide ?? "").trim()) return fail(422, "no_motion", "Pick a motion or type what should happen.");
+  // The owner's own words for the clip are held to the lines, like a shoot's.
+  if (!wordsOk([guide.guide, guide.dialog, guide.transcript].filter(Boolean).join(" "))) return fail(422, "not_allowed", "That crosses one of the lines After Dark never crosses.");
   if (!(ANIMATE_SECONDS as readonly number[]).includes(input.seconds)) return fail(422, "invalid", "5 or 10 seconds.");
   const seconds = input.seconds as AnimateSeconds;
   const src = await soloPicture(db, viewer, c.id, input.image_id);
@@ -1042,7 +1050,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
   const model = config.animate.model ?? (await getAdultSettings(db)).reel_model;
   let queueId: string;
   try {
-    const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion.words);
+    const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion?.words ?? "", guide);
     queueId = await queueVideo(keys.venice, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative: ANIMATE_NEGATIVE });
   } catch (err) {
     if (pays) await refundBoughtTokens(db, viewer, tokens);
@@ -1053,7 +1061,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
       `insert into adult_studio_shoots (id, owner_id, character_id, kind, choices, model, provider, tokens, asked, status)
        values ($1, $2, $3, 'animate', $4::jsonb, $5, 'venice', $6, 1, 'making')
        returning id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at`,
-      [crypto.randomUUID(), viewer, c.id, JSON.stringify({ source: src.id, motion: motion.id, seconds, queue_id: queueId, level: src.level }), model, pays ? tokens : 0],
+      [crypto.randomUUID(), viewer, c.id, JSON.stringify({ source: src.id, motion: motion?.id ?? null, seconds, queue_id: queueId, level: src.level, ...(guide.guide ? { guide: guide.guide } : {}), ...(guide.dialog ? { dialog: guide.dialog } : {}), ...(guide.transcript ? { transcript: guide.transcript } : {}) }), model, pays ? tokens : 0],
     )
   ).rows[0];
   return { ok: true, shoot: shootRow(row), pictures: [], refunded: false, message: `Animating: it takes a few minutes, and lands in the gallery.` };
@@ -1065,7 +1073,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
  * Anything not kept gives its tokens back. While Hive is out for the day they wait at Venice, unchecked.
  */
 export async function collectAnimations(db: Db, viewer: string): Promise<void> {
-  const { rows } = await db.query<{ id: string; character_id: string; model: string; tokens: number; choices: { source: string; motion: string; queue_id: string }; created_at: string | Date }>(
+  const { rows } = await db.query<{ id: string; character_id: string; model: string; tokens: number; choices: { source: string; motion: string | null; queue_id: string; guide?: string }; created_at: string | Date }>(
     `select id, character_id, model, tokens, choices, created_at from adult_studio_shoots where owner_id = $1 and kind = 'animate' and status = 'making' order by created_at limit 3`,
     [viewer],
   );
@@ -1109,7 +1117,7 @@ export async function collectAnimations(db: Db, viewer: string): Promise<void> {
     await db.query(
       `insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, model, shoot_id)
        values ($1, $2, $3, 'video', $4, 'video/mp4', $5, $6, 'ready', $7, 'venice', false, $8, $9)`,
-      [vid, viewer, r.character_id, `Studio clip: ${r.choices.motion}`, kept.data, kept.object_key, r.choices.source, r.model, r.id],
+      [vid, viewer, r.character_id, `Studio clip: ${r.choices.motion ?? (r.choices.guide ? "your direction" : "clip")}`, kept.data, kept.object_key, r.choices.source, r.model, r.id],
     );
     await countUse(db, viewer, "clips");
     await releaseVideo(keys.venice, r.model, r.choices.queue_id);
