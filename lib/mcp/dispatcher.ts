@@ -156,7 +156,7 @@ import { swipeGateOn } from "../swipe-gate";
 import { clearNotifications, dateOfTurnNotice, listNotifications, markRead, notify, ownersOf, resolveTurnNotices, sweepStaleTurnNotices, unreadCount } from "../notifications";
 import { closeProposal, pendingProposal, PROPOSAL_DAYS, proposeDate } from "../date-proposals";
 import { arcQuestion, predictArc } from "../arcs";
-import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir } from "../air";
+import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
 import { CONVERSATION_TURNS } from "../rules";
 import { isPlaceholder, placeLabel, venueName, venuePhrase } from "../venues";
 import { planPlace } from "../places";
@@ -4237,9 +4237,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2.4.2: when each really airs (airTimings), soonest first; predictions stay open until then.
       const timings = await airTimings(db, unaired);
       // 2.4.3: a stable order: minutes_left ascending, then id (two dates booked in the same minute used to swap between calls).
+      // #839: a watch party waiting on its room (no start time, or one that has passed) goes after the dates that air on their own.
       const left = (id: string) => {
         const x = timings.get(id);
-        return x?.airs_at ? new Date(x.airs_at).getTime() - Date.now() : Number.MAX_SAFE_INTEGER;
+        return x?.airs_at && !waitsOnRoom(x) ? new Date(x.airs_at).getTime() - Date.now() : Number.MAX_SAFE_INTEGER;
       };
       // 2.6.0: re-checked right before answering, so a date that aired while this ran isn't listed as open.
       const stillOpen = new Set(
@@ -4259,9 +4260,6 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const episodes = shown.map((id) => ({
           ...trimEpisode(byId.get(id)!),
           ...timingOf(id),
-          ...(timingOf(id).airs === "watch_party" && !timingOf(id).airs_at
-            ? { airs_note: "No start time: it premieres only when someone opens its watch party on /watch, so a pick on it may wait a long while." }
-            : {}),
           ...(yours.has(id) ? { yours: true, can_predict: false } : {}),
           ...picksFor(context.get(id)),
           ...(context.has(id) ? { context: context.get(id) } : {}),
@@ -6016,8 +6014,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // start time airs only when someone opens it on /watch, so the pick may wait a long while. Said, not hidden.
       const when = !timing
         ? ""
-        : timing.airs === "watch_party" && !timing.airs_at
-          ? " only when someone opens its watch party room on /watch (it has no start time, so this pick may wait a long while; browse_episodes with open: true lists dates that air on their own)"
+        : waitsOnRoom(timing)
+          ? ` only when someone opens its watch party room on /watch (${timing.airs_at ? `its listed time, ${timing.airs_at}, has passed` : "it has no start time"}, so this pick may wait a long while; browse_episodes with open: true lists dates that air on their own)`
           : timing.airs === "due" ? " (its time has come: it airs on the next call anyone makes)" : timing.airs_at ? ` (${timing.airs === "scheduled" ? "at" : "no sooner than"} ${timing.airs_at})` : "";
       // 2.6.0 (the 2026-10-22-0042 run: "a bit more to go on"): what the pick could rest on, never the ending, and the prior.
       const context = (await predictionContext(db, [String(args.episode_id ?? "")]).catch(() => new Map<string, Record<string, unknown>>())).get(String(args.episode_id ?? ""));
@@ -7063,14 +7061,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const airs =
           !timing ? "on its own once it's finished"
           : timing.airs === "when_ready" ? `once it's finished, no sooner than ${timing.airs_at}`
-          : timing.airs === "watch_party" ? `in its watch party${timing.airs_at ? ` at ${timing.airs_at}` : ""}`
+          : timing.airs === "watch_party" ? `in its watch party${waitsOnRoom(timing) ? ", once someone opens its room on /watch" : ""}${timing.airs_at ? ` (listed for ${timing.airs_at})` : ""}`
           : timing.airs === "due" ? "now (its time has come: the next call anyone makes airs it)"
           : `on its own at ${timing.airs_at}`;
         const within = secondsLeft !== null && secondsLeft <= WAIT_MAX_SECONDS;
         const todo = within
           ? `plan_second_date with wait_seconds: ${WAIT_MAX_SECONDS} now waits for it, then says whether it can be booked and the cost (confirm: true books it in the same call)`
           : `call plan_second_date with wait_seconds: ${WAIT_MAX_SECONDS} once it's within ${WAIT_MAX_SECONDS} seconds of airing${at ? ` (from ${new Date(at.getTime() - WAIT_MAX_SECONDS * 1000).toISOString()})` : ""}, which waits for it, then previews (confirm: true books); preview: true says where it stands`;
-        const note = `It airs ${airs}${secondsLeft !== null && timing?.airs !== "due" ? `, in about ${secondsLeft} seconds` : ""}: ${todo}.`;
+        const note = `It airs ${airs}${secondsLeft !== null && timing?.airs !== "due" && !(timing && waitsOnRoom(timing)) ? `, in about ${secondsLeft} seconds` : ""}: ${todo}.`;
         const report = airWait ? waitReport(airWait, "timeout") : {};
         // 2.10.0 (#619's comment): a wait that ran out first says so plainly, why, and when to call again.
         const ranOut = airWait ? airWaitNote(timing, airWait) : null;
