@@ -13,6 +13,8 @@ import {
   sourceOf,
 } from "@/lib/prompts-library";
 import CopyPrompt from "./CopyPrompt";
+import MyPrompts from "./MyPrompts";
+import SavePrompt from "./SavePrompt";
 
 const PATH = "/prompts";
 const TITLE = "Prompts library";
@@ -70,6 +72,8 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
         </form>
       </section>
 
+      <MyPrompts />
+
       <section className="card" id="prompts" aria-labelledby="prompts-count">
         <p className="muted small" id="prompts-count" aria-live="polite">
           {found.length === 0
@@ -90,6 +94,7 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
                 <div className="prompt-meta">
                   <span className="muted small">{`${sourceOf(p).name} · ${sourceOf(p).license}`}</span>
                   <CopyPrompt text={p.prompt} />
+                  <SavePrompt text={p.prompt} />
                 </div>
               </li>
             ))}

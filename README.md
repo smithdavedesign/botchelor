@@ -2,6 +2,19 @@
 
 ## Screenshots
 
+The Studio for everyone, and the Create library (2026-10-25). Each character's safe **📸 Studio**
+(`/characters/[id]/studio`): eleven menus and your own words, four pictures that keep their face, and every picture
+checked safe before it's kept. **✨ Create** (in both Studios) keeps your own venues, prompts and roleplays: venues and
+prompts show up in your shoots, and venues and roleplays under ✨ Yours in a night's Scene & roleplay. Captured by
+`npm run screenshots:create` with seeded PG stand-ins (nothing drawn). Code: [`lib/studio/pg.ts`](lib/studio/pg.ts),
+[`lib/studio/library.ts`](lib/studio/library.ts).
+
+![The PG Studio's Shoot tab on desktop: Candid picked, one of your own venues (the lighthouse lantern room) picked in Where](docs/screenshots/studio-pg-shoot-desktop.png)
+![The PG Studio's gallery on desktop: four kept pictures, one marked Suggestive](docs/screenshots/studio-pg-gallery-desktop.png)
+![The PG Studio's Create tab on a phone: a venue form with ideas to start from, and your saved venues](docs/screenshots/studio-pg-create-phone.png)
+![Scene & roleplay in After Dark: your own roleplay, Rival food trucks, under ✨ Yours with the two names filled in](docs/screenshots/create-picker-roleplay-desktop.png)
+![Your prompts on /prompts: write your own or Save one from the library below](docs/screenshots/prompts-mine-desktop.png)
+
 The OC chemistry test (2026-10-23): two original characters in; a score out of 100, the ending Botchelor's date engine
 predicts and three one-line reasons out, on a link anyone can share. No model is called and nothing is stored. Captured
 from the production build by `npm run screenshots:chemistry`, with every model variable unset and sample characters only.

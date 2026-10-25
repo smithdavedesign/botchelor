@@ -11,7 +11,8 @@ import { listReels } from "@/lib/adult/reels";
 import { hiveNotice } from "@/lib/adult/hive-limit";
 import { listNights, openScene } from "@/lib/adult/scenes";
 import { getAdultSettings } from "@/lib/adult/settings";
-import { sceneCatalog } from "@/lib/adult/scene-catalog";
+import { mineScenes, sceneCatalog } from "@/lib/adult/scene-catalog";
+import { asRoleplay, getLibrary } from "@/lib/studio/library";
 import { studioAccess } from "@/lib/adult/studio";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
@@ -45,6 +46,9 @@ export default async function AfterDarkScenePage({ params }: Props) {
   const here = await currentHere();
   const scene = await openScene(db, admin, a, b);
   if (!scene) notFound();
+  // The viewer's own venues and roleplays (lib/studio/library.ts), beside the show's in Scene & roleplay.
+  const library = await getLibrary(db, admin).catch(() => ({ prompts: [], places: [], roleplays: [] }));
+  const drawnSets = (await db.query<{ label: string }>(`select label from place_sets where status = 'ready' order by updated_at desc limit 300`)).rows.map((r) => r.label);
   const characters = [refOf(scene.a.id, scene.a.name, await getPublicCharacter(db, scene.a.id)), refOf(scene.b.id, scene.b.name, await getPublicCharacter(db, scene.b.id))] as [CharacterRef, CharacterRef];
   return (
     <div className="after-dark-mode">
@@ -76,7 +80,8 @@ export default async function AfterDarkScenePage({ params }: Props) {
         initial={scene}
         gallery={await listMedia(db, [scene.a.id, scene.b.id], admin)}
         characters={characters}
-        scenes={sceneCatalog((await db.query<{ label: string }>(`select label from place_sets where status = 'ready' order by updated_at desc limit 300`)).rows.map((r) => r.label))}
+        scenes={[...mineScenes(library.places, drawnSets), ...sceneCatalog(drawnSets)]}
+        myRoleplays={library.roleplays.map(asRoleplay)}
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}
         reelTokens={(await getAdultSettings(db)).reel_tokens}

@@ -41,7 +41,9 @@ describe("the scene catalog", () => {
   });
 
   it("every category has scenes, and every card at least one category", () => {
-    for (const c of SCENE_CATEGORIES) expect(all.some((s) => s.categories.includes(c.id)), c.id).toBe(true);
+    // ✨ Yours fills with the owner's own venues (mineScenes, lib/studio/library.ts), never the show's.
+    for (const c of SCENE_CATEGORIES.filter((x) => x.id !== "mine")) expect(all.some((s) => s.categories.includes(c.id)), c.id).toBe(true);
+    expect(all.some((s) => s.categories.includes("mine"))).toBe(false);
     for (const s of all) expect(s.categories.length, s.id).toBeGreaterThan(0);
   });
 

@@ -443,6 +443,8 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["adult_entitlements", "user_id"], ["adult_viewer_places", "user_id"], ["adult_billing_flags", "user_id"],
   // The PG Studio's (lib/studio/pg.ts): not After Dark's, but deleted the same way, pictures before their shoots.
   ["studio_pg_pictures", "owner_id"], ["studio_pg_shoots", "owner_id"],
+  // The Create library's (lib/studio/library.ts): their own prompts, venues and roleplays.
+  ["creator_prompts", "owner_id"], ["creator_places", "owner_id"], ["creator_roleplays", "owner_id"],
 ];
 
 /**
