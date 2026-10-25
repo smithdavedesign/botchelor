@@ -90,30 +90,25 @@ export default function SceneWriter({
   const [reelNote, setReelNote] = useState<{ text: string; error?: boolean; busy?: BusyReel } | null>(null);
   // The open storyboard draft (docs/PRDs/reel-storyboard.md): plan a video, check its pictures, then film it.
   const [storyboard, setStoryboard] = useState<Reel | null>(null);
+  // The storyboard is open and its shots are being picked (what the video covers), before it has any.
+  const [planning, setPlanning] = useState<ReelScope | null>(null);
   const putReel = useCallback((r: Reel) => {
     setReelList((list) => [r, ...list.filter((x) => x.id !== r.id)]);
     // Done, either way: the "it's being made" note would contradict the video below (a failure says why there).
     if (r.status !== "making") setReelNote((n) => (n && !n.error && !n.busy ? null : n));
   }, []);
   /** A video of one chapter (a saved one by `nightId`, else the one being written), or of the whole night (lib/adult/reels.ts). */
-  async function makeVideo(scope: ReelScope, nightId?: string) {
-    setReelNote({ text: `Picking the ${scope === "night" ? "whole night's" : "chapter's"} best moments and setting up a shot of the two of them for each (about a minute)…` });
-    const res = await requestJson("/api/admin/after-dark/reel", { a: scene.a.id, b: scene.b.id, scope, ...(nightId ? { night_id: nightId } : {}) }).catch(() => null);
-    if (!res) return setReelNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
-    // One at a time: the refusal names the video in the way (maybe another pair's), so it can be stopped from here.
-    if (!res.ok) return setReelNote({ text: res.message, error: true, busy: (res.data.busy as BusyReel | undefined) ?? undefined });
-    const reel = res.data.reel as Reel;
-    putReel(reel);
-    // A video can be done already (every shot refused at once, say): then its own line below says how it went.
-    if (reel.status === "making") setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
-  }
-  /** Plan a video as a storyboard (docs/PRDs/reel-storyboard.md): the shots are picked, then checked and filmed in the panel. */
+  /**
+   * Every video goes through the storyboard (David, 2026-10-24): it opens at once, while the director picks the moments
+   * (one text call: nothing is drawn, filmed or spent until a button in the storyboard says so).
+   */
   async function planVideo(scope: ReelScope, nightId?: string) {
-    setReelNote({ text: "Picking the best moments and setting up the storyboard…" });
+    setReelNote(null);
+    setPlanning(scope);
     const res = await requestJson("/api/admin/after-dark/reel", { a: scene.a.id, b: scene.b.id, scope, action: "plan", ...(nightId ? { night_id: nightId } : {}) }).catch(() => null);
+    setPlanning(null);
     if (!res) return setReelNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
     if (!res.ok) return setReelNote({ text: res.message, error: true, busy: (res.data.busy as BusyReel | undefined) ?? undefined });
-    setReelNote(null);
     setStoryboard(res.data.reel as Reel);
   }
   const [theater, setTheater] = useState(play);
@@ -317,9 +312,12 @@ export default function SceneWriter({
     // An admin: every media title under it opens what made it (app/after-dark/MediaRequest.tsx).
     <MediaAdmin.Provider value={admin}>
       <section className="after-dark-scene">
-        {storyboard && (
+        {(storyboard || planning) && (
           <Storyboard
             reel={storyboard}
+            planning={planning}
+            names={{ a: scene.a.name, b: scene.b.name }}
+            pictures={gallery}
             tokens={reelTokens}
             paused={mediaPaused}
             onFilmed={(r) => {
@@ -327,7 +325,10 @@ export default function SceneWriter({
               setStoryboard(null);
               if (r.status === "making") setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
             }}
-            onClose={() => setStoryboard(null)}
+            onClose={() => {
+              setStoryboard(null);
+              setPlanning(null);
+            }}
           />
         )}
         <p>
@@ -352,7 +353,7 @@ export default function SceneWriter({
             beats={textOnly ? [] : (scene.beats ?? [])}
             onBeat={textOnly ? undefined : (id, answer, guide) => beatAction({ beat: { id, answer, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
             onPictureNow={(line, guide) => beatAction({ picture_now: { line, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
-            onMakeVideo={(scope) => makeVideo(scope)}
+            onMakeVideo={(scope) => planVideo(scope)}
             onPlanVideo={(scope) => planVideo(scope)}
             videoChapters={runningNight(
               nightList.map((n) => ({ id: n.id, chapter: n.chapter, created_at: n.created_at, lines: n.lines.length })),
@@ -556,7 +557,7 @@ export default function SceneWriter({
                   <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
                     ▶ Play
                   </button>{" "}
-                  <button type="button" className="button-ghost" onClick={() => void makeVideo("chapter", n.id)} disabled={Boolean(mediaPaused)} title={mediaPaused ?? `A short film of this chapter, in their voices (${reelTokens} tokens)`}>
+                  <button type="button" className="button-ghost" onClick={() => void planVideo("chapter", n.id)} disabled={Boolean(mediaPaused)} title={mediaPaused ?? `A short film of this chapter: check each shot's picture, then film (${reelTokens} tokens)`}>
                     🎬 Video · {reelTokens} tokens
                   </button>{" "}
                   {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}

@@ -183,6 +183,12 @@ export type ReelShot = {
    */
   custom?: string;
   approved?: boolean;
+  /** The lines just before this one (up to SHOT_CONTEXT), so the storyboard shows where in the night it is. */
+  before?: { who: "a" | "b"; text: string }[];
+  /** It starts from a picture the owner picked from the pair's own (useShotPicture): `media_id` and `frame_id` are it. */
+  from_picture?: boolean;
+  /** Re-filmed (refilmShot): what this shot's new video cost, given back if it fails and cleared once it's settled. */
+  refilm_tokens?: number;
   /** Read with the reel for the one watching, never stored in it: their 👍/👎 on the shot and what was off (lib/adult/steering.ts). */
   rating?: 1 | -1 | null;
   tags?: string[];
@@ -1207,6 +1213,9 @@ export async function stopReel(db: Db, ownerId: string, id: string, reason = "st
   return settleIfDone(db, id);
 }
 
+/** How many lines before a shot's own the storyboard shows with it. */
+export const SHOT_CONTEXT = 5;
+
 type ReelOpts = { shots?: number; where?: ReelWhere; night?: Pick<ReelNight, "scope" | "chapters" | "places" | "stages" | "chapterOf"> };
 type Settings = Awaited<ReturnType<typeof getAdultSettings>>;
 type Loaded = NonNullable<Awaited<ReturnType<typeof loadCharacter>>>;
@@ -1239,7 +1248,9 @@ async function assembleShots(db: Db, ownerId: string, a: string, b: string, line
     if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok || crossesTaboo(`${speech} ${p.frame} ${p.motion}`)) continue;
     const k = whole?.chapterOf[p.line];
     const from = k === undefined ? null : { chapter: whole!.chapters[k].chapter, night_id: whole!.chapters[k].night_id, chapter_line: p.line - starts[k] };
-    shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "planned", place: places[p.line] ?? null, stage: stages[p.line] ?? 0, ...(onReplicate ? { provider: "replicate" as const } : {}), ...(from ?? {}) });
+    // Where in the night it is: the lines just before it, for the storyboard (David, 2026-10-24).
+    const before = lines.slice(Math.max(0, p.line - SHOT_CONTEXT), p.line).map((x) => ({ who: x.who, text: x.text.replace(/\s+/g, " ").slice(0, 240) }));
+    shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "planned", place: places[p.line] ?? null, stage: stages[p.line] ?? 0, before, ...(onReplicate ? { provider: "replicate" as const } : {}), ...(from ?? {}) });
   }
   if (!shots.length) throw new Error("no usable lines");
   // A shot whose moment already has a beat picture starts from it (lib/adult/beats.ts): the video looks like the pictures.
@@ -1364,7 +1375,7 @@ export async function planReel(db: Db, ownerId: string, x: string, y: string, li
  * its kept keyframe, or is dropped if its picture can't be drawn or doesn't pass. Only picture spend; no video, no
  * tokens. The draft stays a draft (approve, redraw or drop, then film). Safe to run again: only `planned` shots draw.
  */
-export async function drawReelFrames(db: Db, ownerId: string, reelId: string, baseUrl: string): Promise<MakeReelResult> {
+export async function drawReelFrames(db: Db, ownerId: string, reelId: string, baseUrl: string, only?: number): Promise<MakeReelResult> {
   const row = await loadDraft(db, ownerId, reelId);
   if (!row) return { ok: false, status: 404, error: "not_found", message: "That storyboard isn't here." };
   if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
@@ -1386,9 +1397,11 @@ export async function drawReelFrames(db: Db, ownerId: string, reelId: string, ba
     const bases = await baselines(db, row.a, row.b, ownerId);
     if (!bases) throw new Error("a picture of each of them is needed first");
     const { places, stages } = shotGrids(row.shots);
-    const nudeBases = row.shots.some((s) => s.status === "planned" && !s.from_beat && (s.stage ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, ca, cb) : null;
+    // One shot (the storyboard's per-shot draw), or every one still planned.
+    const drawing = only === undefined ? row.shots : row.shots.filter((_, k) => k === only);
+    const nudeBases = drawing.some((s) => s.status === "planned" && !s.from_beat && (s.stage ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, ca, cb) : null;
     const ctx = await withSteering(db, ownerId, { pair: [row.a, row.b], cast: reelCast(ca, cb, ownerId), places, stages, bases, nudeBases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
-    await drawFrames(db, ownerId, row.shots, ctx);
+    await drawFrames(db, ownerId, drawing, ctx);
     const made = reelMadeOn(row.shots);
     await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(row.shots), made.provider, made.fell_back]);
     return { ok: true, reel: (await getReel(db, reelId))! };
@@ -1661,8 +1674,17 @@ export async function settleIfDone(db: Db, id: string): Promise<Reel> {
   if (r.status === "making" && !r.shots.some((s) => s.status === "queued")) {
     const good = r.shots.filter((s) => s.status === "ready").length;
     const status = good ? "ready" : "failed";
-    const refund = r.tokens - Math.ceil((r.tokens * good) / r.shots.length);
-    const done = await db.query(`update adult_reels set status = $2, updated_at = now() where id = $1 and status = 'making' returning 1`, [id, status]);
+    // A shot filmed again (refilmShot) settles on its own: its price back if it failed. The reel's own share was settled
+    // when it was first made, so it isn't refunded twice.
+    const refilmed = r.shots.filter((s) => s.refilm_tokens !== undefined);
+    const refund = refilmed.length
+      ? refilmed.reduce((t, s) => t + (s.status === "ready" ? 0 : (s.refilm_tokens ?? 0)), 0)
+      : r.tokens - Math.ceil((r.tokens * good) / r.shots.length);
+    for (const s of refilmed) delete s.refilm_tokens;
+    const done = await db.query(
+      `update adult_reels set status = $2, updated_at = now()${refilmed.length ? ", shots = $3::jsonb" : ""} where id = $1 and status = 'making' returning 1`,
+      refilmed.length ? [id, status, JSON.stringify(r.shots)] : [id, status],
+    );
     if (done.rows.length && refund > 0) await refundBoughtTokens(db, r.owner_id, refund);
   }
   return (await getReel(db, id))!;
@@ -1812,23 +1834,108 @@ export async function approveShot(db: Db, ownerId: string, reelId: string, media
   return { ok: true, reel };
 }
 
+/** The owner's own words for one shot, cleaned; refused (null) when they cross a line After Dark never crosses. */
+function shotWords(custom: string | undefined): { ok: true; words: string | undefined } | { ok: false } {
+  const clean = (custom ?? "").trim().replace(/\s+/g, " ").slice(0, 400) || undefined;
+  return clean && (!checkAdultText({ words: clean }).ok || crossesTaboo(clean)) ? { ok: false } : { ok: true, words: clean };
+}
+const notAllowed = { ok: false as const, status: 422, error: "not_allowed", message: "That crosses one of the lines After Dark never crosses." };
+
+/** A draft's shot by its place in the storyboard (`shot`), or by its picture (`mediaId`). */
+function findShot(shots: ReelShot[], target: { shot?: number; mediaId?: string | null }): number {
+  if (typeof target.shot === "number") return target.shot >= 0 && target.shot < shots.length ? target.shot : -1;
+  return target.mediaId ? shots.findIndex((s) => s.media_id === target.mediaId || s.frame_id === target.mediaId) : -1;
+}
+
 /**
- * Redraw one shot of a draft storyboard to the owner's own words (David, 2026-10-24): the shot's `custom` leads a fresh
- * keyframe, drawn and checked now; its old picture is replaced and its approval cleared, so it needs a look again.
+ * Draw (or redraw) one shot of a draft storyboard, to the owner's own words when they gave some (David, 2026-10-24):
+ * the shot's `custom` leads a fresh keyframe, drawn and checked now — only this shot, never the others still planned.
+ * Its old picture is let go and its approval cleared, so it needs a look again.
  */
-export async function redrawShot(db: Db, ownerId: string, reelId: string, mediaId: string, custom: string | undefined, baseUrl: string): Promise<MakeReelResult> {
+export async function redrawShot(db: Db, ownerId: string, reelId: string, target: { shot?: number; mediaId?: string | null }, custom: string | undefined, baseUrl: string): Promise<MakeReelResult> {
   const shots = await editableDraft(db, ownerId, reelId);
   if (!Array.isArray(shots)) return shots;
-  const shot = shots.find((s) => (s.status === "frame_ready" || s.status === "failed" || s.status === "discarded") && (s.media_id === mediaId || s.frame_id === mediaId));
-  if (!shot) return { ok: false, status: 404, error: "not_found", message: "There's no such shot to redraw." };
-  const clean = (custom ?? "").trim().replace(/\s+/g, " ").slice(0, 400) || undefined;
-  if (clean && (!checkAdultText({ words: clean }).ok || crossesTaboo(clean))) return { ok: false, status: 422, error: "not_allowed", message: "That crosses one of the lines After Dark never crosses." };
-  // Back to planned so drawReelFrames redraws just this one; its old keyframe and approval go.
-  Object.assign(shot, { status: "planned" as const, custom: clean, approved: false });
-  delete shot.media_id;
-  delete shot.frame_id;
-  delete shot.archived_at;
-  delete shot.reason;
+  const k = findShot(shots, target);
+  if (k < 0) return { ok: false, status: 404, error: "not_found", message: "There's no such shot to draw." };
+  const words = shotWords(custom);
+  if (!words.ok) return notAllowed;
+  const shot = shots[k];
+  // Back to planned so drawReelFrames draws just this one; its old keyframe (or picked picture) and approval go.
+  Object.assign(shot, { status: "planned" as const, custom: words.words, approved: false });
+  for (const f of ["media_id", "frame_id", "archived_at", "archived_by", "reason", "from_beat", "from_picture"] as const) delete shot[f];
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(shots)]);
-  return drawReelFrames(db, ownerId, reelId, baseUrl);
+  return drawReelFrames(db, ownerId, reelId, baseUrl, k);
+}
+
+/**
+ * Start one shot from a picture the owner already has of the two of them (David, 2026-10-24: "upload a base image from
+ * the existing images in the After Dark room"): one of theirs, of this pair, ready, a picture (not a clip). It was
+ * checked when it was made, so nothing is drawn or spent; the shot needs approving like any other.
+ */
+export async function useShotPicture(db: Db, ownerId: string, reelId: string, shotIndex: number, imageId: string): Promise<MakeReelResult> {
+  const row = await loadDraft(db, ownerId, reelId);
+  if (!row) return { ok: false, status: 404, error: "not_found", message: "That storyboard isn't here." };
+  if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
+  const k = findShot(row.shots, { shot: shotIndex });
+  if (k < 0) return { ok: false, status: 404, error: "not_found", message: "There's no such shot." };
+  const pic = (
+    await db.query<{ id: string }>(
+      `select id from adult_images
+        where id = $1 and owner_id = $2 and status = 'ready' and mime like 'image/%' and kind in ('scene', 'baseline', 'frame')
+          and character_id in ($3, $4) and (character_b is null or character_b in ($3, $4))`,
+      [imageId, ownerId, row.a, row.b],
+    )
+  ).rows[0];
+  if (!pic) return { ok: false, status: 404, error: "not_found", message: "That picture isn't one of this pair's." };
+  const shot = row.shots[k];
+  Object.assign(shot, { status: "frame_ready" as const, media_id: pic.id, frame_id: pic.id, from_picture: true, approved: false });
+  for (const f of ["archived_at", "archived_by", "reason", "from_beat"] as const) delete shot[f];
+  await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(row.shots)]);
+  return { ok: true, reel: (await getReel(db, reelId))! };
+}
+
+/**
+ * Film one shot of a finished reel again from its own start picture (David, 2026-10-24: "a way to regenerate the
+ * video"): its share of the reel's price (admins free), given back if the new video fails. The old video is let go.
+ * Only once the reel is done (ready or failed), one reel at a time as ever.
+ */
+export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaId: string, baseUrl: string): Promise<MakeReelResult> {
+  const r = (await db.query<{ owner_id: string; status: string; character_a: string; character_b: string; shots: ReelShot[] }>(`select owner_id, status, character_a, character_b, shots from adult_reels where id = $1`, [reelId])).rows[0];
+  if (!r || r.owner_id !== ownerId) return { ok: false, status: 404, error: "not_found", message: "That video isn't here." };
+  if (r.status !== "ready" && r.status !== "failed") return { ok: false, status: 409, error: "not_done", message: "Wait for this video to finish first." };
+  const shot = r.shots.find((s) => s.media_id === mediaId && s.frame_id && !s.archived_at && (s.status === "ready" || s.status === "failed" || s.status === "discarded"));
+  if (!shot) return { ok: false, status: 404, error: "not_found", message: "There's no such shot to film again." };
+  const settings = await getAdultSettings(db);
+  const keys = await adultKeys(db);
+  const onReplicate = settings.media_provider === "replicate";
+  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
+    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
+  }
+  const busy = await busyReel(db, ownerId);
+  if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
+  const pays = !(await isAdmin(db, ownerId));
+  const price = pays ? Math.max(1, Math.ceil(settings.reel_tokens / Math.max(1, r.shots.length))) : 0;
+  if (price && !(await spendBoughtTokens(db, ownerId, price))) {
+    return { ok: false, status: 402, error: "needs_tokens", message: `Filming a shot again costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.` };
+  }
+  try {
+    const [ca, cb] = await Promise.all([loadCharacter(db, r.character_a), loadCharacter(db, r.character_b)]);
+    if (!ca || !cb) throw new Error("one of them is missing");
+    const { places, stages } = shotGrids(r.shots);
+    const bases = (await baselines(db, r.character_a, r.character_b, ownerId)) ?? (["", ""] as [string, string]);
+    const ctx = await withSteering(db, ownerId, { pair: [r.character_a, r.character_b], cast: reelCast(ca, cb, ownerId), places, stages, bases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
+    // Back to its start picture, queued again; the reel is being made until it's in.
+    Object.assign(shot, { status: "frame_ready" as const, media_id: shot.frame_id, refilm_tokens: price });
+    for (const f of ["queue_id", "reason", "retry_at", "audio_id", "request"] as const) delete shot[f];
+    await db.query(`update adult_reels set status = 'making', updated_at = now() where id = $1 and status in ('ready', 'failed')`, [reelId]);
+    await queueVideos(db, [shot], ctx);
+    if (shot.status !== "queued") throw new Error(shot.reason ?? "it couldn't be queued");
+    await db.query(`update adult_reels set shots = $2::jsonb where id = $1`, [reelId, JSON.stringify(r.shots)]);
+    return { ok: true, reel: await settleIfDone(db, reelId) };
+  } catch (err) {
+    if (price) await refundBoughtTokens(db, ownerId, price);
+    // Back as it was: the old video stays the shot's.
+    await db.query(`update adult_reels set status = $2 where id = $1 and status = 'making'`, [reelId, r.status]).catch(() => {});
+    return { ok: false, status: 502, error: "not_started", message: `It couldn't be filmed again (${err instanceof Error ? err.message : "error"}).${price ? " Your tokens are back." : ""}` };
+  }
 }

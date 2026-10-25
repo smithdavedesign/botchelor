@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
-import { advanceReel, approveShot, archiveShot, drawReelFrames, filmReel, listReels, makeReel, planReel, redrawShot, REEL_SCOPES, reelNight, stopReel } from "@/lib/adult/reels";
+import { advanceReel, approveShot, archiveShot, drawReelFrames, filmReel, listReels, makeReel, planReel, redrawShot, refilmShot, REEL_SCOPES, reelNight, stopReel, useShotPicture } from "@/lib/adult/reels";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -17,7 +17,12 @@ const Input = z.object({ a: id, b: id, night_id: id.optional(), scope: z.enum(RE
 const StageInput = z.object({ action: z.enum(["draw", "film"]), id });
 // Reviewing a draft storyboard's shots: approve a shot's picture (media_id null = all), or redraw one to the owner's words.
 const ApproveInput = z.object({ action: z.literal("approve"), id, media_id: id.nullable(), approved: z.boolean() });
-const RedrawInput = z.object({ action: z.literal("redraw"), id, media_id: id, custom: z.string().max(400).optional() });
+// Draw one shot (a planned one, or again), to the owner's words: by its place in the storyboard (`shot`) or its picture.
+const RedrawInput = z.object({ action: z.literal("redraw"), id, shot: z.number().int().min(0).max(50).optional(), media_id: id.optional(), custom: z.string().max(400).optional() });
+// Start one shot from a picture of the pair the owner already has (`image_id`).
+const PictureInput = z.object({ action: z.literal("use_picture"), id, shot: z.number().int().min(0).max(50), image_id: id });
+// Film one shot of a finished video again (`media_id`, the shot's video).
+const RefilmInput = z.object({ action: z.literal("refilm"), id, media_id: id });
 // One shot of a video (`media_id`, the shot itself) into the Archive, or back out (`archived` false).
 const ArchiveInput = z.object({ id, media_id: id, archived: z.boolean() });
 
@@ -52,7 +57,17 @@ export const POST = handle(async (req: Request) => {
   }
   if (act === "redraw") {
     const input = parseBody(RedrawInput, body, "invalid_request");
-    const r = await redrawShot(db, viewer, input.id, input.media_id, input.custom, requestBase(req));
+    const r = await redrawShot(db, viewer, input.id, { shot: input.shot, mediaId: input.media_id }, input.custom, requestBase(req));
+    return r.ok ? json({ reel: r.reel }) : fail(r);
+  }
+  if (act === "use_picture") {
+    const input = parseBody(PictureInput, body, "invalid_request");
+    const r = await useShotPicture(db, viewer, input.id, input.shot, input.image_id);
+    return r.ok ? json({ reel: r.reel }) : fail(r);
+  }
+  if (act === "refilm") {
+    const input = parseBody(RefilmInput, body, "invalid_request");
+    const r = await refilmShot(db, viewer, input.id, input.media_id, requestBase(req));
     return r.ok ? json({ reel: r.reel }) : fail(r);
   }
   const input = parseBody(Input, body, "invalid_request");
