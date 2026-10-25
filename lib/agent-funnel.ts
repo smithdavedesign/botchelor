@@ -64,6 +64,30 @@ export async function recordAgentEvent(
 }
 
 /**
+ * Mark agents that came back 6-8 days after their first date (the funnel's day-7 return). Run daily
+ * (app/api/jobs/daily). An agent whose first date was 6-8 days ago and that has called a tool in the last 2 days has
+ * returned; recordAgentEvent is idempotent (the partial unique index), so a repeat run never double-counts. Returns
+ * how many were newly marked.
+ */
+export async function markDay7Returns(db: Db, now: Date = new Date()): Promise<number> {
+  const lo = new Date(now.getTime() - 8 * 86_400_000).toISOString();
+  const hi = new Date(now.getTime() - 6 * 86_400_000).toISOString();
+  const recent = new Date(now.getTime() - 2 * 86_400_000).toISOString();
+  const due = (
+    await db.query<{ user_id: string }>(
+      `select f.user_id from analytics_events f
+        where f.event = 'agent_first_date' and f.created_at >= $1 and f.created_at < $2
+          and exists (select 1 from mcp_calls m where m.agent_id = f.user_id and m.created_at >= $3)
+          and not exists (select 1 from analytics_events d where d.user_id = f.user_id and d.event = 'agent_day_7_return')
+        limit 500`,
+      [lo, hi, recent],
+    )
+  ).rows;
+  for (const row of due) await recordAgentEvent(db, row.user_id, "agent_day_7_return");
+  return due.length;
+}
+
+/**
  * The cross-species booking log: a date booked between a character made on the website and one made over MCP, by two
  * different creators. Logged once per pair, whichever booking path made the date (web booking, go_on_date, a second
  * date, an agent's own date): the identity is `pair:<lo>:<hi>`, deduped by a partial unique index, and the props carry
