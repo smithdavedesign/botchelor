@@ -5,27 +5,14 @@ import { useEffect, useState } from "react";
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
 /**
- * If the pair already has a Studio picture of what's happening in the scene right now (lib/adult/scene-match.ts; David,
- * 2026-10-24: "show images in the theater if we have one that matches the scene"), a 📷 chip in the theater opens it —
- * no drawing, no spend. Checked again each time the scene moves on; nothing shows when there's no match.
+ * If the pair already has a picture of what's happening in the scene right now (lib/adult/scene-match.ts, found by the
+ * theater's useSceneMedia hook; David, 2026-10-24: "show images in the theater if we have one that matches the scene"),
+ * a 📷 chip opens it — no drawing, no spend. Nothing shows when there's no match.
  */
-export default function SceneMatch({ a, b, shown }: { a: string; b: string; shown: number }) {
-  const [match, setMatch] = useState<{ image_id: string } | null>(null);
+export default function SceneMatch({ match }: { match: { image_id: string } | null }) {
   const [open, setOpen] = useState(false);
-  useEffect(() => {
-    let live = true;
-    fetch(`/api/admin/after-dark/scene-match?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`)
-      .then((r) => r.json())
-      .then((d: { match?: { image_id: string } | null }) => {
-        if (!live) return;
-        setMatch(d.match ?? null);
-        setOpen(false);
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [a, b, shown]);
+  // A fresh match (the scene moved on) starts closed.
+  useEffect(() => setOpen(false), [match?.image_id]);
   if (!match) return null;
   return (
     <span className="ad-scene-match">

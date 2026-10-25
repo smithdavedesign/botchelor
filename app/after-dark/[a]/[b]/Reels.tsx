@@ -555,6 +555,10 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
   return (
     <figure className="after-dark-reel">
       <div ref={stage} className={`ad-reel-stage${theater ? " ad-reel-theater" : ""}`}>
+        {/* Ambient fill: the shot's keyframe, blurred and scaled, behind the contained video, so a portrait video on a
+            wide screen (or the reverse, full screen) fills the frame instead of sitting in stark black bars — no second
+            video is made for it (David, 2026-10-24: full-screen aspect, and "two aspect ratios without extra cost"). */}
+        {shot?.frame_id && <div className="ad-reel-fill" style={{ backgroundImage: `url(${mediaUrl(shot.frame_id)})` }} aria-hidden />}
         <AiTag over />
         {players.map((ref, n) => (
           <video
