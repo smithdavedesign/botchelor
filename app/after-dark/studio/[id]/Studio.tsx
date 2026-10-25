@@ -28,6 +28,44 @@ type PairPick = { act: string; swap: boolean; outfit: string; framing: string; p
 const NO_PAIR_PICK: PairPick = { act: "", swap: false, outfit: "", framing: "medium", place: "", light: "" };
 
 /**
+ * What the page remembers per character in this browser (David, 2026-10-24: "already preset" when you come back): the
+ * tab, the shoot's picks, the restyle's moves away from their look, and full screen. A convenience only: it can be gone.
+ */
+type Kept = { tab?: Tab; choices?: ShootChoices; moved?: Record<string, string>; full?: boolean };
+const keptKey = (id: string) => `bz-studio:${id}`;
+function readKept(id: string): Kept {
+  try {
+    const v = JSON.parse(localStorage.getItem(keptKey(id)) ?? "null");
+    return v && typeof v === "object" ? (v as Kept) : {};
+  } catch {
+    return {};
+  }
+}
+function writeKept(id: string, v: Kept) {
+  try {
+    localStorage.setItem(keptKey(id), JSON.stringify(v));
+  } catch {
+    // Private windows and blocked storage: the page works without it.
+  }
+}
+
+/** Remembered shoot picks still on this viewer's menu (unlocked), so a stale pick never fails a shoot. */
+function keptChoices(kept: ShootChoices | undefined, s: StudioState): ShootChoices {
+  const out: ShootChoices = {};
+  if (!kept) return out;
+  const open = (g: GroupId, id: string) =>
+    (g === "place" && s.places.some((p) => p.id === id)) || Boolean(s.menu.find((x) => x.id === g)?.options.some((o) => o.id === id && !o.locked));
+  for (const g of s.menu) {
+    const v = kept[g.id as keyof ShootChoices];
+    if (g.id === "accessories") {
+      const ids = Array.isArray(v) ? v.filter((id) => typeof id === "string" && open("accessories", id)).slice(0, g.multi) : [];
+      if (ids.length) out.accessories = ids;
+    } else if (typeof v === "string" && open(g.id, v)) out[g.id as Exclude<GroupId, "accessories">] = v;
+  }
+  return out;
+}
+
+/**
  * The Studio for one character (lib/adult/studio.ts): a shoot from the menus, a shoot of two (Together), their identity
  * (restyle, recast, body reference, limits, strength), their gallery, where a picture can be made more of, made larger,
  * animated or shared, and the setups saved to run again. Every action answers with the Studio's state after it.
@@ -49,7 +87,13 @@ export default function Studio({ initial }: { initial: StudioState }) {
   const newModels = s.models.filter((m) => m.job === "new" && fits(m));
   const [editModel, setEditModel] = useState(initial.models.find((m) => m.job === "edit" && m.ready)?.id ?? initial.models.find((m) => m.job === "edit")?.id ?? "");
   const [newModel, setNewModel] = useState(initial.models.find((m) => m.job === "new" && m.ready)?.id ?? initial.models.find((m) => m.job === "new")?.id ?? "");
-  const [changes, setChanges] = useState<Record<string, string>>({});
+  // Restyle starts from their look as they were made (restyle_current); only the picks moved away from it are sent.
+  const current: Record<string, string> = s.restyle_current ?? {};
+  const [changes, setChanges] = useState<Record<string, string>>(() => ({ ...initial.restyle_current }));
+  const moved = Object.fromEntries(Object.entries(changes).filter(([k, v]) => v && v !== current[k]));
+  const anyMoved = Object.keys(moved).length > 0;
+  const [full, setFull] = useState(false);
+  const [restored, setRestored] = useState(false);
   const [bodyNude, setBodyNude] = useState(false);
   const [partner, setPartner] = useState("");
   const [pairMenu, setPairMenu] = useState<PairMenu | null>(null);
@@ -81,6 +125,34 @@ export default function Studio({ initial }: { initial: StudioState }) {
     else if (opts.done) setNote({ text: opts.done });
     return res.data;
   }
+
+  // Back where they left off: the remembered picks once the page is in the browser (never in the server's render).
+  useEffect(() => {
+    const k = readKept(initial.character.id);
+    if (k.tab && TABS.some((t) => t.id === k.tab)) setTab(k.tab);
+    setChoices(keptChoices(k.choices, initial));
+    if (k.moved) {
+      const known = (g: string, id: string) => initial.restyle.some((x) => x.id === g && x.options.some((o) => o.id === id));
+      setChanges((x) => ({ ...x, ...Object.fromEntries(Object.entries(k.moved!).filter(([g, id]) => typeof id === "string" && known(g, id))) }));
+    }
+    if (k.full) setFull(true);
+    setRestored(true);
+  }, [initial]);
+  const movedKey = JSON.stringify(moved);
+  useEffect(() => {
+    if (restored) writeKept(c.id, { tab, choices, moved: JSON.parse(movedKey) as Record<string, string>, full });
+  }, [restored, c.id, tab, choices, movedKey, full]);
+  // Full screen: Escape leaves it, and the page behind doesn't scroll.
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    document.addEventListener("keydown", onKey);
+    document.documentElement.classList.add("ad-studio-locked");
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.documentElement.classList.remove("ad-studio-locked");
+    };
+  }, [full]);
 
   // While an animation is being made, ask after it now and then: it lands in the gallery when it's checked and kept.
   const making = s.animating.length;
@@ -187,7 +259,11 @@ export default function Studio({ initial }: { initial: StudioState }) {
         return { ...x, accessories: [...cur] };
       }
       const key = group as Exclude<GroupId, "accessories">;
-      return { ...x, [key]: x[key] === id ? undefined : id };
+      const next = { ...x, [key]: x[key] === id ? undefined : id };
+      // A Filthy act is the pose: picking one takes the other away.
+      if (next[key] && group === "filthy") next.pose = undefined;
+      if (next[key] && group === "pose") next.filthy = undefined;
+      return next;
     });
   }
 
@@ -398,9 +474,49 @@ export default function Studio({ initial }: { initial: StudioState }) {
     </div>
   );
 
+  /** An option's example picture (look_tiles), when one is drawn: the chip becomes a picture tile. */
+  const tileOf = (key: string): string | null => s.tiles?.[key] ?? null;
+  const tileImg = (key: string) => {
+    const id = tileOf(key);
+    // eslint-disable-next-line @next/next/no-img-element -- a looks tile, checked and private to After Dark
+    return id ? <img src={`/api/looks/${id}`} alt="" loading="lazy" /> : null;
+  };
+
+  /** The face and body every shoot keeps, small, where the shoot is picked: change them on Identity. */
+  const presetStrip = (
+    <div className="ad-studio-preset" aria-label={`Who's in the shoot: ${c.name}`}>
+      {(["face", "body"] as const).map((k) => {
+        const img = s.identity[k];
+        return (
+          <figure key={k}>
+            {img ? (
+              // eslint-disable-next-line @next/next/no-img-element -- private, presigned media
+              <img src={media(img)} alt={`${c.name}'s ${k === "face" ? "face" : "body reference"}`} />
+            ) : (
+              <div className="ad-studio-empty">{k === "face" ? "No face yet" : "No body yet"}</div>
+            )}
+            <figcaption className="small">{k === "face" ? "Face" : s.identity.strength === "loose" && img ? "Body (not sent: loose)" : "Body"}</figcaption>
+          </figure>
+        );
+      })}
+      <p className="muted small">
+        Every picture keeps this face{s.identity.body && s.identity.strength !== "loose" ? " and body" : ""}, {STRENGTH_LABEL[s.identity.strength].toLowerCase()}.{" "}
+        <button type="button" className="linklike" onClick={() => setTab("identity")}>
+          change
+        </button>
+      </p>
+    </div>
+  );
+  const latest = fresh && fresh.pictures.length > 0 ? null : s.gallery.slice(0, 4);
+
   return (
-    <section className="ad-studio-main">
-      <h1>🎨 {c.name}&apos;s studio</h1>
+    <section className={`ad-studio-main${full ? " is-full" : ""}`} aria-label={full ? `${c.name}'s studio, full screen` : undefined}>
+      <div className="ad-studio-head">
+        <h1>🎨 {c.name}&apos;s studio</h1>
+        <button type="button" className="button-ghost small" aria-pressed={full} onClick={() => setFull((x) => !x)} title={full ? "Back to the page (Esc)" : "The Studio on the whole screen"}>
+          {full ? "✕ Exit full screen" : "⛶ Full screen"}
+        </button>
+      </div>
       <p className="muted small">
         {s.tokens === null ? "Admin: no tokens taken." : `${s.tokens} token${s.tokens === 1 ? "" : "s"} left.`}{" "}
         {s.left === null ? "" : `${s.left} Studio pictures left this month.`} Everything here is private to you, and every picture is checked before
@@ -452,36 +568,53 @@ export default function Studio({ initial }: { initial: StudioState }) {
         </p>
       )}
 
+      <div className="ad-studio-work">
+      <div className="ad-studio-panes">
       {tab === "shoot" && (
         <div className="ad-studio-panel">
+          {presetStrip}
           {s.menu.map((g) => (
             <fieldset key={g.id} className="ad-studio-group">
               <legend>
                 {g.title}
                 {g.multi > 1 ? <span className="muted small"> (up to {g.multi})</span> : null}
+                {g.id === "filthy" ? <span className="muted small"> 🔞 one act, in place of a pose</span> : null}
               </legend>
-              <div className="ad-chip-row">
+              {g.id === "filthy" && s.identity.intensity !== "filthy" && (
+                <p className="muted small">
+                  Locked at {INTENSITY[s.identity.intensity].label}.{" "}
+                  <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => void act("limits", { action: "limits", character_id: c.id, intensity: "filthy" })}>
+                    Set {first}&apos;s studio intensity to Filthy
+                  </button>
+                </p>
+              )}
+              <div className={g.options.some((o) => tileOf(`shoot.${g.id}.${o.id}`)) ? "ad-tile-row" : "ad-chip-row"}>
                 {(g.id === "place" ? [...s.places.map((p) => ({ id: p.id, label: `${p.label} (theirs)`, level: 0 as Level, public: p.public, locked: null })), ...g.options] : g.options).map((o) => {
                   const on = g.multi > 1 ? (choices.accessories ?? []).includes(o.id) : choices[g.id as Exclude<GroupId, "accessories">] === o.id;
+                  const key = `shoot.${g.id}.${o.id}`;
                   return (
                     <button
                       key={o.id}
                       type="button"
-                      className={`ad-chip${on ? " on" : ""}`}
+                      className={`${tileOf(key) ? "ad-tile" : "ad-chip"}${on ? " on" : ""}`}
                       aria-pressed={on}
                       disabled={Boolean(o.locked) || Boolean(busy)}
                       title={o.locked ?? (o.level ? LEVEL_LABEL[o.level] : undefined)}
                       onClick={() => pick(g.id, o.id, g.multi)}
                     >
-                      {o.label}
-                      {o.level >= 2 ? " 🔞" : ""}
+                      {/* A locked option's picture isn't shown: its label says why it's shut. */}
+                      {o.locked ? null : tileImg(key)}
+                      <span className="ad-tile-label">
+                        {o.label}
+                        {o.level >= 2 ? " 🔞" : ""}
+                      </span>
                     </button>
                   );
                 })}
               </div>
             </fieldset>
           ))}
-          <div className="ad-studio-go">
+          <div className="ad-studio-go is-main">
             <label>Model {modelSelect(editModels, picked?.id ?? "", setEditModel, "Model", (m) => m.price)}</label>
             <span className="badge">{LEVEL_LABEL[level]}</span>
             <button
@@ -654,14 +787,33 @@ export default function Studio({ initial }: { initial: StudioState }) {
           </fieldset>
 
           <h2>Restyle</h2>
-          <p className="muted small">The same person with these changed: {s.sizes.restyle} to pick from, for {tokens(price(s.prices.restyle))}.</p>
+          <p className="muted small">
+            The same person with these changed: {s.sizes.restyle} to pick from, for {tokens(price(s.prices.restyle))}.{" "}
+            {Object.keys(current).length ? "It starts on their look as they were made (marked •): move only what you want different." : "Pick what to change."}
+          </p>
           {s.restyle.map((g) => (
             <fieldset key={g.id} className="ad-studio-group">
-              <legend>{g.title}</legend>
-              <div className="ad-chip-row">
+              <legend>
+                {g.title}
+                {moved[g.id] ? <span className="muted small"> (changed)</span> : null}
+              </legend>
+              <div className={g.options.some((o) => s.tiles?.[`restyle.${g.id}.${o.id}`]) ? "ad-tile-row" : "ad-chip-row"}>
                 {g.options.map((o) => (
-                  <button key={o.id} type="button" className={`ad-chip${changes[g.id] === o.id ? " on" : ""}`} aria-pressed={changes[g.id] === o.id} disabled={Boolean(busy)} onClick={() => setChanges((x) => ({ ...x, [g.id]: x[g.id] === o.id ? "" : o.id }))}>
-                    {o.label}
+                  <button
+                    key={o.id}
+                    type="button"
+                    className={`${tileOf(`restyle.${g.id}.${o.id}`) ? "ad-tile" : "ad-chip"}${changes[g.id] === o.id ? " on" : ""}${current[g.id] === o.id ? " now" : ""}`}
+                    aria-pressed={changes[g.id] === o.id}
+                    title={current[g.id] === o.id ? "Their look now" : undefined}
+                    disabled={Boolean(busy)}
+                    // A second tap goes back to their look (or to nothing, where they had none).
+                    onClick={() => setChanges((x) => ({ ...x, [g.id]: x[g.id] === o.id ? (current[g.id] ?? "") : o.id }))}
+                  >
+                    {tileImg(`restyle.${g.id}.${o.id}`)}
+                    <span className="ad-tile-label">
+                      {current[g.id] === o.id ? "• " : ""}
+                      {o.label}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -671,8 +823,8 @@ export default function Studio({ initial }: { initial: StudioState }) {
             <button
               type="button"
               className="primary"
-              disabled={Boolean(busy) || !Object.values(changes).some(Boolean) || !picked || !usable(picked)}
-              onClick={() => void act("restyle", { action: "restyle", character_id: c.id, changes: Object.fromEntries(Object.entries(changes).filter(([, v]) => v)), model: picked?.id, ...own }, { title: "Restyled: pick one" })}
+              disabled={Boolean(busy) || !anyMoved || !picked || !usable(picked)}
+              onClick={() => void act("restyle", { action: "restyle", character_id: c.id, changes: moved, model: picked?.id, ...own }, { title: "Restyled: pick one" })}
             >
               {busy === "restyle" ? "Restyling…" : `Restyle · ${tokens(price(s.prices.restyle))}`}
             </button>
@@ -680,11 +832,16 @@ export default function Studio({ initial }: { initial: StudioState }) {
               <button
                 type="button"
                 className="button-ghost"
-                disabled={Boolean(busy) || !Object.values(changes).some(Boolean)}
-                onClick={() => void act("save_looks", { action: "save_looks", character_id: c.id, changes: Object.fromEntries(Object.entries(changes).filter(([, v]) => v)) })}
+                disabled={Boolean(busy) || !anyMoved}
+                onClick={() => void act("save_looks", { action: "save_looks", character_id: c.id, changes: moved })}
                 title="Write these to their look, so their appearance line and every later picture say the same"
               >
                 Save to their look
+              </button>
+            )}
+            {anyMoved && (
+              <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => setChanges({ ...current })}>
+                back to their look
               </button>
             )}
           </div>
@@ -753,13 +910,6 @@ export default function Studio({ initial }: { initial: StudioState }) {
         </div>
       )}
 
-      {fresh && fresh.pictures.length > 0 && (
-        <section className="ad-studio-fresh">
-          <h2>{fresh.title}</h2>
-          {gallery(fresh.pictures, { rivals: fresh.kind === "restyle" || fresh.kind === "recast" ? fresh.pictures.map((p) => p.id) : [], pair: fresh.kind === "pair" })}
-        </section>
-      )}
-
       {tab === "gallery" && (
         <div className="ad-studio-panel">
           {s.shoots.some((x) => x.redo) && (
@@ -821,6 +971,25 @@ export default function Studio({ initial }: { initial: StudioState }) {
           )}
         </div>
       )}
+      </div>
+      {/* The pictures just made; on full screen, beside the menus (their latest when nothing's new). */}
+      {fresh && fresh.pictures.length > 0 ? (
+        <section className="ad-studio-fresh">
+          <h2>{fresh.title}</h2>
+          {gallery(fresh.pictures, { rivals: fresh.kind === "restyle" || fresh.kind === "recast" ? fresh.pictures.map((p) => p.id) : [], pair: fresh.kind === "pair" })}
+        </section>
+      ) : (
+        full &&
+        tab !== "gallery" &&
+        latest &&
+        latest.length > 0 && (
+          <section className="ad-studio-fresh">
+            <h2>Latest</h2>
+            {gallery(latest)}
+          </section>
+        )
+      )}
+      </div>
     </section>
   );
 }

@@ -8276,6 +8276,148 @@ a.phone-head-btn {
 .ad-studio-setup {
   padding: var(--space-2) var(--space-3);
 }
+/* Studio v4: the title row with the full-screen switch; the face and body a shoot keeps, small, above its menus; the
+   restyle chip that is their look now. */
+.ad-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+.ad-studio-head h1 {
+  margin: 0;
+}
+.ad-studio-preset {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+.ad-studio-preset figure {
+  margin: 0;
+  flex: 0 0 4.5rem;
+  text-align: center;
+}
+.ad-studio-preset img,
+.ad-studio-preset .ad-studio-empty {
+  width: 4.5rem;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  background: #000;
+  padding: 0;
+  font-size: 0.7rem;
+}
+.ad-studio-preset p {
+  margin: 0;
+  min-width: 0;
+}
+.ad-chip.now:not(.on) {
+  border-style: dashed;
+}
+/* A menu option with an example picture (look_tiles): a small tile, its label over the foot of the picture. */
+.ad-tile-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: 0.45rem;
+}
+.ad-tile {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--ad-line, var(--line));
+  border-radius: 0.6rem;
+  background: var(--ad-card, var(--card));
+  color: #fff;
+  box-shadow: none;
+  font-size: var(--text-sm);
+}
+.ad-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ad-tile .ad-tile-label {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 1rem 0.3rem 0.3rem;
+  background: linear-gradient(transparent, rgba(10, 4, 18, 0.85));
+  font-weight: 600;
+  line-height: 1.15;
+}
+.ad-tile-row > .ad-chip {
+  min-height: 0;
+  aspect-ratio: 4 / 5;
+  border-radius: 0.6rem;
+}
+.ad-tile.on {
+  border-color: #ff9f80;
+  box-shadow: 0 0 0 2px rgba(255, 159, 128, 0.35);
+}
+.ad-tile.on .ad-tile-label {
+  background: linear-gradient(transparent, rgba(160, 60, 40, 0.92));
+}
+.ad-tile.now:not(.on) {
+  border-style: dashed;
+}
+.ad-tile:disabled {
+  opacity: 0.45;
+}
+.ad-tile:hover:not(:disabled) {
+  transform: none;
+  border-color: var(--ad-accent, var(--accent));
+}
+/* Full screen: the Studio over the whole window, its menus beside the pictures on a wide one. */
+html.ad-studio-locked {
+  overflow: hidden;
+}
+.ad-studio-main.is-full {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* No bottom padding here: a sticky Shoot bar sits on the window's edge, not above a strip of menu. */
+  padding: var(--space-4) var(--space-4) 0;
+  background: var(--ad-bg);
+  color: var(--ad-ink);
+}
+.ad-studio-main.is-full .ad-studio-work {
+  padding-bottom: var(--space-4);
+}
+@media (min-width: 64rem) {
+  .ad-studio-main.is-full .ad-studio-work {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 42%);
+    gap: var(--space-5, 1.5rem);
+    align-items: start;
+  }
+  .ad-studio-main.is-full .ad-studio-fresh {
+    position: sticky;
+    top: 0;
+    max-height: calc(100vh - 2 * var(--space-4));
+    overflow-y: auto;
+    margin: 0;
+  }
+  .ad-studio-main.is-full .ad-studio-fresh .ad-studio-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* The go row stays in reach at the bottom of the menus. */
+  .ad-studio-main.is-full .ad-studio-go.is-main {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-bottom: 0;
+    background: var(--ad-bg);
+    border-top: 1px solid var(--ad-line);
+    padding: var(--space-3) 0;
+  }
+}
 /* The settings page's number fields, two or three to a row. */
 .ad-settings-grid {
   display: grid;

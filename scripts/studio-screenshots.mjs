@@ -2,8 +2,9 @@
 /**
  * npm run screenshots:studio: real-browser screenshots of the After Dark Studio (lib/adult/studio.ts, docs/PRDs/studio.md),
  * desktop and phone, into docs/screenshots/: a shoot's menus with choices picked, a shoot together with a partner's
- * menu, the gallery with a picture's share and animate panels open (and a clip), the saved setups, and the hub's
- * "Shared with you" as the person it was shared with sees it.
+ * menu, the gallery with a picture's share and animate panels open (and a clip), the saved setups, the hub's
+ * "Shared with you" as the person it was shared with sees it, full screen with menu tiles, and the restyle starting on
+ * her look. It checks the shoot's picks are still there after a reload.
  *
  * It builds the app and runs it with ADULT_MODE=1 on a throwaway local database. No provider is called and nothing is
  * drawn: the pictures and the clip are seeded straight into the database, made here from the repo's own PG portraits
@@ -111,6 +112,17 @@ async function seed(owner, recipient) {
          ('setup-3', $1, 'Morning, window light', 'shoot', '{"pose":"stretch","wardrobe":"shirt","light":"natural"}'::jsonb, 'qwen-image-2-1-turbo-edit')`,
       [owner],
     );
+    // Her look as she was made (the restyle starts there), and some menu tiles, PG stand-ins, so the menus show pictures:
+    // the restyle's hair colours, and the shoot's dressed wardrobe and places.
+    await db.query(`update characters set extras = jsonb_set(coalesce(extras, '{}'::jsonb), '{looks}', $2::jsonb, true) where id = $1`, [
+      HER,
+      JSON.stringify({ gender: "woman", hair_style: "curly", hair_color: "red", eyes: "green", body: "athletic", breasts: "medium" }),
+    ]);
+    const tile = (id, look) => db.query(`insert into look_tiles (id, variant, status, prompt, mime, data) values ($1, $2, 'ready', 'PG placeholder', 'image/png', $3)`, [id, id.startsWith("nsfw-") ? "nsfw" : "pg", media.her(look)]);
+    const looks = ["natural", "golden", "moody", "studio", "cool"];
+    for (const [i, c] of ["brunette", "blonde", "black", "red", "silver"].entries()) await tile(`pg-woman-hair_color-${c}`, looks[i]);
+    for (const [i, w] of ["casual", "smart", "evening", "sporty"].entries()) await tile(`nsfw-woman-studio_wardrobe-${w}`, looks[i + 1]);
+    for (const [i, p] of ["bedroom", "hotel", "sofa", "kitchen", "candlelit", "cabin", "backdrop", "rooftop", "bar"].entries()) await tile(`nsfw-woman-studio_place-${p}`, looks[i % looks.length]);
     // The recipient: an account, a character of theirs, and a date with her (who her pictures can go to).
     await db.query(
       `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, pronouns)
@@ -220,7 +232,9 @@ async function main() {
       [390, 844, "phone"],
     ]) {
       await page.setViewportSize({ width: w, height: h });
-      // Shoot: the menus, with a dressed look picked.
+      // Shoot: the menus, with a dressed look picked. The page remembers picks per character: start each size clean.
+      await page.goto(studio);
+      await page.evaluate(() => localStorage.clear());
       await page.goto(studio);
       await page.locator(".ad-studio-group").first().waitFor({ timeout: 30_000 });
       for (const [group, option] of [
@@ -236,6 +250,36 @@ async function main() {
       await under(page, ".ad-studio-group:nth-of-type(5)");
       if (size === "phone") await noSideways(page, "the shoot's menus");
       await shot(page, `studio-shoot-${size}`);
+      // Come back later: the picks are still there.
+      await page.reload();
+      await page.locator("fieldset.ad-studio-group", { has: page.locator("legend", { hasText: "Wardrobe" }) }).getByRole("button", { name: "Evening", exact: true }).first().waitFor({ timeout: 30_000 });
+      await page.waitForFunction(() => document.querySelectorAll('.ad-studio-panel [aria-pressed="true"]').length >= 6, null, { timeout: 10_000 });
+      console.log("  ✓ the shoot's picks are still there after a reload");
+      if (size === "desktop") {
+        // Full screen: the menus beside the latest pictures.
+        await page.getByRole("button", { name: "⛶ Full screen" }).click();
+        await page.locator(".ad-studio-main.is-full").waitFor({ timeout: 10_000 });
+        await page.evaluate(() => document.querySelector(".ad-studio-main.is-full")?.scrollTo(0, 0));
+        await shot(page, "studio-fullscreen-desktop");
+        await page.evaluate(() => {
+          const el = document.querySelector(".ad-studio-main.is-full");
+          const g = [...document.querySelectorAll("fieldset.ad-studio-group")].find((f) => f.querySelector("legend")?.textContent?.startsWith("Wardrobe"));
+          if (el && g) el.scrollTo(0, g.getBoundingClientRect().top + el.scrollTop - 24);
+        });
+        await shot(page, "studio-fullscreen-tiles-desktop");
+        await page.keyboard.press("Escape");
+        await page.locator(".ad-studio-main.is-full").waitFor({ state: "detached", timeout: 10_000 });
+      }
+      // Identity: the restyle starts on her look (red curls, green eyes), one thing moved.
+      await tab("Identity");
+      const hair = page.locator("fieldset.ad-studio-group", { has: page.locator("legend", { hasText: /^Hair colour/ }) });
+      await hair.waitFor({ timeout: 10_000 });
+      assert((await hair.locator('[aria-pressed="true"]').innerText()).includes("Red"), "the restyle starts on her red hair");
+      await hair.getByRole("button", { name: "Blonde", exact: true }).click();
+      await hair.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 140));
+      if (size === "phone") await noSideways(page, "the restyle");
+      await shot(page, `studio-restyle-${size}`);
+      await tab("Shoot");
       // Together: him picked, a slow dance on the rooftop.
       await tab("Together");
       await page.locator("select").filter({ has: page.locator("option", { hasText: "Pick someone" }) }).selectOption(HIM);

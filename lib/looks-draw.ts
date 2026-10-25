@@ -22,6 +22,7 @@ import type { Db } from "./db";
 import { dataColumn, keepBytes, objectStore, readBytes } from "./object-store";
 import type { KindId } from "./kinds";
 import { looksPortraitPrompt, tileSpecs, type Looks, type TileSpec, type TileVariant } from "./looks";
+import { studioTileSpecs } from "./adult/studio-tiles";
 
 /** FLUX [dev] on fal: faces and fabric good enough to choose from, about 1.3¢ for a tile this size. */
 export const LOOKS_PG_MODEL = "fal-ai/flux/dev";
@@ -193,7 +194,11 @@ export function setLooksPauseForTests(ms: number): void {
  * each, and stops early when a provider rate-limits. Draws none while Hive is over its daily limit (lib/adult/hive-limit.ts):
  * they couldn't be screened.
  */
-export async function drawMissingTiles(db: Db, opts: { limit?: number; variant?: TileVariant; only?: string[] } = {}): Promise<{ id: string; status: string }[]> {
+/** The tile sets: the looks builder's, and the Studio's menus' (lib/adult/studio-tiles.ts), drawn only when named. */
+export type TileSet = "looks" | "studio";
+const specsOf = (set: TileSet): TileSpec[] => (set === "studio" ? studioTileSpecs() : tileSpecs());
+
+export async function drawMissingTiles(db: Db, opts: { limit?: number; variant?: TileVariant; only?: string[]; set?: TileSet } = {}): Promise<{ id: string; status: string }[]> {
   if (await hivePausedUntil(db)) return [];
   const done = new Set(
     (
@@ -202,7 +207,7 @@ export async function drawMissingTiles(db: Db, opts: { limit?: number; variant?:
       )
     ).rows.map((r) => r.id),
   );
-  const todo = tileSpecs()
+  const todo = specsOf(opts.set ?? "looks")
     .filter((s) => (!opts.variant || s.variant === opts.variant) && (!opts.only?.length || opts.only.includes(s.id)) && !done.has(s.id))
     .slice(0, Math.max(1, Math.min(opts.limit ?? 10, 40)));
   const keys = await keysFor(db);
@@ -220,8 +225,8 @@ export async function drawMissingTiles(db: Db, opts: { limit?: number; variant?:
 }
 
 /** How many tiles are in each state, per variant (the admin's progress). */
-export async function tileProgress(db: Db): Promise<{ total: Record<TileVariant, number>; states: Record<string, number>; refused: { id: string; reason: string | null }[] }> {
-  const specs = tileSpecs();
+export async function tileProgress(db: Db, set: TileSet = "looks"): Promise<{ total: Record<TileVariant, number>; states: Record<string, number>; refused: { id: string; reason: string | null }[] }> {
+  const specs = specsOf(set);
   const { rows } = await db.query<{ id: string; variant: TileVariant; status: string; reason: string | null }>(`select id, variant, status, reason from look_tiles`);
   const known = new Set(specs.map((s) => s.id));
   const states: Record<string, number> = {};

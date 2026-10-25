@@ -34,15 +34,100 @@ export type StudioOption = {
   hardNos?: readonly string[];
   /** Only for one of them (a beard on a man). */
   only?: "woman" | "man";
+  /** Filthy's own (the "filthy" group): open only at the Filthy studio intensity, never at Explicit. */
+  filthy?: true;
+  /** A first-person act with the viewer: the viewer may show at the frame's edge (never their face). */
+  withViewer?: true;
 };
 
-export const GROUP_IDS = ["pose", "framing", "angle", "pov", "wardrobe", "accessories", "place", "light", "expression"] as const;
+export const GROUP_IDS = ["filthy", "pose", "framing", "angle", "pov", "wardrobe", "accessories", "place", "light", "expression"] as const;
 export type GroupId = (typeof GROUP_IDS)[number];
 export type StudioGroup = { id: GroupId; title: string; /** How many may be picked (1 when unset). */ multi?: number; options: readonly StudioOption[] };
 
 const o = (id: string, label: string, words: string, level: Level = 0, more: Partial<StudioOption> = {}): StudioOption => ({ id, label, words, level, ...more });
 
+/** A Filthy option: explicit, and open only at the Filthy studio intensity. */
+const f = (id: string, label: string, words: string, more: Partial<StudioOption> = {}): StudioOption => ({ id, label, words, level: 3, filthy: true, ...more });
+
 export const STUDIO_GROUPS: readonly StudioGroup[] = [
+  {
+    // David, 2026-10-24: "a filthy section for explicit", after seduced.com's and candy.ai's menus. One act, in place of
+    // the pose; locked until their studio intensity is Filthy.
+    id: "filthy",
+    title: "Filthy",
+    options: [
+      f("spread_close", "Spread, up close", "lying back with her legs spread wide, her pussy on full display, the camera close between her thighs", {
+        man: "lying back with his legs apart, his hard cock on full display, the camera close",
+        person: "lying back with legs spread wide, everything on full display, the camera close between the thighs",
+      }),
+      f("fingering", "Fingers inside", "lying back, legs spread, two fingers inside herself, flushed and wet", {
+        man: "lying back, gripping and stroking his hard cock, close and explicit",
+        person: "lying back, legs spread, touching themselves explicitly, flushed",
+      }),
+      f("spreading", "Spreading open", "lying back, spreading her pussy open with her fingers for the camera", {
+        man: "lying back, holding his hard cock up for the camera",
+        person: "lying back, spreading themselves open with their fingers for the camera",
+      }),
+      f("dripping", "Dripping wet", "legs spread, glistening and dripping wet between her thighs", { man: "lying back, hard and leaking, glistening with oil", person: "legs spread, glistening and dripping wet" }),
+      f("all_fours", "On all fours, from behind", "on all fours on the bed, back arched and ass raised, looking back at the camera, everything on show from behind", {
+        man: "on all fours on the bed, back arched, looking back at the camera, everything on show from behind",
+        person: "on all fours on the bed, back arched, looking back at the camera, everything on show from behind",
+      }),
+      f("face_down", "Face down, ass up", "face down on the bed, ass up high, back deeply arched, her pussy on show from behind", {
+        man: "face down on the bed, hips raised high, back arched, on show from behind",
+        person: "face down on the bed, hips raised high, back deeply arched, on show from behind",
+      }),
+      f("spread_behind", "Spread from behind", "kneeling face down, reaching back to spread her ass cheeks wide for the camera", {
+        man: "kneeling face down, reaching back to spread his cheeks for the camera",
+        person: "kneeling face down, reaching back to spread their cheeks wide for the camera",
+      }),
+      f("nipple_play", "Nipple play", "topless, pinching and teasing her hard nipples, lips parted", { man: "shirtless, teasing his own nipples, lips parted", person: "topless, teasing their hard nipples, lips parted" }),
+      f("panties_down", "Panties coming off", "pulling her lace panties down her thighs, bent slightly forward, looking at the camera", {
+        man: "pulling his briefs down, hard cock springing free, looking at the camera",
+        person: "pulling their underwear down their thighs, looking at the camera",
+      }),
+      f("orgasm", "Mid-orgasm", "mid-orgasm, back arched, mouth open, eyes squeezed shut, one hand between her legs", {
+        man: "mid-orgasm, back arched, mouth open, cumming over his stomach",
+        person: "mid-orgasm, back arched, mouth open, eyes squeezed shut, one hand between the legs",
+      }),
+      f("squirting", "Squirting", "lying back with legs spread, squirting as she comes, legs shaking", { only: "woman" }),
+      f("dildo_ride", "Riding a dildo", "squatting over a dildo fixed to the floor, sinking down onto it", {
+        man: "lying back, using a sex toy on himself, explicit",
+        person: "squatting over a dildo fixed to the floor, sinking down onto it",
+        hardNos: ["toys"],
+      }),
+      f("plug", "With a plug", "on all fours, a jewelled butt plug in her ass, looking back at the camera", {
+        man: "on all fours, a butt plug in his ass, looking back at the camera",
+        person: "on all fours, a jewelled butt plug in, looking back at the camera",
+        hardNos: ["anal", "toys"],
+      }),
+      f("cum_covered", "Covered in cum", "kneeling, cum across her chest and lips, licking her lips, looking up into the lens", {
+        man: "lying back, his own cum across his stomach and chest, looking into the lens",
+        person: "kneeling, cum across their chest and lips, looking up into the lens",
+        hardNos: ["degradation"],
+      }),
+      f("pov_blowjob", "Sucking you (POV)", "a first-person view looking down: she has the viewer's cock in her mouth, looking up into the lens", {
+        man: "a first-person view looking down: he has the viewer's cock in his mouth, looking up into the lens",
+        person: "a first-person view looking down: they have the viewer in their mouth, looking up into the lens",
+        hardNos: ["oral"],
+        withViewer: true,
+      }),
+      f("pov_riding", "Riding you (POV)", "a first-person view from below: she rides the viewer's cock, hands on the viewer's chest, looking down into the lens", {
+        man: "a first-person view from below: he rides the viewer, hands on the viewer's chest, looking down into the lens",
+        person: "a first-person view from below: they ride the viewer, hands on the viewer's chest, looking down into the lens",
+        withViewer: true,
+      }),
+      f("pov_behind", "From behind you (POV)", "a first-person view from behind: she's on all fours being fucked by the viewer, looking back over her shoulder", {
+        only: "woman",
+        withViewer: true,
+      }),
+      f("pov_under", "Under you (POV)", "a first-person view from above: she lies back with her legs wrapped round the viewer as they fuck, looking up into the lens", {
+        man: "a first-person view from above: he lies back with his legs wrapped round the viewer as they fuck, looking up into the lens",
+        person: "a first-person view from above: they lie back with legs wrapped round the viewer as they fuck, looking up into the lens",
+        withViewer: true,
+      }),
+    ],
+  },
   {
     id: "pose",
     title: "Pose",
@@ -209,7 +294,7 @@ export const wordsFor = (opt: StudioOption, noun: Noun): string => (noun === "ma
 export type ShootChoices = Partial<Record<Exclude<GroupId, "accessories">, string>> & { accessories?: string[] };
 
 /** What a shoot is held to: the highest level it may reach, its hard nos, and the options switched off. */
-export type ShootLimits = { maxLevel: Level; hardNos: readonly string[]; disabled: ReadonlySet<string>; pov: boolean };
+export type ShootLimits = { maxLevel: Level; hardNos: readonly string[]; disabled: ReadonlySet<string>; pov: boolean; /** The Filthy intensity: Filthy's own options open. */ filthy?: boolean };
 
 /** Why an option isn't on the menu for this viewer (null: it is). */
 export function optionLocked(group: GroupId, opt: StudioOption, limits: ShootLimits, noun: Noun): string | null {
@@ -217,6 +302,7 @@ export function optionLocked(group: GroupId, opt: StudioOption, limits: ShootLim
   if (group === "pov" && !limits.pov) return "POV is switched off in the settings.";
   if (opt.only && noun !== "person" && opt.only !== noun) return `Only for a ${opt.only}.`;
   if (opt.level > limits.maxLevel) return `Past ${LEVEL_LABEL[limits.maxLevel].toLowerCase()}: their studio limit.`;
+  if (opt.filthy && !limits.filthy) return "Filthy only: set their studio intensity to Filthy (Identity).";
   const no = opt.hardNos?.find((h) => limits.hardNos.includes(h));
   if (no) return "One of their hard nos.";
   return null;
@@ -238,7 +324,7 @@ export function studioMenu(limits: ShootLimits, noun: Noun): { id: GroupId; titl
 export type Subject = { noun: Noun; age: number; look: string; outfit: string | null };
 
 /** A shoot, planned: its level, the words for each part, and the place's name (for its drawn set). */
-export type ShootPlan = { level: Level; place: string | null; placePublic: boolean; parts: { group: GroupId; words: string }[] };
+export type ShootPlan = { level: Level; place: string | null; placePublic: boolean; parts: { group: GroupId; words: string; /** A first-person act with the viewer. */ viewer?: true }[] };
 
 export type PlanResult = { ok: true; plan: ShootPlan } | { ok: false; error: string; message: string };
 
@@ -249,7 +335,7 @@ export type PlanResult = { ok: true; plan: ShootPlan } | { ok: false; error: str
  */
 export function planShoot(choices: ShootChoices, limits: ShootLimits, subject: Subject, own: { place?: string | null; public?: boolean } = {}): PlanResult {
   const no = (error: string, message: string): PlanResult => ({ ok: false, error, message });
-  const parts: { group: GroupId; words: string }[] = [];
+  const parts: ShootPlan["parts"] = [];
   let level: Level = 0;
   let place: string | null = null;
   let placePublic = false;
@@ -272,7 +358,7 @@ export function planShoot(choices: ShootChoices, limits: ShootLimits, subject: S
       placePublic = Boolean(opt.public);
     }
     const words = group === "wardrobe" && opt.id === "theirs" ? (subject.outfit ?? "their own clothes") : wordsFor(opt, subject.noun);
-    parts.push({ group, words });
+    parts.push(opt.withViewer ? { group, words, viewer: true } : { group, words });
     return null;
   };
   for (const g of GROUP_IDS) {
@@ -327,17 +413,21 @@ export function shootPrompt(plan: ShootPlan, subject: Subject, refs: { body: boo
   const by = (g: GroupId) => plan.parts.filter((p) => p.group === g).map((p) => p.words);
   const wardrobe = by("wardrobe")[0] ?? CLOTHES_BY_LEVEL[plan.level];
   const keep = `${KEEP[strength]} Not their clothes: ${wardrobe}.`;
-  const pose = by("pose")[0];
+  // A Filthy act is the pose (it wins over one picked too); a first-person one may show the viewer at the edge.
+  const act = plan.parts.find((p) => p.group === "filthy");
+  const pose = act?.words ?? by("pose")[0];
   const camera = by("pov")[0] ?? [by("framing")[0], by("angle")[0]].filter(Boolean).join(", ");
   const accessories = by("accessories");
   const middle = [
-    pose ? `Pose: ${pose}.` : "",
-    camera ? `Camera: ${camera}.` : "",
+    pose ? `${act ? "What's happening" : "Pose"}: ${pose}.` : "",
+    camera && !act?.viewer ? `Camera: ${camera}.` : "",
     accessories.length ? `Wearing ${accessories.join(", ")}.` : "",
     plan.place ? `The place: ${plan.place}.` : "",
     by("light")[0] ? `Light: ${by("light")[0]}.` : "",
     by("expression")[0] ? `Expression: ${by("expression")[0]}.` : "",
-    "Only this one person in the picture, the face clearly visible.",
+    act?.viewer
+      ? "Only this one person in full: of the viewer, at most hands, hips or legs at the edge of the frame, never a face. Their face clearly visible."
+      : "Only this one person in the picture, the face clearly visible.",
   ]
     .filter(Boolean)
     .join(" ");

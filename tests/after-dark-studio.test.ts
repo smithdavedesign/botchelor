@@ -8,7 +8,7 @@ import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { getAdultSettings, saveAdultSettings } from "@/lib/adult/settings";
 import { rateMedia } from "@/lib/adult/steering";
-import { restyleMenu, restyleWords, setStudioPausesForTests, studioAccess } from "@/lib/adult/studio";
+import { restyleCurrent, restyleMenu, restyleWords, setStudioPausesForTests, studioAccess } from "@/lib/adult/studio";
 import {
   ALL_OPTION_IDS,
   bodyPrompt,
@@ -22,6 +22,8 @@ import {
   type Subject,
 } from "@/lib/adult/studio-catalog";
 import { DEFAULT_STUDIO_CONFIG, mergeStudioConfig, studioConfigOf } from "@/lib/adult/studio-config";
+import { studioTileSpecs } from "@/lib/adult/studio-tiles";
+import { isTileId, tileSpecs } from "@/lib/looks";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
@@ -102,6 +104,50 @@ describe("the Studio's menus", () => {
     expect(restyleWords("woman", {})).toMatchObject({ ok: false });
     expect(restyleMenu("man").some((g) => g.id === "breasts")).toBe(false);
     expect(restyleMenu(null).some((g) => g.id === "hair_style")).toBe(false);
+  });
+
+  it("opens Filthy's own acts only at the Filthy intensity, in place of the pose, the viewer only at the frame's edge", () => {
+    expect(planShoot({ filthy: "spread_close" }, ALL, her)).toMatchObject({ ok: false, error: "locked" });
+    const filthy = { ...ALL, filthy: true };
+    const solo = planShoot({ filthy: "spread_close", pose: "standing", place: "bedroom" }, filthy, her);
+    expect(solo.ok && solo.plan.level).toBe(3);
+    const p = solo.ok ? shootPrompt(solo.plan, her, { body: false, set: false }) : "";
+    expect(p).toContain("What's happening: lying back with her legs spread wide");
+    expect(p).not.toContain("Pose: standing");
+    expect(p).toContain("Only this one person in the picture");
+    const pov = planShoot({ filthy: "pov_riding", framing: "close" }, filthy, her);
+    const q = pov.ok ? shootPrompt(pov.plan, her, { body: false, set: false }) : "";
+    expect(q).toContain("of the viewer, at most hands, hips or legs at the edge of the frame, never a face");
+    expect(q).not.toContain("Camera: a close shot");
+    // Hard nos still take an act away, and nothing explicit somewhere public.
+    expect(planShoot({ filthy: "pov_blowjob" }, { ...filthy, hardNos: ["oral"] }, her)).toMatchObject({ ok: false, error: "locked" });
+    expect(planShoot({ filthy: "orgasm", place: "beach" }, filthy, her)).toMatchObject({ ok: false, error: "public" });
+    expect(studioMenu(filthy, "man").find((g) => g.id === "filthy")!.options.some((o) => o.id === "squirting")).toBe(false);
+  });
+
+  it("draws its own menu pictures (never another site's), each an After Dark tile written to the lines", () => {
+    const specs = studioTileSpecs();
+    expect(new Set(specs.map((x) => x.id)).size).toBe(specs.length);
+    expect(specs.some((x) => x.id === "nsfw-woman-studio_filthy-spread-close")).toBe(true);
+    expect(specs.some((x) => x.id === "nsfw-man-studio_filthy-squirting")).toBe(false);
+    const looks = new Set(tileSpecs().map((x) => x.id));
+    for (const x of specs) {
+      expect(isTileId(x.id) && x.variant === "nsfw", x.id).toBe(true);
+      expect(looks.has(x.id), x.id).toBe(false);
+      expect(checkAdultText({ words: x.prompt }).ok, x.id).toBe(true);
+      expect(crossesTaboo(x.prompt), x.id).toBe(false);
+      expect(YOUNG.test(x.prompt), `${x.id}: ${x.prompt}`).toBe(false);
+      expect(x.prompt).toContain("Everyone shown is an adult.");
+    }
+  });
+
+  it("starts the restyle on their look as they were made, After Dark's private picks for their owner only", () => {
+    const looks = { gender: "woman" as const, eyes: "blue" as const, hair_color: "red" as const, facial_hair: undefined, after_dark: { butt: "small" as const, grooming: "shaved" as const } };
+    expect(restyleCurrent(looks, "woman", true)).toEqual({ eyes: "blue", hair_color: "red", butt: "small", grooming: "shaved" });
+    expect(restyleCurrent(looks, "woman", false)).toEqual({ eyes: "blue", hair_color: "red" });
+    // A pick that isn't on this gender's menu is left out (no butt step for a man).
+    expect(restyleCurrent(looks, "man", true)).not.toHaveProperty("butt");
+    expect(restyleCurrent(undefined, "woman", true)).toEqual({});
   });
 
   it("keeps every setting configurable, with defaults, and refuses a bad save", () => {
