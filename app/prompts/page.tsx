@@ -1,16 +1,23 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import Pager from "@/app/Pager";
+import { adultViewerFromCookies } from "@/lib/adult/mode";
+import { getDb } from "@/lib/db";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
 import {
   ALL_PROMPTS,
+  HAS_NSFW_TAGS,
   PROMPT_QUERY_MAX,
   PROMPT_SOURCES,
   PROMPTS_PER_PAGE,
   findPrompts,
   parseQuery,
   parseSource,
+  parseTag,
   sourceOf,
+  tagCounts,
+  visibleTags,
 } from "@/lib/prompts-library";
 import CopyPrompt from "./CopyPrompt";
 import MyPrompts from "./MyPrompts";
@@ -31,16 +38,31 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
  * The prompts library (lib/prompts-library.ts): a server-rendered search over the seed, PROMPTS_PER_PAGE at a time,
- * so the search, the dataset filter and the pager are plain links and a GET form that work without JavaScript. Only
- * the copy buttons are client code.
+ * so the search, the dataset and tag filters, the tag chips and the pager are plain links and a GET form that work
+ * without JavaScript. Only the copy buttons are client code. NSFW tags (the Studio's options past dressed) show only to
+ * a viewer After Dark is open to (adultViewerFromCookies), and the page only asks when the seed has one.
  */
+async function showsNsfw(): Promise<boolean> {
+  if (!HAS_NSFW_TAGS) return false;
+  try {
+    return (await adultViewerFromCookies(await getDb(), await cookies())) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export default async function PromptsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
+  const showNsfw = await showsNsfw();
   const q = parseQuery(sp.q);
   const source = parseSource(sp.source);
-  const found = findPrompts(q, source);
+  const tag = parseTag(sp.tag, showNsfw);
+  const found = findPrompts({ query: q, source, tag, showNsfw });
   const list = pageOf(found, parsePage(sp.page), PROMPTS_PER_PAGE);
-  const keep = { q: q || undefined, source: source ?? undefined };
+  const keep = { q: q || undefined, source: source ?? undefined, tag: tag ?? undefined };
+  const filtered = Boolean(q || source || tag);
+  const tags = tagCounts(showNsfw);
+  const groups = [...new Set(tags.map((t) => t.group))];
 
   return (
     <>
@@ -67,6 +89,23 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
               ))}
             </select>
           </label>
+          <label className="prompts-field">
+            <span>Tag</span>
+            <select name="tag" defaultValue={tag ?? ""}>
+              <option value="">Any tag</option>
+              {groups.map((g) => (
+                <optgroup key={g} label={g}>
+                  {tags
+                    .filter((t) => t.group === g)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {`${t.label} (${t.count})`}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
           <button type="submit">Search</button>
         </form>
       </section>
@@ -77,8 +116,8 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
         <p className="muted small" id="prompts-count" aria-live="polite">
           {found.length === 0
             ? "No prompts match that."
-            : `${found.length.toLocaleString("en-US")} ${found.length === 1 ? "prompt" : "prompts"}${q || source ? " match" : ""}`}
-          {(q || source) && (
+            : `${found.length.toLocaleString("en-US")} ${found.length === 1 ? "prompt" : "prompts"}${filtered ? " match" : ""}`}
+          {filtered && (
             <>
               {" · "}
               <Link href={PATH}>Show all</Link>
@@ -90,6 +129,21 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
             {list.items.map((p) => (
               <li key={p.prompt} className="prompt-item">
                 <p className="prompt-text">{p.prompt}</p>
+                {visibleTags(p, showNsfw).length > 0 && (
+                  <ul className="prompt-tags" aria-label="Tags">
+                    {visibleTags(p, showNsfw).map((t) => (
+                      <li key={t.id}>
+                        <Link
+                          className={`prompt-tag${t.studio ? "" : " is-facet"}${t.nsfw ? " is-nsfw" : ""}`}
+                          href={pageHref(PATH, { ...keep, tag: t.id }, "page", 1, "prompts")}
+                          aria-current={t.id === tag ? "true" : undefined}
+                        >
+                          {t.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="prompt-meta">
                   <span className="muted small">{`${sourceOf(p).name} · ${sourceOf(p).license}`}</span>
                   <CopyPrompt text={p.prompt} />
@@ -107,7 +161,12 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
         <p>
           Every prompt is from an openly licensed dataset and keeps its licence. We only cleaned them up: one line of plain
           words, no model weights or flags, nothing under 40 or over 400 characters, no repeats. Anything about minors,
-          anything sexual and anything naming a real person as the subject was left out.
+          anything sexual or violent, anything naming a real person, and anything describing a picture that already exists
+          rather than one to make was left out.
+        </p>
+        <p>
+          The tags are the Studio&apos;s own: its framing, angle, pose, wardrobe, accessories, place, light and expression
+          choices, read from each prompt&apos;s words. Style and who&apos;s in it are extra context, shown in grey.
         </p>
         <ul>
           {PROMPT_SOURCES.map((s) => (

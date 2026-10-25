@@ -9205,7 +9205,7 @@ html.ad-studio-locked {
 /* Search and dataset side by side with the button at the end; stacked on a phone. */
 .prompts-search {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: var(--space-3);
   align-items: end;
 }
@@ -9219,6 +9219,14 @@ html.ad-studio-locked {
 .prompts-field input,
 .prompts-field select {
   width: 100%;
+}
+@media (max-width: 900px) {
+  .prompts-search {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .prompts-search .prompts-field:first-child {
+    grid-column: 1 / -1;
+  }
 }
 @media (max-width: 640px) {
   .prompts-search {
@@ -9248,6 +9256,37 @@ html.ad-studio-locked {
 .prompt-text {
   margin: 0;
   overflow-wrap: anywhere;
+}
+/* The tags: Studio tags in the accent, extra context in grey; each one a link that filters by it. */
+.prompt-tags {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+}
+.prompt-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: 999px;
+  background: var(--paper-2);
+  color: var(--accent-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-decoration: none;
+}
+.prompt-tag.is-facet {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+.prompt-tag[aria-current="true"] {
+  border-color: var(--accent);
+  box-shadow: var(--control-ring);
 }
 .prompt-meta {
   display: flex;

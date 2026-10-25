@@ -3,9 +3,9 @@
  * npm run screenshots:prompts — visual proof of the prompts library (app/prompts, lib/prompts-library.ts). Builds the
  * app and starts the production build on a throwaway local database with every model variable removed (the library
  * never calls a model). It checks /prompts answers 200 with one page of prompts, sitemap.xml lists it, a search and a
- * dataset filter narrow it, and the footer links it. Then it drives Chromium like a visitor: the library, a search
- * typed and sent, and a prompt copied. Desktop (1280×800) and iPhone 13, viewport only, into
- * docs/screenshots/prompts-*.png.
+ * dataset filter narrow it, a tag narrows it (an NSFW tag doesn't, for a stranger), and the footer links it. Then it
+ * drives Chromium like a visitor: the library, a search typed and sent, a prompt copied, and a tag's own list.
+ * Desktop (1280×800) and iPhone 13, viewport only, into docs/screenshots/prompts-*.png.
  *
  * No key, no real infrastructure. Chromium comes from CHROMIUM_PATH; no browser is downloaded.
  */
@@ -52,7 +52,12 @@ async function check(base) {
   assert(total(searched) > 0 && total(searched) < all, `a search found ${total(searched)}`);
   const filtered = await (await fetch(`${base}${PAGE}?source=pickapic`, { headers: ADULT })).text();
   assert(total(filtered) > 0 && total(filtered) < all && /Pick-a-Pic · MIT/.test(filtered), "the dataset filter didn't narrow to Pick-a-Pic");
-  console.log(`checks passed: 200 on ${PAGE} with 24 prompts, in sitemap.xml, footer link, "astronaut" → ${total(searched)}, Pick-a-Pic → ${total(filtered)}`);
+  assert(/class="prompt-tag/.test(html) && /name="tag"/.test(html), "no tag chips or tag filter");
+  const tagged = await (await fetch(`${base}${PAGE}?tag=light.neon`, { headers: ADULT })).text();
+  assert(total(tagged) > 0 && total(tagged) < all && /aria-current="true"/.test(tagged), "the tag filter didn't narrow to Neon");
+  const leaked = await (await fetch(`${base}${PAGE}?tag=wardrobe.swim`, { headers: ADULT })).text();
+  assert(total(leaked) === all, "an NSFW tag filtered for a stranger");
+  console.log(`checks passed: 200 on ${PAGE} with 24 prompts, in sitemap.xml, footer link, "astronaut" → ${total(searched)}, Pick-a-Pic → ${total(filtered)}, Neon tag → ${total(tagged)}, NSFW tag ignored for a stranger`);
 }
 
 async function shoot(base) {
@@ -66,13 +71,15 @@ async function shoot(base) {
       await ctx.addCookies([{ name: "bz_adult", value: "1", domain: host, path: "/" }]);
       const page = await ctx.newPage();
 
-      await page.goto(`${base}${PAGE}`, { waitUntil: "networkidle" });
+      // "load", then the cards: the signed-in "Your prompts" panel keeps a request open, so the page never goes idle.
+      await page.goto(`${base}${PAGE}`, { waitUntil: "load" });
+      await page.locator(".prompt-item").first().waitFor();
       await page.screenshot({ path: join(OUT_DIR, `prompts-library-${label}.png`) });
 
       // A search, sent with the button, lands on its own address.
       await page.getByLabel("Search", { exact: true }).fill("red hair");
       await Promise.all([page.waitForURL(/\?q=red\+hair/), page.getByRole("button", { name: "Search" }).click()]);
-      await page.waitForLoadState("networkidle");
+      await page.waitForLoadState("load");
       assert((await page.locator(".prompt-item").count()) > 0, "the search shows no prompts");
 
       // Copy the first one.
@@ -83,6 +90,13 @@ async function shoot(base) {
       assert(copied === (await first.locator(".prompt-text").innerText()), "the clipboard doesn't hold the prompt");
       await page.locator("#prompts").scrollIntoViewIfNeeded();
       await page.screenshot({ path: join(OUT_DIR, `prompts-search-${label}.png`) });
+
+      // A tag chip filters by its tag.
+      await page.goto(`${base}${PAGE}?tag=framing.close`, { waitUntil: "load" });
+      await page.locator(".prompt-item").first().waitFor();
+      assert((await page.locator('.prompt-tag[aria-current="true"]').count()) > 0, "the tag filter marks no chip");
+      await page.locator("#prompts").scrollIntoViewIfNeeded();
+      await page.screenshot({ path: join(OUT_DIR, `prompts-tag-${label}.png`) });
       await ctx.close();
     }
   } finally {

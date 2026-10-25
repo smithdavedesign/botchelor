@@ -4,11 +4,13 @@
 // image URLs aren't ours to hotlink); every kept row carries its source and licence. Every prompt must pass the show's
 // own bar (lib/safety.ts checkShowText: no minors, nothing sexual, no innuendo, no real people), After Dark's stricter
 // age and theme lines (checkAdultText: catches "about 30" ages and the like), plus the youth-word
-// list the Studio's Inspiration set uses (scripts/filter-inspiration-prompts.mjs), because the footer link sits on
-// every page.
+// list (lib/prompt-library-rules.ts YOUNG), because the footer link sits on every page. Prompts about a picture that
+// already exists ("the photo shows", an edit, a question, a CLIP caption) go too: there's no picture here. Each kept
+// prompt carries its tags (tagPrompt: the Studio's own option ids, plus a few style and subject facets).
 import { readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { imageReference, SENSITIVE, tagPrompt, YOUNG } from "../lib/prompt-library-rules.ts";
 import { checkAdultText, checkShowText } from "../lib/safety.ts";
 
 const SRC = process.argv[2] ?? join(homedir(), "ai-stack", "open_prompts", "combined.csv");
@@ -23,9 +25,6 @@ const LICENSES = {
   "open-image-preferences": "Apache-2.0",
   pickapic: "MIT",
 };
-const YOUNG = /\b(teen\w*|young\w*|girl\w*|boy\w*|school\w*|student\w*|petite|little|tiny|loli\w*|child\w*|kid\w*|under.?age|minor\w*|babysit\w*|cheerlead\w*|braces|pigtail\w*|barely|daughter|niece|son|nephew|baby|toddler|infant|youth|juvenile|adolescent|preteen|highschool)\b/i;
-// Words the safety list doesn't treat as sexual but a public library shouldn't carry.
-const EXTRA = /\b(nsfw|nude\w*|naked|topless|lingerie|bikini|sexy|seductive|erotic\w*|busty|cleavage|swimsuit|thighs?|alluring|sheer|corset|innocent|yandere|bdsm|fetish\w*|gore|bloody)\b/i;
 
 /** RFC 4180 rows: quoted fields may hold commas, doubled quotes and newlines. */
 function parseCsv(text) {
@@ -72,17 +71,19 @@ function cleanPrompt(raw) {
     .trim();
 }
 
-/** mulberry32: a small seeded generator, so the sample is the same on every run. */
-function rng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+/** FNV-1a over the prompt with the seed mixed in: a fixed place in line per prompt, so dropping one never reorders the rest. */
+function rank(text) {
+  let h = 0x811c9dc5 ^ SEED;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return h >>> 0;
 }
+
+// Real people the word lists don't know (scripts/vet-prompt-people.mjs asks the local model which names a prompt holds
+// and adds them here): a prompt naming one is dropped. Artists named for a style aren't on it.
+const PEOPLE_FILE = new URL("./data/prompt-people.txt", import.meta.url);
+const people = readFileSync(PEOPLE_FILE, "utf8").split("\n").map((l) => l.trim().toLowerCase()).filter((l) => l && !l.startsWith("#"));
+const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const PEOPLE = people.length ? new RegExp(`\\b(?:${people.map(escape).join("|")})\\b`, "i") : null;
 
 const [header, ...rows] = parseCsv(readFileSync(SRC, "utf8"));
 const col = (name) => header.indexOf(name);
@@ -90,6 +91,7 @@ const [iSource, iPrompt] = [col("source"), col("prompt")];
 const seen = new Set();
 const kept = [];
 const dropped = {};
+const imageRefs = [];
 const drop = (why) => (dropped[why] = (dropped[why] ?? 0) + 1);
 for (const r of rows) {
   const source = r[iSource];
@@ -97,30 +99,33 @@ for (const r of rows) {
   if (!license) { drop(source === "civitai" ? "civitai" : "unknown source"); continue; }
   const prompt = cleanPrompt(r[iPrompt] ?? "");
   if (prompt.length < 40 || prompt.length > 400) { drop("length"); continue; }
-  if (YOUNG.test(prompt) || EXTRA.test(prompt) || !checkShowText({ prompt }).ok || !checkAdultText({ prompt }).ok) { drop("safety"); continue; }
+  if (YOUNG.test(prompt) || SENSITIVE.test(prompt) || !checkShowText({ prompt }).ok || !checkAdultText({ prompt }).ok) { drop("safety"); continue; }
+  if (PEOPLE?.test(prompt)) { drop("real person"); continue; }
+  const ref = imageReference(prompt);
+  if (ref) { drop("image reference"); if (imageRefs.length < 400) imageRefs.push(`[${ref}] ${prompt}`); continue; }
   const key = prompt.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   if (seen.has(key)) { drop("duplicate"); continue; }
   seen.add(key);
-  kept.push({ prompt, source, license });
+  kept.push({ prompt, source, license, tags: tagPrompt(prompt) });
 }
 
 // DiffusionDB is 93% of the dump, so a plain sample would be almost all DiffusionDB: every prompt that survives from
-// the small sets goes in, DiffusionDB fills the rest, then the lot is shuffled so a page mixes them.
-const rand = rng(SEED);
-const shuffle = (xs) => {
-  for (let i = xs.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [xs[i], xs[j]] = [xs[j], xs[i]];
-  }
-  return xs;
-};
+// the small sets goes in, DiffusionDB fills the rest, then the lot is put in rank order so a page mixes them.
+const inLine = (xs) => [...xs].sort((a, b) => rank(a.prompt) - rank(b.prompt) || (a.prompt < b.prompt ? -1 : 1));
 const isDiffusionDb = (p) => p.source.startsWith("diffusiondb");
 const small = kept.filter((p) => !isDiffusionDb(p));
-const fill = shuffle(kept.filter(isDiffusionDb)).slice(0, Math.max(0, SAMPLE - small.length));
-const picked = shuffle([...small, ...fill]).slice(0, SAMPLE);
+const ddb = inLine(kept.filter(isDiffusionDb));
+const room = Math.max(0, SAMPLE - small.length);
+const picked = inLine([...small, ...ddb.slice(0, room)]).slice(0, SAMPLE);
+// The prompts next in line, for scripts/vet-prompt-people.mjs: every small-set prompt, then DiffusionDB in pick order.
+if (process.env.VET_OUT) writeFileSync(process.env.VET_OUT, JSON.stringify([...small, ...ddb.slice(0, room + 1500)].map((p) => p.prompt)));
 writeFileSync(OUT, JSON.stringify(picked) + "\n");
 
 const mix = picked.reduce((m, p) => ((m[p.source] = (m[p.source] ?? 0) + 1), m), {});
 console.log(`${rows.length} rows; ${kept.length} kept; wrote ${picked.length} to lib/prompts-library.json`);
 console.log("dropped:", dropped);
 console.log("sources:", mix);
+const withStudio = picked.filter((p) => p.tags.some((t) => !t.includes(":"))).length;
+const counts = picked.flatMap((p) => p.tags).reduce((m, t) => ((m[t] = (m[t] ?? 0) + 1), m), {});
+console.log(`tagged: ${withStudio} of ${picked.length} with a Studio tag; top:`, Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 25));
+console.log("image references dropped, a sample:", imageRefs.filter((_, i) => i % 25 === 0).slice(0, 12));
