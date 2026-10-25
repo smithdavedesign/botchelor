@@ -53,6 +53,19 @@ export const DEFAULT_CLIP_TOKENS = 3;
 export const DEFAULT_MENU_PICTURE_TOKENS = 1;
 
 /**
+ * A chapter of a night (up to 120 lines) costs this many bought tokens, taken when its first lines are written; admins
+ * don't pay (David, 2026-10-25). One token is about $0.68 after an adult processor's fee; a chapter costs us about $0.05
+ * of text plus its pictures (about $0.03 each on Replicate, $0.015 on Venice).
+ */
+export const DEFAULT_CHAPTER_TOKENS = 1;
+/**
+ * The pictures a chapter draws without being asked, all kinds together: its own and each new place's
+ * (lib/adult/auto-pictures.ts), one its lines ask for, and its moments drawn when it closes (lib/adult/beats.ts). A
+ * picture the viewer asks for (Picture this, the menu) isn't counted here. At 3, a chapter's pictures cost at most ~$0.09.
+ */
+export const DEFAULT_PICTURES_PER_CHAPTER = 3;
+
+/**
  * Who makes After Dark's explicit media: its pictures, each shot's keyframe, the videos and their voices. Venice, or
  * Replicate as the backup (David, 2026-10-22) while Venice confirms in writing that its terms allow explicit output
  * (docs/after-dark.md, "A Replicate backup"). The models, each checked against its Replicate page that day:
@@ -119,6 +132,9 @@ export type AdultSettings = {
   clip_tokens: number;
   /** A picture from the shot menu's price in bought tokens (lib/adult/pictures-menu.ts). */
   menu_picture_tokens: number;
+  /** A chapter's price in bought tokens, and the pictures it draws unasked (DEFAULT_CHAPTER_TOKENS, DEFAULT_PICTURES_PER_CHAPTER). */
+  chapter_tokens: number;
+  pictures_per_chapter: number;
   openrouter_last4: string | null;
   fal_last4: string | null;
   hive_last4: string | null;
@@ -182,6 +198,8 @@ type Row = {
   reel_tokens: number | null;
   clip_tokens: number | null;
   menu_picture_tokens: number | null;
+  chapter_tokens: number | null;
+  pictures_per_chapter: number | null;
   openrouter_ciphertext: string | null;
   openrouter_nonce: string | null;
   openrouter_last4: string | null;
@@ -244,6 +262,8 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     reel_tokens: r?.reel_tokens ?? DEFAULT_REEL_TOKENS,
     clip_tokens: r?.clip_tokens ?? DEFAULT_CLIP_TOKENS,
     menu_picture_tokens: r?.menu_picture_tokens ?? DEFAULT_MENU_PICTURE_TOKENS,
+    chapter_tokens: r?.chapter_tokens ?? DEFAULT_CHAPTER_TOKENS,
+    pictures_per_chapter: r?.pictures_per_chapter ?? DEFAULT_PICTURES_PER_CHAPTER,
     openrouter_last4: r?.openrouter_last4 ?? null,
     fal_last4: r?.fal_last4 ?? null,
     hive_last4: r?.hive_last4 ?? null,
@@ -330,6 +350,8 @@ export type SettingsPatch = {
   reel_tokens?: number;
   clip_tokens?: number;
   menu_picture_tokens?: number;
+  chapter_tokens?: number;
+  pictures_per_chapter?: number;
   /** A new key, or "" to remove it. */
   openrouter_key?: string;
   fal_key?: string;
@@ -420,7 +442,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
     const v = patch.caps?.[k];
     if (v !== undefined) put(`cap_${k}`, Math.max(0, Math.floor(v)));
   }
-  for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens"] as const) if (patch[k] !== undefined) put(k, patch[k]);
+  for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens", "chapter_tokens", "pictures_per_chapter"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
   for (const k of ["replicate_picture_model", "replicate_keyframe_model", "replicate_video_model", "replicate_voice_model", "replicate_video_lora"] as const) {

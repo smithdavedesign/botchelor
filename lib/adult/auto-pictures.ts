@@ -24,6 +24,7 @@ import { repairPlacePronouns } from "./craft";
 import { makePicture, outputCheckReady, pictureKeyReady, recentActions, scenePrompt, type Media } from "./media";
 import { venueSituation } from "./scene-catalog";
 import { getAdultSettings } from "./settings";
+import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
 import { mediaAllowedFor } from "./place";
 
 /** What an automatic picture needs from the scene: which one, its chapter, where they are, how far it's gone, the lines. */
@@ -46,21 +47,6 @@ export const autoPictureKey = (chapter: number, where: string | null): string =>
 export async function autoPicturesReady(db: Db): Promise<boolean> {
   const { auto_scene_pictures } = await getAdultSettings(db);
   return auto_scene_pictures && (await outputCheckReady(db)) && (await pictureKeyReady(db));
-}
-
-/** Claims the scene's picture for this chapter and place; false when it has been claimed already. */
-async function claim(db: Db, sceneId: string, key: string): Promise<boolean> {
-  const { rows } = await db.query<{ id: string }>(
-    `update adult_scenes set auto_pictures = auto_pictures || jsonb_build_array($2::text)
-      where id = $1 and not (auto_pictures @> jsonb_build_array($2::text)) returning id`,
-    [sceneId, key],
-  );
-  return rows.length > 0;
-}
-
-/** Gives a claim back, so a later step draws the picture that didn't come. */
-async function release(db: Db, sceneId: string, key: string): Promise<void> {
-  await db.query(`update adult_scenes set auto_pictures = auto_pictures - $2::text where id = $1`, [sceneId, key]);
 }
 
 /** How long a picture that didn't come waits before a step asks for it again. */
@@ -120,7 +106,8 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
     if (failed !== undefined && clock() - failed < RETRY_AFTER_MS) return false;
     // Hive over its daily limit: not claimed, so the first step after the pause draws it (makePicture probes Hive first).
     if (await hivePausedUntil(db)) return false;
-    if (!(await claim(db, scene.id, key))) return false;
+    // One of the chapter's unasked pictures (lib/adult/chapter-pictures.ts): none once it has had pictures_per_chapter.
+    if (!(await claimChapterPicture(db, scene.id, scene.chapter, key, (await getAdultSettings(db)).pictures_per_chapter))) return false;
     const snapshot: AutoPictureScene = { ...scene, lines: scene.lines.slice(-6) };
     inBackground(() => {
       const work = drawAutoPicture(db, ownerId, snapshot, a, b).then(
@@ -128,7 +115,7 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
         async (err) => {
           console.warn(`[after-dark] chapter ${snapshot.chapter}'s picture didn't come (asked again on a later step): ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
           failedAt.set(`${scene.id}|${key}`, clock());
-          await release(db, scene.id, key).catch(() => {});
+          await releaseChapterPicture(db, scene.id, key).catch(() => {});
         },
       );
       pending.add(work);

@@ -40,6 +40,8 @@ const Input = z.object({
   reel_tokens: z.number().int().min(0).max(500).optional(),
   clip_tokens: z.number().int().min(0).max(100).optional(),
   menu_picture_tokens: z.number().int().min(0).max(100).optional(),
+  chapter_tokens: z.number().int().min(0).max(100).optional(),
+  pictures_per_chapter: z.number().int().min(0).max(10).optional(),
   media_provider: z.enum(MEDIA_PROVIDERS).optional(),
   replicate_key: z.string().max(400).optional(),
   replicate_picture_model: replicateModel.optional(),
