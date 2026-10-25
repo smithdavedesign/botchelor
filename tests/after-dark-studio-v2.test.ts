@@ -171,6 +171,39 @@ async function setup(opts: { admin?: boolean } = {}) {
 const used = async (who: string) => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [who])).rows[0]?.used ?? 0;
 
 describe("a shoot together", () => {
+  it("shows their dates' media: the Gallery's After Dark tab, the Together tab's own; and shoots together like one of those pictures", async () => {
+    const me = await setup();
+    const house = HOUSE_CHARACTERS[0].id;
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ('face-h', $1, $2, 'baseline', 'p', 'image/png', $3)`, [me.id, house, Buffer.from(PNG)]);
+    const [lo, hi] = [me.character, house].sort();
+    // A picture of the two of them drawn on a date (the theater), and a clip of them from one: no Studio shoot.
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, scene_place) values ('date-pic', $1, $2, $3, 'scene', 'p', 'image/png', $4, 'the movie theater')`, [me.id, lo, hi, Buffer.from(PNG)]);
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('date-clip', $1, $2, $3, 'video', 'Clip', 'video/mp4', $4)`, [me.id, lo, hi, Buffer.from([0, 0, 0, 24])]);
+    fakeHive();
+    const { edits } = fakeVenice();
+    const s = (await (await get(me.cookie, `character=${me.character}`)).json()).state;
+    const dates = s.dates_gallery as { id: string; together: boolean; studio: boolean; partner: { id: string; name: string } | null }[];
+    // Each tile says what it shows, from its tags.
+    expect(dates.find((m) => m.id === "date-pic")).toMatchObject({ together: true, studio: false, partner: { id: house }, shows: "Movie theater" });
+    expect(dates.some((m) => m.id === "date-clip")).toBe(true);
+    // A picture from a date isn't on the Studio tab.
+    expect((s.studio_gallery as { id: string }[]).some((m) => m.id === "date-pic")).toBe(false);
+
+    // A shoot together like that picture: it's Picture 3, and the prompt takes only its pose, framing and place.
+    const res = await post({ action: "pair", character_id: me.character, partner: house, act: "face_to_face", outfit: "nude", framing: "medium", place: "bedroom", reference: "date-pic" }, me.cookie);
+    expect(res.status).toBe(200);
+    expect(edits[0].images).toHaveLength(3);
+    expect(edits[0].images[2]).toMatch(/\/media\/date-pic\?/);
+    expect(edits[0].prompt).toContain("posed, framed and placed like Picture 3");
+    const out = await res.json();
+    // What it made is the Studio's (the Studio tab), and still the pair's.
+    expect((out.state.studio_gallery as { id: string; together: boolean }[]).filter((m) => m.together)).toHaveLength(4);
+    // Not a picture of these two: not found, and nothing drawn.
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ('someone-else', 'another-owner', $1, 'scene', 'p', 'image/png', $2)`, [house, Buffer.from(PNG)]);
+    expect((await post({ action: "pair", character_id: me.character, partner: house, act: "face_to_face", outfit: "nude", framing: "medium", place: "bedroom", reference: "someone-else" }, me.cookie)).status).toBe(404);
+    expect(edits).toHaveLength(4);
+  });
+
   it("offers the pair's menu, draws both faces as Pictures 1 and 2, keeps the pictures under the pair, and prices the pair's tier", async () => {
     const me = await setup();
     const house = HOUSE_CHARACTERS[0].id;

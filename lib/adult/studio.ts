@@ -43,7 +43,7 @@ import { isPublicPlace } from "./continuity";
 import { HivePausedError, hivePausedErrorMessage, hivePausedUntil } from "./hive-limit";
 import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { HARD_NO_IDS, INTENSITIES, type Intensity } from "./limits";
-import { baselinePrompt, ensureBaseline, listMedia, mediaByIds, NEGATIVE_PROMPT, physicalLook, replicatePictureInput, signedMediaUrl, venicePicture, type Media } from "./media";
+import { baselinePrompt, characterMedia, ensureBaseline, listMedia, mediaByIds, NEGATIVE_PROMPT, physicalLook, replicatePictureInput, signedMediaUrl, venicePicture, type Media } from "./media";
 import { PICTURE_PRESETS, type PresetId } from "./rating-tags";
 import { FRAMING_LABEL, OUTFITS, picturePlaces, planPicture } from "./pictures-menu";
 import {
@@ -829,7 +829,21 @@ export async function pairMenu(db: Db, viewer: string, characterId: string, part
 }
 
 /** What a pair shoot asks for: the partner, the act (who leads swapped, or not), what they wear, the framing, place and light. */
-export type PairInput = { partner: string; act: string; swap?: boolean; outfit: string; framing: Framing; place: string; light?: string | null; model?: string | null; own_key?: boolean; custom?: string; dialog?: string };
+export type PairInput = {
+  partner: string;
+  act: string;
+  swap?: boolean;
+  outfit: string;
+  framing: Framing;
+  place: string;
+  light?: string | null;
+  model?: string | null;
+  own_key?: boolean;
+  custom?: string;
+  dialog?: string;
+  /** Shot like one of the pair's pictures (David, 2026-10-25: their dates' media "to shoot with"): its pose, framing and place, as Picture 3. */
+  reference?: string;
+};
 
 /**
  * A pair shoot: `shoot_size` pictures of the two of them, from their two faces (the nude ones from sex on, as the night's
@@ -853,9 +867,21 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
   const planned = planPicture(
     { act: input.act, swap: input.swap === true, outfit: input.outfit, framing: input.framing, place: where.place },
     // The owner's own words lead the picture too (David, 2026-10-24: the Together tab needs the Shoot tab's control); held to the lines by planPicture's own check.
-    { cast: p.cast, stage: limits.maxStage, places: places.map((x) => ({ place: x.place, now: false, public: x.public, home: null })), limits, light: light?.words, custom: cleanCustom(input.custom, CUSTOM_MAX), dialog: cleanCustom(input.dialog, DIALOG_MAX) },
+    { cast: p.cast, stage: limits.maxStage, places: places.map((x) => ({ place: x.place, now: false, public: x.public, home: null })), limits, light: light?.words, custom: cleanCustom(input.custom, CUSTOM_MAX), dialog: cleanCustom(input.dialog, DIALOG_MAX), reference: Boolean(input.reference) },
   );
   if (!planned.ok) return fail(planned.status, planned.error, planned.message);
+  // A picture to shoot like: one of the owner's of these two (together, or one of them alone), ready, a still.
+  if (input.reference) {
+    if (model.max_images < 3) return fail(422, "wrong_model", `${model.label} takes two pictures: pick a model that takes a third to shoot like one.`);
+    const ok = (
+      await db.query(
+        `select 1 from adult_images where id = $1 and owner_id = $2 and status = 'ready' and mime like 'image/%' and kind in ('scene', 'baseline')
+            and character_id in ($3, $4) and (character_b is null or character_b in ($3, $4))`,
+        [input.reference, viewer, characterId, input.partner],
+      )
+    ).rows.length;
+    if (!ok) return fail(404, "not_found", "That picture isn't one of these two's.");
+  }
   const { plan } = planned;
   const [ca, cb] = p.people;
   let bases: [string, string] | null;
@@ -868,9 +894,11 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
   }
   if (!bases) return fail(409, "no_face", "A picture of each of them is needed first.");
   const images = bases.map((id) => signedMediaUrl(id, baseUrl));
-  const set = (await setPictures(db, [plan.place])).get(plan.place) ?? null;
+  // Picture 3 is the picture to shoot like, when there is one; otherwise the place's drawn set.
+  const set = input.reference ? null : ((await setPictures(db, [plan.place])).get(plan.place) ?? null);
   const withSet = Boolean(set) && model.max_images >= 3;
   if (set && withSet) images.push(model.provider === "replicate" ? replicateSetImage(set, plan.place, baseUrl) : set);
+  if (input.reference) images.push(signedMediaUrl(input.reference, baseUrl));
   const prompt = plan.promptFor(withSet);
   const preset = PICTURE_PRESETS.find((x) => x.id === input.light)?.id ?? null;
   return runJob(db, viewer, access, {
@@ -881,7 +909,7 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
     negative: NEGATIVE_PROMPT,
     model,
     tokens: input.own_key ? config.prices.own_key : config.prices.pair[model.tier],
-    choices: { partner: input.partner, act: input.act, swap: input.swap === true, outfit: input.outfit, framing: input.framing, place: input.place, light: input.light ?? null, stage: plan.stage },
+    choices: { partner: input.partner, act: input.act, swap: input.swap === true, outfit: input.outfit, framing: input.framing, place: input.place, light: input.light ?? null, stage: plan.stage, ...(input.reference ? { reference: input.reference } : {}) },
     place: plan.place,
     partner: input.partner,
     ownKey: input.own_key === true,
@@ -1253,6 +1281,9 @@ export type StudioState = {
   /** Pair shoots (v2): everyone else in the viewer's After Dark, and the pictures of the pair shoots. */
   partners: { id: string; name: string }[];
   pair_gallery: Media[];
+  /** Everything of theirs made in the Studio (alone or together), and everything from their dates, alone or with anyone. */
+  studio_gallery: Media[];
+  dates_gallery: Media[];
   /** Sharing (v2): who the character's pictures can go to (their own characters only), the switches, and where each went. */
   share_to: SharePartner[];
   share: { photos: boolean; after_dark: boolean };
@@ -1303,6 +1334,9 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
   const pair_gallery = await mediaByIds(db, pairIds, viewer);
   const ownProvider = ownRow.rows[0]?.provider === "venice" || ownRow.rows[0]?.provider === "replicate" ? (ownRow.rows[0].provider as "venice" | "replicate") : null;
   const solo = gallery.filter((g) => g.character_b === null);
+  // Everything of theirs, alone and with anyone (lib/adult/media.ts characterMedia): the Gallery's Studio and After
+  // Dark tabs, and the Together tab's media from their dates.
+  const everything = await characterMedia(db, c.id, viewer);
   for (const s of shoots) s.redo = await redoable(db, viewer, s, config);
   const shoot_of: Record<string, string> = {};
   for (const s of shoots) for (const p of s.pictures) shoot_of[p] = s.id;
@@ -1328,6 +1362,8 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
       shoot_of,
       partners,
       pair_gallery,
+      studio_gallery: everything.filter((m) => m.studio),
+      dates_gallery: everything.filter((m) => !m.studio),
       share_to: shareTo,
       share: { photos: config.share.photos, after_dark: config.share.after_dark },
       shares: mine ? await sharesOf(db, viewer, solo.map((g) => g.id)) : {},

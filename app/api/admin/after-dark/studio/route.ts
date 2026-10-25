@@ -85,6 +85,8 @@ const Input = z.discriminatedUnion("action", [
     // The owner's own words, like the Shoot tab (David, 2026-10-24: "the Together page doesn't have enough options").
     custom: z.string().max(CUSTOM_MAX).optional(),
     dialog: z.string().max(DIALOG_MAX).optional(),
+    // Shot like one of the pair's pictures (their dates' or the Studio's): its pose, framing and place.
+    reference: id.optional(),
     model,
     own_key,
   }),
