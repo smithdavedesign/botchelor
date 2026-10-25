@@ -47,6 +47,7 @@ import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensity
 import { consentRefusal, framingOf, hasProfileConsent, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
 import { scenarioById, type Scenario } from "./scenarios";
 import { venueSituation } from "./scene-catalog";
+import { carryDoing, cleanDoing } from "./doing";
 import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
 
 /**
@@ -54,7 +55,7 @@ import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
  * bar, a beach: "An awkward double date" named no place the rules knew, so it read as private, 2026-10-25).
  */
 const isPublicPlace = (label: string | null | undefined, home: "a" | "b" | null = null): boolean => isPublicSet(label, home) || (!home && Boolean(venueSituation(label)));
-import { roleplayById, roleplayLine, type Roleplay } from "./roleplays";
+import { roleplayById, roleplayLine, roleplayRule, rolesLine, type Roleplay } from "./roleplays";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import {
   bumpFacts,
@@ -137,11 +138,21 @@ export { SOFT_CHAPTERS } from "./stages";
  * `fact_ids` are the remembered facts (lib/adult/facts.ts) its memory cited, private like the notes.
  * Lines written before 2026-10-21 have none.
  */
-export type SceneLine = { who: "a" | "b"; text: string; why?: string; memory?: string | null; moved_to?: string; stage?: number; fact_ids?: string[] };
+export type SceneLine = {
+  who: "a" | "b";
+  text: string;
+  why?: string;
+  memory?: string | null;
+  moved_to?: string;
+  stage?: number;
+  fact_ids?: string[];
+  /** What the two of them are doing at this line, in the writer's words (lib/adult/doing.ts): the theater's label. */
+  doing?: string;
+};
 
 /** The lines as the page and the player get them: who and what, never the private notes. */
 export const publicLines = (lines: readonly SceneLine[]): SceneLine[] =>
-  lines.map((l) => ({ who: l.who, text: l.text, ...(typeof l.stage === "number" ? { stage: l.stage } : {}) }));
+  lines.map((l) => ({ who: l.who, text: l.text, ...(typeof l.stage === "number" ? { stage: l.stage } : {}), ...(l.doing ? { doing: l.doing } : {}) }));
 export type AdultScene = {
   id: string;
   lines: SceneLine[];
@@ -870,6 +881,9 @@ export function sceneMessages(
     (now.history?.length ?? 0) > 1 ? `Where they've been tonight, in order: ${historyPhrase(now.history!)}. They're at the last one now.` : "",
     now.homeNow ? `They're in ${nameOf(now.homeNow)}'s home now: nobody asks "my place?" or "your place?" again.` : "",
     "Pace and place, unless the steer says otherwise:",
+    // The chapter's roleplay leads (David, 2026-10-25: Star × Rafe's "Captain and pilot" on a skydive was never played,
+    // with the premise one line among their sheets): every line plays it, and the place becomes part of the game.
+    now.profile?.roleplay ? roleplayRule(now.profile.roleplay.rp, names, now.profile.roleplay.swap, where.set ?? where.place) : "",
     // The intensity is the viewer's ceiling: no steer lifts it (lib/adult/limits.ts).
     capped && now.stage > cap
       ? `- The viewer has turned it down to ${INTENSITY[limits.intensity].label.toLowerCase()}: from here it goes no further than ${STAGES[cap]}. Ease back to that gently (they slow down, talk, stay close) and stay there, whatever the steer says.`
@@ -945,11 +959,16 @@ export function sceneMessages(
     // A whisper to one of them (lib/adult/director.ts): that one's own secret intention, never said aloud.
     (whispered.length ? ` ${whispered.join(" ")}` : "") +
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
-    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. ${v2 ? "the bedroom" : "his bedroom"}: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null${v2 ? ', "suggestions": {"mild": "...", "flirty": "...", "spicy": "..."}' : ""}}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
+    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null${v2 ? ', "doing": "..."' : ""}}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. ${v2 ? "the bedroom" : "his bedroom"}: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null${v2 ? ', "suggestions": {"mild": "...", "flirty": "...", "spicy": "..."}' : ""}}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
     (v2
       ? ` On every line, "why" is one short private sentence on why this character says or does this now, naming the specific thing behind it: a memory, a detail from their sheet (their job, a hobby, a tell, a line of their bio), what they want, or what just happened; never a trait word on its own ("${first("b")} is ${trait}" says nothing), and each line's why is its own ("the moment" says nothing either).` +
         // v2.2: Lexi × Dex's climax gave whys like "The climax, the shared moment" (2026-10-22).
         ` It's a whole sentence about this character's own reason, with a verb, even at the climax: never a fragment ("the climax, the shared moment").` +
+        // What they're doing (lib/adult/doing.ts): the theater's label, in the writer's words, not the heat's.
+        ` On the first line, and on any line where what the two of them are doing changes, "doing" says what they're doing now in 2 to 6 plain words${now.profile?.roleplay ? ", in the roleplay's own terms" : ""} (like "sizing up the smug couple" or "slow dancing in the kitchen"); leave it out on the other lines.` +
+        (now.profile?.roleplay
+          ? ` While the roleplay runs, each "why" also says how the line plays it (the role, the premise: "${now.profile.roleplay.rp.title}"), or why it steps out of it.`
+          : "") +
         ` "memory" is the id of the memory it draws on from what they can remember (like "F3" or "M1"), or null, and only one this line uses.${sheetItems.length ? ` One of their own sheet details ("${sheetItems[0].label}"…) counts as a memory too.` : ""} Nobody sees these notes but the writer.`
       : ` On every line, "why" is one short private sentence on why this character says or does this now: the memory it draws on, a trait or tell from their sheet, what they want, or "the moment"; and "memory" is the memory it draws on, quoted or named from what they can remember, or null. Nobody sees these notes but the writer.`) +
     ` Set "explicit" to true once the scene is sexually explicit. Set "picture" only when, in these lines, one of them asks the other for a picture or to be shown something and the other agrees:` +
@@ -1067,8 +1086,8 @@ export function parseSceneLines(reply: string, names: { a: string; b: string }):
   if (start !== -1 && end > start) {
     try {
       const parsed = JSON.parse(trimmed.startsWith("{") ? trimmed : raw.slice(start, end + 1)) as
-        | { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown; lines?: { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown }[] }
-        | { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown }[];
+        | { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown; doing?: unknown; lines?: { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown; doing?: unknown }[] }
+        | { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown; doing?: unknown }[];
       const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed.lines) ? parsed.lines : [parsed];
       // The action leads, in asterisks, so it never lands in the middle of a sentence.
       const withAction = (x: { text?: string; action?: string }) => {
@@ -1079,9 +1098,9 @@ export function parseSceneLines(reply: string, names: { a: string; b: string }):
       // The private notes (why, memory), kept only when they're there: short, and never shown.
       const note = (v: unknown) => (typeof v === "string" && v.trim() && !/^(null|none|n\/a)$/i.test(v.trim()) ? v.trim().replace(/\s+/g, " ").slice(0, NOTE_MAX) : null);
       const out = arr
-        .map((x) => ({ side: typeof x.who === "string" ? sideOf(x.who.trim().toLowerCase()) : null, text: withAction(x), why: note(x.why), memory: note(x.memory) }))
-        .filter((x): x is { side: "a" | "b"; text: string; why: string | null; memory: string | null } => x.side !== null && typeof x.text === "string" && Boolean(x.text.trim()))
-        .map((x) => ({ who: x.side, text: clean(x.text), ...(x.why ? { why: x.why } : {}), ...(x.why || x.memory ? { memory: x.memory } : {}) }));
+        .map((x) => ({ side: typeof x.who === "string" ? sideOf(x.who.trim().toLowerCase()) : null, text: withAction(x), why: note(x.why), memory: note(x.memory), doing: cleanDoing(x.doing) }))
+        .filter((x): x is { side: "a" | "b"; text: string; why: string | null; memory: string | null; doing: string | null } => x.side !== null && typeof x.text === "string" && Boolean(x.text.trim()))
+        .map((x) => ({ who: x.side, text: clean(x.text), ...(x.why ? { why: x.why } : {}), ...(x.why || x.memory ? { memory: x.memory } : {}), ...(x.doing ? { doing: x.doing } : {}) }));
       if (out.length) return out;
     } catch {
       /* fall through */
@@ -1470,6 +1489,8 @@ export type SceneProfile = { turnOns: { a: string[]; b: string[] }; framing: Fra
 /** What happened to a step's lines on the way in, summed over its calls. */
 export type StepFlags = {
   calls: number;
+  /** The chapter's roleplay when this step was written (lib/adult/roleplays.ts). */
+  roleplay?: { id: string; swap: boolean };
   /** All the safe lines of the first reply were dropped, so it was asked once more. */
   retried: boolean;
   /** Lines that crossed one of the two lines (withheld from every response). */
@@ -1675,6 +1696,8 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     hooks_cut: 0, tells_cut: 0, actions_cut: 0, openings_cut: 0, build_ups_cut: 0, topics_cut: 0, clinical_cut: 0, fragments_repaired: 0, whispers_said: 0, suggestions_replaced: 0, hard_nos: 0, intensity_dropped: 0,
     prompt: v2 ? SCENE_PROMPT_REVISION : "v1",
     ...(writesFilthy(v2, limits) ? { filthy: true } : {}),
+    // The roleplay this step was written in (the /why transcript shows it).
+    ...(input.profile?.roleplay ? { roleplay: { id: input.profile.roleplay.rp.id, swap: input.profile.roleplay.swap } } : {}),
     ...(carry ? { carry: { stage: carry.stage, place: carry.place, first: carry.first, floor: carry.floor } } : {}),
   };
   const { temperature, frequency_penalty, presence_penalty, repetition_penalty } = input.sampling;
@@ -1703,7 +1726,9 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
 
   const guard = (raw: string) => {
     // v2.4: a line DeepSeek started on a dangling "'s" (its speaker's name dropped) gets its word back first.
-    const written = parseSceneLines(raw, names).map((l) => {
+    // What they're doing, carried onto every line from the last one that said (lib/adult/doing.ts), so a dropped line never
+    // takes the label with it.
+    const written = carryDoing(parseSceneLines(raw, names), scene.lines.at(-1)?.doing).map((l) => {
       const fixed = repairFragments(l.text, givenName(names[l.who]));
       flags.fragments_repaired += fixed.repairs;
       return fixed.repairs ? { ...l, text: fixed.text } : l;
@@ -2893,9 +2918,29 @@ export type LineNote = { i: number; who: string; text: string; why: string | nul
 export type SceneNotes = {
   a: { id: string; name: string };
   b: { id: string; name: string };
-  current: { chapter: number; place: string | null; set_place: string | null; place_history: PlaceStop[]; moves: MoveLog[]; steps: StepRow[]; lines: LineNote[]; written_by: WrittenBy };
+  current: {
+    chapter: number;
+    place: string | null;
+    set_place: string | null;
+    /** The chapter's roleplay, as the writer was given it: who plays whom and its premise, with their names. */
+    roleplay: { id: string; title: string; roles: string | null; premise: string } | null;
+    place_history: PlaceStop[];
+    moves: MoveLog[];
+    steps: StepRow[];
+    lines: LineNote[];
+    written_by: WrittenBy;
+  };
   nights: { id: string; chapter: number | null; created_at: string; set_place: string | null; moves: MoveLog[] | null; steps: StepRow[]; lines: LineNote[]; written_by: WrittenBy }[];
 };
+
+/** The chapter's roleplay as the transcript shows it: its title, who plays whom, and its premise in their names. */
+function roleplayNote(pick: { id: string; swap: boolean } | null, names: { a: string; b: string }): SceneNotes["current"]["roleplay"] {
+  const rp = pick ? roleplayById(pick.id) : null;
+  if (!rp) return null;
+  const first = (n: string) => n.split(/\s+/)[0];
+  const [x, y] = (pick!.swap ? [names.b, names.a] : [names.a, names.b]).map(first);
+  return { id: rp.id, title: rp.title, roles: rolesLine(rp, { a: first(names.a), b: first(names.b) }, pick!.swap), premise: rp.premise.replaceAll("{a}", x).replaceAll("{b}", y) };
+}
 
 const notesOf = (lines: readonly SceneLine[], names: { a: string; b: string }, steps: readonly StepRow[] = []): LineNote[] => {
   const by = stepIndexOf(steps, lines.length);
@@ -2921,7 +2966,7 @@ export async function sceneNotes(db: Db, ownerId: string, x: string, y: string):
     a: scene.a,
     b: scene.b,
     current: {
-      chapter: scene.chapter, place: scene.place, set_place: scene.set_place, place_history: scene.place_history, moves: scene.moves,
+      chapter: scene.chapter, place: scene.place, set_place: scene.set_place, roleplay: roleplayNote(scene.roleplay ?? null, names), place_history: scene.place_history, moves: scene.moves,
       steps: steps.running, lines: notesOf(scene.lines, names, steps.running), written_by: writtenBy(wrote(steps.running), new Date().toISOString(), history),
     },
     nights: rows.map((r) => {

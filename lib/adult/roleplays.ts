@@ -49,6 +49,17 @@ export const ROLEPLAYS: readonly Roleplay[] = [
 export const ROLEPLAY_IDS = ROLEPLAYS.map((r) => r.id) as [string, ...string[]];
 export const roleplayById = (id: string | null | undefined): Roleplay | null => ROLEPLAYS.find((r) => r.id === id) ?? null;
 
+/**
+ * The rule that makes the writer play it (David, 2026-10-25: a "Captain and pilot" chapter on a skydive was never played):
+ * every line is in the roleplay, in their own voices; where they are becomes part of it, never a reason to drop it; and
+ * stepping out is something a line does on purpose. With roles, who plays whom.
+ */
+export function roleplayRule(rp: Roleplay, names: { a: string; b: string }, swap: boolean, place: string): string {
+  const first = (n: string) => n.split(/\s+/)[0];
+  const roles = rolesLine(rp, { a: first(names.a), b: first(names.b) }, swap);
+  return `- This chapter is the roleplay the viewer chose: ${rp.title}.${roles ? ` ${roles}.` : ""} Every line plays it, in their own voices: they act, talk and want as ${roles ? "their roles" : "its premise has them"}, and ${place} becomes part of it (the roleplay's world laid over where they are), never a reason to drop it. Stepping out of the roleplay is something a line does on purpose and says so; the next line can step back in.`;
+}
+
 /** Who plays what, in the viewer's words: "Dex plays the boss, June the employee"; null when there are no roles. */
 export function rolesLine(rp: Roleplay, names: { a: string; b: string }, swap = false): string | null {
   if (!rp.roles) return null;
