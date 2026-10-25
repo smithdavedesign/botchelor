@@ -126,9 +126,9 @@ describe("the theater before the first line", () => {
 
   it("the label says the roleplay with how far it's gone", () => {
     const lines = [{ who: "a" as const, text: "Hi.", stage: 0 }];
-    expect(stageLabel({ lines, stage: 0, roleplay: { id: "blind-date", swap: false } }, 1, true)).toBe("🙈 Blind date · talking and flirting");
-    expect(stageLabel({ lines, stage: 0 }, 1, true)).toBe("talking and flirting");
-    expect(stageLabel({ lines: [], stage: 0, chapter: 2, roleplay: { id: "blind-date", swap: false } }, 0, true)).toBe("🙈 Blind date · Chapter 2");
+    expect(stageLabel({ lines, stage: 0, roleplay: { id: "blind-date", swap: false } }, 1)).toBe("🙈 Blind date");
+    expect(stageLabel({ lines: [{ ...lines[0], doing: "trading first impressions" }], stage: 0, roleplay: { id: "blind-date", swap: false } }, 1)).toBe("🙈 Blind date · trading first impressions");
+    expect(stageLabel({ lines: [], stage: 0, chapter: 2, roleplay: { id: "blind-date", swap: false } }, 0)).toBe("🙈 Blind date · Chapter 2");
   });
 });
 

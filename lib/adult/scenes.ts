@@ -1078,6 +1078,9 @@ function unfence(raw: string): string {
   return raw;
 }
 
+/** A "line" that's only a memory id ("F38", "[M2]"): a note that came loose, never something said. */
+const MEMORY_ID_ONLY = /^\s*[\[(]?\s*[FMS]\d{1,4}\s*[\])]?\.?\s*$/;
+
 /** The lines in a model's reply: {"lines": [...]}, an array, a single line, "Name": "text" pairs, or "Name: text". */
 export function parseSceneLines(reply: string, names: { a: string; b: string }): SceneLine[] {
   const raw = unfence(reply);
@@ -1112,18 +1115,44 @@ export function parseSceneLines(reply: string, names: { a: string; b: string }):
     }
   }
   const out: SceneLine[] = [];
+  // In the plain-text shapes a speaker's label is exactly their name (or a, b): "Chud (why): …" and "Chud – memory: F38"
+  // are that line's notes, never something Chud says (2026-10-25, DeepSeek: the why and "F38" were glued onto the line).
+  const speaker = (label: string): "a" | "b" | null => {
+    // "Chud (softly)" is still Chud; a note's label never gets here (asNote goes first).
+    const l = label.replace(/^[\s*_"'“”]+|[\s*_"'“”]+$/g, "").replace(/\s*\([^)]*\)$/, "").toLowerCase();
+    if (l === "a" || l === "b") return l;
+    for (const side of ["a", "b"] as const) if (l === names[side].toLowerCase() || l === first(names[side])) return side;
+    return null;
+  };
+  const NOTE_LABEL = /\b(why|reason|note|memory|memories|thought|motive|subtext|doing)\b/i;
+  /** A label that's one of a line's notes ("Chud (why)", "why", "Memory"): kept on the last line, never spoken. */
+  const asNote = (label: string, value: string): boolean => {
+    if (!NOTE_LABEL.test(label) || !out.length) return NOTE_LABEL.test(label);
+    const last = out[out.length - 1];
+    const v = value.trim().replace(/^["“]|["”]$/g, "");
+    if (/\bdoing\b/i.test(label)) {
+      const doing = cleanDoing(v);
+      if (doing) last.doing = doing;
+    } else if (/\bmemor/i.test(label)) last.memory = v && !/^(null|none|n\/a)$/i.test(v) ? v.slice(0, NOTE_MAX) : null;
+    else if (v && !last.why) last.why = v.replace(/\s+/g, " ").slice(0, NOTE_MAX);
+    return true;
+  };
   // "Ada": "text" pairs: a JSON object with repeated keys, which a parser would collapse.
   for (const m of raw.matchAll(/"([^"\n]{1,40})"\s*:\s*"((?:[^"\\]|\\.)*)"/g)) {
-    const side = sideOf(m[1].trim().toLowerCase());
-    if (side && m[2].trim()) out.push({ who: side, text: clean(m[2].replace(/\\"/g, '"')) });
+    const value = m[2].replace(/\\"/g, '"');
+    if (asNote(m[1], value)) continue;
+    const side = speaker(m[1]);
+    if (side && value.trim()) out.push({ who: side, text: clean(value) });
   }
-  if (out.length) return out;
+  if (out.length) return out.filter((l) => !MEMORY_ID_ONLY.test(l.text));
   for (const line of raw.split("\n")) {
-    const m = line.match(/^\s*\**([^:*]{1,40})\**\s*:\s*(.+)$/);
-    const side = m ? sideOf(m[1].trim().toLowerCase()) : null;
-    if (m && side && m[2].trim()) out.push({ who: side, text: clean(m[2]) });
+    const m = line.match(/^\s*\**([^:*]{1,40})\**\s*:\s*(?:\*\*\s*)?(.+)$/);
+    if (!m || !m[2].trim()) continue;
+    if (asNote(m[1], m[2])) continue;
+    const side = speaker(m[1]);
+    if (side) out.push({ who: side, text: clean(m[2]) });
   }
-  return out;
+  return out.filter((l) => !MEMORY_ID_ONLY.test(l.text));
 }
 
 /**
