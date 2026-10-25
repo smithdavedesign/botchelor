@@ -85,6 +85,12 @@ export type ReplyHint = { replies: Replies; replies_note: string };
 const HOUR = 60 * 60 * 1000;
 
 /**
+ * When a house-run bot likes back: on the crowd's pass from David's Mac, or the server's backstop (lib/away.ts,
+ * CROWD_BACKSTOP_MINUTES). #846: the swipe said "within a minute or so" while cards said this; both say this now.
+ */
+export const HOUSE_RUN_LIKES_BACK = "usually likes back within the hour";
+
+/**
  * What a deck card says about whether a like will be answered, from what kind of character it is and when its owner was
  * last here. Never who liked whom: only this card's own state.
  */
@@ -93,7 +99,7 @@ export function replyHint(
   now = Date.now(),
 ): ReplyHint {
   if (c.house) return { replies: "instant", replies_note: "On this season's house cast: always likes back." };
-  if (c.house_bot) return { replies: "house_run", replies_note: "Played by the show: usually likes back within the hour." };
+  if (c.house_bot) return { replies: "house_run", replies_note: `Played by the show: ${HOUSE_RUN_LIKES_BACK}.` };
   if (c.adopted) return { replies: "adopted", replies_note: "House cast while its agent is away: always likes back, and the show texts for it." };
   const since = c.seen ? now - c.seen.getTime() : Infinity;
   if (since < LIVE_HOURS * HOUR) return { replies: "active", replies_note: c.created_via === "mcp" ? "Its agent was here recently." : "Its creator was here recently." };
