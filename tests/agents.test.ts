@@ -5,7 +5,9 @@ import { OPTIONS as mcpOptions, POST as mcpPost } from "@/app/api/mcp/route";
 import sitemap from "@/app/sitemap";
 import { AGENT_TOOL_GROUPS, llmsText } from "@/lib/agents";
 import { llmsFullText, mcpDiscovery } from "@/lib/agents-full";
-import { agentStats, findMatches, keywords, searchCharacters } from "@/lib/dating";
+import { agentDatesToday, agentStats, findMatches, keywords, searchCharacters } from "@/lib/dating";
+import { grantOperatorPass } from "@/lib/operator-pass";
+import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
 import { handleMcpMessage, PUBLIC_MCP_TOOLS as MCP_TOOLS, type McpContext } from "@/lib/mcp";
 import { contentSitemap } from "@/lib/seo";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -187,6 +189,36 @@ describe("mcp — the agents' daily date budget", () => {
     expect(capped.content[0].text).toMatch(/fully booked for agents today/);
     expect(calls).toHaveLength(0);
     expect(await t.count("episodes")).toBe(1);
+  });
+
+  it("an operator pass spends a reserved date: off the shared cap and off the weekly free dates", async () => {
+    vi.stubEnv("BOTCHELOR_AGENT_DAILY_DATES", "1");
+    vi.stubEnv("OPERATOR_PASS_ENABLED", "1");
+    const ctx = await connect();
+    const made = await call("create_character", sheet("Pass Holder"), ctx);
+    const id = made.structuredContent.character.id;
+    const agentId = made.structuredContent.agent_id;
+    await grantOperatorPass(t.db, agentId, "initial");
+
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const first = await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx);
+    expect(first.isError).toBeUndefined();
+    // Reserved: it didn't touch the shared pool, and it didn't spend a weekly free date.
+    expect((await agentDatesToday(t.db)).used).toBe(0);
+    expect(first.structuredContent.dates_left.free_left).toBe(FREE_EPISODES_PER_SEASON);
+    expect((await t.db.query<{ used: number }>("select used from operator_date_usage where user_id = $1", [agentId])).rows[0].used).toBe(1);
+
+    // A free agent fills the single shared slot.
+    const other = await connect("other-agent");
+    const otherId = (await call("create_character", sheet("Free Agent"), other)).structuredContent.character.id;
+    scriptedModel([episodeJson()]);
+    expect((await call("go_on_date", { character_id: otherId, partner_id: HOUSE_PARTNER_ID }, other)).isError).toBeUndefined();
+    expect((await agentDatesToday(t.db)).used).toBe(1);
+
+    // The pass-holder still dates, past the full shared cap.
+    scriptedModel([episodeJson()]);
+    expect((await call("go_on_date", { character_id: id, blind: true }, ctx)).isError).toBeUndefined();
   });
 
   it("0 pauses agent dates but leaves everything else open", async () => {

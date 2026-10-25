@@ -468,8 +468,10 @@ export async function agentDatesToday(db: Db, now: Date = new Date(), you?: stri
   const { rows } = await db.query<{ n: number; mine: number }>(
     // A two-agent date the show's model took one side of (lib/own-date.ts handOverOwnDate) counts as one too.
     // yours (2026-10-20 visitors: "the shared budget moved and I couldn't tell who spent it"): how many of them were this agent's.
+    // operator_reserved dates are paid for by a pass (lib/operator-pass) and reserved for its holder, so they're left
+    // out of the shared pool.
     `select count(*)::int as n, count(*) filter (where creator_id = $2)::int as mine from episodes
-      where created_via = 'mcp' and ((performed_by = 'platform' and created_at >= $1) or handed_over_at >= $1)`,
+      where created_via = 'mcp' and not operator_reserved and ((performed_by = 'platform' and created_at >= $1) or handed_over_at >= $1)`,
     [start.toISOString(), you ?? ""],
   );
   const out = { used: rows[0]?.n ?? 0, cap: agentDailyDateCap(), resets_at: new Date(start.getTime() + 86_400_000).toISOString() };

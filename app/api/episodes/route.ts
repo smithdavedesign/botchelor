@@ -3,6 +3,7 @@ import { ownDateInProgress, ownDateInProgressMessage } from "@/lib/own-date";
 import { after } from "next/server";
 import { z } from "zod";
 import { releaseEpisode, reserveEpisode, reserveSecondDate, type Reservation } from "@/lib/allowance";
+import { releaseOperatorDate, reserveOperatorDate } from "@/lib/operator-pass";
 import { portraitPathSql } from "@/lib/assets";
 import { PACK_5 } from "@/lib/catalog";
 import { jobUsability } from "@/lib/connections";
@@ -361,8 +362,11 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
   // can't write more episodes than the creator has dates; given back below if no episode gets saved
   // (a failed generation costs no date, so it doesn't cap retries: see docs/history/build-log-2026-10-13-to-16.md, "Review").
   // A second date may be this season's free one (FREE_WEEKLY_SECOND_DATE); otherwise it costs a date like any other.
-  const reservation = (secondDate ? await reserveSecondDate(db, sess.userId) : null) ?? (await reserveEpisode(db, sess.userId));
-  if (!reservation) {
+  // An operator pass (lib/operator-pass) spends a reserved date first: it leaves this week's free/pack dates untouched
+  // and (marked operator_reserved) stays out of the shared agent cap. Gated off, so false for everyone until it's on.
+  const passDate = await reserveOperatorDate(db, sess.userId);
+  const reservation = passDate ? null : (secondDate ? await reserveSecondDate(db, sess.userId) : null) ?? (await reserveEpisode(db, sess.userId));
+  if (!passDate && !reservation) {
     return json(
       {
         error: "episode_limit_reached",
@@ -376,10 +380,11 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
   }
   const outcome = { saved: false };
   try {
-    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome, secondDate);
+    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome, secondDate, passDate);
   } finally {
     if (!outcome.saved) {
-      await releaseEpisode(db, sess.userId, reservation).catch((err: unknown) => {
+      const giveBack = passDate ? releaseOperatorDate(db, sess.userId) : reservation ? releaseEpisode(db, sess.userId, reservation) : Promise.resolve();
+      await giveBack.catch((err: unknown) => {
         console.error("[episodes] could not give back a reserved date:", err instanceof Error ? err.message : "unknown");
       });
     }
@@ -405,6 +410,7 @@ async function writeAndSave(
   input: EpisodeInputData,
   saveState: { saved: boolean },
   secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted"; dateNumber: number } | null = null,
+  operatorReserved = false,
 ): Promise<Response> {
   const episodeId = crypto.randomUUID();
   const dateRequest: DateRequest = {
@@ -455,9 +461,9 @@ async function writeAndSave(
   const saved = await db.query<{ id: string }>(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup,
-                           note, self_pick, transcript, status, visibility, followup_of, engine_trace)
+                           note, self_pick, transcript, status, visibility, followup_of, engine_trace, operator_reserved)
      select $1, $2, $3, $4, '', '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, $7, $8, $9::jsonb, $10::jsonb, null,
-            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating', $14, $15, $16::jsonb
+            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating', $14, $15, $16::jsonb, $17
       where not exists (
         select 1 from characters pc
           join blocks bl on (bl.blocker_id = $2 and bl.blocked_id = pc.owner_id)
@@ -481,6 +487,7 @@ async function writeAndSave(
       secondDate?.visibility ?? input.visibility ?? "public",
       secondDate?.followupOf ?? null,
       trace ? JSON.stringify(trace) : null,
+      operatorReserved,
     ],
   ).catch((err: unknown) => {
     // Two owners booking the same second date at once: the unique followup_of lets exactly one through.
