@@ -85,17 +85,24 @@ describe("listThreads", () => {
     const me = await character("Ada Lumen");
     const bo = await character("Bo Quill");
     const [lo, hi] = pairKey(me.id, bo.id);
+    // Each step is strictly later than the one before: texts and read marks are both stamped now(), and two that land on
+    // the same instant made this test fail about 1 run in 6 (unread is "newer than the read mark").
+    const later = () => new Promise((r) => setTimeout(r, 5));
     await text(me.id, bo.id, bo.id, "First.", 10);
     await markTextsRead(t.db, me.userId, lo, hi);
+    await later();
     await text(me.id, bo.id, bo.id, "Hey you.", 0);
     await text(me.id, bo.id, bo.id, "Still there?", 0);
     await t.db.query(`insert into notifications (id, user_id, kind, title, link) values (gen_random_uuid()::text, $1, 'texted', 'Bo texted (2 new)', $2)`, [me.userId, `/messages/${lo}/${hi}`]);
     await t.db.query(`delete from notifications where user_id = $1`, [me.userId]);
     expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(2);
+    await later();
     await text(me.id, bo.id, me.id, "Here!", 0);
     expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(0);
+    await later();
     await text(me.id, bo.id, bo.id, "Yay.", 0);
     expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(1);
+    await later();
     await markTextsRead(t.db, me.userId, lo, hi);
     expect((await listThreads(t.db, me.userId, me.id))!.conversations[0].unread).toBe(0);
   });
