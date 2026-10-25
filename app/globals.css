@@ -7126,8 +7126,8 @@ a.phone-head-btn {
   color: #cdbce6;
 }
 
-/* A clip the pair has of the moment, looped muted behind the live scene as a living backdrop (SceneBackdrop.tsx; David,
-   2026-10-24). It covers the drawn set, dimmed, and fades in only once loaded; the cast and labels read on top of it. */
+/* Media the pair has of the moment (a looped clip or a still) behind the live scene as a living backdrop
+   (SceneBackdrop.tsx; David, 2026-10-24/25). Covers the drawn set, dimmed, fades in only once loaded; cast/labels on top. */
 .theater-after-dark .ad-scene-backdrop {
   position: absolute;
   inset: 0;
@@ -7143,10 +7143,15 @@ a.phone-head-btn {
 .theater-after-dark .ad-scene-backdrop.on {
   opacity: 1;
 }
+/* Over a clip backdrop, the cast and labels read on top of it. The cast is already positioned (`position: absolute`
+   with a `bottom`, above), so only raise it — setting position:relative detaches it from the bottom and shoots it up
+   (icons/avatars jump, bubbles vanish; David, 2026-10-25). */
+.theater-after-dark .scene-cast {
+  z-index: 2;
+}
 .theater-after-dark .scene-act,
 .theater-after-dark .scene-venue,
-.theater-after-dark .scene-placeholder,
-.theater-after-dark .scene-cast {
+.theater-after-dark .scene-placeholder {
   position: relative;
   z-index: 2;
 }
