@@ -257,13 +257,43 @@ export async function deckFor(
   }
   ranked.sort((a, b) => b.score + boost(b.id) - (a.score + boost(a.id)));
   // The house crowd fills in around everyone else: at most a third of a page.
-  const dealt = capHouseBots(ranked, opts.only ? new Set<string>() : bots, Math.max(1, Math.min(30, limit)));
+  const capped = capHouseBots(ranked, opts.only ? new Set<string>() : bots, Math.max(1, Math.min(30, limit)));
+  // This season's cast in every page of the everyday deck: they always like back, so a first match is a swipe away
+  // (2026-10-25: with 67 characters open to dates, a new character's ten cards had none of the four).
+  const cast = new Set(pool.filter((p) => p.made_by === "house").map((p) => p.id));
+  const dealt = opts.only || opts.theme ? capped : withHouseCast(capped, ranked, cast);
   return {
     ok: true,
     for: { id: mine.id, name: mine.name },
     cards: dealt.map((m) => toCard(m, m.why, likedMine.has(m.id), hints.get(m.id)!)),
     scores: Object.fromEntries(dealt.map((m) => [m.id, m.score + boost(m.id)])),
   };
+}
+
+/** Where this season's cast goes in a page of the deck when it isn't there already: second and fourth. */
+export const HOUSE_CAST_SLOTS = [1, 3] as const;
+
+/**
+ * A page of the deck with this season's cast in it (up to HOUSE_CAST_SLOTS.length of them, the best ranked): any
+ * already in the page stay where they are, the rest go into the slots, and the page keeps its length (the last cards
+ * make room). Pure, so it's tested on its own.
+ */
+export function withHouseCast<T extends { id: string }>(page: readonly T[], ranked: readonly T[], cast: ReadonlySet<string>): T[] {
+  const want = Math.min(HOUSE_CAST_SLOTS.length, ranked.filter((c) => cast.has(c.id)).length);
+  const have = page.filter((c) => cast.has(c.id)).length;
+  if (have >= want) return [...page];
+  const inPage = new Set(page.map((c) => c.id));
+  const adding = ranked.filter((c) => cast.has(c.id) && !inPage.has(c.id)).slice(0, want - have);
+  const out = [...page];
+  const slots = HOUSE_CAST_SLOTS.filter((k) => !cast.has(out[k]?.id ?? ""));
+  adding.forEach((card, n) => out.splice(Math.min(slots[n] ?? out.length, out.length), 0, card));
+  // Room for them: the page's last cards that aren't the cast.
+  while (out.length > Math.max(page.length, want)) {
+    const k = out.map((c) => cast.has(c.id)).lastIndexOf(false);
+    if (k < 0) break;
+    out.splice(k, 1);
+  }
+  return out;
 }
 
 /**
