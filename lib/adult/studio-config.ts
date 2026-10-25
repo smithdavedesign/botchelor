@@ -90,14 +90,14 @@ export const StudioConfig = z.object({
   /** Animate (v3): the video model (null: After Dark's own, `reel_model`, Wan 3.0 by default). */
   animate: z.object({ model: z.string().trim().min(1).max(120).nullable().default(null) }).default({ model: null }),
   /**
-   * The PG Studio (lib/studio/pg.ts, /characters/[id]/studio): who it's open to (admins until its live test is signed
-   * off), a shoot's size and price (the first shoot of each character free), the site's free shoots a day, each person's
+   * The PG Studio (lib/studio/pg.ts, /characters/[id]/studio): who it's open to (everyone since David's live shoot came
+   * through, 2026-10-25: four pictures, all pg and clothed; "admins" closes it again), a shoot's size and price (the first shoot of each character free), the site's free shoots a day, each person's
    * pictures a month, and its models (an edit that keeps the face, in Venice's safe mode; a new picture when there's no
    * portrait yet) and what one picture costs us.
    */
   pg: z
     .object({
-      open_to: z.enum(["admins", "everyone"]).default("admins"),
+      open_to: z.enum(["admins", "everyone"]).default("everyone"),
       shoot_size: z.number().int().min(1).max(8).default(4),
       price: z.number().int().min(0).max(100).default(1),
       free_first_shoot: z.boolean().default(true),
@@ -107,7 +107,7 @@ export const StudioConfig = z.object({
       new_model: z.string().trim().min(1).max(120).default("qwen-image-3"),
       usd: z.number().min(0).max(10).default(0.03),
     })
-    .default({ open_to: "admins", shoot_size: 4, price: 1, free_first_shoot: true, free_per_day: 100, monthly_cap: 120, edit_model: "qwen-image-2-1-turbo-edit", new_model: "qwen-image-3", usd: 0.03 }),
+    .default({ open_to: "everyone", shoot_size: 4, price: 1, free_first_shoot: true, free_per_day: 100, monthly_cap: 120, edit_model: "qwen-image-2-1-turbo-edit", new_model: "qwen-image-3", usd: 0.03 }),
   /** Upscale on Venice's upscaler: how much larger, and what one costs (added to an own key's month). */
   upscale: z
     .object({ scale: z.union([z.literal(2), z.literal(4)]).default(2), usd: z.number().min(0).max(10).default(0.02) })
