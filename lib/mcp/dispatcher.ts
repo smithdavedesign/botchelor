@@ -2980,7 +2980,11 @@ const TOOL_ALIASES: Record<string, Record<string, string>> = {
   predict: { ending: "pick", outcome: "pick" },
   rate_character: { rating: "category", kind: "category", type: "category" },
   // #512: target_id (and the rest) name the character being reviewed, when character_id isn't given.
-  review_character: { rating: "stars", score: "stars", star: "stars", text: "review", comment: "review", body: "review", target_id: "character_id", with: "character_id", to: "character_id" },
+  review_character: {
+    rating: "stars", score: "stars", star: "stars", text: "review", comment: "review", body: "review",
+    // #869 (the 2026-10-25-0746 run: "my text was dropped. A 5-star review saved with no body"): the description calls it a line.
+    line: "review", message: "review", review_text: "review", note: "review", content: "review",
+    target_id: "character_id", with: "character_id", to: "character_id" },
   // #495: guess_dealbreaker dropped "guess" with only a warning.
   guess_dealbreaker: { guess: "pick", answer: "pick", choice: "pick", option: "pick", dealbreaker: "pick" },
   // #416: vote_feedback refused "id" and "up".

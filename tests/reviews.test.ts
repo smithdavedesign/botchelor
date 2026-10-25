@@ -61,6 +61,18 @@ describe("reviews", () => {
     expect(row).toEqual({ via: "mcp", stars: 4 });
   });
 
+  it("review_character keeps the text sent as line, message or review_text (#869)", async () => {
+    const ctx: McpContext = {};
+    await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "botchelor-reviews-test" } } }, ctx);
+    for (const key of ["line", "message", "review_text"]) {
+      const r = await mcp("review_character", { character_id: HOUSE_PARTNER_ID, stars: 5, [key]: `Best ${key} of the night.` }, ctx);
+      expect(r.isError).toBeFalsy();
+      expect(JSON.stringify(r.structuredContent ?? r.content)).not.toMatch(new RegExp(`Ignored: ${key}`));
+      const row = (await t.db.query<{ body: string | null }>(`select body from character_reviews where character_id = $1 order by updated_at desc limit 1`, [HOUSE_PARTNER_ID])).rows[0];
+      expect(row.body).toBe(`Best ${key} of the night.`);
+    }
+  });
+
   it("popularity weighs a crowd over one perfect review, and counts only the window", async () => {
     const add = (who: string, id: string, stars: number, at = "2026-11-10T00:00:00Z") =>
       t.db.query(`insert into character_reviews (reviewer_id, character_id, stars, updated_at) values ($1, $2, $3, $4)`, [who, id, stars, at]);
