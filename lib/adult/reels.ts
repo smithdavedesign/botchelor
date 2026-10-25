@@ -53,7 +53,7 @@ import { checkMedia } from "./moderation";
 import { providerError, runMedia } from "./fallback";
 import { hiveGate, hivePausedErrorMessage, hivePausedReason, HivePausedError, hivePausedUntil } from "./hive-limit";
 import type { PlaceStop } from "./continuity";
-import { beatPictureFor } from "./beats";
+import { beatPictureFor, positionIn } from "./beats";
 import { ensureBaseline, ensureNudeBaseline, lookWords, signedMediaUrl } from "./media";
 import { nudeSql } from "./attire";
 import { adultModel } from "./mode";
@@ -65,6 +65,7 @@ import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { STAGES } from "./stages";
 import { faceReferenceId, NO_STEERING, ratingsFor, steeringFor } from "./steering";
 import { logRequest, requestJson, withRequestLog, type LoggedRequest } from "./request-log";
+import { candidates, ensureTagged, placeKeys, rank } from "./media-tags";
 
 export const VENICE = "https://api.venice.ai/api/v1";
 /** Shots in a reel, and how many words a shot can carry (people say about 2.5 words a second). */
@@ -187,6 +188,8 @@ export type ReelShot = {
   before?: { who: "a" | "b"; text: string }[];
   /** It starts from a picture the owner picked from the pair's own (useShotPicture): `media_id` and `frame_id` are it. */
   from_picture?: boolean;
+  /** Drawn like one of the pair's pictures (the storyboard's Draw like it): its pose, framing and place, as Picture 3. */
+  ref_id?: string;
   /** Re-filmed (refilmShot): what this shot's new video cost, given back if it fails and cleared once it's settled. */
   refilm_tokens?: number;
   /** Read with the reel for the one watching, never stored in it: their 👍/👎 on the shot and what was off (lib/adult/steering.ts). */
@@ -642,10 +645,14 @@ export function keyframePrompt(
   place: string | null,
   stage: number,
   withSet: boolean,
-  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; dialog?: string } = {},
+  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; dialog?: string; reference?: boolean } = {},
 ): string {
   const [a, b] = cast;
-  const head = `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together${withSet ? ", in the place from Picture 3" : ""}.`;
+  // Drawn like a picture they already have (the storyboard's Draw like it): Picture 3 is that picture, for its pose,
+  // framing and place only.
+  const head = opts.reference
+    ? `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together, posed, framed and placed like Picture 3.`
+    : `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together${withSet ? ", in the place from Picture 3" : ""}.`;
   const where = place ? `The place: ${place}.` : "";
   // A chosen light (the Studio's shoots together, lib/adult/studio.ts) instead of the set's own.
   const light = opts.light ? `Light: ${opts.light}.` : "";
@@ -656,7 +663,7 @@ export function keyframePrompt(
   // What they wear: by how far the night had gone, or a picture's chosen outfit (lib/adult/pictures-menu.ts).
   const keep =
     `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${opts.clothes ?? clothesAt(stage)}.` +
-    `${withSet ? (opts.light ? " Keep the place and its furniture from Picture 3." : " Keep the place, its furniture and its light from Picture 3.") : ""} Two people only, both faces visible.`;
+    `${opts.reference ? " Take only the pose, the framing and the place from Picture 3: the people in it are the two from Pictures 1 and 2." : withSet ? (opts.light ? " Keep the place and its furniture from Picture 3." : " Keep the place, its furniture and its light from Picture 3.") : ""} Two people only, both faces visible.`;
   return fitPrompt([head, whoIsWho(cast)], `${custom}${frame}${dialog}`, [where, light, keep, tailAt(stage, opts.explicit ?? true)]);
 }
 
@@ -1011,11 +1018,13 @@ export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx
       const place = ctx.places[s.line] ?? null;
       const drawnSet = place ? (sets.get(place) ?? null) : null;
       const own = ctx.keyframeFor?.(s, drawnSet, place);
-      const set = own ? (own.withSet ? drawnSet : null) : drawnSet;
+      // Drawn like a picture they already have (the storyboard's Draw like it): it's the third picture, not the set.
+      const ref = !own && s.ref_id ? s.ref_id : null;
+      const set = ref ? null : own ? (own.withSet ? drawnSet : null) : drawnSet;
       // The shot's own words (the storyboard's per-shot redraw) lead its keyframe, so it's drawn to exactly what's asked.
-      const prompt = own?.prompt ?? keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set), { custom: s.custom });
+      const prompt = own?.prompt ?? keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set), { custom: s.custom, reference: Boolean(ref) });
       // Keep going: the shot before's keyframe is the third picture, in the set's place.
-      const third = own?.continueFrom ? signedMediaUrl(own.continueFrom, ctx.baseUrl) : null;
+      const third = own?.continueFrom ? signedMediaUrl(own.continueFrom, ctx.baseUrl) : ref ? signedMediaUrl(ref, ctx.baseUrl) : null;
       try {
         // A keyframe is one job: drawn on the other provider when this one is limited.
         // What it sent is kept with the keyframe (lib/adult/request-log.ts).
@@ -1852,19 +1861,67 @@ function findShot(shots: ReelShot[], target: { shot?: number; mediaId?: string |
  * the shot's `custom` leads a fresh keyframe, drawn and checked now — only this shot, never the others still planned.
  * Its old picture is let go and its approval cleared, so it needs a look again.
  */
-export async function redrawShot(db: Db, ownerId: string, reelId: string, target: { shot?: number; mediaId?: string | null }, custom: string | undefined, baseUrl: string): Promise<MakeReelResult> {
-  const shots = await editableDraft(db, ownerId, reelId);
-  if (!Array.isArray(shots)) return shots;
+export async function redrawShot(
+  db: Db,
+  ownerId: string,
+  reelId: string,
+  target: { shot?: number; mediaId?: string | null },
+  custom: string | undefined,
+  baseUrl: string,
+  reference?: string,
+): Promise<MakeReelResult> {
+  const row = await loadDraft(db, ownerId, reelId);
+  if (!row) return { ok: false, status: 404, error: "not_found", message: "That storyboard isn't here." };
+  if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
+  const shots = row.shots;
   const k = findShot(shots, target);
   if (k < 0) return { ok: false, status: 404, error: "not_found", message: "There's no such shot to draw." };
   const words = shotWords(custom);
   if (!words.ok) return notAllowed;
+  if (reference && !(await pairPicture(db, ownerId, row.a, row.b, reference))) return { ok: false, status: 404, error: "not_found", message: "That picture isn't one of this pair's." };
   const shot = shots[k];
   // Back to planned so drawReelFrames draws just this one; its old keyframe (or picked picture) and approval go.
-  Object.assign(shot, { status: "planned" as const, custom: words.words, approved: false });
+  Object.assign(shot, { status: "planned" as const, custom: words.words, approved: false, ref_id: reference });
+  if (!reference) delete shot.ref_id;
   for (const f of ["media_id", "frame_id", "archived_at", "archived_by", "reason", "from_beat", "from_picture"] as const) delete shot[f];
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(shots)]);
   return drawReelFrames(db, ownerId, reelId, baseUrl, k);
+}
+
+/** A picture suggested for a shot (shotSuggestions): how well it fits, and who's in it. */
+export type ShotSuggestion = { id: string; score: number; pair: boolean; pov: boolean; pinned: boolean };
+
+/**
+ * For each shot of a draft storyboard, the pair's own pictures that fit it best (David, 2026-10-25: "a baseline for a
+ * different scene"), ranked by their tags (lib/adult/media-tags.ts): the act the shot's line and still show (or what
+ * the stage says), its place, how far the night had gone — the two of them, then first-person ones of one of them,
+ * pinned for dates on top. Up to `per` each; a shot nothing fits gets none (the picker still lists all their pictures).
+ */
+export async function shotSuggestions(db: Db, ownerId: string, reelId: string, per = 8): Promise<Record<number, ShotSuggestion[]> | null> {
+  const row = await loadDraft(db, ownerId, reelId);
+  if (!row) return null;
+  await ensureTagged(db, ownerId, [row.a, row.b]);
+  const list = await candidates(db, ownerId, row.a, row.b, { stills: true });
+  const out: Record<number, ShotSuggestion[]> = {};
+  row.shots.forEach((s, k) => {
+    const stage = s.stage ?? 0;
+    const act = positionIn(`${s.text} ${s.frame ?? ""} ${s.custom ?? ""}`) ?? (stage >= 4 ? "face_to_face" : stage >= 3 ? "undress" : null);
+    out[k] = rank(list, { act, places: placeKeys(s.place), stage })
+      .slice(0, per)
+      .map((c) => ({ id: c.id, score: c.score, pair: Boolean(c.character_b), pov: c.tags.some((t) => t.kind === "pov"), pinned: c.tags.some((t) => t.kind === "date") }));
+  });
+  return out;
+}
+
+/** One of the owner's ready pictures of this pair (the two of them, or one of them alone): a shot's start or reference. */
+async function pairPicture(db: Db, ownerId: string, a: string, b: string, imageId: string): Promise<boolean> {
+  const { rows } = await db.query(
+    `select 1 from adult_images
+      where id = $1 and owner_id = $2 and status = 'ready' and mime like 'image/%' and kind in ('scene', 'baseline', 'frame')
+        and character_id in ($3, $4) and (character_b is null or character_b in ($3, $4))`,
+    [imageId, ownerId, a, b],
+  );
+  return rows.length > 0;
 }
 
 /**
@@ -1878,18 +1935,10 @@ export async function useShotPicture(db: Db, ownerId: string, reelId: string, sh
   if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
   const k = findShot(row.shots, { shot: shotIndex });
   if (k < 0) return { ok: false, status: 404, error: "not_found", message: "There's no such shot." };
-  const pic = (
-    await db.query<{ id: string }>(
-      `select id from adult_images
-        where id = $1 and owner_id = $2 and status = 'ready' and mime like 'image/%' and kind in ('scene', 'baseline', 'frame')
-          and character_id in ($3, $4) and (character_b is null or character_b in ($3, $4))`,
-      [imageId, ownerId, row.a, row.b],
-    )
-  ).rows[0];
-  if (!pic) return { ok: false, status: 404, error: "not_found", message: "That picture isn't one of this pair's." };
+  if (!(await pairPicture(db, ownerId, row.a, row.b, imageId))) return { ok: false, status: 404, error: "not_found", message: "That picture isn't one of this pair's." };
   const shot = row.shots[k];
-  Object.assign(shot, { status: "frame_ready" as const, media_id: pic.id, frame_id: pic.id, from_picture: true, approved: false });
-  for (const f of ["archived_at", "archived_by", "reason", "from_beat"] as const) delete shot[f];
+  Object.assign(shot, { status: "frame_ready" as const, media_id: imageId, frame_id: imageId, from_picture: true, approved: false });
+  for (const f of ["archived_at", "archived_by", "reason", "from_beat", "ref_id"] as const) delete shot[f];
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(row.shots)]);
   return { ok: true, reel: (await getReel(db, reelId))! };
 }

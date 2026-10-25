@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
-import { advanceReel, approveShot, archiveShot, drawReelFrames, filmReel, listReels, makeReel, planReel, redrawShot, refilmShot, REEL_SCOPES, reelNight, stopReel, useShotPicture } from "@/lib/adult/reels";
+import { advanceReel, approveShot, archiveShot, drawReelFrames, filmReel, listReels, makeReel, planReel, redrawShot, refilmShot, REEL_SCOPES, reelNight, shotSuggestions, stopReel, useShotPicture } from "@/lib/adult/reels";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -18,7 +18,8 @@ const StageInput = z.object({ action: z.enum(["draw", "film"]), id });
 // Reviewing a draft storyboard's shots: approve a shot's picture (media_id null = all), or redraw one to the owner's words.
 const ApproveInput = z.object({ action: z.literal("approve"), id, media_id: id.nullable(), approved: z.boolean() });
 // Draw one shot (a planned one, or again), to the owner's words: by its place in the storyboard (`shot`) or its picture.
-const RedrawInput = z.object({ action: z.literal("redraw"), id, shot: z.number().int().min(0).max(50).optional(), media_id: id.optional(), custom: z.string().max(400).optional() });
+// `reference`: drawn like one of the pair's pictures (its pose, framing and place).
+const RedrawInput = z.object({ action: z.literal("redraw"), id, shot: z.number().int().min(0).max(50).optional(), media_id: id.optional(), custom: z.string().max(400).optional(), reference: id.optional() });
 // Start one shot from a picture of the pair the owner already has (`image_id`).
 const PictureInput = z.object({ action: z.literal("use_picture"), id, shot: z.number().int().min(0).max(50), image_id: id });
 // Film one shot of a finished video again (`media_id`, the shot's video).
@@ -57,7 +58,7 @@ export const POST = handle(async (req: Request) => {
   }
   if (act === "redraw") {
     const input = parseBody(RedrawInput, body, "invalid_request");
-    const r = await redrawShot(db, viewer, input.id, { shot: input.shot, mediaId: input.media_id }, input.custom, requestBase(req));
+    const r = await redrawShot(db, viewer, input.id, { shot: input.shot, mediaId: input.media_id }, input.custom, requestBase(req), input.reference);
     return r.ok ? json({ reel: r.reel }) : fail(r);
   }
   if (act === "use_picture") {
@@ -80,7 +81,7 @@ export const POST = handle(async (req: Request) => {
   return r.ok ? json({ reel: r.reel }) : fail(r);
 });
 
-/** One reel, advanced (?id=), or the pair's reels (?a=&b=). */
+/** One reel, advanced (?id=), the pair's reels (?a=&b=), or a draft's suggested pictures per shot (?suggest=). */
 export const GET = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
@@ -89,6 +90,12 @@ export const GET = handle(async (req: Request) => {
   const refused = await mediaRefusal(db, viewer);
   if (refused) return refused;
   const q = new URL(req.url).searchParams;
+  // A draft storyboard's suggested pictures for each shot (?suggest=<id>).
+  const suggest = q.get("suggest");
+  if (suggest) {
+    const suggestions = await shotSuggestions(db, viewer, suggest);
+    return suggestions ? json({ suggestions }) : hidden();
+  }
   const reelId = q.get("id");
   if (reelId) {
     const reel = await advanceReel(db, viewer, reelId);

@@ -303,6 +303,13 @@ async function main() {
       if (size === "phone") await noSideways(page, "the gallery's share panel");
       await shot(page, `studio-gallery-share-${size}`);
       await first.getByRole("button", { name: "Share…" }).click();
+      // What a picture shows (lib/adult/media-tags.ts): 📌 Use on dates, and its tags read from the shoot.
+      await first.getByRole("button", { name: "🏷 Tags" }).click();
+      await first.locator(".ad-media-tag").first().waitFor({ timeout: 15_000 });
+      await page.evaluate(() => document.querySelector('.ad-studio-item:has(img[src*="studio-shot-2"]) .ad-media-tags')?.scrollIntoView({ block: "center" }));
+      if (size === "phone") await noSideways(page, "a picture's tags");
+      await shot(page, `studio-tags-${size}`);
+      await first.getByRole("button", { name: "🏷 Tags" }).click();
       const third = page.locator(".ad-studio-item").filter({ has: page.locator('img[src*="studio-shot-4"]') });
       await third.getByRole("button", { name: "Animate…" }).click();
       await third.locator(".ad-studio-share").waitFor({ timeout: 10_000 });

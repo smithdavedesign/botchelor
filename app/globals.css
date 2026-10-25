@@ -10660,3 +10660,73 @@ details > summary.small {
   aspect-ratio: 3 / 4;
   object-fit: cover;
 }
+
+/* A picture's or clip's tags (app/after-dark/MediaTags.tsx): 📌 Use on dates, and the tags to check or change. */
+.ad-media-tags {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ad-media-tags-row,
+.ad-media-tag-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+.ad-media-tag-add select {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+.ad-media-tags-panel {
+  display: grid;
+  gap: var(--space-1);
+}
+.ad-media-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-media-tag {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--ad-line, #33264d);
+  border-radius: 1rem;
+  font-size: var(--text-xs);
+}
+.ad-media-tag.is-manual {
+  border-color: var(--ad-accent, #c792ff);
+}
+.ad-media-tag.is-model {
+  border-style: dashed;
+}
+.ad-shot-picker {
+  display: grid;
+  gap: var(--space-1);
+}
+.ad-shot-picker > p {
+  margin: 0;
+}
+.ad-shot-pictures button {
+  position: relative;
+}
+.ad-shot-pick-tags {
+  position: absolute;
+  right: 0.2rem;
+  bottom: 0.2rem;
+  padding: 0 0.25rem;
+  border-radius: 0.3rem;
+  background: rgba(8, 4, 14, 0.8);
+  color: #f1e9ff;
+  font-size: 0.65rem;
+  line-height: 1.4;
+}
+.ad-shot-pick-tags:empty {
+  display: none;
+}

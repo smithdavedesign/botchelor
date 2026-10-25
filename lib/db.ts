@@ -2248,6 +2248,24 @@ create table if not exists adult_studio_setups (
 -- What was sent to make each picture, clip or shot (lib/adult/request-log.ts; David, 2026-10-24: "so we can track why
 -- it fails"): the provider's address and body, cleaned (no key, no signature, no picture bytes). Admins see it on a click.
 alter table adult_images add column if not exists request jsonb;
+-- What each picture and clip shows (lib/adult/media-tags.ts; David, 2026-10-25: "tag the assets so we can map them to
+-- the scene in the theater"): one row a tag; its source is what said it (choice, derived, model, manual); a tag the owner
+-- took away stays as removed, so nothing automatic adds it back. adult_images.tagged_at: its own record has been read;
+-- model_tagged_at: the owner's free words have been read by the model.
+create table if not exists adult_media_tags (
+  media_id text not null references adult_images (id) on delete cascade,
+  owner_id text not null,
+  kind text not null check (kind in ('who', 'act', 'place', 'stage', 'outfit', 'light', 'pov', 'date')),
+  value text not null,
+  source text not null check (source in ('choice', 'derived', 'model', 'manual')),
+  removed boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (media_id, kind, value)
+);
+create index if not exists adult_media_tags_kind_idx on adult_media_tags (owner_id, kind, value) where not removed;
+alter table adult_images add column if not exists tagged_at timestamptz;
+alter table adult_images add column if not exists model_tagged_at timestamptz;
 -- Who writes the scenes (lib/adult/writer-config.ts; David, 2026-10-24): the writers a person can pick and the default,
 -- as JSON; and each person's own pick (adult_prefs.writer_model, null: the default), which goes with their account.
 alter table adult_settings add column if not exists writer jsonb;

@@ -54,6 +54,8 @@ export type Media = {
   nude?: boolean;
   /** A video that's a shot of a video of the night (lib/adult/reels.ts), not a clip made from one picture. */
   in_reel?: boolean;
+  /** Pinned for their dates (the Studio's 📌, lib/adult/media-tags.ts): the theater ranks it first when it fits. */
+  date_pin?: boolean;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -549,7 +551,9 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             (i.kind = 'baseline' and ${nudeSql("i")}) as nude,
             -- A shot of a video of the night (lib/adult/reels.ts), not a clip made from one picture: the gallery's sections.
             (i.kind = 'video' and exists (select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
-                                           where v.owner_id = i.owner_id and s->>'media_id' = i.id)) as in_reel
+                                           where v.owner_id = i.owner_id and s->>'media_id' = i.id)) as in_reel,
+            -- Pinned for their dates (lib/adult/media-tags.ts, the Studio's 📌).
+            exists (select 1 from adult_media_tags dt where dt.media_id = i.id and dt.kind = 'date' and not dt.removed) as date_pin
        from adult_images i
        left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $2
        left join adult_face_refs f on f.image_id = i.id and f.owner_id = $2

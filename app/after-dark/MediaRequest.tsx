@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { MediaRequest as Made } from "@/lib/adult/request-log";
+import MediaTags from "./MediaTags";
 
 /**
  * A media item's title that, for an admin, opens what made it: the prompt, the model and the request sent
@@ -112,6 +113,8 @@ function RequestOverlay({ id, onClose }: { id: string; onClose: () => void }) {
             ) : (
               <p className="small muted">Not kept: made before requests were kept (2026-10-24), or on a path that doesn't keep one.</p>
             )}
+            <h3 className="small">What it shows</h3>
+            <MediaTags id={made.id} />
             {made.shoot && (
               <>
                 <h3 className="small">Studio shoot · {made.shoot.kind}</h3>

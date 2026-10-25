@@ -504,6 +504,37 @@ describe("the storyboard: plan, draw, then film", () => {
     expect(await used()).toBe(15);
   });
 
+  it("suggests each shot's best-fitting pictures of theirs by its tags, and draws a shot like one (its pose, framing and place)", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const lines = linesOf(1, 8).map((l, i) => (i === 4 ? { who: "b" as const, text: "*kneels* She takes him in her mouth, slowly." } : l));
+    await sceneAt(id, 1, lines, { place: "the harbour", set: "harbour", stage: 4 });
+    const seen = fakeMedia();
+    director([2, 4, 6]);
+    const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
+    // One of them alone, first-person, of that act and pinned for dates; and a plain picture of the other.
+    await t.db.query(`insert into adult_studio_shoots (id, owner_id, character_id, kind, choices, status) values ('sh-pov', $1, $2, 'shoot', '{"filthy": "pov_blowjob", "level": 3}'::jsonb, 'ready')`, [id, CAST_A]);
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, shoot_id) values ('pov-pic', $1, $2, 'scene', 'p', 'image/png', $3, 'sh-pov')`, [id, CAST_A, Buffer.from(PNG)]);
+    await t.db.query(`insert into adult_media_tags (media_id, owner_id, kind, value, source) values ('pov-pic', $1, 'date', 'yes', 'manual')`, [id]);
+    const res = await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?suggest=${plan.id}`, { headers: { cookie } }));
+    const { suggestions } = (await res.json()) as { suggestions: Record<string, { id: string; pov: boolean; pinned: boolean; pair: boolean }[]> };
+    // The shot on that line gets it first; it's first-person and pinned.
+    const k = plan.shots.findIndex((s) => s.line === 4);
+    expect(suggestions[k][0]).toMatchObject({ id: "pov-pic", pov: true, pinned: true, pair: false });
+    // Not for someone else's draft.
+    const stranger = signedIn(userIdOf(newUserCookie()));
+    expect((await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?suggest=${plan.id}`, { headers: { cookie: stranger } }))).status).toBe(404);
+    // Draw a shot like that picture: it's Picture 3, and the prompt takes only its pose, framing and place.
+    const drawn = (await (await make(cookie, { action: "redraw", id: plan.id, shot: k, reference: "pov-pic" })).json()).reel as Reel;
+    expect(drawn.shots[k]).toMatchObject({ status: "frame_ready", ref_id: "pov-pic" });
+    const edit = seen.filter((x) => x.path === "/image/multi-edit").at(-1)!;
+    expect(edit.body.images as string[]).toHaveLength(3);
+    expect((edit.body.images as string[])[2]).toMatch(/\/media\/pov-pic\?/);
+    expect(String(edit.body.prompt)).toContain("posed, framed and placed like Picture 3");
+    // A picture that isn't this pair's can't be drawn like.
+    expect((await make(cookie, { action: "redraw", id: plan.id, shot: 0, reference: "nobody's" })).status).toBe(404);
+  });
+
   it("won't film a draft with no kept picture", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import type { Media } from "@/lib/adult/media";
-import type { Reel, ReelScope, ReelShot } from "@/lib/adult/reels";
+import type { Reel, ReelScope, ReelShot, ShotSuggestion } from "@/lib/adult/reels";
 import { MediaRequest } from "../../MediaRequest";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
@@ -59,6 +59,10 @@ export default function Storyboard({
   // The owner's own words typed per shot (by its place in the storyboard), and which shot's words or picker is open.
   const [edits, setEdits] = useState<Record<number, string>>({});
   const [open, setOpen] = useState<{ shot: number; what: "words" | "pictures" } | null>(null);
+  // The pictures that fit each shot best (lib/adult/reels.ts shotSuggestions), loaded the first time a picker opens;
+  // and the one picked in a picker, to use as is or draw like.
+  const [suggested, setSuggested] = useState<Record<number, ShotSuggestion[]> | null>(null);
+  const [picked, setPicked] = useState<{ shot: number; id: string } | null>(null);
   const first = (name: string) => name.split(/\s+/)[0];
   const choices = pictures.filter((m) => m.kind !== "video" && m.status === "ready");
 
@@ -145,6 +149,24 @@ export default function Storyboard({
     if (await call({ action: "use_picture", id: draft.id, shot: i, image_id: imageId }, `shot:${i}`)) setOpen(null);
   }
 
+  /** Draw the shot like one of their pictures (its pose, framing and place), to their words when there are some. */
+  async function drawLike(i: number, imageId: string) {
+    const words = (edits[i] ?? shots[i].custom ?? "").trim();
+    setNote({ text: "Drawing that shot like your picture…" });
+    if (await call({ action: "redraw", id: draft.id, shot: i, custom: words || undefined, reference: imageId }, `shot:${i}`)) setOpen(null);
+  }
+
+  function openPictures(i: number) {
+    setPicked(null);
+    setOpen(open?.shot === i && open.what === "pictures" ? null : { shot: i, what: "pictures" });
+    if (!suggested) {
+      void fetch(`/api/admin/after-dark/reel?suggest=${encodeURIComponent(draft.id)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { suggestions?: Record<number, ShotSuggestion[]> } | null) => setSuggested(d?.suggestions ?? {}))
+        .catch(() => setSuggested({}));
+    }
+  }
+
   return (
     <div className="ad-storyboard-backdrop" role="dialog" aria-modal="true" aria-label="Storyboard">
       <div className="ad-storyboard">
@@ -203,7 +225,7 @@ export default function Storyboard({
                       <button type="button" className="button-ghost small" aria-expanded={choosing === "words"} disabled={busy !== null} onClick={() => setOpen(choosing === "words" ? null : { shot: i, what: "words" })}>
                         ✏️ Your words
                       </button>
-                      <button type="button" className="button-ghost small" aria-expanded={choosing === "pictures"} disabled={busy !== null || !choices.length} title={choices.length ? undefined : "No pictures of them yet"} onClick={() => setOpen(choosing === "pictures" ? null : { shot: i, what: "pictures" })}>
+                      <button type="button" className="button-ghost small" aria-expanded={choosing === "pictures"} disabled={busy !== null || !choices.length} title={choices.length ? undefined : "No pictures of them yet"} onClick={() => openPictures(i)}>
                         🖼 Use a picture
                       </button>
                       <button type="button" className="button-ghost small" disabled={busy !== null || Boolean(paused)} title={paused ?? undefined} onClick={() => void drawOne(i)}>
@@ -228,16 +250,45 @@ export default function Storyboard({
                     </div>
                   )}
                   {choosing === "pictures" && (
-                    <ul className="ad-shot-pictures" aria-label="Their pictures">
-                      {choices.map((m) => (
-                        <li key={m.id}>
-                          <button type="button" disabled={busy !== null} onClick={() => void usePicture(i, m.id)} aria-label="Start this shot from this picture" aria-pressed={pic === m.id}>
-                            {/* eslint-disable-next-line @next/next/no-img-element -- private media */}
-                            <img src={mediaUrl(m.id)} alt="" loading="lazy" />
+                    <div className="ad-shot-picker">
+                      {(suggested?.[i]?.length ?? 0) > 0 && (
+                        <>
+                          <p className="small muted">Fits this shot best</p>
+                          <ul className="ad-shot-pictures" aria-label="Their pictures that fit this shot">
+                            {suggested![i].map((m) => (
+                              <li key={m.id}>
+                                <button type="button" disabled={busy !== null} onClick={() => setPicked({ shot: i, id: m.id })} aria-pressed={picked?.shot === i && picked.id === m.id} aria-label="This picture">
+                                  {/* eslint-disable-next-line @next/next/no-img-element -- private media */}
+                                  <img src={mediaUrl(m.id)} alt="" loading="lazy" />
+                                  <span className="ad-shot-pick-tags">{[m.pinned ? "📌" : "", m.pov ? "POV" : "", m.pair ? "both" : ""].filter(Boolean).join(" ")}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                      <p className="small muted">{suggested === null ? "Finding the ones that fit…" : "All their pictures"}</p>
+                      <ul className="ad-shot-pictures" aria-label="Their pictures">
+                        {choices.map((m) => (
+                          <li key={m.id}>
+                            <button type="button" disabled={busy !== null} onClick={() => setPicked({ shot: i, id: m.id })} aria-pressed={(picked?.shot === i && picked.id === m.id) || (!picked && pic === m.id)} aria-label="This picture">
+                              {/* eslint-disable-next-line @next/next/no-img-element -- private media */}
+                              <img src={mediaUrl(m.id)} alt="" loading="lazy" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {picked?.shot === i && (
+                        <div className="ad-shot-buttons">
+                          <button type="button" className="secondary small" disabled={busy !== null} onClick={() => void usePicture(i, picked.id)} title="Start the shot from this very picture: nothing is drawn">
+                            Use it as is
                           </button>
-                        </li>
-                      ))}
-                    </ul>
+                          <button type="button" className="button-ghost small" disabled={busy !== null || Boolean(paused)} onClick={() => void drawLike(i, picked.id)} title="Draw the two of them posed, framed and placed like this picture (and your words, if any)">
+                            Draw like it
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                   {drawable ? (
                     <div className="ad-shot-buttons">
