@@ -64,6 +64,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     prompt: portrait.prompt,
     prompt_version: PROMPT_VERSION,
     url: portrait.dataUrl,
+    // OpenAI's own moderation refuses explicit pictures.
+    content_rating: "pg",
   });
   // Provider-moderated generation from already-filtered text: approve so the owner sees it. Reportable as ever.
   await reviewAsset(db, assetId, "approved", "byok: provider-moderated generation from filtered sheet text");

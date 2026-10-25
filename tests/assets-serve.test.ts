@@ -17,7 +17,7 @@ beforeEach(async () => {
 const serve = (id: string, query = "") => getAsset(new Request(`http://localhost:3000/api/assets/${id}${query}`), { params: Promise.resolve({ id }) });
 
 async function approved(url: string, seed = 1): Promise<string> {
-  const id = await recordAsset(t.db, { character_id: "house-nell", kind: "portrait", source_type: "generated", source_model: "test-1", prompt: "p", prompt_version: "v3", seed, url });
+  const id = await recordAsset(t.db, { content_rating: "pg", character_id: "house-nell", kind: "portrait", source_type: "generated", source_model: "test-1", prompt: "p", prompt_version: "v3", seed, url });
   await reviewAsset(t.db, id, "approved");
   return id;
 }

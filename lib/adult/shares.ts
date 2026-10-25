@@ -121,6 +121,8 @@ export async function sharePicture(db: Db, viewer: string, input: { image_id: st
         source_model: pic.model ?? "after-dark-studio",
         prompt: "A dressed Studio picture, shared as a photo",
         url: `data:${pic.mime};base64,${bytes.toString("base64")}`,
+        // Only a level-0 shoot under pg_max_nsfw gets here (above).
+        content_rating: "pg",
       });
       await reviewAsset(db, assetId, "approved", `studio photo: a dressed shoot, checked (general_nsfw ${pic.nsfw_score === null ? "n/a, the show's check passed it" : pic.nsfw_score.toFixed(2)})`);
       const [lo, hi] = pairKey(pic.character_id, partner.character_id);

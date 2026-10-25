@@ -1,4 +1,5 @@
 import { AI_HEADERS, markAiImage } from "@/lib/ai-mark";
+import { assetServe, PUBLIC_CACHE } from "@/lib/asset-gate";
 import { getApprovedAsset } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
@@ -11,22 +12,31 @@ const STATIC_CAST = /^\/cast\/[\w.-]+\.(webp|png|jpe?g)$/;
 /**
  * Serves one APPROVED character asset's image (a BYOK-generated portrait, or a house portrait shipped in public/cast). The bytes live as a data URL in the
  * ledger, so they're streamed here with a long immutable cache instead of sitting inline in every page. Only
- * approved assets are served (the ledger never returns a pending or rejected one).
+ * approved assets are served (the ledger never returns a pending or rejected one), and only to whom its content tag
+ * lets them (lib/asset-gate.ts): an nsfw one is a redirect to its blurred teaser for anyone it isn't open to.
  */
 export const GET = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
-  const asset = await getApprovedAsset(await getDb(), id);
+  const db = await getDb();
+  const asset = await getApprovedAsset(db, id);
+  if (!asset) return json({ error: "asset_not_found" }, 404);
+  const gate = await assetServe(db, req, asset.content_rating, asset.character_id);
+  // The answer depends on who's asking, so neither of these may be cached for everyone (json() is no-store).
+  if (gate.serve === "none") return json({ error: "asset_not_found" }, 404);
+  if (gate.serve === "teaser") {
+    return new Response(null, { status: 302, headers: { location: new URL(`/api/assets/${id}/teaser`, req.url).toString(), "cache-control": "private, no-store" } });
+  }
   // The house cast's reviewed portraits are files in public/cast, recorded in the ledger by their path: send the
   // browser there (only that exact shape of same-site path, so this can never redirect anywhere else).
-  if (asset?.url && STATIC_CAST.test(asset.url)) {
-    return new Response(null, { status: 307, headers: { location: new URL(asset.url, req.url).toString(), "cache-control": "public, max-age=86400" } });
+  if (asset.url && STATIC_CAST.test(asset.url)) {
+    return new Response(null, { status: 307, headers: { location: new URL(asset.url, req.url).toString(), "cache-control": gate.cache === PUBLIC_CACHE ? "public, max-age=86400" : gate.cache } });
   }
-  if (!asset?.url || !DATA_PNG.test(asset.url)) return json({ error: "asset_not_found" }, 404);
+  if (!asset.url || !DATA_PNG.test(asset.url)) return json({ error: "asset_not_found" }, 404);
   const [, type] = DATA_PNG.exec(asset.url)!;
   const bytes = Buffer.from(asset.url.slice(asset.url.indexOf(",") + 1), "base64");
   // Every picture here was made by a model: it goes out with the "AI-generated" mark in its XMP and its headers
   // (lib/ai-mark.ts). A no-op for one stored with it; an older one is marked as it's sent.
-  const headers = { "cache-control": "public, max-age=31536000, immutable", ...AI_HEADERS };
+  const headers = { "cache-control": gate.cache, ...AI_HEADERS };
   // ?w= asks for a small copy (app/Avatar.tsx): a 1024px PNG of ~1.4 MB was drawn at 38–96px, 40 times on /watch.
   const small = await resized(bytes, new URL(req.url).searchParams.get("w"));
   if (small) return new Response(new Uint8Array(markAiImage(small)), { status: 200, headers: { ...headers, "content-type": "image/webp" } });

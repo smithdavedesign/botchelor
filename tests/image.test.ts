@@ -152,7 +152,7 @@ describe("POST /api/characters/[id]/portrait", () => {
     const { recordAsset } = await import("@/lib/assets");
     const owner = newUserCookie();
     const character = await (await api.createCharacter(validCharacter(), owner)).json();
-    const pendingId = await recordAsset(t.db, { character_id: character.id, kind: "portrait", source_type: "generated", source_model: "openai:gpt-image-1", url: `data:image/png;base64,${PNG_B64}` });
+    const pendingId = await recordAsset(t.db, { content_rating: "pg", character_id: character.id, kind: "portrait", source_type: "generated", source_model: "openai:gpt-image-1", url: `data:image/png;base64,${PNG_B64}` });
     expect((await getAsset(new Request(`${BASE_URL}/api/assets/${pendingId}`), params(pendingId))).status).toBe(404);
   });
 });

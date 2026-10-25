@@ -786,6 +786,15 @@ alter table character_assets add column if not exists tokens_spent integer not n
 alter table character_assets drop constraint if exists character_assets_kind_check;
 alter table character_assets add constraint character_assets_kind_check
   check (kind in ('portrait', 'expression', 'background', 'decoration', 'clip', 'photo'));
+-- 2026-10-25 (lib/content-rating.ts): how explicit each asset is, a strict tag the serve gate reads (lib/asset-gate.ts).
+-- Every row before it is the show's (portraits, Veo clips, Studio photos that passed level 0 and nsfw < 0.15 to reach
+-- the texts), so they're pg; from then on a row says its own, and one that doesn't is nsfw.
+alter table character_assets add column if not exists content_rating text;
+update character_assets set content_rating = 'pg' where content_rating is null;
+alter table character_assets alter column content_rating set default 'nsfw';
+alter table character_assets alter column content_rating set not null;
+alter table character_assets drop constraint if exists character_assets_content_rating_check;
+alter table character_assets add constraint character_assets_content_rating_check check (content_rating in ('pg', 'suggestive', 'nsfw'));
 
 -- M8. Watch parties: a synchronized "date room" over one pre-generated episode, with live reactions,
 -- chat and audience polls (the feature brief's Model A — the audience reacts, it never steers the
@@ -2320,6 +2329,22 @@ alter table adult_images add column if not exists model_tagged_at timestamptz;
 -- A video's trim (lib/adult/trim.ts; David, 2026-10-25): where it starts and ends and the parts cut out, in seconds;
 -- the players honour it, nothing is re-encoded. Null: the whole clip.
 alter table adult_images add column if not exists trim jsonb;
+-- The strict content tag (lib/content-rating.ts), 2026-10-25: everything After Dark makes is nsfw, and so is any row
+-- that doesn't say otherwise. Only a fresh check that passed may ever bring one down.
+alter table adult_images add column if not exists content_rating text not null default 'nsfw';
+alter table adult_images drop constraint if exists adult_images_content_rating_check;
+alter table adult_images add constraint adult_images_content_rating_check check (content_rating in ('pg', 'suggestive', 'nsfw'));
+-- A blurred teaser per asset (lib/teaser-image.ts): a few KB, drawn the first time it's asked for and kept, so the
+-- original never has to be sent to someone it isn't open to. Exactly one of its two asset columns is set, each a
+-- cascading reference, so deleting a picture (or an account, lib/account.ts) takes its teaser with it.
+create table if not exists media_teasers (
+  key text primary key,
+  asset_id text references character_assets (id) on delete cascade,
+  adult_id text references adult_images (id) on delete cascade,
+  data bytea not null,
+  created_at timestamptz not null default now(),
+  check ((asset_id is null) <> (adult_id is null))
+);
 -- Who writes the scenes (lib/adult/writer-config.ts; David, 2026-10-24): the writers a person can pick and the default,
 -- as JSON; and each person's own pick (adult_prefs.writer_model, null: the default), which goes with their account.
 alter table adult_settings add column if not exists writer jsonb;

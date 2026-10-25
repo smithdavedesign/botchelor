@@ -28,7 +28,7 @@ beforeEach(async () => {
 });
 
 async function portrait(characterId: string, status: "approved" | "rejected" | "pending" = "approved"): Promise<string> {
-  const id = await recordAsset(t.db, { character_id: characterId, kind: "portrait", source_type: "generated", source_model: "openai:test", url: PNG });
+  const id = await recordAsset(t.db, { content_rating: "pg", character_id: characterId, kind: "portrait", source_type: "generated", source_model: "openai:test", url: PNG });
   if (status !== "pending") await reviewAsset(t.db, id, status);
   return id;
 }
@@ -77,7 +77,7 @@ describe("an OC's generated portrait shows wherever the character does", () => {
     expect(await approvedPortraitDataUrl(t.db, character.id)).toBeNull();
     await portrait(character.id);
     expect(await approvedPortraitDataUrl(t.db, character.id)).toBe(PNG);
-    const webp = await recordAsset(t.db, { character_id: HOUSE_PARTNER_ID, kind: "portrait", source_type: "generated", source_model: "x", url: "data:image/webp;base64,UklGRg==" });
+    const webp = await recordAsset(t.db, { content_rating: "pg", character_id: HOUSE_PARTNER_ID, kind: "portrait", source_type: "generated", source_model: "x", url: "data:image/webp;base64,UklGRg==" });
     await reviewAsset(t.db, webp, "approved");
     expect(await approvedPortraitDataUrl(t.db, HOUSE_PARTNER_ID)).toBeNull();
   });
