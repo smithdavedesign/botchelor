@@ -110,6 +110,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     prompt: job.prompt,
     prompt_version: CLIP_PROMPT_VERSION_VEO,
     source_url: job.operation,
+    // Google's Veo refuses explicit video.
+    content_rating: "pg",
   });
   if (cost > 0) await db.query(`update character_assets set tokens_spent = $2 where id = $1`, [assetId, cost]);
   return json({ asset_id: assetId, status: "rendering", tokens_spent: cost, admin }, 202, sess);

@@ -136,10 +136,12 @@ async function record(db, manifest) {
     const url = servedUrl(job.file);
     const { rows } = await db.query("select id from character_assets where url = $1", [url]);
     if (rows[0]) continue;
+    // The house cast's portraits are reviewed by hand before approval (the contact sheet below): pg, stated, since a
+    // row that doesn't say is nsfw (lib/content-rating.ts).
     await db.query(
       `insert into character_assets (id, character_id, kind, source_type, source_model, prompt, prompt_version,
-                                     seed, url, review_status)
-       values ($1, $2, $3, 'generated', $4, $5, $6, $7, $8, 'pending')`,
+                                     seed, url, review_status, content_rating)
+       values ($1, $2, $3, 'generated', $4, $5, $6, $7, $8, 'pending', 'pg')`,
       [crypto.randomUUID(), job.character_id, job.kind, model, job.prompt, job.prompt_version, job.seed, url],
     );
     added++;

@@ -8,6 +8,7 @@
  * here that returns a pending or rejected asset to a page.
  */
 import { markAiDataUrl } from "./ai-mark";
+import { ratingOf, type ContentRating } from "./content-rating";
 import type { Db } from "./db";
 
 export const ASSET_KINDS = ["portrait", "expression", "background", "decoration", "clip", "photo"] as const;
@@ -34,6 +35,8 @@ export type CharacterAsset = {
   attribution: string | null;
   url: string | null;
   review_status: AssetReviewStatus;
+  /** How explicit it is (lib/content-rating.ts): the serve gate reads only this. */
+  content_rating: ContentRating;
 };
 
 /** An asset as it is first recorded: always pending, never servable until somebody approves it. */
@@ -49,10 +52,15 @@ export type NewAsset = {
   license_name?: string | null;
   attribution?: string | null;
   url?: string | null;
+  /**
+   * How explicit it is (lib/content-rating.ts). Required, so no caller lands on the schema's fail-closed `nsfw` by
+   * forgetting it: a picture is `pg` only when its maker or a check says so.
+   */
+  content_rating: ContentRating;
 };
 
 const COLUMNS =
-  "id, character_id, kind, source_type, source_model, prompt, prompt_version, seed::float8 as seed, source_url, license_name, attribution, url, review_status";
+  "id, character_id, kind, source_type, source_model, prompt, prompt_version, seed::float8 as seed, source_url, license_name, attribution, url, review_status, content_rating";
 
 /**
  * The provenance an asset cannot be stored without: a licensed asset has to name its source and
@@ -79,8 +87,8 @@ export async function recordAsset(db: Db, asset: NewAsset): Promise<string> {
   const url = asset.source_type === "generated" && asset.url ? markAiDataUrl(asset.url) : (asset.url ?? null);
   await db.query(
     `insert into character_assets (id, character_id, kind, source_type, source_model, prompt, prompt_version,
-                                   seed, source_url, license_name, attribution, url)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                                   seed, source_url, license_name, attribution, url, content_rating)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
     [
       id,
       asset.character_id ?? null,
@@ -94,6 +102,8 @@ export async function recordAsset(db: Db, asset: NewAsset): Promise<string> {
       asset.license_name ?? null,
       asset.attribution ?? null,
       url,
+      // A value from untyped code that isn't a rating is stored as the strictest (lib/content-rating.ts).
+      ratingOf(asset.content_rating),
     ],
   );
   return id;
@@ -138,11 +148,15 @@ export async function getApprovedAsset(db: Db, id: string): Promise<CharacterAss
   return rows[0] ?? null;
 }
 
-/** The newest approved portrait of the character whose id is the SQL expression `characterId`. */
+/**
+ * The newest approved portrait of the character whose id is the SQL expression `characterId`. Only a pg one: a
+ * portrait is their face on every public page and share card.
+ */
 const approvedPortraitSelect = (characterId: string) =>
   `select portrait_asset.id from character_assets portrait_asset
     where portrait_asset.character_id = ${characterId} and portrait_asset.kind = 'portrait'
       and portrait_asset.review_status = 'approved' and portrait_asset.url is not null
+      and portrait_asset.content_rating = 'pg'
     order by portrait_asset.created_at desc limit 1`;
 
 /** The id of a character's newest approved portrait, or null. For rendering a generated avatar. */
@@ -178,11 +192,11 @@ export async function latestClip(db: Db, characterId: string): Promise<Character
   return rows[0] ?? null;
 }
 
-/** The id of a character's newest APPROVED clip, or null (for rendering the video on the card). */
+/** The id of a character's newest APPROVED pg clip, or null (for rendering the video on the public card). */
 export async function approvedClipId(db: Db, characterId: string): Promise<string | null> {
   const { rows } = await db.query<{ id: string }>(
     `select id from character_assets
-      where character_id = $1 and kind = 'clip' and review_status = 'approved' and url is not null
+      where character_id = $1 and kind = 'clip' and review_status = 'approved' and url is not null and content_rating = 'pg'
       order by created_at desc limit 1`,
     [characterId],
   );

@@ -39,7 +39,7 @@ describe("opengraph images render to PNG (next/og / Satori)", () => {
   it("both cards render with an OC's generated portrait embedded (and the house partner's, on the episode card)", async () => {
     const { character, episode } = await setupEpisode();
     const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
-    await reviewAsset(t.db, await recordAsset(t.db, { character_id: character.id, kind: "portrait", source_type: "generated", source_model: "openai:test", url: png }), "approved");
+    await reviewAsset(t.db, await recordAsset(t.db, { content_rating: "pg", character_id: character.id, kind: "portrait", source_type: "generated", source_model: "openai:test", url: png }), "approved");
     await renderPng(await CharacterOg({ params: Promise.resolve({ id: character.id }) }));
     await renderPng(await EpisodeOg({ params: Promise.resolve({ id: episode.id }) }));
   });

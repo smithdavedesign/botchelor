@@ -60,6 +60,7 @@ export const BASE_URL = "http://localhost:3000";
 
 type Table =
   | "characters"
+  | "media_teasers"
   | "episodes"
   | "predictions"
   | "profiles"

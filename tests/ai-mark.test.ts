@@ -100,14 +100,14 @@ describe("where generated pictures are stored and served", () => {
 
   it("a generated portrait is stored with the mark (the ledger, lib/assets.ts)", async () => {
     const png = (await samples()).png;
-    const id = await recordAsset(t.db, { character_id: "house-nell", kind: "portrait", source_type: "generated", source_model: "test-1", url: `data:image/png;base64,${png.toString("base64")}` });
+    const id = await recordAsset(t.db, { content_rating: "pg", character_id: "house-nell", kind: "portrait", source_type: "generated", source_model: "test-1", url: `data:image/png;base64,${png.toString("base64")}` });
     const url = (await t.db.query<{ url: string }>(`select url from character_assets where id = $1`, [id])).rows[0].url;
     expect(readXmp(Buffer.from(url.split(",")[1], "base64"))).toContain("trainedAlgorithmicMedia");
   });
 
   it("one stored before the mark is marked as it's served, small copies too, with the AI headers", async () => {
     const jpeg = (await samples()).jpeg;
-    const id = await recordAsset(t.db, { character_id: "house-nell", kind: "portrait", source_type: "drawn", url: `data:image/jpeg;base64,${jpeg.toString("base64")}` });
+    const id = await recordAsset(t.db, { content_rating: "pg", character_id: "house-nell", kind: "portrait", source_type: "drawn", url: `data:image/jpeg;base64,${jpeg.toString("base64")}` });
     await reviewAsset(t.db, id, "approved");
     for (const q of ["", "?w=64"]) {
       const res = await serve(id, q);

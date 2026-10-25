@@ -208,6 +208,8 @@ export async function makePortrait(db: Db, characterId: string): Promise<string>
       prompt,
       prompt_version: "season-gen-v1",
       url: `data:${pic.mime};base64,${pic.bytes.toString("base64")}`,
+      // Venice's safe mode, and the show's check passed it.
+      content_rating: "pg",
     });
     await db.query(`update season_candidates set portrait_asset = $2, check_note = 'passed' where character_id = $1`, [characterId, asset]);
     return "made";

@@ -299,6 +299,8 @@ export async function drawLooksPortrait(db: Db, characterId: string, env: Record
     prompt,
     prompt_version: LOOKS_PORTRAIT_VERSION,
     url: `data:${r.mime};base64,${r.bytes.toString("base64")}`,
+    // fal's safety checker refused anything explicit, and the show's check passed it.
+    content_rating: "pg",
   });
   await reviewAsset(db, assetId, "approved", "looks: Hive-screened generation from the builder's fixed option words");
   return { ok: true, asset_id: assetId };

@@ -75,7 +75,7 @@ async function owner(opts: { key?: boolean; bought?: number; portrait?: boolean 
   await registerAccount(t.db, userId, `clipper${Math.floor(Math.random() * 1e6)}`, ["a", "good", "password"].join("-"));
   if (opts.key !== false) await saveUserKey(t.db, userId, "google", "text", GOOGLE_KEY, null, { SESSION_SECRET: SECRET });
   if (opts.portrait !== false) {
-    const p = await recordAsset(t.db, { character_id: character.id, kind: "portrait", source_type: "generated", source_model: "openai:gpt-image-2", url: PNG });
+    const p = await recordAsset(t.db, { content_rating: "pg", character_id: character.id, kind: "portrait", source_type: "generated", source_model: "openai:gpt-image-2", url: PNG });
     await reviewAsset(t.db, p, "approved", "test fixture");
   }
   if (opts.bought) {
@@ -196,10 +196,10 @@ describe("the clip paywall: bought tokens, refunded if the clip fails; none for 
   it("is owner-only, and a clip left from the Sora era is closed out", async () => {
     const { cookie, character } = await owner({ bought: 1 });
     expect((await post(character.id, newUserCookie())).status).toBe(404);
-    await recordAsset(t.db, { character_id: character.id, kind: "clip", source_type: "generated", source_model: "openai:sora-2", source_url: "vid_old" });
+    await recordAsset(t.db, { content_rating: "pg", character_id: character.id, kind: "clip", source_type: "generated", source_model: "openai:sora-2", source_url: "vid_old" });
     expect((await (await poll(character.id, cookie)).json()).status).toBe("failed");
     // An approved Sora-era clip stored only a still: the video route has nothing to play.
-    const old = await recordAsset(t.db, { character_id: character.id, kind: "clip", source_type: "generated", source_model: "openai:sora-2", url: PNG, source_url: "vid_done" });
+    const old = await recordAsset(t.db, { content_rating: "pg", character_id: character.id, kind: "clip", source_type: "generated", source_model: "openai:sora-2", url: PNG, source_url: "vid_done" });
     await reviewAsset(t.db, old, "approved", "test");
     expect((await videoRoute.GET(new Request(`${BASE_URL}/api/assets/${old}/video`), params(old))).status).toBe(404);
   });

@@ -30,6 +30,7 @@ describe("the asset provenance ledger", () => {
 
   it("records an asset as pending, and does not serve it", async () => {
     const id = await recordAsset(t.db, {
+      content_rating: "pg",
       character_id: characterId,
       kind: "portrait",
       source_type: "generated",
@@ -47,6 +48,7 @@ describe("the asset provenance ledger", () => {
 
   it("serves an asset only once a human has approved it", async () => {
     const id = await recordAsset(t.db, {
+      content_rating: "pg",
       character_id: characterId,
       kind: "portrait",
       source_type: "generated",
@@ -63,14 +65,14 @@ describe("the asset provenance ledger", () => {
   });
 
   it("refuses a licensed asset with no source or licence", async () => {
-    const asset = { kind: "background", source_type: "licensed", url: "https://assets.example/rooftop.webp" } as const;
+    const asset = { kind: "background", source_type: "licensed", url: "https://assets.example/rooftop.webp", content_rating: "pg" } as const;
     expect(assetProvenanceError(asset)).toMatch(/licensed/);
     await expect(recordAsset(t.db, asset)).rejects.toThrow(/source_url and license_name/);
     expect(await t.count("character_assets")).toBe(0);
   });
 
   it("refuses a generated asset that cannot name its generator", async () => {
-    const asset = { kind: "portrait", source_type: "generated", character_id: characterId } as const;
+    const asset = { kind: "portrait", source_type: "generated", character_id: characterId, content_rating: "pg" } as const;
     expect(assetProvenanceError(asset)).toMatch(/source_model/);
     await expect(recordAsset(t.db, asset)).rejects.toThrow(/source_model/);
     expect(await t.count("character_assets")).toBe(0);
@@ -78,6 +80,7 @@ describe("the asset provenance ledger", () => {
 
   it("accepts a licensed asset that carries its terms, and credits it", async () => {
     const id = await recordAsset(t.db, {
+      content_rating: "pg",
       kind: "background",
       source_type: "licensed",
       source_url: "https://commons.example/file/rooftop",
@@ -94,13 +97,14 @@ describe("the asset provenance ledger", () => {
   });
 
   it("cannot approve an asset with no file to serve", async () => {
-    const id = await recordAsset(t.db, { kind: "portrait", character_id: characterId, source_type: "uploaded" });
+    const id = await recordAsset(t.db, { content_rating: "pg", kind: "portrait", character_id: characterId, source_type: "uploaded" });
     await expect(reviewAsset(t.db, id, "approved")).rejects.toThrow();
     expect(await listApprovedAssets(t.db, characterId)).toEqual([]);
   });
 
   it("goes away with the character it belongs to", async () => {
     const id = await recordAsset(t.db, {
+      content_rating: "pg",
       character_id: characterId,
       kind: "portrait",
       source_type: "drawn",
@@ -113,7 +117,7 @@ describe("the asset provenance ledger", () => {
 
   it("keeps one character's assets out of another's listing", async () => {
     const other = (await (await api.createCharacter(validCharacter({ name: "Otto Fenn" }), newUserCookie())).json()).id;
-    const mine = await recordAsset(t.db, { character_id: characterId, kind: "portrait", source_type: "drawn", url: "https://assets.example/a.svg" });
+    const mine = await recordAsset(t.db, { content_rating: "pg", character_id: characterId, kind: "portrait", source_type: "drawn", url: "https://assets.example/a.svg" });
     await reviewAsset(t.db, mine, "approved");
     expect((await listApprovedAssets(t.db, other)).map((a: CharacterAsset) => a.id)).toEqual([]);
   });
