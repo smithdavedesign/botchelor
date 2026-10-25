@@ -541,6 +541,14 @@ create table if not exists matches (
   primary key (character_lo, character_hi)
 );
 create index if not exists matches_hi_idx on matches (character_hi);
+-- The house matchmaker's daily picks (lib/house-matchmaker.ts): a pair is proposed once, ever; both owners are told.
+create table if not exists matchmaker_picks (
+  character_lo text not null references characters (id) on delete cascade,
+  character_hi text not null references characters (id) on delete cascade,
+  mutual int not null default 0,
+  picked_at timestamptz not null default now(),
+  primary key (character_lo, character_hi)
+);
 -- An owner's standing note to their character about one person ("bring up the boat"): it shapes their texts and
 -- goes into their next date with that person (then it's used). One per character and person.
 create table if not exists nudges (
