@@ -161,7 +161,7 @@ and the shoot each came from. A shoot whose every picture the viewer 👎'd offe
   take an act away, and nothing explicit somewhere public. Words written to the lines and tested like every option.
 - **Presets with pictures:** an option with a drawn example picture shows as a tile. The restyle's steps reuse the
   looks builder's tiles ($0). The shoot's own (`lib/adult/studio-tiles.ts`: Filthy, pose, POV, wardrobe and place, a
-  stock adult model, 128 tiles) are drawn by us like the looks tiles, only when the admin asks for them
+  stock adult model, 134 tiles) are drawn by us like the looks tiles, only when the admin asks for them
   (`POST /api/admin/looks` with `set: "studio"`). Never another site's pictures: their option lists informed the menus,
   their artwork stays theirs.
 - **Full screen:** the Studio over the whole window (Esc leaves), the menus beside the pictures on a wide screen, the
