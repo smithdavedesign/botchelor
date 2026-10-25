@@ -333,6 +333,19 @@ describe("a shoot", () => {
     expect(out.state.gallery.filter((g: { id: string }) => out.state.shoot_of[g.id] === out.shoot.id)).toHaveLength(4);
   });
 
+  it("takes the owner's own words — a partial extra, custom and dialog — without demanding every section", async () => {
+    const { cookie, character } = await setup({ admin: true });
+    fakeHive();
+    const { edits } = fakeVenice();
+    // Only two sections get the owner's own words; the schema must not demand the rest (zod partialRecord, not record).
+    const res = await post({ action: "shoot", character_id: character, choices: { wardrobe: "nude", custom: "she looks right into the camera", dialog: "come here", extra: { pose: "leaning forward on her elbows", light: "candlelit" } } }, cookie);
+    expect(res.status).toBe(200);
+    expect(edits[0].prompt).toContain("Most important, do exactly this: she looks right into the camera.");
+    expect(edits[0].prompt).toContain('A speech bubble near them reads: "come here".');
+    expect(edits[0].prompt).toContain("Also — pose: leaning forward on her elbows");
+    expect(edits[0].prompt).toContain("light: candlelit");
+  });
+
   it("costs a subscriber the model's tier, gives the tokens back when nothing comes through, and refuses an over-limit shoot before spending", async () => {
     const { owner, cookie, character } = await setup({ openTo: "entitled" });
     fakeHive();

@@ -45,7 +45,8 @@ const Choices = z
     accessories: z.array(z.string().max(60)).max(3).optional(),
     // The owner's own words (lib/adult/studio-catalog.ts): an overall direction, words added to a single section, and a line for a speech bubble.
     custom: z.string().max(CUSTOM_MAX).optional(),
-    extra: z.record(z.enum(GROUP_IDS), z.string().max(EXTRA_MAX)).optional(),
+    // partialRecord, not record: a record over an enum key is exhaustive in zod 4 (it would demand every section).
+    extra: z.partialRecord(z.enum(GROUP_IDS), z.string().max(EXTRA_MAX)).optional(),
     dialog: z.string().max(DIALOG_MAX).optional(),
   })
   .strict();
