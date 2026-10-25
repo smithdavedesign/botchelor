@@ -150,6 +150,26 @@ and the shoot each came from. A shoot whose every picture the viewer 👎'd offe
   checked by Hive (videos always are), counted against the month's clips, one video at a time. It runs on our key only
   (an own-key video job is a later step). Queued at once and collected as the Studio's page polls.
 
+### v4: their look, presets, Filthy, full screen (David, 2026-10-24)
+
+- **Restyle starts on their look:** the menu opens on the character's own picks (extras.looks; After Dark's private
+  picks for their owner only), marked •, and a restyle or "Save to their look" sends only what was moved.
+- **Remembered:** the tab, the shoot's picks and the restyle's moves are kept per character in this browser, so coming
+  back finds them preset. A pick no longer on the menu (locked, switched off) is dropped, never sent.
+- **Filthy:** one explicit act in place of the pose (spread, fingers, from behind, mid-orgasm, toys, a plug, POV acts
+  with the viewer at the frame's edge, never their face). Open only at the Filthy studio intensity; hard nos still
+  take an act away, and nothing explicit somewhere public. Words written to the lines and tested like every option.
+- **Presets with pictures:** an option with a drawn example picture shows as a tile. The restyle's steps reuse the
+  looks builder's tiles ($0). The shoot's own (`lib/adult/studio-tiles.ts`: Filthy, pose, POV, wardrobe and place, a
+  stock adult model, 134 tiles) are drawn by us like the looks tiles, only when the admin asks for them
+  (`POST /api/admin/looks` with `set: "studio"`). Never another site's pictures: their option lists informed the menus,
+  their artwork stays theirs.
+- **Full screen:** the Studio over the whole window (Esc leaves), the menus beside the pictures on a wide screen, the
+  Shoot button kept in reach; the face and body a shoot keeps shown small above its menus.
+- **Next, from the seduced.com / candy.ai research:** a strength slider per picked option; a Smart mode (a plain
+  request, we pick the options); a scene list for clips (presets in order, a length each, the cost per row); one-tap
+  edits on a finished picture (change clothes, change place); "Experimental" badges instead of hiding weak presets.
+
 ## 6. Pricing (defaults; every number is a setting)
 
 Our unit is the bought token: 5 for $4 (`lib/catalog.ts PACK_5`), $0.80 each. At one picture a token we'd be 2–8× the

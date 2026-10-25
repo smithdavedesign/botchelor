@@ -29,7 +29,8 @@ import { isAdmin } from "../admins";
 import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
-import { LOOK_DETAILS, LOOK_STEPS, hairWords, looksAppearance, looksPictureWords, normaliseLooks, optionPrompt, optionsFor, type Gender, type Looks } from "../looks";
+import { LOOK_DETAILS, LOOK_STEPS, hairWords, tileId, looksAppearance, looksPictureWords, normaliseLooks, optionPrompt, optionsFor, type Gender, type Looks } from "../looks";
+import { readyTiles } from "../looks-draw";
 import { dataColumn, keepBytes, readBytes } from "../object-store";
 import { pairKey } from "../relationships";
 import { checkAdultText } from "../safety";
@@ -81,6 +82,7 @@ import {
   restylePrompt,
   shootPrompt,
   STRENGTHS,
+  STUDIO_GROUPS,
   studioMenu,
   VARIATION_HINTS,
   variationPrompt,
@@ -93,6 +95,7 @@ import {
   type Subject,
 } from "./studio-catalog";
 import type { StudioConfig, StudioModel } from "./studio-config";
+import { studioTileId, TILE_GROUPS } from "./studio-tiles";
 import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
 import { countUse, overCap, usageLeft } from "./usage";
 
@@ -161,6 +164,7 @@ export function shootLimits(identity: Pick<Identity, "intensity" | "hard_nos">, 
     hardNos: identity.hard_nos,
     disabled: new Set(config.disabled_options),
     pov: config.pov,
+    filthy: identity.intensity === "filthy",
   };
 }
 
@@ -491,6 +495,50 @@ export function restyleMenu(gender: Gender | null): { id: RestyleKey; title: str
     const d = LOOK_DETAILS.find((x) => x.id === id);
     if (!d || (d.only && d.only !== gender)) continue;
     out.push({ id, title: d.title, options: [...d.options.map((x) => ({ id: x.id, label: x.label })), ...(NONE_WORDS[id] ? [{ id: "none", label: "None" }] : [])] });
+  }
+  return out;
+}
+
+/**
+ * Their look now, as the restyle menu's picks: what they were made with (extras.looks), so the menu starts there and a
+ * restyle sends only what's moved. After Dark's private picks (butt, grooming) only for their owner. A pick that isn't
+ * on the menu for this gender is left out.
+ */
+export function restyleCurrent(looks: Looks | undefined, gender: Gender | null, owner: boolean): RestyleChanges {
+  if (!looks) return {};
+  const menu = restyleMenu(gender);
+  const out: RestyleChanges = {};
+  for (const g of menu) {
+    const v = g.id === "butt" || g.id === "grooming" ? (owner ? looks.after_dark?.[g.id] : undefined) : looks[g.id];
+    if (typeof v === "string" && g.options.some((x) => x.id === v)) out[g.id] = v;
+  }
+  return out;
+}
+
+/**
+ * The example pictures the menus can show (David, 2026-10-24: "presets with pictures, like they do"): the looks
+ * builder's own tiles for the restyle steps (After Dark's explicit one where there is one), by `restyle.<group>.<option>`,
+ * and the Studio's own for the shoot's menus, by `shoot.<group>.<option>`.
+ * Only tiles already drawn; a chip without one stays a word. None for "anyone" (no gender to draw).
+ */
+export async function menuTiles(db: Db, gender: Gender | null): Promise<Record<string, string>> {
+  if (!gender) return {};
+  const ready = new Set([...(await readyTiles(db, "pg").catch(() => [])), ...(await readyTiles(db, "nsfw").catch(() => []))]);
+  const out: Record<string, string> = {};
+  // The shoot's own (lib/adult/studio-tiles.ts), by `shoot.<group>.<option>`.
+  for (const g of STUDIO_GROUPS) {
+    if (!TILE_GROUPS.includes(g.id)) continue;
+    for (const o of g.options) {
+      const id = studioTileId(gender, g.id, o.id);
+      if (ready.has(id)) out[`shoot.${g.id}.${o.id}`] = id;
+    }
+  }
+  for (const g of restyleMenu(gender)) {
+    if (!(RESTYLE_STEPS as readonly string[]).includes(g.id)) continue;
+    for (const o of g.options) {
+      const id = [tileId(gender, g.id as (typeof RESTYLE_STEPS)[number], o.id, true), tileId(gender, g.id as (typeof RESTYLE_STEPS)[number], o.id, false)].find((x) => ready.has(x));
+      if (id) out[`restyle.${g.id}.${o.id}`] = id;
+    }
   }
   return out;
 }
@@ -1107,6 +1155,10 @@ export type StudioState = {
   identity: Identity;
   menu: ReturnType<typeof studioMenu>;
   restyle: ReturnType<typeof restyleMenu>;
+  /** Their look now, on the restyle menu (restyleCurrent): the menu starts there. */
+  restyle_current: RestyleChanges;
+  /** The drawn example pictures for menu options (look_tiles), by option: `restyle.<group>.<option>` → tile id. */
+  tiles: Record<string, string>;
   places: { id: string; label: string; public: boolean }[];
   models: (StudioModel & { ready: boolean; price: number })[];
   prices: StudioConfig["prices"];
@@ -1183,6 +1235,8 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
       identity,
       menu: studioMenu(shootLimits(identity, config), noun),
       restyle: restyleMenu(gender),
+      restyle_current: restyleCurrent(c.extras?.looks, gender, c.ownerId === viewer),
+      tiles: await menuTiles(db, gender),
       places,
       models: config.models.map((m) => ({ ...m, ready: Boolean(m.provider === "venice" ? keys.venice : keys.replicate) && checker, price: priceOf(m) })),
       prices: config.prices,

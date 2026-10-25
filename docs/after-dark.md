@@ -2250,6 +2250,13 @@ configurable … best in class"). What's built, by phase:
 <img src="screenshots/studio-together-desktop.png" width="480" alt="The Studio's Together tab: Dex picked, a slow dance, dressed up, a wide shot on the rooftop">
 <img src="screenshots/studio-shared-with-you-desktop.png" width="480" alt="Shared with you: a request waiting with Show it and No thanks, and an accepted picture with remove">
 
+**v4 (2026-10-24, docs/PRDs/studio.md "v4"):** the restyle starts on their look, the page remembers picks per
+character, a Filthy section (Filthy intensity only), menu options with example pictures (`lib/adult/studio-tiles.ts`,
+drawn only on `POST /api/admin/looks` `set: "studio"`), and full screen.
+
+<img src="screenshots/studio-fullscreen-tiles-desktop.png" width="480" alt="The Studio full screen: wardrobe and place as picture tiles beside her latest pictures, the Shoot bar at the bottom">
+<img src="screenshots/studio-restyle-phone.png" width="240" alt="Restyle on a phone: her red curls, green eyes and athletic build marked as her look, blonde picked instead">
+
 ### The checks: an alternative to Hive (2026-10-24)
 
 David: "Hive is a bottleneck atm, so it might be worth adding an alternative too. Everything should be configurable."
