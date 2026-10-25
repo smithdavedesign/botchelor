@@ -25,7 +25,7 @@ import WriterPicker from "../../WriterPicker";
 import type { WriterOptions } from "@/lib/adult/writer";
 import { libraryVenueFor, type CatalogScene } from "@/lib/adult/scene-catalog";
 import SetSceneModal, { preloadScenes, type RoleplayPick } from "./SetSceneModal";
-import { roleplayById } from "@/lib/adult/roleplays";
+import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 
 /** A saved chapter the 📖 menu can play again (lib/adult/scenes.ts AdultNight, trimmed). */
 export type ChapterEntry = { id: string; chapter: number | null; lines: number; created_at: string; place: string | null };
@@ -62,8 +62,14 @@ export function stageFor(place: string | null, dateVenue: string | null): PlaceI
  * climbs with the night; one from before lines kept even that shows nothing until playback catches up. Before the
  * night's first line it's only the roleplay, if there is one; a new chapter with no lines yet says which chapter it is.
  */
-export function stageLabel(scene: { lines: SceneLine[]; stage: number; chapter?: number; roleplay?: RoleplayPick }, shown: number, caughtUp: boolean): string | null {
-  const rp = scene.roleplay ? roleplayById(scene.roleplay.id) : null;
+export function stageLabel(
+  scene: { lines: SceneLine[]; stage: number; chapter?: number; roleplay?: RoleplayPick },
+  shown: number,
+  caughtUp: boolean,
+  /** The owner's own roleplays (lib/studio/library.ts), beside the show's. */
+  mine: readonly Roleplay[] = [],
+): string | null {
+  const rp = scene.roleplay ? (roleplayById(scene.roleplay.id) ?? mine.find((r) => r.id === scene.roleplay!.id) ?? null) : null;
   const withRoleplay = (label: string | null) => (rp ? (label ? `${rp.icon} ${rp.title} · ${label}` : `${rp.icon} ${rp.title}`) : label);
   if (!scene.lines.length) return withRoleplay(scene.chapter && scene.chapter > 1 ? `Chapter ${scene.chapter}` : null);
   const line = scene.lines[Math.max(0, shown - 1)];
@@ -137,6 +143,7 @@ export default function AfterDarkTheater({
   chapters = [],
   onReplayChapter,
   scenes = [],
+  myRoleplays = [],
   onScenario,
 }: {
   scene: {
@@ -208,6 +215,8 @@ export default function AfterDarkTheater({
   onReplayChapter?: (id: string) => void;
   /** Every place Set the scene can pick (lib/adult/scene-catalog.ts), and a scenario card's Start this story. */
   scenes?: readonly CatalogScene[];
+  /** The owner's own roleplays (lib/studio/library.ts), beside the show's in the picker and the labels. */
+  myRoleplays?: readonly Roleplay[];
   onScenario?: (id: string) => Promise<void>;
 }) {
   const live = Boolean(onWrite);
@@ -264,7 +273,9 @@ export default function AfterDarkTheater({
     setGuide("");
   }
   const latestAction = shown.length ? shown[shown.length - 1].action : "";
-  const label = stageLabel(scene, shown.length, caughtUp);
+  const label = stageLabel(scene, shown.length, caughtUp, myRoleplays);
+  // A roleplay by id: the show's, or one of the owner's own.
+  const rpOf = (id: string | null | undefined): Roleplay | null => (id ? (roleplayById(id) ?? myRoleplays.find((r) => r.id === id) ?? null) : null);
   // The set: preloaded, so the last ready one stays up until the next has loaded (never the placeholder in between).
   const stage = useSteadySet(stageFor(scene.set || scene.place, scene.dateVenue));
   // The chapter and its first line say which lines these are: both change when a chapter is filed or Start over runs.
@@ -328,7 +339,7 @@ export default function AfterDarkTheater({
                   💬 {firstName(a)} × {firstName(b)} decided on {scene.planned.place} by text.
                 </p>
               )}
-              <p className="ad-start-rp">{scene.roleplay && roleplayById(scene.roleplay.id) ? `${roleplayById(scene.roleplay.id)!.icon} ${roleplayById(scene.roleplay.id)!.title}` : "💬 No roleplay: just the two of them"}</p>
+              <p className="ad-start-rp">{rpOf(scene.roleplay?.id) ? `${rpOf(scene.roleplay?.id)!.icon} ${rpOf(scene.roleplay?.id)!.title}` : "💬 No roleplay: just the two of them"}</p>
               <div className="ad-start-actions">
                 {onSetScene && (
                   <button type="button" className="secondary small" disabled={busy} onClick={() => (setPicking(scene.planned ? "who" : "where"), setPickerOpened(true))}>
@@ -441,9 +452,9 @@ export default function AfterDarkTheater({
               )}
             </div>
             {/* This chapter's roleplay: opens the picker on its second screen to change or end it. */}
-            {live && scene.roleplay && roleplayById(scene.roleplay.id) && (
+            {live && scene.roleplay && rpOf(scene.roleplay.id) && (
               <button type="button" className="chip ad-roleplay-chip" title="This chapter's roleplay: change or end it" onClick={() => (setPicking("who"), setPickerOpened(true))}>
-                {roleplayById(scene.roleplay.id)!.icon} {roleplayById(scene.roleplay.id)!.title}
+                {rpOf(scene.roleplay.id)!.icon} {rpOf(scene.roleplay.id)!.title}
               </button>
             )}
           </div>
@@ -616,6 +627,8 @@ export default function AfterDarkTheater({
             locked={waiting && scene.planned ? `${firstName(a)} × ${firstName(b)} decided on ${scene.planned.place} by text, so the night starts there. Once they're there you can take them somewhere else.` : null}
             names={{ a: firstName(a), b: firstName(b) }}
             roleplay={scene.roleplay ?? null}
+            myRoleplays={myRoleplays}
+            createHref={`/after-dark/studio/${a.id}?tab=create`}
             onGo={onSetScene}
             onScenario={onScenario}
             onClose={() => setPicking(false)}

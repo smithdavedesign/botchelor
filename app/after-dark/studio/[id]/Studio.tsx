@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
 import RateMedia from "@/app/after-dark/[a]/[b]/RateMedia";
 import { HARD_NOS, INTENSITIES, INTENSITY } from "@/lib/adult/limits";
@@ -15,6 +15,8 @@ import MediaTags from "../../MediaTags";
 import Lightbox from "./Lightbox";
 import LocalTime from "../../LocalTime";
 import TrimmableClip from "../../TrimmableClip";
+import CreateLibrary from "@/app/studio/CreateLibrary";
+import type { Library } from "@/lib/studio/library";
 
 /** A tile's time and a shoot's date, in the viewer's own clock (LocalTime.tsx: never on the server). */
 const TILE_TIME = { time: true, hour: "2-digit", minute: "2-digit" } as const;
@@ -28,6 +30,8 @@ const TABS = [
   { id: "identity", label: "Identity" },
   { id: "gallery", label: "Gallery" },
   { id: "setups", label: "Setups" },
+  // The Create library (lib/studio/library.ts): their own venues, prompts and roleplays.
+  { id: "create", label: "✨ Create" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
 const STRENGTH_LABEL: Record<(typeof STRENGTHS)[number], string> = { loose: "Loose", balanced: "Balanced", strict: "Strict" };
@@ -89,6 +93,8 @@ function keptChoices(kept: ShootChoices | undefined, s: StudioState): ShootChoic
  */
 export default function Studio({ initial, admin = false }: { initial: StudioState; admin?: boolean }) {
   const [s, setS] = useState(initial);
+  // The Create tab saved or deleted a prompt: the Shoot tab's "Your prompts" row follows at once (venues on the next visit).
+  const onLibrary = useCallback((lib: Library) => setS((x) => ({ ...x, my_prompts: lib.prompts.map((p) => ({ id: p.id, text: p.text, title: p.title })) })), []);
   const [tab, setTab] = useState<Tab>("shoot");
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
@@ -174,6 +180,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   useEffect(() => {
     const k = readKept(initial.character.id);
     if (k.tab && TABS.some((t) => t.id === k.tab)) setTab(k.tab);
+    // Scene & roleplay's "Make your own" links here with ?tab=create.
+    if (new URLSearchParams(window.location.search).get("tab") === "create") setTab("create");
     setChoices(keptChoices(k.choices, initial));
     if (k.moved) {
       const known = (g: string, id: string) => initial.restyle.some((x) => x.id === g && x.options.some((o) => o.id === id));
@@ -788,6 +796,16 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               disabled={Boolean(busy)}
               onChange={(e) => setCustom(e.target.value)}
             />
+            {s.my_prompts.length > 0 && (
+              <p className="create-ideas ad-my-prompts">
+                <span className="muted small">✨ Your prompts:</span>
+                {s.my_prompts.map((p) => (
+                  <button key={p.id} type="button" className="chip" title={p.text} disabled={Boolean(busy)} onClick={() => setCustom(p.text.slice(0, CUSTOM_MAX))}>
+                    {p.title ?? (p.text.length > 30 ? `${p.text.slice(0, 28)}…` : p.text)}
+                  </button>
+                ))}
+              </p>
+            )}
             <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={choices.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setDialog(e.target.value)} />
           </fieldset>
           <div className="ad-studio-go is-main">
@@ -1189,6 +1207,11 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
         </div>
       )}
 
+      {tab === "create" && (
+        <div className="ad-studio-panel">
+          <CreateLibrary scope="after_dark" onLibrary={onLibrary} />
+        </div>
+      )}
       {tab === "setups" && (
         <div className="ad-studio-panel">
           <p className="muted small">Choices you saved, to run again on any of your characters. A place of one character&apos;s own isn&apos;t kept.</p>

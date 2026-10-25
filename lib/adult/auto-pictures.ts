@@ -23,6 +23,7 @@ import { isPublicPlace } from "./continuity";
 import { repairPlacePronouns } from "./craft";
 import { makePicture, outputCheckReady, pictureKeyReady, recentActions, scenePrompt, type Media } from "./media";
 import { venueSituation } from "./scene-catalog";
+import { ownPlaceSituation } from "../studio/library";
 import { getAdultSettings } from "./settings";
 import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
 import { mediaAllowedFor } from "./place";
@@ -37,6 +38,8 @@ export type AutoPictureScene = {
   lines: readonly { text: string }[];
   /** Whose home they're in (the night's last stop), so "his apartment" with two women reads as hers. */
   home?: "a" | "b" | null;
+  /** What the owner's own venue is like, when they're at one of theirs (lib/studio/library.ts ownPlaceSituation). */
+  situation?: string | null;
 };
 
 /** The claim for a chapter's picture at a place: "5:the rainy garden". */
@@ -72,7 +75,8 @@ export function autoPicturePrompt(scene: AutoPictureScene, a: Character, b: Char
   const raw = scene.set_place ?? scene.place;
   const home = scene.home ?? null;
   const place = repairPlacePronouns(raw, { a: a.pronouns, b: b.pronouns }, { a: a.name, b: b.name }, home).text;
-  const situation = venueSituation(raw);
+  // A library venue's situation, or what the owner wrote their own venue is like (lib/studio/library.ts).
+  const situation = venueSituation(raw) ?? scene.situation ?? null;
   const publicPlace = !home && (isPublicPlace(raw, home) || Boolean(situation));
   return scenePrompt(a, b, "both", DESCRIPTION, { place, stage: scene.stage, recent: recentActions([...scene.lines].slice(-6), 3), situation, publicPlace }, ownerId);
 }
@@ -80,7 +84,8 @@ export function autoPicturePrompt(scene: AutoPictureScene, a: Character, b: Char
 /** Draws the picture (makePicture: the provider, the output check, the cap). */
 export async function drawAutoPicture(db: Db, ownerId: string, scene: AutoPictureScene, a: Character, b: Character): Promise<Media> {
   const where = scene.set_place ?? scene.place;
-  const prompt = autoPicturePrompt(scene, a, b, ownerId);
+  const own = scene.situation ?? (await ownPlaceSituation(db, ownerId, where).catch(() => null));
+  const prompt = autoPicturePrompt({ ...scene, situation: own }, a, b, ownerId);
   // A picture of both goes without a face reference: the face model reads one face (lib/adult/media.ts FACE_MODEL).
   return makePicture(db, ownerId, { prompt, kind: "scene", character_id: a.id, character_b: b.id, face_of: null, scene_chapter: scene.chapter, scene_place: where });
 }

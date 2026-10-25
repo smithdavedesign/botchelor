@@ -11219,3 +11219,138 @@ button.pg-group-head:hover {
 .pg-picture-meta button {
   margin: 0 0 0 auto;
 }
+
+/* ---------- The Create library (app/studio/CreateLibrary.tsx), in both Studios, and Your prompts on /prompts ---------- */
+.create-library {
+  display: grid;
+  gap: var(--space-3);
+}
+.create-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.create-tabs button {
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.create-tabs button.on {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.create-section {
+  display: grid;
+  gap: var(--space-3);
+}
+.create-form {
+  display: grid;
+  gap: var(--space-2);
+}
+.create-form label {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+}
+.create-form button[type="submit"] {
+  justify-self: start;
+  margin: 0;
+}
+.create-roles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+  gap: var(--space-2);
+}
+.create-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+}
+.create-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.create-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+.create-ideas button.chip {
+  margin: 0;
+  padding: 0.25rem 0.7rem;
+  border: 1.5px dashed var(--line);
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.create-ideas button.chip:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--accent);
+}
+.create-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.create-list li {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+}
+.create-list li .linklike {
+  justify-self: start;
+}
+.create-badge {
+  font-size: 0.7rem;
+}
+.pg-chips button.pg-mine {
+  border-style: dashed;
+}
+.my-prompts-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+.my-prompts-form textarea {
+  flex: 1 1 18rem;
+  margin: 0;
+}
+.my-prompts-form button {
+  margin: 0;
+}
+.my-prompts-signin {
+  margin: 0 0 var(--space-3);
+}
+.prompt-save-note {
+  flex-basis: 100%;
+}
+/* The menus as one tight list (a .card's own margin made each collapsed group a screen apart), and a list item's badge its own size. */
+.pg-groups .pg-group {
+  margin: 0;
+}
+.create-list li .badge,
+.create-list li .create-badge {
+  justify-self: start;
+}
+.pg-picture-meta .badge {
+  margin: 0;
+}

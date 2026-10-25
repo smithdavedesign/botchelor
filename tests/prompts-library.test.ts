@@ -26,9 +26,11 @@ const render = async (sp: Record<string, string> = {}) => renderToStaticMarkup(a
 const items = (html: string) => html.match(/class="prompt-item"/g)?.length ?? 0;
 
 describe("the seed (lib/prompts-library.json, scripts/build-prompts-library.mjs)", () => {
-  it("is 2,000 distinct prompts from the openly licensed sets only, each with its source and licence", () => {
-    expect(ALL_PROMPTS).toHaveLength(2000);
-    expect(new Set(ALL_PROMPTS.map((p) => p.prompt.toLowerCase())).size).toBe(2000);
+  it("is nearly 2,000 distinct prompts from the openly licensed sets only, each with its source and licence", () => {
+    // 2,000 less the hotfix's removals (below); the next seed refills it.
+    expect(ALL_PROMPTS.length).toBeGreaterThan(1900);
+    expect(ALL_PROMPTS.length).toBeLessThanOrEqual(2000);
+    expect(new Set(ALL_PROMPTS.map((p) => p.prompt.toLowerCase())).size).toBe(ALL_PROMPTS.length);
     for (const p of ALL_PROMPTS) {
       expect(Object.keys(LICENSE)).toContain(p.source);
       expect(p.license).toBe(LICENSE[p.source]);
@@ -53,6 +55,39 @@ describe("the seed (lib/prompts-library.json, scripts/build-prompts-library.mjs)
     for (const { prompt } of ALL_PROMPTS) {
       expect(checkShowText({ prompt }), prompt).toEqual({ ok: true });
       expect(checkAdultText({ prompt }), prompt).toEqual({ ok: true });
+    }
+  });
+});
+
+describe("the 2026-10-25 hotfix: what the word lists let through is gone", () => {
+  // Innuendo and body fluids, violence and death, suggestive wear and poses: the first seed carried some of each.
+  const UNSAFE =
+    /\b(goo|gooey|slime|jelly|sticky|viscous|whitish|spurt\w*|semen|cum|drool\w*|saliva|lick\w*|suck\w*|lust\w*|blood|bleeding|dead|death|corpse|strangl\w*|decapitat\w*|bra|latex|revealing|see[- ]through|voluptuous|kneel\w*|on (?:her|his) knees|bent over)\b/i;
+  // Real people the seed named (scripts/data/prompt-people.txt on the next seed holds the full list).
+  const PEOPLE =
+    /\b(gal gadot|danny devito|pierce brosnan|jennifer connelly|john f\.? kennedy|mila kunis|marlon brando|martin sheen|andy lau|ju jingyi|kamenashi kazuya|morena baccarin|eliza dushku|sherilyn fenn|colleen moore|louise brooks|kristen mcmenamy|mark wahlberg|donal gleeson|bob ross|bjork|sia|todd solondz|peter jackson|josh holloway|viktor orban|eva green|tzuyu|terry richardson)\b/i;
+
+  it("carries no innuendo, violence or suggestive wear, and names none of those people", () => {
+    for (const { prompt } of ALL_PROMPTS) {
+      expect(prompt, prompt).not.toMatch(UNSAFE);
+      expect(prompt, prompt).not.toMatch(PEOPLE);
+    }
+  });
+
+  it("no longer has the prompts that were reported", () => {
+    for (const gone of [
+      "a whitish sticky liquid",
+      "spurting from her mouth a white viscous fluid",
+      "white goo dripping face",
+      "licking a tab of lsd",
+      "strangled with rope",
+      "looks like gal gadot",
+      "arguing with danny devito",
+      "portrait of pierce brosnan",
+      "rugged viktor orban",
+      "squirting fluorescent liquid",
+    ]) {
+      expect(ALL_PROMPTS.some((p) => p.prompt.toLowerCase().includes(gone)), gone).toBe(false);
     }
   });
 });

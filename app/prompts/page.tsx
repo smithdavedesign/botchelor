@@ -13,11 +13,12 @@ import {
   sourceOf,
 } from "@/lib/prompts-library";
 import CopyPrompt from "./CopyPrompt";
+import MyPrompts from "./MyPrompts";
+import SavePrompt from "./SavePrompt";
 
 const PATH = "/prompts";
 const TITLE = "Prompts library";
-const DESCRIPTION =
-  "2,000 openly licensed image prompts for portraits of adults: search them, filter by dataset and copy one to draw your character. Free, no sign-up.";
+const DESCRIPTION = `${ALL_PROMPTS.length.toLocaleString("en-US")} openly licensed image prompts for portraits of adults: search them, filter by dataset and copy one to draw your character. Free, no sign-up.`;
 
 export const metadata: Metadata = {
   title: `${TITLE}: portrait prompts for drawing your character · Botchelor`,
@@ -70,6 +71,8 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
         </form>
       </section>
 
+      <MyPrompts />
+
       <section className="card" id="prompts" aria-labelledby="prompts-count">
         <p className="muted small" id="prompts-count" aria-live="polite">
           {found.length === 0
@@ -90,6 +93,7 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
                 <div className="prompt-meta">
                   <span className="muted small">{`${sourceOf(p).name} · ${sourceOf(p).license}`}</span>
                   <CopyPrompt text={p.prompt} />
+                  <SavePrompt text={p.prompt} />
                 </div>
               </li>
             ))}
