@@ -15,6 +15,7 @@ import { breadcrumbJsonLd, characterJsonLd } from "@/lib/seo";
 import ShareLink from "@/app/ShareLink";
 import { getDatingProfile } from "@/lib/dating";
 import { hasExtras, profileComplete, profileMissing, type CharacterExtras } from "@/lib/extras";
+import { archetypeLabel, goalLabel } from "@/lib/kinds";
 import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { ensureAgentHandle } from "@/lib/agent-handle";
@@ -359,6 +360,29 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
       <section className="card">
         <p>{c.bio}</p>
+        {/* The basics at a glance (David, 2026-10-25): from the profile, only what's filled in. */}
+        {(() => {
+          const e = c.extras;
+          const rows = (
+            [
+              ["🎯 Here for", e.here_for ? goalLabel(e.here_for) : undefined],
+              ["🎭 Type", e.archetype ? archetypeLabel(e.archetype) : undefined],
+              ["✨ Sign", e.star_sign],
+              ["💬 Love language", e.love_language],
+              ["🎨 Into", e.hobbies?.length ? e.hobbies.join(", ") : undefined],
+            ] as [string, string | undefined][]
+          ).filter((r): r is [string, string] => Boolean(r[1]));
+          return rows.length ? (
+            <dl className="profile-facts char-basics">
+              {rows.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null;
+        })()}
         {week && (
           <p className="this-week">
             🗓️ <strong>This week:</strong> {week}

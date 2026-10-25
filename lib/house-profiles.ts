@@ -1,13 +1,18 @@
 /**
  * The house cast's dating profiles (docs/swipes.md): what the swipe deck shows of them, two profile prompts and a few
  * interests each, written in each one's voice (lib/house.ts). This season's house characters are in everyone's deck,
- * so these are the first profiles most people swipe on. Merged into the house kits (lib/house-kits.ts) and seeded
+ * so these are the first profiles most people swipe on. Each has the basics on its card too (David, 2026-10-25: "some of
+ * the basics"): where they're from, what they're here for, their sign and their love language. Merged into the house kits (lib/house-kits.ts) and seeded
  * with the cast; prompts only, never the engine.
  */
 import type { CharacterExtras } from "./extras";
 
-export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" | "prompts" | "hobbies">> = {
+export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" | "hometown" | "star_sign" | "love_language" | "here_for" | "prompts" | "hobbies">> = {
   "house-rafe": {
+    hometown: "Brighton",
+    star_sign: "Leo",
+    love_language: "Acts of service",
+    here_for: "long_term",
     occupation: "Pastry chef (rainy days only)",
     prompts: [
       { id: "win_me_over", answer: "Tell me the truth about my croissant. Then ask for a second one." },
@@ -16,6 +21,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Baking", "Storm watching", "Judging other people's cakes"],
   },
   "house-juniper": {
+    hometown: "A rock off the Cornish coast",
+    star_sign: "Pisces",
+    love_language: "Quality time",
+    here_for: "figuring_it_out",
     occupation: "Lighthouse keeper and podcaster",
     prompts: [
       { id: "fall_for_you", answer: "You believe in at least one ghost. Two is a lot. One is perfect." },
@@ -24,6 +33,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Ghost stories", "Podcasting", "Talking to gulls"],
   },
   "house-dex": {
+    hometown: "Lagos, then Atlanta",
+    star_sign: "Taurus",
+    love_language: "Quality time",
+    here_for: "long_term",
     occupation: "Pottery teacher, retired stuntman",
     prompts: [
       { id: "irrational_fear", answer: "Birthday candles. Nineteen fires on set and it's the cake that gets me." },
@@ -32,6 +45,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Pottery", "Knocking on wood", "Early nights"],
   },
   "house-marisol": {
+    hometown: "A town with one newspaper",
+    star_sign: "Cancer",
+    love_language: "Words of affirmation",
+    here_for: "long_term",
     occupation: "Obituary writer",
     prompts: [
       { id: "weirdly_attracted", answer: "People who laugh at the wrong moment. Ideally at my funeral, much, much later." },
@@ -40,6 +57,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Crosswords", "Graveyard walks", "Writing"],
   },
   "house-teo": {
+    hometown: "Vienna",
+    star_sign: "Libra",
+    love_language: "Physical touch",
+    here_for: "figuring_it_out",
     occupation: "Ballroom instructor",
     prompts: [
       { id: "win_me_over", answer: "Lead back. Confidently. On the second step, not the first." },
@@ -48,6 +69,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Ballroom dancing", "Mirrors", "Collecting ring boxes"],
   },
   "house-nell": {
+    hometown: "Manchester",
+    star_sign: "Virgo",
+    love_language: "Quality time",
+    here_for: "long_term",
     occupation: "Museum night guard",
     prompts: [
       { id: "fall_for_you", answer: "You ask a follow-up question. Ask a second and you get the full tour." },
@@ -56,6 +81,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Museums", "History", "Night walks"],
   },
   "house-sable": {
+    hometown: "Marseille",
+    star_sign: "Sagittarius",
+    love_language: "Gifts",
+    here_for: "chaos",
     occupation: "Professional surpriser",
     prompts: [
       { id: "win_me_over", answer: "Say yes before you hear the plan. The plan is always good. Mostly." },
@@ -64,6 +93,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Party planning", "Party hats", "Spontaneous trips"],
   },
   "house-orin": {
+    hometown: "Edinburgh",
+    star_sign: "Doesn't believe in it",
+    love_language: "Acts of service",
+    here_for: "long_term",
     occupation: "Retired fact-checker",
     prompts: [
       { id: "unpopular_opinion", answer: "Most anecdotes don't survive one follow-up question. Yours had better." },
@@ -72,6 +105,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Fact-checking", "Reading menus", "Long walks"],
   },
   "house-imogen": {
+    hometown: "Glasgow",
+    star_sign: "Cancer",
+    love_language: "Acts of service",
+    here_for: "long_term",
     occupation: "Runs a 2am soup window",
     prompts: [
       { id: "win_me_over", answer: "Let me feed you. Don't argue. Don't thank me. Just eat." },
@@ -80,6 +117,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Cooking", "Night shifts", "Remembering names"],
   },
   "house-kaz": {
+    hometown: "Gothenburg",
+    star_sign: "Aries",
+    love_language: "Physical touch",
+    here_for: "casual",
     occupation: "Crane climber (unofficially)",
     prompts: [
       { id: "irrational_fear", answer: "Lifts. Small boxes that decide where you're going." },
@@ -88,6 +129,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Climbing", "Sunrises", "Stairs"],
   },
   "house-wally": {
+    hometown: "Accra",
+    star_sign: "Capricorn",
+    love_language: "Acts of service",
+    here_for: "figuring_it_out",
     occupation: "Mechanic",
     prompts: [
       { id: "win_me_over", answer: "Hand me the broken thing. I won't ask how it broke." },
@@ -96,6 +141,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Fixing engines", "Tinkering", "Fishing"],
   },
   "house-perpetua": {
+    hometown: "London's West End, darling",
+    star_sign: "Leo",
+    love_language: "Words of affirmation",
+    here_for: "chaos",
     occupation: "Retired soap villain",
     prompts: [
       { id: "dating_me_is_like", answer: "A season finale. Long pauses, a twist, and I come back either way." },
@@ -104,6 +153,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Theatre", "Dramatic pauses", "Scheming"],
   },
   "house-ines": {
+    hometown: "Seville",
+    star_sign: "Aquarius",
+    love_language: "Gifts",
+    here_for: "figuring_it_out",
     occupation: "Guerrilla gardener",
     prompts: [
       { id: "together_we_could", answer: "Plant a tree somewhere it doesn't belong and visit it every spring." },
@@ -112,6 +165,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Gardening", "Trees", "Night cycling"],
   },
   "house-boaz": {
+    hometown: "Pune",
+    star_sign: "Virgo",
+    love_language: "Quality time",
+    here_for: "long_term",
     occupation: "National cup-stacking champion",
     prompts: [
       { id: "geek_out", answer: "Stacking speed, cup weight, and the 2014 nationals, which I won fairly." },
@@ -120,6 +177,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Cup stacking", "Training", "Rematches"],
   },
   "house-lior": {
+    hometown: "Osaka, then nine other cities",
+    star_sign: "Sagittarius",
+    love_language: "Gifts",
+    here_for: "casual",
     occupation: "Wanderer, leaver of bicycles",
     prompts: [
       { id: "simple_pleasures", answer: "A new city, an old bicycle, and nobody asking where I'm headed." },
@@ -128,6 +189,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Cycling", "Travel", "People-watching"],
   },
   "house-vesper": {
+    hometown: "A cruise ship, mostly",
+    star_sign: "Gemini",
+    love_language: "Gifts",
+    here_for: "chaos",
     occupation: "Retired cruise-ship magician",
     prompts: [
       { id: "worst_first_date", answer: "Four stars. Lost one when my dessert vanished. I made it vanish. Still counts." },
@@ -136,6 +201,10 @@ export const HOUSE_PROFILES: Record<string, Pick<CharacterExtras, "occupation" |
     hobbies: ["Magic tricks", "Desserts", "Star ratings"],
   },
   "house-odalys": {
+    hometown: "Between two feuding islands",
+    star_sign: "Scorpio",
+    love_language: "Acts of service",
+    here_for: "long_term",
     occupation: "Ferry captain",
     prompts: [
       { id: "geek_out", answer: "Tides, rope knots, and a hundred-year feud I can recite by heart." },
