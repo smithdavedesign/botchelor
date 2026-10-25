@@ -8585,6 +8585,83 @@ a.phone-head-btn {
   border-radius: 0.5rem;
   background: #000;
 }
+/* A clip's own (native) full-screen button must show it whole, not the tile's cover-crop (David, 2026-10-25: a vertical
+   video got cut off full screen on desktop). The tile stays cover; full screen is contain. */
+.ad-studio-item video:fullscreen {
+  object-fit: contain;
+  aspect-ratio: auto;
+  width: 100%;
+  height: 100%;
+}
+/* The gallery media, with a full-screen button in its corner (Studio.tsx; David, 2026-10-25). */
+.ad-studio-media {
+  position: relative;
+}
+.ad-studio-expand {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(10, 6, 18, 0.6);
+  color: #fff;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.ad-studio-expand:hover {
+  opacity: 1;
+}
+/* Full-screen asset viewer (Lightbox.tsx; David, 2026-10-25: "no way to go full screen … a vertical video on desktop
+   full screen gets cut off"). The asset is shown whole — bounded by the viewport, its own ratio kept, never cropped —
+   over a blurred fill (for a still) so there are no stark black bars. */
+.ad-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--space-3);
+  background: rgba(0, 0, 0, 0.9);
+}
+.ad-lightbox-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(40px) brightness(0.5);
+  transform: scale(1.2);
+}
+.ad-lightbox-media {
+  position: relative;
+  z-index: 1;
+  max-width: min(100%, 100vw);
+  max-height: 94vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 6px;
+}
+.ad-lightbox-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
 .ad-studio-setup {
   padding: var(--space-2) var(--space-3);
 }
