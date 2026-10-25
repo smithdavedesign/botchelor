@@ -7,6 +7,8 @@ import { HARD_NOS, INTENSITIES, INTENSITY } from "@/lib/adult/limits";
 import type { Media } from "@/lib/adult/media";
 import type { PairMenu, Setup, Shoot, StudioState } from "@/lib/adult/studio";
 import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, LEVEL_LABEL, optionById, STRENGTHS, TRANSCRIPT_MAX, type GroupId, type Level, type ShootChoices } from "@/lib/adult/studio-catalog";
+// Openly-licensed (CC0/Apache-2.0/MIT) adult-portrait prompts, hard-filtered; an optional starting point the owner edits.
+import inspiration from "./inspiration.json";
 
 const media = (id: string) => `/api/admin/after-dark/media/${id}`;
 const TABS = [
@@ -663,6 +665,10 @@ export default function Studio({ initial }: { initial: StudioState }) {
           <fieldset className="ad-studio-group">
             <legend>
               Your own words <span className="muted small">— this leads the picture, so what you ask for actually happens</span>
+              {/* An openly-licensed example prompt to start from and tweak; never applied on its own. */}
+              <button type="button" className="linklike ad-studio-inspire" disabled={Boolean(busy)} title="Fill with an openly-licensed example prompt to tweak" onClick={() => setCustom(inspiration.prompts[Math.floor(Math.random() * inspiration.prompts.length)])}>
+                💡 Inspiration
+              </button>
             </legend>
             <textarea
               className="ad-studio-custom"
