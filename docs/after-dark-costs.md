@@ -118,6 +118,7 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 
 | Extra | Tokens | We take in (after fees) | Costs us | We keep |
 |---|---|---|---|---|
+| A chapter of a night (`chapter_tokens`, 2026-10-25): up to 120 lines, with up to `pictures_per_chapter` (3) pictures drawn unasked | 1, taken when its first lines are written, given back if none come | about $0.72 (about $0.68 on an adult processor) | about $0.05 of text (about 10 steps on GLM-4.6) plus up to 3 pictures: up to about $0.09 on Replicate, $0.045 on Venice | about $0.54 to $0.62 |
 | Set the scene | 1 | about $0.70 | $0 to $0.005 | about $0.70 |
 | A 15 s video, standard | 2 | about $1.40 | about $0.30 to $0.80 | about $0.60 to $1.10 |
 | A 15 s video, best | 5 | about $3.50 | about $2.00 | about $1.50 |
@@ -125,6 +126,7 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 | A clip on demand, or Keep going (`clip_tokens`) | 3 | about $2.15 (about $2.05 on an adult processor) | about $0.70 on Venice, $0.16 on Replicate | about $1.35 to $1.45 on Venice, about $1.90 to $2.00 on Replicate |
 | A picture from the shot menu (`menu_picture_tokens`; it also counts against the month's 30 pictures) | 1 | about $0.72 (about $0.68 on an adult processor) | about $0.045 on Venice, $0.035 on Replicate | about $0.64 to $0.68 |
 
+- **A chapter's pictures** (lib/adult/chapter-pictures.ts): the chapter's own, each new place's, one its lines ask for, and its moments drawn at the close all come out of the same `pictures_per_chapter` (3), earliest first; the moments that don't fit stay filed, not drawn. A picture the viewer asks for (📸 Picture this, the shot menu) isn't counted. Hive is the tighter limit: 3 pictures a chapter is about 30 chapters a day on the self-serve 100.
 - **Refunds:** Set the scene is refunded if the place is refused or, on a date, if they don't go. A video should be refunded if Hive discards it or the provider fails.
 - **A clip** (2026-10-22) is refunded in full when its keyframe or its shot is discarded by Hive or the provider fails, as a reel's shots are. A refusal before it starts (not reached yet, somewhere public, past the pair's limits) spends nothing. Its 10 s case (Clip from here on a long line, Venice only) still keeps about $0.70.
 - **On a person's own Venice key:** a video costs them 0 tokens, just as a long date on their own keys does. We still pay the Hive check (about $0.05), which is too small to charge for.

@@ -51,6 +51,7 @@ export default function SceneWriter({
   nights = [],
   reels = [],
   reelTokens = 15,
+  chapterTokens = 0,
   hive = null,
   faces: firstFaces = {},
   steer: firstSteer = {},
@@ -69,6 +70,8 @@ export default function SceneWriter({
   /** Their videos of the night, and what one costs in tokens (lib/adult/reels.ts). */
   reels?: Reel[];
   reelTokens?: number;
+  /** A chapter's price for this viewer (0 for an admin): shown on Start and on the Next that starts a chapter. */
+  chapterTokens?: number;
   /** Hive's breaker, while it's paused (lib/adult/hive-limit.ts): pictures and videos can't be made until it's over. */
   hive?: HiveNotice | null;
   /** The face each of them keeps for this viewer (lib/adult/steering.ts facesFor). */
@@ -391,6 +394,7 @@ export default function SceneWriter({
               { chapter: scene.chapter, lines: scene.lines.length },
             )}
             videoTokens={reelTokens}
+            chapterTokens={chapterTokens}
             videoNote={reelNote?.text ?? null}
             mediaPaused={mediaPaused}
             feedbackRef={scene.id}

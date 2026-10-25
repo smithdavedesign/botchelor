@@ -123,6 +123,7 @@ export default function AfterDarkTheater({
   writer = null,
   videoChapters = [],
   videoTokens = 15,
+  chapterTokens = 0,
   videoNote = null,
   mediaPaused = null,
   feedbackRef = null,
@@ -182,6 +183,8 @@ export default function AfterDarkTheater({
   writer?: WriterOptions | null;
   videoChapters?: readonly NightChapter[];
   videoTokens?: number;
+  /** A chapter's price for this viewer (0: free, an admin): Start and the Next that opens a chapter say it. */
+  chapterTokens?: number;
   videoNote?: string | null;
   /** Hive's breaker is open (lib/adult/hive-limit.ts): the clip and video buttons are disabled, with this as their tooltip. */
   mediaPaused?: string | null;
@@ -342,7 +345,7 @@ export default function AfterDarkTheater({
                   </button>
                 )}
                 <button type="button" className="primary" disabled={busy} onClick={() => void onWrite?.(direction.trim()).then((ok) => ok !== false && setDirection(""))}>
-                  {busy ? "Starting…" : "▶ Start the night"}
+                  {busy ? "Starting…" : `▶ Start the night${chapterTokens ? ` · ${chapterTokens} token${chapterTokens === 1 ? "" : "s"}` : ""}`}
                 </button>
               </div>
             </div>
@@ -542,7 +545,14 @@ export default function AfterDarkTheater({
                 />
                 {/* Autoplay is always writing ahead, so a steer goes as soon as it's typed. */}
                 <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim()) || (!caughtUp && !(autoplay && direction.trim()))}>
-                  {busy ? "Writing…" : whisperTo ? "Whisper" : caughtUp || (autoplay && direction.trim()) ? "Next" : "Playing…"}
+                  {busy
+                    ? "Writing…"
+                    : whisperTo
+                      ? "Whisper"
+                      : caughtUp || (autoplay && direction.trim())
+                        ? // The Next that opens a chapter pays for it (lib/adult/settings.ts chapter_tokens).
+                          `Next${chapterTokens && !scene.lines.length ? ` · ${chapterTokens} token${chapterTokens === 1 ? "" : "s"}` : ""}`
+                        : "Playing…"}
                 </button>
               </div>
               <div className="ad-theater-options">

@@ -576,6 +576,9 @@ describe("who it opens for (canAfterDark)", () => {
     expect((await call(switchPost, "/api/admin/after-dark/switch", { character_id: theirs.id, on: true }, cookie)).status).toBe(403);
     await t.db.query(`update adult_settings set cap_writes = 1 where id = 1`);
     scripted(JSON.stringify({ lines: [{ who: "a", text: "Hi." }] }));
+    // A chapter costs a bought token (lib/adult/settings.ts chapter_tokens): none, no chapter.
+    expect((await post({ a: CAST_A, b: CAST_B }, cookie)).status).toBe(402);
+    await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 1, 'test')`, [crypto.randomUUID(), sub]);
     expect((await post({ a: CAST_A, b: CAST_B }, cookie)).status).toBe(200);
     const capped = await post({ a: CAST_A, b: CAST_B }, cookie);
     expect(capped.status).toBe(429);

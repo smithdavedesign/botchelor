@@ -27,6 +27,8 @@ import {
 import { ROLEPLAY_IDS } from "@/lib/adult/roleplays";
 import { USER_ROLEPLAY } from "@/lib/studio/library";
 import { isAdmin } from "@/lib/admins";
+import { getAdultSettings } from "@/lib/adult/settings";
+import type { Db } from "@/lib/db";
 import { refundBoughtTokens, SET_SCENE_TOKEN_COST, spendBoughtTokens } from "@/lib/allowance";
 import { crisisAware, str, type CrisisSurface } from "@/lib/crisis";
 import { getDb } from "@/lib/db";
@@ -113,6 +115,24 @@ export const GET = handle(async (req: Request) => {
 const ownWords = (b: Record<string, unknown>) => [str(b.direction), str((b.whisper as { text?: unknown } | undefined)?.text)];
 const surface = (b: Record<string, unknown>): CrisisSurface => (b.whisper ? "after_dark_whisper" : "after_dark_steer");
 
+/**
+ * A chapter's price (lib/adult/settings.ts chapter_tokens, David 2026-10-25: "each chapter cost 1 token"), taken when a
+ * step starts one: the night's first lines, or the first after a chapter closes (`always`: a scenario, which starts a
+ * night). Admins don't pay. The tokens taken, or the refusal; the caller gives them back if no lines come.
+ */
+async function payChapter(db: Db, viewer: string, a: string, b: string, opts: { always?: boolean } = {}): Promise<{ paid: number } | Response> {
+  const price = (await getAdultSettings(db)).chapter_tokens;
+  if (price <= 0 || (await isAdmin(db, viewer))) return { paid: 0 };
+  if (!opts.always) {
+    const scene = await openScene(db, viewer, a, b);
+    if (!scene || scene.lines.length) return { paid: 0 };
+  }
+  if (!(await spendBoughtTokens(db, viewer, price))) {
+    return json({ error: "needs_tokens", message: `Each chapter costs ${price} token${price === 1 ? "" : "s"} (up to 120 lines, with its pictures). Get more on the shop page.` }, 402);
+  }
+  return { paid: price };
+}
+
 export const POST = crisisAware(surface, ownWords, handle(async (req: Request) => {
   const db = await getDb();
   const admin = await adultViewer(db, req);
@@ -144,7 +164,10 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     return json({ scene: back.scene, rewound: back.rewound, nights: await listNights(db, admin, input.a, input.b) });
   }
   if (input.scenario) {
+    const pay = await payChapter(db, admin, input.a, input.b, { always: true });
+    if (pay instanceof Response) return pay;
     const r = await startScenario(db, admin, input.a, input.b, input.scenario);
+    if (!r.ok && pay.paid) await refundBoughtTokens(db, admin, pay.paid);
     if (!r.ok) return json({ error: "not_started", message: r.message, ...(r.placed ? { scene: r.placed, nights: await listNights(db, admin, input.a, input.b) } : {}) }, r.status);
     return json({ scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, nights: await listNights(db, admin, input.a, input.b) });
   }
@@ -191,9 +214,13 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     const scene = await forgetWhisper(db, admin, input.a, input.b, input.forget_whisper);
     return scene ? json({ scene }) : hidden();
   }
+  // A step that starts a chapter pays for it (a redo rewrites a step already paid for).
+  const pay = input.redo ? { paid: 0 } : await payChapter(db, admin, input.a, input.b);
+  if (pay instanceof Response) return pay;
   const r = input.redo
     ? await redoScene(db, admin, input.a, input.b)
     : await continueScene(db, admin, input.a, input.b, input.direction ?? null, input.steer_mode ?? "nudge", { whisper: input.whisper ?? null });
+  if (!r.ok && pay.paid) await refundBoughtTokens(db, admin, pay.paid);
   if (!r.ok) return json({ error: "not_continued", message: r.message }, r.status);
   return json({
     scene: r.scene,

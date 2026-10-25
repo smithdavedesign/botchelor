@@ -30,6 +30,7 @@ import { keepPictureOfBoth } from "./pictures-menu";
 import { keyframePrompt, placeWords, reelCast, withoutNames, type ReelPerson } from "./reels";
 import { thumbsDown } from "./steering";
 import { adultKeys, getAdultSettings } from "./settings";
+import { claimChapterPicture } from "./chapter-pictures";
 import { overCap } from "./usage";
 
 const UNDRESSING = 3;
@@ -404,7 +405,16 @@ export async function pictureNow(
 export async function fileBeats(db: Db, sceneId: string, chapter: number, nightId: string): Promise<void> {
   const filed = (await db.query<BeatRow>(`update adult_beats set night_id = $3 where scene_id = $1 and chapter = $2 and night_id is null returning *`, [sceneId, chapter, nightId])).rows;
   if (!filed.length || !(await beatPicturesReady(db))) return;
-  const claimed = await claim(db, "night_id = $1", [nightId]);
+  // Only what's left of the chapter's unasked pictures (lib/adult/chapter-pictures.ts), the earliest moments first; the
+  // rest stay filed with the night, not drawn.
+  const budget = (await getAdultSettings(db)).pictures_per_chapter;
+  const fits: string[] = [];
+  for (const b of filed.filter((x) => x.status === "offered" || x.status === "later").sort((x, y) => x.line - y.line)) {
+    if (!(await claimChapterPicture(db, sceneId, chapter, `${chapter}#beat:${b.id}`, budget))) break;
+    fits.push(b.id);
+  }
+  if (!fits.length) return;
+  const claimed = await claim(db, "night_id = $1 and id = any($2)", [nightId, fits]);
   drawLater(db, claimed.sort((x, y) => x.line - y.line), siteUrl());
 }
 
