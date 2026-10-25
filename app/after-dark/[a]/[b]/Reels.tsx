@@ -81,6 +81,13 @@ export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r
 const readyShots = (r: Reel): PlayShot[] => (r.status === "making" ? [] : r.shots.filter(playable).map((s) => ({ ...s, reel: r.id })));
 
 /** Takes a shot out of its video into the Archive, or puts it back: the video as it is now, or what went wrong. */
+/** Film one shot again (lib/adult/reels.ts refilmShot): the reel is being made until it's in. */
+async function refilmOne(s: PlayShot): Promise<{ reel: Reel } | { error: string }> {
+  const res = await requestJson("/api/admin/after-dark/reel", { action: "refilm", id: s.reel, media_id: s.media_id }).catch(() => null);
+  if (!res) return { error: "That didn't reach the server. Check your connection and try again." };
+  return res.ok ? { reel: res.data.reel as Reel } : { error: res.message };
+}
+
 async function archive(s: PlayShot, archived: boolean): Promise<{ reel: Reel } | { error: string }> {
   const res = await requestJson("/api/admin/after-dark/reel", { id: s.reel, media_id: s.media_id, archived }, "PATCH").catch(() => null);
   if (!res) return { error: "That didn't reach the server. Check your connection and try again." };
@@ -368,6 +375,7 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
   const fetched = useRef(new Map<string, Promise<string>>());
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [refilming, setRefilming] = useState(false);
 
   // Preload: every shot (and its voice) as a blob in memory, so no cut waits on the network.
   useEffect(() => {
@@ -450,6 +458,17 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
     setRemoveError(null);
     const r = await archive(s, true);
     setRemoving(false);
+    if ("error" in r) return setRemoveError(r.error);
+    onChange(r.reel);
+  }
+
+  async function refilm(s: PlayShot) {
+    if (!onChange) return;
+    players.forEach((p) => p.current?.pause());
+    setRefilming(true);
+    setRemoveError(null);
+    const r = await refilmOne(s);
+    setRefilming(false);
     if ("error" in r) return setRemoveError(r.error);
     onChange(r.reel);
   }
@@ -655,6 +674,12 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
               title="Take it out of the video, into the Archive below. Nothing is deleted: you can put it back."
             >
               {removing ? "Taking it out…" : "Remove this shot"}
+            </button>
+          )}
+          {onChange && shot.frame_id && (
+            // Film it again from its own start picture (lib/adult/reels.ts refilmShot): its share of the price, back if it fails.
+            <button type="button" className="button-ghost small" disabled={refilming} onClick={() => void refilm(shot)} title="Film this shot again from the same start picture">
+              {refilming ? "Starting…" : "🔁 Film again"}
             </button>
           )}
           {removeError && (

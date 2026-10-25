@@ -7250,16 +7250,25 @@ a.phone-head-btn {
   color: #6a5a7f;
   font-size: var(--text-sm);
 }
+/* Top right: the AI-generated mark has the top left. As an admin's button (MediaRequest) it keeps its own look; its
+   colour is its state's (.ad-badge-*). */
 .ad-shot-badge {
+  color: #f1e9ff;
+}
+.ad-shot-pic .ad-shot-badge {
   position: absolute;
   top: 0.4rem;
-  left: 0.4rem;
+  right: 0.4rem;
+  left: auto;
+  min-height: 0;
+  margin: 0;
   padding: 0.1rem 0.45rem;
+  border: 0;
   border-radius: 0.4rem;
   font-size: 0.72rem;
   font-weight: 600;
+  text-decoration: none;
   background: rgba(8, 4, 14, 0.82);
-  color: #f1e9ff;
 }
 .ad-badge-ready {
   color: #8ff0b0;
@@ -10594,4 +10603,60 @@ details > summary.small {
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* The storyboard's shot cards (Storyboard.tsx): the lines before the shot, the owner's words, and their pictures to start
+   it from. */
+.ad-shot-before {
+  margin: 0 0 var(--space-1);
+  padding: 0 0 0 0.6rem;
+  border-left: 2px solid #33264d;
+  list-style: none;
+  display: grid;
+  gap: 0.15rem;
+}
+.ad-shot-before li {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ad-shot-words {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-1) 0;
+}
+.ad-shot-words textarea {
+  width: 100%;
+  min-width: 0;
+}
+.ad-shot-pictures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  gap: 0.35rem;
+  margin: var(--space-1) 0;
+  padding: 0;
+  list-style: none;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+.ad-shot-pictures button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 0.4rem;
+  background: none;
+  overflow: hidden;
+}
+.ad-shot-pictures button[aria-pressed="true"],
+.ad-shot-pictures button:hover:not(:disabled) {
+  border-color: var(--ad-accent, #c792ff);
+}
+.ad-shot-pictures img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
 }

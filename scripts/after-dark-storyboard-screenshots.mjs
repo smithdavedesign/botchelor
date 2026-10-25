@@ -6,8 +6,8 @@
  * No provider is called: the shot pictures are the repo's own PG portraits (public/cast), seeded straight into the local
  * database, and the plan/draw/film responses are served from them so nothing is drawn or spent. Never anything explicit.
  *
- * Two screens: the storyboard just planned (shots picked, not drawn), and after drawing (each shot's picture kept, ready
- * to film). On the phone it checks the page never scrolls sideways. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
+ * The screens: the storyboard open while its shots are picked, just planned (shots picked, each with the lines before it,
+ * not drawn), after drawing (each shot's picture kept, ready to film), and a shot's own words open. On the phone it checks the page never scrolls sideways. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
  */
 import { createServer } from "node:http";
 import { spawnSync } from "node:child_process";
@@ -154,9 +154,9 @@ async function main() {
     const planned = {
       ...base,
       shots: [
-        { line: 2, who: "a", status: "planned", text: "Ask me something real, then. Not the weather, not the boats.", motion: "She sets her cup down and turns to face him." },
-        { line: 4, who: "b", status: "planned", text: "What did you want to be, before all this?", motion: "He looks out at the ferry lights, thinking." },
-        { line: 6, who: "a", status: "planned", text: "A lighthouse keeper. A big lamp, nobody asking for tea.", motion: "They laugh, close together at the rail." },
+        { line: 2, who: "a", status: "planned", text: "Ask me something real, then. Not the weather, not the boats.", motion: "She sets her cup down and turns to face him.", before: [{ who: "a", text: "You kept me waiting by the railing." }, { who: "b", text: "*laughs* Seven boats? I'll make it up to you with tea." }] },
+        { line: 4, who: "b", status: "planned", text: "What did you want to be, before all this?", motion: "He looks out at the ferry lights, thinking.", before: [{ who: "b", text: "Terrible how? A little weak, or a crime against leaves?" }, { who: "a", text: "A crime. But a warm one, and the rain's coming in." }, { who: "a", text: "*sets the cup down* Ask me something real, then." }] },
+        { line: 6, who: "a", status: "planned", text: "A lighthouse keeper. A big lamp, nobody asking for tea.", motion: "They laugh, close together at the rail.", before: [{ who: "b", text: "What did you want to be, before all this?" }, { who: "a", text: "*thinks about it* Honestly?" }, { who: "b", text: "Honestly." }] },
       ],
     };
     const drawn = { ...base, shots: planned.shots.map((s, i) => ({ ...s, status: "frame_ready", media_id: `sb-frame-${i + 1}`, frame_id: `sb-frame-${i + 1}` })) };
@@ -169,7 +169,11 @@ async function main() {
       const req = route.request();
       if (req.method() !== "POST") return route.continue();
       const body = JSON.parse(req.postData() || "{}");
-      if (body.action === "plan") return route.fulfill({ json: { reel: planned } });
+      // The director takes a moment: the storyboard is already open, saying so.
+      if (body.action === "plan") {
+        await new Promise((r) => setTimeout(r, 1500));
+        return route.fulfill({ json: { reel: planned } });
+      }
       if (body.action === "draw") return route.fulfill({ json: { reel: drawn } });
       if (body.action === "film") return route.fulfill({ json: { reel: { ...drawn, status: "making", shots: drawn.shots.map((s) => ({ ...s, status: "queued" })) } } });
       return route.continue();
@@ -182,7 +186,10 @@ async function main() {
       if (size === "phone") await page.getByRole("button", { name: "More tools" }).click();
       // The video of the night opens the storyboard (there's no blind one-tap any more).
       await page.getByRole("button", { name: /Video of the night/ }).first().click();
+      // It opens at once, while the shots are picked; then the picked shots, each with the lines before it.
       await page.locator(".ad-storyboard").waitFor({ timeout: 20_000 });
+      await shot(page, `after-dark-storyboard-picking-${size}`);
+      await page.locator(".ad-shot-before").first().waitFor({ timeout: 20_000 });
       if (size === "phone") await noSideways(page, "the storyboard, planned");
       await shot(page, `after-dark-storyboard-planned-${size}`);
       // Draw the pictures: each shot's keyframe, kept and ready to film.
@@ -190,6 +197,11 @@ async function main() {
       await page.locator(".ad-shot-pic img").first().waitFor({ timeout: 20_000 });
       if (size === "phone") await noSideways(page, "the storyboard, drawn");
       await shot(page, `after-dark-storyboard-${size}`);
+      // A shot's own words, to draw just that one again.
+      await page.getByRole("button", { name: "✏️ Your words" }).first().click();
+      await page.locator(".ad-shot-words textarea").fill("She leans on the rail, laughing, his jacket round her shoulders");
+      if (size === "phone") await noSideways(page, "the storyboard, a shot's words");
+      await shot(page, `after-dark-storyboard-words-${size}`);
     }
     console.log("✓ storyboard screenshots done");
   } finally {
