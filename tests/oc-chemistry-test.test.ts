@@ -450,6 +450,7 @@ describe("5. findable and measured: the sitemap, the links to both tools, the be
       const footer = html.slice(html.indexOf('<footer class="site-footer"'));
       expect(footer).toContain(`href="${TOOL}"`);
       expect(footer).toContain('href="/tools/ship-name-generator"');
+      expect(footer).toContain('href="/prompts"'); // the prompts library (tests/prompts-library.test.ts)
     }
   });
 
