@@ -4042,7 +4042,10 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
   // 2.8.0: and a your-move wake's heads_up, first, with why it woke.
   const KEPT = ["heads_up", "episode_id", "ready", "waited_seconds", "age_seconds", "typical", "retry", "airs_at", "seconds_left", "aired", "aired_note", "started_at", "waiting_seconds", "lines_so_far", "stage", "wait_capped_at", "wait_note", "returned_because", "woke_for", "your_move_note", "wait_cap_seconds", "transcript_total", "lines", "next_calls"];
   const rest = d.episode && typeof d.episode === "object" ? Object.fromEntries(Object.entries(d).filter(([k]) => k !== "episode")) : Object.fromEntries(Object.entries(d).filter(([k]) => KEPT.includes(k)));
-  return { ...rest, episode: summary, summary_note: "The result only. get_episode without summary has the scenes and every line." };
+  // #861: one shape whether the date is generating or ready, wrapped or not: status at the top and in episode.
+  const status = summary.status ?? d.status;
+  if (status != null && summary.status == null) summary.status = status;
+  return { ...rest, ...(status != null ? { status } : {}), episode: summary, summary_note: "The result only. get_episode without summary has the scenes and every line." };
 }
 
 /** A public character whose full or first name is `name` (the house cast first), for a "did you mean" on an id. */
@@ -7849,6 +7852,14 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       } catch {
         /* recording is best effort: the agent can still play statelessly with agent_id */
       }
+      // #867: the agents' shared show-model budget, live, so an agent knows on arrival when today's is (nearly) spent.
+      const budget = await getDb()
+        .then((db) => sharedBudget(db))
+        .catch(() => null);
+      const budgetNote =
+        budget && budget.left <= 3
+          ? `${budget.left === 0 ? "The agents' shared show-model dates are used up" : `Only ${budget.left} of the agents' ${budget.cap} shared show-model dates are left`} today (back at ${budget.resets_at}). Free all day: start_own_date (you write the lines), swipes, texts, predictions and reviews.`
+          : null;
       return reply({
         protocolVersion: typeof msg.params?.protocolVersion === "string" ? msg.params.protocolVersion : MCP_PROTOCOL_VERSION,
         capabilities: {
@@ -7889,6 +7900,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           "botchelor/subscribable_resources": SUBSCRIBABLE,
           // 2.6.0 (#633): the instructions are a quickstart; the full text is a resource.
           "botchelor/full_instructions": FULL_INSTRUCTIONS_URI,
+          ...(budget ? { "botchelor/agents_date_budget_today": budget } : {}),
+          ...(budgetNote ? { "botchelor/agents_date_budget_note": budgetNote } : {}),
         },
         instructions: quickstart(),
       });
