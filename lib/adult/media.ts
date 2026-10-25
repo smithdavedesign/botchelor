@@ -620,15 +620,26 @@ export const FRAME_SHOWN =
   "(adult_images.kind <> 'frame' or exists (select 1 from adult_images shot where shot.source_image = adult_images.id and shot.kind = 'video' and shot.status = 'ready'))";
 
 /**
+ * The storyboard's owner-only preview (docs/PRDs/reel-storyboard.md; David, 2026-10-24): the viewer may also see a
+ * keyframe that's in a DRAFT reel they own, before any video is made — so they can check each shot's picture and approve
+ * it. It's their own content, which passed the age question when it was drawn; the finished video still gets full
+ * moderation before it can be kept or shared. Scoped to the viewer's own drafts ($n), on top of viewableBy, so it never
+ * shows anyone a keyframe that isn't theirs.
+ */
+const ownDraftFrame = (n: number) =>
+  `exists (select 1 from adult_reels r cross join lateral jsonb_array_elements(r.shots) s where r.owner_id = $${n} and r.status = 'draft' and (s->>'media_id' = adult_images.id or s->>'frame_id' = adult_images.id))`;
+
+/**
  * A ready file, to its viewer: theirs or, for an admin, anyone's (viewableBy), a keyframe once its shot has passed
- * (FRAME_SHOWN). Null only for a signed link, which names the one picture itself, and for a Short's own route, which
- * lets through only its cover and its shots that came through (lib/adult/shorts.ts shortMediaAllowed).
+ * (FRAME_SHOWN) or in a draft storyboard they own (ownDraftFrame). Null only for a signed link, which names the one
+ * picture itself, and for a Short's own route, which lets through only its cover and its shots that came through
+ * (lib/adult/shorts.ts shortMediaAllowed).
  */
 const readyFor = (id: string, viewerId: string | null): { where: string; params: string[] } =>
   viewerId === null
     ? { where: `id = $1 and status = 'ready'`, params: [id] }
     : // Theirs (an admin's, anyone's), or one shared with them that they accepted (lib/adult/shares.ts): to look at only.
-      { where: `id = $1 and status = 'ready' and (${viewableBy(2)} or ${sharedWith(2)}) and ${FRAME_SHOWN}`, params: [id, viewerId] };
+      { where: `id = $1 and status = 'ready' and (${viewableBy(2)} or ${sharedWith(2)}) and (${FRAME_SHOWN} or ${ownDraftFrame(2)})`, params: [id, viewerId] };
 
 /** Where a ready file is: its bucket key (when it's been moved there), and its mime. Null when there's no such file. */
 export async function mediaRef(db: Db, id: string, viewerId: string | null): Promise<{ mime: string; key: string | null } | null> {
