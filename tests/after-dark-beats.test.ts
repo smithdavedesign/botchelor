@@ -236,6 +236,27 @@ describe("beats as the scene is written", () => {
     expect(edits).toHaveLength(3);
   });
 
+  it("takes the owner's own words for the exact scene: they lead the picture, and taboo is refused", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    const edits = fakeMedia();
+    scripted([`*straddles him* ${fresh()}`, "", "", "", "", ""]);
+    await post({ a: RAFE, b: JUNIPER }, cookie);
+    // Picture this with the owner's own direction: a fresh picture led by their words (not the waiting beat).
+    const guided = await (await post({ a: RAFE, b: JUNIPER, picture_now: { line: 5, custom: "she looks back over her shoulder, biting her lip", dialog: "don't stop" } }, cookie)).json();
+    expect(guided.beat.kind).toBe("chosen");
+    await beatPicturesSettled();
+    const last = edits[edits.length - 1];
+    expect(last).toContain("Most important, do exactly this: she looks back over her shoulder, biting her lip.");
+    expect(last).toContain('A speech bubble near them reads: "don\'t stop".');
+    // Taboo in the owner's words is refused before anything is drawn.
+    const before = edits.length;
+    const bad = await post({ a: RAFE, b: JUNIPER, picture_now: { line: 5, custom: "she looks like a schoolgirl, barely a teen" } }, cookie);
+    expect(bad.status).toBe(422);
+    await beatPicturesSettled();
+    expect(edits).toHaveLength(before);
+  });
+
   it("are drawn when the chapter closes if never chosen, go with the night, and a rewind takes back what it unwrites", async () => {
     const { id, cookie } = await admin();
     const scene = await ready(cookie, id);

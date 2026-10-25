@@ -74,6 +74,9 @@ import {
   ANIMATE_SECONDS,
   type AnimateGuide,
   animatePrompt,
+  cleanCustom,
+  CUSTOM_MAX,
+  DIALOG_MAX,
   bodyPrompt,
   groupById,
   LEVEL_FOR_INTENSITY,
@@ -792,7 +795,7 @@ export async function pairMenu(db: Db, viewer: string, characterId: string, part
 }
 
 /** What a pair shoot asks for: the partner, the act (who leads swapped, or not), what they wear, the framing, place and light. */
-export type PairInput = { partner: string; act: string; swap?: boolean; outfit: string; framing: Framing; place: string; light?: string | null; model?: string | null; own_key?: boolean };
+export type PairInput = { partner: string; act: string; swap?: boolean; outfit: string; framing: Framing; place: string; light?: string | null; model?: string | null; own_key?: boolean; custom?: string; dialog?: string };
 
 /**
  * A pair shoot: `shoot_size` pictures of the two of them, from their two faces (the nude ones from sex on, as the night's
@@ -815,7 +818,8 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
   if (input.light && !light) return fail(422, "unknown_option", "That light isn't on the menu.");
   const planned = planPicture(
     { act: input.act, swap: input.swap === true, outfit: input.outfit, framing: input.framing, place: where.place },
-    { cast: p.cast, stage: limits.maxStage, places: places.map((x) => ({ place: x.place, now: false, public: x.public, home: null })), limits, light: light?.words },
+    // The owner's own words lead the picture too (David, 2026-10-24: the Together tab needs the Shoot tab's control); held to the lines by planPicture's own check.
+    { cast: p.cast, stage: limits.maxStage, places: places.map((x) => ({ place: x.place, now: false, public: x.public, home: null })), limits, light: light?.words, custom: cleanCustom(input.custom, CUSTOM_MAX), dialog: cleanCustom(input.dialog, DIALOG_MAX) },
   );
   if (!planned.ok) return fail(planned.status, planned.error, planned.message);
   const { plan } = planned;

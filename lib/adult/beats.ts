@@ -66,6 +66,9 @@ type BeatRow = {
   status: BeatStatus;
   picture_id: string | null;
   night_id: string | null;
+  /** The owner's own words for this scene picture: a direction that leads it, and a speech-bubble line (both optional). */
+  custom: string | null;
+  dialog: string | null;
 };
 
 /**
@@ -284,7 +287,7 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<boolean
       db,
       beat.owner_id,
       [ca, cb],
-      { place: beat.place, stage, promptFor: (withSet) => keyframePrompt(cast, frame, place, stage, withSet, { explicit: limits.explicit }) },
+      { place: beat.place, stage, promptFor: (withSet) => keyframePrompt(cast, frame, place, stage, withSet, { explicit: limits.explicit, custom: beat.custom ?? undefined, dialog: beat.dialog ?? undefined }) },
       { keys, settings, baseUrl, reject, scene: { chapter: beat.chapter, place: beat.place } },
     );
     if (!kept.ok) return fail(kept.message);
@@ -320,7 +323,7 @@ export type BeatAnswer = { ok: true; beat: PublicBeat } | { ok: false; status: n
  * The viewer's answer to an offered beat: "now" draws it (after the response; it lands in the gallery), "later" leaves it
  * for them to pick their moment, or for the chapter's close.
  */
-export async function answerBeat(db: Db, ownerId: string, beatId: string, answer: "now" | "later", baseUrl: string): Promise<BeatAnswer> {
+export async function answerBeat(db: Db, ownerId: string, beatId: string, answer: "now" | "later", baseUrl: string, guide: { custom?: string; dialog?: string } = {}): Promise<BeatAnswer> {
   const row = (await db.query<BeatRow>(`select * from adult_beats where id = $1 and owner_id = $2`, [beatId, ownerId])).rows[0];
   if (!row) return { ok: false, status: 404, message: "That moment isn't there any more." };
   if (answer === "later") {
@@ -328,6 +331,11 @@ export async function answerBeat(db: Db, ownerId: string, beatId: string, answer
     return { ok: true, beat: publicBeat(rows[0] ?? row) };
   }
   if (!(await beatPicturesReady(db))) return { ok: false, status: 409, message: "Beat pictures are off, or the picture keys aren't saved, in After Dark's settings." };
+  // The owner's own words for this moment, if they gave any, lead the picture (held to the lines first).
+  const custom = cleanWords(guide.custom, SCENE_CUSTOM_MAX);
+  const dialog = cleanWords(guide.dialog, SCENE_DIALOG_MAX);
+  if (!guideSafe([custom, dialog])) return { ok: false, status: 422, message: "That crosses one of the lines After Dark never crosses." };
+  if (custom || dialog) await db.query(`update adult_beats set custom = $2, dialog = $3 where id = $1`, [row.id, custom, dialog]);
   const claimed = await claim(db, "id = $1", [row.id]);
   drawLater(db, claimed, baseUrl);
   return { ok: true, beat: publicBeat(claimed[0] ?? row) };
@@ -337,33 +345,53 @@ export async function answerBeat(db: Db, ownerId: string, beatId: string, answer
  * Picture this: the viewer picks the moment, at a line of the running chapter. The latest beat at or before it that's
  * still waiting is drawn; with none, the moment itself is, as the act its position or stage says.
  */
+/** The owner's own words for a scene picture (David, 2026-10-24: "we need more specifics"). */
+export const SCENE_CUSTOM_MAX = 400;
+export const SCENE_DIALOG_MAX = 200;
+const cleanWords = (s: string | undefined, max: number): string | null => {
+  const t = (s ?? "").trim().replace(/\s+/g, " ").slice(0, max);
+  return t || null;
+};
+/** The owner's own words are held to David's lines, like everything else drawn. */
+const guideSafe = (words: (string | null)[]): boolean => {
+  const text = words.filter(Boolean).join(" ");
+  return !text || (checkAdultText({ words: text }).ok && !crossesTaboo(text));
+};
+
 export async function pictureNow(
   db: Db,
   ownerId: string,
   scene: { id: string; a: string; b: string; chapter: number; lines: readonly { text: string; stage?: number }[]; stage: number; place: string | null },
   line: number,
   baseUrl: string,
+  guide: { custom?: string; dialog?: string } = {},
 ): Promise<BeatAnswer> {
   if (!(await beatPicturesReady(db))) return { ok: false, status: 409, message: "Beat pictures are off, or the picture keys aren't saved, in After Dark's settings." };
   const at = Math.max(0, Math.min(line, scene.lines.length - 1));
   if (!scene.lines.length) return { ok: false, status: 409, message: "Let the night start first." };
-  const waiting = (
-    await db.query<BeatRow>(
-      `select * from adult_beats where scene_id = $1 and chapter = $2 and night_id is null and line <= $3 and status in ('offered', 'later') order by line desc limit 1`,
-      [scene.id, scene.chapter, at],
-    )
-  ).rows[0];
-  if (waiting) {
-    const claimed = await claim(db, "id = $1", [waiting.id]);
-    drawLater(db, claimed, baseUrl);
-    return { ok: true, beat: publicBeat(claimed[0] ?? waiting) };
+  const custom = cleanWords(guide.custom, SCENE_CUSTOM_MAX);
+  const dialog = cleanWords(guide.dialog, SCENE_DIALOG_MAX);
+  if (!guideSafe([custom, dialog])) return { ok: false, status: 422, message: "That crosses one of the lines After Dark never crosses." };
+  // A moment already offered for this line is reused — unless the owner gave their own words, which get a fresh picture.
+  if (!custom && !dialog) {
+    const waiting = (
+      await db.query<BeatRow>(
+        `select * from adult_beats where scene_id = $1 and chapter = $2 and night_id is null and line <= $3 and status in ('offered', 'later') order by line desc limit 1`,
+        [scene.id, scene.chapter, at],
+      )
+    ).rows[0];
+    if (waiting) {
+      const claimed = await claim(db, "id = $1", [waiting.id]);
+      drawLater(db, claimed, baseUrl);
+      return { ok: true, beat: publicBeat(claimed[0] ?? waiting) };
+    }
   }
   const stage = scene.lines[at].stage ?? scene.stage;
   const position = scene.lines.slice(0, at + 1).map((l) => positionIn(l.text)).filter(Boolean).at(-1) ?? null;
   const act = stage >= SEX ? (position ?? "face_to_face") : stage >= UNDRESSING ? "undress" : stage >= 2 ? "kiss" : "close";
   const { rows } = await db.query<BeatRow>(
-    `insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place, status) values ($1, $2, $3, $4, $5, $6, $7, $8, 'chosen', $9, $10, 'drawing') returning *`,
-    [crypto.randomUUID(), ownerId, scene.id, scene.a, scene.b, scene.chapter, at, act, stage, scene.place],
+    `insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place, status, custom, dialog) values ($1, $2, $3, $4, $5, $6, $7, $8, 'chosen', $9, $10, 'drawing', $11, $12) returning *`,
+    [crypto.randomUUID(), ownerId, scene.id, scene.a, scene.b, scene.chapter, at, act, stage, scene.place, custom, dialog],
   );
   drawLater(db, rows, baseUrl);
   return { ok: true, beat: publicBeat(rows[0]) };

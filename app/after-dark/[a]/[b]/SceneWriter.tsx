@@ -257,7 +257,7 @@ export default function SceneWriter({
    * Beat pictures (lib/adult/beats.ts): the viewer's answer to a moment worth a picture, or Picture this at a line. Apart
    * from send(): nothing is written, so autoplay's "nothing new" stop doesn't apply.
    */
-  async function beatAction(body: { beat: { id: string; answer: "now" | "later" } } | { picture_now: { line: number } }) {
+  async function beatAction(body: { beat: { id: string; answer: "now" | "later"; custom?: string } } | { picture_now: { line: number; custom?: string } }) {
     const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
     if (!res || !res.ok) {
       setNote({ text: res ? res.message : "Network error. Try again.", error: true });
@@ -344,8 +344,8 @@ export default function SceneWriter({
           suggestions={scene.suggestions}
           onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
           beats={textOnly ? [] : (scene.beats ?? [])}
-          onBeat={textOnly ? undefined : (id, answer) => beatAction({ beat: { id, answer } })}
-          onPictureNow={(line) => beatAction({ picture_now: { line } })}
+          onBeat={textOnly ? undefined : (id, answer, guide) => beatAction({ beat: { id, answer, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
+          onPictureNow={(line, guide) => beatAction({ picture_now: { line, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
           onMakeVideo={(scope) => makeVideo(scope)}
           onPlanVideo={(scope) => planVideo(scope)}
           videoChapters={runningNight(

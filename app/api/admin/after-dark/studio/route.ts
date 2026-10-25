@@ -80,6 +80,9 @@ const Input = z.discriminatedUnion("action", [
     framing: z.enum(FRAMINGS),
     place: z.string().max(40),
     light: z.string().max(40).nullable().optional(),
+    // The owner's own words, like the Shoot tab (David, 2026-10-24: "the Together page doesn't have enough options").
+    custom: z.string().max(CUSTOM_MAX).optional(),
+    dialog: z.string().max(DIALOG_MAX).optional(),
     model,
     own_key,
   }),
