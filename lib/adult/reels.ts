@@ -1917,7 +1917,7 @@ export async function shotSuggestions(db: Db, ownerId: string, reelId: string, p
   row.shots.forEach((s, k) => {
     const stage = s.stage ?? 0;
     const act = positionIn(`${s.text} ${s.frame ?? ""} ${s.custom ?? ""}`) ?? (stage >= 4 ? "face_to_face" : stage >= 3 ? "undress" : null);
-    out[k] = rank(list, { act, places: placeKeys(s.place), stage })
+    out[k] = rank(list, { act, places: placeKeys(s.place), stage, placed: Boolean(s.place?.trim()) })
       .slice(0, per)
       .map((c) => ({ id: c.id, score: c.score, pair: Boolean(c.character_b), pov: c.tags.some((t) => t.kind === "pov"), pinned: c.tags.some((t) => t.kind === "date") }));
   });

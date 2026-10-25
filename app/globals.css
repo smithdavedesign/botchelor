@@ -7149,10 +7149,11 @@ a.phone-head-btn {
 .theater-after-dark .scene-cast {
   z-index: 2;
 }
+/* Above the backdrop. They're placed absolutely already (the act at the top, the placeholder in the middle): a
+   "position: relative" here stacked them at the top, over each other (2026-10-25: "Chapter 1" over "Press Next"). */
 .theater-after-dark .scene-act,
 .theater-after-dark .scene-venue,
 .theater-after-dark .scene-placeholder {
-  position: relative;
   z-index: 2;
 }
 .ad-scene-backdrop-off {
