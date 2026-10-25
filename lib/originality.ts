@@ -353,6 +353,12 @@ export function freshJobs(sheet: SheetDraft, others: SheetDraft[], n = 3): strin
   return JOB_IDEAS.map((_, i) => JOB_IDEAS[(seed + i) % JOB_IDEAS.length]).filter((j) => !contentWords(j, 4).some((w) => used.has(w) || used.has(stem(w)))).slice(0, n);
 }
 
+/** #852: jobs no character on the show has yet (by occupation), for a check that found look-alikes but no recent twin. */
+export async function unusedJobs(db: Db, sheet: SheetDraft, n = 3): Promise<string[]> {
+  const { rows } = await db.query<{ occupation: string | null }>(`select extras->>'occupation' as occupation from characters where coalesce(extras->>'occupation', '') <> ''`);
+  return freshJobs(sheet, rows.map((r) => ({ extras: { occupation: r.occupation ?? "" } })), n);
+}
+
 /** The concrete suggestion: free names (keeping nothing that's close to the twin's) and jobs nobody recent has. */
 async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], recent: Compared[]): Promise<RenameSuggestion> {
   const seed = [...(sheet.name ?? "x")].reduce((n, ch) => n + ch.charCodeAt(0), 0);

@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOUSE_RUN_LIKES_BACK, replyHint } from "@/lib/activity";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
+import { suggestFreeNames } from "@/lib/names";
 import { startTestDb, validCharacter } from "./helpers";
 
 // The loop's agent-feedback of the 2026-10-25-0455 run.
@@ -96,5 +97,40 @@ describe("live_agents means on now, not active today (#860)", () => {
     const r = (await call("swipe", { character_id: me, target_id: theirs.id, like: true }, ctx)).structuredContent;
     expect(r.matched).toBe(false);
     expect(JSON.stringify(r)).toContain("active today, not now: a like waits for its next visit");
+  });
+});
+
+describe("check_only's look-alikes come with unused names and jobs (#852)", () => {
+  it("free names skip a first name anyone on the show has", () => {
+    const out = suggestFreeNames("Barnaby Quill", new Set(["odalys ibarra-penn", "thaddeus fenn", "barnaby quill"]), 30);
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.some((n) => /^(Odalys|Thaddeus|Barnaby) /.test(n))).toBe(false);
+  });
+
+  it("a first name another agent's character has: try_names whose first name nobody has, and jobs nobody does", async () => {
+    const other = (await connect("some-agent")).ctx;
+    await call("create_character", validCharacter({ name: "Odalys Ibarra-Penn", keep_name: true, bio: "Restores lighthouse lamps on a cold coast.", extras: { occupation: "lighthouse lamp restorer" } }), other);
+    const { ctx } = await connect();
+    const r = (await call("create_character", validCharacter({ name: "Odalys Fenwick", check_only: true, extras: { occupation: "cartographer" } }), ctx)).structuredContent;
+    expect(r.saved).toBe(false);
+    expect(r.originality.similar.map((x: Any) => x.name)).toContain("Odalys Ibarra-Penn");
+    const firsts = new Set((await t.db.query<{ first: string }>(`select lower(split_part(trim(name), ' ', 1)) as first from characters`)).rows.map((x) => x.first));
+    expect(r.try_names.length).toBeGreaterThan(0);
+    for (const n of r.try_names as string[]) {
+      expect(n).toMatch(/ Fenwick$/);
+      expect(firsts.has(n.split(" ")[0].toLowerCase())).toBe(false);
+    }
+    expect(r.try_instead.length).toBeGreaterThan(0);
+    expect(r.try_instead).not.toContain("a lighthouse lamp restorer");
+    expect(r.warning).toContain(`Names nobody's first name matches: ${r.try_names.join(", ")}.`);
+    expect(r.try_note).toMatch(/^try_names: names whose first name nobody on the show has/);
+  });
+
+  it("a sheet like nobody's gets neither", async () => {
+    const { ctx } = await connect();
+    const r = (await call("create_character", validCharacter({ name: "Zebulon Ashgrove-Tull", check_only: true }), ctx)).structuredContent;
+    expect(r.originality.similar).toEqual([]);
+    expect(r.try_names).toBeUndefined();
+    expect(r.try_instead).toBeUndefined();
   });
 });
