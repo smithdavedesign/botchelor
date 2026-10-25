@@ -22,6 +22,9 @@ const REPO = join(HERE, "..", "..");
 const HOME_DIR = process.env.LOOP_HOME || join(homedir(), ".botchelor-loop");
 const env = (k, d) => process.env[k] ?? d;
 const VISITORS = Number(env("LOOP_VISITORS", "2"));
+// #865: on a live server, how many of the agents' shared show-model dates the loop leaves for real agents (2026-10-25: a
+// night of prod runs took all 20 and real agents were "fully booked" until the reset).
+const PROD_RESERVE = Number(env("LOOP_PROD_RESERVE", "10"));
 const VISITOR_MINUTES = Number(env("LOOP_VISITOR_MINUTES", "30"));
 // David, 2026-10-20 ("busier, longer sims"): visitors used to wrap up after 5 to 10 minutes. One that writes its report
 // before this many minutes is asked to carry on (VISITOR_NUDGES times at most), in the same conversation.
@@ -117,6 +120,21 @@ function crowdBrain() {
     return JSON.parse(readFileSync(join(RUN, "arena", "crowd.json"), "utf8")).crowd_brain ?? undefined;
   } catch {
     return undefined; // no crowd file (an older arena, or it never came up)
+  }
+}
+
+/** The live server's shared show-model dates left today, from initialize (#867's botchelor/agents_date_budget_today), or null. */
+async function liveDatesLeft(base) {
+  try {
+    const res = await fetch(`${base}/api/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "botchelor-loop-budget-check" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "botchelor-loop-budget-check", version: "1" } } }),
+    });
+    const left = (await res.json())?.result?._meta?.["botchelor/agents_date_budget_today"]?.left;
+    return typeof left === "number" ? left : null;
+  } catch {
+    return null;
   }
 }
 
@@ -240,6 +258,27 @@ async function main() {
       // VISITOR_STAGGER_MINUTES apart.
       const brief = readFileSync(join(HERE, "visitor-brief.md"), "utf8");
       const clock = (ms) => new Date(ms).toTimeString().slice(0, 5);
+      // #865: on a live server the visitors' show-model dates come out of the budget real agents share. Keep PROD_RESERVE
+      // of today's for them: each visitor gets an even share of the rest (unknown budget: 1 each), and none visits when
+      // there's nothing to spare. Triage of live feedback still runs.
+      let dateShare = null;
+      if (REMOTE_BASE) {
+        const left = await liveDatesLeft(base);
+        dateShare = left === null ? 1 : Math.floor(Math.max(0, left - PROD_RESERVE) / Math.max(1, VISITORS));
+        summary.live_dates_left = left;
+        summary.visitor_date_share = dateShare;
+        if (dateShare < 1) {
+          summary.visitors_skipped = `live show-model dates left today: ${left}, keeping ${PROD_RESERVE} for real agents`;
+          log(`skipping the visitors: ${summary.visitors_skipped}`);
+        }
+      }
+      const visitorCount = dateShare === 0 ? 0 : VISITORS;
+      const shareNote =
+        dateShare === null || dateShare === 0
+          ? ""
+          : `\n\nOne rule for this visit: this is the live show, and its show-model dates (go_on_date, plan_second_date, ` +
+            `autoplay_own_date, hand_over_own_date, accepting a proposal) are shared with real agents, so book at most ` +
+            `${dateShare} of them. Everything else is free and unlimited, including dates you perform yourself with start_own_date.`;
       const visit = async (i) => {
         if (i && VISITOR_STAGGER_MINUTES > 0) await new Promise((ok) => setTimeout(ok, i * VISITOR_STAGGER_MINUTES * 60_000));
         const dir = join(RUN, `visitor-${i + 1}`);
@@ -252,7 +291,7 @@ async function main() {
           .replaceAll("{{MINUTES}}", String(VISITOR_MINUTES))
           .replaceAll("{{MIN_MINUTES}}", String(VISITOR_MIN_MINUTES))
           .replaceAll("{{NOT_BEFORE}}", clock(notBefore))
-          .replaceAll("{{UNTIL}}", clock(started + VISITOR_MINUTES * 60_000));
+          .replaceAll("{{UNTIL}}", clock(started + VISITOR_MINUTES * 60_000)) + shareNote;
         const opts = {
           cwd: dir,
           model: VISITOR_MODEL,
@@ -273,8 +312,8 @@ async function main() {
         writeFileSync(join(RUN, `visitor-${i + 1}.md`), r.text);
         return Math.round((Date.now() - started) / 60_000);
       };
-      summary.visitor_minutes = await Promise.all(Array.from({ length: VISITORS }, (_, i) => visit(i)));
-      summary.visitors = VISITORS;
+      summary.visitor_minutes = await Promise.all(Array.from({ length: visitorCount }, (_, i) => visit(i)));
+      summary.visitors = visitorCount;
       // On a remote server the visitors' feedback is that server's live feedback, read with the rest below.
       const local = REMOTE_BASE ? [] : await feedbackFrom(base, arenaPassword, null);
       writeFileSync(join(RUN, "feedback-local.json"), JSON.stringify(local, null, 2));
