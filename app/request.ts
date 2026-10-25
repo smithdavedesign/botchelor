@@ -15,11 +15,16 @@ export function describeError(data: ErrorBody): string {
 
 export type ApiResult = { ok: boolean; status: number; data: Record<string, unknown>; message: string };
 
-export async function requestJson(url: string, body: unknown = {}, method: "POST" | "DELETE" | "PATCH" | "PUT" = "POST"): Promise<ApiResult> {
+/**
+ * `timeoutMs`: give up after this long (the call then rejects with a TimeoutError), so a long job's button never spins
+ * past the server's own limit (2026-10-25: a Studio shoot "spinning forever").
+ */
+export async function requestJson(url: string, body: unknown = {}, method: "POST" | "DELETE" | "PATCH" | "PUT" = "POST", opts: { timeoutMs?: number } = {}): Promise<ApiResult> {
   const res = await fetch(url, {
     method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+    ...(opts.timeoutMs ? { signal: AbortSignal.timeout(opts.timeoutMs) } : {}),
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { ok: res.ok, status: res.status, data, message: describeError(data as ErrorBody) };

@@ -213,12 +213,29 @@ label.after-dark-autoplay {
 .after-dark-autoplay input {
   margin: 0;
 }
-.ad-more,
-.ad-more-items {
-  display: contents;
+/* ⋯ More (Rewind, Redo, Start over): folded on every screen (2026-10-25: "too much going on"). */
+.ad-more {
+  position: relative;
+  display: inline-flex;
+  margin-left: auto;
 }
-button.ad-more-toggle {
+.ad-more-items {
   display: none;
+}
+.ad-more.open .ad-more-items {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: max-content;
+  padding: var(--space-2);
+  border: 1px solid #33264d;
+  border-radius: 0.8rem;
+  background: rgba(18, 10, 28, 0.97);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 @media (max-width: 640px) {
   .after-dark-form label.ad-steer-label {
@@ -238,19 +255,6 @@ button.ad-more-toggle {
   label.after-dark-autoplay {
     order: 0;
   }
-  button.ad-more-toggle {
-    display: inline-block;
-    margin-left: auto;
-  }
-  .ad-more-items {
-    display: none;
-  }
-  .ad-more.open .ad-more-items {
-    display: flex;
-    flex-basis: 100%;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
   /* The chips scroll sideways inside the bar: a fade at the right edge says there's more. */
   .ad-suggestions {
     -webkit-mask-image: linear-gradient(to right, #000 82%, transparent);
@@ -260,13 +264,36 @@ button.ad-more-toggle {
 }
 
 /* ---------------- the theater (AfterDarkTheater.tsx) ---------------- */
-/* Wide screens: every tool in the row. Phones: Play/Pause, 📜 and Exit stay; the rest open from "⋯". */
-.ad-tools-more,
-.ad-tools-items {
-  display: contents;
+/* Play/Pause, 📜, ✍️, 📸 and Exit stay in the row; the rest open from "⋯" on every screen (2026-10-25: "too much going on"). */
+.ad-tools-more {
+  position: relative;
+  display: inline-flex;
 }
 button.ad-tools-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ad-tools-items {
   display: none;
+}
+.ad-tools-more.open .ad-tools-items {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 7;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  align-items: center;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: var(--space-2);
+  border: 1px solid #33264d;
+  border-radius: 0.8rem;
+  background: rgba(18, 10, 28, 0.96);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 /* Every control in the tool row the same height (the round icons are 2.2rem), so their tops line up — the pills (Clip,
    Video, Exit) are .secondary.small and were a touch taller (David, 2026-10-25: buttons slightly misaligned at the top). */
@@ -360,36 +387,6 @@ button.ad-capture-item:disabled {
 @media (max-width: 600px) {
   .theater-after-dark .theater-tools {
     flex-wrap: nowrap;
-  }
-  .ad-tools-more {
-    position: relative;
-    display: inline-flex;
-  }
-  button.ad-tools-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .ad-tools-items {
-    display: none;
-  }
-  .ad-tools-more.open .ad-tools-items {
-    position: absolute;
-    top: calc(100% + 0.4rem);
-    right: 0;
-    z-index: 7;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    align-items: center;
-    width: max-content;
-    max-width: calc(100vw - 2rem);
-    padding: var(--space-2);
-    border: 1px solid #33264d;
-    border-radius: 0.8rem;
-    background: rgba(18, 10, 28, 0.96);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
   .ad-theater-options {
     gap: var(--space-2) var(--space-3);
@@ -570,6 +567,7 @@ label.ad-check-row {
   align-items: center;
   gap: var(--space-3);
   margin: var(--space-3) 0;
+}
 /* Who writes the scenes (lib/adult/writer.ts): a small picker in the steer bar's ⋯ More, a card on the hub. */
 .ad-writer-compact {
   display: inline-flex;
@@ -587,4 +585,92 @@ label.ad-check-row {
 }
 .ad-writer select {
   max-width: 100%;
+}
+
+/* Who writes the lines (WriterPicker.tsx, icon): ✍️ and the writer's short name, opening the list. */
+.ad-writer-logo {
+  position: relative;
+  display: inline-flex;
+}
+.ad-writer-logo button.ad-writer-logo-button {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  height: 2.2rem;
+  min-height: 2.2rem;
+  margin: 0;
+  padding: 0 0.7rem;
+  border: 1px solid #4a3a6a;
+  border-radius: 1.1rem;
+  background: rgba(18, 10, 28, 0.7);
+  color: #f1e9ff;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  box-shadow: none;
+}
+.ad-writer-logo.open button.ad-writer-logo-button,
+.ad-writer-logo button.ad-writer-logo-button:hover:not(:disabled) {
+  border-color: var(--ad-accent, #c792ff);
+  transform: none;
+}
+.ad-writer-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 8;
+  display: grid;
+  gap: 0.2rem;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 2rem));
+  padding: var(--space-1);
+  border: 1px solid #33264d;
+  border-radius: 0.8rem;
+  background: rgba(18, 10, 28, 0.97);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+/* In the steer bar (under the lines) it opens upward, like ⋯ More. */
+.after-dark-form .ad-writer-menu {
+  top: auto;
+  bottom: calc(100% + 0.4rem);
+  left: 0;
+  right: auto;
+}
+.ad-writer-logo .ad-writer-menu button {
+  display: grid;
+  gap: 0.1rem;
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  color: #f1e9ff;
+  text-align: left;
+  box-shadow: none;
+}
+.ad-writer-logo .ad-writer-menu button:hover:not(:disabled),
+.ad-writer-logo .ad-writer-menu button.on {
+  background: rgba(199, 146, 255, 0.14);
+  transform: none;
+}
+.ad-writer-logo-error {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  width: max-content;
+  max-width: 16rem;
+  margin: 0;
+}
+
+/* The scene page's pictures, videos and saved nights (SceneWriter.tsx), and the night's set-up in one fold. */
+.ad-media-tabs {
+  margin-top: var(--space-4);
+}
+.ad-media-tabs > .ad-studio-tabs {
+  margin-bottom: var(--space-3);
+}
+.ad-setup {
+  margin-top: var(--space-4);
+}
+.ad-setup > .ad-panels {
+  margin-top: var(--space-3);
 }

@@ -151,65 +151,72 @@ export const POST = handle(async (req: Request) => {
     return json({ ...extra, ...(s.ok ? { state: s.state } : {}) });
   };
   const job = async (characterId: string, r: JobResult) => (r.ok ? after(characterId, { shoot: r.shoot, pictures: r.pictures, refunded: r.refunded, message: r.message }) : failed(r));
-  switch (input.action) {
-    case "shoot":
-      return job(input.character_id, await shoot(db, viewer, input.character_id, { choices: input.choices, model: input.model, own_key: input.own_key }, base));
-    case "restyle":
-      return job(input.character_id, await restyle(db, viewer, input.character_id, { changes: input.changes, model: input.model, own_key: input.own_key }, base));
-    case "recast":
-      return job(input.character_id, await recast(db, viewer, input.character_id, { model: input.model, own_key: input.own_key }));
-    case "body":
-      return job(input.character_id, await bodyShoot(db, viewer, input.character_id, { nude: input.nude, model: input.model, own_key: input.own_key }, base));
-    case "face":
-      return job(input.character_id, await faceAnchorShoot(db, viewer, input.character_id, { model: input.model, own_key: input.own_key }, base));
-    case "pair": {
-      const { action: _a, character_id, ...pair } = input;
-      return job(character_id, await pairShoot(db, viewer, character_id, pair, base));
+  // Every action says how it went and how long it took, in the logs (2026-10-25: a Together shoot "spinning forever"
+  // left nothing to read).
+  const started = Date.now();
+  const res = await (async (): Promise<Response> => {
+    switch (input.action) {
+      case "shoot":
+        return job(input.character_id, await shoot(db, viewer, input.character_id, { choices: input.choices, model: input.model, own_key: input.own_key }, base));
+      case "restyle":
+        return job(input.character_id, await restyle(db, viewer, input.character_id, { changes: input.changes, model: input.model, own_key: input.own_key }, base));
+      case "recast":
+        return job(input.character_id, await recast(db, viewer, input.character_id, { model: input.model, own_key: input.own_key }));
+      case "body":
+        return job(input.character_id, await bodyShoot(db, viewer, input.character_id, { nude: input.nude, model: input.model, own_key: input.own_key }, base));
+      case "face":
+        return job(input.character_id, await faceAnchorShoot(db, viewer, input.character_id, { model: input.model, own_key: input.own_key }, base));
+      case "pair": {
+        const { action: _a, character_id, ...pair } = input;
+        return job(character_id, await pairShoot(db, viewer, character_id, pair, base));
+      }
+      case "variations":
+        return job(input.character_id, await moreLikeThis(db, viewer, input.character_id, { image_id: input.image_id, model: input.model, own_key: input.own_key }, base));
+      case "upscale":
+        return job(input.character_id, await upscalePicture(db, viewer, input.character_id, { image_id: input.image_id, own_key: input.own_key }));
+      case "share": {
+        const r = await sharePicture(db, viewer, { image_id: input.image_id, to_character: input.to_character, kind: input.kind });
+        return r.ok ? after(input.character_id, { share: r.share }) : failed(r);
+      }
+      case "save_setup": {
+        const r = await saveSetup(db, viewer, input.character_id, { name: input.name, kind: input.kind, choices: input.choices, model: input.model });
+        return r.ok ? after(input.character_id, { setup: r.setup }) : failed(r);
+      }
+      case "delete_setup": {
+        const ok = await deleteSetup(db, viewer, input.setup_id);
+        return ok ? after(input.character_id, {}) : json({ error: "not_found", message: "No setup of yours with that id." }, 404);
+      }
+      case "animate":
+        return job(input.character_id, await animatePicture(db, viewer, input.character_id, { image_id: input.image_id, motion: input.motion, seconds: input.seconds, guide: input.guide, dialog: input.dialog, transcript: input.transcript }, base));
+      case "unshare": {
+        // The sharer takes an After Dark share back (a photo already in their texts stays: it was sent).
+        const ok = await removeShare(db, viewer, input.share_id);
+        return ok ? after(input.character_id, {}) : json({ error: "not_found", message: "No share of yours with that id." }, 404);
+      }
+      case "save_looks": {
+        const r = await saveRestyleLooks(db, viewer, input.character_id, input.changes);
+        return r.ok ? after(input.character_id, { appearance: r.appearance }) : failed(r);
+      }
+      case "use_body": {
+        const r = await setBodyReference(db, viewer, input.character_id, input.image_id);
+        return r.ok ? after(input.character_id, {}) : failed(r);
+      }
+      case "limits": {
+        const r = await setStudioLimits(db, viewer, input.character_id, input);
+        return r.ok ? after(input.character_id, {}) : failed(r);
+      }
+      case "strength": {
+        const r = await setStrength(db, viewer, input.character_id, input.strength);
+        return r.ok ? after(input.character_id, {}) : failed(r);
+      }
+      case "redo": {
+        const r = await redoShoot(db, viewer, input.shoot_id, base);
+        if (!r.ok) return failed(r);
+        const cid = (await db.query<{ character_id: string }>(`select character_id from adult_studio_shoots where id = $1`, [r.shoot.id])).rows[0]?.character_id ?? "";
+        return job(cid, r);
+      }
     }
-    case "variations":
-      return job(input.character_id, await moreLikeThis(db, viewer, input.character_id, { image_id: input.image_id, model: input.model, own_key: input.own_key }, base));
-    case "upscale":
-      return job(input.character_id, await upscalePicture(db, viewer, input.character_id, { image_id: input.image_id, own_key: input.own_key }));
-    case "share": {
-      const r = await sharePicture(db, viewer, { image_id: input.image_id, to_character: input.to_character, kind: input.kind });
-      return r.ok ? after(input.character_id, { share: r.share }) : failed(r);
-    }
-    case "save_setup": {
-      const r = await saveSetup(db, viewer, input.character_id, { name: input.name, kind: input.kind, choices: input.choices, model: input.model });
-      return r.ok ? after(input.character_id, { setup: r.setup }) : failed(r);
-    }
-    case "delete_setup": {
-      const ok = await deleteSetup(db, viewer, input.setup_id);
-      return ok ? after(input.character_id, {}) : json({ error: "not_found", message: "No setup of yours with that id." }, 404);
-    }
-    case "animate":
-      return job(input.character_id, await animatePicture(db, viewer, input.character_id, { image_id: input.image_id, motion: input.motion, seconds: input.seconds, guide: input.guide, dialog: input.dialog, transcript: input.transcript }, base));
-    case "unshare": {
-      // The sharer takes an After Dark share back (a photo already in their texts stays: it was sent).
-      const ok = await removeShare(db, viewer, input.share_id);
-      return ok ? after(input.character_id, {}) : json({ error: "not_found", message: "No share of yours with that id." }, 404);
-    }
-    case "save_looks": {
-      const r = await saveRestyleLooks(db, viewer, input.character_id, input.changes);
-      return r.ok ? after(input.character_id, { appearance: r.appearance }) : failed(r);
-    }
-    case "use_body": {
-      const r = await setBodyReference(db, viewer, input.character_id, input.image_id);
-      return r.ok ? after(input.character_id, {}) : failed(r);
-    }
-    case "limits": {
-      const r = await setStudioLimits(db, viewer, input.character_id, input);
-      return r.ok ? after(input.character_id, {}) : failed(r);
-    }
-    case "strength": {
-      const r = await setStrength(db, viewer, input.character_id, input.strength);
-      return r.ok ? after(input.character_id, {}) : failed(r);
-    }
-    case "redo": {
-      const r = await redoShoot(db, viewer, input.shoot_id, base);
-      if (!r.ok) return failed(r);
-      const cid = (await db.query<{ character_id: string }>(`select character_id from adult_studio_shoots where id = $1`, [r.shoot.id])).rows[0]?.character_id ?? "";
-      return job(cid, r);
-    }
-  }
+  })();
+  console.log(JSON.stringify({ event: "studio_action", action: input.action, status: res.status, ms: Date.now() - started }));
+  return res;
 });

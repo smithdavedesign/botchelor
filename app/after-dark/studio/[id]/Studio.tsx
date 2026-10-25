@@ -12,7 +12,13 @@ import inspiration from "./inspiration.json";
 import { MediaRequest } from "../../MediaRequest";
 import MediaTags from "../../MediaTags";
 import Lightbox from "./Lightbox";
+import LocalTime from "../../LocalTime";
 
+/** A tile's time and a shoot's date, in the viewer's own clock (LocalTime.tsx: never on the server). */
+const TILE_TIME = { time: true, hour: "2-digit", minute: "2-digit" } as const;
+/** How long a Studio action may take before the page stops waiting: just under the route's 300 s. */
+const STUDIO_TIMEOUT_MS = 290_000;
+const REDO_TIME = { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } as const;
 const media = (id: string) => `/api/admin/after-dark/media/${id}`;
 const TABS = [
   { id: "shoot", label: "Shoot" },
@@ -107,6 +113,18 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const [partner, setPartner] = useState("");
   const [pairMenu, setPairMenu] = useState<PairMenu | null>(null);
   const [pairPick, setPairPick] = useState<PairPick>(NO_PAIR_PICK);
+  // How long the action under way has taken, shown on its button ("Shooting… 0:42") so a long one never looks stuck.
+  const [busySince, setBusySince] = useState(0);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!busy) return;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [busy]);
+  const elapsed = () => {
+    const sec = Math.max(0, Math.floor((Date.now() - busySince) / 1000));
+    return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+  };
   // The Gallery's two tabs (David, 2026-10-25): what was made here, and what came from their dates.
   const [galleryTab, setGalleryTab] = useState<"studio" | "dates">("studio");
   // Their dates' media tagged as two of them, with whoever's picked on the Together tab (everyone, before anyone is).
@@ -129,9 +147,16 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   /** Sends one Studio action; the new state comes back with it. */
   async function act(label: string, body: Record<string, unknown>, opts: { title?: string; done?: string } = {}) {
     setBusy(label);
+    setBusySince(Date.now());
     setNote(null);
-    const res = await requestJson("/api/admin/after-dark/studio", body).catch(() => null);
+    // Never past the server's own limit (5 minutes): a shoot that takes longer says so instead of spinning on.
+    let timedOut = false;
+    const res = await requestJson("/api/admin/after-dark/studio", body, "POST", { timeoutMs: STUDIO_TIMEOUT_MS }).catch((err: unknown) => {
+      timedOut = err instanceof DOMException && err.name === "TimeoutError";
+      return null;
+    });
     setBusy(null);
+    if (timedOut) return setNote({ text: "That took too long and was stopped. If pictures were made they'll be in the Gallery in a minute; otherwise try again (a simpler shoot, or another model).", error: true });
     if (!res) return setNote({ text: "Network error. Try again.", error: true });
     if (!res.ok) return setNote({ text: res.message, error: true });
     if (res.data.state) setS(res.data.state as StudioState);
@@ -325,7 +350,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             {admin && (
               // What made it, for an admin (app/after-dark/MediaRequest.tsx): the prompt and the request sent.
               <MediaRequest id={p.id} admin className="small ad-studio-item-title">
-                {video ? "Clip" : p.kind === "baseline" ? "Face" : "Picture"} · {new Date(p.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {video ? "Clip" : p.kind === "baseline" ? "Face" : "Picture"} · <LocalTime iso={p.created_at} format={TILE_TIME} />
               </MediaRequest>
             )}
             <div className="ad-studio-media">
@@ -729,7 +754,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               disabled={Boolean(busy) || !picked || !usable(picked)}
               onClick={() => void act("shoot", { action: "shoot", character_id: c.id, choices, model: picked?.id, ...own }, { title: "This shoot" })}
             >
-              {busy === "shoot" ? "Shooting… (about a minute)" : `Shoot ${s.sizes.shoot} · ${tokens(price(picked?.price ?? 0))}`}
+              {busy === "shoot" ? `Shooting… ${elapsed()}` : `Shoot ${s.sizes.shoot} · ${tokens(price(picked?.price ?? 0))}`}
             </button>
           </div>
           <p className="muted small">
@@ -856,7 +881,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                     )
                   }
                 >
-                  {busy === "pair" ? "Shooting… (about a minute)" : `Shoot ${s.sizes.shoot} together · ${tokens(price(pairModel ? pairMenu.price[pairModel.tier] : 0))}`}
+                  {busy === "pair" ? `Shooting… ${elapsed()}` : `Shoot ${s.sizes.shoot} together · ${tokens(price(pairModel ? pairMenu.price[pairModel.tier] : 0))}`}
                 </button>
               </div>
               <p className="muted small">Pick what they&apos;re doing, what they wear, the framing and the place. Pictures of the two of them also land in their pair&apos;s gallery.</p>
@@ -1085,7 +1110,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 .filter((x) => x.redo)
                 .map((x) => (
                   <p key={x.id} className="small">
-                    You 👎&apos;d every picture of a shoot on {new Date(x.created_at).toLocaleString()}.{" "}
+                    You 👎&apos;d every picture of a shoot on <LocalTime iso={x.created_at} format={REDO_TIME} />.{" "}
                     <button type="button" className="primary small" disabled={Boolean(busy)} onClick={() => void act(`redo:${x.id}`, { action: "redo", shoot_id: x.id }, { title: "The redo" })}>
                       Redo it free
                     </button>
@@ -1142,7 +1167,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                           disabled={Boolean(busy) || !usable(m)}
                           onClick={() => void act(`setup:${x.id}`, { action: "shoot", character_id: c.id, choices: x.choices, model: m.id, ...own }, { title: x.name })}
                         >
-                          {busy === `setup:${x.id}` ? "Shooting…" : `Shoot it · ${tokens(price(m.price))}`}
+                          {busy === `setup:${x.id}` ? `Shooting… ${elapsed()}` : `Shoot it · ${tokens(price(m.price))}`}
                         </button>
                       )}
                       <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => void act(`del:${x.id}`, { action: "delete_setup", character_id: c.id, setup_id: x.id }, { done: `Deleted "${x.name}".` })}>

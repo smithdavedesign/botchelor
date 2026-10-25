@@ -828,11 +828,12 @@ export async function baselines(db: Db, a: string, b: string, viewerId: string |
  * Null when one can't be had: the caller keeps the dressed ones, as before. Hive out stops it like any picture.
  */
 export async function nudeBaselines(db: Db, ownerId: string, a: Character, b: Character): Promise<[string, string] | null> {
-  try {
-    for (const c of [a, b]) await ensureNudeBaseline(db, ownerId, c);
-  } catch (err) {
-    if (err instanceof HivePausedError) throw err;
-    console.log(JSON.stringify({ event: "after_dark_nude_baseline_failed", detail: err instanceof Error ? err.message.slice(0, 200) : "error" }));
+  // Both at once (2026-10-25): one after the other, two missing ones held a Together shoot's request for minutes.
+  const made = await Promise.allSettled([a, b].map((c) => ensureNudeBaseline(db, ownerId, c)));
+  for (const r of made) {
+    if (r.status === "fulfilled") continue;
+    if (r.reason instanceof HivePausedError) throw r.reason;
+    console.log(JSON.stringify({ event: "after_dark_nude_baseline_failed", detail: r.reason instanceof Error ? r.reason.message.slice(0, 200) : "error" }));
   }
   return baselines(db, a.id, b.id, ownerId, { nude: true });
 }

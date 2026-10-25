@@ -158,7 +158,11 @@ async function main() {
           // On a phone, ⏭ is under the toolbar's "⋯" (AfterDarkTheater.tsx).
           const more = page.locator(".theater .ad-tools-toggle");
           if (await more.isVisible()) await more.click();
-          await page.locator(".theater").getByRole("button", { name: "⏭" }).click().catch(() => {});
+          // Catch up is in the theater's ⋯ (folded on every screen); the menu closes again after.
+          const tools = page.locator(".theater").getByRole("button", { name: "More tools" });
+          await tools.click({ timeout: 5_000 }).catch(() => {});
+          await page.locator(".theater").getByRole("button", { name: "Catch up" }).click({ timeout: 5_000 }).catch(() => {});
+          await tools.click({ timeout: 5_000 }).catch(() => {});
           const sent = page.waitForRequest((r) => r.url().endsWith("/api/admin/after-dark") && r.method() === "POST");
           await bar.getByRole("button", { name: "Next" }).click();
           const body = JSON.parse((await sent).postData() ?? "{}");
@@ -215,6 +219,8 @@ async function main() {
         await page.locator(".after-dark-form button[type=submit]").click();
         await page.locator(".after-dark-lines").getByText(SAFE[1]).waitFor({ timeout: 30_000 });
         assert((await page.locator(".after-dark-form .ad-suggestion").count()) === 3, "three suggested next moves should show under the lines");
+        // Rewind is in the steer bar's ⋯ More (folded on every screen).
+        await page.locator(".after-dark-form").getByRole("button", { name: "⋯ More" }).click();
         await page.locator(".after-dark-form").getByRole("button", { name: "↺ Rewind" }).click();
         await page.getByText("Nothing yet. Write the first lines, or steer it first.").waitFor({ timeout: 15_000 });
       } finally {
@@ -232,6 +238,7 @@ async function main() {
         await page.locator("#after-dark-direction").fill("they go back to hers");
         await page.locator(".after-dark-form button[type=submit]").click();
         await page.locator(".after-dark-lines").getByText(SAFE[1]).waitFor({ timeout: 30_000 });
+        if (!(await page.locator(".ad-more.open").count())) await page.locator(".after-dark-form").getByRole("button", { name: "⋯ More" }).click();
         await page.locator(".after-dark-form").getByRole("button", { name: "Start over" }).click();
         await page.getByText("Nothing yet. Write the first lines, or steer it first.").waitFor({ timeout: 15_000 });
       } finally {

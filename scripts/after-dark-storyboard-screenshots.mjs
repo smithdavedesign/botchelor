@@ -182,8 +182,8 @@ async function main() {
     for (const [w, h, size] of [[1280, 900, "desktop"], [390, 844, "phone"]]) {
       await page.setViewportSize({ width: w, height: h });
       await page.goto(`${app.base}${scenePath}?play=1`);
-      // On a phone the tools fold into "⋯"; open it first.
-      if (size === "phone") await page.getByRole("button", { name: "More tools" }).click();
+      // The video is in the theater's "⋯" (folded on every screen).
+      await page.getByRole("button", { name: "More tools" }).click();
       // The video of the night opens the storyboard (there's no blind one-tap any more).
       await page.getByRole("button", { name: /Video of the night/ }).first().click();
       // It opens at once, while the shots are picked; then the picked shots, each with the lines before it.
