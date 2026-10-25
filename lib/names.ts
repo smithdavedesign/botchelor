@@ -48,17 +48,20 @@ export const SPARE_FIRST_NAMES = [
  * A few names like `wanted` that aren't in `taken` (lower-cased full names): the same surname with another first name,
  * so "Barnaby Quill" taken suggests "Thaddeus Quill" and "Winifred Quill" (#477: agents picking stock names collided
  * and could only find out by trying). The first name decides which spares come first, so two agents get different ones.
+ * #852 (the 2026-10-25 runs: a suggested Odalys met another agent's Odalys Ibarra-Penn): a first name anyone on the
+ * show already has isn't offered, since a shared first name is itself a look-alike.
  */
 export function suggestFreeNames(wanted: string, taken: ReadonlySet<string>, count = 3): string[] {
   const words = wanted.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   const surname = words.length > 1 ? words.slice(1).join(" ") : "";
   const first = words[0].toLowerCase();
+  const takenFirst = new Set([...taken].map((n) => n.trim().split(/\s+/)[0]));
   const start = [...first].reduce((n, ch) => n + ch.charCodeAt(0), 0) % SPARE_FIRST_NAMES.length;
   const out: string[] = [];
   for (let i = 0; i < SPARE_FIRST_NAMES.length && out.length < count; i++) {
     const given = SPARE_FIRST_NAMES[(start + i) % SPARE_FIRST_NAMES.length];
-    if (given.toLowerCase() === first) continue;
+    if (given.toLowerCase() === first || takenFirst.has(given.toLowerCase())) continue;
     const name = surname ? `${given} ${surname}` : given;
     if (!taken.has(name.toLowerCase())) out.push(name);
   }

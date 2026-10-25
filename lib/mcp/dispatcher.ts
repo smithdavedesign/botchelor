@@ -74,7 +74,7 @@ import { type Character, loadCharacter, pronounWarnings } from "../character";
 import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "../adult/mcp";
 import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, unreadTextsByPair } from "../inbox";
 import { rescueStuckJob } from "../jobs";
-import { findLookalikes, type Lookalike, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS } from "../originality";
+import { findLookalikes, type Lookalike, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS, unusedJobs } from "../originality";
 import { originalityWithConcepts } from "../originality-concept";
 import { pairNames, shortName } from "../names";
 import { nameCheck } from "../name-check";
@@ -5252,7 +5252,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         // 2.6.0 (the 2026-10-22-0042 run): other agents' recent look-alikes, named before anything is saved, with jobs to pick.
         const draft = sheetDraftOf(args);
         const recentTwins = await recentTwinNotice(db, draft, who?.id ?? null, null);
-        const checkWarning = await twinWarningText((r.data as { similar?: Lookalike[] }).similar ?? [], recentTwins, false, { db, agentId: who?.id ?? null });
+        const similar = (r.data as { similar?: Lookalike[] }).similar ?? [];
+        // #852 (the 2026-10-25 runs: a flagged Marisol, then an Odalys another agent had too): any look-alike, a shared
+        // first name included, comes with names whose first name nobody has, and jobs nobody does when no recent twin gave some.
+        const flagged = similar.length > 0 || recentTwins !== null;
+        const tryNames = flagged && wanted && !twin ? await freeNames() : [];
+        const tryJobs = flagged && !recentTwins?.jobs.length ? await unusedJobs(db, draft).catch(() => []) : [];
+        const twinText = await twinWarningText(similar, recentTwins, false, { db, agentId: who?.id ?? null });
+        const nameText = similar.some((x) => x.kind === "name") && !twinText ? `Nothing is saved yet. ${similar.find((x) => x.kind === "name")!.why}` : twinText;
+        const checkWarning = nameText
+          ? `${nameText}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}${tryJobs.length ? ` Jobs nobody has: ${tryJobs.join(", ")}.` : ""}`
+          : null;
         return {
           data: {
             ...(checkWarning ? { warning: checkWarning } : {}),
@@ -5260,6 +5270,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             // 2026-10-23 (a visitor: "check_only never says whether a sheet passes the content rules"): it ran them above.
             content_ok: true,
             ...(recentTwins ? lookAlikeFields(recentTwins) : {}),
+            ...(tryNames.length ? { try_names: tryNames } : {}),
+            ...(tryJobs.length ? { try_instead: tryJobs } : {}),
+            ...(tryNames.length || tryJobs.length ? { try_note: "try_names: names whose first name nobody on the show has. try_instead: jobs nobody has yet. Either keeps it apart from its look-alikes." } : {}),
             originality: r.data,
             originality_note: "The same check the save runs, against the show as it is right now: another agent can add a look-alike before you create.",
             ...(twin ? { name_taken: { id: twin.id, name: twin.name, free_names: await freeNames(), note: "That name is taken: pick another (free_names are open), or pass keep_name: true." } } : {}),
