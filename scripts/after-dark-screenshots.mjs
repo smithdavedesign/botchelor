@@ -142,6 +142,8 @@ async function director({ page, base, scenePath, shot }) {
   await checkPhone(page, "the scene page");
   await shot("steer-phone");
   // Rewind: the whispered step goes, and so does its whisper.
+  // Rewind is in the steer bar's ⋯ More (folded on every screen).
+  await form.getByRole("button", { name: "⋯ More" }).click();
   await form.getByRole("button", { name: "↺ Rewind" }).click();
   await page.getByText(/Rewound: 6 lines taken back/).waitFor({ timeout: 15_000 });
   assert((await page.locator(".ad-whisper-chip").count()) === 0, "the rewound step's whisper should be gone");
@@ -154,7 +156,11 @@ async function director({ page, base, scenePath, shot }) {
   // The theater, with the suggestions over its steer.
   await page.goto(`${base}${scenePath}?play=1`);
   await page.locator(".theater .ad-suggestion").first().waitFor({ timeout: 15_000 });
-  await page.locator(".theater").getByRole("button", { name: "⏭" }).click().catch(() => {});
+  // Catch up is in the theater's ⋯ (folded on every screen); the menu closes again after.
+  const tools = page.locator(".theater").getByRole("button", { name: "More tools" });
+  await tools.click({ timeout: 5_000 }).catch(() => {});
+  await page.locator(".theater").getByRole("button", { name: "Catch up" }).click({ timeout: 5_000 }).catch(() => {});
+  await tools.click({ timeout: 5_000 }).catch(() => {});
   await shot("theater-desktop");
   await page.setViewportSize({ width: 390, height: 844 });
   const sideways = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
@@ -170,6 +176,7 @@ async function limits({ page, base, scenePath, shot, ctx }) {
   // A night to remember: one step, filed by Start over (the stub writes their PG notes and facts), and a recap typed in.
   await form.locator("button[type=submit]").click();
   await page.locator(".ad-suggestion").first().waitFor({ timeout: 30_000 });
+  await form.getByRole("button", { name: "⋯ More" }).click();
   await form.getByRole("button", { name: "Start over" }).click();
   await page.getByText("Nothing yet. Write the first lines, or steer it first.").waitFor({ timeout: 15_000 });
   const recap = await ctx.request.post(`${base}/api/admin/after-dark`, {

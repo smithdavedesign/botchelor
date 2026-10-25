@@ -21,6 +21,8 @@ import VideoChoice from "./VideoChoice";
 import type { NightChapter } from "@/lib/adult/nights";
 import type { ReelScope } from "@/lib/adult/reels";
 import CharacterName from "@/app/CharacterName";
+import WriterPicker from "../../WriterPicker";
+import type { WriterOptions } from "@/lib/adult/writer";
 
 /** A scene line as a date turn: the leading *action* apart from what they say. */
 export function lineToTurn(l: SceneLine): Turn {
@@ -89,6 +91,7 @@ export default function AfterDarkTheater({
   onSetScene,
   onMakeVideo,
   onPlanVideo,
+  writer = null,
   videoChapters = [],
   videoTokens = 15,
   videoNote = null,
@@ -125,6 +128,8 @@ export default function AfterDarkTheater({
   onMakeVideo?: (scope: ReelScope) => Promise<void>;
   /** Plan the video as a storyboard instead of filming it straight away (docs/PRDs/reel-storyboard.md). */
   onPlanVideo?: (scope: ReelScope) => Promise<void>;
+  /** Who writes the lines (lib/adult/writer.ts): the ✍️ button in the tool row, live only. */
+  writer?: WriterOptions | null;
   videoChapters?: readonly NightChapter[];
   videoTokens?: number;
   videoNote?: string | null;
@@ -281,8 +286,8 @@ export default function AfterDarkTheater({
             <strong>
               <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
-            <span className="chip">{live ? "🌙 After Dark" : "🌙 Replay"}</span>
-            {scene.place && <span className="chip ad-theater-place">{scene.place}</span>}
+            {/* The place shows on the stage itself; a replay says it's one. */}
+            {!live && <span className="chip">🌙 Replay</span>}
           </div>
           <div className="theater-tools">
             <button type="button" className="theater-icon" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>
@@ -298,6 +303,19 @@ export default function AfterDarkTheater({
             >
               📜
             </button>
+            {/* Who writes the lines (David, 2026-10-25: "the writer drop down as a logo in the theatre mode"). */}
+            {live && writer && <WriterPicker initial={writer} icon />}
+            <CaptureMenu
+              a={a.id}
+              b={b.id}
+              at={shown.length - 1}
+              nightId={live ? null : feedbackRef}
+              paused={mediaPaused}
+              onPicture={live && onPictureNow ? () => setPicturing({ line: Math.max(0, shown.length - 1) }) : null}
+              canPicture={shown.length > 0}
+              match={live ? sceneMedia.match : null}
+            />
+            {/* The rest, folded on every screen (2026-10-25: "too much going on"). */}
             <div className={`ad-tools-more${tools ? " open" : ""}`}>
               <button type="button" className="theater-icon ad-tools-toggle" aria-expanded={tools} aria-label="More tools" title="More tools" onClick={() => setTools((v) => !v)}>
                 ⋯
@@ -310,16 +328,6 @@ export default function AfterDarkTheater({
                   ⏭
                 </button>
                 <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
-                <CaptureMenu
-                  a={a.id}
-                  b={b.id}
-                  at={shown.length - 1}
-                  nightId={live ? null : feedbackRef}
-                  paused={mediaPaused}
-                  onPicture={live && onPictureNow ? () => setPicturing({ line: Math.max(0, shown.length - 1) }) : null}
-                  canPicture={shown.length > 0}
-                  match={live ? sceneMedia.match : null}
-                />
                 {onMakeVideo && (
                   <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
                 )}

@@ -31,6 +31,13 @@ export const PLACES: readonly { key: string; label: string; re: RegExp }[] = [
   { key: "boat", label: "Boat", re: /\b(boat|yacht|ferry)\b/ },
   { key: "balcony", label: "Balcony", re: /\b(balcony|terrace)\b/ },
   { key: "elevator", label: "Elevator", re: /\b(elevator|lift)\b/ },
+  // Somewhere of theirs, and out on the way (2026-10-25: a picture from the movie theater showed at "his apartment
+  // entrance", whose words matched nothing). A room of a home is its own key too ("his apartment bedroom": both).
+  { key: "home", label: "Home", re: /\b(apartments?|flat|(?:his|her|their|my|your) place|home|house|front door|doorway|hallway|entrance|stairwell|landing|porch|living ?room)\b/ },
+  { key: "street", label: "Street", re: /\b(street|sidewalk|pavement|alley(?:way)?|crosswalk|taxi|cab|bus stop|parking lot|car park)\b/ },
+  { key: "museum", label: "Museum or gallery", re: /\b(museum|art gallery|exhibition)\b/ },
+  { key: "library", label: "Library or bookshop", re: /\b(library|bookshop|bookstore)\b/ },
+  { key: "train", label: "Train", re: /\b(train|subway|metro|tram)\b/ },
 ];
 
 /** A tile's label from its act, place and first-person tags: the act, the place, POV; null when it has none of them. */

@@ -34,7 +34,10 @@ import WriterPicker from "../../WriterPicker";
 import type { WriterOptions } from "@/lib/adult/writer";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import MediaTags from "../../MediaTags";
+import LocalTime from "../../LocalTime";
 
+/** A saved night's day, in the viewer's own clock (LocalTime.tsx: never on the server). */
+const NIGHT_DAY = { month: "short", day: "numeric" } as const;
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
 /** The suggested next moves' labels (lib/adult/director.ts): one per heat. */
@@ -93,6 +96,8 @@ export default function SceneWriter({
   const [storyboard, setStoryboard] = useState<Reel | null>(null);
   // The storyboard is open and its shots are being picked (what the video covers), before it has any.
   const [planning, setPlanning] = useState<ReelScope | null>(null);
+  // Which of their pictures, videos and saved nights is showing (2026-10-25): the pictures, unless a video was just made.
+  const [mediaTab, setMediaTab] = useState<"pictures" | "videos" | "nights">("pictures");
   const putReel = useCallback((r: Reel) => {
     setReelList((list) => [r, ...list.filter((x) => x.id !== r.id)]);
     // Done, either way: the "it's being made" note would contradict the video below (a failure says why there).
@@ -324,7 +329,8 @@ export default function SceneWriter({
             onFilmed={(r) => {
               putReel(r);
               setStoryboard(null);
-              if (r.status === "making") setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
+              if (r.status === "making") setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Videos, and plays shot by shot." });
+              setMediaTab("videos");
             }}
             onClose={() => {
               setStoryboard(null);
@@ -356,6 +362,7 @@ export default function SceneWriter({
             onPictureNow={(line, guide) => beatAction({ picture_now: { line, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
             onMakeVideo={(scope) => planVideo(scope)}
             onPlanVideo={(scope) => planVideo(scope)}
+            writer={writer}
             videoChapters={runningNight(
               nightList.map((n) => ({ id: n.id, chapter: n.chapter, created_at: n.created_at, lines: n.lines.length })),
               { chapter: scene.chapter, lines: scene.lines.length },
@@ -512,13 +519,13 @@ export default function SceneWriter({
                 📸 Picture this
               </button>
             )}
+            {writer && <WriterPicker initial={writer} icon />}
             {(scene.lines.length > 0 || Boolean(scene.rewind?.depth)) && (
               <div className={`ad-more${more ? " open" : ""}`}>
                 <button type="button" className="button-ghost small ad-more-toggle" aria-expanded={more} onClick={() => setMore((v) => !v)}>
                   ⋯ More
                 </button>
                 <div className="ad-more-items">
-                  {writer && <WriterPicker initial={writer} compact />}
                   <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ rewind: true })} title={scene.rewind?.depth ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
                     ↺ Rewind
                   </button>
@@ -533,14 +540,6 @@ export default function SceneWriter({
             )}
           </div>
         </form>
-        {/* The viewer's limits for the pair, and what the two of them remember (both theirs to see and change): under the
-            steer bar, which settles into its place above them, so it never covers them. */}
-        <div className="ad-panels">
-          <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
-          <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits, consent) => send({ limits, ...(consent ? { consent: true } : {}) })} />
-          <Profile scene={scene} characters={characters} onScene={setScene} />
-          <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
-        </div>
         {watching && (
           <AfterDarkTheater
             scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue, set: watching.set_place }}
@@ -548,26 +547,6 @@ export default function SceneWriter({
             feedbackRef={watching.id}
             onExit={() => setWatching(null)}
           />
-        )}
-        {nightList.length > 0 && (
-          <section>
-            <h2>Their nights</h2>
-            <ul className="after-dark-nights">
-              {nightList.map((n) => (
-                <li key={n.id}>
-                  <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
-                    ▶ Play
-                  </button>{" "}
-                  <button type="button" className="button-ghost" onClick={() => void planVideo("chapter", n.id)} disabled={Boolean(mediaPaused)} title={mediaPaused ?? `A short film of this chapter: check each shot's picture, then film (${reelTokens} tokens)`}>
-                    🎬 Video · {reelTokens} tokens
-                  </button>{" "}
-                  {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                  {n.chapter ? ` · Chapter ${n.chapter}` : ""} · {n.lines.length} lines
-                  {n.place ? ` · ended ${n.place}` : ""}
-                </li>
-              ))}
-            </ul>
-          </section>
         )}
         {reelNote && (
           <div className={reelNote.error ? "error" : "muted small"} role="status">
@@ -601,14 +580,66 @@ export default function SceneWriter({
             {mediaPaused}
           </p>
         )}
-        {textOnly ? (
-          <p className="muted small" data-text-only>
-            {textOnly}
-          </p>
-        ) : (
-          <>
-            <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
-            <Reels reels={reelList} onChange={putReel} />
+        {!textOnly && <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />}
+        {/* Their pictures, videos and saved nights, a tab each (2026-10-25: "too much going on"). */}
+        <section className="ad-media-tabs">
+          <div className="ad-studio-tabs" role="tablist" aria-label="Their pictures, videos and nights">
+            {(
+              [
+                ["pictures", `Pictures (${gallery.length})`],
+                ["videos", `Videos (${reelList.length})`],
+                ["nights", `Nights (${nightList.length})`],
+              ] as const
+            ).map(([id, label]) => (
+              <button key={id} type="button" role="tab" aria-selected={mediaTab === id} className={mediaTab === id ? "on" : ""} onClick={() => setMediaTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {mediaTab !== "nights" && textOnly ? (
+            <p className="muted small" data-text-only>
+              {textOnly}
+            </p>
+          ) : mediaTab === "pictures" ? (
+            <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} faces={faces} onFace={pickFace} />
+          ) : mediaTab === "videos" ? (
+            reelList.length ? (
+              <Reels reels={reelList} onChange={putReel} />
+            ) : (
+              <p className="muted small">No videos yet: 🎬 Video in the theater&apos;s ⋯ makes one, from a storyboard you check first.</p>
+            )
+          ) : nightList.length ? (
+              <ul className="after-dark-nights">
+                {nightList.map((n) => (
+                  <li key={n.id}>
+                    <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
+                      ▶ Play
+                    </button>{" "}
+                    <button type="button" className="button-ghost" onClick={() => void planVideo("chapter", n.id)} disabled={Boolean(mediaPaused)} title={mediaPaused ?? `A short film of this chapter: check each shot's picture, then film (${reelTokens} tokens)`}>
+                      🎬 Video · {reelTokens} tokens
+                    </button>{" "}
+                    <LocalTime iso={n.created_at} format={NIGHT_DAY} />
+                    {n.chapter ? ` · Chapter ${n.chapter}` : ""} · {n.lines.length} lines
+                    {n.place ? ` · ended ${n.place}` : ""}
+                  </li>
+                ))}
+              </ul>
+          ) : (
+            <p className="muted small">No saved nights yet: Start over files the night that ran, and it plays back here.</p>
+          )}
+        </section>
+        {/* How the night is set up, folded in one place: the scenario, the limits, what they're into and remember, their faces. */}
+        <details className="ad-panel ad-setup">
+          <summary>
+            ⚙️ Set up the night <span className="muted small">scenario, limits, what they&apos;re into and remember, their faces</span>
+          </summary>
+          <div className="ad-panels">
+            <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
+            <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits, consent) => send({ limits, ...(consent ? { consent: true } : {}) })} />
+            <Profile scene={scene} characters={characters} onScene={setScene} />
+            <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
+          </div>
+          {!textOnly && (
             <FacesPanel
               characters={characters}
               faces={faces}
@@ -619,9 +650,8 @@ export default function SceneWriter({
               onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
               paused={mediaPaused}
             />
-            <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} faces={faces} onFace={pickFace} />
-          </>
-        )}
+          )}
+        </details>
       </section>
     </MediaAdmin.Provider>
   );

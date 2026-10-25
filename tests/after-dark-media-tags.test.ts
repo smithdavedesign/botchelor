@@ -68,6 +68,9 @@ describe("tags from what it was made with", () => {
     expect(placeKeys("In the movie theatre star dust is blowing Chud")).toEqual(["movie_theater"]);
     expect(placeKeys("a rooftop pool")).toEqual(["pool", "rooftop"]);
     expect(placeKeys("They talk over wine.")).toEqual([]);
+    // Somewhere of theirs: the home (2026-10-25: "his apartment entrance" matched nothing).
+    expect(placeKeys("His apartment entrance")).toEqual(["home"]);
+    expect(placeKeys("her place, in the bedroom")).toEqual(["bedroom", "home"]);
   });
 
   it("a Studio Filthy act is the shared act, first-person when it's with the viewer; the place from its words; a clip shows what its picture shows", () => {

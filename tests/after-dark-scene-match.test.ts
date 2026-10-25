@@ -136,11 +136,36 @@ describe("a matching picture", () => {
       expect(await sceneBackdrop(t.db, owner, a, b)).toEqual({ kind: "image", id: "rooftop-pic" });
     });
 
-    it("matches a clip of the act even at a different place (what's happening)", async () => {
+    it("never shows somewhere else: a clip of the act from another place isn't the backdrop; one of nowhere in particular is", async () => {
       const { owner, a, b, lo, hi } = await pair();
       await clip(owner, lo, hi, "face_to_face", "a hotel suite");
       await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "the beach");
-      expect(await sceneBackdrop(t.db, owner, a, b)).toEqual({ kind: "clip", id: "clip-vid" });
+      expect(await sceneBackdrop(t.db, owner, a, b)).toBeNull();
+      // The same act with no place of its own fits anywhere.
+      await clip(owner, lo, hi, "face_to_face", "", "clip-2", "clip-anywhere");
+      expect(await sceneBackdrop(t.db, owner, a, b)).toEqual({ kind: "clip", id: "clip-anywhere" });
+    });
+
+    it("at his apartment, not the movie theater: a picture from elsewhere never shows, and a scene's place no list knows only takes one of nowhere", async () => {
+      const { owner, a, b, lo, hi } = await pair();
+      await pairPicture(owner, lo, hi, "face_to_face", "a dark movie theater", "cinema-pic");
+      await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "His apartment entrance");
+      expect(await sceneBackdrop(t.db, owner, a, b)).toBeNull();
+      expect(await sceneMatch(t.db, owner, a, b)).toBeNull();
+      // Home: one of them at his place does.
+      await pairPicture(owner, lo, hi, "face_to_face", "his apartment", "home-pic");
+      expect(await sceneBackdrop(t.db, owner, a, b)).toEqual({ kind: "image", id: "home-pic" });
+      // Somewhere no list knows: only a picture of nowhere in particular.
+      await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "a lighthouse keeper's cottage");
+      expect(await sceneBackdrop(t.db, owner, a, b)).toBeNull();
+    });
+
+    it("shows nothing before a chapter's first line, whatever the stage (it's the last chapter's)", async () => {
+      const { owner, a, b, lo, hi } = await pair();
+      await pairPicture(owner, lo, hi, "face_to_face", "", "any-pic");
+      await sceneAt(owner, lo, hi, [], 4, null);
+      expect(await sceneBackdrop(t.db, owner, a, b)).toBeNull();
+      expect(await sceneMatch(t.db, owner, a, b)).toBeNull();
     });
 
     it("prefers a clip over a still when both match", async () => {

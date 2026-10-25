@@ -828,11 +828,12 @@ export async function baselines(db: Db, a: string, b: string, viewerId: string |
  * Null when one can't be had: the caller keeps the dressed ones, as before. Hive out stops it like any picture.
  */
 export async function nudeBaselines(db: Db, ownerId: string, a: Character, b: Character): Promise<[string, string] | null> {
-  try {
-    for (const c of [a, b]) await ensureNudeBaseline(db, ownerId, c);
-  } catch (err) {
-    if (err instanceof HivePausedError) throw err;
-    console.log(JSON.stringify({ event: "after_dark_nude_baseline_failed", detail: err instanceof Error ? err.message.slice(0, 200) : "error" }));
+  // Both at once (2026-10-25): one after the other, two missing ones held a Together shoot's request for minutes.
+  const made = await Promise.allSettled([a, b].map((c) => ensureNudeBaseline(db, ownerId, c)));
+  for (const r of made) {
+    if (r.status === "fulfilled") continue;
+    if (r.reason instanceof HivePausedError) throw r.reason;
+    console.log(JSON.stringify({ event: "after_dark_nude_baseline_failed", detail: r.reason instanceof Error ? r.reason.message.slice(0, 200) : "error" }));
   }
   return baselines(db, a.id, b.id, ownerId, { nude: true });
 }
@@ -1916,7 +1917,7 @@ export async function shotSuggestions(db: Db, ownerId: string, reelId: string, p
   row.shots.forEach((s, k) => {
     const stage = s.stage ?? 0;
     const act = positionIn(`${s.text} ${s.frame ?? ""} ${s.custom ?? ""}`) ?? (stage >= 4 ? "face_to_face" : stage >= 3 ? "undress" : null);
-    out[k] = rank(list, { act, places: placeKeys(s.place), stage })
+    out[k] = rank(list, { act, places: placeKeys(s.place), stage, placed: Boolean(s.place?.trim()) })
       .slice(0, per)
       .map((c) => ({ id: c.id, score: c.score, pair: Boolean(c.character_b), pov: c.tags.some((t) => t.kind === "pov"), pinned: c.tags.some((t) => t.kind === "date") }));
   });

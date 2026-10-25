@@ -302,18 +302,24 @@ export async function modelTagLater(db: Db, ownerId: string, characters: readonl
 
 export type Candidate = { id: string; mime: string; character_id: string | null; character_b: string | null; created_at: string; tags: MediaTag[] };
 /** What's happening where a match is wanted: the act, the place's keys, how far it's gone (a STAGES index). */
-export type MatchWant = { act: string | null; places: readonly string[]; stage: number };
+/** `placed`: the moment names a place at all (whether or not its words are one of PLACES). */
+export type MatchWant = { act: string | null; places: readonly string[]; stage: number; placed?: boolean };
 
 /**
  * How well a media item fits a moment: the act most (12), then the place (5), then who's in it (the pair 4, a
  * first-person one of them 3 — the viewer stands in for the partner — one alone 0), pinned for dates (+6, only with the
- * act or place), a clip over a still (+1). Null when it doesn't fit at all: past how far the night has gone, or neither
- * the act nor the place.
+ * act or place), a clip over a still (+1). Null when it doesn't fit at all: past how far the night has gone, a picture of
+ * somewhere else, or neither the act nor the place.
  */
 export function scoreMedia(c: Candidate, want: MatchWant): number | null {
   const has = (kind: TagKind, value?: string) => c.tags.some((t) => t.kind === kind && (value === undefined || t.value === value));
   const level = Math.max(-1, ...c.tags.filter((t) => t.kind === "stage").map((t) => Number(t.value)));
   if (level > levelForStage(want.stage)) return null;
+  // Somewhere else is never a match, however well the act fits (2026-10-25: a picture from the movie theater at "his
+  // apartment entrance"): a picture of a place shows only where they are, and where their place can't be read, only a
+  // picture of nowhere in particular can.
+  const shown = c.tags.filter((t) => t.kind === "place").map((t) => t.value);
+  if (shown.length && (want.places.length ? !want.places.some((p) => shown.includes(p)) : want.placed)) return null;
   const act = Boolean(want.act) && has("act", want.act!);
   const place = want.places.some((p) => has("place", p));
   if (!act && !place) return null;

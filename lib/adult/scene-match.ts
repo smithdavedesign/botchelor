@@ -20,6 +20,8 @@ const RECENT = 8;
 
 /** The act happening now: the latest position the recent lines name, else undressing or sex by the stage, else none. */
 export function currentAct(lines: readonly { text: string }[], stage: number): string | null {
+  // Nothing's happening in a chapter that hasn't begun (its stage is the last chapter's).
+  if (!lines.length) return null;
   for (let i = lines.length - 1; i >= Math.max(0, lines.length - RECENT); i--) {
     const p = positionIn(lines[i]?.text ?? "");
     if (p) return p;
@@ -52,7 +54,7 @@ async function wantAndCandidates(db: Db, ownerId: string, x: string, y: string):
   await ensureTagged(db, ownerId, [where.a, where.b], 200, { anyOwner: admin });
   await modelTagLater(db, ownerId, [where.a, where.b]);
   const list = await candidates(db, ownerId, where.a, where.b, { admin });
-  return { want: { act: where.act, places: placeKeys(where.place), stage: where.stage }, list };
+  return { want: { act: where.act, places: placeKeys(where.place), stage: where.stage, placed: Boolean(where.place?.trim()) }, list };
 }
 const hasTag = (c: Candidate, kind: string) => c.tags.some((t) => t.kind === kind);
 
