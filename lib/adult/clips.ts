@@ -384,7 +384,8 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
     const bases = await baselines(db, a, b, ownerId);
     if (!bases) throw new Error("a picture of each of them is needed first");
-    const shots: ReelShot[] = [{ ...plan.shot, status: "queued", ...(onReplicate ? { provider: "replicate" as const } : {}) }];
+    // "planned": startShots (drawFrames then queueVideos) draws the keyframe and queues the video from it.
+    const shots: ReelShot[] = [{ ...plan.shot, status: "planned", ...(onReplicate ? { provider: "replicate" as const } : {}) }];
     await db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, kind, clip) values ($1, $2, $3, $4, 'making', $5, $6::jsonb, 'clip', $7::jsonb)`, [
       id,
       ownerId,
