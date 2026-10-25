@@ -6,6 +6,8 @@ import { seasonCastIds } from "@/lib/season-cast";
 import { airEpisode } from "@/lib/air";
 import { sharedTable } from "@/lib/house-matchmaker";
 import { runDueMixers } from "@/lib/group-dates-run";
+import { GET as doublesGet, POST as doublesPost } from "@/app/api/doubles/route";
+import { GET as inviteGet, POST as invitePost } from "@/app/api/doubles/[id]/route";
 import { loadCharacterMemory, remembered } from "@/lib/memory";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -301,5 +303,60 @@ describe("mixers (group dates M2)", () => {
     const note = (await t.db.query<Any>(`select title from notifications where user_id = $1 and kind = 'mixer'`, [a.agentId])).rows;
     expect(note).toHaveLength(1);
     expect(note[0].title).toMatch(/called off/);
+  });
+});
+
+describe("the web's doubles (M1b)", () => {
+  const webReq = (path: string, cookie: string, body?: unknown) =>
+    new Request(`http://test.local${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { "content-type": "application/json", cookie },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+
+  it("the thread's picker books a self-double, and the options never offer the thread's own pair", async () => {
+    const cookie = newUserCookie();
+    const c1 = await (await api.createCharacter(validCharacter({ name: "Wren Kestrel" }), cookie)).json();
+    const c2 = await (await api.createCharacter(validCharacter({ name: "Moss Elder" }), cookie)).json();
+    const options = (await (await doublesGet(webReq(`/api/doubles?excluding=${c1.id},${HOUSE_PARTNER_ID}`, cookie))).json()) as Any;
+    expect(options.options.map((o: Any) => o.character_id)).toEqual([c2.id]);
+    expect(options.options[0].partner_id).not.toBe(HOUSE_PARTNER_ID);
+
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson()]);
+    const res = await doublesPost(
+      webReq("/api/doubles", cookie, { character_id: c1.id, partner_id: HOUSE_PARTNER_ID, with_character: c2.id, with_partner: options.options[0].partner_id }),
+    );
+    expect(res.status).toBe(201);
+    const booked = (await res.json()) as Any;
+    const rows = (await t.db.query<Any>(`select id, group_id from episodes`)).rows;
+    expect(rows.map((r: Any) => r.id).sort()).toEqual([booked.episode_a, booked.episode_b].sort());
+    expect(rows[0].group_id).toBe(rows[1].group_id);
+  });
+
+  it("a person answers an agent's invite at /doubles/[id]: the view names both couples, accept books both", async () => {
+    const a = await agent("Juni Marsh");
+    const cookie = newUserCookie();
+    const theirs = await (await api.createCharacter(validCharacter({ name: "Sol Vega" }), cookie)).json();
+    const invite = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: theirs.id, with_partner: house2(), agent_id: a.agentId },
+      a.ctx,
+    );
+    const nightId = invite.structuredContent.invited;
+    const view = (await (await inviteGet(webReq(`/api/doubles/${nightId}`, cookie), { params: Promise.resolve({ id: nightId }) })).json()) as Any;
+    expect(view.yours_to_answer).toBe(true);
+    expect(view.couple_a.join(" ")).toMatch(/Juni/);
+    expect(view.couple_b.join(" ")).toMatch(/Sol/);
+
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson()]);
+    const res = await invitePost(webReq(`/api/doubles/${nightId}`, cookie, { action: "accept" }), { params: Promise.resolve({ id: nightId }) });
+    expect(res.status).toBe(200);
+    const booked = (await res.json()) as Any;
+    expect((await t.db.query<Any>(`select creator_id from episodes where id = $1`, [booked.episode_b])).rows[0].creator_id).toBe(userIdOf(cookie));
+    // Settled: answering again is a 409.
+    const again = await invitePost(webReq(`/api/doubles/${nightId}`, cookie, { action: "decline" }), { params: Promise.resolve({ id: nightId }) });
+    expect(again.status).toBe(409);
   });
 });

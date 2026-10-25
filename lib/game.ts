@@ -281,6 +281,8 @@ export type EpisodeView = EpisodeJson & {
   debrief?: Debrief;
   /** Creators only: where the mutual identity reveal stands. */
   identity?: { consented: boolean; consents: number; needed: number };
+  /** One table of a group night (a double date or a mixer): the episode page links the rest. */
+  double?: boolean;
   /**
    * M11 afterglow: the morning-after texts and whether the interest was mutual, for the characters' owners
    * only (never a spectator), as soon as the thread exists. No owner has to agree first (David, 2026-10-16).
@@ -376,6 +378,7 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
 }
 
 type EpisodeRow = {
+  grouped: boolean;
   id: string;
   setting: string;
   goals: string[];
@@ -454,7 +457,8 @@ select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_
        p.pick as my_pick, p.drama_pick as my_drama_pick,
        exists (select 1 from identity_consents mc where mc.episode_id = e.id and mc.user_id = $1::text) as my_consent,
        exists (select 1 from blocks bl where bl.blocker_id = $1::text and bl.via_episode_id = e.id) as blocked,
-       ${dateNumberSql("e")} as date_number
+       ${dateNumberSql("e")} as date_number,
+       e.group_id is not null as grouped
   from episodes e
   join characters a on a.id = e.character_a
   join characters b on b.id = e.character_b
@@ -533,6 +537,7 @@ function toView(row: EpisodeRow): EpisodeView {
     is_host: row.is_host,
     visibility: row.visibility,
     hidden: row.hidden,
+    ...(row.grouped ? { double: true } : {}),
     blocked: row.blocked,
     my_pick: row.my_pick,
     my_drama_pick: row.my_drama_pick,

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useBookDate } from "@/app/couples/[a]/[b]/useBookDate";
+import DoublePicker from "./DoublePicker";
 import type { NextStep } from "@/lib/inbox";
 
 /**
@@ -18,6 +19,7 @@ export default function ThreadNext({ next, mineId, themId }: { next: NextStep | 
         <button type="button" className="primary small" onClick={() => void book()} disabled={busy}>
           {busy ? "Booking…" : "📅 Book date"}
         </button>
+        <DoublePicker mineId={mineId} themId={themId} />
         {message && (
           <span className="thread-action-error" role="alert">
             {message.text} {message.shop && <Link href="/shop">Get tokens</Link>}
