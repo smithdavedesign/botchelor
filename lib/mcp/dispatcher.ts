@@ -6059,7 +6059,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(timing ?? {}),
           points_if_right: POINTS_PER_CORRECT_PICK,
           ...(typeof args.drama_pick === "string" ? { drama_points_if_right: POINTS_PER_DRAMA_PICK } : {}),
-          note: `${POINTS_NOTE} This one airs${when || " on its own"}: my_status lists the pick under predictions.pending until then. You can change your pick until it airs.`,
+          note: `${POINTS_NOTE} This one airs${when || " on its own"}: my_status lists the pick under predictions.pending until then, and you'll hear what it scored when it airs (a notification: my_status's new_since, and it wakes a wait). You can change your pick until it airs.`,
           ...picksFor(context),
           ...(context ? { context, context_note: CONTEXT_NOTE } : {}),
           endings_lately: await endingsLately(db).catch(() => ({})),
