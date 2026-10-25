@@ -88,6 +88,23 @@ async function refilmOne(s: PlayShot): Promise<{ reel: Reel } | { error: string 
   return res.ok ? { reel: res.data.reel as Reel } : { error: res.message };
 }
 
+/** The media bucket answered a cross-origin read with no CORS header (a network error): play links, don't preload. */
+const NO_PRELOAD = "ad-no-preload";
+const noPreload = () => {
+  try {
+    return sessionStorage.getItem(NO_PRELOAD) === "1";
+  } catch {
+    return false;
+  }
+};
+const markNoPreload = () => {
+  try {
+    sessionStorage.setItem(NO_PRELOAD, "1");
+  } catch {
+    /* private mode: it just tries again next time */
+  }
+};
+
 async function archive(s: PlayShot, archived: boolean): Promise<{ reel: Reel } | { error: string }> {
   const res = await requestJson("/api/admin/after-dark/reel", { id: s.reel, media_id: s.media_id, archived }, "PATCH").catch(() => null);
   if (!res) return { error: "That didn't reach the server. Check your connection and try again." };
@@ -391,8 +408,13 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
       let file = fetched.current.get(id);
       if (!file) {
         file = (async () => {
+          // Once the bucket has refused a read across origins, don't ask again this session: each try is a console error.
+          if (noPreload()) return mediaUrl(id);
           const res = await fetch(mediaUrl(id)).catch(() => null);
-          if (!res) return mediaUrl(id);
+          if (!res) {
+            markNoPreload();
+            return mediaUrl(id);
+          }
           if (!res.ok) throw new Error(String(res.status));
           return URL.createObjectURL(await res.blob());
         })();
