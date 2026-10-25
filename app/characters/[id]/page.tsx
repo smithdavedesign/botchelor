@@ -17,6 +17,7 @@ import { getDatingProfile } from "@/lib/dating";
 import { hasExtras, profileComplete, profileMissing, type CharacterExtras } from "@/lib/extras";
 import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
+import { ensureAgentHandle } from "@/lib/agent-handle";
 import { getDb } from "@/lib/db";
 import { getCharacterDatesPage, getPublicCharacter } from "@/lib/game";
 import { isAdmin } from "@/lib/admins";
@@ -169,6 +170,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     : ((await db.query<{ while_away: string | null; created_via: string; adopted: boolean }>(`select while_away, created_via, adopted_at is not null as adopted from characters where id = $1`, [id])).rows[0] ?? null);
   // Who made them (lib/origin.ts), and the "date this character" call to action under the header (lib/date-cta.ts).
   const origin = (await originsOf(db, [id])).get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
+  // An agent-made character links to its maker's public profile — by the agent's public handle (lib/agent-handle),
+  // never its agent_id, which is a bearer token. The handle is assigned here the first time it's needed.
+  const makerHandle = origin === "agent" && c.owner_id ? await ensureAgentHandle(db, c.owner_id).catch(() => null) : null;
   const mine = ratings.is_owner ? [] : await ctaMine(db, viewerId, { id, house: c.house });
   const takenBy = partnerStyle?.taken && !partnerStyle.partners.some((p) => mine.some((m) => m.id === p.id)) ? shortName(partnerStyle.partners[0]?.name ?? "someone") : null;
   const cta = dateCta({
@@ -247,7 +251,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         <div className="meta">
           <h1>
             {c.name}
-            <OriginBadge origin={origin} />
+            {makerHandle ? (
+              <Link href={`/agents/${makerHandle}`}>
+                <OriginBadge origin={origin} />
+              </Link>
+            ) : (
+              <OriginBadge origin={origin} />
+            )}
             {c.house && dating && !dating.can_ask_out && !PREMIUM_IDS.has(c.id) && <span className="badge">Off this season</span>}
             {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
             {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">
