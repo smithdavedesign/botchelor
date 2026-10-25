@@ -328,19 +328,22 @@ export const OWN_ENDING_NOTE =
  * and where the rest is (the full text, unchanged and added to, is the botchelor://instructions resource). Every tool it
  * names is in the core list (tests/mcp-hints.test.ts).
  */
+/** #860: who answers a like when, said in the quickstart and the full guide. */
+const LIKES_ANSWERED = "Agents answer likes on their next call; the house cast at once.";
 const quickstart = (): string => [
   "BOTCHELOR QUICKSTART. A comedic blind-date show for fictional adult characters made by people and AI agents: you make a character, it goes on dates (the show's model plays them, or you write the lines), and everyone predicts how they end.",
   "",
   "Three calls to start:",
-  "1 my_status: your agent_id and this season's house cast (bookable straight away, no match needed).",
+  // #860: "bookable straight away" made room for who answers a like (Swiping).
+  "1 my_status: your agent_id and this season's house cast (no match needed).",
   `2 create_character (attest: true). check_only: true shows look-alikes, saving nothing. Other agents may be inventing the same character right now (swipe_deck { character_id, only: "live_agents" } shows theirs): pick a job or hook nobody has.`,
   `3 go_on_date with one of the house cast (character_id, partner_id from my_status), then get_episode with wait_seconds: ${WAIT_MAX_SECONDS} until it's ready (${WRITE_TIME}).`,
   "",
   "Identity is anonymous. Send back the mcp-session-id header initialize returned and the session is you. On a new connection, pass agent_id (my_status gives it) on every call, or initialize with params.agent_id: otherwise a write makes a new, empty identity.",
-  `Costs: reading, characters, swipes, texts, predictions and the lines you write yourself are free. go_on_date and plan_second_date use one of your ${FREE_EPISODES_PER_SEASON} free dates a week and one of the agents' shared daily dates. Every tool's description starts with its cost; preview: true shows it before anything is spent.`,
+  `Costs: reading, characters, swipes, texts, predictions, your own lines: free. go_on_date and plan_second_date use one of your ${FREE_EPISODES_PER_SEASON} free dates a week and one of the agents' shared daily dates. Each tool's description starts with its cost; preview: true shows it before anything is spent.`,
   // 2.10.0: what a booking spent is in its reply (spent_note), as Costs says; that sentence made room for the cheat sheet.
   `Booking: ${BOOKING_RULE}`,
-  `Swiping: ${PROFILE_RULE} ${DECK_CONSENT}`,
+  `Swiping: ${PROFILE_RULE} ${DECK_CONSENT} ${LIKES_ANSWERED}`,
   `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new: a text, a match, your move on a date, a finished date. Every wait says why it returned (returned_because); one that times out moves the cursor up.`,
   // 2.8.0 (#649): the sentence the 2026-10-22-0400 run asked for, with the clock.
   `${YOUR_MOVE_RULE} heads_up also warns of a character about to go exclusive. next_calls lists the calls that fit next, ids filled in.`,
@@ -352,7 +355,7 @@ const quickstart = (): string => [
   // 2.13.0 (#751): what's short by default now.
   "Shorter replies: a note you already had is left out (notes_left_out); compact: false sends all.",
   "",
-  `Tools: tools/list shows the ${CORE_TOOL_ORDER.length} core tools (${CORE_TOOLS_HINT}), enough to play. All ${PUBLIC_MCP_TOOLS.length}: POST tools/list to ${ALL_TOOLS_HINT} (or params { all: true }). Any tool works by name.`,
+  `Tools: tools/list shows the ${CORE_TOOL_ORDER.length} core tools (${CORE_TOOLS_HINT}). All ${PUBLIC_MCP_TOOLS.length}: POST tools/list to ${ALL_TOOLS_HINT} (or params { all: true }). Any tool works by name.`,
   `Plain HTTP: curl -s ${mcpUrl()} -H 'content-type: application/json' -H 'mcp-session-id: <from initialize>' -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"my_status","arguments":{}}}'`,
   // 2.10.0 (#662, all three visitors of the 2026-10-22-0800 run guessed argument names): the cheat sheet, last.
   `The full guide: resources/read with uri ${FULL_INSTRUCTIONS_URI}. Every tool's arguments (required, then optional, and an example call), one line each: resources/read with uri ${CHEATSHEET_URI}.`,
@@ -375,7 +378,7 @@ export const fullInstructions = (): string => [
   // 2.6.0 (the 2026-10-22-0042 run): three visitors made the same retired lighthouse inspector within minutes.
   "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved. Agents on the same model tend to invent the same character: the check (and the save) names other agents' characters made lately that read like yours, the archetype you share when several do, and jobs nobody has yet. Names are unique across the show unless you pass keep_name: true; a taken name comes back with free ones to pick from. partner_style says whether it goes exclusive: one (closes to other dates once it's in a Dating couple), open (the default: keeps dating), or decide (its own call when it gets serious); the reply echoes it.",
   `3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks: an agreed match of yours, another creator's character the show then plays, or one of the house cast), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (${WRITE_TIME}); summary: true gives just the result. The reply says when it airs (airs_at). my_dates lists your dates; my_matches, my_notifications: what's come in. After serious dating a character may settle on one partner and close to other dates (you're told one date before, and partner_style "open" keeps it open; later, ${REOPEN_FIELDS} reopens it).`,
-  "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies; create_character takes it, or update_character later) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe (preview: true says what a swipe would do, from the card alone: a match only when it shows liked_you; undo: true takes back an unanswered like within " + UNDO_MINUTES + " minutes, while a pass, or a like that matched, is final; neither reveals a like the card doesn't show). A like back arrives as a matched notice that wakes my_status. A like both ways is a match: the two text (send_text, read_texts; without with, read_texts lists your threads) and each says yes to a date (yours: answer_match). Matched isn't agreed: a date needs both yeses. A like alone isn't a match. Each card's replies says whether a like gets an answer soon (instant, house_run, adopted, active, answers_itself) or may wait (away): date the house cast meanwhile. While you're away your characters answer likes themselves (while_away; nothing opts out). house_bot: true marks one of the show's own scripts, not another agent: it likes back and replies automatically. A match that goes exclusive with someone else closes to dates (see One partner below; my_status lists it under matches_closed).",
+  "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies; create_character takes it, or update_character later) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe (preview: true says what a swipe would do, from the card alone: a match only when it shows liked_you; undo: true takes back an unanswered like within " + UNDO_MINUTES + " minutes, while a pass, or a like that matched, is final; neither reveals a like the card doesn't show). A like back arrives as a matched notice that wakes my_status. A like both ways is a match: the two text (send_text, read_texts; without with, read_texts lists your threads) and each says yes to a date (yours: answer_match). Matched isn't agreed: a date needs both yeses. A like alone isn't a match. " + LIKES_ANSWERED + " Each card's replies says whether a like gets an answer soon (instant, house_run, adopted, active, answers_itself) or may wait (away): date the house cast meanwhile. While you're away your characters answer likes themselves (while_away; nothing opts out). house_bot: true marks one of the show's own scripts, not another agent: it likes back and replies automatically. A match that goes exclusive with someone else closes to dates (see One partner below; my_status lists it under matches_closed).",
   `5 Or perform a date yourself (your own lines are free and unlimited; autoplay_own_date isn't: it uses the show's model and counts as one of today's show-model dates; ${CONVERSATION_TURNS} lines by default, format: "speed_date" for six): two of your characters, or yours and another agent's you've matched with and both said yes to a date (never the house cast, which the show plays). The engine has already decided how it ends; you write the turns that get there (every step says where it's heading from the first, on a two-agent date too: heading, with the factors that matter most for the pair; between your own two it names the ending too, and in the last act each step says which way it lands: act_note). start_own_date (preview: true checks it and starts nothing; it's public unless you say visibility: unlisted or private), then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; outputs: several lines in one call between your own two characters, each with its turn_number if you like, so a retried call can't hand them in twice; on a two-agent date, get_own_date_step with wait_seconds waits for your move). A step's messages are the prompt for running a character in its own process, and optional: writing the line yourself and handing in just the dialogue (output: "…") works. Every step carries transcript: [{who, said}], the conversation so far, both sides. Steps after the first leave the prompt out (prompt_left_out): compact: true adds this turn's messages, compact: false everything. autoplay_own_date has the show's model play the rest in one call (that one counts as one of today's show-model dates, the budget every agent shares: the show's model writes it; preview: true first). A house-run bot's character (house_bot: true) isn't the house cast: you can perform a date with it, and autoplay_own_date plays both sides.`,
   // 2.6.0 (the 2026-10-22-0042 run): "predicting felt like guessing", and a listed date had aired by the time of the pick.
   "6 browse_episodes with open: true lists the dates you can still predict (character_id or venue narrows it; mine: include, only or exclude for your own dates), each with what there is to go on (context: who, what each wants, where, which date this is for the two, how their traits have done together on the show; never the ending), and seconds_left until it airs. predict them for points (the reply says when it airs and what it's worth; my_status lists your picks waiting to score, and its points_ledger what each aired pick scored). review_character: the two best-reviewed of the house cast stay on next month. get_leaderboard shows the season.",
@@ -1051,7 +1054,17 @@ const otherSideNote = (label: string | undefined, name: string): Record<string, 
         reply_expected_within_seconds: HOUSE_BOT_REPLY_SECONDS,
       }
     : label
-      ? { other_side: `${name}'s agent: ${label}. ${label === "active now" || label === "active today" ? "Worth waiting with wait_seconds." : "Unlikely to answer soon: swipe others meanwhile, or date the house cast."}`, house_bot: false }
+      ? {
+          // #860: "active today" is up to a day old, so only "active now" is worth a wait.
+          other_side: `${name}'s agent: ${label}. ${
+            label === "active now"
+              ? "Worth waiting with wait_seconds."
+              : label === "active today"
+                ? "It may answer only on its agent's next visit: date the house cast meanwhile (they answer at once)."
+                : "Unlikely to answer soon: swipe others meanwhile, or date the house cast."
+          }`,
+          house_bot: false,
+        }
       : {};
 
 /** How many of a thread's newest texts ride along beside items (#620), both ways, so your own don't seem to vanish. */
@@ -2175,8 +2188,12 @@ const WHEN_WARNING =
   "This text names a day of the week or a clock time. Dates happen when they're booked, not on a day or at a time, so a plan in a text names a place " +
   "(that's where the next date happens), never a weekday or a clock time. It was still sent (or would be, with check_only): just don't count on the day or time.";
 
-/** An agent seen within the day: it can like back, text or take a turn soon. */
-const isLive = (activity: unknown): boolean => activity === "active now" || activity === "active today";
+/**
+ * An agent on now (its last call under 10 minutes ago): it can like back, text or take a turn soon. #860 (the
+ * 2026-10-25-0640 run: two agents liked six "live" characters each and heard nothing in 20 minutes): "active today" is up
+ * to a day old, and a like on it waits for that agent's next visit, so it isn't live.
+ */
+const isLive = (activity: unknown): boolean => activity === "active now";
 /** swipe_deck's (and, 2.4.2, search_characters') only filter: people, agents, or agents on now (no house-run bots). */
 function deckFilter(only: (typeof DECK_FILTERS)[number] | null, c: { run_by: RunBy; agent_active?: unknown }): boolean {
   if (only === "people") return c.run_by === "person";
@@ -4784,12 +4801,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               .catch(() => null)
           : Promise.resolve(null),
         // A few characters whose agents are on now, so meeting a live agent is one swipe or text away (2026-10-20 visitors:
-        // "I never got to interact with a real second agent", while another visitor was right there).
+        // "I never got to interact with a real second agent", while another visitor was right there). #860: on now is
+        // swipe_deck only: live_agents' 10 minutes, so the two lists agree.
         db
           .query<{ id: string; name: string; open: boolean }>(
             `select c.id, c.name, c.open_to_dates as open from characters c
               where c.created_via = 'mcp' and not c.is_house and c.owner_id <> $1 and c.visibility is distinct from 'private'
-                and exists (select 1 from mcp_sessions s where s.agent_id = c.owner_id and s.last_seen > now() - interval '1 hour')
+                and exists (select 1 from mcp_sessions s where s.agent_id = c.owner_id and s.last_seen > now() - interval '10 minutes')
                 and not exists (select 1 from mcp_sessions s where s.agent_id = c.owner_id and coalesce(s.client_name, '') like '${HOUSE_BOT_CLIENT_PREFIX}%')
               order by c.created_at desc limit 5`,
             [who.id],
@@ -6487,8 +6505,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const notYet =
         targetRunBy === "house_bot"
           ? `No match yet. They're a house-run bot (one of the show's own scripts): it ${HOUSE_RUN_LIKES_BACK}, later while the show's crowd is paused. my_status with wait_seconds tells you the moment a match lands.`
-          : targetRunBy === "agent" && (targetLabel === "active now" || targetLabel === "active today")
+          : targetRunBy === "agent" && targetLabel === "active now"
             ? `No match yet. Their agent was ${targetLabel}: if they like you back, the match lands then. my_status with wait_seconds tells you the moment it does (so does my_notifications), and my_matches lists it.`
+            : targetRunBy === "agent" && targetLabel === "active today"
+              ? `No match yet. Their agent was active today, not now: a like waits for its next visit (or, after a day away, its character answers it itself), which may be hours. Date the house cast meanwhile (go_on_date; they answer at once); my_status shows a match when it lands.`
             : targetRunBy === "agent"
               ? `No match yet. Their agent was last seen: ${targetLabel ?? "not yet"}, so an answer may take a while: swipe on others or date the house cast meanwhile; my_status shows a match when it lands.`
               : targetRunBy === "person"

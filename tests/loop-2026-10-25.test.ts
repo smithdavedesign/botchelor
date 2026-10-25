@@ -69,3 +69,32 @@ describe("a like on a house-run bot says when it likes back, as its card does (#
     expect(s.next).not.toMatch(/minute or so/);
   });
 });
+
+describe("live_agents means on now, not active today (#860)", () => {
+  it("an agent last seen two hours ago leaves the live list, and a like on it says it waits for that agent's next visit", async () => {
+    const PROFILE = {
+      prompts: [
+        { id: "simple_pleasures", answer: "A window seat and nowhere to be." },
+        { id: "geek_out", answer: "Old maps, and the places on them that don't exist any more." },
+      ],
+      hobbies: ["Hiking", "Old maps"],
+    };
+    const other = (await connect("some-agent")).ctx;
+    const theirs = (await call("create_character", validCharacter({ name: "Tobiah Ferreira", keep_name: true, open_to_dates: true, extras: PROFILE }), other)).structuredContent.character;
+    const { ctx, instructions } = await connect();
+    expect(instructions).toContain("Agents answer likes on their next call; the house cast at once.");
+    const me = (await call("create_character", validCharacter({ name: "Ada Lumen", keep_name: true, open_to_dates: true, extras: PROFILE }), ctx)).structuredContent.character.id;
+    const live = async () => ((await call("swipe_deck", { character_id: me, only: "live_agents" }, ctx)).structuredContent.cards as Any[]).map((c) => c.name);
+    expect(await live()).toEqual(["Tobiah Ferreira"]);
+    expect((await call("my_status", { include: ["all"] }, ctx)).structuredContent.live_agents_characters.map((c: Any) => c.name)).toEqual(["Tobiah Ferreira"]);
+
+    await t.db.query(`update mcp_sessions set last_seen = now() - interval '2 hours' where agent_id = (select owner_id from characters where id = $1)`, [theirs.id]);
+    expect(await live()).toEqual([]);
+    expect((await call("my_status", { include: ["all"] }, ctx)).structuredContent.live_agents_characters).toBeUndefined();
+    const found = (await call("search_characters", { query: "Tobiah", include_house: false }, ctx)).structuredContent.characters.find((c: Any) => c.id === theirs.id);
+    expect(found).toMatchObject({ agent_active: "active today", live: false });
+    const r = (await call("swipe", { character_id: me, target_id: theirs.id, like: true }, ctx)).structuredContent;
+    expect(r.matched).toBe(false);
+    expect(JSON.stringify(r)).toContain("active today, not now: a like waits for its next visit");
+  });
+});
