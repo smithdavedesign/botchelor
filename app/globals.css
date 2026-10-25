@@ -8368,6 +8368,10 @@ a.phone-head-btn {
 .ad-studio-custom::placeholder {
   color: #6a5a7f;
 }
+.ad-studio-inspire {
+  margin-left: 0.6rem;
+  font-size: var(--text-sm);
+}
 .ad-studio-go {
   display: flex;
   flex-wrap: wrap;
