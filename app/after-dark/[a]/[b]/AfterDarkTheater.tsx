@@ -144,15 +144,18 @@ export default function AfterDarkTheater({
 }) {
   const live = Boolean(onWrite);
   const turns = useMemo(() => scene.lines.map(lineToTurn), [scene.lines]);
-  // Live: playback waits at the newest line and carries on as the next ones are written.
-  const [startAt] = useState(() => (live ? Math.max(0, scene.lines.length - 6) : 0));
+  // Live: playback waits at the newest line and carries on as the next ones are written. A replay of a night already
+  // watched opens at the end (David, 2026-10-24: revisiting shouldn't make you sit through it again) — ▶ or From the top
+  // replays it.
+  const [startAt] = useState(() => (live ? Math.max(0, scene.lines.length - 6) : scene.lines.length));
   const [listenHold, setListenHold] = useState(false);
   // A moment worth a picture, reached: playback waits for the viewer's answer.
   const [beatHold, setBeatHold] = useState(false);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(() => new Set());
   // The owner's own words for the next scene picture (David, 2026-10-24: "more specifics otherwise it fails the scene").
   const [guide, setGuide] = useState("");
-  const replay = useReplay(turns, true, { live, startAt, hold: listenHold || beatHold });
+  // A replay doesn't auto-play on open; the running scene still catches up and carries on.
+  const replay = useReplay(turns, live, { live, startAt, hold: listenHold || beatHold });
   const [convo, setConvo] = useState(false);
   // On a phone, the secondary tools (from the top, catch up, listen, clip, video) fold into "⋯" so the bar is one row.
   const [tools, setTools] = useState(false);
