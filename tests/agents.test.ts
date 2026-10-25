@@ -541,5 +541,9 @@ describe("agent profile (lib/agent-profile)", () => {
     expect(profile).not.toBeNull();
     expect(profile!.character_count).toBe(1);
     expect(profile!.characters[0]).toMatchObject({ name: "Nova Quill", private: false });
+
+    // my_status gives the agent its own handle, so it can find and share its public page.
+    const status = await call("my_status", {}, ctx);
+    expect(status.structuredContent.profile).toMatchObject({ handle, path: `/agents/${handle}` });
   });
 });

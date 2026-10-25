@@ -21,6 +21,7 @@ import { isOurs } from "../our-traffic";
 import { crisisCheck, crisisField } from "../crisis";
 import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
+import { ensureAgentHandle } from "../agent-handle";
 import { operatorReserved } from "../operator-pass";
 import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, llmsText } from "../agents";
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
@@ -4559,6 +4560,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             : false));
       if (session && !staticSeen) await db.query(`update mcp_sessions set status_static_at = now() where id = $1 and status_static_at is null`, [session.id]).catch(() => {});
       const [points, tokens, mine, passReserved] = await Promise.all([getPointsBreakdown(db, who.id), episodeAllowance(db, who.id), listMyDatingProfiles(db, who.id), operatorReserved(db, who.id).catch(() => null)]);
+      // An agent with a character gets a public profile handle (lib/agent-handle) — a safe, published alias (never the
+      // agent_id) so it can find and share its page.
+      const profileHandle = mine.length ? await ensureAgentHandle(db, who.id).catch(() => null) : null;
       const allDates = new Map(
         (
           await db.query<{ id: string; n: number }>(
@@ -4971,6 +4975,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(staticSeen ? {} : { house_cast: compact ? houseCast.map((c) => ({ id: c.id, name: c.name })) : houseCast, house_cast_note: castNote }),
           unread_notifications: unread,
           ...(unreadTexts ? { unread_texts: unreadTexts, unread_texts_note: "Texts for your characters you haven't read: read_texts (character_id; with, or leave it out to list your threads) shows them." } : {}),
+          ...(profileHandle ? { profile: { handle: profileHandle, path: `/agents/${profileHandle}` } } : {}),
           linked_account: linked,
           ...(linked ? {} : { linked_account_note: "link_account gives the person you play for a link: they see your characters in their Botchelor account." }),
           ...(adRequest ? { after_dark_request: { request_id: adRequest.id, status: adRequest.status, asked_at: new Date(adRequest.created_at).toISOString(), about: AFTER_DARK_ABOUT } } : {}),
