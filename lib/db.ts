@@ -1610,6 +1610,8 @@ alter table adult_scenes add column if not exists hard_nos jsonb not null defaul
 -- turn-ons. Never in characters.extras: the show reads extras, and the house cast's upsert rewrites it.
 alter table adult_scenes add column if not exists framing text;
 alter table adult_scenes add column if not exists scenario text;
+-- This chapter's roleplay (lib/adult/roleplays.ts): { id, swap, chapter }, read only while that chapter runs.
+alter table adult_scenes add column if not exists roleplay jsonb;
 create table if not exists adult_profiles (
   character_id text primary key references characters (id) on delete cascade,
   turn_ons jsonb not null default '[]',

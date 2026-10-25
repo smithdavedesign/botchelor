@@ -24,7 +24,8 @@ import CharacterName from "@/app/CharacterName";
 import WriterPicker from "../../WriterPicker";
 import type { WriterOptions } from "@/lib/adult/writer";
 import { libraryVenueFor, type CatalogScene } from "@/lib/adult/scene-catalog";
-import SetSceneModal, { preloadScenes } from "./SetSceneModal";
+import SetSceneModal, { preloadScenes, type RoleplayPick } from "./SetSceneModal";
+import { roleplayById } from "@/lib/adult/roleplays";
 
 /** A saved chapter the 📖 menu can play again (lib/adult/scenes.ts AdultNight, trimmed). */
 export type ChapterEntry = { id: string; chapter: number | null; lines: number; created_at: string; place: string | null };
@@ -125,7 +126,7 @@ export default function AfterDarkTheater({
   scenes = [],
   onScenario,
 }: {
-  scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null; chapter?: number };
+  scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null; chapter?: number; roleplay?: RoleplayPick };
   characters: [CharacterRef, CharacterRef];
   busy?: boolean;
   note?: string | null;
@@ -139,8 +140,8 @@ export default function AfterDarkTheater({
   /** The scene carries on by itself, no Next needed. Shared with the page's form, which says when it stops. */
   autoplay?: boolean;
   onAutoplay?: (on: boolean) => void;
-  /** Set the scene: take them anywhere (1 token). */
-  onSetScene?: (place: string) => Promise<void>;
+  /** Scene & roleplay: take them anywhere (1 token; null stays put) and set the chapter's roleplay (lib/adult/roleplays.ts). */
+  onSetScene?: (place: string | null, roleplay: RoleplayPick) => Promise<void>;
   /**
    * The video of the night (lib/adult/reels.ts), in their voices, for `videoTokens`: of this chapter, or of the whole
    * night (`videoChapters`, every chapter since it began), as the viewer picks.
@@ -203,7 +204,7 @@ export default function AfterDarkTheater({
   const [tools, setTools] = useState(false);
   const [direction, setDirection] = useState("");
   // The scene picker (SetSceneModal.tsx) and the 📖 chapter menu.
-  const [picking, setPicking] = useState(false);
+  const [picking, setPicking] = useState<false | "where" | "who">(false);
   // The picker stays mounted once opened, and its pictures load in the background while the scene plays.
   const [pickerOpened, setPickerOpened] = useState(false);
   const canSetScene = live && Boolean(onSetScene);
@@ -361,11 +362,17 @@ export default function AfterDarkTheater({
                 </div>
               )}
             </div>
+            {/* This chapter's roleplay: opens the picker on its second screen to change or end it. */}
+            {live && scene.roleplay && roleplayById(scene.roleplay.id) && (
+              <button type="button" className="chip ad-roleplay-chip" title="This chapter's roleplay: change or end it" onClick={() => (setPicking("who"), setPickerOpened(true))}>
+                {roleplayById(scene.roleplay.id)!.icon} {roleplayById(scene.roleplay.id)!.title}
+              </button>
+            )}
           </div>
           <div className="theater-tools">
             {live && onSetScene && (
-              <button type="button" className="secondary small ad-set-scene" onClick={() => (setPicking(true), setPickerOpened(true))} disabled={busy} title="Take them anywhere (1 token)">
-                📍 <span className="ad-tool-word">Set the scene</span>
+              <button type="button" className="secondary small ad-set-scene" onClick={() => (setPicking("where"), setPickerOpened(true))} disabled={busy} title="Take them anywhere (1 token), and pick who they are this chapter">
+                📍 <span className="ad-tool-word">Scene &amp; roleplay</span>
               </button>
             )}
             {onMakeVideo && (
@@ -509,7 +516,18 @@ export default function AfterDarkTheater({
           )}
         </div>
         {pickerOpened && onSetScene && (
-          <SetSceneModal open={picking} scenes={scenes} busy={busy} current={scene.set || scene.place} onGo={onSetScene} onScenario={onScenario} onClose={() => setPicking(false)} />
+          <SetSceneModal
+            open={Boolean(picking)}
+            openAt={picking || "where"}
+            scenes={scenes}
+            busy={busy}
+            current={scene.set || scene.place}
+            names={{ a: firstName(a), b: firstName(b) }}
+            roleplay={scene.roleplay ?? null}
+            onGo={onSetScene}
+            onScenario={onScenario}
+            onClose={() => setPicking(false)}
+          />
         )}
       </div>
     </div>

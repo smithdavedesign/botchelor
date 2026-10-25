@@ -159,7 +159,7 @@ async function main() {
           // 📖 the chapter in the top bar; 📍 Set the scene opens the picker, which filters by category.
           await page.locator(".theater .ad-chapter-chip").getByText("Chapter").waitFor({ timeout: 10_000 });
           await page.locator(".theater .ad-set-scene").click();
-          const picker = page.getByRole("dialog", { name: "Set the scene" });
+          const picker = page.getByRole("dialog", { name: "Scene and roleplay" });
           assert((await picker.locator(".ad-scene-card").count()) > 40, "the scene picker should show every place");
           // Every card keeps its height in the full list (70+ cards were squeezed to slivers once, 2026-10-25).
           const tallest = await picker.locator(".ad-scene-card").evaluateAll((els) => Math.min(...els.slice(0, 12).map((e) => e.getBoundingClientRect().height)));
@@ -169,7 +169,20 @@ async function main() {
           const fantasy = await picker.locator(".ad-scene-card").count();
           assert(fantasy > 0 && fantasy < 15, `the Fantasy category should narrow the cards (${fantasy})`);
           if (process.env.SHOTS_DIR) await page.screenshot({ path: join(process.env.SHOTS_DIR, `after-dark-set-scene-${viewport.width}.png`) });
-          await picker.getByRole("button", { name: "Close" }).click();
+          // Then the second screen: a roleplay for the chapter, sent with the place (desktop only: once is enough).
+          if (viewport.width > 600) {
+            await picker.locator(".ad-scene-card").first().getByRole("button", { name: "Go here →" }).click();
+            await picker.getByRole("radio", { name: /The neighbour next door/ }).click();
+            await picker.getByRole("button", { name: "⇄ Swap roles" }).click();
+            if (process.env.SHOTS_DIR) await page.screenshot({ path: join(process.env.SHOTS_DIR, `after-dark-roleplay-${viewport.width}.png`) });
+            const moved = page.waitForRequest((r) => r.url().endsWith("/api/admin/after-dark") && r.method() === "POST");
+            await picker.getByRole("button", { name: "Go · 1 token" }).click();
+            const sent = JSON.parse((await moved).postData() ?? "{}");
+            assert(sent.set_scene && sent.roleplay?.id === "neighbours" && sent.roleplay?.swap === true, `the place and the roleplay should go together (sent ${JSON.stringify(sent)})`);
+            await page.locator(".theater .ad-roleplay-chip").getByText("The neighbour next door").waitFor({ timeout: 10_000 });
+          } else {
+            await picker.getByRole("button", { name: "Close" }).click();
+          }
           await bar.getByRole("radio", { name: "Direct" }).check();
           await bar.getByRole("textbox", { name: "Steer it (optional)" }).fill("they kiss in the doorway");
           // Catch up is with the player's controls, bottom right.
