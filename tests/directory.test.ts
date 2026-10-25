@@ -80,6 +80,21 @@ describe("the Characters hub's tabs", () => {
     expect([...origins.values()].map(tabOf).sort()).toEqual(["agents", "agents", "agents", "cast", "people"]);
   });
 
+  it("each cast card has the basics: age and pronouns, what they do and where they're from", async () => {
+    setSeasonCastForTests(["house-juniper"]);
+    const html = await render({ tab: "cast" });
+    expect(html).toContain('<p class="muted small dir-basics">29 · she/her</p>');
+    expect(html).toContain("💼 Lighthouse keeper and podcaster · 📍 A rock off the Cornish coast");
+  });
+
+  it("has a Create a character button at the top, on every tab", async () => {
+    for (const tab of ["cast", "people", "agents"]) {
+      const html = await render({ tab });
+      expect(html.indexOf('<a class="button" href="/create">✨ Create a character</a>'), tab).toBeGreaterThan(-1);
+      expect(html.indexOf("/create"), tab).toBeLessThan(html.indexOf('class="segmented"'));
+    }
+  });
+
   it("reads ?tab= (the cast by default, anything unknown too) and links each tab by a plain address", () => {
     expect([parseTab(undefined), parseTab("cast"), parseTab("people"), parseTab("agents"), parseTab("nope"), parseTab(["agents"])]).toEqual([
       "cast",
