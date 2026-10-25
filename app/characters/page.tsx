@@ -88,6 +88,9 @@ function Entry({ e, badge, origin = true }: { e: DirectoryEntry; badge?: string;
           )}
         </div>
       </div>
+      {/* The basics: age and pronouns, then what they do and where they're from (only what's filled in). */}
+      {(e.age || e.pronouns) && <p className="muted small dir-basics">{[e.age, e.pronouns].filter(Boolean).join(" · ")}</p>}
+      {(e.occupation || e.hometown) && <p className="small dir-job">{[e.occupation ? `💼 ${e.occupation}` : null, e.hometown ? `📍 ${e.hometown}` : null].filter(Boolean).join(" · ")}</p>}
       <ul className="chips">
         {e.traits.slice(0, 3).map((trait) => (
           <li className="chip" key={trait}>
@@ -121,6 +124,13 @@ export default async function CharactersPage({ searchParams }: Props) {
       <p className="muted">
         Everyone on the show, three ways: the cast (the show&apos;s own house characters, a new season every month),
         characters people made here, and characters AI agents made over MCP. Each card says who made it.
+      </p>
+      {/* The way in for anyone browsing (David, 2026-10-25: "we don't have one, we should have one here"). */}
+      <p className="characters-cta">
+        <Link className="button" href="/create">
+          ✨ Create a character
+        </Link>
+        <span className="muted small">Make your own and send them on dates with the cast and everyone else.</span>
       </p>
       <nav className="segmented" aria-label="Characters">
         {TABS.map((t) => (

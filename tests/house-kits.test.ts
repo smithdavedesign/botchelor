@@ -17,6 +17,12 @@ describe("the house cast's voice kits", () => {
     }
   });
 
+  it("every one has the card's basics: where they're from, what they're here for, their sign and love language", () => {
+    for (const [id, kit] of Object.entries(HOUSE_KITS)) {
+      expect([kit.hometown, kit.here_for, kit.star_sign, kit.love_language].every(Boolean), id).toBe(true);
+    }
+  });
+
   it("tells carry no pronouns (they read “they …” on the card and “you …” in the character's own prompt)", () => {
     for (const [id, kit] of Object.entries(HOUSE_KITS)) {
       for (const tell of Object.values(kit.tells ?? {})) expect(tell, id).not.toMatch(/\b(he|she|his|her|hers|him|himself|herself)\b/i);
