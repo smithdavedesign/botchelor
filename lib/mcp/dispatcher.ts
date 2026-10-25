@@ -22,6 +22,7 @@ import { crisisCheck, crisisField } from "../crisis";
 import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
 import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-handle";
+import { cancelScheduledDate, pendingScheduledDates, scheduleDate } from "../scheduled-dates";
 import { operatorReserved } from "../operator-pass";
 import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, llmsText } from "../agents";
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
@@ -460,6 +461,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   export_character: FREE,
   set_open_to_dates: FREE,
   set_profile: FREE,
+  schedule_date: "Free to set; the date spends your dates/budget when it runs (my_notifications says how it went).",
   go_on_date: `Costs ${ONE_DATE}; a date that can't be booked, a proposal to a closed character's creator and preview: true spend nothing.`,
   // 2.13.0 (the 2026-10-23-2135 run: "free" here beside autoplay's "shared daily date"): what each word means, in both.
   start_own_date: "Free while you write the lines: no weekly date, token or shared daily date (autoplay_own_date, where the show's model writes, uses one). preview: true starts nothing.",
@@ -614,6 +616,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "swipe_deck.only": DECK_FILTERS,
   "predict_arc.pick": ARC_PICKS,
   "set_date_visibility.visibility": DATE_VISIBILITIES,
+  "schedule_date.visibility": DATE_VISIBILITIES,
   "set_model.provider": TEXT_PROVIDER_IDS,
   "feedback_board.kind": FEEDBACK_KINDS,
   "feedback_board.sort": FEEDBACK_SORTS,
@@ -1769,7 +1772,7 @@ async function passBypassesCap(db: Db, userId: string): Promise<boolean> {
 
 /** What a capped agent can still do, appended to the "fully booked" refusals: its own key, or an operator pass. */
 const CAP_UPSELL =
-  " Or bring your own model key with set_model to keep going on your key, or get an operator pass for dates that skip the cap (/agents/pricing).";
+  " Or bring your own model key with set_model to keep going on your key, get an operator pass for dates that skip the cap (/agents/pricing), or book one for just after the reset with the scheduling tool (tools/list at ?tools=all has it).";
 
 /** The agents' shared daily budget on the show's model, as a refusal when it's spent (null while there's room, or for a pass-holder). */
 async function agentBudgetRefusal(db: Db, userId?: string): Promise<{ error: string } | null> {
@@ -4620,7 +4623,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             ? Boolean((await db.query<{ at: unknown }>(`select status_static_at as at from mcp_sessions where id = $1`, [session.id]).catch(() => ({ rows: [] as { at: unknown }[] }))).rows[0]?.at)
             : false));
       if (session && !staticSeen) await db.query(`update mcp_sessions set status_static_at = now() where id = $1 and status_static_at is null`, [session.id]).catch(() => {});
-      const [points, tokens, mine, passReserved] = await Promise.all([getPointsBreakdown(db, who.id), episodeAllowance(db, who.id), listMyDatingProfiles(db, who.id), operatorReserved(db, who.id).catch(() => null)]);
+      const [points, tokens, mine, passReserved, scheduled] = await Promise.all([
+        getPointsBreakdown(db, who.id),
+        episodeAllowance(db, who.id),
+        listMyDatingProfiles(db, who.id),
+        operatorReserved(db, who.id).catch(() => null),
+        pendingScheduledDates(db, who.id).catch(() => []),
+      ]);
       // An agent with a character gets a public profile handle (lib/agent-handle) — a safe, published alias (never the
       // agent_id) so it can find and share its page.
       const profileHandle = mine.length ? await ensureAgentHandle(db, who.id).catch(() => null) : null;
@@ -5023,6 +5032,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(airing.length ? { airing_soon: airing } : {}),
           characters: mine.map((c) => ({ id: c.id, name: c.name, open_to_dates: c.open_to_dates, ...deckFields(decks.get(c.id)), dates: c.dates, all_dates: allDates.get(c.id) ?? 0 })),
           dates_left: { total: tokens.left, free_left: tokens.free_left, free_per_week: tokens.free_per_season, topped_up: tokens.pack_left, free_reset_at: tokens.resets_at, ...(passReserved ? { operator_pass: true, reserved_left: passReserved.reserved_left, reserved_cap: passReserved.reserved_cap } : {}) },
+          ...(scheduled.length
+            ? { scheduled_dates: scheduled, scheduled_dates_note: "Booked for later: each runs within the hour after its `at` and spends a date then. The scheduling tool (tools/list at ?tools=all) lists and cancels them." }
+            : {}),
           points: Object.values(points).reduce((x, y) => x + y, 0),
           points_from: points,
           ...(ledger.length ? { points_ledger: ledger } : {}),
@@ -5486,6 +5498,40 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         data: {
           profile: { ...(handle ? { handle, path: `/agents/${handle}` } : {}), display_name: r.display_name, bio: r.bio },
           note: "Saved. It shows on your public page (my_status has the link).",
+        },
+        identity: who,
+      };
+    }
+    case "schedule_date": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      if (typeof args.cancel === "string") {
+        const gone = await cancelScheduledDate(db, who.id, args.cancel);
+        if (!gone) return { error: "No waiting booking of yours with that id (schedule_date { list: true } shows them)." };
+        return { data: { cancelled: args.cancel, scheduled: await pendingScheduledDates(db, who.id) }, identity: who };
+      }
+      if (args.list === true || args.character_id === undefined) {
+        return {
+          data: {
+            scheduled: await pendingScheduledDates(db, who.id),
+            note: "Each runs within the hour after its `at`, spends your dates/budget then, and my_notifications says how it went. cancel: <id> calls one off.",
+          },
+          identity: who,
+        };
+      }
+      const r = await scheduleDate(db, who.id, {
+        character_id: String(args.character_id ?? ""),
+        partner_id: typeof args.partner_id === "string" ? args.partner_id : null,
+        at: String(args.at ?? ""),
+        visibility: typeof args.visibility === "string" ? args.visibility : undefined,
+        place: typeof args.place === "string" ? args.place : undefined,
+      });
+      if (!r.ok) return { error: r.error };
+      return {
+        data: {
+          scheduled_date: r.scheduled,
+          runs: "Within the hour after `at`. It spends a date from your budget then, under the usual booking rules, and my_notifications says how it went.",
+          scheduled: await pendingScheduledDates(db, who.id),
         },
         identity: who,
       };

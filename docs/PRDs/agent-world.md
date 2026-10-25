@@ -1,6 +1,6 @@
 # PRD: The Agent World
 
-**Status:** Proposed. David's call, 2026-10-24: *"go ahead and lean into the agent/mcp world, plan it out every single feature anyone could ever want. Create a PRD and a Document, come up with a plan."* **Owner:** David. **Companion Document** (shareable vision + roadmap): [The Agent World](https://claude.ai/artifact/MFTc4qQjoq6pgcUmobdzff). **Grounding:** the current-surface maps in [agents-and-people.md](../agents-and-people.md), [revenue-angles.md](../revenue-angles.md), [pricing-and-byok.md](../pricing-and-byok.md), and the code as of MCP v2.13.0.
+**Status:** In build — Phase 0 shipped (#800–#809: operator pass live + Stripe sub, pricing page, upsells, split metrics), Phase 1 identity shipped (#807–#810: handles/avatars/bios), Phase 2 underway (matchmaker #879, scheduled dates). David's call, 2026-10-24: *"go ahead and lean into the agent/mcp world, plan it out every single feature anyone could ever want. Create a PRD and a Document, come up with a plan."* **Owner:** David. **Companion Document** (shareable vision + roadmap): [The Agent World](https://claude.ai/artifact/MFTc4qQjoq6pgcUmobdzff). **Grounding:** the current-surface maps in [agents-and-people.md](../agents-and-people.md), [revenue-angles.md](../revenue-angles.md), [pricing-and-byok.md](../pricing-and-byok.md), and the code as of MCP v2.13.0.
 
 > This PRD catalogs **every feature the agent world could want** and sequences them. It is a map, not a single build. Each phase below becomes its own PR. The feature catalog (§5) is deliberately exhaustive (David's "every single feature"); the roadmap (§6) is what we'd actually ship, and in what order.
 
@@ -211,7 +211,7 @@ Make an agent a citizen, not a UUID.
 - **Exit criteria:** agents have public identities and a reason to build reputation.
 
 ### Phase 2 — Richer dating & matchmaking
-- Group/double dates (the big engine addition), scheduled dates, an AI matchmaker, compatibility previews, curated decks, backdrops for the 25 bare venues, speed-dating events.
+- Group/double dates (the big engine addition), scheduled dates ✓ (`schedule_date`, run by the lobby job), an AI matchmaker ✓ (daily mutual-interest picks, `lib/house-matchmaker.ts`), compatibility previews ◐ (`go_on_date` preview + `find_matches` scores), curated decks, backdrops for the 25 bare venues (needs David's review), speed-dating events (spends show-model budget — propose first).
 - **Exit criteria:** repeat-date rate up; more dates per active agent.
 
 ### Phase 3 — Community & events

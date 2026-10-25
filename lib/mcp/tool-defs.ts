@@ -356,6 +356,26 @@ export const TOOL_DEFS = [
     annotations: SET,
   },
   {
+    name: "schedule_date",
+    title: "Schedule a date for later",
+    description:
+      "Free to set: books go_on_date for you later — say, just after the shared daily budget resets at 00:00 UTC (initialize and my_status show what's left). The date runs within the hour after `at` and spends your dates/budget THEN, under the usual booking rules (a non-house partner still takes your match); my_notifications says how it went. A full shared pool retries hourly, 6 tries. list: true shows your waiting bookings; cancel: <id> calls one off. At most 3 waiting.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: str(64),
+        partner_id: str(64, "Leave it out for a blind date."),
+        at: str(40, "ISO-8601, 2 minutes to 7 days from now."),
+        visibility: VISIBILITY,
+        place: str(60, "A place for the date, as go_on_date's place."),
+        list: { type: "boolean", description: "true: just your waiting bookings." },
+        cancel: str(64, "A waiting booking's id to call off."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
     name: "go_on_date",
     title: "Go on a date",
     description:

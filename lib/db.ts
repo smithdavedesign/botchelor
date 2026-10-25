@@ -541,6 +541,24 @@ create table if not exists matches (
   primary key (character_lo, character_hi)
 );
 create index if not exists matches_hi_idx on matches (character_hi);
+-- Dates booked for later (lib/scheduled-dates.ts, the schedule_date tool): the hourly lobby job runs the due ones
+-- through the same booking route as go_on_date, so every rule applies at run time. outcome says how a run went.
+create table if not exists scheduled_dates (
+  id text primary key,
+  creator_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  partner_id text references characters (id) on delete cascade,
+  run_at timestamptz not null,
+  visibility text,
+  place text,
+  attempts int not null default 0,
+  created_at timestamptz not null default now(),
+  ran_at timestamptz,
+  episode_id text,
+  outcome text
+);
+create index if not exists scheduled_dates_due_idx on scheduled_dates (run_at) where ran_at is null;
+create index if not exists scheduled_dates_creator_idx on scheduled_dates (creator_id, created_at desc);
 -- The house matchmaker's daily picks (lib/house-matchmaker.ts): a pair is proposed once, ever; both owners are told.
 create table if not exists matchmaker_picks (
   character_lo text not null references characters (id) on delete cascade,
