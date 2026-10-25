@@ -84,6 +84,7 @@ describe("mcp — sessions and capture", () => {
     scriptedModel([episodeJson()]);
     const dated = await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx);
     expect(dated.isError).toBeUndefined();
+    expect(dated.structuredContent.cost.using).toBe("shared"); // no key set: the shared model wrote the lines
     expect((await t.db.query<Any>(`select created_via from episodes where id = $1`, [dated.structuredContent.episode.id])).rows[0].created_via).toBe("mcp");
 
     const stats = await agentStats(t.db);

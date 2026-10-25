@@ -12,6 +12,7 @@ import { internalJobAuthorized, runQueuedJobs } from "@/lib/jobs";
 import { pruneServerErrors } from "@/lib/errors";
 import { pruneRateHits } from "@/lib/limits";
 import { pruneMcpCalls } from "@/lib/agent-analytics";
+import { markDay7Returns } from "@/lib/agent-funnel";
 import { pruneKeptData } from "@/lib/retention";
 import { getModel } from "@/lib/model";
 import { relationshipMetrics } from "@/lib/relationship-metrics";
@@ -64,6 +65,8 @@ async function run(req: Request): Promise<Response> {
   // Rate-limit rows only live as long as their longest window (lib/limits.ts).
   await pruneRateHits(db).catch(() => {});
   await pruneMcpCalls(db).catch(() => {});
+  // The agent funnel's day-7 return (lib/agent-funnel): agents back 6-8 days after their first date.
+  const day7 = await markDay7Returns(db).catch(() => 0);
   await pruneServerErrors(db).catch(() => {});
   // Push the last day's newly public pages to IndexNow (Bing → ChatGPT search, Copilot; Yandex). Opt-in by key.
   const indexnow = await recentPublicUrls(db, new Date(Date.now() - 26 * 60 * 60 * 1000))
@@ -107,6 +110,7 @@ async function run(req: Request): Promise<Response> {
     ad_renewal_reminders: renewalReminders,
     arcs_settled: arcsSettled,
     texts_failed: texts.failed,
+    agent_day_7_returns: day7,
   });
   // The long game's numbers, once a day, for the logs (counts only).
   const metrics = await relationshipMetrics(db).catch(() => null);

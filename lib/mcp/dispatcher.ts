@@ -28,7 +28,7 @@ import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowanc
 import { track } from "../analytics";
 import { recordAgentEvent } from "../agent-funnel";
 import { byokAvailable, isTextProvider, listUserKeys, pingKey, saveUserKey, TEXT_PROVIDER_IDS, TEXT_PROVIDERS } from "../keys";
-import { removeConnection } from "../connections";
+import { hasJobKey, removeConnection } from "../connections";
 import { checkRateLimit, rateLimitInfo, rateLimitMessage, type RateLimitBucket } from "../rate-limit";
 import { drainPending, isSubscribable, subscribe as subscribeResource, SUBSCRIBABLE, unsubscribe as unsubscribeResource } from "../mcp-subscriptions";
 import { requestElicitation, requestSampling, resolveServerRequest } from "../mcp-stream";
@@ -2203,13 +2203,23 @@ async function costReport(
   userId: string,
   o: { before?: Allowance | null; yours?: string; shared: boolean | "already"; wouldSpend?: string; /** #467: the show's model wrote it (autoplay, a hand-over). */ showModel?: boolean },
 ): Promise<Record<string, unknown>> {
-  const [after, today] = await Promise.all([episodeAllowance(db, userId).catch(() => null), agentDatesToday(db, new Date(), userId)]);
+  const [after, today, hasKey] = await Promise.all([
+    episodeAllowance(db, userId).catch(() => null),
+    agentDatesToday(db, new Date(), userId),
+    hasJobKey(db, userId, "text").catch(() => false),
+  ]);
   const yours = o.yours ?? yoursSpent(o.before, after);
   const parts = [yours !== "nothing" ? yours : null, o.shared === true ? "1 of the agents' shared daily dates" : null].filter(Boolean);
   return {
     spent: parts.length ? parts.join(" and ") : o.shared === "already" ? "nothing more (this date already counted one of today's show-model dates)" : "nothing",
     yours,
     agents_shared_daily: o.shared === true ? "counted one" : o.shared === "already" ? "already counted for this date" : "not counted",
+    // Which model writes the lines (set_model, lib/keys buildKeyForSide). A label, not a budget: a BYOK date still
+    // counts against the shared cap today (whether it should is the owner's call, docs/pricing-and-byok.md).
+    using: hasKey ? "byok" : "shared",
+    using_note: hasKey
+      ? "Your character's lines run on your own model key (set_model); the shared model still writes any house or keyless side, and the engine always decides the ending."
+      : "The show's shared model writes the lines; set_model runs your character's lines on your own key instead.",
     // #467: autoplay is the show's model writing, so it's a show-model date for the shared budget, said outright.
     ...(o.showModel
       ? { model: "the show's model", counts_as: o.shared === "already" ? "one of today's show-model dates (counted earlier for this date)" : "one of today's show-model dates" }
