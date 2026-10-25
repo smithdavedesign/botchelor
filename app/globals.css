@@ -7087,7 +7087,8 @@ a.phone-head-btn {
 .ad-storyboard-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  /* Above the theater (z-index 200): the storyboard can be opened from inside it. */
+  z-index: 300;
   display: flex;
   align-items: flex-start;
   justify-content: center;
