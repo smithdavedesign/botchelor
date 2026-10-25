@@ -846,7 +846,7 @@ export function sceneMessages(
   // v2's suggested next moves (lib/adult/director.ts), held to the pace and the place like a line.
   const publicNow = isPublicPlace(where.set ?? where.place, now.homeNow ?? null);
   const suggestionRule =
-    ` "suggestions" are three short director's notes for what could happen next, one per heat: "mild" (gentle, warm), "flirty" (playful, teasing) and "spicy" (bolder: it moves things on).` +
+    ` "suggestions" are three short director's notes for what could happen next, one per heat: "mild" (a wildcard: a surprising turn neither of them saw coming, in character, not just hotter), "flirty" (playful, teasing) and "spicy" (bolder: it moves things on).` +
     ` Each is under ${SUGGESTION_MAX} characters, in the third person about these two (like "She pulls him in to dance"), never a line of dialogue, and each keeps to the pace and the place:` +
     ` at most one stage further than these lines end on${capped ? `, and never past ${STAGES[cap]}` : ""}${publicNow ? "; while they're somewhere public, nothing past kissing, so the spicy one has them leave for somewhere private" : ""}.` +
     (hasHardNos(limits.hard_nos) ? " None of them goes near the hard limits." : "");

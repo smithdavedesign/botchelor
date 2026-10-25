@@ -8230,12 +8230,10 @@ a.phone-head-btn {
 .ad-steer-buttons button {
   margin-top: 0;
 }
-.ad-theater-bar .ad-suggestions {
-  flex-basis: 100%;
-}
-/* The chips make the theater's bar taller: the action line and the cast stand higher to stay clear of it. */
-.theater-after-dark.has-suggestions {
-  --ad-action-bottom: clamp(9.5rem, 18vh, 12.5rem);
+/* The theater's chips sit in the options row, after Autoplay: just their labels, so they stay small. */
+.ad-theater-options .ad-suggestion {
+  min-height: 1.9rem;
+  padding: 0.2rem 0.7rem;
 }
 
 /* After Dark's limits and memory panels (Limits.tsx, Memory.tsx): two folded panels under the steer bar, one above the

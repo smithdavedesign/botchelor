@@ -133,6 +133,21 @@ describe("suggested next moves", () => {
     expect(holdSuggestion(fallbackSuggestion("spicy", pub), pub).ok).toBe(true);
   });
 
+  it("the wildcard's plain stand-ins (Surprise me) all pass the rules, at every stage, public or not", () => {
+    const seen = new Set<string>();
+    for (const pick of [0, 0.3, 0.6, 0.99]) {
+      for (const stage of [0, 2, 4]) {
+        for (const publicPlace of [false, true]) {
+          const r = { ...RULES, stage, maxStage: Math.min(4, stage + 1), publicPlace };
+          const text = fallbackSuggestion("mild", r, () => pick);
+          expect(holdSuggestion(text, r).ok).toBe(true);
+          seen.add(text);
+        }
+      }
+    }
+    expect(seen.size).toBe(4);
+  });
+
   it("puts a plain one of the same heat in place of one that fails, held to the same rules", () => {
     const { suggestions, replaced } = suggestionsFor({ mild: "They share the last biscuit", flirty: "She tells him she's sixteen", spicy: "They kiss hard" }, RULES);
     expect(suggestions.map((s) => s.heat)).toEqual(["mild", "flirty", "spicy"]);

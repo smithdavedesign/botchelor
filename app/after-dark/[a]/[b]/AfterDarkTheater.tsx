@@ -55,7 +55,8 @@ export function stageLabel(scene: { lines: SceneLine[]; stage: number; chapter?:
 }
 
 /** The heats' labels on the suggestion chips (the page's are the same). */
-const HEAT_WORD: Record<Suggestion["heat"], string> = { mild: "Mild", flirty: "Flirty", spicy: "Spicy" };
+// "mild" is the wildcard now (lib/adult/director.ts): the key stays so stored scenes still read.
+const HEAT_WORD: Record<Suggestion["heat"], string> = { mild: "Surprise me", flirty: "Flirt", spicy: "Spicy" };
 
 const TIME_WORDS: ReadonlySet<string> = new Set(["night", "nights", "evening", "morning", "midnight", "after", "late", "dusk", "sunset", "golden", "hour"]);
 
@@ -198,7 +199,7 @@ export default function AfterDarkTheater({
 
   return (
     <div
-      className={`theater theater-clean theater-after-dark${live && onSuggest && suggestions.length ? " has-suggestions" : ""}`}
+      className="theater theater-clean theater-after-dark"
       role="dialog"
       aria-label={`${a.name} and ${b.name}, after dark`}
     >
@@ -321,15 +322,6 @@ export default function AfterDarkTheater({
         </form>
         ) : live ? (
         <form className="ad-theater-bar" onSubmit={next}>
-          {onSuggest && suggestions.length > 0 && (
-            <div className="ad-suggestions" role="group" aria-label="Suggested next moves">
-              {suggestions.map((sg) => (
-                <button key={sg.heat} type="button" className={`ad-suggestion is-${sg.heat}`} disabled={busy} onClick={() => void onSuggest(sg.text)} title={`Send it as a nudge: ${sg.text}`}>
-                  <span className="ad-heat">{HEAT_WORD[sg.heat]}</span> <span className="ad-suggestion-text">{sg.text}</span>
-                </button>
-              ))}
-            </div>
-          )}
           <div className="ad-theater-steer">
             <input
               aria-label="Steer it (optional)"
@@ -359,6 +351,22 @@ export default function AfterDarkTheater({
               <label className="ad-steer-mode" title="It carries on by itself, no Next needed, until the chapter ends">
                 <input type="checkbox" checked={autoplay} onChange={(e) => onAutoplay(e.target.checked)} /> Autoplay
               </label>
+            )}
+            {onSuggest && suggestions.length > 0 && (
+              <span className="ad-suggestions" role="group" aria-label="Suggested next moves">
+                {suggestions.map((sg) => (
+                  <button
+                    key={sg.heat}
+                    type="button"
+                    className={`ad-suggestion is-${sg.heat}`}
+                    disabled={busy}
+                    onClick={() => void onSuggest(sg.text)}
+                    title={sg.heat === "mild" ? "A surprise: something they didn't see coming" : `Send it as a nudge: ${sg.text}`}
+                  >
+                    <span className="ad-heat">{HEAT_WORD[sg.heat]}</span>
+                  </button>
+                ))}
+              </span>
             )}
             {onSetScene && (
               <button type="button" className="button-ghost" onClick={() => setMoving(true)} disabled={busy} title="Take them anywhere (1 token)">
