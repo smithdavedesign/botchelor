@@ -485,6 +485,48 @@ describe("the storyboard: plan, draw, then film", () => {
     expect(back.shots.every((s) => s.refilm_tokens === undefined)).toBe(true);
   });
 
+  it("uses a video they already made for a shot: done as it is, not filmed, and not someone else's", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    await sceneAt(id, 1, linesOf(1, 8), { place: "the harbour", set: "harbour", stage: 2 });
+    const seen = fakeMedia();
+    director([2, 4, 6]);
+    const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
+    // A video of the two of them they already made (a clip or a studio animation).
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('vid-1', $1, $2, $3, 'video', 'p', 'video/mp4', $4)`, [id, CAST_A, CAST_B, Buffer.from(PNG)]);
+    const used = (await (await make(cookie, { action: "use_video", id: plan.id, shot: 0, video_id: "vid-1" })).json()).reel as Reel;
+    expect(used.shots[0]).toMatchObject({ status: "ready", media_id: "vid-1", from_video: true, approved: true });
+    expect(seen.filter((x) => x.path === "/image/multi-edit")).toHaveLength(0); // nothing drawn
+    // Someone else's video isn't theirs to use.
+    const other = userIdOf(newUserCookie());
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('vid-other', $1, $2, $3, 'video', 'p', 'video/mp4', $4)`, [other, CAST_A, CAST_B, Buffer.from(PNG)]);
+    expect((await make(cookie, { action: "use_video", id: plan.id, shot: 1, video_id: "vid-other" })).status).toBe(404);
+    // Draw and approve another shot, then film: the reused video stays ready (not re-filmed), the drawn one is queued.
+    await make(cookie, { action: "redraw", id: plan.id, shot: 1, custom: "they lean in close" });
+    await make(cookie, { action: "approve", id: plan.id, media_id: null, approved: true });
+    const filmed = (await (await make(cookie, { action: "film", id: plan.id })).json()).reel as Reel;
+    expect(filmed.shots[0]).toMatchObject({ status: "ready", media_id: "vid-1", from_video: true });
+    expect(filmed.shots[1].status).toBe("queued");
+    const queued = seen.filter((x) => x.path === "/video/queue");
+    expect(queued).toHaveLength(1);
+    expect(queued[0].body.image_url).not.toMatch(/\/media\/vid-1\?/);
+  });
+
+  it("films a storyboard made only of videos they already have, without spending", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    await sceneAt(id, 1, linesOf(1, 8), { place: "the harbour", set: "harbour", stage: 2 });
+    const seen = fakeMedia();
+    director([2]);
+    const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data) values ('vid-only', $1, $2, $3, 'video', 'p', 'video/mp4', $4)`, [id, CAST_A, CAST_B, Buffer.from(PNG)]);
+    await make(cookie, { action: "use_video", id: plan.id, shot: 0, video_id: "vid-only" });
+    const filmed = (await (await make(cookie, { action: "film", id: plan.id })).json()).reel as Reel;
+    expect(filmed.status).toBe("ready");
+    expect(filmed.shots[0]).toMatchObject({ status: "ready", media_id: "vid-only", from_video: true });
+    expect(seen.filter((x) => x.path === "/video/queue")).toHaveLength(0);
+  });
+
   it("a shot filmed again settles on its own: its price back if it fails, the reel's own share never refunded twice", async () => {
     const owner = userIdOf(newUserCookie());
     await t.db.query(`insert into pack_episode_usage (user_id, used) values ($1, 20)`, [owner]);

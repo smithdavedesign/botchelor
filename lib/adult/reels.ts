@@ -188,6 +188,8 @@ export type ReelShot = {
   before?: { who: "a" | "b"; text: string }[];
   /** It starts from a picture the owner picked from the pair's own (useShotPicture): `media_id` and `frame_id` are it. */
   from_picture?: boolean;
+  /** It IS a video the owner already made (useShotVideo): `media_id` is that clip, the shot is done (ready), not filmed. */
+  from_video?: boolean;
   /** Drawn like one of the pair's pictures (the storyboard's Draw like it): its pose, framing and place, as Picture 3. */
   ref_id?: string;
   /** Re-filmed (refilmShot): what this shot's new video cost, given back if it fails and cleared once it's settled. */
@@ -1430,7 +1432,15 @@ export async function filmReel(db: Db, ownerId: string, reelId: string, baseUrl:
   if (!row) return { ok: false, status: 404, error: "not_found", message: "That storyboard isn't here." };
   if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
   const ready = row.shots.filter((s) => s.status === "frame_ready" && !s.archived_at);
-  if (!ready.length) return { ok: false, status: 409, error: "no_frames", message: "Draw and keep at least one picture first, then film." };
+  if (!ready.length) {
+    // Nothing to film, but there are videos they dropped in (useShotVideo): the movie is just those, so finish it now,
+    // no spend. Otherwise there's nothing to make yet.
+    if (row.shots.some((s) => s.status === "ready" && s.from_video && !s.archived_at)) {
+      await db.query(`update adult_reels set status = 'ready', tokens = 0, updated_at = now() where id = $1 and status = 'draft'`, [reelId]);
+      return { ok: true, reel: (await getReel(db, reelId))! };
+    }
+    return { ok: false, status: 409, error: "no_frames", message: "Draw and keep at least one picture (or add a video you've made), then film." };
+  }
   // The movie is only made once the owner has approved every shot they're keeping (David, 2026-10-24).
   const toApprove = ready.filter((s) => !s.approved).length;
   if (toApprove) return { ok: false, status: 409, error: "needs_approval", message: `Approve every shot's picture first: ${toApprove} still to go.` };
@@ -1883,7 +1893,7 @@ export async function redrawShot(
   // Back to planned so drawReelFrames draws just this one; its old keyframe (or picked picture) and approval go.
   Object.assign(shot, { status: "planned" as const, custom: words.words, approved: false, ref_id: reference });
   if (!reference) delete shot.ref_id;
-  for (const f of ["media_id", "frame_id", "archived_at", "archived_by", "reason", "from_beat", "from_picture"] as const) delete shot[f];
+  for (const f of ["media_id", "frame_id", "archived_at", "archived_by", "reason", "from_beat", "from_picture", "from_video"] as const) delete shot[f];
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(shots)]);
   return drawReelFrames(db, ownerId, reelId, baseUrl, k);
 }
@@ -1938,7 +1948,39 @@ export async function useShotPicture(db: Db, ownerId: string, reelId: string, sh
   if (!(await pairPicture(db, ownerId, row.a, row.b, imageId))) return { ok: false, status: 404, error: "not_found", message: "That picture isn't one of this pair's." };
   const shot = row.shots[k];
   Object.assign(shot, { status: "frame_ready" as const, media_id: imageId, frame_id: imageId, from_picture: true, approved: false });
-  for (const f of ["archived_at", "archived_by", "reason", "from_beat", "ref_id"] as const) delete shot[f];
+  for (const f of ["archived_at", "archived_by", "reason", "from_beat", "ref_id", "from_video"] as const) delete shot[f];
+  await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(row.shots)]);
+  return { ok: true, reel: (await getReel(db, reelId))! };
+}
+
+/** One of the owner's ready videos of this pair (a clip or a studio animation), to drop into a shot as it is. */
+async function pairVideo(db: Db, ownerId: string, a: string, b: string, videoId: string): Promise<boolean> {
+  const { rows } = await db.query(
+    `select 1 from adult_images
+      where id = $1 and owner_id = $2 and status = 'ready' and kind = 'video'
+        and character_id in ($3, $4) and (character_b is null or character_b in ($3, $4))`,
+    [videoId, ownerId, a, b],
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Use one shot as a video the owner has already made, instead of drawing and filming it (David, 2026-10-25: "allow to
+ * choose a video from the studio or after dark that's already been done … right now you can only select an image").
+ * One of theirs, of this pair, ready. It's a finished, already-checked video, so the shot is done at once (`ready`) —
+ * nothing is drawn, filmed or spent, and it's kept as-is when the movie is made.
+ */
+export async function useShotVideo(db: Db, ownerId: string, reelId: string, shotIndex: number, videoId: string): Promise<MakeReelResult> {
+  const row = await loadDraft(db, ownerId, reelId);
+  if (!row) return { ok: false, status: 404, error: "not_found", message: "That storyboard isn't here." };
+  if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
+  const k = findShot(row.shots, { shot: shotIndex });
+  if (k < 0) return { ok: false, status: 404, error: "not_found", message: "There's no such shot." };
+  if (!(await pairVideo(db, ownerId, row.a, row.b, videoId))) return { ok: false, status: 404, error: "not_found", message: "That video isn't one of this pair's." };
+  const shot = row.shots[k];
+  // A finished video: the shot is ready as it is (it plays in the movie), and it never needs filming or approval.
+  Object.assign(shot, { status: "ready" as const, media_id: videoId, frame_id: videoId, from_video: true, approved: true });
+  for (const f of ["archived_at", "archived_by", "reason", "from_beat", "from_picture", "ref_id"] as const) delete shot[f];
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(row.shots)]);
   return { ok: true, reel: (await getReel(db, reelId))! };
 }
