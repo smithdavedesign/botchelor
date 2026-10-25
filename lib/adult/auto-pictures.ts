@@ -19,12 +19,24 @@ import type { Character } from "../character";
 import type { Db } from "../db";
 import { inBackground } from "../sets";
 import { hivePausedUntil } from "./hive-limit";
+import { isPublicPlace } from "./continuity";
+import { repairPlacePronouns } from "./craft";
 import { makePicture, outputCheckReady, pictureKeyReady, recentActions, scenePrompt, type Media } from "./media";
+import { venueSituation } from "./scene-catalog";
 import { getAdultSettings } from "./settings";
 import { mediaAllowedFor } from "./place";
 
 /** What an automatic picture needs from the scene: which one, its chapter, where they are, how far it's gone, the lines. */
-export type AutoPictureScene = { id: string; chapter: number; place: string | null; set_place: string | null; stage: number; lines: readonly { text: string }[] };
+export type AutoPictureScene = {
+  id: string;
+  chapter: number;
+  place: string | null;
+  set_place: string | null;
+  stage: number;
+  lines: readonly { text: string }[];
+  /** Whose home they're in (the night's last stop), so "his apartment" with two women reads as hers. */
+  home?: "a" | "b" | null;
+};
 
 /** The claim for a chapter's picture at a place: "5:the rainy garden". */
 export const autoPictureKey = (chapter: number, where: string | null): string =>
@@ -65,10 +77,24 @@ export function setAutoPictureClockForTests(f: (() => number) | null): void {
 /** What the picture shows: the two of them, where the scene stands. The stage, the place and the lines do the rest. */
 const DESCRIPTION = "The two of them together, as their night stands right now";
 
+/**
+ * The picture's prompt, as the scene stands (also what the admin preview shows: app/api/admin/after-dark/picture-prompt):
+ * where they are, its pronouns put right for the two of them, what the place puts them in, dressed for it, and what they
+ * just did, whole (David, 2026-10-25: "not enough context of the scene and what they're wearing … common sense").
+ */
+export function autoPicturePrompt(scene: AutoPictureScene, a: Character, b: Character, ownerId: string): string {
+  const raw = scene.set_place ?? scene.place;
+  const home = scene.home ?? null;
+  const place = repairPlacePronouns(raw, { a: a.pronouns, b: b.pronouns }, { a: a.name, b: b.name }, home).text;
+  const situation = venueSituation(raw);
+  const publicPlace = !home && (isPublicPlace(raw, home) || Boolean(situation));
+  return scenePrompt(a, b, "both", DESCRIPTION, { place, stage: scene.stage, recent: recentActions([...scene.lines].slice(-6), 3), situation, publicPlace }, ownerId);
+}
+
 /** Draws the picture (makePicture: the provider, the output check, the cap). */
 export async function drawAutoPicture(db: Db, ownerId: string, scene: AutoPictureScene, a: Character, b: Character): Promise<Media> {
   const where = scene.set_place ?? scene.place;
-  const prompt = scenePrompt(a, b, "both", DESCRIPTION, { place: where, stage: scene.stage, recent: recentActions([...scene.lines].slice(-6)) }, ownerId);
+  const prompt = autoPicturePrompt(scene, a, b, ownerId);
   // A picture of both goes without a face reference: the face model reads one face (lib/adult/media.ts FACE_MODEL).
   return makePicture(db, ownerId, { prompt, kind: "scene", character_id: a.id, character_b: b.id, face_of: null, scene_chapter: scene.chapter, scene_place: where });
 }

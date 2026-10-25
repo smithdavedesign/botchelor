@@ -209,23 +209,46 @@ const picks = (c: Character, viewer?: string | null) => looksPictureWords(c.extr
  * Undressed, what shows only then (the private grooming pick), except in a waist-up picture (the baseline, or the words
  * a keyframe tells two of them apart by), which never names what's below its frame.
  */
-export function lookWords(c: Character, undressed: boolean, viewer?: string | null, waistUp = false): string {
+export function lookWords(c: Character, undressed: boolean, viewer?: string | null, waistUp = false, everyday = false): string {
   const picked = picks(c, viewer);
   if (!picked.body) return physicalLook(c, undressed);
-  return [picked.body, !undressed && picked.outfit ? `wearing ${picked.outfit}` : "", undressed && !waistUp ? picked.undressed : ""].filter(Boolean).join(", ");
+  // `everyday`: what they wear out (pictureDress), not After Dark's outfit.
+  const worn = everyday ? picked.everyday : picked.outfit;
+  return [picked.body, !undressed && worn ? `wearing ${worn}` : "", undressed && !waistUp ? picked.undressed : ""].filter(Boolean).join(", ");
 }
 
-const person = (c: Character, undressed: boolean, viewer?: string | null, waistUp = false) => {
+const person = (c: Character, undressed: boolean, viewer?: string | null, waistUp = false, everyday = false) => {
   const p = c.pronouns?.startsWith("she") ? "woman" : c.pronouns?.startsWith("he") ? "man" : "person";
-  const look = lookWords(c, undressed, viewer, waistUp);
+  const look = lookWords(c, undressed, viewer, waistUp, everyday);
   return `a ${Math.max(18, c.age)}-year-old adult ${p}${look ? `, ${look}` : ""}`;
 };
+
+/**
+ * What they wear in a scene picture, by common sense (David, 2026-10-25: a woman in lingerie in a picture of them leaving a
+ * bar): undressed from undressing on (or when the lines are explicit); After Dark's outfit only somewhere private once it's
+ * gone past flirting; otherwise what they wear out.
+ */
+export function pictureDress(ctx: Pick<PictureContext, "stage" | "explicit" | "publicPlace"> | undefined): "undressed" | "after_dark" | "everyday" {
+  if (!ctx || ctx.explicit === true || ctx.stage >= UNDRESSED_FROM) return "undressed";
+  return !ctx.publicPlace && ctx.stage >= AFTER_DARK_OUTFIT_FROM ? "after_dark" : "everyday";
+}
+/** From kissing (stage 3 of 5) on, somewhere private, After Dark's outfit; before it, what they wore out. */
+const AFTER_DARK_OUTFIT_FROM = 2;
 
 /**
  * Where a scene is when a picture is taken: the place, how far it's gone (lib/adult/stages.ts), whether the model
  * called these lines explicit, and what they just did.
  */
-export type PictureContext = { place: string | null; stage: number; explicit?: boolean; recent: string[] };
+export type PictureContext = {
+  place: string | null;
+  stage: number;
+  explicit?: boolean;
+  recent: string[];
+  /** What the place puts them in (a library venue's own words: lib/adult/scene-catalog.ts venueSituation). */
+  situation?: string | null;
+  /** Out in public (a bar, a street, any library venue but a home): they're dressed to be out. */
+  publicPlace?: boolean;
+};
 
 /** The last few actions from a scene's lines ("*pulls her closer*"), the freshest last: what a picture should show. */
 export function recentActions(lines: { text: string }[], n = 2): string[] {
@@ -233,7 +256,21 @@ export function recentActions(lines: { text: string }[], n = 2): string[] {
     .map((l) => l.text.match(/^\*([^*]+)\*/)?.[1]?.trim())
     .filter((x): x is string => Boolean(x))
     .slice(-n)
-    .map((x) => x.split(/\s+/).slice(0, 12).join(" "));
+    .map((x) => wholeAction(x));
+}
+
+/** Words that can't end a clipped action ("letting in a slice of;", 2026-10-25): cut back past them. */
+const DANGLING = /\s+(?:a|an|the|of|to|with|and|or|but|in|on|at|into|onto|from|for|by|as|her|his|their|its|my|your|letting|while)$/i;
+/** An action as a picture can use it: whole up to ACTION_WORDS, else cut at its last comma, never mid-phrase. */
+const ACTION_WORDS = 24;
+export function wholeAction(text: string): string {
+  const words = text.replace(/[.;:]+$/, "").split(/\s+/);
+  if (words.length <= ACTION_WORDS) return words.join(" ");
+  let cut = words.slice(0, ACTION_WORDS).join(" ");
+  const comma = cut.lastIndexOf(",");
+  if (comma > cut.length / 2) cut = cut.slice(0, comma);
+  while (DANGLING.test(cut)) cut = cut.replace(DANGLING, "");
+  return cut.trim();
 }
 
 /** From "undressing" (stage 4 of 5) on, what they wear is left out of their look. */
@@ -255,14 +292,20 @@ export function baselinePrompt(c: Character, viewer?: string | null, light = "na
 
 /** A picture the scene asked for, of one or both of them: what it shows first, then who, then where and what just happened. */
 export function scenePrompt(a: Character, b: Character, of: "a" | "b" | "both", description: string, ctx?: PictureContext, viewer?: string | null): string {
-  const undressed = !ctx || ctx.explicit === true || ctx.stage >= UNDRESSED_FROM;
-  const who = (c: Character) => person(c, undressed, viewer);
+  const dress = pictureDress(ctx);
+  const undressed = dress === "undressed";
+  const who = (c: Character) => person(c, undressed, viewer, false, dress === "everyday");
   const people = of === "a" ? who(a) : of === "b" ? who(b) : `${who(a)} and ${who(b)}`;
   const opener = undressed ? "Explicit, uncensored adult photograph" : "Candid adult photograph";
+  // The place, and what it puts them in; a venue whose own words start with its name says it once ("an awkward double date
+  // with a smug couple…").
+  const situation = ctx?.situation ?? null;
+  const setting = !ctx?.place ? (situation ?? "") : !situation ? ctx.place : situation.toLowerCase().startsWith(ctx.place.toLowerCase()) ? situation : `${ctx.place}, ${situation}`;
   return [
     `${opener}: ${description.trim().replace(/\.$/, "")}.`,
     `${people[0].toUpperCase()}${people.slice(1)}.`,
-    ctx?.place ? `Setting: ${ctx.place}.` : "",
+    dress === "everyday" ? `${of === "both" ? "Both" : "They're"} dressed for going out, in everyday clothes${ctx?.publicPlace ? ", out in public" : ""}.` : "",
+    setting ? `Setting: ${setting}.` : "",
     ctx?.recent.length ? `Just now: ${ctx.recent.join("; ")}.` : "",
     "Photorealistic. Everyone shown is an adult.",
   ]

@@ -36,7 +36,7 @@ import {
   type Suggestion,
   type Whispers,
 } from "./director";
-import { agreedMove, historyPhrase, isPublicPlace, MAX_SCENE_MOVES, placeLocked, proposesMove, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
+import { agreedMove, historyPhrase, isPublicPlace as isPublicSet, MAX_SCENE_MOVES, placeLocked, proposesMove, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
 import { loadChain } from "../text-chain";
 import { placeParts, venuePhrase } from "../venues";
 import { activeLimit, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
@@ -46,6 +46,13 @@ import { fileSteps, flagStep, logStep, markRewound, stepIndexOf, stepsOf, unfile
 import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensityOf, limitsHit, NO_LIMITS, overIntensity, OWN_LEN, OWN_MAX, plainTalk, storedHardNos, type HardNos, type Intensity, type PairLimits } from "./limits";
 import { consentRefusal, framingOf, hasProfileConsent, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
 import { scenarioById, type Scenario } from "./scenarios";
+import { venueSituation } from "./scene-catalog";
+
+/**
+ * Out in public: a set the place rules know is public, or any library venue but a home (its situation is a restaurant, a
+ * bar, a beach: "An awkward double date" named no place the rules knew, so it read as private, 2026-10-25).
+ */
+const isPublicPlace = (label: string | null | undefined, home: "a" | "b" | null = null): boolean => isPublicSet(label, home) || (!home && Boolean(venueSituation(label)));
 import { roleplayById, roleplayLine, type Roleplay } from "./roleplays";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import {
@@ -491,11 +498,15 @@ const sheetV2 = (c: Character | null, side: "a" | "b", catchphraseUsed = false, 
  * on prod, 2026-10-22: her bakery in 137 of 298 lines, his pottery in 73, her pencil spun 31 times, during sex too): their
  * job and hobbies come up now and then, not in every line, and their tells are left to the craft rules.
  */
-function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }, plain = false, explicit = false): string[] {
+function voiceRules(a: Character | null, b: Character | null, names: { a: string; b: string }, plain = false, explicit = false, situation = false): string[] {
   const banned = bannedPhrases([a, b].filter((c): c is Character => Boolean(c)).map((c) => sheetText(sideOfCharacter(c))));
   const pronouns = (c: Character | null, name: string) => `${name.split(/\s+/)[0]}: ${c?.pronouns?.trim() || "none given, so use their name"}`;
   return [
-    `Only the two of them are in this scene: ${names.a} and ${names.b}. Nobody else speaks, arrives or is named, and each calls the other by their own name.`,
+    // A venue's situation can put others there (a double date's smug couple, a hovering waiter: venueSituation). They're
+    // real and in the room, but only the two of them speak, and nobody else gets a name (the name guard drops one).
+    situation
+      ? `Only the two of them speak: ${names.a} and ${names.b}. Anyone tonight's situation puts there is really there (seen, talked about, reacted to, part of what happens) but is never named and never gets a line; each calls the other by their own name.`
+      : `Only the two of them are in this scene: ${names.a} and ${names.b}. Nobody else speaks, arrives or is named, and each calls the other by their own name.`,
     // v2.3 (David, 2026-10-23: a baker turned every line of a filthy steer into a baking pun): at Filthy's late stages the
     // voice is attitude and rhythm, and the jokes and the job are a seasoning.
     // v2.5: from undressing on, their rhythm and delivery, not their subjects (LOVERS_VOICE).
@@ -798,6 +809,10 @@ export function sceneMessages(
   const names = { a: nameOf("a"), b: nameOf("b") };
   const fixPlace = (label: string) => repairPlacePronouns(possessiveNames(label, names), { a: a?.pronouns, b: b?.pronouns }, names, now.homeNow ?? null).text ?? label;
   const where = v2 ? { place: fixPlace(now.place), set: now.set ? fixPlace(now.set) : now.set } : { place: now.place, set: now.set };
+  // A library venue they're at (picked in Set the scene by its name, or their date's own venue before anyone moved): what
+  // it puts them in, the people in it included (lib/adult/scene-catalog.ts venueSituation).
+  // v2 only: prompt v1 stays the prompt it was, word for word.
+  const situation = !v2 ? null : (venueSituation(now.set) ?? venueSituation(now.place) ?? (!now.set ? venueSituation(date?.venue ?? null) : null));
   const sheetItems = v2 ? (now.sheetItems ?? []) : [];
   // A date's sides are its own a and b; map them onto the scene's (the pair is stored lower id first).
   const flip = date && aId ? date.character_a !== aId : false;
@@ -823,7 +838,7 @@ export function sceneMessages(
       ? "Rules that never move: nobody in the scene is under 18 or described as a child; no real, identifiable person appears or is named; both are always willing (no force, drugging, sleep or non-consent, even as a game); no family; no animals; no gore, torture or deadly violence."
       : "Two rules never move: nobody in the scene is under 18 or described as a child, and no real, identifiable person appears or is named.",
     ...hardNoLines(limits.hard_nos),
-    ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }, plain, now.stage >= UNDRESSING) : []),
+    ...(v2 ? voiceRules(a, b, { a: nameOf("a"), b: nameOf("b") }, plain, now.stage >= UNDRESSING, Boolean(situation)) : []),
     "",
     v2 ? sheetV2(a, "a", now.catchphraseUsed?.a, now.styles?.a, explicitTopics) : sheetOf(a, "a", now.catchphraseUsed?.a),
     "",
@@ -849,6 +864,7 @@ export function sceneMessages(
     ...(carry ? carryLines(carry, nameOf) : []),
     "",
     `Where they are now: ${where.place}${where.set && where.set.toLowerCase() !== where.place.toLowerCase() ? ` (the set: ${where.set})` : ""}. How far it's gone: ${STAGES[now.stage]} (stage ${now.stage + 1} of ${STAGES.length}: ${STAGES.join(" → ")}).${capped ? ` Tonight it goes no further than ${STAGES[cap]}.` : ""}`,
+    situation ? `Tonight's situation: ${situation}. Play it: whoever it puts there is part of the scene (what they do and say is described, never quoted), and the two of them react to it, until they leave.` : "",
     // The night's places, so nobody asks "my place?" once they're there (Star × Chud, 2026-10-21, asked it at his place).
     (now.history?.length ?? 0) > 1 ? `Where they've been tonight, in order: ${historyPhrase(now.history!)}. They're at the last one now.` : "",
     now.homeNow ? `They're in ${nameOf(now.homeNow)}'s home now: nobody asks "my place?" or "your place?" again.` : "",
@@ -2314,7 +2330,19 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
       if (meta.explicit) for (const c of [a, b]) { const made = await ensureBaseline(db, adminId, c); if (made) pictures.push(made); }
       if (meta.picture) {
         const forOne = meta.picture.of === "b" ? b.id : a.id;
-        const pctx = { place, stage, explicit: meta.explicit, recent: recentActions(step.lines) };
+        // The same context a chapter's picture gets (lib/adult/auto-pictures.ts autoPicturePrompt): the place's pronouns put
+        // right, what it puts them in, and dressed for it.
+        const home = place_history.at(-1)?.home ?? null;
+        // The lines' own place ("his flat") over the set it's drawn on; the set names the venue, if it's one.
+        const situation = venueSituation(set_place ?? place);
+        const pctx = {
+          place: repairPlacePronouns(place ?? set_place, { a: a.pronouns, b: b.pronouns }, { a: a.name, b: b.name }, home).text,
+          stage,
+          explicit: meta.explicit,
+          recent: recentActions(step.lines),
+          situation,
+          publicPlace: isPublicPlace(set_place ?? place, home),
+        };
         pictures.push(
           await makePicture(db, adminId, {
             prompt: scenePrompt(a, b, meta.picture.of, meta.picture.description, pctx, adminId),
@@ -2339,7 +2367,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // A picture of the two of them for each chapter and each place (lib/adult/auto-pictures.ts). Asked on every step, so
   // one that didn't come (Hive busy, 2026-10-23) is drawn on a later step; the claim keeps it to one per chapter and
   // place. Claimed now, drawn after the response; never fails the step.
-  const autoPicture = await kickAutoPicture(db, adminId, { id: scene.id, chapter: scene.chapter, place: place ?? ctx.date?.setting ?? null, set_place, stage, lines }, a, b);
+  const autoPicture = await kickAutoPicture(db, adminId, { id: scene.id, chapter: scene.chapter, place: place ?? ctx.date?.setting ?? null, set_place, stage, lines, home: place_history.at(-1)?.home ?? null }, a, b);
   let after: LoadedScene = { ...scene, ...next, suggestions, whispers: nextWhispers, picture_note: note, undo: stack, beats: await chapterBeats(db, scene.id, scene.chapter) };
   // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one. What the close
   // changed goes with the step's undo, so a rewind takes it back too.

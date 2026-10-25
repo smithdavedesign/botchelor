@@ -711,12 +711,14 @@ describe("what a picture's prompt knows", () => {
     expect(reelCast(bare, star({ gender: "woman", ethnicity: "asian" }), "owner-1")[0].tag).toBe("the woman with Latina");
   });
 
-  it("keeps the private After Dark picks to the owner's pictures, and the outfit until they undress", () => {
+  it("keeps the private After Dark picks to the owner's pictures, and their outfit to somewhere private past flirting, until they undress", () => {
     const s = star({ ...picked, after_dark: { outfit: "lingerie", butt: "small" } });
     const other = baselinePrompt(s, "someone-else");
     expect(other).not.toMatch(/butt|lingerie/);
     expect(other).toMatch(/Wearing a one-piece swimsuit/);
-    expect(scenePrompt(chud, s, "b", "by the pool", { place: "the pool", stage: 1, recent: [] }, "owner-1")).toMatch(/a small pert butt, wearing black lace lingerie\. Setting/);
+    // By the pool, still flirting: what she wears out (David, 2026-10-25: no underwear just out of a bar); his flat, kissing: After Dark's.
+    expect(scenePrompt(chud, s, "b", "by the pool", { place: "the pool", stage: 1, recent: [] }, "owner-1")).toMatch(/a small pert butt, wearing a one-piece swimsuit\./);
+    expect(scenePrompt(chud, s, "b", "on the couch", { place: "his flat", stage: 2, recent: [] }, "owner-1")).toMatch(/a small pert butt, wearing black lace lingerie\. Setting/);
     expect(scenePrompt(chud, s, "b", "in bed", { place: "his flat", stage: 4, explicit: true, recent: [] }, "owner-1")).not.toMatch(/wearing|lingerie/);
   });
 });
