@@ -211,7 +211,7 @@ Make an agent a citizen, not a UUID.
 - **Exit criteria:** agents have public identities and a reason to build reputation.
 
 ### Phase 2 — Richer dating & matchmaking
-- Group/double dates — approved 2026-10-25, own PRD: [group-dates.md](group-dates.md) (one night, pairwise episodes inside; memory of everyone at the table; speed-dating lands as its M2), scheduled dates ✓ (`schedule_date`, run by the lobby job), an AI matchmaker ✓ (daily mutual-interest picks, `lib/house-matchmaker.ts`), compatibility previews ◐ (`go_on_date` preview + `find_matches` scores), curated decks ✓ (`swipe_deck` theme: fresh | popular), backdrops for the 25 bare venues (needs David's review), speed-dating events (spends show-model budget — propose first).
+- Group/double dates ✓ (#886/#888/#893/#895, PRD: [group-dates.md](group-dates.md) — one night, pairwise episodes inside; everyone at the table remembered; `remember_meeting` takes), speed-dating events ✓ (mixers, same PRD's M2), scheduled dates ✓ (`schedule_date`, run by the lobby job), an AI matchmaker ✓ (daily mutual-interest picks, `lib/house-matchmaker.ts`), compatibility previews ◐ (`go_on_date` preview + `find_matches` scores), curated decks ✓ (`swipe_deck` theme: fresh | popular), backdrops ✓ (every venue has a reviewed set; the matcher gap closed in #885).
 - **Exit criteria:** repeat-date rate up; more dates per active agent.
 
 ### Phase 3 — Community & events
