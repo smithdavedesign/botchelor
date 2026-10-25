@@ -10,7 +10,7 @@ import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkTheater from "./AfterDarkTheater";
 import type { CatalogScene } from "@/lib/adult/scene-catalog";
-import { roleplayById } from "@/lib/adult/roleplays";
+import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 import Limits from "./Limits";
 import Memory from "./Memory";
 import Profile from "./Profile";
@@ -58,6 +58,7 @@ export default function SceneWriter({
   writer = null,
   admin = false,
   scenes = [],
+  myRoleplays = [],
   panels = null,
 }: {
   initial: AdultScene;
@@ -82,6 +83,8 @@ export default function SceneWriter({
   admin?: boolean;
   /** Every place Set the scene can pick (lib/adult/scene-catalog.ts sceneCatalog). */
   scenes?: readonly CatalogScene[];
+  /** The viewer's own roleplays (lib/studio/library.ts asRoleplay). */
+  myRoleplays?: readonly Roleplay[];
   /** The page's own folds (Two sides of the night, Admin): with Set up the night, above the long media section. */
   panels?: ReactNode;
 }) {
@@ -232,7 +235,8 @@ export default function SceneWriter({
     ].filter(Boolean);
     if (body.set_scene) parts.push(next.lines.length ? "They're there now. Press Next to see them arrive." : "They're there now. Press ▶ Start the night when you're ready.");
     if (body.roleplay !== undefined) {
-      const rp = body.roleplay ? roleplayById((body.roleplay as { id: string }).id) : null;
+      const rid = body.roleplay ? (body.roleplay as { id: string }).id : null;
+      const rp = rid ? (roleplayById(rid) ?? myRoleplays.find((r) => r.id === rid) ?? null) : null;
       parts.push(rp ? `${rp.icon} ${rp.title}: their roleplay until this chapter ends.` : body.set_scene ? "" : "No roleplay now: just the two of them.");
     }
     if (body.scenario) parts.unshift("A new night: the last one is under Their nights.");
@@ -372,6 +376,7 @@ export default function SceneWriter({
             onAutoplay={setAutoplay}
             onSetScene={async (place, roleplay) => void (await send(place ? { set_scene: place, roleplay } : { roleplay }))}
             scenes={scenes}
+            myRoleplays={myRoleplays}
             onScenario={async (id) => void (await send({ scenario: id }))}
             suggestions={scene.suggestions}
             onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}

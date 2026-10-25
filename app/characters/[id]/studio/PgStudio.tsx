@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import { PG_CUSTOM_MAX, type PgChoices, type PgGroup, type PgGroupId } from "@/lib/studio/pg-catalog";
 import type { PgPicture, PgState } from "@/lib/studio/pg";
+import type { Library } from "@/lib/studio/library";
+import CreateLibrary from "@/app/studio/CreateLibrary";
 
 const pictureUrl = (id: string) => `/api/studio/pictures/${id}`;
 
@@ -14,7 +16,9 @@ const pictureUrl = (id: string) => `/api/studio/pictures/${id}`;
  */
 export default function PgStudio({ initial }: { initial: PgState }) {
   const [state, setState] = useState(initial);
-  const [tab, setTab] = useState<"shoot" | "gallery">("shoot");
+  const [tab, setTab] = useState<"shoot" | "gallery" | "create">("shoot");
+  // One of their own venues (Create), standing in for the menu's place.
+  const [ownPlace, setOwnPlace] = useState<string | null>(null);
   const [choices, setChoices] = useState<Partial<Record<PgGroupId, string | string[]>>>({});
   const [custom, setCustom] = useState("");
   const [open, setOpen] = useState<PgGroupId | null>("shot");
@@ -48,7 +52,9 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     setBusy(true);
     setNote(null);
     // Swimwear only goes with a beach or pool: a pick left over from another place is dropped rather than refused.
-    const body: PgChoices = { ...choices, ...(custom.trim() ? { custom: custom.trim() } : {}) };
+    const mine = state.library.places.find((p) => p.id === ownPlace);
+    const body: PgChoices = { ...choices, ...(custom.trim() ? { custom: custom.trim() } : {}), ...(mine ? { own_place: { name: mine.name, description: mine.description } } : {}) };
+    if (mine) delete body.place;
     if (!beach && body.wardrobe === "swim") delete body.wardrobe;
     const res = await requestJson(`/api/characters/${c.id}/studio`, { action: "shoot", choices: body }).catch(() => null);
     setBusy(false);
@@ -60,6 +66,9 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     if (refresh) setState(refresh as PgState);
     setNote(res.data.message ? { text: String(res.data.message), error: pics.length === 0 } : { text: `${pics.length} new picture${pics.length === 1 ? "" : "s"}: they're in the gallery too.` });
   }
+
+  // The Create tab saved or deleted something: the Where menu and the prompts row follow at once.
+  const onLibrary = useCallback((lib: Library) => setState((s) => ({ ...s, library: { places: lib.places.filter((p) => p.mode === "safe"), prompts: lib.prompts.filter((p) => p.mode === "safe") } })), []);
 
   async function remove(id: string) {
     const res = await requestJson(`/api/characters/${c.id}/studio`, { action: "delete", picture_id: id }).catch(() => null);
@@ -79,6 +88,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
           [
             ["shoot", "📸 Shoot"],
             ["gallery", `🖼 Gallery (${state.pictures.length})`],
+            ["create", "✨ Create"],
           ] as const
         ).map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} className={`segmented-tab${tab === id ? " on" : ""}`} onClick={() => setTab(id)}>
@@ -95,14 +105,40 @@ export default function PgStudio({ initial }: { initial: PgState }) {
               <div key={g.id} className={`pg-group card${open === g.id ? " open" : ""}`}>
                 <button type="button" className="pg-group-head" aria-expanded={open === g.id} onClick={() => setOpen(open === g.id ? null : g.id)}>
                   <strong>{g.title}</strong>
-                  <span className="muted small">{summary(g) || (g.pick === "many" ? `up to ${g.max}` : "any")}</span>
+                  <span className="muted small">{(g.id === "place" && ownPlace ? `✨ ${state.library.places.find((p) => p.id === ownPlace)?.name ?? ""}` : summary(g)) || (g.pick === "many" ? `up to ${g.max}` : "any")}</span>
                 </button>
                 {open === g.id && (
                   <div className="chips pg-chips" role="group" aria-label={g.title}>
+                    {/* Their own venues (Create) first, under the menu's: one place or the other. */}
+                    {g.id === "place" &&
+                      state.library.places.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={`chip pg-mine${ownPlace === p.id ? " chip-on" : ""}`}
+                          aria-pressed={ownPlace === p.id}
+                          title={p.description ?? undefined}
+                          onClick={() => {
+                            setOwnPlace(ownPlace === p.id ? null : p.id);
+                            setChoices((cur) => ({ ...cur, place: undefined }));
+                          }}
+                        >
+                          ✨ {p.name}
+                        </button>
+                      ))}
                     {g.options
                       .filter((o) => !o.beach || beach)
                       .map((o) => (
-                        <button key={o.id} type="button" className={`chip${picked(g, o.id) ? " chip-on" : ""}`} aria-pressed={picked(g, o.id)} onClick={() => toggle(g, o.id)}>
+                        <button
+                          key={o.id}
+                          type="button"
+                          className={`chip${picked(g, o.id) ? " chip-on" : ""}`}
+                          aria-pressed={picked(g, o.id)}
+                          onClick={() => {
+                            if (g.id === "place") setOwnPlace(null);
+                            toggle(g, o.id);
+                          }}
+                        >
                           {o.label}
                         </button>
                       ))}
@@ -113,6 +149,16 @@ export default function PgStudio({ initial }: { initial: PgState }) {
           </div>
           <label htmlFor="pg-custom">Your own words (optional)</label>
           <textarea id="pg-custom" rows={2} maxLength={PG_CUSTOM_MAX} value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Holding a red umbrella, laughing at something off camera…" />
+          {state.library.prompts.length > 0 && (
+            <p className="create-ideas pg-my-prompts">
+              <span className="muted small">✨ Your prompts:</span>
+              {state.library.prompts.map((p) => (
+                <button key={p.id} type="button" className="chip" title={p.text} onClick={() => setCustom(p.text.slice(0, PG_CUSTOM_MAX))}>
+                  {p.title ?? (p.text.length > 30 ? `${p.text.slice(0, 28)}…` : p.text)}
+                </button>
+              ))}
+            </p>
+          )}
           <p className="pg-go">
             <button type="button" className="primary" disabled={busy || !canPay || state.left_this_month < state.shoot_size} onClick={() => void shoot()}>
               {busy ? "Shooting… (about a minute)" : `Shoot ${state.shoot_size} · ${price}`}
@@ -129,6 +175,8 @@ export default function PgStudio({ initial }: { initial: PgState }) {
           )}
           {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} />}
         </>
+      ) : tab === "create" ? (
+        <CreateLibrary scope="safe" onLibrary={onLibrary} />
       ) : state.pictures.length ? (
         <Pictures items={state.pictures} onDelete={remove} />
       ) : (

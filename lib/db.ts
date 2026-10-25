@@ -2413,6 +2413,38 @@ create table if not exists studio_pg_pictures (
 );
 create index if not exists studio_pg_pictures_owner_idx on studio_pg_pictures (owner_id, character_id, created_at desc);
 
+-- The Create library (lib/studio/library.ts; David, 2026-10-25): each person's own prompts, venues and roleplays, private
+-- to them. mode: safe (PG, usable in the PG Studio and After Dark) or after_dark (After Dark only).
+create table if not exists creator_prompts (
+  id text primary key,
+  owner_id text not null,
+  text text not null,
+  title text,
+  mode text not null default 'safe' check (mode in ('safe', 'after_dark')),
+  created_at timestamptz not null default now()
+);
+create index if not exists creator_prompts_owner_idx on creator_prompts (owner_id, created_at desc);
+create table if not exists creator_places (
+  id text primary key,
+  owner_id text not null,
+  name text not null,
+  description text,
+  mode text not null default 'safe' check (mode in ('safe', 'after_dark')),
+  created_at timestamptz not null default now()
+);
+create index if not exists creator_places_owner_idx on creator_places (owner_id, created_at desc);
+create table if not exists creator_roleplays (
+  id text primary key,
+  owner_id text not null,
+  title text not null,
+  premise text not null,
+  role_a text,
+  role_b text,
+  category text not null default 'romance',
+  created_at timestamptz not null default now()
+);
+create index if not exists creator_roleplays_owner_idx on creator_roleplays (owner_id, created_at desc);
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

@@ -432,7 +432,10 @@ const wordsOk = (words: string): boolean => checkAdultText({ words }).ok && !cro
 
 export type ShootInput = { choices: ShootChoices; model?: string | null; own_key?: boolean };
 
-/** The places of the character's nights (the viewer's, with a drawn set), for the place menu: "own:<n>". */
+/**
+ * The places of the character's nights (the viewer's, with a drawn set), then the viewer's own venues from the Create
+ * library (lib/studio/library.ts, with or without a set yet), for the place menu: "own:<n>".
+ */
 export async function ownPlaces(db: Db, viewer: string, characterId: string): Promise<{ id: string; label: string; public: boolean }[]> {
   const { rows } = await db.query<{ place: string }>(
     `select distinct set_place as place from (
@@ -443,7 +446,11 @@ export async function ownPlaces(db: Db, viewer: string, characterId: string): Pr
     [viewer, characterId],
   );
   const sets = await setPictures(db, rows.map((r) => r.place));
-  return rows.filter((r) => sets.get(r.place)).map((r, i) => ({ id: `own:${i}`, label: r.place, public: isPublicPlace(r.place) }));
+  const nights = rows.filter((r) => sets.get(r.place)).map((r) => r.place);
+  const mine = (await db.query<{ name: string }>(`select name from creator_places where owner_id = $1 order by created_at desc limit 30`, [viewer]).catch(() => ({ rows: [] as { name: string }[] }))).rows
+    .map((r) => r.name)
+    .filter((n) => !nights.some((x) => x.toLowerCase() === n.toLowerCase()));
+  return [...nights, ...mine].map((label, i) => ({ id: `own:${i}`, label, public: isPublicPlace(label) }));
 }
 
 export async function shoot(db: Db, viewer: string, characterId: string, input: ShootInput, baseUrl: string, opts: { redoOf?: string; free?: boolean } = {}): Promise<JobResult> {
@@ -1271,6 +1278,8 @@ export type StudioState = {
   /** The drawn example pictures for menu options (look_tiles), by option: `restyle.<group>.<option>` → tile id. */
   tiles: Record<string, string>;
   places: { id: string; label: string; public: boolean }[];
+  /** Their own prompts from the Create library (lib/studio/library.ts), for the words box. */
+  my_prompts: { id: string; text: string; title: string | null }[];
   models: (StudioModel & { ready: boolean; price: number })[];
   prices: StudioConfig["prices"];
   sizes: { shoot: number; restyle: number; recast: number; body: number };
@@ -1355,6 +1364,7 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
       restyle_current: restyleCurrent(c.extras?.looks, gender, c.ownerId === viewer),
       tiles: await menuTiles(db, gender),
       places,
+      my_prompts: (await db.query<{ id: string; text: string; title: string | null }>(`select id, text, title from creator_prompts where owner_id = $1 order by created_at desc limit 60`, [viewer]).catch(() => ({ rows: [] }))).rows,
       models: config.models.map((m) => ({ ...m, ready: Boolean(m.provider === "venice" ? keys.venice : keys.replicate) && checker, price: priceOf(m) })),
       prices: config.prices,
       sizes: { shoot: config.shoot_size, restyle: config.restyle_candidates, recast: config.recast_candidates, body: config.body_candidates },

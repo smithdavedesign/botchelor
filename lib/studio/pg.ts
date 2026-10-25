@@ -26,6 +26,7 @@ import { checkPgPictureText } from "../safety";
 import { checkRating } from "../adult/moderation";
 import { adultKeys, getAdultSettings } from "../adult/settings";
 import { PG_GROUPS, PG_NEGATIVE, pgShootPrompt, planPgShoot, planWords, type PgChoices, type PgSubject } from "./pg-catalog";
+import { getLibrary, type MyPlace, type MyPrompt } from "./library";
 
 export type PgFail = { ok: false; status: number; error: string; message: string };
 const fail = (status: number, error: string, message: string): PgFail => ({ ok: false, status, error, message });
@@ -131,6 +132,8 @@ export type PgState = {
   tokens: number;
   left_this_month: number;
   admin: boolean;
+  /** Their own safe venues and prompts (lib/studio/library.ts), for the Where menu and the words box. */
+  library: { places: MyPlace[]; prompts: MyPrompt[] };
 };
 
 const monthStart = () => {
@@ -160,7 +163,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
   const access = await pgAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config, admin } = access;
-  const [pictures, shoots, allowance, used, free, face] = await Promise.all([
+  const [pictures, shoots, allowance, used, free, face, library] = await Promise.all([
     db.query<{ id: string; content_rating: "pg" | "suggestive"; created_at: Date; shoot_id: string | null }>(
       `select id, content_rating, created_at, shoot_id from studio_pg_pictures where owner_id = $1 and character_id = $2 order by created_at desc limit 120`,
       [viewer, c.id],
@@ -173,6 +176,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
     picturesThisMonth(db, viewer!),
     firstShootFree(db, viewer!, c.id, config),
     faceReference(db, c, baseUrl),
+    getLibrary(db, viewer!, { safeOnly: true }).catch(() => ({ places: [], prompts: [], roleplays: [] })),
   ]);
   return {
     ok: true,
@@ -187,6 +191,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
       tokens: allowance.pack_left,
       left_this_month: Math.max(0, config.monthly_cap - used),
       admin,
+      library: { places: library.places, prompts: library.prompts },
     },
   };
 }

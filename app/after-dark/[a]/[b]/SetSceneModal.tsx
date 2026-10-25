@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { filterScenes, SCENE_CATEGORIES, SCENE_TAGS, type CatalogScene, type SceneCategory, type SceneTag } from "@/lib/adult/scene-catalog";
 import { normalizeScene } from "@/lib/venues";
-import { ROLEPLAYS, roleplayById, rolesLine } from "@/lib/adult/roleplays";
+import { ROLEPLAYS, roleplayById, rolesLine, type Roleplay } from "@/lib/adult/roleplays";
 
 const ICON = Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, c.icon])) as Record<SceneCategory, string>;
 
@@ -28,6 +28,8 @@ export default function SetSceneModal({
   current = null,
   locked = null,
   names,
+  myRoleplays = [],
+  createHref = null,
   roleplay = null,
   openAt = "where",
   onGo,
@@ -47,6 +49,10 @@ export default function SetSceneModal({
   locked?: string | null;
   /** Their first names, for the roles ("Dex plays the boss"). */
   names: { a: string; b: string };
+  /** The owner's own roleplays (lib/studio/library.ts), filed under ✨ Yours with the show's. */
+  myRoleplays?: readonly Roleplay[];
+  /** Where to make your own venues and roleplays (the Studio's Create tab). */
+  createHref?: string | null;
   /** This chapter's roleplay, if one is running. */
   roleplay?: RoleplayPick;
   /** Which screen it opens on: where (the places), or who they are (the roleplays, staying where they are). */
@@ -102,9 +108,13 @@ export default function SetSceneModal({
     e.preventDefault();
     if (own.trim()) choose(own.trim());
   }
-  const rpCats = SCENE_CATEGORIES.filter((c) => ROLEPLAYS.some((r) => r.category === c.id));
-  const roleplays = rpCategory ? ROLEPLAYS.filter((r) => r.category === rpCategory) : ROLEPLAYS;
-  const picked = pick ? roleplayById(pick.id) : null;
+  // Theirs first, filed under ✨ Yours (and their own category too).
+  const allRoleplays: readonly Roleplay[] = [...myRoleplays, ...ROLEPLAYS];
+  const isMine = (r: Roleplay) => r.id.startsWith("u:");
+  const inCat = (r: Roleplay, c: SceneCategory) => (c === "mine" ? isMine(r) : r.category === c);
+  const rpCats = SCENE_CATEGORIES.filter((c) => allRoleplays.some((r) => inCat(r, c.id)));
+  const roleplays = rpCategory ? allRoleplays.filter((r) => inCat(r, rpCategory)) : allRoleplays;
+  const picked = pick ? (roleplayById(pick.id) ?? myRoleplays.find((r) => r.id === pick.id) ?? null) : null;
   const fill = (text: string, swap: boolean) => text.replaceAll("{a}", swap ? names.b : names.a).replaceAll("{b}", swap ? names.a : names.b);
 
   return (
@@ -148,14 +158,19 @@ export default function SetSceneModal({
             </div>
             <div className="ad-scenes-cats" role="radiogroup" aria-label="Roleplay category">
               <button type="button" role="radio" aria-checked={!rpCategory} className={!rpCategory ? "on" : ""} onClick={() => setRpCategory(null)}>
-                ✨ All <span className="ad-scenes-count">{ROLEPLAYS.length}</span>
+                ✨ All <span className="ad-scenes-count">{allRoleplays.length}</span>
               </button>
               {rpCats.map((c) => (
                 <button key={c.id} type="button" role="radio" aria-checked={rpCategory === c.id} className={rpCategory === c.id ? "on" : ""} onClick={() => setRpCategory(rpCategory === c.id ? null : c.id)}>
-                  {c.icon} {c.label} <span className="ad-scenes-count">{ROLEPLAYS.filter((r) => r.category === c.id).length}</span>
+                  {c.icon} {c.label} <span className="ad-scenes-count">{allRoleplays.filter((r) => inCat(r, c.id)).length}</span>
                 </button>
               ))}
             </div>
+            {createHref && (
+              <p className="muted small ad-scenes-make">
+                ✨ Your own roleplays sit beside these. <a href={createHref}>Make one in the Studio</a>
+              </p>
+            )}
             <ul className="ad-scenes-grid ad-rp-grid" role="radiogroup" aria-label="Roleplays">
               <li className={`ad-rp-card${!pick ? " on" : ""}`}>
                 <button type="button" role="radio" aria-checked={!pick} className="ad-rp-pick" onClick={() => setPick(null)}>
@@ -232,6 +247,11 @@ export default function SetSceneModal({
             <button type="button" className="ad-scenes-clear" onClick={() => (setTags([]), setCategory(null), setQuery(""))}>
               Clear filters
             </button>
+          )}
+          {createHref && (
+            <a className="ad-scenes-make-link" href={createHref}>
+              ＋ Make your own venue
+            </a>
           )}
         </div>
         {shown.length ? (

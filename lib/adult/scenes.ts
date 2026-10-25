@@ -54,6 +54,7 @@ import { venueSituation } from "./scene-catalog";
  */
 const isPublicPlace = (label: string | null | undefined, home: "a" | "b" | null = null): boolean => isPublicSet(label, home) || (!home && Boolean(venueSituation(label)));
 import { roleplayById, roleplayLine, type Roleplay } from "./roleplays";
+import { ownPlaceSituation, ownRoleplay, USER_ROLEPLAY } from "../studio/library";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import {
   bumpFacts,
@@ -391,7 +392,10 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     scenario: row.scenario && scenarioById(row.scenario) ? row.scenario : null,
     // Only the chapter it was picked for: a new chapter starts without it.
     roleplay:
-      row.roleplay && roleplayById(String(row.roleplay.id)) && row.roleplay.chapter === (row.chapter ?? 1) ? { id: String(row.roleplay.id), swap: row.roleplay.swap === true } : null,
+      // One of the show's, or one of the owner's own ("u:<id>", lib/studio/library.ts: checked theirs when it was picked).
+      row.roleplay && (roleplayById(String(row.roleplay.id)) || USER_ROLEPLAY.test(String(row.roleplay.id))) && row.roleplay.chapter === (row.chapter ?? 1)
+        ? { id: String(row.roleplay.id), swap: row.roleplay.swap === true }
+        : null,
     beats: await chapterBeats(db, row.id, row.chapter ?? 1),
   };
 }
@@ -812,7 +816,8 @@ export function sceneMessages(
   // A library venue they're at (picked in Set the scene by its name, or their date's own venue before anyone moved): what
   // it puts them in, the people in it included (lib/adult/scene-catalog.ts venueSituation).
   // v2 only: prompt v1 stays the prompt it was, word for word.
-  const situation = !v2 ? null : (venueSituation(now.set) ?? venueSituation(now.place) ?? (!now.set ? venueSituation(date?.venue ?? null) : null));
+  // Or one of the owner's own venues (lib/studio/library.ts): what they wrote it's like.
+  const situation = !v2 ? null : (now.profile?.situation ?? venueSituation(now.set) ?? venueSituation(now.place) ?? (!now.set ? venueSituation(date?.venue ?? null) : null));
   const sheetItems = v2 ? (now.sheetItems ?? []) : [];
   // A date's sides are its own a and b; map them onto the scene's (the pair is stored lower id first).
   const flip = date && aId ? date.character_a !== aId : false;
@@ -1464,7 +1469,14 @@ export type StepInput = {
 };
 
 /** What the prompt knows of their profiles: each one's turn-ons (those the hard nos allow), the framing, tonight's scenario. */
-export type SceneProfile = { turnOns: { a: string[]; b: string[] }; framing: FramingId | null; scenario: Scenario | null; roleplay?: { rp: Roleplay; swap: boolean } | null };
+export type SceneProfile = {
+  turnOns: { a: string[]; b: string[] };
+  framing: FramingId | null;
+  scenario: Scenario | null;
+  roleplay?: { rp: Roleplay; swap: boolean } | null;
+  /** What one of the owner's own venues is like, when they're at it (lib/studio/library.ts): tonight's situation. */
+  situation?: string | null;
+};
 
 /** What happened to a step's lines on the way in, summed over its calls. */
 export type StepFlags = {
@@ -2170,14 +2182,21 @@ export function limitRefusal(what: "steer" | "whisper", text: string | null, sce
   return null;
 }
 
-/** The scene's profile for the prompt: each one's turn-ons the hard nos allow, the framing, and tonight's scenario. */
-async function sceneProfile(db: Db, scene: AdultScene): Promise<SceneProfile> {
+/**
+ * The scene's profile for the prompt: each one's turn-ons the hard nos allow, the framing, tonight's scenario, this
+ * chapter's roleplay (the show's, or the owner's own), and what the owner's own venue is like when they're at one.
+ */
+async function sceneProfile(db: Db, scene: AdultScene, owner: string): Promise<SceneProfile> {
   const [a, b] = await Promise.all([turnOnsOf(db, scene.a.id), turnOnsOf(db, scene.b.id)]);
+  const rid = scene.roleplay?.id ?? null;
+  const rp = rid ? (roleplayById(rid) ?? (await ownRoleplay(db, owner, rid).catch(() => null))) : null;
+  const situation = await ownPlaceSituation(db, owner, scene.set_place ?? scene.place).catch(() => null);
   return {
     turnOns: { a: turnOnsFor(a, scene.hard_nos), b: turnOnsFor(b, scene.hard_nos) },
     framing: scene.framing,
     scenario: scene.scenario ? scenarioById(scene.scenario) : null,
-    roleplay: scene.roleplay && roleplayById(scene.roleplay.id) ? { rp: roleplayById(scene.roleplay.id)!, swap: scene.roleplay.swap } : null,
+    roleplay: rp && scene.roleplay ? { rp: rp as Roleplay, swap: scene.roleplay.swap } : null,
+    situation,
   };
 }
 
@@ -2260,6 +2279,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const { a, b } = ctx;
   // Their own writer (lib/adult/writer.ts): the one they picked, else the default, with room for its thinking.
   const { id: writer, think_tokens } = await writerChoice(db, adminId);
+  const profile = await sceneProfile(db, scene, adminId);
   const step = await writeSceneStep({
     model: await adultModel(db, process.env, { model: writer }),
     thinkTokens: think_tokens,
@@ -2279,7 +2299,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     resolveSet: (label) => resolveSet(db, label),
     whispers,
     limits,
-    profile: await sceneProfile(db, scene),
+    profile,
   });
   // Which model wrote it: what OpenRouter said answered, else the one asked for (lib/adult/steps.ts text_model).
   const text = { model: step.served.model ?? (await adultModelId(db, process.env, { model: writer })), provider: step.served.provider };
@@ -2334,7 +2354,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
         // right, what it puts them in, and dressed for it.
         const home = place_history.at(-1)?.home ?? null;
         // The lines' own place ("his flat") over the set it's drawn on; the set names the venue, if it's one.
-        const situation = venueSituation(set_place ?? place);
+        const situation = venueSituation(set_place ?? place) ?? profile.situation ?? null;
         const pctx = {
           place: repairPlacePronouns(place ?? set_place, { a: a.pronouns, b: b.pronouns }, { a: a.name, b: b.name }, home).text,
           stage,
@@ -2779,7 +2799,9 @@ export async function saveFraming(db: Db, ownerId: string, x: string, y: string,
 export async function setRoleplay(db: Db, ownerId: string, x: string, y: string, pick: { id: string; swap?: boolean } | null): Promise<AdultScene | null> {
   const scene = await loadScene(db, ownerId, x, y);
   if (!scene) return null;
-  const value = pick && roleplayById(pick.id) ? { id: pick.id, swap: pick.swap === true } : null;
+  // One of the show's roleplays, or one of this owner's own (never someone else's).
+  const known = pick ? Boolean(roleplayById(pick.id)) || Boolean(await ownRoleplay(db, ownerId, pick.id)) : false;
+  const value = pick && known ? { id: pick.id, swap: pick.swap === true } : null;
   await db.query(`update adult_scenes set roleplay = $2::jsonb, updated_at = now() where id = $1`, [scene.id, value ? JSON.stringify({ ...value, chapter: scene.chapter }) : null]);
   return publicScene({ ...scene, roleplay: value });
 }

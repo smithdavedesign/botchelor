@@ -19,6 +19,8 @@ import { DATE_VENUES, EXTRA_VENUES, normalizeScene, PLACE_LABEL_MAX, setPath } f
 import { SCENARIOS } from "./scenarios";
 
 export const SCENE_CATEGORIES = [
+  // The owner's own venues and roleplays (lib/studio/library.ts), first when they have any.
+  { id: "mine", label: "Yours", icon: "✨" },
   { id: "romance", label: "Romance & slow burn", icon: "💞" },
   { id: "strangers", label: "Strangers", icon: "🎭" },
   { id: "second", label: "Second chances", icon: "🔁" },
@@ -213,6 +215,23 @@ export function sceneCatalog(drawn: readonly string[] = []): CatalogScene[] {
     add({ id: `set:${normalizeScene(label)}`, title: titleCase(label), place: label, image: setImage(label), categories, tags });
   }
   return out;
+}
+
+/**
+ * The owner's own venues (lib/studio/library.ts), as cards filed under ✨ Yours: what they wrote it's like is the card's
+ * premise (and tonight's situation for the writer), with its drawn set's picture once it has one.
+ */
+export function mineScenes(places: readonly { id: string; name: string; description: string | null }[], drawn: readonly string[] = []): CatalogScene[] {
+  const ready = new Set(drawn.map(normalizeScene));
+  return places.map((p) => ({
+    id: `mine:${p.id}`,
+    title: p.name,
+    place: p.name,
+    image: ready.has(normalizeScene(p.name)) ? `${setPath(p.name)}?w=400` : null,
+    categories: ["mine"],
+    tags: [],
+    ...(p.description ? { premise: p.description } : {}),
+  }));
 }
 
 /** The cards a filter leaves: a category (or all), every picked tag, and words in the title, place or premise. */

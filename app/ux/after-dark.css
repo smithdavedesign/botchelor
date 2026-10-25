@@ -1483,3 +1483,40 @@ button.ad-roleplay-chip {
 .theater-after-dark .ad-scene-backdrop-reveal {
   margin: 0;
 }
+
+/* The Create tab in After Dark's Studio and Scene & roleplay's "make your own" links (dark). */
+.after-dark-mode .create-tabs button,
+.after-dark-mode .create-ideas button.chip {
+  border-color: #3a2b57;
+  color: #e6dcf7;
+}
+.after-dark-mode .create-tabs button.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 30%, rgba(20, 10, 30, 0.6));
+  color: #fff;
+}
+.after-dark-mode .create-form input,
+.after-dark-mode .create-form textarea,
+.after-dark-mode .create-form select {
+  background: rgba(36, 26, 58, 0.9);
+  color: #f1e9ff;
+  border: 1px solid #33264d;
+}
+.after-dark-mode .create-list li {
+  background: #1b1129;
+  border-color: #2c2044;
+}
+.ad-scenes-make {
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-2);
+}
+.ad-scenes-make a,
+a.ad-scenes-make-link {
+  color: #e2c8ff;
+}
+a.ad-scenes-make-link {
+  flex: none;
+  align-self: center;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
