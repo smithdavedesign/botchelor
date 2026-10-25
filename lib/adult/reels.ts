@@ -125,7 +125,15 @@ export type ReelShot = {
   frame?: string;
   /** What they do next: what the shot shows. */
   motion: string;
-  status: "queued" | "ready" | "discarded" | "failed";
+  /**
+   * The storyboard's stages (docs/PRDs/reel-storyboard.md): `planned` (picked, no keyframe yet), `frame_ready` (its
+   * keyframe drawn, checked and kept — ready to film), then the filming ones: `queued` (video in flight), `ready`,
+   * `discarded` (the check refused its keyframe), `failed`. A one-tap reel runs planned -> frame_ready -> queued at once.
+   */
+  status: "planned" | "frame_ready" | "queued" | "ready" | "discarded" | "failed";
+  /** Where the line was said and how far the night had gone by it, kept on the shot so a draft can be drawn/filmed later. */
+  place?: string | null;
+  stage?: number;
   queue_id?: string;
   model?: string;
   /** While queued, the keyframe the shot starts from (an adult_images 'frame' of the two of them); once ready, the shot. */
@@ -177,7 +185,8 @@ export type ClipMeta = { act: string | null; swap: boolean; from: string | null;
 /** A video: a night's reel (`kind` "night", the default) or a clip; `a` and `b` are the pair's ids, lower first. */
 export type Reel = {
   id: string;
-  status: "making" | "ready" | "failed";
+  /** `draft`: planned, its pictures being drawn/approved, not yet filmed (docs/PRDs/reel-storyboard.md). */
+  status: "draft" | "making" | "ready" | "failed";
   tokens: number;
   shots: ReelShot[];
   created_at: string;
@@ -940,19 +949,43 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
  * or checked here: its video is queued from that picture.
  */
 export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctxIn: ShotContext): Promise<void> {
-  // What this viewer's ratings of the pair's videos said was off (lib/adult/steering.ts), into each shot's negative prompt.
+  const ctx = await withSteering(db, ownerId, ctxIn);
+  await drawFrames(db, ownerId, shots, ctx);
+  await queueVideos(db, shots, ctx);
+}
+
+/** The pair's video ratings (lib/adult/steering.ts) into `avoid`, once, so draw and film share it. */
+async function withSteering(db: Db, ownerId: string, ctxIn: ShotContext): Promise<ShotContext> {
+  if (ctxIn.avoid !== undefined) return ctxIn;
   const steer = await steeringFor(db, ownerId, ctxIn.pair).catch(() => NO_STEERING);
-  const ctx: ShotContext = { ...ctxIn, avoid: ctxIn.avoid ?? (steer.video.join(", ") || undefined) };
+  return { ...ctxIn, avoid: steer.video.join(", ") || undefined };
+}
+
+/** The configured provider and what's available, for runMedia's fallback. */
+function providersOf(ctx: Pick<ShotContext, "provider" | "replicate" | "venice">) {
   const configured: MediaProvider = ctx.provider ?? (ctx.replicate ? "replicate" : "venice");
-  const providers = { configured, available: (p: MediaProvider) => (p === "replicate" ? Boolean(ctx.replicate) : Boolean(ctx.venice)) };
-  const sets = await setPictures(db, shots.map((s) => ctx.places[s.line] ?? null));
+  return { configured, available: (p: MediaProvider) => (p === "replicate" ? Boolean(ctx.replicate) : Boolean(ctx.venice)) };
+}
+
+/**
+ * Stage 1 of filming (docs/PRDs/reel-storyboard.md): each `planned` shot's keyframe is drawn at once (Venice or
+ * Replicate), then each is checked one at a time (Hive rate-limits a burst; a check that couldn't run is asked once more
+ * after a pause) and kept as a `frame`, and the shot becomes `frame_ready`. A keyframe gets the age question only
+ * (lib/adult/check.ts "keyframe"). A shot whose keyframe can't be drawn or doesn't pass is dropped. A beat-picture shot
+ * (`from_beat`) is already `frame_ready` with nothing to draw. No video is queued and no tokens are spent here.
+ */
+export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotContext): Promise<void> {
+  const providers = providersOf(ctx);
+  // A shot that already starts from a kept picture (a beat picture) is ready to film — nothing to draw.
+  for (const s of shots) if (s.status === "planned" && s.from_beat && s.media_id) s.status = "frame_ready";
+  const planned = shots.filter((s) => s.status === "planned");
+  if (!planned.length) return;
+  const sets = await setPictures(db, planned.map((s) => ctx.places[s.line] ?? null));
   // Undressed (the night at sex), a shot starts from their nude baselines: an edit keeps what its pictures wear.
   const facesAt = (stage: number) => (stage >= NUDE_FROM && ctx.nudeBases ? ctx.nudeBases : ctx.bases).map((id) => signedMediaUrl(id, ctx.baseUrl));
   const drawn = await Promise.all(
-    shots.map(async (s) => {
+    planned.map(async (s) => {
       const faces = facesAt(ctx.stages[s.line] ?? 0);
-      // A beat picture to start from: nothing to draw, and it passed the full check when it was kept.
-      if (s.from_beat && s.media_id) return { reused: true as const };
       const place = ctx.places[s.line] ?? null;
       const drawnSet = place ? (sets.get(place) ?? null) : null;
       const own = ctx.keyframeFor?.(s, drawnSet, place);
@@ -971,7 +1004,7 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
               : drawKeyframe(ctx.venice, prompt, third ? [...faces, third] : set ? [...faces, set] : faces),
           providers,
         );
-        return { prompt, file: made.value, provider: made.provider, fell_back: made.fell_back };
+        return { s, prompt, file: made.value, provider: made.provider, fell_back: made.fell_back };
       } catch (err) {
         Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" });
         return null;
@@ -981,59 +1014,69 @@ export async function startShots(db: Db, ownerId: string, shots: ReelShot[], ctx
   let checked = 0;
   // Once Hive is out of its daily allowance (lib/adult/hive-limit.ts), the rest aren't sent: until when.
   let paused: string | null = null;
-  for (const [k, s] of shots.entries()) {
-    const d = drawn[k];
+  for (const d of drawn) {
     if (!d) continue;
-    if (!("reused" in d)) {
-      if (paused) {
-        // Drawn before the pause began, and can't be checked now: discarded, never stored, its share of tokens back.
-        Object.assign(s, { status: "failed", reason: hivePausedReason(paused).slice(0, 200) });
-        await logPaused(db, ownerId, `keyframe: ${hivePausedReason(paused)}`);
-        continue;
-      }
-      if (checked++) await pause(CHECK_PAUSE_MS);
-      const media = { base64: d.file.bytes.toString("base64"), mime: d.file.mime };
-      // The age question alone: this keyframe's moderation comes with its shot's (lib/adult/check.ts "keyframe").
-      let verdict = await checkMedia(db, media, "keyframe", { owner: ownerId });
-      // Asked once more after a pause when Hive was busy or down; never when it's out for the day.
-      if (couldntRun(verdict) && !hiveOut(verdict)) {
-        await pause(CHECK_AGAIN_MS);
-        verdict = await checkMedia(db, media, "keyframe", { owner: ownerId });
-      }
-      if (!verdict.ok) {
-        // Never stored either way; only a refusal is logged as one, and a keyframe thrown away because Hive was out.
-        paused = hiveOut(verdict);
-        if (paused) {
-          Object.assign(s, { status: "failed", reason: waitReason(verdict) });
-          await logPaused(db, ownerId, `keyframe: ${verdict.reason}`);
-          continue;
-        }
-        const busy = couldntRun(verdict);
-        Object.assign(s, { status: busy ? "failed" : "discarded", reason: verdict.reason.slice(0, 200) });
-        if (!busy) {
-          await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'reel', $3)`, [crypto.randomUUID(), ownerId, `keyframe: ${verdict.reason}`.slice(0, 300)]).catch(() => {});
-        }
-        continue;
-      }
-      // Kept, out of the gallery (a 'frame'), as the shot's start: shown on its own only once the shot has passed.
-      const id = crypto.randomUUID();
-      const kept = await keepBytes("after-dark", id, d.file.bytes, d.file.mime);
-      await db.query(
-        `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back) values ($1, $2, $3, $4, 'frame', $5, $6, $7, $8, 'ready', $9, $10)`,
-        [id, ownerId, ctx.pair[0], ctx.pair[1], d.prompt, d.file.mime, kept.data, kept.object_key, d.provider, d.fell_back],
-      );
-      s.media_id = id;
-      s.frame_id = id;
-      s.frame_provider = d.provider;
-      if (d.fell_back) s.fell_back = true;
+    const s = d.s;
+    if (paused) {
+      // Drawn before the pause began, and can't be checked now: discarded, never stored, its share of tokens back.
+      Object.assign(s, { status: "failed", reason: hivePausedReason(paused).slice(0, 200) });
+      await logPaused(db, ownerId, `keyframe: ${hivePausedReason(paused)}`);
+      continue;
     }
-    // Queuing its video is a new job too (nothing is running yet), so it may go to the other provider; once queued, it's
-    // collected where it went (`provider`), never switched.
+    if (checked++) await pause(CHECK_PAUSE_MS);
+    const media = { base64: d.file.bytes.toString("base64"), mime: d.file.mime };
+    // The age question alone: this keyframe's moderation comes with its shot's (lib/adult/check.ts "keyframe").
+    let verdict = await checkMedia(db, media, "keyframe", { owner: ownerId });
+    // Asked once more after a pause when Hive was busy or down; never when it's out for the day.
+    if (couldntRun(verdict) && !hiveOut(verdict)) {
+      await pause(CHECK_AGAIN_MS);
+      verdict = await checkMedia(db, media, "keyframe", { owner: ownerId });
+    }
+    if (!verdict.ok) {
+      // Never stored either way; only a refusal is logged as one, and a keyframe thrown away because Hive was out.
+      paused = hiveOut(verdict);
+      if (paused) {
+        Object.assign(s, { status: "failed", reason: waitReason(verdict) });
+        await logPaused(db, ownerId, `keyframe: ${verdict.reason}`);
+        continue;
+      }
+      const busy = couldntRun(verdict);
+      Object.assign(s, { status: busy ? "failed" : "discarded", reason: verdict.reason.slice(0, 200) });
+      if (!busy) {
+        await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'reel', $3)`, [crypto.randomUUID(), ownerId, `keyframe: ${verdict.reason}`.slice(0, 300)]).catch(() => {});
+      }
+      continue;
+    }
+    // Kept, out of the gallery (a 'frame'), as the shot's start: shown on its own only once the shot has passed.
+    const id = crypto.randomUUID();
+    const kept = await keepBytes("after-dark", id, d.file.bytes, d.file.mime);
+    await db.query(
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back) values ($1, $2, $3, $4, 'frame', $5, $6, $7, $8, 'ready', $9, $10)`,
+      [id, ownerId, ctx.pair[0], ctx.pair[1], d.prompt, d.file.mime, kept.data, kept.object_key, d.provider, d.fell_back],
+    );
+    s.media_id = id;
+    s.frame_id = id;
+    s.frame_provider = d.provider;
+    if (d.fell_back) s.fell_back = true;
+    s.status = "frame_ready";
+  }
+}
+
+/**
+ * Stage 2 of filming: each `frame_ready` shot (one that isn't in the Archive) has its video queued from its kept
+ * keyframe and becomes `queued`; a shot whose video won't queue is `failed`. Queuing is a new job, so it may go to the
+ * other provider when the configured one is limited; once queued it's collected where it went (`provider`).
+ */
+export async function queueVideos(db: Db, shots: ReelShot[], ctx: ShotContext): Promise<void> {
+  const providers = providersOf(ctx);
+  for (const s of shots) {
+    if (s.status !== "frame_ready" || s.archived_at) continue;
     try {
       const queued = await runMedia(db, "video", (p) => (p === "replicate" ? queueReplicateShot(ctx, s) : queueShot(ctx, s)), providers);
       if (queued.provider === "replicate") s.provider = "replicate";
       else delete s.provider;
       if (queued.fell_back) s.fell_back = true;
+      s.status = "queued";
     } catch (err) {
       Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" });
     }
@@ -1143,21 +1186,74 @@ export async function stopReel(db: Db, ownerId: string, id: string, reason = "st
   return settleIfDone(db, id);
 }
 
+type ReelOpts = { shots?: number; where?: ReelWhere; night?: Pick<ReelNight, "scope" | "chapters" | "places" | "stages" | "chapterOf"> };
+type Settings = Awaited<ReturnType<typeof getAdultSettings>>;
+type Loaded = NonNullable<Awaited<ReturnType<typeof loadCharacter>>>;
+type ReelBuild = { ca: Loaded; cb: Loaded; cast: [ReelPerson, ReelPerson]; places: (string | null)[]; stages: number[]; shots: ReelShot[]; scope: ReelScope; chapters: ReelChapter[] | null };
+
 /**
- * Starts a reel of a night: spends the tokens (admins free), has the director pick and write the shots, and draws,
- * checks and queues each one's keyframe. `lines` is the night (the running scene, or a saved one); `where` is where it
- * happened, for each shot's place. `night` is what reelNight read (pass it whole): a reel of several chapters takes each
- * line's place and stage from its own chapter, and the row records its scope and chapters.
+ * The director's pick of shots for a night, written but not drawn: no media, no spend beyond the director's own call.
+ * Each shot is `planned` (or `frame_ready` when it reuses a beat picture) and carries its place and stage so a draft can
+ * be drawn and filmed later. `lines` is the night (the running scene, or a saved one); `night` is what reelNight read.
  */
-export async function makeReel(
-  db: Db,
-  ownerId: string,
-  x: string,
-  y: string,
-  lines: SceneLine[],
-  baseUrl: string,
-  opts: { shots?: number; where?: ReelWhere; night?: Pick<ReelNight, "scope" | "chapters" | "places" | "stages" | "chapterOf"> } = {},
-): Promise<MakeReelResult> {
+async function assembleShots(db: Db, ownerId: string, a: string, b: string, lines: SceneLine[], opts: ReelOpts, settings: Settings): Promise<ReelBuild> {
+  const [ca, cb] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b)]);
+  if (!ca || !cb) throw new Error("one of them is missing");
+  const onReplicate = settings.media_provider === "replicate";
+  const where = opts.where ?? { place: null, set: null, history: [], date: null, stage: 0 };
+  const cast = reelCast(ca, cb, ownerId);
+  // Each line where it was said and how far the night had gone by then, from its own chapter.
+  const night = opts.night && opts.night.places.length === lines.length ? opts.night : null;
+  const places = night?.places ?? placesOf(lines, where);
+  const stages = night?.stages ?? lines.map((l) => l.stage ?? where.stage);
+  const whole = night?.scope === "night" && night.chapters.length > 1 ? night : null;
+  const picks = await pickShots(db, lines, Math.min(12, Math.max(2, opts.shots ?? settings.reel_shots)), cast, places, stages, whole);
+  // Where each chapter starts in the night's lines, for a shot's line in its own chapter.
+  const starts = (night?.chapters ?? []).map((_, k, all) => all.slice(0, k).reduce((t, c) => t + c.lines, 0));
+  const shots: ReelShot[] = [];
+  for (const p of picks) {
+    const l = lines[p.line];
+    const { speech } = spoken(l.text);
+    // Every word that will be spoken, and every direction, is held to David's lines first.
+    if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok || crossesTaboo(`${speech} ${p.frame} ${p.motion}`)) continue;
+    const k = whole?.chapterOf[p.line];
+    const from = k === undefined ? null : { chapter: whole!.chapters[k].chapter, night_id: whole!.chapters[k].night_id, chapter_line: p.line - starts[k] };
+    shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "planned", place: places[p.line] ?? null, stage: stages[p.line] ?? 0, ...(onReplicate ? { provider: "replicate" as const } : {}), ...(from ?? {}) });
+  }
+  if (!shots.length) throw new Error("no usable lines");
+  // A shot whose moment already has a beat picture starts from it (lib/adult/beats.ts): the video looks like the pictures.
+  if (night) await reuseBeatPictures(db, ownerId, [a, b], shots, night, starts, places, stages);
+  return { ca, cb, cast, places, stages, shots, scope: whole ? "night" : "chapter", chapters: night?.chapters ?? null };
+}
+
+/** Both providers' details when both keys are set up, for runMedia's fallback; null when there's no Replicate token. */
+const replicateMedia = (keys: Awaited<ReturnType<typeof adultKeys>>, settings: Settings): ReplicateMedia | null =>
+  keys.replicate ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora } : null;
+
+/** Sparse place/stage arrays keyed by each shot's night-line index, rebuilt from a draft's stored shots. */
+function shotGrids(shots: readonly ReelShot[]): { places: (string | null)[]; stages: number[] } {
+  const places: (string | null)[] = [];
+  const stages: number[] = [];
+  for (const s of shots) {
+    places[s.line] = s.place ?? null;
+    stages[s.line] = s.stage ?? 0;
+  }
+  return { places, stages };
+}
+
+/** A draft (or any reel) for this owner: its pair, status and shots. Not found, or someone else's, is null. */
+async function loadDraft(db: Db, ownerId: string, id: string): Promise<{ a: string; b: string; status: string; shots: ReelShot[] } | null> {
+  const r = (await db.query<{ owner_id: string; character_a: string; character_b: string; status: string; shots: ReelShot[] }>(`select owner_id, character_a, character_b, status, shots from adult_reels where id = $1`, [id])).rows[0];
+  if (!r || r.owner_id !== ownerId) return null;
+  return { a: r.character_a, b: r.character_b, status: r.status, shots: r.shots };
+}
+
+/**
+ * Starts a reel of a night in one go (the one-tap path): spends the tokens (admins free), has the director pick the
+ * shots, and draws, checks and queues each keyframe. The storyboard path does the same in three steps (planReel ->
+ * drawReelFrames -> filmReel). `lines` is the night; `where` is where it happened; `night` is what reelNight read.
+ */
+export async function makeReel(db: Db, ownerId: string, x: string, y: string, lines: SceneLine[], baseUrl: string, opts: ReelOpts = {}): Promise<MakeReelResult> {
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return { ok: false, status: 404, error: "not_found", message: "Pick two characters who are in after dark." };
   const [a, b] = pair;
@@ -1184,64 +1280,143 @@ export async function makeReel(
   }
   const id = crypto.randomUUID();
   try {
-    const [ca, cb] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b)]);
-    if (!ca || !cb) throw new Error("one of them is missing");
+    const built = await assembleShots(db, ownerId, a, b, lines, opts, settings);
     // Each one's baseline, a portrait of them alone that passed the check: the faces every keyframe keeps. Made now if
     // they have none.
-    for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
+    for (const c of [built.ca, built.cb]) await ensureBaseline(db, ownerId, c);
     const bases = await baselines(db, a, b, ownerId);
     if (!bases) throw new Error("a picture of each of them is needed first");
-    const where = opts.where ?? { place: null, set: null, history: [], date: null, stage: 0 };
-    const cast = reelCast(ca, cb, ownerId);
-    // Each line where it was said and how far the night had gone by then, from its own chapter.
-    const night = opts.night && opts.night.places.length === lines.length ? opts.night : null;
-    const places = night?.places ?? placesOf(lines, where);
-    const stages = night?.stages ?? lines.map((l) => l.stage ?? where.stage);
-    const whole = night?.scope === "night" && night.chapters.length > 1 ? night : null;
-    const picks = await pickShots(db, lines, Math.min(12, Math.max(2, opts.shots ?? settings.reel_shots)), cast, places, stages, whole);
-    // Where each chapter starts in the night's lines, for a shot's line in its own chapter.
-    const starts = (night?.chapters ?? []).map((_, k, all) => all.slice(0, k).reduce((t, c) => t + c.lines, 0));
-    const shots: ReelShot[] = [];
-    for (const p of picks) {
-      const l = lines[p.line];
-      const { speech } = spoken(l.text);
-      // Every word that will be spoken, and every direction, is held to David's lines first.
-      if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok || crossesTaboo(`${speech} ${p.frame} ${p.motion}`)) continue;
-      const k = whole?.chapterOf[p.line];
-      const from = k === undefined ? null : { chapter: whole!.chapters[k].chapter, night_id: whole!.chapters[k].night_id, chapter_line: p.line - starts[k] };
-      shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "queued", ...(onReplicate ? { provider: "replicate" as const } : {}), ...(from ?? {}) });
-    }
-    if (!shots.length) throw new Error("no usable lines");
-    // A shot whose moment already has a beat picture starts from it (lib/adult/beats.ts): the video looks like the pictures.
-    if (night) await reuseBeatPictures(db, ownerId, [a, b], shots, night, starts, places, stages);
-    // What it filmed: one chapter, or the whole night and its chapters.
-    const scope: ReelScope = whole ? "night" : "chapter";
-    const chapters = night?.chapters ?? null;
     await db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, scope, chapters) values ($1, $2, $3, $4, 'making', $5, $6::jsonb, $7, $8::jsonb)`, [
       id,
       ownerId,
       a,
       b,
       pays ? price : 0,
-      JSON.stringify(shots),
-      scope,
-      chapters ? JSON.stringify(chapters) : null,
+      JSON.stringify(built.shots),
+      built.scope,
+      built.chapters ? JSON.stringify(built.chapters) : null,
     ]);
-    // Both providers' details when both are set up: a shot goes to the other when the configured one is limited.
-    const replicate = keys.replicate
-      ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora }
-      : null;
     // A shot of the night at sex starts from their nude baselines (made now for one who wears something and has none).
-    const nudeBases = shots.some((s) => !s.from_beat && (stages[s.line] ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, ca, cb) : null;
-    await startShots(db, ownerId, shots, { pair: [a, b], cast, places, stages, bases, nudeBases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate, provider: settings.media_provider });
-    const made = reelMadeOn(shots);
-    await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [id, JSON.stringify(shots), made.provider, made.fell_back]);
+    const nudeBases = built.shots.some((s) => !s.from_beat && (s.stage ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, built.ca, built.cb) : null;
+    await startShots(db, ownerId, built.shots, { pair: [a, b], cast: built.cast, places: built.places, stages: built.stages, bases, nudeBases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
+    const made = reelMadeOn(built.shots);
+    await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [id, JSON.stringify(built.shots), made.provider, made.fell_back]);
     return { ok: true, reel: await settleIfDone(db, id) };
   } catch (err) {
     if (pays) await refundBoughtTokens(db, ownerId, price);
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
     if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: hivePausedErrorMessage(err, pays && price > 0) };
+    return { ok: false, status: 502, error: "not_started", message: `The video couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.` };
+  }
+}
+
+/**
+ * Plan a reel as a storyboard (docs/PRDs/reel-storyboard.md): the director picks the shots and they're saved as a
+ * `draft` (status "draft", no tokens), ready to be edited, drawn and filmed. No keyframes, no video, no spend beyond the
+ * director's call. One video at a time still holds at filming, so a draft doesn't block, and planning doesn't gate Hive.
+ */
+export async function planReel(db: Db, ownerId: string, x: string, y: string, lines: SceneLine[], opts: ReelOpts = {}): Promise<MakeReelResult> {
+  const pair = await eligiblePair(db, ownerId, x, y);
+  if (!pair) return { ok: false, status: 404, error: "not_found", message: "Pick two characters who are in after dark." };
+  const [a, b] = pair;
+  const settings = await getAdultSettings(db);
+  const keys = await adultKeys(db);
+  const onReplicate = settings.media_provider === "replicate";
+  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
+    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
+  }
+  if (lines.length < 6) return { ok: false, status: 409, error: "too_short", message: "Let the night run a little longer first: a video needs at least six lines." };
+  const id = crypto.randomUUID();
+  try {
+    const built = await assembleShots(db, ownerId, a, b, lines, opts, settings);
+    await db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, scope, chapters) values ($1, $2, $3, $4, 'draft', 0, $5::jsonb, $6, $7::jsonb)`, [id, ownerId, a, b, JSON.stringify(built.shots), built.scope, built.chapters ? JSON.stringify(built.chapters) : null]);
+    return { ok: true, reel: (await getReel(db, id))! };
+  } catch (err) {
+    await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
+    return { ok: false, status: 502, error: "not_started", message: `The storyboard couldn't be made (${err instanceof Error ? err.message : "error"}).` };
+  }
+}
+
+/**
+ * Draw (and check) the draft's keyframes (docs/PRDs/reel-storyboard.md): each `planned` shot becomes `frame_ready` with
+ * its kept keyframe, or is dropped if its picture can't be drawn or doesn't pass. Only picture spend; no video, no
+ * tokens. The draft stays a draft (approve, redraw or drop, then film). Safe to run again: only `planned` shots draw.
+ */
+export async function drawReelFrames(db: Db, ownerId: string, reelId: string, baseUrl: string): Promise<MakeReelResult> {
+  const row = await loadDraft(db, ownerId, reelId);
+  if (!row) return { ok: false, status: 404, error: "not_found", message: "That storyboard isn't here." };
+  if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
+  const settings = await getAdultSettings(db);
+  const keys = await adultKeys(db);
+  const onReplicate = settings.media_provider === "replicate";
+  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
+    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
+  }
+  const gate = await hiveGate(db, keys.hive);
+  if (!gate.ok) {
+    await logPaused(db, ownerId, gate.reason);
+    return { ok: false, status: 503, error: "hive_paused", message: gate.message };
+  }
+  try {
+    const [ca, cb] = await Promise.all([loadCharacter(db, row.a), loadCharacter(db, row.b)]);
+    if (!ca || !cb) throw new Error("one of them is missing");
+    for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
+    const bases = await baselines(db, row.a, row.b, ownerId);
+    if (!bases) throw new Error("a picture of each of them is needed first");
+    const { places, stages } = shotGrids(row.shots);
+    const nudeBases = row.shots.some((s) => s.status === "planned" && !s.from_beat && (s.stage ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, ca, cb) : null;
+    const ctx = await withSteering(db, ownerId, { pair: [row.a, row.b], cast: reelCast(ca, cb, ownerId), places, stages, bases, nudeBases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
+    await drawFrames(db, ownerId, row.shots, ctx);
+    const made = reelMadeOn(row.shots);
+    await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(row.shots), made.provider, made.fell_back]);
+    return { ok: true, reel: (await getReel(db, reelId))! };
+  } catch (err) {
+    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: hivePausedErrorMessage(err, false) };
+    return { ok: false, status: 502, error: "not_started", message: `The pictures couldn't be drawn (${err instanceof Error ? err.message : "error"}).` };
+  }
+}
+
+/**
+ * Film the draft (docs/PRDs/reel-storyboard.md): spend the tokens (admins free) and queue a video for every
+ * `frame_ready` shot not in the Archive, then the reel is `making`. The only place video is paid for; a failed shot's
+ * share of the tokens comes back when the reel settles. Needs at least one kept picture and no other reel being made.
+ */
+export async function filmReel(db: Db, ownerId: string, reelId: string, baseUrl: string): Promise<MakeReelResult> {
+  const row = await loadDraft(db, ownerId, reelId);
+  if (!row) return { ok: false, status: 404, error: "not_found", message: "That storyboard isn't here." };
+  if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
+  const ready = row.shots.filter((s) => s.status === "frame_ready" && !s.archived_at);
+  if (!ready.length) return { ok: false, status: 409, error: "no_frames", message: "Draw and keep at least one picture first, then film." };
+  const settings = await getAdultSettings(db);
+  const keys = await adultKeys(db);
+  const onReplicate = settings.media_provider === "replicate";
+  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
+    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
+  }
+  const busy = await busyReel(db, ownerId);
+  if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
+  const pays = !(await isAdmin(db, ownerId));
+  const price = settings.reel_tokens;
+  if (pays && !(await spendBoughtTokens(db, ownerId, price))) {
+    return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. Get more on the shop page.` };
+  }
+  try {
+    const [ca, cb] = await Promise.all([loadCharacter(db, row.a), loadCharacter(db, row.b)]);
+    if (!ca || !cb) throw new Error("one of them is missing");
+    const { places, stages } = shotGrids(row.shots);
+    const bases = (await baselines(db, row.a, row.b, ownerId)) ?? (["", ""] as [string, string]);
+    const ctx = await withSteering(db, ownerId, { pair: [row.a, row.b], cast: reelCast(ca, cb, ownerId), places, stages, bases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
+    // The draft becomes a reel being made before anything is queued, so "one video at a time" still holds.
+    await db.query(`update adult_reels set status = 'making', tokens = $2, updated_at = now() where id = $1 and status = 'draft'`, [reelId, pays ? price : 0]);
+    await queueVideos(db, row.shots, ctx);
+    const made = reelMadeOn(row.shots);
+    await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [reelId, JSON.stringify(row.shots), made.provider, made.fell_back]);
+    return { ok: true, reel: await settleIfDone(db, reelId) };
+  } catch (err) {
+    if (pays) await refundBoughtTokens(db, ownerId, price);
+    // Back to a draft so they can film again; the drawn keyframes are kept.
+    await db.query(`update adult_reels set status = 'draft' where id = $1 and status = 'making'`, [reelId]).catch(() => {});
     return { ok: false, status: 502, error: "not_started", message: `The video couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.` };
   }
 }
@@ -1268,7 +1443,8 @@ export async function reuseBeatPictures(
     const pic = await beatPictureFor(db, ownerId, pair, part, s.line - (starts[k] ?? 0), stages[s.line] ?? 0, places[s.line] ?? null).catch(() => null);
     if (!pic || used.has(pic)) continue;
     used.add(pic);
-    Object.assign(s, { media_id: pic, frame_id: pic, from_beat: true });
+    // Already drawn and checked: ready to film, nothing to draw for it.
+    Object.assign(s, { media_id: pic, frame_id: pic, from_beat: true, status: "frame_ready" as const });
   }
 }
 
@@ -1504,9 +1680,9 @@ export async function listReels(db: Db, ownerId: string, x: string, y: string): 
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return [];
   const { rows } = await db.query<ReelRow>(
-    `(select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and coalesce(kind, 'night') <> 'clip' order by created_at desc limit 20)
+    `(select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and coalesce(kind, 'night') <> 'clip' and status <> 'draft' order by created_at desc limit 20)
      union all
-     (select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and kind = 'clip' order by created_at desc limit 40)`,
+     (select ${REEL_COLUMNS} from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and kind = 'clip' and status <> 'draft' order by created_at desc limit 40)`,
     [ownerId, ...pair],
   );
   return withRatings(db, ownerId, rows.map(reelOf).sort((p, q) => q.created_at.localeCompare(p.created_at)));

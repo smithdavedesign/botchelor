@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
-import { advanceReel, archiveShot, listReels, makeReel, REEL_SCOPES, reelNight, stopReel } from "@/lib/adult/reels";
+import { advanceReel, archiveShot, drawReelFrames, filmReel, listReels, makeReel, planReel, REEL_SCOPES, reelNight, stopReel } from "@/lib/adult/reels";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -11,16 +11,21 @@ export const maxDuration = 300;
 
 const id = z.string().min(1).max(64);
 // scope: one chapter, or the whole night (every chapter since it began; the default, the same as one when there is one).
-const Input = z.object({ a: id, b: id, night_id: id.optional(), scope: z.enum(REEL_SCOPES).optional() });
+// action: make it all at once (the default), or plan it as a storyboard (docs/PRDs/reel-storyboard.md).
+const Input = z.object({ a: id, b: id, night_id: id.optional(), scope: z.enum(REEL_SCOPES).optional(), action: z.enum(["make", "plan"]).optional() });
+// A stage of a draft storyboard (`id` is the reel): draw its keyframes, or film it.
+const StageInput = z.object({ action: z.enum(["draw", "film"]), id });
 // One shot of a video (`media_id`, the shot itself) into the Archive, or back out (`archived` false).
 const ArchiveInput = z.object({ id, media_id: id, archived: z.boolean() });
 
 /** Not found for everyone but a viewer after dark is open to (lib/adult/mode.ts). */
 const hidden = () => json({ error: "not_found" }, 404);
+const fail = (r: { error: string; message: string; status: number; busy?: unknown }) => json({ error: r.error, message: r.message, ...(r.busy ? { busy: r.busy } : {}) }, r.status);
 
 /**
- * Make a video of the night (lib/adult/reels.ts): of the running scene, or one of their saved chapters (`night_id`);
- * of that chapter alone, or of the whole night it's part of (`scope`, "night" unless asked).
+ * Make a video of the night (lib/adult/reels.ts): of the running scene, or one of their saved chapters (`night_id`); of
+ * that chapter alone, or of the whole night it's part of (`scope`, "night" unless asked). `action` "plan" saves it as a
+ * storyboard draft instead of filming; "draw"/"film" (with the draft's `id`) draw its pictures and film it in turn.
  */
 export const POST = handle(async (req: Request) => {
   const db = await getDb();
@@ -29,12 +34,21 @@ export const POST = handle(async (req: Request) => {
   // Text only where they connect from (lib/adult/place.ts): no pictures, video or voice.
   const refused = await mediaRefusal(db, viewer);
   if (refused) return refused;
-  const input = parseBody(Input, await readJson(req), "invalid_request");
+  const body = await readJson(req);
+  // A draft's own stages act on the stored reel, not a night.
+  if (body && typeof body === "object" && ((body as { action?: unknown }).action === "draw" || (body as { action?: unknown }).action === "film")) {
+    const input = parseBody(StageInput, body, "invalid_request");
+    const r = input.action === "draw" ? await drawReelFrames(db, viewer, input.id, requestBase(req)) : await filmReel(db, viewer, input.id, requestBase(req));
+    return r.ok ? json({ reel: r.reel }) : fail(r);
+  }
+  const input = parseBody(Input, body, "invalid_request");
   const night = await reelNight(db, viewer, input.a, input.b, input.night_id, input.scope ?? "night");
   if (!night) return hidden();
-  const r = await makeReel(db, viewer, input.a, input.b, night.lines, requestBase(req), { where: night.where, night });
-  if (!r.ok) return json({ error: r.error, message: r.message, ...(r.busy ? { busy: r.busy } : {}) }, r.status);
-  return json({ reel: r.reel });
+  const r =
+    input.action === "plan"
+      ? await planReel(db, viewer, input.a, input.b, night.lines, { where: night.where, night })
+      : await makeReel(db, viewer, input.a, input.b, night.lines, requestBase(req), { where: night.where, night });
+  return r.ok ? json({ reel: r.reel }) : fail(r);
 });
 
 /** One reel, advanced (?id=), or the pair's reels (?a=&b=). */

@@ -366,3 +366,59 @@ describe("a video of the whole night", () => {
     expect(await nightVideos(t.db, id, PAIR, rows)).toEqual(["whole"]);
   });
 });
+
+describe("the storyboard: plan, draw, then film", () => {
+  it("plans with no media or tokens, draws the pictures, then films — each step in turn", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    await sceneAt(id, 1, linesOf(1, 8), { place: "the harbour", set: "harbour", stage: 2 });
+    const seen = fakeMedia();
+    director([2, 4, 6]);
+
+    // Plan: a draft, every shot picked but not drawn, and nothing drawn or queued.
+    const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
+    expect(plan.status).toBe("draft");
+    expect(plan.shots.map((s) => s.status)).toEqual(["planned", "planned", "planned"]);
+    expect(plan.shots.every((s) => s.place === "harbour" && s.stage === 2)).toBe(true);
+    expect(plan.shots.every((s) => !s.media_id)).toBe(true);
+    expect(seen).toHaveLength(0);
+    // A draft stays out of the pair's videos until it's filmed.
+    expect(await listReels(t.db, id, CAST_A, CAST_B)).toHaveLength(0);
+
+    // Draw: the keyframes are drawn and kept, the draft is still a draft, no video is queued.
+    const drawn = (await (await make(cookie, { action: "draw", id: plan.id })).json()).reel as Reel;
+    expect(drawn.status).toBe("draft");
+    expect(drawn.shots.map((s) => s.status)).toEqual(["frame_ready", "frame_ready", "frame_ready"]);
+    expect(drawn.shots.every((s) => s.media_id && s.frame_id)).toBe(true);
+    expect(seen.filter((s) => s.path === "/image/multi-edit")).toHaveLength(3);
+    expect(seen.filter((s) => s.path === "/video/queue")).toHaveLength(0);
+
+    // Drawing again is a no-op: the frames are kept, nothing is redrawn.
+    await make(cookie, { action: "draw", id: plan.id });
+    expect(seen.filter((s) => s.path === "/image/multi-edit")).toHaveLength(3);
+
+    // Film: now the videos are queued and the draft becomes a reel being made.
+    const filmed = (await (await make(cookie, { action: "film", id: plan.id })).json()).reel as Reel;
+    expect(filmed.status).toBe("making");
+    expect(filmed.shots.map((s) => s.status)).toEqual(["queued", "queued", "queued"]);
+    expect(seen.filter((s) => s.path === "/video/queue")).toHaveLength(3);
+    // It's now in the pair's videos.
+    expect((await listReels(t.db, id, CAST_A, CAST_B)).map((r) => r.id)).toContain(plan.id);
+
+    // Filming again is refused: it's no longer a draft.
+    expect((await make(cookie, { action: "film", id: plan.id })).status).toBe(409);
+  });
+
+  it("won't film a draft with no kept picture", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    await sceneAt(id, 1, linesOf(1, 8), { place: "the harbour", set: "harbour", stage: 2 });
+    fakeMedia();
+    director([2, 4, 6]);
+    const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
+    // Straight to film, before any picture is drawn.
+    const res = await make(cookie, { action: "film", id: plan.id });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("no_frames");
+  });
+});

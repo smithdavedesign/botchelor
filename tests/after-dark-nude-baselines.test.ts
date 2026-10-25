@@ -244,7 +244,7 @@ describe("pictures and videos at sex", () => {
     const { edits } = fakeVenice();
     await baseline("nude-juniper", id, JUNIPER, NUDE.replace("a man", "a woman"), 5);
     const [ca, cb] = [(await loadCharacter(t.db, JUNIPER))!, (await loadCharacter(t.db, RAFE))!];
-    const shots: ReelShot[] = [0, 1].map((line) => ({ line, who: "a", text: "", frame: "close", motion: "they move", status: "queued" }));
+    const shots: ReelShot[] = [0, 1].map((line) => ({ line, who: "a", text: "", frame: "close", motion: "they move", status: "planned" }));
     await startShots(t.db, id, shots, {
       pair: [JUNIPER, RAFE],
       cast: reelCast(ca, cb, id),

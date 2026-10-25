@@ -1936,6 +1936,10 @@ alter table adult_settings add column if not exists cap_monologues integer not n
 -- night's id (null: the running scene's then) and its line count. Null on reels from before, and on clips.
 alter table adult_reels add column if not exists scope text;
 alter table adult_reels add column if not exists chapters jsonb;
+-- The reel storyboard (docs/PRDs/reel-storyboard.md, 2026-10-24): a reel can be a 'draft' — the director's shots picked
+-- (planReel) and their keyframes drawn and approved (drawReelFrames), not yet filmed (filmReel). Widen the status check.
+alter table adult_reels drop constraint if exists adult_reels_status_check;
+alter table adult_reels add constraint adult_reels_status_check check (status in ('draft', 'making', 'ready', 'failed'));
 -- After Dark's discreet mode (lib/adult/privacy.ts): blur its pictures until tapped and a neutral tab title (both on
 -- by default), and an optional PIN kept only as a slow salted hash (scrypt), never the PIN. pin_version changes with
 -- every new or removed PIN, which signs every device out; the wrong tries and the wait they set live here too.
