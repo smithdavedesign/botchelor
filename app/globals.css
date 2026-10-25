@@ -5883,17 +5883,24 @@ main:has(> .admin-wide) {
 }
 
 /* Tabs: underlined, a 44px target each; the row scrolls inside itself, never the page. */
+/* The line under the tabs is an inset shadow the selected tab's underline covers, so no tab hangs below the bar: with a
+   -1px margin and overflow-x: auto, the bar scrolled a pixel vertically and showed a scrollbar (2026-10-25, /agents).
+   Narrow screens still swipe the tabs sideways, with no scrollbar. */
 .tabs {
   display: flex;
   gap: var(--space-1);
   margin: var(--space-4) 0 var(--space-3);
-  border-bottom: 1px solid var(--line);
+  box-shadow: inset 0 -1px 0 var(--line);
   overflow-x: auto;
-  scrollbar-width: thin;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 .tabs button[role="tab"] {
   flex: none;
-  margin: 0 0 -1px;
+  margin: 0;
   padding: 0 0.85rem;
   min-height: 44px;
   border: 0;
@@ -9818,9 +9825,48 @@ details.episode-safety .safety > h2 {
   place-items: center;
   color: var(--constellation-label);
 }
+/* Under the sky now (2026-10-25: the page opens on the graph): what it is and the numbers. */
 .constellation-header {
   text-align: center;
-  margin-bottom: var(--space-4);
+  margin: var(--space-5) 0 var(--space-4);
+}
+/* Full screen (ConstellationApp.tsx): the stage over everything, the sky taking what the toolbar leaves. */
+.constellation-page .constellation-stage.is-full {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: auto;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+.constellation-stage.is-full .constellation-sky {
+  flex: 1;
+  height: auto;
+}
+html.constellation-locked,
+html.constellation-locked body {
+  overflow: hidden;
+}
+.constellation-hud button.constellation-full-btn {
+  order: 99;
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--constellation-line);
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--constellation-label);
+  font-size: 1.15rem;
+  box-shadow: none;
+}
+.constellation-hud button.constellation-full-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  transform: none;
 }
 .constellation-stats {
   list-style: none;

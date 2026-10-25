@@ -70,6 +70,10 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         ]}
       />
 
+
+      {/* The sky first: the page opens on it (2026-10-25); what it is and the numbers read under it. */}
+      <ConstellationApp data={{ nodes, edges, stats, kinds }} initialFocus={typeof focusParam === "string" ? focusParam : null} />
+
       <header className="constellation-header">
         <p className="kicker">The social graph</p>
         <h1>The Constellation</h1>
@@ -112,8 +116,6 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
           </li>
         </ul>
       </header>
-
-      <ConstellationApp data={{ nodes, edges, stats, kinds }} initialFocus={typeof focusParam === "string" ? focusParam : null} />
 
       <section className="constellation-ledger" id="ledger">
         <h2>The ledger</h2>
