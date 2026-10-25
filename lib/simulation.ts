@@ -168,6 +168,8 @@ export type DateParts = {
   chosenPlace?: PlaceId | null;
   /** The plan the two agreed to by text that tonight is (lib/plans.ts): where it happens, and each side knows it. */
   agreedPlan?: AgreedPlan | null;
+  /** A double date (lib/group-dates.ts): the other couple at the table, one line both actors see. */
+  table?: string | null;
 };
 
 /**
@@ -212,6 +214,8 @@ export function assembleDate(p: DateParts): BuiltDate {
   }
   if (p.nudges?.a) charA.nudge = p.nudges.a;
   if (p.nudges?.b) charB.nudge = p.nudges.b;
+  // A double date: both actors know who else shares the table (lib/group-dates.ts tableLine). Flavour, never the engine.
+  if (p.table) charA.table = charB.table = p.table;
   if (p.alsoSeeing?.a.length) charA.alsoSeeing = p.alsoSeeing.a;
   if (p.alsoSeeing?.b.length) charB.alsoSeeing = p.alsoSeeing.b;
   // Without one, a second date happens where its morning after planned it, when the plan names a kind of place we have,
@@ -265,6 +269,7 @@ export function assembleDate(p: DateParts): BuiltDate {
     ...(p.followupOf ? { followup_of: p.followupOf, plan: agreed ? agreed.texts.map((t) => t.text) : plans.map((x) => x.text) } : {}),
     ...(p.nudges?.a ? { nudge_a: p.nudges.a } : {}),
     ...(p.nudges?.b ? { nudge_b: p.nudges.b } : {}),
+    ...(p.table ? { table: p.table } : {}),
     // Which date this is for the couple (lib/date-number.ts): stored, so its happy ending names the date after it.
     ...(p.dateNumber && p.dateNumber > 1 ? { date_number: p.dateNumber } : {}),
   };
@@ -345,6 +350,8 @@ export async function buildDate(
      * so a text sent while an agent is playing the date can't turn it into a different one halfway through.
      */
     agreedPlan?: AgreedPlan | null;
+    /** A double date's table line (lib/group-dates.ts); a rebuild passes the setup's snapshot (setup.table). */
+    table?: string | null;
   } = {},
 ): Promise<BuiltDate> {
   const [soulA, soulB, memoryA, memoryB, relationship, ex, extras, nudges, seeingA, seeingB] = await Promise.all([
@@ -401,7 +408,7 @@ export async function buildDate(
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : await nextDateNumber(db, a.id, b.id, episodeId),
-    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark,
+    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, table: opts.table ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     overusedA, overusedB,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),

@@ -46,6 +46,7 @@ import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
 import { notify, notifyDateBooked, resolvePairNotices } from "@/lib/notifications";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
+import { groupBookingFor, markNightBooked, type GroupBooking } from "@/lib/group-dates";
 import { type CharacterSheet } from "@/lib/showrunner";
 
 // The request itself is instant (the engine, no model). Generation runs in after(), which keeps the
@@ -82,6 +83,9 @@ const EpisodeInput = z
     // David, 2026-10-23: where the date happens, in a few words ("the night market", "my place", "under the old
     // footbridge"). Left out, a place they agreed by text is used, else the show deals one.
     place: z.string().trim().min(2).max(80).optional(),
+    // A double date (lib/group-dates.ts): this booking is one table of that night. The night sets the venue and the
+    // table line; the caller must be this couple's booker and the night accepted. Never with `place`.
+    group_night: id.optional(),
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message:
@@ -364,6 +368,14 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
   // A second date may be this season's free one (FREE_WEEKLY_SECOND_DATE); otherwise it costs a date like any other.
   // An operator pass (lib/operator-pass) spends a reserved date first: it leaves this week's free/pack dates untouched
   // and (marked operator_reserved) stays out of the shared agent cap. Gated off, so false for everyone until it's on.
+  // A double date's table (lib/group-dates.ts): checked before a date is reserved, so a refused night costs nothing.
+  let group: GroupBooking | null = null;
+  if (input.group_night) {
+    if (!partner) return json({ error: "invalid_request", message: "A double date's table names its partner_id." }, 400, sess);
+    const g = await groupBookingFor(db, input.group_night, sess.userId, own.id, partner.id);
+    if (!g.ok) return json({ error: g.error, message: g.message }, g.status, sess);
+    group = g.booking;
+  }
   const passDate = await reserveOperatorDate(db, sess.userId);
   const reservation = passDate ? null : (secondDate ? await reserveSecondDate(db, sess.userId) : null) ?? (await reserveEpisode(db, sess.userId));
   if (!passDate && !reservation) {
@@ -380,7 +392,7 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
   }
   const outcome = { saved: false };
   try {
-    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome, secondDate, passDate);
+    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome, secondDate, passDate, group);
   } finally {
     if (!outcome.saved) {
       const giveBack = passDate ? releaseOperatorDate(db, sess.userId) : reservation ? releaseEpisode(db, sess.userId, reservation) : Promise.resolve();
@@ -411,6 +423,7 @@ async function writeAndSave(
   saveState: { saved: boolean },
   secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted"; dateNumber: number } | null = null,
   operatorReserved = false,
+  group: GroupBooking | null = null,
 ): Promise<Response> {
   const episodeId = crypto.randomUUID();
   const dateRequest: DateRequest = {
@@ -430,7 +443,9 @@ async function writeAndSave(
     creatorId: sess.userId,
     followupOf: secondDate?.followupOf ?? null,
     ...(secondDate ? { dateNumber: secondDate.dateNumber } : {}),
-    chosenPlace,
+    chosenPlace: group ? null : chosenPlace,
+    // A double date (lib/group-dates.ts): both tables share the night's venue, and each knows who else is there.
+    ...(group ? { venueOverride: group.venue, table: group.table } : {}),
   });
   // Which date this is for the couple (lib/rules dateLabel): the badge says "Third date", not always "Second".
   if (secondDate) built.setup.date_number = secondDate.dateNumber;
@@ -461,9 +476,9 @@ async function writeAndSave(
   const saved = await db.query<{ id: string }>(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup,
-                           note, self_pick, transcript, status, visibility, followup_of, engine_trace, operator_reserved)
+                           note, self_pick, transcript, status, visibility, followup_of, engine_trace, operator_reserved, group_id)
      select $1, $2, $3, $4, '', '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, $7, $8, $9::jsonb, $10::jsonb, null,
-            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating', $14, $15, $16::jsonb, $17
+            '[]'::jsonb, $11::jsonb, $12, $13, '[]'::jsonb, 'generating', $14, $15, $16::jsonb, $17, $18
       where not exists (
         select 1 from characters pc
           join blocks bl on (bl.blocker_id = $2 and bl.blocked_id = pc.owner_id)
@@ -488,6 +503,7 @@ async function writeAndSave(
       secondDate?.followupOf ?? null,
       trace ? JSON.stringify(trace) : null,
       operatorReserved,
+      group?.nightId ?? null,
     ],
   ).catch((err: unknown) => {
     // Two owners booking the same second date at once: the unique followup_of lets exactly one through.
@@ -505,6 +521,8 @@ async function writeAndSave(
     );
   }
   saveState.saved = true;
+  // A double date's table is booked: the night carries each side's episode (lib/group-dates.ts).
+  if (group) await markNightBooked(db, group, episodeId).catch(() => {});
   // North-star: a web-made × MCP-made pair's date, once per pair (best effort; never breaks a booking).
   await recordCrossSpecies(db, episodeId, "booking");
   // Their nudges for each other go into this date (snapshotted on the setup), so they're used now.

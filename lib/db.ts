@@ -559,6 +559,27 @@ create table if not exists scheduled_dates (
 );
 create index if not exists scheduled_dates_due_idx on scheduled_dates (run_at) where ran_at is null;
 create index if not exists scheduled_dates_creator_idx on scheduled_dates (creator_id, created_at desc);
+-- Double dates (lib/group-dates.ts, docs/PRDs/group-dates.md): one night, two couples at one table, each couple's own
+-- episode underneath (episodes.group_id). couple_a is the proposer's side; couple_b the other, whose booker consents
+-- (invite_to) unless the proposer owns or the house plays both of its characters.
+create table if not exists group_nights (
+  id text primary key,
+  kind text not null check (kind in ('double')),
+  venue text not null,
+  created_by text not null,
+  status text not null check (status in ('invited', 'booked', 'declined', 'lapsed', 'half_booked')),
+  invite_to text,
+  couple_a jsonb not null,
+  couple_b jsonb not null,
+  episode_a text,
+  episode_b text,
+  created_at timestamptz not null default now(),
+  decided_at timestamptz
+);
+create index if not exists group_nights_invite_idx on group_nights (invite_to) where status = 'invited';
+-- The night a date belongs to, when it's one table of a double date (lib/group-dates.ts).
+alter table episodes add column if not exists group_id text;
+create index if not exists episodes_group_idx on episodes (group_id) where group_id is not null;
 -- The house matchmaker's daily picks (lib/house-matchmaker.ts): a pair is proposed once, ever; both owners are told.
 create table if not exists matchmaker_picks (
   character_lo text not null references characters (id) on delete cascade,

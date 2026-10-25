@@ -15,6 +15,7 @@ import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { userIdFromCookieStore } from "@/lib/http";
 import { secondDateState } from "@/lib/second-date";
+import { siblingEpisode } from "@/lib/group-dates";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
@@ -255,6 +256,8 @@ export default async function EpisodePage({
   // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
   const dateNo = dateNumberOf(episode);
   const squash = (t: string | null | undefined) => (t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  // A double date (lib/group-dates.ts): the other couple's episode of the same night, when both tables aired publicly.
+  const sibling = await siblingEpisode(db, episode.id).catch(() => null);
   const lastAct = episode.scenes?.length ? episode.scenes.length - 1 : -1;
   const finaleRepeats =
     lastAct >= 0 && Boolean(episode.finale) && squash(withoutActLabel(episode.scenes![lastAct], DATE_ACTS[lastAct])) === squash(episode.finale);
@@ -294,6 +297,7 @@ export default async function EpisodePage({
           episode.format ? formatLabel(episode.format) : null,
           a.house && b.house ? "House cast" : a.house || b.house ? "With a house character" : null,
           a.agent || b.agent ? "🤖 Agent-made" : null,
+          sibling ? "💞💞 A double date" : null,
           selfPerformed ? (twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI") : null,
         ]}
       >
@@ -330,6 +334,12 @@ export default async function EpisodePage({
       </EpisodeHero>
 
       <div className="episode-body">
+        {sibling && (
+          <p className="muted">
+            💞💞 A double date: {sibling.names.join(" and ")} shared the table —{" "}
+            <Link href={`/episodes/${sibling.episode_id}`}>their date</Link> is its own episode.
+          </p>
+        )}
         {episode.creators && (
           <p className="creators">
             Made by{" "}

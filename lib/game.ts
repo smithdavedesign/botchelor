@@ -97,6 +97,11 @@ export type DateSetup = {
   /** ex_returns: a real past partner's name from the relationship graph, when there is one. Flavour only. */
   ex?: string;
   /**
+   * A double date (lib/group-dates.ts): the other couple at the table, as one line both actors see
+   * ("Also at your table tonight: …"). Snapshotted so the worker rebuilds the same night. Flavour only, never the engine.
+   */
+  table?: string;
+  /**
    * M14 part 2: the EXACT effective engine signals this date ran on, snapshotted per side (base soul/image
    * signals plus the learned memory drift). Stored so a Sliding Doors / chaos replay reproduces the date even
    * after the character's memory has since drifted. Optional: episodes built before the snapshot have none,

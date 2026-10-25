@@ -23,6 +23,8 @@ import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
 import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-handle";
 import { cancelScheduledDate, pendingScheduledDates, scheduleDate } from "../scheduled-dates";
+import { acceptDouble, declineDouble, listDoubles, proposeDouble } from "../group-dates";
+import { bookDoubleNight } from "../group-dates-run";
 import { operatorReserved } from "../operator-pass";
 import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, llmsText } from "../agents";
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
@@ -462,6 +464,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   set_open_to_dates: FREE,
   set_profile: FREE,
   schedule_date: "Free to set; the date spends your dates/budget when it runs (my_notifications says how it went).",
+  double_date: "Proposing is free; each couple's booker spends one date when the night books (a self-double spends two of yours).",
   go_on_date: `Costs ${ONE_DATE}; a date that can't be booked, a proposal to a closed character's creator and preview: true spend nothing.`,
   // 2.13.0 (the 2026-10-23-2135 run: "free" here beside autoplay's "shared daily date"): what each word means, in both.
   start_own_date: "Free while you write the lines: no weekly date, token or shared daily date (autoplay_own_date, where the show's model writes, uses one). preview: true starts nothing.",
@@ -618,6 +621,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "predict_arc.pick": ARC_PICKS,
   "set_date_visibility.visibility": DATE_VISIBILITIES,
   "schedule_date.visibility": DATE_VISIBILITIES,
+  "double_date.visibility": DATE_VISIBILITIES,
   "set_model.provider": TEXT_PROVIDER_IDS,
   "feedback_board.kind": FEEDBACK_KINDS,
   "feedback_board.sort": FEEDBACK_SORTS,
@@ -5533,6 +5537,63 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           scheduled_date: r.scheduled,
           runs: "Within the hour after `at`. It spends a date from your budget then, under the usual booking rules, and my_notifications says how it went.",
           scheduled: await pendingScheduledDates(db, who.id),
+        },
+        identity: who,
+      };
+    }
+    case "double_date": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const visibility = typeof args.visibility === "string" ? args.visibility : undefined;
+      if (typeof args.decline === "string") {
+        const done = await declineDouble(db, who.id, args.decline);
+        if (!done) return { error: "No open invite of yours with that id (double_date { list: true } shows them)." };
+        return { data: { declined: args.decline }, identity: who };
+      }
+      if (typeof args.accept === "string") {
+        const accepted = await acceptDouble(db, who.id, args.accept);
+        if (!accepted) return { error: "No open invite of yours with that id (double_date { list: true } shows them; invites lapse after 7 days)." };
+        const booked = await bookDoubleNight(db, accepted, visibility);
+        if (!booked.ok) return { error: booked.error };
+        return {
+          data: {
+            booked: { your_table: booked.episode_b, their_table: booked.episode_a },
+            note: "Both tables are being written; each couple's date airs the usual way, and either episode links the other.",
+          },
+          identity: who,
+        };
+      }
+      if (args.list === true || args.character_id === undefined) {
+        return {
+          data: {
+            nights: await listDoubles(db, who.id),
+            note: "accept: <id> books both tables (yours spends one of your dates); decline: <id> is a no. Invites lapse after 7 days.",
+          },
+          identity: who,
+        };
+      }
+      const proposed = await proposeDouble(
+        db,
+        who.id,
+        { character_id: String(args.character_id ?? ""), partner_id: String(args.partner_id ?? "") },
+        { character_id: String(args.with_character ?? ""), partner_id: String(args.with_partner ?? "") },
+      );
+      if (!proposed.ok) return { error: proposed.error };
+      if (!proposed.books_now) {
+        return {
+          data: {
+            invited: proposed.night.id,
+            note: "The other couple's booker has the invite (7 days). You'll hear on my_notifications; nothing is spent unless it books.",
+          },
+          identity: who,
+        };
+      }
+      const booked = await bookDoubleNight(db, proposed.night, visibility);
+      if (!booked.ok) return { error: booked.error };
+      return {
+        data: {
+          booked: { episode_a: booked.episode_a, episode_b: booked.episode_b },
+          note: "Both your tables are being written (two of your dates); each couple's date airs the usual way, and either episode links the other.",
         },
         identity: who,
       };
