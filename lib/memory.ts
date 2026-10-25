@@ -106,6 +106,8 @@ export type MetPerson = {
   /** Who they were with that night. */
   with_name: string;
   their_ending: Ending;
+  /** PRIVATE (self and owner only): the owner's saved take on them (noteMeeting), carried into a later first date. */
+  your_take?: string;
 };
 
 /** The aired date a memory came from. */
@@ -686,30 +688,87 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
  * at the table saw. One entry per person (their latest table), most recent first, capped.
  */
 export async function loadMetAtTable(db: Db, characterId: string, limit = 8): Promise<MetPerson[]> {
+  // Siblings by episodes.group_id, so one query covers a double's other table and a mixer's other rotations.
+  // Someone this character DATED at the same night is its people memory's, not met's (the not-exists below).
   const { rows } = await db.query<{ id: string; name: string; is_house: boolean; venue: string | null; at: string | Date; with_name: string; ending: Ending }>(
     `select distinct on (o.id) o.id, o.name, o.is_house, s.setup->>'venue' as venue, s.revealed_at as at, w.name as with_name, s.ending
        from episodes e
-       join group_nights gn on gn.id = e.group_id
-       join episodes s on s.id = (case when gn.episode_a = e.id then gn.episode_b else gn.episode_a end)
-       join characters o on o.id in (s.character_a, s.character_b)
+       join episodes s on s.group_id = e.group_id and s.id <> e.id
+       join characters o on o.id in (s.character_a, s.character_b) and o.id <> $1
        join characters w on w.id = (case when o.id = s.character_a then s.character_b else s.character_a end)
-      where (e.character_a = $1 or e.character_b = $1)
+      where e.group_id is not null and (e.character_a = $1 or e.character_b = $1)
         and e.revealed_at is not null and e.visibility = 'public'
         and s.revealed_at is not null and s.visibility = 'public'
+        and not exists (select 1 from episodes d
+                         where d.group_id = e.group_id
+                           and $1 in (d.character_a, d.character_b) and o.id in (d.character_a, d.character_b))
       order by o.id, s.revealed_at desc`,
     [characterId],
   );
+  const notes = rows.length
+    ? new Map(
+        (await db.query<{ about_id: string; note: string }>(`select about_id, note from met_notes where character_id = $1`, [characterId])).rows.map((n) => [
+          n.about_id,
+          n.note,
+        ]),
+      )
+    : new Map<string, string>();
   return rows
     .sort((x, y) => new Date(y.at).getTime() - new Date(x.at).getTime())
     .slice(0, limit)
-    .map((r) => ({ id: r.id, name: r.name, house: r.is_house, venue: (r.venue as PlaceId) ?? null, at: new Date(r.at).toISOString(), with_name: r.with_name, their_ending: r.ending }));
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      house: r.is_house,
+      venue: (r.venue as PlaceId) ?? null,
+      at: new Date(r.at).toISOString(),
+      with_name: r.with_name,
+      their_ending: r.ending,
+      ...(notes.has(r.id) ? { your_take: notes.get(r.id) } : {}),
+    }));
 }
 
 /** The one line a date prompt carries about someone it only shared a table with (remembered()'s fallback). */
 export function metAtTable(memory: CharacterMemory | null | undefined, otherId: string): string | null {
   const m = memory?.met?.find((x) => x.id === otherId);
   if (!m) return null;
-  return `You haven't dated, but you shared a table once: a double date at ${venuePhrase(m.venue)}, where they were with ${shortName(m.with_name)}. Their date ended: ${endingLabel(m.their_ending, 1)}.`;
+  const take = m.your_take ? ` Your take at the time: ${m.your_take}` : "";
+  return `You haven't dated, but you've met: a group night at ${venuePhrase(m.venue)}, where they were with ${shortName(m.with_name)}. Their date ended: ${endingLabel(m.their_ending, 1)}.${take}`;
+}
+
+export const MET_NOTE_MAX = 160;
+
+/**
+ * Save the character's own take on someone it MET at a group night without dating (its dated people take
+ * reflect_on_date instead): one short line, kept private to self and owner, folded into met and carried into a later
+ * first date with them (David 2026-10-25: reflect on who they liked and let it shape future engagements).
+ */
+export async function noteMeeting(
+  db: Db,
+  userId: string,
+  characterId: string,
+  aboutId: string,
+  note: string,
+): Promise<{ ok: true; met: MetPerson[] } | { ok: false; error: string }> {
+  const mine = (await db.query(`select 1 from characters where id = $1 and owner_id = $2 and not is_house`, [characterId, userId])).rows;
+  if (!mine.length) return { ok: false, error: "character_id isn't one of your characters (my_status lists yours)." };
+  const trimmed = note.trim().replace(/\s+/g, " ").slice(0, MET_NOTE_MAX);
+  if (!trimmed) return { ok: false, error: "note: a short line about them (what your character made of them)." };
+  const met = await loadMetAtTable(db, characterId);
+  if (!met.some((m) => m.id === aboutId)) {
+    return {
+      ok: false,
+      error: "about: someone your character met at a group night without dating (its met memory; once both sides have aired). A date it went on takes the date's own reflect tool instead.",
+    };
+  }
+  if (!checkFields({ note: trimmed }).ok) return { ok: false, error: "Keep the take clean: no real people, minors or sexual content." };
+  await db.query(
+    `insert into met_notes (character_id, about_id, note) values ($1, $2, $3)
+     on conflict (character_id, about_id) do update set note = excluded.note, created_at = now()`,
+    [characterId, aboutId, trimmed],
+  );
+  await updateCharacterMemory(db, characterId).catch(() => {});
+  return { ok: true, met: await loadMetAtTable(db, characterId) };
 }
 
 /* ------------------------------------ people, chapters, milestones ------------------------------------ */

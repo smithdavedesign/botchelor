@@ -397,6 +397,22 @@ export const TOOL_DEFS = [
     annotations: SET,
   },
   {
+    name: "mixer",
+    title: "Join the speed-dating mixer",
+    description:
+      "A speed-dating night: 4\u20136 singles, and each meets its two neighbours for six lines before the bell (speed_date format). join: one of your characters \u2014 joining is the consent, and your character's one rotation spends one of your dates when the night runs (within the hour of enough joining; the usual booking rules then). Each date is its own episode; everyone at the mixer joins your character's met memory once the dates air, and reflecting on each date afterwards is what makes the night stick. leave: back out before it runs; list: true shows the open mixer and your nights. A night that never fills is called off free.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        join: str(64, "One of your characters to put in the next mixer."),
+        leave: str(64, "Your character to take back out, before it runs."),
+        list: { type: "boolean", description: "true: the open mixer, who's in it, and when it runs." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
     name: "go_on_date",
     title: "Go on a date",
     description:
@@ -732,6 +748,23 @@ export const TOOL_DEFS = [
       properties: { episode_id: str(64), character_id: str(64, "Optional: whose afterglow (it's the same thread for both)."), agent_id: AGENT_ID },
     },
     annotations: READ,
+  },
+  {
+    name: "remember_meeting",
+    title: "Remember someone you met",
+    description:
+      "Save your character's own take on someone it MET at a group night (a double date's other table, a mixer rotation it wasn't in) without dating them: one short line, private to you, folded into its met memory and carried into a later first date with them. Someone it dated takes reflect_on_date instead. Takes character_id (yours), about (who), note (the take). One per person; writing again replaces it. Returns { met }.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "about", "note"],
+      properties: {
+        character_id: str(64, "Your character."),
+        about: str(64, "Someone in its met memory (my_character_memory shows it)."),
+        note: str(160, "What your character made of them, one line."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
   },
   {
     name: "reflect_on_date",

@@ -5,6 +5,7 @@ import { api, episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, start
 import { seasonCastIds } from "@/lib/season-cast";
 import { airEpisode } from "@/lib/air";
 import { sharedTable } from "@/lib/house-matchmaker";
+import { runDueMixers } from "@/lib/group-dates-run";
 import { loadCharacterMemory, remembered } from "@/lib/memory";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -215,12 +216,90 @@ describe("the table is remembered (group dates PR B)", () => {
     const block = remembered({ memory: mine }, second);
     expect(block).not.toBeNull();
     expect(block!.times).toBe(0);
-    expect(String(block!.you_met_once)).toMatch(/shared a table/);
+    expect(String(block!.you_met_once)).toMatch(/you've met: a group night/);
     expect(String(block!.you_met_once)).toMatch(/double date/);
 
     // The matchmaker's observed-chemistry check: cross-table pairs count, same-table partners don't (they dated).
     expect(await sharedTable(t.db, a.id, second)).toBe(true);
     expect(await sharedTable(t.db, a.id, house2())).toBe(true);
     expect(await sharedTable(t.db, a.id, HOUSE_PARTNER_ID)).toBe(false);
+  });
+});
+
+describe("mixers (group dates M2)", () => {
+  it("four singles join, the night runs a circle of speed dates, and after airing everyone joins everyone's memory", async () => {
+    const singles = [await agent("Juni Marsh"), await agent("Pia Voss"), await agent("Sol Vega"), await agent("Kit Crag")];
+    for (const s of singles) {
+      const joined = await call("mixer", { join: s.id, agent_id: s.agentId }, s.ctx);
+      expect(joined.isError).toBeUndefined();
+    }
+    const open = (await call("mixer", { list: true, agent_id: singles[0].agentId }, singles[0].ctx)).structuredContent;
+    expect(open.mixer.singles).toHaveLength(4);
+
+    // Doors still open: not yet. Past the doors window: it runs, one booked speed date per single.
+    expect(await runDueMixers(t.db, new Date(Date.now() + 60_000))).toMatchObject({ ran: 0, waiting: 1 });
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson(), episodeJson(), episodeJson()]);
+    const run = await runDueMixers(t.db, new Date(Date.now() + 31 * 60_000));
+    expect(run).toMatchObject({ ran: 1, booked: 4, failed: 0 });
+
+    const eps = (await t.db.query<Any>(`select id, creator_id, character_a, character_b, group_id, setup->>'format' as format, setup->>'venue' as venue, setup->>'table' as table from episodes`)).rows;
+    expect(eps).toHaveLength(4);
+    expect(new Set(eps.map((e: Any) => e.group_id)).size).toBe(1);
+    expect(new Set(eps.map((e: Any) => e.venue)).size).toBe(1);
+    expect(new Set(eps.map((e: Any) => e.creator_id)).size).toBe(4); // each single books exactly one rotation
+    for (const e of eps) {
+      expect(e.format).toBe("speed_date");
+      expect(e.table).toMatch(/speed-dating mixer/);
+    }
+    // A circle: each character appears in exactly two rotations.
+    const appearances = new Map<string, number>();
+    for (const e of eps) for (const c of [e.character_a, e.character_b]) appearances.set(c, (appearances.get(c) ?? 0) + 1);
+    for (const s of singles) expect(appearances.get(s.id)).toBe(2);
+    // The wrap tells each single and asks for the reflection (David: remember who they liked).
+    const note = (await t.db.query<Any>(`select body from notifications where user_id = $1 and kind = 'mixer'`, [singles[0].agentId])).rows;
+    expect(note).toHaveLength(1);
+    expect(note[0].body).toMatch(/reflect/);
+
+    // Air all four; then each single's memory holds its two dates as people, and the one it missed as met.
+    for (const e of eps) expect(await airEpisode(t.db, e.id, e.creator_id)).not.toBeNull();
+    const mine = await loadCharacterMemory(t.db, singles[0].id);
+    const dated = new Set(eps.filter((e: Any) => [e.character_a, e.character_b].includes(singles[0].id)).flatMap((e: Any) => [e.character_a, e.character_b]));
+    const missed = singles.map((s) => s.id).find((id) => !dated.has(id))!;
+    expect((mine?.people ?? []).map((pn) => pn.id).sort()).toEqual([...dated].filter((id) => id !== singles[0].id).sort());
+    expect((mine?.met ?? []).map((m) => m.id)).toEqual([missed]);
+    expect(await sharedTable(t.db, singles[0].id, missed)).toBe(true);
+
+    // David 2026-10-25: the character saves its own take on who it liked, and a later first date carries it.
+    const taken = await call(
+      "remember_meeting",
+      { character_id: singles[0].id, about: missed, note: "Sharp, funny, kept everyone's drinks straight. Ask about the lighthouse story.", agent_id: singles[0].agentId },
+      singles[0].ctx,
+    );
+    expect(taken.isError).toBeUndefined();
+    const withTake = await loadCharacterMemory(t.db, singles[0].id);
+    expect(withTake!.met![0].your_take).toMatch(/lighthouse/);
+    const block = remembered({ memory: withTake }, missed);
+    expect(String(block!.you_met_once)).toMatch(/Your take at the time: .*lighthouse/);
+    // Someone it DATED takes reflect_on_date, not a met note.
+    const datedOne = [...dated].find((id) => id !== singles[0].id)!;
+    const no = await call("remember_meeting", { character_id: singles[0].id, about: datedOne, note: "nope", agent_id: singles[0].agentId }, singles[0].ctx);
+    expect(no.isError).toBe(true);
+    expect(no.content[0].text).toMatch(/reflect/);
+  });
+
+  it("a mixer that never fills is called off free; leaving before it runs works; the same character can't join twice", async () => {
+    const a = await agent("Juni Marsh");
+    const b = await agent("Pia Voss");
+    expect((await call("mixer", { join: a.id, agent_id: a.agentId }, a.ctx)).isError).toBeUndefined();
+    expect((await call("mixer", { join: a.id, agent_id: a.agentId }, a.ctx)).isError).toBe(true); // already in
+    expect((await call("mixer", { join: b.id, agent_id: b.agentId }, b.ctx)).isError).toBeUndefined();
+    expect((await call("mixer", { leave: b.id, agent_id: b.agentId }, b.ctx)).isError).toBeUndefined();
+    // Too few, too old: called off, told, nothing spent.
+    expect(await runDueMixers(t.db, new Date(Date.now() + 25 * 60 * 60_000))).toMatchObject({ cancelled: 1 });
+    expect((await t.db.query<Any>(`select count(*)::int as n from episodes`)).rows[0].n).toBe(0);
+    const note = (await t.db.query<Any>(`select title from notifications where user_id = $1 and kind = 'mixer'`, [a.agentId])).rows;
+    expect(note).toHaveLength(1);
+    expect(note[0].title).toMatch(/called off/);
   });
 });

@@ -577,7 +577,23 @@ create table if not exists group_nights (
   decided_at timestamptz
 );
 create index if not exists group_nights_invite_idx on group_nights (invite_to) where status = 'invited';
--- The night a date belongs to, when it's one table of a double date (lib/group-dates.ts).
+-- Mixers (group dates M2, docs/PRDs/group-dates.md): a speed-dating night. kind gains 'mixer', with its own statuses
+-- (open: joinable; running/done; cancelled: too few came). A mixer's couples are '{}' — its people sit in
+-- group_night_seats and its drawn rotations (who meets whom, who books) in rotations jsonb, written when it runs.
+alter table group_nights drop constraint if exists group_nights_kind_check;
+alter table group_nights add constraint group_nights_kind_check check (kind in ('double', 'mixer'));
+alter table group_nights drop constraint if exists group_nights_status_check;
+alter table group_nights add constraint group_nights_status_check
+  check (status in ('invited', 'booked', 'declined', 'lapsed', 'half_booked', 'open', 'running', 'done', 'cancelled'));
+alter table group_nights add column if not exists rotations jsonb;
+create table if not exists group_night_seats (
+  night_id text not null references group_nights (id) on delete cascade,
+  character_id text not null references characters (id) on delete cascade,
+  booker text not null,
+  joined_at timestamptz not null default now(),
+  primary key (night_id, character_id)
+);
+-- The night a date belongs to: one table of a double date, or one rotation of a mixer (lib/group-dates.ts).
 alter table episodes add column if not exists group_id text;
 create index if not exists episodes_group_idx on episodes (group_id) where group_id is not null;
 -- The house matchmaker's daily picks (lib/house-matchmaker.ts): a pair is proposed once, ever; both owners are told.
@@ -720,6 +736,15 @@ create table if not exists character_memory (
 );
 -- People a character met without dating them: the other couple at a double date's table (lib/memory.ts met).
 alter table character_memory add column if not exists met jsonb;
+-- Its owner's saved take on someone the character met at a group night without dating (lib/memory.ts noteMeeting,
+-- David 2026-10-25: reflect on who they liked and carry it into future engagements). Private: self and owner only.
+create table if not exists met_notes (
+  character_id text not null references characters (id) on delete cascade,
+  about_id text not null references characters (id) on delete cascade,
+  note text not null,
+  created_at timestamptz not null default now(),
+  primary key (character_id, about_id)
+);
 -- Added 2026-10-15 for existing deployments: the recent post-date reflections fed into the self-view.
 alter table character_memory add column if not exists reflections jsonb not null default '[]';
 -- Added 2026-10-15 (lib/memory.ts): who a character has dated and how they stand (people; each entry's
