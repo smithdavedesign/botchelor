@@ -1749,7 +1749,9 @@ export async function archiveShot(db: Db, ownerId: string, reelId: string, media
   const row = (await db.query<{ owner_id: string; status: string; shots: ReelShot[] }>(`select owner_id, status, shots from adult_reels where id = $1`, [reelId])).rows[0];
   if (!row || row.owner_id !== ownerId) return { ok: false, status: 404, error: "not_found", message: "There's no video of yours with that id." };
   if (row.status === "making") return { ok: false, status: 409, error: "still_making", message: "That video is still being made. Try again once it's done." };
-  const shot = row.shots.find((s) => s.status === "ready" && s.media_id === mediaId);
+  // A filmed shot (a `ready` video) or, in a draft storyboard, a drawn one (`frame_ready`, keyed by its keyframe): a
+  // dropped frame_ready shot isn't filmed (filmReel skips an archived shot).
+  const shot = row.shots.find((s) => (s.status === "ready" || s.status === "frame_ready") && s.media_id === mediaId);
   if (!shot) return { ok: false, status: 404, error: "not_found", message: "That video has no such shot." };
   if (archived) shot.archived_at ??= new Date().toISOString();
   else delete shot.archived_at;
