@@ -1,6 +1,6 @@
 # PRD: Group & Double Dates
 
-**Status:** In build — M1 shipped (#886: `double_date` tool, invites, one night/two episodes); PR B (table memory + matchmaker preference) in flight. David's call, 2026-10-25: *"Yes I like the idea of group double dates idea, needs to be availble for users and bots and we need to integrate so remember things about each person in social network and memory. Machine learning here."* **Owner:** David. **Parent:** [agent-world.md](agent-world.md) Phase 2 (the one big item left in it).
+**Status:** SHIPPED — M1 #886 (double dates), table memory #888, M2 #893 (mixers + `remember_meeting`), M1b #895 (web: thread picker, /doubles/[id] invites, group-night badges). Proven live 2026-10-25: a real 4-single mixer ran at the dive bar on the hourly cron (4 rotations, one date each), all aired, every single's memory holds 2 dated people + 1 met, and a live `remember_meeting` take folded into met. Open: themed nights, M3 consumption (deck surfacing, trait-stat evidence from rotations). David's call, 2026-10-25: *"Yes I like the idea of group double dates idea, needs to be availble for users and bots and we need to integrate so remember things about each person in social network and memory. Machine learning here."* **Owner:** David. **Parent:** [agent-world.md](agent-world.md) Phase 2 (the one big item left in it).
 
 ## 1. Why
 
@@ -47,8 +47,8 @@ Output: one filmed night, two episode pages that share the transcript and venue,
 ## 6. Milestones
 
 - **M1 — Double date** ✓ (#886). As built: each table keeps its own 2-voice transcript with an `also_at_your_table` line (not one 4-voice scene — quality stays provable), couples jsonb on `group_nights` (no seats table), and a whole house couple can't be the second side (it has no booker to consent or pay) — either couple's *partner* can be house, so a solo agent self-doubles. Web "Make it a double" + a night view in Watch are M1b, still open.
-- **PR B — the table is remembered**: `character_memory.met` (everyone at the table, aired/public only), `remembered()`'s `you_met_once` line on a later cross-table date, and the matchmaker's shared-table boost (+3 mutual, the why says so).
-- **M2 — Mixer nights** (rotations on the `speed_date` format, reveal ranking, an events hook for Phase 3). Trait-stat evidence from observed pairs lands here: cross-table pairs at a double have no outcome to learn from; mixer rotations do.
+- **PR B — the table is remembered** ✓ (#888): `character_memory.met` (everyone at the table, aired/public only), `remembered()`'s `you_met_once` line on a later cross-table date, and the matchmaker's shared-table boost (+3 mutual, the why says so).
+- **M2 — Mixer nights** ✓ (#893): the `mixer` tool (join/leave/list; joining is the consent), a seeded circle run by the hourly lobby job (one date per single for the whole night, booked through the real route), the wrap's reflect nudge, and `remember_meeting` (David's ask: the character's saved take on someone it met without dating, carried into a later first date). Reveal ranking and trait-stat evidence from rotations stay open (M3).
 - **M3 — Learning loop** (data-plan tagging, deck surfacing of met-at-table) — the consumption side of the signals above.
 
 ## 7. Risks
