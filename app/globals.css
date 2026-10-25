@@ -7922,9 +7922,15 @@ a.phone-head-btn {
 .ad-reel-stage video.on {
   opacity: 1;
 }
+.ad-reel-preload {
+  opacity: 0.7;
+  font-size: var(--text-xs);
+}
+/* Above the videos (z-index 1, #824): under them it was hidden, and Play just looked broken (2026-10-25). */
 .ad-reel-loading {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: grid;
   place-items: center;
   color: #e2c8ff;
@@ -7932,6 +7938,7 @@ a.phone-head-btn {
 }
 .ad-reel-caption {
   position: absolute;
+  z-index: 2;
   left: 50%;
   bottom: 3.6rem;
   transform: translateX(-50%);
@@ -7947,6 +7954,8 @@ a.phone-head-btn {
 }
 .ad-reel-controls {
   position: absolute;
+  /* Above the videos (z-index 1): under them, every click hit the video, not Play or Theater (2026-10-25). */
+  z-index: 2;
   left: 0;
   right: 0;
   bottom: 0;
