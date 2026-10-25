@@ -3,8 +3,8 @@
  * regular characters too … safe mode"): photo shoots of an owner's own character for the show, at /characters/[id]/studio.
  * It reuses nothing of After Dark's menus or models, and keeps nothing explicit:
  *
- *  - **Who:** the character's owner; an admin also the house cast. Open to admins until its live test is signed off
- *    (`studio.pg.open_to`, lib/adult/studio-config.ts).
+ *  - **Who:** the character's owner (signed in); an admin also the house cast. Open to everyone since its live test
+ *    (2026-10-25); `studio.pg.open_to: "admins"` closes it to all but admins again (lib/adult/studio-config.ts).
  *  - **A shoot:** the menus' picks (lib/studio/pg-catalog.ts) and their own words, checked by checkPgPictureText first;
  *    `shoot_size` pictures drawn in Venice's safe mode, from their portrait (the face kept) when they have one, else from
  *    their look's words.

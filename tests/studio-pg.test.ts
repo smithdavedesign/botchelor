@@ -77,8 +77,10 @@ async function owner() {
 const tokens = (uid: string, n: number) => t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, $3, 'test')`, [crypto.randomUUID(), uid, n]);
 
 describe("who may open it", () => {
-  it("is admins only until it's opened, then each owner for their own characters; an admin also the house cast", async () => {
+  it("is each owner's for their own characters (admins only when it's closed again); an admin also the house cast", async () => {
     const me = await owner();
+    expect((await state(me.id, me.cookie)).status).toBe(200);
+    await saveAdultSettings(t.db, { studio: { pg: { open_to: "admins" } } });
     expect((await state(me.id, me.cookie)).status).toBe(404);
     await saveAdultSettings(t.db, { studio: { pg: { open_to: "everyone" } } });
     expect((await state(me.id, me.cookie)).status).toBe(200);
