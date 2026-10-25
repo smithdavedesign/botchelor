@@ -16,6 +16,8 @@ import { useSteadySet } from "./useSteadySet";
 import { TheaterListen } from "./Listen";
 import { ClipHere } from "./MediaMenu";
 import SceneMatch from "./SceneMatch";
+import SceneBackdrop from "./SceneBackdrop";
+import { useSceneMedia } from "./useSceneMedia";
 import VideoChoice from "./VideoChoice";
 import type { NightChapter } from "@/lib/adult/nights";
 import type { ReelScope } from "@/lib/adult/reels";
@@ -167,6 +169,8 @@ export default function AfterDarkTheater({
   const [where, setWhere] = useState("");
   const shown = replay.shown;
   const [a, b] = characters;
+  // Media the pair already has of the moment (a picture to offer, a clip to loop behind the scene), live scenes only.
+  const sceneMedia = useSceneMedia(a.id, b.id, shown.length, live);
   const caughtUp = shown.length >= turns.length;
   const left = turns.length - shown.length;
   // Autoplay: the next lines are on their way before the stage runs out (paused playback stops it writing further ahead).
@@ -210,6 +214,7 @@ export default function AfterDarkTheater({
     >
       <div className={`theater-stage${convo ? " with-convo" : ""}`}>
         <div className="theater-scene-area">
+          {live && <SceneBackdrop mediaId={sceneMedia.clip?.media_id ?? null} />}
           <Scene
             characters={characters}
             venue={stage.venue}
@@ -319,7 +324,7 @@ export default function AfterDarkTheater({
                   </button>
                 )}
                 <ClipHere a={a.id} b={b.id} at={shown.length - 1} nightId={live ? null : feedbackRef} paused={mediaPaused} />
-                {live && <SceneMatch a={a.id} b={b.id} shown={shown.length} />}
+                {live && <SceneMatch match={sceneMedia.match} />}
                 {onMakeVideo && (
                   <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
                 )}

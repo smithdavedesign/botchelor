@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAdultSwitch } from "@/lib/adult/characters";
-import { currentAct, sceneMatch } from "@/lib/adult/scene-match";
+import { currentAct, sceneClip, sceneMatch } from "@/lib/adult/scene-match";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -85,5 +85,38 @@ describe("a matching picture", () => {
     await pairPicture(owner, lo, hi, "face_to_face", "bedroom", "here");
     await sceneAt(owner, lo, hi, [{ text: "They move together on the bed." }], 4, "bedroom");
     expect((await sceneMatch(t.db, owner, a, b))?.image_id).toBe("here");
+  });
+
+  it("also matches a picture they drew in the theater (a beat picture), not only a Studio shoot", async () => {
+    const { owner, a, b, lo, hi } = await pair();
+    // A drawn beat picture of the act, with no Studio shoot of it at all.
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, status) values ('beat-pic', $1, $2, $3, 'scene', 'p', 'image/png', $4, 'ready')`, [owner, lo, hi, Buffer.from([137, 80, 78, 71])]);
+    await t.db.query(`insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place, status, picture_id) values ('beat-1', $1, 'sc', $2, $3, 1, 2, 'face_to_face', 'sex', 4, 'bedroom', 'drawn', 'beat-pic')`, [owner, lo, hi]);
+    await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "bedroom");
+    expect((await sceneMatch(t.db, owner, a, b))?.image_id).toBe("beat-pic");
+  });
+
+  it("finds a clip of the act to loop behind the scene; none when the act doesn't match", async () => {
+    const { owner, a, b, lo, hi } = await pair();
+    // A ready clip of face_to_face, one ready shot with a video.
+    await t.db.query(
+      `insert into adult_reels (id, owner_id, character_a, character_b, kind, status, tokens, shots, clip) values ('clip-1', $1, $2, $3, 'clip', 'ready', 0, $4::jsonb, $5::jsonb)`,
+      [owner, lo, hi, JSON.stringify([{ status: "ready", media_id: "clip-vid" }]), JSON.stringify({ act: "face_to_face", place: "bedroom" })],
+    );
+    await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "bedroom");
+    expect((await sceneClip(t.db, owner, a, b))?.media_id).toBe("clip-vid");
+    // A different act happening now: no clip of it.
+    await sceneAt(owner, lo, hi, [{ text: "He slides her dress off her shoulders." }], 3, "bedroom");
+    expect(await sceneClip(t.db, owner, a, b)).toBeNull();
+  });
+
+  it("ignores an archived clip shot", async () => {
+    const { owner, a, b, lo, hi } = await pair();
+    await t.db.query(
+      `insert into adult_reels (id, owner_id, character_a, character_b, kind, status, tokens, shots, clip) values ('clip-2', $1, $2, $3, 'clip', 'ready', 0, $4::jsonb, $5::jsonb)`,
+      [owner, lo, hi, JSON.stringify([{ status: "ready", media_id: "clip-vid", archived_at: "2026-10-24T00:00:00Z" }]), JSON.stringify({ act: "face_to_face", place: "bedroom" })],
+    );
+    await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "bedroom");
+    expect(await sceneClip(t.db, owner, a, b)).toBeNull();
   });
 });
