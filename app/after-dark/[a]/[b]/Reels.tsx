@@ -410,7 +410,9 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
         file = (async () => {
           // Once the bucket has refused a read across origins, don't ask again this session: each try is a console error.
           if (noPreload()) return mediaUrl(id);
-          const res = await fetch(mediaUrl(id)).catch(() => null);
+          // Not from the browser's cache: a <video> tag's earlier load of the same file (no Origin, so no CORS header in
+          // the answer) is cached for 12 hours, and a read across origins that reuses it is refused (2026-10-25).
+          const res = await fetch(mediaUrl(id), { cache: "no-store" }).catch(() => null);
           if (!res) {
             markNoPreload();
             return mediaUrl(id);
