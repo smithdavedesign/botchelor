@@ -9196,6 +9196,74 @@ html.ad-studio-locked {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
 
+/* ---------------- the prompts library (/prompts, lib/prompts-library.ts) ---------------- */
+
+.prompts-intro h1 {
+  margin-bottom: var(--space-3);
+}
+
+/* Search and dataset side by side with the button at the end; stacked on a phone. */
+.prompts-search {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+.prompts-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  font-weight: 600;
+}
+.prompts-field input,
+.prompts-field select {
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .prompts-search {
+    grid-template-columns: 1fr;
+  }
+  .prompts-search button {
+    justify-self: start;
+  }
+}
+
+.prompts-list {
+  list-style: none;
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 var(--space-4);
+  padding: 0;
+}
+.prompt-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.prompt-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.prompt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.prompt-copy {
+  min-height: var(--control-h-sm);
+  min-width: 5.5rem;
+}
+.prompts-credits li + li {
+  margin-top: var(--space-1);
+}
+
 /* ---------------- the OC chemistry test (/tools/oc-chemistry-test, its result, /create's pair) ---------------- */
 
 .chem-tool h1 {
