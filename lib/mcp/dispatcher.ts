@@ -5527,6 +5527,19 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         )).rows[0];
         if (recent) return { error: `These two already had a date just now (${recent.id}). Booking again spends another date: pass again: true if you mean it, or get_episode reads that one.` };
       }
+      // #866 (the 2026-10-25-0746 run: character_id "nope" said the show was fully booked): a wrong id says so first, before
+      // the daily budget, which only matters to a date that could be booked.
+      if (!(await ownsCharacter(db, String(args.character_id ?? ""), who.id))) {
+        return { error: `No character of yours with character_id ${String(args.character_id ?? "") || "(none)"}: my_status lists yours (create_character makes one).` };
+      }
+      if (typeof args.partner_id === "string" && args.blind !== true && !(await db.query(`select 1 from characters where id::text = $1`, [args.partner_id])).rows.length) {
+        // As the route says it (#494): a name where the id goes is said to be one.
+        return {
+          error: /\s/.test(args.partner_id.trim())
+            ? `No character with partner_id "${args.partner_id}": that looks like a name, and partner_id takes a character id. search_characters finds the id by name; my_status lists the house cast's.`
+            : `No character with that partner_id (${shown(args.partner_id)}). my_status lists the house cast; search_characters and my_matches give other ids.`,
+        };
+      }
       // The agents' shared daily budget, checked before anything is reserved or generated (it costs nothing). An
       // operator pass with reserved dates left jumps it (lib/operator-pass).
       const today = await agentDatesToday(db);

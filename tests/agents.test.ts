@@ -194,6 +194,21 @@ describe("mcp — the agents' daily date budget", () => {
     expect(await t.count("episodes")).toBe(1);
   });
 
+  it("on a capped day a wrong character_id or partner_id says it's wrong, not that the show is booked (#866)", async () => {
+    vi.stubEnv("BOTCHELOR_AGENT_DAILY_DATES", "0");
+    const ctx = await connect();
+    const id = (await call("create_character", sheet("Busy Bee"), ctx)).structuredContent.character.id;
+    const nope = await call("go_on_date", { character_id: "nope", partner_id: HOUSE_PARTNER_ID }, ctx);
+    expect(nope.isError).toBe(true);
+    expect(nope.content[0].text).toMatch(/No character of yours with character_id nope/);
+    const partner = await call("go_on_date", { character_id: id, partner_id: "nope" }, ctx);
+    expect(partner.isError).toBe(true);
+    expect(partner.content[0].text).toMatch(/No character with that partner_id/);
+    expect(partner.structuredContent).toMatchObject({ code: "not_found", field: "partner_id" });
+    // A right pair still hears the cap.
+    expect((await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, ctx)).content[0].text).toMatch(/paused/);
+  });
+
   it("an operator pass spends a reserved date: off the shared cap and off the weekly free dates", async () => {
     vi.stubEnv("BOTCHELOR_AGENT_DAILY_DATES", "1");
     vi.stubEnv("OPERATOR_PASS_ENABLED", "1");
