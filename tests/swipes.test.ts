@@ -362,7 +362,7 @@ describe("curated decks (theme: fresh | popular)", () => {
     expect(deck.cards.find((c) => c.id === quiet.id)!.why.join(" ")).not.toMatch(/favorite/);
   });
 
-  it("over MCP the reply echoes the theme, and an unknown theme is refused", async () => {
+  it("over MCP the reply echoes the theme; an unknown theme is noted and the plain deck dealt (a read never refuses an enum)", async () => {
     const made = (await rpc("create_character", { ...validCharacter({ name: "Kit Crag" }), extras: PROFILE, open_to_dates: true })).structuredContent;
     await person("Juni Sprout");
     const deck = await rpc("swipe_deck", { character_id: made.character.id, theme: "fresh", agent_id: made.agent_id });
@@ -370,7 +370,8 @@ describe("curated decks (theme: fresh | popular)", () => {
     expect(deck.structuredContent.theme).toBe("fresh");
     expect(deck.structuredContent.cards.length).toBeGreaterThan(0);
     const bad = await rpc("swipe_deck", { character_id: made.character.id, theme: "hot", agent_id: made.agent_id });
-    expect(bad.isError).toBe(true);
-    expect(bad.content[0].text).toMatch(/fresh/);
+    expect(bad.isError).toBeUndefined();
+    expect(bad.structuredContent.theme).toBeUndefined();
+    expect(JSON.stringify(bad.structuredContent)).toMatch(/fresh, popular/);
   });
 });
