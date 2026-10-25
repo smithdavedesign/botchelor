@@ -113,8 +113,10 @@ describe("settleLine: a move takes a proposal and a yes", () => {
     const early = shapeAfter(played(2, 12));
     expect(settleLine(line("a", 0, { dialogue: "Imagine hot chocolate in July." }), { move: "rainy alley" }, early, CHUD).move).toBeUndefined();
     expect(settleLine(line("a", 0, { dialogue: "There's a rainy alley with the best dumplings. Shall we?" }), { move: "rainy alley" }, early, CHUD).move?.to).toBe("elsewhere@rainy alley");
-    // Something the library only has something like keeps their words: the night market isn't the corner café.
-    expect(settleLine(line("a", 0, { dialogue: "How about we try the night market?" }), { move: "the night market" }, early, CHUD).move?.to).toBe("elsewhere@the night market");
+    // Something the library only has something like keeps their words: the taco truck isn't the corner café.
+    expect(settleLine(line("a", 0, { dialogue: "How about we try the taco truck?" }), { move: "the taco truck" }, early, CHUD).move?.to).toBe("elsewhere@the taco truck");
+    // 2026-10-25: the night market IS a venue now (phase two), so a move there lands on its reviewed set.
+    expect(settleLine(line("a", 0, { dialogue: "How about we try the night market?" }), { move: "the night market" }, early, CHUD).move?.to).toBe("night_market");
     expect(settleLine(line("a", 0, { dialogue: "Coffee somewhere quieter?" }), { move: "coffee" }, early, CHUD).move?.to).toBe("corner_cafe");
   });
 
@@ -168,8 +170,9 @@ describe("the reply fields", () => {
     expect(movePlace("my place", CHUD.self, CHUD.other)).toBe("home@Chud's place");
     expect(movePlace("yours", NELL.self, NELL.other)).toBe("home@Chud's place");
     expect(movePlace("my bedroom", CHUD.self, CHUD.other)).toBe("home@Chud's place");
-    // Near isn't the same: the café stands in for coffee, never for a market they named.
-    expect(movePlace("the night market", CHUD.self, CHUD.other)).toBe("elsewhere@the night market");
+    // Near isn't the same: the café stands in for coffee, never for a truck they named.
+    expect(movePlace("the taco truck", CHUD.self, CHUD.other)).toBe("elsewhere@the taco truck");
+    expect(movePlace("the night market", CHUD.self, CHUD.other)).toBe("night_market"); // its own venue since 2026-10-25
     expect(movePlace("coffee", CHUD.self, CHUD.other)).toBe("corner_cafe");
     expect(movePlace("the corner café", CHUD.self, CHUD.other)).toBe("corner_cafe");
     expect(movePlace("Nell Abiodun's place", CHUD.self, CHUD.other)).toBe("home@Nell's place");
