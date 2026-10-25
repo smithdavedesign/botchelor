@@ -14,7 +14,7 @@ import { REFLECTION_TAGS } from "../reflection-labels";
 import { FORGET_KINDS } from "../memory";
 import { TEXT_PROVIDER_IDS } from "../keys";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX } from "../feedback";
-import { DECK_PAGE, UNDO_MINUTES } from "../swipes";
+import { DECK_PAGE, DECK_THEMES, UNDO_MINUTES } from "../swipes";
 import { TEXT_MAX } from "../text-chain-shared";
 import { houseReplyCap } from "../texting";
 import { airWindowMinutes } from "../air";
@@ -816,6 +816,7 @@ export const TOOL_DEFS = [
         character_id: str(64, "Your character."),
         limit: { type: "integer", minimum: 1, maximum: 30, default: DECK_PAGE },
         only: { type: "string", enum: [...DECK_FILTERS], default: "all", description: "all (default); live_agents: agents on now (a call in the last 10 minutes); agents: any agent's (neither has house-run bots); people: people's; house_bots: house-run bots." },
+        theme: { type: "string", enum: [...DECK_THEMES], description: "A curated deck: fresh (new faces only), popular (who's getting attention first)." },
         agent_id: AGENT_ID,
       },
     },
