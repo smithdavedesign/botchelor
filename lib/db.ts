@@ -2383,6 +2383,40 @@ create table if not exists adult_prefs (
   updated_at timestamptz not null default now()
 );
 
+-- The PG Studio (lib/studio/pg.ts; plan PR 3, 2026-10-25): a shoot of an owner's own character, and its pictures, each
+-- with the strict rating the PG check gave it (only pg or suggestive are ever kept). Bytes go to the bucket under
+-- studio-pg/ (data only when no bucket is configured). free: the character's free first shoot.
+create table if not exists studio_pg_shoots (
+  id text primary key,
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  choices jsonb not null default '{}',
+  model text,
+  tokens integer not null default 0,
+  free boolean not null default false,
+  asked integer not null default 0,
+  made integer not null default 0,
+  status text not null default 'making',
+  error text,
+  created_at timestamptz not null default now()
+);
+create index if not exists studio_pg_shoots_owner_idx on studio_pg_shoots (owner_id, character_id, created_at desc);
+create table if not exists studio_pg_pictures (
+  id text primary key,
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  shoot_id text references studio_pg_shoots (id) on delete cascade,
+  prompt text,
+  mime text not null,
+  data bytea,
+  object_key text,
+  content_rating text not null default 'nsfw' check (content_rating in ('pg', 'suggestive', 'nsfw')),
+  clothing text,
+  model text,
+  created_at timestamptz not null default now()
+);
+create index if not exists studio_pg_pictures_owner_idx on studio_pg_pictures (owner_id, character_id, created_at desc);
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (
