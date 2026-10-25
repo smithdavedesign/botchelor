@@ -3373,6 +3373,8 @@ const GENERIC_ALIASES: Record<string, readonly string[]> = {
   since: ["after"],
   wait: ["wait_seconds", "timeout_seconds"], timeout: ["wait_seconds", "timeout_seconds"], timeout_seconds: ["wait_seconds"], wait_seconds: ["timeout_seconds"],
   my_character_id: ["character_id"], my_character: ["character_id"], character: ["character_id"], char_id: ["character_id"],
+  // #868 (the 2026-10-25-0746 run: go_on_date with venue said "Ignored: venue" and booked, spending a date, at a place the show dealt).
+  venue: ["place"], location: ["place"], where: ["place"],
 };
 /** Words for a tool's one yes-or-no answer (swipe's like, answer_match's yes, answer_date_proposal's accept), read as it. */
 const ANSWER_WORDS = ["verdict", "decision", "choice", "answer", "response", "reply"] as const;

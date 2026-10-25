@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
+import { normaliseArgs } from "@/lib/mcp/dispatcher";
 import { agreedPlan } from "@/lib/plans";
 import { namedPlace } from "@/lib/places";
 import { buildDate, DEFAULT_DATE_REQUEST } from "@/lib/simulation";
@@ -71,6 +72,24 @@ describe("place at booking", () => {
     const b = (await call("create_character", validCharacter({ name: "Bo Quill" }))).structuredContent.character.id;
     const step = (await call("start_own_date", { character_id: a, partner_id: b, place: "the old footbridge" })).structuredContent.step;
     expect(await venueOf(step.episode_id)).toBe("elsewhere@the old footbridge");
+  });
+
+  it("go_on_date reads venue (and location) as place, and says so, instead of booking where the show deals (#868)", async () => {
+    const ctx: McpContext = {};
+    await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18" } }, ctx);
+    const s: McpContext = { sessionId: ctx.issuedSessionId };
+    const call = async (name: string, args: Record<string, unknown>): Promise<Any> => (await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, s))!.result;
+    const mine = (await call("create_character", validCharacter({ name: "Ira Fenn" }))).structuredContent.character.id;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const r = await call("go_on_date", { character_id: mine, partner_id: HOUSE_PARTNER_ID, venue: "under the old footbridge" });
+    expect(r.isError).toBeFalsy();
+    expect(JSON.stringify(r.structuredContent)).toContain("venue → place");
+    expect(JSON.stringify(r.structuredContent)).not.toContain("Ignored: venue");
+    expect(await venueOf(r.structuredContent.episode_id ?? r.structuredContent.id ?? r.structuredContent.episode?.id)).toBe("elsewhere@under the old footbridge");
+    expect(normaliseArgs("plan_second_date", { episode_id: "e", location: "the boathouse" }).args).toMatchObject({ place: "the boathouse" });
+    // browse_episodes takes venue itself.
+    expect(normaliseArgs("browse_episodes", { venue: "rooftop" }).args).toMatchObject({ venue: "rooftop" });
   });
 
   it("two house characters never get a chosen place: the show deals theirs", async () => {
