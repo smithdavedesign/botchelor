@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { dailyMatchmakerPicks } from "@/lib/house-matchmaker";
-import { api, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
+import { api, newUserCookie, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -56,7 +56,9 @@ describe("the house matchmaker (lib/house-matchmaker)", () => {
     await open("Ada Lumen", ann);
     await open("Avery Moss", ann); // same owner as Ada: never paired together
     await open("Bo Quill", bob);
-    await t.db.query(`insert into blocks (blocker_id, blocked_id) values ($1, $2)`, [userIdOf(ann), userIdOf(bob)]);
+    // A block hangs off the episode it was made from; any episode serves as the anchor.
+    const { episode } = await setupEpisode();
+    await t.db.query(`insert into blocks (blocker_id, via_episode_id, blocked_id) values ($1, $2, $3)`, [userIdOf(ann), episode.id, userIdOf(bob)]);
     expect(await dailyMatchmakerPicks(t.db, new Date("2026-10-25T18:00:00Z"))).toBe(0);
     expect((await t.db.query(`select 1 from notifications where kind = 'matchmaker_pick'`)).rows).toHaveLength(0);
   });
