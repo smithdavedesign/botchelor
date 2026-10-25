@@ -1,0 +1,187 @@
+# Real, identifiable people a prompts-library prompt may not name (scripts/build-prompts-library.mjs drops any prompt
+# that does). One name per line, lowercase, matched as whole words. scripts/vet-prompt-people.mjs suggests names with
+# the local model; each was read by hand before it went on (2026-10-25: 1,201 suggestions over two passes, most of
+# them artists cited for a style, fictional characters or plain descriptions, none of which belong here).
+ada lovelace
+adam sandler
+adam scott
+alan alda
+albert einstein
+alex wagner
+ana de armas
+andras arato
+andy lau
+angelina jolie
+anita baker
+anne baxter
+anthony hopkins
+ariana grande
+arnold schwarzenegger
+audrey hepburn
+barack obama
+bella heathcote
+ben shapiro
+beyonce
+bill gates
+billie eilish
+bjork
+bob ross
+brad pitt
+brendan gleeson
+brian cranston
+britt marling
+bryan cranston
+buster keaton
+cate blanchett
+chienshiung wu
+chris evans
+christina hendricks
+clarence thomas
+colleen moore
+conrad veidt
+dakota fanning
+danny devito
+david cronenberg
+deshaun watson
+domhnall gleeson
+donal gleeson
+donald trump
+dwayne johnson
+einstein
+eliza dushku
+elizabeth debicki
+elizabeth hurley
+elon musk
+elvis
+elvis presley
+emma stone
+emma watson
+eric lynn wright
+eva green
+frida kahlo
+gal gadot
+george lucas
+glen davis
+gordon brown
+gwendoline christie
+harry styles
+helen mcrory
+helena bonham carter
+henry cavill
+hide the pain harold
+jake gyllenhaal
+jake t. austin
+james dean
+jeff goldblum
+jemaine clement
+jenna ortega
+jennifer aniston
+jennifer connelly
+jennifer lawrence
+jeremy elbertson
+jerma
+jermaine clement
+joe biden
+joe penna
+john belushi
+john f kennedy
+john f. kennedy
+johnny depp
+josh holloway
+ju jingyi
+kamenashi kazuya
+karl marx
+keanu reeves
+keira knightley
+keira knightly
+kendrick lamar
+kim kardashian
+kristen bell
+kristen mcmenamy
+kristin bell
+lady diana spencer
+lady gaga
+laura dern
+laurence fishbourne
+laurence fishburne
+lena headey
+lena heady
+leonardo dicaprio
+lilly collins
+lily collins
+lindsey graham
+lise deharme
+louise brooks
+lucy liu
+madison beer
+madonna
+mads mikkelsen
+margot robbie
+marilyn monroe
+marina sirtirs
+marina sirtis
+mark wahlberg
+mark zuckerberg
+marlon brando
+martin sheen
+mary louise brooks
+megan fox
+mena massoud
+meryl streep
+messi
+michael fassbender
+michael jackson
+michał zebrowski
+mike tyson
+mila kunis
+morena baccarin
+morgan freeman
+natalie portman
+nathalie portman
+neil degrasse tyson
+nicolas cage
+obama
+peter jackson
+pierce brosnan
+princess diana
+putin
+queen elizabeth
+ray lewis
+rihanna
+robert tanenbaum
+rosa salazar
+ross cheairs
+ryan gosling
+scarlett johansen
+scarlett johansson
+selena
+selena gomez
+seth rogen
+sherilyn fenn
+shigeru miyamoto
+sia
+slavoj zizek
+stephen curry
+stephen lang
+steve buscemi
+stoya
+sydney sweeney
+taylor swift
+ted kaczynski
+terry richardson
+thom yorke
+timothee chalamet
+tobey maguire
+todd solondz
+tom brokaw
+tom cruise
+tom hanks
+tucker carlson
+tzuyu
+viktor orban
+vivienne westwood
+walter matthau
+will smith
+zack snyder
+zendaya
+zhang ziyi
