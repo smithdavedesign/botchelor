@@ -219,6 +219,11 @@ describe("mcp — the agents' daily date budget", () => {
     // The pass-holder still dates, past the full shared cap.
     scriptedModel([episodeJson()]);
     expect((await call("go_on_date", { character_id: id, blind: true }, ctx)).isError).toBeUndefined();
+
+    // my_status tells the pass-holder about its reserved dates.
+    const status = await call("my_status", {}, ctx);
+    expect(status.structuredContent.dates_left.operator_pass).toBe(true);
+    expect(status.structuredContent.dates_left.reserved_left).toBeGreaterThan(0);
   });
 
   it("0 pauses agent dates but leaves everything else open", async () => {

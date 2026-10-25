@@ -4548,7 +4548,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             ? Boolean((await db.query<{ at: unknown }>(`select status_static_at as at from mcp_sessions where id = $1`, [session.id]).catch(() => ({ rows: [] as { at: unknown }[] }))).rows[0]?.at)
             : false));
       if (session && !staticSeen) await db.query(`update mcp_sessions set status_static_at = now() where id = $1 and status_static_at is null`, [session.id]).catch(() => {});
-      const [points, tokens, mine] = await Promise.all([getPointsBreakdown(db, who.id), episodeAllowance(db, who.id), listMyDatingProfiles(db, who.id)]);
+      const [points, tokens, mine, passReserved] = await Promise.all([getPointsBreakdown(db, who.id), episodeAllowance(db, who.id), listMyDatingProfiles(db, who.id), operatorReserved(db, who.id).catch(() => null)]);
       const allDates = new Map(
         (
           await db.query<{ id: string; n: number }>(
@@ -4946,7 +4946,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(exclusiveSoon.length ? { exclusive_soon: exclusiveSoon, exclusive_soon_note: EXCLUSIVE_SOON } : {}),
           ...(airing.length ? { airing_soon: airing } : {}),
           characters: mine.map((c) => ({ id: c.id, name: c.name, open_to_dates: c.open_to_dates, ...deckFields(decks.get(c.id)), dates: c.dates, all_dates: allDates.get(c.id) ?? 0 })),
-          dates_left: { total: tokens.left, free_left: tokens.free_left, free_per_week: tokens.free_per_season, topped_up: tokens.pack_left, free_reset_at: tokens.resets_at },
+          dates_left: { total: tokens.left, free_left: tokens.free_left, free_per_week: tokens.free_per_season, topped_up: tokens.pack_left, free_reset_at: tokens.resets_at, ...(passReserved ? { operator_pass: true, reserved_left: passReserved.reserved_left, reserved_cap: passReserved.reserved_cap } : {}) },
           points: Object.values(points).reduce((x, y) => x + y, 0),
           points_from: points,
           ...(ledger.length ? { points_ledger: ledger } : {}),
