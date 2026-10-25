@@ -33,6 +33,7 @@ import RateMedia from "./RateMedia";
 import WriterPicker from "../../WriterPicker";
 import type { WriterOptions } from "@/lib/adult/writer";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
+import MediaTags from "../../MediaTags";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -734,6 +735,7 @@ function Gallery({
                 </button>
               )}
               {status === "ready" && <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))} />}
+              {status === "ready" && <MediaTags id={m.id} pinned={m.date_pin} />}
               {status === "ready" && m.kind !== "video" && m.character_id && !m.character_b && onFace && (
                 // One of them alone: it can be the face every picture and video of them keeps.
                 faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id ? (

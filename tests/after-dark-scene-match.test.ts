@@ -99,10 +99,7 @@ describe("a matching picture", () => {
   it("finds a clip of the act to loop behind the scene; none when the act doesn't match", async () => {
     const { owner, a, b, lo, hi } = await pair();
     // A ready clip of face_to_face, one ready shot with a video.
-    await t.db.query(
-      `insert into adult_reels (id, owner_id, character_a, character_b, kind, status, tokens, shots, clip) values ('clip-1', $1, $2, $3, 'clip', 'ready', 0, $4::jsonb, $5::jsonb)`,
-      [owner, lo, hi, JSON.stringify([{ status: "ready", media_id: "clip-vid" }]), JSON.stringify({ act: "face_to_face", place: "bedroom" })],
-    );
+    await clip(owner, lo, hi, "face_to_face", "bedroom");
     await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "bedroom");
     expect((await sceneClip(t.db, owner, a, b))?.media_id).toBe("clip-vid");
     // A different act happening now: no clip of it.
@@ -112,6 +109,7 @@ describe("a matching picture", () => {
 
   it("ignores an archived clip shot", async () => {
     const { owner, a, b, lo, hi } = await pair();
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, status) values ('clip-vid', $1, $2, $3, 'video', 'Clip', 'video/mp4', $4, 'ready')`, [owner, lo, hi, Buffer.from([0, 0, 0, 24])]);
     await t.db.query(
       `insert into adult_reels (id, owner_id, character_a, character_b, kind, status, tokens, shots, clip) values ('clip-2', $1, $2, $3, 'clip', 'ready', 0, $4::jsonb, $5::jsonb)`,
       [owner, lo, hi, JSON.stringify([{ status: "ready", media_id: "clip-vid", archived_at: "2026-10-24T00:00:00Z" }]), JSON.stringify({ act: "face_to_face", place: "bedroom" })],
@@ -122,6 +120,7 @@ describe("a matching picture", () => {
 
   /** A ready clip of the pair, tagged with an act and place, one playable shot. */
   async function clip(owner: string, lo: string, hi: string, act: string, place: string, id = "clip-1", mediaId = "clip-vid") {
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, status) values ($1, $2, $3, $4, 'video', 'Clip', 'video/mp4', $5, 'ready')`, [mediaId, owner, lo, hi, Buffer.from([0, 0, 0, 24])]);
     await t.db.query(
       `insert into adult_reels (id, owner_id, character_a, character_b, kind, status, tokens, shots, clip) values ($1, $2, $3, $4, 'clip', 'ready', 0, $5::jsonb, $6::jsonb)`,
       [id, owner, lo, hi, JSON.stringify([{ status: "ready", media_id: mediaId }]), JSON.stringify({ act, place })],

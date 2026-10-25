@@ -10,6 +10,7 @@ import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, LEVEL_LABEL, optionById, STRENGTHS, 
 // Openly-licensed (CC0/Apache-2.0/MIT) adult-portrait prompts, hard-filtered; an optional starting point the owner edits.
 import inspiration from "./inspiration.json";
 import { MediaRequest } from "../../MediaRequest";
+import MediaTags from "../../MediaTags";
 import Lightbox from "./Lightbox";
 
 const media = (id: string) => `/api/admin/after-dark/media/${id}`;
@@ -331,6 +332,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 ⛶
               </button>
             </div>
+            {/* What it shows, for their dates and the storyboard (lib/adult/media-tags.ts): 📌 and the tags. */}
+            <MediaTags id={p.id} pinned={p.date_pin} />
             <div className="ad-studio-item-tools">
               <RateMedia id={p.id} kind={p.kind} rating={p.rating ?? null} tags={p.tags ?? []} />
               {!opts.pair && !video &&
