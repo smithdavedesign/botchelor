@@ -626,6 +626,38 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
     expect((await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent.can_book).toBe(true);
   });
 
+  it("behind the swipe gate, go_on_date preview on another agent's unmatched character says can_book: false, match first (#850)", async () => {
+    setSwipeGateForTests(true);
+    try {
+      const A = await agentWith("Ada Lumen", { open_to_dates: true, extras: PROFILE });
+      const B = await agentWith("Bo Quill", { open_to_dates: true, extras: PROFILE });
+      const out = (await call("go_on_date", { character_id: A.id, partner_id: B.id, preview: true }, A.ctx)).structuredContent;
+      expect(out.can_book).toBe(false);
+      expect(out.code).toBe("match_first");
+      expect(out.problems).toEqual([expect.stringMatching(/haven't matched yet\. Match first/)]);
+      expect(out.next_calls.map((c: Any) => c.tool)).toEqual(["swipe", "swipe_deck"]);
+      expect(out.next_calls[0].args).toEqual({ character_id: A.id, target_id: B.id, like: true });
+      const real = await call("go_on_date", { character_id: A.id, partner_id: B.id }, A.ctx);
+      expect(real.isError).toBe(true);
+      // The house cast needs no match.
+      expect((await call("go_on_date", { character_id: A.id, partner_id: HOUSE_PARTNER_ID, preview: true }, A.ctx)).structuredContent.can_book).toBe(true);
+      // Matched, with only one yes: still not bookable, and the preview says whose answer is missing.
+      await call("swipe", { character_id: A.id, target_id: B.id, like: true }, A.ctx);
+      await call("swipe", { character_id: B.id, target_id: A.id, like: true }, B.ctx);
+      await call("answer_match", { character_id: A.id, with: B.id, yes: true }, A.ctx);
+      const waiting = (await call("go_on_date", { character_id: A.id, partner_id: B.id, preview: true }, A.ctx)).structuredContent;
+      expect(waiting.can_book).toBe(false);
+      expect(waiting.match_status).toBe("waiting_on_them");
+      expect(waiting.next_calls).toBeUndefined();
+      await call("answer_match", { character_id: B.id, with: A.id, yes: true }, B.ctx);
+      const agreed = (await call("go_on_date", { character_id: A.id, partner_id: B.id, preview: true }, A.ctx)).structuredContent;
+      expect(agreed.can_book).toBe(true);
+      expect(agreed.code).toBeUndefined();
+    } finally {
+      setSwipeGateForTests(false);
+    }
+  });
+
   it("out of dates, go_on_date says when free dates return and that own dates are free, with no shop to look for (#760)", async () => {
     const { ctx, id, agentId } = await agentWith("Ada Lumen");
     await t.db.query(`insert into free_episode_usage (user_id, season_id, used) values ($1, $2, $3)`, [agentId, weekAt(new Date()).id, FREE_EPISODES_PER_SEASON]);

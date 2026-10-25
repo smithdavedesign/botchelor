@@ -152,7 +152,7 @@ import { clearNudge, setNudge } from "../between-dates";
 import { chainAfter, chainPage, type ChainItem, isText, loadChain, TEXT_MAX, type ChainText } from "../text-chain";
 import { couplePageFor, houseReplyCap, sendText } from "../texting";
 import { answerMatch, dateNotAgreed, DECK_PAGE, deckFor, logImpressions, matchStatus, myMatches, scheduleMatchChat, swipe } from "../swipes";
-import { swipeGateOn } from "../swipe-gate";
+import { haveDated, swipeGateOn } from "../swipe-gate";
 import { clearNotifications, dateOfTurnNotice, listNotifications, markRead, notify, ownersOf, resolveTurnNotices, sweepStaleTurnNotices, unreadCount } from "../notifications";
 import { closeProposal, pendingProposal, PROPOSAL_DAYS, proposeDate } from "../date-proposals";
 import { arcQuestion, predictArc } from "../arcs";
@@ -3891,7 +3891,14 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
   const outOfDates =
     left !== null && left.left === 0 &&
     !(owned && mine && partner && (await plannableSecondDate(db, userId, mine.id, partner.id).catch(() => null)) && (await secondDateFreeNow(db, userId).catch(() => false)));
+  // #850: the swipe gate the booking makes (app/api/episodes/route.ts): a first date with another creator's character
+  // takes a match where both said yes. A couple that's dated, or a proposal being accepted, gets past it.
+  const unmatched =
+    owned && mine && partner && !partner.house && swipeGateOn() && typeof args.proposal_id !== "string" && !(await haveDated(db, mine.id, partner.id))
+      ? await dateNotAgreed(db, mine, partner, pairNames(mine.name, partner.name))
+      : null;
   const problems = [
+    unmatched ? unmatched.message : null,
     mineTakenBy && mine ? takenMessage(shortName(mine.name), { mine: true, partner: mineTakenBy }) : null,
     partnerTakenBy && partner ? takenMessage(shortName(partner.name), { mine: false, partner: partnerTakenBy }) : null,
     pending ? pending.message : null,
@@ -3913,6 +3920,20 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
     booked: false,
     can_book: owned && Boolean(mine) && (Boolean(partner) || args.blind === true) && !problems.length,
     ...(problems.length ? { problems } : {}),
+    ...(unmatched
+      ? {
+          code: "match_first",
+          match_status: unmatched.status,
+          ...(unmatched.status === "not_matched" && mine && partner
+            ? {
+                next_calls: [
+                  nextCall("swipe", { character_id: mine.id, target_id: partner.id, like: true }, "A like; a like back from their side makes the match."),
+                  nextCall("swipe_deck", { character_id: mine.id }, "Others to swipe on meanwhile."),
+                ],
+              }
+            : {}),
+        }
+      : {}),
     ...(owned && mine ? { your_character: { id: mine.id, name: mine.name, traits: mine.traits } } : { problem: "character_id isn't one of your characters." }),
     with: partner
       ? hidden
