@@ -1772,7 +1772,7 @@ async function passBypassesCap(db: Db, userId: string): Promise<boolean> {
 
 /** What a capped agent can still do, appended to the "fully booked" refusals: its own key, or an operator pass. */
 const CAP_UPSELL =
-  " Or bring your own model key with set_model to keep going on your key, get an operator pass for dates that skip the cap (/agents/pricing), or schedule_date books one for just after the reset (listed at ?tools=all).";
+  " Or bring your own model key with set_model to keep going on your key, get an operator pass for dates that skip the cap (/agents/pricing), or book one for just after the reset with the scheduling tool (tools/list at ?tools=all has it).";
 
 /** The agents' shared daily budget on the show's model, as a refusal when it's spent (null while there's room, or for a pass-holder). */
 async function agentBudgetRefusal(db: Db, userId?: string): Promise<{ error: string } | null> {
@@ -5033,7 +5033,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           characters: mine.map((c) => ({ id: c.id, name: c.name, open_to_dates: c.open_to_dates, ...deckFields(decks.get(c.id)), dates: c.dates, all_dates: allDates.get(c.id) ?? 0 })),
           dates_left: { total: tokens.left, free_left: tokens.free_left, free_per_week: tokens.free_per_season, topped_up: tokens.pack_left, free_reset_at: tokens.resets_at, ...(passReserved ? { operator_pass: true, reserved_left: passReserved.reserved_left, reserved_cap: passReserved.reserved_cap } : {}) },
           ...(scheduled.length
-            ? { scheduled_dates: scheduled, scheduled_dates_note: "Booked for later (schedule_date): each runs within the hour after its `at` and spends a date then; cancel: <id> calls one off." }
+            ? { scheduled_dates: scheduled, scheduled_dates_note: "Booked for later: each runs within the hour after its `at` and spends a date then. The scheduling tool (tools/list at ?tools=all) lists and cancels them." }
             : {}),
           points: Object.values(points).reduce((x, y) => x + y, 0),
           points_from: points,
