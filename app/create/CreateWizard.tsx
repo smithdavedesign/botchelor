@@ -624,20 +624,6 @@ export default function CreateWizard({
         </>
       )}
 
-      {!edit && myCharacters.length > 0 && step === S.identity && (
-        <p className="muted">
-          Already have one?{" "}
-          {myCharacters.map((c, i) => (
-            <span key={c.id}>
-              {i > 0 && " · "}
-              <Link href={`/create?character=${c.id}`}>
-                Send <CharacterName character={c} link={false} size={20} /> on a date
-              </Link>
-            </span>
-          ))}
-        </p>
-      )}
-
       {!edit && startPair && step === S.identity && <PairPrefill pair={startPair} />}
 
       <Stepper step={step} max={maxStep} onJump={jump} labels={labels} />
