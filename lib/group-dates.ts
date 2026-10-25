@@ -15,6 +15,8 @@
  */
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
+import { takenSql } from "./partners";
+import { seasonCastIds } from "./season-cast";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import type { PlaceId } from "./venues";
@@ -114,8 +116,8 @@ export async function proposeDouble(db: Db, creatorId: string, mine: Couple, wit
     await notify(db, invitee, {
       kind: "double_invite",
       title: "💞💞 A double date invite",
-      body: `${shortName(own.name)} and ${shortName(chars.get(mine.partner_id)!.name)} want a double date with ${shortName(otherLead.name)} and ${shortName(chars.get(withCouple.partner_id)!.name)}. Accepting books both tables and spends one of your dates (the double-date tool at ?tools=all takes accept: "${made.id}").`,
-      link: null,
+      body: `${shortName(own.name)} and ${shortName(chars.get(mine.partner_id)!.name)} want a double date with ${shortName(otherLead.name)} and ${shortName(chars.get(withCouple.partner_id)!.name)}. Accepting books both tables and spends one of your dates (the double-date tool at ?tools=all takes accept: "${made.id}", and /doubles/${made.id} has buttons).`,
+      link: `/doubles/${made.id}`,
     }).catch(() => {});
   }
   return { ok: true, night: made, books_now: !invitee };
@@ -248,6 +250,54 @@ export async function leaveMixer(db: Db, userId: string, characterId: string): P
     [characterId, userId],
   );
   return r.rows.length > 0;
+}
+
+/* ------------------------------------------- the web's double picker ------------------------------------------- */
+
+export type DoubleOption = { character_id: string; name: string; partner_id: string; partner_name: string };
+
+/**
+ * The couples a signed-in person can bring to a double from the thread's "Make it a double" (M1b): each of their
+ * OTHER characters, paired with a dealt house date (the house cast books straight away, so the night always can).
+ * `excluding`: the thread's own two characters, so the same character (or house member) isn't at both tables.
+ */
+export async function doubleOptions(db: Db, userId: string, excluding: string[]): Promise<DoubleOption[]> {
+  const { rows } = await db.query<{ id: string; name: string }>(
+    `select c.id, c.name from characters c
+      where c.owner_id = $1 and not c.is_house and c.id <> all($2) and not ${takenSql("c")}
+      order by c.created_at desc limit 6`,
+    [userId, excluding],
+  );
+  const cast = seasonCastIds().filter((id) => !excluding.includes(id));
+  if (!cast.length || !rows.length) return [];
+  const houses = await loadChars(db, cast);
+  return rows.map((c) => {
+    const partner = cast[seedFrom(c.id) % cast.length];
+    return { character_id: c.id, name: c.name, partner_id: partner, partner_name: houses.get(partner)?.name ?? "a house date" };
+  });
+}
+
+/** The invite as its people see it on /doubles/[id]: both couples by name, and whose answer it waits on. */
+export async function inviteView(
+  db: Db,
+  userId: string,
+  nightId: string,
+): Promise<{ id: string; status: GroupNight["status"]; yours_to_answer: boolean; couple_a: string[]; couple_b: string[]; episode_a: string | null; episode_b: string | null } | null> {
+  const { rows } = await db.query(`select * from group_nights where id = $1 and kind = 'double' and (created_by = $2 or invite_to = $2)`, [nightId, userId]);
+  if (!rows.length) return null;
+  const g = night(rows[0]);
+  const ids = [g.couple_a.character_id, g.couple_a.partner_id, g.couple_b.character_id, g.couple_b.partner_id];
+  const chars = await loadChars(db, ids);
+  const nameOf = (id: string) => chars.get(id)?.name ?? "someone";
+  return {
+    id: g.id,
+    status: g.status,
+    yours_to_answer: g.status === "invited" && g.invite_to === userId,
+    couple_a: [nameOf(g.couple_a.character_id), nameOf(g.couple_a.partner_id)],
+    couple_b: [nameOf(g.couple_b.character_id), nameOf(g.couple_b.partner_id)],
+    episode_a: g.episode_a,
+    episode_b: g.episode_b,
+  };
 }
 
 export type GroupBooking = { nightId: string; kind: "double" | "mixer"; side: "a" | "b" | number; venue: PlaceId; table: string };
