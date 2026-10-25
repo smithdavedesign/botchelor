@@ -27,7 +27,7 @@ import {
   type JobResult,
   type StudioFail,
 } from "@/lib/adult/studio";
-import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, GROUP_IDS, TRANSCRIPT_MAX } from "@/lib/adult/studio-catalog";
+import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, GROUP_IDS, PAIR_SECTIONS, TRANSCRIPT_MAX, type PairSection } from "@/lib/adult/studio-catalog";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -51,6 +51,8 @@ const Choices = z
     dialog: z.string().max(DIALOG_MAX).optional(),
   })
   .strict();
+/** The Together tab's words on single sections (lib/adult/studio-catalog.ts PAIR_SECTIONS). */
+const PairExtra = z.partialRecord(z.enum(Object.keys(PAIR_SECTIONS) as [PairSection, ...PairSection[]]), z.string().max(EXTRA_MAX));
 /** A shoot together's choices, as a setup keeps them (the partner is picked when it runs). */
 const PairChoices = z
   .object({
@@ -60,6 +62,9 @@ const PairChoices = z
     framing: z.enum(FRAMINGS).optional(),
     place: z.string().max(40).optional(),
     light: z.string().max(40).nullable().optional(),
+    custom: z.string().max(CUSTOM_MAX).optional(),
+    extra: PairExtra.optional(),
+    dialog: z.string().max(DIALOG_MAX).optional(),
   })
   .strict();
 /** A restyle's changes: a pick per look step or detail (lib/adult/studio.ts restyleWords checks each). */
@@ -84,6 +89,8 @@ const Input = z.discriminatedUnion("action", [
     light: z.string().max(40).nullable().optional(),
     // The owner's own words, like the Shoot tab (David, 2026-10-24: "the Together page doesn't have enough options").
     custom: z.string().max(CUSTOM_MAX).optional(),
+    // …and on each section, on top of its chip (David, 2026-10-25: "a custom prompt to each field like we do for the shoot tab").
+    extra: PairExtra.optional(),
     dialog: z.string().max(DIALOG_MAX).optional(),
     // Shot like one of the pair's pictures (their dates' or the Studio's): its pose, framing and place.
     reference: id.optional(),
