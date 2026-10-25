@@ -114,6 +114,11 @@ describe("the Studio's menus", () => {
     // The owner's words are capped.
     const long = planShoot({ custom: "x ".repeat(CUSTOM_MAX) }, ALL, her);
     expect(long.ok && (long.plan.custom?.length ?? 0)).toBeLessThanOrEqual(CUSTOM_MAX);
+    // A dialog line becomes a speech bubble on the picture.
+    const withDialog = planShoot({ wardrobe: "nude", dialog: "come closer" }, ALL, her);
+    if (!withDialog.ok) throw new Error(withDialog.message);
+    expect(withDialog.plan.dialog).toBe("come closer");
+    expect(shootPrompt(withDialog.plan, her, { body: false, set: false })).toContain('A speech bubble near them reads: "come closer".');
   });
 
   it("guides a clip: the owner's direction leads, their dialog and the transcript shape it, a motion optional", () => {
@@ -125,6 +130,11 @@ describe("the Studio's menus", () => {
     expect(guided).toContain("what's being said around this moment: They'd been teasing each other all night.");
     expect(guided).not.toContain("breathes slowly"); // a guide stands in for a motion chip
     expect(guided.length).toBeLessThanOrEqual(STUDIO_PROMPT_MAX);
+    // A pair picture animates both of them: "two people", and both kept.
+    const two = animatePrompt({ noun: "woman" }, 3, "move together", {}, { pair: true });
+    expect(two).toContain("The two people in the picture move together.");
+    expect(two).toContain("Only these two people, exactly as in the picture");
+    expect(two).not.toContain("Only this one person");
   });
 
   it("restyles with the looks builder's own chips, and takes a detail away with none", () => {

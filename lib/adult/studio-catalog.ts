@@ -301,11 +301,15 @@ export type ShootChoices = Partial<Record<Exclude<GroupId, "accessories">, strin
   accessories?: string[];
   custom?: string;
   extra?: Partial<Record<GroupId, string>>;
+  /** A short line for a speech bubble on the picture (David, 2026-10-24: "another if we want dialog"); how it reads depends on the model. */
+  dialog?: string;
 };
 
 /** The most the owner's own words can run, in each custom field. */
 export const CUSTOM_MAX = 400;
 export const EXTRA_MAX = 120;
+export const DIALOG_MAX = 200;
+export const TRANSCRIPT_MAX = 600;
 /** The owner's words, trimmed and capped; empty becomes nothing. */
 export const cleanCustom = (s: string | undefined, max: number): string | undefined => {
   const t = (s ?? "").trim().replace(/\s+/g, " ").slice(0, max);
@@ -343,7 +347,7 @@ export function studioMenu(limits: ShootLimits, noun: Noun): { id: GroupId; titl
 export type Subject = { noun: Noun; age: number; look: string; outfit: string | null };
 
 /** A shoot, planned: its level, the words for each part, and the place's name (for its drawn set). */
-export type ShootPlan = { level: Level; place: string | null; placePublic: boolean; parts: { group: GroupId; words: string; /** A first-person act with the viewer. */ viewer?: true }[]; custom?: string; extra?: Partial<Record<GroupId, string>> };
+export type ShootPlan = { level: Level; place: string | null; placePublic: boolean; parts: { group: GroupId; words: string; /** A first-person act with the viewer. */ viewer?: true }[]; custom?: string; extra?: Partial<Record<GroupId, string>>; dialog?: string };
 
 export type PlanResult = { ok: true; plan: ShootPlan } | { ok: false; error: string; message: string };
 
@@ -402,7 +406,8 @@ export function planShoot(choices: ShootChoices, limits: ShootLimits, subject: S
     .map(([g, v]) => [g, cleanCustom(v, EXTRA_MAX)] as const)
     .filter(([g, v]) => Boolean(v) && (GROUP_IDS as readonly string[]).includes(g));
   const extra = extraEntries.length ? (Object.fromEntries(extraEntries) as Partial<Record<GroupId, string>>) : undefined;
-  return { ok: true, plan: { level, place, placePublic, parts, ...(custom ? { custom } : {}), ...(extra ? { extra } : {}) } };
+  const dialog = cleanCustom(choices.dialog, DIALOG_MAX);
+  return { ok: true, plan: { level, place, placePublic, parts, ...(custom ? { custom } : {}), ...(extra ? { extra } : {}), ...(dialog ? { dialog } : {}) } };
 }
 
 /** What each level says about clothes, when no wardrobe was picked. */
@@ -455,6 +460,7 @@ export function shootPrompt(plan: ShootPlan, subject: Subject, refs: { body: boo
     plan.place ? `The place: ${plan.place}.` : "",
     by("light")[0] ? `Light: ${by("light")[0]}.` : "",
     by("expression")[0] ? `Expression: ${by("expression")[0]}.` : "",
+    plan.dialog ? `A speech bubble near them reads: "${plan.dialog.replace(/"/g, "'")}".` : "",
     extras.length ? `Also — ${extras.join("; ")}.` : "",
     act?.viewer
       ? "Only this one person in full: of the viewer, at most hands, hips or legs at the edge of the frame, never a face. Their face clearly visible."
@@ -536,23 +542,21 @@ export type AnimateSeconds = (typeof ANIMATE_SECONDS)[number];
 
 /** The owner's guidance for a clip (David, 2026-10-24: "guide it again if it messed up"). */
 export type AnimateGuide = { guide?: string; dialog?: string; transcript?: string };
-export const DIALOG_MAX = 200;
-export const TRANSCRIPT_MAX = 600;
-
 /**
  * A Studio picture's clip prompt: the one person in it, kept exactly as they are, one steady shot; the level is the
  * picture's. The owner can guide it (David, 2026-10-24): `guide` leads, so what they ask for happens; `dialog` is what
  * they say (their lips move); `transcript` is the lines around this moment, for the mood. A motion chip is optional once
  * there's a guide. The guide, dialog and transcript are held to the lines by the caller and the clip is Hive-checked.
  */
-export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string, g: AnimateGuide = {}): string {
+export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string, g: AnimateGuide = {}, opts: { pair?: boolean } = {}): string {
   const who = subject.noun === "person" ? "person" : subject.noun;
+  const them = opts.pair ? "two people" : who;
   const guide = cleanCustom(g.guide, CUSTOM_MAX);
   const dialog = cleanCustom(g.dialog, DIALOG_MAX);
   const transcript = cleanCustom(g.transcript, TRANSCRIPT_MAX);
   const middle = [
     guide ? `Most important, do exactly this: ${guide.replace(/[.\s]*$/, "")}.` : "",
-    motion ? `The ${who} in the picture ${motion}.` : guide ? "" : `The ${who} in the picture breathes slowly, a small smile.`,
+    motion ? `The ${them} in the picture ${motion}.` : guide ? "" : `The ${them} in the picture ${opts.pair ? "move together slowly" : "breathe slowly, a small smile"}.`,
     dialog ? `They say, their lips moving: "${dialog.replace(/"/g, "'")}".` : "",
     transcript ? `For the mood, this is what's being said around this moment: ${transcript}.` : "",
   ]
@@ -562,8 +566,10 @@ export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, moti
     [],
     middle,
     [
-      "Only this one person, exactly as in the picture: the same face, body and clothes (or none), in the same place and light.",
-      "One continuous shot, the camera steady: no cuts, nobody else comes in. Realistic, unhurried motion.",
+      opts.pair
+        ? "Only these two people, exactly as in the picture: the same two faces, bodies and clothes (or none), together, in the same place and light."
+        : "Only this one person, exactly as in the picture: the same face, body and clothes (or none), in the same place and light.",
+      "One continuous shot, the camera steady: no cuts, nobody new comes in. Realistic, unhurried motion.",
       TAIL[level],
     ],
   );

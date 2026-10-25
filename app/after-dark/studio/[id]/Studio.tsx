@@ -65,6 +65,7 @@ function keptChoices(kept: ShootChoices | undefined, s: StudioState): ShootChoic
   // The owner's own words carry across reloads too (lib/adult/studio-catalog.ts).
   if (kept.custom) out.custom = kept.custom;
   if (kept.extra) out.extra = kept.extra;
+  if (kept.dialog) out.dialog = kept.dialog;
   return out;
 }
 
@@ -257,6 +258,7 @@ export default function Studio({ initial }: { initial: StudioState }) {
   }, 0);
 
   const setCustom = (v: string) => setChoices((x) => ({ ...x, custom: v || undefined }));
+  const setDialog = (v: string) => setChoices((x) => ({ ...x, dialog: v || undefined }));
   const setExtra = (group: GroupId, v: string) =>
     setChoices((x) => {
       const extra = { ...(x.extra ?? {}) };
@@ -378,6 +380,21 @@ export default function Studio({ initial }: { initial: StudioState }) {
                     Share…
                   </button>
                 )}
+              </div>
+            )}
+            {/* A pair picture can be animated too (keeps both of them); More-like-this and Upscale stay solo-only. */}
+            {opts.pair && !video && s.motions.length > 0 && !onOwn && (
+              <div className="ad-studio-item-tools">
+                <button
+                  type="button"
+                  className="button-ghost small"
+                  aria-expanded={Boolean(anim)}
+                  disabled={Boolean(busy) || making > 0}
+                  title={making ? "One is being animated: one at a time" : "A 5 or 10 second clip of the two of them"}
+                  onClick={() => setAnimating(anim ? null : { image: p.id, motion: s.motions[0].id, seconds: 5 })}
+                >
+                  Animate…
+                </button>
               </div>
             )}
             {anim && (
@@ -656,6 +673,7 @@ export default function Studio({ initial }: { initial: StudioState }) {
               disabled={Boolean(busy)}
               onChange={(e) => setCustom(e.target.value)}
             />
+            <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={choices.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setDialog(e.target.value)} />
           </fieldset>
           <div className="ad-studio-go is-main">
             <label>Model {modelSelect(editModels, picked?.id ?? "", setEditModel, "Model", (m) => m.price)}</label>
