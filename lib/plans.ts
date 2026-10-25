@@ -44,6 +44,12 @@ const proposes = (text: string): boolean => (PROPOSE.test(text) || /\?/.test(tex
 const saysYes = (text: string): boolean => YES.test(text) && !NO.test(text);
 /** A refusal ("no thanks", "I'd rather not", "another time"): a yes in the JSON with this in the line isn't a yes (lib/moves.ts). */
 export const saysNo = (text: string): boolean => NO.test(text);
+/**
+ * A "no" that answers something else and goes on to propose ("No, but I work at a pie factory. Want to go get two cream
+ * pies?", Lexi × Juniper 2026-10-25): the no is to the question before, not to a plan, so it doesn't end the search.
+ */
+const NO_BUT = /^\s*no\b\s*[,.!—–-]*\s*but\b/i;
+const refusesPlan = (text: string): boolean => saysNo(text.replace(NO_BUT, "but"));
 /** Going along with a suggestion out loud: a yes, or "lead the way", "after you", "get my coat". */
 const GOES = /\b(lead the way|let's go|lets go|after you|show me|take me|grab my coat|get my coat|i'm game|im game|i'm down|why not|you had me at)\b/i;
 /** A line that agrees to go (lib/moves.ts): a yes in the JSON needs one, or the line naming the place. */
@@ -71,7 +77,7 @@ export function agreedPlan(texts: readonly PlanText[], names: Record<End, string
     for (let i = j - 1; i >= 0 && j - i <= PLACE_REACH; i--) {
       const t = recent[i];
       if (t.who === reply.who) continue;
-      if (saysNo(t.text)) break;
+      if (refusesPlan(t.text)) break;
       const p = where(t);
       if (!p || !proposes(t.text)) continue;
       if (!place || (p.strong && !strong)) {

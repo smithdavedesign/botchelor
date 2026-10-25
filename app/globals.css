@@ -7015,6 +7015,51 @@ a.phone-head-btn {
   display: block;
   color: #cbb8e0;
 }
+/* Before the night's first line (AfterDarkTheater awaitingStart): where they'll be, who they're playing, and Start. */
+.ad-start-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  width: min(24rem, calc(100% - 32px));
+  padding: var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  background: rgba(16, 8, 22, 0.9);
+  color: #f4ecff;
+  text-align: center;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+.ad-start-card p {
+  margin: 0 0 var(--space-2);
+}
+.ad-start-card .muted {
+  color: #cbb8e0;
+}
+.ad-start-where {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.ad-start-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: var(--space-3);
+}
+.ad-rp-locked {
+  max-width: 34rem;
+}
+/* A phone's stage is a short strip: the start card sits in the middle of the screen instead, over the thread. */
+@media (max-width: 720px) {
+  .ad-start-card {
+    position: fixed;
+    top: 50%;
+    z-index: 20;
+    padding: var(--space-3);
+  }
+}
 .ad-beat-actions {
   display: flex;
   gap: var(--space-2);

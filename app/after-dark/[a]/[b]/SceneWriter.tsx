@@ -230,7 +230,7 @@ export default function SceneWriter({
       pictures.length ? `${pictures.length} new picture${pictures.length === 1 ? "" : "s"} below.` : "",
       typeof res.data.picture_note === "string" ? `Picture: ${res.data.picture_note}` : "",
     ].filter(Boolean);
-    if (body.set_scene) parts.push("They're there now. Press Next to see them arrive.");
+    if (body.set_scene) parts.push(next.lines.length ? "They're there now. Press Next to see them arrive." : "They're there now. Press ▶ Start the night when you're ready.");
     if (body.roleplay !== undefined) {
       const rp = body.roleplay ? roleplayById((body.roleplay as { id: string }).id) : null;
       parts.push(rp ? `${rp.icon} ${rp.title}: their roleplay until this chapter ends.` : body.set_scene ? "" : "No roleplay now: just the two of them.");
@@ -348,7 +348,17 @@ export default function SceneWriter({
         {!theater && crisisNotice}
         {theater && (
           <AfterDarkTheater
-            scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null, set: scene.set_place, chapter: scene.chapter, roleplay: scene.roleplay ?? null }}
+            scene={{
+              lines: scene.lines,
+              place: scene.place,
+              stage: scene.stage,
+              dateVenue: scene.date?.venue ?? null,
+              dateSetting: scene.date?.setting ?? null,
+              set: scene.set_place,
+              chapter: scene.chapter,
+              roleplay: scene.roleplay ?? null,
+              planned: scene.planned ?? null,
+            }}
             characters={cast}
             busy={busy}
             note={note?.text ?? null}

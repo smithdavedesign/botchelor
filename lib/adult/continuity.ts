@@ -393,7 +393,18 @@ export function shownMove(lines: readonly PlaceLine[], from: number, here: strin
 /** One stop in a night: where they were, the set it was on, whose home it is (when it's one), and the chapter. */
 export type PlaceStop = { place: string; set: string | null; home: "a" | "b" | null; chapter: number };
 /** A move the model reported, and whether it was taken (the observer reads the ones that weren't). */
-export type MoveLog = { chapter: number; at: number; from: string | null; to: string; taken: boolean; reason: "agreed" | "no_agreement" | "cap" | "already_there" | "set_scene" };
+export type MoveLog = { chapter: number; at: number; from: string | null; to: string; taken: boolean; reason: "agreed" | "no_agreement" | "cap" | "already_there" | "set_scene" | "plan" };
+
+/**
+ * Whether where they are was chosen for them, not by the model (David, 2026-10-25: "I sent them on it, but it chose the
+ * original destination"): the owner's paid Set the scene, or the place the two agreed by text (lib/plans.ts). The model
+ * can't swap in somewhere else for it then, even a place it names when the chosen one names nowhere it knows ("An awkward
+ * double date"); they still leave only by agreeing to, like any move.
+ */
+export function placeLocked(scene: { moves: readonly MoveLog[]; set_place: string | null }): boolean {
+  const last = [...scene.moves].reverse().find((m) => m.taken);
+  return Boolean(last && (last.reason === "set_scene" || last.reason === "plan") && last.to === scene.set_place);
+}
 
 export type Settled = {
   place: string | null;
@@ -420,6 +431,8 @@ export function settlePlace(input: {
   names: { a: string; b: string };
   /** v2.1: also take a move the lines show when the model's place says nothing new (shownMove). */
   fromLines?: boolean;
+  /** Where they are was chosen for them (placeLocked): the model's claim never renames it, only an agreed move leaves it. */
+  locked?: boolean;
 }): Settled {
   const { current, claimed } = input;
   const keep = (rejected: Settled["rejected"] = null): Settled => ({ place: placeDetail(current, claimed), set: current.set, moved: null, rejected });
@@ -437,8 +450,12 @@ export function settlePlace(input: {
   // Nothing new, or no place in it ("an intimate, private space", "on the swing"): they're where they were.
   if (!claim || !want.known) return orShown(keep());
   const now = canonicalSet(here);
-  // The first set of the scene, or one so vague it named nowhere: the model's names it, and that's no move.
-  if (!here || !now.known) return { place: claimed.place ?? current.place, set: claimed.set ?? (claimed.place ? want.canonical : current.set), moved: null, rejected: null };
+  // The first set of the scene, or one so vague it named nowhere: the model's names it, and that's no move. Unless the
+  // place was chosen for them: then it stays, however vague, and only the lines agreeing to go take them elsewhere.
+  if (!here || !now.known) {
+    if (input.locked && here) return orShown(keep({ to: claimed.set ?? want.canonical, reason: "no_agreement" }));
+    return { place: claimed.place ?? current.place, set: claimed.set ?? (claimed.place ? want.canonical : current.set), moved: null, rejected: null };
+  }
   if (samePlace(here, claim) && !ownerChanged(now, want, input.homeNow, input.names)) return orShown(keep());
   const agreedHere = agreedMove(input.lines, input.from);
   const to = claimed.set ?? want.canonical;
