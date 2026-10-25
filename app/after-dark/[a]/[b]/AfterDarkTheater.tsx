@@ -138,8 +138,8 @@ export default function AfterDarkTheater({
   onSuggest?: (text: string) => Promise<void>;
   /** The chapter's moments worth a picture; the viewer's answer to one; and Picture this, at a line. */
   beats?: readonly PublicBeat[];
-  onBeat?: (id: string, answer: "now" | "later") => Promise<void>;
-  onPictureNow?: (line: number) => Promise<void>;
+  onBeat?: (id: string, answer: "now" | "later", guide?: { custom?: string }) => Promise<void>;
+  onPictureNow?: (line: number, guide?: { custom?: string }) => Promise<void>;
   onExit: () => void;
 }) {
   const live = Boolean(onWrite);
@@ -150,6 +150,8 @@ export default function AfterDarkTheater({
   // A moment worth a picture, reached: playback waits for the viewer's answer.
   const [beatHold, setBeatHold] = useState(false);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(() => new Set());
+  // The owner's own words for the next scene picture (David, 2026-10-24: "more specifics otherwise it fails the scene").
+  const [guide, setGuide] = useState("");
   const replay = useReplay(turns, true, { live, startAt, hold: listenHold || beatHold });
   const [convo, setConvo] = useState(false);
   // On a phone, the secondary tools (from the top, catch up, listen, clip, video) fold into "⋯" so the bar is one row.
@@ -169,7 +171,8 @@ export default function AfterDarkTheater({
   useEffect(() => setBeatHold(Boolean(offer)), [offer]);
   async function answer(id: string, a: "now" | "later") {
     setAnswered((s) => new Set([...s, id]));
-    await onBeat?.(id, a);
+    await onBeat?.(id, a, a === "now" && guide.trim() ? { custom: guide.trim() } : undefined);
+    setGuide("");
   }
   const latestAction = shown.length ? shown[shown.length - 1].action : "";
   const label = stageLabel(scene, shown.length, caughtUp);
@@ -217,6 +220,8 @@ export default function AfterDarkTheater({
                 <strong>📸 {offer.label}</strong>
                 <span className="muted small"> Picture this moment? It&apos;s drawn from the last few lines and lands in their gallery.</span>
               </p>
+              {/* The owner can say exactly what the picture should show, so it does the exact scene (lib/adult/beats.ts). */}
+              <input className="ad-beat-guide" type="text" value={guide} maxLength={400} placeholder="Add exactly what it should show (optional) — this leads the picture" disabled={Boolean(mediaPaused)} onChange={(e) => setGuide(e.target.value)} />
               <div className="ad-beat-actions">
                 <button type="button" className="primary small" onClick={() => void answer(offer.id, "now")}>
                   Picture it
@@ -270,7 +275,7 @@ export default function AfterDarkTheater({
                   <button
                     type="button"
                     className="theater-icon"
-                    onClick={() => void onPictureNow(Math.max(0, shown.length - 1))}
+                    onClick={() => void onPictureNow(Math.max(0, shown.length - 1), guide.trim() ? { custom: guide.trim() } : undefined).then(() => setGuide(""))}
                     disabled={!shown.length || Boolean(mediaPaused)}
                     aria-label="Picture this moment"
                     title={mediaPaused ?? "Picture this moment: a picture of the two of them, from the line on screen"}

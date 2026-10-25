@@ -215,6 +215,20 @@ describe("a shoot together", () => {
     const other = await person("Ines Vale");
     expect((await post({ action: "pair", character_id: me.character, partner: other.character, act: "kiss", outfit: "tonight", framing: "close", place: "bedroom" }, me.cookie)).status).toBe(404);
   });
+
+  it("takes the owner's own words too (David, 2026-10-24), which lead the picture", async () => {
+    const me = await setup();
+    const house = HOUSE_CHARACTERS[0].id;
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ('face-h2', $1, $2, 'baseline', 'p', 'image/png', $3)`, [me.id, house, Buffer.from(PNG)]);
+    fakeHive();
+    const { edits } = fakeVenice();
+    const res = await post({ action: "pair", character_id: me.character, partner: house, act: "face_to_face", outfit: "nude", framing: "medium", place: "bedroom", custom: "she wraps her legs around him", dialog: "closer" }, me.cookie);
+    expect(res.status).toBe(200);
+    expect(edits[0].prompt).toContain("Most important, do exactly this: she wraps her legs around him.");
+    expect(edits[0].prompt).toContain('A speech bubble near them reads: "closer".');
+    // Taboo in the owner's words is refused.
+    expect((await post({ action: "pair", character_id: me.character, partner: house, act: "face_to_face", outfit: "nude", framing: "medium", place: "bedroom", custom: "she looks like a barely-legal schoolgirl teen" }, me.cookie)).status).toBe(422);
+  });
 });
 
 describe("more like this, and upscale", () => {

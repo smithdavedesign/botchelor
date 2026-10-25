@@ -626,18 +626,22 @@ export function keyframePrompt(
   place: string | null,
   stage: number,
   withSet: boolean,
-  opts: { explicit?: boolean; clothes?: string; light?: string } = {},
+  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; dialog?: string } = {},
 ): string {
   const [a, b] = cast;
   const head = `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together${withSet ? ", in the place from Picture 3" : ""}.`;
   const where = place ? `The place: ${place}.` : "";
   // A chosen light (the Studio's shoots together, lib/adult/studio.ts) instead of the set's own.
   const light = opts.light ? `Light: ${opts.light}.` : "";
+  // The owner's own words lead the picture (David, 2026-10-24: in the theater, guide the scene picture for the exact
+  // moment); the faces still come from the pictures (kept below), so the override changes the scene, not who they are.
+  const custom = opts.custom?.trim() ? `Most important, do exactly this: ${opts.custom.trim().replace(/[.\s]*$/, "")}. ` : "";
+  const dialog = opts.dialog?.trim() ? ` A speech bubble near them reads: "${opts.dialog.trim().replace(/"/g, "'")}".` : "";
   // What they wear: by how far the night had gone, or a picture's chosen outfit (lib/adult/pictures-menu.ts).
   const keep =
     `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${opts.clothes ?? clothesAt(stage)}.` +
     `${withSet ? (opts.light ? " Keep the place and its furniture from Picture 3." : " Keep the place, its furniture and its light from Picture 3.") : ""} Two people only, both faces visible.`;
-  return fitPrompt([head, whoIsWho(cast)], frame, [where, light, keep, tailAt(stage, opts.explicit ?? true)]);
+  return fitPrompt([head, whoIsWho(cast)], `${custom}${frame}${dialog}`, [where, light, keep, tailAt(stage, opts.explicit ?? true)]);
 }
 
 /** Which of them is which picture, when "the woman" and "the man" don't already say it. */

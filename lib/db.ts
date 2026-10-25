@@ -2095,6 +2095,10 @@ create table if not exists adult_beats (
 create index if not exists adult_beats_scene_idx on adult_beats (scene_id, chapter, line);
 create index if not exists adult_beats_pair_idx on adult_beats (owner_id, character_a, character_b, chapter);
 alter table adult_settings add column if not exists beat_pictures boolean;
+-- The owner's own words for a theater scene picture (David, 2026-10-24: "we need more specifics otherwise it fails to do
+-- the exact scene"): a custom direction that leads the picture, and a line for a speech bubble. Both held to the lines.
+alter table adult_beats add column if not exists custom text;
+alter table adult_beats add column if not exists dialog text;
 
 -- The After Dark library (lib/adult/library.ts; David, 2026-10-24): which model drew a picture (null: from before it was
 -- kept, when only its provider was), and each viewer's 1–5 stars on a picture or a video (item_id: an adult_images or an

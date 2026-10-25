@@ -26,7 +26,7 @@ const SHARE_STATUS: Record<string, string> = { pending: "asked", accepted: "acce
 /** How often the page asks after an animation still being made. */
 const POLL_MS = 20_000;
 
-type PairPick = { act: string; swap: boolean; outfit: string; framing: string; place: string; light: string };
+type PairPick = { act: string; swap: boolean; outfit: string; framing: string; place: string; light: string; custom?: string; dialog?: string };
 const NO_PAIR_PICK: PairPick = { act: "", swap: false, outfit: "", framing: "medium", place: "", light: "" };
 
 /**
@@ -767,6 +767,13 @@ export default function Studio({ initial }: { initial: StudioState }) {
                   (id) => setPairPick((x) => ({ ...x, light: id })),
                 )}
               </fieldset>
+              <fieldset className="ad-studio-group">
+                <legend>
+                  Your own words <span className="muted small">— this leads the picture, so it does the exact scene</span>
+                </legend>
+                <textarea className="ad-studio-custom" rows={2} maxLength={CUSTOM_MAX} value={pairPick.custom ?? ""} placeholder="Describe exactly what the two of them are doing, in your words. It comes first in the prompt." disabled={Boolean(busy)} onChange={(e) => setPairPick((x) => ({ ...x, custom: e.target.value || undefined }))} />
+                <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={pairPick.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setPairPick((x) => ({ ...x, dialog: e.target.value || undefined }))} />
+              </fieldset>
               <div className="ad-studio-go">
                 <label>
                   Model{" "}
@@ -789,6 +796,8 @@ export default function Studio({ initial }: { initial: StudioState }) {
                         framing: pairPick.framing,
                         place: pairPick.place,
                         light: pairPick.light || null,
+                        ...(pairPick.custom?.trim() ? { custom: pairPick.custom.trim() } : {}),
+                        ...(pairPick.dialog?.trim() ? { dialog: pairPick.dialog.trim() } : {}),
                         model: pairModel?.id,
                         ...own,
                       },
