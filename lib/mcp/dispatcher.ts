@@ -689,7 +689,12 @@ function waitReport(plan: WaitPlan, because: WaitReturn): Record<string, unknown
     ...capNote(plan.requested),
   };
 }
-const pause = () => new Promise((res) => setTimeout(res, WAIT_POLL_MS));
+/**
+ * A poll's pause, never past the wait's end (`limit`, from plan.started). #854 (the 2026-10-25 runs: wait_seconds: 50
+ * came back with waited_seconds 51 and 53): it slept a whole WAIT_POLL_MS whatever was left, then looked again.
+ */
+const pause = (plan: WaitPlan, limit = plan.ms) =>
+  new Promise((res) => setTimeout(res, Math.max(0, Math.min(WAIT_POLL_MS, limit - (Date.now() - plan.started)))));
 
 /** A timestamp as a cursor, from the database, to the microsecond (#540: a millisecond cursor re-matched its own row). */
 const cursorSql = (expr: string) => `to_char(${expr} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
@@ -1240,7 +1245,7 @@ async function waitForEpisode(db: Db, args: Record<string, unknown>, session: Se
         },
       };
     }
-    await pause();
+    await pause(plan, limit);
   }
 }
 
@@ -1283,7 +1288,7 @@ async function waitForTurn(db: Db, who: Identity, args: Record<string, unknown>,
         identity: who,
       };
     }
-    await pause();
+    await pause(plan, limit);
   }
 }
 
@@ -1422,7 +1427,7 @@ async function waitForText(db: Db, who: Identity, args: Record<string, unknown>,
         identity: who,
       };
     }
-    await pause();
+    await pause(plan, limit);
   }
 }
 
@@ -1622,7 +1627,7 @@ async function statusNews(
   }
   let look = callStart;
   while (plan.ms && !fresh.length && !wake && Date.now() - plan.started < plan.ms) {
-    await pause();
+    await pause(plan);
     look = await dbNow(db);
     fresh = await freshSince(after);
     if (!fresh.length) fresh = await ownMoves(after);
@@ -6344,7 +6349,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             // 2.9.0 (#620): a wake looks once more, so a text that came in meanwhile is in new_texts too.
             if (wake && !fresh.length) fresh = await newTexts();
             if (fresh.length || wake || Date.now() - plan.started >= plan.ms) break;
-            await pause();
+            await pause(plan);
           }
           if (fresh.length) {
             const again = await threadsFor(db, who.id, forChar);
@@ -6914,7 +6919,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         let wake: MoveWake | null = null;
         while (!(await newer(items)).length && Date.now() - plan.started < limit) {
           if ((wake = await yourMoveWake(db, who.id, wakeFrom))) break;
-          await pause();
+          await pause(plan, limit);
           look = await dbNow(db);
           items = await listNotifications(db, who.id);
         }
