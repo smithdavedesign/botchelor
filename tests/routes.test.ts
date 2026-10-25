@@ -24,6 +24,7 @@ const CASH_OUT_PATH = /cash|withdraw|payout|redeem|refund|transfer|exchange|conv
 const PAYMENT_ROUTES = [
   "POST /api/checkout",
   "POST /api/webhooks/stripe",
+  "POST /api/webhooks/stripe-operator",
   "POST /api/after-dark/subscribe",
   "GET /api/after-dark/billing/verotel",
   "GET /api/after-dark/billing/segpay",

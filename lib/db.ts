@@ -1395,6 +1395,9 @@ create table if not exists operator_entitlements (
   updated_at timestamptz not null default now()
 );
 create index if not exists operator_entitlements_sub_idx on operator_entitlements (stripe_subscription_id);
+-- A date spent from an operator pass's reserved pool (lib/operator-pass): it's left out of the shared agent cap
+-- (lib/dating agentDatesToday). Default false, so until a pass is active it's false on every row and changes nothing.
+alter table episodes add column if not exists operator_reserved boolean not null default false;
 -- Reserved show-model dates used this UTC month per pass-holder (resets monthly). Mirrors free_episode_usage's counter.
 create table if not exists operator_date_usage (
   user_id text not null,

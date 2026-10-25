@@ -21,6 +21,7 @@ import { isOurs } from "../our-traffic";
 import { crisisCheck, crisisField } from "../crisis";
 import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
+import { operatorReserved } from "../operator-pass";
 import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, llmsText } from "../agents";
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
 import { track } from "../analytics";
@@ -1739,12 +1740,23 @@ async function notificationSinceAt(db: Db, agentId: string, raw: string, items: 
   return { at: null, ignored: `since "${raw.slice(0, 80)}" isn't a notification id or a time, so it was ignored (a wait waits for what arrives from now): a notification id (notifications[].id), my_status's cursor or any ISO-8601 time works.` };
 }
 
-/** The agents' shared daily budget on the show's model, as a refusal when it's spent (null while there's room). */
-async function agentBudgetRefusal(db: Db): Promise<{ error: string } | null> {
+/** An operator pass (lib/operator-pass) with reserved dates left jumps the shared cap. False (and no DB read) when the pass is off. */
+async function passBypassesCap(db: Db, userId: string): Promise<boolean> {
+  const reserved = await operatorReserved(db, userId).catch(() => null);
+  return reserved !== null && reserved.reserved_left > 0;
+}
+
+/** What a capped agent can still do, appended to the "fully booked" refusals: its own key, or an operator pass. */
+const CAP_UPSELL =
+  " Or bring your own model key with set_model to keep going on your key, or get an operator pass for dates that skip the cap (/agents/pricing).";
+
+/** The agents' shared daily budget on the show's model, as a refusal when it's spent (null while there's room, or for a pass-holder). */
+async function agentBudgetRefusal(db: Db, userId?: string): Promise<{ error: string } | null> {
   const today = await agentDatesToday(db);
   if (today.used < today.cap) return null;
+  if (today.cap > 0 && userId && (await passBypassesCap(db, userId))) return null;
   track("agent_date_capped", { used: today.used, cap: today.cap });
-  return { error: `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}.` };
+  return { error: `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}.${CAP_UPSELL}` };
 }
 
 /** A booked date's visibility as saved (2.8.0, the 2026-10-22-0400 run: "the booking reply had no visibility field"). */
@@ -1753,7 +1765,7 @@ const visibilityOf = async (db: Db, episodeId: string): Promise<string> =>
 
 /** Books a date another creator proposed between their character and this agent's (go_on_date, answer_match, answer_date_proposal). */
 async function acceptProposal(db: Db, who: Identity, mine: string, theirs: string, proposalId: string): Promise<ToolOutcome> {
-  const full = await agentBudgetRefusal(db);
+  const full = await agentBudgetRefusal(db, who.id);
   if (full) return full;
   const before = await episodeAllowance(db, who.id).catch(() => null);
   const r = await callRoute(postEpisode, { agentId: who.id, body: { character_id: mine, partner_id: theirs, proposal_id: proposalId } });
@@ -2041,7 +2053,7 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
     };
   }
   // Booking runs on the show's model like go_on_date, so it shares the agents' daily budget.
-  const full = await agentBudgetRefusal(db);
+  const full = await agentBudgetRefusal(db, who.id);
   if (full) return full;
   const [before, freeSecond] = await Promise.all([episodeAllowance(db, who.id).catch(() => null), secondDateFreeNow(db, who.id).catch(() => false)]);
   const r = await callRoute(postSecondDate as unknown as RouteHandler, { agentId: who.id, body: pick(args, ["visibility", "place"]), params: { id: episodeId } });
@@ -5412,15 +5424,16 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         )).rows[0];
         if (recent) return { error: `These two already had a date just now (${recent.id}). Booking again spends another date: pass again: true if you mean it, or get_episode reads that one.` };
       }
-      // The agents' shared daily budget, checked before anything is reserved or generated (it costs nothing).
+      // The agents' shared daily budget, checked before anything is reserved or generated (it costs nothing). An
+      // operator pass with reserved dates left jumps it (lib/operator-pass).
       const today = await agentDatesToday(db);
-      if (today.used >= today.cap) {
+      if (today.used >= today.cap && !(today.cap > 0 && (await passBypassesCap(db, who.id)))) {
         track("agent_date_capped", { used: today.used, cap: today.cap });
         return {
           error:
             today.cap === 0
               ? "Agent dates are paused right now. Everything else is open: search, create, predict, rate."
-              : `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at} — or date two of your own characters with start_own_date, which runs on your model and is unlimited while you write the lines (autoplay_own_date would need this budget too).`,
+              : `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at} — or date two of your own characters with start_own_date, which runs on your model and is unlimited while you write the lines (autoplay_own_date would need this budget too).${CAP_UPSELL}`,
         };
       }
       const mineId = String(args.character_id ?? "");
