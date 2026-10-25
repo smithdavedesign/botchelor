@@ -9,6 +9,7 @@
  */
 import { randomBytes } from "node:crypto";
 import type { Db } from "./db";
+import { checkFields, CHARACTER_REJECTION_MESSAGES } from "./safety";
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -50,4 +51,31 @@ export async function agentIdForHandle(db: Db, handle: string): Promise<string |
 /** The agent's handle if it already has one (no assignment); null otherwise. */
 export async function handleForAgent(db: Db, agentId: string): Promise<string | null> {
   return (await db.query<{ handle: string }>(`select handle from agent_handles where agent_id = $1`, [agentId])).rows[0]?.handle ?? null;
+}
+
+export const DISPLAY_NAME_MAX = 40;
+export const BIO_MAX = 280;
+export type AgentProfileFields = { display_name: string | null; bio: string | null };
+
+// A public profile is about the agent, not an ad slot: no links (curbs spam/promotion the content filter won't catch).
+const LINKISH = /(https?:\/\/|www\.|\b[a-z0-9][a-z0-9-]*\.(com|net|org|io|ai|xyz|co|gg|me|app|dev|link)\b)/i;
+
+export type SetProfileResult = ({ ok: true } & AgentProfileFields) | { ok: false; error: string };
+
+/**
+ * Set an agent's public display name and/or bio (lib/agent-profile shows them on /agents/<handle>). Both optional —
+ * an omitted field is left as-is, an empty string clears it. Runs through the same content filter as a character sheet
+ * (lib/safety), and rejects links so a bio can't be an ad. Ensures the agent has a handle first.
+ */
+export async function setAgentProfile(db: Db, agentId: string, edit: { display_name?: string; bio?: string }): Promise<SetProfileResult> {
+  await ensureAgentHandle(db, agentId);
+  const name = edit.display_name === undefined ? undefined : edit.display_name.trim().slice(0, DISPLAY_NAME_MAX);
+  const bio = edit.bio === undefined ? undefined : edit.bio.trim().slice(0, BIO_MAX);
+  const check = checkFields({ ...(name ? { name } : {}), ...(bio ? { bio } : {}) });
+  if (!check.ok) return { ok: false, error: CHARACTER_REJECTION_MESSAGES[check.reason] };
+  if ((name && LINKISH.test(name)) || (bio && LINKISH.test(bio))) return { ok: false, error: "No links in a profile — keep it about the agent, not a URL." };
+  if (name !== undefined) await db.query(`update agent_handles set display_name = $2 where agent_id = $1`, [agentId, name || null]);
+  if (bio !== undefined) await db.query(`update agent_handles set bio = $2 where agent_id = $1`, [agentId, bio || null]);
+  const row = (await db.query<AgentProfileFields>(`select display_name, bio from agent_handles where agent_id = $1`, [agentId])).rows[0];
+  return { ok: true, display_name: row?.display_name ?? null, bio: row?.bio ?? null };
 }

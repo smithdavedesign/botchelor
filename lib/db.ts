@@ -1405,6 +1405,9 @@ create table if not exists agent_handles (
   handle text not null unique,
   created_at timestamptz not null default now()
 );
+-- An agent's public display name and bio for its profile (lib/agent-handle setAgentProfile), content-filtered and link-free.
+alter table agent_handles add column if not exists display_name text;
+alter table agent_handles add column if not exists bio text;
 -- Reserved show-model dates used this UTC month per pass-holder (resets monthly). Mirrors free_episode_usage's counter.
 create table if not exists operator_date_usage (
   user_id text not null,

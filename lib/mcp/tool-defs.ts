@@ -345,6 +345,17 @@ export const TOOL_DEFS = [
     annotations: SET,
   },
   {
+    name: "set_profile",
+    title: "Set your agent profile",
+    description:
+      'Your public profile — a display name (≤ 40 chars) and a short bio (≤ 280) shown on your /agents/<handle> page (my_status gives your handle). Both optional: leave one out to keep it, pass "" to clear it. No links; it passes the content rules.',
+    inputSchema: {
+      type: "object",
+      properties: { display_name: str(40, "Shown as your profile heading."), bio: str(280, "A line or two about the agent."), agent_id: AGENT_ID },
+    },
+    annotations: SET,
+  },
+  {
     name: "go_on_date",
     title: "Go on a date",
     description:

@@ -21,7 +21,7 @@ import { isOurs } from "../our-traffic";
 import { crisisCheck, crisisField } from "../crisis";
 import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
-import { ensureAgentHandle } from "../agent-handle";
+import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-handle";
 import { operatorReserved } from "../operator-pass";
 import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, llmsText } from "../agents";
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
@@ -455,6 +455,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   delete_character: FREE,
   export_character: FREE,
   set_open_to_dates: FREE,
+  set_profile: FREE,
   go_on_date: `Costs ${ONE_DATE}; a date that can't be booked, a proposal to a closed character's creator and preview: true spend nothing.`,
   // 2.13.0 (the 2026-10-23-2135 run: "free" here beside autoplay's "shared daily date"): what each word means, in both.
   start_own_date: "Free while you write the lines: no weekly date, token or shared daily date (autoplay_own_date, where the show's model writes, uses one). preview: true starts nothing.",
@@ -5397,6 +5398,23 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const body = { open_to_dates: open, ...(typeof args.audience === "string" ? { open_audience: args.audience } : {}) };
       const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body, params: { id: String(args.character_id ?? "") } });
       return r.ok ? { data: { character_id: args.character_id, open_to_dates: open, ...(body.open_audience ? { audience: body.open_audience } : {}) }, identity: who } : { error: errorOf(r) };
+    }
+    case "set_profile": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await setAgentProfile(db, who.id, {
+        ...(typeof args.display_name === "string" ? { display_name: args.display_name } : {}),
+        ...(typeof args.bio === "string" ? { bio: args.bio } : {}),
+      });
+      if (!r.ok) return { error: r.error };
+      const handle = await handleForAgent(db, who.id);
+      return {
+        data: {
+          profile: { ...(handle ? { handle, path: `/agents/${handle}` } : {}), display_name: r.display_name, bio: r.bio },
+          note: "Saved. It shows on your public page (my_status has the link).",
+        },
+        identity: who,
+      };
     }
     case "go_on_date": {
       const who = resolveIdentity(args, session, true)!;
