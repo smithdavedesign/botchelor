@@ -14,8 +14,7 @@ import type { CharacterRef } from "@/lib/game";
 import { PLACE_LABEL_MAX, venueName, type PlaceId } from "@/lib/venues";
 import { useSteadySet } from "./useSteadySet";
 import { TheaterListen } from "./Listen";
-import { ClipHere } from "./MediaMenu";
-import SceneMatch from "./SceneMatch";
+import CaptureMenu from "./CaptureMenu";
 import SceneBackdrop from "./SceneBackdrop";
 import { useSceneMedia } from "./useSceneMedia";
 import VideoChoice from "./VideoChoice";
@@ -311,20 +310,16 @@ export default function AfterDarkTheater({
                   ⏭
                 </button>
                 <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
-                {live && onPictureNow && (
-                  <button
-                    type="button"
-                    className="theater-icon"
-                    onClick={() => setPicturing({ line: Math.max(0, shown.length - 1) })}
-                    disabled={!shown.length || Boolean(mediaPaused)}
-                    aria-label="Picture this moment"
-                    title={mediaPaused ?? "Picture this moment: a picture of the two of them, from the line on screen"}
-                  >
-                    📸
-                  </button>
-                )}
-                <ClipHere a={a.id} b={b.id} at={shown.length - 1} nightId={live ? null : feedbackRef} paused={mediaPaused} />
-                {live && <SceneMatch match={sceneMedia.match} />}
+                <CaptureMenu
+                  a={a.id}
+                  b={b.id}
+                  at={shown.length - 1}
+                  nightId={live ? null : feedbackRef}
+                  paused={mediaPaused}
+                  onPicture={live && onPictureNow ? () => setPicturing({ line: Math.max(0, shown.length - 1) }) : null}
+                  canPicture={shown.length > 0}
+                  match={live ? sceneMedia.match : null}
+                />
                 {onMakeVideo && (
                   <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
                 )}

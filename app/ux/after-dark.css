@@ -268,6 +268,68 @@ button.ad-more-toggle {
 button.ad-tools-toggle {
   display: none;
 }
+/* Every control in the tool row the same height (the round icons are 2.2rem), so their tops line up — the pills (Clip,
+   Video, Exit) are .secondary.small and were a touch taller (David, 2026-10-25: buttons slightly misaligned at the top). */
+.theater-tools .secondary.small {
+  height: 2.2rem;
+  min-height: 2.2rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+}
+/* One camera for all capture tools, with a panel of the options (CaptureMenu.tsx; David, 2026-10-25: combine the three,
+   save space). The panel hangs under the camera; the clip and match keep their own buttons, laid out as menu rows. */
+.ad-capture {
+  position: relative;
+  display: inline-flex;
+}
+.ad-capture-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 14rem;
+  padding: var(--space-2);
+  border: 1px solid #33264d;
+  border-radius: 0.6rem;
+  background: rgba(18, 10, 28, 0.98);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+.ad-capture-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+button.ad-capture-item {
+  width: 100%;
+  justify-content: flex-start;
+  min-height: 2.2rem;
+  padding: 0.4rem 0.6rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1e9ff;
+  font: inherit;
+  cursor: pointer;
+}
+button.ad-capture-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+button.ad-capture-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* The composed clip button fills its row and reads like a menu item (its height rule above still applies). */
+.ad-capture-menu .secondary.small {
+  width: 100%;
+  justify-content: flex-start;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+}
 .ad-theater-steer {
   display: flex;
   flex: 1 1 100%;

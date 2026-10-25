@@ -154,12 +154,14 @@ describe("the controls", () => {
     { who: "b" as const, text: "Hello." },
   ];
 
-  it("puts Listen and Clip in the theater, live and for a saved night", () => {
+  it("puts Listen and the one camera (picture/clip) in the theater, live and for a saved night", () => {
+    // The picture, clip and existing-match tools are folded behind one camera button (CaptureMenu); its panel opens on
+    // click, so the static markup shows the camera, not the clip option itself.
     const scene = { lines, place: null, stage: 0, dateVenue: null };
     for (const props of [{ onWrite: async () => {} }, {}]) {
       const html = renderToStaticMarkup(createElement(AfterDarkTheater, { scene, characters: chars, onExit: () => {}, ...props }));
       expect(html).toContain('aria-label="Listen: each line in their own voice"');
-      expect(html).toMatch(/🎞 Clip</);
+      expect(html).toContain('aria-label="Pictures and clips"');
     }
   });
 
