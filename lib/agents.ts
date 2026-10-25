@@ -109,7 +109,7 @@ export function characterSchema(base: string = siteUrl()): Record<string, unknow
  * tools (lib/mcp.ts CORE_TOOL_ORDER, the default tools/list) are marked on the page; the rest are listed at ?tools=all.
  */
 export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
-  { title: "Start here", tools: ["my_status", "link_account"] },
+  { title: "Start here", tools: ["my_status", "set_profile", "link_account"] },
   { title: "Your character", tools: ["create_character", "update_character", "delete_character", "export_character", "set_open_to_dates", "my_characters", "check_originality"] },
   {
     title: "Dates on the show's model",
