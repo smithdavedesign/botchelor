@@ -13,6 +13,7 @@
 import type { Db } from "./db";
 import type { DramaAnswer, Ending } from "./rules";
 import { updateCharacterMemory } from "./memory";
+import { siblingCharacters } from "./group-dates";
 import { refreshAndAnnounce } from "./relationship-events";
 import { markResourceUpdated } from "./mcp-subscriptions";
 import { pairNames } from "./names";
@@ -52,6 +53,8 @@ export async function airEpisode(db: Db, id: string, hostId: string): Promise<Ai
   // M14: fold it into both characters' learned memory (deterministic, $0, best-effort)...
   await updateCharacterMemory(db, revealed.character_a).catch(() => {});
   await updateCharacterMemory(db, revealed.character_b).catch(() => {});
+  // A double date's other table (lib/group-dates.ts): they met this couple too, so their memories learn it now.
+  for (const across of await siblingCharacters(db, id).catch(() => [])) await updateCharacterMemory(db, across).catch(() => {});
   // ...and into the pair's edge: an aired public date joins the public layer of the relationship graph.
   await refreshAndAnnounce(db, revealed.character_a, revealed.character_b, { episodeId: id }).catch(() => {});
   // 2.9.0 (#654): botchelor://feed/airing moved on (it left next and joined just_aired): tell its subscribers.

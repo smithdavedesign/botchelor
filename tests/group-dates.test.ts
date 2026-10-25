@@ -3,6 +3,9 @@ import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { siblingEpisode, DOUBLE_VENUE } from "@/lib/group-dates";
 import { api, episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter, newUserCookie } from "./helpers";
 import { seasonCastIds } from "@/lib/season-cast";
+import { airEpisode } from "@/lib/air";
+import { sharedTable } from "@/lib/house-matchmaker";
+import { loadCharacterMemory, remembered } from "@/lib/memory";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -175,5 +178,49 @@ describe("double dates (lib/group-dates)", () => {
     expect(episode.group_id).toBeNull();
     const told = (await t.db.query<Any>(`select title from notifications where user_id = $1 and kind = 'double_date'`, [a.agentId])).rows;
     expect(told.some((n: Any) => /fell through/.test(n.title))).toBe(true);
+  });
+});
+
+describe("the table is remembered (group dates PR B)", () => {
+  it("once both tables air, everyone at the table remembers everyone, and the matchmaker can tell", async () => {
+    const a = await agent("Juni Marsh");
+    const second = (await call("create_character", { ...validCharacter({ name: "Lotte Hale" }), extras: PROFILE, agent_id: a.agentId }, a.ctx)).structuredContent
+      .character.id as string;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson()]);
+    const r = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: second, with_partner: house2(), agent_id: a.agentId },
+      a.ctx,
+    );
+    const { episode_a, episode_b } = r.structuredContent.booked;
+
+    // One table aired: nobody "met" anyone yet — the other table is still unaired.
+    expect(await airEpisode(t.db, episode_a, a.agentId)).not.toBeNull();
+    const early = await loadCharacterMemory(t.db, a.id);
+    expect(early?.met ?? []).toHaveLength(0);
+
+    // Both aired: each character at the table remembers the OTHER couple — who they were with, and how it ended.
+    expect(await airEpisode(t.db, episode_b, a.agentId)).not.toBeNull();
+    const mine = await loadCharacterMemory(t.db, a.id);
+    expect((mine?.met ?? []).map((m) => m.id).sort()).toEqual([second, house2()].sort());
+    const across = mine!.met!.find((m) => m.id === second)!;
+    expect(across.with_name).toBeTruthy();
+    expect(across.venue).toBe(DOUBLE_VENUE);
+    // The other table's couple remembers this one too (their memories rebuilt when this table aired).
+    const theirs = await loadCharacterMemory(t.db, second);
+    expect((theirs?.met ?? []).map((m) => m.id).sort()).toEqual([a.id, HOUSE_PARTNER_ID].sort());
+
+    // A later date between cross-table characters carries the meeting into the prompt — nothing private, one line.
+    const block = remembered({ memory: mine }, second);
+    expect(block).not.toBeNull();
+    expect(block!.times).toBe(0);
+    expect(String(block!.you_met_once)).toMatch(/shared a table/);
+    expect(String(block!.you_met_once)).toMatch(/double date/);
+
+    // The matchmaker's observed-chemistry check: cross-table pairs count, same-table partners don't (they dated).
+    expect(await sharedTable(t.db, a.id, second)).toBe(true);
+    expect(await sharedTable(t.db, a.id, house2())).toBe(true);
+    expect(await sharedTable(t.db, a.id, HOUSE_PARTNER_ID)).toBe(false);
   });
 });

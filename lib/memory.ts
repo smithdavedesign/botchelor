@@ -88,6 +88,24 @@ export type CharacterMemory = {
   milestones?: Milestone[];
   /** Where each learned item came from (the date behind it): "why does my character remember this?" Owner only. */
   sources?: MemorySources;
+  /**
+   * People it met without dating them: the other couple at a double date's table (lib/group-dates.ts), once both
+   * tables aired publicly. Aired/public only, like all memory; most recent first, one entry per person.
+   */
+  met?: MetPerson[];
+};
+
+/** Someone this character shared a double date's table with, without dating them. */
+export type MetPerson = {
+  id: string;
+  name: string;
+  house: boolean;
+  venue: PlaceId | null;
+  /** When their table aired (ISO). */
+  at: string;
+  /** Who they were with that night. */
+  with_name: string;
+  their_ending: Ending;
 };
 
 /** The aired date a memory came from. */
@@ -196,13 +214,14 @@ type MemoryRow = {
   chapters: Chapter[] | null;
   milestones: Milestone[] | null;
   sources: MemorySources | null;
+  met: MetPerson[] | null;
 };
 
 /** Reads the materialized memory for a character, or null when it has none yet (a fresh OC). */
 export async function loadCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory | null> {
   const { rows } = await db.query<MemoryRow>(
     `select dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, reflections, arc,
-            people, chapters, milestones, sources
+            people, chapters, milestones, sources, met
        from character_memory where character_id = $1`,
     [characterId],
   );
@@ -228,6 +247,7 @@ export async function loadCharacterMemory(db: Db, characterId: string): Promise<
     chapters: r.chapters ?? [],
     milestones: r.milestones ?? [],
     ...(r.sources ? { sources: r.sources } : {}),
+    ...(r.met?.length ? { met: r.met } : {}),
   };
 }
 
@@ -608,7 +628,7 @@ export function withPairMemory(memory: CharacterMemory | null, person: PersonMem
 }
 
 export async function updateCharacterMemory(db: Db, characterId: string): Promise<CharacterMemory> {
-  const [{ rows }, sheetRows, forgotten] = await Promise.all([
+  const [{ rows }, sheetRows, forgotten, met] = await Promise.all([
     db.query<MemoryEpisode>(
       `select e.id, e.ending, e.sides, e.transcript, e.reflections, (e.character_a = $1) as is_a,
               e.revealed_at, e.drama_question, e.drama_answer, e.setup->>'venue' as venue,
@@ -622,20 +642,22 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
     // This character's own want/dealbreaker, for the fallback cue.
     db.query<{ want: string | null; dealbreaker: string | null }>(`select want, dealbreaker from characters where id = $1`, [characterId]),
     loadForgets(db, characterId),
+    loadMetAtTable(db, characterId),
   ]);
   const memory = computeMemory(rows, sheetRows.rows[0], new Set(forgotten.map((f) => forgetKey(f.kind, f.item))));
+  if (met.length) memory.met = met;
 
   await db.query(
     `insert into character_memory
        (character_id, dates, second_dates, friends, disasters, likes, turnoffs, signal_delta, memorable_lines, reflections, arc,
-        people, chapters, milestones, sources, updated_at)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, now())
+        people, chapters, milestones, sources, met, updated_at)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb, now())
      on conflict (character_id) do update set
        dates = excluded.dates, second_dates = excluded.second_dates, friends = excluded.friends,
        disasters = excluded.disasters, likes = excluded.likes, turnoffs = excluded.turnoffs,
        signal_delta = excluded.signal_delta, memorable_lines = excluded.memorable_lines,
        reflections = excluded.reflections, arc = excluded.arc, people = excluded.people,
-       chapters = excluded.chapters, milestones = excluded.milestones, sources = excluded.sources, updated_at = now()`,
+       chapters = excluded.chapters, milestones = excluded.milestones, sources = excluded.sources, met = excluded.met, updated_at = now()`,
     [
       characterId,
       memory.dates,
@@ -652,9 +674,42 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
       JSON.stringify(memory.chapters),
       JSON.stringify(memory.milestones),
       JSON.stringify(memory.sources),
+      JSON.stringify(memory.met ?? []),
     ],
   );
   return memory;
+}
+
+/**
+ * The people this character shared a double date's table with (the OTHER couple, lib/group-dates.ts), once both
+ * tables aired publicly: who they were, who they were with, where, and how their date ended — exactly what anyone
+ * at the table saw. One entry per person (their latest table), most recent first, capped.
+ */
+export async function loadMetAtTable(db: Db, characterId: string, limit = 8): Promise<MetPerson[]> {
+  const { rows } = await db.query<{ id: string; name: string; is_house: boolean; venue: string | null; at: string | Date; with_name: string; ending: Ending }>(
+    `select distinct on (o.id) o.id, o.name, o.is_house, s.setup->>'venue' as venue, s.revealed_at as at, w.name as with_name, s.ending
+       from episodes e
+       join group_nights gn on gn.id = e.group_id
+       join episodes s on s.id = (case when gn.episode_a = e.id then gn.episode_b else gn.episode_a end)
+       join characters o on o.id in (s.character_a, s.character_b)
+       join characters w on w.id = (case when o.id = s.character_a then s.character_b else s.character_a end)
+      where (e.character_a = $1 or e.character_b = $1)
+        and e.revealed_at is not null and e.visibility = 'public'
+        and s.revealed_at is not null and s.visibility = 'public'
+      order by o.id, s.revealed_at desc`,
+    [characterId],
+  );
+  return rows
+    .sort((x, y) => new Date(y.at).getTime() - new Date(x.at).getTime())
+    .slice(0, limit)
+    .map((r) => ({ id: r.id, name: r.name, house: r.is_house, venue: (r.venue as PlaceId) ?? null, at: new Date(r.at).toISOString(), with_name: r.with_name, their_ending: r.ending }));
+}
+
+/** The one line a date prompt carries about someone it only shared a table with (remembered()'s fallback). */
+export function metAtTable(memory: CharacterMemory | null | undefined, otherId: string): string | null {
+  const m = memory?.met?.find((x) => x.id === otherId);
+  if (!m) return null;
+  return `You haven't dated, but you shared a table once: a double date at ${venuePhrase(m.venue)}, where they were with ${shortName(m.with_name)}. Their date ended: ${endingLabel(m.their_ending, 1)}.`;
 }
 
 /* ------------------------------------ people, chapters, milestones ------------------------------------ */
@@ -873,7 +928,11 @@ export function remembered(
 ): (Record<string, unknown> & { times: number; tonight_is_the_plan?: string[] }) | null {
   const met = metBefore(char.memory, otherId); // aired-only, from this side
   const pair = (char.pair ?? null) as (Record<string, unknown> & { times_together?: number }) | null;
-  if (!met && !pair) return null;
+  if (!met && !pair) {
+    // Never dated — but a double date's table counts as having met (lib/group-dates.ts): one line, nothing private.
+    const table = metAtTable(char.memory, otherId);
+    return table ? { times: 0, you_met_once: table } : null;
+  }
   const times = Math.max(
     typeof met?.times === "number" ? (met.times as number) : 0,
     typeof pair?.times_together === "number" ? pair.times_together : 0,

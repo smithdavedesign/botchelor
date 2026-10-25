@@ -203,6 +203,21 @@ export async function markNightBooked(db: Db, booking: GroupBooking, episodeId: 
   await db.query(`update group_nights set ${booking.side === "a" ? "episode_a" : "episode_b"} = $2 where id = $1`, [booking.nightId, episodeId]);
 }
 
+/**
+ * The characters at the other table of this episode's night, once both tables exist: when one table airs, their
+ * memories are rebuilt too (lib/air.ts, lib/watch.ts), so everyone at the table remembers everyone (David's call).
+ */
+export async function siblingCharacters(db: Db, episodeId: string): Promise<string[]> {
+  const { rows } = await db.query<{ character_a: string; character_b: string }>(
+    `select s.character_a, s.character_b
+       from group_nights gn
+       join episodes s on s.id = (case when gn.episode_a = $1 then gn.episode_b else gn.episode_a end)
+      where gn.episode_a = $1 or gn.episode_b = $1`,
+    [episodeId],
+  );
+  return rows.flatMap((r) => [r.character_a, r.character_b]);
+}
+
 /** The other table's episode of a night this episode belongs to, for the episode page's cross-link. */
 export async function siblingEpisode(db: Db, episodeId: string): Promise<{ episode_id: string; names: string[] } | null> {
   const { rows } = await db.query<{ other: string }>(
