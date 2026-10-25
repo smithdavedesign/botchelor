@@ -31,14 +31,70 @@ export type SceneMatch = { image_id: string; act: string } | null;
 
 /** What's happening in the pair's scene right now: the two of them, the current act, and where (for the same-place preference). */
 async function sceneNow(db: Db, ownerId: string, x: string, y: string): Promise<{ a: string; b: string; act: string; place: string | null } | null> {
+  const where = await sceneWhere(db, ownerId, x, y);
+  return where && where.act ? { a: where.a, b: where.b, act: where.act, place: where.place } : null;
+}
+
+/** The pair's scene and where it is now — like sceneNow, but the act may be null (nothing explicit happening yet). */
+async function sceneWhere(db: Db, ownerId: string, x: string, y: string): Promise<{ a: string; b: string; act: string | null; place: string | null } | null> {
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return null;
   const [a, b] = pair;
   const scene = (await db.query<{ lines: { text: string }[]; stage: number; place: string | null }>(`select lines, stage, place from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`, [ownerId, a, b])).rows[0];
   if (!scene) return null;
-  const act = currentAct(scene.lines ?? [], scene.stage ?? 0);
-  if (!act) return null;
-  return { a, b, act, place: scene.place };
+  return { a, b, act: currentAct(scene.lines ?? [], scene.stage ?? 0), place: scene.place };
+}
+
+export type SceneBackdrop = { kind: "clip" | "image"; id: string } | null;
+
+/**
+ * The best media the pair already has to stand behind the live scene as an immersive backdrop (David, 2026-10-25: "if we
+ * have a fuzzy match for the scene put it as the background … if a sexual action matches a reel use it full immersive").
+ * Fuzzy, not exact: any ready media of these two that matches where they are (the scene's place) OR what's happening
+ * (the current act) — a short clip (looped, most immersive) preferred over a still, same place first, then same act,
+ * then newest. The owner's own, or any to an admin. Null when the scene has no place and no act, or they have no
+ * matching media. SceneBackdrop.tsx loops a clip or shows a still; sceneMatch (the 📷 chip) stays the exact-act offer.
+ */
+export async function sceneBackdrop(db: Db, ownerId: string, x: string, y: string): Promise<SceneBackdrop> {
+  const where = await sceneWhere(db, ownerId, x, y);
+  if (!where || (!where.act && !where.place)) return null;
+  const { a, b, act, place } = where;
+  const row = (
+    await db.query<{ kind: "clip" | "image"; id: string }>(
+      `select kind, id from (
+         -- a short clip of these two (loopable), its act and place from the clip's own tags
+         select 'clip' as kind, s->>'media_id' as id, r.clip->>'place' as place, r.clip->>'act' as act, r.created_at
+           from adult_reels r cross join lateral jsonb_array_elements(r.shots) s
+          where r.kind = 'clip' and r.status = 'ready'
+            and ((r.character_a = $2 and r.character_b = $3) or (r.character_a = $3 and r.character_b = $2))
+            and (r.owner_id = $1 or exists (select 1 from admins a where a.user_id = $1))
+            and s->>'status' = 'ready' and s->>'media_id' is not null and (s->>'archived_at') is null
+         union all
+         -- a Studio "Together" picture of these two, its act from the shoot, its place from the picture
+         select 'image', i.id, i.scene_place, st.choices->>'act', i.created_at
+           from adult_images i join adult_studio_shoots st on st.id = i.shoot_id
+          where i.kind = 'scene' and i.status = 'ready' and i.character_b is not null and st.kind = 'pair'
+            and ((i.character_id = $2 and i.character_b = $3) or (i.character_id = $3 and i.character_b = $2))
+            and (i.owner_id = $1 or exists (select 1 from admins a where a.user_id = $1))
+         union all
+         -- a picture they drew in the theater (a beat picture), its act and place from the beat
+         select 'image', bi.id, be.place, be.act, bi.created_at
+           from adult_beats be join adult_images bi on bi.id = be.picture_id
+          where be.status = 'drawn' and bi.status = 'ready'
+            and ((be.character_a = $2 and be.character_b = $3) or (be.character_a = $3 and be.character_b = $2))
+            and (be.owner_id = $1 or exists (select 1 from admins a where a.user_id = $1))
+       ) m
+       where ($5::text is not null and m.place is not distinct from $5) or ($4::text is not null and m.act = $4)
+       order by
+         ($5::text is not null and m.place is not distinct from $5) desc,  -- where they are first
+         ($4::text is not null and m.act = $4) desc,                        -- then what's happening
+         (m.kind = 'clip') desc,                                            -- then a clip over a still (more immersive)
+         m.created_at desc
+       limit 1`,
+      [ownerId, a, b, act, place],
+    )
+  ).rows[0];
+  return row ? { kind: row.kind, id: row.id } : null;
 }
 
 /**

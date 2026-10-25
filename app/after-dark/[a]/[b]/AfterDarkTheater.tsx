@@ -214,7 +214,7 @@ export default function AfterDarkTheater({
     >
       <div className={`theater-stage${convo ? " with-convo" : ""}`}>
         <div className="theater-scene-area">
-          {live && <SceneBackdrop mediaId={sceneMedia.clip?.media_id ?? null} />}
+          {live && <SceneBackdrop backdrop={sceneMedia.backdrop} />}
           <Scene
             characters={characters}
             venue={stage.venue}

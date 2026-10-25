@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAdultSwitch } from "@/lib/adult/characters";
-import { currentAct, sceneClip, sceneMatch } from "@/lib/adult/scene-match";
+import { currentAct, sceneBackdrop, sceneClip, sceneMatch } from "@/lib/adult/scene-match";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -118,5 +118,52 @@ describe("a matching picture", () => {
     );
     await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "bedroom");
     expect(await sceneClip(t.db, owner, a, b)).toBeNull();
+  });
+
+  /** A ready clip of the pair, tagged with an act and place, one playable shot. */
+  async function clip(owner: string, lo: string, hi: string, act: string, place: string, id = "clip-1", mediaId = "clip-vid") {
+    await t.db.query(
+      `insert into adult_reels (id, owner_id, character_a, character_b, kind, status, tokens, shots, clip) values ($1, $2, $3, $4, 'clip', 'ready', 0, $5::jsonb, $6::jsonb)`,
+      [id, owner, lo, hi, JSON.stringify([{ status: "ready", media_id: mediaId }]), JSON.stringify({ act, place })],
+    );
+  }
+
+  describe("the fuzzy backdrop", () => {
+    it("matches a picture at the same place even when the act is different (where they are)", async () => {
+      const { owner, a, b, lo, hi } = await pair();
+      await pairPicture(owner, lo, hi, "undress", "a rooftop pool", "rooftop-pic");
+      // Happening now: a different act, but the same place.
+      await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "a rooftop pool");
+      expect(await sceneBackdrop(t.db, owner, a, b)).toEqual({ kind: "image", id: "rooftop-pic" });
+    });
+
+    it("matches a clip of the act even at a different place (what's happening)", async () => {
+      const { owner, a, b, lo, hi } = await pair();
+      await clip(owner, lo, hi, "face_to_face", "a hotel suite");
+      await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "the beach");
+      expect(await sceneBackdrop(t.db, owner, a, b)).toEqual({ kind: "clip", id: "clip-vid" });
+    });
+
+    it("prefers a clip over a still when both match", async () => {
+      const { owner, a, b, lo, hi } = await pair();
+      await pairPicture(owner, lo, hi, "face_to_face", "bedroom", "still-pic");
+      await clip(owner, lo, hi, "face_to_face", "bedroom");
+      await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "bedroom");
+      expect(await sceneBackdrop(t.db, owner, a, b)).toEqual({ kind: "clip", id: "clip-vid" });
+    });
+
+    it("matches on place even before anything is happening (no act yet)", async () => {
+      const { owner, a, b, lo, hi } = await pair();
+      await pairPicture(owner, lo, hi, "undress", "a candlelit bar", "bar-pic");
+      await sceneAt(owner, lo, hi, [{ text: "They talk over wine." }], 1, "a candlelit bar");
+      expect(await sceneBackdrop(t.db, owner, a, b)).toEqual({ kind: "image", id: "bar-pic" });
+    });
+
+    it("shows nothing when neither the place nor the act matches", async () => {
+      const { owner, a, b, lo, hi } = await pair();
+      await pairPicture(owner, lo, hi, "undress", "a rooftop pool", "rooftop-pic");
+      await sceneAt(owner, lo, hi, [{ text: "They move together slowly." }], 4, "the beach");
+      expect(await sceneBackdrop(t.db, owner, a, b)).toBeNull();
+    });
   });
 });
