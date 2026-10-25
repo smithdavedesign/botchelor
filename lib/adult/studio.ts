@@ -423,8 +423,8 @@ export async function shoot(db: Db, viewer: string, characterId: string, input: 
   if (!planned.ok) return fail(422, planned.error, planned.message);
   const { plan } = planned;
   const subject = subjectOf(c, viewer, plan.level >= 2);
-  // Everything the picture is built from, the owner's own words (custom, extra) included, is held to the lines first.
-  const ownWords = [plan.custom ?? "", ...Object.values(plan.extra ?? {})].join(" ");
+  // Everything the picture is built from, the owner's own words (custom, extra, dialog) included, is held to the lines first.
+  const ownWords = [plan.custom ?? "", plan.dialog ?? "", ...Object.values(plan.extra ?? {})].join(" ");
   if (!wordsOk(`${plan.parts.map((p) => p.words).join(" ")} ${subject.look} ${ownWords}`)) return fail(422, "not_allowed", "That shoot crosses one of the lines After Dark never crosses.");
   // The light: theirs, or the one their light test picks (and the picture keeps it, so their ratings teach the test).
   let preset: PresetId | null = PICTURE_PRESETS.find((p) => p.id === input.choices.light)?.id ?? null;
@@ -877,6 +877,28 @@ async function soloPicture(db: Db, viewer: string, characterId: string, imageId:
   return { ...rest, preset: PICTURE_PRESETS.find((x) => x.id === r.preset)?.id ?? null, level };
 }
 
+/**
+ * One of the viewer's ready pictures of the character WITH a partner (a pair shoot), with its level: so a pair shoot can
+ * be animated too (David, 2026-10-24: "from an image in the shoot we can generate a video… in the pair shoot transcript
+ * is important"). The clip keeps both of them.
+ */
+async function pairSource(db: Db, viewer: string, characterId: string, imageId: string): Promise<Solo | null> {
+  const r = (
+    await db.query<Omit<Solo, "level"> & { shoot_level: number | null }>(
+      `select i.id, i.kind, i.preset, i.scene_place as place, i.mime, ${dataColumn("i")}, i.object_key,
+              (select (s.choices->>'level')::int from adult_studio_shoots s where s.id = i.shoot_id and s.kind = 'pair') as shoot_level
+         from adult_images i
+        where i.id = $1 and (i.character_id = $2 or i.character_b = $2) and i.character_b is not null and i.kind = 'scene' and i.status = 'ready'
+          and (i.owner_id = $3 or exists (select 1 from admins a where a.user_id = $3))`,
+      [imageId, characterId, viewer],
+    )
+  ).rows[0];
+  if (!r) return null;
+  const { shoot_level, ...rest } = r;
+  const level = (shoot_level !== null && shoot_level >= 0 && shoot_level <= 3 ? shoot_level : 2) as Level;
+  return { ...rest, preset: PICTURE_PRESETS.find((x) => x.id === r.preset)?.id ?? null, level };
+}
+
 /** "More like this": `shoot_size` pictures like one of theirs of the character alone, after the face and body. */
 export async function moreLikeThis(db: Db, viewer: string, characterId: string, input: { image_id: string; model?: string | null; own_key?: boolean }, baseUrl: string): Promise<JobResult> {
   const access = await studioAccess(db, viewer, characterId);
@@ -993,10 +1015,14 @@ export async function deleteSetup(db: Db, viewer: string, id: string): Promise<b
 
 /* ---------------------------------------------------- animate ---------------------------------------------------- */
 
-/** On every Studio clip: away from anyone young-looking, and from what breaks a shot of one (a second person, a cut). */
+/** On a Studio clip of one: away from anyone young-looking, and from what breaks a shot of one (a second person, a cut). */
 const ANIMATE_NEGATIVE =
   "child, teen, minor, young-looking, cartoon, anime, distorted face, extra limbs, text, watermark, " +
   "a second person, extra people, a duplicate person, scene cut, scene change, morphing face";
+/** On a clip of a pair: the same, but the second person is wanted — only a third, or a duplicate, is kept out. */
+const ANIMATE_NEGATIVE_PAIR =
+  "child, teen, minor, young-looking, cartoon, anime, distorted face, extra limbs, text, watermark, " +
+  "a third person, extra people, a duplicate person, the two merging into one, scene cut, scene change, morphing face";
 /** An animation not back after this long is given up, and its tokens come back. */
 const ANIMATE_GIVE_UP_MS = 60 * 60 * 1000;
 
@@ -1029,8 +1055,11 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
   if (!wordsOk([guide.guide, guide.dialog, guide.transcript].filter(Boolean).join(" "))) return fail(422, "not_allowed", "That crosses one of the lines After Dark never crosses.");
   if (!(ANIMATE_SECONDS as readonly number[]).includes(input.seconds)) return fail(422, "invalid", "5 or 10 seconds.");
   const seconds = input.seconds as AnimateSeconds;
-  const src = await soloPicture(db, viewer, c.id, input.image_id);
-  if (!src) return fail(404, "not_found", "Pick one of your pictures of them alone.");
+  // A picture of them alone, or (a pair shoot) of the two of them: the clip keeps whoever is in it.
+  const solo = await soloPicture(db, viewer, c.id, input.image_id);
+  const src = solo ?? (await pairSource(db, viewer, c.id, input.image_id));
+  if (!src) return fail(404, "not_found", "Pick one of your pictures of them.");
+  const pair = !solo;
   const { maxLevel } = shootLimits(await identityOf(db, viewer, c.id), config);
   if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel].toLowerCase()}: their studio limit.`);
   const keys = await adultKeys(db);
@@ -1050,8 +1079,8 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
   const model = config.animate.model ?? (await getAdultSettings(db)).reel_model;
   let queueId: string;
   try {
-    const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion?.words ?? "", guide);
-    queueId = await queueVideo(keys.venice, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative: ANIMATE_NEGATIVE });
+    const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion?.words ?? "", guide, { pair });
+    queueId = await queueVideo(keys.venice, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative: pair ? ANIMATE_NEGATIVE_PAIR : ANIMATE_NEGATIVE });
   } catch (err) {
     if (pays) await refundBoughtTokens(db, viewer, tokens);
     return fail(502, "not_made", `It couldn't be animated (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${pays ? " Your tokens are back." : ""}`);
