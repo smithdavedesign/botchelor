@@ -174,6 +174,23 @@ const hiveCheck = (db: Db, keys: Keys, media: Checkable, kind: MediaKind): Promi
 /** Hive gave no verdict (paused, busy, down, or no key): the alternatives may stand in, in `hive_then_alt`. */
 const noVerdict = (v: CheckResult): boolean => !v.ok && /^(the check couldn't run|the output check isn't set up)/.test(v.reason);
 
+/**
+ * Dev only (David, 2026-10-24: "disable it [Hive] when developing so we can be unblocked"). With `MODERATION_DEV_OFF=1`
+ * off production, the output check doesn't go to Hive: a ready alternative checks instead (the Venice vision model, no
+ * daily cap), and with none set up (or for a video, which the alternatives can't read) it passes without a check. This
+ * keeps local and preview work off Hive's 100-a-day limit. It can NEVER fire on production: `VERCEL_ENV === "production"`
+ * ignores the flag, so prod always runs the configured mode. Tests don't set the flag, so it's inert there too.
+ */
+export function devModerationOff(e: Record<string, string | undefined> = process.env): boolean {
+  return e.VERCEL_ENV !== "production" && e.MODERATION_DEV_OFF === "1";
+}
+
+/** The dev-off check: a ready alternative if there is one (never for a video), else a pass with no check. */
+async function devCheck(m: ModerationConfig, keys: Keys, media: Checkable, kind: MediaKind): Promise<CheckResult & { via?: string[] }> {
+  if (kind !== "video" && readyAlts(m, keys).length) return runAlts(m, keys, media, kind);
+  return { ok: true, via: ["dev"] };
+}
+
 /** Whose picture it is, when the caller knows (an admin's own go to `admin_checker`). */
 export type CheckFor = { owner?: string | null };
 
@@ -205,6 +222,7 @@ async function adminOnAlts(db: Db, m: ModerationConfig, keys: Keys, kind: MediaK
 export async function checkMedia(db: Db, media: Checkable, kind: MediaKind, who: CheckFor = {}): Promise<CheckResult & { via?: string[] }> {
   const m = (await getAdultSettings(db)).moderation;
   const keys = await adultKeys(db);
+  if (devModerationOff()) return devCheck(m, keys, media, kind);
   if (await adminOnAlts(db, m, keys, kind, who)) return runAlts(m, keys, media, kind);
   if (isPg(kind)) return m.pg_via === "alt" ? runAlts(m, keys, media, kind) : hiveCheck(db, keys, media, kind);
   if (m.mode === "alt") return runAlts(m, keys, media, kind);
@@ -228,6 +246,7 @@ export async function checkMedia(db: Db, media: Checkable, kind: MediaKind, who:
 export async function mediaGate(db: Db, opts: { pg?: boolean; video?: boolean; probe?: boolean } & CheckFor = {}): Promise<HiveGate> {
   const m = (await getAdultSettings(db)).moderation;
   const keys = await adultKeys(db);
+  if (devModerationOff()) return { ok: true };
   const alts = readyAlts(m, keys).length > 0;
   if (await adminOnAlts(db, m, keys, opts.video ? "video" : opts.pg ? "pg_image" : "image", opts)) return { ok: true };
   if (!opts.video && ((opts.pg && m.pg_via === "alt") || (!opts.pg && m.mode === "alt"))) {
@@ -243,6 +262,7 @@ export async function mediaGate(db: Db, opts: { pg?: boolean; video?: boolean; p
  * by `pg_via`.
  */
 export async function checkReady(db: Db, opts: { pg?: boolean } = {}): Promise<boolean> {
+  if (devModerationOff()) return true;
   const s = await getAdultSettings(db);
   const keys = await adultKeys(db);
   const alts = readyAlts(s.moderation, keys).length > 0;

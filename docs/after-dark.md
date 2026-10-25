@@ -2275,6 +2275,16 @@ page's **🛡 The checks** section sets it (`adult_settings.moderation`, `lib/ad
   for the texts' photos (v2).
 - Keys sealed like the others: `sightengine_key` (its api_secret; the api_user is a setting), `moderation_endpoint_key`.
 
+#### The dev switch (`MODERATION_DEV_OFF`, 2026-10-24)
+
+David: "disable it [Hive] when developing so we can be unblocked." With `MODERATION_DEV_OFF=1` set **off production**,
+`checkMedia`/`mediaGate`/`checkReady` skip Hive entirely (`devModerationOff`): a ready alternative (the Venice vision
+model, no daily cap) still checks a picture and can still refuse it — never kept unchecked — and with no alternative set
+up, or for a video (which the alternatives can't read), it passes without a check. This keeps local and preview work off
+Hive's 100-a-day limit. It can **never** fire on production: `VERCEL_ENV === "production"` ignores the flag, whatever
+it's set to, so prod always runs the configured mode. Tests don't set it, so it's inert there
+(tests/after-dark-moderation.test.ts "the dev switch skips Hive off production").
+
 ## The writer, and admins' own checks (2026-10-24)
 
 David, after the 2026-10-24 sim (GLM-4.6 won the blind read, 83 against DeepSeek V3.1's 66, at about 47 s a step
