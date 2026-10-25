@@ -15,6 +15,7 @@ import Profile from "./Profile";
 import Scenarios from "./Scenarios";
 import Link from "next/link";
 import Reels, { stopReel } from "./Reels";
+import Storyboard from "./Storyboard";
 import ListenLines from "./Listen";
 import MediaMenu from "./MediaMenu";
 import Avatar from "@/app/Avatar";
@@ -83,6 +84,8 @@ export default function SceneWriter({
   const mediaPaused = hivePause ? hiveNoticeText(hivePause) : null;
   const [reelList, setReelList] = useState(reels);
   const [reelNote, setReelNote] = useState<{ text: string; error?: boolean; busy?: BusyReel } | null>(null);
+  // The open storyboard draft (docs/PRDs/reel-storyboard.md): plan a video, check its pictures, then film it.
+  const [storyboard, setStoryboard] = useState<Reel | null>(null);
   const putReel = useCallback((r: Reel) => {
     setReelList((list) => [r, ...list.filter((x) => x.id !== r.id)]);
     // Done, either way: the "it's being made" note would contradict the video below (a failure says why there).
@@ -99,6 +102,15 @@ export default function SceneWriter({
     putReel(reel);
     // A video can be done already (every shot refused at once, say): then its own line below says how it went.
     if (reel.status === "making") setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
+  }
+  /** Plan a video as a storyboard (docs/PRDs/reel-storyboard.md): the shots are picked, then checked and filmed in the panel. */
+  async function planVideo(scope: ReelScope, nightId?: string) {
+    setReelNote({ text: "Picking the best moments and setting up the storyboard…" });
+    const res = await requestJson("/api/admin/after-dark/reel", { a: scene.a.id, b: scene.b.id, scope, action: "plan", ...(nightId ? { night_id: nightId } : {}) }).catch(() => null);
+    if (!res) return setReelNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
+    if (!res.ok) return setReelNote({ text: res.message, error: true, busy: (res.data.busy as BusyReel | undefined) ?? undefined });
+    setReelNote(null);
+    setStoryboard(res.data.reel as Reel);
   }
   const [theater, setTheater] = useState(play);
   // A steer is a nudge by default (worked toward at the scene's own pace); direct does it now.
@@ -299,6 +311,19 @@ export default function SceneWriter({
 
   return (
     <section className="after-dark-scene">
+      {storyboard && (
+        <Storyboard
+          reel={storyboard}
+          tokens={reelTokens}
+          paused={mediaPaused}
+          onFilmed={(r) => {
+            putReel(r);
+            setStoryboard(null);
+            if (r.status === "making") setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
+          }}
+          onClose={() => setStoryboard(null)}
+        />
+      )}
       <p>
         <button type="button" className="primary" onClick={() => setTheater(true)}>
           🎬 Watch in theater
@@ -322,6 +347,7 @@ export default function SceneWriter({
           onBeat={textOnly ? undefined : (id, answer) => beatAction({ beat: { id, answer } })}
           onPictureNow={(line) => beatAction({ picture_now: { line } })}
           onMakeVideo={(scope) => makeVideo(scope)}
+          onPlanVideo={(scope) => planVideo(scope)}
           videoChapters={runningNight(
             nightList.map((n) => ({ id: n.id, chapter: n.chapter, created_at: n.created_at, lines: n.lines.length })),
             { chapter: scene.chapter, lines: scene.lines.length },

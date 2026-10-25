@@ -7076,6 +7076,146 @@ a.phone-head-btn {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+.ad-video-choice-single {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* The reel storyboard (docs/PRDs/reel-storyboard.md): plan a video, check each shot's picture, then film. */
+.ad-storyboard-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-4);
+  overflow-y: auto;
+  background: rgba(8, 4, 14, 0.78);
+}
+.ad-storyboard {
+  width: min(56rem, 100%);
+  margin: auto;
+  padding: var(--space-4);
+  border: 1px solid #33264d;
+  border-radius: 0.75rem;
+  background: rgba(18, 10, 28, 0.98);
+  color: #f1e9ff;
+}
+.ad-storyboard-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+.ad-storyboard-head strong {
+  font-size: var(--text-lg);
+}
+.ad-storyboard-head button {
+  margin-left: auto;
+}
+.ad-storyboard-intro {
+  margin: var(--space-2) 0 var(--space-3);
+}
+.ad-storyboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-shot {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #2c2142;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: rgba(10, 5, 18, 0.6);
+}
+.ad-shot-dropped,
+.ad-shot-refused,
+.ad-shot-failed {
+  opacity: 0.6;
+}
+.ad-shot-pic {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  background: #140a1c;
+}
+.ad-shot-pic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ad-shot-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6a5a7f;
+  font-size: var(--text-sm);
+}
+.ad-shot-badge {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(8, 4, 14, 0.82);
+  color: #f1e9ff;
+}
+.ad-badge-ready {
+  color: #8ff0b0;
+}
+.ad-badge-refused,
+.ad-badge-failed {
+  color: #ff9f9f;
+}
+.ad-badge-dropped {
+  color: #cdbce6;
+}
+.ad-shot-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: var(--space-2);
+}
+.ad-shot-line {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.ad-shot-motion {
+  margin: 0;
+}
+.ad-shot-reason {
+  margin: 0;
+  color: #ff9f9f;
+}
+.ad-shot-body button {
+  align-self: flex-start;
+}
+.ad-storyboard-note {
+  margin: var(--space-3) 0 0;
+  color: #cdbce6;
+}
+.ad-storyboard-error {
+  margin: var(--space-3) 0 0;
+  color: #ff9f9f;
+}
+.ad-storyboard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-3);
+}
 /* Nudge or Direct, beside the theater's steer (the page's form has the same choice). */
 .ad-steer-mode {
   display: inline-flex;

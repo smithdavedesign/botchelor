@@ -85,6 +85,7 @@ export default function AfterDarkTheater({
   onAutoplay,
   onSetScene,
   onMakeVideo,
+  onPlanVideo,
   videoChapters = [],
   videoTokens = 15,
   videoNote = null,
@@ -119,6 +120,8 @@ export default function AfterDarkTheater({
    * night (`videoChapters`, every chapter since it began), as the viewer picks.
    */
   onMakeVideo?: (scope: ReelScope) => Promise<void>;
+  /** Plan the video as a storyboard instead of filming it straight away (docs/PRDs/reel-storyboard.md). */
+  onPlanVideo?: (scope: ReelScope) => Promise<void>;
   videoChapters?: readonly NightChapter[];
   videoTokens?: number;
   videoNote?: string | null;
@@ -276,7 +279,7 @@ export default function AfterDarkTheater({
                 )}
                 <ClipHere a={a.id} b={b.id} at={shown.length - 1} nightId={live ? null : feedbackRef} paused={mediaPaused} />
                 {onMakeVideo && (
-                  <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} />
+                  <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
                 )}
               </div>
             </div>

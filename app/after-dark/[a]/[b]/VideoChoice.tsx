@@ -22,6 +22,7 @@ export default function VideoChoice({
   busy = false,
   paused = null,
   onMake,
+  onPlan,
 }: {
   /** The running night's chapters with lines, oldest first (lib/adult/nights.ts runningNight). */
   chapters: readonly NightChapter[];
@@ -32,6 +33,8 @@ export default function VideoChoice({
   /** Hive's breaker is open (lib/adult/hive-limit.ts): disabled, with this as the tooltip. */
   paused?: string | null;
   onMake: (scope: ReelScope) => Promise<void>;
+  /** Plan it as a storyboard instead: check each shot's picture before filming (docs/PRDs/reel-storyboard.md). */
+  onPlan?: (scope: ReelScope) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<ReelScope>("night");
@@ -41,16 +44,18 @@ export default function VideoChoice({
   const span = nums.length ? `chapters ${Math.min(...nums)}–${Math.max(...nums)}` : `${chapters.length} chapters`;
   const thisOne = `chapter ${scene.chapter}`;
   if (chapters.length <= 1) {
+    const tooShort = whole < MIN_LINES;
     return (
-      <button
-        type="button"
-        className="secondary small"
-        onClick={() => void onMake("night")}
-        disabled={busy || Boolean(paused) || whole < MIN_LINES}
-        title={paused ?? `A short film of the night, in their own voices (${price})`}
-      >
-        🎬 Video of the night · {price}
-      </button>
+      <span className="ad-video-choice-single">
+        <button type="button" className="secondary small" onClick={() => void onMake("night")} disabled={busy || Boolean(paused) || tooShort} title={paused ?? `A short film of the night, in their own voices (${price})`}>
+          🎬 Video of the night · {price}
+        </button>
+        {onPlan && (
+          <button type="button" className="button-ghost small" onClick={() => void onPlan("night")} disabled={busy || Boolean(paused) || tooShort} title={paused ?? "Plan it: check each shot's picture before you film"}>
+            📋 Storyboard
+          </button>
+        )}
+      </span>
     );
   }
   const options: { scope: ReelScope; label: string; covers: string; lines: number }[] = [
@@ -83,6 +88,20 @@ export default function VideoChoice({
             >
               🎬 Make it · {price}
             </button>
+            {onPlan && (
+              <button
+                type="button"
+                className="secondary small"
+                disabled={busy || Boolean(paused) || picked.lines < MIN_LINES}
+                onClick={async () => {
+                  setOpen(false);
+                  await onPlan(scope);
+                }}
+                title="Plan it: check each shot's picture before you film"
+              >
+                📋 Storyboard
+              </button>
+            )}
             <button type="button" className="button-ghost small" onClick={() => setOpen(false)}>
               Cancel
             </button>
