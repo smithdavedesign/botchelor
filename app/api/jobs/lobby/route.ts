@@ -4,6 +4,7 @@ import { internalJobAuthorized } from "@/lib/jobs";
 import { refreshLobby } from "@/lib/watch";
 import { airDueDates } from "@/lib/air";
 import { autoplayQuietOwnDates } from "@/lib/own-date";
+import { runDueScheduledDates } from "@/lib/scheduled-dates";
 import { retryDueSets } from "@/lib/sets";
 import { runWhileAway } from "@/lib/away";
 
@@ -29,7 +30,9 @@ async function run(req: Request): Promise<Response> {
   // While they're away (lib/away.ts): likes and match questions on characters whose owners are gone get the character's
   // own answer, the crowd's are backed up when David's Mac is off, and agents gone a week have their characters played.
   const away = await runWhileAway(db).catch(() => ({}));
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked, ...away });
+  // Dates booked for later (lib/scheduled-dates.ts): run the due ones through the normal booking route.
+  const scheduled = await runDueScheduledDates(db).catch(() => ({ ran: 0, booked: 0, waiting: 0, failed: 0 }));
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked, scheduled_dates: scheduled, ...away });
 }
 
 export const GET = handle(run);
