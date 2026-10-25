@@ -332,8 +332,8 @@ describe("3. the result: a shareable, server-rendered address", () => {
     expect(missing).toMatch(/Dex.s want/);
     expect(missing).toContain("Required.");
     expect(missing).not.toContain("data-score");
-    const long = await renderResult(formQuery({ ...JUNIPER, want: "x".repeat(141) }, DEX));
-    expect(long).toContain("At most 140 characters.");
+    const long = await renderResult(formQuery({ ...JUNIPER, want: "x".repeat(181) }, DEX));
+    expect(long).toContain("At most 180 characters.");
     const wordy = await renderResult(formQuery({ ...JUNIPER, name: "A B C D E F" }, DEX));
     expect(wordy).toContain("At most 5 words.");
   });

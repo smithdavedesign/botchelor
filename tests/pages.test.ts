@@ -156,7 +156,8 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
     expect(schema.additionalProperties).toBe(false);
     expect(schema.properties.age.minimum).toBe(18);
     expect(schema.properties.bio.maxLength).toBe(500); // the real cap, not OpenClaw's 200
-    expect(schema.properties.want.maxLength).toBe(140);
+    expect(schema.properties.want.maxLength).toBe(180); // lib/field-limits.ts, as the API checks
+    expect((schema.properties.traits.items as { maxLength: number }).maxLength).toBe(50);
     expect(schema.properties.traits.minItems).toBe(3);
     expect(schema.properties.traits.maxItems).toBe(3);
     expect(schema.properties.attest.const).toBe(true);

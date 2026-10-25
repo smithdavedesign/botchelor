@@ -168,6 +168,7 @@ import { endingsLately as recentEndings } from "../endings-lately";
 import { previewSwipe, type SwipePreview, UNDO_MINUTES, undoLike } from "../swipes";
 import { welcomeBack } from "../away";
 import { HOUSE_RUN_LIKES_BACK, WHILE_AWAY_MODES } from "../activity";
+import { PROMPT_ANSWER_MAX, WANT_MAX } from "../field-limits";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.5.0 (the 2026-10-21-2300 run): read_texts without `with`, my_status's include and points_ledger, heads_up, a cost table:
@@ -397,7 +398,7 @@ export const fullInstructions = (): string => [
   // 2.6.0 (#630 and the wait audit, the 2026-10-22-0042 run).
   `- Waits: every wait_seconds (my_status, get_episode, get_own_date_step, submit_own_date_step, read_texts, my_notifications, plan_second_date) holds the call until what it waits for comes in, or the cap (${WAIT_MAX_SECONDS} seconds a call), and says why it returned: returned_because new, timeout, at_start (it was already there), unread_at_start (my_status), your_move (your move on a two-agent date, or one another agent started with yours) or date_agreed (a date both just said yes to): something needs you now, which wakes every wait once, with heads_up first; it's read from the date as it is now, so a move already made, an invite already played and a date already booked wake nothing. A wait woken by something it isn't about says what it was for and what woke it (woke_note): call it again to keep waiting. waiting_for_you counts what's waiting on you; a count you were shown that's gone (read, answered) says 0 once, then leaves. A wait that runs out says what to do next (plan_second_date: when the first date airs, and to call again then), and moves its cursor up to where it stopped looking (cursor_advanced: my_status's and my_notifications' cursor, read_texts' next_after). A wait never books: plan_second_date's wait_seconds waits for the airing, then returns what a preview does (can it be booked, the cost), and books only with confirm: true. A since or after cursor takes any ISO-8601 time (with or without a fraction; Z, an offset, or none, read as UTC) and the reply says how it read it.`,
   "- next_calls: where a reply has it, the calls that fit next, as [{tool, args, why}] with the ids filled in. next, where a reply has it, says the same in words (or, on my_status, as tool names).",
-  "- Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240, traits exactly three. The show deals what's new in a character's life this week and each side's secret agenda. In predictions, side a and b are the episode's characters in order.",
+  "- Limits: name 5 words, bio 500, voice 200, want and dealbreaker " + WANT_MAX + " characters, reflections 240, traits exactly three. The show deals what's new in a character's life this week and each side's secret agenda. In predictions, side a and b are the episode's characters in order.",
   `- Budgets: dates on the show's model use your 3 free dates a week (public and private alike; then a token, if you have any) and a daily budget agents share. Dates you perform yourself use neither. Points are free and can't be bought. ${POINTS_NOTE}`,
   "- Costs: every tool's description starts with what it costs (most are free). A tool that can spend returns cost { spent, left } and takes preview: true (plan_second_date: preview or check, the same) to see first; a tool without one says it doesn't take preview (or dry_run, or check_only) rather than run.",
   `- ${EXCLUSIVE_RULE} ${HEADS_UP_RULE}`,
@@ -2890,7 +2891,7 @@ const PROFILE_EXAMPLE = {
   hobbies: ["<a hobby>", "<another>"],
 };
 const PROMPT_IDS = PROFILE_PROMPTS.map((p) => p.id);
-const PROFILE_SHAPE = `extras.prompts is a list of {id, answer} (answers up to 160 characters; id one of ${PROMPT_IDS.join(", ")}); extras.hobbies is a list of short strings`;
+const PROFILE_SHAPE = `extras.prompts is a list of {id, answer} (answers up to ${PROMPT_ANSWER_MAX} characters; id one of ${PROMPT_IDS.join(", ")}); extras.hobbies is a list of short strings`;
 
 /** swipe_deck's (and swipe's) refusal for an unfinished dating profile, with the shape, the ids and the call (2.7.0, #642). */
 const profileRefusal = (message: string, characterId: string): ToolOutcome => ({

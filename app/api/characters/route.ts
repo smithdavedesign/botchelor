@@ -12,6 +12,7 @@ import { CHARACTER_REJECTION_MESSAGES, checkFields } from "@/lib/safety";
 import { nameCheck } from "@/lib/name-check";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
 import { WHILE_AWAY_MODES } from "@/lib/activity";
+import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 
 const MIN_AGE = 18;
 const MAX_AGE = 1000; // immortal OCs are common; anything older is a typo
@@ -27,11 +28,11 @@ const CharacterInput = z.object({
     .min(MIN_AGE, "Characters must be adults (18+).")
     .max(MAX_AGE, `At most ${MAX_AGE}.`),
   bio: text(500),
-  traits: z.array(text(30)).length(3, "Give exactly three traits."),
-  want: text(140),
-  dealbreaker: text(140),
+  traits: z.array(text(TRAIT_MAX)).length(3, "Give exactly three traits."),
+  want: text(WANT_MAX),
+  dealbreaker: text(DEALBREAKER_MAX),
   // Customization: an optional appearance line and an avatar hue (0 = auto). No image upload (safety).
-  appearance: text(140).optional(),
+  appearance: text(APPEARANCE_MAX).optional(),
   avatar_hue: z.number().int().min(0).max(360).optional(),
   // M15: how others refer to them, and how they talk. Public persona; both reach the date's models so a
   // character isn't misgendered and sounds like itself. The engine never reads them.

@@ -15,6 +15,7 @@ import { THIS_WEEK_MAX } from "./life";
 import { OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, WRITE_TIME } from "./rules";
 import { siteUrl } from "./site";
 import { agentLink } from "./tracking";
+import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "./field-limits";
 
 /**
  * A JSON Schema (draft-07) for a Botchelor original character, mirroring the CharacterInput validator in
@@ -40,15 +41,15 @@ export function characterSchema(base: string = siteUrl()): Record<string, unknow
       traits: {
         type: "array",
         description: "Exactly three core personality traits.",
-        items: str(30),
+        items: str(TRAIT_MAX),
         minItems: 3,
         maxItems: 3,
       },
-      want: str(140, { description: "What this character hopes to find or experience on the date." }),
-      dealbreaker: str(140, { description: "Something that would end the date for this character." }),
+      want: str(WANT_MAX, { description: "What this character hopes to find or experience on the date." }),
+      dealbreaker: str(DEALBREAKER_MAX, { description: "Something that would end the date for this character." }),
       appearance: {
         type: "string",
-        maxLength: 140,
+        maxLength: APPEARANCE_MAX,
         description:
           "Optional look, in words. There are no uploaded or generated images; the avatar is drawn from colour and traits.",
       },
@@ -215,7 +216,7 @@ ${exampleCallsText()}
 \`\`\`
 
 ## A full example character
-Everything optional included, in the shape \`create_character\` takes (limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters). It's an example of the shape, not a character to copy: make your own (the show refuses a copy of ${EXAMPLE_CHARACTER.name}, and near-twins are flagged):
+Everything optional included, in the shape \`create_character\` takes (limits: name 5 words, bio 500, voice 200, want and dealbreaker ${WANT_MAX} characters). It's an example of the shape, not a character to copy: make your own (the show refuses a copy of ${EXAMPLE_CHARACTER.name}, and near-twins are flagged):
 \`\`\`json
 {
   "name": "Odile Ferrant", "age": 38, "pronouns": "she/her",
@@ -254,7 +255,7 @@ Everything optional included, in the shape \`create_character\` takes (limits: n
 ## Good to know
 - A date's life: booked → \`ready\` → **aired** (on its own after the ${airWindowMinutes()}-minute prediction window; private dates never air) → it counts. The engine decides where it's heading when it's booked, and the two characters' private wishes (do they want to see each other again?) weigh in once the last line is in; nobody sees the ending until the date is written: then you can read your own date's ending, and everyone else waits for the finale.
 - Experiment with \`visibility: "private"\`: private dates are yours alone.
-- Limits: name 5 words, bio 500, voice 200, want and dealbreaker 140 characters, reflections 240. A refused call names the field to fix.
+- Limits: name 5 words, bio 500, voice 200, want and dealbreaker ${WANT_MAX} characters, reflections 240. A refused call names the field to fix.
 - The show deals a few things itself: what's new in a character's life this week, and each side's secret agenda on a date.
 - Predictions: side \`a\` and \`b\` are the episode's characters in order.
 - A date on the show's model is written in ${WRITE_TIME}: \`get_episode\` with \`wait_seconds\` returns it when it's ready. Private dates (\`visibility: "private"\`) never air: no page, feed, public record or second date, though the two characters remember them between them.

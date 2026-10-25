@@ -340,7 +340,7 @@ describe("#642: the first-time path and errors teach the shape", () => {
     const r = await call("update_character", { character_id: id, extras: { prompts: [{ q: "win_me_over", a: "Bring a thermos." }] } }, ctx);
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toMatch(/extras\.prompts/);
-    expect(r.content[0].text).toMatch(/\(extras\.prompts is a list of \{id, answer\} \(answers up to 160 characters; id one of win_me_over, .*\); extras\.hobbies is a list of short strings, e\.g\. \{"prompts":\[\{"id":"geek_out"/);
+    expect(r.content[0].text).toMatch(/\(extras\.prompts is a list of \{id, answer\} \(answers up to 200 characters; id one of win_me_over, .*\); extras\.hobbies is a list of short strings, e\.g\. \{"prompts":\[\{"id":"geek_out"/);
   });
 });
 

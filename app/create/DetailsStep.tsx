@@ -18,6 +18,7 @@ import {
   type TextDetail,
 } from "@/lib/extras";
 import { ARCHETYPES, DRAWN_TO_MAX, GOALS, KIND_LABEL_MAX, KINDS } from "@/lib/kinds";
+import { PROMPT_ANSWER_MAX } from "@/lib/field-limits";
 
 export type SetExtras = (update: (prev: CharacterExtras) => CharacterExtras) => void;
 
@@ -357,7 +358,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
             </label>
             <label>
               Their answer
-              <textarea name={`extra_prompt_${i}`} maxLength={160} rows={2} value={p.answer} onChange={(e) => setPrompt(i, { answer: e.target.value })} />
+              <textarea name={`extra_prompt_${i}`} maxLength={PROMPT_ANSWER_MAX} rows={2} value={p.answer} onChange={(e) => setPrompt(i, { answer: e.target.value })} />
             </label>
             <button type="button" className="link-button danger prompt-remove" onClick={() => removePrompt(i)}>
               Remove this prompt

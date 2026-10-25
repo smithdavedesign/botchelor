@@ -6,13 +6,14 @@ import { ORIGINALITY_CHECK_LIMITS, overLimit, visitorKey } from "@/lib/limits";
 import { originalityWithConcepts } from "@/lib/originality-concept";
 import { VOICE_MAX } from "@/lib/rules";
 import { ownsCharacter } from "@/lib/souls";
+import { DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 
 const Draft = z.object({
   name: z.string().trim().max(40).optional(),
   bio: z.string().trim().max(500).optional(),
-  traits: z.array(z.string().trim().max(30)).max(3).optional(),
-  want: z.string().trim().max(140).optional(),
-  dealbreaker: z.string().trim().max(140).optional(),
+  traits: z.array(z.string().trim().max(TRAIT_MAX)).max(3).optional(),
+  want: z.string().trim().max(WANT_MAX).optional(),
+  dealbreaker: z.string().trim().max(DEALBREAKER_MAX).optional(),
   voice: z.string().trim().max(VOICE_MAX).nullable().optional(),
   extras: ExtrasInput.nullable().optional(),
   /** Editing: the character being edited, so it isn't compared with itself. Must be yours. */

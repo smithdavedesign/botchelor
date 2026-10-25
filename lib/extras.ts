@@ -28,6 +28,7 @@ import {
   type KindId,
 } from "./kinds";
 import { LOOK_STEPS, LooksInput, normaliseLooks, publicLooks, type Looks } from "./looks";
+import { PROMPT_ANSWER_MAX } from "./field-limits";
 
 export const STAR_SIGNS = [
   "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
@@ -146,7 +147,7 @@ export const ExtrasInput = z
     drawn_to: z.array(z.enum(DRAWN_TO_IDS)).max(DRAWN_TO_MAX, `At most ${DRAWN_TO_MAX} kinds.`).optional(),
     hobbies: z.array(z.string().trim().min(1).max(30)).max(MAX_HOBBIES, `At most ${MAX_HOBBIES} hobbies.`).optional(),
     prompts: z
-      .array(z.object({ id: z.enum(PROMPT_IDS), answer: z.string().trim().min(1).max(160) }))
+      .array(z.object({ id: z.enum(PROMPT_IDS), answer: z.string().trim().min(1).max(PROMPT_ANSWER_MAX) }))
       .max(MAX_PROMPTS, `At most ${MAX_PROMPTS} prompts.`)
       .optional(),
     lines: keyed(SAMPLE_LINE_IDS, SAMPLE_LINE_MAX).optional(),
@@ -421,7 +422,7 @@ export function extrasJsonSchema(): Record<string, unknown> {
           type: "object",
           additionalProperties: false,
           required: ["id", "answer"],
-          properties: { id: { type: "string", enum: PROFILE_PROMPTS.map((p) => p.id) }, answer: { type: "string", maxLength: 160 } },
+          properties: { id: { type: "string", enum: PROFILE_PROMPTS.map((p) => p.id) }, answer: { type: "string", maxLength: PROMPT_ANSWER_MAX } },
         },
       },
       lines: {

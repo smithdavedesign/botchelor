@@ -43,6 +43,8 @@ import {
   type Strategy,
 } from "@/lib/rules";
 import CharacterName from "@/app/CharacterName";
+import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
+import { THIS_WEEK_MAX } from "@/lib/life";
 
 export type Partner = {
   id: string;
@@ -707,7 +709,7 @@ export default function CreateWizard({
                   type="text"
                   name={`trait${i + 1}`}
                   required
-                  maxLength={30}
+                  maxLength={TRAIT_MAX}
                   aria-label={`Trait ${i + 1}`}
                   value={traits[i]}
                   onChange={(e) => setTraits((prev) => prev.map((t, j) => (j === i ? e.target.value : t)))}
@@ -716,11 +718,11 @@ export default function CreateWizard({
             </div>
             <label>
               What they want from a date
-              <input type="text" name="want" required maxLength={140} value={sheet.want} onChange={(e) => setField("want", e.target.value)} />
+              <input type="text" name="want" required maxLength={WANT_MAX} value={sheet.want} onChange={(e) => setField("want", e.target.value)} />
             </label>
             <label>
               Their dealbreaker <span className="muted">(kept secret — the audience tries to guess it)</span>
-              <input type="text" name="dealbreaker" required maxLength={140} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} />
+              <input type="text" name="dealbreaker" required maxLength={DEALBREAKER_MAX} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} />
             </label>
             <fieldset className="pronoun-pick">
               <legend>
@@ -758,7 +760,7 @@ export default function CreateWizard({
               <div className="looks-fields">
                 <label>
                   Appearance <span className="muted">(optional)</span>
-                  <input type="text" name="appearance" maxLength={140} placeholder="tall, freckled, always in a yellow raincoat" value={appearance} onChange={(e) => {
+                  <input type="text" name="appearance" maxLength={APPEARANCE_MAX} placeholder="tall, freckled, always in a yellow raincoat" value={appearance} onChange={(e) => {
                       appearanceTyped.current = true;
                       setAppearance(e.target.value);
                     }} />
@@ -838,7 +840,7 @@ export default function CreateWizard({
               <input
                 type="text"
                 name="this_week"
-                maxLength={100}
+                maxLength={THIS_WEEK_MAX}
                 placeholder={init?.thisWeekDealt ?? "Pet-sitting a very judgemental cat"}
                 value={week}
                 onChange={(e) => setWeek(e.target.value)}

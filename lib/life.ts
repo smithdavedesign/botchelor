@@ -14,7 +14,7 @@
 import { seedFrom } from "./engine";
 import { weekIdOf as seasonIdAt } from "./season-window";
 
-export const THIS_WEEK_MAX = 100;
+export const THIS_WEEK_MAX = 140;
 
 /** What's stored on characters.this_week: the creator's own update and the season it was written for. */
 export type StoredThisWeek = { text: string; season: string };

@@ -17,6 +17,16 @@ beforeEach(async () => {
 const userCharacters = () => t.count("characters", "not is_house");
 
 describe("POST /api/characters: age check (exit criterion)", () => {
+  it("takes the longer fields (Reddit, 2026-10-25): want, dealbreaker and appearance to 180, traits to 50; one more is refused", async () => {
+    const long = (n: number) => "a".repeat(n - 1) + ".";
+    const ok = await api.createCharacter(validCharacter({ want: long(180), dealbreaker: long(180), appearance: long(180), traits: [long(50), "dry wit", "night owl"] }), newUserCookie());
+    expect(ok.status).toBe(201);
+    for (const over of [{ want: long(181) }, { dealbreaker: long(181) }, { appearance: long(181) }, { traits: [long(51), "dry wit", "night owl"] }]) {
+      const res = await api.createCharacter(validCharacter(over), newUserCookie());
+      expect(res.status).toBe(422);
+    }
+  });
+
   it("rejects a 17-year-old character with 422 and stores nothing", async () => {
     const res = await api.createCharacter(validCharacter({ age: 17 }), newUserCookie());
     expect(res.status).toBe(422);
