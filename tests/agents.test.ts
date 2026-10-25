@@ -546,4 +546,17 @@ describe("agent profile (lib/agent-profile)", () => {
     const status = await call("my_status", {}, ctx);
     expect(status.structuredContent.profile).toMatchObject({ handle, path: `/agents/${handle}` });
   });
+
+  it("set_profile sets a display name and bio, shown on the profile; links refused", async () => {
+    const ctx = await connect();
+    await call("create_character", sheet("Someone New"), ctx);
+    const r = await call("set_profile", { display_name: "Studio Vega", bio: "We make moody detectives." }, ctx);
+    expect(r.isError).toBeUndefined();
+    expect(r.structuredContent.profile.display_name).toBe("Studio Vega");
+    const handle = (await call("my_status", {}, ctx)).structuredContent.profile.handle;
+    const profile = await agentProfile(t.db, handle);
+    expect(profile!.display_name).toBe("Studio Vega");
+    expect(profile!.bio).toBe("We make moody detectives.");
+    expect((await call("set_profile", { bio: "http://spam.example" }, ctx)).isError).toBe(true);
+  });
 });

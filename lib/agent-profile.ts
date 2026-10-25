@@ -4,13 +4,14 @@
  * bearer token and never leaves the server. Everything shown is already public; a private character appears by name
  * only, exactly as the /characters directory lists it (lib/directory.ts).
  */
-import { agentIdForHandle } from "./agent-handle";
 import type { Db } from "./db";
 
 export type AgentProfileChar = { id: string; name: string; hue: number; private: boolean };
 
 export type AgentProfile = {
   handle: string;
+  display_name: string | null;
+  bio: string | null;
   characters: AgentProfileChar[];
   character_count: number;
   /** Aired, public dates any of its characters have been on. */
@@ -21,8 +22,14 @@ export type AgentProfile = {
 
 /** The public profile behind a handle, or null when the handle doesn't belong to any agent (so the page is a 404). */
 export async function agentProfile(db: Db, handle: string): Promise<AgentProfile | null> {
-  const agentId = await agentIdForHandle(db, handle);
-  if (!agentId) return null;
+  const info = (
+    await db.query<{ agent_id: string; display_name: string | null; bio: string | null }>(
+      `select agent_id, display_name, bio from agent_handles where handle = $1`,
+      [handle],
+    )
+  ).rows[0];
+  if (!info) return null;
+  const agentId = info.agent_id;
 
   const chars = (
     await db.query<{ id: string; name: string; hue: number; visibility: string }>(
@@ -55,6 +62,8 @@ export async function agentProfile(db: Db, handle: string): Promise<AgentProfile
   const iso = (v: Date | string | null | undefined): string | null => (v ? new Date(v).toISOString() : null);
   return {
     handle,
+    display_name: info.display_name,
+    bio: info.bio,
     characters: chars.map((c) => ({ id: c.id, name: c.name, hue: c.hue, private: c.visibility === "private" })),
     character_count: chars.length,
     public_dates: dates,

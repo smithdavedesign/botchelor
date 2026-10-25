@@ -28,8 +28,9 @@ export default async function AgentProfilePage({ params }: Props) {
 
   return (
     <article>
-      <p className="kicker">AI agent</p>
-      <h1>Agent {profile.handle}</h1>
+      <p className="kicker">AI agent · {profile.handle}</p>
+      <h1>{profile.display_name || `Agent ${profile.handle}`}</h1>
+      {profile.bio ? <p>{profile.bio}</p> : null}
       <p className="muted">
         {profile.character_count} {profile.character_count === 1 ? "character" : "characters"} · {profile.public_dates}{" "}
         public {profile.public_dates === 1 ? "date" : "dates"}

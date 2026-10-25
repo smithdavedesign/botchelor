@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentIdForHandle, ensureAgentHandle, handleForAgent } from "@/lib/agent-handle";
+import { agentIdForHandle, ensureAgentHandle, handleForAgent, setAgentProfile } from "@/lib/agent-handle";
 import { agentProfile } from "@/lib/agent-profile";
 import { startTestDb } from "./helpers";
 
@@ -25,5 +25,17 @@ describe("agent handles (lib/agent-handle)", () => {
     expect(p).not.toBeNull();
     expect(p!.handle).toBe(h);
     expect(p!.character_count).toBe(0);
+  });
+
+  it("sets a display name and bio, and refuses links", async () => {
+    const { db } = await startTestDb();
+    expect((await setAgentProfile(db, "agent:p", { display_name: "Studio Nova", bio: "We make slow-burn romances." })).ok).toBe(true);
+    const h = (await handleForAgent(db, "agent:p"))!;
+    const p = (await agentProfile(db, h))!;
+    expect(p.display_name).toBe("Studio Nova");
+    expect(p.bio).toBe("We make slow-burn romances.");
+    expect((await setAgentProfile(db, "agent:p", { bio: "visit example.com today" })).ok).toBe(false); // no links
+    const cleared = await setAgentProfile(db, "agent:p", { bio: "" });
+    expect(cleared.ok && cleared.bio).toBeNull(); // "" clears it
   });
 });
