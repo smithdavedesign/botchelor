@@ -6,6 +6,8 @@
  *  - a few roleplay places the library has no set for yet (fantasy, sci-fi, mystery…): their set is drawn the first time
  *    someone goes there, like any place typed in (lib/sets.ts);
  *  - every set already drawn (place_sets, read by the page), so a place someone went to once can be picked again.
+ * A card only names a picture that exists (a venue's backdrop, or a drawn set's small copy), so the picker asks for no
+ * picture that would 404.
  *
  * The categories follow the roleplay genres companion apps sort scenarios by (romance and slow burn, strangers, second
  * chances, after hours, getaways, nightlife, nights in, outdoors, fantasy, sci-fi, mystery, funny), kept inside After
@@ -172,6 +174,9 @@ export function libraryVenueFor(label: string | null | undefined): string | null
 /** The whole catalog: the library, the scenarios, the ideas, then the drawn sets nothing above already covers. */
 export function sceneCatalog(drawn: readonly string[] = []): CatalogScene[] {
   const out: CatalogScene[] = [];
+  const ready = new Set(drawn.map(normalizeScene));
+  // A drawn set's card copy (app/api/sets: ?w= is a 400px WebP), or none when it isn't drawn yet.
+  const setImage = (label: string) => (ready.has(normalizeScene(label)) ? `${setPath(label)}?w=400` : null);
   const seen = new Set<string>();
   const add = (s: CatalogScene) => {
     const key = normalizeScene(s.place);
@@ -181,18 +186,18 @@ export function sceneCatalog(drawn: readonly string[] = []): CatalogScene[] {
   };
   for (const s of SCENARIOS) {
     const [categories, tags] = SCENARIO_META[s.id] ?? [["romance"], []];
-    add({ id: `scenario:${s.id}`, title: s.title, place: s.place, image: setPath(s.place), categories, tags, scenario: s.id, premise: s.premise });
+    add({ id: `scenario:${s.id}`, title: s.title, place: s.place, image: setImage(s.place), categories, tags, scenario: s.id, premise: s.premise });
   }
   for (const v of [...DATE_VENUES, ...EXTRA_VENUES]) {
     if (v.id === "elsewhere") continue;
     const [categories, tags] = VENUE_META[v.id] ?? [["funny"], []];
     add({ id: `venue:${v.id}`, title: v.id === "home" ? "One of their places" : v.name, place: v.name, image: venueBackdrop(v.id), categories, tags });
   }
-  IDEAS.forEach((i, n) => add({ id: `idea:${n}`, title: i.title, place: i.place, image: setPath(i.place), categories: i.meta[0], tags: i.meta[1] }));
+  IDEAS.forEach((i, n) => add({ id: `idea:${n}`, title: i.title, place: i.place, image: setImage(i.place), categories: i.meta[0], tags: i.meta[1] }));
   for (const label of drawn) {
     const words = label.toLowerCase();
     const [categories, tags] = WORD_META.find(([re]) => re.test(words))?.[1] ?? [["romance"], []];
-    add({ id: `set:${normalizeScene(label)}`, title: titleCase(label), place: label, image: setPath(label), categories, tags });
+    add({ id: `set:${normalizeScene(label)}`, title: titleCase(label), place: label, image: setImage(label), categories, tags });
   }
   return out;
 }

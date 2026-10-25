@@ -58,6 +58,18 @@ describe("drawn sets", () => {
     expect(drawn).toHaveLength(1);
   });
 
+  it("serves the scene picker a small WebP copy for ?w=, and the full set without it", async () => {
+    const { default: sharp } = await import("sharp");
+    const big = await sharp({ create: { width: 1280, height: 720, channels: 3, background: "#402060" } }).jpeg().toBuffer();
+    await t.db.query(`insert into place_sets (normalized, label, status, mime, data) values ('greenhouse', 'a greenhouse', 'ready', 'image/jpeg', $1)`, [big]);
+    const thumb = await GET(new Request(`${BASE_URL}${setPath("a greenhouse")}?w=400`), { params: Promise.resolve({ slug: setPath("a greenhouse").split("/").pop()! }) });
+    expect(thumb.headers.get("content-type")).toBe("image/webp");
+    expect(thumb.headers.get("cache-control")).toMatch(/max-age=604800/);
+    const meta = await sharp(Buffer.from(await thumb.arrayBuffer())).metadata();
+    expect([meta.width, meta.height]).toEqual([400, 225]);
+    expect((await serve("a greenhouse")).headers.get("content-type")).toBe("image/jpeg");
+  });
+
   it("keeps nothing Hive refuses, and doesn't try it again", async () => {
     await keys();
     const drawn = fakeFal();

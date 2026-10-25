@@ -18,6 +18,15 @@ describe("the scene catalog", () => {
     expect(all.find((s) => s.place === "the cozy bedroom")?.categories).toEqual(["nightin"]);
   });
 
+  it("names only pictures that exist: a venue's backdrop, or a drawn set's small copy", () => {
+    expect(all.find((s) => s.id === "venue:rooftop_bar")?.image).toMatch(/^\/cast\/venue-rooftop_bar-/);
+    expect(all.find((s) => s.place === "the cozy bedroom")?.image).toBe("/api/sets/cozy%20bedroom?w=400");
+    // The rooftop pool scenario's place is drawn (as "a rooftop pool"); the elevator's isn't.
+    expect(all.find((s) => s.id === "scenario:rooftop-pool")?.image).toBe("/api/sets/rooftop%20pool?w=400");
+    expect(all.find((s) => s.id === "scenario:elevator")?.image).toBeNull();
+    expect(all.find((s) => s.place === "a candlelit castle chamber")?.image).toBeNull();
+  });
+
   it("drops a drawn set a card already covers", () => {
     // "the rooftop pool" is a scenario's place; "a rooftop pool" is the same place, written another way.
     expect(all.filter((s) => s.place.toLowerCase().includes("rooftop pool"))).toHaveLength(1);
