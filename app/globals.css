@@ -10516,3 +10516,77 @@ details > summary.small {
 .ad-face-pic.is-nude {
   width: min(100%, 9rem);
 }
+
+/* What made a media item (app/after-dark/MediaRequest.tsx): admins only, on a click of its title. Above the theater
+   and the storyboard. */
+.ad-request-title {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.ad-request-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-4);
+  overflow-y: auto;
+  background: rgba(8, 4, 14, 0.78);
+}
+.ad-request {
+  width: min(48rem, 100%);
+  margin: auto;
+  padding: var(--space-4);
+  border: 1px solid #33264d;
+  border-radius: 0.75rem;
+  background: rgba(18, 10, 28, 0.98);
+  color: #f1e9ff;
+  text-align: left;
+}
+.ad-request-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+.ad-request-head strong {
+  margin-right: auto;
+}
+.ad-request-head .muted {
+  flex: 1 1 100%;
+  order: 9;
+  overflow-wrap: anywhere;
+}
+.ad-request h3 {
+  margin: var(--space-3) 0 var(--space-1);
+}
+.ad-request-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.2rem var(--space-3);
+  margin: 0;
+}
+.ad-request-facts dt {
+  color: #b9a8d6;
+}
+.ad-request-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ad-request-pre {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  max-height: 22rem;
+  overflow: auto;
+  border-radius: 0.5rem;
+  background: #0c0714;
+  color: #e9dfff;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

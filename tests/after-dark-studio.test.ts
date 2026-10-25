@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as studioGet, POST as studioPost } from "@/app/api/admin/after-dark/studio/route";
+import { GET as mediaRequestGet } from "@/app/api/admin/after-dark/media/[id]/request/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { crossesTaboo } from "@/lib/adult/acts";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
@@ -333,6 +334,20 @@ describe("a shoot", () => {
     expect(rows).toHaveLength(4);
     expect(rows.every((r) => r.kind === "scene" && r.character_b === null && r.shoot_id === out.shoot.id && r.model === "qwen-edit-uncensored" && r.preset === "warm")).toBe(true);
     expect((await t.db.query<{ studio: number }>(`select studio from adult_usage where owner_id = $1`, [owner])).rows[0].studio).toBe(4);
+    // Each keeps the request sent for it (lib/adult/request-log.ts): the edit's address and body, the face link unsigned.
+    const sent = (await t.db.query<{ id: string; request: { at: string; body: { prompt: string; images: string[] } }[] }>(`select id, request from adult_images where shoot_id = $1`, [out.shoot.id])).rows;
+    for (const r of sent) {
+      expect(r.request).toHaveLength(1);
+      expect(r.request[0].at).toMatch(/\/image\/multi-edit$/);
+      expect(r.request[0].body.prompt).toBe(edits[0].prompt);
+      expect(r.request[0].body.images[0]).toMatch(/media\/face-1\?until=\d+&sig=…$/);
+    }
+    // An admin sees it on a click of the title; anyone else, not found.
+    const look = (cookie: string) => mediaRequestGet(new Request(`${BASE_URL}/api/admin/after-dark/media/${sent[0].id}/request`, { headers: { cookie } }), { params: Promise.resolve({ id: sent[0].id }) });
+    const seenByAdmin = await (await look(cookie)).json();
+    expect(seenByAdmin).toMatchObject({ id: sent[0].id, kind: "scene", model: "qwen-edit-uncensored", provider: "venice", shoot: { id: out.shoot.id, kind: "shoot" } });
+    expect(seenByAdmin.request[0].body.prompt).toBe(edits[0].prompt);
+    expect((await look(signedIn(userIdOf(newUserCookie())))).status).toBe(404);
     // The page's state has them in the gallery, from that shoot.
     expect(out.state.gallery.filter((g: { id: string }) => out.state.shoot_of[g.id] === out.shoot.id)).toHaveLength(4);
   });

@@ -96,6 +96,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         steer={await steerSummary(db, admin, [scene.a.id, scene.b.id])}
         textOnly={here.mode === "text_only" ? here.reason : null}
         writer={await writerOptions(db, admin)}
+        admin={await isAdmin(db, admin)}
       />
     </article>
     </div>

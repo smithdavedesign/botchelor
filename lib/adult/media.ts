@@ -31,6 +31,7 @@ import { runModel } from "./replicate";
 import { choosePreset, faceReferenceId, NO_STEERING, steeringFor, withSteering } from "./steering";
 import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
+import { cleanBody, currentRequests, logRequest, requestJson, withRequestLog } from "./request-log";
 
 /** `clip`: the picture can be made to move (it's on fal; Venice's explicit pictures can't be). */
 export type Media = {
@@ -92,21 +93,23 @@ export async function venicePicture(db: Db, prompt: string, opts: { safe?: boole
   const venice = opts.key ?? (await adultKeys(db)).venice;
   if (!venice) throw new Error("No Venice key saved in after dark's settings.");
   const venice_image_model = opts.model ?? (await getAdultSettings(db)).venice_image_model;
+  const request = {
+    model: venice_image_model,
+    prompt,
+    // Steer away from anyone young-looking, on top of the output check (never instead of it), and from what the
+    // viewer's ratings said was off (lib/adult/steering.ts).
+    negative_prompt: opts.negative ?? NEGATIVE_PROMPT,
+    width: 832,
+    height: 1104,
+    format: "png",
+    safe_mode: opts.safe === true,
+    hide_watermark: true,
+  };
+  logRequest(VENICE_IMAGE, request);
   const res = await doFetch(VENICE_IMAGE, {
     method: "POST",
     headers: { authorization: `Bearer ${venice}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model: venice_image_model,
-      prompt,
-      // Steer away from anyone young-looking, on top of the output check (never instead of it), and from what the
-      // viewer's ratings said was off (lib/adult/steering.ts).
-      negative_prompt: opts.negative ?? NEGATIVE_PROMPT,
-      width: 832,
-      height: 1104,
-      format: "png",
-      safe_mode: opts.safe === true,
-      hide_watermark: true,
-    }),
+    body: JSON.stringify(request),
   });
   if (!res.ok) throw await providerError(res, (status, text) => `Venice refused the picture (${status}): ${text.slice(0, 200)}`);
   if (res.headers.get("x-venice-is-content-violation") === "true") throw new Error("Venice flagged the picture as against its terms.");
@@ -309,11 +312,13 @@ async function discarded(db: Db, ownerId: string, kind: string, verdict: { reaso
  * said goes in (lib/adult/steering.ts): their fixes, and for a picture of one of them a preset (the light and lens the
  * per-character test picks; a baseline's is `opts.preset`, its light already in the prompt).
  */
-export async function makePicture(
-  db: Db,
-  ownerId: string,
-  opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null; face_of?: string | null; preset?: PresetId | null } & PictureScene,
-): Promise<Media> {
+export async function makePicture(db: Db, ownerId: string, opts: PictureOpts): Promise<Media> {
+  // What it sent is kept with it (lib/adult/request-log.ts): storePicture reads this log.
+  return (await withRequestLog(() => makePictureLogged(db, ownerId, opts))).value;
+}
+type PictureOpts = { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null; face_of?: string | null; preset?: PresetId | null } & PictureScene;
+
+async function makePictureLogged(db: Db, ownerId: string, opts: PictureOpts): Promise<Media> {
   if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
   const capped = await overCap(db, ownerId, "pictures");
   if (capped) throw new Error(capped);
@@ -346,13 +351,12 @@ export async function makePicture(
     return storePicture(db, ownerId, opts, file, null, { provider: drawn.provider, fell_back: drawn.fell_back, model });
   }
   const key = await falKey(db);
-  const run = (model: string, input: Record<string, unknown>) =>
-    doFetch(`${FAL_RUN}/${model}`, {
-      method: "POST",
-      headers: { authorization: `Key ${key}`, "content-type": "application/json" },
-      // Steer away from anyone young-looking, on top of the output check (never instead of it).
-      body: JSON.stringify({ prompt: opts.prompt, negative_prompt: negative, enable_safety_checker: false, ...input }),
-    });
+  const run = (model: string, input: Record<string, unknown>) => {
+    // Steer away from anyone young-looking, on top of the output check (never instead of it).
+    const body = { prompt: opts.prompt, negative_prompt: negative, enable_safety_checker: false, ...input };
+    logRequest(`${FAL_RUN}/${model}`, body);
+    return doFetch(`${FAL_RUN}/${model}`, { method: "POST", headers: { authorization: `Key ${key}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+  };
   const face = opts.face_of ? await baselineFace(db, opts.face_of, ownerId) : null;
   let res: Response | null = null;
   let model = image_model;
@@ -398,8 +402,8 @@ async function storePicture(
   const preset = opts.preset ?? null;
   const attire = attireOf(opts.kind, opts.prompt);
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place, provider, fell_back, model, preset, attire) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
-    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place, made.provider, made.fell_back, made.model ?? null, preset, attire],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place, provider, fell_back, model, preset, attire, request) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb)`,
+    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place, made.provider, made.fell_back, made.model ?? null, preset, attire, currentRequests()],
   );
   return {
     id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null, chapter, place,
@@ -478,10 +482,12 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
   }
   const key = await falKey(db);
   const { video_model } = await getAdultSettings(db);
+  const body = { prompt, image_url: pic.remote_url, enable_safety_checker: false };
+  logRequest(`${FAL_QUEUE}/${video_model}`, body);
   const res = await doFetch(`${FAL_QUEUE}/${video_model}`, {
     method: "POST",
     headers: { authorization: `Key ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({ prompt, image_url: pic.remote_url, enable_safety_checker: false }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`fal.ai refused the clip (${res.status}): ${(await res.text()).slice(0, 200)}`);
   const { request_id } = (await res.json()) as { request_id?: string };
@@ -489,9 +495,9 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
   await countUse(db, ownerId, "clips");
   const id = crypto.randomUUID();
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, request_id, source_image)
-     values ($1, $2, $3, $4, 'video', $5, 'video/mp4', 'pending', $6, $7)`,
-    [id, ownerId, pic.character_id, pic.character_b, prompt, request_id, imageId],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, request_id, source_image, request)
+     values ($1, $2, $3, $4, 'video', $5, 'video/mp4', 'pending', $6, $7, $8::jsonb)`,
+    [id, ownerId, pic.character_id, pic.character_b, prompt, request_id, imageId, requestJson([{ at: `${FAL_QUEUE}/${video_model}`, body: cleanBody(body) }])],
   );
   return { id, character_id: pic.character_id, character_b: pic.character_b, kind: "video", status: "pending", created_at: new Date().toISOString(), mime: "video/mp4" };
 }

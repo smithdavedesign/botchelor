@@ -32,6 +32,7 @@ import type { SteerSummary } from "@/lib/adult/steering";
 import RateMedia from "./RateMedia";
 import WriterPicker from "../../WriterPicker";
 import type { WriterOptions } from "@/lib/adult/writer";
+import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -52,6 +53,7 @@ export default function SceneWriter({
   steer: firstSteer = {},
   textOnly = null,
   writer = null,
+  admin = false,
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -73,6 +75,8 @@ export default function SceneWriter({
   textOnly?: string | null;
   /** Who writes their scenes (lib/adult/writer.ts), for the ⋯ More menu's picker. */
   writer?: WriterOptions | null;
+  /** An admin: each picture's, clip's and shot's title opens what made it (app/after-dark/MediaRequest.tsx). */
+  admin?: boolean;
 }) {
   // Shown until the pause is over, then the buttons come back (the next one probes Hive first).
   const [hivePause, setHivePause] = useState(hive);
@@ -310,311 +314,314 @@ export default function SceneWriter({
   const whispers = (["a", "b"] as const).filter((who) => scene.whispers?.[who]);
 
   return (
-    <section className="after-dark-scene">
-      {storyboard && (
-        <Storyboard
-          reel={storyboard}
-          tokens={reelTokens}
-          paused={mediaPaused}
-          onFilmed={(r) => {
-            putReel(r);
-            setStoryboard(null);
-            if (r.status === "making") setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
-          }}
-          onClose={() => setStoryboard(null)}
-        />
-      )}
-      <p>
-        <button type="button" className="primary" onClick={() => setTheater(true)}>
-          🎬 Watch in theater
-        </button>
-      </p>
-      {theater && (
-        <AfterDarkTheater
-          scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null, set: scene.set_place, chapter: scene.chapter }}
-          characters={characters}
-          busy={busy}
-          note={note?.text ?? null}
-          onWrite={async (d) => void (await send(d ? { direction: d, steer_mode: steerMode } : {}))}
-          steerMode={steerMode}
-          onSteerMode={setSteerMode}
-          autoplay={autoplay}
-          onAutoplay={switchAutoplay}
-          onSetScene={async (place) => void (await send({ set_scene: place }))}
-          suggestions={scene.suggestions}
-          onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
-          beats={textOnly ? [] : (scene.beats ?? [])}
-          onBeat={textOnly ? undefined : (id, answer, guide) => beatAction({ beat: { id, answer, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
-          onPictureNow={(line, guide) => beatAction({ picture_now: { line, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
-          onMakeVideo={(scope) => makeVideo(scope)}
-          onPlanVideo={(scope) => planVideo(scope)}
-          videoChapters={runningNight(
-            nightList.map((n) => ({ id: n.id, chapter: n.chapter, created_at: n.created_at, lines: n.lines.length })),
-            { chapter: scene.chapter, lines: scene.lines.length },
-          )}
-          videoTokens={reelTokens}
-          videoNote={reelNote?.text ?? null}
-          mediaPaused={mediaPaused}
-          feedbackRef={scene.id}
-          onExit={() => setTheater(false)}
-          crisis={crisisNotice}
-        />
-      )}
-      {(scene.lines.length > 0 || scene.chapter > 1) && (
-        <p className="muted small">
-          {scene.chapter > 1 ? `Chapter ${scene.chapter}. ` : ""}
-          {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[scene.stage] ?? STAGES[0]}.
-          {scene.chapter > 1 ? " The earlier chapters are under Their nights, and they still remember them." : ""}
-        </p>
-      )}
-      {scene.chapter > SOFT_CHAPTERS && (
-        <p className="muted small">This night has run {scene.chapter - 1} chapters. It might be a good place to end it: Start over files it, and the next night begins fresh.</p>
-      )}
-      {!textOnly && <ListenLines lines={scene.lines} a={scene.a.id} b={scene.b.id} names={[nameOf("a"), nameOf("b")]} />}
-      {scene.lines.length ? (
-        <ol className="after-dark-lines">
-          {scene.lines.map((l, i) => {
-            const c = l.who === "a" ? characters[0] : characters[1];
-            return (
-              <li key={i} className={`after-dark-line is-${l.who}`}>
-                <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={34} />
-                <p>
-                  <strong>{nameOf(l.who)}</strong> {l.text}
-                </p>
-              </li>
-            );
-          })}
-        </ol>
-      ) : (
-        <p className="muted">{scene.chapter > 1 ? `Chapter ${scene.chapter} starts here: write the next lines.` : "Nothing yet. Write the first lines, or steer it first."}</p>
-      )}
-      {note && (
-        <p className={note.error ? "error ad-note-error" : "muted small"} role={note.error ? "alert" : "status"}>
-          {note.text}
-        </p>
-      )}
-      {!theater && crisisNotice}
-      <span ref={endRef} aria-hidden="true" />
-      {offered && !theater && (
-        <div className="ad-beat-banner" role="status">
-          <strong>📸 {offered.label}</strong>
-          <span className="muted small">Picture this moment? It&apos;s drawn from the last few lines.</span>
-          <button type="button" className="primary small" onClick={() => void beatAction({ beat: { id: offered.id, answer: "now" } })}>
-            Picture it
-          </button>
-          <button type="button" className="button-ghost small" onClick={() => void beatAction({ beat: { id: offered.id, answer: "later" } })} title="Carry on. Picture this whenever you like; if you never do, it's drawn when the chapter ends.">
-            Not now
-          </button>
-        </div>
-      )}
-      {/* Sticks to the bottom of the screen while it's scrolled past, until it reaches its own place under the lines. */}
-      <form className="after-dark-form" onSubmit={onSubmit}>
-        {!atEnd && scene.lines.length > 8 && (
-          <button type="button" className="after-dark-skip" onClick={() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })} aria-label="Skip to the latest lines" title="Skip to the latest lines">
-            ↓
-          </button>
+    // An admin: every media title under it opens what made it (app/after-dark/MediaRequest.tsx).
+    <MediaAdmin.Provider value={admin}>
+      <section className="after-dark-scene">
+        {storyboard && (
+          <Storyboard
+            reel={storyboard}
+            tokens={reelTokens}
+            paused={mediaPaused}
+            onFilmed={(r) => {
+              putReel(r);
+              setStoryboard(null);
+              if (r.status === "making") setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Their videos, and plays shot by shot." });
+            }}
+            onClose={() => setStoryboard(null)}
+          />
         )}
-        {(scene.suggestions?.length ?? 0) > 0 && (
-          // The last step's suggested next moves, one per heat (lib/adult/director.ts): one tap sends it as a nudge.
-          <div className="ad-suggestions" role="group" aria-label="Suggested next moves">
-            {scene.suggestions.map((sg) => (
-              <button
-                key={sg.heat}
-                type="button"
-                className={`ad-suggestion is-${sg.heat}`}
-                disabled={busy}
-                onClick={() => void send({ direction: sg.text, steer_mode: "nudge" })}
-                title={sg.heat === "mild" ? "A surprise: something they didn't see coming" : `Send it as a nudge: ${sg.text}`}
-              >
-                {/* The wildcard keeps its words to itself. */}
-                <span className="ad-heat">{HEAT_LABEL[sg.heat]}</span>
-                {sg.heat !== "mild" && <span className="ad-suggestion-text">{sg.text}</span>}
-              </button>
-            ))}
-          </div>
+        <p>
+          <button type="button" className="primary" onClick={() => setTheater(true)}>
+            🎬 Watch in theater
+          </button>
+        </p>
+        {theater && (
+          <AfterDarkTheater
+            scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null, set: scene.set_place, chapter: scene.chapter }}
+            characters={characters}
+            busy={busy}
+            note={note?.text ?? null}
+            onWrite={async (d) => void (await send(d ? { direction: d, steer_mode: steerMode } : {}))}
+            steerMode={steerMode}
+            onSteerMode={setSteerMode}
+            autoplay={autoplay}
+            onAutoplay={switchAutoplay}
+            onSetScene={async (place) => void (await send({ set_scene: place }))}
+            suggestions={scene.suggestions}
+            onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
+            beats={textOnly ? [] : (scene.beats ?? [])}
+            onBeat={textOnly ? undefined : (id, answer, guide) => beatAction({ beat: { id, answer, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
+            onPictureNow={(line, guide) => beatAction({ picture_now: { line, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
+            onMakeVideo={(scope) => makeVideo(scope)}
+            onPlanVideo={(scope) => planVideo(scope)}
+            videoChapters={runningNight(
+              nightList.map((n) => ({ id: n.id, chapter: n.chapter, created_at: n.created_at, lines: n.lines.length })),
+              { chapter: scene.chapter, lines: scene.lines.length },
+            )}
+            videoTokens={reelTokens}
+            videoNote={reelNote?.text ?? null}
+            mediaPaused={mediaPaused}
+            feedbackRef={scene.id}
+            onExit={() => setTheater(false)}
+            crisis={crisisNotice}
+          />
         )}
-        {whispers.length > 0 && (
-          <p className="ad-whispers">
-            {whispers.map((who) => (
-              <span
-                key={who}
-                className="ad-whisper-chip"
-                title={`Only ${nameOf(who)} knows this; ${nameOf(other(who))} doesn't. It shapes the next ${scene.whispers[who]!.steps_left === 1 ? "step" : `${scene.whispers[who]!.steps_left} steps`}.`}
-              >
-                <span className="ad-whisper-who">
-                  🤫 <CharacterName character={who === "a" ? characters[0] : characters[1]} label={nameOf(who)} link={false} size={18} />:
-                </span> <q>{scene.whispers[who]!.text}</q>
-                <button type="button" className="ad-whisper-forget" aria-label={`Forget the whisper to ${nameOf(who)}`} disabled={busy} onClick={() => void send({ forget_whisper: who })}>
-                  ×
-                </button>
-              </span>
-            ))}
+        {(scene.lines.length > 0 || scene.chapter > 1) && (
+          <p className="muted small">
+            {scene.chapter > 1 ? `Chapter ${scene.chapter}. ` : ""}
+            {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[scene.stage] ?? STAGES[0]}.
+            {scene.chapter > 1 ? " The earlier chapters are under Their nights, and they still remember them." : ""}
           </p>
         )}
-        {/* The label stays for screen readers on a phone, where the placeholder says the same and the room is the bar's. */}
-        <label htmlFor="after-dark-direction" className="ad-steer-label">
-          {whisperTo ? `Whisper to ${nameOf(whisperTo)} (only ${nameOf(whisperTo)} knows it)` : "Steer it (optional)"}
-        </label>
-        <span className="after-dark-steer-mode ad-segmented" role="radiogroup" aria-label="How">
-          <label title="Worked toward at the scene's own pace" className={!whisperTo && steerMode === "nudge" ? "on" : ""}>
-            <input type="radio" name="steer-mode" checked={!whisperTo && steerMode === "nudge"} onChange={() => (setWhisperTo(null), setSteerMode("nudge"))} /> Nudge
-          </label>
-          <label title="Done now: it can skip ahead" className={!whisperTo && steerMode === "direct" ? "on" : ""}>
-            <input type="radio" name="steer-mode" checked={!whisperTo && steerMode === "direct"} onChange={() => (setWhisperTo(null), setSteerMode("direct"))} /> Direct
-          </label>
-          {(["a", "b"] as const).map((who) => (
-            <label key={who} title={`A secret for ${nameOf(who)} alone: ${nameOf(other(who))} won't know it`} className={whisperTo === who ? "on" : ""}>
-              <input type="radio" name="steer-mode" checked={whisperTo === who} onChange={() => setWhisperTo(who)} /> 🤫{" "}
-              <CharacterName character={who === "a" ? characters[0] : characters[1]} label={nameOf(who)} link={false} size={18} />
-            </label>
-          ))}
-        </span>
-        <div className="ad-steer-row">
-          <input
-            id="after-dark-direction"
-            value={direction}
-            maxLength={whisperTo ? 200 : 300}
-            onChange={(e) => setDirection(e.target.value)}
-            placeholder={whisperTo ? `${nameOf(other(whisperTo))} wants you to take the lead…` : "Steer it (optional): they go back to hers…"}
-            disabled={busy}
-          />
-          <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim())} title={whisperTo ? "Whisper and write the next lines" : "Write the next lines"}>
-            {busy ? (
-              "Writing…"
-            ) : (
-              <>
-                <span className="ad-wide-only">{whisperTo ? "Whisper and write" : "Write the next lines"}</span>
-                <span className="ad-phone-only">{whisperTo ? "Whisper" : "Write"}</span>
-              </>
-            )}
-          </button>
-        </div>
-        <div className="ad-steer-buttons">
-          <label className="after-dark-autoplay" title="It carries on by itself, no button needed, until the chapter ends">
-            <input type="checkbox" checked={autoplay} onChange={(e) => switchAutoplay(e.target.checked)} /> Autoplay
-          </label>
-          {scene.lines.length > 0 && (
-            <button
-              type="button"
-              className="button-ghost small"
-              disabled={busy || Boolean(mediaPaused)}
-              onClick={() => void beatAction({ picture_now: { line: scene.lines.length - 1 } })}
-              title={mediaPaused ?? "A picture of the two of them as the scene stands now, from the last few lines"}
-            >
-              📸 Picture this
+        {scene.chapter > SOFT_CHAPTERS && (
+          <p className="muted small">This night has run {scene.chapter - 1} chapters. It might be a good place to end it: Start over files it, and the next night begins fresh.</p>
+        )}
+        {!textOnly && <ListenLines lines={scene.lines} a={scene.a.id} b={scene.b.id} names={[nameOf("a"), nameOf("b")]} />}
+        {scene.lines.length ? (
+          <ol className="after-dark-lines">
+            {scene.lines.map((l, i) => {
+              const c = l.who === "a" ? characters[0] : characters[1];
+              return (
+                <li key={i} className={`after-dark-line is-${l.who}`}>
+                  <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={34} />
+                  <p>
+                    <strong>{nameOf(l.who)}</strong> {l.text}
+                  </p>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <p className="muted">{scene.chapter > 1 ? `Chapter ${scene.chapter} starts here: write the next lines.` : "Nothing yet. Write the first lines, or steer it first."}</p>
+        )}
+        {note && (
+          <p className={note.error ? "error ad-note-error" : "muted small"} role={note.error ? "alert" : "status"}>
+            {note.text}
+          </p>
+        )}
+        {!theater && crisisNotice}
+        <span ref={endRef} aria-hidden="true" />
+        {offered && !theater && (
+          <div className="ad-beat-banner" role="status">
+            <strong>📸 {offered.label}</strong>
+            <span className="muted small">Picture this moment? It&apos;s drawn from the last few lines.</span>
+            <button type="button" className="primary small" onClick={() => void beatAction({ beat: { id: offered.id, answer: "now" } })}>
+              Picture it
+            </button>
+            <button type="button" className="button-ghost small" onClick={() => void beatAction({ beat: { id: offered.id, answer: "later" } })} title="Carry on. Picture this whenever you like; if you never do, it's drawn when the chapter ends.">
+              Not now
+            </button>
+          </div>
+        )}
+        {/* Sticks to the bottom of the screen while it's scrolled past, until it reaches its own place under the lines. */}
+        <form className="after-dark-form" onSubmit={onSubmit}>
+          {!atEnd && scene.lines.length > 8 && (
+            <button type="button" className="after-dark-skip" onClick={() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })} aria-label="Skip to the latest lines" title="Skip to the latest lines">
+              ↓
             </button>
           )}
-          {(scene.lines.length > 0 || Boolean(scene.rewind?.depth)) && (
-            <div className={`ad-more${more ? " open" : ""}`}>
-              <button type="button" className="button-ghost small ad-more-toggle" aria-expanded={more} onClick={() => setMore((v) => !v)}>
-                ⋯ More
-              </button>
-              <div className="ad-more-items">
-                {writer && <WriterPicker initial={writer} compact />}
-                <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ rewind: true })} title={scene.rewind?.depth ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
-                  ↺ Rewind
+          {(scene.suggestions?.length ?? 0) > 0 && (
+            // The last step's suggested next moves, one per heat (lib/adult/director.ts): one tap sends it as a nudge.
+            <div className="ad-suggestions" role="group" aria-label="Suggested next moves">
+              {scene.suggestions.map((sg) => (
+                <button
+                  key={sg.heat}
+                  type="button"
+                  className={`ad-suggestion is-${sg.heat}`}
+                  disabled={busy}
+                  onClick={() => void send({ direction: sg.text, steer_mode: "nudge" })}
+                  title={sg.heat === "mild" ? "A surprise: something they didn't see coming" : `Send it as a nudge: ${sg.text}`}
+                >
+                  {/* The wildcard keeps its words to itself. */}
+                  <span className="ad-heat">{HEAT_LABEL[sg.heat]}</span>
+                  {sg.heat !== "mild" && <span className="ad-suggestion-text">{sg.text}</span>}
                 </button>
-                <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ redo: true })} title={redoTitle}>
-                  ↻ Redo
-                </button>
-                <button type="button" className="button-ghost" disabled={busy || !scene.lines.length} onClick={() => void send({ reset: true })}>
-                  Start over
-                </button>
-              </div>
+              ))}
             </div>
           )}
-        </div>
-      </form>
-      {/* The viewer's limits for the pair, and what the two of them remember (both theirs to see and change): under the
-          steer bar, which settles into its place above them, so it never covers them. */}
-      <div className="ad-panels">
-        <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
-        <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits, consent) => send({ limits, ...(consent ? { consent: true } : {}) })} />
-        <Profile scene={scene} characters={characters} onScene={setScene} />
-        <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
-      </div>
-      {watching && (
-        <AfterDarkTheater
-          scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue, set: watching.set_place }}
-          characters={characters}
-          feedbackRef={watching.id}
-          onExit={() => setWatching(null)}
-        />
-      )}
-      {nightList.length > 0 && (
-        <section>
-          <h2>Their nights</h2>
-          <ul className="after-dark-nights">
-            {nightList.map((n) => (
-              <li key={n.id}>
-                <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
-                  ▶ Play
-                </button>{" "}
-                <button type="button" className="button-ghost" onClick={() => void makeVideo("chapter", n.id)} disabled={Boolean(mediaPaused)} title={mediaPaused ?? `A short film of this chapter, in their voices (${reelTokens} tokens)`}>
-                  🎬 Video · {reelTokens} tokens
-                </button>{" "}
-                {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                {n.chapter ? ` · Chapter ${n.chapter}` : ""} · {n.lines.length} lines
-                {n.place ? ` · ended ${n.place}` : ""}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {reelNote && (
-        <div className={reelNote.error ? "error" : "muted small"} role="status">
-          <p>{reelNote.text}</p>
-          {reelNote.busy && (
-            <p>
-              <button
-                type="button"
-                className="secondary small"
-                onClick={async () => {
-                  const r = await stopReel(reelNote.busy!.id);
-                  if (!r) return setReelNote({ text: "Stopping it didn't go through. Try again.", error: true, busy: reelNote.busy });
-                  if (isThisPair(reelNote.busy!)) putReel(r);
-                  setReelNote({ text: "Stopped: the shots that came through are kept and the rest's tokens are back. You can make a new one now." });
-                }}
-              >
-                Stop that video
-              </button>
-              {!isThisPair(reelNote.busy) && (
-                <>
-                  {" "}
-                  <Link href={`/after-dark/${reelNote.busy.a}/${reelNote.busy.b}`}>Go to {reelNote.busy.names[0]} and {reelNote.busy.names[1]}</Link>
-                </>
-              )}
+          {whispers.length > 0 && (
+            <p className="ad-whispers">
+              {whispers.map((who) => (
+                <span
+                  key={who}
+                  className="ad-whisper-chip"
+                  title={`Only ${nameOf(who)} knows this; ${nameOf(other(who))} doesn't. It shapes the next ${scene.whispers[who]!.steps_left === 1 ? "step" : `${scene.whispers[who]!.steps_left} steps`}.`}
+                >
+                  <span className="ad-whisper-who">
+                    🤫 <CharacterName character={who === "a" ? characters[0] : characters[1]} label={nameOf(who)} link={false} size={18} />:
+                  </span> <q>{scene.whispers[who]!.text}</q>
+                  <button type="button" className="ad-whisper-forget" aria-label={`Forget the whisper to ${nameOf(who)}`} disabled={busy} onClick={() => void send({ forget_whisper: who })}>
+                    ×
+                  </button>
+                </span>
+              ))}
             </p>
           )}
+          {/* The label stays for screen readers on a phone, where the placeholder says the same and the room is the bar's. */}
+          <label htmlFor="after-dark-direction" className="ad-steer-label">
+            {whisperTo ? `Whisper to ${nameOf(whisperTo)} (only ${nameOf(whisperTo)} knows it)` : "Steer it (optional)"}
+          </label>
+          <span className="after-dark-steer-mode ad-segmented" role="radiogroup" aria-label="How">
+            <label title="Worked toward at the scene's own pace" className={!whisperTo && steerMode === "nudge" ? "on" : ""}>
+              <input type="radio" name="steer-mode" checked={!whisperTo && steerMode === "nudge"} onChange={() => (setWhisperTo(null), setSteerMode("nudge"))} /> Nudge
+            </label>
+            <label title="Done now: it can skip ahead" className={!whisperTo && steerMode === "direct" ? "on" : ""}>
+              <input type="radio" name="steer-mode" checked={!whisperTo && steerMode === "direct"} onChange={() => (setWhisperTo(null), setSteerMode("direct"))} /> Direct
+            </label>
+            {(["a", "b"] as const).map((who) => (
+              <label key={who} title={`A secret for ${nameOf(who)} alone: ${nameOf(other(who))} won't know it`} className={whisperTo === who ? "on" : ""}>
+                <input type="radio" name="steer-mode" checked={whisperTo === who} onChange={() => setWhisperTo(who)} /> 🤫{" "}
+                <CharacterName character={who === "a" ? characters[0] : characters[1]} label={nameOf(who)} link={false} size={18} />
+              </label>
+            ))}
+          </span>
+          <div className="ad-steer-row">
+            <input
+              id="after-dark-direction"
+              value={direction}
+              maxLength={whisperTo ? 200 : 300}
+              onChange={(e) => setDirection(e.target.value)}
+              placeholder={whisperTo ? `${nameOf(other(whisperTo))} wants you to take the lead…` : "Steer it (optional): they go back to hers…"}
+              disabled={busy}
+            />
+            <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim())} title={whisperTo ? "Whisper and write the next lines" : "Write the next lines"}>
+              {busy ? (
+                "Writing…"
+              ) : (
+                <>
+                  <span className="ad-wide-only">{whisperTo ? "Whisper and write" : "Write the next lines"}</span>
+                  <span className="ad-phone-only">{whisperTo ? "Whisper" : "Write"}</span>
+                </>
+              )}
+            </button>
+          </div>
+          <div className="ad-steer-buttons">
+            <label className="after-dark-autoplay" title="It carries on by itself, no button needed, until the chapter ends">
+              <input type="checkbox" checked={autoplay} onChange={(e) => switchAutoplay(e.target.checked)} /> Autoplay
+            </label>
+            {scene.lines.length > 0 && (
+              <button
+                type="button"
+                className="button-ghost small"
+                disabled={busy || Boolean(mediaPaused)}
+                onClick={() => void beatAction({ picture_now: { line: scene.lines.length - 1 } })}
+                title={mediaPaused ?? "A picture of the two of them as the scene stands now, from the last few lines"}
+              >
+                📸 Picture this
+              </button>
+            )}
+            {(scene.lines.length > 0 || Boolean(scene.rewind?.depth)) && (
+              <div className={`ad-more${more ? " open" : ""}`}>
+                <button type="button" className="button-ghost small ad-more-toggle" aria-expanded={more} onClick={() => setMore((v) => !v)}>
+                  ⋯ More
+                </button>
+                <div className="ad-more-items">
+                  {writer && <WriterPicker initial={writer} compact />}
+                  <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ rewind: true })} title={scene.rewind?.depth ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
+                    ↺ Rewind
+                  </button>
+                  <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ redo: true })} title={redoTitle}>
+                    ↻ Redo
+                  </button>
+                  <button type="button" className="button-ghost" disabled={busy || !scene.lines.length} onClick={() => void send({ reset: true })}>
+                    Start over
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </form>
+        {/* The viewer's limits for the pair, and what the two of them remember (both theirs to see and change): under the
+            steer bar, which settles into its place above them, so it never covers them. */}
+        <div className="ad-panels">
+          <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
+          <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits, consent) => send({ limits, ...(consent ? { consent: true } : {}) })} />
+          <Profile scene={scene} characters={characters} onScene={setScene} />
+          <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
         </div>
-      )}
-      {mediaPaused && (
-        <p className="error small" role="status" data-hive-paused>
-          {mediaPaused}
-        </p>
-      )}
-      {textOnly ? (
-        <p className="muted small" data-text-only>
-          {textOnly}
-        </p>
-      ) : (
-        <>
-          <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
-          <Reels reels={reelList} onChange={putReel} />
-          <FacesPanel
+        {watching && (
+          <AfterDarkTheater
+            scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue, set: watching.set_place }}
             characters={characters}
-            faces={faces}
-            gallery={gallery}
-            onFace={pickFace}
-            steer={steer}
-            onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
-            onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
-            paused={mediaPaused}
+            feedbackRef={watching.id}
+            onExit={() => setWatching(null)}
           />
-          <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} faces={faces} onFace={pickFace} />
-        </>
-      )}
-    </section>
+        )}
+        {nightList.length > 0 && (
+          <section>
+            <h2>Their nights</h2>
+            <ul className="after-dark-nights">
+              {nightList.map((n) => (
+                <li key={n.id}>
+                  <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
+                    ▶ Play
+                  </button>{" "}
+                  <button type="button" className="button-ghost" onClick={() => void makeVideo("chapter", n.id)} disabled={Boolean(mediaPaused)} title={mediaPaused ?? `A short film of this chapter, in their voices (${reelTokens} tokens)`}>
+                    🎬 Video · {reelTokens} tokens
+                  </button>{" "}
+                  {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  {n.chapter ? ` · Chapter ${n.chapter}` : ""} · {n.lines.length} lines
+                  {n.place ? ` · ended ${n.place}` : ""}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {reelNote && (
+          <div className={reelNote.error ? "error" : "muted small"} role="status">
+            <p>{reelNote.text}</p>
+            {reelNote.busy && (
+              <p>
+                <button
+                  type="button"
+                  className="secondary small"
+                  onClick={async () => {
+                    const r = await stopReel(reelNote.busy!.id);
+                    if (!r) return setReelNote({ text: "Stopping it didn't go through. Try again.", error: true, busy: reelNote.busy });
+                    if (isThisPair(reelNote.busy!)) putReel(r);
+                    setReelNote({ text: "Stopped: the shots that came through are kept and the rest's tokens are back. You can make a new one now." });
+                  }}
+                >
+                  Stop that video
+                </button>
+                {!isThisPair(reelNote.busy) && (
+                  <>
+                    {" "}
+                    <Link href={`/after-dark/${reelNote.busy.a}/${reelNote.busy.b}`}>Go to {reelNote.busy.names[0]} and {reelNote.busy.names[1]}</Link>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+        )}
+        {mediaPaused && (
+          <p className="error small" role="status" data-hive-paused>
+            {mediaPaused}
+          </p>
+        )}
+        {textOnly ? (
+          <p className="muted small" data-text-only>
+            {textOnly}
+          </p>
+        ) : (
+          <>
+            <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />
+            <Reels reels={reelList} onChange={putReel} />
+            <FacesPanel
+              characters={characters}
+              faces={faces}
+              gallery={gallery}
+              onFace={pickFace}
+              steer={steer}
+              onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
+              onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
+              paused={mediaPaused}
+            />
+            <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} faces={faces} onFace={pickFace} />
+          </>
+        )}
+      </section>
+    </MediaAdmin.Provider>
   );
 }
 
@@ -708,7 +715,9 @@ function Gallery({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" />
               )}
-              <span className="badge">{m.nude ? `${m.kind} · undressed` : m.kind}</span>
+              <MediaRequest id={m.id} className="badge">
+                {m.nude ? `${m.kind} · undressed` : m.kind}
+              </MediaRequest>
               <AiTag />
               {m.kind === "scene" && (m.chapter || m.place) && (
                 // Drawn for a chapter and a place (lib/adult/auto-pictures.ts).

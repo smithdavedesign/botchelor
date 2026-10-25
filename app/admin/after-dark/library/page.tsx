@@ -8,6 +8,7 @@ import { lockedForCookies } from "@/lib/adult/privacy";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import Stars from "./Stars";
+import { MediaRequest } from "@/app/after-dark/MediaRequest";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After Dark library · Botchelor", robots: { index: false, follow: false } };
@@ -116,7 +117,9 @@ export default async function AfterDarkLibraryPage({ searchParams }: { searchPar
                     <figure key={s.media_id}>
                       <video controls preload="none" playsInline src={media(s.media_id)} />
                       <figcaption className="small">
-                        {i + 1}. {s.who === "a" ? it.a.name.split(" ")[0] : (it.b?.name.split(" ")[0] ?? "")}: {s.text}
+                        <MediaRequest id={s.media_id} admin>
+                          {i + 1}. {s.who === "a" ? it.a.name.split(" ")[0] : (it.b?.name.split(" ")[0] ?? "")}: {s.text}
+                        </MediaRequest>
                       </figcaption>
                     </figure>
                   ))}
@@ -128,7 +131,8 @@ export default async function AfterDarkLibraryPage({ searchParams }: { searchPar
                 <img src={media(it.id)} alt={`${TYPE_ONE[it.type]} of ${it.a.name}${it.b ? ` and ${it.b.name}` : ""}`} loading="lazy" />
               )}
               <p className="small ad-library-meta">
-                <strong>{TYPE_ONE[it.type]}</strong>
+                {/* A reel's own row is no media item: its shots' captions open theirs. */}
+                <strong>{it.item === "reel" ? TYPE_ONE[it.type] : <MediaRequest id={it.id} admin>{TYPE_ONE[it.type]}</MediaRequest>}</strong>
                 {it.item === "reel" ? ` · ${it.shots.length} shot${it.shots.length === 1 ? "" : "s"}` : ""} ·{" "}
                 {it.b ? (
                   <Link href={`/after-dark/${it.a.id}/${it.b.id}`}>

@@ -14,6 +14,8 @@
  *    downloaded at once, and only from Replicate's own hosts.
  */
 
+import { logRequest } from "./request-log";
+
 export const REPLICATE = "https://api.replicate.com/v1";
 
 export type PredictionStatus = "starting" | "processing" | "succeeded" | "failed" | "canceled";
@@ -87,6 +89,7 @@ async function why(res: Response): Promise<string> {
 }
 
 async function call(token: string, url: string, method: "GET" | "POST", body?: unknown, extra: Record<string, string> = {}): Promise<unknown> {
+  if (method === "POST" && body !== undefined) logRequest(url, body);
   const res = await doFetch(url, {
     method,
     headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "content-type": "application/json" }), ...extra },

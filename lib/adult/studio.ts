@@ -102,6 +102,7 @@ import type { StudioConfig, StudioModel } from "./studio-config";
 import { studioTileId, TILE_GROUPS } from "./studio-tiles";
 import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
 import { countUse, overCap, usageLeft } from "./usage";
+import { requestJson, withRequestLog, type LoggedRequest } from "./request-log";
 
 /* ------------------------------------------------- who may ------------------------------------------------- */
 
@@ -310,8 +311,9 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
   // Every picture at once (each a minute or so), then checked one at a time.
   const drawn = await Promise.all(
     spec.prompts.map((p) =>
-      (spec.draw ? spec.draw(keys, p) : drawOne(db, spec.model, keys, p.prompt, spec.images, spec.negative)).then(
-        (file) => ({ file, p }),
+      // Each with its own log of what it sent (lib/adult/request-log.ts), kept with the picture.
+      withRequestLog(() => (spec.draw ? spec.draw(keys, p) : drawOne(db, spec.model, keys, p.prompt, spec.images, spec.negative))).then(
+        ({ value: file, requests }) => ({ file, p, requests }),
         (err: unknown) => {
           // A refusal of their own key (invalid, out of credit) goes on its Connections card, as a portrait's does.
           const status = (err as { status?: number })?.status;
@@ -344,9 +346,9 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
     const pid = crypto.randomUUID();
     const store = await keepBytes("after-dark", pid, d.file.bytes, d.file.mime);
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_place, shoot_id, nsfw_score)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ready', $10, false, $11, $12, $13, $14, $15)`,
-      [pid, viewer, first, second, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, id, verdict.nsfw ?? null],
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_place, shoot_id, nsfw_score, request)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ready', $10, false, $11, $12, $13, $14, $15, $16::jsonb)`,
+      [pid, viewer, first, second, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, id, verdict.nsfw ?? null, requestJson(d.requests)],
     );
     await countUse(db, viewer, capKind);
     kept.push({
@@ -1082,9 +1084,13 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
   if (pays && !(await spendBoughtTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the shop page.`);
   const model = config.animate.model ?? (await getAdultSettings(db)).reel_model;
   let queueId: string;
+  let sent: LoggedRequest[] = [];
   try {
     const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion?.words ?? "", guide, { pair });
-    queueId = await queueVideo(keys.venice, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative: pair ? ANIMATE_NEGATIVE_PAIR : ANIMATE_NEGATIVE });
+    // What it sent rides on the shoot until the clip is kept (lib/adult/request-log.ts).
+    ({ value: queueId, requests: sent } = await withRequestLog(() =>
+      queueVideo(keys.venice!, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative: pair ? ANIMATE_NEGATIVE_PAIR : ANIMATE_NEGATIVE }),
+    ));
   } catch (err) {
     if (pays) await refundBoughtTokens(db, viewer, tokens);
     return fail(502, "not_made", `It couldn't be animated (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${pays ? " Your tokens are back." : ""}`);
@@ -1094,7 +1100,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
       `insert into adult_studio_shoots (id, owner_id, character_id, kind, choices, model, provider, tokens, asked, status)
        values ($1, $2, $3, 'animate', $4::jsonb, $5, 'venice', $6, 1, 'making')
        returning id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at`,
-      [crypto.randomUUID(), viewer, c.id, JSON.stringify({ source: src.id, motion: motion?.id ?? null, seconds, queue_id: queueId, level: src.level, ...(guide.guide ? { guide: guide.guide } : {}), ...(guide.dialog ? { dialog: guide.dialog } : {}), ...(guide.transcript ? { transcript: guide.transcript } : {}) }), model, pays ? tokens : 0],
+      [crypto.randomUUID(), viewer, c.id, JSON.stringify({ source: src.id, motion: motion?.id ?? null, seconds, queue_id: queueId, level: src.level, ...(guide.guide ? { guide: guide.guide } : {}), ...(guide.dialog ? { dialog: guide.dialog } : {}), ...(guide.transcript ? { transcript: guide.transcript } : {}), request: sent }), model, pays ? tokens : 0],
     )
   ).rows[0];
   return { ok: true, shoot: shootRow(row), pictures: [], refunded: false, message: `Animating: it takes a few minutes, and lands in the gallery.` };
@@ -1106,7 +1112,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
  * Anything not kept gives its tokens back. While Hive is out for the day they wait at Venice, unchecked.
  */
 export async function collectAnimations(db: Db, viewer: string): Promise<void> {
-  const { rows } = await db.query<{ id: string; character_id: string; model: string; tokens: number; choices: { source: string; motion: string | null; queue_id: string; guide?: string }; created_at: string | Date }>(
+  const { rows } = await db.query<{ id: string; character_id: string; model: string; tokens: number; choices: { source: string; motion: string | null; queue_id: string; guide?: string; request?: LoggedRequest[] }; created_at: string | Date }>(
     `select id, character_id, model, tokens, choices, created_at from adult_studio_shoots where owner_id = $1 and kind = 'animate' and status = 'making' order by created_at limit 3`,
     [viewer],
   );
@@ -1148,9 +1154,9 @@ export async function collectAnimations(db: Db, viewer: string): Promise<void> {
     if (!claimed.rows.length) continue;
     const kept = await keepBytes("after-dark", vid, got.bytes, "video/mp4");
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, model, shoot_id)
-       values ($1, $2, $3, 'video', $4, 'video/mp4', $5, $6, 'ready', $7, 'venice', false, $8, $9)`,
-      [vid, viewer, r.character_id, `Studio clip: ${r.choices.motion ?? (r.choices.guide ? "your direction" : "clip")}`, kept.data, kept.object_key, r.choices.source, r.model, r.id],
+      `insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, model, shoot_id, request)
+       values ($1, $2, $3, 'video', $4, 'video/mp4', $5, $6, 'ready', $7, 'venice', false, $8, $9, $10::jsonb)`,
+      [vid, viewer, r.character_id, `Studio clip: ${r.choices.motion ?? (r.choices.guide ? "your direction" : "clip")}`, kept.data, kept.object_key, r.choices.source, r.model, r.id, requestJson(r.choices.request)],
     );
     await countUse(db, viewer, "clips");
     await releaseVideo(keys.venice, r.model, r.choices.queue_id);
