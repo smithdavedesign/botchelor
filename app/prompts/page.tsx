@@ -16,8 +16,7 @@ import CopyPrompt from "./CopyPrompt";
 
 const PATH = "/prompts";
 const TITLE = "Prompts library";
-const DESCRIPTION =
-  "2,000 openly licensed image prompts for portraits of adults: search them, filter by dataset and copy one to draw your character. Free, no sign-up.";
+const DESCRIPTION = `${ALL_PROMPTS.length.toLocaleString("en-US")} openly licensed image prompts for portraits of adults: search them, filter by dataset and copy one to draw your character. Free, no sign-up.`;
 
 export const metadata: Metadata = {
   title: `${TITLE}: portrait prompts for drawing your character · Botchelor`,

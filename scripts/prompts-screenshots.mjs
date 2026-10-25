@@ -48,9 +48,10 @@ async function check(base) {
 
   const searched = await (await fetch(`${base}${PAGE}?q=astronaut`, { headers: ADULT })).text();
   const total = (h) => Number(h.match(/id="prompts-count"[^>]*>([\d,]+)/)?.[1].replace(",", "") ?? 0);
-  assert(total(searched) > 0 && total(searched) < 2000, `a search found ${total(searched)}`);
+  const all = total(html);
+  assert(total(searched) > 0 && total(searched) < all, `a search found ${total(searched)}`);
   const filtered = await (await fetch(`${base}${PAGE}?source=pickapic`, { headers: ADULT })).text();
-  assert(total(filtered) > 0 && total(filtered) < 2000 && /Pick-a-Pic · MIT/.test(filtered), "the dataset filter didn't narrow to Pick-a-Pic");
+  assert(total(filtered) > 0 && total(filtered) < all && /Pick-a-Pic · MIT/.test(filtered), "the dataset filter didn't narrow to Pick-a-Pic");
   console.log(`checks passed: 200 on ${PAGE} with 24 prompts, in sitemap.xml, footer link, "astronaut" → ${total(searched)}, Pick-a-Pic → ${total(filtered)}`);
 }
 
