@@ -161,6 +161,10 @@ async function main() {
           await page.locator(".theater .ad-set-scene").click();
           const picker = page.getByRole("dialog", { name: "Set the scene" });
           assert((await picker.locator(".ad-scene-card").count()) > 40, "the scene picker should show every place");
+          // Every card keeps its height in the full list (70+ cards were squeezed to slivers once, 2026-10-25).
+          const tallest = await picker.locator(".ad-scene-card").evaluateAll((els) => Math.min(...els.slice(0, 12).map((e) => e.getBoundingClientRect().height)));
+          assert(tallest > 120, `scene cards should keep their height (smallest of the first twelve: ${tallest}px)`);
+          if (process.env.SHOTS_DIR) await page.screenshot({ path: join(process.env.SHOTS_DIR, `after-dark-set-scene-all-${viewport.width}.png`) });
           await picker.getByRole("radio", { name: /Fantasy/ }).click();
           const fantasy = await picker.locator(".ad-scene-card").count();
           assert(fantasy > 0 && fantasy < 15, `the Fantasy category should narrow the cards (${fantasy})`);

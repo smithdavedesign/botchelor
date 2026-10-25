@@ -11,9 +11,11 @@ const ICON = Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, c.icon])) as 
  * filters and tags"): every place in lib/adult/scene-catalog.ts as a card with its picture, narrowed by a roleplay
  * category, any number of tags and a search, with a box to type somewhere of their own. A card takes them there (1
  * token, set_scene); a scenario's card can start the night as that story instead (files tonight, like Start over).
- * Closes on Esc, the ✕ or a click outside the panel.
+ * Closes on Esc, the ✕ or a click outside the panel. It stays mounted once opened (hidden while closed), so its pictures,
+ * filters and scroll are still there next time; the theater preloads the pictures in the background (preloadScenes).
  */
 export default function SetSceneModal({
+  open = true,
   scenes,
   busy = false,
   current = null,
@@ -21,6 +23,8 @@ export default function SetSceneModal({
   onScenario,
   onClose,
 }: {
+  /** Shown; false keeps it mounted but hidden. */
+  open?: boolean;
   scenes: readonly CatalogScene[];
   busy?: boolean;
   /** Where they are now: its card says so. */
@@ -36,11 +40,16 @@ export default function SetSceneModal({
   // Cards whose picture didn't load (a set not drawn yet) paint their gradient instead.
   const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  const shown = useMemo(() => filterScenes(scenes, { category, tags, query }), [scenes, category, tags, query]);
+  }, [open, onClose]);
+  // The ones with a picture first, so the list doesn't open on a row of plain gradients.
+  const shown = useMemo(() => {
+    const found = filterScenes(scenes, { category, tags, query });
+    return [...found.filter((s) => s.image), ...found.filter((s) => !s.image)];
+  }, [scenes, category, tags, query]);
   const counts = useMemo(() => Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, filterScenes(scenes, { category: c.id, tags, query }).length])), [scenes, tags, query]);
   const here = current ? normalizeScene(current) : null;
 
@@ -54,7 +63,7 @@ export default function SetSceneModal({
   }
 
   return (
-    <div className="ad-scenes-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="ad-scenes-overlay" hidden={!open} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="ad-scenes" role="dialog" aria-modal="true" aria-label="Set the scene">
         <header className="ad-scenes-head">
           <div>
@@ -146,4 +155,39 @@ export default function SetSceneModal({
       </div>
     </div>
   );
+}
+
+/** Pictures fetched at a time while preloading, so the scene's own set and lines are never kept waiting. */
+const PRELOAD_BATCH = 6;
+
+/**
+ * Warms the browser's cache with every card's picture, a few at a time whenever the page is idle (David, 2026-10-25:
+ * "loading in background and caching it"), so the picker opens with its pictures already there. Returns a cancel.
+ */
+export function preloadScenes(scenes: readonly CatalogScene[]): () => void {
+  const urls = [...new Set(scenes.map((s) => s.image).filter((u): u is string => Boolean(u)))];
+  let i = 0;
+  let stopped = false;
+  let handle: number | null = null;
+  const idle = (fn: () => void) => (typeof requestIdleCallback === "function" ? requestIdleCallback(fn, { timeout: 3000 }) : window.setTimeout(fn, 400));
+  const unidle = (h: number) => (typeof cancelIdleCallback === "function" ? cancelIdleCallback(h) : window.clearTimeout(h));
+  const batch = () => {
+    if (stopped || i >= urls.length) return;
+    const these = urls.slice(i, i + PRELOAD_BATCH);
+    i += these.length;
+    let left = these.length;
+    for (const url of these) {
+      const img = new Image();
+      img.decoding = "async";
+      img.onload = img.onerror = () => {
+        if (--left === 0) handle = idle(batch);
+      };
+      img.src = url;
+    }
+  };
+  handle = idle(batch);
+  return () => {
+    stopped = true;
+    if (handle !== null) unidle(handle);
+  };
 }

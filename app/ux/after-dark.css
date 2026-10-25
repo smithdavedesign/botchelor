@@ -880,6 +880,9 @@ img.avatar-photo {
   background: rgba(6, 2, 12, 0.78);
   backdrop-filter: blur(4px);
 }
+.ad-scenes-overlay[hidden] {
+  display: none;
+}
 .ad-scenes {
   display: flex;
   flex-direction: column;
@@ -891,6 +894,11 @@ img.avatar-photo {
   background: #140c20;
   color: #f1e9ff;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+}
+/* Only the grid scrolls: the head, search and filter rows keep their height (with 70+ cards, a shrinkable row and
+   auto grid rows were squeezed to slivers to fit the panel). */
+.ad-scenes > * {
+  flex: none;
 }
 .ad-scenes-head {
   display: flex;
@@ -989,12 +997,15 @@ button.ad-scenes-clear {
   border-style: dashed;
   background: transparent;
 }
+.ad-scenes > .ad-scenes-grid {
+  flex: 1 1 0;
+}
 .ad-scenes-grid {
-  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-auto-rows: max-content;
   gap: var(--space-3);
   margin: 0;
   padding: var(--space-3) var(--space-5) var(--space-5);
@@ -1004,6 +1015,7 @@ button.ad-scenes-clear {
 .ad-scene-card {
   display: flex;
   flex-direction: column;
+  min-height: max-content;
   overflow: hidden;
   margin: 0;
   border: 1px solid #2c2044;
@@ -1015,6 +1027,7 @@ button.ad-scenes-clear {
 }
 .ad-scene-pic {
   position: relative;
+  flex: none;
   aspect-ratio: 16 / 9;
   background: linear-gradient(135deg, #3b1f5e, #6b2348);
 }

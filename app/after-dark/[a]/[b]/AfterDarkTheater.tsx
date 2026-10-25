@@ -24,7 +24,7 @@ import CharacterName from "@/app/CharacterName";
 import WriterPicker from "../../WriterPicker";
 import type { WriterOptions } from "@/lib/adult/writer";
 import { libraryVenueFor, type CatalogScene } from "@/lib/adult/scene-catalog";
-import SetSceneModal from "./SetSceneModal";
+import SetSceneModal, { preloadScenes } from "./SetSceneModal";
 
 /** A saved chapter the 📖 menu can play again (lib/adult/scenes.ts AdultNight, trimmed). */
 export type ChapterEntry = { id: string; chapter: number | null; lines: number; created_at: string; place: string | null };
@@ -204,6 +204,10 @@ export default function AfterDarkTheater({
   const [direction, setDirection] = useState("");
   // The scene picker (SetSceneModal.tsx) and the 📖 chapter menu.
   const [picking, setPicking] = useState(false);
+  // The picker stays mounted once opened, and its pictures load in the background while the scene plays.
+  const [pickerOpened, setPickerOpened] = useState(false);
+  const canSetScene = live && Boolean(onSetScene);
+  useEffect(() => (canSetScene && scenes.length ? preloadScenes(scenes) : undefined), [canSetScene, scenes]);
   const [chapterMenu, setChapterMenu] = useState(false);
   const shown = replay.shown;
   const [a, b] = characters;
@@ -360,7 +364,7 @@ export default function AfterDarkTheater({
           </div>
           <div className="theater-tools">
             {live && onSetScene && (
-              <button type="button" className="secondary small ad-set-scene" onClick={() => setPicking(true)} disabled={busy} title="Take them anywhere (1 token)">
+              <button type="button" className="secondary small ad-set-scene" onClick={() => (setPicking(true), setPickerOpened(true))} disabled={busy} title="Take them anywhere (1 token)">
                 📍 <span className="ad-tool-word">Set the scene</span>
               </button>
             )}
@@ -504,8 +508,8 @@ export default function AfterDarkTheater({
             )
           )}
         </div>
-        {picking && onSetScene && (
-          <SetSceneModal scenes={scenes} busy={busy} current={scene.set || scene.place} onGo={onSetScene} onScenario={onScenario} onClose={() => setPicking(false)} />
+        {pickerOpened && onSetScene && (
+          <SetSceneModal open={picking} scenes={scenes} busy={busy} current={scene.set || scene.place} onGo={onSetScene} onScenario={onScenario} onClose={() => setPicking(false)} />
         )}
       </div>
     </div>
