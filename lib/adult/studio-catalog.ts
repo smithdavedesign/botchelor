@@ -290,8 +290,27 @@ export const ALL_OPTION_IDS: readonly string[] = STUDIO_GROUPS.flatMap((g) => g.
 /** An option's words for someone: the man's or anyone's where they differ. */
 export const wordsFor = (opt: StudioOption, noun: Noun): string => (noun === "man" ? (opt.man ?? opt.words) : noun === "person" ? (opt.person ?? opt.words) : opt.words);
 
-/** A shoot's choices: one option per group (accessories: up to three), each optional. */
-export type ShootChoices = Partial<Record<Exclude<GroupId, "accessories">, string>> & { accessories?: string[] };
+/**
+ * A shoot's choices: one option per group (accessories: up to three), each optional. `custom` is the owner's own words
+ * (docs/PRDs/reel-storyboard.md; David, 2026-10-24: "need it to actually use the input"): a freeform direction that
+ * leads the prompt, so a picked act or look actually happens. `extra` adds the owner's words to a single section on top
+ * of its tile. Both are held to the same lines as the tiles (crossesTaboo, checkAdultText) and the output is still
+ * age-checked.
+ */
+export type ShootChoices = Partial<Record<Exclude<GroupId, "accessories">, string>> & {
+  accessories?: string[];
+  custom?: string;
+  extra?: Partial<Record<GroupId, string>>;
+};
+
+/** The most the owner's own words can run, in each custom field. */
+export const CUSTOM_MAX = 400;
+export const EXTRA_MAX = 120;
+/** The owner's words, trimmed and capped; empty becomes nothing. */
+export const cleanCustom = (s: string | undefined, max: number): string | undefined => {
+  const t = (s ?? "").trim().replace(/\s+/g, " ").slice(0, max);
+  return t || undefined;
+};
 
 /** What a shoot is held to: the highest level it may reach, its hard nos, and the options switched off. */
 export type ShootLimits = { maxLevel: Level; hardNos: readonly string[]; disabled: ReadonlySet<string>; pov: boolean; /** The Filthy intensity: Filthy's own options open. */ filthy?: boolean };
@@ -324,7 +343,7 @@ export function studioMenu(limits: ShootLimits, noun: Noun): { id: GroupId; titl
 export type Subject = { noun: Noun; age: number; look: string; outfit: string | null };
 
 /** A shoot, planned: its level, the words for each part, and the place's name (for its drawn set). */
-export type ShootPlan = { level: Level; place: string | null; placePublic: boolean; parts: { group: GroupId; words: string; /** A first-person act with the viewer. */ viewer?: true }[] };
+export type ShootPlan = { level: Level; place: string | null; placePublic: boolean; parts: { group: GroupId; words: string; /** A first-person act with the viewer. */ viewer?: true }[]; custom?: string; extra?: Partial<Record<GroupId, string>> };
 
 export type PlanResult = { ok: true; plan: ShootPlan } | { ok: false; error: string; message: string };
 
@@ -376,7 +395,14 @@ export function planShoot(choices: ShootChoices, limits: ShootLimits, subject: S
   }
   if (placePublic && level > 1) return no("public", "Nothing past suggestive somewhere public: pick a private place.");
   if (level > limits.maxLevel) return no("locked", `Past ${LEVEL_LABEL[limits.maxLevel].toLowerCase()}: their studio limit.`);
-  return { ok: true, plan: { level, place, placePublic, parts } };
+  // The owner's own words: the overall direction, and anything added to a single section. Taboo in them is caught by the
+  // caller's wordsOk, like the tiles', and the picture is still age-checked.
+  const custom = cleanCustom(choices.custom, CUSTOM_MAX);
+  const extraEntries = Object.entries(choices.extra ?? {})
+    .map(([g, v]) => [g, cleanCustom(v, EXTRA_MAX)] as const)
+    .filter(([g, v]) => Boolean(v) && (GROUP_IDS as readonly string[]).includes(g));
+  const extra = extraEntries.length ? (Object.fromEntries(extraEntries) as Partial<Record<GroupId, string>>) : undefined;
+  return { ok: true, plan: { level, place, placePublic, parts, ...(custom ? { custom } : {}), ...(extra ? { extra } : {}) } };
 }
 
 /** What each level says about clothes, when no wardrobe was picked. */
@@ -418,13 +444,18 @@ export function shootPrompt(plan: ShootPlan, subject: Subject, refs: { body: boo
   const pose = act?.words ?? by("pose")[0];
   const camera = by("pov")[0] ?? [by("framing")[0], by("angle")[0]].filter(Boolean).join(", ");
   const accessories = by("accessories");
+  // The owner's own words added to a single section (studio-catalog.ts ShootChoices.extra), each named by its section.
+  const extras = GROUP_IDS.map((g) => (plan.extra?.[g] ? `${groupById(g).title.toLowerCase()}: ${plan.extra[g]}` : "")).filter(Boolean);
   const middle = [
+    // The owner's own words lead, so what they asked for actually happens (David, 2026-10-24: "use the input").
+    plan.custom ? `Most important, do exactly this: ${plan.custom.replace(/[.\s]*$/, "")}.` : "",
     pose ? `${act ? "What's happening" : "Pose"}: ${pose}.` : "",
     camera && !act?.viewer ? `Camera: ${camera}.` : "",
     accessories.length ? `Wearing ${accessories.join(", ")}.` : "",
     plan.place ? `The place: ${plan.place}.` : "",
     by("light")[0] ? `Light: ${by("light")[0]}.` : "",
     by("expression")[0] ? `Expression: ${by("expression")[0]}.` : "",
+    extras.length ? `Also — ${extras.join("; ")}.` : "",
     act?.viewer
       ? "Only this one person in full: of the viewer, at most hands, hips or legs at the edge of the frame, never a face. Their face clearly visible."
       : "Only this one person in the picture, the face clearly visible.",

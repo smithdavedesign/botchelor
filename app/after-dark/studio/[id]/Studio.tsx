@@ -6,7 +6,7 @@ import RateMedia from "@/app/after-dark/[a]/[b]/RateMedia";
 import { HARD_NOS, INTENSITIES, INTENSITY } from "@/lib/adult/limits";
 import type { Media } from "@/lib/adult/media";
 import type { PairMenu, Setup, Shoot, StudioState } from "@/lib/adult/studio";
-import { LEVEL_LABEL, optionById, STRENGTHS, type GroupId, type Level, type ShootChoices } from "@/lib/adult/studio-catalog";
+import { CUSTOM_MAX, EXTRA_MAX, LEVEL_LABEL, optionById, STRENGTHS, type GroupId, type Level, type ShootChoices } from "@/lib/adult/studio-catalog";
 
 const media = (id: string) => `/api/admin/after-dark/media/${id}`;
 const TABS = [
@@ -62,6 +62,9 @@ function keptChoices(kept: ShootChoices | undefined, s: StudioState): ShootChoic
       if (ids.length) out.accessories = ids;
     } else if (typeof v === "string" && open(g.id, v)) out[g.id as Exclude<GroupId, "accessories">] = v;
   }
+  // The owner's own words carry across reloads too (lib/adult/studio-catalog.ts).
+  if (kept.custom) out.custom = kept.custom;
+  if (kept.extra) out.extra = kept.extra;
   return out;
 }
 
@@ -241,14 +244,26 @@ export default function Studio({ initial }: { initial: StudioState }) {
     setPairMenu(res.pair_menu as PairMenu);
   }
 
-  const level = (Object.entries(choices) as [string, string | string[] | undefined][]).reduce<Level>((lv, [g, v]) => {
-    const ids = Array.isArray(v) ? v : v ? [v] : [];
+  // Only the picked tiles set the level shown (the owner's own words, custom/extra, aren't classified); every output is
+  // still age-checked, and a shoot past their studio limit is refused server-side.
+  const level = s.menu.reduce<Level>((lv, g) => {
+    const v = choices[g.id as keyof ShootChoices];
+    const ids = Array.isArray(v) ? v : typeof v === "string" ? [v] : [];
     for (const id of ids) {
-      const opt = id.startsWith("own:") ? null : optionById(g as GroupId, id);
+      const opt = id.startsWith("own:") ? null : optionById(g.id, id);
       if (opt && opt.level > lv) lv = opt.level;
     }
     return lv;
   }, 0);
+
+  const setCustom = (v: string) => setChoices((x) => ({ ...x, custom: v || undefined }));
+  const setExtra = (group: GroupId, v: string) =>
+    setChoices((x) => {
+      const extra = { ...(x.extra ?? {}) };
+      if (v.trim()) extra[group] = v;
+      else delete extra[group];
+      return { ...x, extra: Object.keys(extra).length ? extra : undefined };
+    });
 
   function pick(group: GroupId, id: string, multi: number) {
     setChoices((x) => {
@@ -612,8 +627,32 @@ export default function Studio({ initial }: { initial: StudioState }) {
                   );
                 })}
               </div>
+              {/* The owner's own words for this one section, on top of the tiles (lib/adult/studio-catalog.ts extra). */}
+              <input
+                className="ad-studio-own"
+                type="text"
+                maxLength={EXTRA_MAX}
+                value={choices.extra?.[g.id] ?? ""}
+                placeholder={`…or add your own ${g.title.toLowerCase()}`}
+                disabled={Boolean(busy)}
+                onChange={(e) => setExtra(g.id, e.target.value)}
+              />
             </fieldset>
           ))}
+          <fieldset className="ad-studio-group">
+            <legend>
+              Your own words <span className="muted small">— this leads the picture, so what you ask for actually happens</span>
+            </legend>
+            <textarea
+              className="ad-studio-custom"
+              rows={2}
+              maxLength={CUSTOM_MAX}
+              value={choices.custom ?? ""}
+              placeholder="Describe exactly what you want, in your words. It comes first in the prompt."
+              disabled={Boolean(busy)}
+              onChange={(e) => setCustom(e.target.value)}
+            />
+          </fieldset>
           <div className="ad-studio-go is-main">
             <label>Model {modelSelect(editModels, picked?.id ?? "", setEditModel, "Model", (m) => m.price)}</label>
             <span className="badge">{LEVEL_LABEL[level]}</span>

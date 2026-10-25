@@ -422,7 +422,9 @@ export async function shoot(db: Db, viewer: string, characterId: string, input: 
   if (!planned.ok) return fail(422, planned.error, planned.message);
   const { plan } = planned;
   const subject = subjectOf(c, viewer, plan.level >= 2);
-  if (!wordsOk(`${plan.parts.map((p) => p.words).join(" ")} ${subject.look}`)) return fail(422, "not_allowed", "That shoot crosses one of the lines After Dark never crosses.");
+  // Everything the picture is built from, the owner's own words (custom, extra) included, is held to the lines first.
+  const ownWords = [plan.custom ?? "", ...Object.values(plan.extra ?? {})].join(" ");
+  if (!wordsOk(`${plan.parts.map((p) => p.words).join(" ")} ${subject.look} ${ownWords}`)) return fail(422, "not_allowed", "That shoot crosses one of the lines After Dark never crosses.");
   // The light: theirs, or the one their light test picks (and the picture keeps it, so their ratings teach the test).
   let preset: PresetId | null = PICTURE_PRESETS.find((p) => p.id === input.choices.light)?.id ?? null;
   if (!input.choices.light) {

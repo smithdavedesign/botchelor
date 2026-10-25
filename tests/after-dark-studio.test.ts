@@ -12,6 +12,7 @@ import { restyleCurrent, restyleMenu, restyleWords, setStudioPausesForTests, stu
 import {
   ALL_OPTION_IDS,
   bodyPrompt,
+  CUSTOM_MAX,
   planShoot,
   restylePrompt,
   shootPrompt,
@@ -95,6 +96,23 @@ describe("the Studio's menus", () => {
     expect(restylePrompt(her, ["copper-red hair"], "natural light")).toContain("Change only this: copper-red hair.");
     expect(bodyPrompt(her, false)).toContain("Full body, head to toe");
     expect(bodyPrompt(her, true)).toContain("Wearing fully nude");
+  });
+
+  it("puts the owner's own words first and adds their per-section words, trimmed and capped", () => {
+    const planned = planShoot({ pose: "front", wardrobe: "nude", custom: "  she is on her knees, looking up into the lens  ", extra: { place: "steam everywhere, the bench slick", light: "   " } }, ALL, her);
+    if (!planned.ok) throw new Error(planned.message);
+    // Trimmed; an empty per-section entry is dropped.
+    expect(planned.plan.custom).toBe("she is on her knees, looking up into the lens");
+    expect(planned.plan.extra).toEqual({ place: "steam everywhere, the bench slick" });
+    const p = shootPrompt(planned.plan, her, { body: false, set: false });
+    // The owner's words lead, so what they ask for actually happens.
+    expect(p).toContain("Most important, do exactly this: she is on her knees, looking up into the lens.");
+    // The per-section words appear, named by their section.
+    expect(p).toContain("Also — place: steam everywhere, the bench slick.");
+    expect(p.length).toBeLessThanOrEqual(STUDIO_PROMPT_MAX);
+    // The owner's words are capped.
+    const long = planShoot({ custom: "x ".repeat(CUSTOM_MAX) }, ALL, her);
+    expect(long.ok && (long.plan.custom?.length ?? 0)).toBeLessThanOrEqual(CUSTOM_MAX);
   });
 
   it("restyles with the looks builder's own chips, and takes a detail away with none", () => {

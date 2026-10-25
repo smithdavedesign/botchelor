@@ -26,7 +26,7 @@ import {
   type JobResult,
   type StudioFail,
 } from "@/lib/adult/studio";
-import { GROUP_IDS } from "@/lib/adult/studio-catalog";
+import { CUSTOM_MAX, EXTRA_MAX, GROUP_IDS } from "@/lib/adult/studio-catalog";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -41,7 +41,12 @@ const own_key = z.boolean().optional();
 /** A shoot's choices: one option id per group, accessories up to three (lib/adult/studio-catalog.ts checks each). */
 const Choices = z
   .object(Object.fromEntries(GROUP_IDS.filter((g) => g !== "accessories").map((g) => [g, z.string().max(60).optional()])) as Record<string, z.ZodOptional<z.ZodString>>)
-  .extend({ accessories: z.array(z.string().max(60)).max(3).optional() })
+  .extend({
+    accessories: z.array(z.string().max(60)).max(3).optional(),
+    // The owner's own words (lib/adult/studio-catalog.ts): an overall direction, and words added to a single section.
+    custom: z.string().max(CUSTOM_MAX).optional(),
+    extra: z.record(z.enum(GROUP_IDS), z.string().max(EXTRA_MAX)).optional(),
+  })
   .strict();
 /** A shoot together's choices, as a setup keeps them (the partner is picked when it runs). */
 const PairChoices = z
