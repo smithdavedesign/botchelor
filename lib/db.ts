@@ -2241,6 +2241,9 @@ create table if not exists adult_studio_setups (
   updated_at timestamptz not null default now(),
   unique (owner_id, name)
 );
+-- What was sent to make each picture, clip or shot (lib/adult/request-log.ts; David, 2026-10-24: "so we can track why
+-- it fails"): the provider's address and body, cleaned (no key, no signature, no picture bytes). Admins see it on a click.
+alter table adult_images add column if not exists request jsonb;
 -- Who writes the scenes (lib/adult/writer-config.ts; David, 2026-10-24): the writers a person can pick and the default,
 -- as JSON; and each person's own pick (adult_prefs.writer_model, null: the default), which goes with their account.
 alter table adult_settings add column if not exists writer jsonb;

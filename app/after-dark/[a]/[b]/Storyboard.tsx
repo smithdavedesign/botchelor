@@ -4,6 +4,7 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import type { Reel, ReelShot } from "@/lib/adult/reels";
+import { MediaRequest } from "../../MediaRequest";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -95,7 +96,14 @@ export default function Storyboard({
               <li key={i} className={`ad-shot ad-shot-${b.kind}`}>
                 <div className="ad-shot-pic">
                   {pic ? <img src={mediaUrl(pic)} alt="" loading="lazy" /> : <span className="ad-shot-placeholder">Shot {i + 1}</span>}
-                  <span className={`ad-shot-badge ad-badge-${b.kind}`}>{b.label}</span>
+                  {/* For an admin, the badge opens what made the shot's picture (app/after-dark/MediaRequest.tsx). */}
+                  {pic ? (
+                    <MediaRequest id={pic} className={`ad-shot-badge ad-badge-${b.kind}`}>
+                      {b.label}
+                    </MediaRequest>
+                  ) : (
+                    <span className={`ad-shot-badge ad-badge-${b.kind}`}>{b.label}</span>
+                  )}
                   {pic ? <AiTag over /> : null}
                 </div>
                 <div className="ad-shot-body">

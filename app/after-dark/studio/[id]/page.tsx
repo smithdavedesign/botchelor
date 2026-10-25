@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { isAdmin } from "@/lib/admins";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { studioState } from "@/lib/adult/studio";
 import { getDb } from "@/lib/db";
@@ -47,7 +48,7 @@ export default async function StudioPage({ params }: Props) {
           <Link href="/after-dark">← 🌙 After Dark</Link>
         </p>
         {r.ok ? (
-          <Studio initial={r.state} />
+          <Studio initial={r.state} admin={await isAdmin(db, viewer)} />
         ) : (
           <>
             <h1>Studio</h1>

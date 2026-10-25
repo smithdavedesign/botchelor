@@ -21,6 +21,7 @@ import { checkAdultText } from "../safety";
 import { reelNight, replicateVoice, voiceFor, VENICE } from "./reels";
 import { providerError, runMedia } from "./fallback";
 import { runModel } from "./replicate";
+import { logRequest } from "./request-log";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
 import { countUse, overCap } from "./usage";
@@ -64,10 +65,12 @@ export type VoiceResult = { ok: true; voices: LineVoice[] } | { ok: false; statu
 
 /** One line in a stock voice, from Kokoro on Venice: MP3. */
 async function veniceVoice(key: string, words: string, voice: string): Promise<{ bytes: Buffer; mime: string }> {
+  const body = { model: "tts-kokoro", input: words, voice, response_format: "mp3" };
+  logRequest(`${VENICE}/audio/speech`, body);
   const res = await doFetch(`${VENICE}/audio/speech`, {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: "tts-kokoro", input: words, voice, response_format: "mp3" }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 120)}`);
   const bytes = Buffer.from(await res.arrayBuffer());

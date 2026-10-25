@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import { archivedClip, clipChains, keepGoingFrom, playable } from "@/lib/adult/clip-chains";
@@ -9,6 +9,7 @@ import { chaptersLabel } from "@/lib/adult/nights";
 import { pausedUntil, reelFailureNote } from "@/lib/adult/reel-failure";
 import { REEL_STALLED_MS } from "@/lib/adult/reel-timing";
 import RateMedia from "./RateMedia";
+import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -146,7 +147,7 @@ function ArchivedShot({ shot, onChange }: { shot: PlayShot & { from: string }; o
         </button>
       )}
       <p className="small ad-archived-from">
-        <strong>{shot.from}</strong>
+        <strong>{shot.media_id ? <MediaRequest id={shot.media_id}>{shot.from}</MediaRequest> : shot.from}</strong>
         {shot.text ? <span className="muted"> · “{shot.text}”</span> : null}
       </p>
       <p>
@@ -350,6 +351,7 @@ function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: 
  */
 function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r: Reel) => void }) {
   const key = shots.map((s) => `${s.media_id}${s.audio_id ? `+${s.audio_id}` : ""}`).join(",");
+  const admin = useContext(MediaAdmin);
   const [urls, setUrls] = useState<string[] | null>(null);
   const [loaded, setLoaded] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -615,7 +617,15 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
       </div>
       {ready && shot?.media_id && (
         <figcaption className="ad-shot-bar">
-          <span className="muted small">This shot:</span>
+          {/* For an admin, what made the shot and its keyframe (app/after-dark/MediaRequest.tsx). */}
+          <MediaRequest id={shot.media_id} className="muted small">
+            This shot:
+          </MediaRequest>
+          {admin && shot.frame_id && (
+            <MediaRequest id={shot.frame_id} className="muted small">
+              keyframe
+            </MediaRequest>
+          )}
           <RateMedia
             key={shot.media_id}
             id={shot.media_id}

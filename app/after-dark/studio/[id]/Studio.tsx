@@ -9,6 +9,7 @@ import type { PairMenu, Setup, Shoot, StudioState } from "@/lib/adult/studio";
 import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, LEVEL_LABEL, optionById, STRENGTHS, TRANSCRIPT_MAX, type GroupId, type Level, type ShootChoices } from "@/lib/adult/studio-catalog";
 // Openly-licensed (CC0/Apache-2.0/MIT) adult-portrait prompts, hard-filtered; an optional starting point the owner edits.
 import inspiration from "./inspiration.json";
+import { MediaRequest } from "../../MediaRequest";
 
 const media = (id: string) => `/api/admin/after-dark/media/${id}`;
 const TABS = [
@@ -76,7 +77,7 @@ function keptChoices(kept: ShootChoices | undefined, s: StudioState): ShootChoic
  * (restyle, recast, body reference, limits, strength), their gallery, where a picture can be made more of, made larger,
  * animated or shared, and the setups saved to run again. Every action answers with the Studio's state after it.
  */
-export default function Studio({ initial }: { initial: StudioState }) {
+export default function Studio({ initial, admin = false }: { initial: StudioState; admin?: boolean }) {
   const [s, setS] = useState(initial);
   const [tab, setTab] = useState<Tab>("shoot");
   const [busy, setBusy] = useState<string | null>(null);
@@ -309,6 +310,12 @@ export default function Studio({ initial }: { initial: StudioState }) {
         const anim = animating?.image === p.id ? animating : null;
         return (
           <li key={p.id} className="card ad-studio-item">
+            {admin && (
+              // What made it, for an admin (app/after-dark/MediaRequest.tsx): the prompt and the request sent.
+              <MediaRequest id={p.id} admin className="small ad-studio-item-title">
+                {video ? "Clip" : p.kind === "baseline" ? "Face" : "Picture"} · {new Date(p.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </MediaRequest>
+            )}
             {video ? (
               <video src={media(p.id)} controls playsInline preload="metadata" aria-label={`${c.name}, a clip`} />
             ) : (

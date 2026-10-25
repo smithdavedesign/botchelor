@@ -28,6 +28,7 @@ import { ensureBaseline, signedMediaUrl, type Media } from "./media";
 import { baselines, drawKeyframe, drawReplicateKeyframe, KEYFRAME_MODEL, keyframePrompt, NUDE_FROM, nudeBaselines, placeWords, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
+import { requestJson, withRequestLog } from "./request-log";
 import { STAGES } from "./stages";
 import { countUse, overCap, usageLeft } from "./usage";
 
@@ -240,6 +241,7 @@ export async function keepPictureOfBoth(
   let file: { bytes: Buffer; mime: string };
   let made: { provider: MediaProvider; fell_back: boolean };
   let prompt = plan.promptFor(false);
+  let sent: string | null = null;
   try {
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
     // At sex (NUDE_FROM), from their nude baselines: an edit keeps what the pictures it starts from wear (lib/adult/attire.ts).
@@ -251,13 +253,16 @@ export async function keepPictureOfBoth(
     // With the place's drawn set as Picture 3, the prompt says to keep its room and its light.
     prompt = plan.promptFor(Boolean(set));
     // One picture, one job: drawn on the other provider when the configured one is limited (lib/adult/fallback.ts).
-    const drawn = await runMedia(db, "keyframe", (p) => {
+    // What it sent is kept with it (lib/adult/request-log.ts): both providers' when it fell back.
+    const logged = await withRequestLog(() => runMedia(db, "keyframe", (p) => {
       if (p === "replicate") {
         const r = { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora };
         return drawReplicateKeyframe(r, prompt, set && plan.place ? [...faces, replicateSetImage(set, plan.place, baseUrl)] : faces);
       }
       return drawKeyframe(keys.venice!, prompt, set ? [...faces, set] : faces);
-    });
+    }));
+    sent = requestJson(logged.requests);
+    const drawn = logged.value;
     file = drawn.value;
     made = { provider: drawn.provider, fell_back: drawn.fell_back };
   } catch (err) {
@@ -282,11 +287,12 @@ export async function keepPictureOfBoth(
   const id = crypto.randomUUID();
   const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, scene_chapter, scene_place, model)
-     values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10, $11, $12, $13)`,
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, scene_chapter, scene_place, model, request)
+     values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10, $11, $12, $13, $14::jsonb)`,
     [
       id, ownerId, ca.id, cb.id, prompt.slice(0, 2000), file.mime, kept.data, kept.object_key, made.provider, made.fell_back, ctx.scene?.chapter ?? null, ctx.scene?.place ?? null,
       made.provider === "replicate" ? settings.replicate_keyframe_model : KEYFRAME_MODEL,
+      sent,
     ],
   );
   await countUse(db, ownerId, "pictures");

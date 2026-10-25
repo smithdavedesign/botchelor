@@ -64,6 +64,7 @@ import { groupNights, type NightChapter } from "./nights";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { STAGES } from "./stages";
 import { faceReferenceId, NO_STEERING, ratingsFor, steeringFor } from "./steering";
+import { logRequest, requestJson, withRequestLog, type LoggedRequest } from "./request-log";
 
 export const VENICE = "https://api.venice.ai/api/v1";
 /** Shots in a reel, and how many words a shot can carry (people say about 2.5 words a second). */
@@ -143,6 +144,8 @@ export type ReelShot = {
   retry_at?: string;
   /** Made on Replicate (unset: Venice). Its `queue_id` is then the prediction's id. */
   provider?: "replicate";
+  /** What was sent to queue its video (lib/adult/request-log.ts): kept on the shot's video row once it's in. */
+  request?: LoggedRequest[];
   /** On Replicate: the stock voice that says the line, and once the shot is in, that line (an adult_images 'audio'). */
   voice?: string;
   audio_id?: string;
@@ -762,6 +765,8 @@ export function replicateSetImage(dataUri: string, place: string, baseUrl: strin
 }
 
 async function venice(key: string, path: string, body: unknown): Promise<Response> {
+  // What made the media (lib/adult/request-log.ts): not the polls for it.
+  if (path !== "/video/retrieve") logRequest(`${VENICE}${path}`, body);
   return doFetch(`${VENICE}${path}`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(body) });
 }
 
@@ -999,16 +1004,19 @@ export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx
       const third = own?.continueFrom ? signedMediaUrl(own.continueFrom, ctx.baseUrl) : null;
       try {
         // A keyframe is one job: drawn on the other provider when this one is limited.
-        const made = await runMedia(
-          db,
-          "keyframe",
-          (p) =>
-            p === "replicate"
-              ? drawReplicateKeyframe(ctx.replicate!, prompt, third ? [...faces, third] : set && place ? [...faces, replicateSetImage(set, place, ctx.baseUrl)] : faces)
-              : drawKeyframe(ctx.venice, prompt, third ? [...faces, third] : set ? [...faces, set] : faces),
-          providers,
+        // What it sent is kept with the keyframe (lib/adult/request-log.ts).
+        const { value: made, requests } = await withRequestLog(() =>
+          runMedia(
+            db,
+            "keyframe",
+            (p) =>
+              p === "replicate"
+                ? drawReplicateKeyframe(ctx.replicate!, prompt, third ? [...faces, third] : set && place ? [...faces, replicateSetImage(set, place, ctx.baseUrl)] : faces)
+                : drawKeyframe(ctx.venice, prompt, third ? [...faces, third] : set ? [...faces, set] : faces),
+            providers,
+          ),
         );
-        return { s, prompt, file: made.value, provider: made.provider, fell_back: made.fell_back };
+        return { s, prompt, file: made.value, provider: made.provider, fell_back: made.fell_back, requests };
       } catch (err) {
         Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" });
         return null;
@@ -1055,8 +1063,8 @@ export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx
     const id = crypto.randomUUID();
     const kept = await keepBytes("after-dark", id, d.file.bytes, d.file.mime);
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back) values ($1, $2, $3, $4, 'frame', $5, $6, $7, $8, 'ready', $9, $10)`,
-      [id, ownerId, ctx.pair[0], ctx.pair[1], d.prompt, d.file.mime, kept.data, kept.object_key, d.provider, d.fell_back],
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, request) values ($1, $2, $3, $4, 'frame', $5, $6, $7, $8, 'ready', $9, $10, $11::jsonb)`,
+      [id, ownerId, ctx.pair[0], ctx.pair[1], d.prompt, d.file.mime, kept.data, kept.object_key, d.provider, d.fell_back, requestJson(d.requests)],
     );
     s.media_id = id;
     s.frame_id = id;
@@ -1076,7 +1084,8 @@ export async function queueVideos(db: Db, shots: ReelShot[], ctx: ShotContext): 
   for (const s of shots) {
     if (s.status !== "frame_ready" || s.archived_at) continue;
     try {
-      const queued = await runMedia(db, "video", (p) => (p === "replicate" ? queueReplicateShot(ctx, s) : queueShot(ctx, s)), providers);
+      const { value: queued, requests } = await withRequestLog(() => runMedia(db, "video", (p) => (p === "replicate" ? queueReplicateShot(ctx, s) : queueShot(ctx, s)), providers));
+      s.request = requests;
       if (queued.provider === "replicate") s.provider = "replicate";
       else delete s.provider;
       if (queued.fell_back) s.fell_back = true;
@@ -1510,11 +1519,12 @@ async function collectReplicateShot(
   const mediaId = crypto.randomUUID();
   const kept = await keepBytes("after-dark", mediaId, file.bytes, "video/mp4");
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'replicate', $9)`,
-    [mediaId, ownerId, pair.character_a, pair.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, request) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'replicate', $9, $10::jsonb)`,
+    [mediaId, ownerId, pair.character_a, pair.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true, requestJson(s.request)],
   );
   s.status = "ready";
   s.media_id = mediaId;
+  delete s.request;
   delete s.retry_at;
   delete s.reason;
   // A clip with no line in it (an act from the menu) stays silent.
@@ -1619,12 +1629,13 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     const mediaId = crypto.randomUUID();
     const kept = await keepBytes("after-dark", mediaId, bytes, "video/mp4");
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'venice', $9)`,
-      [mediaId, ownerId, row.character_a, row.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true],
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, request) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'venice', $9, $10::jsonb)`,
+      [mediaId, ownerId, row.character_a, row.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true, requestJson(s.request)],
     );
     s.status = "ready";
     s.media_id = mediaId;
     delete s.retry_at;
+    delete s.request;
     delete s.reason;
     // Ours now: Venice's copy can go.
     await venice(keys.venice, "/video/retrieve", { model: s.model, queue_id: s.queue_id, delete_media_on_completion: true }).catch(() => {});
@@ -1664,7 +1675,8 @@ const reelOf = (r: ReelRow): Reel => ({
   id: r.id,
   status: r.status,
   tokens: r.tokens,
-  shots: r.shots,
+  // What a queued shot sent is for admins (its video row's request), never the reel's viewer.
+  shots: r.shots.map(({ request: _sent, ...shot }) => shot),
   created_at: new Date(r.created_at).toISOString(),
   kind: r.kind === "clip" ? "clip" : "night",
   clip: r.clip ?? null,
