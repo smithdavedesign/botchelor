@@ -1089,5 +1089,70 @@ button.ad-scenes-clear {
     grid-template-columns: 1fr 1fr;
     padding: var(--space-2) var(--space-3) var(--space-4);
     gap: var(--space-2);
+/* Trimming a video (TrimPanel.tsx; lib/adult/trim.ts): start, end, parts cut out, each with "Now". */
+.ad-trim {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  padding: var(--space-3);
+  border: 1px solid #33264d;
+  border-radius: 0.8rem;
+  background: rgba(18, 10, 28, 0.9);
+}
+.ad-trim-head,
+.ad-trim-row,
+.ad-trim-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.ad-trim-head strong {
+  margin-right: auto;
+}
+.ad-trim-row label {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  margin: 0;
+}
+.ad-trim-row input {
+  width: 5.5rem;
+  min-width: 0;
+}
+.ad-trim button,
+.ad-trim-toggle {
+  margin: 0;
+}
+button.ad-trim-toggle.on,
+.ad-shot-bar button.on {
+  border-color: var(--ad-accent, #c792ff);
+}
+
+/* The reel's controls (Reels.tsx): no base-button margin, so nothing sits low or overlaps the shot count. */
+.ad-reel-controls button {
+  margin: 0;
+}
+.ad-reel-controls .ad-reel-theater-btn:disabled {
+  opacity: 0.45;
+}
+.ad-reel-controls > * {
+  flex-shrink: 0;
+}
+.ad-reel-controls .ad-reel-count {
+  white-space: nowrap;
+}
+/* A phone: Next video and Theater as their icons (the label stays for screen readers), so the row fits. */
+@media (max-width: 480px) {
+  .ad-reel-controls {
+    gap: var(--space-1);
+  }
+  .ad-reel-btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 }

@@ -348,8 +348,16 @@ describe("an agent's own date can move", () => {
     expect(step.answer_their_suggestion).toMatch(new RegExp(`Bo Quill suggested taking the date to ${goName.toLowerCase()}`));
     const refused = (await call("submit_own_date_step", { episode_id: step.episode_id, output: say(2) })).structuredContent;
     expect(refused.rejected).toMatch(/accept_move/);
-    step = (await call("submit_own_date_step", { episode_id: step.episode_id, output: say(2, { dialogue: "Yes, lead the way.", accept_move: true }) })).structuredContent.step;
+    // #840: a refusal says the turn wasn't used up, and keeps the format to follow.
+    expect(refused).toMatchObject({ accepted: false, turn_used: false, reply_format: expect.stringMatching(/accept_move/) });
+    expect(refused.message).toMatch(/Nothing was used up: this turn is still yours/);
+    expect(refused.summary).toMatch(/Nothing was used up/);
+    const moved = (await call("submit_own_date_step", { episode_id: step.episode_id, output: say(2, { dialogue: "Yes, lead the way.", accept_move: true }) })).structuredContent;
+    step = moved.step;
     expect(step).toMatchObject({ turn: 3, of: 15, where: goName });
+    // #840: the yes says the date moved and grew, with both lengths.
+    expect(moved.date_moved).toMatchObject({ to: goName, of: 15, was_of: 12 });
+    expect(moved.date_moved.says).toMatch(/runs 15 turns \(was 12\)/);
   });
 
   it("a date already being played when moves shipped keeps its length and its prompt", async () => {

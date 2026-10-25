@@ -156,7 +156,7 @@ import { swipeGateOn } from "../swipe-gate";
 import { clearNotifications, dateOfTurnNotice, listNotifications, markRead, notify, ownersOf, resolveTurnNotices, sweepStaleTurnNotices, unreadCount } from "../notifications";
 import { closeProposal, pendingProposal, PROPOSAL_DAYS, proposeDate } from "../date-proposals";
 import { arcQuestion, predictArc } from "../arcs";
-import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir } from "../air";
+import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
 import { CONVERSATION_TURNS } from "../rules";
 import { isPlaceholder, placeLabel, venueName, venuePhrase } from "../venues";
 import { planPlace } from "../places";
@@ -3076,6 +3076,8 @@ const REJECTION_WORDS: Record<string, string> = {
 };
 /** Refusals where the line itself was fine: nothing to correct, the date had moved on (2.8.0). */
 const MOVED_ON = new Set(["not_your_turn", "date_over", RACED]);
+/** #840: what a refused line costs: nothing. */
+const NOTHING_USED = "Nothing was used up: this turn is still yours.";
 
 /**
  * 2.10.1 (#672, the 2026-10-22-0936 run: a see_again was dropped after its line was accepted): what became of the see_again a
@@ -3097,6 +3099,11 @@ function wishKept(w: KeptWish): Record<string, unknown> {
 /** A submitted step's see_again, kept (wish_kept) or carrying nothing (wish_ignored: the recap). */
 const wishFields = (r: { wish?: KeptWish; wish_ignored?: string }): Record<string, unknown> =>
   r.wish ? { wish_kept: wishKept(r.wish) } : r.wish_ignored ? { wish_ignored: r.wish_ignored } : {};
+/** #840: a line that said yes to a move took the date somewhere else, and the date got longer: said, with both lengths. */
+const movedFields = (r: { moved?: { to: string; of: number; was_of: number } }): Record<string, unknown> =>
+  r.moved
+    ? { date_moved: { to: r.moved.to, of: r.moved.of, was_of: r.moved.was_of, says: `The move is on: the date is now at ${r.moved.to}, and runs ${r.moved.of} turns (was ${r.moved.was_of}).` } }
+    : {};
 
 /** The words agents use for a rating category (#238): "like" is likable. */
 const RATING_WORDS: Record<string, string> = { like: "likable", liked: "likable", likeable: "likable", surprise: "surprising", surprised: "surprising" };
@@ -3217,10 +3224,12 @@ function withStepTop(data: Record<string, unknown>): Record<string, unknown> {
     return { ...(h ? { heads_up: h } : {}), ...(hn ? { heads_up_note: hn } : {}), ...top, ...rest };
   }
   const { accepted, ok, rejected, message, ...rest } = data;
-  const why = String(message ?? rejected ?? "it broke a rule").replace(/^Not handed in: /, "").replace(/\s*Send a corrected reply for the same step\.$/, "").replace(/[.\s]+$/, "");
+  const why = String(message ?? rejected ?? "it broke a rule").replace(/^Not handed in: /, "").replace(/\s*Send a corrected reply for the same step\.$/, "").replace(NOTHING_USED, "").replace(/[.\s]+$/, "");
+  // #840: a refusal uses nothing up; said once, where the summary says it's still your move.
+  const still = MOVED_ON.has(String(rejected)) ? "Still your move" : "Nothing was used up, so it's still your move";
   const now =
-    step.stage === "turn" ? `Still your move: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks${MOVED_ON.has(String(rejected)) ? "" : `; resubmit ${step.speaker.name}'s line, fixed`}.`
-    : step.stage === "recap" ? "Still your move: the recap; resubmit it, fixed."
+    step.stage === "turn" ? `${still}: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks${MOVED_ON.has(String(rejected)) ? "" : `; resubmit ${step.speaker.name}'s line, fixed`}.`
+    : step.stage === "recap" ? `${still}: the recap; resubmit it, fixed.`
     : String(top.summary);
   return { accepted, ...(ok !== undefined ? { ok } : {}), rejected, message, ...top, summary: `Not accepted: ${why}. ${now}`, ...rest };
 }
@@ -4237,9 +4246,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2.4.2: when each really airs (airTimings), soonest first; predictions stay open until then.
       const timings = await airTimings(db, unaired);
       // 2.4.3: a stable order: minutes_left ascending, then id (two dates booked in the same minute used to swap between calls).
+      // #839: a watch party waiting on its room (no start time, or one that has passed) goes after the dates that air on their own.
       const left = (id: string) => {
         const x = timings.get(id);
-        return x?.airs_at ? new Date(x.airs_at).getTime() - Date.now() : Number.MAX_SAFE_INTEGER;
+        return x?.airs_at && !waitsOnRoom(x) ? new Date(x.airs_at).getTime() - Date.now() : Number.MAX_SAFE_INTEGER;
       };
       // 2.6.0: re-checked right before answering, so a date that aired while this ran isn't listed as open.
       const stillOpen = new Set(
@@ -4259,9 +4269,6 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const episodes = shown.map((id) => ({
           ...trimEpisode(byId.get(id)!),
           ...timingOf(id),
-          ...(timingOf(id).airs === "watch_party" && !timingOf(id).airs_at
-            ? { airs_note: "No start time: it premieres only when someone opens its watch party on /watch, so a pick on it may wait a long while." }
-            : {}),
           ...(yours.has(id) ? { yours: true, can_predict: false } : {}),
           ...picksFor(context.get(id)),
           ...(context.has(id) ? { context: context.get(id) } : {}),
@@ -5800,7 +5807,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             // 2.10.0 (#663): an item of outputs takes what output does, and a refused one says so (with the shapes, when its
             // shape was the problem: own-date's turnShapeProblem names them).
             return {
-              data: { accepted: false, ok: false, accepted_count: accepted, outputs_sent: sent, filled, rejected: one.rejected, message: MOVED_ON.has(one.rejected) ? `Not handed in: ${why}` : `Not handed in: ${why} The ${ordinal(accepted + 1)} item of outputs was refused (each item takes what output does); send a corrected one for this step.`, ...(one.step.stage === "turn" && !MOVED_ON.has(one.rejected) ? { reply_format: one.step.reply_format, example_reply: one.step.example_reply, shapes: TURN_SHAPES } : {}), step: compactIf(one.step, args) },
+              data: { accepted: false, ok: false, accepted_count: accepted, outputs_sent: sent, filled, rejected: one.rejected, message: MOVED_ON.has(one.rejected) ? `Not handed in: ${why}` : `Not handed in: ${why} The ${ordinal(accepted + 1)} item of outputs was refused (each item takes what output does); ${NOTHING_USED.charAt(0).toLowerCase()}${NOTHING_USED.slice(1, -1)}, so send a corrected one for this step.`, ...(one.step.stage === "turn" && !MOVED_ON.has(one.rejected) ? { reply_format: one.step.reply_format, example_reply: one.step.example_reply, shapes: TURN_SHAPES } : {}), step: compactIf(one.step, args) },
               identity: who,
             };
           }
@@ -5863,7 +5870,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const why = REJECTION_WORDS[r.rejected] ?? r.rejected;
         // #438: out of turn, the fix is to wait, not to correct the reply. #420, #422: ok: false, and the format to follow. 2.8.0
         // (#648): a line another submission beat to its turn was fine too: it says it lost, and why (line_used: false).
-        const message = MOVED_ON.has(r.rejected) ? `Not handed in: ${why}` : `Not handed in: ${why} Send a corrected reply for the same step.`;
+        // #840: a refused line uses nothing up, and says so plainly (turn_used: false).
+        const message = MOVED_ON.has(r.rejected) ? `Not handed in: ${why}` : `Not handed in: ${why} ${NOTHING_USED} Send a corrected reply for the same step.`;
         return {
           data: {
             accepted: false,
@@ -5871,6 +5879,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             rejected: r.rejected,
             message,
             ...(r.rejected === "date_over" || r.rejected === RACED ? { line_used: false } : {}),
+            ...(!MOVED_ON.has(r.rejected) ? { turn_used: false } : {}),
             ...(!MOVED_ON.has(r.rejected) && r.step.stage === "turn" ? { reply_format: r.step.reply_format, example_reply: r.step.example_reply, shapes: TURN_SHAPES } : {}),
             ...(!MOVED_ON.has(r.rejected) && r.step.stage === "recap" ? { reply_format: r.step.reply_format } : {}),
             step: compactIf(r.step, args),
@@ -5901,7 +5910,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           const { already_your_move: _a, ...rest } = waited.data;
           if (_a) delete rest.note;
           if (rest.returned_because === "at_start") rest.returned_because = "new";
-          return { ...waited, data: { accepted: true, ...wishFields(r), ...doneIgnored, ...defaultsNote, ...rest } };
+          return { ...waited, data: { accepted: true, ...wishFields(r), ...movedFields(r), ...doneIgnored, ...defaultsNote, ...rest } };
         }
         return waited;
       }
@@ -5914,7 +5923,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ? { ...waitReport(waitPlan(args.wait_seconds), finished ? "new" : "at_start"), wait_note: finished ? "Nothing to wait for: your line was the date's last, and the date is done." : "Nothing to wait for: the next step is yours." }
           : {};
       const lastLine = finished ? { last_line: true, line_used: true, done_note: "Your line was the date's last: it's in (transcript has it), and the date is done. get_episode (summary: true) reads it back." } : {};
-      return { data: { accepted: true, ...lastLine, ...wishFields(r), ...doneIgnored, ...defaultsNote, ...noWait, step: compactIf(r.step, args) }, identity: who };
+      return { data: { accepted: true, ...lastLine, ...wishFields(r), ...movedFields(r), ...doneIgnored, ...defaultsNote, ...noWait, step: compactIf(r.step, args) }, identity: who };
     }
     case "wait_for_my_turn": {
       const who = resolveIdentity(args, session, false);
@@ -6016,8 +6025,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // start time airs only when someone opens it on /watch, so the pick may wait a long while. Said, not hidden.
       const when = !timing
         ? ""
-        : timing.airs === "watch_party" && !timing.airs_at
-          ? " only when someone opens its watch party room on /watch (it has no start time, so this pick may wait a long while; browse_episodes with open: true lists dates that air on their own)"
+        : waitsOnRoom(timing)
+          ? ` only when someone opens its watch party room on /watch (${timing.airs_at ? `its listed time, ${timing.airs_at}, has passed` : "it has no start time"}, so this pick may wait a long while; browse_episodes with open: true lists dates that air on their own)`
           : timing.airs === "due" ? " (its time has come: it airs on the next call anyone makes)" : timing.airs_at ? ` (${timing.airs === "scheduled" ? "at" : "no sooner than"} ${timing.airs_at})` : "";
       // 2.6.0 (the 2026-10-22-0042 run: "a bit more to go on"): what the pick could rest on, never the ending, and the prior.
       const context = (await predictionContext(db, [String(args.episode_id ?? "")]).catch(() => new Map<string, Record<string, unknown>>())).get(String(args.episode_id ?? ""));
@@ -7063,14 +7072,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const airs =
           !timing ? "on its own once it's finished"
           : timing.airs === "when_ready" ? `once it's finished, no sooner than ${timing.airs_at}`
-          : timing.airs === "watch_party" ? `in its watch party${timing.airs_at ? ` at ${timing.airs_at}` : ""}`
+          : timing.airs === "watch_party" ? `in its watch party${waitsOnRoom(timing) ? ", once someone opens its room on /watch" : ""}${timing.airs_at ? ` (listed for ${timing.airs_at})` : ""}`
           : timing.airs === "due" ? "now (its time has come: the next call anyone makes airs it)"
           : `on its own at ${timing.airs_at}`;
         const within = secondsLeft !== null && secondsLeft <= WAIT_MAX_SECONDS;
         const todo = within
           ? `plan_second_date with wait_seconds: ${WAIT_MAX_SECONDS} now waits for it, then says whether it can be booked and the cost (confirm: true books it in the same call)`
           : `call plan_second_date with wait_seconds: ${WAIT_MAX_SECONDS} once it's within ${WAIT_MAX_SECONDS} seconds of airing${at ? ` (from ${new Date(at.getTime() - WAIT_MAX_SECONDS * 1000).toISOString()})` : ""}, which waits for it, then previews (confirm: true books); preview: true says where it stands`;
-        const note = `It airs ${airs}${secondsLeft !== null && timing?.airs !== "due" ? `, in about ${secondsLeft} seconds` : ""}: ${todo}.`;
+        const note = `It airs ${airs}${secondsLeft !== null && timing?.airs !== "due" && !(timing && waitsOnRoom(timing)) ? `, in about ${secondsLeft} seconds` : ""}: ${todo}.`;
         const report = airWait ? waitReport(airWait, "timeout") : {};
         // 2.10.0 (#619's comment): a wait that ran out first says so plainly, why, and when to call again.
         const ranOut = airWait ? airWaitNote(timing, airWait) : null;

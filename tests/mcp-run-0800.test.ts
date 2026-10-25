@@ -461,7 +461,7 @@ describe("4. #663: one turn shape for output and outputs", () => {
     expect(r).toMatchObject({ accepted: false, ok: false, accepted_count: 1, outputs_sent: 2, shapes: TURN_SHAPES });
     expect(r.rejected).toContain(`A turn takes ${TURN_SHAPES}`);
     expect(r.rejected).toMatch(/This one came with "text"\.$/);
-    expect(r.message).toMatch(/The 2nd item of outputs was refused \(each item takes what output does\); send a corrected one for this step\.$/);
+    expect(r.message).toMatch(/The 2nd item of outputs was refused \(each item takes what output does\); nothing was used up: this turn is still yours, so send a corrected one for this step\.$/);
     expect(TURN_SHAPES).toBe('a bare string (just the line), {"dialogue": "…"} (action, emotion, interest_signal and, on a last line, see_again optional), {"line": "…"} or {"output": …}');
     // A single output refused the same way names them too.
     const single = (await call("submit_own_date_step", { episode_id: id, output: { words: "Hello." } }, ctx)).structuredContent;

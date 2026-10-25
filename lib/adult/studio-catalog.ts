@@ -316,6 +316,24 @@ export const cleanCustom = (s: string | undefined, max: number): string | undefi
   return t || undefined;
 };
 
+/**
+ * The Together tab's sections, each with the owner's own words on top of its chip (David, 2026-10-25: "a custom prompt
+ * to each field like we do for the shoot tab"), named the way the prompt reads them.
+ */
+export const PAIR_SECTIONS = { act: "what they're doing", outfit: "what they wear", framing: "framing", place: "place", light: "light" } as const;
+export type PairSection = keyof typeof PAIR_SECTIONS;
+export type PairExtra = Partial<Record<PairSection, string>>;
+
+/** A pair shoot's per-section words as one line for the prompt, like the Shoot tab's ("Also — place: …; light: …."). */
+export function pairExtraWords(extra: PairExtra | undefined): string {
+  const parts = (Object.keys(PAIR_SECTIONS) as PairSection[]).map((k) => {
+    const w = cleanCustom(extra?.[k], EXTRA_MAX);
+    return w ? `${PAIR_SECTIONS[k]}: ${w.replace(/[.\s]*$/, "")}` : "";
+  });
+  const said = parts.filter(Boolean);
+  return said.length ? `Also — ${said.join("; ")}.` : "";
+}
+
 /** What a shoot is held to: the highest level it may reach, its hard nos, and the options switched off. */
 export type ShootLimits = { maxLevel: Level; hardNos: readonly string[]; disabled: ReadonlySet<string>; pov: boolean; /** The Filthy intensity: Filthy's own options open. */ filthy?: boolean };
 

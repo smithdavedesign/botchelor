@@ -10,6 +10,9 @@ import { pausedUntil, reelFailureNote } from "@/lib/adult/reel-failure";
 import { REEL_STALLED_MS } from "@/lib/adult/reel-timing";
 import RateMedia from "./RateMedia";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
+import type { Trim } from "@/lib/adult/trim";
+import TrimPanel from "../../TrimPanel";
+import { trimStep } from "../../trimPlayback";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -396,6 +399,26 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
 
   // Each shot's copy in memory once it's fetched (by its place), so a cut doesn't wait on the network.
   const copies = useRef<string[]>([]);
+  // Each shot's trim (lib/adult/trim.ts), by video id: played from its start, over its cuts, to its end.
+  const [trims, setTrims] = useState<Record<string, Trim>>({});
+  const trimsRef = useRef(trims);
+  trimsRef.current = trims;
+  const [trimming, setTrimming] = useState(false);
+  // The shot that's already been sent on at its trimmed end (so the end isn't acted on twice).
+  const doneAt = useRef(-1);
+  useEffect(() => {
+    let live = true;
+    const ids = [...new Set(shots.map((s) => s.media_id).filter(Boolean))].join(",");
+    if (!ids) return;
+    fetch(`/api/admin/after-dark/media/trims?ids=${encodeURIComponent(ids)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { trims?: Record<string, Trim> } | null) => live && d?.trims && setTrims(d.trims))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
   // Preload: every shot as a blob in memory, behind the links it starts with.
   useEffect(() => {
     let cancelled = false;
@@ -513,7 +536,9 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
       next.load();
     }
     if (started && cur) {
-      cur.currentTime = 0;
+      // From the shot's trimmed start (lib/adult/trim.ts), or its beginning.
+      doneAt.current = -1;
+      cur.currentTime = trimsRef.current[shots[i]?.media_id ?? ""]?.start ?? 0;
       // A shot with its own voice plays that, not whatever sound the file has.
       cur.muted = Boolean(voices.current[i]);
       void cur.play().catch(() => setPlaying(false));
@@ -580,6 +605,40 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
     setStarted(true);
   }
 
+  /** Straight to shot k (David, 2026-10-25: "skip to the next one"): what's playing stops, k plays from its start. */
+  function go(k: number) {
+    if (!urls || k < 0 || k >= urls.length) return;
+    players.forEach((p) => p.current?.pause());
+    voices.current.forEach((v) => {
+      if (!v) return;
+      v.onended = null;
+      v.pause();
+      v.currentTime = 0;
+    });
+    setI(k);
+    setStarted(true);
+  }
+  /** The first shot of the next video, when several play back to back ("The whole night": their reels in turn). */
+  const nextVideo = (() => {
+    const here = shots[i]?.reel;
+    const k = shots.findIndex((s, j) => j > i && s.reel !== here);
+    return k > 0 ? k : null;
+  })();
+  const videos = new Set(shots.map((s) => s.reel)).size;
+  /** A trimmed shot at time t: over a part cut out, or on at its end (lib/adult/trim.ts). */
+  function honourTrim(video: HTMLVideoElement) {
+    const r = trimStep(trimsRef.current[shots[i]?.media_id ?? ""], video.currentTime);
+    if (!r) return;
+    if ("seek" in r) {
+      video.currentTime = r.seek;
+      return;
+    }
+    if (doneAt.current === i) return;
+    doneAt.current = i;
+    video.pause();
+    ended();
+  }
+
   // Theater: full screen where the browser allows it, and the overlay either way. Esc closes it.
   useEffect(() => {
     if (!theater) return;
@@ -616,6 +675,7 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
             // Before it plays: the first shot's keyframe, the picture it starts from (shots since 2026-10-22 keep its id).
             poster={!started && n === 0 && shots[0]?.frame_id ? mediaUrl(shots[0].frame_id) : undefined}
             onEnded={n === i % 2 ? ended : undefined}
+            onTimeUpdate={n === i % 2 ? (e) => honourTrim(e.currentTarget) : undefined}
             onPlay={(e) => {
               if (n !== i % 2) return;
               setPlaying(true);
@@ -653,14 +713,30 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
           <button type="button" className="theater-icon" onClick={restart} disabled={!ready} aria-label="From the start" title="From the start">
             ⏮
           </button>
+          {shots.length > 1 && (
+            <>
+              <button type="button" className="theater-icon" onClick={() => go(i - 1)} disabled={!ready || i === 0} aria-label="Previous shot" title="Previous shot">
+                ⏪
+              </button>
+              <button type="button" className="theater-icon" onClick={() => go(i + 1)} disabled={!ready || i >= shots.length - 1} aria-label="Next shot" title="Next shot">
+                ⏩
+              </button>
+            </>
+          )}
           <span className="ad-reel-count">
             {Math.min(i, shots.length - 1) + 1} / {shots.length}
           </span>
           {/* Every shot's copy is fetched behind the play (David: no buffering between shots): how far that's got. */}
           {loaded < shots.length && <span className="ad-reel-count ad-reel-preload">preloading {loaded}/{shots.length}</span>}
+          {videos > 1 && (
+            // Several videos back to back: straight to the next one's first shot.
+            <button type="button" className="ad-reel-theater-btn" onClick={() => nextVideo !== null && go(nextVideo)} disabled={!ready || nextVideo === null} title="Skip to the next video" aria-label="Next video">
+              ⏭<span className="ad-reel-btn-label"> Next video</span>
+            </button>
+          )}
           {!theater && (
-            <button type="button" className="ad-reel-theater-btn" onClick={() => setTheater(true)} disabled={!ready}>
-              🎬 Theater
+            <button type="button" className="ad-reel-theater-btn" onClick={() => setTheater(true)} disabled={!ready} aria-label="Theater">
+              🎬<span className="ad-reel-btn-label"> Theater</span>
             </button>
           )}
         </div>
@@ -703,6 +779,20 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
               {removing ? "Taking it out…" : "Remove this shot"}
             </button>
           )}
+          {onChange && (
+            // Trim it (lib/adult/trim.ts): its start, its end, parts cut out; nothing re-encoded.
+            <button
+              type="button"
+              className={`button-ghost small${trims[shot.media_id] ? " on" : ""}`}
+              aria-expanded={trimming}
+              onClick={() => {
+                players[i % 2].current?.pause();
+                setTrimming((v) => !v);
+              }}
+            >
+              ✂️ {trims[shot.media_id] ? "Trimmed" : "Trim"}
+            </button>
+          )}
           {onChange && shot.frame_id && (
             // Film it again from its own start picture (lib/adult/reels.ts refilmShot): its share of the price, back if it fails.
             <button type="button" className="button-ghost small" disabled={refilming} onClick={() => void refilm(shot)} title="Film this shot again from the same start picture">
@@ -715,6 +805,22 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
             </span>
           )}
         </figcaption>
+      )}
+      {ready && trimming && shot?.media_id && (
+        <TrimPanel
+          key={shot.media_id}
+          id={shot.media_id}
+          trim={trims[shot.media_id] ?? null}
+          duration={players[i % 2].current?.duration ?? NaN}
+          now={() => players[i % 2].current?.currentTime ?? 0}
+          onSaved={(t) =>
+            setTrims((x) => {
+              const { [shot.media_id!]: _old, ...rest } = x;
+              return t ? { ...rest, [shot.media_id!]: t } : rest;
+            })
+          }
+          onClose={() => setTrimming(false)}
+        />
       )}
     </figure>
   );

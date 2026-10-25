@@ -262,6 +262,22 @@ describe("a shoot together", () => {
     // Taboo in the owner's words is refused.
     expect((await post({ action: "pair", character_id: me.character, partner: house, act: "face_to_face", outfit: "nude", framing: "medium", place: "bedroom", custom: "she looks like a barely-legal schoolgirl teen" }, me.cookie)).status).toBe(422);
   });
+
+  it("takes the owner's words on each section too, like the Shoot tab (David, 2026-10-25)", async () => {
+    const me = await setup();
+    const house = HOUSE_CHARACTERS[0].id;
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ('face-h3', $1, $2, 'baseline', 'p', 'image/png', $3)`, [me.id, house, Buffer.from(PNG)]);
+    fakeHive();
+    const { edits } = fakeVenice();
+    const pair = { action: "pair", character_id: me.character, partner: house, act: "face_to_face", outfit: "nude", framing: "medium", place: "bedroom" };
+    const res = await post({ ...pair, extra: { light: "one candle.", place: "rain on the window" } }, me.cookie);
+    expect(res.status).toBe(200);
+    // In the sections' own order, named the way the prompt reads them.
+    expect(edits[0].prompt).toContain("Also — place: rain on the window; light: one candle.");
+    // A section the tab doesn't have is refused, and the words are held to the same lines as the rest.
+    expect((await post({ ...pair, extra: { hair: "long" } }, me.cookie)).status).toBe(422);
+    expect((await post({ ...pair, extra: { outfit: "a schoolgirl uniform, she's a teen" } }, me.cookie)).status).toBe(422);
+  });
 });
 
 describe("more like this, and upscale", () => {
@@ -443,6 +459,11 @@ describe("v3: setups, face strength and animate", () => {
     // A setup together keeps no partner and no place of their night.
     const pair = await (await post({ action: "save_setup", character_id: me.character, name: "Slow dance", kind: "pair", choices: { act: "dance", outfit: "dressed_up", framing: "wide", place: "night:0" } }, me.cookie)).json();
     expect(pair.setup.choices).toEqual({ act: "dance", outfit: "dressed_up", framing: "wide" });
+    // …and keeps the owner's own words, per section too.
+    const worded = { act: "dance", outfit: "dressed_up", framing: "wide", custom: "slow", extra: { light: "one candle" }, dialog: "stay" };
+    const kept = await (await post({ action: "save_setup", character_id: me.character, name: "Candle", kind: "pair", choices: worded }, me.cookie)).json();
+    expect(kept.setup.choices).toEqual(worded);
+    await post({ action: "delete_setup", character_id: me.character, setup_id: kept.setup.id }, me.cookie);
     // Run: the shoot with its choices.
     const shot = await (await post({ action: "shoot", character_id: me.character, choices: again.state.setups.find((x: { name: string }) => x.name === "Golden hour").choices }, me.cookie)).json();
     expect(shot.shoot.made).toBe(4);

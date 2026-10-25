@@ -6,13 +6,14 @@ import RateMedia from "@/app/after-dark/[a]/[b]/RateMedia";
 import { HARD_NOS, INTENSITIES, INTENSITY } from "@/lib/adult/limits";
 import type { Media } from "@/lib/adult/media";
 import type { PairMenu, Setup, Shoot, StudioState } from "@/lib/adult/studio";
-import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, LEVEL_LABEL, optionById, STRENGTHS, TRANSCRIPT_MAX, type GroupId, type Level, type ShootChoices } from "@/lib/adult/studio-catalog";
+import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, LEVEL_LABEL, optionById, PAIR_SECTIONS, STRENGTHS, TRANSCRIPT_MAX, type GroupId, type Level, type PairExtra, type PairSection, type ShootChoices } from "@/lib/adult/studio-catalog";
 // Openly-licensed (CC0/Apache-2.0/MIT) adult-portrait prompts, hard-filtered; an optional starting point the owner edits.
 import inspiration from "./inspiration.json";
 import { MediaRequest } from "../../MediaRequest";
 import MediaTags from "../../MediaTags";
 import Lightbox from "./Lightbox";
 import LocalTime from "../../LocalTime";
+import TrimmableClip from "../../TrimmableClip";
 
 /** A tile's time and a shoot's date, in the viewer's own clock (LocalTime.tsx: never on the server). */
 const TILE_TIME = { time: true, hour: "2-digit", minute: "2-digit" } as const;
@@ -35,7 +36,7 @@ const SHARE_STATUS: Record<string, string> = { pending: "asked", accepted: "acce
 /** How often the page asks after an animation still being made. */
 const POLL_MS = 20_000;
 
-type PairPick = { act: string; swap: boolean; outfit: string; framing: string; place: string; light: string; custom?: string; dialog?: string; reference?: string };
+type PairPick = { act: string; swap: boolean; outfit: string; framing: string; place: string; light: string; custom?: string; extra?: PairExtra; dialog?: string; reference?: string };
 const NO_PAIR_PICK: PairPick = { act: "", swap: false, outfit: "", framing: "medium", place: "", light: "" };
 
 /**
@@ -251,7 +252,17 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     } else {
       const ch = x.choices as Partial<Record<keyof PairPick, unknown>>;
       const str = (v: unknown) => (typeof v === "string" ? v : "");
-      setPairPick({ act: str(ch.act), swap: ch.swap === true, outfit: str(ch.outfit), framing: str(ch.framing) || "medium", place: str(ch.place), light: str(ch.light) });
+      setPairPick({
+        act: str(ch.act),
+        swap: ch.swap === true,
+        outfit: str(ch.outfit),
+        framing: str(ch.framing) || "medium",
+        place: str(ch.place),
+        light: str(ch.light),
+        custom: str(ch.custom) || undefined,
+        extra: ch.extra && typeof ch.extra === "object" ? (ch.extra as PairExtra) : undefined,
+        dialog: str(ch.dialog) || undefined,
+      });
       if (x.model && s.models.some((m) => m.id === x.model && m.job === "edit")) setEditModel(x.model);
       setTab("pair");
       if (!partner) setNote({ text: `"${x.name}" is on the Together tab: pick who with, then shoot.` });
@@ -355,7 +366,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             )}
             <div className="ad-studio-media">
               {video ? (
-                <video src={media(p.id)} controls playsInline preload="metadata" aria-label={`${c.name}, a clip`} />
+                // Plays its trim, and ✂️ trims it (lib/adult/trim.ts).
+                <TrimmableClip id={p.id} src={media(p.id)} trim={p.trim ?? null} canTrim label={`${c.name}, a clip`} />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media; not for next/image
                 <img src={media(p.id)} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" />
@@ -566,7 +578,35 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const pairOutfits = pairMenu ? pairMenu.outfits.filter((o) => !pairAct || pairAct.outfits.includes(o.id)) : [];
   const pairModels = editModels.filter((m) => m.max_images >= 2);
   const pairModel = pairModels.find((m) => m.id === editModel) ?? pairModels[0];
-  const chipRow = (items: { id: string; label: string; disabled?: boolean; title?: string }[], on: string, set: (id: string) => void) => (
+  /** The owner's own words for one Together section, on top of its chip (the Shoot tab's per-section box, for two). */
+  const pairOwn = (k: PairSection) => (
+    <input
+      className="ad-studio-own"
+      type="text"
+      maxLength={EXTRA_MAX}
+      value={pairPick.extra?.[k] ?? ""}
+      placeholder={`…or add your own ${PAIR_SECTIONS[k]}`}
+      disabled={Boolean(busy)}
+      onChange={(e) =>
+        setPairPick((x) => {
+          const extra = { ...(x.extra ?? {}) };
+          if (e.target.value.trim()) extra[k] = e.target.value;
+          else delete extra[k];
+          return { ...x, extra: Object.keys(extra).length ? extra : undefined };
+        })
+      }
+    />
+  );
+  /** What a Together shoot (or setup) sends of the owner's own words: only what's filled in. */
+  const pairWords = (x: PairPick) => {
+    const extra = Object.fromEntries(Object.entries(x.extra ?? {}).map(([k, v]) => [k, v?.trim()]).filter(([, v]) => v));
+    return {
+      ...(x.custom?.trim() ? { custom: x.custom.trim() } : {}),
+      ...(Object.keys(extra).length ? { extra } : {}),
+      ...(x.dialog?.trim() ? { dialog: x.dialog.trim() } : {}),
+    };
+  };
+  const chipRow = (items:{ id: string; label: string; disabled?: boolean; title?: string }[], on: string, set: (id: string) => void) => (
     <div className="ad-chip-row">
       {items.map((o) => (
         <button key={o.id} type="button" className={`ad-chip${on === o.id ? " on" : ""}`} aria-pressed={on === o.id} disabled={Boolean(busy) || o.disabled} title={o.title} onClick={() => set(on === o.id ? "" : o.id)}>
@@ -790,6 +830,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   pairPick.act,
                   (id) => setPairPick((x) => ({ ...x, act: id, outfit: "" })),
                 )}
+                {pairOwn("act")}
                 {pairAct && (
                   <>
                     <p className="muted small">{pairPick.swap ? pairAct.swapped : pairAct.says}</p>
@@ -806,6 +847,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   pairPick.outfit,
                   (id) => setPairPick((x) => ({ ...x, outfit: id })),
                 )}
+                {pairOwn("outfit")}
               </fieldset>
               <fieldset className="ad-studio-group">
                 <legend>Framing</legend>
@@ -814,6 +856,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   pairPick.framing,
                   (id) => setPairPick((x) => ({ ...x, framing: id })),
                 )}
+                {pairOwn("framing")}
               </fieldset>
               <fieldset className="ad-studio-group">
                 <legend>Place</legend>
@@ -822,6 +865,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   pairPick.place,
                   (id) => setPairPick((x) => ({ ...x, place: id })),
                 )}
+                {pairOwn("place")}
               </fieldset>
               <fieldset className="ad-studio-group">
                 <legend>Light</legend>
@@ -830,6 +874,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   pairPick.light,
                   (id) => setPairPick((x) => ({ ...x, light: id })),
                 )}
+                {pairOwn("light")}
               </fieldset>
               <fieldset className="ad-studio-group">
                 <legend>
@@ -871,8 +916,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                         framing: pairPick.framing,
                         place: pairPick.place,
                         light: pairPick.light || null,
-                        ...(pairPick.custom?.trim() ? { custom: pairPick.custom.trim() } : {}),
-                        ...(pairPick.dialog?.trim() ? { dialog: pairPick.dialog.trim() } : {}),
+                        ...pairWords(pairPick),
                         ...(pairPick.reference ? { reference: pairPick.reference } : {}),
                         model: pairModel?.id,
                         ...own,
@@ -885,7 +929,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 </button>
               </div>
               <p className="muted small">Pick what they&apos;re doing, what they wear, the framing and the place. Pictures of the two of them also land in their pair&apos;s gallery.</p>
-              {setupRow("pair", { act: pairPick.act || undefined, swap: pairPick.swap, outfit: pairPick.outfit || undefined, framing: pairPick.framing || undefined, place: pairPick.place || undefined, light: pairPick.light || null }, pairModel?.id)}
+              {setupRow("pair", { act: pairPick.act || undefined, swap: pairPick.swap, outfit: pairPick.outfit || undefined, framing: pairPick.framing || undefined, place: pairPick.place || undefined, light: pairPick.light || null, ...pairWords(pairPick) }, pairModel?.id)}
             </>
           )}
           {s.pair_gallery.length > 0 && (

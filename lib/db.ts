@@ -2266,6 +2266,9 @@ create table if not exists adult_media_tags (
 create index if not exists adult_media_tags_kind_idx on adult_media_tags (owner_id, kind, value) where not removed;
 alter table adult_images add column if not exists tagged_at timestamptz;
 alter table adult_images add column if not exists model_tagged_at timestamptz;
+-- A video's trim (lib/adult/trim.ts; David, 2026-10-25): where it starts and ends and the parts cut out, in seconds;
+-- the players honour it, nothing is re-encoded. Null: the whole clip.
+alter table adult_images add column if not exists trim jsonb;
 -- Who writes the scenes (lib/adult/writer-config.ts; David, 2026-10-24): the writers a person can pick and the default,
 -- as JSON; and each person's own pick (adult_prefs.writer_model, null: the default), which goes with their account.
 alter table adult_settings add column if not exists writer jsonb;

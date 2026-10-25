@@ -138,6 +138,8 @@ export function planPicture(
     limits: MediaLimits;
     light?: string;
     custom?: string;
+    /** The owner's words on single sections, already one line (studio-catalog.ts pairExtraWords). */
+    extra?: string;
     dialog?: string;
     /** Drawn like a picture they already have (Picture 3: its pose, framing and place). */
     reference?: boolean;
@@ -161,11 +163,11 @@ export function planPicture(
   const stage = Math.max(act.dress, outfit.dress);
   const frame = `${filled.pose} ${FRAMING_WORDS[choice.framing]}`;
   const prompt = (withSet: boolean) =>
-    keyframePrompt(ctx.cast as [ReelPerson, ReelPerson], frame, placeWords(where.place, ctx.cast), stage, withSet, { explicit: ctx.limits.explicit, clothes: outfit.words, light: ctx.light, custom: ctx.custom, dialog: ctx.dialog, reference: ctx.reference });
-  // Every word the choices put in front of a picture model, the owner's own (custom, dialog) included, held to David's
+    keyframePrompt(ctx.cast as [ReelPerson, ReelPerson], frame, placeWords(where.place, ctx.cast), stage, withSet, { explicit: ctx.limits.explicit, clothes: outfit.words, light: ctx.light, custom: ctx.custom, extra: ctx.extra, dialog: ctx.dialog, reference: ctx.reference });
+  // Every word the choices put in front of a picture model, the owner's own (custom, extra, dialog) included, held to David's
   // lines (the menu's words were written to them; this is the backstop). Not the prompt's own fixed words: "Make one
   // photograph" reads to the age check as "make [her] one", and it's right to be that strict.
-  const words = `${frame} ${outfit.words} ${placeWords(where.place, ctx.cast)} ${ctx.light ?? ""} ${ctx.custom ?? ""} ${ctx.dialog ?? ""}`;
+  const words = `${frame} ${outfit.words} ${placeWords(where.place, ctx.cast)} ${ctx.light ?? ""} ${ctx.custom ?? ""} ${ctx.extra ?? ""} ${ctx.dialog ?? ""}`;
   if (!checkAdultText({ words }).ok || crossesTaboo(words) || ctx.limits.hit(words)) return no("not_allowed", "That picture crosses one of the lines After Dark never crosses.");
   return { ok: true, plan: { promptFor: prompt, place: where.place, stage } };
 }

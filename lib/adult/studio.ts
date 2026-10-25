@@ -83,6 +83,7 @@ import {
   LEVEL_FOR_INTENSITY,
   LEVEL_LABEL,
   optionById,
+  pairExtraWords,
   planShoot,
   restylePrompt,
   shootPrompt,
@@ -93,6 +94,7 @@ import {
   variationPrompt,
   type AnimateSeconds,
   type Level,
+  type PairExtra,
   type Noun,
   type ShootChoices,
   type ShootLimits,
@@ -840,6 +842,8 @@ export type PairInput = {
   model?: string | null;
   own_key?: boolean;
   custom?: string;
+  /** The owner's own words on single sections, on top of their chips (the Shoot tab's `extra`, for two). */
+  extra?: PairExtra;
   dialog?: string;
   /** Shot like one of the pair's pictures (David, 2026-10-25: their dates' media "to shoot with"): its pose, framing and place, as Picture 3. */
   reference?: string;
@@ -867,7 +871,7 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
   const planned = planPicture(
     { act: input.act, swap: input.swap === true, outfit: input.outfit, framing: input.framing, place: where.place },
     // The owner's own words lead the picture too (David, 2026-10-24: the Together tab needs the Shoot tab's control); held to the lines by planPicture's own check.
-    { cast: p.cast, stage: limits.maxStage, places: places.map((x) => ({ place: x.place, now: false, public: x.public, home: null })), limits, light: light?.words, custom: cleanCustom(input.custom, CUSTOM_MAX), dialog: cleanCustom(input.dialog, DIALOG_MAX), reference: Boolean(input.reference) },
+    { cast: p.cast, stage: limits.maxStage, places: places.map((x) => ({ place: x.place, now: false, public: x.public, home: null })), limits, light: light?.words, custom: cleanCustom(input.custom, CUSTOM_MAX), extra: pairExtraWords(input.extra) || undefined, dialog: cleanCustom(input.dialog, DIALOG_MAX), reference: Boolean(input.reference) },
   );
   if (!planned.ok) return fail(planned.status, planned.error, planned.message);
   // A picture to shoot like: one of the owner's of these two (together, or one of them alone), ready, a still.
