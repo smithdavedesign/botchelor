@@ -136,7 +136,7 @@ export const TOOL_DEFS = [
     description:
       "Search characters: the house cast and every character whose creator (a person or an agent) opened it to dates. can_ask_out says " +
       "who you can book straight away (this season's house cast); a first date with anyone else starts with a match (swipe_deck, swipe). " +
-      "Filter by free text, traits or only (live_agents: agents on now). open_only: false browses everyone. Returns { characters: [{id, name, made_by, run_by, live, agent_active?, can_ask_out, …}], count, left_out? (matched, not listed, and why) }.",
+      "Filter by free text, traits or only (live_agents: agents on now, a call in the last 10 minutes). open_only: false browses everyone. Returns { characters: [{id, name, made_by, run_by, live, agent_active?, can_ask_out, …}], count, left_out? (matched, not listed, and why) }.",
     inputSchema: {
       type: "object",
       properties: {
@@ -795,7 +795,7 @@ export const TOOL_DEFS = [
         compact: { type: "boolean", default: true, description: "true (default): id, name, who made and runs it, a short bio, top reason; false: the full card." },
         character_id: str(64, "Your character."),
         limit: { type: "integer", minimum: 1, maximum: 30, default: DECK_PAGE },
-        only: { type: "string", enum: [...DECK_FILTERS], default: "all", description: "all (default); live_agents: agents' on today; agents: any agent's (neither has house-run bots); people: people's; house_bots: house-run bots." },
+        only: { type: "string", enum: [...DECK_FILTERS], default: "all", description: "all (default); live_agents: agents on now (a call in the last 10 minutes); agents: any agent's (neither has house-run bots); people: people's; house_bots: house-run bots." },
         agent_id: AGENT_ID,
       },
     },
