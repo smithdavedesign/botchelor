@@ -443,8 +443,8 @@ export function looksAppearance(l: Looks | undefined): string {
  * `own` says whether the picture is the owner's; the After Dark outfit wins over the show's. Realistic only: After
  * Dark never draws anime.
  */
-export function looksPictureWords(l: Looks | undefined, own: boolean): { body: string; outfit: string | null; undressed: string | null } {
-  if (!l?.gender) return { body: "", outfit: null, undressed: null };
+export function looksPictureWords(l: Looks | undefined, own: boolean): { body: string; outfit: string | null; everyday: string | null; undressed: string | null } {
+  if (!l?.gender) return { body: "", outfit: null, everyday: null, undressed: null };
   const g = l.gender;
   const body = [
     l.ethnicity ? optionLabel(pick("ethnicity", g, l.ethnicity)!, g).replace(" / Afro", "") : "",
@@ -462,10 +462,13 @@ export function looksPictureWords(l: Looks | undefined, own: boolean): { body: s
     .join(", ");
   // What shows only once they've undressed: the private grooming pick, in the owner's own pictures.
   const undressed = (own && detailWords("grooming", l.after_dark?.grooming)) || null;
-  const adOutfit = own ? pick("outfit", g, l.after_dark?.outfit, true) : undefined;
-  if (adOutfit) return { body, outfit: adOutfit.id === "nude" ? null : optionPrompt(adOutfit, g), undressed };
   const outfit = pick("outfit", g, l.outfit);
-  return { body, outfit: outfit ? optionPrompt(outfit, g) : null, undressed };
+  // What they wear out (the show's pick): out in public, or before anything's started, After Dark's outfit (lingerie)
+  // would be wrong (David, 2026-10-25: "if they were just at a bar they wouldn't be in underwear").
+  const everyday = outfit ? optionPrompt(outfit, g) : null;
+  const adOutfit = own ? pick("outfit", g, l.after_dark?.outfit, true) : undefined;
+  if (adOutfit) return { body, outfit: adOutfit.id === "nude" ? null : optionPrompt(adOutfit, g), everyday, undressed };
+  return { body, outfit: everyday, everyday, undressed };
 }
 
 /* ---------------------------------------------- the tiles ---------------------------------------------- */

@@ -171,6 +171,19 @@ export function libraryVenueFor(label: string | null | undefined): string | null
   return null;
 }
 
+/**
+ * What a library venue puts them in, when they're at one: its own words ("an awkward double date with a smug couple who
+ * finish each other's sentences"), from a set label naming it or a date's venue id. A venue's name alone ("An awkward
+ * double date") lost the smug couple (David, 2026-10-25: "neither mention two others with them"). Null for anywhere else,
+ * and for one of their homes (the home's own name says it).
+ */
+export function venueSituation(labelOrId: string | null | undefined): string | null {
+  if (!labelOrId) return null;
+  const id = libraryVenueFor(labelOrId) ?? labelOrId;
+  const v = [...DATE_VENUES, ...EXTRA_VENUES].find((x) => x.id === id);
+  return v && v.id !== "home" && v.id !== "elsewhere" ? v.prompt : null;
+}
+
 /** The whole catalog: the library, the scenarios, the ideas, then the drawn sets nothing above already covers. */
 export function sceneCatalog(drawn: readonly string[] = []): CatalogScene[] {
   const out: CatalogScene[] = [];
