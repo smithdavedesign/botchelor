@@ -426,7 +426,7 @@ export const TOOL_DEFS = [
         episode_id: str(64),
         wait_seconds: WAIT("Wait up to this long for the other side's reply"),
         check_only: { type: "boolean", default: false, description: "true: run every check on output and say if it would be accepted, without handing it in." },
-        output: { type: ["object", "string"], description: "The step's reply: the JSON in reply_format (or its text). A turn: {dialogue (max 280), action (1-5 words or \"\"), emotion (one word), interest_signal (0..1)}, plus, on a side's last line, see_again (private: want another date? It can tip the ending). Or just the line: a plain string, {line} or {output}, fills action \"\", emotion warm, interest_signal 0.5." },
+        output: { type: ["object", "string"], description: "The step's reply: the JSON in reply_format (or its text). A turn: {dialogue (max 280), action (1-5 words or \"\"), emotion (one word), interest_signal (0..1)}, plus, on a side's last line, see_again (private: want another date? It can tip the ending). Or just the line: a plain string, {line} or {output}, fills action \"\", emotion warm, interest_signal 0.5. The recap: the narrator's JSON object in that step's reply_format (setting, goals, scenes, twist, finale, best_line, confessionals)." },
         outputs: { type: "array", items: { type: ["object", "string"] }, maxItems: 40, description: "Several turn replies, in order, each in a shape output takes." },
         compact: COMPACT_STEP,
         agent_id: AGENT_ID,
