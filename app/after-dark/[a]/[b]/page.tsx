@@ -11,6 +11,7 @@ import { listReels } from "@/lib/adult/reels";
 import { hiveNotice } from "@/lib/adult/hive-limit";
 import { listNights, openScene } from "@/lib/adult/scenes";
 import { getAdultSettings } from "@/lib/adult/settings";
+import { sceneCatalog } from "@/lib/adult/scene-catalog";
 import { studioAccess } from "@/lib/adult/studio";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
@@ -24,7 +25,8 @@ import { currentHere } from "../../view";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "After dark · Botchelor", robots: { index: false, follow: false } };
 
-type Props = { params: Promise<{ a: string; b: string }>; searchParams: Promise<{ play?: string }> };
+// `?play=1` links still work: the page opens on the theater either way.
+type Props = { params: Promise<{ a: string; b: string }>; searchParams?: Promise<{ play?: string }> };
 
 const refOf = (id: string, name: string, c: PublicCharacter | null): CharacterRef => ({
   id,
@@ -35,9 +37,8 @@ const refOf = (id: string, name: string, c: PublicCharacter | null): CharacterRe
 });
 
 /** Two of this season's cast, after dark. Not found for anyone but the admin, or for any other pair (lib/adult). */
-export default async function AfterDarkScenePage({ params, searchParams }: Props) {
+export default async function AfterDarkScenePage({ params }: Props) {
   const { a, b } = await params;
-  const { play } = await searchParams;
   const db = await getDb();
   const admin = await adultViewerFromCookies(db, await cookies());
   if (!admin) notFound();
@@ -75,7 +76,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         initial={scene}
         gallery={await listMedia(db, [scene.a.id, scene.b.id], admin)}
         characters={characters}
-        play={play === "1"}
+        scenes={sceneCatalog((await db.query<{ label: string }>(`select label from place_sets where status = 'ready' order by updated_at desc limit 300`)).rows.map((r) => r.label))}
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}
         reelTokens={(await getAdultSettings(db)).reel_tokens}
@@ -85,23 +86,27 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         textOnly={here.mode === "text_only" ? here.reason : null}
         writer={await writerOptions(db, admin)}
         admin={await isAdmin(db, admin)}
+        panels={
+          <>
+            {/* Two sides of the night (lib/adult/monologues.ts): each one's inner monologue of one of the viewer's whole nights. */}
+            <TwoSidesPanel a={scene.a} b={scene.b} />
+            {(await isAdmin(db, admin)) && (
+              // Admins' tools in one fold (2026-10-25: "too much going on"): why each line was written, and Shorts.
+              <details className="ad-panel ad-admin-tools">
+                <summary>🛠 Admin</summary>
+                {/* The writer's private notes on every line (why it was said, the memory it drew on): admins only, never on stage. */}
+                <p className="muted small">
+                  <a href={`/api/admin/after-dark/why?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`} target="_blank" rel="noreferrer">
+                    Why each line was written (JSON)
+                  </a>
+                </p>
+                {/* Publish a night as a Short (lib/adult/shorts.ts): two of the season's house cast only. */}
+                {(await housePair(db, scene.a.id, scene.b.id)) && <ShortsPanel a={scene.a} b={scene.b} />}
+              </details>
+            )}
+          </>
+        }
       />
-      {/* Two sides of the night (lib/adult/monologues.ts): each one's inner monologue of one of the viewer's whole nights. */}
-      <TwoSidesPanel a={scene.a} b={scene.b} />
-      {(await isAdmin(db, admin)) && (
-        // Admins' tools in one fold (2026-10-25: "too much going on"): why each line was written, and Shorts.
-        <details className="ad-panel ad-admin-tools">
-          <summary>🛠 Admin</summary>
-          {/* The writer's private notes on every line (why it was said, the memory it drew on): admins only, never on stage. */}
-          <p className="muted small">
-            <a href={`/api/admin/after-dark/why?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`} target="_blank" rel="noreferrer">
-              Why each line was written (JSON)
-            </a>
-          </p>
-          {/* Publish a night as a Short (lib/adult/shorts.ts): two of the season's house cast only. */}
-          {(await housePair(db, scene.a.id, scene.b.id)) && <ShortsPanel a={scene.a} b={scene.b} />}
-        </details>
-      )}
     </article>
     </div>
   );

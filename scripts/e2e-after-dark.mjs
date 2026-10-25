@@ -132,10 +132,13 @@ async function main() {
         scenePath = (await start.getAttribute("href")) ?? "";
         assert(scenePath.startsWith("/after-dark/"), `picking two should show the way in (got ${scenePath || "none"})`);
         await start.click();
-        await page.locator("#after-dark-direction").fill("they share a cab home");
-        await page.locator(".after-dark-form button[type=submit]").click();
-        await page.locator(".after-dark-lines").getByText(SAFE[1]).waitFor({ timeout: 30_000 });
-        const text = await page.locator(".after-dark-lines").innerText();
+        // The page opens on the theater, the only place the scene is watched and written (2026-10-25).
+        const bar = page.locator(".ad-theater-bar");
+        await bar.getByRole("textbox", { name: "Steer it (optional)" }).fill("they share a cab home");
+        await bar.getByRole("button", { name: "Next" }).click();
+        await page.locator(".theater .chat-thread").getByText(SAFE[1]).waitFor({ state: "attached", timeout: 30_000 });
+        assert((await page.locator(".after-dark-lines, .after-dark-form").count()) === 0, "the page's own lines and form are gone");
+        const text = await page.locator(".theater .chat-thread").textContent();
         assert(text.includes(SAFE[0]), "the first line should show");
         assert(!text.includes("fifteen"), "the line about a minor must be dropped");
       } finally {
@@ -153,16 +156,20 @@ async function main() {
           await page.setViewportSize(viewport);
           await page.goto(`${base}${scenePath}?play=1`);
           const bar = page.locator(".ad-theater-bar");
+          // 📖 the chapter in the top bar; 📍 Set the scene opens the picker, which filters by category.
+          await page.locator(".theater .ad-chapter-chip").getByText("Chapter").waitFor({ timeout: 10_000 });
+          await page.locator(".theater .ad-set-scene").click();
+          const picker = page.getByRole("dialog", { name: "Set the scene" });
+          assert((await picker.locator(".ad-scene-card").count()) > 40, "the scene picker should show every place");
+          await picker.getByRole("radio", { name: /Fantasy/ }).click();
+          const fantasy = await picker.locator(".ad-scene-card").count();
+          assert(fantasy > 0 && fantasy < 15, `the Fantasy category should narrow the cards (${fantasy})`);
+          if (process.env.SHOTS_DIR) await page.screenshot({ path: join(process.env.SHOTS_DIR, `after-dark-set-scene-${viewport.width}.png`) });
+          await picker.getByRole("button", { name: "Close" }).click();
           await bar.getByRole("radio", { name: "Direct" }).check();
           await bar.getByRole("textbox", { name: "Steer it (optional)" }).fill("they kiss in the doorway");
-          // On a phone, ⏭ is under the toolbar's "⋯" (AfterDarkTheater.tsx).
-          const more = page.locator(".theater .ad-tools-toggle");
-          if (await more.isVisible()) await more.click();
-          // Catch up is in the theater's ⋯ (folded on every screen); the menu closes again after.
-          const tools = page.locator(".theater").getByRole("button", { name: "More tools" });
-          await tools.click({ timeout: 5_000 }).catch(() => {});
-          await page.locator(".theater").getByRole("button", { name: "Catch up" }).click({ timeout: 5_000 }).catch(() => {});
-          await tools.click({ timeout: 5_000 }).catch(() => {});
+          // Catch up is with the player's controls, bottom right.
+          await page.locator(".theater .ad-player").getByRole("button", { name: "Catch up" }).click();
           const sent = page.waitForRequest((r) => r.url().endsWith("/api/admin/after-dark") && r.method() === "POST");
           await bar.getByRole("button", { name: "Next" }).click();
           const body = JSON.parse((await sent).postData() ?? "{}");
@@ -176,8 +183,8 @@ async function main() {
     });
 
     // The stub writes the same lines every time, so the second step brings nothing new and autoplay stops by itself.
-    await step("autoplay writes the scene with no button pressed, on the page and in the theater, and stops by itself", async () => {
-      for (const theater of [false, true]) {
+    await step("autoplay writes the scene with no button pressed in the theater, and stops by itself", async () => {
+      for (const theater of [true]) {
         const ctx = await adultContext();
         try {
           await register(ctx, `auto${theater ? "t" : "p"}${Date.now() % 1e6}`);
@@ -187,10 +194,10 @@ async function main() {
           page.on("request", (r) => {
             if (r.url().endsWith("/api/admin/after-dark") && r.method() === "POST") posts++;
           });
-          await page.goto(`${base}${scenePath}${theater ? "?play=1" : ""}`);
-          const bar = theater ? ".ad-theater-bar" : ".after-dark-form";
+          await page.goto(`${base}${scenePath}`);
+          const bar = ".ad-theater-bar";
           await page.locator(bar).getByRole("checkbox", { name: "Autoplay" }).check();
-          await page.locator(theater ? ".theater" : ".after-dark-lines").getByText(SAFE[1]).first().waitFor({ timeout: 30_000 });
+          await page.locator(".theater .chat-thread").getByText(SAFE[1]).first().waitFor({ state: "attached", timeout: 30_000 });
           await page.waitForFunction((sel) => !document.querySelector(sel)?.checked, `${bar} input[type=checkbox]`, { timeout: 30_000 });
           const stopped = posts;
           await page.waitForTimeout(6_000);
@@ -216,13 +223,13 @@ async function main() {
         await ctx.request.post(`${base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } });
         const page = await ctx.newPage();
         await page.goto(`${base}${scenePath}`);
-        await page.locator(".after-dark-form button[type=submit]").click();
-        await page.locator(".after-dark-lines").getByText(SAFE[1]).waitFor({ timeout: 30_000 });
-        assert((await page.locator(".after-dark-form .ad-suggestion").count()) === 3, "three suggested next moves should show under the lines");
-        // Rewind is in the steer bar's ⋯ More (folded on every screen).
-        await page.locator(".after-dark-form").getByRole("button", { name: "⋯ More" }).click();
-        await page.locator(".after-dark-form").getByRole("button", { name: "↺ Rewind" }).click();
-        await page.getByText("Nothing yet. Write the first lines, or steer it first.").waitFor({ timeout: 15_000 });
+        await page.locator(".ad-theater-bar").getByRole("button", { name: "Next" }).click();
+        await page.locator(".theater .chat-thread").getByText(SAFE[1]).waitFor({ state: "attached", timeout: 30_000 });
+        assert((await page.locator(".ad-theater-bar .ad-suggestion").count()) === 3, "three suggested next moves should show in the theater");
+        // Rewind is in the theater's ⋯.
+        await page.locator(".theater").getByRole("button", { name: "More tools" }).click();
+        await page.locator(".theater").getByRole("button", { name: "↺ Rewind" }).click();
+        await page.locator(".theater").getByText("Press Next to begin.").waitFor({ timeout: 15_000 });
       } finally {
         await ctx.close();
       }
@@ -235,12 +242,17 @@ async function main() {
         await ctx.request.post(`${base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } });
         const page = await ctx.newPage();
         await page.goto(`${base}${scenePath}`);
-        await page.locator("#after-dark-direction").fill("they go back to hers");
-        await page.locator(".after-dark-form button[type=submit]").click();
-        await page.locator(".after-dark-lines").getByText(SAFE[1]).waitFor({ timeout: 30_000 });
-        if (!(await page.locator(".ad-more.open").count())) await page.locator(".after-dark-form").getByRole("button", { name: "⋯ More" }).click();
-        await page.locator(".after-dark-form").getByRole("button", { name: "Start over" }).click();
-        await page.getByText("Nothing yet. Write the first lines, or steer it first.").waitFor({ timeout: 15_000 });
+        const bar = page.locator(".ad-theater-bar");
+        await bar.getByRole("textbox", { name: "Steer it (optional)" }).fill("they go back to hers");
+        await bar.getByRole("button", { name: "Next" }).click();
+        await page.locator(".theater .chat-thread").getByText(SAFE[1]).waitFor({ state: "attached", timeout: 30_000 });
+        await page.locator(".theater").getByRole("button", { name: "More tools" }).click();
+        await page.locator(".theater").getByRole("button", { name: "Start over" }).click();
+        await page.locator(".theater").getByText("Press Next to begin.").waitFor({ timeout: 15_000 });
+        // The night that ran is a saved chapter now: 📖 plays it again over the theater.
+        await page.locator(".theater .ad-chapter-chip").click();
+        await page.locator(".ad-chapter-menu button.ad-chapter-item").first().click();
+        assert((await page.locator(".theater").count()) === 2, "a saved chapter should play over the theater");
       } finally {
         await ctx.close();
       }

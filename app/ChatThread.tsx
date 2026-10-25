@@ -104,7 +104,7 @@ export default function ChatThread({ characters, turns, typing = null, challenge
             {newAct && <p className="chat-act">{DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}</p>}
             {newAct && t.act === 1 && challenge && <p className="chat-note">🎬 {challenge}</p>}
             <div className={`chat-row chat-row-${t.side}`}>
-              <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={30} />
+              <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} photoSrc={c.photo} size={30} />
               <div className="chat-col">
                 {named && <span className="chat-name">{c.name}</span>}
                 <p className="chat-bubble">{t.dialogue}</p>
@@ -126,7 +126,7 @@ export default function ChatThread({ characters, turns, typing = null, challenge
       })}
       {typing && (
         <div className={`chat-row chat-row-${typing} chat-typing-row`} aria-label={`${who(typing).name} is typing`}>
-          <Avatar seed={who(typing).id} name={who(typing).name} hue={who(typing).hue} house={who(typing).house} portraitSrc={who(typing).portrait} size={30} />
+          <Avatar seed={who(typing).id} name={who(typing).name} hue={who(typing).hue} house={who(typing).house} portraitSrc={who(typing).portrait} photoSrc={who(typing).photo} size={30} />
           <div className="chat-col">
             <p className="chat-bubble chat-typing" aria-hidden>
               <span />

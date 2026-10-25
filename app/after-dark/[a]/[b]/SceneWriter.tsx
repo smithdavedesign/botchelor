@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
@@ -9,6 +9,7 @@ import type { PublicBeat } from "@/lib/adult/beats";
 import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkTheater from "./AfterDarkTheater";
+import type { CatalogScene } from "@/lib/adult/scene-catalog";
 import Limits from "./Limits";
 import Memory from "./Memory";
 import Profile from "./Profile";
@@ -16,13 +17,10 @@ import Scenarios from "./Scenarios";
 import Link from "next/link";
 import Reels, { stopReel } from "./Reels";
 import Storyboard from "./Storyboard";
-import ListenLines from "./Listen";
 import MediaMenu from "./MediaMenu";
-import Avatar from "@/app/Avatar";
 import type { BusyReel, Reel, ReelScope } from "@/lib/adult/reels";
 import { runningNight } from "@/lib/adult/nights";
-import { AUTOPLAY_PAGE_PAUSE_MS, autoplayStop } from "@/lib/adult/autoplay";
-import type { Heat } from "@/lib/adult/director";
+import { autoplayStop } from "@/lib/adult/autoplay";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 import { hiveNoticeText, type HiveNotice } from "@/lib/adult/hive-notice";
@@ -30,7 +28,6 @@ import CharacterName from "@/app/CharacterName";
 import FacesPanel, { type Faces } from "./Faces";
 import type { SteerSummary } from "@/lib/adult/steering";
 import RateMedia from "./RateMedia";
-import WriterPicker from "../../WriterPicker";
 import type { WriterOptions } from "@/lib/adult/writer";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import MediaTags from "../../MediaTags";
@@ -41,15 +38,15 @@ import TrimmableClip from "../../TrimmableClip";
 const NIGHT_DAY = { month: "short", day: "numeric" } as const;
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
-/** The suggested next moves' labels (lib/adult/director.ts): one per heat. */
-const HEAT_LABEL: Record<Heat, string> = { mild: "Surprise me", flirty: "Flirt", spicy: "Spicy" };
-
-/** The scene so far, the way to write more (a few lines at a time, with an optional steer), and the gallery. */
+/**
+ * The pair's night: the theater (AfterDarkTheater.tsx), open from the start and the only place the scene is watched and
+ * written (David, 2026-10-25: "remove the dialog and this section… force them to watch in theaters"), then what's kept
+ * under it: their pictures, videos and saved nights, and how the night is set up.
+ */
 export default function SceneWriter({
   initial,
   gallery: firstGallery,
   characters,
-  play = false,
   nights = [],
   reels = [],
   reelTokens = 15,
@@ -59,12 +56,12 @@ export default function SceneWriter({
   textOnly = null,
   writer = null,
   admin = false,
+  scenes = [],
+  panels = null,
 }: {
   initial: AdultScene;
   gallery: Media[];
   characters: [CharacterRef, CharacterRef];
-  /** Open straight into the theater (`?play=1`). */
-  play?: boolean;
   /** Their saved nights (each Start over files the scene that ran), newest first. */
   nights?: AdultNight[];
   /** Their videos of the night, and what one costs in tokens (lib/adult/reels.ts). */
@@ -82,6 +79,10 @@ export default function SceneWriter({
   writer?: WriterOptions | null;
   /** An admin: each picture's, clip's and shot's title opens what made it (app/after-dark/MediaRequest.tsx). */
   admin?: boolean;
+  /** Every place Set the scene can pick (lib/adult/scene-catalog.ts sceneCatalog). */
+  scenes?: readonly CatalogScene[];
+  /** The page's own folds (Two sides of the night, Admin): with Set up the night, above the long media section. */
+  panels?: ReactNode;
 }) {
   // Shown until the pause is over, then the buttons come back (the next one probes Hive first).
   const [hivePause, setHivePause] = useState(hive);
@@ -118,21 +119,12 @@ export default function SceneWriter({
     if (!res.ok) return setReelNote({ text: res.message, error: true, busy: (res.data.busy as BusyReel | undefined) ?? undefined });
     setStoryboard(res.data.reel as Reel);
   }
-  const [theater, setTheater] = useState(play);
+  // The theater is where the night is watched: open from the start (`play` stays for old ?play=1 links).
+  const [theater, setTheater] = useState(true);
   // A steer is a nudge by default (worked toward at the scene's own pace); direct does it now.
   const [steerMode, setSteerMode] = useState<"nudge" | "direct">("nudge");
   // Or the words go to one of them only, as a whisper (lib/adult/director.ts): their secret, not the other's.
   const [whisperTo, setWhisperTo] = useState<"a" | "b" | null>(null);
-  // Whether the end of the lines is on screen: the skip-to-bottom button shows only when it isn't.
-  const endRef = useRef<HTMLSpanElement>(null);
-  const [atEnd, setAtEnd] = useState(true);
-  useEffect(() => {
-    const el = endRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(([e]) => setAtEnd(e.isIntersecting), { rootMargin: "0px 0px 120px 0px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
   const [nightList, setNightList] = useState(nights);
   const [watching, setWatching] = useState<AdultNight | null>(null);
   const [scene, setScene] = useState(initial);
@@ -160,21 +152,13 @@ export default function SceneWriter({
     });
     return null;
   }
-  const [direction, setDirection] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const crisisNotice = crisis ? <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} /> : null;
-  // Autoplay (lib/adult/autoplay.ts): one switch for the page and the theater. Each paces its own steps.
+  // Autoplay (lib/adult/autoplay.ts): the theater paces it by what's left to play.
   const [autoplay, setAutoplay] = useState(false);
-  // Rewind, Redo and Start over: in a "⋯ More" fold on a phone (the sticky bar took 400px), always out on a wider screen.
-  const [more, setMore] = useState(false);
   const writing = useRef(false);
-  const pause = useRef(0);
-  function switchAutoplay(on: boolean) {
-    pause.current = 0;
-    setAutoplay(on);
-  }
   // The pair is stored either way round: the same two characters, in any order.
   const isThisPair = (r: BusyReel) => new Set([r.a, r.b, scene.a.id, scene.b.id]).size === 2;
   const nameOf = (who: "a" | "b") => (who === "a" ? scene.a.name : scene.b.name).split(/\s+/)[0];
@@ -254,7 +238,6 @@ export default function SceneWriter({
       setAutoplay(false);
       parts.push(stop);
     }
-    pause.current = AUTOPLAY_PAGE_PAUSE_MS;
     if (parts.length) setNote({ text: parts.join(" ") });
     return true;
   }
@@ -276,44 +259,46 @@ export default function SceneWriter({
       setNote({ text: `📸 ${beat.label}: drawing it now. It lands in the gallery below in a minute or so.` });
     }
   }
-  // The moment the page is waiting on: the first offered, unanswered (the page shows every line at once).
-  const offered = (scene.beats ?? []).find((x) => x.status === "offered") ?? null;
 
-  // Autoplay on the page (the theater paces it by what's left to play): a pause to read, then the next lines. Not while
-  // the tab is hidden, so a forgotten tab doesn't write all night. A moment offered for a picture waits for its answer.
-  useEffect(() => {
-    if (!autoplay || theater || watching || busy || offered) return;
-    const step = () => {
-      if (document.visibilityState === "hidden") return document.addEventListener("visibilitychange", step, { once: true });
-      void send({});
-    };
-    const timer = setTimeout(step, pause.current);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("visibilitychange", step);
-    };
-    // send is a fresh closure each render; the scene it writes from changes with `busy`.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoplay, theater, watching, busy, offered]);
-  // Following along: while the end is in view, each step's new lines scroll in.
-  const lineCount = scene.lines.length;
-  useEffect(() => {
-    if (autoplay && !theater && atEnd) endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineCount]);
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    const words = direction.trim();
-    // A refused steer or whisper stays in the box, to be reworded.
-    if (await send(!words ? {} : whisperTo ? { whisper: { to: whisperTo, text: words } } : { direction: words, steer_mode: steerMode })) setDirection("");
-  }
+  /** The theater's Next: a steer, a whisper to one of them, or just the next lines. Whether it went through. */
+  const write = (words: string) => send(!words ? {} : whisperTo ? { whisper: { to: whisperTo, text: words } } : { direction: words, steer_mode: steerMode });
   const other = (who: "a" | "b") => (who === "a" ? "b" : "a");
   const lastAsked = scene.rewind?.last;
   const redoTitle = lastAsked
     ? `Take the last step back and write it again${lastAsked.direction ? `, steered the same way (${lastAsked.steer_mode}): "${lastAsked.direction}"` : ""}${lastAsked.whisper ? `, with the same whisper to ${nameOf(lastAsked.whisper.to)}` : ""}`
     : "Nothing to redo yet";
   const whispers = (["a", "b"] as const).filter((who) => scene.whispers?.[who]);
+  // The face each keeps for this viewer (Faces.tsx), as their avatar: a realistic headshot, like the videos (David,
+  // 2026-10-25). With none yet, their latest picture alone; else the drawn portrait.
+  const photoOf = (id: string) => {
+    const kept = faces[id]?.image_id;
+    if (kept) return mediaUrl(kept);
+    const own = gallery.find((m) => m.character_id === id && !m.character_b && m.kind === "baseline" && !m.nude && m.status === "ready");
+    return own ? mediaUrl(own.id) : null;
+  };
+  const cast = characters.map((c) => ({ ...c, photo: textOnly ? null : photoOf(c.id) })) as [CharacterRef, CharacterRef];
+  const whisperChips =
+    whispers.length > 0 ? (
+      <p className="ad-whispers">
+        {whispers.map((who) => (
+          <span
+            key={who}
+            className="ad-whisper-chip"
+            title={`Only ${nameOf(who)} knows this; ${nameOf(other(who))} doesn't. It shapes the next ${scene.whispers[who]!.steps_left === 1 ? "step" : `${scene.whispers[who]!.steps_left} steps`}.`}
+          >
+            <span className="ad-whisper-who">
+              🤫 <CharacterName character={who === "a" ? cast[0] : cast[1]} label={nameOf(who)} link={false} size={18} />:
+            </span>{" "}
+            <q>{scene.whispers[who]!.text}</q>
+            <button type="button" className="ad-whisper-forget" aria-label={`Forget the whisper to ${nameOf(who)}`} disabled={busy} onClick={() => void send({ forget_whisper: who })}>
+              ×
+            </button>
+          </span>
+        ))}
+      </p>
+    ) : null;
+  const chapterList = nightList.map((n) => ({ id: n.id, chapter: n.chapter, lines: n.lines.length, created_at: n.created_at, place: n.place }));
 
   return (
     // An admin: every media title under it opens what made it (app/after-dark/MediaRequest.tsx).
@@ -339,23 +324,40 @@ export default function SceneWriter({
             }}
           />
         )}
-        <p>
+        {/* Exit leaves the theater for the pictures, videos and set-up below; the scene itself is only watched in it. */}
+        <div className="ad-theater-return">
           <button type="button" className="primary" onClick={() => setTheater(true)}>
-            🎬 Watch in theater
+            🎬 Back to the theater
           </button>
-        </p>
+          <span className="muted small">
+            {scene.chapter > 1 ? `Chapter ${scene.chapter}. ` : ""}
+            {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[scene.stage] ?? STAGES[0]}.
+            {scene.chapter > SOFT_CHAPTERS ? ` This night has run ${scene.chapter - 1} chapters: Start over (in the theater's ⋯) files it, and the next night begins fresh.` : ""}
+          </span>
+        </div>
+        {note && !theater && (
+          <p className={note.error ? "error ad-note-error" : "muted small"} role={note.error ? "alert" : "status"}>
+            {note.text}
+          </p>
+        )}
+        {!theater && crisisNotice}
         {theater && (
           <AfterDarkTheater
             scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null, set: scene.set_place, chapter: scene.chapter }}
-            characters={characters}
+            characters={cast}
             busy={busy}
             note={note?.text ?? null}
-            onWrite={async (d) => void (await send(d ? { direction: d, steer_mode: steerMode } : {}))}
+            onWrite={write}
             steerMode={steerMode}
             onSteerMode={setSteerMode}
+            whisperTo={whisperTo}
+            onWhisperTo={setWhisperTo}
+            whispers={whisperChips}
             autoplay={autoplay}
-            onAutoplay={switchAutoplay}
+            onAutoplay={setAutoplay}
             onSetScene={async (place) => void (await send({ set_scene: place }))}
+            scenes={scenes}
+            onScenario={async (id) => void (await send({ scenario: id }))}
             suggestions={scene.suggestions}
             onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
             beats={textOnly ? [] : (scene.beats ?? [])}
@@ -372,180 +374,28 @@ export default function SceneWriter({
             videoNote={reelNote?.text ?? null}
             mediaPaused={mediaPaused}
             feedbackRef={scene.id}
+            steps={{
+              canRewind: Boolean(scene.rewind?.depth),
+              redoTitle,
+              canReset: scene.lines.length > 0,
+              onRewind: () => void send({ rewind: true }),
+              onRedo: () => void send({ redo: true }),
+              onReset: () => void send({ reset: true }),
+            }}
+            chapters={chapterList}
+            onReplayChapter={(id) => setWatching(nightList.find((n) => n.id === id) ?? null)}
             onExit={() => setTheater(false)}
             crisis={crisisNotice}
           />
         )}
-        {(scene.lines.length > 0 || scene.chapter > 1) && (
-          <p className="muted small">
-            {scene.chapter > 1 ? `Chapter ${scene.chapter}. ` : ""}
-            {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[scene.stage] ?? STAGES[0]}.
-            {scene.chapter > 1 ? " The earlier chapters are under Their nights, and they still remember them." : ""}
-          </p>
-        )}
-        {scene.chapter > SOFT_CHAPTERS && (
-          <p className="muted small">This night has run {scene.chapter - 1} chapters. It might be a good place to end it: Start over files it, and the next night begins fresh.</p>
-        )}
-        {!textOnly && <ListenLines lines={scene.lines} a={scene.a.id} b={scene.b.id} names={[nameOf("a"), nameOf("b")]} />}
-        {scene.lines.length ? (
-          <ol className="after-dark-lines">
-            {scene.lines.map((l, i) => {
-              const c = l.who === "a" ? characters[0] : characters[1];
-              return (
-                <li key={i} className={`after-dark-line is-${l.who}`}>
-                  <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={34} />
-                  <p>
-                    <strong>{nameOf(l.who)}</strong> {l.text}
-                  </p>
-                </li>
-              );
-            })}
-          </ol>
-        ) : (
-          <p className="muted">{scene.chapter > 1 ? `Chapter ${scene.chapter} starts here: write the next lines.` : "Nothing yet. Write the first lines, or steer it first."}</p>
-        )}
-        {note && (
-          <p className={note.error ? "error ad-note-error" : "muted small"} role={note.error ? "alert" : "status"}>
-            {note.text}
-          </p>
-        )}
-        {!theater && crisisNotice}
-        <span ref={endRef} aria-hidden="true" />
-        {offered && !theater && (
-          <div className="ad-beat-banner" role="status">
-            <strong>📸 {offered.label}</strong>
-            <span className="muted small">Picture this moment? It&apos;s drawn from the last few lines.</span>
-            <button type="button" className="primary small" onClick={() => void beatAction({ beat: { id: offered.id, answer: "now" } })}>
-              Picture it
-            </button>
-            <button type="button" className="button-ghost small" onClick={() => void beatAction({ beat: { id: offered.id, answer: "later" } })} title="Carry on. Picture this whenever you like; if you never do, it's drawn when the chapter ends.">
-              Not now
-            </button>
-          </div>
-        )}
-        {/* Sticks to the bottom of the screen while it's scrolled past, until it reaches its own place under the lines. */}
-        <form className="after-dark-form" onSubmit={onSubmit}>
-          {!atEnd && scene.lines.length > 8 && (
-            <button type="button" className="after-dark-skip" onClick={() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })} aria-label="Skip to the latest lines" title="Skip to the latest lines">
-              ↓
-            </button>
-          )}
-          {(scene.suggestions?.length ?? 0) > 0 && (
-            // The last step's suggested next moves, one per heat (lib/adult/director.ts): one tap sends it as a nudge.
-            <div className="ad-suggestions" role="group" aria-label="Suggested next moves">
-              {scene.suggestions.map((sg) => (
-                <button
-                  key={sg.heat}
-                  type="button"
-                  className={`ad-suggestion is-${sg.heat}`}
-                  disabled={busy}
-                  onClick={() => void send({ direction: sg.text, steer_mode: "nudge" })}
-                  title={sg.heat === "mild" ? "A surprise: something they didn't see coming" : `Send it as a nudge: ${sg.text}`}
-                >
-                  {/* The wildcard keeps its words to itself. */}
-                  <span className="ad-heat">{HEAT_LABEL[sg.heat]}</span>
-                  {sg.heat !== "mild" && <span className="ad-suggestion-text">{sg.text}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-          {whispers.length > 0 && (
-            <p className="ad-whispers">
-              {whispers.map((who) => (
-                <span
-                  key={who}
-                  className="ad-whisper-chip"
-                  title={`Only ${nameOf(who)} knows this; ${nameOf(other(who))} doesn't. It shapes the next ${scene.whispers[who]!.steps_left === 1 ? "step" : `${scene.whispers[who]!.steps_left} steps`}.`}
-                >
-                  <span className="ad-whisper-who">
-                    🤫 <CharacterName character={who === "a" ? characters[0] : characters[1]} label={nameOf(who)} link={false} size={18} />:
-                  </span> <q>{scene.whispers[who]!.text}</q>
-                  <button type="button" className="ad-whisper-forget" aria-label={`Forget the whisper to ${nameOf(who)}`} disabled={busy} onClick={() => void send({ forget_whisper: who })}>
-                    ×
-                  </button>
-                </span>
-              ))}
-            </p>
-          )}
-          {/* The label stays for screen readers on a phone, where the placeholder says the same and the room is the bar's. */}
-          <label htmlFor="after-dark-direction" className="ad-steer-label">
-            {whisperTo ? `Whisper to ${nameOf(whisperTo)} (only ${nameOf(whisperTo)} knows it)` : "Steer it (optional)"}
-          </label>
-          <span className="after-dark-steer-mode ad-segmented" role="radiogroup" aria-label="How">
-            <label title="Worked toward at the scene's own pace" className={!whisperTo && steerMode === "nudge" ? "on" : ""}>
-              <input type="radio" name="steer-mode" checked={!whisperTo && steerMode === "nudge"} onChange={() => (setWhisperTo(null), setSteerMode("nudge"))} /> Nudge
-            </label>
-            <label title="Done now: it can skip ahead" className={!whisperTo && steerMode === "direct" ? "on" : ""}>
-              <input type="radio" name="steer-mode" checked={!whisperTo && steerMode === "direct"} onChange={() => (setWhisperTo(null), setSteerMode("direct"))} /> Direct
-            </label>
-            {(["a", "b"] as const).map((who) => (
-              <label key={who} title={`A secret for ${nameOf(who)} alone: ${nameOf(other(who))} won't know it`} className={whisperTo === who ? "on" : ""}>
-                <input type="radio" name="steer-mode" checked={whisperTo === who} onChange={() => setWhisperTo(who)} /> 🤫{" "}
-                <CharacterName character={who === "a" ? characters[0] : characters[1]} label={nameOf(who)} link={false} size={18} />
-              </label>
-            ))}
-          </span>
-          <div className="ad-steer-row">
-            <input
-              id="after-dark-direction"
-              value={direction}
-              maxLength={whisperTo ? 200 : 300}
-              onChange={(e) => setDirection(e.target.value)}
-              placeholder={whisperTo ? `${nameOf(other(whisperTo))} wants you to take the lead…` : "Steer it (optional): they go back to hers…"}
-              disabled={busy}
-            />
-            <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim())} title={whisperTo ? "Whisper and write the next lines" : "Write the next lines"}>
-              {busy ? (
-                "Writing…"
-              ) : (
-                <>
-                  <span className="ad-wide-only">{whisperTo ? "Whisper and write" : "Write the next lines"}</span>
-                  <span className="ad-phone-only">{whisperTo ? "Whisper" : "Write"}</span>
-                </>
-              )}
-            </button>
-          </div>
-          <div className="ad-steer-buttons">
-            <label className="after-dark-autoplay" title="It carries on by itself, no button needed, until the chapter ends">
-              <input type="checkbox" checked={autoplay} onChange={(e) => switchAutoplay(e.target.checked)} /> Autoplay
-            </label>
-            {scene.lines.length > 0 && (
-              <button
-                type="button"
-                className="button-ghost small"
-                disabled={busy || Boolean(mediaPaused)}
-                onClick={() => void beatAction({ picture_now: { line: scene.lines.length - 1 } })}
-                title={mediaPaused ?? "A picture of the two of them as the scene stands now, from the last few lines"}
-              >
-                📸 Picture this
-              </button>
-            )}
-            {writer && <WriterPicker initial={writer} icon />}
-            {(scene.lines.length > 0 || Boolean(scene.rewind?.depth)) && (
-              <div className={`ad-more${more ? " open" : ""}`}>
-                <button type="button" className="button-ghost small ad-more-toggle" aria-expanded={more} onClick={() => setMore((v) => !v)}>
-                  ⋯ More
-                </button>
-                <div className="ad-more-items">
-                  <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ rewind: true })} title={scene.rewind?.depth ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
-                    ↺ Rewind
-                  </button>
-                  <button type="button" className="button-ghost" disabled={busy || !scene.rewind?.depth} onClick={() => void send({ redo: true })} title={redoTitle}>
-                    ↻ Redo
-                  </button>
-                  <button type="button" className="button-ghost" disabled={busy || !scene.lines.length} onClick={() => void send({ reset: true })}>
-                    Start over
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </form>
         {watching && (
+          // A saved chapter, played again over the theater (its 📖 menu, or Nights below); Exit goes back to where it was.
           <AfterDarkTheater
-            scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue, set: watching.set_place }}
-            characters={characters}
+            scene={{ lines: watching.lines, place: watching.place, stage: watching.stage, dateVenue: watching.date_venue, set: watching.set_place, chapter: watching.chapter ?? undefined }}
+            characters={cast}
             feedbackRef={watching.id}
+            chapters={chapterList.filter((c) => c.id !== watching.id)}
+            onReplayChapter={(id) => setWatching(nightList.find((n) => n.id === id) ?? null)}
             onExit={() => setWatching(null)}
           />
         )}
@@ -582,6 +432,32 @@ export default function SceneWriter({
           </p>
         )}
         {!textOnly && <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />}
+        {/* How the night is set up, folded in one place: the scenario, the limits, what they're into and remember, their faces. */}
+        <details className="ad-panel ad-setup">
+          <summary>
+            ⚙️ Set up the night <span className="muted small">scenario, limits, what they&apos;re into and remember, their faces</span>
+          </summary>
+          <div className="ad-panels">
+            <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
+            <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits, consent) => send({ limits, ...(consent ? { consent: true } : {}) })} />
+            <Profile scene={scene} characters={characters} onScene={setScene} />
+            <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
+          </div>
+          {!textOnly && (
+            <FacesPanel
+              characters={characters}
+              faces={faces}
+              gallery={gallery}
+              onFace={pickFace}
+              steer={steer}
+              onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
+              onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
+              paused={mediaPaused}
+            />
+          )}
+        </details>
+        {/* Set up the night, Two sides and Admin sit above the media, a long scroll (David, 2026-10-25). */}
+        {panels}
         {/* Their pictures, videos and saved nights, a tab each (2026-10-25: "too much going on"). */}
         <section className="ad-media-tabs">
           <div className="ad-studio-tabs" role="tablist" aria-label="Their pictures, videos and nights">
@@ -629,30 +505,6 @@ export default function SceneWriter({
             <p className="muted small">No saved nights yet: Start over files the night that ran, and it plays back here.</p>
           )}
         </section>
-        {/* How the night is set up, folded in one place: the scenario, the limits, what they're into and remember, their faces. */}
-        <details className="ad-panel ad-setup">
-          <summary>
-            ⚙️ Set up the night <span className="muted small">scenario, limits, what they&apos;re into and remember, their faces</span>
-          </summary>
-          <div className="ad-panels">
-            <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
-            <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits, consent) => send({ limits, ...(consent ? { consent: true } : {}) })} />
-            <Profile scene={scene} characters={characters} onScene={setScene} />
-            <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
-          </div>
-          {!textOnly && (
-            <FacesPanel
-              characters={characters}
-              faces={faces}
-              gallery={gallery}
-              onFace={pickFace}
-              steer={steer}
-              onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
-              onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
-              paused={mediaPaused}
-            />
-          )}
-        </details>
       </section>
     </MediaAdmin.Provider>
   );

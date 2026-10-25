@@ -23,6 +23,11 @@ import type { ReelScope } from "@/lib/adult/reels";
 import CharacterName from "@/app/CharacterName";
 import WriterPicker from "../../WriterPicker";
 import type { WriterOptions } from "@/lib/adult/writer";
+import { libraryVenueFor, type CatalogScene } from "@/lib/adult/scene-catalog";
+import SetSceneModal from "./SetSceneModal";
+
+/** A saved chapter the 📖 menu can play again (lib/adult/scenes.ts AdultNight, trimmed). */
+export type ChapterEntry = { id: string; chapter: number | null; lines: number; created_at: string; place: string | null };
 
 /** A scene line as a date turn: the leading *action* apart from what they say. */
 export function lineToTurn(l: SceneLine): Turn {
@@ -36,6 +41,9 @@ export function lineToTurn(l: SceneLine): Turn {
  */
 export function stageFor(place: string | null, dateVenue: string | null): PlaceId | null {
   if (!place) return (dateVenue as PlaceId | null) ?? null;
+  // A library venue picked by name in the scene picker: its own reviewed set.
+  const library = libraryVenueFor(place);
+  if (library) return library as PlaceId;
   if (dateVenue) {
     // Whole words that name the place, never a time of day ("a rooftop pool at midnight" isn't "bowling on league night").
     const words = (venueName(dateVenue).toLowerCase().match(/[a-z]{5,}/g) ?? []).filter((w) => !TIME_WORDS.has(w));
@@ -77,6 +85,10 @@ const lastOf = (turns: Turn[], side: "a" | "b") => {
  * suggested next moves (lib/adult/director.ts) sit over the steer: one tap sends one as a nudge.
  * Beat pictures (lib/adult/beats.ts): when playback reaches a moment worth a picture, it stops and asks; 📸 pictures the
  * line on screen whenever the viewer likes.
+ * The theater is the only way to watch now (David, 2026-10-25: "force them to watch in theaters"): the page opens on it,
+ * and what the page's form did lives here too: the whisper to one of them, Rewind, Redo and Start over. The top bar has
+ * 📖 the chapter (and every saved one to play again), 📍 Set the scene (a picker of every place, SetSceneModal.tsx) and
+ * 🎬 the video; play, pause, from the top, catch up and listen sit bottom right, like a video player's.
  */
 export default function AfterDarkTheater({
   scene,
@@ -104,6 +116,14 @@ export default function AfterDarkTheater({
   onPictureNow,
   onExit,
   crisis = null,
+  whisperTo = null,
+  onWhisperTo,
+  whispers = null,
+  steps = null,
+  chapters = [],
+  onReplayChapter,
+  scenes = [],
+  onScenario,
 }: {
   scene: { lines: SceneLine[]; place: string | null; stage: number; dateVenue: string | null; set?: string | null; chapter?: number };
   characters: [CharacterRef, CharacterRef];
@@ -112,7 +132,7 @@ export default function AfterDarkTheater({
   /** The crisis notice (app/CrisisNotice.tsx), when the viewer's own steer tripped lib/crisis.ts: shown over the stage. */
   crisis?: ReactNode;
   /** Writes the next lines; without it, this is a saved night's playback. */
-  onWrite?: (direction: string) => Promise<void>;
+  onWrite?: (direction: string) => Promise<boolean | void>;
   /** How strongly a steer is taken: worked toward (nudge) or done now (direct). Shared with the page's form. */
   steerMode?: "nudge" | "direct";
   onSteerMode?: (mode: "nudge" | "direct") => void;
@@ -148,6 +168,19 @@ export default function AfterDarkTheater({
   onBeat?: (id: string, answer: "now" | "later", guide?: { custom?: string }) => Promise<void>;
   onPictureNow?: (line: number, guide?: { custom?: string }) => Promise<void>;
   onExit: () => void;
+  /** The steer goes to one of them only, as a whisper (lib/adult/director.ts); null: to the scene. Shared with the page. */
+  whisperTo?: "a" | "b" | null;
+  onWhisperTo?: (who: "a" | "b" | null) => void;
+  /** The whispers they're carrying, with a way to forget each (the page draws them). */
+  whispers?: ReactNode;
+  /** Rewind, Redo and Start over, in the ⋯ menu: live only. */
+  steps?: { canRewind: boolean; redoTitle: string; canReset: boolean; onRewind: () => void; onRedo: () => void; onReset: () => void } | null;
+  /** The saved chapters, newest first, for the 📖 menu: one plays again over the theater. */
+  chapters?: readonly ChapterEntry[];
+  onReplayChapter?: (id: string) => void;
+  /** Every place Set the scene can pick (lib/adult/scene-catalog.ts), and a scenario card's Start this story. */
+  scenes?: readonly CatalogScene[];
+  onScenario?: (id: string) => Promise<void>;
 }) {
   const live = Boolean(onWrite);
   const turns = useMemo(() => scene.lines.map(lineToTurn), [scene.lines]);
@@ -166,11 +199,12 @@ export default function AfterDarkTheater({
   // A replay doesn't auto-play on open; the running scene still catches up and carries on.
   const replay = useReplay(turns, live, { live, startAt, hold: listenHold || beatHold });
   const [convo, setConvo] = useState(false);
-  // On a phone, the secondary tools (from the top, catch up, listen, clip, video) fold into "⋯" so the bar is one row.
+  // Rewind, Redo and Start over fold into "⋯".
   const [tools, setTools] = useState(false);
   const [direction, setDirection] = useState("");
-  const [moving, setMoving] = useState(false);
-  const [where, setWhere] = useState("");
+  // The scene picker (SetSceneModal.tsx) and the 📖 chapter menu.
+  const [picking, setPicking] = useState(false);
+  const [chapterMenu, setChapterMenu] = useState(false);
   const shown = replay.shown;
   const [a, b] = characters;
   // Media the pair already has of the moment (a picture to offer, a clip to loop behind the scene), live scenes only.
@@ -196,18 +230,14 @@ export default function AfterDarkTheater({
   const epoch = `${scene.chapter ?? 1}:${scene.lines[0]?.text.slice(0, 60) ?? ""}`;
   const feedback = useMemo(() => (feedbackRef ? { kind: "after_dark" as const, refId: feedbackRef, epoch } : null), [feedbackRef, epoch]);
 
+  const firstName = (c: CharacterRef) => c.name.split(/\s+/)[0];
+  const whisperName = whisperTo ? firstName(whisperTo === "a" ? a : b) : null;
+
   async function next(e: FormEvent) {
     e.preventDefault();
-    await onWrite?.(direction.trim());
-    setDirection("");
-  }
-
-  async function go(e: FormEvent) {
-    e.preventDefault();
-    if (!where.trim()) return;
-    await onSetScene?.(where.trim());
-    setWhere("");
-    setMoving(false);
+    // A whisper needs its words; a refused steer or whisper stays in the box, to be reworded.
+    if (whisperTo && !direction.trim()) return;
+    if ((await onWrite?.(direction.trim())) !== false) setDirection("");
   }
 
   return (
@@ -286,13 +316,57 @@ export default function AfterDarkTheater({
             <strong>
               <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
-            {/* The place shows on the stage itself; a replay says it's one. */}
-            {!live && <span className="chip">🌙 Replay</span>}
+            {/* The chapter, and every saved one to play again (David, 2026-10-25: "an icon to the chapter label"). */}
+            <div className="ad-chapter">
+              <button
+                type="button"
+                className="chip ad-chapter-chip"
+                aria-expanded={chapterMenu}
+                aria-haspopup="menu"
+                disabled={!chapters.length || !onReplayChapter}
+                title={chapters.length && onReplayChapter ? "Chapters: play an earlier one again" : undefined}
+                onClick={() => setChapterMenu((v) => !v)}
+              >
+                📖 {live ? `Chapter ${scene.chapter ?? 1}` : scene.chapter ? `Chapter ${scene.chapter} · replay` : "Replay"}
+                {chapters.length > 0 && onReplayChapter ? " ▾" : ""}
+              </button>
+              {chapterMenu && onReplayChapter && (
+                <div className="ad-chapter-menu" role="menu" aria-label="Chapters">
+                  {live && (
+                    <span className="ad-chapter-item on">
+                      ▶ Chapter {scene.chapter ?? 1} <span className="muted small">· now · {scene.lines.length} lines</span>
+                    </span>
+                  )}
+                  {chapters.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      role="menuitem"
+                      className="ad-chapter-item"
+                      onClick={() => {
+                        setChapterMenu(false);
+                        onReplayChapter(c.id);
+                      }}
+                    >
+                      ↺ {c.chapter ? `Chapter ${c.chapter}` : "A night"}{" "}
+                      <span className="muted small">
+                        · {new Date(c.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {c.lines} lines{c.place ? ` · ${c.place}` : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div className="theater-tools">
-            <button type="button" className="theater-icon" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>
-              {replay.playing ? "⏸" : "▶"}
-            </button>
+            {live && onSetScene && (
+              <button type="button" className="secondary small ad-set-scene" onClick={() => setPicking(true)} disabled={busy} title="Take them anywhere (1 token)">
+                📍 <span className="ad-tool-word">Set the scene</span>
+              </button>
+            )}
+            {onMakeVideo && (
+              <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
+            )}
             <button
               type="button"
               className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
@@ -315,125 +389,123 @@ export default function AfterDarkTheater({
               canPicture={shown.length > 0}
               match={live ? sceneMedia.match : null}
             />
-            {/* The rest, folded on every screen (2026-10-25: "too much going on"). */}
-            <div className={`ad-tools-more${tools ? " open" : ""}`}>
-              <button type="button" className="theater-icon ad-tools-toggle" aria-expanded={tools} aria-label="More tools" title="More tools" onClick={() => setTools((v) => !v)}>
-                ⋯
-              </button>
-              <div className="ad-tools-items">
-                <button type="button" className="theater-icon" onClick={replay.restart} aria-label="From the top" title="From the top">
-                  ↻
+            {steps && (
+              <div className={`ad-tools-more${tools ? " open" : ""}`}>
+                <button type="button" className="theater-icon ad-tools-toggle" aria-expanded={tools} aria-label="More tools" title="Rewind, redo, start over" onClick={() => setTools((v) => !v)}>
+                  ⋯
                 </button>
-                <button type="button" className="theater-icon" onClick={replay.skip} aria-label="Catch up" title="Catch up">
-                  ⏭
-                </button>
-                <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
-                {onMakeVideo && (
-                  <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
-                )}
+                <div className="ad-tools-items ad-tools-steps">
+                  <button type="button" className="button-ghost small" disabled={busy || !steps.canRewind} onClick={() => (setTools(false), steps.onRewind())} title={steps.canRewind ? "Take the last step back: its lines, and where the scene was" : "Nothing to rewind yet"}>
+                    ↺ Rewind
+                  </button>
+                  <button type="button" className="button-ghost small" disabled={busy || !steps.canRewind} onClick={() => (setTools(false), steps.onRedo())} title={steps.redoTitle}>
+                    ↻ Redo
+                  </button>
+                  <button type="button" className="button-ghost small" disabled={busy || !steps.canReset} onClick={() => (setTools(false), steps.onReset())} title="File tonight under their nights and start a new one">
+                    Start over
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
             <button type="button" className="secondary small" onClick={onExit}>
               Exit
             </button>
           </div>
         </header>
 
-        {live && moving ? (
-        <form className="ad-theater-bar" onSubmit={go}>
-          <input
-            aria-label="Take them anywhere"
-            value={where}
-            maxLength={60}
-            onChange={(e) => setWhere(e.target.value)}
-            placeholder="Take them anywhere: a rooftop pool at midnight…"
-            disabled={busy}
-            autoFocus
-          />
-          <button type="submit" className="primary" disabled={busy || !where.trim()}>
-            {busy ? "Moving…" : "Go · 1 token"}
-          </button>
-          <button type="button" className="button-ghost" onClick={() => setMoving(false)} disabled={busy}>
-            Cancel
-          </button>
-          {note && (
-            <p className="ad-theater-note" role="status">
-              {note}
-            </p>
-          )}
-        </form>
-        ) : live ? (
-        <form className="ad-theater-bar" onSubmit={next}>
-          <div className="ad-theater-steer">
-            <input
-              aria-label="Steer it (optional)"
-              value={direction}
-              maxLength={300}
-              onChange={(e) => setDirection(e.target.value)}
-              placeholder="Steer it (optional)…"
-              disabled={busy}
-            />
-            {/* Autoplay is always writing ahead, so a steer goes as soon as it's typed. */}
-            <button type="submit" className="primary" disabled={busy || (!caughtUp && !(autoplay && direction.trim()))}>
-              {busy ? "Writing…" : caughtUp || (autoplay && direction.trim()) ? "Next" : "Playing…"}
+        <div className="ad-theater-bottom">
+          {/* Like a video player's controls (David, 2026-10-25): bottom right, over the stage. */}
+          <div className="ad-player" role="group" aria-label="Playback">
+            <button type="button" className="theater-icon" onClick={replay.restart} aria-label="From the top" title="From the top">
+              ⏮
             </button>
+            <button type="button" className="theater-icon ad-player-main" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>
+              {replay.playing ? "⏸" : "▶"}
+            </button>
+            <button type="button" className="theater-icon" onClick={replay.skip} aria-label="Catch up" title="Catch up">
+              ⏭
+            </button>
+            <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
           </div>
-          <div className="ad-theater-options">
-            {onSteerMode && (
-              <span className="ad-steer-mode" role="radiogroup" aria-label="How strongly">
-                <label title="Worked toward at the scene's own pace">
-                  <input type="radio" name="theater-steer-mode" checked={steerMode === "nudge"} onChange={() => onSteerMode("nudge")} /> Nudge
-                </label>
-                <label title="Done now: it can skip ahead">
-                  <input type="radio" name="theater-steer-mode" checked={steerMode === "direct"} onChange={() => onSteerMode("direct")} /> Direct
-                </label>
-              </span>
-            )}
-            {onAutoplay && (
-              <label className="ad-steer-mode" title="It carries on by itself, no Next needed, until the chapter ends">
-                <input type="checkbox" checked={autoplay} onChange={(e) => onAutoplay(e.target.checked)} /> Autoplay
-              </label>
-            )}
-            {onSuggest && suggestions.length > 0 && (
-              <span className="ad-suggestions" role="group" aria-label="Suggested next moves">
-                {suggestions.map((sg) => (
-                  <button
-                    key={sg.heat}
-                    type="button"
-                    className={`ad-suggestion is-${sg.heat}`}
-                    disabled={busy}
-                    onClick={() => void onSuggest(sg.text)}
-                    title={sg.heat === "mild" ? "A surprise: something they didn't see coming" : `Send it as a nudge: ${sg.text}`}
-                  >
-                    <span className="ad-heat">{HEAT_WORD[sg.heat]}</span>
-                  </button>
-                ))}
-              </span>
-            )}
-            {onSetScene && (
-              <button type="button" className="button-ghost" onClick={() => setMoving(true)} disabled={busy} title="Take them anywhere (1 token)">
-                📍 Set the scene
-              </button>
-            )}
-          </div>
-          {(videoNote || note) && (
-            <p className="ad-theater-note" role="status">
-              {videoNote || note}
-            </p>
-          )}
-          {crisis}
-        </form>
-        ) : (
-          replay.done && (
-            <div className="theater-verdict">
-              <p className="muted">
-                That&apos;s the night.{" "}
-                <button type="button" className="linklike" onClick={replay.restart}>
-                  Watch again
+          {live ? (
+            <form className="ad-theater-bar" onSubmit={next}>
+              {whispers}
+              <div className="ad-theater-steer">
+                <input
+                  aria-label={whisperName ? `Whisper to ${whisperName}` : "Steer it (optional)"}
+                  value={direction}
+                  maxLength={whisperTo ? 200 : 300}
+                  onChange={(e) => setDirection(e.target.value)}
+                  placeholder={whisperName ? `A secret for ${whisperName} alone…` : "Steer it (optional)…"}
+                  disabled={busy}
+                />
+                {/* Autoplay is always writing ahead, so a steer goes as soon as it's typed. */}
+                <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim()) || (!caughtUp && !(autoplay && direction.trim()))}>
+                  {busy ? "Writing…" : whisperTo ? "Whisper" : caughtUp || (autoplay && direction.trim()) ? "Next" : "Playing…"}
                 </button>
-              </p>
-            </div>
-          )
+              </div>
+              <div className="ad-theater-options">
+                {onSteerMode && (
+                  <span className="ad-steer-mode" role="radiogroup" aria-label="How strongly">
+                    <label title="Worked toward at the scene's own pace">
+                      <input type="radio" name="theater-steer-mode" checked={!whisperTo && steerMode === "nudge"} onChange={() => (onWhisperTo?.(null), onSteerMode("nudge"))} /> Nudge
+                    </label>
+                    <label title="Done now: it can skip ahead">
+                      <input type="radio" name="theater-steer-mode" checked={!whisperTo && steerMode === "direct"} onChange={() => (onWhisperTo?.(null), onSteerMode("direct"))} /> Direct
+                    </label>
+                    {onWhisperTo &&
+                      (["a", "b"] as const).map((who) => (
+                        <label key={who} title={`A secret for ${firstName(who === "a" ? a : b)} alone: ${firstName(who === "a" ? b : a)} won't know it`}>
+                          <input type="radio" name="theater-steer-mode" checked={whisperTo === who} onChange={() => onWhisperTo(who)} /> 🤫{" "}
+                          <CharacterName character={who === "a" ? a : b} label={firstName(who === "a" ? a : b)} link={false} size={18} />
+                        </label>
+                      ))}
+                  </span>
+                )}
+                {onAutoplay && (
+                  <label className="ad-steer-mode" title="It carries on by itself, no Next needed, until the chapter ends">
+                    <input type="checkbox" checked={autoplay} onChange={(e) => onAutoplay(e.target.checked)} /> Autoplay
+                  </label>
+                )}
+                {onSuggest && suggestions.length > 0 && (
+                  <span className="ad-suggestions" role="group" aria-label="Suggested next moves">
+                    {suggestions.map((sg) => (
+                      <button
+                        key={sg.heat}
+                        type="button"
+                        className={`ad-suggestion is-${sg.heat}`}
+                        disabled={busy}
+                        onClick={() => void onSuggest(sg.text)}
+                        title={sg.heat === "mild" ? "A surprise: something they didn't see coming" : `Send it as a nudge: ${sg.text}`}
+                      >
+                        <span className="ad-heat">{HEAT_WORD[sg.heat]}</span>
+                      </button>
+                    ))}
+                  </span>
+                )}
+              </div>
+              {(videoNote || note) && (
+                <p className="ad-theater-note" role="status">
+                  {videoNote || note}
+                </p>
+              )}
+              {crisis}
+            </form>
+          ) : (
+            replay.done && (
+              <div className="theater-verdict">
+                <p className="muted">
+                  That&apos;s the night.{" "}
+                  <button type="button" className="linklike" onClick={replay.restart}>
+                    Watch again
+                  </button>
+                </p>
+              </div>
+            )
+          )}
+        </div>
+        {picking && onSetScene && (
+          <SetSceneModal scenes={scenes} busy={busy} current={scene.set || scene.place} onGo={onSetScene} onScenario={onScenario} onClose={() => setPicking(false)} />
         )}
       </div>
     </div>

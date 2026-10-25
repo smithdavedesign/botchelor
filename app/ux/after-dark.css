@@ -700,6 +700,395 @@ label.ad-check-row {
   margin-top: var(--space-3);
 }
 
+/* ---------------- the theater, 2026-10-25: the only way to watch ---------------- */
+/* The bottom of the stage: the player's controls bottom right (like a video player's), the steer bar under them. */
+.ad-theater-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.ad-theater-bottom > * {
+  pointer-events: auto;
+}
+.ad-theater-bottom .ad-theater-bar {
+  position: static;
+}
+.ad-theater-bottom .theater-verdict {
+  position: static;
+  transform: none;
+  margin: 0 auto var(--space-5);
+}
+.theater-stage.with-convo .ad-theater-bottom {
+  left: min(380px, 34%);
+}
+.ad-player {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 var(--space-4) calc(-1 * var(--space-2));
+  padding: 0.3rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(10, 5, 18, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+  position: relative;
+  z-index: 1;
+}
+.ad-player .theater-icon {
+  margin: 0;
+  border-color: transparent;
+  background: transparent;
+}
+.ad-player .theater-icon:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.ad-player .ad-player-main {
+  font-size: 1.15rem;
+}
+@media (max-width: 760px) {
+  .ad-theater-bottom,
+  .theater-stage.with-convo .ad-theater-bottom {
+    position: static;
+    order: 2;
+    pointer-events: auto;
+  }
+  .ad-player {
+    margin: var(--space-1) var(--space-3) 0;
+  }
+  .ad-theater-bottom .ad-theater-bar {
+    padding-top: var(--space-3);
+  }
+}
+
+/* 📍 Set the scene and 🎬 Video at the top; on a phone, just the pin. */
+.ad-set-scene {
+  white-space: nowrap;
+}
+.theater-tools .secondary.small {
+  white-space: nowrap;
+}
+.ad-theater-options label {
+  white-space: nowrap;
+}
+/* On a phone the top bar keeps the icons and the price: "📍", "🎬 15 tokens". */
+@media (max-width: 600px) {
+  .theater-tools .ad-tool-word {
+    display: none;
+  }
+}
+.ad-tools-steps {
+  flex-direction: column;
+  align-items: stretch;
+}
+.ad-tools-steps button {
+  justify-content: flex-start;
+  margin: 0;
+}
+
+/* 📖 The chapter, and the saved ones to play again. */
+.ad-chapter {
+  position: relative;
+  display: inline-flex;
+}
+button.ad-chapter-chip {
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+button.ad-chapter-chip:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.ad-chapter-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 16rem;
+  max-width: calc(100vw - 2rem);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--space-2);
+  border: 1px solid #33264d;
+  border-radius: 0.6rem;
+  background: rgba(18, 10, 28, 0.98);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+.ad-chapter-item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: #f1e9ff;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+}
+button.ad-chapter-item {
+  cursor: pointer;
+}
+button.ad-chapter-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.ad-chapter-item.on {
+  color: var(--accent);
+}
+.ad-chapter-item .muted {
+  color: #b7a8d3;
+}
+
+/* Realistic headshots (the face each keeps): cropped to the face, not the middle of a waist-up picture. */
+img.avatar-photo {
+  object-fit: cover;
+  object-position: center 18%;
+}
+
+/* After Exit: back to the theater, with where the night stands. */
+.ad-theater-return {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0 var(--space-4);
+}
+.ad-theater-return button {
+  margin: 0;
+}
+
+/* ---------------- 📍 Set the scene: the scene picker (SetSceneModal.tsx) ---------------- */
+.ad-scenes-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  display: grid;
+  place-items: center;
+  padding: 2vh 2vw;
+  background: rgba(6, 2, 12, 0.78);
+  backdrop-filter: blur(4px);
+}
+.ad-scenes {
+  display: flex;
+  flex-direction: column;
+  width: min(1200px, 100%);
+  height: min(92vh, 100%);
+  overflow: hidden;
+  border: 1px solid #33264d;
+  border-radius: 1rem;
+  background: #140c20;
+  color: #f1e9ff;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+}
+.ad-scenes-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-2);
+}
+.ad-scenes-head h2 {
+  margin: 0;
+  font-family: "Fraunces", Georgia, serif;
+}
+.ad-scenes-head p {
+  margin: 0.2rem 0 0;
+  color: #b7a8d3;
+}
+.ad-scenes-head .theater-icon {
+  margin: 0;
+  flex: none;
+}
+.ad-scenes-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: 0 var(--space-5) var(--space-3);
+}
+.ad-scenes-search > input {
+  flex: 1 1 16rem;
+}
+.ad-scenes-search form {
+  display: flex;
+  flex: 2 1 22rem;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ad-scenes-search form input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ad-scenes-search input {
+  margin: 0;
+  background: rgba(36, 26, 58, 0.9);
+  color: #f1e9ff;
+  border: 1px solid #33264d;
+}
+.ad-scenes-search input::placeholder {
+  color: #9d8dba;
+}
+.ad-scenes-search button {
+  margin: 0;
+  flex: none;
+}
+.ad-scenes-cats,
+.ad-scenes-tags {
+  display: flex;
+  gap: var(--space-2);
+  padding: 0 var(--space-5) var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.ad-scenes-cats button,
+.ad-scenes-tags button {
+  flex: none;
+  margin: 0;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid #3a2b57;
+  border-radius: 999px;
+  background: rgba(36, 26, 58, 0.6);
+  color: #e6dcf7;
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ad-scenes-tags button {
+  padding: 0.2rem 0.65rem;
+  font-size: 0.8rem;
+  color: #c9b9e6;
+}
+.ad-scenes-cats button.on,
+.ad-scenes-tags button.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 34%, rgba(20, 10, 30, 0.6));
+  color: #fff;
+}
+.ad-scenes-cats button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ad-scenes-count {
+  margin-left: 0.25rem;
+  opacity: 0.65;
+  font-size: 0.75rem;
+}
+button.ad-scenes-clear {
+  border-style: dashed;
+  background: transparent;
+}
+.ad-scenes-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  list-style: none;
+  align-content: start;
+}
+.ad-scene-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid #2c2044;
+  border-radius: 0.8rem;
+  background: #1b1129;
+}
+.ad-scene-card.here {
+  border-color: var(--accent);
+}
+.ad-scene-pic {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, #3b1f5e, #6b2348);
+}
+.ad-scene-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ad-scene-cats {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.45rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(10, 5, 18, 0.6);
+  font-size: 0.85rem;
+}
+.ad-scene-here {
+  position: absolute;
+  right: 0.5rem;
+  top: 0.45rem;
+}
+.ad-scene-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+.ad-scene-premise {
+  color: #b7a8d3;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ad-scene-tags {
+  font-size: 0.75rem;
+  color: #9d8dba;
+}
+.ad-scene-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-1);
+}
+.ad-scene-actions button {
+  margin: 0;
+}
+.ad-scenes-empty {
+  padding: var(--space-5);
+}
+@media (max-width: 600px) {
+  .ad-scenes-overlay {
+    padding: 0;
+  }
+  .ad-scenes {
+    height: 100%;
+    border-radius: 0;
+    border: 0;
+  }
+  .ad-scenes-head,
+  .ad-scenes-search,
+  .ad-scenes-cats,
+  .ad-scenes-tags {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+  .ad-scenes-grid {
+    grid-template-columns: 1fr 1fr;
+    padding: var(--space-2) var(--space-3) var(--space-4);
+    gap: var(--space-2);
 /* Trimming a video (TrimPanel.tsx; lib/adult/trim.ts): start, end, parts cut out, each with "Now". */
 .ad-trim {
   display: grid;

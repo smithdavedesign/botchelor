@@ -9,6 +9,8 @@ export type NamedCharacter = {
   house?: boolean;
   /** An approved generated portrait (/api/assets/<id>), or null for the drawn tile. */
   portrait?: string | null;
+  /** A realistic headshot that wins over the portrait (After Dark's theater), or none. */
+  photo?: string | null;
   /** Private to someone else (#309/#509): its page shows only its name, so the label is the name and nothing more. */
   private?: boolean;
 };
@@ -38,7 +40,7 @@ export default function CharacterName({ character: c, label, avatar = true, link
   const text = label ?? c.name;
   const name = strong ? <strong className="char-name-text">{text}</strong> : <span className="char-name-text">{text}</span>;
   if (c.private) return <span className={`char-name is-private${className ? ` ${className}` : ""}`}>{name}</span>;
-  const face = avatar ? <Avatar seed={c.id} name={c.name} hue={c.hue ?? null} house={c.house ?? false} portraitSrc={c.portrait ?? null} size={size} decorative round /> : null;
+  const face = avatar ? <Avatar seed={c.id} name={c.name} hue={c.hue ?? null} house={c.house ?? false} portraitSrc={c.portrait ?? null} photoSrc={c.photo ?? null} size={size} decorative round /> : null;
   const cls = `char-name${avatar ? " has-face" : ""}${className ? ` ${className}` : ""}`;
   if (!link) {
     return (

@@ -297,7 +297,8 @@ describe("a private why on every line", () => {
     const withNotes = lines as AdultScene["lines"];
     const theater = renderToStaticMarkup(createElement(AfterDarkTheater, { scene: { lines: withNotes, place: null, stage: 0, dateVenue: null }, characters: [...chars], onExit: () => {} }));
     const page = renderToStaticMarkup(createElement(SceneWriter, { initial: { ...r.scene, lines: withNotes }, gallery: [], characters: [...chars] }));
-    expect(page).toContain("You still owe me that dance");
+    // The page plays the lines in its theater (2026-10-25); a replay opens on all of them.
+    expect(theater).toContain("You still owe me that dance");
     for (const html of [theater, page]) {
       expect(html).not.toContain("competitive streak");
       expect(html).not.toContain("promised her a dance");
