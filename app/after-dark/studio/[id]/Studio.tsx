@@ -10,6 +10,7 @@ import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, LEVEL_LABEL, optionById, STRENGTHS, 
 // Openly-licensed (CC0/Apache-2.0/MIT) adult-portrait prompts, hard-filtered; an optional starting point the owner edits.
 import inspiration from "./inspiration.json";
 import { MediaRequest } from "../../MediaRequest";
+import Lightbox from "./Lightbox";
 
 const media = (id: string) => `/api/admin/after-dark/media/${id}`;
 const TABS = [
@@ -105,6 +106,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const [partner, setPartner] = useState("");
   const [pairMenu, setPairMenu] = useState<PairMenu | null>(null);
   const [pairPick, setPairPick] = useState<PairPick>(NO_PAIR_PICK);
+  // A gallery asset opened full screen (whole, never cropped — Lightbox.tsx; David, 2026-10-25).
+  const [zoom, setZoom] = useState<{ id: string; video: boolean } | null>(null);
   const [sharing, setSharing] = useState<{ image: string; to: string; kind: "after_dark" | "photo" } | null>(null);
   const [animating, setAnimating] = useState<{ image: string; motion: string; seconds: 5 | 10; guide?: string; dialog?: string; transcript?: string } | null>(null);
   const [setupName, setSetupName] = useState("");
@@ -316,12 +319,18 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 {video ? "Clip" : p.kind === "baseline" ? "Face" : "Picture"} · {new Date(p.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </MediaRequest>
             )}
-            {video ? (
-              <video src={media(p.id)} controls playsInline preload="metadata" aria-label={`${c.name}, a clip`} />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element -- private, presigned media; not for next/image
-              <img src={media(p.id)} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" />
-            )}
+            <div className="ad-studio-media">
+              {video ? (
+                <video src={media(p.id)} controls playsInline preload="metadata" aria-label={`${c.name}, a clip`} />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element -- private, presigned media; not for next/image
+                <img src={media(p.id)} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" />
+              )}
+              {/* Full screen, whole (Lightbox.tsx): a tap opens it centered and uncropped, portrait or landscape. */}
+              <button type="button" className="ad-studio-expand" onClick={() => setZoom({ id: p.id, video })} aria-label="View full screen" title="Full screen">
+                ⛶
+              </button>
+            </div>
             <div className="ad-studio-item-tools">
               <RateMedia id={p.id} kind={p.kind} rating={p.rating ?? null} tags={p.tags ?? []} />
               {!opts.pair && !video &&
@@ -1090,6 +1099,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
         )
       )}
       </div>
+      {zoom && <Lightbox id={zoom.id} video={zoom.video} onClose={() => setZoom(null)} />}
     </section>
   );
 }
