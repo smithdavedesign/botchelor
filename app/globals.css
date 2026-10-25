@@ -8825,6 +8825,54 @@ html.ad-studio-locked {
     padding: var(--space-3) 0;
   }
 }
+/* On a phone the Studio is always the whole screen (David, 2026-10-25: "it should already be full screen"): no switch,
+   and its own way back, since the page's is underneath. Wider screens keep the switch above. */
+.ad-studio-back {
+  display: none;
+}
+@media (max-width: 720px) {
+  html:has(.ad-studio-main) {
+    overflow: hidden;
+  }
+  .ad-studio-main {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-3) 0;
+    background: var(--ad-bg);
+    color: var(--ad-ink);
+  }
+  .ad-studio-main .ad-studio-work {
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  }
+  .ad-studio-head {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+  }
+  .ad-studio-head h1 {
+    font-size: 1.25rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ad-studio-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    margin-left: calc(-1 * var(--space-2));
+    font-size: 1.4rem;
+    color: inherit;
+    text-decoration: none;
+  }
+  .ad-studio-full-toggle {
+    display: none;
+  }
+}
 /* The settings page's number fields, two or three to a row. */
 .ad-settings-grid {
   display: grid;
