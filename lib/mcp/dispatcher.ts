@@ -616,6 +616,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "swipe_deck.only": DECK_FILTERS,
   "predict_arc.pick": ARC_PICKS,
   "set_date_visibility.visibility": DATE_VISIBILITIES,
+  "schedule_date.visibility": DATE_VISIBILITIES,
   "set_model.provider": TEXT_PROVIDER_IDS,
   "feedback_board.kind": FEEDBACK_KINDS,
   "feedback_board.sort": FEEDBACK_SORTS,
