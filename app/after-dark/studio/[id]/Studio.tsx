@@ -13,6 +13,7 @@ import { MediaRequest } from "../../MediaRequest";
 import MediaTags from "../../MediaTags";
 import Lightbox from "./Lightbox";
 import LocalTime from "../../LocalTime";
+import TrimmableClip from "../../TrimmableClip";
 
 /** A tile's time and a shoot's date, in the viewer's own clock (LocalTime.tsx: never on the server). */
 const TILE_TIME = { time: true, hour: "2-digit", minute: "2-digit" } as const;
@@ -365,7 +366,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             )}
             <div className="ad-studio-media">
               {video ? (
-                <video src={media(p.id)} controls playsInline preload="metadata" aria-label={`${c.name}, a clip`} />
+                // Plays its trim, and ✂️ trims it (lib/adult/trim.ts).
+                <TrimmableClip id={p.id} src={media(p.id)} trim={p.trim ?? null} canTrim label={`${c.name}, a clip`} />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media; not for next/image
                 <img src={media(p.id)} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" />

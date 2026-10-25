@@ -35,6 +35,7 @@ import type { WriterOptions } from "@/lib/adult/writer";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import MediaTags from "../../MediaTags";
 import LocalTime from "../../LocalTime";
+import TrimmableClip from "../../TrimmableClip";
 
 /** A saved night's day, in the viewer's own clock (LocalTime.tsx: never on the server). */
 const NIGHT_DAY = { month: "short", day: "numeric" } as const;
@@ -739,7 +740,8 @@ function Gallery({
             <li key={m.id}>
               {m.kind === "video" ? (
                 status === "ready" ? (
-                  <video src={mediaUrl(m.id)} controls playsInline />
+                  // Plays its trim, and ✂️ trims it (lib/adult/trim.ts).
+                  <TrimmableClip id={m.id} src={mediaUrl(m.id)} trim={m.trim ?? null} canTrim label="A clip" />
                 ) : (
                   <p className="muted small">{status === "failed" ? "The clip failed." : "Clip on its way…"}</p>
                 )

@@ -57,6 +57,8 @@ export type Media = {
   in_reel?: boolean;
   /** Pinned for their dates (the Studio's 📌, lib/adult/media-tags.ts): the theater ranks it first when it fits. */
   date_pin?: boolean;
+  /** A video's trim (lib/adult/trim.ts): where it starts and ends, and the parts cut out. */
+  trim?: import("./trim").Trim | null;
   /** Made in the Studio (a shoot), not on their dates. */
   studio?: boolean;
   /** Tagged as two of them together (lib/adult/media-tags.ts "who": "pair"). */
@@ -565,6 +567,8 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             exists (select 1 from adult_media_tags dt where dt.media_id = i.id and dt.kind = 'date' and not dt.removed) as date_pin,
             -- Made in the Studio (a shoot), or on their dates (the theater, a beat, a reel or clip).
             (i.shoot_id is not null) as studio,
+            -- A video's trim (lib/adult/trim.ts), honoured wherever it plays.
+            i.trim,
             -- Tagged as the two of them together (lib/adult/media-tags.ts "who"), however it was made.
             exists (select 1 from adult_media_tags wt where wt.media_id = i.id and wt.kind = 'who' and wt.value = 'pair' and not wt.removed) as together,
             -- What it shows, for the tile's label (lib/adult/tag-labels.ts showsLabel).
