@@ -8,7 +8,6 @@ import { AUTOPLAY_THEATER_AHEAD } from "@/lib/adult/autoplay";
 import type { PublicBeat } from "@/lib/adult/beats";
 import type { Suggestion } from "@/lib/adult/director";
 import type { SceneLine } from "@/lib/adult/scenes";
-import { STAGES } from "@/lib/adult/stages";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 import { PLACE_LABEL_MAX, venueName, type PlaceId } from "@/lib/venues";
@@ -55,27 +54,22 @@ export function stageFor(place: string | null, dateVenue: string | null): PlaceI
 }
 
 /**
- * The label over the stage: what they're doing at the line on screen, in the writer's words (lib/adult/doing.ts; David,
- * 2026-10-25: "it always seems to start with 'talking and flirting' … let the writer choose what it says they're doing and
- * update when they switch actions"), the chapter's roleplay in front: "🙈 Blind date · sizing up the smug couple". A
- * line from before lines said what they were doing shows how far it had gone (each line keeps its stage), so a replay
- * climbs with the night; one from before lines kept even that shows nothing until playback catches up. Before the
- * night's first line it's only the roleplay, if there is one; a new chapter with no lines yet says which chapter it is.
+ * The label over the stage: the chapter's roleplay, and what they're doing at the line on screen in the writer's own words
+ * (lib/adult/doing.ts): "🕶️ The bodyguard · holding the stalled lift's door". Never a stock phrase for how far it's gone
+ * (David, 2026-10-25: "talking and flirting is still wrong, we can't hard code this: he is entering as a bodyguard who
+ * has never crossed the line"): a line the writer didn't say it for shows the roleplay alone, or nothing. A new chapter
+ * with no lines yet says which chapter it is.
  */
 export function stageLabel(
   scene: { lines: SceneLine[]; stage: number; chapter?: number; roleplay?: RoleplayPick },
   shown: number,
-  caughtUp: boolean,
   /** The owner's own roleplays (lib/studio/library.ts), beside the show's. */
   mine: readonly Roleplay[] = [],
 ): string | null {
   const rp = scene.roleplay ? (roleplayById(scene.roleplay.id) ?? mine.find((r) => r.id === scene.roleplay!.id) ?? null) : null;
   const withRoleplay = (label: string | null) => (rp ? (label ? `${rp.icon} ${rp.title} · ${label}` : `${rp.icon} ${rp.title}`) : label);
   if (!scene.lines.length) return withRoleplay(scene.chapter && scene.chapter > 1 ? `Chapter ${scene.chapter}` : null);
-  const line = scene.lines[Math.max(0, shown - 1)];
-  if (line?.doing) return withRoleplay(line.doing);
-  if (typeof line?.stage === "number") return withRoleplay(STAGES[line.stage] ?? null);
-  return withRoleplay(caughtUp ? (STAGES[scene.stage] ?? null) : null);
+  return withRoleplay(scene.lines[Math.max(0, shown - 1)]?.doing ?? null);
 }
 
 /**
@@ -273,7 +267,7 @@ export default function AfterDarkTheater({
     setGuide("");
   }
   const latestAction = shown.length ? shown[shown.length - 1].action : "";
-  const label = stageLabel(scene, shown.length, caughtUp, myRoleplays);
+  const label = stageLabel(scene, shown.length, myRoleplays);
   // A roleplay by id: the show's, or one of the owner's own.
   const rpOf = (id: string | null | undefined): Roleplay | null => (id ? (roleplayById(id) ?? myRoleplays.find((r) => r.id === id) ?? null) : null);
   // The set: preloaded, so the last ready one stays up until the next has loaded (never the placeholder in between).

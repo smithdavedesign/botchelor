@@ -155,7 +155,7 @@ async function main() {
     await page.locator(".theater").getByRole("button", { name: "Catch up" }).click({ timeout: 5_000 }).catch(() => {});
     await page.waitForTimeout(1_500);
     const theater = await page.locator(".theater").innerText();
-    assert(/Blind date · talking and flirting/.test(theater), "the label doesn't carry the roleplay");
+    assert(/Blind date/.test(theater) && !/talking and flirting/.test(theater), "the label doesn't carry the roleplay, or still says the heat");
     const stored = await (await ctx.request.get(`${app.base}/api/admin/after-dark?a=${x}&b=${y}`)).json();
     assert(stored.scene.set_place === "the pie factory", `they ended up at ${stored.scene.set_place}, not the pie factory`);
     console.log("  ✓ started: at the pie factory (the model said a rooftop), Blind date in the label");
