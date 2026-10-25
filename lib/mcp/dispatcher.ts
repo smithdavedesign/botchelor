@@ -3295,7 +3295,7 @@ function withStepNext(data: Record<string, unknown>): Record<string, unknown> {
           ),
         ]
       : step.stage === "recap"
-        ? [nextCall("submit_own_date_step", { episode_id: id, output: "<the narrator's recap JSON, as in reply_format>" }, "The recap: run step.messages as the narrator.")]
+        ? [nextCall("submit_own_date_step", { episode_id: id, output: "<the narrator's recap: a JSON object with exactly reply_format's keys, not a bare string>" }, "The recap: run step.messages as the narrator.")]
         : step.stage === "waiting"
           ? [nextCall("get_own_date_step", { episode_id: id, wait_seconds: WAIT_MAX_SECONDS }, "Their move: this waits for yours.")]
           : doneCalls(step, id);
@@ -5944,7 +5944,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ? { ...waitReport(waitPlan(args.wait_seconds), finished ? "new" : "at_start"), wait_note: finished ? "Nothing to wait for: your line was the date's last, and the date is done." : "Nothing to wait for: the next step is yours." }
           : {};
       const lastLine = finished ? { last_line: true, line_used: true, done_note: "Your line was the date's last: it's in (transcript has it), and the date is done. get_episode (summary: true) reads it back." } : {};
-      return { data: { accepted: true, ...lastLine, ...wishFields(r), ...movedFields(r), ...doneIgnored, ...defaultsNote, ...noWait, step: compactIf(r.step, args) }, identity: who };
+      // #853: the line that brings the recap says its format at the top, as a refused recap does.
+      const recapFormat = r.step.stage === "recap" ? { reply_format: r.step.reply_format } : {};
+      return { data: { accepted: true, ...lastLine, ...wishFields(r), ...movedFields(r), ...doneIgnored, ...defaultsNote, ...noWait, ...recapFormat, step: compactIf(r.step, args) }, identity: who };
     }
     case "wait_for_my_turn": {
       const who = resolveIdentity(args, session, false);
@@ -7442,9 +7444,10 @@ async function firstIdNote(db: Db, sessionId: string): Promise<boolean> {
  */
 const sentNotes = new Map<string, Set<string>>();
 const NEWS_NOTES = new Set(["your_move_note", "date_agreed_note", "woke_note", "since_note", "unread_at_start_note", "wait_note", "this_week_note", "undo_note", "agent_id_note", "notes_left_out_note"]);
-// A step's reply_format is the same on every turn; a refused line's (at the top) says what was wrong with it, so it stays.
-const isNoteKey = (k: string, path: string): boolean =>
-  (k === "note" || k.endsWith("_note") || k.endsWith("_tip") || k === "cursor_format" || (k === "reply_format" && path === "step.")) && !NEWS_NOTES.has(k);
+// A turn step's reply_format is the same on every turn; a refused line's (at the top) says what was wrong with it, so it
+// stays. #853: so does a recap's, which comes once a date and isn't the turns' format.
+const isNoteKey = (k: string, path: string, stage?: unknown): boolean =>
+  (k === "note" || k.endsWith("_note") || k.endsWith("_tip") || k === "cursor_format" || (k === "reply_format" && path === "step." && stage !== "recap")) && !NEWS_NOTES.has(k);
 export const NOTES_LEFT_OUT_NOTE = "notes_left_out: notes this connection was already sent, word for word, left out of this reply. compact: false sends every note.";
 export function dropSentNotes(key: string, data: Record<string, unknown>): Record<string, unknown> {
   let seen = sentNotes.get(key);
@@ -7457,7 +7460,7 @@ export function dropSentNotes(key: string, data: Record<string, unknown>): Recor
   const sift = (obj: Record<string, unknown>, path: string, depth: number): Record<string, unknown> => {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj)) {
-      if (typeof v === "string" && isNoteKey(k, path)) {
+      if (typeof v === "string" && isNoteKey(k, path, obj.stage)) {
         const id = `${k}\u0000${v}`;
         if (seen!.has(id)) {
           left.push(`${path}${k}`);

@@ -1110,6 +1110,9 @@ function stepFor(
       "The date is over. Run these messages on a narrator process (it may see both characters — both are yours) and send its raw JSON reply back as \"output\". " +
       `The engine's final call, with both characters' wishes weighed in: this date ends as "${endingLabel(decided.ending, built.input.date_number)}" (ending: ${decided.ending}); the recap lands there and matches the date as it happened. ` +
       `Set it at ${where}${shape.segments.length > 1 ? ` (it started at ${venueName(shape.segments[0].place)} and moved)` : ""}: the engine chose the venue, so the recap never puts them somewhere else. ` +
+      // #853: the rules a recap was refused for, up front: the finale's plan and the output's shape.
+      "Neither the finale nor best_line puts a plan for another date on a day: say what they'd do together, never a day of the week or a clock time. " +
+      "\"output\" is the JSON object in reply_format, not a bare string. " +
       `Example recap (exactly these keys: two goals, three scenes, two confessionals): ${RECAP_EXAMPLE}`,
     messages,
     reply_format: RECAP_REPLY,

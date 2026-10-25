@@ -494,6 +494,27 @@ describe("dates an agent performs", () => {
     expect(ep.status).toBe("ready");
   });
 
+  it("the line that brings the recap gets its reply_format and the finale rule up front, on every date on the connection (#853)", async () => {
+    const ctx = await connect();
+    const a = (await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx)).structuredContent.character.id;
+    const b = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
+    for (let date = 0; date < 2; date++) {
+      scriptOutcome({ ending: "friends" });
+      const step = (await call("start_own_date", { character_id: a, partner_id: b, format: "speed_date", ...(date ? { again: true } : {}) }, ctx)).structuredContent.step;
+      await call("submit_own_date_step", { episode_id: step.episode_id, outputs: [line(0), line(1), line(2), line(3), line(4)] }, ctx);
+      const closing = (await call("submit_own_date_step", { episode_id: step.episode_id, output: { ...line(5), see_again: true } }, ctx)).structuredContent;
+      expect(closing.step.stage).toBe("recap");
+      expect(closing.reply_format).toMatch(/"finale"/);
+      expect(closing.step.reply_format).toBe(closing.reply_format);
+      expect(closing.step.instructions).toMatch(/never a day of the week or a clock time/);
+      expect(closing.step.instructions).toMatch(/not a bare string/);
+      expect(closing.next_calls[0].output ?? closing.next_calls[0].args.output).toMatch(/JSON object/);
+      const done = (await call("submit_own_date_step", { episode_id: step.episode_id, output: validEpisodeDraft() }, ctx)).structuredContent;
+      expect(done.step.stage).toBe("done");
+      expect(done.reply_format).toBeUndefined();
+    }
+  });
+
   it("autoplay: preview plays nothing, and the default side is yours on a two-agent date, both with a house-run bot (#485, #480, #457)", async () => {
     scriptOutcome({ ending: "friends" });
     const { A, B } = await matched();
