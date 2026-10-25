@@ -36,7 +36,7 @@ import type { WriterOptions } from "@/lib/adult/writer";
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
 /** The suggested next moves' labels (lib/adult/director.ts): one per heat. */
-const HEAT_LABEL: Record<Heat, string> = { mild: "Mild", flirty: "Flirty", spicy: "Spicy" };
+const HEAT_LABEL: Record<Heat, string> = { mild: "Surprise me", flirty: "Flirt", spicy: "Spicy" };
 
 /** The scene so far, the way to write more (a few lines at a time, with an optional steer), and the gallery. */
 export default function SceneWriter({
@@ -424,9 +424,11 @@ export default function SceneWriter({
                 className={`ad-suggestion is-${sg.heat}`}
                 disabled={busy}
                 onClick={() => void send({ direction: sg.text, steer_mode: "nudge" })}
-                title={`Send it as a nudge: ${sg.text}`}
+                title={sg.heat === "mild" ? "A surprise: something they didn't see coming" : `Send it as a nudge: ${sg.text}`}
               >
-                <span className="ad-heat">{HEAT_LABEL[sg.heat]}</span> <span className="ad-suggestion-text">{sg.text}</span>
+                {/* The wildcard keeps its words to itself. */}
+                <span className="ad-heat">{HEAT_LABEL[sg.heat]}</span>
+                {sg.heat !== "mild" && <span className="ad-suggestion-text">{sg.text}</span>}
               </button>
             ))}
           </div>

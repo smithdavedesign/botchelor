@@ -3,7 +3,7 @@
  * products all have them). Pure: no database, no model. lib/adult/scenes.ts runs them on every step.
  *
  *  - Suggested next moves: each step's reply also gives three one-tap steers for what could happen next, one per heat
- *    (mild, flirty, spicy), each SUGGESTION_MAX characters at most. Every one is held to the rules a line is
+ *    (mild, flirty, spicy; "mild" is the wildcard, shown as "Surprise me": David, 2026-10-24), each SUGGESTION_MAX characters at most. Every one is held to the rules a line is
  *    (holdSuggestion): the two lines (checkAdultText), no one else on the show by name, the stage pacing (at most one
  *    stage further than the scene stands), the public-place cap (past kissing somewhere public only by leaving for
  *    somewhere private first), and any limits a rules object brings (the pair's hard-nos). One that fails is replaced by
@@ -99,9 +99,17 @@ const SPICY_TOWARD: Record<number, string> = {
   4: "They go all the way, slowly",
 };
 
+/** The wildcard's plain stand-ins: a turn neither saw coming that pushes nothing further, so it fits any stage or place. */
+const SURPRISES = [
+  "A song they both know starts playing nearby",
+  "One of them admits something they've never told anyone",
+  "One of them suggests a silly dare",
+  "Something makes them both burst out laughing",
+] as const;
+
 /** A plain steer of this heat, for when the model's couldn't be used (held to the same rules by the caller). */
-export function fallbackSuggestion(heat: Heat, rules: Pick<SuggestionRules, "stage" | "maxStage" | "publicPlace">): string {
-  if (heat === "mild") return "They slow down and really talk for a while";
+export function fallbackSuggestion(heat: Heat, rules: Pick<SuggestionRules, "stage" | "maxStage" | "publicPlace">, pick: () => number = Math.random): string {
+  if (heat === "mild") return SURPRISES[Math.floor(pick() * SURPRISES.length) % SURPRISES.length];
   if (heat === "flirty") return "One of them teases the other about something from earlier";
   const next = Math.min(rules.maxStage, rules.stage + 1);
   if (rules.publicPlace && next > KISSING) return "One of them suggests they leave for somewhere private";
