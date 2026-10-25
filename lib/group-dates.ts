@@ -14,6 +14,7 @@
  * consent, the swipe gate, operator reserve — applies per booker at book time.
  */
 import type { Db } from "./db";
+import { seedFrom } from "./engine";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import type { PlaceId } from "./venues";
@@ -26,23 +27,26 @@ export const INVITE_DAYS = 7;
 export const DOUBLE_MAX_PENDING = 3;
 
 export type Couple = { character_id: string; partner_id: string };
+/** One drawn meeting of a mixer: who meets whom, whose date it spends, and how it went. */
+export type Rotation = { a: string; b: string; booker: string; episode_id?: string | null; failed?: string };
 export type GroupNight = {
   id: string;
-  kind: "double";
+  kind: "double" | "mixer";
   venue: string;
   created_by: string;
-  status: "invited" | "booked" | "declined" | "lapsed" | "half_booked";
+  status: "invited" | "booked" | "declined" | "lapsed" | "half_booked" | "open" | "running" | "done" | "cancelled";
   invite_to: string | null;
   couple_a: Couple;
   couple_b: Couple;
   episode_a: string | null;
   episode_b: string | null;
+  rotations: Rotation[] | null;
   created_at: string;
 };
 
 const night = (r: Record<string, unknown>): GroupNight => ({
   id: String(r.id),
-  kind: "double",
+  kind: r.kind as GroupNight["kind"],
   venue: String(r.venue),
   created_by: String(r.created_by),
   status: r.status as GroupNight["status"],
@@ -51,6 +55,7 @@ const night = (r: Record<string, unknown>): GroupNight => ({
   couple_b: r.couple_b as Couple,
   episode_a: (r.episode_a as string | null) ?? null,
   episode_b: (r.episode_b as string | null) ?? null,
+  rotations: (r.rotations as Rotation[] | null) ?? null,
   created_at: new Date(r.created_at as string).toISOString(),
 });
 
@@ -164,7 +169,88 @@ async function lapseOldInvites(db: Db, now: Date): Promise<void> {
   ]);
 }
 
-export type GroupBooking = { nightId: string; side: "a" | "b"; venue: PlaceId; table: string };
+/* ------------------------------------------------ mixers (M2) ------------------------------------------------ */
+
+/** A mixer runs once this many singles are in (and the doors have been open a short while, so others can join). */
+export const MIXER_MIN = 4;
+export const MIXER_MAX = 6;
+/** Doors open at most this long: an open mixer that never fills is called off, and nothing is spent. */
+export const MIXER_WAIT_HOURS = 24;
+/** How long the doors stay open once enough are in, so a mixer isn't dealt the instant the fourth arrives. */
+export const MIXER_DOORS_MINUTES = 30;
+/** Where a mixer happens: dealt per night from the venues a crowd suits. */
+const MIXER_VENUES: readonly PlaceId[] = ["dive_bar", "jazz_bar", "rooftop_bar", "night_market"];
+
+export type MixerSeat = { character_id: string; name: string; booker: string };
+
+async function mixerSeats(db: Db, nightId: string): Promise<MixerSeat[]> {
+  const { rows } = await db.query<MixerSeat>(
+    `select gs.character_id, c.name, gs.booker from group_night_seats gs join characters c on c.id = gs.character_id
+      where gs.night_id = $1 order by gs.joined_at`,
+    [nightId],
+  );
+  return rows;
+}
+
+/** The one open mixer (there's at most one: the next night), with its seats. */
+export async function openMixer(db: Db): Promise<{ night: GroupNight; seats: MixerSeat[] } | null> {
+  const { rows } = await db.query(`select * from group_nights where kind = 'mixer' and status = 'open' order by created_at limit 1`, [])
+  if (!rows.length) return null;
+  const g = night(rows[0]);
+  return { night: g, seats: await mixerSeats(db, g.id) };
+}
+
+export type JoinResult = { ok: true; night: GroupNight; seats: MixerSeat[]; runs: string } | { ok: false; error: string };
+
+/**
+ * Put one of your characters in the next mixer (speed-dating night). Joining is consent to its rotations; your
+ * character's rotation spends one of your dates when the night runs (the usual booking rules at run time).
+ */
+export async function joinMixer(db: Db, userId: string, characterId: string, now: Date = new Date()): Promise<JoinResult> {
+  const mine = (
+    await db.query<{ id: string; name: string }>(`select id, name from characters where id = $1 and owner_id = $2 and not is_house`, [characterId, userId])
+  ).rows[0];
+  if (!mine) return { ok: false, error: "join: one of your own characters (my_status lists them; create_character makes one)." };
+  let open = await openMixer(db);
+  if (!open) {
+    const id = crypto.randomUUID();
+    const venue = MIXER_VENUES[seedFrom(id) % MIXER_VENUES.length];
+    const { rows } = await db.query(
+      `insert into group_nights (id, kind, venue, created_by, status, couple_a, couple_b)
+       values ($1, 'mixer', $2, $3, 'open', '{}'::jsonb, '{}'::jsonb) returning *`,
+      [id, venue, userId],
+    );
+    open = { night: night(rows[0]), seats: [] };
+  }
+  if (open.seats.length >= MIXER_MAX) {
+    return { ok: false, error: `This mixer is full (${MIXER_MAX}); it runs within the hour, and the next opens as soon as someone joins it.` };
+  }
+  const ins = await db.query(
+    `insert into group_night_seats (night_id, character_id, booker) values ($1, $2, $3) on conflict do nothing returning character_id`,
+    [open.night.id, characterId, userId],
+  );
+  if (!ins.rows.length) return { ok: false, error: `${shortName(mine.name)} is already in this mixer.` };
+  const seats = await mixerSeats(db, open.night.id);
+  const runs =
+    seats.length >= MIXER_MIN
+      ? `Within the hour (the doors stay open ~${MIXER_DOORS_MINUTES} minutes so others can join).`
+      : `Once ${MIXER_MIN} are in (${seats.length} now); called off after ${MIXER_WAIT_HOURS}h if it never fills, and nothing is spent.`;
+  void now;
+  return { ok: true, night: open.night, seats, runs };
+}
+
+/** Take your character back out of a mixer that hasn't run. */
+export async function leaveMixer(db: Db, userId: string, characterId: string): Promise<boolean> {
+  const r = await db.query(
+    `delete from group_night_seats gs using group_nights gn
+      where gn.id = gs.night_id and gn.kind = 'mixer' and gn.status = 'open' and gs.character_id = $1 and gs.booker = $2
+      returning gs.character_id`,
+    [characterId, userId],
+  );
+  return r.rows.length > 0;
+}
+
+export type GroupBooking = { nightId: string; kind: "double" | "mixer"; side: "a" | "b" | number; venue: PlaceId; table: string };
 
 /**
  * What the booking route needs for one table of a night (app/api/episodes/route.ts, input.group_night): which side
@@ -179,8 +265,21 @@ export async function groupBookingFor(
   partnerId: string,
 ): Promise<{ ok: true; booking: GroupBooking } | { ok: false; status: number; error: string; message: string }> {
   const { rows } = await db.query(`select * from group_nights where id = $1`, [nightId]);
-  if (!rows.length) return { ok: false, status: 404, error: "night_not_found", message: "No double date with that group_night id." };
+  if (!rows.length) return { ok: false, status: 404, error: "night_not_found", message: "No group night with that group_night id." };
   const g = night(rows[0]);
+  if (g.kind === "mixer") {
+    // A mixer rotation: drawn when the night ran (lib/group-dates-run.ts). Joining was the consent; the booker pays.
+    const i = (g.rotations ?? []).findIndex((r) => r.a === characterId && r.b === partnerId);
+    const r = i >= 0 ? g.rotations![i] : null;
+    if (!r) return { ok: false, status: 409, error: "night_mismatch", message: "That pair isn't one of this mixer's rotations." };
+    if (r.booker !== userId) return { ok: false, status: 403, error: "not_your_table", message: "This rotation is its own booker's to book." };
+    if (g.status !== "running") return { ok: false, status: 409, error: "night_not_open", message: `This mixer is ${g.status}, so its rotations can't be booked.` };
+    if (r.episode_id) return { ok: false, status: 409, error: "table_booked", message: "This rotation is already booked." };
+    const seats = await mixerSeats(db, g.id);
+    const others = seats.filter((x) => x.character_id !== characterId && x.character_id !== partnerId).map((x) => shortName(x.name));
+    const table = `It's a speed-dating mixer: six lines with each match before the bell moves everyone on.${others.length ? ` Also here tonight: ${others.join(", ")}.` : ""}`;
+    return { ok: true, booking: { nightId: g.id, kind: "mixer", side: i, venue: g.venue as PlaceId, table } };
+  }
   const side: "a" | "b" | null =
     g.couple_a.character_id === characterId && g.couple_a.partner_id === partnerId
       ? "a"
@@ -195,11 +294,19 @@ export async function groupBookingFor(
   const other = side === "a" ? g.couple_b : g.couple_a;
   const chars = await loadChars(db, [other.character_id, other.partner_id]);
   const names = { a: chars.get(other.character_id)?.name ?? "someone", b: chars.get(other.partner_id)?.name ?? "someone" };
-  return { ok: true, booking: { nightId: g.id, side, venue: g.venue as PlaceId, table: tableLine(names) } };
+  return { ok: true, booking: { nightId: g.id, kind: "double", side, venue: g.venue as PlaceId, table: tableLine(names) } };
 }
 
-/** Stamps one side's episode on the night (the booking route, after its insert). */
+/** Stamps one side's episode on the night (the booking route, after its insert): a double's column, a mixer's rotation. */
 export async function markNightBooked(db: Db, booking: GroupBooking, episodeId: string): Promise<void> {
+  if (typeof booking.side === "number") {
+    await db.query(`update group_nights set rotations = jsonb_set(rotations, $2::text[], to_jsonb($3::text)) where id = $1`, [
+      booking.nightId,
+      `{${booking.side},episode_id}`,
+      episodeId,
+    ]);
+    return;
+  }
   await db.query(`update group_nights set ${booking.side === "a" ? "episode_a" : "episode_b"} = $2 where id = $1`, [booking.nightId, episodeId]);
 }
 
@@ -210,12 +317,11 @@ export async function markNightBooked(db: Db, booking: GroupBooking, episodeId: 
 export async function siblingCharacters(db: Db, episodeId: string): Promise<string[]> {
   const { rows } = await db.query<{ character_a: string; character_b: string }>(
     `select s.character_a, s.character_b
-       from group_nights gn
-       join episodes s on s.id = (case when gn.episode_a = $1 then gn.episode_b else gn.episode_a end)
-      where gn.episode_a = $1 or gn.episode_b = $1`,
+       from episodes e join episodes s on s.group_id = e.group_id and s.id <> e.id
+      where e.id = $1 and e.group_id is not null`,
     [episodeId],
   );
-  return rows.flatMap((r) => [r.character_a, r.character_b]);
+  return [...new Set(rows.flatMap((r) => [r.character_a, r.character_b]))];
 }
 
 /** The other table's episode of a night this episode belongs to, for the episode page's cross-link. */

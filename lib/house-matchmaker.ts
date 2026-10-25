@@ -24,14 +24,15 @@ const MUTUAL_MIN = 4;
 /** What meeting across a double date's table is worth (one shared trait is 3): seen beats inferred, but not by much. */
 const TABLE_BOOST = 3;
 
-/** Whether two characters sat at the same double date's table (on opposite tables), both tables aired publicly. */
+/** Whether two characters were at the same group night (a double's tables, a mixer's rotations), both sides aired publicly. */
 export async function sharedTable(db: Db, aId: string, bId: string): Promise<boolean> {
   const { rows } = await db.query(
-    `select 1 from group_nights gn
-       join episodes ea on ea.id = gn.episode_a and ea.revealed_at is not null and ea.visibility = 'public'
-       join episodes eb on eb.id = gn.episode_b and eb.revealed_at is not null and eb.visibility = 'public'
-      where ($1 in (ea.character_a, ea.character_b) and $2 in (eb.character_a, eb.character_b))
-         or ($2 in (ea.character_a, ea.character_b) and $1 in (eb.character_a, eb.character_b))
+    `select 1 from episodes ea
+       join episodes eb on eb.group_id = ea.group_id and eb.id <> ea.id
+      where ea.group_id is not null
+        and ea.revealed_at is not null and ea.visibility = 'public'
+        and eb.revealed_at is not null and eb.visibility = 'public'
+        and $1 in (ea.character_a, ea.character_b) and $2 in (eb.character_a, eb.character_b)
       limit 1`,
     [aId, bId],
   );

@@ -17,6 +17,7 @@ export type NotificationKind =
   | "scheduled_date" // a date booked for later ran: booked, or why not (lib/scheduled-dates.ts)
   | "double_invite" // another couple proposed a double date with yours (lib/group-dates.ts)
   | "double_date" // how a double date went: booked, declined, or one table fell through (lib/group-dates.ts)
+  | "mixer" // a speed-dating mixer ran, was called off, or wrapped with a reflect nudge (lib/group-dates-run.ts)
   | "date_agreed" // a match where both characters said yes to a date: book it
   | "second_date_yes" // the other owner said yes to a second date, and is waiting for yours
   | "second_date_booked" // a second date was booked with your character

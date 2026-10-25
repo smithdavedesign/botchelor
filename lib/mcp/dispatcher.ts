@@ -23,7 +23,7 @@ import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
 import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-handle";
 import { cancelScheduledDate, pendingScheduledDates, scheduleDate } from "../scheduled-dates";
-import { acceptDouble, declineDouble, listDoubles, proposeDouble } from "../group-dates";
+import { acceptDouble, declineDouble, joinMixer, leaveMixer, listDoubles, MIXER_MIN, openMixer, proposeDouble } from "../group-dates";
 import { bookDoubleNight } from "../group-dates-run";
 import { operatorReserved } from "../operator-pass";
 import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, llmsText } from "../agents";
@@ -72,7 +72,7 @@ import { dateNumberSql } from "../date-number";
 import { getCharacterHistory, getPoints, getPointsBreakdown, getPublicCharacter, listAiredPage, listAiringSoon, listMyEpisodes, type DateSetup, type EpisodeView } from "../game";
 import { MCP_CALL_URL, readUserId, safeEqual, USER_COOKIE } from "../http";
 import { getDealbreakerQuiz, listCast } from "../mechanics";
-import { connections, describeDrift, loadCharacterMemory, loadForgets, PAIR_STATUS_LABELS, stageFor, type Source } from "../memory";
+import { connections, describeDrift, loadCharacterMemory, loadForgets, noteMeeting, PAIR_STATUS_LABELS, stageFor, type Source } from "../memory";
 import { type Character, loadCharacter, pronounWarnings } from "../character";
 import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "../adult/mcp";
 import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, unreadTextsByPair } from "../inbox";
@@ -465,6 +465,8 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   set_profile: FREE,
   schedule_date: "Free to set; the date spends your dates/budget when it runs (my_notifications says how it went).",
   double_date: "Proposing is free; each couple's booker spends one date when the night books (a self-double spends two of yours).",
+  mixer: "Joining is free; your character's one rotation spends one of your dates when the night runs (a night that never fills is called off free).",
+  remember_meeting: "Free.",
   go_on_date: `Costs ${ONE_DATE}; a date that can't be booked, a proposal to a closed character's creator and preview: true spend nothing.`,
   // 2.13.0 (the 2026-10-23-2135 run: "free" here beside autoplay's "shared daily date"): what each word means, in both.
   start_own_date: "Free while you write the lines: no weekly date, token or shared daily date (autoplay_own_date, where the show's model writes, uses one). preview: true starts nothing.",
@@ -5595,6 +5597,51 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           booked: { episode_a: booked.episode_a, episode_b: booked.episode_b },
           note: "Both your tables are being written (two of your dates); each couple's date airs the usual way, and either episode links the other.",
         },
+        identity: who,
+      };
+    }
+    case "remember_meeting": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const saved = await noteMeeting(db, who.id, String(args.character_id ?? ""), String(args.about ?? ""), String(args.note ?? ""));
+      if (!saved.ok) return { error: saved.error };
+      return {
+        data: {
+          met: saved.met,
+          note: "Saved, private to you: it rides into your character's next first date with them (and my_character_memory shows it).",
+        },
+        identity: who,
+      };
+    }
+    case "mixer": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      if (typeof args.leave === "string") {
+        const left = await leaveMixer(db, who.id, args.leave);
+        if (!left) return { error: "That character isn't in an open mixer of yours (mixer { list: true } shows the open one)." };
+        return { data: { left: args.leave }, identity: who };
+      }
+      if (typeof args.join === "string") {
+        const joined = await joinMixer(db, who.id, args.join);
+        if (!joined.ok) return { error: joined.error };
+        return {
+          data: {
+            mixer: { id: joined.night.id, venue: joined.night.venue, singles: joined.seats.map((x) => ({ character_id: x.character_id, name: x.name })) },
+            runs: joined.runs,
+            note: "Joining is the consent: your character meets its two neighbours for six lines each, and your one rotation spends one of your dates when it runs. my_notifications says how the night went; leave: <character_id> backs out before it runs.",
+          },
+          identity: who,
+        };
+      }
+      const open = await openMixer(db);
+      return {
+        data: open
+          ? {
+              mixer: { id: open.night.id, venue: open.night.venue, singles: open.seats.map((x) => ({ character_id: x.character_id, name: x.name })) },
+              runs: open.seats.length >= MIXER_MIN ? "Within the hour." : `Once ${MIXER_MIN} are in (${open.seats.length} now).`,
+              note: "join: <character_id> puts one of yours in.",
+            }
+          : { mixer: null, note: "No mixer is open: join: <character_id> opens the next one with your character in it." },
         identity: who,
       };
     }

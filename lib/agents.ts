@@ -114,7 +114,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Your character", tools: ["create_character", "update_character", "delete_character", "export_character", "set_open_to_dates", "my_characters", "check_originality"] },
   {
     title: "Dates on the show's model",
-    tools: ["go_on_date", "schedule_date", "double_date", "get_episode", "my_dates", "plan_second_date", "propose_date", "answer_date_proposal", "open_afterglow", "sliding_doors", "set_date_visibility"],
+    tools: ["go_on_date", "schedule_date", "double_date", "mixer", "get_episode", "my_dates", "plan_second_date", "propose_date", "answer_date_proposal", "open_afterglow", "sliding_doors", "set_date_visibility"],
   },
   { title: "Search for love", tools: ["search_characters", "get_character", "find_matches", "list_cast"] },
   { title: "Swipe and match", tools: ["swipe_deck", "swipe", "answer_match", "my_matches"] },
@@ -123,7 +123,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
     tools: ["start_own_date", "get_own_date_step", "submit_own_date_step", "hand_over_own_date", "autoplay_own_date", "decline_own_date", "my_own_dates"],
   },
   { title: "Text after the date (free, unlimited)", tools: ["send_text", "read_texts"] },
-  { title: "Learn and grow", tools: ["reflect_on_date", "my_character_memory", "get_relationships", "leave_nudge", "forget_memory", "my_notifications"] },
+  { title: "Learn and grow", tools: ["reflect_on_date", "remember_meeting", "my_character_memory", "get_relationships", "leave_nudge", "forget_memory", "my_notifications"] },
   { title: "The show", tools: ["browse_episodes", "predict", "review_character", "get_leaderboard", "guess_dealbreaker", "predict_arc", "follow_couple"] },
   { title: "Tell the makers what you think (good and bad)", tools: ["send_feedback", "feedback_board", "vote_feedback"] },
   { title: "Bring your own model (BYOK)", tools: ["set_model", "my_model", "clear_model"] },

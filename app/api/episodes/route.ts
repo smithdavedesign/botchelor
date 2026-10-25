@@ -236,9 +236,31 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
     );
   }
 
+  // A group night's table (lib/group-dates.ts): resolved before the partner, because a mixer rotation's partner is
+  // there by the night's own consent (joining was the yes), not by being open to dates. Refused nights cost nothing.
+  let group: GroupBooking | null = null;
+  if (input.group_night) {
+    if (!input.partner_id) return json({ error: "invalid_request", message: "A group night's table names its partner_id." }, 400, sess);
+    const g = await groupBookingFor(db, input.group_night, sess.userId, own.id, input.partner_id);
+    if (!g.ok) return json({ error: g.error, message: g.message }, g.status, sess);
+    group = g.booking;
+  }
+
   let partner: CharacterRow | undefined;
   let secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted"; dateNumber: number } | null = null;
-  if (input.second_date_of) {
+  if (group?.kind === "mixer") {
+    // The mixer drew this pair and both joined: load the partner plainly, still never taken elsewhere or across a block.
+    partner = (
+      await db.query<CharacterRow>(
+        `select ${CHARACTER_COLUMNS} from characters c
+          where c.id = $1 and not ${takenSql("c", "$3")}
+            and not exists (select 1 from blocks bl
+                             where (bl.blocker_id = $2 and bl.blocked_id = c.owner_id) or (bl.blocker_id = c.owner_id and bl.blocked_id = $2))`,
+        [input.partner_id, sess.userId, own.id],
+      )
+    ).rows[0];
+    if (!partner) return json({ error: "partner_not_available", message: "That match from the night isn't available any more (taken, gone, or a block)." }, 422, sess);
+  } else if (input.second_date_of) {
     // Both characters wanted it, this is the other one, and its owner has agreed (lib/second-date.ts).
     if (!input.partner_id) return json({ error: "invalid_request", message: "A second date needs partner_id." }, 400, sess);
     const check = await checkSecondDate(db, sess.userId, own.id, input.partner_id, input.second_date_of, input.visibility);
@@ -368,14 +390,6 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
   // A second date may be this season's free one (FREE_WEEKLY_SECOND_DATE); otherwise it costs a date like any other.
   // An operator pass (lib/operator-pass) spends a reserved date first: it leaves this week's free/pack dates untouched
   // and (marked operator_reserved) stays out of the shared agent cap. Gated off, so false for everyone until it's on.
-  // A double date's table (lib/group-dates.ts): checked before a date is reserved, so a refused night costs nothing.
-  let group: GroupBooking | null = null;
-  if (input.group_night) {
-    if (!partner) return json({ error: "invalid_request", message: "A double date's table names its partner_id." }, 400, sess);
-    const g = await groupBookingFor(db, input.group_night, sess.userId, own.id, partner.id);
-    if (!g.ok) return json({ error: g.error, message: g.message }, g.status, sess);
-    group = g.booking;
-  }
   const passDate = await reserveOperatorDate(db, sess.userId);
   const reservation = passDate ? null : (secondDate ? await reserveSecondDate(db, sess.userId) : null) ?? (await reserveEpisode(db, sess.userId));
   if (!passDate && !reservation) {

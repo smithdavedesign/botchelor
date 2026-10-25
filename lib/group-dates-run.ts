@@ -9,9 +9,12 @@
  */
 import { POST as postEpisode } from "@/app/api/episodes/route";
 import type { Db } from "./db";
-import { type GroupNight } from "./group-dates";
+import { MIXER_DOORS_MINUTES, MIXER_MAX, MIXER_MIN, MIXER_WAIT_HOURS, openMixer, type GroupNight, type Rotation } from "./group-dates";
+import { seedFrom } from "./engine";
 import { MCP_CALL_URL, USER_COOKIE } from "./http";
+import { shortName } from "./names";
 import { notify } from "./notifications";
+import { venuePhrase } from "./venues";
 
 async function book(asUserId: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const req = new Request(MCP_CALL_URL, {
@@ -79,3 +82,93 @@ export async function bookDoubleNight(db: Db, g: GroupNight, visibility?: string
   }
   return { ok: true, episode_a: episodeA, episode_b: episodeB };
 }
+
+/* ------------------------------------------------ mixers (M2) ------------------------------------------------ */
+
+/** The same dealt shuffle every run would deal (seeded by the night), so a retry can't redraw who meets whom. */
+function drawRotations(nightId: string, seats: { character_id: string; booker: string }[]): Rotation[] {
+  const order = [...seats];
+  let seed = seedFrom(nightId);
+  for (let i = order.length - 1; i > 0; i--) {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    const j = seed % (i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  // A circle: everyone meets their two neighbours, and books exactly one of those rotations (one date each).
+  return order.map((s, i) => ({ a: s.character_id, b: order[(i + 1) % order.length].character_id, booker: s.booker }));
+}
+
+export type MixerRun = { ran: number; booked: number; failed: number; cancelled: number; waiting: number };
+
+/**
+ * Runs the open mixer when it's due (the hourly lobby job): enough singles in and the doors open a while (or full).
+ * Each rotation books a speed_date through the same route as go_on_date as its own booker — one date per
+ * participant for the whole night. A mixer that never fills is called off, and nothing is spent.
+ */
+export async function runDueMixers(db: Db, now: Date = new Date()): Promise<MixerRun> {
+  const out: MixerRun = { ran: 0, booked: 0, failed: 0, cancelled: 0, waiting: 0 };
+  const open = await openMixer(db).catch(() => null);
+  if (!open) return out;
+  const age = now.getTime() - new Date(open.night.created_at).getTime();
+  if (open.seats.length < MIXER_MIN) {
+    if (age > MIXER_WAIT_HOURS * 60 * 60_000) {
+      const off = await db.query(`update group_nights set status = 'cancelled', decided_at = $2 where id = $1 and status = 'open' returning id`, [
+        open.night.id,
+        now.toISOString(),
+      ]);
+      if (off.rows.length) {
+        out.cancelled = 1;
+        for (const booker of new Set(open.seats.map((s) => s.booker))) {
+          await notify(db, booker, {
+            kind: "mixer",
+            title: "🍸 The mixer was called off",
+            body: `Fewer than ${MIXER_MIN} singles came in ${MIXER_WAIT_HOURS} hours, so nothing ran and nothing was spent. The next mixer opens as soon as someone joins.`,
+            link: null,
+          }).catch(() => {});
+        }
+      }
+    } else out.waiting = 1;
+    return out;
+  }
+  if (open.seats.length < MIXER_MAX && age < MIXER_DOORS_MINUTES * 60_000) {
+    out.waiting = 1; // enough to run, but the doors stay open a little for late joiners
+    return out;
+  }
+  // Claim it (an overlapping run finds it 'running' and does nothing), then draw who meets whom.
+  const rotations = drawRotations(open.night.id, open.seats);
+  const claimed = await db.query(
+    `update group_nights set rotations = $2::jsonb, status = 'running', decided_at = $3 where id = $1 and status = 'open' returning id`,
+    [open.night.id, JSON.stringify(rotations), now.toISOString()],
+  );
+  if (!claimed.rows.length) return out;
+  out.ran = 1;
+  const names = new Map(open.seats.map((s) => [s.character_id, s.name]));
+  for (const [i, r] of rotations.entries()) {
+    const res = await book(r.booker, { character_id: r.a, partner_id: r.b, group_night: open.night.id, format: "speed_date" });
+    if (res.ok) out.booked += 1;
+    else {
+      out.failed += 1;
+      const why = String(res.data.message ?? res.data.error ?? `refused (${res.status})`).slice(0, 160);
+      await db
+        .query(`update group_nights set rotations = jsonb_set(rotations, $2::text[], to_jsonb($3::text)) where id = $1`, [open.night.id, `{${i},failed}`, why])
+        .catch(() => {});
+    }
+  }
+  await db.query(`update group_nights set status = $2 where id = $1`, [open.night.id, out.booked ? "done" : "cancelled"]);
+  // The wrap: your rotations, and the ask that makes the night compound (David 2026-10-25: reflect on who you liked).
+  for (const seat of open.seats) {
+    const mine = rotations.filter((r) => (r.a === seat.character_id || r.b === seat.character_id) && !r.failed);
+    const met = mine.map((r) => shortName(names.get(r.a === seat.character_id ? r.b : r.a) ?? "someone"));
+    await notify(db, seat.booker, {
+      kind: "mixer",
+      title: out.booked ? `🍸 The mixer ran at ${venuePhrase(open.night.venue)}` : "🍸 The mixer couldn't run",
+      body: out.booked
+        ? `${shortName(names.get(seat.character_id) ?? "someone")} met ${met.join(" and ") || "nobody (their rotations fell through)"} — six lines each. ` +
+          `Once the dates air, reflect on each (the reflect tool on each episode): what ${shortName(names.get(seat.character_id) ?? "someone")} liked, what put them off — it's remembered and shapes their next meetings. Everyone at the mixer joins their met memory too.`
+        : "No rotation could be booked, so nothing ran. Nothing was spent beyond what each refusal said.",
+      link: null,
+    }).catch(() => {});
+  }
+  return out;
+}
+

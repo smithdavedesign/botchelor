@@ -5,6 +5,7 @@ import { refreshLobby } from "@/lib/watch";
 import { airDueDates } from "@/lib/air";
 import { autoplayQuietOwnDates } from "@/lib/own-date";
 import { runDueScheduledDates } from "@/lib/scheduled-dates";
+import { runDueMixers } from "@/lib/group-dates-run";
 import { retryDueSets } from "@/lib/sets";
 import { runWhileAway } from "@/lib/away";
 
@@ -32,7 +33,9 @@ async function run(req: Request): Promise<Response> {
   const away = await runWhileAway(db).catch(() => ({}));
   // Dates booked for later (lib/scheduled-dates.ts): run the due ones through the normal booking route.
   const scheduled = await runDueScheduledDates(db).catch(() => ({ ran: 0, booked: 0, waiting: 0, failed: 0 }));
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked, scheduled_dates: scheduled, ...away });
+  // The speed-dating mixer (lib/group-dates-run.ts): runs once enough singles joined, through the normal booking route.
+  const mixers = await runDueMixers(db).catch(() => ({ ran: 0, booked: 0, failed: 0, cancelled: 0, waiting: 0 }));
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);
