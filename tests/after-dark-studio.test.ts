@@ -417,6 +417,42 @@ describe("a shoot", () => {
     expect(edits.at(-1)!.prompt).toMatch(/a natural, relaxed pose/i);
     expect((await post({ action: "redo", shoot_id: shot.shoot.id }, cookie)).status).toBe(409);
   });
+
+  it("makes a face anchor (a close-up) and then leads every shoot with it, Picture 1, in place of the baseline", async () => {
+    const { cookie, character } = await setup({ admin: true });
+    fakeHive();
+    const { edits } = fakeVenice();
+    // Before: the shoot leads with the baseline (face-1).
+    const first = await (await post({ action: "shoot", character_id: character, choices: {} }, cookie)).json();
+    expect(first.state.identity.faceCrop).toBeFalsy();
+    expect(edits[0].images[0]).toMatch(/media\/face-1\?until=/);
+    // Make the anchor: one close-up, checked, set as the face anchor.
+    const anchor = await (await post({ action: "face", character_id: character }, cookie)).json();
+    expect(anchor.shoot).toMatchObject({ kind: "face", made: 1 });
+    expect(anchor.pictures).toHaveLength(1);
+    expect(anchor.state.identity.faceCrop).toBe(anchor.pictures[0].id);
+    const headshot = edits.at(-1)!;
+    expect(headshot.prompt).toContain("head-and-shoulders close-up");
+    expect(headshot.images[0]).toMatch(/media\/face-1\?until=/); // drawn from the baseline
+    // After: the shoot leads with the anchor, not the baseline.
+    const next = await (await post({ action: "shoot", character_id: character, choices: {} }, cookie)).json();
+    expect(next.state.identity.faceCrop).toBe(anchor.pictures[0].id);
+    expect(edits.at(-1)!.images[0]).toContain(`media/${anchor.pictures[0].id}?until=`);
+    expect(edits.at(-1)!.images[0]).not.toContain("face-1");
+  });
+
+  it("keeps the baseline (not the anchor) on loose strength", async () => {
+    const { cookie, character } = await setup({ admin: true });
+    fakeHive();
+    const { edits } = fakeVenice();
+    const anchor = await (await post({ action: "face", character_id: character }, cookie)).json();
+    expect(anchor.pictures).toHaveLength(1);
+    await post({ action: "strength", character_id: character, strength: "loose" }, cookie);
+    const shot = await (await post({ action: "shoot", character_id: character, choices: {} }, cookie)).json();
+    expect(shot.state.identity.strength).toBe("loose");
+    expect(edits.at(-1)!.images[0]).toMatch(/media\/face-1\?until=/);
+    expect(edits.at(-1)!.images[0]).not.toContain(anchor.pictures[0].id);
+  });
 });
 
 describe("identity", () => {

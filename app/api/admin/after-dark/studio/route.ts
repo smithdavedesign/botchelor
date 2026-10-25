@@ -6,6 +6,7 @@ import { removeShare, sharePicture } from "@/lib/adult/shares";
 import {
   animatePicture,
   bodyShoot,
+  faceAnchorShoot,
   deleteSetup,
   moreLikeThis,
   pairMenu,
@@ -70,6 +71,7 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("save_looks"), character_id: id, changes: Changes }),
   z.object({ action: z.literal("recast"), character_id: id, model, own_key }),
   z.object({ action: z.literal("body"), character_id: id, nude: z.boolean().optional(), model, own_key }),
+  z.object({ action: z.literal("face"), character_id: id, model, own_key }),
   z.object({
     action: z.literal("pair"),
     character_id: id,
@@ -156,6 +158,8 @@ export const POST = handle(async (req: Request) => {
       return job(input.character_id, await recast(db, viewer, input.character_id, { model: input.model, own_key: input.own_key }));
     case "body":
       return job(input.character_id, await bodyShoot(db, viewer, input.character_id, { nude: input.nude, model: input.model, own_key: input.own_key }, base));
+    case "face":
+      return job(input.character_id, await faceAnchorShoot(db, viewer, input.character_id, { model: input.model, own_key: input.own_key }, base));
     case "pair": {
       const { action: _a, character_id, ...pair } = input;
       return job(character_id, await pairShoot(db, viewer, character_id, pair, base));

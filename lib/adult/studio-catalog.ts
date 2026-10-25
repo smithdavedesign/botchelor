@@ -528,6 +528,20 @@ export function bodyPrompt(subject: Subject, nude: boolean): string {
   ].join(" ");
 }
 
+/**
+ * A face anchor's prompt: a tight head-and-shoulders close-up of the person from Picture 1, the same face unchanged, so
+ * it can lead every shoot as the identity to keep (lib/adult/studio.ts ensureFaceCrop; David, 2026-10-24). Made once.
+ */
+export function headshotPrompt(subject: Subject): string {
+  const who = subject.noun === "person" ? "person" : subject.noun;
+  const age = Math.max(IMAGE_MIN_AGE, Math.round(subject.age || IMAGE_MIN_AGE));
+  return [
+    `Make one photograph of the ${who} from Picture 1, a ${age}-year-old adult: the very same face, features, hair and skin tone, unchanged.`,
+    "A tight head-and-shoulders close-up, the face filling the frame, looking straight at the camera, sharp focus on the face, a plain light-grey studio backdrop, soft even light.",
+    "Dressed. Photorealistic. Everyone shown is an adult.",
+  ].join(" ");
+}
+
 /* ------------------------------------------------- animate (v3) ------------------------------------------------- */
 
 /** How a picture moves when it's animated (v3): one chip, fixed words, nothing typed. `disabled_options` takes "motion.<id>". */
