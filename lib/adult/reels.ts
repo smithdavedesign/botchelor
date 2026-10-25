@@ -647,7 +647,7 @@ export function keyframePrompt(
   place: string | null,
   stage: number,
   withSet: boolean,
-  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; dialog?: string; reference?: boolean } = {},
+  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; extra?: string; dialog?: string; reference?: boolean } = {},
 ): string {
   const [a, b] = cast;
   // Drawn like a picture they already have (the storyboard's Draw like it): Picture 3 is that picture, for its pose,
@@ -666,7 +666,9 @@ export function keyframePrompt(
   const keep =
     `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${opts.clothes ?? clothesAt(stage)}.` +
     `${opts.reference ? " Take only the pose, the framing and the place from Picture 3: the people in it are the two from Pictures 1 and 2." : withSet ? (opts.light ? " Keep the place and its furniture from Picture 3." : " Keep the place, its furniture and its light from Picture 3.") : ""} Two people only, both faces visible.`;
-  return fitPrompt([head, whoIsWho(cast)], `${custom}${frame}${dialog}`, [where, light, keep, tailAt(stage, opts.explicit ?? true)]);
+  // The owner's words on single sections (the Together tab's, "Also — place: …"), on top of what the chips say.
+  const extra = opts.extra?.trim() ? ` ${opts.extra.trim()}` : "";
+  return fitPrompt([head, whoIsWho(cast)], `${custom}${frame}${extra}${dialog}`, [where, light, keep, tailAt(stage, opts.explicit ?? true)]);
 }
 
 /** Which of them is which picture, when "the woman" and "the man" don't already say it. */
