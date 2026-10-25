@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import { PG_CUSTOM_MAX, type PgChoices, type PgGroup, type PgGroupId } from "@/lib/studio/pg-catalog";
@@ -69,6 +69,20 @@ export default function PgStudio({ initial }: { initial: PgState }) {
 
   // The Create tab saved or deleted something: the Where menu and the prompts row follow at once.
   const onLibrary = useCallback((lib: Library) => setState((s) => ({ ...s, library: { places: lib.places.filter((p) => p.mode === "safe"), prompts: lib.prompts.filter((p) => p.mode === "safe") } })), []);
+
+  // Whether "After Dark face" is offered (After Dark open to them, the character in their After Dark).
+  const [afterDark, setAfterDark] = useState(false);
+  useEffect(() => {
+    fetch(`/api/characters/${c.id}/pictures`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setAfterDark(Boolean(d.after_dark)))
+      .catch(() => {});
+  }, [c.id]);
+  async function usePicture(id: string, as: "portrait" | "face") {
+    const res = await requestJson(`/api/characters/${c.id}/pictures`, { source: "studio", id, as }).catch(() => null);
+    if (!res || !res.ok) return setNote({ text: res ? res.message : "That didn't reach the server.", error: true });
+    setNote({ text: as === "portrait" ? `That's ${c.name.split(/\s+/)[0]}'s profile picture now.` : `That's ${c.name.split(/\s+/)[0]}'s After Dark face now.` });
+  }
 
   async function remove(id: string) {
     const res = await requestJson(`/api/characters/${c.id}/studio`, { action: "delete", picture_id: id }).catch(() => null);
@@ -173,12 +187,19 @@ export default function PgStudio({ initial }: { initial: PgState }) {
               {note.text}
             </p>
           )}
-          {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} />}
+          {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} onUse={usePicture} afterDark={afterDark} />}
         </>
       ) : tab === "create" ? (
         <CreateLibrary scope="safe" onLibrary={onLibrary} />
       ) : state.pictures.length ? (
-        <Pictures items={state.pictures} onDelete={remove} />
+        <>
+          {note && (
+            <p className={note.error ? "error" : "notice"} role={note.error ? "alert" : "status"}>
+              {note.text}
+            </p>
+          )}
+          <Pictures items={state.pictures} onDelete={remove} onUse={usePicture} afterDark={afterDark} />
+        </>
       ) : (
         <p className="muted">No pictures yet: a shoot puts its pictures here.</p>
       )}
@@ -186,7 +207,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
   );
 }
 
-function Pictures({ items, onDelete }: { items: PgPicture[]; onDelete: (id: string) => void }) {
+function Pictures({ items, onDelete, onUse, afterDark = false }: { items: PgPicture[]; onDelete: (id: string) => void; onUse?: (id: string, as: "portrait" | "face") => void; afterDark?: boolean }) {
   return (
     <ul className="pg-pictures">
       {items.map((p) => (
@@ -196,6 +217,17 @@ function Pictures({ items, onDelete }: { items: PgPicture[]; onDelete: (id: stri
           <span className="pg-picture-meta">
             <AiTag />
             {p.rating === "suggestive" && <span className="badge" title="Signed-in people only">Suggestive</span>}
+            {/* Their profile picture (pg only) or their After Dark face (lib/studio/picture-choice.ts). */}
+            {onUse && p.rating === "pg" && (
+              <button type="button" className="button-ghost small" onClick={() => onUse(p.id, "portrait")}>
+                Profile picture
+              </button>
+            )}
+            {onUse && afterDark && (
+              <button type="button" className="button-ghost small" onClick={() => onUse(p.id, "face")}>
+                🌙 After Dark face
+              </button>
+            )}
             <button type="button" className="button-ghost small" onClick={() => onDelete(p.id)}>
               Delete
             </button>

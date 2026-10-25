@@ -11354,3 +11354,47 @@ button.pg-group-head:hover {
 .pg-picture-meta .badge {
   margin: 0;
 }
+
+/* Choose their picture (app/studio/ChoosePicture.tsx): their Studio shots and earlier portraits, as profile picture or After Dark face. */
+.choose-picture {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.choose-picture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(140px, 44%), 1fr));
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.choose-picture-grid li {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.35rem;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--card, #fff);
+}
+.choose-picture-grid li.is-current {
+  border-color: var(--accent);
+}
+.choose-picture-grid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.choose-picture-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.choose-picture-tools button,
+.choose-picture-tools .badge {
+  margin: 0;
+  font-size: var(--text-xs);
+}

@@ -50,11 +50,19 @@ function placeholders() {
   });
 }
 
-async function seed(owner) {
+async function seed(owner, mine) {
   const db = new PGlite(DB_DIR);
   try {
     const pics = placeholders();
     await db.query(`insert into studio_pg_shoots (id, owner_id, character_id, choices, model, tokens, free, asked, made, status) values ('pg-shoot-1', $1, $2, '{}'::jsonb, 'qwen-image-2-1-turbo-edit', 0, true, 4, 4, 'ready')`, [owner, HER]);
+    // Their own character's Studio pictures too, for Choose their picture on the Look step.
+    await db.query(`insert into studio_pg_shoots (id, owner_id, character_id, choices, model, tokens, free, asked, made, status) values ('pg-shoot-2', $1, $2, '{}'::jsonb, 'qwen-image-2-1-turbo-edit', 0, true, 4, 3, 'partial')`, [owner, mine]);
+    for (const [i, data] of pics.slice(0, 3).entries()) {
+      await db.query(
+        `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, content_rating, clothing) values ($1, $2, $3, 'pg-shoot-2', 'PG placeholder', 'image/png', $4, $5, 'CLOTHED')`,
+        [`pg-mine-${i}`, owner, mine, data, i === 2 ? "suggestive" : "pg"],
+      );
+    }
     for (const [i, data] of pics.entries()) {
       await db.query(
         `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, content_rating, clothing, created_at)
@@ -107,6 +115,9 @@ async function main() {
     await save({ action: "save_place", name: "A rooftop greenhouse", description: "a glass greenhouse on a city roof at night, warm and green", mode: "safe" });
     await save({ action: "save_prompt", text: "Golden-hour portrait on a rooftop, wind in their hair, the city behind them", title: "Rooftop golden hour", mode: "safe" });
     await save({ action: "save_prompt", text: "Reading in a café window seat, rain on the glass", title: "Rainy café", mode: "safe" });
+    const made = await req.post(`${app.base}/api/characters`, { data: { name: "Wren Halloway", age: 31, bio: "A ferry pilot who knows every lighthouse on the coast by its blink.", traits: ["steady", "dry", "kind"], want: "Someone who likes the quiet hours", dealbreaker: "Being late for the tide", attest: true, keep_name: true } });
+    assert(made.ok(), `making a character: HTTP ${made.status()}`);
+    const mine = (await made.json()).id;
     await save({ action: "save_roleplay", title: "Rival food trucks", premise: "{a} and {b} run food trucks parked side by side; tonight one of them admits the rivalry was flirting all along.", roles: ["the taco truck owner", "the ramen truck owner"], category: "romance" });
     await stopApp(app);
     const owner = await (async () => {
@@ -117,7 +128,7 @@ async function main() {
         await db.close();
       }
     })();
-    await seed(owner);
+    await seed(owner, mine);
     app = await startApp(port, env);
     const page = await ctx.newPage();
     page.setDefaultTimeout(20_000);
@@ -167,6 +178,14 @@ async function main() {
     await picker.getByRole("radio", { name: /Yours/ }).first().click();
     await picker.getByRole("radio", { name: /Rival food trucks/ }).click();
     await shot(page, "create-picker-roleplay-desktop");
+    // Their own character's Look step: Choose their picture (lib/studio/picture-choice.ts).
+    const edit = await page.goto(`${app.base}/characters/${mine}/edit`);
+    if (!edit?.ok()) throw new Error(`the edit page answered ${edit?.status()} for ${mine}`);
+    // The rail's dots are the buttons; each step's name sits beside its dot.
+    await page.locator(".wizard-rail-step", { hasText: "Look" }).locator("button").click();
+    await page.locator(".choose-picture-grid img").first().waitFor();
+    await page.locator(".choose-picture").evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 160));
+    await shot(page, "choose-picture-desktop");
     // /prompts: Your prompts above the library.
     await page.goto(`${app.base}/prompts`);
     await page.locator(".my-prompts .prompt-item").first().waitFor();
