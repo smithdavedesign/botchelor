@@ -2184,6 +2184,10 @@ create table if not exists adult_identity (
   primary key (owner_id, character_id)
 );
 alter table adult_images add column if not exists shoot_id text;
+-- A tight close-up of the face, made once from the baseline and reused as the face anchor (Picture 1) of every shoot,
+-- so a heavy override changes the pose and scene without drifting the face (David, 2026-10-24: "provide a headshot as
+-- context, then let the rest override"). lib/adult/studio.ts ensureFaceCrop.
+alter table adult_identity add column if not exists face_crop_image_id text references adult_images (id) on delete set null;
 alter table adult_settings add column if not exists studio jsonb;
 alter table adult_usage add column if not exists studio integer not null default 0;
 alter table adult_usage add column if not exists studio_byok integer not null default 0;

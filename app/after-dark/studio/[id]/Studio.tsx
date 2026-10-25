@@ -856,7 +856,24 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 )}
               </figcaption>
             </figure>
+            <figure>
+              {s.identity.faceCrop ? (
+                // eslint-disable-next-line @next/next/no-img-element -- private, presigned media
+                <img src={media(s.identity.faceCrop)} alt={`${c.name}'s face anchor`} />
+              ) : (
+                <div className="ad-studio-empty">No close-up yet.</div>
+              )}
+              <figcaption className="small">
+                Face anchor{" "}
+                <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => void act("face", { action: "face", character_id: c.id, model: picked?.id, ...own }, { title: "Drawing a close-up…" })}>
+                  {s.identity.faceCrop ? "redraw" : "sharpen"}
+                </button>
+              </figcaption>
+            </figure>
           </div>
+          <p className="muted small">
+            The face anchor is a tight close-up drawn from the baseline. Once you make one, every shoot leads with it, so a bold prompt can change the pose and scene while the face stays theirs — exactly the baseline. {tokens(price(s.prices.body))}; free for admins.
+          </p>
 
           <fieldset className="ad-studio-group">
             <legend>How strictly pictures keep the face</legend>

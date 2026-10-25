@@ -79,6 +79,7 @@ import {
   DIALOG_MAX,
   bodyPrompt,
   groupById,
+  headshotPrompt,
   LEVEL_FOR_INTENSITY,
   LEVEL_LABEL,
   optionById,
@@ -136,13 +137,15 @@ export async function studioAccess(db: Db, viewer: string, characterId: string):
 
 /* ------------------------------------------------ identity ------------------------------------------------ */
 
-export type Identity = { face: string | null; body: string | null; strength: Strength; intensity: Intensity; hard_nos: string[] };
+export type Identity = { face: string | null; body: string | null; faceCrop: string | null; strength: Strength; intensity: Intensity; hard_nos: string[] };
 
-/** The viewer's own settings for the character: the body reference (while it's still there), strength, studio limits. */
+/** The viewer's own settings for the character: the body reference and face anchor (while ready), strength, studio limits. */
 export async function identityOf(db: Db, viewer: string, characterId: string): Promise<Identity> {
   const r = (
-    await db.query<{ body_image_id: string | null; strength: string | null; intensity: string | null; hard_nos: unknown; body_ready: boolean | null }>(
-      `select i.body_image_id, i.strength, i.intensity, i.hard_nos, (select m.status = 'ready' from adult_images m where m.id = i.body_image_id) as body_ready
+    await db.query<{ body_image_id: string | null; face_crop_image_id: string | null; strength: string | null; intensity: string | null; hard_nos: unknown; body_ready: boolean | null; face_crop_ready: boolean | null }>(
+      `select i.body_image_id, i.face_crop_image_id, i.strength, i.intensity, i.hard_nos,
+              (select m.status = 'ready' from adult_images m where m.id = i.body_image_id) as body_ready,
+              (select m.status = 'ready' from adult_images m where m.id = i.face_crop_image_id) as face_crop_ready
          from adult_identity i where i.owner_id = $1 and i.character_id = $2`,
       [viewer, characterId],
     )
@@ -150,10 +153,10 @@ export async function identityOf(db: Db, viewer: string, characterId: string): P
   const strength = (STRENGTHS as readonly string[]).includes(r?.strength ?? "") ? (r!.strength as Strength) : "balanced";
   const intensity = (INTENSITIES as readonly string[]).includes(r?.intensity ?? "") ? (r!.intensity as Intensity) : "explicit";
   const hard_nos = Array.isArray(r?.hard_nos) ? (r!.hard_nos as unknown[]).filter((x): x is string => typeof x === "string" && HARD_NO_IDS.includes(x)) : [];
-  return { face: await faceReferenceId(db, viewer, characterId), body: r?.body_ready ? r.body_image_id : null, strength, intensity, hard_nos };
+  return { face: await faceReferenceId(db, viewer, characterId), body: r?.body_ready ? r.body_image_id : null, faceCrop: r?.face_crop_ready ? r.face_crop_image_id : null, strength, intensity, hard_nos };
 }
 
-async function upsertIdentity(db: Db, viewer: string, characterId: string, col: "body_image_id" | "strength" | "intensity" | "hard_nos", value: unknown): Promise<void> {
+async function upsertIdentity(db: Db, viewer: string, characterId: string, col: "body_image_id" | "face_crop_image_id" | "strength" | "intensity" | "hard_nos", value: unknown): Promise<void> {
   const v = col === "hard_nos" ? JSON.stringify(value) : value;
   await db.query(
     `insert into adult_identity (owner_id, character_id, ${col}) values ($1, $2, $3${col === "hard_nos" ? "::jsonb" : ""})
@@ -207,7 +210,7 @@ async function drawOne(db: Db, m: StudioModel, keys: Keys, prompt: string, image
 
 /* --------------------------------------------------- jobs --------------------------------------------------- */
 
-export type ShootKind = "shoot" | "restyle" | "recast" | "body" | "pair" | "variations" | "upscale" | "animate";
+export type ShootKind = "shoot" | "restyle" | "recast" | "body" | "face" | "pair" | "variations" | "upscale" | "animate";
 export type Shoot = {
   id: string;
   kind: ShootKind;
@@ -393,6 +396,33 @@ async function faceLink(db: Db, viewer: string, c: Character, baseUrl: string): 
   return face ? signedMediaUrl(face, baseUrl) : fail(409, "no_face", `${c.name} has no picture to keep the face from yet.`);
 }
 
+/**
+ * "Sharpen the face": a tight head-and-shoulders close-up made once from the baseline and set as the face anchor, so
+ * every later shoot leads with the face itself and a heavy override changes the pose and scene without drifting it
+ * (David, 2026-10-24: "provide a headshot as context, then let the rest override"). Drawn and checked like any picture;
+ * the one that comes through becomes the character's face anchor (adult_identity.face_crop_image_id). An edit model only
+ * (it reworks the baseline). Until one is made, shoots use the baseline exactly as before — this can only add a sharper
+ * face, never make one worse.
+ */
+export async function faceAnchorShoot(db: Db, viewer: string, characterId: string, input: { model?: string | null; own_key?: boolean }, baseUrl: string): Promise<JobResult> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const { character: c, config } = access;
+  const model = studioModel(config, "edit", input.model);
+  if (!model) return fail(422, "unknown_model", "Pick one of the Studio's edit models.");
+  if (model.job !== "edit") return fail(422, "wrong_model", `${model.label} makes a new picture from words; the face anchor reworks their baseline, so pick an edit model.`);
+  const face = await faceLink(db, viewer, c, baseUrl);
+  if (typeof face !== "string") return face;
+  const prompt = headshotPrompt(subjectOf(c, viewer, false));
+  const res = await runJob(db, viewer, access, {
+    kind: "face", pictureKind: "scene", prompts: [{ prompt, preset: null }], images: [face], negative: NEGATIVE_PROMPT,
+    model, tokens: input.own_key ? config.prices.own_key : config.prices.body, choices: {}, place: null, ownKey: input.own_key === true,
+  });
+  // The one that came through becomes the anchor (every later shoot's Picture 1), so it's used, not just stored.
+  if (res.ok && res.pictures[0]) await upsertIdentity(db, viewer, c.id, "face_crop_image_id", res.pictures[0].id);
+  return res;
+}
+
 /** The words a check reads: the choices and the look, never the prompt's fixed words. */
 const wordsOk = (words: string): boolean => checkAdultText({ words }).ok && !crossesTaboo(words);
 
@@ -442,9 +472,11 @@ export async function shoot(db: Db, viewer: string, characterId: string, input: 
   }
   const face = await faceLink(db, viewer, c, baseUrl);
   if (typeof face !== "string") return face;
-  // Picture 1 the face, Picture 2 their body reference (when they have one, the model takes it, and the face isn't held
-  // loosely: loose is the face alone), then the place's set.
-  const images = [face];
+  // Picture 1 the face: the tight close-up anchor when they've made one (so a heavy override doesn't drift the face),
+  // else the baseline. Loose keeps the baseline (loose is the face held lightly, by design).
+  const crop = identity.strength !== "loose" && identity.faceCrop ? identity.faceCrop : null;
+  // Picture 2 their body reference (when they have one, the model takes it, and the face isn't held loosely), then the set.
+  const images = [crop ? signedMediaUrl(crop, baseUrl) : face];
   const refs = { body: false, set: false };
   if (identity.body && identity.strength !== "loose" && model.max_images >= 2) {
     images.push(signedMediaUrl(identity.body, baseUrl));
