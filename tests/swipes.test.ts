@@ -4,7 +4,7 @@ import type { ChatMessage, Model } from "@/lib/model";
 import { listNotifications } from "@/lib/notifications";
 import { findMatches } from "@/lib/dating";
 import { setSeasonCastForTests } from "@/lib/season-cast";
-import { answerMatch, deckFor, matchView, myMatches, setMatchChatEnabledForTests, startMatchChat, swipe } from "@/lib/swipes";
+import { answerMatch, deckFor, matchView, myMatches, setMatchChatEnabledForTests, startMatchChat, swipe, withHouseCast } from "@/lib/swipes";
 import { loadChain } from "@/lib/text-chain";
 import { sendText } from "@/lib/texting";
 import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -84,6 +84,29 @@ describe("the dating profile and the deck (lib/swipes.ts)", () => {
     expect(card.why.length).toBeGreaterThan(0);
     // The house card is a full profile too.
     expect(deck.cards.find((c) => c.id === HOUSE_PARTNER_ID)).toMatchObject({ house: true, prompts: [expect.any(Object), expect.any(Object)] });
+  });
+
+  it("this season's cast is in every page of the everyday deck, however many others there are (they always like back)", async () => {
+    const me = await person("Wren Kestrel");
+    for (const n of ["Ada", "Bo", "Cy", "Di", "Ed", "Fay", "Gus", "Hal"]) await person(`${n} Marlow`);
+    const deck = await deckFor(t.db, me.userId, me.id, 4);
+    if (!deck.ok) throw new Error(deck.message);
+    expect(deck.cards).toHaveLength(4);
+    expect(deck.cards.findIndex((c) => c.id === HOUSE_PARTNER_ID)).toBeGreaterThanOrEqual(0);
+    expect(deck.cards.findIndex((c) => c.id === HOUSE_PARTNER_ID)).toBeLessThanOrEqual(3);
+  });
+
+  it("puts the cast in a page's second and fourth places, keeps its length, and leaves one already there alone", () => {
+    const card = (id: string) => ({ id });
+    const cast = new Set(["h1", "h2", "h3"]);
+    const ranked = ["p1", "p2", "p3", "p4", "p5", "h1", "h2", "h3"].map(card);
+    expect(withHouseCast(ranked.slice(0, 5), ranked, cast).map((c) => c.id)).toEqual(["p1", "h1", "p2", "h2", "p3"]);
+    // One already in the page: it stays put, one more joins.
+    const page = ["p1", "p2", "p3", "h2", "p4"].map(card);
+    expect(withHouseCast(page, ranked, cast).map((c) => c.id)).toEqual(["p1", "h1", "p2", "p3", "h2"]);
+    // Two already in: nothing changes. No cast in the pool: nothing to add.
+    expect(withHouseCast(["h1", "p1", "h2"].map(card), ranked, cast).map((c) => c.id)).toEqual(["h1", "p1", "h2"]);
+    expect(withHouseCast(ranked.slice(0, 3), ranked.slice(0, 5), cast).map((c) => c.id)).toEqual(["p1", "p2", "p3"]);
   });
 
   it("a like both ways is a match, both owners hear about it, and a swipe is final; a house character always likes back", async () => {
