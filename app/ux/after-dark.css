@@ -1358,3 +1358,128 @@ button.ad-roleplay-chip {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------------- the theater's backdrop clip or photo (SceneBackdrop.tsx), 2026-10-25 ---------------- */
+/* The whole frame, never cropped: contained, over a blurred copy of itself that fills the rest of the stage. */
+.theater-after-dark .ad-scene-backdrop {
+  object-fit: contain;
+  filter: brightness(0.82) saturate(1.05);
+}
+.theater-after-dark .ad-scene-backdrop-fill {
+  position: absolute;
+  inset: -6%;
+  z-index: 1;
+  width: 112%;
+  height: 112%;
+  object-fit: cover;
+  filter: blur(28px) brightness(0.42) saturate(1.2);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+.theater-after-dark .ad-scene-backdrop-fill.on {
+  opacity: 1;
+}
+.theater-after-dark .theater-scene-area {
+  overflow: hidden;
+}
+/* Full screen and captions are a phone's (below); the desktop stage already shows the clip whole. */
+.ad-media-full-toggle,
+.ad-media-caption {
+  display: none;
+}
+@media (max-width: 760px) {
+  /* The bar sits above the stage on a phone instead of over it, so nothing covers the scene. */
+  .theater-after-dark .theater-hud {
+    position: relative;
+    order: -1;
+    background: #120c1c;
+  }
+  /* With a clip or photo, the stage takes its shape (up to most of the screen) instead of a thin strip. */
+  .theater-after-dark .theater-stage.has-media .theater-scene-area {
+    height: auto;
+    aspect-ratio: var(--ad-media-ar, 1.78);
+    max-height: 58vh;
+    min-height: 180px;
+  }
+  /* Full: the whole stage is the clip, the lines as captions over it, the steer bar still under it. */
+  .theater-after-dark .theater-stage.media-full .theater-scene-area {
+    flex: 1 1 auto;
+    aspect-ratio: auto;
+    max-height: none;
+  }
+  .theater-after-dark .theater-stage.media-full .theater-convo {
+    display: none;
+  }
+  .theater-after-dark .ad-media-full-toggle {
+    display: inline-flex;
+    align-items: center;
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    z-index: 3;
+    min-height: 34px;
+    margin: 0;
+    padding: 0 var(--space-3);
+    border: 0;
+    border-radius: 999px;
+    background: rgba(10, 6, 18, 0.66);
+    color: #f1e9ff;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .theater-after-dark .ad-media-caption {
+    display: block;
+    position: absolute;
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: var(--space-3);
+    z-index: 3;
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.6rem;
+    background: rgba(8, 4, 14, 0.62);
+    color: #fff;
+    font-size: 0.95rem;
+    line-height: 1.35;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+/* Discreet mode (app/after-dark/discreet.css): the backdrop's own button to un-blur it, since it takes no taps. */
+.ad-scene-backdrop-reveal {
+  display: none;
+}
+[data-ad-discreet="blur"] .ad-scene-backdrop-reveal {
+  display: inline-flex;
+  align-items: center;
+  position: absolute;
+  top: var(--space-3);
+  left: calc(var(--space-3) + 5.5rem);
+  z-index: 3;
+  min-height: 34px;
+  margin: 0;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 999px;
+  background: rgba(10, 6, 18, 0.66);
+  color: #f1e9ff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+/* On a desktop the top bar lies over the stage: the backdrop's buttons sit under it, not under the names. */
+@media (min-width: 761px) {
+  .theater-after-dark .ad-scene-backdrop-off,
+  .theater-after-dark .ad-scene-backdrop-reveal {
+    top: 4.6rem;
+  }
+}
+.theater-after-dark .ad-scene-backdrop-off,
+.theater-after-dark .ad-scene-backdrop-reveal {
+  margin: 0;
+}

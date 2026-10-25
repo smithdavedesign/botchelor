@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
@@ -200,6 +200,13 @@ export default function AfterDarkTheater({
   // A replay doesn't auto-play on open; the running scene still catches up and carries on.
   const replay = useReplay(turns, live, { live, startAt, hold: listenHold || beatHold });
   const [convo, setConvo] = useState(false);
+  // The backdrop's shape while one shows (SceneBackdrop.tsx): a phone sizes the stage to it instead of a thin strip.
+  // "Full" gives a phone's whole stage to it, the lines as captions over it (David, 2026-10-25: "more immersive").
+  const [mediaShape, setMediaShape] = useState<number | null>(null);
+  const [mediaFull, setMediaFull] = useState(false);
+  useEffect(() => {
+    if (mediaShape === null) setMediaFull(false);
+  }, [mediaShape]);
   // Rewind, Redo and Start over fold into "⋯".
   const [tools, setTools] = useState(false);
   const [direction, setDirection] = useState("");
@@ -251,9 +258,24 @@ export default function AfterDarkTheater({
       role="dialog"
       aria-label={`${a.name} and ${b.name}, after dark`}
     >
-      <div className={`theater-stage${convo ? " with-convo" : ""}`}>
+      <div
+        className={`theater-stage${convo ? " with-convo" : ""}${mediaShape ? " has-media" : ""}${mediaFull ? " media-full" : ""}`}
+        style={mediaShape ? ({ "--ad-media-ar": String(mediaShape) } as CSSProperties) : undefined}
+      >
         <div className="theater-scene-area">
-          {live && <SceneBackdrop backdrop={sceneMedia.backdrop} />}
+          {live && <SceneBackdrop backdrop={sceneMedia.backdrop} onShape={setMediaShape} />}
+          {mediaShape && (
+            // A phone only (CSS): the clip on the whole stage, or back to the thread under it.
+            <button type="button" className="ad-media-full-toggle" onClick={() => setMediaFull((v) => !v)} aria-pressed={mediaFull} title={mediaFull ? "Back to the thread" : "Watch it full screen"}>
+              {mediaFull ? "↙ Thread" : "⛶ Full"}
+            </button>
+          )}
+          {mediaFull && shown.length > 0 && (
+            // The line on screen as a caption over the clip, like subtitles.
+            <p className="ad-media-caption" aria-live="polite">
+              <strong>{(shown[shown.length - 1].side === "a" ? a : b).name.split(/\s+/)[0]}:</strong> {shown[shown.length - 1].dialogue}
+            </p>
+          )}
           <Scene
             characters={characters}
             venue={stage.venue}
