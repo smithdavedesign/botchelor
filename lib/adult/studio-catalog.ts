@@ -443,7 +443,9 @@ export function shootPrompt(plan: ShootPlan, subject: Subject, refs: { body: boo
   const person = `A ${age}-year-old adult ${who}${subject.look ? `, ${subject.look}` : ""}.`;
   const by = (g: GroupId) => plan.parts.filter((p) => p.group === g).map((p) => p.words);
   const wardrobe = by("wardrobe")[0] ?? CLOTHES_BY_LEVEL[plan.level];
-  const keep = `${KEEP[strength]} Not their clothes: ${wardrobe}.`;
+  // Picture 1 is the face to keep (David, 2026-10-24: "the face wasn't quite the baseline; provide a headshot as context,
+  // then let the rest override"): the directions change the pose, body, clothes and scene, never the face.
+  const keep = `${KEEP[strength]} Not their clothes: ${wardrobe}. Picture 1 is the face to keep: the very same face, features and likeness, unchanged — the directions change the pose, body, clothes and scene, never the face.`;
   // A Filthy act is the pose (it wins over one picked too); a first-person one may show the viewer at the edge.
   const act = plan.parts.find((p) => p.group === "filthy");
   const pose = act?.words ?? by("pose")[0];
@@ -569,6 +571,8 @@ export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, moti
       opts.pair
         ? "Only these two people, exactly as in the picture: the same two faces, bodies and clothes (or none), together, in the same place and light."
         : "Only this one person, exactly as in the picture: the same face, body and clothes (or none), in the same place and light.",
+      // Keep the face steady through the clip (David, 2026-10-24: the face drifted from the baseline in the video).
+      `Keep the ${opts.pair ? "same two faces" : "same face"} throughout, frame to frame — the very same features, never changing or morphing.`,
       "One continuous shot, the camera steady: no cuts, nobody new comes in. Realistic, unhurried motion.",
       TAIL[level],
     ],

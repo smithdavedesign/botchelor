@@ -88,6 +88,8 @@ describe("the Studio's menus", () => {
     expect(p).toMatch(/^Make one photograph of the woman from Picture 1, with the body from Picture 2\./);
     expect(p).toContain("A 21-year-old adult woman, long copper-red hair, green eyes.");
     expect(p).toContain("Not their clothes: fully nude.");
+    // Picture 1 is the face anchor: the directions change everything but the face.
+    expect(p).toContain("Picture 1 is the face to keep");
     expect(p).toContain("Camera: a first-person view from the pillow beside her");
     expect(p).toMatch(/Uncensored, photorealistic\. Everyone shown is an adult\.$/);
     expect(p.length).toBeLessThanOrEqual(STUDIO_PROMPT_MAX);
@@ -124,6 +126,8 @@ describe("the Studio's menus", () => {
   it("guides a clip: the owner's direction leads, their dialog and the transcript shape it, a motion optional", () => {
     const base = animatePrompt({ noun: "woman" }, 2, "sways slowly");
     expect(base).toContain("The woman in the picture sways slowly.");
+    // The face is held steady through the clip.
+    expect(base).toContain("Keep the same face throughout");
     const guided = animatePrompt({ noun: "woman" }, 3, "", { guide: "  she kneels and looks up  ", dialog: 'say "hi"', transcript: "They'd been teasing each other all night." });
     expect(guided).toContain("Most important, do exactly this: she kneels and looks up.");
     expect(guided).toContain("They say, their lips moving: \"say 'hi'\".");
