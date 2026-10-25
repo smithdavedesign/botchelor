@@ -60,6 +60,7 @@ import { PUBLIC_ONLY } from "./relationships";
 import { refreshAndAnnounce } from "./relationship-events";
 import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
 import { updateCharacterMemory } from "./memory";
+import { notifyPredictors } from "./air";
 import { ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, type Turn } from "./conversation";
 import { generationPaused, PAUSED_MESSAGE } from "./compute";
@@ -594,6 +595,7 @@ export async function syncRoom(
       await updateCharacterMemory(db, aired.character_a).catch(() => {});
       await updateCharacterMemory(db, aired.character_b).catch(() => {});
       await refreshAndAnnounce(db, aired.character_a, aired.character_b, { episodeId: exists.episode_id }).catch(() => {});
+      await notifyPredictors(db, exists.episode_id).catch(() => {});
     }
   }
   return getRoomState(db, partyId, viewerId, now);

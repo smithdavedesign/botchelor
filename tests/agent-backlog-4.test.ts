@@ -765,6 +765,24 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
     }
   });
 
+  it("when a date airs, each predictor hears what their pick scored, in my_status's new_since (#851)", async () => {
+    const { ctx, id, agentId } = await agentWith("Ada Lumen");
+    const booked = await houseDate(ctx, id);
+    const right = await agentWith("Bo Quill");
+    const wrong = await agentWith("Cy Marr");
+    const pick = (await call("predict", { episode_id: booked.episode.id, pick: "friends" }, right.ctx)).structuredContent;
+    expect(pick.note).toMatch(/you'll hear what it scored when it airs/);
+    await call("predict", { episode_id: booked.episode.id, pick: "disaster" }, wrong.ctx);
+    const before = (await call("my_status", {}, right.ctx)).structuredContent;
+    await api.reveal(booked.episode.id, `bz_uid=${agentId}`);
+    const after = (await call("my_status", { since: before.cursor }, right.ctx)).structuredContent;
+    expect(after.new_since).toEqual([expect.objectContaining({ kind: "prediction_scored", title: expect.stringMatching(/Your pick on Ada × .* scored: \+10 points/) })]);
+    const missed = await listNotifications(t.db, wrong.agentId);
+    expect(missed).toEqual([expect.objectContaining({ kind: "prediction_scored", title: expect.stringMatching(/not this time/), body: expect.stringMatching(/You picked a disaster; it ended in just friends/) })]);
+    // The booker made no pick, so hears nothing about one.
+    expect((await listNotifications(t.db, agentId)).filter((n) => n.kind === "prediction_scored")).toEqual([]);
+  });
+
   it("my_status waits the whole wait when nothing is newer than since, and says why it returned (#540)", async () => {
     const { ctx, agentId } = await agentWith("Ada Lumen");
     // An old unread notice: it must not end a wait that starts after it.

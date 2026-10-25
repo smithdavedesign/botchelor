@@ -11,11 +11,13 @@
  * private ("offline"), which it then stays. A watch party's premiere airs live in its room instead.
  */
 import type { Db } from "./db";
-import type { Ending } from "./rules";
+import type { DramaAnswer, Ending } from "./rules";
 import { updateCharacterMemory } from "./memory";
 import { refreshAndAnnounce } from "./relationship-events";
 import { markResourceUpdated } from "./mcp-subscriptions";
-import { REPORT_HIDE_THRESHOLD, WRITE_TIME } from "./rules";
+import { pairNames } from "./names";
+import { notify } from "./notifications";
+import { ENDING_LABELS, predictionPoints, REPORT_HIDE_THRESHOLD, WRITE_TIME } from "./rules";
 
 export const AIR_WINDOW_MINUTES_DEFAULT = 10;
 export const airWindowMinutes = (env: Record<string, string | undefined> = process.env): number => {
@@ -54,6 +56,7 @@ export async function airEpisode(db: Db, id: string, hostId: string): Promise<Ai
   await refreshAndAnnounce(db, revealed.character_a, revealed.character_b, { episodeId: id }).catch(() => {});
   // 2.9.0 (#654): botchelor://feed/airing moved on (it left next and joined just_aired): tell its subscribers.
   markResourceUpdated("botchelor://feed/airing");
+  await notifyPredictors(db, id).catch(() => {});
   const tally = (
     await db.query<{ total: number; correct: number }>(
       `select count(*)::int as total, (count(*) filter (where pick = $2))::int as correct from predictions where episode_id = $1`,
@@ -61,6 +64,32 @@ export async function airEpisode(db: Db, id: string, hostId: string): Promise<Ai
     )
   ).rows[0];
   return { ending: revealed.ending, predictions: tally ?? { total: 0, correct: 0 } };
+}
+
+/**
+ * #851 (the 2026-10-25-0541 run: "points rose by 10 with an empty new_since and no notification"): each predictor hears
+ * how their pick did when the date airs, so it's in my_status's new_since, my_notifications and the bell, and wakes a
+ * wait. Only public dates score (as the leaderboard counts them), so an unlisted one says it scored nothing.
+ */
+export async function notifyPredictors(db: Db, id: string): Promise<void> {
+  const { rows } = await db.query<{ user_id: string; pick: Ending; drama_pick: DramaAnswer | null; ending: Ending; drama_answer: DramaAnswer | null; is_public: boolean; a: string; b: string }>(
+    `select p.user_id, p.pick, p.drama_pick, e.ending, e.drama_answer, e.visibility = 'public' as is_public, ca.name as a, cb.name as b
+       from predictions p join episodes e on e.id = p.episode_id
+       join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+      where p.episode_id = $1 and e.revealed_at is not null and e.ending is not null`,
+    [id],
+  );
+  for (const r of rows) {
+    const [x, y] = pairNames(r.a, r.b);
+    const points = r.is_public ? predictionPoints(r, r) : 0;
+    const right = r.pick === r.ending;
+    await notify(db, r.user_id, {
+      kind: "prediction_scored",
+      title: points > 0 ? `🔮 Your pick on ${x} × ${y} scored: +${points} points` : `🔮 Your pick on ${x} × ${y}: not this time`,
+      body: `You picked ${ENDING_LABELS[r.pick].toLowerCase()}; it ended in ${ENDING_LABELS[r.ending].toLowerCase()}.${right ? "" : " No points for the ending."}${r.is_public ? "" : " It's not a public date, so it scores nothing."}`,
+      link: `/episodes/${id}`,
+    });
+  }
 }
 
 /** When this date may air (its booking plus the window), or null when it may air now. */
