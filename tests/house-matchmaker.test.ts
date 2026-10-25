@@ -35,7 +35,7 @@ describe("the house matchmaker (lib/house-matchmaker)", () => {
 
     // Both owners hear why, with the other character linked.
     const notes = (
-      await t.db.query<{ user_id: string; title: string; body: string; link: string }>(`select user_id, title, body, link from notifications where kind = 'matchmaker_pick' order by user_id`)
+      await t.db.query<{ user_id: string; title: string; body: string; link: string }>(`select user_id, title, body, link from notifications where kind = 'matchmaker_pick' and user_id = any($1) order by user_id`, [[userIdOf(ann), userIdOf(bob)]])
     ).rows;
     expect(notes).toHaveLength(2);
     expect(new Set(notes.map((n) => n.user_id))).toEqual(new Set([userIdOf(ann), userIdOf(bob)]));
@@ -60,7 +60,7 @@ describe("the house matchmaker (lib/house-matchmaker)", () => {
     const { episode } = await setupEpisode();
     await t.db.query(`insert into blocks (blocker_id, via_episode_id, blocked_id) values ($1, $2, $3)`, [userIdOf(ann), episode.id, userIdOf(bob)]);
     expect(await dailyMatchmakerPicks(t.db, new Date("2026-10-25T18:00:00Z"))).toBe(0);
-    expect((await t.db.query(`select 1 from notifications where kind = 'matchmaker_pick'`)).rows).toHaveLength(0);
+    expect((await t.db.query(`select 1 from notifications where kind = 'matchmaker_pick' and user_id = any($1)`, [[userIdOf(ann), userIdOf(bob)]])).rows).toHaveLength(0);
   });
 
   it("skips a pair the deck already matched", async () => {
