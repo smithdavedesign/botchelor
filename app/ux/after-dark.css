@@ -1251,3 +1251,110 @@ button.ad-reel-cc.on {
     align-items: center;
   }
 }
+
+/* ---------------- 📍 Scene & roleplay: the second screen (SetSceneModal.tsx, lib/adult/roleplays.ts) ---------------- */
+.ad-scenes-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: #9d8dba;
+}
+.ad-scenes-steps li.on,
+.ad-scenes-steps li.on button {
+  color: #fff;
+  font-weight: 600;
+}
+.ad-scenes-steps button.linklike {
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+}
+.ad-rp-where {
+  align-items: center;
+  justify-content: space-between;
+}
+.ad-rp-card {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border: 1px solid #2c2044;
+  border-radius: 0.8rem;
+  background: #1b1129;
+  overflow: hidden;
+}
+.ad-rp-card.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+  background: color-mix(in srgb, var(--accent) 14%, #1b1129);
+}
+button.ad-rp-pick {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  margin: 0;
+  padding: var(--space-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #f1e9ff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 0;
+  height: auto;
+}
+.ad-rp-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.ad-rp-roles {
+  font-size: 0.8rem;
+  color: #e2c8ff;
+}
+button.ad-rp-swap {
+  align-self: flex-start;
+  margin: 0 var(--space-3) var(--space-3);
+}
+.ad-rp-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-5) calc(var(--space-3) + env(safe-area-inset-bottom));
+  border-top: 1px solid #2c2044;
+  background: #140c20;
+}
+.ad-rp-go > span {
+  margin-right: auto;
+  color: #c9b9e6;
+}
+.ad-rp-go button {
+  margin: 0;
+}
+button.ad-roleplay-chip {
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 600px) {
+  .ad-rp-go {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+  .ad-rp-grid {
+    grid-template-columns: 1fr;
+  }
+}

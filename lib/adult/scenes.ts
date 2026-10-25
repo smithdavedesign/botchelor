@@ -44,6 +44,7 @@ import { fileSteps, flagStep, logStep, markRewound, stepIndexOf, stepsOf, unfile
 import { hardNoHit, hardNoLines, hasHardNos, INTENSITY, intensityLine, intensityOf, limitsHit, NO_LIMITS, overIntensity, OWN_LEN, OWN_MAX, plainTalk, storedHardNos, type HardNos, type Intensity, type PairLimits } from "./limits";
 import { consentRefusal, framingOf, hasProfileConsent, mayEditProfile, profileLines, turnOnsFor, turnOnsOf, type FramingId, type TurnOnId } from "./profile";
 import { scenarioById, type Scenario } from "./scenarios";
+import { roleplayById, roleplayLine, type Roleplay } from "./roleplays";
 import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
 import {
   bumpFacts,
@@ -167,6 +168,8 @@ export type AdultScene = {
   /** How the viewer frames the two of them (lib/adult/profile.ts), and the scenario tonight started from (lib/adult/scenarios.ts). */
   framing: FramingId | null;
   scenario: string | null;
+  /** This chapter's roleplay (lib/adult/roleplays.ts), picked in Set the scene: it ends when the chapter does. */
+  roleplay?: { id: string; swap: boolean } | null;
   /**
    * The running chapter's moments worth a picture (lib/adult/beats.ts): offered as the theater reaches each, drawn when
    * the viewer says yes or picks their moment, else when the chapter closes. Absent where a scene isn't loaded with them.
@@ -295,10 +298,10 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     await db.query<{
       id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null; set_place: string | null; cut_to: string | null;
       chapter: number; recap: string | null; prev_tail: SceneLine[] | null; place_history: PlaceStop[] | null; moves: MoveLog[] | null; suggestions: unknown; whispers: unknown; undo: StepUndo[] | null;
-      intensity: string | null; hard_nos: unknown; framing: string | null; scenario: string | null;
+      intensity: string | null; hard_nos: unknown; framing: string | null; scenario: string | null; roleplay: { id?: unknown; swap?: unknown; chapter?: unknown } | null;
     }>(
       `select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail, place_history, moves, suggestions, whispers, undo, intensity, hard_nos,
-              framing, scenario
+              framing, scenario, roleplay
          from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`,
       [adminId, a, b],
     )
@@ -329,6 +332,9 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     hard_nos: storedHardNos(row.hard_nos),
     framing: framingOf(row.framing),
     scenario: row.scenario && scenarioById(row.scenario) ? row.scenario : null,
+    // Only the chapter it was picked for: a new chapter starts without it.
+    roleplay:
+      row.roleplay && roleplayById(String(row.roleplay.id)) && row.roleplay.chapter === (row.chapter ?? 1) ? { id: String(row.roleplay.id), swap: row.roleplay.swap === true } : null,
     beats: await chapterBeats(db, row.id, row.chapter ?? 1),
   };
 }
@@ -776,6 +782,7 @@ export function sceneMessages(
     // What they're into and how the viewer frames them (lib/adult/profile.ts), and tonight's scenario: only when set.
     ...profileLines(names, now.profile?.turnOns ?? { a: [], b: [] }, now.profile?.framing ?? null),
     now.profile?.scenario ? `Tonight's scenario: ${now.profile.scenario.title}. ${now.profile.scenario.premise} Both of them chose to be here, and either can stop at any time.` : "",
+    now.profile?.roleplay ? roleplayLine(now.profile.roleplay.rp, names, now.profile.roleplay.swap) : "",
     date ? `Their latest date: ${date.setting ?? "a date"}. It ended: ${date.ending ?? "unknown"}.` : "They haven't been on a date yet: they've just met.",
     dateTail.length ? `The end of that date:\n${dateTail.join("\n")}` : "",
     v2
@@ -1391,7 +1398,7 @@ export type StepInput = {
 };
 
 /** What the prompt knows of their profiles: each one's turn-ons (those the hard nos allow), the framing, tonight's scenario. */
-export type SceneProfile = { turnOns: { a: string[]; b: string[] }; framing: FramingId | null; scenario: Scenario | null };
+export type SceneProfile = { turnOns: { a: string[]; b: string[] }; framing: FramingId | null; scenario: Scenario | null; roleplay?: { rp: Roleplay; swap: boolean } | null };
 
 /** What happened to a step's lines on the way in, summed over its calls. */
 export type StepFlags = {
@@ -2103,6 +2110,7 @@ async function sceneProfile(db: Db, scene: AdultScene): Promise<SceneProfile> {
     turnOns: { a: turnOnsFor(a, scene.hard_nos), b: turnOnsFor(b, scene.hard_nos) },
     framing: scene.framing,
     scenario: scene.scenario ? scenarioById(scene.scenario) : null,
+    roleplay: scene.roleplay && roleplayById(scene.roleplay.id) ? { rp: roleplayById(scene.roleplay.id)!, swap: scene.roleplay.swap } : null,
   };
 }
 
@@ -2679,6 +2687,18 @@ export async function saveFraming(db: Db, ownerId: string, x: string, y: string,
   return publicScene({ ...scene, framing: value });
 }
 
+/**
+ * This chapter's roleplay (lib/adult/roleplays.ts), or none: stored with the chapter it's for, so it ends with it. `swap`
+ * gives the second character the first role.
+ */
+export async function setRoleplay(db: Db, ownerId: string, x: string, y: string, pick: { id: string; swap?: boolean } | null): Promise<AdultScene | null> {
+  const scene = await loadScene(db, ownerId, x, y);
+  if (!scene) return null;
+  const value = pick && roleplayById(pick.id) ? { id: pick.id, swap: pick.swap === true } : null;
+  await db.query(`update adult_scenes set roleplay = $2::jsonb, updated_at = now() where id = $1`, [scene.id, value ? JSON.stringify({ ...value, chapter: scene.chapter }) : null]);
+  return publicScene({ ...scene, roleplay: value });
+}
+
 /** Each one's turn-ons as the viewer may see them: only a character whose profile they may set (theirs, or an admin's house cast). */
 export type ProfileView = { a: { editable: boolean; turn_ons: TurnOnId[] }; b: { editable: boolean; turn_ons: TurnOnId[] } };
 
@@ -2848,7 +2868,7 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
   }
   await db.query(
     `update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, chapter = 1, recap = null, prev_tail = '[]'::jsonb, place_history = '[]'::jsonb, moves = '[]'::jsonb,
-            suggestions = '[]'::jsonb, whispers = '{}'::jsonb, undo = '[]'::jsonb, scenario = null, auto_pictures = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
+            suggestions = '[]'::jsonb, whispers = '{}'::jsonb, undo = '[]'::jsonb, scenario = null, roleplay = null, auto_pictures = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
     [adminId, ...pair],
   );
 }

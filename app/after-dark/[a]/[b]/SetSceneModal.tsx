@@ -3,12 +3,19 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { filterScenes, SCENE_CATEGORIES, SCENE_TAGS, type CatalogScene, type SceneCategory, type SceneTag } from "@/lib/adult/scene-catalog";
 import { normalizeScene } from "@/lib/venues";
+import { ROLEPLAYS, roleplayById, rolesLine } from "@/lib/adult/roleplays";
 
 const ICON = Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, c.icon])) as Record<SceneCategory, string>;
 
+/** What the second screen sends: a roleplay for the chapter, or none. */
+export type RoleplayPick = { id: string; swap: boolean } | null;
+
 /**
- * 📍 Set the scene, as a full-screen picker (David, 2026-10-25: "all the scenes we have in a giant modal popup with
- * filters and tags"): every place in lib/adult/scene-catalog.ts as a card with its picture, narrowed by a roleplay
+ * 📍 Scene & roleplay, as a full-screen picker in two screens (David, 2026-10-25: after choosing a venue "they can choose a
+ * roleplay for the chapter in the same modal it switches to the next screen"). First where, then who they are to each
+ * other this chapter (lib/adult/roleplays.ts), or no roleplay; "Just the roleplay" skips the move and its token.
+ * The first screen is the full-screen picker (David, 2026-10-25: "all the scenes we have in a giant modal popup with
+ * filters and tags"), every place in lib/adult/scene-catalog.ts as a card with its picture, narrowed by a roleplay
  * category, any number of tags and a search, with a box to type somewhere of their own. A card takes them there (1
  * token, set_scene); a scenario's card can start the night as that story instead (files tonight, like Start over).
  * Closes on Esc, the ✕ or a click outside the panel. It stays mounted once opened (hidden while closed), so its pictures,
@@ -19,6 +26,9 @@ export default function SetSceneModal({
   scenes,
   busy = false,
   current = null,
+  names,
+  roleplay = null,
+  openAt = "where",
   onGo,
   onScenario,
   onClose,
@@ -29,7 +39,14 @@ export default function SetSceneModal({
   busy?: boolean;
   /** Where they are now: its card says so. */
   current?: string | null;
-  onGo: (place: string) => Promise<void>;
+  /** Their first names, for the roles ("Dex plays the boss"). */
+  names: { a: string; b: string };
+  /** This chapter's roleplay, if one is running. */
+  roleplay?: RoleplayPick;
+  /** Which screen it opens on: where (the places), or who they are (the roleplays, staying where they are). */
+  openAt?: "where" | "who";
+  /** A place (null: they stay where they are) and the chapter's roleplay. */
+  onGo: (place: string | null, roleplay: RoleplayPick) => Promise<void>;
   onScenario?: (id: string) => Promise<void>;
   onClose: () => void;
 }) {
@@ -39,6 +56,20 @@ export default function SetSceneModal({
   const [own, setOwn] = useState("");
   // Cards whose picture didn't load (a set not drawn yet) paint their gradient instead.
   const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set());
+  // The second screen: the place picked on the first (null: staying put), and the roleplay being picked.
+  const [step, setStep] = useState<"where" | "who">(openAt);
+  const [place, setPlace] = useState<string | null>(null);
+  const [pick, setPick] = useState<RoleplayPick>(roleplay);
+  const [rpCategory, setRpCategory] = useState<SceneCategory | null>(null);
+  // Each time it opens: the screen asked for, the running roleplay picked.
+  useEffect(() => {
+    if (!open) return;
+    setStep(openAt);
+    setPlace(null);
+    setPick(roleplay);
+    // Only on opening: the roleplay prop changes after a pick lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, openAt]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -53,35 +84,123 @@ export default function SetSceneModal({
   const counts = useMemo(() => Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, filterScenes(scenes, { category: c.id, tags, query }).length])), [scenes, tags, query]);
   const here = current ? normalizeScene(current) : null;
 
-  async function go(place: string) {
-    await onGo(place);
+  const choose = (where: string | null) => {
+    setPlace(where);
+    setStep("who");
+  };
+  async function go(rp: RoleplayPick) {
+    await onGo(place, rp);
     onClose();
   }
-  async function typed(e: FormEvent) {
+  function typed(e: FormEvent) {
     e.preventDefault();
-    if (own.trim()) await go(own.trim());
+    if (own.trim()) choose(own.trim());
   }
+  const rpCats = SCENE_CATEGORIES.filter((c) => ROLEPLAYS.some((r) => r.category === c.id));
+  const roleplays = rpCategory ? ROLEPLAYS.filter((r) => r.category === rpCategory) : ROLEPLAYS;
+  const picked = pick ? roleplayById(pick.id) : null;
+  const fill = (text: string, swap: boolean) => text.replaceAll("{a}", swap ? names.b : names.a).replaceAll("{b}", swap ? names.a : names.b);
 
   return (
     <div className="ad-scenes-overlay" hidden={!open} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="ad-scenes" role="dialog" aria-modal="true" aria-label="Set the scene">
+      <div className="ad-scenes" role="dialog" aria-modal="true" aria-label="Scene and roleplay">
         <header className="ad-scenes-head">
           <div>
-            <h2>📍 Set the scene</h2>
-            <p className="muted small">Take them anywhere: 1 token. They arrive with the next lines.</p>
+            <h2>📍 Scene &amp; roleplay</h2>
+            <ol className="ad-scenes-steps" aria-label="Steps">
+              <li className={step === "where" ? "on" : ""}>
+                <button type="button" className="linklike" onClick={() => setStep("where")}>
+                  1. Where
+                </button>
+              </li>
+              <li className={step === "who" ? "on" : ""}>2. Who they are this chapter</li>
+            </ol>
           </div>
           <button type="button" className="theater-icon" aria-label="Close" title="Close" onClick={onClose}>
             ✕
           </button>
         </header>
+        {step === "who" ? (
+          <>
+            <div className="ad-scenes-search ad-rp-where">
+              <span>
+                {place ? (
+                  <>
+                    📍 <strong>{place}</strong> <span className="muted small">· 1 token</span>
+                  </>
+                ) : (
+                  <span className="muted">📍 They stay where they are</span>
+                )}
+              </span>
+              <button type="button" className="button-ghost small" onClick={() => setStep("where")}>
+                ← {place ? "Somewhere else" : "Move them too"}
+              </button>
+            </div>
+            <div className="ad-scenes-cats" role="radiogroup" aria-label="Roleplay category">
+              <button type="button" role="radio" aria-checked={!rpCategory} className={!rpCategory ? "on" : ""} onClick={() => setRpCategory(null)}>
+                ✨ All <span className="ad-scenes-count">{ROLEPLAYS.length}</span>
+              </button>
+              {rpCats.map((c) => (
+                <button key={c.id} type="button" role="radio" aria-checked={rpCategory === c.id} className={rpCategory === c.id ? "on" : ""} onClick={() => setRpCategory(rpCategory === c.id ? null : c.id)}>
+                  {c.icon} {c.label} <span className="ad-scenes-count">{ROLEPLAYS.filter((r) => r.category === c.id).length}</span>
+                </button>
+              ))}
+            </div>
+            <ul className="ad-scenes-grid ad-rp-grid" role="radiogroup" aria-label="Roleplays">
+              <li className={`ad-rp-card${!pick ? " on" : ""}`}>
+                <button type="button" role="radio" aria-checked={!pick} className="ad-rp-pick" onClick={() => setPick(null)}>
+                  <span className="ad-rp-icon">💬</span>
+                  <strong>No roleplay</strong>
+                  <span className="muted small">Just the two of them, as themselves.</span>
+                </button>
+              </li>
+              {roleplays.map((r) => {
+                const on = pick?.id === r.id;
+                const swap = on ? pick!.swap : false;
+                return (
+                  <li key={r.id} className={`ad-rp-card${on ? " on" : ""}`}>
+                    <button type="button" role="radio" aria-checked={on} className="ad-rp-pick" onClick={() => setPick({ id: r.id, swap })}>
+                      <span className="ad-rp-icon">{r.icon}</span>
+                      <strong>{r.title}</strong>
+                      <span className="muted small ad-scene-premise">{fill(r.premise, swap)}</span>
+                      {r.roles && <span className="ad-rp-roles">{rolesLine(r, names, swap)}</span>}
+                    </button>
+                    {on && r.roles && (
+                      <button type="button" className="button-ghost small ad-rp-swap" onClick={() => setPick({ id: r.id, swap: !swap })}>
+                        ⇄ Swap roles
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <footer className="ad-rp-go">
+              <span className="small">
+                {place ? `📍 ${place}` : "📍 Here"} · {picked ? `${picked.icon} ${picked.title}` : "💬 No roleplay"}
+              </span>
+              {place && (
+                <button type="button" className="button-ghost small" disabled={busy} onClick={() => void go(null)}>
+                  Skip the roleplay
+                </button>
+              )}
+              <button type="button" className="primary" disabled={busy || (!place && (pick?.id ?? null) === (roleplay?.id ?? null) && pick?.swap === roleplay?.swap)} onClick={() => void go(pick)}>
+                {place ? "Go · 1 token" : picked ? "Start the roleplay" : "End the roleplay"}
+              </button>
+            </footer>
+          </>
+        ) : (
+          <>
         <div className="ad-scenes-search">
           <input type="search" aria-label="Search the scenes" placeholder="Search: pool, castle, train…" value={query} onChange={(e) => setQuery(e.target.value)} />
           <form onSubmit={typed}>
             <input aria-label="Somewhere of your own" placeholder="Or type your own: a rooftop pool at midnight…" value={own} maxLength={60} onChange={(e) => setOwn(e.target.value)} disabled={busy} />
             <button type="submit" className="primary small" disabled={busy || !own.trim()}>
-              Go · 1 token
+              Next →
             </button>
           </form>
+          <button type="button" className="button-ghost small" onClick={() => choose(null)} title="Keep them where they are and pick a roleplay for the chapter (no token)">
+            🎭 Just the roleplay →
+          </button>
         </div>
         <div className="ad-scenes-cats" role="radiogroup" aria-label="Category">
           <button type="button" role="radio" aria-checked={!category} className={!category ? "on" : ""} onClick={() => setCategory(null)}>
@@ -126,8 +245,8 @@ export default function SetSceneModal({
                     {s.premise && <span className="muted small ad-scene-premise">{s.premise}</span>}
                     <span className="ad-scene-tags">{s.tags.map((t) => `#${t}`).join(" ")}</span>
                     <span className="ad-scene-actions">
-                      <button type="button" className="primary small" disabled={busy || isHere} onClick={() => void go(s.place)}>
-                        Go here · 1 token
+                      <button type="button" className="primary small" disabled={busy || isHere} onClick={() => choose(s.place)}>
+                        Go here →
                       </button>
                       {s.scenario && onScenario && (
                         <button
@@ -151,6 +270,8 @@ export default function SetSceneModal({
           </ul>
         ) : (
           <p className="muted ad-scenes-empty">Nothing matches. Clear a filter, or type somewhere of your own above.</p>
+        )}
+          </>
         )}
       </div>
     </div>

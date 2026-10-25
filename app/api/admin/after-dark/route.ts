@@ -18,11 +18,13 @@ import {
   resetScene,
   rewindScene,
   saveFraming,
+  setRoleplay,
   saveLimits,
   SET_SCENE_MAX,
   setSceneTo,
   startScenario,
 } from "@/lib/adult/scenes";
+import { ROLEPLAY_IDS } from "@/lib/adult/roleplays";
 import { isAdmin } from "@/lib/admins";
 import { refundBoughtTokens, SET_SCENE_TOKEN_COST, spendBoughtTokens } from "@/lib/allowance";
 import { crisisAware, str, type CrisisSurface } from "@/lib/crisis";
@@ -57,6 +59,8 @@ const Input = z.object({
   // Start a night from a scenario (lib/adult/scenarios.ts); how the viewer frames the pair; a character's turn-ons.
   scenario: z.enum(SCENARIOS.map((x) => x.id) as [string, ...string[]]).optional(),
   framing: z.enum(FRAMING_IDS as [string, ...string[]]).nullable().optional(),
+  // This chapter's roleplay (lib/adult/roleplays.ts), sent with set_scene from the scene picker, or on its own (null clears it).
+  roleplay: z.object({ id: z.enum(ROLEPLAY_IDS), swap: z.boolean().optional() }).nullable().optional(),
   turn_ons: z.object({ character_id: id, ids: z.array(z.enum(TURN_ON_IDS as [string, ...string[]])).max(TURN_ON_IDS.length) }).optional(),
   // Their memory, seen and edited (null text deletes): a PG note, a fact, or the night's recap.
   memory_edit: z
@@ -129,7 +133,9 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
       if (pays) await refundBoughtTokens(db, admin, SET_SCENE_TOKEN_COST);
       return json({ error: "not_moved", message: moved.message }, moved.status);
     }
-    return json({ scene: moved.scene, ...(moved.auto_picture ? { auto_picture: true } : {}) });
+    // The roleplay picked with the place, for the chapter (the picker's second screen).
+    const played = input.roleplay !== undefined ? await setRoleplay(db, admin, input.a, input.b, input.roleplay) : null;
+    return json({ scene: played ?? moved.scene, ...(moved.auto_picture ? { auto_picture: true } : {}) });
   }
   if (input.rewind) {
     const back = await rewindScene(db, admin, input.a, input.b);
@@ -140,6 +146,10 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     const r = await startScenario(db, admin, input.a, input.b, input.scenario);
     if (!r.ok) return json({ error: "not_started", message: r.message, ...(r.placed ? { scene: r.placed, nights: await listNights(db, admin, input.a, input.b) } : {}) }, r.status);
     return json({ scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, nights: await listNights(db, admin, input.a, input.b) });
+  }
+  if (input.roleplay !== undefined) {
+    const scene = await setRoleplay(db, admin, input.a, input.b, input.roleplay);
+    return scene ? json({ scene }) : hidden();
   }
   if (input.framing !== undefined) {
     const scene = await saveFraming(db, admin, input.a, input.b, input.framing);

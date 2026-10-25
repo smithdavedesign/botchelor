@@ -10,6 +10,7 @@ import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkTheater from "./AfterDarkTheater";
 import type { CatalogScene } from "@/lib/adult/scene-catalog";
+import { roleplayById } from "@/lib/adult/roleplays";
 import Limits from "./Limits";
 import Memory from "./Memory";
 import Profile from "./Profile";
@@ -230,10 +231,14 @@ export default function SceneWriter({
       typeof res.data.picture_note === "string" ? `Picture: ${res.data.picture_note}` : "",
     ].filter(Boolean);
     if (body.set_scene) parts.push("They're there now. Press Next to see them arrive.");
+    if (body.roleplay !== undefined) {
+      const rp = body.roleplay ? roleplayById((body.roleplay as { id: string }).id) : null;
+      parts.push(rp ? `${rp.icon} ${rp.title}: their roleplay until this chapter ends.` : body.set_scene ? "" : "No roleplay now: just the two of them.");
+    }
     if (body.scenario) parts.unshift("A new night: the last one is under Their nights.");
     if (body.redo) parts.unshift("Rewritten: the last step was taken back and written again.");
     if (body.whisper) parts.push(`🤫 Whispered to ${nameOf((body.whisper as { to: "a" | "b" }).to)}: it shapes this step and the next.`);
-    const stop = autoplay && !body.reset && body.set_scene === undefined && !body.forget_whisper && !body.scenario ? autoplayStop(scene, next, Number(res.data.added ?? 0)) : null;
+    const stop = autoplay && !body.reset && body.set_scene === undefined && body.roleplay === undefined && !body.forget_whisper && !body.scenario ? autoplayStop(scene, next, Number(res.data.added ?? 0)) : null;
     if (stop) {
       setAutoplay(false);
       parts.push(stop);
@@ -343,7 +348,7 @@ export default function SceneWriter({
         {!theater && crisisNotice}
         {theater && (
           <AfterDarkTheater
-            scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null, set: scene.set_place, chapter: scene.chapter }}
+            scene={{ lines: scene.lines, place: scene.place, stage: scene.stage, dateVenue: scene.date?.venue ?? null, set: scene.set_place, chapter: scene.chapter, roleplay: scene.roleplay ?? null }}
             characters={cast}
             busy={busy}
             note={note?.text ?? null}
@@ -355,7 +360,7 @@ export default function SceneWriter({
             whispers={whisperChips}
             autoplay={autoplay}
             onAutoplay={setAutoplay}
-            onSetScene={async (place) => void (await send({ set_scene: place }))}
+            onSetScene={async (place, roleplay) => void (await send(place ? { set_scene: place, roleplay } : { roleplay }))}
             scenes={scenes}
             onScenario={async (id) => void (await send({ scenario: id }))}
             suggestions={scene.suggestions}
