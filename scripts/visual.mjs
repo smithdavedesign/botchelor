@@ -315,9 +315,11 @@ async function main() {
       await ctx.close();
     }
     const writeScene = async (page) => {
-      await page.locator("#after-dark-direction").fill("they share a cab home");
-      await page.locator(".after-dark-form button[type=submit]").click();
-      await page.locator(".after-dark-lines").getByText("kettle").first().waitFor({ timeout: 30_000 });
+      // The page opens on the theater (2026-10-25): the scene is written there.
+      const bar = page.locator(".ad-theater-bar");
+      await bar.getByRole("textbox", { name: "Steer it (optional)" }).fill("they share a cab home");
+      await bar.getByRole("button", { name: "Next" }).click();
+      await page.locator(".theater .chat-thread").getByText("kettle").first().waitFor({ state: "attached", timeout: 30_000 });
     };
 
     // Each route: who opens it, and an optional walk through its states (each state is audited separately).

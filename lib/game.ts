@@ -51,6 +51,8 @@ export type CharacterRef = {
   hue: number | null;
   /** Their approved generated (BYOK) portrait's path, /api/assets/<id> (lib/assets.ts portraitPathSql), or null. */
   portrait: string | null;
+  /** A realistic headshot that wins over every other face (After Dark: the face the viewer keeps for them), or none. */
+  photo?: string | null;
   /** Made by an AI agent over MCP rather than by a person on the website (characters.created_via). */
   agent?: boolean;
   /** Private to someone other than the viewer (characters.visibility): its name is shown, never linked (app/CharacterName.tsx). */

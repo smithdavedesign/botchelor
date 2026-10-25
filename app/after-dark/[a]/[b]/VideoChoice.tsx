@@ -50,7 +50,8 @@ export default function VideoChoice({
     const tooShort = whole < MIN_LINES;
     return (
       <button type="button" className="secondary small" onClick={() => void go("night")} disabled={busy || Boolean(paused) || tooShort} title={paused ?? "A short film of the night: check each shot's picture, then film"}>
-        🎬 Video of the night · {price}
+        🎬 <span className="ad-tool-word">Video of the night · </span>
+        {price}
       </button>
     );
   }
@@ -62,7 +63,8 @@ export default function VideoChoice({
   return (
     <span className="ad-video-choice">
       <button type="button" className="secondary small" aria-expanded={open} onClick={() => setOpen((v) => !v)} disabled={busy || Boolean(paused)} title={paused ?? "A short film, in their own voices: of this chapter or the whole night"}>
-        🎬 Video · {price}
+        🎬 <span className="ad-tool-word">Video · </span>
+        {price}
       </button>
       {open && (
         <span className="ad-video-choice-panel" role="group" aria-label="What the video covers">

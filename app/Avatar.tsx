@@ -15,6 +15,8 @@ type Props = {
   /** A BYOK-generated portrait to show instead of the drawn tile (served from /api/assets/<id>): pass the
    *  character's `portrait` wherever it's drawn, or an OC that has one shows its initials instead. */
   portraitSrc?: string | null;
+  /** A realistic headshot that wins over the reviewed portrait too (After Dark: the face the viewer keeps for them). */
+  photoSrc?: string | null;
   /** Next to the character's name (app/CharacterName.tsx): hidden from screen readers, which read the name instead. */
   decorative?: boolean;
   /** A circle instead of the rounded tile (the small inline face before a name). */
@@ -26,11 +28,11 @@ type Props = {
  * OC shows its generated portrait when it has one, and otherwise the gradient tile with a soft motif and its
  * initials. Pure (no hooks, no client directive), so it renders in both server and client components.
  */
-export default function Avatar({ seed, name, hue, size = 48, house = false, portraitSrc = null, decorative = false, round = false }: Props) {
+export default function Avatar({ seed, name, hue, size = 48, house = false, portraitSrc = null, photoSrc = null, decorative = false, round = false }: Props) {
   const r = round ? "50%" : size * 0.28;
   // A house character's reviewed file first: its ledger row (when it has one) only redirects to that same file.
   // Then an OC's BYOK-generated portrait (the owner's own, provider-moderated).
-  const portrait = characterPortrait(seed) ?? sized(portraitSrc, size);
+  const portrait = photoSrc ?? characterPortrait(seed) ?? sized(portraitSrc, size);
   if (portrait) {
     // The tile's own gradient under the picture, so a face still loading (they're lazy) reads as theirs, not a blank box.
     const p = avatarPalette(seed, hue);
@@ -43,7 +45,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
         height={size}
         decoding="async"
         loading="lazy"
-        className={`avatar avatar-portrait${house ? " avatar-house" : ""}`}
+        className={`avatar avatar-portrait${house ? " avatar-house" : ""}${photoSrc ? " avatar-photo" : ""}`}
         style={{ borderRadius: r, width: size, height: size, background: `linear-gradient(135deg, ${p.from}, ${p.to})` }}
       />
     );

@@ -16,6 +16,7 @@
 import { after } from "next/server";
 import { markAiImage } from "./ai-mark";
 import { canonicalSet, closestSet } from "./adult/continuity";
+import { libraryVenueFor } from "./adult/scene-catalog";
 import { hivePausedUntil } from "./adult/hive-limit";
 import { checkMedia, checkReady, isVerdict } from "./adult/moderation";
 import { adultKeys } from "./adult/settings";
@@ -96,6 +97,8 @@ export async function ensureSet(db: Db, place: string | null | undefined): Promi
   const label = !place ? null : place.includes("@") ? (isPlaceholder(place) ? placeLabel(place) : null) : LIBRARY.has(place) ? null : place.trim() || null;
   const normalized = label ? normalizeScene(label) : "";
   if (!label || !normalized) return "skipped";
+  // A library venue picked by name (the theater's scene picker, lib/adult/scene-catalog.ts) stands on its reviewed backdrop.
+  if (libraryVenueFor(label)) return "skipped";
   if (!checkShowText({ place: label }).ok) return "skipped";
   try {
     // Claim it: a new place; one whose passing failure is due (a kept picture is only checked again); one whose last
