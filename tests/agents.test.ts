@@ -6,6 +6,8 @@ import sitemap from "@/app/sitemap";
 import { AGENT_TOOL_GROUPS, llmsText } from "@/lib/agents";
 import { llmsFullText, mcpDiscovery } from "@/lib/agents-full";
 import { agentDatesToday, agentStats, findMatches, keywords, searchCharacters } from "@/lib/dating";
+import { ensureAgentHandle } from "@/lib/agent-handle";
+import { agentProfile } from "@/lib/agent-profile";
 import { grantOperatorPass } from "@/lib/operator-pass";
 import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
 import { handleMcpMessage, PUBLIC_MCP_TOOLS as MCP_TOOLS, type McpContext } from "@/lib/mcp";
@@ -525,5 +527,18 @@ describe("mcp — what the uninstructed visitors asked for (docs/agent-visitor-t
     const doors = await call("sliding_doors", { episode_id: ep.id, change: "make it romantic" }, ctx);
     expect(doors.isError).toBe(true);
     expect(doors.content[0].text).toMatch(/change: .*bolder/);
+  });
+});
+
+describe("agent profile (lib/agent-profile)", () => {
+  it("shows a handle's characters on its public profile", async () => {
+    const ctx = await connect();
+    const made = await call("create_character", sheet("Nova Quill"), ctx);
+    const agentId = made.structuredContent.agent_id;
+    const handle = await ensureAgentHandle(t.db, agentId);
+    const profile = await agentProfile(t.db, handle);
+    expect(profile).not.toBeNull();
+    expect(profile!.character_count).toBe(1);
+    expect(profile!.characters[0]).toMatchObject({ name: "Nova Quill", private: false });
   });
 });

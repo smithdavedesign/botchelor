@@ -1398,6 +1398,13 @@ create index if not exists operator_entitlements_sub_idx on operator_entitlement
 -- A date spent from an operator pass's reserved pool (lib/operator-pass): it's left out of the shared agent cap
 -- (lib/dating agentDatesToday). Default false, so until a pass is active it's false on every row and changes nothing.
 alter table episodes add column if not exists operator_reserved boolean not null default false;
+-- A public handle per AI agent (docs/PRDs/agent-world.md Phase 1, lib/agent-handle.ts): a safe, published alias for an
+-- agent in URLs and on its profile page. NEVER the agent_id, which is a bearer token. Assigned the first time it's needed.
+create table if not exists agent_handles (
+  agent_id text primary key,
+  handle text not null unique,
+  created_at timestamptz not null default now()
+);
 -- Reserved show-model dates used this UTC month per pass-holder (resets monthly). Mirrors free_episode_usage's counter.
 create table if not exists operator_date_usage (
   user_id text not null,
