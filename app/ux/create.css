@@ -118,6 +118,10 @@
   .wizard .looks-grid.two .looks-tile {
     aspect-ratio: 4 / 3;
   }
+  /* The pictures are drawn 4:5, so a 4:3 tile shows their top, where the face is, not their middle. */
+  .wizard .looks-grid.two .looks-tile img {
+    object-position: center top;
+  }
 }
 /* The builder's own Previous / Skip are small text actions, so they don't compete with the wizard's Back and Next. */
 .wizard .looks-nav {

@@ -7411,6 +7411,7 @@ a.phone-head-btn {
   justify-self: start;
 }
 .looks-tabs button {
+  margin: 0;
   border: 0;
   border-radius: 999px;
   padding: var(--space-2) var(--space-4);
@@ -7422,9 +7423,19 @@ a.phone-head-btn {
   min-height: 40px;
   box-shadow: none;
 }
+/* The base button lifts and casts a pill shadow on hover, and button.chosen draws an outline: a segmented tab wants neither. */
+.looks-tabs button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
 .looks-tabs button.chosen {
   background: var(--grad);
   color: var(--accent-ink);
+  outline: 0;
+}
+.looks-tabs button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 .looks-builder.is-after-dark .looks-tabs button.chosen {
   background: linear-gradient(120deg, #2b1640, #10091c);
@@ -7443,11 +7454,17 @@ a.phone-head-btn {
 .looks-dots button {
   width: 22px;
   height: 6px;
+  margin: 0;
   border: 0;
   border-radius: 3px;
   padding: 0;
   background: var(--line);
   cursor: pointer;
+  box-shadow: none;
+}
+.looks-dots button:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
 }
 .looks-dots button.done {
   background: var(--accent);
@@ -7479,6 +7496,7 @@ a.phone-head-btn {
   width: 100%;
   aspect-ratio: 4 / 5;
   overflow: hidden;
+  margin: 0;
   padding: 0;
   border: 2px solid var(--line);
   border-radius: 14px;
@@ -7486,17 +7504,21 @@ a.phone-head-btn {
   color: var(--ink);
   font: inherit;
   cursor: pointer;
+  box-shadow: none;
   transition: transform 120ms ease, border-color 120ms ease;
 }
-.looks-tile:hover {
+/* :not(:disabled), to outrank the base button's hover shadow. */
+.looks-tile:hover:not(:disabled) {
   transform: translateY(-2px);
   border-color: var(--accent);
+  box-shadow: none;
 }
 .looks-tile:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
-.looks-tile.chosen {
+.looks-tile.chosen,
+.looks-tile.chosen:hover:not(:disabled) {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--soft);
 }
@@ -7546,6 +7568,7 @@ a.phone-head-btn {
 }
 .looks-ages button {
   flex: 0 0 auto;
+  margin: 0;
   box-shadow: none;
   min-width: 48px;
   min-height: 48px;
@@ -10645,12 +10668,15 @@ details > summary.small {
   gap: 0.4rem;
   min-width: 0;
 }
-/* The looks dashes: at least 24px wide each, even with eleven in a row (they wrap to a second row on a narrow phone). */
+/* The looks dashes: eleven on one row, even on a 360px phone (the 11th used to wrap onto a row of its own). They
+   shrink below 24px wide there, but sit 24px+ apart centre to centre, which keeps them fair tap targets. */
 .looks-dots {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  gap: 4px;
 }
 .looks-dots li {
-  flex: 1 0 24px;
+  flex: 1 1 24px;
+  min-width: 0;
   max-width: 44px;
 }
 
