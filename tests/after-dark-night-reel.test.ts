@@ -397,7 +397,21 @@ describe("the storyboard: plan, draw, then film", () => {
     await make(cookie, { action: "draw", id: plan.id });
     expect(seen.filter((s) => s.path === "/image/multi-edit")).toHaveLength(3);
 
-    // Film: now the videos are queued and the draft becomes a reel being made.
+    // The movie can't be made until every kept shot is approved.
+    const notYet = await make(cookie, { action: "film", id: plan.id });
+    expect(notYet.status).toBe(409);
+    expect((await notYet.json()).error).toBe("needs_approval");
+
+    // Redraw one shot to the owner's own words: it's drawn again (its words lead the keyframe), approval cleared.
+    const first = drawn.shots[0].media_id!;
+    const redrawn = (await (await make(cookie, { action: "redraw", id: plan.id, media_id: first, custom: "she leans in close" })).json()).reel as Reel;
+    expect(redrawn.shots[0]).toMatchObject({ status: "frame_ready", approved: false });
+    expect(seen.filter((s) => s.path === "/image/multi-edit")).toHaveLength(4); // one more draw, just that shot
+    expect(String(seen.filter((s) => s.path === "/image/multi-edit").at(-1)!.body.prompt)).toContain("Most important, do exactly this: she leans in close.");
+
+    // Approve all, then film: the videos are queued and the draft becomes a reel being made.
+    const approved = (await (await make(cookie, { action: "approve", id: plan.id, media_id: null, approved: true })).json()).reel as Reel;
+    expect(approved.shots.filter((s) => s.status === "frame_ready").every((s) => s.approved)).toBe(true);
     const filmed = (await (await make(cookie, { action: "film", id: plan.id })).json()).reel as Reel;
     expect(filmed.status).toBe("making");
     expect(filmed.shots.map((s) => s.status)).toEqual(["queued", "queued", "queued"]);

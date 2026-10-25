@@ -180,8 +180,8 @@ async function main() {
       await page.goto(`${app.base}${scenePath}?play=1`);
       // On a phone the tools fold into "⋯"; open it first.
       if (size === "phone") await page.getByRole("button", { name: "More tools" }).click();
-      // Open the video control in the theater and choose the storyboard.
-      await page.getByRole("button", { name: /Storyboard/ }).first().click();
+      // The video of the night opens the storyboard (there's no blind one-tap any more).
+      await page.getByRole("button", { name: /Video of the night/ }).first().click();
       await page.locator(".ad-storyboard").waitFor({ timeout: 20_000 });
       if (size === "phone") await noSideways(page, "the storyboard, planned");
       await shot(page, `after-dark-storyboard-planned-${size}`);

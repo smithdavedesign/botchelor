@@ -145,15 +145,20 @@ export default function AfterDarkTheater({
 }) {
   const live = Boolean(onWrite);
   const turns = useMemo(() => scene.lines.map(lineToTurn), [scene.lines]);
-  // Live: playback waits at the newest line and carries on as the next ones are written.
-  const [startAt] = useState(() => (live ? Math.max(0, scene.lines.length - 6) : 0));
+  // Live: playback waits at the newest line and carries on as the next ones are written. A replay of a night already
+  // watched opens at the end (David, 2026-10-24: revisiting shouldn't make you sit through it again) — ▶ or From the top
+  // replays it.
+  const [startAt] = useState(() => (live ? Math.max(0, scene.lines.length - 6) : scene.lines.length));
   const [listenHold, setListenHold] = useState(false);
   // A moment worth a picture, reached: playback waits for the viewer's answer.
   const [beatHold, setBeatHold] = useState(false);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(() => new Set());
   // The owner's own words for the next scene picture (David, 2026-10-24: "more specifics otherwise it fails the scene").
   const [guide, setGuide] = useState("");
-  const replay = useReplay(turns, true, { live, startAt, hold: listenHold || beatHold });
+  // Hitting 📸 opens a panel to agree on what the picture shows before it's drawn (David, 2026-10-24); its line.
+  const [picturing, setPicturing] = useState<{ line: number } | null>(null);
+  // A replay doesn't auto-play on open; the running scene still catches up and carries on.
+  const replay = useReplay(turns, live, { live, startAt, hold: listenHold || beatHold });
   const [convo, setConvo] = useState(false);
   // On a phone, the secondary tools (from the top, catch up, listen, clip, video) fold into "⋯" so the bar is one row.
   const [tools, setTools] = useState(false);
@@ -233,6 +238,35 @@ export default function AfterDarkTheater({
               </div>
             </div>
           )}
+          {picturing && onPictureNow && (
+            // Agree on what the picture shows before it's drawn (David, 2026-10-24): the moment, and anything to add.
+            <div className="ad-beat-offer" role="dialog" aria-label="Create a picture of this moment">
+              <p>
+                <strong>📸 Picture this moment</strong>
+                <span className="muted small"> It draws the two of them from here: “{(scene.lines[picturing.line]?.text ?? "the scene so far").slice(0, 140)}”. Add anything it should show, then create it.</span>
+              </p>
+              <input className="ad-beat-guide" type="text" value={guide} maxLength={400} placeholder="Add exactly what it should show (optional) — this leads the picture" disabled={Boolean(mediaPaused)} onChange={(e) => setGuide(e.target.value)} />
+              <div className="ad-beat-actions">
+                <button
+                  type="button"
+                  className="primary small"
+                  disabled={Boolean(mediaPaused)}
+                  onClick={() => {
+                    const line = picturing.line;
+                    const g = guide.trim() ? { custom: guide.trim() } : undefined;
+                    setPicturing(null);
+                    setGuide("");
+                    void onPictureNow(line, g);
+                  }}
+                >
+                  Create picture
+                </button>
+                <button type="button" className="button-ghost small" onClick={() => { setPicturing(null); setGuide(""); }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="theater-convo">
           <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow empty="The scene appears here, line by line." feedback={feedback} />
@@ -276,7 +310,7 @@ export default function AfterDarkTheater({
                   <button
                     type="button"
                     className="theater-icon"
-                    onClick={() => void onPictureNow(Math.max(0, shown.length - 1), guide.trim() ? { custom: guide.trim() } : undefined).then(() => setGuide(""))}
+                    onClick={() => setPicturing({ line: Math.max(0, shown.length - 1) })}
                     disabled={!shown.length || Boolean(mediaPaused)}
                     aria-label="Picture this moment"
                     title={mediaPaused ?? "Picture this moment: a picture of the two of them, from the line on screen"}
