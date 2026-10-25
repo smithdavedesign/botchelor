@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { pauseHive } from "@/lib/adult/hive-limit";
-import { adminCheckerOf, checkMedia, mediaGate, setAdminCheckerDefaultForTests, setModerationFetchForTests, SIGHTENGINE_CHECK, VENICE_CHAT } from "@/lib/adult/moderation";
+import { adminCheckerOf, checkMedia, devModerationOff, mediaGate, setAdminCheckerDefaultForTests, setModerationFetchForTests, SIGHTENGINE_CHECK, VENICE_CHAT } from "@/lib/adult/moderation";
 import { DEFAULT_MODERATION, mergeModerationConfig, moderationConfigOf } from "@/lib/adult/moderation-config";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
@@ -185,5 +185,26 @@ describe("an admin's own pictures (David, 2026-10-24: Hive off for admins)", () 
     hive();
     alts();
     expect(await checkMedia(t.db, PIC, "image", { owner: "admin-1" })).not.toMatchObject({ via: ["venice_vlm"] });
+  });
+
+  it("the dev switch skips Hive off production, and never on it", async () => {
+    // Honoured only off production with the flag on; a bad or missing flag, or production, leaves it off.
+    expect(devModerationOff({ VERCEL_ENV: "production", MODERATION_DEV_OFF: "1" })).toBe(false);
+    expect(devModerationOff({ VERCEL_ENV: "preview", MODERATION_DEV_OFF: "1" })).toBe(true);
+    expect(devModerationOff({ MODERATION_DEV_OFF: "1" })).toBe(true);
+    expect(devModerationOff({ MODERATION_DEV_OFF: "0" })).toBe(false);
+    expect(devModerationOff({})).toBe(false);
+    // On (non-prod + flag): anyone's picture and a video pass without Hive, and a video takes no alternative either.
+    vi.stubEnv("MODERATION_DEV_OFF", "1");
+    const h = hive();
+    expect((await mediaGate(t.db, { owner: "someone" })).ok).toBe(true);
+    expect((await mediaGate(t.db, { video: true })).ok).toBe(true);
+    expect(await checkMedia(t.db, { base64: PIC.base64, mime: "video/mp4" }, "video", { owner: "someone" })).toMatchObject({ ok: true, via: ["dev"] });
+    expect(h).toHaveLength(0);
+    // A ready alternative still checks a picture, and still refuses — never kept unchecked, just off Hive.
+    const a = alts({ venice: "MINOR" });
+    expect((await checkMedia(t.db, PIC, "image", { owner: "someone" })).ok).toBe(false);
+    expect(a.filter((c) => c.url === VENICE_CHAT)).toHaveLength(1);
+    expect(h).toHaveLength(0);
   });
 });
