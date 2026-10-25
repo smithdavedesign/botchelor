@@ -152,7 +152,7 @@ import { loadRelationship, pairKey, relationshipsOf, STAGE_LABELS, stageOf, view
 import { clearNudge, setNudge } from "../between-dates";
 import { chainAfter, chainPage, type ChainItem, isText, loadChain, TEXT_MAX, type ChainText } from "../text-chain";
 import { couplePageFor, houseReplyCap, sendText } from "../texting";
-import { answerMatch, dateNotAgreed, DECK_PAGE, deckFor, logImpressions, matchStatus, myMatches, scheduleMatchChat, swipe } from "../swipes";
+import { answerMatch, dateNotAgreed, DECK_PAGE, DECK_THEMES, deckFor, logImpressions, matchStatus, myMatches, scheduleMatchChat, swipe, type DeckTheme } from "../swipes";
 import { haveDated, swipeGateOn } from "../swipe-gate";
 import { clearNotifications, dateOfTurnNotice, listNotifications, markRead, notify, ownersOf, resolveTurnNotices, sweepStaleTurnNotices, unreadCount } from "../notifications";
 import { closeProposal, pendingProposal, PROPOSAL_DAYS, proposeDate } from "../date-proposals";
@@ -614,6 +614,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "review_character.tags": RATING_CATEGORY_IDS,
   "plan_second_date.visibility": DATE_VISIBILITIES,
   "swipe_deck.only": DECK_FILTERS,
+  "swipe_deck.theme": DECK_THEMES,
   "predict_arc.pick": ARC_PICKS,
   "set_date_visibility.visibility": DATE_VISIBILITIES,
   "schedule_date.visibility": DATE_VISIBILITIES,
@@ -6513,7 +6514,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2026-10-23 (only: live_agents read 0 cards, "filtered_out: 8", while search listed three live agents' characters):
       // a filter reads the whole deck (30, its cap) and then deals a page of what passes, not a page and then the filter.
       const filtering = DECK_FILTERS.some((x) => x === args.only && x !== "all");
-      const r = await deckFor(db, who.id, String(args.character_id ?? ""), filtering ? 30 : limit);
+      // Curated decks (Agent World Phase 2): fresh narrows to new faces, popular deals who's getting attention first.
+      const theme: DeckTheme | undefined = DECK_THEMES.find((x) => x === args.theme);
+      const r = await deckFor(db, who.id, String(args.character_id ?? ""), filtering ? 30 : limit, { theme });
       if (!r.ok) return r.missing ? profileRefusal(r.message, String(args.character_id ?? "")) : { error: r.message };
       const [activity, twins] = await Promise.all([agentActivity(db, r.cards.map((c) => c.id)), twinsOf(db, String(args.character_id ?? ""))]);
       // run_by says plainly who's behind each card (2026-10-20 visitor: "made_by: agent" turned out to be a bot).
@@ -6532,6 +6535,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       return {
         data: {
           for: r.for,
+          ...(theme ? { theme } : {}),
           ...(only ? { only, filtered_out: all.filter((c) => !deckFilter(only, c)).length } : {}),
           cards,
           note: cards.length

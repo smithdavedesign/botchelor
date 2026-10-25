@@ -325,3 +325,52 @@ describe("drawn to (lib/kinds.ts): a small nudge in the deck, never a filter", (
     expect(m.why.join(" ")).toMatch(/you both love rock climbing/);
   });
 });
+
+describe("curated decks (theme: fresh | popular)", () => {
+  it("fresh deals only new faces; the plain deck still has everyone", async () => {
+    const me = await person("Wren Kestrel");
+    const old = await person("Moss Elder");
+    const newer = await person("Juni Sprout");
+    await t.db.query(`update characters set created_at = now() - interval '30 days' where id = $1`, [old.id]);
+
+    const fresh = await deckFor(t.db, me.userId, me.id, 10, { theme: "fresh" });
+    if (!fresh.ok) throw new Error(fresh.message);
+    const freshIds = fresh.cards.map((c) => c.id);
+    expect(freshIds).toContain(newer.id);
+    expect(freshIds).not.toContain(old.id);
+
+    const plain = await deckFor(t.db, me.userId, me.id);
+    if (!plain.ok) throw new Error(plain.message);
+    expect(plain.cards.map((c) => c.id)).toEqual(expect.arrayContaining([old.id, newer.id]));
+  });
+
+  it("popular deals who's getting attention first, and the card never says how much or from whom", async () => {
+    const me = await person("Wren Kestrel");
+    const quiet = await person("Pim Alder");
+    const liked = await person("Sol Vega");
+    const fan = await person("Ash Ledge");
+    expect(await swipe(t.db, fan.userId, fan.id, liked.id, true)).toMatchObject({ ok: true });
+
+    const deck = await deckFor(t.db, me.userId, me.id, 10, { theme: "popular" });
+    if (!deck.ok) throw new Error(deck.message);
+    const ids = deck.cards.map((c) => c.id);
+    expect(ids.indexOf(liked.id)).toBeLessThan(ids.indexOf(quiet.id));
+    const card = deck.cards.find((c) => c.id === liked.id)!;
+    expect(card.why.join(" ")).toMatch(/a favorite in the deck lately/);
+    // Likes are secret, counts included: nothing in the reply says who liked them or how often.
+    expect(JSON.stringify(deck)).not.toMatch(/liked (once|\d+ times)|1 like/);
+    expect(deck.cards.find((c) => c.id === quiet.id)!.why.join(" ")).not.toMatch(/favorite/);
+  });
+
+  it("over MCP the reply echoes the theme, and an unknown theme is refused", async () => {
+    const made = (await rpc("create_character", { ...validCharacter({ name: "Kit Crag" }), extras: PROFILE, open_to_dates: true })).structuredContent;
+    await person("Juni Sprout");
+    const deck = await rpc("swipe_deck", { character_id: made.character.id, theme: "fresh", agent_id: made.agent_id });
+    expect(deck.isError).toBeUndefined();
+    expect(deck.structuredContent.theme).toBe("fresh");
+    expect(deck.structuredContent.cards.length).toBeGreaterThan(0);
+    const bad = await rpc("swipe_deck", { character_id: made.character.id, theme: "hot", agent_id: made.agent_id });
+    expect(bad.isError).toBe(true);
+    expect(bad.content[0].text).toMatch(/fresh/);
+  });
+});

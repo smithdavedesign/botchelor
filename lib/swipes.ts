@@ -36,6 +36,11 @@ import { critiqueText, writeCritiquedText, type ThreadText } from "./text-critic
 
 /** How many cards the deck deals at a time. */
 export const DECK_PAGE = 10;
+/** Curated decks (Agent World Phase 2): the same pool and rules, dealt by a theme instead of the all-round ranking. */
+export const DECK_THEMES = ["fresh", "popular"] as const;
+export type DeckTheme = (typeof DECK_THEMES)[number];
+/** How long a character counts as a new face in the fresh deck. */
+export const FRESH_DAYS = 14;
 /** The opening chat after a match: up to this many texts, on the show's free model. */
 export const MATCH_CHAT_TEXTS = 4;
 
@@ -175,10 +180,11 @@ function cantSwipe(mine: Mine | null): Refusal | null {
  * matched or dated already. `only` narrows it to one character (a swipe's target). Swiped ones are left out unless
  * `includeSwiped`.
  */
-async function deckPool(db: Db, userId: string, mine: Mine, opts: { only?: string; includeSwiped?: boolean } = {}): Promise<ProfileRow[]> {
+async function deckPool(db: Db, userId: string, mine: Mine, opts: { only?: string; includeSwiped?: boolean; fresh?: boolean } = {}): Promise<ProfileRow[]> {
   const { rows } = await db.query<ProfileRow>(
     `select ${PUBLIC_COLUMNS} from characters c
       where c.id <> $2 and ($4::text is null or c.id = $4)
+        and (not $6::boolean or c.created_at > now() - interval '${FRESH_DAYS} days')
         and ((c.is_house and c.premium_sku is null and c.id = any($3))
              or (not c.is_house and c.open_to_dates and c.visibility <> 'private' and c.owner_id <> $1 and not ${takenSql("c")}
                  and not exists (select 1 from blocks bl
@@ -190,7 +196,7 @@ async function deckPool(db: Db, userId: string, mine: Mine, opts: { only?: strin
                          where r.dates > 0 and ((r.character_a = c.id and r.character_b = $2) or (r.character_a = $2 and r.character_b = c.id)))
       order by c.created_at desc, c.id
       limit 300`,
-    [userId, mine.id, seasonCastIds(), opts.only ?? null, Boolean(opts.includeSwiped)],
+    [userId, mine.id, seasonCastIds(), opts.only ?? null, Boolean(opts.includeSwiped), Boolean(opts.fresh)],
   );
   return rows.filter((r) => r.is_house || (audienceAllows(r.open_audience, mine.created_via) && profileComplete(r.extras)));
 }
@@ -203,16 +209,33 @@ async function deckPool(db: Db, userId: string, mine: Mine, opts: { only?: strin
  *
  * `only`: just that one card, scored as the deck scores it, even once it's been swiped (what logShownCard records).
  */
-export async function deckFor(db: Db, userId: string, characterId: string, limit = DECK_PAGE, opts: { only?: string } = {}): Promise<DeckResult> {
+export async function deckFor(
+  db: Db,
+  userId: string,
+  characterId: string,
+  limit = DECK_PAGE,
+  opts: { only?: string; theme?: DeckTheme } = {},
+): Promise<DeckResult> {
   const mine = await loadMine(db, userId, characterId);
   const no = cantSwipe(mine);
   if (no || !mine) return no!;
-  const pool = (await deckPool(db, userId, mine, opts.only ? { only: opts.only, includeSwiped: true } : {})).map((r) => toProfile(r));
+  // Curated decks: fresh narrows the pool to new faces; popular reorders by likes received lately. Same pool rules.
+  const pool = (await deckPool(db, userId, mine, opts.only ? { only: opts.only, includeSwiped: true } : { fresh: opts.theme === "fresh" })).map((r) =>
+    toProfile(r),
+  );
   if (!pool.length) return { ok: true, for: { id: mine.id, name: mine.name }, cards: [], scores: {} };
-  const [ranked, likers] = await Promise.all([
+  const [ranked, likers, liked] = await Promise.all([
     rankFor(db, userId, toProfile(mine), pool),
     db.query<{ swiper: string }>(`select swiper from swipes where target = $1 and liked`, [mine.id]),
+    opts.theme === "popular"
+      ? db.query<{ target: string; n: number }>(
+          `select target, count(*)::int as n from swipes
+            where liked and created_at > now() - interval '${FRESH_DAYS} days' and target = any($1) group by target`,
+          [pool.map((p) => p.id)],
+        )
+      : Promise.resolve({ rows: [] as { target: string; n: number }[] }),
   ]);
+  const popular = new Map(liked.rows.map((r) => [r.target, r.n]));
   const likedMine = new Set(likers.rows.map((r) => r.swiper));
   // The house crowd (lib/house-bots.ts) and whether each card will answer a like (lib/activity.ts): a card nobody will
   // answer for now ranks down (David, 2026-10-24: "dead characters"), unless it already liked yours.
@@ -223,10 +246,14 @@ export async function deckFor(db: Db, userId: string, characterId: string, limit
   const drawnTo = toProfile(mine).extras.drawn_to ?? [];
   const kindOf = new Map(pool.map((p) => [p.id, p.extras.kind ?? null]));
   const away = (id: string) => !likedMine.has(id) && nobodyAnswers(hints.get(id)!);
-  const boost = (id: string) => (likedMine.has(id) ? 2 : 0) + drawnToBoost(drawnTo, kindOf.get(id)) - (away(id) ? AWAY_PENALTY : 0);
+  // The popular deck weighs likes received lately above everything the all-round ranking adds up.
+  const likedLately = (id: string) => Math.min(10, (popular.get(id) ?? 0) * 3);
+  const boost = (id: string) => (likedMine.has(id) ? 2 : 0) + drawnToBoost(drawnTo, kindOf.get(id)) + likedLately(id) - (away(id) ? AWAY_PENALTY : 0);
   for (const m of ranked) {
     const kind = kindOf.get(m.id);
     if (drawnToBoost(drawnTo, kind)) m.why.push(`${shortName(mine.name)} is drawn to ${kindName(kind!, "many").toLowerCase()}`);
+    // Likes are secret, counts included: the card says it's been getting attention, never how much or from whom.
+    if (popular.get(m.id)) m.why.push("a favorite in the deck lately");
   }
   ranked.sort((a, b) => b.score + boost(b.id) - (a.score + boost(a.id)));
   // The house crowd fills in around everyone else: at most a third of a page.
