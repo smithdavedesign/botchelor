@@ -134,3 +134,22 @@ describe("check_only's look-alikes come with unused names and jobs (#852)", () =
     expect(r.try_instead).toBeUndefined();
   });
 });
+
+describe("a wait never runs past its wait_seconds by a whole poll (#854)", () => {
+  it("my_status and my_notifications with wait_seconds: 3 come back at 3 seconds, not 4", async () => {
+    const { ctx } = await connect();
+    await call("create_character", validCharacter({ name: "Ada Lumen" }), ctx);
+    const first = (await call("my_status", {}, ctx)).structuredContent;
+    for (const [name, args] of [
+      ["my_status", { since: first.cursor, wait_seconds: 3 }],
+      ["my_notifications", { wait_seconds: 3 }],
+    ] as const) {
+      const at = Date.now();
+      const r = (await call(name, args, ctx)).structuredContent;
+      const took = Date.now() - at;
+      expect(took, name).toBeGreaterThanOrEqual(2900);
+      expect(took, name).toBeLessThan(3600);
+      if (r.waited_seconds !== undefined) expect(r.waited_seconds, name).toBeLessThanOrEqual(3);
+    }
+  }, 20_000);
+});
