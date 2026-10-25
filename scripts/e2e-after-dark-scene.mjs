@@ -77,6 +77,9 @@ const STEPS = [
     ["Juniper offers her arm across the booth", "They do. Coming?"],
   ],
 ];
+/** The "doing" the stub marks, by step and line: the label follows it. */
+const DOING = [{ 0: "sizing up the smug couple" }, { 0: "surviving the kayak story" }, { 0: "plotting an escape", 3: "making a run for it" }];
+
 function startAdultStub(seen) {
   let n = 0;
   const srv = createServer((req, res) => {
@@ -90,7 +93,8 @@ function startAdultStub(seen) {
       else {
         seen.push(text);
         // The pair is stored lower id first: house-juniper is "a", lexi-e2e is "b". Each line is its own speaker's.
-        const lines = STEPS[n % STEPS.length].map(([action, said]) => ({ who: action.startsWith("Lexi") ? "b" : "a", text: `*${action}* ${said}`, why: "the double date", memory: null }));
+        // What they're doing (lib/adult/doing.ts): said on a step's first line, and where it changes.
+        const lines = STEPS[n % STEPS.length].map(([action, said], i) => ({ who: action.startsWith("Lexi") ? "b" : "a", text: `*${action}* ${said}`, why: "the double date", memory: null, ...(DOING[n % STEPS.length][i] ? { doing: DOING[n % STEPS.length][i] } : {}) }));
         n++;
         reply = { lines, place: "a noisy, dimly lit downtown bar", set: "bar", stage: 0, explicit: false, picture: null, suggestions: { mild: "They split the bill", flirty: "Lexi kicks Juniper's ankle under the table", spicy: "They slip out together" } };
       }
@@ -198,12 +202,20 @@ async function main() {
       assert(/This chapter's roleplay, chosen by the viewer: Blind date\. A friend set (?:Lexi and Juniper|Juniper and Lexi) up/.test(first), "no roleplay in the first prompt");
       assert(/just cut to An awkward double date/.test(first), "the first lines weren't told they're arriving there");
       assert(seen.slice(1).every((p) => /Tonight's situation: an awkward double date/.test(p)), "a later step lost the situation");
+      assert(/"doing" says what they're doing now in 2 to 6 plain words, in the roleplay's own terms/.test(first), "the writer wasn't asked what they're doing");
+      assert(/- This chapter is the roleplay the viewer chose: Blind date\. Every line plays it/.test(first), "the roleplay doesn't lead the rules");
+      assert(/each "why" also says how the line plays it/.test(first), "the why doesn't cite the roleplay");
     });
 
     await step("they're still at the double date, though the model said a bar", async () => {
       const s = await sceneNow();
       assert(s.set_place === "An awkward double date", `moved to ${s.set_place}`);
-      assert(/Blind date · talking and flirting/.test(await theater.innerText()), "the label doesn't carry the roleplay");
+      // The label is what they're doing at the latest line, in the writer's words, the roleplay in front (never the heat).
+      const label = await theater.innerText();
+      const latest = s.lines.at(-1)?.doing;
+      assert(latest && latest !== s.lines[0].doing, `what they're doing never changed: ${s.lines.map((l) => l.doing).join(" / ")}`);
+      assert(label.includes(`🙈 Blind date · ${latest}`), `the label doesn't say what they're doing now (${latest})`);
+      assert(!/talking and flirting/.test(label), "the label still says the heat");
     });
 
     await step("the picture's prompt matches the scene", async () => {

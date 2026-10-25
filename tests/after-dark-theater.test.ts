@@ -40,8 +40,22 @@ describe("the label over the stage follows the line on screen (David, 2026-10-21
     expect(stageLabel({ lines: old, stage: 4 }, 1, false)).toBeNull();
     expect(stageLabel({ lines: old, stage: 4 }, 3, true)).toBe("sex");
   });
-  it("names a new chapter that has no lines yet, and starts the first one at the beginning", () => {
+  it("names a new chapter that has no lines yet, and claims nothing before the night's first line", () => {
     expect(stageLabel({ lines: [], stage: 4, chapter: 3 }, 0, true)).toBe("Chapter 3");
-    expect(stageLabel({ lines: [], stage: 0, chapter: 1 }, 0, true)).toBe("talking and flirting");
+    // David, 2026-10-25: a roleplay may not start at "talking and flirting".
+    expect(stageLabel({ lines: [], stage: 0, chapter: 1 }, 0, true)).toBeNull();
+    expect(stageLabel({ lines: [], stage: 0, chapter: 1, roleplay: { id: "blind-date", swap: false } }, 0, true)).toBe("🙈 Blind date");
+  });
+  it("says what they're doing at the line on screen, in the writer's words, and changes when they do", () => {
+    const doing = [
+      { who: "a" as const, text: "*slides into the booth* Hi.", stage: 0, doing: "sizing up the smug couple" },
+      { who: "b" as const, text: "Hello.", stage: 0, doing: "sizing up the smug couple" },
+      { who: "a" as const, text: "*grabs her hand* Run.", stage: 1, doing: "escaping out the back" },
+    ];
+    const rp = { id: "blind-date", swap: false };
+    expect(stageLabel({ lines: doing, stage: 1, roleplay: rp }, 2, false)).toBe("🙈 Blind date · sizing up the smug couple");
+    expect(stageLabel({ lines: doing, stage: 1, roleplay: rp }, 3, true)).toBe("🙈 Blind date · escaping out the back");
+    // A line from before the writer said falls back to the heat.
+    expect(stageLabel({ lines: [...doing, { who: "b" as const, text: "Ok.", stage: 1 }], stage: 1 }, 4, true)).toBe("tension and the first touches");
   });
 });

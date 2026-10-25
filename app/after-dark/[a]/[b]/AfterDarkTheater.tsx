@@ -55,9 +55,12 @@ export function stageFor(place: string | null, dateVenue: string | null): PlaceI
 }
 
 /**
- * The label over the stage: how far it had gone at the line on screen (each line keeps its stage), so a replay climbs
- * with the night instead of showing its end from the first hello. A line from before lines kept one shows nothing until
- * playback catches up with the latest, and a new chapter with no lines yet says which chapter it is.
+ * The label over the stage: what they're doing at the line on screen, in the writer's words (lib/adult/doing.ts; David,
+ * 2026-10-25: "it always seems to start with 'talking and flirting' … let the writer choose what it says they're doing and
+ * update when they switch actions"), the chapter's roleplay in front: "🙈 Blind date · sizing up the smug couple". A
+ * line from before lines said what they were doing shows how far it had gone (each line keeps its stage), so a replay
+ * climbs with the night; one from before lines kept even that shows nothing until playback catches up. Before the
+ * night's first line it's only the roleplay, if there is one; a new chapter with no lines yet says which chapter it is.
  */
 export function stageLabel(
   scene: { lines: SceneLine[]; stage: number; chapter?: number; roleplay?: RoleplayPick },
@@ -66,13 +69,12 @@ export function stageLabel(
   /** The owner's own roleplays (lib/studio/library.ts), beside the show's. */
   mine: readonly Roleplay[] = [],
 ): string | null {
-  // The chapter's roleplay leads the label (David, 2026-10-25: "they are role playing so we might need to update this"):
-  // "🙈 Blind date · talking and flirting". How far it's gone stays the heat (STAGES), whoever they're playing.
   const rp = scene.roleplay ? (roleplayById(scene.roleplay.id) ?? mine.find((r) => r.id === scene.roleplay!.id) ?? null) : null;
   const withRoleplay = (label: string | null) => (rp ? (label ? `${rp.icon} ${rp.title} · ${label}` : `${rp.icon} ${rp.title}`) : label);
-  if (!scene.lines.length) return withRoleplay(scene.chapter && scene.chapter > 1 ? `Chapter ${scene.chapter}` : (STAGES[0] ?? null));
-  const at = scene.lines[Math.max(0, shown - 1)]?.stage;
-  if (typeof at === "number") return withRoleplay(STAGES[at] ?? null);
+  if (!scene.lines.length) return withRoleplay(scene.chapter && scene.chapter > 1 ? `Chapter ${scene.chapter}` : null);
+  const line = scene.lines[Math.max(0, shown - 1)];
+  if (line?.doing) return withRoleplay(line.doing);
+  if (typeof line?.stage === "number") return withRoleplay(STAGES[line.stage] ?? null);
   return withRoleplay(caughtUp ? (STAGES[scene.stage] ?? null) : null);
 }
 
