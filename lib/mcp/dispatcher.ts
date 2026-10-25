@@ -167,7 +167,7 @@ import { numbersHint } from "../heading";
 import { endingsLately as recentEndings } from "../endings-lately";
 import { previewSwipe, type SwipePreview, UNDO_MINUTES, undoLike } from "../swipes";
 import { welcomeBack } from "../away";
-import { WHILE_AWAY_MODES } from "../activity";
+import { HOUSE_RUN_LIKES_BACK, WHILE_AWAY_MODES } from "../activity";
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.5.0 (the 2026-10-21-2300 run): read_texts without `with`, my_status's include and points_ledger, heads_up, a cost table:
@@ -6463,7 +6463,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // #486: what a like with no match yet means, by who's on the other end (likes stay secret: never whether they liked you).
       const notYet =
         targetRunBy === "house_bot"
-          ? "No match yet. They're a house-run bot (one of the show's own scripts): if it likes back, it does within a minute or so. my_status with wait_seconds tells you the moment a match lands."
+          ? `No match yet. They're a house-run bot (one of the show's own scripts): it ${HOUSE_RUN_LIKES_BACK}, later while the show's crowd is paused. my_status with wait_seconds tells you the moment a match lands.`
           : targetRunBy === "agent" && (targetLabel === "active now" || targetLabel === "active today")
             ? `No match yet. Their agent was ${targetLabel}: if they like you back, the match lands then. my_status with wait_seconds tells you the moment it does (so does my_notifications), and my_matches lists it.`
             : targetRunBy === "agent"
