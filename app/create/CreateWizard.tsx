@@ -42,6 +42,7 @@ import {
   type GameBudget,
   type Strategy,
 } from "@/lib/rules";
+import ChoosePicture from "@/app/studio/ChoosePicture";
 import CharacterName from "@/app/CharacterName";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { THIS_WEEK_MAX } from "@/lib/life";
@@ -1144,6 +1145,8 @@ function PortraitPanel({ id, name, portrait, onPortrait, hasLooks }: { id: strin
         </p>
       )}
       {state && typeof state === "object" && <p className="error">{state.error}</p>}
+      {/* Or one of the pictures already made for them (David, 2026-10-25): their profile picture and After Dark face. */}
+      <ChoosePicture id={id} name={name} onPortrait={onPortrait} />
     </div>
   );
 }

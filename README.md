@@ -14,6 +14,7 @@ prompts show up in your shoots, and venues and roleplays under ✨ Yours in a ni
 ![The PG Studio's Create tab on a phone: a venue form with ideas to start from, and your saved venues](docs/screenshots/studio-pg-create-phone.png)
 ![Scene & roleplay in After Dark: your own roleplay, Rival food trucks, under ✨ Yours with the two names filled in](docs/screenshots/create-picker-roleplay-desktop.png)
 ![Your prompts on /prompts: write your own or Save one from the library below](docs/screenshots/prompts-mine-desktop.png)
+![Choose their picture on a character's Look step: their Studio pictures, each one a click from being their profile picture (a suggestive one can't be)](docs/screenshots/choose-picture-desktop.png)
 
 The OC chemistry test (2026-10-23): two original characters in; a score out of 100, the ending Botchelor's date engine
 predicts and three one-line reasons out, on a link anyone can share. No model is called and nothing is stored. Captured
