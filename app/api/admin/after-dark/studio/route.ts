@@ -26,7 +26,7 @@ import {
   type JobResult,
   type StudioFail,
 } from "@/lib/adult/studio";
-import { CUSTOM_MAX, EXTRA_MAX, GROUP_IDS } from "@/lib/adult/studio-catalog";
+import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, GROUP_IDS, TRANSCRIPT_MAX } from "@/lib/adult/studio-catalog";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -87,7 +87,17 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("unshare"), character_id: id, share_id: id }),
   z.object({ action: z.literal("save_setup"), character_id: id, name: z.string().max(80), kind: z.enum(["shoot", "pair"]), choices: z.union([Choices, PairChoices]), model }),
   z.object({ action: z.literal("delete_setup"), character_id: id, setup_id: id }),
-  z.object({ action: z.literal("animate"), character_id: id, image_id: id, motion: z.string().max(30), seconds: z.union([z.literal(5), z.literal(10)]) }),
+  z.object({
+    action: z.literal("animate"),
+    character_id: id,
+    image_id: id,
+    motion: z.string().max(30).optional(),
+    seconds: z.union([z.literal(5), z.literal(10)]),
+    // The owner guides the clip (lib/adult/studio-catalog.ts): what should happen, what they say, and the lines around it.
+    guide: z.string().max(CUSTOM_MAX).optional(),
+    dialog: z.string().max(DIALOG_MAX).optional(),
+    transcript: z.string().max(TRANSCRIPT_MAX).optional(),
+  }),
   z.object({ action: z.literal("use_body"), character_id: id, image_id: id.nullable() }),
   z.object({ action: z.literal("limits"), character_id: id, intensity: z.string().max(20).optional(), hard_nos: z.array(z.string().max(30)).max(30).optional() }),
   z.object({ action: z.literal("strength"), character_id: id, strength: z.string().max(20) }),
@@ -162,7 +172,7 @@ export const POST = handle(async (req: Request) => {
       return ok ? after(input.character_id, {}) : json({ error: "not_found", message: "No setup of yours with that id." }, 404);
     }
     case "animate":
-      return job(input.character_id, await animatePicture(db, viewer, input.character_id, { image_id: input.image_id, motion: input.motion, seconds: input.seconds }, base));
+      return job(input.character_id, await animatePicture(db, viewer, input.character_id, { image_id: input.image_id, motion: input.motion, seconds: input.seconds, guide: input.guide, dialog: input.dialog, transcript: input.transcript }, base));
     case "unshare": {
       // The sharer takes an After Dark share back (a photo already in their texts stays: it was sent).
       const ok = await removeShare(db, viewer, input.share_id);

@@ -534,18 +534,39 @@ export const ANIMATE_MOTIONS: readonly { id: string; label: string; words: strin
 export const ANIMATE_SECONDS = [5, 10] as const;
 export type AnimateSeconds = (typeof ANIMATE_SECONDS)[number];
 
+/** The owner's guidance for a clip (David, 2026-10-24: "guide it again if it messed up"). */
+export type AnimateGuide = { guide?: string; dialog?: string; transcript?: string };
+export const DIALOG_MAX = 200;
+export const TRANSCRIPT_MAX = 600;
+
 /**
- * A Studio picture's clip prompt: the one person in it, kept exactly as they are, doing the motion, one steady shot.
- * The level is the picture's, so its closing words match it.
+ * A Studio picture's clip prompt: the one person in it, kept exactly as they are, one steady shot; the level is the
+ * picture's. The owner can guide it (David, 2026-10-24): `guide` leads, so what they ask for happens; `dialog` is what
+ * they say (their lips move); `transcript` is the lines around this moment, for the mood. A motion chip is optional once
+ * there's a guide. The guide, dialog and transcript are held to the lines by the caller and the clip is Hive-checked.
  */
-export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string): string {
+export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string, g: AnimateGuide = {}): string {
   const who = subject.noun === "person" ? "person" : subject.noun;
-  return [
-    `The ${who} in the picture ${motion}.`,
-    "Only this one person, exactly as in the picture: the same face, body and clothes (or none), in the same place and light.",
-    "One continuous shot, the camera steady: no cuts, nobody else comes in. Realistic, unhurried motion.",
-    TAIL[level],
-  ].join(" ");
+  const guide = cleanCustom(g.guide, CUSTOM_MAX);
+  const dialog = cleanCustom(g.dialog, DIALOG_MAX);
+  const transcript = cleanCustom(g.transcript, TRANSCRIPT_MAX);
+  const middle = [
+    guide ? `Most important, do exactly this: ${guide.replace(/[.\s]*$/, "")}.` : "",
+    motion ? `The ${who} in the picture ${motion}.` : guide ? "" : `The ${who} in the picture breathes slowly, a small smile.`,
+    dialog ? `They say, their lips moving: "${dialog.replace(/"/g, "'")}".` : "",
+    transcript ? `For the mood, this is what's being said around this moment: ${transcript}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return fit(
+    [],
+    middle,
+    [
+      "Only this one person, exactly as in the picture: the same face, body and clothes (or none), in the same place and light.",
+      "One continuous shot, the camera steady: no cuts, nobody else comes in. Realistic, unhurried motion.",
+      TAIL[level],
+    ],
+  );
 }
 
 /** The studio intensity's highest level (the pair limits' intensities, lib/adult/limits.ts INTENSITIES). */

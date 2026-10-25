@@ -6,7 +6,7 @@ import RateMedia from "@/app/after-dark/[a]/[b]/RateMedia";
 import { HARD_NOS, INTENSITIES, INTENSITY } from "@/lib/adult/limits";
 import type { Media } from "@/lib/adult/media";
 import type { PairMenu, Setup, Shoot, StudioState } from "@/lib/adult/studio";
-import { CUSTOM_MAX, EXTRA_MAX, LEVEL_LABEL, optionById, STRENGTHS, type GroupId, type Level, type ShootChoices } from "@/lib/adult/studio-catalog";
+import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, LEVEL_LABEL, optionById, STRENGTHS, TRANSCRIPT_MAX, type GroupId, type Level, type ShootChoices } from "@/lib/adult/studio-catalog";
 
 const media = (id: string) => `/api/admin/after-dark/media/${id}`;
 const TABS = [
@@ -102,7 +102,7 @@ export default function Studio({ initial }: { initial: StudioState }) {
   const [pairMenu, setPairMenu] = useState<PairMenu | null>(null);
   const [pairPick, setPairPick] = useState<PairPick>(NO_PAIR_PICK);
   const [sharing, setSharing] = useState<{ image: string; to: string; kind: "after_dark" | "photo" } | null>(null);
-  const [animating, setAnimating] = useState<{ image: string; motion: string; seconds: 5 | 10 } | null>(null);
+  const [animating, setAnimating] = useState<{ image: string; motion: string; seconds: 5 | 10; guide?: string; dialog?: string; transcript?: string } | null>(null);
   const [setupName, setSetupName] = useState("");
   const setupNameRef = useRef<HTMLInputElement>(null);
   const c = s.character;
@@ -396,12 +396,16 @@ export default function Studio({ initial }: { initial: StudioState }) {
                     </button>
                   ))}
                 </div>
+                {/* Guide the clip (David, 2026-10-24): what should happen, what they say, and the lines around the moment. */}
+                <textarea className="ad-studio-custom" rows={2} maxLength={CUSTOM_MAX} value={anim.guide ?? ""} placeholder="Guide it — what should actually happen (optional, leads the clip)" disabled={Boolean(busy)} onChange={(e) => setAnimating({ ...anim, guide: e.target.value || undefined })} />
+                <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={anim.dialog ?? ""} placeholder="Dialog — what they say (optional)" disabled={Boolean(busy)} onChange={(e) => setAnimating({ ...anim, dialog: e.target.value || undefined })} />
+                <textarea className="ad-studio-custom" rows={2} maxLength={TRANSCRIPT_MAX} value={anim.transcript ?? ""} placeholder="Transcript — the lines around this moment, for the mood (optional; a date already has one)" disabled={Boolean(busy)} onChange={(e) => setAnimating({ ...anim, transcript: e.target.value || undefined })} />
                 <button
                   type="button"
                   className="primary small"
                   disabled={Boolean(busy)}
                   onClick={() =>
-                    void act(`animate:${p.id}`, { action: "animate", character_id: c.id, image_id: p.id, motion: anim.motion, seconds: anim.seconds }, { title: "Animating" }).then((d) => d && setAnimating(null))
+                    void act(`animate:${p.id}`, { action: "animate", character_id: c.id, image_id: p.id, motion: anim.motion, seconds: anim.seconds, guide: anim.guide, dialog: anim.dialog, transcript: anim.transcript }, { title: "Animating" }).then((d) => d && setAnimating(null))
                   }
                 >
                   Animate · {tokens(anim.seconds === 10 ? s.prices.animate_10 : s.prices.animate_5)}

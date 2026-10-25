@@ -11,6 +11,7 @@ import { rateMedia } from "@/lib/adult/steering";
 import { restyleCurrent, restyleMenu, restyleWords, setStudioPausesForTests, studioAccess } from "@/lib/adult/studio";
 import {
   ALL_OPTION_IDS,
+  animatePrompt,
   bodyPrompt,
   CUSTOM_MAX,
   planShoot,
@@ -113,6 +114,17 @@ describe("the Studio's menus", () => {
     // The owner's words are capped.
     const long = planShoot({ custom: "x ".repeat(CUSTOM_MAX) }, ALL, her);
     expect(long.ok && (long.plan.custom?.length ?? 0)).toBeLessThanOrEqual(CUSTOM_MAX);
+  });
+
+  it("guides a clip: the owner's direction leads, their dialog and the transcript shape it, a motion optional", () => {
+    const base = animatePrompt({ noun: "woman" }, 2, "sways slowly");
+    expect(base).toContain("The woman in the picture sways slowly.");
+    const guided = animatePrompt({ noun: "woman" }, 3, "", { guide: "  she kneels and looks up  ", dialog: 'say "hi"', transcript: "They'd been teasing each other all night." });
+    expect(guided).toContain("Most important, do exactly this: she kneels and looks up.");
+    expect(guided).toContain("They say, their lips moving: \"say 'hi'\".");
+    expect(guided).toContain("what's being said around this moment: They'd been teasing each other all night.");
+    expect(guided).not.toContain("breathes slowly"); // a guide stands in for a motion chip
+    expect(guided.length).toBeLessThanOrEqual(STUDIO_PROMPT_MAX);
   });
 
   it("restyles with the looks builder's own chips, and takes a detail away with none", () => {
