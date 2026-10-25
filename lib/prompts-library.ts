@@ -1,5 +1,5 @@
 /**
- * The prompts library (app/prompts): 2,000 openly licensed image prompts for portraits of adults, for anyone drawing
+ * The prompts library (app/prompts): about 2,000 openly licensed image prompts for portraits of adults, for anyone drawing
  * their character. The seed is lib/prompts-library.json, built by scripts/build-prompts-library.mjs from the open
  * prompt dump (Civitai left out; every prompt held to the show's own safety bar). Read on the server only, so the
  * whole list never ships to a browser: a page gets PER prompts.
