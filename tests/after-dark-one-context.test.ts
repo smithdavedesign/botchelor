@@ -4,6 +4,7 @@ import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route"
 import { autoPicturesSettled, kickAutoPicture, PICTURE_GAP } from "@/lib/adult/auto-pictures";
 import { beatPicturesSettled } from "@/lib/adult/beats";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
+import { setFramingViewForTests } from "@/lib/adult/framing";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { claimAdmin } from "@/lib/admins";
@@ -38,6 +39,7 @@ beforeEach(async () => {
   setCheckSleepForTests(async () => {});
 });
 afterEach(async () => {
+  setFramingViewForTests(null);
   await beatPicturesSettled();
   await autoPicturesSettled();
   vi.restoreAllMocks();
@@ -162,6 +164,8 @@ describe("one context for every scene picture", () => {
   });
 
   it("at sex, a dressed body reference gives way to the nude baseline; a nude one is used (Sweet's camisole, 2026-10-26)", async () => {
+    // Both of them in frame (lib/adult/framing.ts would pick first person for this act): it's about their bodies.
+    setFramingViewForTests(() => "pair");
     const dressed = await setup(at(4), "Lexi's bedroom");
     const edits = fakeMedia();
     await post({ a: LEXI, b: RAFE, picture_now: { line: 1 } }, dressed.cookie);

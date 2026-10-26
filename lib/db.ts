@@ -2209,6 +2209,9 @@ alter table adult_beats add column if not exists dialog text;
 -- What the owner changed in a scene picture's context before it was drawn (lib/adult/beats.ts PictureEdit, 2026-10-25:
 -- "add the context that will be sent, and allow additional context"), and what a redraw cost them (given back if it fails).
 alter table adult_beats add column if not exists edit jsonb;
+-- Whose eyes a beat picture is seen through (lib/adult/framing.ts, 2026-10-26: "generating people together is way harder
+-- than POV shots"): picked once from how well that act's framings do, kept so a redraw and a reel's shot keep it.
+alter table adult_beats add column if not exists eyes text check (eyes in ('a', 'b'));
 alter table adult_beats add column if not exists paid integer not null default 0;
 
 -- The After Dark library (lib/adult/library.ts; David, 2026-10-24): which model drew a picture (null: from before it was

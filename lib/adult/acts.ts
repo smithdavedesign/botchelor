@@ -64,6 +64,12 @@ export type Act = {
   framing: Framing;
   /** The pair's hard nos (lib/adult/limits.ts HARD_NOS ids) this act is, whatever its words say. */
   hardNos?: readonly string[];
+  /**
+   * The same moment seen through one of their eyes (David, 2026-10-26: "generating people together is way harder than
+   * POV shots"): the still with only the other in full, the one whose eyes they are at the frame's edge at most, never a
+   * face. `x`: through X's eyes (Y shown); `y`: through Y's. An act with none has no first-person view.
+   */
+  pov?: { x?: string; y?: string };
 };
 
 /** Outfits for a moment that could happen in anything from their clothes to nothing at all. */
@@ -85,6 +91,10 @@ export const ACTS: readonly Act[] = [
     motion: "{X} leans in to say something; {Y} laughs and moves a little closer.",
     next: "{Y} answers, and they drift closer still, their hands touching.",
     framing: "medium",
+    pov: {
+      x: "Seen through {X's} eyes: {Y} stands close, facing the lens and smiling, {X's} hand resting on {Y's} arm at the edge of the frame.",
+      y: "Seen through {Y's} eyes: {X} stands close, facing the lens and smiling, {Y's} hand resting on {X's} arm at the edge of the frame.",
+    },
   },
   {
     id: "dance",
@@ -98,6 +108,10 @@ export const ACTS: readonly Act[] = [
     motion: "They sway together, turning slowly; {Y} rests a cheek against {X's} cheek.",
     next: "They keep dancing; {X} turns {Yo} under one arm and pulls {Yo} back in, both laughing.",
     framing: "medium",
+    pov: {
+      x: "Seen through {X's} eyes, slow dancing: {Y} is close against {Xo}, arms up around {X's} shoulders, face tipped up toward the lens, {X's} hands on {Y's} waist at the edge of the frame.",
+      y: "Seen through {Y's} eyes, slow dancing: {X} holds {Yo} close, looking down into the lens and smiling, {Y's} hands on {X's} shoulders at the edge of the frame.",
+    },
   },
   {
     id: "cuddle",
@@ -111,6 +125,9 @@ export const ACTS: readonly Act[] = [
     motion: "{Y} nestles in closer; {X} strokes {Yp} hair.",
     next: "They stay wrapped up together; {Y} looks up at {X}, and they share a smile.",
     framing: "medium",
+    pov: {
+      x: "Seen through {X's} eyes, looking down: {Y} is cuddled up against {Xo}, head on {X's} shoulder and face turned up toward the lens, {X's} arm around {Yo} at the edge of the frame.",
+    },
   },
   {
     id: "kiss",
@@ -124,6 +141,10 @@ export const ACTS: readonly Act[] = [
     motion: "They kiss slowly and deeply; {X's} thumb strokes {Y's} cheek.",
     next: "They part for a breath, foreheads together, then kiss again, deeper.",
     framing: "close",
+    pov: {
+      x: "Seen through {X's} eyes, a moment before a kiss: {Y's} face close to the lens, eyes half closed, lips parted, {X's} hand on {Y's} cheek at the edge of the frame.",
+      y: "Seen through {Y's} eyes, a moment before a kiss: {X's} face close to the lens, eyes half closed, lips parted, {Y's} hand on {X's} chest at the edge of the frame.",
+    },
   },
   {
     id: "wall",
@@ -137,6 +158,10 @@ export const ACTS: readonly Act[] = [
     motion: "{X} kisses {Yo} deeper; {Y} pulls {Xo} closer, fingers in {Xp} hair.",
     next: "They break for a breath, smiling, and kiss again, {X's} hands on {Y's} waist.",
     framing: "medium",
+    pov: {
+      x: "Seen through {X's} eyes: {Y} stands with {Yp} back against a wall, looking up into the lens, lips parted, {X's} hands on {Y's} waist at the edge of the frame.",
+      y: "Seen through {Y's} eyes, {Yp} back against a wall: {X} leans in close, looking into the lens, {Y's} arms around {X's} neck at the edge of the frame.",
+    },
   },
   {
     id: "undress",
@@ -150,6 +175,10 @@ export const ACTS: readonly Act[] = [
     motion: "{X} lets {Y's} top fall; {Y} pulls {Xo} in, and they kiss as the last buttons come undone.",
     next: "The last of their clothes come off, and they pull each other close, skin to skin.",
     framing: "medium",
+    pov: {
+      x: "Seen through {X's} eyes: {X's} hands, at the edge of the frame, slide {Y's} top off {Yp} shoulders while {Y} looks into the lens, smiling.",
+      y: "Seen through {Y's} eyes: {Y's} hands, at the edge of the frame, push {X's} shirt down {Xp} arms while {X} looks into the lens, smiling.",
+    },
   },
   {
     id: "face_to_face",
@@ -164,6 +193,10 @@ export const ACTS: readonly Act[] = [
     motion: "{X} moves slowly on top of {Yo}; {Y} wraps {Yp} legs around {Xo} and pulls {Xo} closer, both breathing hard.",
     next: "They keep going, faster, {Y} holding on to {X's} back, both lost in it.",
     framing: "medium",
+    pov: {
+      x: "Seen through {X's} eyes from above, on a bed, having sex face to face: {Y} lies on {Yp} back looking up into the lens, {Yp} arms reaching up around {X's} shoulders at the edge of the frame.",
+      y: "Seen through {Y's} eyes, lying back on a bed, having sex face to face: {X} is above {Yo}, looking down into the lens, {Y's} hands on {X's} back at the edge of the frame.",
+    },
   },
   {
     id: "on_top",
@@ -179,6 +212,10 @@ export const ACTS: readonly Act[] = [
     motion: "{X} rides {Yo} slowly, rolling {Xp} hips; {Y} holds {X's} hips and moves with {Xo}.",
     next: "{X} leans forward over {Y}, hands on {Y's} chest, moving faster, both breathing hard.",
     framing: "medium",
+    pov: {
+      x: "Seen through {X's} eyes, astride on a bed, having sex: {Y} lies back looking up into the lens, {X's} knees either side of {Yo} at the edge of the frame.",
+      y: "Seen through {Y's} eyes, lying back on a bed, having sex: {X} sits astride {Y's} hips, upright, looking down into the lens, {Y's} hands on {X's} hips at the edge of the frame.",
+    },
   },
   {
     id: "behind",
@@ -193,6 +230,9 @@ export const ACTS: readonly Act[] = [
     motion: "{X} moves slowly, drawing {Y's} hips back; {Y} arches {Yp} back and pushes back against {Xo}.",
     next: "They keep going, faster and deeper, {X} leaning over {Y's} back, both breathing hard.",
     framing: "medium",
+    pov: {
+      x: "Seen through {X's} eyes, on a bed, having sex from behind: {Y} is on {Yp} hands and knees, looking back over {Yp} shoulder into the lens, {X's} hands on {Y's} hips at the edge of the frame.",
+    },
   },
   {
     id: "spooning",
@@ -221,6 +261,9 @@ export const ACTS: readonly Act[] = [
     motion: "{X} moves up and down in {Y's} lap; {Y} holds {Xo} close and kisses {Xp} chest.",
     next: "They move faster together, foreheads pressed together, both breathing hard.",
     framing: "medium",
+    pov: {
+      y: "Seen through {Y's} eyes, sitting on the edge of a bed, having sex: {X} sits astride {Y's} lap facing the lens, arms around {Y's} neck, {Y's} hands on {X's} waist at the edge of the frame.",
+    },
   },
   {
     id: "oral",
@@ -234,6 +277,9 @@ export const ACTS: readonly Act[] = [
     motion: "{X} goes down on {Yo} slowly; {Y} arches and grips the sheets.",
     next: "{X} keeps going, faster; {Y's} back arches off the bed, both faces flushed.",
     framing: "medium",
+    pov: {
+      y: "Seen through {Y's} eyes, lying back against the pillows and looking down along {Yp} body: {X} kneels between {Y's} thighs, going down on {Yo}, looking up into the lens.",
+    },
     hardNos: ["oral"],
   },
   {
@@ -248,6 +294,9 @@ export const ACTS: readonly Act[] = [
     motion: "{X} strokes {Y's} back; {Y} traces slow circles on {X's} chest, smiling.",
     next: "They stay wrapped together; {Y} pulls the sheet up, and they laugh softly.",
     framing: "medium",
+    pov: {
+      x: "Seen through {X's} eyes, lying in bed: {Y} rests {Yp} head on {X's} chest and looks up into the lens, smiling, a sheet over them, {X's} arm around {Yo} at the edge of the frame.",
+    },
   },
 ];
 
@@ -328,8 +377,28 @@ const TABOO =
   /\b(step[- ]?(mom|moms|mother|mothers|dad|dads|father|fathers|sister|sisters|brother|brothers|son|sons|daughter|daughters|sibling|siblings|family|parent|parents|kid|kids)|students?|(teacher|professor|tutor|coach)s? and|(her|his|their|my|your) (teacher|professor|tutor|coach)|class ?rooms?|school\w*|dorm(itory|itories|s)?|age[- ]?play|daddy'?s little|little (girl|boy|one)|babysit\w*|pigtails?|sweet sixteen)\b/i;
 export const crossesTaboo = (text: string): boolean => TABOO.test(text.replace(/’/g, "'"));
 
-/** One act as the menu shows it: who's who (and swapped), offered now, or locked and why. */
-export type MenuAct = { id: string; label: string; says: string; swapped: string; available: boolean; why: string | null; stage: number };
+/** How well a framing has done (lib/adult/framing.ts): works well, experimental, or nothing to say yet. */
+export type FramingBadge = "works" | "experimental" | null;
+/** Whose eyes a first-person view is through: one of the pair, in the pair's order (`a`, the first; `b`, the second). */
+export type Eyes = "a" | "b";
+/** A first-person view the menu offers: through whose eyes (with who leads as it is, or swapped), its label, its badge. */
+export type MenuView = { eyes: Eyes; swapped: boolean; label: string; badge: FramingBadge };
+
+/**
+ * One act as the menu shows it: who's who (and swapped), offered now, or locked and why; how well it does with both of
+ * them in frame (`badge`), and the first-person views it has (`views`), each with its own.
+ */
+export type MenuAct = {
+  id: string;
+  label: string;
+  says: string;
+  swapped: string;
+  available: boolean;
+  why: string | null;
+  stage: number;
+  badge?: FramingBadge;
+  views?: MenuView[];
+};
 
 /** Why an act can't be made now (the night hasn't got there, or it's somewhere public), or null when it can. */
 export function actLocked(act: Pick<Act, "minStage">, where: { stage: number; publicPlace: boolean }): string | null {
@@ -350,12 +419,57 @@ export function actRuledOut(act: Act, cast: readonly [ReelPerson, ReelPerson], l
 }
 
 /**
- * The menu for a pair's night: every act their limits allow, in order, each offered now or locked with why. An act
- * their limits rule out isn't on it at all.
+ * A first-person view of an act (David, 2026-10-26): seen through `eyes`' eyes (with who leads as the act has it, or
+ * swapped), the still with the other in full; null when the act has no view from those eyes that way round.
  */
-export function actMenu(where: { stage: number; publicPlace: boolean }, cast: readonly [ReelPerson, ReelPerson], names: readonly [string, string], limits: MediaLimits = NO_MEDIA_LIMITS): MenuAct[] {
-  return ACTS.filter((act) => !actRuledOut(act, cast, limits)).map((act) => {
+export function povFor(act: Act, cast: readonly [ReelPerson, ReelPerson], eyes: Eyes, swap = false): { still: string; viewer: 0 | 1; shown: 0 | 1 } | null {
+  const { x, y } = rolesFor(act, cast, swap);
+  const viewer: 0 | 1 = eyes === "a" ? 0 : 1;
+  const text = viewer === x ? act.pov?.x : act.pov?.y;
+  if (!text) return null;
+  return { still: fillAct(text, cast[x], cast[y]), viewer, shown: viewer === 0 ? 1 : 0 };
+}
+
+/** How well each framing of each act has done, for the menu's badges and its order (lib/adult/framing.ts). */
+export type FramingScoresView = { badge: (act: string, view: "pair" | "pov") => FramingBadge; best: (act: string) => number };
+
+/**
+ * The menu for a pair's night: every act their limits allow, each offered now or locked with why. An act their limits
+ * rule out isn't on it at all. With `scores` (lib/adult/framing.ts), each act says how well it does with both in frame
+ * and in first person, and within the acts a stage opens together, the ones that do best come first.
+ */
+export function actMenu(
+  where: { stage: number; publicPlace: boolean },
+  cast: readonly [ReelPerson, ReelPerson],
+  names: readonly [string, string],
+  limits: MediaLimits = NO_MEDIA_LIMITS,
+  scores?: FramingScoresView,
+): MenuAct[] {
+  const first = (n: string) => n.split(/\s+/)[0];
+  const acts = ACTS.filter((act) => !actRuledOut(act, cast, limits)).map((act) => {
     const why = actLocked(act, where);
-    return { id: act.id, label: act.label, says: actSays(act, cast, names), swapped: actSays(act, cast, names, true), available: why === null, why, stage: act.minStage };
+    const views: MenuView[] = [];
+    for (const swapped of [false, true]) {
+      for (const eyes of ["a", "b"] as const) {
+        if (!povFor(act, cast, eyes, swapped)) continue;
+        // The same view either way round is offered once.
+        if (views.some((v) => v.eyes === eyes)) continue;
+        views.push({ eyes, swapped, label: `From ${first(names[eyes === "a" ? 0 : 1])}'s eyes`, badge: scores?.badge(act.id, "pov") ?? null });
+      }
+    }
+    return {
+      id: act.id,
+      label: act.label,
+      says: actSays(act, cast, names),
+      swapped: actSays(act, cast, names, true),
+      available: why === null,
+      why,
+      stage: act.minStage,
+      badge: scores?.badge(act.id, "pair") ?? null,
+      views,
+    };
   });
+  if (!scores) return acts;
+  // Gentlest first still: only acts that open at the same stage are reordered, best first.
+  return acts.map((a, i) => ({ a, i })).sort((p, q) => p.a.stage - q.a.stage || scores.best(q.a.id) - scores.best(p.a.id) || p.i - q.i).map((x) => x.a);
 }

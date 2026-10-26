@@ -28,8 +28,8 @@ as AI, captions, bigger shoots and carousels. Clips need: save a moment, continu
 | # | What | Status |
 |---|---|---|
 | 1 | Media tools + a clip's moments: save a still, boomerang, loop, keep going from here | #923, live |
-| 2 | Export pack + captions in their voice + tile tools (both Studios, the scene gallery) | this PR |
-| 3 | Framing scores + POV for two people | next |
+| 2 | Export pack + captions in their voice + tile tools (both Studios, the scene gallery) | #927 |
+| 3 | Framing scores + POV for two people | this PR |
 | 4 | Fix faces + identity pack | |
 | 5 | Native sizes + bigger shoots with live reveals + carousel | |
 | 6 | SFW twin + camera-move tiles + content ratings | |

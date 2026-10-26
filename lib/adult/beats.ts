@@ -21,13 +21,14 @@ import type { Db } from "../db";
 import { checkAdultText } from "../safety";
 import { inBackground } from "../sets";
 import { siteUrl } from "../site";
-import { actById, actFor, actRuledOut, crossesTaboo, FRAMING_WORDS, type MediaLimits } from "./acts";
+import { actById, actFor, actRuledOut, crossesTaboo, FRAMING_WORDS, povFor, type Eyes, type MediaLimits } from "./acts";
+import { chooseView, framingScores } from "./framing";
 import { mediaLimits } from "./clips";
 import { climaxIn } from "./craft";
 import { checkReady, mediaGate } from "./moderation";
 import { recentActions } from "./media";
 import { keepPictureOfBoth } from "./pictures-menu";
-import { keyframePrompt, placeWords, reelCast, withoutNames, type ReelPerson } from "./reels";
+import { keyframePrompt, placeWords, povPrompt, reelCast, withoutNames, type ReelPerson } from "./reels";
 import { thumbsDown } from "./steering";
 import { adultKeys, getAdultSettings } from "./settings";
 import { claimChapterPicture } from "./chapter-pictures";
@@ -77,6 +78,8 @@ type BeatRow = {
   /** The owner's own words for this scene picture: a direction that leads it, and a speech-bubble line (both optional). */
   custom: string | null;
   dialog: string | null;
+  /** Seen through one of their eyes (lib/adult/framing.ts), once picked: whose; null, both in frame. */
+  eyes?: Eyes | null;
   /** What the owner changed in its context before it was drawn (PictureEdit), and what a redraw cost them. */
   edit: PictureEdit | null;
   paid: number;
@@ -244,14 +247,17 @@ export function beatFrame(
    * lines' actions are the least of it (2026-10-26: "The mood: The vampire's invitation - the The place:").
    */
   mood?: string,
+  /** Seen through one of their eyes: the act's first-person still (it frames itself). */
+  eyes?: Eyes | null,
 ): string | null {
   const act = actById(beat.act);
   if (!act) return null;
-  const pose = poseHere(actFor(act, cast).pose, place);
-  const peak = beat.kind === "climax" ? " Both of them at the peak, faces flushed, eyes closed." : "";
+  const pov = eyes ? povFor(act, cast, eyes) : null;
+  const pose = poseHere(pov?.still ?? actFor(act, cast).pose, place);
+  const peak = beat.kind === "climax" ? (pov ? " At the peak, face flushed, eyes closed." : " Both of them at the peak, faces flushed, eyes closed.") : "";
   const ok = (words: string) => checkAdultText({ words }).ok && !crossesTaboo(words) && !limits.hit(words);
   const felt = mood ? withoutNames(mood, cast).replace(/[.\s]+$/, "") : "";
-  const base = `${pose}${peak} ${FRAMING_WORDS[act.framing]}${felt && ok(felt) ? ` The mood: ${felt}.` : ""}`;
+  const base = `${pose}${peak}${pov ? "" : ` ${FRAMING_WORDS[act.framing]}`}${felt && ok(felt) ? ` The mood: ${felt}.` : ""}`;
   if (!ok(base)) return null;
   const happening = withoutNames(happeningOwn ?? recentActions([...moment], 3).join("; "), cast).replace(/[.\s]+$/, "");
   return happening && ok(happening) ? `${base} What is happening: ${happening}.` : base;
@@ -334,14 +340,18 @@ export async function beatPicturesSettled(): Promise<void> {
 
 /** A scene picture planned: the fields the owner sees, and the prompt they make (with the place's set as Picture 3, or not). */
 export type PicturePlan =
-  | { ok: true; fields: PictureFields; edit: PictureEdit | null; prompt: string; promptFor: (withSet: boolean) => string; characters: [Character, Character]; stage: number }
+  | { ok: true; fields: PictureFields; edit: PictureEdit | null; prompt: string; promptFor: (withSet: boolean) => string; characters: [Character, Character]; stage: number; act: string; eyes: Eyes | null }
   | { ok: false; status: number; message: string };
 
 /**
  * Plans a beat's picture: what the night says (the fields) and, with the owner's changes over it, the prompt. Shared by
  * the drawing, the preview (nothing drawn) and a redraw, so what the owner sees is what's sent. Pure apart from reads.
  */
-export async function planBeat(db: Db, beat: Pick<BeatRow, "owner_id" | "scene_id" | "character_a" | "character_b" | "chapter" | "line" | "act" | "kind" | "stage" | "place" | "night_id" | "custom" | "dialog">, edit: PictureEdit | null): Promise<PicturePlan> {
+export async function planBeat(
+  db: Db,
+  beat: Pick<BeatRow, "owner_id" | "scene_id" | "character_a" | "character_b" | "chapter" | "line" | "act" | "kind" | "stage" | "place" | "night_id" | "custom" | "dialog" | "eyes">,
+  edit: PictureEdit | null,
+): Promise<PicturePlan> {
   const [ca, cb] = await Promise.all([loadCharacter(db, beat.character_a), loadCharacter(db, beat.character_b)]);
   if (!ca || !cb) return { ok: false, status: 404, message: "One of them is missing." };
   // Never a picture of a character nobody has set up: it would only be a guess (lib/adult/readiness.ts).
@@ -369,16 +379,33 @@ export async function planBeat(db: Db, beat: Pick<BeatRow, "owner_id" | "scene_i
   const own = cleanEdit(edit);
   const words = own ? Object.values(own).join(" ") : "";
   if (words && !(guideSafe([words]) && !limits.hit(words))) return { ok: false, status: 422, message: "That crosses one of the lines After Dark never crosses, or one of your limits." };
-  const framed = beatFrame(beat, cast, moment, beat.place, limits, own?.happening, own?.mood ?? fields.mood);
+  // Whose eyes it's seen through: kept once picked; else picked now, where the act has a view and it does clearly better
+  // that way for this viewer (lib/adult/framing.ts), from their own character's eyes when that's one of the views.
+  const eyes = beat.eyes !== undefined && beat.eyes !== null ? beat.eyes : act ? await pickEyes(db, beat.owner_id, act, cast, [ca, cb]) : null;
+  const framed = beatFrame(beat, cast, moment, beat.place, limits, own?.happening, own?.mood ?? fields.mood, eyes);
   if (!framed) return { ok: false, status: 422, message: "That moment crosses one of the lines." };
   const place = own?.place ?? withSituation(beat.place, situation);
   const where = place ? placeWords(place, cast) : null;
   // Their own outfits, the night's guess unless the owner wrote their own (stage clothes words past it, clothesAt).
   const clothes = own?.wearing ?? (outfits ? `${outfits}, both fully clothed` : undefined);
   const custom = [own?.extra, beat.custom].filter(Boolean).join(". ") || undefined;
-  const promptFor = (withSet: boolean) =>
-    keyframePrompt(cast, framed, where, stage, withSet, { explicit: limits.explicit, custom, dialog: beat.dialog ?? undefined, ...(clothes ? { clothes: withoutNames(clothes, cast) } : {}) });
-  return { ok: true, fields, edit: own, prompt: promptFor(false), promptFor, characters: [ca, cb], stage };
+  const opts = { explicit: limits.explicit, custom, dialog: beat.dialog ?? undefined, ...(clothes ? { clothes: withoutNames(clothes, cast) } : {}) };
+  const promptFor = (withSet: boolean) => (eyes ? povPrompt(cast, eyes, framed, where, stage, withSet, opts) : keyframePrompt(cast, framed, where, stage, withSet, opts));
+  return { ok: true, fields, edit: own, prompt: promptFor(false), promptFor, characters: [ca, cb], stage, act: beat.act, eyes };
+}
+
+/**
+ * Whose eyes a beat picture is seen through, if anyone's: where the act has a first-person view and it does clearly
+ * better than both in frame for this viewer (lib/adult/framing.ts chooseView), the view from their own character's
+ * eyes when there is one, else the other's; null, both in frame.
+ */
+async function pickEyes(db: Db, owner: string, act: NonNullable<ReturnType<typeof actById>>, cast: readonly [ReelPerson, ReelPerson], people: readonly [Character, Character]): Promise<Eyes | null> {
+  const seats = (["a", "b"] as const).filter((e) => povFor(act, cast, e));
+  if (!seats.length) return null;
+  const scores = await framingScores(db, owner).catch(() => null);
+  if (!scores || chooseView(scores, act.id, true) !== "pov") return null;
+  const mine = seats.find((e) => people[e === "a" ? 0 : 1].ownerId === owner);
+  return mine ?? seats[0];
 }
 
 /** What a place puts them in: a library venue's own words, or one of the owner's own places' (lib/studio/library.ts). */
@@ -445,11 +472,11 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<{ ok: t
       db,
       beat.owner_id,
       [ca, cb],
-      { place: beat.place, stage, promptFor: plan.promptFor },
+      { place: beat.place, stage, promptFor: plan.promptFor, act: plan.act, ...(plan.eyes ? { eyes: plan.eyes } : {}) },
       { keys, settings, baseUrl, reject, scene: { chapter: beat.chapter, place: beat.place } },
     );
     if (!kept.ok) return fail(kept.message);
-    await db.query(`update adult_beats set status = 'drawn', picture_id = $2 where id = $1`, [beat.id, kept.picture.id]);
+    await db.query(`update adult_beats set status = 'drawn', picture_id = $2, eyes = $3 where id = $1`, [beat.id, kept.picture.id, plan.eyes]);
     return { ok: true as const };
   } catch (err) {
     return fail(err instanceof Error ? err.message : "error");
@@ -715,7 +742,7 @@ export async function beatPictureFor(
   line: number,
   stage: number,
   place: string | null,
-): Promise<string | null> {
+): Promise<{ id: string; eyes: Eyes | null } | null> {
   if (part.chapter === null) return null;
   const { rows } = await db.query<BeatRow>(
     `select * from adult_beats where owner_id = $1 and character_a = $2 and character_b = $3 and chapter = $4 and night_id is not distinct from $5 and line <= $6 and status = 'drawn' and picture_id is not null
@@ -728,5 +755,5 @@ export async function beatPictureFor(
   if (b.stage !== stage || !same(b.place, place)) return null;
   // One the viewer 👎'd isn't started from: the shot draws a keyframe of its own, steered by what they said
   // (lib/adult/steering.ts). A shot costs far more than a keyframe, so it isn't spent on a picture they said was wrong.
-  return (await thumbsDown(db, ownerId, b.picture_id!)) ? null : b.picture_id;
+  return (await thumbsDown(db, ownerId, b.picture_id!)) ? null : { id: b.picture_id!, eyes: b.eyes ?? null };
 }

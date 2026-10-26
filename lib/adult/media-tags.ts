@@ -52,6 +52,14 @@ const STUDIO_ACT: Record<string, string> = {
   dildo_ride: "on_top",
 };
 const option = (group: string, id: string | undefined) => (id ? STUDIO_GROUPS.find((g) => g.id === group)?.options.find((o) => o.id === id) : undefined);
+/**
+ * The Studio's "pov" group (lib/adult/studio-catalog.ts): the picks that are a first-person view with the viewer (a
+ * selfie and a mirror shot are of them alone), and the two that are one of the shared acts.
+ */
+const STUDIO_POV: ReadonlySet<string> = new Set(["looking", "beside", "over", "on_top", "kneel"]);
+const STUDIO_POV_ACT: Record<string, string> = { on_top: "on_top", kneel: "oral" };
+/** A first-person view of two of them: whose eyes (lib/adult/acts.ts Eyes). */
+const isEyes = (v: unknown): v is "a" | "b" => v === "a" || v === "b";
 
 /** How far the night must have gone for a picture of each level to fit it: STAGES index → the highest level it shows. */
 export function levelForStage(stage: number): Level {
@@ -74,8 +82,8 @@ export type TagSourceRow = {
   beat_act: string | null;
   beat_place: string | null;
   beat_stage: number | null;
-  clip: { act?: string | null; place?: string | null; stage?: number } | null;
-  shot: { text?: string; place?: string | null; stage?: number; frame?: string } | null;
+  clip: { act?: string | null; place?: string | null; stage?: number; eyes?: string } | null;
+  shot: { text?: string; place?: string | null; stage?: number; frame?: string; eyes?: string } | null;
 };
 
 /**
@@ -97,15 +105,18 @@ export function deriveTags(row: TagSourceRow, source: MediaTag[] = []): MediaTag
   const str = (v: unknown) => (typeof v === "string" ? v : undefined);
   if (row.shoot_kind === "pair") {
     if (str(c.act) && ACT_IDS.has(str(c.act)!)) add("act", str(c.act), "choice");
+    // Seen through one of their eyes (a Together shoot's view, 2026-10-26): whose.
+    if (isEyes(c.eyes)) add("pov", c.eyes, "choice");
     add("stage", String(stageLevel(c.stage) ?? ""), "choice");
     add("outfit", str(c.outfit), "choice");
     add("light", str(c.light), "choice");
     for (const k of placeKeys(option("place", str(c.place))?.label ?? str(c.place))) add("place", k, "choice");
   } else if (row.shoot_kind) {
     // A Studio shoot of one of them (or its variations, upscales and clips: their choices carry `level`).
-    const act = STUDIO_ACT[str(c.filthy) ?? ""] ?? STUDIO_ACT[str(c.pose) ?? ""];
+    const act = STUDIO_ACT[str(c.filthy) ?? ""] ?? STUDIO_ACT[str(c.pose) ?? ""] ?? STUDIO_POV_ACT[str(c.pov) ?? ""];
     add("act", act, "choice");
-    if (option("filthy", str(c.filthy))?.withViewer) add("pov", "yes", "choice");
+    // First person with the viewer: a Filthy act that says so, or a pick of the "pov" group that is one.
+    if (option("filthy", str(c.filthy))?.withViewer || STUDIO_POV.has(str(c.pov) ?? "")) add("pov", "yes", "choice");
     if (typeof c.level === "number") add("stage", String(c.level), "choice");
     add("outfit", str(c.wardrobe), "choice");
     add("light", str(c.light) ?? row.preset ?? undefined, "choice");
@@ -119,10 +130,12 @@ export function deriveTags(row: TagSourceRow, source: MediaTag[] = []): MediaTag
   if (row.beat_stage !== null) add("stage", String(levelForStage(row.beat_stage)), "choice");
   if (row.clip) {
     if (row.clip.act && ACT_IDS.has(row.clip.act)) add("act", row.clip.act, "choice");
+    if (isEyes(row.clip.eyes)) add("pov", row.clip.eyes, "choice");
     for (const k of placeKeys(row.clip.place)) add("place", k, "choice");
     if (typeof row.clip.stage === "number") add("stage", String(levelForStage(row.clip.stage)), "choice");
   }
   if (row.shot) {
+    if (isEyes(row.shot.eyes)) add("pov", row.shot.eyes, "choice");
     for (const k of placeKeys(row.shot.place)) add("place", k, "choice");
     if (typeof row.shot.stage === "number") add("stage", String(levelForStage(row.shot.stage)), "choice");
     add("act", positionIn(`${row.shot.text ?? ""} ${row.shot.frame ?? ""}`), "derived");
@@ -178,6 +191,19 @@ async function writeTags(db: Db, mediaId: string, ownerId: string, tags: readonl
 }
 
 /**
+ * Tags a picture of two (or a first-person one) as it's made (2026-10-26: what it shows is known then, and the framing
+ * scores read it, lib/adult/framing.ts): who, the act, whose eyes, and how far it goes. The rest (its place) is read
+ * later, as for any picture (ensureTagged).
+ */
+export async function tagOnCreate(db: Db, mediaId: string, ownerId: string, t: { pair: boolean; act?: string | null; eyes?: "a" | "b" | null; stage?: number | null }): Promise<void> {
+  const tags: MediaTag[] = [{ kind: "who", value: t.pair ? "pair" : "solo", source: "choice" }];
+  if (t.act && ACT_IDS.has(t.act)) tags.push({ kind: "act", value: t.act, source: "choice" });
+  if (t.eyes) tags.push({ kind: "pov", value: t.eyes, source: "choice" });
+  if (typeof t.stage === "number") tags.push({ kind: "stage", value: String(levelForStage(t.stage)), source: "choice" });
+  await writeTags(db, mediaId, ownerId, tags);
+}
+
+/**
  * Tags every untagged ready picture and clip of these characters (the owner's own; anyone's for an admin) from its own record: the back-fill,
  * and new media as it's looked up. A clip's start picture is read first, so the clip shows what it shows. Cheap: SQL
  * and pure code, no model. At most `limit` at a time.
@@ -200,7 +226,9 @@ export async function ensureTagged(db: Db, ownerId: string, characters: readonly
     if (!row) continue;
     const from = sourceOf(row);
     const src = from ? sources.get(from) : undefined;
-    const tags = deriveTags(row, src ? deriveTags(src) : []);
+    // What it was tagged with when it was made (tagOnCreate) stands: no second act or view read from its words.
+    const made = new Set((await db.query<{ kind: string }>(`select distinct kind from adult_media_tags where media_id = $1 and kind in ('act', 'pov')`, [r.id])).rows.map((x) => x.kind));
+    const tags = deriveTags(row, src ? deriveTags(src) : []).filter((t) => !made.has(t.kind));
     await writeTags(db, r.id, r.owner_id, tags);
     await db.query(`update adult_images set tagged_at = now() where id = $1`, [r.id]);
   }
@@ -223,7 +251,9 @@ export function validTag(kind: string, value: string): kind is TagKind {
   if (kind === "place") return placeKeySet.has(value);
   if (kind === "who") return value === "solo" || value === "pair";
   if (kind === "stage") return ["0", "1", "2", "3"].includes(value);
-  if (kind === "pov" || kind === "date") return value === "yes";
+  // First person: with the viewer ("yes"), or through one of the two's eyes ("a", "b": lib/adult/acts.ts Eyes).
+  if (kind === "pov") return value === "yes" || isEyes(value);
+  if (kind === "date") return value === "yes";
   return /^[a-z0-9_]{1,40}$/.test(value);
 }
 

@@ -19,7 +19,7 @@ import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
-import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, FRAMINGS, type Framing, type MediaLimits, type MenuAct } from "./acts";
+import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, FRAMINGS, povFor, type Eyes, type Framing, type MediaLimits, type MenuAct } from "./acts";
 import { fallbackNote, runMedia } from "./fallback";
 import { hivePausedErrorMessage, hivePausedMessage, HivePausedError } from "./hive-limit";
 import { checkMedia, checkReady, mediaGate } from "./moderation";
@@ -27,7 +27,10 @@ import { mediaLimits, nightStands } from "./clips";
 import { isPublicPlace } from "./continuity";
 import { ensureBaseline, signedMediaUrl, type Media } from "./media";
 import { shownNude } from "./attire";
-import { baselines, drawKeyframe, drawReplicateKeyframe, KEYFRAME_MODEL, keyframePrompt, NUDE_FROM, nudeBaselines, placeWords, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
+import { baselines, drawKeyframe, drawReplicateKeyframe, KEYFRAME_MODEL, keyframePrompt, NUDE_FROM, nudeBaselines, placeWords, povPrompt, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
+import { framingScores } from "./framing";
+import { levelForStage, tagOnCreate } from "./media-tags";
+import { NO_STEERING, steeringFor } from "./steering";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { requestJson, withRequestLog } from "./request-log";
@@ -54,8 +57,11 @@ export const outfitById = (id: string): Outfit | null => OUTFITS.find((o) => o.i
 
 export const FRAMING_LABEL: Record<Framing, string> = { wide: "Wide: all of them and the room", medium: "Medium: from the thighs up", close: "Close: their faces" };
 
-/** What's asked for: the act (who leads swapped, or not), what they wear, the framing, and the place (one of the menu's). */
-export type PictureChoice = { act: string; swap?: boolean; outfit: string; framing: Framing; place: string };
+/**
+ * What's asked for: the act (who leads swapped, or not), what they wear, the framing, and the place (one of the menu's);
+ * or seen through one of their eyes (`eyes`, the act's first-person view, which frames itself).
+ */
+export type PictureChoice = { act: string; swap?: boolean; outfit: string; framing: Framing; place: string; eyes?: Eyes | null };
 
 /** A place the menu offers: where they are now, or somewhere the night has been, and whether it's public. */
 export type PicturePlace = { place: string; now: boolean; public: boolean; home: "a" | "b" | null };
@@ -109,7 +115,11 @@ export async function pictureMenu(db: Db, ownerId: string, x: string, y: string)
     price,
     left: await usageLeft(db, ownerId, "pictures"),
     // Each act as the night stands; a place picked on the menu can still lock one (somewhere public).
-    acts: actMenu({ stage: stands.stage, publicPlace: false }, cast, [ca.name, cb.name], limits).map((a) => ({ ...a, outfits: actById(a.id)!.outfits.filter((id) => OUTFITS.some((o) => o.id === id && !outfitRuledOut(o, limits))) })),
+    // With how well each framing does for them (lib/adult/framing.ts): badges, and what works first.
+    acts: actMenu({ stage: stands.stage, publicPlace: false }, cast, [ca.name, cb.name], limits, await framingScores(db, ownerId)).map((a) => ({
+      ...a,
+      outfits: actById(a.id)!.outfits.filter((id) => OUTFITS.some((o) => o.id === id && !outfitRuledOut(o, limits))),
+    })),
     outfits: OUTFITS.filter((o) => !outfitRuledOut(o, limits)).map((o) => ({
       id: o.id,
       label: o.label,
@@ -123,8 +133,11 @@ export async function pictureMenu(db: Db, ownerId: string, x: string, y: string)
   };
 }
 
-/** A picture's plan: its keyframe prompt (with the place's drawn set as Picture 3, or without), the place, how far it goes. */
-type PicturePlan = { promptFor: (withSet: boolean) => string; place: string; stage: number };
+/**
+ * A picture's plan: its keyframe prompt (with the place's drawn set as the last picture, or without), the place, how far
+ * it goes, the act, and whose eyes it's seen through (then only the other one's face goes in).
+ */
+type PicturePlan = { promptFor: (withSet: boolean) => string; place: string; stage: number; act?: string; eyes?: Eyes };
 
 /**
  * Whether these choices can be a picture of the pair's night as it stands: the act and the outfit reached and inside
@@ -145,6 +158,8 @@ export function planPicture(
     dialog?: string;
     /** Drawn like a picture they already have (Picture 3: its pose, framing and place). */
     reference?: boolean;
+    /** What the viewer's ratings of the two of them steer toward (lib/adult/steering.ts), in the picture's words. */
+    steer?: string;
   },
 ): { ok: true; plan: PicturePlan } | { ok: false; status: number; error: string; message: string } {
   const no = (error: string, message: string, status = 422) => ({ ok: false as const, status, error, message });
@@ -163,15 +178,22 @@ export function planPicture(
   if (!act.outfits.includes(outfit.id)) return no("not_with_act", `${act.label} doesn't go with "${outfit.label.toLowerCase()}".`);
   const filled = actFor(act, ctx.cast, choice.swap === true);
   const stage = Math.max(act.dress, outfit.dress);
-  const frame = `${filled.pose} ${FRAMING_WORDS[choice.framing]}`;
+  // Seen through one of their eyes: the act's first-person still (it frames itself), only the other one's face in.
+  const pov = choice.eyes ? povFor(act, ctx.cast, choice.eyes, choice.swap === true) : null;
+  if (choice.eyes && !pov) return no("no_view", `${act.label} has no view through those eyes.`);
+  if (pov && ctx.reference) return no("no_view", "A picture drawn like another keeps both of them in frame.");
+  const frame = pov ? pov.still : `${filled.pose} ${FRAMING_WORDS[choice.framing]}`;
+  const opts = { explicit: ctx.limits.explicit, clothes: outfit.words, light: ctx.light, custom: ctx.custom, extra: ctx.extra, dialog: ctx.dialog, steer: ctx.steer };
   const prompt = (withSet: boolean) =>
-    keyframePrompt(ctx.cast as [ReelPerson, ReelPerson], frame, placeWords(where.place, ctx.cast), stage, withSet, { explicit: ctx.limits.explicit, clothes: outfit.words, light: ctx.light, custom: ctx.custom, extra: ctx.extra, dialog: ctx.dialog, reference: ctx.reference });
+    pov && choice.eyes
+      ? povPrompt(ctx.cast as [ReelPerson, ReelPerson], choice.eyes, frame, placeWords(where.place, ctx.cast), stage, withSet, opts)
+      : keyframePrompt(ctx.cast as [ReelPerson, ReelPerson], frame, placeWords(where.place, ctx.cast), stage, withSet, { ...opts, reference: ctx.reference });
   // Every word the choices put in front of a picture model, the owner's own (custom, extra, dialog) included, held to David's
   // lines (the menu's words were written to them; this is the backstop). Not the prompt's own fixed words: "Make one
   // photograph" reads to the age check as "make [her] one", and it's right to be that strict.
   const words = `${frame} ${outfit.words} ${placeWords(where.place, ctx.cast)} ${ctx.light ?? ""} ${ctx.custom ?? ""} ${ctx.extra ?? ""} ${ctx.dialog ?? ""}`;
   if (!checkAdultText({ words }).ok || crossesTaboo(words) || ctx.limits.hit(words)) return no("not_allowed", "That picture crosses one of the lines After Dark never crosses.");
-  return { ok: true, plan: { promptFor: prompt, place: where.place, stage } };
+  return { ok: true, plan: { promptFor: prompt, place: where.place, stage, act: act.id, ...(pov && choice.eyes ? { eyes: choice.eyes } : {}) } };
 }
 
 export type MenuPictureResult = { ok: true; picture: Media } | { ok: false; status: number; error: string; message: string };
@@ -199,7 +221,9 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   if (!ca || !cb) return { ok: false, status: 404, error: "not_found", message: "Pick two characters who are in after dark." };
   const cast = reelCast(ca, cb, ownerId);
   const limits = await mediaLimits(db, ownerId, a, b);
-  const planned = planPicture(choice, { cast, stage: nightStands(night.where).stage, places: picturePlaces(night.where), limits });
+  // Their ratings of the two of them steer this one too (lib/adult/steering.ts): the fixes, in the picture's words.
+  const steer = (await steeringFor(db, ownerId, [a, b]).catch(() => NO_STEERING)).positive.join(", ");
+  const planned = planPicture(choice, { cast, stage: nightStands(night.where).stage, places: picturePlaces(night.where), limits, steer });
   if (!planned.ok) return planned;
   const { plan } = planned;
   const reject = (reason: string) =>
@@ -261,7 +285,7 @@ export async function keepPictureOfBoth(
   db: Db,
   ownerId: string,
   [ca, cb]: [Character, Character],
-  plan: { promptFor: (withSet: boolean) => string; place: string | null; stage?: number },
+  plan: { promptFor: (withSet: boolean) => string; place: string | null; stage?: number; act?: string; eyes?: Eyes },
   ctx: {
     keys: Awaited<ReturnType<typeof adultKeys>>;
     settings: Awaited<ReturnType<typeof getAdultSettings>>;
@@ -287,7 +311,9 @@ export async function keepPictureOfBoth(
     // says, so a dressed one gives way to the nude baseline.
     const bodies = ctx.scene && (plan.stage ?? 0) >= BODY_FROM ? await bodyReferences(db, ownerId, [ca.id, cb.id]) : [null, null];
     const usable = bodies.map((r) => (r && (r.nude || (plan.stage ?? 0) < NUDE_FROM) ? r.id : null));
-    const faces = bases.map((id, i) => signedMediaUrl(usable[i] ?? id, baseUrl));
+    const both = bases.map((id, i) => signedMediaUrl(usable[i] ?? id, baseUrl));
+    // Seen through one of their eyes: only the other one's face (one face to keep, nothing to blend).
+    const faces = plan.eyes ? [both[plan.eyes === "a" ? 1 : 0]] : both;
     const set = plan.place ? ((await setPictures(db, [plan.place])).get(plan.place) ?? null) : null;
     // With the place's drawn set as Picture 3, the prompt says to keep its room and its light.
     prompt = plan.promptFor(Boolean(set));
@@ -334,6 +360,9 @@ export async function keepPictureOfBoth(
       sent,
     ],
   );
+  // What it shows, known now (lib/adult/media-tags.ts tagOnCreate; the framing scores read it), and how far it goes.
+  await tagOnCreate(db, id, ownerId, { pair: true, act: plan.act ?? null, eyes: plan.eyes ?? null, stage: plan.stage ?? null }).catch(() => {});
+  if (typeof plan.stage === "number") await db.query(`update adult_images set level = $2 where id = $1`, [id, levelForStage(plan.stage)]);
   await countUse(db, ownerId, "pictures");
   return {
     ok: true,
