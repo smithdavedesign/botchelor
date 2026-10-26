@@ -11,6 +11,9 @@ import { getDb } from "@/lib/db";
 import { getPublicCharacter } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
 import { relationshipsOf, viewRelationship, type End } from "@/lib/relationships";
+import { loadCharacterMemory } from "@/lib/memory";
+import { venuePhrase } from "@/lib/venues";
+import MetTake from "./MetTake";
 import { myMatches } from "@/lib/swipes";
 import { isText, loadChain } from "@/lib/text-chain";
 import { dayLabel } from "@/lib/text-chain-shared";
@@ -76,6 +79,26 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
     ).rows.map((p) => [p.id, p]),
   );
   const owns = (characterId: string) => viewerId !== null && people.get(characterId)?.owner_id === viewerId;
+  // The social graph's other edge (lib/group-dates.ts): people this character MET at a group night (a double date's
+  // other table, a mixer rotation it wasn't in) without dating. Public, from aired dates; the owner's take is theirs.
+  // A private character among them is left out for everyone but its own owner.
+  const metAll = (await loadCharacterMemory(db, id).catch(() => null))?.met ?? [];
+  const metFaces = new Map(
+    metAll.length
+      ? (
+          await db.query<Person & { private: boolean }>(
+            `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, c.owner_id,
+                    c.visibility = 'private' as private
+               from characters c where c.id = any($1)`,
+            [metAll.map((m) => m.id)],
+          )
+        ).rows.map((p) => [p.id, p])
+      : [],
+  );
+  const met = metAll.filter((m) => {
+    const face = metFaces.get(m.id);
+    return face && (!face.private || (viewerId !== null && face.owner_id === viewerId));
+  });
   const rows = (
     await Promise.all(
       edges.map(async (rel) => {
@@ -165,6 +188,35 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
         )}
       </PhoneFrame>
       <Pager page={shown.page} pages={shown.pages} label="Relationship board pages" href={(n) => pageHref(`/characters/${c.id}/relationships`, {}, "page", n)} prev="Newer" next="Older" />
+      {met.length > 0 && (
+        <section className="met-at-nights" aria-labelledby="met-title">
+          <h2 id="met-title">Met at a group night</h2>
+          <p className="muted small">
+            People {first} shared a double date&apos;s table or a mixer with, without dating them.{" "}
+            {owns(id) ? "Your take on each rides into a first date with them; nobody else sees it." : "They'd know each other if they met again."}
+          </p>
+          <ul className="met-list">
+            {met.map((m) => {
+              const face = metFaces.get(m.id)!;
+              return (
+                <li key={m.id} className="card met-item">
+                  <Link className="met-who" href={`/characters/${m.id}`}>
+                    <Avatar seed={m.id} name={face.name} hue={face.hue} house={face.house} portraitSrc={face.portrait} size={38} />
+                    <span>
+                      <strong>{face.name}</strong>
+                      <span className="muted small">
+                        {" "}
+                        · at {venuePhrase(m.venue)}, with {shortName(m.with_name)}
+                      </span>
+                    </span>
+                  </Link>
+                  {owns(id) && !c.house && <MetTake characterId={id} aboutId={m.id} aboutName={shortName(face.name)} initial={m.your_take ?? null} />}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
       <p className="small">
         <Link href={`/characters/${c.id}`}>← Back to {first}&apos;s card</Link>
       </p>
