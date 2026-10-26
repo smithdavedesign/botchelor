@@ -15,6 +15,7 @@ import { pruneMcpCalls } from "@/lib/agent-analytics";
 import { markDay7Returns } from "@/lib/agent-funnel";
 import { dailyMatchmakerPicks } from "@/lib/house-matchmaker";
 import { pruneKeptData } from "@/lib/retention";
+import { pruneExports } from "@/lib/media-tools/export";
 import { getModel } from "@/lib/model";
 import { relationshipMetrics } from "@/lib/relationship-metrics";
 import { clearStaleOwnDates } from "@/lib/own-date";
@@ -45,6 +46,8 @@ async function run(req: Request): Promise<Response> {
   const db = await getDb();
   // The data plan's retention (lib/retention.ts), first, so a run that runs out of time later never skips it.
   await pruneKeptData(db).catch(() => {});
+  // Exports past their day (lib/media-tools/export.ts): their files in the bucket, then their rows.
+  await pruneExports(db).catch(() => {});
   const lobby = await refreshLobby(db).catch(() => ({ created: null, reason: "error" }));
   const backfill = await backfillTranscripts(db, limit);
   const jobsRan = await runQueuedJobs(db, new Date(), 3);

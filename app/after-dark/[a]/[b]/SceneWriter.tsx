@@ -36,6 +36,9 @@ import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import MediaTags from "../../MediaTags";
 import LocalTime from "../../LocalTime";
 import TrimmableClip from "../../TrimmableClip";
+import ExportDialog from "@/app/studio/ExportDialog";
+import TileTools, { SelectBar } from "@/app/studio/TileTools";
+import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
 
 /** The tabs under the theater, in order; the gallery opens first. */
 const PAGE_TABS = ["gallery", "make", "setup", "sides"] as const;
@@ -629,6 +632,9 @@ function Gallery({
   const [error, setError] = useState<string | null>(null);
   const [facing, setFacing] = useState<string | null>(null);
   const [rated, setRated] = useState<Record<string, 1 | -1 | null>>({});
+  // The creator suite (2026-10-26): pictures picked to export together, and the export open for them.
+  const sel = useSelection();
+  const [exporting, setExporting] = useState<string[] | null>(null);
   async function keepFace(m: Media) {
     if (!onFace || !m.character_id) return;
     setFacing(m.id);
@@ -676,7 +682,7 @@ function Gallery({
   const item = (m: Media) => {
           const status = pending[m.id] ?? m.status;
           return (
-            <li key={m.id}>
+            <li key={m.id} className={sel.has(m.id) ? "picked" : undefined}>
               {m.kind === "video" ? (
                 status === "ready" ? (
                   // Plays its trim, and ✂️ trims it (lib/adult/trim.ts).
@@ -709,6 +715,8 @@ function Gallery({
               )}
               {status === "ready" && <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))} />}
               {status === "ready" && <MediaTags id={m.id} pinned={m.date_pin} />}
+              {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
+              {status === "ready" && <TileTools id={m.id} api={AFTER_DARK_API} selecting={sel.selecting} selected={sel.has(m.id)} onToggle={() => sel.toggle(m.id)} />}
               {status === "ready" && m.kind === "scene" && pair && onRedraw && (
                 // The same moment drawn again, its context put right first; the old picture stays.
                 redrawing === m.id ? (
@@ -744,10 +752,18 @@ function Gallery({
           );
   };
 
+  const ready = items.filter((m) => (pending[m.id] ?? m.status) === "ready");
   return (
     <section>
       <h2>Gallery</h2>
       {problemNote}
+      {ready.length > 0 && !sel.selecting && (
+        <p className="studio-gallery-head">
+          <button type="button" className="button-ghost small" onClick={sel.start} title="Pick pictures and clips to download together: sizes for stories and feeds, captions, a contact sheet">
+            ⬇ Pick to export
+          </button>
+        </p>
+      )}
       {items.some((m) => m.clip) && (
         <>
           <label htmlFor="after-dark-motion">Clip motion (optional)</label>
@@ -772,10 +788,12 @@ function Gallery({
       {items.some((m) => ratingOf(m) === -1) && (
         <div className="ad-gallery-section ad-gallery-disliked">
           <h3>Not liked</h3>
-          <p className="muted small">Your 👎s, kept out of the way here. Taken back, they go back where they were; archived shots are in the Library.</p>
+          <p className="muted small">Your 👎s, kept out of the way here. Taken back, they go back where they were; shots taken out of a video are in its Archive, under Videos.</p>
           <ul className="after-dark-gallery">{items.filter((m) => ratingOf(m) === -1).map(item)}</ul>
         </div>
       )}
+      {sel.selecting && <SelectBar count={sel.ids.length} total={ready.length} onAll={() => sel.set(ready.map((m) => m.id))} onExport={() => setExporting(sel.ids)} onDone={sel.done} />}
+      {exporting && <ExportDialog ids={exporting} api={AFTER_DARK_API} onClose={() => setExporting(null)} />}
     </section>
   );
 }

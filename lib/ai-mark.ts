@@ -11,9 +11,11 @@
  * carry this mark, so stamping twice (on store and again on serve) is a no-op. It never throws: a picture it can't
  * parse is served as it was.
  *
- * Videos and audio aren't stamped (MP4 and WAV metadata without ffmpeg is out of reach here): their routes send
- * `X-AI-Generated: true` and a Link to the content policy instead (AI_HEADERS). Full C2PA signing is out of scope: it
- * needs a signing certificate. A provider's own C2PA manifest (OpenAI's, in a JPEG's APP11 or a PNG's caBX) is kept.
+ * An MP4 gets the same packet in a top-level `uuid` box (Adobe's XMP box for ISO base media files), appended at its end
+ * so nothing else in the file moves (markAiVideo, 2026-10-26: the creator suite's exports, and every video kept). Audio
+ * isn't stamped: its routes send `X-AI-Generated: true` and a Link to the content policy instead (AI_HEADERS), as every
+ * file's do. Full C2PA signing is out of scope: it needs a signing certificate. A provider's own C2PA manifest (OpenAI's,
+ * in a JPEG's APP11 or a PNG's caBX) is kept.
  */
 
 export const DIGITAL_SOURCE_TYPE = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
@@ -306,6 +308,66 @@ function markWebp(b: Buffer): Buffer | null {
   head.write("RIFF", 0, "latin1");
   head.writeUInt32LE(body.length, 4);
   return Buffer.concat([head, body]);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Video: an MP4's top-level XMP box
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** Adobe's id for the XMP box of an ISO base media file (MP4, MOV): a top-level `uuid` box with it holds the packet. */
+const MP4_XMP_UUID = Buffer.from("be7acfcb97a942e89c71999491e3afac", "hex");
+/** Whether these bytes are an ISO base media file: its first box is `ftyp`. */
+const isMp4 = (b: Buffer) => b.length >= 12 && b.subarray(4, 8).toString("latin1") === "ftyp";
+
+/** Each top-level box of an MP4: where it starts, its type, and where it ends. Null when the file doesn't parse. */
+function mp4Boxes(b: Buffer): { start: number; type: string; body: number; end: number }[] | null {
+  const boxes: { start: number; type: string; body: number; end: number }[] = [];
+  let at = 0;
+  while (at + 8 <= b.length) {
+    let size = b.readUInt32BE(at);
+    let body = at + 8;
+    if (size === 1) {
+      if (at + 16 > b.length) return null;
+      size = Number(b.readBigUInt64BE(at + 8));
+      body = at + 16;
+    } else if (size === 0) size = b.length - at;
+    if (size < body - at || at + size > b.length) return null;
+    boxes.push({ start: at, type: b.subarray(at + 4, at + 8).toString("latin1"), body, end: at + size });
+    at += size;
+  }
+  return at === b.length ? boxes : null;
+}
+
+/**
+ * The MP4 with the XMP packet in a top-level `uuid` box at its end, or the same bytes when it already has one, isn't an
+ * MP4, or doesn't parse. Never throws.
+ */
+export function markAiVideo(input: Buffer | Uint8Array): Buffer {
+  const bytes = Buffer.isBuffer(input) ? input : Buffer.from(input.buffer, input.byteOffset, input.byteLength);
+  try {
+    if (!isMp4(bytes) || readMp4Xmp(bytes) !== null) return bytes;
+    if (!mp4Boxes(bytes)) return bytes;
+    const head = Buffer.alloc(8);
+    head.writeUInt32BE(8 + MP4_XMP_UUID.length + XMP_BYTES.length, 0);
+    head.write("uuid", 4, "latin1");
+    return Buffer.concat([bytes, head, MP4_XMP_UUID, XMP_BYTES]);
+  } catch {
+    return bytes;
+  }
+}
+
+/** The XMP packet in an MP4's top-level uuid box, as text, or null. For tests and checks. */
+export function readMp4Xmp(input: Buffer | Uint8Array): string | null {
+  const b = Buffer.isBuffer(input) ? input : Buffer.from(input);
+  try {
+    if (!isMp4(b)) return null;
+    for (const box of mp4Boxes(b) ?? []) {
+      if (box.type === "uuid" && b.subarray(box.body, box.body + 16).equals(MP4_XMP_UUID)) return b.subarray(box.body + 16, box.end).toString("utf8");
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
