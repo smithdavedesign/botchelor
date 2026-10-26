@@ -445,8 +445,6 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["studio_pg_pictures", "owner_id"], ["studio_pg_shoots", "owner_id"],
   // The Create library's (lib/studio/library.ts): their own prompts, venues and roleplays.
   ["creator_prompts", "owner_id"], ["creator_places", "owner_id"], ["creator_roleplays", "owner_id"],
-  // Their exports (lib/media-tools/export.ts): the files in the bucket go first (removeExportsOf), then the rows.
-  ["media_exports", "owner_id"],
 ];
 
 /**
@@ -464,8 +462,6 @@ const AFTER_DARK_UNLINKED: readonly string[] = ["adult_billing_orders", "adult_b
  * delete a reference still blocks is tried again on the next pass; a table that doesn't exist yet is skipped.
  */
 export async function deleteAfterDarkData(db: Db, userId: string): Promise<void> {
-  // Their exports' files in the bucket first (lib/media-tools/export.ts): the rows below are all that points at them.
-  await (await import("./media-tools/export")).removeExportsOf(db, userId).catch(() => {});
   for (const table of AFTER_DARK_UNLINKED) {
     await db.query(`update ${table} set user_id = null where user_id = $1`, [userId]).catch((err: unknown) => {
       if (!/does not exist/.test(err instanceof Error ? err.message : "")) throw err;

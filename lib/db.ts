@@ -2482,31 +2482,6 @@ alter table adult_images add column if not exists level smallint check (level be
 alter table adult_usage add column if not exists moments integer not null default 0;
 alter table adult_settings add column if not exists cap_moments integer not null default 100;
 
--- The creator suite (docs/after-dark.md "The creator suite"; David, 2026-10-26): captions in a character's voice, kept
--- on the picture (lib/studio/captions.ts), and the exports people download (lib/media-tools/export.ts): a zip (or one
--- file) built on request, kept a day in the bucket under exports/ (or here, in data, when there's no bucket), then pruned.
-alter table adult_images add column if not exists captions jsonb;
-alter table studio_pg_pictures add column if not exists captions jsonb;
-alter table adult_usage add column if not exists captions integer not null default 0;
-alter table adult_settings add column if not exists cap_captions integer not null default 300;
-create table if not exists media_exports (
-  id text primary key,
-  owner_id text not null,
-  area text not null check (area in ('after-dark', 'studio-pg')),
-  status text not null default 'making' check (status in ('making', 'ready', 'failed')),
-  filename text not null,
-  mime text not null,
-  bytes integer,
-  files integer,
-  options jsonb not null default '{}',
-  object_key text,
-  data bytea,
-  error text,
-  created_at timestamptz not null default now(),
-  expires_at timestamptz not null
-);
-create index if not exists media_exports_owner_idx on media_exports (owner_id, created_at desc);
-
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

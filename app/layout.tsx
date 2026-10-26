@@ -29,7 +29,6 @@ import "./ux/after-dark.css";
 import "./ux/create.css";
 import "./ux/show.css";
 import "./ux/agents-footer.css";
-import "./ux/studio-media.css";
 
 const TRACKING = trackingConfig();
 

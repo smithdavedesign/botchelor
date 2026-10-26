@@ -15,9 +15,6 @@ import MediaTags from "../../MediaTags";
 import Lightbox from "./Lightbox";
 import LocalTime from "../../LocalTime";
 import TrimmableClip from "../../TrimmableClip";
-import ExportDialog from "@/app/studio/ExportDialog";
-import TileTools, { SelectBar } from "@/app/studio/TileTools";
-import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
 import CreateLibrary from "@/app/studio/CreateLibrary";
 import type { Library } from "@/lib/studio/library";
 
@@ -96,9 +93,6 @@ function keptChoices(kept: ShootChoices | undefined, s: StudioState): ShootChoic
  */
 export default function Studio({ initial, admin = false }: { initial: StudioState; admin?: boolean }) {
   const [s, setS] = useState(initial);
-  // The creator suite (2026-10-26): pictures picked to export together, and the export open for them.
-  const sel = useSelection();
-  const [exporting, setExporting] = useState<string[] | null>(null);
   // The Create tab saved or deleted a prompt: the Shoot tab's "Your prompts" row follows at once (venues on the next visit).
   const onLibrary = useCallback((lib: Library) => setS((x) => ({ ...x, my_prompts: lib.prompts.map((p) => ({ id: p.id, text: p.text, title: p.title })) })), []);
   // A character After Dark can't picture yet opens on what's missing (lib/adult/readiness.ts).
@@ -381,7 +375,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
         const video = p.kind === "video";
         const anim = animating?.image === p.id ? animating : null;
         return (
-          <li key={p.id} className={`card ad-studio-item${sel.has(p.id) ? " picked" : ""}`}>
+          <li key={p.id} className="card ad-studio-item">
             {admin && (
               // What made it, for an admin (app/after-dark/MediaRequest.tsx): the prompt and the request sent.
               <MediaRequest id={p.id} admin className="small ad-studio-item-title">
@@ -415,8 +409,6 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 </button>
               </div>
             )}
-            {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
-            <TileTools id={p.id} api={AFTER_DARK_API} selecting={sel.selecting} selected={sel.has(p.id)} onToggle={() => sel.toggle(p.id)} />
             <div className="ad-studio-item-tools">
               <RateMedia id={p.id} kind={p.kind} rating={p.rating ?? null} tags={p.tags ?? []} />
               {!two && !video &&
@@ -1251,13 +1243,6 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               </button>
             ))}
           </div>
-          {(galleryTab === "studio" ? s.studio_gallery : s.dates_gallery).length > 0 && !sel.selecting && (
-            <p className="studio-gallery-head">
-              <button type="button" className="button-ghost small" onClick={sel.start} title="Pick pictures and clips to download together: sizes for stories and feeds, captions, a contact sheet">
-                ⬇ Pick to export
-              </button>
-            </p>
-          )}
           {galleryTab === "studio" ? (
             s.studio_gallery.length ? gallery(s.studio_gallery) : <p className="muted">Nothing yet: what you shoot here lands here.</p>
           ) : s.dates_gallery.length ? (
@@ -1265,16 +1250,6 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
           ) : (
             <p className="muted">Nothing from their dates yet: pictures and clips from the theater land here, alone and with whoever they were with.</p>
           )}
-          {sel.selecting && (
-            <SelectBar
-              count={sel.ids.length}
-              total={(galleryTab === "studio" ? s.studio_gallery : s.dates_gallery).length}
-              onAll={() => sel.set((galleryTab === "studio" ? s.studio_gallery : s.dates_gallery).map((p) => p.id))}
-              onExport={() => setExporting(sel.ids)}
-              onDone={sel.done}
-            />
-          )}
-          {exporting && <ExportDialog ids={exporting} api={AFTER_DARK_API} onClose={() => setExporting(null)} />}
         </div>
       )}
 

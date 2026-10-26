@@ -30,19 +30,15 @@
  */
 import { createHash, createHmac } from "node:crypto";
 import { AwsClient } from "aws4fetch";
-import { markAiImage, markAiVideo } from "./ai-mark";
+import { markAiImage } from "./ai-mark";
 
 export type ObjectStore = {
   put(key: string, bytes: Buffer, mime: string): Promise<void>;
   /** The object's bytes, or null when there's no such object. */
   get(key: string): Promise<Buffer | null>;
   remove(key: string): Promise<void>;
-  /**
-   * A link that reads one object without credentials for a while, and how long a browser may keep the redirect to it.
-   * `download`: the file name a browser saves it as (S3 signs the header in; Bunny can't, so the key's own last part,
-   * already that name for an export, is what's saved).
-   */
-  presign(key: string, now?: number, opts?: { download?: string }): Promise<{ url: string; maxAge: number }>;
+  /** A link that reads one object without credentials for a while, and how long a browser may keep the redirect to it. */
+  presign(key: string, now?: number): Promise<{ url: string; maxAge: number }>;
 };
 
 export type StoreConfig = { endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string };
@@ -129,15 +125,13 @@ export function s3Store(cfg: StoreConfig): ObjectStore {
       const res = await withRetry(() => send(key, { method: "DELETE" }));
       if (!res.ok && res.status !== 404) throw new Error(`object store couldn't delete ${key} (${res.status})`);
     },
-    async presign(key, now = Date.now(), opts = {}) {
+    async presign(key, now = Date.now()) {
       const start = Math.floor(now / LINK_WINDOW_MS) * LINK_WINDOW_MS;
       const u = new URL(url(key));
       u.searchParams.set("X-Amz-Expires", String(LINK_LIFE_S));
       // The file's own cache-control, signed in, so the browser keeps it for as long as the link can be handed out. No
       // spaces: a URL writes them as "+", which not every store decodes before checking the signature.
       u.searchParams.set("response-cache-control", `private,max-age=${LINK_LIFE_S},immutable`);
-      // Saved under its own name (an export's zip, lib/media-tools/export.ts): an ASCII name with no spaces, as above.
-      if (opts.download) u.searchParams.set("response-content-disposition", `attachment;filename=${opts.download.replace(/[^A-Za-z0-9._-]/g, "-")}`);
       const signed = await aws.sign(u.toString(), { method: "GET", aws: { signQuery: true, datetime: amzDate(start) } });
       return { url: signed.url, maxAge: Math.max(1, Math.ceil((start + LINK_WINDOW_MS - now) / 1000)) };
     },
@@ -261,9 +255,9 @@ export function mediaKey(area: MediaArea, id: string, bytes: Buffer, mime: strin
  */
 export async function keepBytes(area: MediaArea, id: string, original: Buffer, mime: string): Promise<{ data: Buffer | null; object_key: string | null }> {
   // Everything kept here was made by a model (After Dark's pictures, keyframes, clips and voices; the looks tiles): a
-  // picture, and an MP4, gets the machine-readable "AI-generated" mark before it's stored anywhere (lib/ai-mark.ts, EU AI
-  // Act Art. 50). Audio is marked by its routes' headers instead.
-  const bytes = mime.startsWith("image/") ? markAiImage(original) : mime === "video/mp4" ? markAiVideo(original) : original;
+  // picture gets the machine-readable "AI-generated" mark before it's stored anywhere (lib/ai-mark.ts, EU AI Act Art.
+  // 50). Videos and audio are marked by their routes' headers instead.
+  const bytes = mime.startsWith("image/") ? markAiImage(original) : original;
   let store: ObjectStore | null;
   try {
     store = objectStore();
