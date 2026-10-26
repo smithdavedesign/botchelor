@@ -547,4 +547,35 @@ describe("a picture for each chapter and each place", () => {
       setAutoPictureClockForTests(null);
     }
   });
+
+  it("one the age check refuses isn't drawn again, paid for again and refused again; the scene says why (2026-10-25)", async () => {
+    const { cookie } = await admin();
+    await media(true, cookie);
+    let now = 1_000_000;
+    setAutoPictureClockForTests(() => now);
+    try {
+      const drawn: string[] = [];
+      setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+        drawn.push(String(JSON.parse(String(init?.body)).prompt));
+        return Response.json({ id: "x", images: [Buffer.from(PNG).toString("base64")], timing: {} });
+      });
+      const MINOR = { choices: [{ message: { role: "assistant", content: '{"answer": "MINOR"}' } }] };
+      setCheckFetchForTests(async (input: RequestInfo | URL) => Response.json(String(input) === HIVE_VLM ? MINOR : CLEAN_MOD));
+      scripted(() => six({ place: "the lighthouse", set: "the lighthouse" }));
+      await post({ a: CAST_A, b: CAST_B }, cookie);
+      await autoPicturesSettled();
+      expect(drawn).toHaveLength(1);
+      expect(await scenePictures()).toEqual([]);
+      const scene = (await get(cookie)).scene as { picture_note: string | null };
+      expect(scene.picture_note).toMatch(/read as under 18 to the age check.*won't be drawn again this chapter/);
+      now += RETRY_AFTER_MS + 1;
+      await post({ a: CAST_A, b: CAST_B }, cookie);
+      await autoPicturesSettled();
+      expect(drawn).toHaveLength(1);
+      // Never drawn younger than 21, whatever the sheet says.
+      expect(drawn[0]).not.toMatch(/\b(1[89]|20)-year-old/);
+    } finally {
+      setAutoPictureClockForTests(null);
+    }
+  });
 });

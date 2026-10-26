@@ -92,7 +92,7 @@ type UsageBody = {
   /** OpenRouter's usage accounting: what the call cost, in USD. */
   cost?: unknown;
 };
-type CompletionResponse = { choices?: { message?: { content?: unknown } }[]; usage?: UsageBody; model?: unknown; provider?: unknown };
+type CompletionResponse = { choices?: { message?: { content?: unknown }; finish_reason?: unknown }[]; usage?: UsageBody; model?: unknown; provider?: unknown };
 
 const count = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0);
 
@@ -262,7 +262,9 @@ export function openAICompatibleModel(opts: {
         }
         const data = (await res.json().catch(() => null)) as CompletionResponse | null;
         const content = data?.choices?.[0]?.message?.content;
-        if (typeof content !== "string" || content.length === 0) throw new ModelError("model returned no text");
+        // Why there's nothing, when it says (2026-10-25: GLM-4.6's thinking can use a step's whole budget: "length").
+        const finish = data?.choices?.[0]?.finish_reason;
+        if (typeof content !== "string" || content.length === 0) throw new ModelError(`model returned no text${typeof finish === "string" && finish ? ` (finish_reason: ${finish.slice(0, 40)})` : ""}`);
         const usage = usageFrom(data?.usage, opts.model);
         if (usage) options?.onUsage?.(usage);
         options?.onModel?.(id);

@@ -94,6 +94,28 @@ describe("a place chosen for them stays chosen", () => {
     expect(settlePlace({ ...base, locked: true })).toMatchObject({ set: "An awkward double date", moved: null, rejected: { reason: "no_agreement" } });
   });
 
+  it("a locked place they agree to leave, they leave (Star × Rafe: the safari jeep to his bakery, 2026-10-25)", () => {
+    const jeep = { place: "A safari jeep at dawn", set: "A safari jeep at dawn" };
+    const names = { a: "Star Dust", b: "Rafe Calloway" };
+    const agreed = [
+      { who: "b" as const, text: "*He covers her hand with his own, his thumb brushing over her knuckles.* The bakery is ten minutes from here. And it just started to rain." },
+      { who: "a" as const, text: "*Her eyes drop to his mouth, a slow, deliberate look.* Lead the way, pastry chef. I want to see where the magic happens." },
+    ];
+    const bakery = { place: "Rafe's bakery, rain on the awning", set: "the bakery" };
+    // Agreed in these lines.
+    expect(settlePlace({ current: jeep, claimed: bakery, lines: agreed, from: 0, movesThisChapter: 0, homeNow: null, names, fromLines: true, locked: true }).moved?.to).toBe("the bakery");
+    // Agreed earlier tonight, arriving now.
+    const arriving = [
+      ...agreed,
+      { who: "b" as const, text: "*steps out into the rain, offering his arm* The stage awaits." },
+      { who: "a" as const, text: "*takes his arm, letting the rain kiss her skin* Finally." },
+      { who: "b" as const, text: "*unlocks the bakery door as rain drums on the awning* Welcome to Calloway's." },
+    ];
+    expect(settlePlace({ current: jeep, claimed: bakery, lines: arriving, from: 2, movesThisChapter: 0, homeNow: null, names, fromLines: true, locked: true }).moved?.to).toBe("the bakery");
+    // No agreement: the place they were sent to stays.
+    expect(settlePlace({ current: jeep, claimed: bakery, lines: [{ who: "a", text: "*smiles* What a sunrise." }], from: 0, movesThisChapter: 0, homeNow: null, names, fromLines: true, locked: true })).toMatchObject({ moved: null, set: "A safari jeep at dawn" });
+  });
+
   it("is locked by Set the scene or a texted plan, until they agree to go somewhere else", () => {
     const move = (reason: MoveLog["reason"], to: string, taken = true): MoveLog => ({ chapter: 1, at: 0, from: null, to, taken, reason });
     expect(placeLocked({ moves: [move("set_scene", "the pier")], set_place: "the pier" })).toBe(true);

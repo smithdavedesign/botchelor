@@ -131,9 +131,20 @@ function classify(text: string): RejectReason | null {
   const variants = [plain, deleeted, joinSpelledOut(plain), joinSpelledOut(deleeted)];
   if (SEXUAL_TERMS.some((t) => variants.some((v) => hasPhrase(v, t)))) return "sexual";
 
-  const isRealPerson = REAL_PEOPLE_PATTERNS.some((re) => variants.some((v) => re.test(v)));
+  const isRealPerson = REAL_PEOPLE_PATTERNS.some((re) => variants.some((v) => re.test(v))) || UNNAMED_LOOKALIKE.some((re) => re.test(plain));
   return isRealPerson ? "real_person" : null;
 }
+
+/**
+ * A real person without a name (2026-10-25, a sheet said "she looks exactly like someone famous"): a famous person's
+ * double is still a real person's face. On the normalised text.
+ */
+const UNNAMED_LOOKALIKE = [
+  / (?:looks?|looking|resembles?|resembling) (?:exactly |just |almost |a lot |identical )*like (?:a |an |some |someone |somebody )?(?:famous|celebrity|celebrities|real|well known) /,
+  / (?:celebrity|celeb|famous|movie star|pop star) (?:look ?alike|lookalike|double|doppelganger|twin|clone) /,
+  / (?:look ?alike|lookalike|doppelganger|double) of (?:a |an |some |someone )?(?:famous|celebrity|real) /,
+  / (?:famous|celebrity|real) \w+ s (?:double|doppelganger|lookalike|look alike|twin) /,
+];
 
 // Lines a date's model writes can wander into a character's childhood with a number attached ("started at twelve on
 // his uncle's lawnmower"). Harmless in a bio, but the show keeps every age on screen adult, so performed lines and

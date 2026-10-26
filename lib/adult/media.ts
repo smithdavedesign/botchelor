@@ -17,7 +17,7 @@
 import type { Character } from "../character";
 import type { Db } from "../db";
 import { ALL_HOUSE_CHARACTERS } from "../house";
-import { looksPictureWords } from "../looks";
+import { IMAGE_MIN_AGE, looksPictureWords } from "../looks";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { dataColumn, keepBytes, objectStore, readBytes } from "../object-store";
 import { checkAdultText } from "../safety";
@@ -220,7 +220,9 @@ export function lookWords(c: Character, undressed: boolean, viewer?: string | nu
 const person = (c: Character, undressed: boolean, viewer?: string | null, waistUp = false, everyday = false) => {
   const p = c.pronouns?.startsWith("she") ? "woman" : c.pronouns?.startsWith("he") ? "man" : "person";
   const look = lookWords(c, undressed, viewer, waistUp, everyday);
-  return `a ${Math.max(18, c.age)}-year-old adult ${p}${look ? `, ${look}` : ""}`;
+  // Never drawn younger than IMAGE_MIN_AGE (21), as the Studio and the looks builder draw them (2026-10-25: an 18-year-old
+  // character's every chapter picture read as a minor to the age check and was thrown away).
+  return `a ${Math.max(IMAGE_MIN_AGE, c.age)}-year-old adult ${p}${look ? `, ${look}` : ""}`;
 };
 
 /**

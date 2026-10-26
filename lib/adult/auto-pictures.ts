@@ -118,7 +118,19 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
       const work = drawAutoPicture(db, ownerId, snapshot, a, b).then(
         () => void failedAt.delete(`${scene.id}|${key}`),
         async (err) => {
-          console.warn(`[after-dark] chapter ${snapshot.chapter}'s picture didn't come (asked again on a later step): ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
+          const why = err instanceof Error ? err.message : "error";
+          // The check looked and refused it (an age check's MINOR, the moderation): drawing it again would be paid for and
+          // refused the same way (2026-10-25: three in seven minutes). The claim stays, so this chapter and place don't
+          // draw it again, and the scene says why.
+          if (/discarded by the output check/.test(why)) {
+            console.warn(`[after-dark] chapter ${snapshot.chapter}'s picture was refused by the check (not drawn again): ${why.slice(0, 160)}`);
+            const note = /age check|minor/i.test(why)
+              ? `${a.name} and ${b.name}'s picture read as under 18 to the age check, so it wasn't kept, and it won't be drawn again this chapter. An older age or a realistic look draws better.`
+              : `${a.name} and ${b.name}'s picture didn't pass the check, so it wasn't kept, and it won't be drawn again this chapter.`;
+            await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]).catch(() => {});
+            return;
+          }
+          console.warn(`[after-dark] chapter ${snapshot.chapter}'s picture didn't come (asked again on a later step): ${why.slice(0, 160)}`);
           failedAt.set(`${scene.id}|${key}`, clock());
           await releaseChapterPicture(db, scene.id, key).catch(() => {});
         },
