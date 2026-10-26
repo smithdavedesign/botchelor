@@ -1613,3 +1613,21 @@ a.ad-scenes-make-link {
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) / 2);
 }
+
+/* How a framing comes out (app/after-dark/FramingChips.tsx, lib/adult/framing.ts; 2026-10-26): ★ works well, or a quiet
+   "Experimental" (worth a try, expect a redraw), inside the act and view chips. */
+.ad-framing-works,
+.ad-framing-experimental {
+  margin-left: 0.35em;
+}
+.ad-framing-works {
+  color: var(--ad-accent, var(--accent));
+}
+.ad-framing-experimental {
+  padding: 0 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.72em;
+  vertical-align: 0.1em;
+}

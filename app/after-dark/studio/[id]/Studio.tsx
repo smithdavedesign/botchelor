@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import type { Eyes } from "@/lib/adult/acts";
 import { requestJson } from "@/app/request";
 import RateMedia from "@/app/after-dark/[a]/[b]/RateMedia";
 import { HARD_NOS, INTENSITIES, INTENSITY } from "@/lib/adult/limits";
@@ -15,6 +16,7 @@ import MediaTags from "../../MediaTags";
 import Lightbox from "./Lightbox";
 import LocalTime from "../../LocalTime";
 import TrimmableClip from "../../TrimmableClip";
+import { actMark, FramingMark, openingView, ViewChips } from "../../FramingChips";
 import ExportDialog from "@/app/studio/ExportDialog";
 import TileTools, { SelectBar } from "@/app/studio/TileTools";
 import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
@@ -44,7 +46,7 @@ const SHARE_STATUS: Record<string, string> = { pending: "asked", accepted: "acce
 /** How often the page asks after an animation still being made. */
 const POLL_MS = 20_000;
 
-type PairPick = { act: string; swap: boolean; outfit: string; framing: string; place: string; light: string; custom?: string; extra?: PairExtra; dialog?: string; reference?: string };
+type PairPick = { act: string; swap: boolean; outfit: string; framing: string; place: string; light: string; custom?: string; extra?: PairExtra; dialog?: string; reference?: string; eyes?: Eyes | null };
 const NO_PAIR_PICK: PairPick = { act: "", swap: false, outfit: "", framing: "medium", place: "", light: "" };
 
 /**
@@ -286,6 +288,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
         custom: str(ch.custom) || undefined,
         extra: ch.extra && typeof ch.extra === "object" ? (ch.extra as PairExtra) : undefined,
         dialog: str(ch.dialog) || undefined,
+        eyes: ch.eyes === "a" || ch.eyes === "b" ? ch.eyes : null,
       });
       if (x.model && s.models.some((m) => m.id === x.model && m.job === "edit")) setEditModel(x.model);
       setTab("pair");
@@ -632,7 +635,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
       ...(x.dialog?.trim() ? { dialog: x.dialog.trim() } : {}),
     };
   };
-  const chipRow = (items:{ id: string; label: string; disabled?: boolean; title?: string }[], on: string, set: (id: string) => void) => (
+  const chipRow = (items: { id: string; label: ReactNode; disabled?: boolean; title?: string }[], on: string, set: (id: string) => void) => (
     <div className="ad-chip-row">
       {items.map((o) => (
         <button key={o.id} type="button" className={`ad-chip${on === o.id ? " on" : ""}`} aria-pressed={on === o.id} disabled={Boolean(busy) || o.disabled} title={o.title} onClick={() => set(on === o.id ? "" : o.id)}>
@@ -866,17 +869,40 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               <fieldset className="ad-studio-group">
                 <legend>What they&apos;re doing</legend>
                 {chipRow(
-                  pairMenu.acts.map((a) => ({ id: a.id, label: a.label, disabled: !a.available, title: a.why ?? (pairPick.swap ? a.swapped : a.says) })),
+                  // Each with how it comes out (lib/adult/framing.ts): ★ works well, or Experimental.
+                  pairMenu.acts.map((a) => ({
+                    id: a.id,
+                    label: (
+                      <>
+                        {a.label}
+                        {a.available && <FramingMark badge={actMark(a)} />}
+                      </>
+                    ),
+                    disabled: !a.available,
+                    title: a.why ?? (pairPick.swap ? a.swapped : a.says),
+                  })),
                   pairPick.act,
-                  (id) => setPairPick((x) => ({ ...x, act: id, outfit: "" })),
+                  (id) =>
+                    setPairPick((x) => {
+                      // An act opens on the view that comes out best for it (first person, where that works).
+                      const a = pairMenu.acts.find((y) => y.id === id);
+                      const v = a && id ? openingView(a) : { eyes: null, swapped: false };
+                      return { ...x, act: id, outfit: "", eyes: v.eyes, ...(v.eyes ? { swap: v.swapped } : {}) };
+                    }),
                 )}
                 {pairOwn("act")}
+                {pairAct && <ViewChips act={pairAct} eyes={pairPick.eyes ?? null} onPick={(e, swapped) => setPairPick((x) => ({ ...x, eyes: e, ...(e ? { swap: swapped } : {}) }))} />}
                 {pairAct && (
                   <>
-                    <p className="muted small">{pairPick.swap ? pairAct.swapped : pairAct.says}</p>
-                    <label className="ad-check-row">
-                      <input type="checkbox" checked={pairPick.swap} disabled={Boolean(busy)} onChange={(e) => setPairPick((x) => ({ ...x, swap: e.target.checked }))} /> <span>The other way round</span>
-                    </label>
+                    <p className="muted small">
+                      {pairPick.eyes ? `${pairAct.views?.find((v) => v.eyes === pairPick.eyes)?.label ?? "First person"}: ` : ""}
+                      {pairPick.swap ? pairAct.swapped : pairAct.says}
+                    </p>
+                    {!pairPick.eyes && (
+                      <label className="ad-check-row">
+                        <input type="checkbox" checked={pairPick.swap} disabled={Boolean(busy)} onChange={(e) => setPairPick((x) => ({ ...x, swap: e.target.checked }))} /> <span>The other way round</span>
+                      </label>
+                    )}
                   </>
                 )}
               </fieldset>
@@ -889,15 +915,18 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 )}
                 {pairOwn("outfit")}
               </fieldset>
-              <fieldset className="ad-studio-group">
-                <legend>Framing</legend>
-                {chipRow(
-                  pairMenu.framings.map((f) => ({ id: f.id, label: f.label })),
-                  pairPick.framing,
-                  (id) => setPairPick((x) => ({ ...x, framing: id })),
-                )}
-                {pairOwn("framing")}
-              </fieldset>
+              {/* Seen through one of their eyes, the view frames itself. */}
+              {!pairPick.eyes && (
+                <fieldset className="ad-studio-group">
+                  <legend>Framing</legend>
+                  {chipRow(
+                    pairMenu.framings.map((f) => ({ id: f.id, label: f.label })),
+                    pairPick.framing,
+                    (id) => setPairPick((x) => ({ ...x, framing: id })),
+                  )}
+                  {pairOwn("framing")}
+                </fieldset>
+              )}
               <fieldset className="ad-studio-group">
                 <legend>Place</legend>
                 {chipRow(
@@ -958,6 +987,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                         light: pairPick.light || null,
                         ...pairWords(pairPick),
                         ...(pairPick.reference ? { reference: pairPick.reference } : {}),
+                        ...(pairPick.eyes ? { eyes: pairPick.eyes } : {}),
                         model: pairModel?.id,
                         ...own,
                       },
@@ -969,7 +999,11 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 </button>
               </div>
               <p className="muted small">Pick what they&apos;re doing, what they wear, the framing and the place. Pictures of the two of them also land in their pair&apos;s gallery.</p>
-              {setupRow("pair", { act: pairPick.act || undefined, swap: pairPick.swap, outfit: pairPick.outfit || undefined, framing: pairPick.framing || undefined, place: pairPick.place || undefined, light: pairPick.light || null, ...pairWords(pairPick) }, pairModel?.id)}
+              {setupRow(
+                "pair",
+                { act: pairPick.act || undefined, swap: pairPick.swap, outfit: pairPick.outfit || undefined, framing: pairPick.framing || undefined, place: pairPick.place || undefined, light: pairPick.light || null, ...(pairPick.eyes ? { eyes: pairPick.eyes } : {}), ...pairWords(pairPick) },
+                pairModel?.id,
+              )}
             </>
           )}
           {s.pair_gallery.length > 0 && (

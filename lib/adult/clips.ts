@@ -24,7 +24,8 @@ import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { loadCharacter } from "../character";
 import type { Db } from "../db";
 import { checkAdultText } from "../safety";
-import { actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, NO_MEDIA_LIMITS, type MediaLimits, type MenuAct } from "./acts";
+import { ACTS, actById, actFor, actLocked, actMenu, actRuledOut, crossesTaboo, FRAMING_WORDS, NO_MEDIA_LIMITS, povFor, type Eyes, type MediaLimits, type MenuAct } from "./acts";
+import { directorHint, framingScores, scoresFrom } from "./framing";
 import { archivedClip, CHAIN_MAX, playable } from "./clip-chains";
 import { isPublicPlace } from "./continuity";
 import { hiveGate, hivePausedErrorMessage, HivePausedError } from "./hive-limit";
@@ -38,8 +39,10 @@ import {
   busyMessage,
   busyReel,
   continuePrompt,
+  eyesFromTag,
   keyframePrompt,
   motionOf,
+  povPrompt,
   placesOf,
   placeWords,
   reelCast,
@@ -127,14 +130,23 @@ const upperFirst = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const capFor = (stands: NightStands, limits: MediaLimits) => Math.min(stands.stage, limits.maxStage, stands.publicPlace ? KISSING : LAST);
 
 /** What the director writes for a clip: the still, the motion, and the line said in it (an index into the night), or none. */
-export type ClipDirection = { frame: string; motion: string; line: number | null };
+export type ClipDirection = { frame: string; motion: string; line: number | null; eyes?: Eyes };
 
 /**
  * "Clip from here": the director's shot of the scene's latest moment, from its last few lines, held to the stage it's
  * reached (`cap`) and the pair's limits. Falls back to the plain still for that stage and the last line's action, when
  * what it wrote can't be read or can't be used.
  */
-export async function directHere(db: Db, cast: [ReelPerson, ReelPerson], lines: readonly SceneLine[], places: readonly (string | null)[], cap: number, limits: MediaLimits): Promise<ClipDirection> {
+export async function directHere(
+  db: Db,
+  cast: [ReelPerson, ReelPerson],
+  lines: readonly SceneLine[],
+  places: readonly (string | null)[],
+  cap: number,
+  limits: MediaLimits,
+  /** What comes out best for this viewer (lib/adult/framing.ts directorHint). */
+  hint?: string,
+): Promise<ClipDirection> {
   const from = Math.max(0, lines.length - HERE_LINES);
   const recent = lines.slice(from).map((l, k) => ({ i: from + k, who: l.who, ...spoken(l.text) }));
   const speaker = (i: number) => cast[lines[i].who === "a" ? 0 : 1];
@@ -169,24 +181,30 @@ export async function directHere(db: Db, cast: [ReelPerson, ReelPerson], lines: 
             `- "frame": one photograph of that moment, in one or two sentences: where they are in the place, where each of them is (one on the left or in front, the other on the right or behind) and how their bodies are posed toward each other, what's touching, what they're wearing or not by then, and the framing (lying down, a medium shot from the side with both faces toward the camera, never from above). Both faces visible, two people only.`,
             `- "motion": one sentence: what each of them does over the next five seconds, carrying on from that photograph.`,
             `- "line": the index of the one line said during the shot (a short, vivid one from the last few), or null for none.`,
+            `- "eyes": null; or, where it suits the moment, one of the two exactly as named above: the shot is then seen through that one's eyes, first person, its frame showing only the other in full (the first one's hands or body at the edge of the frame at most, never a face).`,
+            ...(hint ? [hint] : []),
             "Concrete and physical, like a shot list: no feelings, no names.",
-            'Reply with a JSON object: {"frame": "...", "motion": "...", "line": 12}',
+            'Reply with a JSON object: {"frame": "...", "motion": "...", "line": 12, "eyes": null}',
           ].join("\n"),
         },
       ],
       { temperature: 0.4, maxTokens: 500 },
     );
-    const j = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)) as { frame?: unknown; motion?: unknown; line?: unknown };
+    const j = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)) as { frame?: unknown; motion?: unknown; line?: unknown; eyes?: unknown };
     // Names out ("Rafe pulls her close" is "the man pulls her close"), and a sentence's start capitalised again.
     const said = (v: unknown, max: number) => (typeof v === "string" ? upperFirst(withoutNames(v.trim(), cast).slice(0, max)) : "");
     const fallback = plain();
     const frame = said(j.frame, 600);
     const motion = said(j.motion, 300);
     const line = typeof j.line === "number" && sayable(j.line) ? j.line : null;
+    const usedFrame = frame && fitsClip(frame, cap, limits) ? frame : fallback.frame;
+    // First person only with the director's own still (the fallback's is of the two of them).
+    const eyes = usedFrame === frame ? eyesFromTag(cast, j.eyes) : undefined;
     return {
-      frame: frame && fitsClip(frame, cap, limits) ? frame : fallback.frame,
+      frame: usedFrame,
       motion: motion && fitsClip(motion, cap, limits) ? motion : fallback.motion,
       line,
+      ...(eyes ? { eyes } : {}),
     };
   } catch {
     return plain();
@@ -235,7 +253,8 @@ export async function clipOffer(db: Db, ownerId: string, x: string, y: string): 
   const limits = await mediaLimits(db, ownerId, ...pair);
   const price = (await isAdmin(db, ownerId)) ? 0 : (await getAdultSettings(db)).clip_tokens;
   const here = night.lines.length >= 2 ? { available: true, why: null } : { available: false, why: "Write a few lines first" };
-  return { price, here, acts: actMenu(nightStands(night.where), cast, [ca.name, cb.name], limits) };
+  // With how well each framing does for them (lib/adult/framing.ts): badges, first-person views, what works first.
+  return { price, here, acts: actMenu(nightStands(night.where), cast, [ca.name, cb.name], limits, await framingScores(db, ownerId)) };
 }
 
 /**
@@ -244,7 +263,7 @@ export async function clipOffer(db: Db, ownerId: string, x: string, y: string): 
  */
 export type ClipAsk =
   | { a: string; b: string; here: true; at?: number; night_id?: string | null }
-  | { a: string; b: string; act: string; swap?: boolean }
+  | { a: string; b: string; act: string; swap?: boolean; eyes?: Eyes | null }
   | { continue: string; media_id?: string; frame_id?: string; mode?: KeepGoingMode };
 /** From a moment: start straight from its frame, or from a fresh keyframe of their faces with it as Picture 3. */
 export type KeepGoingMode = "seamless" | "fresh";
@@ -253,7 +272,7 @@ export const SEAMLESS_RUN_MAX = 2;
 
 /** A shot planned, before anything is spent: what it shows and says, how far it goes, where, and its keyframe. */
 type Plan = {
-  shot: Pick<ReelShot, "line" | "who" | "text" | "frame" | "motion">;
+  shot: Pick<ReelShot, "line" | "who" | "text" | "frame" | "motion" | "eyes">;
   stage: number;
   place: string | null;
   meta: ClipMeta;
@@ -363,12 +382,20 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     const run = cont.frame_id && isClip ? await seamlessRun(db, ownerId, parent.clip) : 0;
     const seamless = Boolean(cont.frame_id) && cont.mode !== "fresh" && run < SEAMLESS_RUN_MAX;
     const { cut: _old, ...kept } = meta;
+    // Seen through one of their eyes, it carries on that way (the shot's own, or the clip's).
+    const eyes = before.eyes ?? meta.eyes ?? undefined;
     plan = {
-      shot: { line: before.line, who: before.who, text: "", frame: `Carrying on from the shot before, after this: ${after}`, motion },
+      shot: { line: before.line, who: before.who, text: "", frame: `Carrying on from the shot before, after this: ${after}`, motion, ...(eyes ? { eyes } : {}) },
       stage: meta.stage,
       place: meta.place,
-      meta: { ...kept, from: isClip ? parent.id : null },
-      keyframe: () => ({ prompt: continuePrompt(cast, after, meta.stage, { explicit: limits.explicit, cut: Boolean(cutFrame) }), continueFrom: cutFrame ?? before.frame_id!, withSet: false }),
+      meta: { ...kept, from: isClip ? parent.id : null, ...(eyes ? { eyes } : {}) },
+      keyframe: () => ({
+        prompt: eyes
+          ? povPrompt(cast, eyes, after, null, meta.stage, false, { explicit: limits.explicit, continueFrom: cutFrame ? "same" : "after" })
+          : continuePrompt(cast, after, meta.stage, { explicit: limits.explicit, cut: Boolean(cutFrame) }),
+        continueFrom: cutFrame ?? before.frame_id!,
+        withSet: false,
+      }),
       ...(cont.frame_id ? { cut: { video: before.media_id, frame: cont.frame_id, seamless, forcedFresh: cont.mode !== "fresh" && !seamless } } : {}),
     };
   } else if ("act" in ask) {
@@ -378,16 +405,27 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     const locked = actLocked(act, stands);
     if (locked) return refuse(422, "not_yet", `${act.label}: ${locked[0].toLowerCase()}${locked.slice(1)}.`);
     const filled = actFor(act, cast, ask.swap === true);
+    // Seen through one of their eyes (its first-person view, 2026-10-26): only the other in full.
+    const eyes = ask.eyes ?? null;
+    const pov = eyes ? povFor(act, cast, eyes, ask.swap === true) : null;
+    if (eyes && !pov) return refuse(422, "no_view", `${act.label} has no view through those eyes.`);
     // The menu's words were written to the lines, but they're held to them like anything else a model reads.
-    if (![filled.frame, filled.motion].every((t) => fitsClip(t, act.dress, limits))) return refuse(422, "not_allowed", "That's past the limits you've set for these two.");
+    if (![pov?.still ?? filled.frame, filled.motion].every((t) => fitsClip(t, act.dress, limits))) return refuse(422, "not_allowed", "That's past the limits you've set for these two.");
     const at = Math.max(0, night.lines.length - 1);
-    const frame = `${filled.frame} ${FRAMING_WORDS[act.framing]}`;
+    const frame = pov ? `${pov.still} ${upperFirst(act.wear)}.` : `${filled.frame} ${FRAMING_WORDS[act.framing]}`;
     plan = {
-      shot: { line: at, who: filled.lead === 0 ? "a" : "b", text: "", frame, motion: filled.motion },
+      shot: { line: at, who: filled.lead === 0 ? "a" : "b", text: "", frame, motion: filled.motion, ...(eyes && pov ? { eyes } : {}) },
       stage: act.dress,
       place: places[at] ?? stands.place,
-      meta: { act: act.id, swap: ask.swap === true, from: null, stage: act.dress, place: places[at] ?? stands.place, label: act.label },
-      keyframe: (set, place) => ({ prompt: keyframePrompt(cast, frame, place ? placeWords(place, cast) : null, act.dress, Boolean(set), { explicit: limits.explicit }), continueFrom: null, withSet: true }),
+      meta: { act: act.id, swap: ask.swap === true, from: null, stage: act.dress, place: places[at] ?? stands.place, label: pov ? `${act.label}, first person` : act.label, ...(eyes && pov ? { eyes } : {}) },
+      keyframe: (set, place) => ({
+        prompt:
+          eyes && pov
+            ? povPrompt(cast, eyes, frame, place ? placeWords(place, cast) : null, act.dress, Boolean(set), { explicit: limits.explicit })
+            : keyframePrompt(cast, frame, place ? placeWords(place, cast) : null, act.dress, Boolean(set), { explicit: limits.explicit }),
+        continueFrom: null,
+        withSet: true,
+      }),
     };
   } else {
     // The moment: the latest line, or the one the theater is showing (`at`), and the lines up to it.
@@ -398,14 +436,21 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     // How far it had gone there, and whether that was somewhere public (where it stands now, at the latest line).
     const there = at === last ? stands : { ...stands, stage: Math.min(stands.stage, lines[at].stage ?? stands.stage), place: places[at] ?? stands.place, publicPlace: isPublicPlace(places[at] ?? stands.place, null) };
     const cap = capFor(there, limits);
-    const d = await directHere(db, cast, lines, places, cap, limits);
+    const hint = directorHint(await framingScores(db, ownerId).catch(() => scoresFrom({})), ACTS.map((x) => ({ id: x.id, label: x.label, hasPov: Boolean(x.pov) })));
+    const d = await directHere(db, cast, lines, places, cap, limits, hint || undefined);
     const line = d.line ?? at;
     plan = {
-      shot: { line, who: lines[line].who, text: d.line !== null ? spoken(lines[line].text).speech : "", frame: d.frame, motion: d.motion },
+      shot: { line, who: lines[line].who, text: d.line !== null ? spoken(lines[line].text).speech : "", frame: d.frame, motion: d.motion, ...(d.eyes ? { eyes: d.eyes } : {}) },
       stage: cap,
       place: there.place,
-      meta: { act: null, swap: false, from: null, stage: cap, place: there.place, label: "From here" },
-      keyframe: (set, place) => ({ prompt: keyframePrompt(cast, d.frame, place ? placeWords(place, cast) : null, cap, Boolean(set), { explicit: limits.explicit }), continueFrom: null, withSet: true }),
+      meta: { act: null, swap: false, from: null, stage: cap, place: there.place, label: d.eyes ? "From here, first person" : "From here", ...(d.eyes ? { eyes: d.eyes } : {}) },
+      keyframe: (set, place) => ({
+        prompt: d.eyes
+          ? povPrompt(cast, d.eyes, d.frame, place ? placeWords(place, cast) : null, cap, Boolean(set), { explicit: limits.explicit })
+          : keyframePrompt(cast, d.frame, place ? placeWords(place, cast) : null, cap, Boolean(set), { explicit: limits.explicit }),
+        continueFrom: null,
+        withSet: true,
+      }),
     };
   }
   if (![plan.shot.text, plan.shot.frame ?? "", plan.shot.motion].every((t) => checkAdultText({ t }).ok && !crossesTaboo(t))) {

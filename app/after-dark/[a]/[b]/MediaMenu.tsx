@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
-import type { Framing, MenuAct } from "@/lib/adult/acts";
+import type { Eyes, Framing, MenuAct } from "@/lib/adult/acts";
+import { actMark, FramingMark, openingView, ViewChips } from "../../FramingChips";
 import type { ClipOffer } from "@/lib/adult/clips";
 import type { Media } from "@/lib/adult/media";
 import type { PictureMenu } from "@/lib/adult/pictures-menu";
@@ -14,8 +15,8 @@ export const REEL_EVENT = "after-dark:reel";
 const priceWords = (n: number) => (n === 0 ? "free" : `${n} token${n === 1 ? "" : "s"}`);
 const KISSING = 2;
 
-/** The acts as chips: the ones the night has reached to pick, the rest locked, saying why. */
-function ActChips({ acts, picked, onPick, lockedAbove }: { acts: MenuAct[]; picked: string | null; onPick: (id: string) => void; lockedAbove?: { stage: number; why: string } }) {
+/** The acts as chips: the ones the night has reached to pick, the rest locked, saying why; each with how it comes out. */
+export function ActChips({ acts, picked, onPick, lockedAbove }: { acts: MenuAct[]; picked: string | null; onPick: (id: string) => void; lockedAbove?: { stage: number; why: string } }) {
   return (
     <div className="ad-chip-row" role="group" aria-label="What they're doing">
       {acts.map((a) => {
@@ -32,6 +33,7 @@ function ActChips({ acts, picked, onPick, lockedAbove }: { acts: MenuAct[]; pick
           >
             {why ? "🔒 " : ""}
             {a.label}
+            {!why && <FramingMark badge={actMark(a)} />}
           </button>
         );
       })}
@@ -66,8 +68,10 @@ export default function MediaMenu({
   const [tab, setTab] = useState<"clip" | "picture">("clip");
   const [clips, setClips] = useState<ClipOffer | null>(null);
   const [pictures, setPictures] = useState<PictureMenu | null>(null);
-  const [act, setAct] = useState<string | null>(null);
+  const [act, setActId] = useState<string | null>(null);
   const [swap, setSwap] = useState(false);
+  // Seen through one of their eyes (an act's first-person view), or both in frame (null).
+  const [eyes, setEyes] = useState<Eyes | null>(null);
   const [outfit, setOutfit] = useState<string | null>(null);
   const [framing, setFraming] = useState<Framing>("medium");
   const [place, setPlace] = useState<string | null>(null);
@@ -120,6 +124,19 @@ export default function MediaMenu({
 
   const clipActs = clips?.acts ?? [];
   const pictureActs = pictures?.acts ?? [];
+  // Picking an act opens on the view that comes out best for it (openingView).
+  const setAct = (id: string) => {
+    setActId(id);
+    const a = (tab === "clip" ? clipActs : pictureActs).find((x) => x.id === id);
+    const v = a ? openingView(a) : { eyes: null, swapped: false };
+    setEyes(v.eyes);
+    if (v.eyes) setSwap(v.swapped);
+  };
+  const pickView = (e: Eyes | null, swapped: boolean) => {
+    setEyes(e);
+    if (e) setSwap(swapped);
+  };
+  const viewWords = (a: MenuAct | null) => (a && eyes ? a.views?.find((v) => v.eyes === eyes)?.label : null);
   const where = pictures?.places.find((p) => p.place === place) ?? pictures?.places[0] ?? null;
   const pictureAct = pictureActs.find((a) => a.id === act) ?? null;
   const clipAct = clipActs.find((a) => a.id === act) ?? null;
@@ -173,16 +190,19 @@ export default function MediaMenu({
           <fieldset>
             <legend>Or a moment from the menu</legend>
             <ActChips acts={clipActs} picked={act} onPick={setAct} />
+            {clipAct && <ViewChips act={clipAct} eyes={eyes} onPick={pickView} />}
             {clipAct && (
               <p className="small">
-                {shownSays(clipAct)}{" "}
-                <button type="button" className="ad-chip" onClick={() => setSwap((s) => !s)} title="Swap who leads">
-                  ⇄ Swap
-                </button>
+                {viewWords(clipAct) ? `${viewWords(clipAct)}: ${shownSays(clipAct)}` : shownSays(clipAct)}{" "}
+                {!eyes && (
+                  <button type="button" className="ad-chip" onClick={() => setSwap((s) => !s)} title="Swap who leads">
+                    ⇄ Swap
+                  </button>
+                )}
               </p>
             )}
             <p className="ad-panel-actions">
-              <button type="button" className="primary small" disabled={busy || Boolean(paused) || !clipAct || Boolean(clipAct.why)} title={paused ?? undefined} onClick={() => clipAct && void make("clips", { act: clipAct.id, swap })}>
+              <button type="button" className="primary small" disabled={busy || Boolean(paused) || !clipAct || Boolean(clipAct.why)} title={paused ?? undefined} onClick={() => clipAct && void make("clips", { act: clipAct.id, swap, ...(eyes ? { eyes } : {}) })}>
                 {busy ? "Setting it up…" : `🎬 Make this clip · ${priceWords(clips.price)}`}
               </button>
             </p>
@@ -193,12 +213,15 @@ export default function MediaMenu({
           <fieldset>
             <legend>What they&apos;re doing</legend>
             <ActChips acts={pictureActs} picked={act} onPick={setAct} lockedAbove={publicLock} />
+            {pictureAct && <ViewChips act={pictureAct} eyes={eyes} onPick={pickView} />}
             {pictureAct && (
               <p className="small">
-                {shownSays(pictureAct)}{" "}
-                <button type="button" className="ad-chip" onClick={() => setSwap((s) => !s)} title="Swap who leads">
-                  ⇄ Swap
-                </button>
+                {viewWords(pictureAct) ? `${viewWords(pictureAct)}: ${shownSays(pictureAct)}` : shownSays(pictureAct)}{" "}
+                {!eyes && (
+                  <button type="button" className="ad-chip" onClick={() => setSwap((s) => !s)} title="Swap who leads">
+                    ⇄ Swap
+                  </button>
+                )}
               </p>
             )}
           </fieldset>
@@ -213,7 +236,8 @@ export default function MediaMenu({
               ))}
             </div>
           </fieldset>
-          <fieldset>
+          {/* Seen through one of their eyes, the view frames itself. */}
+          {!eyes && <fieldset>
             <legend>How it&apos;s framed</legend>
             <div className="ad-chip-row" role="radiogroup" aria-label="How it's framed">
               {pictures.framings.map((f) => (
@@ -222,7 +246,7 @@ export default function MediaMenu({
                 </button>
               ))}
             </div>
-          </fieldset>
+          </fieldset>}
           {pictures.places.length > 0 && (
             <fieldset>
               <legend>Where</legend>
@@ -243,7 +267,7 @@ export default function MediaMenu({
               className="primary small"
               disabled={busy || Boolean(paused) || !pictureActOk || !pickedOutfit || !where || pictures.left === 0}
               title={paused ?? undefined}
-              onClick={() => pictureAct && pickedOutfit && where && void make("pictures", { act: pictureAct.id, swap, outfit: pickedOutfit.id, framing, place: where.place })}
+              onClick={() => pictureAct && pickedOutfit && where && void make("pictures", { act: pictureAct.id, swap, outfit: pickedOutfit.id, framing, place: where.place, ...(eyes ? { eyes } : {}) })}
             >
               {busy ? "Drawing it…" : `📸 Take the picture · ${priceWords(pictures.price)}`}
             </button>{" "}

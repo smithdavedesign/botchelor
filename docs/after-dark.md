@@ -2395,3 +2395,45 @@ PG Studio; `app/studio/ExportDialog.tsx`):
   "Three more" writes again.
 - After Dark: its text model (fast, not the scene writer), counted (`captions`, 300 a month). PG: the show's free model
   ($0), 30 an hour.
+
+## Which framing works: scores and first-person views (2026-10-26)
+
+David: "I notice generating people together is way harder than POV shots." Production ratings agreed, act by act (last
+21 days): face to face with both in frame 2👍/8👎, the afterglow 0/4, going down seen through the other's eyes 8/0,
+riding seen from below 0/5, close together, a kiss, a lap all 👍. So the view is chosen per act, not across the board.
+
+**Scores** (`lib/adult/framing.ts`):
+- A Beta score per act and view ("pair": both in frame; "pov": through one of their eyes). The prior is a fixed table
+  of our own QA numbers (`QA_PRIOR`, copied by hand on 2026-10-26, capped at 8 ratings an act), on top of a base (both in
+  frame liked 47% of the time, one face to keep 60%). Only the viewer's own ratings of their own pictures move it
+  (docs/data-plan.md: nobody's ratings steer anyone else's pictures); a 👎 that only said too tame or too explicit
+  doesn't count.
+- **Works well** (★) at a mean of 0.65 with 3 or more ratings; **Experimental** below 0.45. `actMenu` puts them on every
+  act and view and, within the acts one stage opens, the best first (the pictures menu, the clips menu, the Studio's
+  Together tab).
+
+**First-person views of the two of them** (`lib/adult/acts.ts` `pov`, `povFor`; `lib/adult/reels.ts` `povPrompt`):
+- Each act may have a still seen through X's eyes and/or Y's (spooning has none: both faces turn away). Only the other
+  one is in full; of the one whose eyes they are, hands, arms, hips or thighs at the frame's edge at most, never a face.
+  One face to keep, so nothing can blend (why first person scores better).
+- **Where:** "Whose view" chips (`app/after-dark/FramingChips.tsx`): 👥 Both in frame, or 👁 From Name's eyes, each with
+  its badge, in the pictures and clips menus and the Studio's Together tab (and its setups). An act opens on its first-
+  person view when that works well and both in frame doesn't. The framing row hides then (the view frames itself).
+- **Pictures:** `planPicture` with `eyes` uses the act's first-person still and `povPrompt`; `keepPictureOfBoth` sends
+  only the shown one's face (plus the set). Tagged when made (`tagOnCreate`: who, act, `pov` a/b, stage) and its level
+  kept; menu pictures now always carry their act, where before only sex positions were read from their words.
+- **Video:** `shotPrompt` with `eyes` is first person ("the camera moving as their eyes would"); a line said by the one
+  whose eyes they are is said off camera, with no voice sent to lip-sync a face on screen. `drawFrames` starts a
+  first-person shot from the shown one's face only.
+- **Clips:** an act clip can be first person (`eyes`); Keep going carries the view on (seamless, or `povPrompt` with the
+  shot before as Picture 2). "Clip from here" may pick a view itself.
+- **Beats:** a beat picture is seen through someone's eyes when that act's first-person view does clearly better (by
+  0.1) for this viewer, from their own character's eyes when it can be (`adult_beats.eyes`, kept for redraws); a
+  night's video started from it is filmed first person.
+- **The director** (`pickShots`, `directHere`) gets one line on what comes out best (`directorHint`) and may see up to
+  two shots of a film through one of their eyes (`eyes`, by how they're named; `POV_SHOTS_MAX`).
+- **Fixed on the way:** a storyboard shot started from a first-person picture is now filmed first person
+  (`pictureEyes`; before, "two people only" made the video invent the partner); the Studio's "pov" group picks are
+  tagged first person (and on top, kneeling as their acts); Together shoots keep their `level` (they read as level 2,
+  so a dressed pair animated as explicit); Studio pictures keep their level on the row; pictures of two get the
+  viewer's rating fixes too (`steeringFor` → `keyframePrompt`/`povPrompt` `steer`).

@@ -11,7 +11,7 @@ import { requestBase } from "@/lib/site";
 export const maxDuration = 120;
 
 const id = z.string().min(1).max(64);
-/** The four choices: the act (who leads swapped, or not), what they wear, the framing, and one of the night's places. */
+/** The choices: the act (who leads swapped, or not), what they wear, the framing (or whose eyes), and one of the night's places. */
 const Input = z.object({
   a: id,
   b: id,
@@ -20,6 +20,8 @@ const Input = z.object({
   outfit: z.string().min(1).max(40),
   framing: z.enum(FRAMINGS),
   place: z.string().min(1).max(200),
+  // Seen through one of their eyes (the act's first-person view): whose, in the pair's order.
+  eyes: z.enum(["a", "b"]).nullable().optional(),
 });
 
 /** Not found for everyone but a viewer after dark is open to (lib/adult/mode.ts). */

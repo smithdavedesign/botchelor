@@ -35,7 +35,9 @@ import { readyTiles } from "../looks-draw";
 import { dataColumn, keepBytes, readBytes } from "../object-store";
 import { pairKey } from "../relationships";
 import { checkAdultText } from "../safety";
-import { actById, actMenu, crossesTaboo, FRAMINGS, type Framing, type MediaLimits, type MenuAct } from "./acts";
+import { actById, actMenu, crossesTaboo, FRAMINGS, type Eyes, type Framing, type MediaLimits, type MenuAct } from "./acts";
+import { framingScores } from "./framing";
+import { levelForStage } from "./media-tags";
 import { nudeSql, shownNude } from "./attire";
 import { eligibleIds } from "./characters";
 import { mediaLimits } from "./clips";
@@ -278,6 +280,12 @@ const shootRow = (r: {
   pictures: Array.isArray(r.pictures) ? (r.pictures as string[]) : [], redo_of: r.redo_of, error: r.error, created_at: new Date(r.created_at).toISOString(),
 });
 
+/** A job's choices' level (0 dressed … 3 explicit), when they say one. */
+const levelOf = (choices: unknown): number | null => {
+  const l = (choices as { level?: unknown } | null)?.level;
+  return typeof l === "number" && l >= 0 && l <= 3 ? l : null;
+};
+
 /**
  * Runs one Studio job: the cap and the gate first (nothing spent on a refusal), the tokens, then every picture drawn at
  * once, checked one after another, and the ones that pass kept. Nothing came through: the tokens come back whole.
@@ -358,9 +366,13 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
     const pid = crypto.randomUUID();
     const store = await keepBytes("after-dark", pid, d.file.bytes, d.file.mime);
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_place, shoot_id, nsfw_score, request)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ready', $10, false, $11, $12, $13, $14, $15, $16::jsonb)`,
-      [pid, viewer, first, second, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, id, verdict.nsfw ?? null, requestJson(d.requests)],
+      // Its level kept on it (2026-10-26), so whatever is made from it next reads how far it goes.
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_place, shoot_id, nsfw_score, request, level)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ready', $10, false, $11, $12, $13, $14, $15, $16::jsonb, $17)`,
+      [
+        pid, viewer, first, second, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, id, verdict.nsfw ?? null,
+        requestJson(d.requests), levelOf(spec.choices),
+      ],
     );
     await countUse(db, viewer, capKind);
     kept.push({
@@ -831,7 +843,8 @@ export async function pairMenu(db: Db, viewer: string, characterId: string, part
     ok: true,
     menu: {
       partner: { id: partner.id, name: partner.name },
-      acts: actMenu({ stage: limits.maxStage, publicPlace: false }, p.cast, [p.people[0].name, p.people[1].name], limits).map((a) => ({
+      // With how well each framing does for them (lib/adult/framing.ts): badges, first-person views, what works first.
+      acts: actMenu({ stage: limits.maxStage, publicPlace: false }, p.cast, [p.people[0].name, p.people[1].name], limits, await framingScores(db, viewer)).map((a) => ({
         ...a,
         outfits: actById(a.id)!.outfits.filter((id) => OUTFITS.some((o) => o.id === id && outfitOk(o))),
       })),
@@ -861,6 +874,8 @@ export type PairInput = {
   dialog?: string;
   /** Shot like one of the pair's pictures (David, 2026-10-25: their dates' media "to shoot with"): its pose, framing and place, as Picture 3. */
   reference?: string;
+  /** Seen through one of their eyes (the act's first-person view, 2026-10-26): whose, in the pair's order. */
+  eyes?: Eyes | null;
 };
 
 /**
@@ -873,7 +888,8 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
   const { config } = access;
   const model = studioModel(config, "edit", input.model);
   if (!model) return fail(422, "unknown_model", "Pick one of the Studio's edit models.");
-  if (model.max_images < 2) return fail(422, "wrong_model", `${model.label} takes one picture, and a picture of two needs both faces.`);
+  // Both faces, unless it's seen through one of their eyes (then only the other's).
+  if (model.max_images < (input.eyes ? 1 : 2)) return fail(422, "wrong_model", `${model.label} takes one picture, and a picture of two needs both faces.`);
   const p = await pairOf(db, viewer, characterId, input.partner);
   if (!p) return fail(404, "not_found", "Pick someone in their After Dark.");
   const limits = await pairLimits(db, viewer, p.pair, config);
@@ -882,10 +898,23 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
   if (!where) return fail(422, "unknown_place", "Pick one of the places.");
   const light = input.light ? optionById("light", input.light) : null;
   if (input.light && !light) return fail(422, "unknown_option", "That light isn't on the menu.");
+  // Their ratings of the two of them steer the shoot (lib/adult/steering.ts): the fixes, in the picture's words.
+  const steer = (await steeringFor(db, viewer, p.pair).catch(() => NO_STEERING)).positive.join(", ");
   const planned = planPicture(
-    { act: input.act, swap: input.swap === true, outfit: input.outfit, framing: input.framing, place: where.place },
+    { act: input.act, swap: input.swap === true, outfit: input.outfit, framing: input.framing, place: where.place, eyes: input.eyes ?? null },
     // The owner's own words lead the picture too (David, 2026-10-24: the Together tab needs the Shoot tab's control); held to the lines by planPicture's own check.
-    { cast: p.cast, stage: limits.maxStage, places: places.map((x) => ({ place: x.place, now: false, public: x.public, home: null })), limits, light: light?.words, custom: cleanCustom(input.custom, CUSTOM_MAX), extra: pairExtraWords(input.extra) || undefined, dialog: cleanCustom(input.dialog, DIALOG_MAX), reference: Boolean(input.reference) },
+    {
+      cast: p.cast,
+      stage: limits.maxStage,
+      places: places.map((x) => ({ place: x.place, now: false, public: x.public, home: null })),
+      limits,
+      light: light?.words,
+      custom: cleanCustom(input.custom, CUSTOM_MAX),
+      extra: pairExtraWords(input.extra) || undefined,
+      dialog: cleanCustom(input.dialog, DIALOG_MAX),
+      reference: Boolean(input.reference),
+      steer: steer || undefined,
+    },
   );
   if (!planned.ok) return fail(planned.status, planned.error, planned.message);
   // A picture to shoot like: one of the owner's of these two (together, or one of them alone), ready, a still.
@@ -911,10 +940,11 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
     return fail(err instanceof HivePausedError ? 503 : 502, "no_face", `A first picture of each of them couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).`);
   }
   if (!bases) return fail(409, "no_face", "A picture of each of them is needed first.");
-  const images = bases.map((id) => signedMediaUrl(id, baseUrl));
-  // Picture 3 is the picture to shoot like, when there is one; otherwise the place's drawn set.
+  // Seen through one of their eyes: only the other one's face (one face to keep, nothing to blend).
+  const images = (plan.eyes ? [bases[plan.eyes === "a" ? 1 : 0]] : bases).map((id) => signedMediaUrl(id, baseUrl));
+  // The last picture is the picture to shoot like, when there is one; otherwise the place's drawn set.
   const set = input.reference ? null : ((await setPictures(db, [plan.place])).get(plan.place) ?? null);
-  const withSet = Boolean(set) && model.max_images >= 3;
+  const withSet = Boolean(set) && model.max_images >= images.length + 1;
   if (set && withSet) images.push(model.provider === "replicate" ? replicateSetImage(set, plan.place, baseUrl) : set);
   if (input.reference) images.push(signedMediaUrl(input.reference, baseUrl));
   const prompt = plan.promptFor(withSet);
@@ -927,7 +957,20 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
     negative: NEGATIVE_PROMPT,
     model,
     tokens: input.own_key ? config.prices.own_key : config.prices.pair[model.tier],
-    choices: { partner: input.partner, act: input.act, swap: input.swap === true, outfit: input.outfit, framing: input.framing, place: input.place, light: input.light ?? null, stage: plan.stage, ...(input.reference ? { reference: input.reference } : {}) },
+    // `level` too (2026-10-26: read as level 2 without it, so a dressed pair animated as explicit), and whose eyes.
+    choices: {
+      partner: input.partner,
+      act: input.act,
+      swap: input.swap === true,
+      outfit: input.outfit,
+      framing: input.framing,
+      place: input.place,
+      light: input.light ?? null,
+      stage: plan.stage,
+      level: levelForStage(plan.stage),
+      ...(plan.eyes ? { eyes: plan.eyes } : {}),
+      ...(input.reference ? { reference: input.reference } : {}),
+    },
     place: plan.place,
     partner: input.partner,
     ownKey: input.own_key === true,

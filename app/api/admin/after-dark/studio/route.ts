@@ -65,6 +65,7 @@ const PairChoices = z
     custom: z.string().max(CUSTOM_MAX).optional(),
     extra: PairExtra.optional(),
     dialog: z.string().max(DIALOG_MAX).optional(),
+    eyes: z.enum(["a", "b"]).nullable().optional(),
   })
   .strict();
 /** A restyle's changes: a pick per look step or detail (lib/adult/studio.ts restyleWords checks each). */
@@ -94,6 +95,8 @@ const Input = z.discriminatedUnion("action", [
     dialog: z.string().max(DIALOG_MAX).optional(),
     // Shot like one of the pair's pictures (their dates' or the Studio's): its pose, framing and place.
     reference: id.optional(),
+    // Seen through one of their eyes (the act's first-person view): whose, in the pair's order.
+    eyes: z.enum(["a", "b"]).nullable().optional(),
     model,
     own_key,
   }),

@@ -290,7 +290,7 @@ describe("a video of the night", () => {
     await beatPicturesSettled();
     const pic = (await beatsOf(scene.id))[0].picture_id!;
     const pair = [JUNIPER, RAFE].sort() as [string, string];
-    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "her bedroom")).toBe(pic);
+    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "her bedroom")).toEqual({ id: pic, eyes: null });
     expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 0, 4, "her bedroom")).toBeNull();
     expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 3, "her bedroom")).toBeNull();
     expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "the kitchen")).toBeNull();
@@ -298,7 +298,7 @@ describe("a video of the night", () => {
     expect(await rateMedia(t.db, id, pic, -1, ["face"])).toMatchObject({ ok: true });
     expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "her bedroom")).toBeNull();
     await rateMedia(t.db, id, pic, 0);
-    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "her bedroom")).toBe(pic);
+    expect(await beatPictureFor(t.db, id, pair, { chapter: 1, night_id: null }, 5, 4, "her bedroom")).toEqual({ id: pic, eyes: null });
     const shots: ReelShot[] = [2, 5].map((line) => ({ line, who: "a", text: "Now.", motion: "m", status: "queued" }));
     await reuseBeatPictures(t.db, id, pair, shots, { chapters: [{ chapter: 1, night_id: null, lines: 7 }], chapterOf: Array(7).fill(0) }, [0], Array(7).fill("her bedroom"), Array(7).fill(4));
     expect(shots.map((s) => [s.from_beat ?? false, s.media_id ?? null])).toEqual([

@@ -48,7 +48,8 @@ import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
 import { getSet } from "../sets";
 import { normalizeScene, setPath } from "../venues";
-import { crossesTaboo } from "./acts";
+import { ACTS, crossesTaboo } from "./acts";
+import { directorHint, framingScores, scoresFrom } from "./framing";
 import type { CheckResult } from "./check";
 import { checkMedia } from "./moderation";
 import { providerError, runMedia } from "./fallback";
@@ -194,6 +195,12 @@ export type ReelShot = {
   from_video?: boolean;
   /** It starts straight from a frame cut from the video before it (Keep going from here, seamless): `media_id` and `frame_id` are it. */
   from_cut?: boolean;
+  /**
+   * Seen through one of their eyes (David, 2026-10-26: "generating people together is way harder than POV shots"): `a`
+   * or `b`, whose eyes; the other is the one in full. Its keyframe starts from that one's face only, and its video is
+   * first person (the line said off camera when the one whose eyes they are says it).
+   */
+  eyes?: "a" | "b";
   /** Drawn like one of the pair's pictures (the storyboard's Draw like it): its pose, framing and place, as Picture 3. */
   ref_id?: string;
   /** Re-filmed (refilmShot): what this shot's new video cost, given back if it fails and cleared once it's settled. */
@@ -219,6 +226,8 @@ export type ClipMeta = {
    * as Picture 3.
    */
   cut?: { video: string; at: number; seamless: boolean };
+  /** Seen through one of their eyes (an act's first-person view): whose. */
+  eyes?: "a" | "b";
 };
 /** A video: a night's reel (`kind` "night", the default) or a clip; `a` and `b` are the pair's ids, lower first. */
 export type Reel = {
@@ -520,7 +529,16 @@ export function placesOf(lines: readonly SceneLine[], where: ReelWhere): (string
 }
 
 /** A shot as the director writes it: the line, a still of the two of them at it, and what they do next. */
-export type ShotPick = { line: number; frame: string; motion: string };
+export type ShotPick = { line: number; frame: string; motion: string; eyes?: "a" | "b" };
+/** First-person shots in one film, at most (the rest keep both of them in frame). */
+export const POV_SHOTS_MAX = 2;
+/** Whose eyes, from what the director wrote: one of the two by how they're named (their tag), in the pair's order. */
+export function eyesFromTag(cast: readonly [ReelPerson, ReelPerson], v: unknown): "a" | "b" | undefined {
+  if (typeof v !== "string" || !v.trim()) return undefined;
+  const t = v.trim().toLowerCase();
+  const k = cast.findIndex((p) => p.tag.toLowerCase() === t);
+  return k === 0 ? "a" : k === 1 ? "b" : undefined;
+}
 
 /** The two of them as far as the night had gone, for a still the director didn't write. */
 const STILLS = [
@@ -622,6 +640,8 @@ export async function pickShots(
   places: readonly (string | null)[],
   stages: readonly number[],
   night?: DirectorNight | null,
+  /** What comes out best for this viewer, which act seen through whose eyes (lib/adult/framing.ts directorHint). */
+  hint?: string,
 ): Promise<ShotPick[]> {
   const all = lines.map((l, i) => ({ i, ...spoken(l.text) })).filter((l) => l.speech.split(" ").length >= 3);
   if (!all.length) return [];
@@ -674,26 +694,35 @@ export async function pickShots(
             "Every shot shows the two of them together in one frame, doing what the script has them doing at that line: its action, and the lines just before it. For each shot write:",
             `- "frame": one photograph of that moment, in one or two sentences: where they are in the place, where each of them is (one on the left or in front, the other on the right or behind) and how their bodies are posed toward each other, what's touching, what they're wearing or not by then, and the framing (wide, medium or close, varied from shot to shot; lying down, a medium shot from the side with both faces toward the camera, never from above). Both faces visible, two people only.`,
             `- "motion": one sentence: what each of them does over the next few seconds, carrying on from that photograph, as the line is said.`,
+            `- "eyes": null; or, for up to ${POV_SHOTS_MAX} shots where it suits the moment, one of the two exactly as named above: the shot is then seen through that one's eyes, first person, its frame showing only the other in full (the first one's hands or body at the edge of the frame at most, never a face).`,
+            ...(hint ? [hint] : []),
             "Concrete and physical, like a shot list: no feelings, no dialogue, no names.",
-            'Reply with a JSON object: {"shots": [{"line": 12, "frame": "...", "motion": "..."}]}',
+            'Reply with a JSON object: {"shots": [{"line": 12, "frame": "...", "motion": "...", "eyes": null}]}',
           ].join("\n"),
         },
       ],
       { temperature: 0.4, maxTokens: 300 + 220 * want },
     );
-    const parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)) as { shots?: { line?: unknown; frame?: unknown; motion?: unknown }[] };
+    const parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)) as { shots?: { line?: unknown; frame?: unknown; motion?: unknown; eyes?: unknown }[] };
     const ok = new Set(usable.map((l) => l.i));
     const said = (v: unknown, max: number) => (typeof v === "string" ? withoutNames(v.trim(), cast).slice(0, max) : "");
+    let firstPerson = 0;
     const shots = (parsed.shots ?? [])
-      .map((s) => ({ line: Number(s.line), frame: said(s.frame, 600), motion: said(s.motion, 300) }))
+      .map((s) => ({ line: Number(s.line), frame: said(s.frame, 600), motion: said(s.motion, 300), eyes: eyesFromTag(cast, s.eyes) }))
       .filter((s, k, all) => ok.has(s.line) && all.findIndex((x) => x.line === s.line) === k)
-      .map((s) => ({
-        line: s.line,
-        frame: s.frame || stillOf(cast, stages[s.line] ?? 0),
-        motion: s.motion || motionOf(cast, speaker(s.line), spoken(lines[s.line].text).action),
-      }))
       .sort((x, y) => x.line - y.line)
-      .slice(0, want);
+      .slice(0, want)
+      .map((s) => {
+        // A first-person shot needs its own still (the director's): without one, or past the most, both in frame.
+        const eyes = s.eyes && s.frame && firstPerson < POV_SHOTS_MAX ? s.eyes : undefined;
+        if (eyes) firstPerson++;
+        return {
+          line: s.line,
+          frame: s.frame || stillOf(cast, stages[s.line] ?? 0),
+          motion: s.motion || motionOf(cast, speaker(s.line), spoken(lines[s.line].text).action),
+          ...(eyes ? { eyes } : {}),
+        };
+      });
     if (shots.length >= Math.min(3, want)) return shots;
   } catch {
     /* fall through to the spread */
@@ -714,7 +743,7 @@ export function keyframePrompt(
   place: string | null,
   stage: number,
   withSet: boolean,
-  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; extra?: string; dialog?: string; reference?: boolean } = {},
+  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; extra?: string; dialog?: string; reference?: boolean; steer?: string } = {},
 ): string {
   const [a, b] = cast;
   // Drawn like a picture they already have (the storyboard's Draw like it): Picture 3 is that picture, for its pose,
@@ -735,7 +764,42 @@ export function keyframePrompt(
     `${opts.reference ? " Take only the pose, the framing and the place from Picture 3: the people in it are the two from Pictures 1 and 2." : withSet ? (opts.light ? " Keep the place and its furniture from Picture 3." : " Keep the place, its furniture and its light from Picture 3.") : ""} Two people only, both faces visible.`;
   // The owner's words on single sections (the Together tab's, "Also — place: …"), on top of what the chips say.
   const extra = opts.extra?.trim() ? ` ${opts.extra.trim()}` : "";
-  return fitPrompt([head, whoIsWho(cast)], `${custom}${frame}${extra}${dialog}`, [where, light, keep, tailAt(stage, opts.explicit ?? true)]);
+  // What the viewer's ratings of the two of them steer toward (lib/adult/steering.ts), just before the closing words.
+  const steer = opts.steer?.trim() ? `${cap(opts.steer.trim().replace(/[.\s]*$/, ""))}.` : "";
+  return fitPrompt([head, whoIsWho(cast)], `${custom}${frame}${extra}${dialog}`, [where, light, keep, steer, tailAt(stage, opts.explicit ?? true)]);
+}
+
+/**
+ * A first-person picture of the two of them (David, 2026-10-26: "generating people together is way harder than POV
+ * shots"): seen through `eyes`' eyes, the other in full from their own picture (Picture 1, the set Picture 2), the one
+ * whose eyes they are at the frame's edge at most, never a face. One face to keep, so nothing can blend.
+ */
+export function povPrompt(
+  cast: readonly [ReelPerson, ReelPerson],
+  eyes: "a" | "b",
+  still: string,
+  place: string | null,
+  stage: number,
+  withSet: boolean,
+  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; extra?: string; dialog?: string; steer?: string; continueFrom?: "same" | "after" } = {},
+): string {
+  const viewer = cast[eyes === "a" ? 0 : 1];
+  const shown = cast[eyes === "a" ? 1 : 0];
+  // Kept going (lib/adult/clips.ts): Picture 2 is the shot before, at its very moment or a few seconds on.
+  const head = opts.continueFrom
+    ? `Make one first-person photograph, seen through the eyes of ${viewer.tag}, of ${shown.tag} from Picture 1, ${opts.continueFrom === "same" ? "at the very moment in Picture 2" : "a few seconds after the moment in Picture 2"}: keep its place, its light, its camera angle and framing, and what each of them is wearing or not.`
+    : `Make one first-person photograph, seen through the eyes of ${viewer.tag}, of ${shown.tag} from Picture 1${withSet ? ", in the place from Picture 2" : ""}.`;
+  const where = place ? `The place: ${place}.` : "";
+  const light = opts.light ? `Light: ${opts.light}.` : "";
+  const custom = opts.custom?.trim() ? `Most important, do exactly this: ${opts.custom.trim().replace(/[.\s]*$/, "")}. ` : "";
+  const dialog = opts.dialog?.trim() ? ` A speech bubble near them reads: "${opts.dialog.trim().replace(/"/g, "'")}".` : "";
+  const extra = opts.extra?.trim() ? ` ${opts.extra.trim()}` : "";
+  const keep =
+    `Keep ${shown.tag} as in Picture 1, the same face, hair, skin tone and body, but not their clothes: ${(opts.clothes ?? clothesAt(stage)).replace(/[.\s]+$/, "")}, ${shown.tag}'s face clearly visible.` +
+    `${withSet && !opts.continueFrom ? " Keep the place, its furniture and its light from Picture 2." : ""}` +
+    ` Of ${viewer.tag}, whose eyes these are, only hands, arms, hips or thighs at the edge of the frame, never a face: one person in full.`;
+  const steer = opts.steer?.trim() ? `${cap(opts.steer.trim().replace(/[.\s]*$/, ""))}.` : "";
+  return fitPrompt([head], `${custom}${still}${extra}${dialog}`, [where, light, keep, steer, tailAt(stage, opts.explicit ?? true)]);
 }
 
 /** Which of them is which picture, when "the woman" and "the man" don't already say it. */
@@ -782,8 +846,20 @@ export function continuePrompt(cast: readonly [ReelPerson, ReelPerson], after: s
 }
 
 /** A shot's prompt: what they do, both kept as they are, one continuous shot, and who says the line (or that nobody does). */
-export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion">, audioIn: boolean): string {
+export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes">, audioIn: boolean): string {
   const speaker = cast[s.who === "a" ? 0 : 1];
+  if (s.eyes) {
+    // First person (an act's view through one of their eyes): the one in full is the picture's, the other never a face.
+    const viewer = cast[s.eyes === "a" ? 0 : 1];
+    const shown = cast[s.eyes === "a" ? 1 : 0];
+    const base =
+      `${s.motion || "They stay close, moving together."} A first-person shot, seen through the eyes of ${viewer.tag}: ${shown.tag} in full, exactly as in the picture, ` +
+      `the same face and body in the same place; of ${viewer.tag} only hands, arms or hips at the edge of the frame, never a face. One continuous shot, the camera moving as ${viewer.tag}'s eyes would: no cuts, nobody else comes in. Realistic motion.`;
+    if (!s.text.trim()) return `${base} Neither of them speaks: only their breathing and the sounds of the room.`;
+    // Said by the one whose eyes these are: off camera, so no mouth on screen is made to say it.
+    if (s.who === s.eyes) return `${base} ${cap(viewer.tag)}, off camera, in ${viewer.voice}, says: "${s.text}"`;
+    return audioIn ? `${base} ${cap(shown.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(shown.tag)}, in ${shown.voice}, says: "${s.text}"`;
+  }
   const base =
     `${s.motion || "The two of them stay close, moving together."} Two people only: ${cast[0].tag} and ${cast[1].tag}, exactly as in the picture, ` +
     "the same faces and bodies in the same place. One continuous shot, the camera steady: no cuts, nobody else comes in. Realistic motion.";
@@ -837,7 +913,7 @@ export function replicateKeyframeInput(prompt: string, images: string[]): Record
  * itself is said beside it), long enough for the line, 720p like Venice's, and the safety checker off (the shot passes
  * Hive before it's kept). A LoRA: one URL for both of Wan's transformers, or two, high noise then low.
  */
-export function replicateShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion">, image: string, lora: string | null): Record<string, unknown> {
+export function replicateShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes">, image: string, lora: string | null): Record<string, unknown> {
   const [high, low] = (lora ?? "").split(/[\s,]+/).filter(Boolean);
   return {
     prompt: shotPrompt(cast, s, true),
@@ -1108,9 +1184,14 @@ export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx
   const sets = await setPictures(db, planned.map((s) => ctx.places[s.line] ?? null));
   // Undressed (the night at sex), a shot starts from their nude baselines: an edit keeps what its pictures wear.
   const facesAt = (stage: number) => (stage >= NUDE_FROM && ctx.nudeBases ? ctx.nudeBases : ctx.bases).map((id) => signedMediaUrl(id, ctx.baseUrl));
+  // A first-person shot (`eyes`) starts from the face of the one in full only (drawn like another picture, both).
+  const facesFor = (s: ReelShot) => {
+    const both = facesAt(ctx.stages[s.line] ?? 0);
+    return s.eyes && !s.ref_id ? [both[s.eyes === "a" ? 1 : 0]] : both;
+  };
   const drawn = await Promise.all(
     planned.map(async (s) => {
-      const faces = facesAt(ctx.stages[s.line] ?? 0);
+      const faces = facesFor(s);
       const place = ctx.places[s.line] ?? null;
       const drawnSet = place ? (sets.get(place) ?? null) : null;
       const own = ctx.keyframeFor?.(s, drawnSet, place);
@@ -1118,7 +1199,11 @@ export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx
       const ref = !own && s.ref_id ? s.ref_id : null;
       const set = ref ? null : own ? (own.withSet ? drawnSet : null) : drawnSet;
       // The shot's own words (the storyboard's per-shot redraw) lead its keyframe, so it's drawn to exactly what's asked.
-      const prompt = own?.prompt ?? keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set), { custom: s.custom, reference: Boolean(ref) });
+      const prompt =
+        own?.prompt ??
+        (s.eyes && !ref
+          ? povPrompt(ctx.cast, s.eyes, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set), { custom: s.custom })
+          : keyframePrompt(ctx.cast, s.frame ?? "", place ? placeWords(place, ctx.cast) : null, ctx.stages[s.line] ?? 0, Boolean(set), { custom: s.custom, reference: Boolean(ref) }));
       // Keep going: the shot before's keyframe is the third picture, in the set's place.
       const third = own?.continueFrom ? signedMediaUrl(own.continueFrom, ctx.baseUrl) : ref ? signedMediaUrl(ref, ctx.baseUrl) : null;
       try {
@@ -1226,7 +1311,7 @@ export function reelMadeOn(shots: readonly ReelShot[]): { provider: string | nul
 
 /** Queues one shot's video from its keyframe. */
 async function queueShot(ctx: Pick<ShotContext, "cast" | "venice" | "model" | "baseUrl" | "avoid">, s: ReelShot): Promise<void> {
-  const audioIn = AUDIO_IN.test(ctx.model);
+  const audioIn = AUDIO_IN.test(ctx.model) && !(s.eyes && s.who === s.eyes);
   const body: Record<string, unknown> = {
     model: ctx.model,
     duration: s.text.split(" ").length <= WORDS_5S ? "5s" : "10s",
@@ -1235,7 +1320,9 @@ async function queueShot(ctx: Pick<ShotContext, "cast" | "venice" | "model" | "b
     negative_prompt: ctx.avoid ? `${SHOT_NEGATIVE}, ${ctx.avoid}` : SHOT_NEGATIVE,
     image_url: signedMediaUrl(s.media_id!, ctx.baseUrl),
   };
-  if (audioIn && s.text.trim()) {
+  // A line said off camera (a first-person shot, by the one whose eyes they are): no voice to lip-sync to a face on screen.
+  const offCamera = Boolean(s.eyes && s.who === s.eyes);
+  if (audioIn && s.text.trim() && !offCamera) {
     // Our voice, so the words are exact and the voice is theirs every time; the model lip-syncs to it.
     const tts = await venice(ctx.venice, "/audio/speech", { model: "tts-kokoro", input: s.text, voice: voiceFor(ctx.cast[s.who === "a" ? 0 : 1]), response_format: "mp3" });
     if (!tts.ok) throw await providerError(tts, (status) => `voice ${status}`);
@@ -1342,7 +1429,9 @@ async function assembleShots(db: Db, ownerId: string, a: string, b: string, line
   const places = night?.places ?? placesOf(lines, where);
   const stages = night?.stages ?? lines.map((l) => l.stage ?? where.stage);
   const whole = night?.scope === "night" && night.chapters.length > 1 ? night : null;
-  const picks = await pickShots(db, lines, Math.min(12, Math.max(2, opts.shots ?? settings.reel_shots)), cast, places, stages, whole);
+  // What comes out best for this viewer, act by act: the director's one hint line (lib/adult/framing.ts).
+  const hint = directorHint(await framingScores(db, ownerId).catch(() => scoresFrom({})), ACTS.map((x) => ({ id: x.id, label: x.label, hasPov: Boolean(x.pov) })));
+  const picks = await pickShots(db, lines, Math.min(12, Math.max(2, opts.shots ?? settings.reel_shots)), cast, places, stages, whole, hint || undefined);
   // Where each chapter starts in the night's lines, for a shot's line in its own chapter.
   const starts = (night?.chapters ?? []).map((_, k, all) => all.slice(0, k).reduce((t, c) => t + c.lines, 0));
   const shots: ReelShot[] = [];
@@ -1355,7 +1444,20 @@ async function assembleShots(db: Db, ownerId: string, a: string, b: string, line
     const from = k === undefined ? null : { chapter: whole!.chapters[k].chapter, night_id: whole!.chapters[k].night_id, chapter_line: p.line - starts[k] };
     // Where in the night it is: the lines just before it, for the storyboard (David, 2026-10-24).
     const before = lines.slice(Math.max(0, p.line - SHOT_CONTEXT), p.line).map((x) => ({ who: x.who, text: x.text.replace(/\s+/g, " ").slice(0, 240) }));
-    shots.push({ line: p.line, who: l.who, text: speech, frame: p.frame, motion: p.motion, status: "planned", place: places[p.line] ?? null, stage: stages[p.line] ?? 0, before, ...(onReplicate ? { provider: "replicate" as const } : {}), ...(from ?? {}) });
+    shots.push({
+      line: p.line,
+      who: l.who,
+      text: speech,
+      frame: p.frame,
+      motion: p.motion,
+      status: "planned",
+      place: places[p.line] ?? null,
+      stage: stages[p.line] ?? 0,
+      before,
+      ...(p.eyes ? { eyes: p.eyes } : {}),
+      ...(onReplicate ? { provider: "replicate" as const } : {}),
+      ...(from ?? {}),
+    });
   }
   if (!shots.length) throw new Error("no usable lines");
   // A shot whose moment already has a beat picture starts from it (lib/adult/beats.ts): the video looks like the pictures.
@@ -1597,10 +1699,10 @@ export async function reuseBeatPictures(
     const part = night.chapters[k];
     if (!part) continue;
     const pic = await beatPictureFor(db, ownerId, pair, part, s.line - (starts[k] ?? 0), stages[s.line] ?? 0, places[s.line] ?? null).catch(() => null);
-    if (!pic || used.has(pic)) continue;
-    used.add(pic);
-    // Already drawn and checked: ready to film, nothing to draw for it.
-    Object.assign(s, { media_id: pic, frame_id: pic, from_beat: true, status: "frame_ready" as const });
+    if (!pic || used.has(pic.id)) continue;
+    used.add(pic.id);
+    // Already drawn and checked: ready to film, nothing to draw for it. Seen through one of their eyes, filmed so.
+    Object.assign(s, { media_id: pic.id, frame_id: pic.id, from_beat: true, status: "frame_ready" as const, ...(pic.eyes ? { eyes: pic.eyes } : {}) });
   }
 }
 
@@ -2048,9 +2150,36 @@ export async function useShotPicture(db: Db, ownerId: string, reelId: string, sh
   if (!(await pairPicture(db, ownerId, row.a, row.b, imageId))) return { ok: false, status: 404, error: "not_found", message: "That picture isn't one of this pair's." };
   const shot = row.shots[k];
   Object.assign(shot, { status: "frame_ready" as const, media_id: imageId, frame_id: imageId, from_picture: true, approved: false });
-  for (const f of ["archived_at", "archived_by", "reason", "from_beat", "ref_id", "from_video"] as const) delete shot[f];
+  for (const f of ["archived_at", "archived_by", "reason", "from_beat", "ref_id", "from_video", "eyes"] as const) delete shot[f];
+  // A first-person picture is filmed first person (2026-10-26): told "two people only", a video of one invents the other.
+  const eyes = await pictureEyes(db, imageId, [row.a, row.b]);
+  if (eyes) shot.eyes = eyes;
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(row.shots)]);
   return { ok: true, reel: (await getReel(db, reelId))! };
+}
+
+/**
+ * Whose eyes a picture of the pair is seen through, in the pair's order, from its tags (lib/adult/media-tags.ts): a
+ * first-person picture of the two ("a" or "b"), or one of them alone with the viewer ("yes": through the other one's
+ * eyes); null, both in frame.
+ */
+export async function pictureEyes(db: Db, imageId: string, pair: readonly [string, string]): Promise<"a" | "b" | null> {
+  const r = (
+    await db.query<{ character_id: string | null; character_b: string | null; pov: string | null }>(
+      `select i.character_id, i.character_b, (select t.value from adult_media_tags t where t.media_id = i.id and t.kind = 'pov' and not t.removed limit 1) as pov
+         from adult_images i where i.id = $1`,
+      [imageId],
+    )
+  ).rows[0];
+  if (!r?.pov) return null;
+  if (r.pov === "a" || r.pov === "b") {
+    // The tag is in the picture's own order (character_id first): put it in the pair's.
+    const viewer = r.pov === "a" ? r.character_id : r.character_b;
+    return viewer === pair[0] ? "a" : viewer === pair[1] ? "b" : null;
+  }
+  // One of them alone, first person: seen through the other one's eyes.
+  if (r.pov === "yes" && r.character_id && !r.character_b) return r.character_id === pair[0] ? "b" : r.character_id === pair[1] ? "a" : null;
+  return null;
 }
 
 /** One of the owner's ready videos of this pair (a clip or a studio animation), to drop into a shot as it is. */
