@@ -15,12 +15,13 @@ const Input = z.union([
   // A moment: the latest, or the line the theater shows (`at`), of the running scene or a saved night.
   z.object({ a: id, b: id, here: z.literal(true), at: z.number().int().min(0).max(5000).optional(), night_id: id.nullable().optional() }),
   z.object({ a: id, b: id, act: z.string().min(1).max(40), swap: z.boolean().optional() }),
-  // Keep going: from a clip of theirs (or a shot of one of their videos, `media_id`), at a moment of it (`at`, seconds or
-  // its end) started straight from that frame or from a fresh keyframe of their faces (`mode`); no `at`: as before.
+  // Keep going: from a clip of theirs (or a shot of one of their videos, `media_id`), from a moment of it cut first by
+  // the moments route (`frame_id`), started straight from that frame or from a fresh keyframe of their faces (`mode`);
+  // no frame: as before, from the clip's own start picture.
   z.object({
     continue: id,
     media_id: id.optional(),
-    at: z.union([z.number().min(0).max(600), z.literal("end")]).optional(),
+    frame_id: id.optional(),
     mode: z.enum(["seamless", "fresh"]).optional(),
   }),
 ]);

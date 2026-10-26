@@ -2327,10 +2327,16 @@ David: "save a image or offering a boomerang for a clip … if we really like a 
 left off". `lib/adult/moments.ts`, `lib/media-tools/ffmpeg.ts`, `POST /api/admin/after-dark/moments`,
 `app/after-dark/MomentTools.tsx`.
 
-- **ffmpeg is back** (`ffmpeg-static` 5.3.0, approved in `allowScripts`), shipped only with the moments and clips routes
+- **ffmpeg is back** (`ffmpeg-static` 5.3.0, approved in `allowScripts`), shipped only with the moments route
   (`next.config.ts outputFileTracingIncludes`). #688 removed it when a night's shots stopped chaining. A clip is cut
   from our own copy (signed links never hand a provider a video), in a temp folder per run, with a time limit.
   ffmpeg-static is GPL-3.0 and runs as a separate process on our servers only.
+- **One route carries the binary.** `lib/media-tools/ffmpeg.ts` loads the package by a name made at run time, never
+  imported by its name. ffmpeg-static says where its binary is with `path.join(__dirname, "ffmpeg")`, and the build's
+  file tracer follows that into every route that imports the file, however indirectly. On 2026-10-26 the ~75 MB binary
+  was in 236 of 247 routes, and #927's production deploy ran out of disk ("Deploying outputs", ENOSPC); #929 reverted
+  it. `tests/media-tools-tracing.test.ts` holds the rule. To check a build: `grep -l 'ffmpeg-static/ffmpeg"' $(find
+  .next/server -name "*.nft.json") | wc -l` prints the number of routes carrying it.
 - **Save this moment** (📸, free): the frame at the second the player is paused on, kept as a picture of the same one or
   two people (`kind` scene, `source_image` the clip, `moment_at`). It's a picture of its own from then on, so it gets
   the full output check (moderation and the age question; one of Hive's 100 a day), and a refusal is logged and
@@ -2341,9 +2347,11 @@ left off". `lib/adult/moments.ts`, `lib/media-tools/ffmpeg.ts`, `POST /api/admin
   A boomerang plays what's kept forward and back; a loop fades its last 0.6 s into its start, so it ends on the frame
   it starts on. They're re-orderings and blends of frames that passed the clip's own check, so nothing new is checked
   (and they work while Hive is paused). The same one for the same trim is the one already made.
-- **Keep going from here** (▶▶): `{continue, at, media_id?, mode?}` on the clips route. The frame at `at` (or the
-  clip's end, which the chain's own Keep going button now sends) is cut and asked the age question like any keyframe
-  (`momentFrame`), before anything is spent. **Seamless** (the default): the next clip's video starts straight from
+- **Keep going from here** (▶▶): two steps, so the clips route needs no ffmpeg. First `{action: "frame", media_id,
+  at}` on the moments route: the frame at `at` (or the clip's end, which the chain's own Keep going button now sends)
+  is cut and asked the age question like any keyframe (`momentFrame`), before anything is spent, and kept as a `frame`
+  row. Then `{continue, frame_id, media_id?, mode?}` on the clips route, which takes only a frame of the owner's cut
+  from that very shot (`source_image`) that no clip has started from yet. **Seamless** (the default): the next clip's video starts straight from
   that frame (`from_cut`), nothing drawn. **Fresh faces**: a new keyframe of their two faces with the frame as Picture 3
   ("at the very moment in Picture 3"). After `SEAMLESS_RUN_MAX` (2) seamless links in a row the next is fresh faces
   automatically (and says so), so a long chain can't drift away from their faces. A shot of a night's video can be kept

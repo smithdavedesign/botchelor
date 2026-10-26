@@ -6,8 +6,9 @@
  *  - An act from the menu (lib/adult/acts.ts): its still and its motion, both of them in frame, posed as it has them.
  *    Nobody speaks.
  *  - "Keep going": a finished clip carried on, and the motion with it (the act's next, or the director's). From a moment
- *    of it (David, 2026-10-26: "continue where it left off"): the frame at that second, or at its end, is cut from our
- *    copy of the video (lib/adult/moments.ts) and the next clip starts straight from it (seamless), or from a fresh
+ *    of it (David, 2026-10-26: "continue where it left off"): the frame at that second, or at its end, cut from our copy
+ *    of the video first (lib/adult/moments.ts, the moments route: ffmpeg runs there only) and given here by its id; the
+ *    next clip starts straight from it (seamless), or from a fresh
  *    keyframe of their two faces with that frame as Picture 3 (fresh faces: every third link of a chain, so the faces
  *    don't drift). Without a moment, as before: a fresh keyframe with the clip's own start picture as Picture 3. A
  *    night's video can be kept going from too, from one of its shots: that starts a new clip.
@@ -29,7 +30,6 @@ import { isPublicPlace } from "./continuity";
 import { hiveGate, hivePausedErrorMessage, HivePausedError } from "./hive-limit";
 import { atLeastExplicit, INTENSITY, intensityOf, limitsHit, storedHardNos, type PairLimits } from "./limits";
 import { ensureBaseline } from "./media";
-import { momentFrame } from "./moments";
 import { adultModel } from "./mode";
 import {
   baselines,
@@ -245,7 +245,7 @@ export async function clipOffer(db: Db, ownerId: string, x: string, y: string): 
 export type ClipAsk =
   | { a: string; b: string; here: true; at?: number; night_id?: string | null }
   | { a: string; b: string; act: string; swap?: boolean }
-  | { continue: string; media_id?: string; at?: number | "end"; mode?: KeepGoingMode };
+  | { continue: string; media_id?: string; frame_id?: string; mode?: KeepGoingMode };
 /** From a moment: start straight from its frame, or from a fresh keyframe of their faces with it as Picture 3. */
 export type KeepGoingMode = "seamless" | "fresh";
 /** Seamless links in a row before the next is drawn fresh from their faces (so a long chain can't drift from them). */
@@ -258,8 +258,8 @@ type Plan = {
   place: string | null;
   meta: ClipMeta;
   keyframe: (set: string | null, place: string | null) => { prompt: string; continueFrom: string | null; withSet: boolean };
-  /** Kept going from a moment: the video to cut it from, where, and whether to start straight from it. */
-  cut?: { video: string; at: number | "end"; seamless: boolean; forcedFresh: boolean };
+  /** Kept going from a moment: the frame cut from the video (lib/adult/moments.ts momentFrame), and whether to start straight from it. */
+  cut?: { video: string; frame: string; seamless: boolean; forcedFresh: boolean };
 };
 type Refusal = { ok: false; status: number; error: string; message: string };
 const refuse = (status: number, error: string, message: string): Refusal => ({ ok: false, status, error, message });
@@ -360,8 +360,8 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     if (!fitsClip(motion, meta.stage, limits)) return refuse(422, "not_allowed", "That's past the limits you've set for these two.");
     const after = before.motion || "they stay close";
     // From a moment: seamless unless asked for fresh faces, or the chain has run seamless SEAMLESS_RUN_MAX links already.
-    const run = cont.at !== undefined && isClip ? await seamlessRun(db, ownerId, parent.clip) : 0;
-    const seamless = cont.at !== undefined && cont.mode !== "fresh" && run < SEAMLESS_RUN_MAX;
+    const run = cont.frame_id && isClip ? await seamlessRun(db, ownerId, parent.clip) : 0;
+    const seamless = Boolean(cont.frame_id) && cont.mode !== "fresh" && run < SEAMLESS_RUN_MAX;
     const { cut: _old, ...kept } = meta;
     plan = {
       shot: { line: before.line, who: before.who, text: "", frame: `Carrying on from the shot before, after this: ${after}`, motion },
@@ -369,7 +369,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
       place: meta.place,
       meta: { ...kept, from: isClip ? parent.id : null },
       keyframe: () => ({ prompt: continuePrompt(cast, after, meta.stage, { explicit: limits.explicit, cut: Boolean(cutFrame) }), continueFrom: cutFrame ?? before.frame_id!, withSet: false }),
-      ...(cont.at !== undefined ? { cut: { video: before.media_id, at: cont.at, seamless, forcedFresh: cont.mode !== "fresh" && !seamless } } : {}),
+      ...(cont.frame_id ? { cut: { video: before.media_id, frame: cont.frame_id, seamless, forcedFresh: cont.mode !== "fresh" && !seamless } } : {}),
     };
   } else if ("act" in ask) {
     const act = actById(ask.act);
@@ -414,22 +414,25 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
 
   const busy = await busyReel(db, ownerId);
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
-  // The moment it keeps going from, cut and checked now: a refusal here costs nothing.
+  // The moment it keeps going from: a frame of theirs cut from that very shot (the moments route cut and checked it) and
+  // not started from yet.
   if (plan.cut) {
-    try {
-      const frame = await momentFrame(db, ownerId, plan.cut.video, plan.cut.at, [a, b]);
-      cutFrame = frame.id;
-      plan.meta = { ...plan.meta, cut: { video: plan.cut.video, at: frame.at, seamless: plan.cut.seamless } };
-    } catch (err) {
-      if (err instanceof HivePausedError) return refuse(503, "hive_paused", err.message);
-      return refuse(502, "not_cut", `That moment couldn't be cut from the video (${err instanceof Error ? err.message.slice(0, 160) : "error"}).`);
-    }
+    const frame = (
+      await db.query<{ id: string; moment_at: number | null }>(
+        `select f.id, f.moment_at from adult_images f
+          where f.id = $1 and f.owner_id = $2 and f.kind = 'frame' and f.status = 'ready' and f.source_image = $3
+            and not exists (select 1 from adult_images v where v.source_image = f.id)`,
+        [plan.cut.frame, ownerId, plan.cut.video],
+      )
+    ).rows[0];
+    if (!frame) return refuse(404, "not_found", "That moment isn't one cut from this shot. Try again from the player.");
+    cutFrame = frame.id;
+    plan.meta = { ...plan.meta, cut: { video: plan.cut.video, at: frame.moment_at ?? 0, seamless: plan.cut.seamless } };
   }
   const seamless = Boolean(cutFrame && plan.cut?.seamless);
   const pays = !(await isAdmin(db, ownerId));
   const price = settings.clip_tokens;
   if (pays && price > 0 && !(await spendBoughtTokens(db, ownerId, price))) {
-    if (cutFrame) await db.query(`delete from adult_images where id = $1 and kind = 'frame'`, [cutFrame]).catch(() => {});
     return refuse(402, "needs_tokens", `A clip costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.`);
   }
   const id = crypto.randomUUID();
@@ -486,7 +489,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   } catch (err) {
     if (pays && price > 0) await refundBoughtTokens(db, ownerId, price);
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
-    if (cutFrame) await db.query(`delete from adult_images where id = $1 and kind = 'frame' and not exists (select 1 from adult_images v where v.source_image = $1)`, [cutFrame]).catch(() => {});
+
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
     if (err instanceof HivePausedError) return refuse(503, "hive_paused", hivePausedErrorMessage(err, pays && price > 0));
     return refuse(502, "not_started", `The clip couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.`);

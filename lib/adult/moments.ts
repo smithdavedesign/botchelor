@@ -177,12 +177,15 @@ export async function deriveClip(db: Db, ownerId: string, videoId: string, kind:
 
 /**
  * The frame a clip keeps going from (lib/adult/clips.ts "Keep going from here"): cut at `at` (or the end of what's kept)
- * from the owner's own video, asked the age question like any keyframe (lib/adult/check.ts "keyframe": its video's check
- * comes after), and kept out of the gallery as a 'frame' of the pair. Throws what to say when it can't be had.
+ * from the owner's own video of two, asked the age question like any keyframe (lib/adult/check.ts "keyframe": its
+ * video's check comes after), and kept out of the gallery as a 'frame' of the pair. The page asks for it first (POST
+ * /api/admin/after-dark/moments "frame", the one route ffmpeg runs in), then keeps going from it by its id. Throws what
+ * to say when it can't be had.
  */
-export async function momentFrame(db: Db, ownerId: string, videoId: string, at: number | "end", pair: readonly [string, string]): Promise<{ id: string; at: number }> {
+export async function momentFrame(db: Db, ownerId: string, videoId: string, at: number | "end"): Promise<{ id: string; at: number }> {
   const video = await ownVideo(db, ownerId, videoId);
-  if (!video) throw new Error("that shot's video isn't there");
+  if (!video?.character_id || !video.character_b) throw new Error("that shot's video isn't there");
+  const pair = [video.character_id, video.character_b] as const;
   const bytes = await bytesOf(video);
   if (!bytes) throw new Error("that shot's file isn't there any more");
   const frame = await frameAt(bytes, at, video.trim);
