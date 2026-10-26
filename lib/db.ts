@@ -2455,6 +2455,17 @@ create table if not exists creator_roleplays (
 );
 create index if not exists creator_roleplays_owner_idx on creator_roleplays (owner_id, created_at desc);
 
+-- A clip's moments (lib/adult/moments.ts; David, 2026-10-26: "save a image or offering a boomerang for a clip …
+-- continue where it left off"): a video made from a clip's own frames (derived: a boomerang or a loop, source_image the
+-- clip), and the second a still was cut at (a moment saved from a clip, or the frame a clip keeps going from).
+alter table adult_images add column if not exists derived text check (derived in ('boomerang', 'loop'));
+alter table adult_images add column if not exists moment_at double precision;
+-- How far a picture goes (0 dressed … 3 explicit, lib/adult/studio-catalog.ts LEVELS), kept on the picture itself so
+-- whatever is made from it next (animated, shared) reads it, however it was made; null: read from its shoot as before.
+alter table adult_images add column if not exists level smallint check (level between 0 and 3);
+alter table adult_usage add column if not exists moments integer not null default 0;
+alter table adult_settings add column if not exists cap_moments integer not null default 100;
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

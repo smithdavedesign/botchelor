@@ -7,7 +7,7 @@
 import { isAdmin } from "../admins";
 import type { Db } from "../db";
 
-export const USAGE_KINDS = ["writes", "pictures", "clips", "voice_lines", "monologues", "studio", "studio_byok", "upscales"] as const;
+export const USAGE_KINDS = ["writes", "pictures", "clips", "voice_lines", "monologues", "studio", "studio_byok", "upscales", "moments"] as const;
 export type UsageKind = (typeof USAGE_KINDS)[number];
 const LABEL: Record<UsageKind, string> = {
   writes: "scene steps",
@@ -19,9 +19,12 @@ const LABEL: Record<UsageKind, string> = {
   studio: "Studio pictures",
   studio_byok: "Studio pictures on your own key",
   upscales: "upscales",
+  // A clip's moments (lib/adult/moments.ts): stills saved from it, and its boomerangs and loops. Free, but each still
+  // takes a check, so they're counted.
+  moments: "moments saved from clips",
 };
 /** The caps' defaults (the columns' own), for the settings page. */
-export const DEFAULT_CAPS: Record<UsageKind, number> = { writes: 300, pictures: 30, clips: 5, voice_lines: 2000, monologues: 20, studio: 400, studio_byok: 1000, upscales: 50 };
+export const DEFAULT_CAPS: Record<UsageKind, number> = { writes: 300, pictures: 30, clips: 5, voice_lines: 2000, monologues: 20, studio: 400, studio_byok: 1000, upscales: 50, moments: 100 };
 
 export const monthOf = (d: Date = new Date()) => d.toISOString().slice(0, 7);
 

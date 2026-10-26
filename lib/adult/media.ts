@@ -67,6 +67,10 @@ export type Media = {
   shows?: string | null;
   /** A picture of two (characterMedia): the other one, and their name. */
   partner?: { id: string; name: string } | null;
+  /** Made from a clip (lib/adult/moments.ts): a boomerang or a loop of it, or (`moment_at`) a still saved from it, and the clip. */
+  derived?: "boomerang" | "loop" | null;
+  moment_at?: number | null;
+  from_clip?: string | null;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -668,6 +672,8 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             (i.shoot_id is not null) as studio,
             -- A video's trim (lib/adult/trim.ts), honoured wherever it plays.
             i.trim,
+            -- Made from a clip (lib/adult/moments.ts): a boomerang or a loop, or a still saved from it, and which clip.
+            i.derived, i.moment_at, (case when i.derived is not null or i.moment_at is not null then i.source_image end) as from_clip,
             -- Tagged as the two of them together (lib/adult/media-tags.ts "who"), however it was made.
             exists (select 1 from adult_media_tags wt where wt.media_id = i.id and wt.kind = 'who' and wt.value = 'pair' and not wt.removed) as together,
             -- What it shows, for the tile's label (lib/adult/tag-labels.ts showsLabel).

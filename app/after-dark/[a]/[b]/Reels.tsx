@@ -12,6 +12,8 @@ import RateMedia from "./RateMedia";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import type { Trim } from "@/lib/adult/trim";
 import TrimPanel from "../../TrimPanel";
+import MomentTools from "../../MomentTools";
+import type { Media } from "@/lib/adult/media";
 import { trimStep } from "../../trimPlayback";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
@@ -31,8 +33,9 @@ const drop = (url: string) => url.startsWith("blob:") && URL.revokeObjectURL(url
  *    and two stacked players swap on each cut, so one shot runs straight into the next;
  *  - "watch the video in theater mode too": a full-screen stage with the line as a caption.
  */
-export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r: Reel) => void }) {
+export default function Reels({ reels, onChange, onMedia }: { reels: Reel[]; onChange: (r: Reel) => void; onMedia?: (m: Media) => void }) {
   const making = reels.filter((r) => r.status === "making").map((r) => r.id).join(",");
+  const price = useClipPrice(reels.find((r) => r.a && r.b));
   useEffect(() => {
     if (!making) return;
     const timer = setInterval(async () => {
@@ -60,17 +63,17 @@ export default function Reels({ reels, onChange }: { reels: Reel[]; onChange: (r
           <h3>
             The whole night <span className="muted small">· {finished} videos, oldest first · {night.length} shots</span>
           </h3>
-          <SeamlessPlayer shots={night} onChange={onChange} />
+          <SeamlessPlayer shots={night} onChange={onChange} price={price} onMedia={onMedia} />
         </div>
       )}
-      {clips.length > 0 && <Clips clips={clips} onChange={onChange} />}
+      {clips.length > 0 && <Clips clips={clips} onChange={onChange} price={price} onMedia={onMedia} />}
       {nights.length > 0 && (
         <ul className="after-dark-reels">
           {nights.map((r) => (
             <li key={r.id}>
               {/* What it filmed: "Whole night, chapters 1–2" or "Chapter 2" (not recorded on videos from before). */}
               {r.chapters?.length ? <p className="muted small ad-reel-covers">🎬 {chaptersLabel(r.chapters)}</p> : null}
-              <ReelPlayer reel={r} onChange={onChange} />
+              <ReelPlayer reel={r} onChange={onChange} price={price} onMedia={onMedia} />
             </li>
           ))}
         </ul>
@@ -198,10 +201,8 @@ function ArchivedShot({ shot, onChange }: { shot: PlayShot & { from: string }; o
  * Their clips (lib/adult/clips.ts), each with the ones kept going from it as one film, newest first. "Keep going" carries
  * the last one on: its keyframe is the picture the next shot starts from. The price is the pair's clip menu's.
  */
-function Clips({ clips, onChange }: { clips: Reel[]; onChange: (r: Reel) => void }) {
-  // A chain whose every clip went to the Archive is listed there, not here.
-  const chains = clipChains(clips).filter((chain) => !chain.every(archivedClip));
-  const pair = clips.find((c) => c.a && c.b);
+/** A clip's price for this pair (the clip menu's), for Keep going: null until it's known. */
+function useClipPrice(pair: Reel | undefined): number | null {
   const [price, setPrice] = useState<number | null>(null);
   useEffect(() => {
     if (!pair?.a || !pair.b) return;
@@ -214,6 +215,12 @@ function Clips({ clips, onChange }: { clips: Reel[]; onChange: (r: Reel) => void
       gone = true;
     };
   }, [pair?.a, pair?.b]);
+  return price;
+}
+
+function Clips({ clips, onChange, price, onMedia }: { clips: Reel[]; onChange: (r: Reel) => void; price: number | null; onMedia?: (m: Media) => void }) {
+  // A chain whose every clip went to the Archive is listed there, not here.
+  const chains = clipChains(clips).filter((chain) => !chain.every(archivedClip));
   const making = clips.some((c) => c.status === "making");
   if (!chains.length) return null;
   return (
@@ -224,7 +231,7 @@ function Clips({ clips, onChange }: { clips: Reel[]; onChange: (r: Reel) => void
       <ul className="after-dark-reels">
         {chains.map((chain) => (
           <li key={chain[0].id}>
-            <ClipChain chain={chain} price={price} making={making} onChange={onChange} />
+            <ClipChain chain={chain} price={price} making={making} onChange={onChange} onMedia={onMedia} />
           </li>
         ))}
       </ul>
@@ -233,7 +240,7 @@ function Clips({ clips, onChange }: { clips: Reel[]; onChange: (r: Reel) => void
 }
 
 /** One clip and the ones kept going from it: played as one, the last one's state, and Keep going. */
-function ClipChain({ chain, price, making, onChange }: { chain: Reel[]; price: number | null; making: boolean; onChange: (r: Reel) => void }) {
+function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[]; price: number | null; making: boolean; onChange: (r: Reel) => void; onMedia?: (m: Media) => void }) {
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState<{ text: string; busy?: BusyReel } | null>(null);
   const shots = chain.flatMap((c) => readyShots(c));
@@ -245,11 +252,13 @@ function ClipChain({ chain, price, making, onChange }: { chain: Reel[]; price: n
     if (!from) return;
     setAsking(true);
     setNote(null);
-    const res = await requestJson("/api/admin/after-dark/clips", { continue: from.id }).catch(() => null);
+    // From where it ended (lib/adult/moments.ts): the next shot starts on the clip's last frame.
+    const res = await requestJson("/api/admin/after-dark/clips", { continue: from.id, at: "end" }).catch(() => null);
     setAsking(false);
     if (!res) return setNote({ text: "That didn't reach the server. Check your connection and try again." });
     if (!res.ok) return setNote({ text: res.message, busy: (res.data.busy as BusyReel | undefined) ?? undefined });
     onChange(res.data.reel as Reel);
+    if (typeof res.data.note === "string") setNote({ text: res.data.note });
   }
   return (
     <div className="ad-clip-chain">
@@ -260,11 +269,11 @@ function ClipChain({ chain, price, making, onChange }: { chain: Reel[]; price: n
           {chain.length > 1 ? `, kept going ${chain.length - 1} time${chain.length === 2 ? "" : "s"}` : ""}
         </span>
       </p>
-      {shots.length > 0 && <SeamlessPlayer shots={shots} onChange={onChange} />}
+      {shots.length > 0 && <SeamlessPlayer shots={shots} onChange={onChange} price={price} onMedia={onMedia} />}
       {last.status === "making" ? (
-        <ReelPlayer reel={last} onChange={onChange} what="clip" />
+        <ReelPlayer reel={last} onChange={onChange} what="clip" price={price} onMedia={onMedia} />
       ) : (
-        last.status === "failed" && <ReelPlayer reel={last} onChange={onChange} what="clip" />
+        last.status === "failed" && <ReelPlayer reel={last} onChange={onChange} what="clip" price={price} onMedia={onMedia} />
       )}
       {from && (
         <p>
@@ -273,7 +282,7 @@ function ClipChain({ chain, price, making, onChange }: { chain: Reel[]; price: n
             className="secondary small"
             disabled={asking || making}
             onClick={() => void keepGoing()}
-            title="Carry this clip on: the next shot starts where this one left them"
+            title="Carry this clip on from its last frame: the next shot starts exactly where this one ended"
           >
             {asking ? "Setting up the next shot…" : `▶▶ Keep going${cost}`}
           </button>
@@ -294,7 +303,7 @@ export async function stopReel(id: string): Promise<Reel | null> {
   return (res?.reel as Reel | undefined) ?? null;
 }
 
-function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: (r: Reel) => void; what?: "video" | "clip" }) {
+function ReelPlayer({ reel, onChange, what = "video", price = null, onMedia }: { reel: Reel; onChange: (r: Reel) => void; what?: "video" | "clip"; price?: number | null; onMedia?: (m: Media) => void }) {
   const shots = readyShots(reel);
   const done = reel.shots.filter((s) => s.status !== "queued").length;
   const [stopping, setStopping] = useState(false);
@@ -356,7 +365,7 @@ function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: 
   const archived = reel.shots.filter((s) => s.status === "ready" && s.archived_at).length;
   return (
     <>
-      <SeamlessPlayer shots={shots} onChange={onChange} />
+      <SeamlessPlayer shots={shots} onChange={onChange} price={price} onMedia={onMedia} />
       {archived > 0 && <p className="muted small">{archived} shot(s) taken out, in the Archive below.</p>}
       {discarded > 0 && <p className="muted small">{discarded} shot(s) discarded by the check.</p>}
       {failed > 0 && (
@@ -379,7 +388,7 @@ function ReelPlayer({ reel, onChange, what = "video" }: { reel: Reel; onChange: 
  * Under it, the shot on screen: 👍/👎 (lib/adult/steering.ts), and with `onChange`, Remove this shot, which takes it out
  * of its video into the Archive (nothing is deleted). The shots already fetched are kept for the shots that are left.
  */
-function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r: Reel) => void }) {
+function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: PlayShot[]; onChange?: (r: Reel) => void; price?: number | null; onMedia?: (m: Media) => void }) {
   const key = shots.map((s) => `${s.media_id}${s.audio_id ? `+${s.audio_id}` : ""}`).join(",");
   const admin = useContext(MediaAdmin);
   const [urls, setUrls] = useState<string[] | null>(null);
@@ -838,6 +847,17 @@ function SeamlessPlayer({ shots, onChange }: { shots: PlayShot[]; onChange?: (r:
               <button type="button" className="button-ghost small" disabled={refilming} onClick={() => void refilm(shot)} title="Film this shot again from the same start picture">
                 {refilming ? "Starting…" : "🔁 Film again"}
               </button>
+            )}
+            {onChange && (
+              // The moment on screen (lib/adult/moments.ts): a still, a boomerang, a loop, or a new shot on from here.
+              <MomentTools
+                key={`moments-${shot.media_id}`}
+                mediaId={shot.media_id}
+                now={() => players[i % 2].current?.currentTime ?? 0}
+                pause={() => players[i % 2].current?.pause()}
+                onMedia={onMedia}
+                keepGoing={{ reelId: shot.reel, price, onReel: onChange }}
+              />
             )}
           </div>
           {removeError && (

@@ -15,7 +15,14 @@ const Input = z.union([
   // A moment: the latest, or the line the theater shows (`at`), of the running scene or a saved night.
   z.object({ a: id, b: id, here: z.literal(true), at: z.number().int().min(0).max(5000).optional(), night_id: id.nullable().optional() }),
   z.object({ a: id, b: id, act: z.string().min(1).max(40), swap: z.boolean().optional() }),
-  z.object({ continue: id }),
+  // Keep going: from a clip of theirs (or a shot of one of their videos, `media_id`), at a moment of it (`at`, seconds or
+  // its end) started straight from that frame or from a fresh keyframe of their faces (`mode`); no `at`: as before.
+  z.object({
+    continue: id,
+    media_id: id.optional(),
+    at: z.union([z.number().min(0).max(600), z.literal("end")]).optional(),
+    mode: z.enum(["seamless", "fresh"]).optional(),
+  }),
 ]);
 
 /** Not found for everyone but a viewer after dark is open to (lib/adult/mode.ts). */
@@ -45,5 +52,5 @@ export const POST = handle(async (req: Request) => {
   const input = parseBody(Input, await readJson(req), "invalid_request");
   const r = await makeClip(db, viewer, input, requestBase(req));
   if (!r.ok) return json({ error: r.error, message: r.message, ...(r.busy ? { busy: r.busy } : {}) }, r.status);
-  return json({ reel: r.reel });
+  return json({ reel: r.reel, ...(r.note ? { note: r.note } : {}) });
 });

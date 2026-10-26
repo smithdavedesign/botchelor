@@ -1,0 +1,148 @@
+/**
+ * ffmpeg on the server, back for the creator tools (David, 2026-10-26: "save a image or offering a boomerang for a clip
+ * … continue where it left off"). #688 took it out when a night's shots stopped chaining from each other's last frames;
+ * now a clip's moment is cut from our own copy of it (a video never leaves our servers: signed links are for pictures),
+ * and a boomerang or a loop is made from the clip's own frames. The binary (ffmpeg-static) ships only with the routes
+ * that use it (next.config.ts). Each run works in a temp folder of its own, removed after, with a time limit.
+ */
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { AI_DESCRIPTION } from "../ai-mark";
+
+/** A video's trim (lib/adult/trim.ts): where it starts and ends, and the parts cut out, in seconds. */
+export type KeptTrim = { start: number; end: number | null; cuts: [number, number][] };
+
+export class FfmpegError extends Error {}
+
+/** One run: its arguments (after -hide_banner), the files it reads (written to its folder first), the ones it writes. */
+export type FfmpegRun = { args: string[]; inputs: Record<string, Buffer>; outputs: string[]; timeoutMs?: number; quiet?: boolean; allowFail?: boolean };
+export type FfmpegResult = { files: Record<string, Buffer>; stderr: string };
+type Runner = (run: FfmpegRun) => Promise<FfmpegResult>;
+
+let runnerForTests: Runner | null = null;
+/** Tests that don't need ffmpeg itself stand in for it (the moments' own tests run the real one). */
+export function setFfmpegForTests(r: Runner | null): void {
+  runnerForTests = r;
+}
+
+/** Where the binary is: FFMPEG_PATH when it's set (a system ffmpeg), else ffmpeg-static's. */
+async function binary(): Promise<string> {
+  const own = process.env.FFMPEG_PATH;
+  if (own) return own;
+  const mod = (await import("ffmpeg-static")) as { default?: string | null };
+  const path = mod.default ?? null;
+  if (!path) throw new FfmpegError("ffmpeg isn't available on this server");
+  return path;
+}
+
+export async function runFfmpeg(run: FfmpegRun): Promise<FfmpegResult> {
+  if (runnerForTests) return runnerForTests(run);
+  const dir = await mkdtemp(join(tmpdir(), "bz-ffmpeg-"));
+  try {
+    for (const [name, bytes] of Object.entries(run.inputs)) await writeFile(join(dir, name), bytes);
+    const bin = await binary();
+    const args = ["-hide_banner", ...(run.quiet === false ? [] : ["-loglevel", "error"]), ...run.args];
+    const stderr = await new Promise<string>((resolve, reject) => {
+      execFile(bin, args, { cwd: dir, timeout: run.timeoutMs ?? 60_000, maxBuffer: 8 * 1024 * 1024 }, (err, _out, errOut) => {
+        if (err && !run.allowFail) {
+          const said = String(errOut || err.message).trim();
+          // The binary missing from a deployment is the one worth spotting in the runtime logs.
+          if ((err as NodeJS.ErrnoException).code === "ENOENT") console.error(`[ffmpeg] no binary at ${bin}`);
+          reject(new FfmpegError(said.slice(-300) || "ffmpeg failed"));
+        } else resolve(String(errOut ?? ""));
+      });
+    });
+    const files: Record<string, Buffer> = {};
+    for (const name of run.outputs) files[name] = await readFile(join(dir, name));
+    return { files, stderr };
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/** A video's length in seconds, read from what ffmpeg says about its input (ffmpeg-static ships no ffprobe). */
+export async function videoDuration(video: Buffer): Promise<number> {
+  const { stderr } = await runFfmpeg({ args: ["-i", "in.mp4"], inputs: { "in.mp4": video }, outputs: [], quiet: false, allowFail: true, timeoutMs: 20_000 });
+  const m = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr);
+  if (!m) throw new FfmpegError("couldn't read the clip's length");
+  return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+}
+
+/** The shortest stretch kept, and the shortest loop worth making. */
+const MIN_PART = 0.1;
+
+/** The stretches a trim keeps, in order, inside the video's length (the whole video when there's no trim). */
+export function keptParts(duration: number, trim?: KeptTrim | null): [number, number][] {
+  const end = Math.min(trim?.end ?? duration, duration);
+  let at = Math.min(Math.max(0, trim?.start ?? 0), end);
+  const parts: [number, number][] = [];
+  for (const [a, b] of [...(trim?.cuts ?? [])].sort((x, y) => x[0] - y[0])) {
+    if (a > at) parts.push([at, Math.min(a, end)]);
+    at = Math.max(at, b);
+  }
+  if (end > at) parts.push([at, end]);
+  return parts.filter(([a, b]) => b - a >= MIN_PART);
+}
+
+const lengthOf = (parts: readonly [number, number][]) => parts.reduce((n, [a, b]) => n + (b - a), 0);
+const sec = (n: number) => n.toFixed(3);
+
+/**
+ * The filter graph that plays only what's kept, at an even size and a steady 24 fps (what xfade and the encoder want),
+ * into the label `[base]`.
+ */
+function keptGraph(parts: readonly [number, number][]): string {
+  const pieces = parts.map(([a, b], k) => `[0:v]trim=start=${sec(a)}:end=${sec(b)},setpts=PTS-STARTPTS[p${k}]`);
+  const joined = parts.length > 1 ? `${parts.map((_, k) => `[p${k}]`).join("")}concat=n=${parts.length}:v=1:a=0[kept]` : null;
+  const into = joined ? "kept" : "p0";
+  return [...pieces, ...(joined ? [joined] : []), `[${into}]fps=24,format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2[base]`].join(";");
+}
+
+/** How every video made here is written: H.264 that plays anywhere, silent, starting fast, and marked AI-generated. */
+const VIDEO_OUT = ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-metadata", `comment=${AI_DESCRIPTION}`, "-metadata", `description=${AI_DESCRIPTION}`];
+
+/**
+ * One frame of a video as a PNG: at `at` seconds, or at the end of what its trim keeps ("end"). Returns the time it was
+ * cut at too, held inside the video.
+ */
+export async function frameAt(video: Buffer, at: number | "end", trim?: KeptTrim | null): Promise<{ png: Buffer; at: number }> {
+  const duration = await videoDuration(video);
+  const parts = keptParts(duration, trim);
+  const last = parts.length ? parts[parts.length - 1][1] : duration;
+  // A frame a little before the very end: the last one can be missing from a seek.
+  const t = at === "end" ? Math.max(0, last - 0.08) : Math.min(Math.max(0, at), Math.max(0, duration - 0.08));
+  const { files } = await runFfmpeg({
+    args: ["-ss", sec(t), "-i", "in.mp4", "-frames:v", "1", "-update", "1", "-y", "frame.png"],
+    inputs: { "in.mp4": video },
+    outputs: ["frame.png"],
+    timeoutMs: 20_000,
+  });
+  const png = files["frame.png"];
+  if (!png?.length) throw new FfmpegError("no frame came out");
+  return { png, at: Math.round(t * 100) / 100 };
+}
+
+/** A boomerang: what the trim keeps, played forward and then backward, silent. */
+export async function boomerang(video: Buffer, trim?: KeptTrim | null): Promise<Buffer> {
+  const parts = keptParts(await videoDuration(video), trim);
+  if (!parts.length) throw new FfmpegError("nothing is left of the clip to play");
+  const graph = `${keptGraph(parts)};[base]split[f][r0];[r0]reverse[r];[f][r]concat=n=2:v=1:a=0[out]`;
+  const { files } = await runFfmpeg({ args: ["-i", "in.mp4", "-filter_complex", graph, "-map", "[out]", ...VIDEO_OUT, "-y", "out.mp4"], inputs: { "in.mp4": video }, outputs: ["out.mp4"] });
+  return files["out.mp4"];
+}
+
+/**
+ * A seamless loop: the end of what's kept fades into its start, so played on repeat there's no jump. The first `fade`
+ * seconds are laid over the last: the result is `fade` shorter, and ends on the very frame it starts on.
+ */
+export async function seamlessLoop(video: Buffer, trim?: KeptTrim | null, fade = 0.6): Promise<Buffer> {
+  const parts = keptParts(await videoDuration(video), trim);
+  const length = lengthOf(parts);
+  if (length < 1) throw new FfmpegError("the clip is too short to loop");
+  const f = Math.min(fade, length / 4);
+  const graph = `${keptGraph(parts)};[base]split[m0][h0];[m0]trim=start=${sec(f)},setpts=PTS-STARTPTS[m];[h0]trim=end=${sec(f)},setpts=PTS-STARTPTS[h];[m][h]xfade=transition=fade:duration=${sec(f)}:offset=${sec(length - 2 * f)}[out]`;
+  const { files } = await runFfmpeg({ args: ["-i", "in.mp4", "-filter_complex", graph, "-map", "[out]", ...VIDEO_OUT, "-y", "out.mp4"], inputs: { "in.mp4": video }, outputs: ["out.mp4"] });
+  return files["out.mp4"];
+}
