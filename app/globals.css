@@ -11573,12 +11573,20 @@ button.pg-group-head:hover {
 .phone-header.is-page {
   position: relative;
 }
+/* .thread-action anchors its booking error under the button; while the panel is open it lets go, so the panel spans the
+   header instead of the button group (2026-10-25: anchored to the buttons, it was ~230px wide on desktop). */
+.thread-action:has(> .double-panel) {
+  position: static;
+}
 .double-panel {
   position: absolute;
   top: calc(100% + 0.35rem);
   left: 0.5rem;
   right: 0.5rem;
   z-index: 30;
+  max-height: min(65vh, 32rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: grid;
   gap: 0.6rem;
   padding: 0.85rem 1rem 1rem;
