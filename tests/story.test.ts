@@ -9,7 +9,8 @@ import { connections, findMilestones, loadCharacterMemory, metBefore, pairStatus
 import { buildReflectionMessages } from "@/lib/reflection";
 import type { DramaAnswer, DramaQuestion, Ending } from "@/lib/rules";
 import { checkFields } from "@/lib/safety";
-import { seasonIdAt } from "@/lib/season-cast";
+// The week a "this week" update is stored for (lib/life.ts: weekIdOf), not the monthly season (lib/season-cast.ts).
+import { weekIdOf as seasonIdAt } from "@/lib/season-window";
 import { buildDate, DEFAULT_DATE_REQUEST } from "@/lib/simulation";
 import { api, newUserCookie, startTestDb, validCharacter } from "./helpers";
 
