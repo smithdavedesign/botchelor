@@ -2540,7 +2540,8 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // A picture of the two of them for each chapter and each place (lib/adult/auto-pictures.ts). Asked on every step, so
   // one that didn't come (Hive busy, 2026-10-23) is drawn on a later step; the claim keeps it to one per chapter and
   // place. Claimed now, drawn after the response; never fails the step.
-  const autoPicture = await kickAutoPicture(db, adminId, { id: scene.id, chapter: scene.chapter, place: place ?? ctx.date?.setting ?? null, set_place, stage, lines, home: place_history.at(-1)?.home ?? null }, a, b);
+  // Not when these lines asked for one of both: that's this moment's picture (2026-10-26: both were drawn, of the same lines).
+  const autoPicture = askedBoth ? false : await kickAutoPicture(db, adminId, { id: scene.id, chapter: scene.chapter, place: place ?? ctx.date?.setting ?? null, set_place, stage, lines, home: place_history.at(-1)?.home ?? null }, a, b);
   let after: LoadedScene = { ...scene, ...next, suggestions, whispers: nextWhispers, picture_note: note, undo: stack, beats: await chapterBeats(db, scene.id, scene.chapter) };
   // A full chapter: filed as a saved night, recapped, and the night runs straight on into the next one. What the close
   // changed goes with the step's undo, so a rewind takes it back too.
