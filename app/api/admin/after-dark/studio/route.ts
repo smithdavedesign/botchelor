@@ -7,6 +7,7 @@ import {
   animatePicture,
   bodyShoot,
   faceAnchorShoot,
+  identityPack,
   deleteSetup,
   moreLikeThis,
   pairMenu,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/adult/studio";
 import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, GROUP_IDS, PAIR_SECTIONS, TRANSCRIPT_MAX, type PairSection } from "@/lib/adult/studio-catalog";
 import { getDb } from "@/lib/db";
+import { IDENTITY_VIEW_IDS, type IdentityViewId } from "@/lib/studio/identity-views";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
 
@@ -78,6 +80,8 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("recast"), character_id: id, model, own_key }),
   z.object({ action: z.literal("body"), character_id: id, nude: z.boolean().optional(), model, own_key }),
   z.object({ action: z.literal("face"), character_id: id, model, own_key }),
+  // The identity pack's views (lib/studio/identity-views.ts): all eight, or the ones asked for.
+  z.object({ action: z.literal("identity_pack"), character_id: id, views: z.array(z.enum(IDENTITY_VIEW_IDS as [IdentityViewId, ...IdentityViewId[]])).max(8).optional(), model, own_key }),
   z.object({
     action: z.literal("pair"),
     character_id: id,
@@ -176,6 +180,8 @@ export const POST = handle(async (req: Request) => {
         return job(input.character_id, await bodyShoot(db, viewer, input.character_id, { nude: input.nude, model: input.model, own_key: input.own_key }, base));
       case "face":
         return job(input.character_id, await faceAnchorShoot(db, viewer, input.character_id, { model: input.model, own_key: input.own_key }, base));
+      case "identity_pack":
+        return job(input.character_id, await identityPack(db, viewer, input.character_id, { views: input.views, model: input.model, own_key: input.own_key }, base));
       case "pair": {
         const { action: _a, character_id, ...pair } = input;
         return job(character_id, await pairShoot(db, viewer, character_id, pair, base));

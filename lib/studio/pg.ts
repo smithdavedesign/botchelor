@@ -14,7 +14,10 @@
  *    each character free (while the site's `free_per_day` lasts); admins free. Each person's pictures a month are capped.
  *  - **Where it's kept:** studio_pg_pictures, bytes in the bucket under studio-pg/; only the owner (or an admin) sees them
  *    (app/api/studio/pictures/[id]).
+ *  - **Identity pack (the creator suite):** eight views of them from their portrait (lib/studio/identity-views.ts), each
+ *    checked like a shoot's pictures, for `identity_price` (fewer, a redraw, for their share of it).
  */
+import { createHash } from "node:crypto";
 import { isAdmin } from "../admins";
 import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { loadCharacter, type Character } from "../character";
@@ -27,6 +30,8 @@ import { checkRating } from "../adult/moderation";
 import { adultKeys, getAdultSettings } from "../adult/settings";
 import { PG_GROUPS, PG_NEGATIVE, pgShootPrompt, planPgShoot, planWords, type PgChoices, type PgSubject } from "./pg-catalog";
 import { getLibrary, type MyPlace, type MyPrompt } from "./library";
+import { identityPackOf, keepIdentityView, type IdentityPack } from "./identity-pack";
+import { IDENTITY_VIEW_IDS, identityPrice, identityViewPrompt, type IdentityViewId } from "./identity-views";
 
 export type PgFail = { ok: false; status: number; error: string; message: string };
 const fail = (status: number, error: string, message: string): PgFail => ({ ok: false, status, error, message });
@@ -134,7 +139,23 @@ export type PgState = {
   admin: boolean;
   /** Their own safe venues and prompts (lib/studio/library.ts), for the Where menu and the words box. */
   library: { places: MyPlace[]; prompts: MyPrompt[] };
+  /** Their identity pack's views (the creator suite), and what all eight cost. */
+  identity_pack: IdentityPack;
+  identity_price: number;
 };
+
+/**
+ * Which face a view was drawn from, as kept with it: the portrait's path (the same on every host), or a hash of the
+ * picture itself. A new portrait, and the old views say so.
+ */
+export function faceKey(face: string): string {
+  if (face.startsWith("data:")) return createHash("sha256").update(face).digest("hex").slice(0, 24);
+  try {
+    return new URL(face).pathname;
+  } catch {
+    return face.slice(0, 200);
+  }
+}
 
 const monthStart = () => {
   const d = new Date();
@@ -150,7 +171,7 @@ async function firstShootFree(db: Db, viewer: string, characterId: string, confi
   if (!config.free_first_shoot) return false;
   const r = (
     await db.query<{ mine: number; today: number }>(
-      `select count(*) filter (where owner_id = $1 and character_id = $2 and (made > 0 or status = 'making'))::int as mine,
+      `select count(*) filter (where owner_id = $1 and character_id = $2 and kind = 'shoot' and (made > 0 or status = 'making'))::int as mine,
               count(*) filter (where free and created_at > now() - interval '1 day')::int as today
          from studio_pg_shoots`,
       [viewer, characterId],
@@ -192,6 +213,8 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
       left_this_month: Math.max(0, config.monthly_cap - used),
       admin,
       library: { places: library.places, prompts: library.prompts },
+      identity_pack: await identityPackOf(db, viewer!, c.id, "pg", face ? faceKey(face) : null),
+      identity_price: config.identity_price,
     },
   };
 }
@@ -276,6 +299,91 @@ export async function pgShoot(db: Db, viewer: string | null, characterId: string
   return {
     ok: true,
     shoot: { id, status, asked, made, tokens: refunded ? 0 : tokens, free, error: lastError, created_at: new Date().toISOString() },
+    pictures: kept,
+    refunded,
+    message,
+  };
+}
+
+/**
+ * The identity pack in the PG Studio (the creator suite, 2026-10-26; lib/studio/identity-views.ts): eight views of them,
+ * each an edit of their portrait in Venice's safe mode, four at a time, each checked as a shoot's are and kept as a
+ * picture of theirs (a view that doesn't pass isn't kept). All eight for `identity_price`, or the ones asked for (a
+ * redraw) for their share of it; admins free; given back whole when nothing came through. They count against the
+ * month's pictures, and never use up the free first shoot.
+ */
+export async function pgIdentityPack(db: Db, viewer: string | null, characterId: string, input: { views?: IdentityViewId[] }, baseUrl: string): Promise<PgShootResult> {
+  const access = await pgAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const { character: c, config, admin } = access;
+  const owner = viewer!;
+  const views = input.views?.length ? IDENTITY_VIEW_IDS.filter((v) => input.views!.includes(v)) : [...IDENTITY_VIEW_IDS];
+  if (!views.length) return fail(422, "unknown_view", "Pick the views to draw.");
+  const face = await faceReference(db, c, baseUrl);
+  if (!face) return fail(409, "no_face", "Give them a portrait first: the pack is drawn from their face.");
+  const keys = await adultKeys(db);
+  if (!keys.venice) return fail(409, "not_set_up", "The Studio needs a Venice key in the settings.");
+  const asked = views.length;
+  const used = await picturesThisMonth(db, owner);
+  if (!admin && used + asked > config.monthly_cap) return fail(429, "over_cap", `That's ${asked} and ${Math.max(0, config.monthly_cap - used)} are left this month. They reset on the 1st.`);
+  const tokens = admin ? 0 : identityPrice(config.identity_price, asked);
+  if (tokens > 0 && !(await spendBoughtTokens(db, owner, tokens))) return fail(402, "needs_tokens", `That's ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the shop page.`);
+  const subject = pgSubject(c);
+  const from = faceKey(face);
+  const id = crypto.randomUUID();
+  await db.query(
+    `insert into studio_pg_shoots (id, owner_id, character_id, choices, model, tokens, free, asked, status, kind) values ($1, $2, $3, $4::jsonb, $5, $6, false, $7, 'making', 'identity')`,
+    [id, owner, c.id, JSON.stringify({ views }), config.edit_model, tokens, asked],
+  );
+  const drawn: ({ view: IdentityViewId; prompt: string } & ({ file: { bytes: Buffer; mime: string } } | { error: string }))[] = [];
+  for (let i = 0; i < views.length; i += 4) {
+    const batch = views.slice(i, i + 4).map((view) => {
+      const prompt = identityViewPrompt(view, subject, { pg: true });
+      return drawPg(keys.venice!, config, prompt, face).then(
+        (file) => ({ view, prompt, file }),
+        (err: unknown) => ({ view, prompt, error: err instanceof Error ? err.message.slice(0, 200) : "error" }),
+      );
+    });
+    drawn.push(...(await Promise.all(batch)));
+  }
+  const kept: PgPicture[] = [];
+  let lastError: string | null = null;
+  let checked = 0;
+  for (const d of drawn) {
+    if ("error" in d) {
+      lastError = d.error;
+      continue;
+    }
+    if (checked++ && pauses) await new Promise((r) => setTimeout(r, CHECK_GAP_MS));
+    const v = await checkRating(db, { base64: d.file.bytes.toString("base64"), mime: d.file.mime }, { beach: false });
+    if (!v.ok) {
+      lastError = v.reason;
+      continue;
+    }
+    const pid = crypto.randomUUID();
+    const store = await keepBytes("studio-pg", pid, d.file.bytes, d.file.mime);
+    await db.query(
+      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [pid, owner, c.id, id, d.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, v.rating, v.clothing, config.edit_model],
+    );
+    await keepIdentityView(db, owner, c.id, "pg", d.view, pid, from);
+    kept.push({ id: pid, rating: v.rating, created_at: new Date().toISOString(), shoot_id: id });
+  }
+  const made = kept.length;
+  const refunded = made === 0 && tokens > 0;
+  if (refunded) await refundBoughtTokens(db, owner, tokens);
+  const status = made === 0 ? "failed" : made < asked ? "partial" : "ready";
+  await db.query(`update studio_pg_shoots set made = $2, status = $3, error = $4, tokens = $5 where id = $1`, [id, made, status, lastError, refunded ? 0 : tokens]);
+  const message =
+    made === 0
+      ? `Nothing came through${lastError ? ` (${lastError})` : ""}.${refunded ? " Your tokens are back." : ""}`
+      : made < asked
+        ? `${made} of ${asked} views came through; the rest didn't pass the Studio's check or failed to draw. Tap one to draw it again.`
+        : null;
+  return {
+    ok: true,
+    shoot: { id, status, asked, made, tokens: refunded ? 0 : tokens, free: false, error: lastError, created_at: new Date().toISOString() },
     pictures: kept,
     refunded,
     message,

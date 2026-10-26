@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
 import { tagsFor } from "@/lib/adult/rating-tags";
 
-type Rated = { rating: 1 | -1 | null; tags: string[] };
+export type Rated = { rating: 1 | -1 | null; tags: string[] };
 
 /** What's been said on this page since it loaded, by media id: a shot comes back round in a player with it still showing. */
 const said = new Map<string, Rated>();
@@ -20,6 +20,7 @@ export default function RateMedia({
   rating = null,
   tags = [],
   onRated,
+  extra,
 }: {
   id: string;
   kind: string;
@@ -27,6 +28,8 @@ export default function RateMedia({
   tags?: string[];
   /** Told each saved rating, so the gallery can move a 👎 to Not liked (David, 2026-10-24). */
   onRated?: (rating: 1 | -1 | null) => void;
+  /** What goes with the rating, knowing what was said: Fix faces, bolder once they say it doesn't look like them. */
+  extra?: (now: Rated) => ReactNode;
 }) {
   const [now, setNow] = useState<Rated>(() => said.get(id) ?? { rating, tags });
   const [busy, setBusy] = useState(false);
@@ -91,6 +94,7 @@ export default function RateMedia({
           That didn&apos;t save. Try again.
         </span>
       )}
+      {extra?.(now)}
     </div>
   );
 }

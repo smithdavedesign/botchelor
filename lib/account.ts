@@ -447,6 +447,8 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["creator_prompts", "owner_id"], ["creator_places", "owner_id"], ["creator_roleplays", "owner_id"],
   // Their exports (lib/media-tools/export.ts): the files in the bucket go first (removeExportsOf), then the rows.
   ["media_exports", "owner_id"],
+  // Their identity packs' views, in both Studios (lib/studio/identity-pack.ts).
+  ["identity_views", "owner_id"],
 ];
 
 /**

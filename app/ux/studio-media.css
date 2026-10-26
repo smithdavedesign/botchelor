@@ -202,3 +202,148 @@ li.picked {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* The identity pack (app/studio/IdentityPackGrid.tsx): eight views, four across (two on a phone); a view drawn from an
+   earlier face is dimmed and says so; a picked one (to redraw) gets the accent ring. */
+.studio-identity-pack {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+.studio-identity-pack p {
+  margin: 0;
+}
+.studio-identity-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.studio-identity-pick {
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.studio-identity-pick img,
+.studio-identity-empty {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: var(--soft);
+}
+.studio-identity-empty {
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 1.5rem;
+}
+.studio-identity-view.stale img {
+  opacity: 0.55;
+}
+.studio-identity-view.picked .studio-identity-pick img,
+.studio-identity-view.picked .studio-identity-empty {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.studio-identity-note {
+  position: absolute;
+  top: var(--space-1);
+  left: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.studio-identity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.studio-identity-actions button {
+  margin: 0;
+}
+@media (max-width: 520px) {
+  .studio-identity-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Fix faces (app/after-dark/FixFaces.tsx): the button beside the rating, bolder after "Doesn't look like them", then a
+   before and after, the before laid over the after and cut at the slider. */
+.ad-fix {
+  display: grid;
+  gap: var(--space-1);
+  flex-basis: 100%;
+}
+.ad-fix p,
+.ad-fix button {
+  margin: 0;
+}
+.ad-fix.nudge {
+  padding: var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+}
+.ad-compare {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+.ad-compare-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+}
+.ad-compare-frame img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+.ad-compare-before {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+.ad-compare-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.ad-compare-tag {
+  position: absolute;
+  bottom: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 0.75rem;
+}
+.ad-compare-tag.before {
+  left: var(--space-1);
+}
+.ad-compare-tag.after {
+  right: var(--space-1);
+}
+.ad-compare input[type="range"] {
+  width: 100%;
+  margin: 0;
+}
+.ad-studio-refs figure.stale img {
+  opacity: 0.55;
+}

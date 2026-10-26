@@ -16,6 +16,9 @@ import MediaTags from "../../MediaTags";
 import Lightbox from "./Lightbox";
 import LocalTime from "../../LocalTime";
 import TrimmableClip from "../../TrimmableClip";
+import FixFaces from "../../FixFaces";
+import IdentityPackGrid from "@/app/studio/IdentityPackGrid";
+import { identityPrice } from "@/lib/studio/identity-views";
 import { actMark, FramingMark, openingView, ViewChips } from "../../FramingChips";
 import ExportDialog from "@/app/studio/ExportDialog";
 import TileTools, { SelectBar } from "@/app/studio/TileTools";
@@ -421,7 +424,14 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
             <TileTools id={p.id} api={AFTER_DARK_API} selecting={sel.selecting} selected={sel.has(p.id)} onToggle={() => sel.toggle(p.id)} />
             <div className="ad-studio-item-tools">
-              <RateMedia id={p.id} kind={p.kind} rating={p.rating ?? null} tags={p.tags ?? []} />
+              <RateMedia
+                id={p.id}
+                kind={p.kind}
+                rating={p.rating ?? null}
+                tags={p.tags ?? []}
+                // 🩹 Fix faces (lib/adult/fix-faces.ts): bolder once they say it doesn't look like them.
+                extra={(r) => p.kind === "scene" && <FixFaces id={p.id} src={media} label={two ? "The picture of them" : `The picture of ${first}`} onFixed={() => void refresh()} nudge={r.rating === -1 && r.tags.includes("face")} />}
+              />
               {!two && !video &&
                 (s.identity.face === p.id ? (
                   <span className="badge">The face</span>
@@ -1103,24 +1113,35 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 )}
               </figcaption>
             </figure>
-            <figure>
-              {s.identity.faceCrop ? (
+            <figure className={s.identity.faceCropStale ? "stale" : undefined}>
+              {s.identity.faceCrop || s.identity.faceCropStale ? (
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media
-                <img src={media(s.identity.faceCrop)} alt={`${c.name}'s face anchor`} />
+                <img src={media((s.identity.faceCrop ?? s.identity.faceCropStale)!)} alt={`${c.name}'s face anchor`} />
               ) : (
                 <div className="ad-studio-empty">No close-up yet.</div>
               )}
               <figcaption className="small">
                 Face anchor{" "}
                 <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => void act("face", { action: "face", character_id: c.id, model: picked?.id, ...own }, { title: "Drawing a close-up…" })}>
-                  {s.identity.faceCrop ? "redraw" : "sharpen"}
+                  {s.identity.faceCrop || s.identity.faceCropStale ? "redraw" : "sharpen"}
                 </button>
+                {s.identity.faceCropStale && <span className="muted small"> — drawn from an earlier face, so shoots use the face above until it&apos;s redrawn.</span>}
               </figcaption>
             </figure>
           </div>
           <p className="muted small">
             The face anchor is a tight close-up drawn from the baseline. Once you make one, every shoot leads with it, so a bold prompt can change the pose and scene while the face stays theirs — exactly the baseline. {tokens(price(s.prices.body))}; free for admins.
           </p>
+
+          <IdentityPackGrid
+            pack={s.identity_pack}
+            name={c.name}
+            price={(n) => (admin ? "free for admins" : tokens(price(identityPrice(s.prices.identity, n))))}
+            src={media}
+            busy={Boolean(busy)}
+            uses={`Eight views of ${first}, each drawn from the face above: 🩹 Fix faces gives each face the view that suits the picture's angle.`}
+            onDraw={(views) => void act("identity", { action: "identity_pack", character_id: c.id, views, model: picked?.id, ...own }, { title: "Drawing their identity pack…" })}
+          />
 
           <fieldset className="ad-studio-group">
             <legend>How strictly pictures keep the face</legend>

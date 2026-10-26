@@ -2437,3 +2437,50 @@ riding seen from below 0/5, close together, a kiss, a lap all 👍. So the view 
   tagged first person (and on top, kneeling as their acts); Together shoots keep their `level` (they read as level 2,
   so a dressed pair animated as explicit); Studio pictures keep their level on the row; pictures of two get the
   viewer's rating fixes too (`steeringFor` → `keyframePrompt`/`povPrompt` `steer`).
+
+## Fix faces and the identity pack (2026-10-26)
+
+David: "generating people together is way harder", after a redraw came back a different woman (#915, #918). Two
+tools for the face, and a fix for a face anchor that outlived its face.
+
+**Fix faces** (🩹, `lib/adult/fix-faces.ts`, `POST /api/admin/after-dark/fix-faces {media_id, who?}`; After Dark only):
+- One of the owner's pictures (kind scene) kept exactly as it is but for the faces. The prompt says to change nothing
+  else, the clothes (or none) included, and to stay exactly as explicit (or as dressed) as Picture 1.
+- **One face at a time on Venice:** the picture is Picture 1 and that person's face Picture 2, because an edit model
+  holds one face far better than two. The second fix starts from the first one's result, sent as a data URL and never
+  kept. On Replicate, whose links can't carry a picture made in between, it's one call with both faces as Pictures 2
+  and 3.
+- **Whose faces:** both, or `who`. Seen through someone's eyes (`pov` a/b), only the other one's face is in it, so only
+  theirs is fixed.
+- **The face each gets:** their identity pack's view that suits the picture's angle (`pickView` on its prompt; the
+  nearest view when that one's missing), else their face anchor, else the face they keep. Never one drawn from an
+  earlier face.
+- **Free:** it's our model's mistake. It's counted against the month's pictures (a Studio picture's against the
+  Studio's), checked like any picture (a refusal is logged as kind `fix`), and kept as a new picture beside the original
+  (`adult_images.fixed_from`) with its tags, except the pin for dates. At most `FIXES_MAX` (3) fixes of one picture.
+- **Where:** beside 👍/👎 on every scene picture, in the Studio's galleries and a scene's. After a 👎 with "Doesn't look
+  like them" it gets bolder and says what it does. A before-and-after slider (`app/after-dark/FixCompare.tsx`) shows the
+  result. `RateMedia` takes an `extra` slot that knows what was said.
+
+**The identity pack** (`lib/studio/identity-views.ts`, `lib/studio/identity-pack.ts`; both Studios):
+- **The views:** eight, each an edit of the face they keep: straight on, ¾ left and right, both profiles, smiling, over
+  the shoulder, and full body (with their body reference as Picture 2). Each is on a plain backdrop, dressed, one
+  person only, and an adult in the words (never under 21).
+- **The Studio's Identity tab:** "Draw all 8" for `prices.identity` (2 tokens), the missing ones, or the ones tapped,
+  each for its share (`identityPrice`: at least 1). Admins are free, and the tokens come back whole when nothing came
+  through. Drawn four at a time (`JobSpec.concurrency`), as two shoots are.
+- **The PG Studio's 🪪 Identity tab:** drawn from their portrait in Venice's safe mode, each view checked like a
+  shoot's pictures, for `pg.identity_price` (2). They never use up the free first shoot (`studio_pg_shoots.kind`).
+- **Storage:** `identity_views` (owner, character, studio, view → picture) with `from_face`, the face it was drawn
+  from. That's the image id in After Dark, and in the PG Studio the portrait's path (the same on every host) or a hash
+  of its data. A view drawn from an earlier face shows "earlier face", dimmed, and nothing uses it until it's redrawn.
+- **Where it's used:** Fix faces. Also shoots, as one more picture (the view for the shot's angle, last, so the other
+  pictures keep their numbers) when the model has room and `identity_in_shoots` is on. That switch is off until a live
+  test shows it never adds a second person.
+
+**The face anchor now follows the face** (`identityOf`):
+- Picking a new face ("Use this face") didn't touch the face anchor, and every shoot leads with the anchor. So after a
+  new face, shoots kept drawing the old one.
+- The anchor now keeps the face it was drawn from (`adult_identity.face_crop_from`). One drawn from another face is
+  stale: shoots use the face itself, and the Identity tab shows it dimmed, "drawn from an earlier face".
+- An anchor from before this change counts as stale when a face was picked after it was made.

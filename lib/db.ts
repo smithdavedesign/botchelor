@@ -2510,6 +2510,24 @@ create table if not exists media_exports (
 );
 create index if not exists media_exports_owner_idx on media_exports (owner_id, created_at desc);
 
+-- Fix faces and the identity pack (the creator suite; lib/adult/fix-faces.ts, lib/studio/identity-pack.ts). A picture
+-- with its faces fixed is a new picture beside the one it fixes (fixed_from). The identity pack is eight views of a
+-- character per person and Studio (each picture in that Studio's own table), each with the face it was drawn from
+-- (from_face), as the face anchor is (face_crop_from): one drawn from an earlier face isn't used once they pick another.
+alter table adult_images add column if not exists fixed_from text references adult_images (id) on delete set null;
+alter table adult_identity add column if not exists face_crop_from text;
+alter table studio_pg_shoots add column if not exists kind text not null default 'shoot';
+create table if not exists identity_views (
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  studio text not null check (studio in ('after_dark', 'pg')),
+  view text not null,
+  image_id text not null,
+  from_face text,
+  created_at timestamptz not null default now(),
+  primary key (owner_id, character_id, studio, view)
+);
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (
