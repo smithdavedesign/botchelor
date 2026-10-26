@@ -8,6 +8,9 @@ import { sharedTable } from "@/lib/house-matchmaker";
 import { runDueMixers } from "@/lib/group-dates-run";
 import { GET as doublesGet, POST as doublesPost } from "@/app/api/doubles/route";
 import { GET as inviteGet, POST as invitePost } from "@/app/api/doubles/[id]/route";
+import { GET as mixerGet, POST as mixerPost } from "@/app/api/mixer/route";
+import { POST as metNotesPost } from "@/app/api/characters/[id]/met-notes/route";
+import { deckFor } from "@/lib/swipes";
 import { loadCharacterMemory, remembered } from "@/lib/memory";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -358,5 +361,93 @@ describe("the web's doubles (M1b)", () => {
     // Settled: answering again is a 409.
     const again = await invitePost(webReq(`/api/doubles/${nightId}`, cookie, { action: "decline" }), { params: Promise.resolve({ id: nightId }) });
     expect(again.status).toBe(409);
+  });
+});
+
+describe("group nights for people on the web (mixer join, graph invites, met takes)", () => {
+  const webReq = (path: string, cookie: string, body?: unknown) =>
+    new Request(`http://test.local${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { "content-type": "application/json", cookie },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  /** A person and one open, profiled character. */
+  async function person(name: string) {
+    const cookie = newUserCookie();
+    const c = await (await api.createCharacter(validCharacter({ name, extras: PROFILE, open_to_dates: true }), cookie)).json();
+    return { cookie, userId: userIdOf(cookie), id: c.id as string };
+  }
+
+  it("people join and leave the mixer from the web; the night runs; everyone's memory and deck know who they met; takes save", async () => {
+    const people = [await person("Wren Kestrel"), await person("Moss Elder"), await person("Pim Alder"), await person("Ash Ledge")];
+    for (const p of people) expect((await mixerPost(webReq("/api/mixer", p.cookie, { action: "join", character_id: p.id }))).status).toBe(201);
+    const seen = (await (await mixerGet(webReq("/api/mixer", people[0].cookie))).json()) as Any;
+    expect(seen.mixer.singles).toBe(4);
+    expect(seen.mine_in).toEqual([people[0].id]);
+    // Leave and come back (before it runs): nothing spent.
+    expect((await mixerPost(webReq("/api/mixer", people[0].cookie, { action: "leave", character_id: people[0].id }))).status).toBe(200);
+    expect((await mixerPost(webReq("/api/mixer", people[0].cookie, { action: "leave", character_id: people[0].id }))).status).toBe(409);
+    expect((await mixerPost(webReq("/api/mixer", people[0].cookie, { action: "join", character_id: people[0].id }))).status).toBe(201);
+
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson(), episodeJson(), episodeJson()]);
+    expect(await runDueMixers(t.db, new Date(Date.now() + 31 * 60_000))).toMatchObject({ ran: 1, booked: 4 });
+    const eps = (await t.db.query<Any>(`select id, creator_id, character_a, character_b from episodes`)).rows;
+    for (const e of eps) expect(await airEpisode(t.db, e.id, e.creator_id)).not.toBeNull();
+
+    // Each character's memory: its two dates as people, the one it missed as met — for every character there.
+    const me = people[0];
+    const dated = new Set(eps.filter((e: Any) => [e.character_a, e.character_b].includes(me.id)).flatMap((e: Any) => [e.character_a, e.character_b]));
+    const missed = people.find((p) => !dated.has(p.id))!;
+    for (const p of people) {
+      const mem = await loadCharacterMemory(t.db, p.id);
+      expect(mem?.people ?? []).toHaveLength(2);
+      expect(mem?.met ?? []).toHaveLength(1);
+    }
+
+    // The social graph in the deck: the one it met (not dated) is a known face, and ranks with the why.
+    const deck = await deckFor(t.db, me.userId, me.id);
+    if (!deck.ok) throw new Error(deck.message);
+    const card = deck.cards.find((x) => x.id === missed.id)!;
+    expect(card.why.join(" ")).toMatch(/has met them, at a group night/);
+
+    // The web's "What did you think of them?": the owner saves a take; it folds into met and the prompt line.
+    const route = (cookie: string, body: unknown) => metNotesPost(webReq(`/api/characters/${me.id}/met-notes`, cookie, body), { params: Promise.resolve({ id: me.id }) });
+    expect((await route(missed.cookie, { about: missed.id, note: "not yours to write" })).status).toBe(422); // not the owner
+    expect((await route(me.cookie, { about: missed.id, note: "Kept the whole table laughing; ask about the lighthouse." })).status).toBe(200);
+    const after = await loadCharacterMemory(t.db, me.id);
+    expect(after!.met![0].your_take).toMatch(/lighthouse/);
+    expect(String(remembered({ memory: after }, missed.id)!.you_met_once)).toMatch(/Your take at the time: .*lighthouse/);
+    // The take is the owner's alone: the other character's memory never carries it.
+    expect(JSON.stringify(await loadCharacterMemory(t.db, missed.id))).not.toMatch(/lighthouse/);
+  });
+
+  it("the picker offers couples from the social graph (near you first), and inviting one sends the invite", async () => {
+    // Another person's couple the audience has seen click: a second-date ending, aired publicly.
+    const theirs = await person("Sol Vega");
+    scriptOutcome({ ending: "second_date" });
+    scriptedModel([episodeJson()]);
+    const ep = await (await api.createEpisode({ character_id: theirs.id, partner_id: HOUSE_PARTNER_ID }, theirs.cookie)).json();
+    expect(await airEpisode(t.db, ep.id, theirs.userId)).not.toBeNull();
+
+    // Me: a thread pair (mine × the second house member) and an earlier date with the same house member → near.
+    const me = await person("Wren Kestrel");
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    expect((await api.createEpisode({ character_id: me.id, partner_id: HOUSE_PARTNER_ID }, me.cookie)).status).toBe(200);
+
+    const options = ((await (await doublesGet(webReq(`/api/doubles?excluding=${me.id},${house2()}`, me.cookie))).json()) as Any).options;
+    const couple = options.find((o: Any) => o.kind === "theirs");
+    expect(couple).toMatchObject({ character_id: theirs.id, partner_id: HOUSE_PARTNER_ID, near: true });
+    // Never your own couples on the theirs side.
+    expect(options.filter((o: Any) => o.kind === "theirs").some((o: Any) => o.character_id === me.id)).toBe(false);
+
+    const res = await doublesPost(
+      webReq("/api/doubles", me.cookie, { character_id: me.id, partner_id: house2(), with_character: theirs.id, with_partner: HOUSE_PARTNER_ID }),
+    );
+    expect(res.status).toBe(201);
+    const { invited } = (await res.json()) as Any;
+    const note = (await t.db.query<Any>(`select link from notifications where user_id = $1 and kind = 'double_invite'`, [theirs.userId])).rows;
+    expect(note[0].link).toBe(`/doubles/${invited}`);
   });
 });

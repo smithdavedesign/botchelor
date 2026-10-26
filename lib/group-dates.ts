@@ -254,7 +254,69 @@ export async function leaveMixer(db: Db, userId: string, characterId: string): P
 
 /* ------------------------------------------- the web's double picker ------------------------------------------- */
 
-export type DoubleOption = { character_id: string; name: string; partner_id: string; partner_name: string };
+export type DoubleOption = {
+  character_id: string;
+  name: string;
+  partner_id: string;
+  partner_name: string;
+  /** yours: one of your characters with a dealt house date (books now); theirs: another creator's couple (an invite). */
+  kind?: "yours" | "theirs";
+  /** theirs: one of your characters has dated someone in this couple (the social graph's neighbourhood). */
+  near?: boolean;
+};
+
+/** How many of other creators' couples the thread's picker offers. */
+const INVITE_COUPLES = 6;
+
+/**
+ * Other creators' couples to invite to a double (M1b, from the social graph): pairs whose public stage is sparks, dating
+ * or going steady — a couple the audience has seen click — never private, never yours, never across a block, never a
+ * pair of two house characters (nobody to answer). Couples near you in the graph (one of your characters has dated one
+ * of them) come first, then the most recently seen. The couple's first character is its booker's (never the house).
+ */
+export async function inviteCouples(db: Db, userId: string, excluding: string[]): Promise<DoubleOption[]> {
+  const { rows } = await db.query<{
+    character_a: string;
+    character_b: string;
+    a_name: string;
+    b_name: string;
+    a_house: boolean;
+    a_owner: string | null;
+    near: boolean;
+  }>(
+    `select r.character_a, r.character_b, a.name as a_name, b.name as b_name, a.is_house as a_house, a.owner_id as a_owner,
+            exists (select 1 from relationships n join characters m on m.id in (n.character_a, n.character_b) and m.owner_id = $1
+                     where n.dates > 0 and m.id not in (r.character_a, r.character_b)
+                       and (n.character_a in (r.character_a, r.character_b) or n.character_b in (r.character_a, r.character_b))) as near
+       from relationships r
+       join characters a on a.id = r.character_a
+       join characters b on b.id = r.character_b
+      where r.public_dates > 0 and r.public_stage in ('sparks', 'dating', 'going_steady')
+        and a.visibility <> 'private' and b.visibility <> 'private'
+        and a.owner_id is distinct from $1 and b.owner_id is distinct from $1
+        and r.character_a <> all($2) and r.character_b <> all($2)
+        and not (a.is_house and b.is_house)
+        and coalesce(case when a.is_house then b.owner_id else a.owner_id end, 'deleted') <> 'deleted'
+        and not exists (select 1 from blocks bl
+                         where (bl.blocker_id = $1 and bl.blocked_id in (a.owner_id, b.owner_id))
+                            or (bl.blocked_id = $1 and bl.blocker_id in (a.owner_id, b.owner_id)))
+      order by near desc, r.public_last_at desc nulls last
+      limit $3`,
+    [userId, excluding, INVITE_COUPLES],
+  );
+  return rows.map((r) => {
+    // The booker's character leads: the non-house one (when both are people's, the pair's first).
+    const leadIsA = !r.a_house && r.a_owner !== null;
+    return {
+      kind: "theirs" as const,
+      near: r.near,
+      character_id: leadIsA ? r.character_a : r.character_b,
+      name: leadIsA ? r.a_name : r.b_name,
+      partner_id: leadIsA ? r.character_b : r.character_a,
+      partner_name: leadIsA ? r.b_name : r.a_name,
+    };
+  });
+}
 
 /**
  * The couples a signed-in person can bring to a double from the thread's "Make it a double" (M1b): each of their
@@ -273,7 +335,7 @@ export async function doubleOptions(db: Db, userId: string, excluding: string[])
   const houses = await loadChars(db, cast);
   return rows.map((c) => {
     const partner = cast[seedFrom(c.id) % cast.length];
-    return { character_id: c.id, name: c.name, partner_id: partner, partner_name: houses.get(partner)?.name ?? "a house date" };
+    return { kind: "yours" as const, character_id: c.id, name: c.name, partner_id: partner, partner_name: houses.get(partner)?.name ?? "a house date" };
   });
 }
 

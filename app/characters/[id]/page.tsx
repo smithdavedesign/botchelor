@@ -45,6 +45,7 @@ import OriginBadge from "@/app/OriginBadge";
 import { originOf, originsOf } from "@/lib/origin";
 import { ctaMine, dateCta } from "@/lib/date-cta";
 import DateThisCharacter from "./DateThisCharacter";
+import MixerJoin from "@/app/MixerJoin";
 import { accessHere } from "@/lib/adult/place";
 import { adultAvailable } from "@/lib/adult/mode";
 import { studioAccess } from "@/lib/adult/studio";
@@ -315,6 +316,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           )}
         </p>
       )}
+      {ratings.is_owner && !c.house && !partnerStyle?.taken && <MixerJoin characterId={c.id} first={shortName(c.name)} />}
       {pgStudio && (
         <section className="card character-studio">
           <h2>📸 Studio</h2>

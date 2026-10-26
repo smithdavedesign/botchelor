@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { doubleOptions, proposeDouble } from "@/lib/group-dates";
+import { doubleOptions, inviteCouples, proposeDouble } from "@/lib/group-dates";
 import { bookDoubleNight } from "@/lib/group-dates-run";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 
@@ -14,14 +14,16 @@ const DoubleInput = z.object({
 });
 
 /**
- * The thread's "Make it a double" (group dates M1b, docs/PRDs/group-dates.md): the couples this person could bring
- * to the other table — their other characters, each with a dealt house date. `excluding` is the thread's own pair.
+ * The thread's "Make it a double" (group dates M1b, docs/PRDs/group-dates.md): the couples that could sit at the other
+ * table — your other characters, each with a dealt house date (books now), and other creators' couples from the social
+ * graph, the ones near you first (an invite). `excluding` is the thread's own pair.
  */
 export const GET = handle(async (req) => {
   const sess = session(req);
   const excluding = (new URL(req.url).searchParams.get("excluding") ?? "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 4);
   const db = await getDb();
-  return json({ options: await doubleOptions(db, sess.userId, excluding) }, 200, sess);
+  const [yours, theirs] = await Promise.all([doubleOptions(db, sess.userId, excluding), inviteCouples(db, sess.userId, excluding).catch(() => [])]);
+  return json({ options: [...yours, ...theirs] }, 200, sess);
 });
 
 /**

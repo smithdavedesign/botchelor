@@ -9,6 +9,7 @@ import { characterToOpen, listThreads, newsByCharacter, type Thread } from "@/li
 import { shortName } from "@/lib/names";
 import { takenWith } from "@/lib/partners";
 import CharacterTabs from "@/app/CharacterTabs";
+import MixerJoin from "@/app/MixerJoin";
 import CastPreview from "@/app/CastPreview";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
@@ -105,6 +106,7 @@ export default async function MatchesPage({ searchParams }: Props) {
         <Link href={`/characters/${encodeURIComponent(me.id)}`}>{first}&apos;s card</Link> ·{" "}
         <Link href={`/swipe?character=${encodeURIComponent(me.id)}`}>Swipe for {first}</Link>
       </p>
+      {!taken.has(me.id) && <MixerJoin characterId={me.id} first={first} />}
 
       {inbox.fresh.length > 0 && (
         <section className="matches-fresh" aria-labelledby="fresh-title">
