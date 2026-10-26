@@ -26,6 +26,7 @@ import { venueSituation } from "./scene-catalog";
 import { ownPlaceSituation } from "../studio/library";
 import { getAdultSettings } from "./settings";
 import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
+import { picturesBlocked } from "./readiness";
 import { mediaAllowedFor } from "./place";
 
 /** What an automatic picture needs from the scene: which one, its chapter, where they are, how far it's gone, the lines. */
@@ -106,6 +107,12 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
     if (!a || !b || !(await autoPicturesReady(db))) return false;
     // Text only where the viewer last connected from (lib/adult/place.ts): no picture is drawn for them.
     if (!(await mediaAllowedFor(db, ownerId))) return false;
+    // Never a picture of a character nobody has set up (lib/adult/readiness.ts): the scene says what's missing.
+    const notReady = await picturesBlocked(db, ownerId, a.id, b.id);
+    if (notReady) {
+      await db.query(`update adult_scenes set picture_note = $2 where id = $1 and picture_note is distinct from $2`, [scene.id, notReady]).catch(() => {});
+      return false;
+    }
     const key = autoPictureKey(scene.chapter, scene.set_place ?? scene.place);
     const failed = failedAt.get(`${scene.id}|${key}`);
     if (failed !== undefined && clock() - failed < RETRY_AFTER_MS) return false;

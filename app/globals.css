@@ -7050,6 +7050,38 @@ a.phone-head-btn {
   justify-content: center;
   margin-top: var(--space-3);
 }
+.ad-start-ready {
+  list-style: none;
+  margin: var(--space-2) 0;
+  padding: 0;
+  text-align: left;
+  font-size: 0.9rem;
+}
+.ad-start-ready li {
+  margin: 2px 0;
+}
+.ad-start-setup {
+  color: var(--accent);
+  font-weight: 600;
+}
+/* The Studio's readiness card (Identity tab): what After Dark needs before it pictures them. */
+.ad-ready-card {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+}
+.ad-ready-card.ok {
+  border-color: rgba(120, 220, 160, 0.6);
+}
+.ad-ready-card ul {
+  list-style: none;
+  margin: var(--space-2) 0;
+  padding: 0;
+}
+.ad-ready-card li {
+  margin: 4px 0;
+}
 .ad-rp-locked {
   max-width: 34rem;
 }

@@ -95,7 +95,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const [s, setS] = useState(initial);
   // The Create tab saved or deleted a prompt: the Shoot tab's "Your prompts" row follows at once (venues on the next visit).
   const onLibrary = useCallback((lib: Library) => setS((x) => ({ ...x, my_prompts: lib.prompts.map((p) => ({ id: p.id, text: p.text, title: p.title })) })), []);
-  const [tab, setTab] = useState<Tab>("shoot");
+  // A character After Dark can't picture yet opens on what's missing (lib/adult/readiness.ts).
+  const [tab, setTab] = useState<Tab>(initial.ready && !initial.ready.ready ? "identity" : "shoot");
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   const [fresh, setFresh] = useState<{ title: string; pictures: Media[]; kind: Shoot["kind"] } | null>(null);
@@ -284,7 +285,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     const res = await requestJson("/api/admin/after-dark/face", { character_id: c.id, image_id: imageId, rivals }).catch(() => null);
     setBusy(null);
     if (!res?.ok) return setNote({ text: res?.message ?? "Couldn't pick that face.", error: true });
-    setS((x) => ({ ...x, identity: { ...x.identity, face: imageId } }));
+    setS((x) => ({ ...x, identity: { ...x.identity, face: imageId }, ready: x.ready && { ...x.ready, face: true, ready: x.ready.body } }));
     setNote({ text: `Every picture and video of ${first} now keeps this face.` });
   }
 
@@ -989,6 +990,37 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
 
       {tab === "identity" && (
         <div className="ad-studio-panel">
+          {s.ready && (
+            // Creation → their face and body → After Dark (David, 2026-10-25: "if we miss any step it really will screw
+            // up good images for the date"): what's set, and the one tap that sets what isn't.
+            <div className={`ad-ready-card${s.ready.ready ? " ok" : ""}`} role="status">
+              <strong>{s.ready.ready ? `✓ ${first} is ready for After Dark's pictures` : `Before After Dark can picture ${first}`}</strong>
+              <ul>
+                <li>
+                  {s.ready.face ? "✓" : "○"} A face you picked
+                  {!s.ready.face &&
+                    (s.identity.face ? (
+                      <>
+                        {" "}
+                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void useFace(s.identity.face!)}>
+                          Use the one shown below
+                        </button>{" "}
+                        <span className="muted small">or draw new faces, then “Use this face”.</span>
+                      </>
+                    ) : (
+                      <span className="muted small"> — draw new faces below, then “Use this face”.</span>
+                    ))}
+                </li>
+                {s.ready.own && (
+                  <li>
+                    {s.ready.body ? "✓" : "○"} A body reference
+                    {!s.ready.body && <span className="muted small"> — “Make” under Body reference below, then “Use as body” on the one that&apos;s them.</span>}
+                  </li>
+                )}
+              </ul>
+              {!s.ready.ready && <p className="muted small">Until then, no picture or video of a night with {first} is drawn: nothing is guessed from words.</p>}
+            </div>
+          )}
           <div className="ad-studio-refs">
             <figure>
               {s.identity.face ? (

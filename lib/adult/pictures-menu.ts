@@ -12,6 +12,7 @@
  * check refuses, or a provider failure, gives the token back and isn't counted. While Hive is over its daily limit
  * (lib/adult/hive-limit.ts) nothing is drawn or spent.
  */
+import { picturesBlocked } from "./readiness";
 import { isAdmin } from "../admins";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { loadCharacter, type Character } from "../character";
@@ -184,6 +185,9 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   const night = pair ? await reelNight(db, ownerId, ...pair) : null;
   if (!pair || !night) return { ok: false, status: 404, error: "not_found", message: "Pick two characters who are in after dark." };
   const [a, b] = pair;
+  // Never a picture of a character nobody has set up (lib/adult/readiness.ts).
+  const notReady = await picturesBlocked(db, ownerId, a, b);
+  if (notReady) return { ok: false, status: 409, error: "not_ready", message: notReady };
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
   const onReplicate = settings.media_provider === "replicate";

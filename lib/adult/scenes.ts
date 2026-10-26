@@ -50,6 +50,7 @@ import { scenarioById, type Scenario } from "./scenarios";
 import { venueSituation } from "./scene-catalog";
 import { carryDoing, cleanDoing } from "./doing";
 import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
+import { picturesBlocked } from "./readiness";
 
 /**
  * Out in public: a set the place rules know is public, or any library venue but a home (its situation is a restaurant, a
@@ -2423,8 +2424,11 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     [scene.id, JSON.stringify(lines), place, stage, stage_from, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40)), JSON.stringify(suggestions), JSON.stringify(nextWhispers), JSON.stringify(stack)],
   );
   await countUse(db, adminId, "writes");
-  // The moments in these lines worth a picture (lib/adult/beats.ts): offered as the theater reaches each. Never fails the step.
-  await recordBeats(
+  // Pictures of this night at all: never of a character nobody has set up (lib/adult/readiness.ts).
+  const notReady = await picturesBlocked(db, adminId, scene.a.id, scene.b.id);
+  // The moments in these lines worth a picture (lib/adult/beats.ts): offered as the theater reaches each, once both are
+  // set up (there's nothing to offer before). Never fails the step.
+  if (!notReady) await recordBeats(
     db,
     { id: scene.id, owner: adminId, a: scene.a.id, b: scene.b.id, chapter: scene.chapter, lines, from: scene.lines.length, before: scene.stage, placeBefore: scene.set_place ?? scene.place, placeNow: set_place ?? place },
     [a, b],
@@ -2440,10 +2444,12 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   if ((meta.explicit || meta.picture) && !(await outputCheckReady(db))) picture_note = PICTURES_OFF_NOTE;
   else if ((meta.explicit || meta.picture) && a && b && (await pictureKeyReady(db))) {
     try {
-      if (meta.explicit) for (const c of [a, b]) { const made = await ensureBaseline(db, adminId, c); if (made) pictures.push(made); }
+      // Never a baseline guessed from words for a character nobody has set up (lib/adult/readiness.ts).
+      if (meta.explicit && !notReady) for (const c of [a, b]) { const made = await ensureBaseline(db, adminId, c); if (made) pictures.push(made); }
       // One of the chapter's unasked pictures (lib/adult/chapter-pictures.ts): once it has had them, the lines' ask is noted.
       asked =
-        meta.picture && (await claimChapterPicture(db, scene.id, scene.chapter, askedKey, (await getAdultSettings(db)).pictures_per_chapter)) ? meta.picture : null;
+        meta.picture && !notReady && (await claimChapterPicture(db, scene.id, scene.chapter, askedKey, (await getAdultSettings(db)).pictures_per_chapter)) ? meta.picture : null;
+      if (meta.picture && notReady) picture_note = notReady;
       if (meta.picture && !asked) picture_note = "This chapter's pictures are drawn: 📸 Picture this draws another.";
       if (asked) {
         const forOne = asked.of === "b" ? b.id : a.id;

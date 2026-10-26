@@ -10,6 +10,7 @@ import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import PictureContext from "./PictureContext";
 import type { PictureEdit } from "@/lib/adult/beats";
+import type { Readiness } from "@/lib/adult/readiness";
 import AfterDarkTheater from "./AfterDarkTheater";
 import type { CatalogScene } from "@/lib/adult/scene-catalog";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
@@ -59,6 +60,7 @@ export default function SceneWriter({
   reels = [],
   reelTokens = 15,
   chapterTokens = 0,
+  readiness = [],
   hive = null,
   faces: firstFaces = {},
   steer: firstSteer = {},
@@ -80,6 +82,8 @@ export default function SceneWriter({
   reelTokens?: number;
   /** A chapter's price for this viewer (0 for an admin): shown on Start and on the Next that starts a chapter. */
   chapterTokens?: number;
+  /** Whether each of them is set up for pictures (lib/adult/readiness.ts): the start card says what's missing. */
+  readiness?: readonly Readiness[];
   /** Hive's breaker, while it's paused (lib/adult/hive-limit.ts): pictures and videos can't be made until it's over. */
   hive?: HiveNotice | null;
   /** The face each of them keeps for this viewer (lib/adult/steering.ts facesFor). */
@@ -430,6 +434,7 @@ export default function SceneWriter({
             )}
             videoTokens={reelTokens}
             chapterTokens={chapterTokens}
+            readiness={readiness}
             videoNote={reelNote?.text ?? null}
             mediaPaused={mediaPaused}
             feedbackRef={scene.id}
