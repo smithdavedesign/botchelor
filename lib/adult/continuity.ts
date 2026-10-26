@@ -237,6 +237,9 @@ export function samePlace(x: string | null | undefined, y: string | null | undef
  * 2026-10-22): whose it is counts, both ways, so "Lexi's bedroom" keeps its name instead of becoming "the cozy bedroom",
  * and an unowned "bedroom glow" never lands in Lexi's.
  */
+/** A label that starts with someone's name, its apostrophe lost: "Lexis bedroom", "Rafes kitchen". */
+const NAMED_WITHOUT_APOSTROPHE = /^\s*\p{Lu}[\p{L}-]*s\s+\S/u;
+
 export function closestSet(label: string, ready: readonly string[]): string | null {
   const want = canonicalSet(label);
   if (!want.head || !want.known) return null;
@@ -244,7 +247,9 @@ export function closestSet(label: string, ready: readonly string[]): string | nu
   const said = new Set(words(label));
   const scored = ready
     .map((r) => ({ r, c: canonicalSet(r) }))
-    .filter(({ c }) => c.known && c.head === want.head && c.owner === want.owner)
+    // Never someone else's room: "Lexis bedroom" (a name that lost its apostrophe) reads as nobody's, and a plain
+    // "bedroom" landed Star × Rafe in it (2026-10-25).
+    .filter(({ r, c }) => c.known && c.head === want.head && c.owner === want.owner && !(c.owner === null && NAMED_WITHOUT_APOSTROPHE.test(r)))
     .map(({ r, c }) => ({
       r,
       exact: c.canonical === want.canonical ? 1 : 0,
@@ -470,10 +475,10 @@ export function settlePlace(input: {
   // elsewhere, by the rules below (David, 2026-10-25: they agreed to go to his bakery from "A safari jeep at dawn", a
   // place the rules don't know, and the move was refused as "no agreement" twice).
   if (!here || !now.known) {
-    if (!(input.locked && here)) return { place: claimed.place ?? current.place, set: claimed.set ?? (claimed.place ? want.canonical : current.set), moved: null, rejected: null };
+    if (!(input.locked && here)) return { place: claimed.place ?? current.place, set: claimed.set ? ownedTarget(claimed, claimed.set, input.names) : claimed.place ? ownedTarget(claimed, want.canonical, input.names) : current.set, moved: null, rejected: null };
   } else if (samePlace(here, claim) && !ownerChanged(now, want, input.homeNow, input.names)) return orShown(keep());
   const agreedHere = agreedMove(input.lines, input.from);
-  const to = claimed.set ?? want.canonical;
+  const to = ownedTarget(claimed, claimed.set ?? want.canonical, input.names);
   // v2 (fromLines): a move agreed earlier tonight, or an invitation home, that they're only now arriving at (pendingMove).
   const move = agreedHere ?? (input.fromLines ? pendingMove(input.lines, input.from, claim, input.names) : null);
   if (!move) return keep({ to, reason: "no_agreement" });
@@ -481,7 +486,7 @@ export function settlePlace(input: {
   if (input.movesThisChapter >= MAX_SCENE_MOVES) return keep({ to, reason: "cap" });
   // An agreement in these lines moves them there; one from before moves them where these lines show them going, else at the start.
   const at = agreedHere ? agreedHere.agree - input.from : Math.max(0, input.lines.slice(input.from).findIndex((l) => GOING.test(actionsOf(l.text)) || ARRIVING.test(l.text)));
-  return { place: claimed.place ?? to, set: to, moved: { at, to, home: move.home ?? homeFromOwner(want, input.names) }, rejected: null };
+  return { place: claimed.place ?? to, set: to, moved: { at, to, home: move.home ?? homeFromOwner(canonicalSet(to), input.names) ?? homeFromOwner(want, input.names) }, rejected: null };
 }
 
 /**
@@ -502,6 +507,18 @@ function namedMove(lines: readonly PlaceLine[], from: number, place: string, nam
   return { at, to: place, home: move.home ?? homeFromOwner(canonicalSet(place), names) };
 }
 const STOP_WORDS = new Set(["with", "from", "into", "onto", "over", "under", "near", "outside", "inside", "their", "there", "where", "rain", "rainy", "night", "dawn", "morning", "evening"]);
+
+/**
+ * The set a move goes to, with whose it is when the model's place names one of the pair and its set doesn't: "Rafe's
+ * bedroom" with set "bedroom" is Rafe's bedroom, never a bedroom anyone had drawn (Star × Rafe, 2026-10-25).
+ */
+function ownedTarget(claimed: { place: string | null; set: string | null }, to: string, names: { a: string; b: string }): string {
+  const target = canonicalSet(to);
+  if (target.owner || !claimed.place) return to;
+  const said = canonicalSet(claimed.place);
+  if (!said.owner || said.head !== target.head || !homeFromOwner(said, names)) return to;
+  return `${said.owner.charAt(0).toUpperCase()}${said.owner.slice(1)}'s ${target.canonical === "home" ? "place" : target.canonical}`;
+}
 
 /** The place text for a kept set: the model's detail ("on the bed") when it names nowhere else, else what it was. */
 function placeDetail(current: { place: string | null; set: string | null }, claimed: { place: string | null; set: string | null }): string | null {

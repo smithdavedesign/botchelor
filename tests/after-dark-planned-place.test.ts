@@ -199,3 +199,29 @@ describe("the night's place", () => {
     expect((await post({ set_scene: "a hotel suite" }, cookie)).status).toBe(200);
   });
 });
+
+describe("someone else's room is never theirs", () => {
+  it("a plain bedroom never lands on a set named for someone else; an owned one keeps its owner (Star × Rafe, 2026-10-25)", async () => {
+    const { closestSet } = await import("@/lib/adult/continuity");
+    expect(closestSet("bedroom", ["Lexis bedroom"])).toBeNull();
+    expect(closestSet("bedroom", ["Lexis bedroom", "cozy bedroom"])).toBe("cozy bedroom");
+    expect(closestSet("Lexi's bedroom", ["Lexi's bedroom"])).toBe("Lexi's bedroom");
+    expect(closestSet("bedroom", ["Bedroom glow"])).toBe("Bedroom glow");
+  });
+
+  it("a move to 'Rafe's bedroom' with set 'bedroom' goes to Rafe's bedroom, his home", () => {
+    const names = { a: "Sweet thang", b: "Rafe Calloway" };
+    const lines = [
+      { who: "b" as const, text: "*nods at the stairs* Let's go upstairs, to my room." },
+      { who: "a" as const, text: "*slips her hand into his, tugging him toward the bedroom door* Lead the way." },
+    ];
+    // From a place chosen for them (Set the scene: the safari jeep), as on prod.
+    const r = settlePlace({ current: { place: "A safari jeep at dawn", set: "A safari jeep at dawn" }, claimed: { place: "Rafe's bedroom", set: "bedroom" }, lines, from: 0, movesThisChapter: 0, homeNow: null, names, fromLines: true, locked: true });
+    expect(r.moved).toMatchObject({ to: "Rafe's bedroom", home: "b" });
+    expect(r.set).toBe("Rafe's bedroom");
+    // From somewhere vague the model names first: still his.
+    expect(settlePlace({ current: { place: "the bakery", set: "the bakery" }, claimed: { place: "Rafe's bedroom", set: "bedroom" }, lines, from: 0, movesThisChapter: 0, homeNow: null, names, fromLines: true }).set).toBe("Rafe's bedroom");
+    // Someone outside the pair's room is never written in.
+    expect(settlePlace({ current: { place: "the bakery", set: "the bakery" }, claimed: { place: "Lexi's bedroom", set: "bedroom" }, lines, from: 0, movesThisChapter: 0, homeNow: null, names, fromLines: true }).set).toBe("bedroom");
+  });
+});
