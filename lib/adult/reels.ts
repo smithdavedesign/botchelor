@@ -55,7 +55,7 @@ import { providerError, runMedia } from "./fallback";
 import { hiveGate, hivePausedErrorMessage, hivePausedReason, HivePausedError, hivePausedUntil } from "./hive-limit";
 import type { PlaceStop } from "./continuity";
 import { beatPictureFor, positionIn } from "./beats";
-import { ensureBaseline, ensureNudeBaseline, lookWords, signedMediaUrl } from "./media";
+import { ensureBaseline, ensureNudeBaseline, lookWords, signedMediaUrl, type FaceEdit } from "./media";
 import { nudeSql } from "./attire";
 import { adultModel } from "./mode";
 import { REEL_STALLED_MS } from "./reel-timing";
@@ -830,15 +830,27 @@ export async function baselines(db: Db, a: string, b: string, viewerId: string |
  * made first for one who wears something and has none yet, since an edit keeps whatever the pictures it starts from wear.
  * Null when one can't be had: the caller keeps the dressed ones, as before. Hive out stops it like any picture.
  */
-export async function nudeBaselines(db: Db, ownerId: string, a: Character, b: Character): Promise<[string, string] | null> {
+export async function nudeBaselines(db: Db, ownerId: string, a: Character, b: Character, baseUrl?: string): Promise<[string, string] | null> {
   // Both at once (2026-10-25): one after the other, two missing ones held a Together shoot's request for minutes.
-  const made = await Promise.allSettled([a, b].map((c) => ensureNudeBaseline(db, ownerId, c)));
+  const edit = baseUrl ? faceEdit(db, baseUrl) : undefined;
+  const made = await Promise.allSettled([a, b].map((c) => ensureNudeBaseline(db, ownerId, c, edit)));
   for (const r of made) {
     if (r.status === "fulfilled") continue;
     if (r.reason instanceof HivePausedError) throw r.reason;
     console.log(JSON.stringify({ event: "after_dark_nude_baseline_failed", detail: r.reason instanceof Error ? r.reason.message.slice(0, 200) : "error" }));
   }
   return baselines(db, a.id, b.id, ownerId, { nude: true });
+}
+
+/** A nude baseline edited from the face kept (lib/adult/media.ts ensureNudeBaseline), on the configured provider like a keyframe. */
+function faceEdit(db: Db, baseUrl: string): FaceEdit {
+  return async (prompt, faceId) => {
+    const [keys, settings] = await Promise.all([adultKeys(db), getAdultSettings(db)]);
+    const face = [signedMediaUrl(faceId, baseUrl)];
+    const r = replicateMedia(keys, settings);
+    const drawn = await runMedia(db, "keyframe", (p) => (p === "replicate" ? drawReplicateKeyframe(r!, prompt, face) : drawKeyframe(keys.venice!, prompt, face)));
+    return { bytes: drawn.value.bytes, mime: drawn.value.mime, provider: drawn.provider, fell_back: drawn.fell_back, model: drawn.provider === "replicate" ? settings.replicate_keyframe_model : KEYFRAME_MODEL };
+  };
 }
 
 /** The drawn sets for the places the shots happen in (lib/sets.ts), as data URIs, by place; null where none is ready. */
@@ -1347,7 +1359,7 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
       built.chapters ? JSON.stringify(built.chapters) : null,
     ]);
     // A shot of the night at sex starts from their nude baselines (made now for one who wears something and has none).
-    const nudeBases = built.shots.some((s) => !s.from_beat && (s.stage ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, built.ca, built.cb) : null;
+    const nudeBases = built.shots.some((s) => !s.from_beat && (s.stage ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, built.ca, built.cb, baseUrl) : null;
     await startShots(db, ownerId, built.shots, { pair: [a, b], cast: built.cast, places: built.places, stages: built.stages, bases, nudeBases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
     const made = reelMadeOn(built.shots);
     await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [id, JSON.stringify(built.shots), made.provider, made.fell_back]);
@@ -1420,7 +1432,7 @@ export async function drawReelFrames(db: Db, ownerId: string, reelId: string, ba
     const { places, stages } = shotGrids(row.shots);
     // One shot (the storyboard's per-shot draw), or every one still planned.
     const drawing = only === undefined ? row.shots : row.shots.filter((_, k) => k === only);
-    const nudeBases = drawing.some((s) => s.status === "planned" && !s.from_beat && (s.stage ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, ca, cb) : null;
+    const nudeBases = drawing.some((s) => s.status === "planned" && !s.from_beat && (s.stage ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, ca, cb, baseUrl) : null;
     const ctx = await withSteering(db, ownerId, { pair: [row.a, row.b], cast: reelCast(ca, cb, ownerId), places, stages, bases, nudeBases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
     await drawFrames(db, ownerId, drawing, ctx);
     const made = reelMadeOn(row.shots);

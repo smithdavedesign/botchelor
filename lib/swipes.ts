@@ -19,6 +19,7 @@ import { buildTextMessages, dayOf, insertText, SHOW_THREAD_CHARS, threadFor } fr
 import { loadCharacter, type Character } from "./character";
 import { PUBLIC_COLUMNS, rankFor, toProfile, type DatingProfile, type MadeBy, type ProfileRow } from "./dating";
 import type { Db } from "./db";
+import { loadCharacterMemory } from "./memory";
 import { seedFrom } from "./engine";
 import { factLine, PROFILE_PROMPTS, profileComplete, profileMissing } from "./extras";
 import { inlineGenerationEnabled } from "./jobs";
@@ -41,6 +42,8 @@ export const DECK_THEMES = ["fresh", "popular"] as const;
 export type DeckTheme = (typeof DECK_THEMES)[number];
 /** How long a character counts as a new face in the fresh deck. */
 export const FRESH_DAYS = 14;
+/** What having met at a group night is worth in the deck's order (a shared trait scores 3): a known face, not a match. */
+const MET_BOOST = 2;
 /** The opening chat after a match: up to this many texts, on the show's free model. */
 export const MATCH_CHAT_TEXTS = 4;
 
@@ -248,12 +251,17 @@ export async function deckFor(
   const away = (id: string) => !likedMine.has(id) && nobodyAnswers(hints.get(id)!);
   // The popular deck weighs likes received lately above everything the all-round ranking adds up.
   const likedLately = (id: string) => Math.min(10, (popular.get(id) ?? 0) * 3);
-  const boost = (id: string) => (likedMine.has(id) ? 2 : 0) + drawnToBoost(drawnTo, kindOf.get(id)) + likedLately(id) - (away(id) ? AWAY_PENALTY : 0);
+  // The social graph's group nights (lib/group-dates.ts): someone this character met at a double date or a mixer, without
+  // dating, is a known face — the card says so and ranks up a little. From its met memory: aired/public only.
+  const metAtNight = new Set(((await loadCharacterMemory(db, mine.id).catch(() => null))?.met ?? []).map((m) => m.id));
+  const boost = (id: string) =>
+    (likedMine.has(id) ? 2 : 0) + drawnToBoost(drawnTo, kindOf.get(id)) + likedLately(id) + (metAtNight.has(id) ? MET_BOOST : 0) - (away(id) ? AWAY_PENALTY : 0);
   for (const m of ranked) {
     const kind = kindOf.get(m.id);
     if (drawnToBoost(drawnTo, kind)) m.why.push(`${shortName(mine.name)} is drawn to ${kindName(kind!, "many").toLowerCase()}`);
     // Likes are secret, counts included: the card says it's been getting attention, never how much or from whom.
     if (popular.get(m.id)) m.why.push("a favorite in the deck lately");
+    if (metAtNight.has(m.id)) m.why.unshift(`${shortName(mine.name)} has met them, at a group night`);
   }
   ranked.sort((a, b) => b.score + boost(b.id) - (a.score + boost(a.id)));
   // The house crowd fills in around everyone else: at most a third of a page.
