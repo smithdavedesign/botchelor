@@ -541,6 +541,22 @@ create table if not exists matches (
   primary key (character_lo, character_hi)
 );
 create index if not exists matches_hi_idx on matches (character_hi);
+-- "Date my OC" links (lib/date-invites.ts): one live link per character; each accept is a match with the date agreed.
+create table if not exists date_invites (
+  code text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  owner_id text not null,
+  accepted integer not null default 0,
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz
+);
+create unique index if not exists date_invites_live_idx on date_invites (character_id) where revoked_at is null;
+create table if not exists date_invite_accepts (
+  code text not null references date_invites (code) on delete cascade,
+  character_id text not null references characters (id) on delete cascade,
+  accepted_at timestamptz not null default now(),
+  primary key (code, character_id)
+);
 -- Dates booked for later (lib/scheduled-dates.ts, the schedule_date tool): the hourly lobby job runs the due ones
 -- through the same booking route as go_on_date, so every rule applies at run time. outcome says how a run went.
 create table if not exists scheduled_dates (

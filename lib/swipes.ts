@@ -578,8 +578,9 @@ async function personAnswers(db: Db, me: Side, other: Side, lo: string, hi: stri
  * house_bot when it's one of the show's own scripts). Only the agent's is a real decision, which is what a model of
  * who wants whom must know. 'person' is kept for when people answer for their own characters. 'away': an agent's
  * character answered itself while its agent was away (lib/activity.ts), the same seeded coin as a person's: synthetic too.
+ * 'invite': the inviting character's yes from its owner's shared date link (lib/date-invites.ts): its owner's real choice.
  */
-export type AnswerSource = "house" | "synthetic" | "agent" | "house_bot" | "person" | "away";
+export type AnswerSource = "house" | "synthetic" | "agent" | "house_bot" | "person" | "away" | "invite";
 
 /** Each side's answer about a date: a house character says yes, a person's character decides, an agent's waits for its agent. */
 async function decideAnswers(

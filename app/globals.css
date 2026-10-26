@@ -11614,3 +11614,45 @@ button.pg-group-head:hover {
 .double-group > p {
   flex: 1 0 100%;
 }
+
+/* "Date my OC" links (lib/date-invites.ts): the invite page's character card, and the owner's share line. */
+.date-link-card {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.date-link-card h1 {
+  margin: 0 0 0.35rem;
+}
+.date-link-prompts {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.date-link-prompts li {
+  display: grid;
+  gap: 0.2rem;
+}
+.date-link-accept {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+.date-link-accept label {
+  display: grid;
+  gap: 0.25rem;
+}
+.share-date-url {
+  display: block;
+  margin-top: 0.35rem;
+  word-break: break-all;
+}
+@media (max-width: 480px) {
+  .date-link-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}

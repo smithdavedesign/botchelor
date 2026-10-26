@@ -119,5 +119,11 @@ async function backTo(db: Awaited<ReturnType<typeof getDb>>, next: string | null
     if (name) return { href, label: `Back to ${name.split(/\s+/)[0]}` };
   }
   if (href.startsWith("/couples/")) return { href, label: "Back to the couple" };
+  // A "date my OC" link (lib/date-invites.ts): back to it, where one click makes the match.
+  const invite = /^\/date\/([a-z0-9]+)/.exec(href)?.[1];
+  if (invite) {
+    const name = (await db.query<{ name: string }>(`select c.name from date_invites i join characters c on c.id = i.character_id where i.code = $1`, [invite]).catch(() => ({ rows: [] }))).rows[0]?.name;
+    return { href, label: name ? `Go on your date with ${name.split(/\s+/)[0]}` : "Back to your date" };
+  }
   return { href, label: "Back to where you were" };
 }
