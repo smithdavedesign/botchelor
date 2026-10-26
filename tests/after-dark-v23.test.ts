@@ -276,7 +276,9 @@ describe("a new chapter picks up where the last one stopped", () => {
     const r = await step(model, { scene: chapter2({ prev_tail: glow }) });
     const system = calls[0][0].content;
     expect(system).toContain("The last one ended in an afterglow, at Juniper's flat, after sex; its last lines:");
-    expect(system).toContain("it only picks up again when one of them starts it in a line and the other answers.");
+    // 2026-10-26: and it opens later, on something new, not on the afterglow again.
+    expect(system).toContain("This chapter opens a little later, on something new: a time skip");
+    expect(system).toContain("It only turns intimate again when one of them starts it in a line and the other answers, and then it builds again.");
     expect(r.ok && r.flags.carry).toMatchObject({ floor: false });
     expect(r.ok && r.flags.stage_floor_raised).toBeUndefined();
     expect(chapterCarry(chapter2({ chapter: 1 }), "x")).toBeNull();

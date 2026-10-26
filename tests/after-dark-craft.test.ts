@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as evalPost } from "@/app/api/jobs/eval-after-dark/route";
 import { agreedMove, isPublicPlace, settlePlace, shownMove } from "@/lib/adult/continuity";
-import { activeLimit, limitIn, limitsIn, linesAtPlace, repairPlacePronouns, thresholdOf, wrongPossessives } from "@/lib/adult/craft";
+import { activeLimit, climaxesIn, climaxIn, limitIn, limitsIn, linesAtPlace, repairPlacePronouns, thresholdOf, wrongPossessives } from "@/lib/adult/craft";
 import { citeMemory, factMessages, isQuoteDump, parseFacts, sheetMemories } from "@/lib/adult/facts";
 import { guardAlternation } from "@/lib/adult/guards";
 import { setAdultModelForTests } from "@/lib/adult/mode";
@@ -400,6 +400,30 @@ describe("(7) the arc", () => {
     expect(v2(banter(4), { stage: 2 })[0].content).not.toContain("This is the last stage");
     const after = [...banter(4), { who: "b" as const, text: "*shudders against her* Oh, I'm coming apart." }, ...lines(["a", "*holds her*"]), { who: "b" as const, text: "*her orgasm rolls through her* Juniper." }];
     expect(v2(after, { stage: 4, linesAtStage: 20 })[0].content).toContain(`- They've reached a climax (Sable: "Juniper."): now the afterglow, a resolution.`);
+  });
+
+  it("knows a climax the way the writer words it (David's nights, 2026-10-26)", () => {
+    for (const text of [
+      "*A sharp, broken cry tears from her lips as her body tenses then goes slack against the curtains.* Yours.",
+      "*Her whole body convulses, a long, ragged moan escaping as she clenches around Coco.* Take it.",
+      "*Her body arches once, then goes limp, a shudder running through her.* Hah... God...",
+      "*She comes apart with a silent scream, her body clamping around him.*",
+    ])
+      expect(climaxIn(text)).toBe(true);
+    expect(climaxIn("*She throws her head back with a sharp cry.* As you wish.", "climaxing")).toBe(true);
+    expect(climaxIn("*She grinds down slowly.* Don't stop.", "racing toward the peak")).toBe(false);
+    expect(climaxIn("*kisses her neck* Not yet.")).toBe(false);
+    expect(climaxesIn(lines(["a", "*her body convulses* Yes."], ["b", "*comes apart beneath her*"], ["a", "*holds her*"], ["b", "Stay."], ["a", "Again."], ["b", "*goes over the edge again*"]))).toEqual([0, 5]);
+  });
+
+  it("past the afterglow the night moves on; after two, it winds down", () => {
+    const climax = { who: "b" as const, text: "*her whole body convulses* Coco." };
+    const quiet = (n: number) => Array.from({ length: n }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*strokes her hair ${i}* Mm.` }));
+    const once = v2([...banter(4), climax, ...quiet(14)], { stage: 4, linesAtStage: 20 })[0].content;
+    expect(once).toContain("- They've had their climax and the afterglow (14 lines ago): don't start another round on your own. Move the night on: a little later");
+    expect(once).not.toContain("write toward a climax");
+    const twice = v2([...banter(4), climax, ...quiet(6), climax, ...quiet(14)], { stage: 4, linesAtStage: 20 })[0].content;
+    expect(twice).toContain("- They've already had 2 climaxes in this part of the night: it winds down now.");
   });
 
   it("measures how many lines carry a sensory detail", () => {

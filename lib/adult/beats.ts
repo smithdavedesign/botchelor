@@ -173,7 +173,7 @@ export function beatLabel(kind: BeatKind, act: string): string {
  * none before it. `allowed` leaves out an act the pair's limits rule out. Pure.
  */
 export function findBeats(
-  lines: readonly { text: string; stage?: number }[],
+  lines: readonly { text: string; stage?: number; doing?: string }[],
   from: number,
   before: number,
   existing: readonly Pick<FoundBeat, "act" | "kind" | "line">[],
@@ -205,7 +205,7 @@ export function findBeats(
         add({ line: i, act: named, kind: "position", stage });
       }
     }
-    if (stage >= UNDRESSING && climaxIn(text) && !has("climax")) {
+    if (stage >= UNDRESSING && climaxIn(text, lines[i].doing) && !has("climax")) {
       add({ line: i, act: position ?? "face_to_face", kind: "climax", stage: Math.max(stage, SEX) });
       climaxAt = i;
     }

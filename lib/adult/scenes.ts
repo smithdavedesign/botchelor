@@ -40,7 +40,7 @@ import {
 import { agreedMove, historyPhrase, isPublicPlace as isPublicSet, MAX_SCENE_MOVES, placeLocked, proposesMove, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
 import { loadChain } from "../text-chain";
 import { placeParts, venuePhrase } from "../venues";
-import { activeLimit, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
+import { activeLimit, climaxesIn, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { textModelHistory, writtenBy, type WrittenBy } from "./model-log";
 import { fileSteps, flagStep, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
@@ -662,10 +662,20 @@ function craftLines(
   if (now.stage >= STAGES.length - 1) {
     const climax = recentClimax(lines);
     const again = "one of them starts it in a line (asks, or reaches for the other) and the other answers";
+    // Every climax this chapter (2026-10-26, Coco × Sweet: three in 66 lines, each followed by "the night is still
+    // young" and another round): past the afterglow, the night moves on instead of going round again.
+    const climaxes = climaxesIn(lines);
+    const since = climaxes.length ? lines.length - 1 - climaxes[climaxes.length - 1] : -1;
+    const moveOn =
+      "move the night on: a little later (a time skip: later that night, the small hours, the morning) or something new they do together (food from the kitchen, a shower, a walk, talking about tomorrow, something that interrupts them), shown in the first line's action";
     rules.push(
       climax
         ? `- They've reached a climax (${first(climax.who)}: "${climax.text.replace(/\*[^*]*\*/g, "").trim().slice(0, 60)}"): now the afterglow, a resolution. They check in with each other, stay warm, make each other laugh; it doesn't start over unless ${again}.`
-        : `- This is the last stage: write toward a climax, then a resolution or an afterglow beat (checking in, warmth, a joke), instead of looping. The build-up ("almost there", "so close") is said once, not again and again: then the climax comes. After an afterglow or aftercare it only picks up again when ${again}; it never just resumes.`,
+        : climaxes.length >= 2
+          ? `- They've already had ${climaxes.length} climaxes in this part of the night: it winds down now. No more rounds unless the owner's steer asks for one; ${moveOn}, or let them drift toward sleep.`
+          : since >= 0
+            ? `- They've had their climax and the afterglow (${since} lines ago): don't start another round on your own. ${moveOn.replace(/^m/, "M")}. Another round only when ${again}, and then it builds again from kissing and touching, never straight back mid-act.`
+            : `- This is the last stage: write toward a climax, then a resolution or an afterglow beat (checking in, warmth, a joke), instead of looping. The build-up ("almost there", "so close") is said once, not again and again: then the climax comes. After an afterglow or aftercare it only picks up again when ${again}; it never just resumes.`,
     );
   }
   const notes: string[] = [];
@@ -1024,10 +1034,11 @@ function carryLines(c: ChapterCarry, nameOf: (who: "a" | "b") => string): string
   if (!c.first) return c.floor ? [`This chapter carries on from the last one, at ${stage}: it doesn't go back to an earlier stage.`] : [];
   const tail = c.tail.slice(-CARRY_TAIL).map((l) => `${nameOf(l.who)}: ${l.text}`);
   if (c.afterglow) {
+    // 2026-10-26, Chud × Sweet: chapter 2 opened "collapses beside her" again, then another round, as chapter 1 had ended.
     return [
       `A new chapter of the night starts here. The last one ended in an afterglow, at ${c.place}, after ${STAGES[c.stage]}; its last lines:`,
       ...tail,
-      "Continue from there, in the same place: it only picks up again when one of them starts it in a line and the other answers.",
+      "This chapter opens a little later, on something new: a time skip (later that night, the small hours, the morning) or something they do together (food, a shower, a walk, talking in the dark, something that interrupts them), shown in the first line's action. Don't repeat the afterglow and don't open mid-act. It only turns intimate again when one of them starts it in a line and the other answers, and then it builds again.",
     ];
   }
   return [
@@ -1046,7 +1057,7 @@ export function chapterCarry(scene: Pick<SceneState, "chapter" | "prev_tail" | "
   const last = scene.prev_tail.at(-1)!;
   const stage = typeof last.stage === "number" ? last.stage : scene.stage;
   const afterglow = recentClimax(scene.prev_tail) !== null;
-  return { stage, place, tail: scene.prev_tail, afterglow, first: scene.lines.length === 0, floor: !afterglow && !scene.lines.some((l) => climaxIn(l.text)) };
+  return { stage, place, tail: scene.prev_tail, afterglow, first: scene.lines.length === 0, floor: !afterglow && !scene.lines.some((l) => climaxIn(l.text, l.doing)) };
 }
 
 /** Letters outside the Latin script: the Venice text model sometimes slips into Russian, mostly in the actions. */
