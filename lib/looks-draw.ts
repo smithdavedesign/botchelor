@@ -16,7 +16,7 @@ import { hivePausedMessage, hivePausedUntil } from "./adult/hive-limit";
 import { checkMedia, checkReady, mediaGate } from "./adult/moderation";
 import { accessHere } from "./adult/place";
 import { mediaAllowed } from "./jurisdiction";
-import { NEGATIVE_PROMPT, VENICE_IMAGE } from "./adult/media";
+import { NEGATIVE_PROMPT, VENICE_IMAGE, veniceSize } from "./adult/media";
 import { adultKeys, getAdultSettings } from "./adult/settings";
 import type { Db } from "./db";
 import { dataColumn, keepBytes, objectStore, readBytes } from "./object-store";
@@ -106,7 +106,7 @@ async function drawNsfw(db: Db, keys: Keys, prompt: string, seed: number): Promi
   const res = await doFetch(VENICE_IMAGE, {
     method: "POST",
     headers: { authorization: `Bearer ${keys.venice}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: venice_image_model, prompt, negative_prompt: NEGATIVE_PROMPT, width: 768, height: 960, seed, format: "webp", safe_mode: false, hide_watermark: true }),
+    body: JSON.stringify({ model: venice_image_model, prompt, negative_prompt: NEGATIVE_PROMPT, ...veniceSize(venice_image_model, 768, 960, "4:5"), seed, format: "webp", safe_mode: false, hide_watermark: true }),
   });
   if (!res.ok) return { failed: `Venice ${res.status}: ${(await res.text()).slice(0, 200)}` };
   if (res.headers.get("x-venice-is-content-violation") === "true") return { refused: "Venice flagged it as against its terms" };
