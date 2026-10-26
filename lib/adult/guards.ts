@@ -241,13 +241,25 @@ export function withoutSelfAddress(text: string, own: string, other: string): st
   const name = givenName(own);
   if (name.length < 2 || name.toLowerCase() === givenName(other).toLowerCase()) return text;
   const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const vocative = new RegExp(`(^|[.!?…—–-]\\s*|,\\s*|\\.{3}\\s*)${esc}(?=\\s*(?:[.!?…—–-]|$))`, "g");
+  // The name as an address: at the start, or after a pause or a comma, and closing a sentence (its punctuation with it).
+  const vocative = new RegExp(`(^\\s*|[.!?…—–-]\\s*|,\\s*)${esc}(\\s*[.!?…—–-]+|\\s*$)`, "g");
+  let changed = false;
   const out = text
     .split(/(\*[^*]*\*)/)
-    .map((part) => (part.startsWith("*") ? part : part.replace(vocative, (_m, lead: string) => lead.replace(/,\s*$/, "").replace(/\s+$/, ""))))
-    .join("")
-    .replace(/\s+([.!?…])/g, "$1")
-    .replace(/([.!?…])\.+/g, "$1")
-    .trim();
-  return /\p{L}/u.test(out) ? out : null;
+    .map((part) =>
+      part.startsWith("*")
+        ? part
+        : part.replace(vocative, (_m, lead: string, after: string) => {
+            changed = true;
+            // A line that opens on it loses it; "Yes, Coco. Right there." keeps the full stop after it; "Fuck... Coco." the pause before.
+            if (!lead.trim()) return lead;
+            if (lead.trim() === ",") return `${after.trim()} `;
+            return `${lead.trimEnd()} `;
+          }),
+    )
+    .join("");
+  // Only a line that lost the name is tidied (2026-10-26: tidying every line turned each "..." into ".").
+  if (!changed) return text;
+  const tidy = out.replace(/\s{2,}/g, " ").replace(/\s+([.!?…])/g, "$1").trim();
+  return /\p{L}/u.test(tidy) ? tidy : null;
 }

@@ -220,7 +220,8 @@ export function findBeats(
  * edge of a bed" in a ballroom just sits.
  */
 export function poseHere(pose: string, place: string | null): string {
-  if (!place || /\b(bed|bedroom|bunk|hotel|room)\b/i.test(place)) return pose;
+  // A bed's there in a bedroom, a hotel, a room of one's own; not in a living room (2026-10-26: "On a bed" in Sweet's).
+  if (!place || (/\b(bed|bedroom|bunk|hotel|motel|suite|room)\b/i.test(place) && !/\b(living|dining|sitting|drawing|waiting|throne|ball|board|class|changing|green|reading|music|games?|tea|bath|laundry)\s*room\b/i.test(place))) return pose;
   const cut = pose.replace(/^(?:On a bed|In bed)[,:]\s*/i, "").replace(/ on the edge of a bed\b/gi, "");
   return cut === pose ? pose : `${cut.charAt(0).toUpperCase()}${cut.slice(1)}`;
 }

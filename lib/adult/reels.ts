@@ -333,11 +333,19 @@ export function tellApart(looks: readonly [string, string], noun: ReelPerson["no
     const candidates = [feature(look), styled, ...parts.filter((p) => p !== hairPart).map((p) => p.split(/\s+/).slice(0, 7).join(" "))]
       .filter(Boolean)
       .map((text) => ({ text, adjective: adjective(text) }));
+    // The most visible first (hair, its style, where they're from, then the rest), eyes last: a feature at least half its
+    // own words wins in that order (2026-10-26: Juniper was "the woman with calm grey eyes", too small to tell in a picture
+    // of two, though her auburn hair told her from Sweet's brown).
+    const ordered = [...candidates.filter((c) => !/\beyes\b/i.test(c.text)), ...candidates.filter((c) => /\beyes\b/i.test(c.text))];
     let best: { text: string; adjective: boolean; score: number } | null = null;
-    for (const c of candidates) {
+    for (const c of ordered) {
       const words = contentWords(c.text);
       if (!words.length) continue;
       const score = words.filter((w) => !theirs.has(w)).length / words.length;
+      if (score >= 0.5) {
+        best = { ...c, score };
+        break;
+      }
       if (score > 0 && (!best || score > best.score)) best = { ...c, score };
     }
     if (!best) return `the ${noun}`;
