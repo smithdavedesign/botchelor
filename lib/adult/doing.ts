@@ -13,17 +13,28 @@ const DANGLING = /\s+(?:a|an|the|of|to|at|in|on|and|or|with|for|by|from|into|her
 /** Longest a "doing" may be, as stored and shown. */
 export const DOING_MAX = 48;
 
-/** The writer's "doing", as the label can show it: a few plain words, held to the lines that never move; else null. */
-export function cleanDoing(v: unknown): string | null {
+/**
+ * Words about the writing, not the night (2026-10-26, Coco × Sweet: "speaking the premise aloud"): a label with one is
+ * left out, and the one before it holds.
+ */
+const ABOUT_THE_WRITING = /\b(?:premise|roleplay|role-play|role play|prompt|in character|out of character|the scene|this scene|stage \d|the chapter)\b/i;
+
+/**
+ * The writer's "doing", as the label can show it: a few plain words, held to the lines that never move; else null.
+ * `names`: theirs, kept capitalised ("Coco takes control", not "coco takes control").
+ */
+export function cleanDoing(v: unknown, names: readonly string[] = []): string | null {
   if (typeof v !== "string") return null;
-  let t = v.replace(/[*"“”_`]/g, "").replace(/\s+/g, " ").trim().replace(/[.!;:,]+$/, "");
-  if (!t || /^(null|none|n\/a|same)$/i.test(t)) return null;
+  let t = v.replace(/[*"“”_`]/g, "").replace(/(^|\s)['‘’]|['‘’](?=\s|$)/g, "$1").replace(/\s+/g, " ").trim().replace(/[.!;:,]+$/, "");
+  if (!t || /^(null|none|n\/a|same)$/i.test(t) || ABOUT_THE_WRITING.test(t)) return null;
   if (t.length > DOING_MAX) {
     t = t.slice(0, DOING_MAX).replace(/\s+\S*$/, "");
     // Never on a word that leads somewhere ("…the last slice of").
     while (DANGLING.test(t)) t = t.replace(DANGLING, "");
   }
-  t = t.charAt(0).toLowerCase() + t.slice(1);
+  const lead = t.split(/[\s'’]/)[0].toLowerCase();
+  const named = names.map((n) => n.split(/\s+/)[0]).find((n) => n.toLowerCase() === lead);
+  t = named ? named + t.slice(named.length) : t.charAt(0).toLowerCase() + t.slice(1);
   return t && checkAdultText({ doing: t }).ok ? t : null;
 }
 

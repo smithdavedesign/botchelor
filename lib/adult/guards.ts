@@ -14,6 +14,8 @@
  *    the model who starts instead.
  *  - fragments (repairFragments, v2.4): a line the model started on a dangling "'s" gets its word back, the speaker's
  *    name in an action, "That" in what they say.
+ *  - self-address (withoutSelfAddress, 2026-10-26): what someone says never calls out their own name ("Fuck... Coco."
+ *    from Coco, a line the model gave the wrong one of them); the name goes, the rest stays.
  */
 import { shortName } from "../names";
 import { EVERYDAY_WORDS } from "../quality";
@@ -228,4 +230,24 @@ export function guardAlternation(
     } else dropped.push({ who: l.who, text: l.text, reason: "the same speaker twice in a row" });
   }
   return { kept, merged, dropped, boundary };
+}
+
+/**
+ * What a line says without the speaker calling out their own name (Coco × Sweet, line 93: Coco said "Fuck... Coco.").
+ * Only an address in the spoken words counts (the name alone, or after a pause or a comma and closing a sentence); the
+ * actions, and a name the other one shares, are left alone. Null when nothing would be left.
+ */
+export function withoutSelfAddress(text: string, own: string, other: string): string | null {
+  const name = givenName(own);
+  if (name.length < 2 || name.toLowerCase() === givenName(other).toLowerCase()) return text;
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const vocative = new RegExp(`(^|[.!?…—–-]\\s*|,\\s*|\\.{3}\\s*)${esc}(?=\\s*(?:[.!?…—–-]|$))`, "g");
+  const out = text
+    .split(/(\*[^*]*\*)/)
+    .map((part) => (part.startsWith("*") ? part : part.replace(vocative, (_m, lead: string) => lead.replace(/,\s*$/, "").replace(/\s+$/, ""))))
+    .join("")
+    .replace(/\s+([.!?…])/g, "$1")
+    .replace(/([.!?…])\.+/g, "$1")
+    .trim();
+  return /\p{L}/u.test(out) ? out : null;
 }

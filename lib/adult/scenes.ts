@@ -84,7 +84,7 @@ import {
   type SheetItem,
   type ShownFact,
 } from "./facts";
-import { givenName, guardAlternation, guardNames, repairFragments } from "./guards";
+import { givenName, guardAlternation, guardNames, repairFragments, withoutSelfAddress } from "./guards";
 import {
   ACTION_WINDOW,
   actionOf,
@@ -1119,7 +1119,7 @@ export function parseSceneLines(reply: string, names: { a: string; b: string }):
       // The private notes (why, memory), kept only when they're there: short, and never shown.
       const note = (v: unknown) => (typeof v === "string" && v.trim() && !/^(null|none|n\/a)$/i.test(v.trim()) ? v.trim().replace(/\s+/g, " ").slice(0, NOTE_MAX) : null);
       const out = arr
-        .map((x) => ({ side: typeof x.who === "string" ? sideOf(x.who.trim().toLowerCase()) : null, text: withAction(x), why: note(x.why), memory: note(x.memory), doing: cleanDoing(x.doing) }))
+        .map((x) => ({ side: typeof x.who === "string" ? sideOf(x.who.trim().toLowerCase()) : null, text: withAction(x), why: note(x.why), memory: note(x.memory), doing: cleanDoing(x.doing, [names.a, names.b]) }))
         .filter((x): x is { side: "a" | "b"; text: string; why: string | null; memory: string | null; doing: string | null } => x.side !== null && typeof x.text === "string" && Boolean(x.text.trim()))
         .map((x) => ({ who: x.side, text: clean(x.text), ...(x.why ? { why: x.why } : {}), ...(x.why || x.memory ? { memory: x.memory } : {}), ...(x.doing ? { doing: x.doing } : {}) }));
       if (out.length) return out;
@@ -1144,7 +1144,7 @@ export function parseSceneLines(reply: string, names: { a: string; b: string }):
     const last = out[out.length - 1];
     const v = value.trim().replace(/^["“]|["”]$/g, "");
     if (/\bdoing\b/i.test(label)) {
-      const doing = cleanDoing(v);
+      const doing = cleanDoing(v, [names.a, names.b]);
       if (doing) last.doing = doing;
     } else if (/\bmemor/i.test(label)) last.memory = v && !/^(null|none|n\/a)$/i.test(v) ? v.slice(0, NOTE_MAX) : null;
     else if (v && !last.why) last.why = v.replace(/\s+/g, " ").slice(0, NOTE_MAX);
@@ -1194,7 +1194,9 @@ export function parseSceneMeta(raw: string): SceneMeta {
     const description = p && typeof p.description === "string" ? p.description.trim().slice(0, 400) : "";
     // Without the punctuation a model sometimes leaves on it (":the jeep pulling up outside Rafe's bakery,").
     const placeText = typeof j.place === "string" ? j.place.replace(/^[\s:;,.\-–—]+|[\s:;,\-–—]+$/g, "") : "";
-    const place = placeText ? placeText.slice(0, 120) : null;
+    // A place, not what they're doing there (2026-10-26: "Kneeling on the rug in the masquerade ballroom, Coco pinning
+    // Sweet beneath her as she climaxes." was kept as where they were).
+    const place = placeText && !doingNotPlace(placeText) ? placeText.slice(0, 120) : null;
     // v2.4: only a stage number (1 to 5, or one written as a string) is a claim. DeepSeek's JSON broke down into keys like
     // `"stage: 4": ""` (read as stage, ""), Number("") is 0, and the scene fell back to talking mid-sex (the real-model
     // check, 2026-10-23). Anything else is no claim, and the scene keeps its stage.
@@ -1206,6 +1208,10 @@ export function parseSceneMeta(raw: string): SceneMeta {
     return { explicit: false, picture: null, place: null, stage: null, set: null, suggestions: {} };
   }
 }
+
+/** A "place" that's an action: it opens on what someone's doing, says what happens as it does, or runs on too long. */
+export const doingNotPlace = (text: string): boolean =>
+  /^\s*\p{L}{2,}ing\s+(?:on|in|at|against|by|beneath|under|together|with|across|over|into|onto|the|a|her|his|their)\b/iu.test(text) || /\b(?:as|while) (?:she|he|they|her|him)\b/i.test(text) || text.trim().split(/\s+/).length > 12;
 
 /** A scene line as a date turn, for the dates' critics (lib/quality.ts lineIssues). */
 const asTurn = (l: SceneLine): Turn => {
@@ -1842,9 +1848,16 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
         continue;
       }
       flags.names_repaired += g.repairs.length;
+      // Nobody calls out their own name (2026-10-26: "Fuck... Coco." from Coco, a line given to the wrong one of them).
+      const unselfed = withoutSelfAddress(g.text, l.who === "a" ? names.a : names.b, l.who === "a" ? names.b : names.a);
+      if (!unselfed) {
+        drops.push({ who: l.who, text: l.text, reason: "calls out the speaker's own name: the other one's line" });
+        continue;
+      }
+      if (unselfed !== g.text) flags.names_repaired++;
       // The steer acted out, never quoted (lib/adult/stage-floor.ts): an action that copies it goes, a line that does is dropped.
       // v2.3: a steer's quoted lines are meant to be said, so only the rest of it is held to that rule.
-      const own = withoutSteerCopy(g.text, copyRule);
+      const own = withoutSteerCopy(unselfed, copyRule);
       if (!own) {
         drops.push({ who: l.who, text: l.text, reason: "copied the steer instead of acting it out" });
         continue;
