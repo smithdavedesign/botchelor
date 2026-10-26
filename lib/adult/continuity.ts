@@ -375,6 +375,14 @@ const ARRIVING = /\b(?:come (?:on )?in\b|step inside|welcome to my|we're here)/i
 /** Leaving with nowhere named: out of here, outside, into the night. */
 const OUT = /\b(?:out of (?:here|the)|get out|outside|into the night|out into)\b/i;
 const actionsOf = (text: string) => (text.match(/\*[^*]+\*/g) ?? []).join(" ");
+/**
+ * Getting out of what they wear isn't going anywhere (2026-10-26, Sweet × Dex in his flat: "*steps out of the pooled
+ * fabric at her feet*" read as leaving, and they were moved to the street mid-undress).
+ */
+const OUT_OF_CLOTHES =
+  /\b(?:steps?|stepping|stepped|slips?|slipping|slipped|wriggles?|wriggling|shimm(?:y|ies|ied|ying)|kicks?|kicking|kicked|climbs?|climbing|gets?|getting|got)?\s*out of (?:the |her |his |their |its )?(?:\w+ ){0,2}(?:dress|fabric|clothes|jeans|skirt|trousers|pants|shorts|underwear|knickers|panties|boxers|briefs|shirt|top|heels|shoes|boots|robe|towel|lingerie|bra|sheets|covers|blanket|coat|jacket|suit|uniform|gown|leggings|stockings|socks)\b/gi;
+/** A line's actions as a move reads them: getting out of their clothes taken out. */
+const movingActions = (text: string) => actionsOf(text).replace(OUT_OF_CLOTHES, " ");
 
 export type ShownMove = { proposal: number; agree: number; at: number; to: string; home: "a" | "b" | null };
 
@@ -389,15 +397,17 @@ export type ShownMove = { proposal: number; agree: number; at: number; to: strin
 export function shownMove(lines: readonly PlaceLine[], from: number, here: string | null, names: { a: string; b: string }): ShownMove | null {
   const move = agreedMove(lines, Math.max(0, from - AGREE_REACH));
   if (!move) return null;
-  const going = lines.findIndex((l, i) => i >= Math.max(move.agree, from) && (GOING.test(actionsOf(l.text)) || ARRIVING.test(l.text)));
+  const going = lines.findIndex((l, i) => i >= Math.max(move.agree, from) && (GOING.test(movingActions(l.text)) || ARRIVING.test(l.text)));
   if (going < 0) return null;
   const away = (p: string) => !here || !samePlace(here, p);
   const proposal = lines[move.proposal];
   const to =
     (move.home ? `${names[move.home].split(/\s+/)[0]}'s place` : null) ??
     placesIn(proposal.text).find(away) ??
-    lines.slice(move.agree, going + 1).flatMap((l) => placesIn(actionsOf(l.text))).find(away) ??
-    (OUT.test(proposal.text) || OUT.test(actionsOf(lines[going].text)) ? "the street" : null);
+    lines.slice(move.agree, going + 1).flatMap((l) => placesIn(movingActions(l.text))).find(away) ??
+    // Out, with nowhere named: when one asked to get out, or they walk out of somewhere public (never out of a home just
+    // because a line says "out of").
+    (OUT.test(proposal.text) || (OUT.test(movingActions(lines[going].text)) && (!here || isPublicPlace(here))) ? "the street" : null);
   if (!to || !away(to)) return null;
   return { proposal: move.proposal, agree: move.agree, at: move.agree >= from ? move.agree : going, to, home: move.home ?? homeFromOwner(canonicalSet(to), names) };
 }
@@ -482,10 +492,15 @@ export function settlePlace(input: {
   // v2 (fromLines): a move agreed earlier tonight, or an invitation home, that they're only now arriving at (pendingMove).
   const move = agreedHere ?? (input.fromLines ? pendingMove(input.lines, input.from, claim, input.names) : null);
   if (!move) return keep({ to, reason: "no_agreement" });
+  // Out of a home to somewhere public only when the one who asked named it or asked to go out (2026-10-26, Sweet × Dex in
+  // his flat: "Now get on that couch" / "Show me" read as agreeing to go, and the model's "the street" moved them outside
+  // mid-undress).
+  const asked = input.lines[move.proposal]?.text ?? "";
+  if (input.homeNow && isPublicPlace(claim) && !OUT.test(asked) && !placesIn(asked).some((p) => samePlace(p, claim))) return keep({ to, reason: "no_agreement" });
   if (move.home && move.home === input.homeNow) return keep({ to, reason: "already_there" });
   if (input.movesThisChapter >= MAX_SCENE_MOVES) return keep({ to, reason: "cap" });
   // An agreement in these lines moves them there; one from before moves them where these lines show them going, else at the start.
-  const at = agreedHere ? agreedHere.agree - input.from : Math.max(0, input.lines.slice(input.from).findIndex((l) => GOING.test(actionsOf(l.text)) || ARRIVING.test(l.text)));
+  const at = agreedHere ? agreedHere.agree - input.from : Math.max(0, input.lines.slice(input.from).findIndex((l) => GOING.test(movingActions(l.text)) || ARRIVING.test(l.text)));
   return { place: claimed.place ?? to, set: to, moved: { at, to, home: move.home ?? homeFromOwner(canonicalSet(to), input.names) ?? homeFromOwner(want, input.names) }, rejected: null };
 }
 
@@ -503,7 +518,7 @@ function namedMove(lines: readonly PlaceLine[], from: number, place: string, nam
   const move = agreedMove(lines.slice(start), 0);
   if (!move || !new RegExp(`\\b${word}\\b`, "i").test(lines[start + move.proposal].text)) return null;
   const agree = start + move.agree;
-  const at = agree >= from ? agree - from : Math.max(0, lines.slice(from).findIndex((l) => GOING.test(actionsOf(l.text)) || ARRIVING.test(l.text)));
+  const at = agree >= from ? agree - from : Math.max(0, lines.slice(from).findIndex((l) => GOING.test(movingActions(l.text)) || ARRIVING.test(l.text)));
   return { at, to: place, home: move.home ?? homeFromOwner(canonicalSet(place), names) };
 }
 const STOP_WORDS = new Set(["with", "from", "into", "onto", "over", "under", "near", "outside", "inside", "their", "there", "where", "rain", "rainy", "night", "dawn", "morning", "evening"]);
