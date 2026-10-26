@@ -3,7 +3,8 @@ import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
 import { PG_CUSTOM_MAX, PG_GROUP_IDS } from "@/lib/studio/pg-catalog";
-import { deletePgPicture, pgIdentityPack, pgShoot, pgState } from "@/lib/studio/pg";
+import { deletePgPicture, pgCarousel, pgIdentityPack, pgShoot, pgState } from "@/lib/studio/pg";
+import { FORMAT_IDS, type FormatId } from "@/lib/studio/formats";
 import { IDENTITY_VIEW_IDS, type IdentityViewId } from "@/lib/studio/identity-views";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -29,20 +30,30 @@ const Choices = z
     own_place: z.object({ name: z.string().max(60), description: z.string().max(240).nullable().optional() }).nullable().optional(),
   })
   .strict();
+/** The shape it's drawn in (native sizes, lib/studio/formats.ts). */
+const format = z.enum(FORMAT_IDS as [FormatId, ...FormatId[]]).optional();
 const Input = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("shoot"), choices: Choices }),
+  z.object({ action: z.literal("shoot"), choices: Choices, format }),
+  // A carousel: one of their pictures' moment from six angles (the creator suite).
+  z.object({ action: z.literal("carousel"), picture_id: z.string().min(1).max(64), format }),
   z.object({ action: z.literal("delete"), picture_id: z.string().min(1).max(64) }),
   // The identity pack's views (lib/studio/identity-views.ts): all eight, or the ones asked for.
   z.object({ action: z.literal("identity_pack"), views: z.array(z.enum(IDENTITY_VIEW_IDS as [IdentityViewId, ...IdentityViewId[]])).max(8).optional() }),
 ]);
 
-/** A shoot, the identity pack, or deleting one of the viewer's pictures. */
+/** A shoot, the identity pack, a carousel, or deleting one of the viewer's pictures. */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const input = parseBody(Input, await readJson(req), "invalid_studio");
   const db = await getDb();
   const viewer = viewerOf(req);
   if (input.action === "delete") return (await deletePgPicture(db, viewer, input.picture_id)) ? json({ ok: true }) : json({ error: "not_found", message: "No such picture." }, 404);
-  const r = input.action === "identity_pack" ? await pgIdentityPack(db, viewer, id, { views: input.views }, requestBase(req)) : await pgShoot(db, viewer, id, input.choices, requestBase(req));
+  const base = requestBase(req);
+  const r =
+    input.action === "identity_pack"
+      ? await pgIdentityPack(db, viewer, id, { views: input.views }, base)
+      : input.action === "carousel"
+        ? await pgCarousel(db, viewer, id, { picture_id: input.picture_id, format: input.format }, base)
+        : await pgShoot(db, viewer, id, input.choices, base, { format: input.format });
   return r.ok ? json(r) : json({ error: r.error, message: r.message }, r.status);
 });

@@ -79,6 +79,8 @@ import {
   ANIMATE_SECONDS,
   type AnimateGuide,
   animatePrompt,
+  CAROUSEL_ANGLES,
+  carouselPrompt,
   cleanCustom,
   CUSTOM_MAX,
   DIALOG_MAX,
@@ -113,6 +115,8 @@ import { countUse, overCap, usageLeft } from "./usage";
 import { requestJson, withRequestLog, type LoggedRequest } from "./request-log";
 import { freshViews, identityPackOf, keepIdentityView, type IdentityPack } from "../studio/identity-pack";
 import { IDENTITY_VIEW_IDS, identityPrice, identityViewPrompt, pickView, type IdentityViewId } from "../studio/identity-views";
+import { askRatio, ratioOf, ratiosFor, type FormatId } from "../studio/formats";
+import { fitRatio } from "../media-tools/image";
 
 /* ------------------------------------------------- who may ------------------------------------------------- */
 
@@ -223,22 +227,27 @@ type Keys = { venice: string | null; replicate: string | null; hive: string | nu
 
 const MAX_BYTES = 40 * 1024 * 1024;
 
-/** Draws one picture on the model: an edit from `images` (the face first), or a new one from words. */
-async function drawOne(db: Db, m: StudioModel, keys: Keys, prompt: string, images: string[], negative: string): Promise<{ bytes: Buffer; mime: string }> {
+/**
+ * Draws one picture on the model: an edit from `images` (the face first), or a new one from words, in the shape asked
+ * (native sizes, lib/studio/formats.ts): the model's nearest ratio, then cut to that one.
+ */
+async function drawOne(db: Db, m: StudioModel, keys: Keys, prompt: string, images: string[], negative: string, ratio = "3:4"): Promise<{ bytes: Buffer; mime: string }> {
+  const ask = askRatio(ratio, ratiosFor(m.provider, m.id));
   if (m.provider === "venice") {
     if (!keys.venice) throw new Error("No Venice key saved in After Dark's settings.");
-    return m.job === "edit" ? drawKeyframe(keys.venice, prompt, images.slice(0, m.max_images), m.id) : venicePicture(db, prompt, { model: m.id, key: keys.venice, negative });
+    const file = m.job === "edit" ? await drawKeyframe(keys.venice, prompt, images.slice(0, m.max_images), m.id, ask) : await venicePicture(db, prompt, { model: m.id, key: keys.venice, negative, ratio });
+    return fitRatio(file, ratio);
   }
   if (!keys.replicate) throw new Error("No Replicate key saved in After Dark's settings.");
-  const input = m.job === "edit" ? replicateKeyframeInput(prompt, images.slice(0, m.max_images)) : replicatePictureInput(m.id, prompt, negative);
+  const input = m.job === "edit" ? replicateKeyframeInput(prompt, images.slice(0, m.max_images), ask) : replicatePictureInput(m.id, prompt, negative, ask);
   const file = await runModel(keys.replicate, m.id, input, { maxBytes: MAX_BYTES, timeoutMs: 120_000 });
   if (!file.mime.startsWith("image/")) throw new Error("Replicate returned no picture.");
-  return file;
+  return fitRatio(file, ratio);
 }
 
 /* --------------------------------------------------- jobs --------------------------------------------------- */
 
-export type ShootKind = "shoot" | "restyle" | "recast" | "body" | "face" | "pair" | "variations" | "upscale" | "animate" | "identity";
+export type ShootKind = "shoot" | "restyle" | "recast" | "body" | "face" | "pair" | "variations" | "upscale" | "animate" | "identity" | "carousel";
 export type Shoot = {
   id: string;
   kind: ShootKind;
@@ -300,6 +309,8 @@ type JobSpec = {
   onKept?: (pictureId: string, p: JobPrompt) => Promise<void>;
   /** At most this many drawn at once (all of them by default): an identity pack's eight go four at a time, like two shoots. */
   concurrency?: number;
+  /** The shape the pictures are drawn in ("9:16"; lib/studio/formats.ts), kept on each: 3:4 by default. */
+  ratio?: string;
 };
 type JobPrompt = { prompt: string; preset: PresetId | null; images?: string[]; view?: IdentityViewId };
 
@@ -362,7 +373,7 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
   // Every picture at once (each a minute or so), or `concurrency` at a time, then checked one at a time.
   const drawn = await inBatches(spec.prompts, spec.concurrency ?? spec.prompts.length, (p) =>
     // Each with its own log of what it sent (lib/adult/request-log.ts), kept with the picture.
-    withRequestLog(() => (spec.draw ? spec.draw(keys, p) : drawOne(db, spec.model, keys, p.prompt, p.images ?? spec.images, spec.negative))).then(
+    withRequestLog(() => (spec.draw ? spec.draw(keys, p) : drawOne(db, spec.model, keys, p.prompt, p.images ?? spec.images, spec.negative, spec.ratio))).then(
       ({ value: file, requests }) => ({ file, p, requests }),
       (err: unknown) => {
         // A refusal of their own key (invalid, out of credit) goes on its Connections card, as a portrait's does.
@@ -396,18 +407,18 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
     const store = await keepBytes("after-dark", pid, d.file.bytes, d.file.mime);
     await db.query(
       // Its level kept on it (2026-10-26), so whatever is made from it next reads how far it goes.
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_place, shoot_id, nsfw_score, request, level)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ready', $10, false, $11, $12, $13, $14, $15, $16::jsonb, $17)`,
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_place, shoot_id, nsfw_score, request, level, aspect)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ready', $10, false, $11, $12, $13, $14, $15, $16::jsonb, $17, $18)`,
       [
         pid, viewer, first, second, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, id, verdict.nsfw ?? null,
-        requestJson(d.requests), levelOf(spec.choices),
+        requestJson(d.requests), levelOf(spec.choices), spec.ratio ?? null,
       ],
     );
     await countUse(db, viewer, capKind);
     await spec.onKept?.(pid, d.p);
     kept.push({
       id: pid, character_id: first, character_b: second, kind: spec.pictureKind, status: "ready", created_at: new Date().toISOString(), mime: d.file.mime, clip: false,
-      place: spec.place, provider: spec.model.provider, fell_back: false, note: null, preset: d.p.preset, rating: null, tags: [], face: false,
+      place: spec.place, provider: spec.model.provider, fell_back: false, note: null, preset: d.p.preset, rating: null, tags: [], face: false, aspect: spec.ratio ?? null,
     });
   }
   const made = kept.length;
@@ -518,7 +529,7 @@ const wordsOk = (words: string): boolean => checkAdultText({ words }).ok && !cro
 
 /* --------------------------------------------------- a shoot --------------------------------------------------- */
 
-export type ShootInput = { choices: ShootChoices; model?: string | null; own_key?: boolean };
+export type ShootInput = { choices: ShootChoices; model?: string | null; own_key?: boolean; format?: FormatId };
 
 /**
  * The places of the character's nights (the viewer's, with a drawn set), then the viewer's own venues from the Create
@@ -604,10 +615,11 @@ export async function shoot(db: Db, viewer: string, characterId: string, input: 
     negative: [NEGATIVE_PROMPT, ...steer.negative].join(", "),
     model,
     tokens: opts.free ? 0 : input.own_key ? config.prices.own_key : config.prices.shoot[model.tier],
-    choices: { ...input.choices, level: plan.level },
+    choices: { ...input.choices, level: plan.level, ...(input.format && input.format !== "portrait" ? { format: input.format } : {}) },
     place: plan.place,
     redoOf: opts.redoOf ?? null,
     ownKey: input.own_key === true,
+    ratio: ratioOf(input.format),
   });
 }
 
@@ -955,6 +967,8 @@ export type PairInput = {
   reference?: string;
   /** Seen through one of their eyes (the act's first-person view, 2026-10-26): whose, in the pair's order. */
   eyes?: Eyes | null;
+  /** The shape it's drawn in (native sizes, lib/studio/formats.ts). */
+  format?: FormatId;
 };
 
 /**
@@ -1049,16 +1063,18 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
       level: levelForStage(plan.stage),
       ...(plan.eyes ? { eyes: plan.eyes } : {}),
       ...(input.reference ? { reference: input.reference } : {}),
+      ...(input.format && input.format !== "portrait" ? { format: input.format } : {}),
     },
     place: plan.place,
     partner: input.partner,
     ownKey: input.own_key === true,
+    ratio: ratioOf(input.format),
   });
 }
 
 /* ------------------------------------------- more like this, upscale ------------------------------------------- */
 
-type Solo = { id: string; kind: string; preset: PresetId | null; place: string | null; mime: string; level: Level; data: Buffer | Uint8Array | null; object_key: string | null };
+type Solo = { id: string; kind: string; preset: PresetId | null; place: string | null; mime: string; level: Level; data: Buffer | Uint8Array | null; object_key: string | null; aspect: string | null };
 
 /**
  * One of the viewer's ready pictures of the character alone, with its level: the Studio shoot's it came from, or (from
@@ -1067,7 +1083,7 @@ type Solo = { id: string; kind: string; preset: PresetId | null; place: string |
 async function soloPicture(db: Db, viewer: string, characterId: string, imageId: string): Promise<Solo | null> {
   const r = (
     await db.query<Omit<Solo, "level"> & { shoot_level: number | null; nude: boolean }>(
-      `select i.id, i.kind, i.preset, i.scene_place as place, i.mime, ${dataColumn("i")}, i.object_key,
+      `select i.id, i.kind, i.preset, i.scene_place as place, i.mime, ${dataColumn("i")}, i.object_key, i.aspect,
               coalesce(i.level, (select (s.choices->>'level')::int from adult_studio_shoots s where s.id = i.shoot_id and s.kind in ('shoot', 'variations', 'upscale'))) as shoot_level,
               ((i.kind = 'baseline' and ${nudeSql("i")})
                 or exists (select 1 from adult_studio_shoots s where s.id = i.shoot_id and s.kind = 'body' and (s.choices->>'nude')::boolean)) as nude
@@ -1137,6 +1153,49 @@ export async function moreLikeThis(db: Db, viewer: string, characterId: string, 
     choices: { source: src.id, level: src.level },
     place: src.place,
     ownKey: input.own_key === true,
+    // In the shape of the picture it's like.
+    ratio: src.aspect ?? undefined,
+  });
+}
+
+/**
+ * A carousel (the creator suite, 2026-10-26): one of their pictures of them alone, the very moment from six camera
+ * angles (CAROUSEL_ANGLES), a set to post together, in the feed's 4:5 unless asked otherwise, for `prices.carousel`.
+ * Drawn like More like this: the face, their body reference when the model has room, then the picture.
+ */
+export async function carouselShoot(db: Db, viewer: string, characterId: string, input: { image_id: string; format?: FormatId; model?: string | null; own_key?: boolean }, baseUrl: string): Promise<JobResult> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const { character: c, config } = access;
+  const model = studioModel(config, "edit", input.model);
+  if (!model) return fail(422, "unknown_model", "Pick one of the Studio's edit models.");
+  if (model.max_images < 2) return fail(422, "wrong_model", `${model.label} takes one picture: pick one that takes the face and the picture to go round.`);
+  const src = await soloPicture(db, viewer, c.id, input.image_id);
+  if (!src) return fail(404, "not_found", "Pick one of your pictures of them alone.");
+  const identity = await identityOf(db, viewer, c.id);
+  const { maxLevel } = shootLimits(identity, config);
+  if (src.level > maxLevel) return fail(422, "locked", `That picture is past ${LEVEL_LABEL[maxLevel].toLowerCase()}: their studio limit.`);
+  const face = await faceLink(db, viewer, c, baseUrl);
+  if (typeof face !== "string") return face;
+  const images = [identity.faceCrop && identity.strength !== "loose" ? signedMediaUrl(identity.faceCrop, baseUrl) : face];
+  const body = Boolean(identity.body) && identity.strength !== "loose" && identity.body !== src.id && model.max_images >= 3;
+  if (body) images.push(signedMediaUrl(identity.body!, baseUrl));
+  images.push(signedMediaUrl(src.id, baseUrl));
+  const subject = subjectOf(c, viewer, src.level >= 2);
+  const format = input.format ?? "feed";
+  return runJob(db, viewer, access, {
+    kind: "carousel",
+    pictureKind: "scene",
+    prompts: CAROUSEL_ANGLES.map((angle) => ({ prompt: carouselPrompt(subject, src.level, { body }, angle, identity.strength), preset: src.preset })),
+    images,
+    negative: NEGATIVE_PROMPT,
+    model,
+    tokens: input.own_key ? config.prices.own_key : config.prices.carousel,
+    choices: { source: src.id, level: src.level, format },
+    place: src.place,
+    ownKey: input.own_key === true,
+    concurrency: 3,
+    ratio: ratioOf(format),
   });
 }
 
@@ -1162,6 +1221,8 @@ export async function upscalePicture(db: Db, viewer: string, characterId: string
     place: src.place,
     ownKey: input.own_key === true,
     cap: "upscales",
+    // Its shape is the picture's own (the upscaler only makes it larger): kept, not drawn.
+    ratio: src.aspect ?? undefined,
     draw: (keys) => {
       if (!keys.venice) throw new Error("No Venice key for the upscaler.");
       return veniceUpscale(keys.venice, bytes, config.upscale.scale);

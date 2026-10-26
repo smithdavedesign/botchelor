@@ -73,6 +73,8 @@ export default function StudioSettings({ initial }: { initial: AdultSettings }) 
             ["Upscale", price("upscale"), (n: number) => ({ prices: { upscale: n } })],
             ["Identity pack (8 views; fewer cost their share)", price("identity"), (n: number) => ({ prices: { identity: n } })],
             ["PG Studio identity pack", studio.pg.identity_price, (n: number) => ({ pg: { identity_price: n } })],
+            ["Carousel (6 angles of a picture)", price("carousel"), (n: number) => ({ prices: { carousel: n } })],
+            ["PG Studio carousel", studio.pg.carousel_price, (n: number) => ({ pg: { carousel_price: n } })],
             ["Animate 5 s", price("animate_5"), (n: number) => ({ prices: { animate_5: n } })],
             ["Animate 10 s", price("animate_10"), (n: number) => ({ prices: { animate_10: n } })],
             ["On their own key", price("own_key"), (n: number) => ({ prices: { own_key: n } })],

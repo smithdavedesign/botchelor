@@ -2484,3 +2484,36 @@ tools for the face, and a fix for a face anchor that outlived its face.
 - The anchor now keeps the face it was drawn from (`adult_identity.face_crop_from`). One drawn from another face is
   stale: shoots use the face itself, and the Identity tab shows it dimmed, "drawn from an earlier face".
 - An anchor from before this change counts as stale when a face was picked after it was made.
+
+## Native sizes and carousels (2026-10-26)
+
+Creators post in a few shapes, and a picture cut down afterwards loses its framing. Both Studios now draw in the shape
+it's posted in. They also make a carousel: one picture's moment from six angles.
+
+**Native sizes** (`lib/studio/formats.ts`, `app/studio/FormatChips.tsx`; both Studios):
+- **The shapes:** Portrait 3:4 (as always), Story 9:16, Feed 4:5, Square 1:1 and Wide 16:9. A chip row with a small
+  outline of each sits above the shoot button, on the Shoot tab and the Together tab, and in the PG Studio.
+- **How it's drawn:** each model is asked for the shape when it takes it, else the nearest one it does (`askRatio`).
+  The picture is then cut to the shape (`fitRatio`, a quarter of the way down like an export), so every provider
+  gives the same shape. The ratios each takes, as of 2026-10-26:
+  - Venice's multi-edit: 1:1, 3:2, 16:9, 21:9, 9:16, 2:3, 3:4, 4:5. Seedream takes all but 4:5.
+  - Replicate's Qwen edit: 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3 (no 4:5).
+- **Text-to-image models** get a width and height (`sizeFor`, multiples of 16) or an aspect ratio, whichever their
+  model takes (`veniceSize`).
+- **Kept on the picture:** `adult_images.aspect` and `studio_pg_pictures.aspect`. Tiles show each picture in its own
+  shape (`tileRatio`). More like this and upscales keep their source's shape, and Fix faces keeps the original's.
+  Faces, bodies, restyles and identity views stay 3:4.
+- **Fixed on the way:** a PG shoot of someone with no portrait drew nothing. `drawPg` sent Qwen Image 3 a width and
+  height, which it refuses (400 "Use aspect_ratio"). It now goes through `veniceSize` like every other picture.
+
+**Carousels** (🎠; `carouselShoot` in `lib/adult/studio.ts`, `pgCarousel` in `lib/studio/pg.ts`):
+- **What:** one of their pictures (of them alone), the very moment from six angles (`CAROUSEL_ANGLES`): wide, the
+  side, a close-up, a low angle, over the shoulder, and a candid medium shot. The pose, clothes (or none), place and
+  light stay that picture's.
+- **Shape and price:** the feed's 4:5 unless another shape is picked. `prices.carousel` and `pg.carousel_price` are 1
+  token each; admins are free, and the tokens come back whole when nothing came through.
+- **After Dark:** drawn like More like this: the face (the anchor when there is one), their body reference when the
+  model has room, then the picture, three at a time. The picture's level is kept on each, and the Studio's limit holds.
+- **The PG Studio:** from their portrait (when there is one) and the picture itself, sent as data because a provider
+  can't open our pictures' links. Each is checked as a shoot's are (swimwear read as at the beach), and counts against
+  the month's pictures.

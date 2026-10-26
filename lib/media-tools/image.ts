@@ -74,6 +74,23 @@ export async function imageSize(bytes: Buffer): Promise<{ w: number; h: number }
 }
 
 /**
+ * A drawn picture in the shape it was asked for (native sizes, lib/studio/formats.ts): as it is when it's already that
+ * shape (within 2%), else cut to it (a quarter of the way down, like an export) in its own format. So a model asked for
+ * the nearest ratio it takes (Replicate has no 4:5) still gives the shape asked for. One sharp can't read stays as it is.
+ */
+export async function fitRatio(file: { bytes: Buffer; mime: string }, ratio: string): Promise<{ bytes: Buffer; mime: string }> {
+  const [aw, ah] = ratio.split(":").map(Number);
+  if (!(aw > 0 && ah > 0)) return file;
+  const sharp = await sharpOf();
+  const meta = await sharp(file.bytes, { failOn: "none" }).metadata().catch(() => null);
+  if (!meta?.width || !meta.height) return file;
+  const want = aw / ah;
+  if (Math.abs(meta.width / meta.height - want) / want <= 0.02) return file;
+  const img = sharp(file.bytes, { failOn: "none" }).extract(cropBox(meta.width, meta.height, aw, ah));
+  return meta.format === "jpeg" ? { bytes: await img.jpeg({ quality: 92, mozjpeg: true }).toBuffer(), mime: "image/jpeg" } : { bytes: await img.png().toBuffer(), mime: "image/png" };
+}
+
+/**
  * One picture as it's exported: at a social size (cut to its shape, never enlarged) or its own, as JPEG or PNG, with the
  * badge or without, marked AI-generated. An original in its own format with no badge isn't re-encoded at all.
  */

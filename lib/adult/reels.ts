@@ -904,8 +904,8 @@ export function replicateTiming(text: string): { frames: number; speed: number }
  * A keyframe's inputs on Replicate's Qwen-Image-Edit: the same prompt and pictures as on Venice (Pictures 1 and 2,
  * the set as 3), and its safety checker off: what comes back goes through Hive before anything is kept.
  */
-export function replicateKeyframeInput(prompt: string, images: string[]): Record<string, unknown> {
-  return { prompt, image: images, aspect_ratio: "3:4", output_format: "png", go_fast: true, disable_safety_checker: true };
+export function replicateKeyframeInput(prompt: string, images: string[], aspect = "3:4"): Record<string, unknown> {
+  return { prompt, image: images, aspect_ratio: aspect, output_format: "png", go_fast: true, disable_safety_checker: true };
 }
 
 /**
@@ -1022,8 +1022,8 @@ export async function setPictures(db: Db, places: readonly (string | null)[]): P
  * One keyframe from Venice's multi-image edit: it answers with the picture itself. `model` is another edit model (the
  * Studio's picker, lib/adult/studio.ts); the keyframe model by default.
  */
-export async function drawKeyframe(key: string, prompt: string, images: string[], model: string = KEYFRAME_MODEL): Promise<{ bytes: Buffer; mime: string }> {
-  const res = await venice(key, "/image/multi-edit", { modelId: model, prompt, images, safe_mode: false, aspect_ratio: "3:4", output_format: "png" });
+export async function drawKeyframe(key: string, prompt: string, images: string[], model: string = KEYFRAME_MODEL, aspect = "3:4"): Promise<{ bytes: Buffer; mime: string }> {
+  const res = await venice(key, "/image/multi-edit", { modelId: model, prompt, images, safe_mode: false, aspect_ratio: aspect, output_format: "png" });
   if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 160)}`);
   if (res.headers.get("x-venice-is-content-violation") === "true") throw new Error("Venice flagged the keyframe as against its terms");
   const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
@@ -1125,8 +1125,8 @@ export type ShotContext = {
 };
 
 /** One keyframe from Replicate's edit model, its bytes downloaded at once. */
-export async function drawReplicateKeyframe(r: ReplicateMedia, prompt: string, images: string[]): Promise<ReplicateFile> {
-  const file = await runModel(r.token, r.keyframe, replicateKeyframeInput(prompt, images), { maxBytes: MAX_PICTURE_BYTES, timeoutMs: 120_000 });
+export async function drawReplicateKeyframe(r: ReplicateMedia, prompt: string, images: string[], aspect = "3:4"): Promise<ReplicateFile> {
+  const file = await runModel(r.token, r.keyframe, replicateKeyframeInput(prompt, images, aspect), { maxBytes: MAX_PICTURE_BYTES, timeoutMs: 120_000 });
   if (!file.mime.startsWith("image/")) throw new Error("Replicate returned no keyframe");
   return file;
 }

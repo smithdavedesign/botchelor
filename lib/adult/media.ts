@@ -33,6 +33,7 @@ import { countUse, overCap } from "./usage";
 import { adultKeys, getAdultSettings } from "./settings";
 import { cleanBody, currentRequests, logRequest, requestJson, withRequestLog } from "./request-log";
 import { showsLabel } from "./tag-labels";
+import { sizeFor } from "../studio/formats";
 
 /** `clip`: the picture can be made to move (it's on fal; Venice's explicit pictures can't be). */
 export type Media = {
@@ -71,6 +72,10 @@ export type Media = {
   derived?: "boomerang" | "loop" | null;
   moment_at?: number | null;
   from_clip?: string | null;
+  /** The shape it was drawn in (native sizes, lib/studio/formats.ts: "9:16"); null for one drawn before, all 3:4. */
+  aspect?: string | null;
+  /** A picture with its faces fixed (lib/adult/fix-faces.ts): the one it was fixed from. */
+  fixed_from?: string | null;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -113,7 +118,7 @@ export function veniceSize(model: string, width: number, height: number, aspect_
  * A picture on Venice: its bytes come back in the reply (no URL), unblurred with safe_mode off. `safe` turns Venice's
  * safe mode on, for the show's own (PG) portraits (lib/season-gen.ts).
  */
-export async function venicePicture(db: Db, prompt: string, opts: { safe?: boolean; negative?: string; model?: string; key?: string } = {}): Promise<{ bytes: Buffer; mime: string }> {
+export async function venicePicture(db: Db, prompt: string, opts: { safe?: boolean; negative?: string; model?: string; key?: string; ratio?: string } = {}): Promise<{ bytes: Buffer; mime: string }> {
   // The Studio passes its picked model, and an owner's own key (lib/adult/studio.ts); otherwise the settings' own.
   const venice = opts.key ?? (await adultKeys(db)).venice;
   if (!venice) throw new Error("No Venice key saved in after dark's settings.");
@@ -124,7 +129,7 @@ export async function venicePicture(db: Db, prompt: string, opts: { safe?: boole
     // Steer away from anyone young-looking, on top of the output check (never instead of it), and from what the
     // viewer's ratings said was off (lib/adult/steering.ts).
     negative_prompt: opts.negative ?? NEGATIVE_PROMPT,
-    ...veniceSize(venice_image_model, 832, 1104, "3:4"),
+    ...(opts.ratio ? veniceSize(venice_image_model, sizeFor(opts.ratio).width, sizeFor(opts.ratio).height, opts.ratio) : veniceSize(venice_image_model, 832, 1104, "3:4")),
     format: "png",
     safe_mode: opts.safe === true,
     hide_watermark: true,
@@ -150,9 +155,9 @@ export async function venicePicture(db: Db, prompt: string, opts: { safe?: boole
  * steered away from anyone young-looking. Qwen-Image takes an aspect ratio and a format; an SDXL-style model
  * (RealVisXL…) a width and height, Venice's 832×1104.
  */
-export function replicatePictureInput(model: string, prompt: string, negative: string = NEGATIVE_PROMPT): Record<string, unknown> {
+export function replicatePictureInput(model: string, prompt: string, negative: string = NEGATIVE_PROMPT, ratio = "3:4"): Record<string, unknown> {
   const common = { prompt, negative_prompt: negative, disable_safety_checker: true };
-  return /qwen-image/i.test(model) ? { ...common, aspect_ratio: "3:4", output_format: "png" } : { ...common, width: 832, height: 1104, num_outputs: 1 };
+  return /qwen-image/i.test(model) ? { ...common, aspect_ratio: ratio, output_format: "png" } : { ...common, ...sizeFor(ratio), num_outputs: 1 };
 }
 
 /** A picture on Replicate (lib/adult/replicate.ts): its bytes, downloaded at once (Replicate deletes them within the hour). */
@@ -674,6 +679,8 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             i.trim,
             -- Made from a clip (lib/adult/moments.ts): a boomerang or a loop, or a still saved from it, and which clip.
             i.derived, i.moment_at, (case when i.derived is not null or i.moment_at is not null then i.source_image end) as from_clip,
+            -- Its shape (native sizes) and, its faces fixed, the picture it was fixed from (lib/adult/fix-faces.ts).
+            i.aspect, i.fixed_from,
             -- Tagged as the two of them together (lib/adult/media-tags.ts "who"), however it was made.
             exists (select 1 from adult_media_tags wt where wt.media_id = i.id and wt.kind = 'who' and wt.value = 'pair' and not wt.removed) as together,
             -- What it shows, for the tile's label (lib/adult/tag-labels.ts showsLabel).

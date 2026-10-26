@@ -2515,6 +2515,9 @@ create index if not exists media_exports_owner_idx on media_exports (owner_id, c
 -- character per person and Studio (each picture in that Studio's own table), each with the face it was drawn from
 -- (from_face), as the face anchor is (face_crop_from): one drawn from an earlier face isn't used once they pick another.
 alter table adult_images add column if not exists fixed_from text references adult_images (id) on delete set null;
+-- Native sizes (lib/studio/formats.ts): the shape a picture was drawn in ("9:16"); null for one drawn before, all 3:4.
+alter table adult_images add column if not exists aspect text;
+alter table studio_pg_pictures add column if not exists aspect text;
 alter table adult_identity add column if not exists face_crop_from text;
 alter table studio_pg_shoots add column if not exists kind text not null default 'shoot';
 create table if not exists identity_views (

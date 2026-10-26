@@ -6,6 +6,7 @@ import { removeShare, sharePicture } from "@/lib/adult/shares";
 import {
   animatePicture,
   bodyShoot,
+  carouselShoot,
   faceAnchorShoot,
   identityPack,
   deleteSetup,
@@ -31,6 +32,7 @@ import {
 import { CUSTOM_MAX, DIALOG_MAX, EXTRA_MAX, GROUP_IDS, PAIR_SECTIONS, TRANSCRIPT_MAX, type PairSection } from "@/lib/adult/studio-catalog";
 import { getDb } from "@/lib/db";
 import { IDENTITY_VIEW_IDS, type IdentityViewId } from "@/lib/studio/identity-views";
+import { FORMAT_IDS, type FormatId } from "@/lib/studio/formats";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
 
@@ -41,6 +43,8 @@ const id = z.string().min(1).max(64);
 const model = z.string().max(120).nullable().optional();
 /** On the viewer's own Venice or Replicate key (Connections, After Dark pictures) instead of ours. */
 const own_key = z.boolean().optional();
+/** The shape it's drawn in (native sizes, lib/studio/formats.ts). */
+const format = z.enum(FORMAT_IDS as [FormatId, ...FormatId[]]).optional();
 /** A shoot's choices: one option id per group, accessories up to three (lib/adult/studio-catalog.ts checks each). */
 const Choices = z
   .object(Object.fromEntries(GROUP_IDS.filter((g) => g !== "accessories").map((g) => [g, z.string().max(60).optional()])) as Record<string, z.ZodOptional<z.ZodString>>)
@@ -74,7 +78,7 @@ const PairChoices = z
 const Changes = z.object(Object.fromEntries([...RESTYLE_STEPS, ...RESTYLE_DETAILS].map((k) => [k, z.string().max(40).optional()]))).strict();
 
 const Input = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("shoot"), character_id: id, choices: Choices, model, own_key }),
+  z.object({ action: z.literal("shoot"), character_id: id, choices: Choices, model, own_key, format }),
   z.object({ action: z.literal("restyle"), character_id: id, changes: Changes, model, own_key }),
   z.object({ action: z.literal("save_looks"), character_id: id, changes: Changes }),
   z.object({ action: z.literal("recast"), character_id: id, model, own_key }),
@@ -103,8 +107,11 @@ const Input = z.discriminatedUnion("action", [
     eyes: z.enum(["a", "b"]).nullable().optional(),
     model,
     own_key,
+    format,
   }),
   z.object({ action: z.literal("variations"), character_id: id, image_id: id, model, own_key }),
+  // A carousel: one picture's moment from six angles (the creator suite), in the feed's 4:5 unless another format.
+  z.object({ action: z.literal("carousel"), character_id: id, image_id: id, model, own_key, format }),
   z.object({ action: z.literal("upscale"), character_id: id, image_id: id, own_key }),
   z.object({ action: z.literal("share"), character_id: id, image_id: id, to_character: id, kind: z.enum(["after_dark", "photo"]) }),
   z.object({ action: z.literal("unshare"), character_id: id, share_id: id }),
@@ -171,7 +178,7 @@ export const POST = handle(async (req: Request) => {
   const res = await (async (): Promise<Response> => {
     switch (input.action) {
       case "shoot":
-        return job(input.character_id, await shoot(db, viewer, input.character_id, { choices: input.choices, model: input.model, own_key: input.own_key }, base));
+        return job(input.character_id, await shoot(db, viewer, input.character_id, { choices: input.choices, model: input.model, own_key: input.own_key, format: input.format }, base));
       case "restyle":
         return job(input.character_id, await restyle(db, viewer, input.character_id, { changes: input.changes, model: input.model, own_key: input.own_key }, base));
       case "recast":
@@ -188,6 +195,8 @@ export const POST = handle(async (req: Request) => {
       }
       case "variations":
         return job(input.character_id, await moreLikeThis(db, viewer, input.character_id, { image_id: input.image_id, model: input.model, own_key: input.own_key }, base));
+      case "carousel":
+        return job(input.character_id, await carouselShoot(db, viewer, input.character_id, { image_id: input.image_id, model: input.model, own_key: input.own_key, format: input.format }, base));
       case "upscale":
         return job(input.character_id, await upscalePicture(db, viewer, input.character_id, { image_id: input.image_id, own_key: input.own_key }));
       case "share": {

@@ -529,6 +529,32 @@ export function variationPrompt(subject: Subject, level: Level, refs: { body: bo
   );
 }
 
+/**
+ * A carousel (the creator suite, 2026-10-26): the very moment of one of their pictures from six camera angles, a set to
+ * post together. Angles a photographer walks round to, never a new pose: the pose, clothes (or none), place and light
+ * stay that picture's.
+ */
+export const CAROUSEL_ANGLES = [
+  "in a wide shot from across the room, the whole scene in frame",
+  "from the side, at eye level",
+  "in a close-up from just above, the face and shoulders",
+  "from a low angle, looking up",
+  "from behind and to one side, looking back over the shoulder at the camera",
+  "in a medium shot, the camera turned slightly, natural and candid",
+] as const;
+
+/** One of a carousel's pictures: the person from Picture 1 (the body from Picture 2) at the moment in the last one, seen from `angle`. */
+export function carouselPrompt(subject: Subject, level: Level, refs: { body: boolean }, angle: string, strength: Strength = "balanced"): string {
+  const who = subject.noun === "person" ? "person" : subject.noun;
+  const like = refs.body ? 3 : 2;
+  const age = Math.max(IMAGE_MIN_AGE, Math.round(subject.age || IMAGE_MIN_AGE));
+  return fit(
+    [`Make one photograph of the ${who} from Picture 1${refs.body ? ", with the body from Picture 2" : ""}, at the very moment in Picture ${like}.`, `A ${age}-year-old adult ${who}${subject.look ? `, ${subject.look}` : ""}.`, KEEP[strength]],
+    `The same pose, clothes (or none), place and light as Picture ${like}, seen ${angle}. Only this one person in the picture, the face clearly visible.`,
+    [TAIL[level]],
+  );
+}
+
 /** A restyle's prompt: the same person as Picture 1, only these looks changed, framed like a baseline (the face clear). */
 export function restylePrompt(subject: Subject, changes: string[], light: string): string {
   const who = subject.noun === "person" ? "person" : subject.noun;

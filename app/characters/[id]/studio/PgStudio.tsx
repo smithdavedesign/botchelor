@@ -12,6 +12,8 @@ import TileTools, { SelectBar } from "@/app/studio/TileTools";
 import { PG_API, useSelection, type Selection } from "@/app/studio/selection";
 import IdentityPackGrid from "@/app/studio/IdentityPackGrid";
 import { identityPrice, type IdentityViewId } from "@/lib/studio/identity-views";
+import FormatChips, { tileRatio } from "@/app/studio/FormatChips";
+import type { FormatId } from "@/lib/studio/formats";
 
 const pictureUrl = (id: string) => `/api/studio/pictures/${id}`;
 
@@ -31,6 +33,8 @@ export default function PgStudio({ initial }: { initial: PgState }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   const [fresh, setFresh] = useState<PgPicture[]>([]);
+  // The shape a shoot is drawn in (native sizes, lib/studio/formats.ts).
+  const [format, setFormat] = useState<FormatId>("portrait");
   // The creator suite (2026-10-26): pictures picked to export together, and the export open for them.
   const sel = useSelection();
   const [exporting, setExporting] = useState<string[] | null>(null);
@@ -65,7 +69,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     const body: PgChoices = { ...choices, ...(custom.trim() ? { custom: custom.trim() } : {}), ...(mine ? { own_place: { name: mine.name, description: mine.description } } : {}) };
     if (mine) delete body.place;
     if (!beach && body.wardrobe === "swim") delete body.wardrobe;
-    const res = await requestJson(`/api/characters/${c.id}/studio`, { action: "shoot", choices: body }).catch(() => null);
+    const res = await requestJson(`/api/characters/${c.id}/studio`, { action: "shoot", choices: body, format }).catch(() => null);
     setBusy(false);
     if (!res) return setNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
     if (!res.ok) return setNote({ text: res.message, error: true });
@@ -90,6 +94,22 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     setNote(res.data.message ? { text: String(res.data.message), error: n === 0 } : { text: `${n} view${n === 1 ? "" : "s"} drawn: they're in the gallery too.` });
   }
   const tokenWord = (n: number) => (n === 0 ? "free" : `${n} token${n === 1 ? "" : "s"}`);
+
+  // A carousel (the creator suite): one picture's very moment from six angles, in the feed's 4:5 unless another shape is picked.
+  async function carousel(id: string) {
+    setBusy(true);
+    setNote({ text: "Drawing six angles of that moment… about a minute." });
+    const res = await requestJson(`/api/characters/${c.id}/studio`, { action: "carousel", picture_id: id, format: format === "portrait" ? "feed" : format }, "POST", { timeoutMs: 290_000 }).catch(() => null);
+    setBusy(false);
+    if (!res) return setNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
+    if (!res.ok) return setNote({ text: res.message, error: true });
+    const pics = (res.data.pictures as PgPicture[]) ?? [];
+    setFresh(pics);
+    const refresh = await fetch(`/api/characters/${c.id}/studio`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (refresh) setState(refresh as PgState);
+    setNote(res.data.message ? { text: String(res.data.message), error: pics.length === 0 } : { text: `A carousel of ${pics.length}: they're in the gallery, in order.` });
+  }
+  const carouselPrice = state.admin ? "free for admins" : tokenWord(state.carousel_price);
 
   // The Create tab saved or deleted something: the Where menu and the prompts row follow at once.
   const onLibrary = useCallback((lib: Library) => setState((s) => ({ ...s, library: { places: lib.places.filter((p) => p.mode === "safe"), prompts: lib.prompts.filter((p) => p.mode === "safe") } })), []);
@@ -198,6 +218,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
               ))}
             </p>
           )}
+          <FormatChips value={format} onChange={setFormat} disabled={busy} />
           <p className="pg-go">
             <button type="button" className="primary" disabled={busy || !canPay || state.left_this_month < state.shoot_size} onClick={() => void shoot()}>
               {busy ? "Shooting… (about a minute)" : `Shoot ${state.shoot_size} · ${price}`}
@@ -212,7 +233,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
               {note.text}
             </p>
           )}
-          {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} onUse={usePicture} afterDark={afterDark} sel={sel} />}
+          {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} onUse={usePicture} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} />}
         </>
       ) : tab === "create" ? (
         <CreateLibrary scope="safe" onLibrary={onLibrary} />
@@ -251,7 +272,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
               </button>
             </p>
           )}
-          <Pictures items={state.pictures} onDelete={remove} onUse={usePicture} afterDark={afterDark} sel={sel} />
+          <Pictures items={state.pictures} onDelete={remove} onUse={usePicture} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} />
           {sel.selecting && (
             <SelectBar count={sel.ids.length} total={state.pictures.length} onAll={() => sel.set(state.pictures.map((p) => p.id))} onExport={() => setExporting(sel.ids)} onDone={sel.done} />
           )}
@@ -270,19 +291,24 @@ function Pictures({
   onUse,
   afterDark = false,
   sel,
+  onCarousel,
+  carouselPrice = "",
 }: {
   items: PgPicture[];
   onDelete: (id: string) => void;
   onUse?: (id: string, as: "portrait" | "face") => void;
   afterDark?: boolean;
   sel?: Selection;
+  /** A carousel of this picture (six angles of its moment), and what one costs; absent while something's being drawn. */
+  onCarousel?: (id: string) => void;
+  carouselPrice?: string;
 }) {
   return (
     <ul className="pg-pictures">
       {items.map((p) => (
         <li key={p.id} className={`card${sel?.has(p.id) ? " picked" : ""}`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- the owner's private picture, from its own route */}
-          <img src={pictureUrl(p.id)} alt="A Studio picture" loading="lazy" />
+          <img src={pictureUrl(p.id)} alt="A Studio picture" loading="lazy" style={{ aspectRatio: tileRatio(p.aspect) }} />
           <span className="pg-picture-meta">
             <AiTag />
             {p.rating === "suggestive" && <span className="badge" title="Signed-in people only">Suggestive</span>}
@@ -297,6 +323,9 @@ function Pictures({
                 🌙 After Dark face
               </button>
             )}
+            <button type="button" className="button-ghost small" disabled={!onCarousel} onClick={() => onCarousel?.(p.id)} title={`This very moment from six angles, a set to post together: ${carouselPrice}`}>
+              🎠 Carousel
+            </button>
             <button type="button" className="button-ghost small" onClick={() => onDelete(p.id)}>
               Delete
             </button>
