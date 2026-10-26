@@ -11569,3 +11569,40 @@ button.pg-group-head:hover {
 .met-take input {
   width: 100%;
 }
+/* The thread's double-date picker opens as a panel under the header (it overflowed the header row inline). */
+.phone-header.is-page {
+  position: relative;
+}
+.double-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0.5rem;
+  right: 0.5rem;
+  z-index: 30;
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  text-align: left;
+  white-space: normal;
+}
+.double-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.double-panel p {
+  margin: 0;
+}
+.double-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.double-group > p {
+  flex: 1 0 100%;
+}

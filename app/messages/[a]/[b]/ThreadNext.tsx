@@ -7,8 +7,8 @@ import type { NextStep } from "@/lib/inbox";
 
 /**
  * The thread header's one action (David, 2026-10-18: "move the button to the top, no label"): Book date when both
- * want one, Watch live while it's filmed, ▶ Last date after. Nothing while they're still deciding: the stage
- * under the name says where they are.
+ * want one (and 💞💞 Double? beside it), Watch live while it's filmed, ▶ Last date after, Swipe for others when one
+ * said not this time. Nothing while they're still deciding: the stage under the name says where they are.
  */
 export default function ThreadNext({ next, mineId, themId }: { next: NextStep | null; mineId: string; themId: string }) {
   const { book, busy, message } = useBookDate(mineId, themId);
@@ -26,6 +26,14 @@ export default function ThreadNext({ next, mineId, themId }: { next: NextStep | 
           </span>
         )}
       </span>
+    );
+  }
+  // 2026-10-25 page review: "Not this time" was a dead end (no action at all). The way forward: the deck again.
+  if (next.kind === "declined") {
+    return (
+      <Link className="button small thread-action" href={`/swipe?character=${encodeURIComponent(mineId)}`}>
+        💘 Swipe for others
+      </Link>
     );
   }
   if (next.kind === "filming") {

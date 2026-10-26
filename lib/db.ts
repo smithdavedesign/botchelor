@@ -586,6 +586,8 @@ alter table group_nights drop constraint if exists group_nights_status_check;
 alter table group_nights add constraint group_nights_status_check
   check (status in ('invited', 'booked', 'declined', 'lapsed', 'half_booked', 'open', 'running', 'done', 'cancelled'));
 alter table group_nights add column if not exists rotations jsonb;
+-- When a night's last date aired and its people were asked who they liked (lib/group-dates.ts notifyNightAired): once.
+alter table group_nights add column if not exists reflect_sent_at timestamptz;
 create table if not exists group_night_seats (
   night_id text not null references group_nights (id) on delete cascade,
   character_id text not null references characters (id) on delete cascade,

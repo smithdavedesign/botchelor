@@ -11,6 +11,8 @@ import { GET as inviteGet, POST as invitePost } from "@/app/api/doubles/[id]/rou
 import { GET as mixerGet, POST as mixerPost } from "@/app/api/mixer/route";
 import { POST as metNotesPost } from "@/app/api/characters/[id]/met-notes/route";
 import { deckFor } from "@/lib/swipes";
+import { notifyNightAired } from "@/lib/group-dates";
+import { weekAt } from "@/lib/seasons";
 import { loadCharacterMemory, remembered } from "@/lib/memory";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -393,7 +395,29 @@ describe("group nights for people on the web (mixer join, graph invites, met tak
     scriptedModel([episodeJson(), episodeJson(), episodeJson(), episodeJson()]);
     expect(await runDueMixers(t.db, new Date(Date.now() + 31 * 60_000))).toMatchObject({ ran: 1, booked: 4 });
     const eps = (await t.db.query<Any>(`select id, creator_id, character_a, character_b from episodes`)).rows;
-    for (const e of eps) expect(await airEpisode(t.db, e.id, e.creator_id)).not.toBeNull();
+    // The wrap links each person's own date from the night (it was a dead end on the web: no link).
+    for (const p of people) {
+      const wrap = (await t.db.query<Any>(`select link, body from notifications where user_id = $1 and kind = 'mixer'`, [p.userId])).rows;
+      expect(wrap).toHaveLength(1);
+      const own = eps.find((e: Any) => e.creator_id === p.userId)!;
+      expect(wrap[0].link).toBe(`/episodes/${own.id}?play=1`);
+      expect(wrap[0].body).toMatch(/relationship board/);
+    }
+    // The Join line's "last mixer": each person's own date, before anything airs.
+    const recent = ((await (await mixerGet(webReq("/api/mixer", people[1].cookie))).json()) as Any).recent;
+    expect(recent.map((r: Any) => r.character_id)).toEqual([people[1].id]);
+    // "Who did they like?" waits for the whole night to air, then goes once to every person, linking the board.
+    for (const [i, e] of eps.entries()) {
+      expect(await airEpisode(t.db, e.id, e.creator_id)).not.toBeNull();
+      // Scoped to this test's people: notifications outlive t.reset().
+      const asked = (
+        await t.db.query<Any>(`select count(*)::int as n from notifications where kind = 'group_reflect' and user_id = any($1)`, [people.map((p) => p.userId)])
+      ).rows[0].n;
+      expect(asked).toBe(i < eps.length - 1 ? 0 : people.length);
+    }
+    const ask = (await t.db.query<Any>(`select title, link from notifications where user_id = $1 and kind = 'group_reflect'`, [people[0].userId])).rows;
+    expect(ask).toEqual([{ title: "💭 Who did Wren like?", link: `/characters/${people[0].id}/relationships#met-title` }]);
+    expect(await notifyNightAired(t.db, eps[0].id)).toBe(0); // once a night
 
     // Each character's memory: its two dates as people, the one it missed as met — for every character there.
     const me = people[0];
@@ -420,6 +444,19 @@ describe("group nights for people on the web (mixer join, graph invites, met tak
     expect(String(remembered({ memory: after }, missed.id)!.you_met_once)).toMatch(/Your take at the time: .*lighthouse/);
     // The take is the owner's alone: the other character's memory never carries it.
     expect(JSON.stringify(await loadCharacterMemory(t.db, missed.id))).not.toMatch(/lighthouse/);
+  });
+
+  it("joining the mixer with no dates left says so (with the shop) instead of falling through on the night", async () => {
+    const p = await person("Wren Kestrel");
+    await t.db.query(
+      `insert into free_episode_usage (user_id, season_id, used) values ($1, $2, 99)
+       on conflict (user_id, season_id) do update set used = 99`,
+      [p.userId, weekAt(new Date()).id],
+    );
+    const res = await mixerPost(webReq("/api/mixer", p.cookie, { action: "join", character_id: p.id }));
+    expect(res.status).toBe(402);
+    expect(((await res.json()) as Any).shop_path).toBe("/shop");
+    expect((await t.db.query<Any>(`select count(*)::int as n from group_night_seats`)).rows[0].n).toBe(0);
   });
 
   it("the picker offers couples from the social graph (near you first), and inviting one sends the invite", async () => {

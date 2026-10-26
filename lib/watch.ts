@@ -60,7 +60,7 @@ import { PUBLIC_ONLY } from "./relationships";
 import { refreshAndAnnounce } from "./relationship-events";
 import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
 import { updateCharacterMemory } from "./memory";
-import { siblingCharacters } from "./group-dates";
+import { notifyNightAired, siblingCharacters } from "./group-dates";
 import { notifyPredictors } from "./air";
 import { ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, type Turn } from "./conversation";
@@ -597,6 +597,8 @@ export async function syncRoom(
       await updateCharacterMemory(db, aired.character_b).catch(() => {});
       // A double date's other table (lib/group-dates.ts): they met this couple too.
       for (const across of await siblingCharacters(db, exists.episode_id).catch(() => [])) await updateCharacterMemory(db, across).catch(() => {});
+      // The night's last date aired: ask its people who they liked (once a night).
+      await notifyNightAired(db, exists.episode_id).catch(() => 0);
       await refreshAndAnnounce(db, aired.character_a, aired.character_b, { episodeId: exists.episode_id }).catch(() => {});
       await notifyPredictors(db, exists.episode_id).catch(() => {});
     }
