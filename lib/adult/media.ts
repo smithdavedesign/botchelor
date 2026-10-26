@@ -98,6 +98,14 @@ const MAX_BYTES = 40 * 1024 * 1024;
 export const VENICE_IMAGE = "https://api.venice.ai/api/v1/image/generate";
 
 /**
+ * A picture's size for a Venice model: its SDXL-family ones (Lustify, Chroma, z-image…) take a width and height; its
+ * newer ones (Qwen Image 3, Flux, Seedream…) refuse those and take only an aspect ratio (400 "Use aspect_ratio").
+ */
+export function veniceSize(model: string, width: number, height: number, aspect_ratio: string): Record<string, unknown> {
+  return /^(lustify|chroma|z-image|venice-sd|wai-)/i.test(model) ? { width, height } : { aspect_ratio };
+}
+
+/**
  * A picture on Venice: its bytes come back in the reply (no URL), unblurred with safe_mode off. `safe` turns Venice's
  * safe mode on, for the show's own (PG) portraits (lib/season-gen.ts).
  */
@@ -112,8 +120,7 @@ export async function venicePicture(db: Db, prompt: string, opts: { safe?: boole
     // Steer away from anyone young-looking, on top of the output check (never instead of it), and from what the
     // viewer's ratings said was off (lib/adult/steering.ts).
     negative_prompt: opts.negative ?? NEGATIVE_PROMPT,
-    width: 832,
-    height: 1104,
+    ...veniceSize(venice_image_model, 832, 1104, "3:4"),
     format: "png",
     safe_mode: opts.safe === true,
     hide_watermark: true,
