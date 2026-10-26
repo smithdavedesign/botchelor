@@ -92,25 +92,22 @@ export default async function AfterDarkScenePage({ params }: Props) {
         textOnly={here.mode === "text_only" ? here.reason : null}
         writer={await writerOptions(db, admin)}
         admin={await isAdmin(db, admin)}
-        panels={
-          <>
-            {/* Two sides of the night (lib/adult/monologues.ts): each one's inner monologue of one of the viewer's whole nights. */}
-            <TwoSidesPanel a={scene.a} b={scene.b} />
-            {(await isAdmin(db, admin)) && (
-              // Admins' tools in one fold (2026-10-25: "too much going on"): why each line was written, and Shorts.
-              <details className="ad-panel ad-admin-tools">
-                <summary>🛠 Admin</summary>
-                {/* The writer's private notes on every line (why it was said, the memory it drew on): admins only, never on stage. */}
-                <p className="muted small">
-                  <a href={`/api/admin/after-dark/why?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`} target="_blank" rel="noreferrer">
-                    Why each line was written (JSON)
-                  </a>
-                </p>
-                {/* Publish a night as a Short (lib/adult/shorts.ts): two of the season's house cast only. */}
-                {(await housePair(db, scene.a.id, scene.b.id)) && <ShortsPanel a={scene.a} b={scene.b} />}
-              </details>
-            )}
-          </>
+        // The Two sides tab (lib/adult/monologues.ts): each one's inner monologue of one of the viewer's whole nights.
+        twoSides={<TwoSidesPanel flat a={scene.a} b={scene.b} />}
+        adminTools={
+          (await isAdmin(db, admin)) ? (
+            <>
+              {/* The writer's private notes on every line (why it was said, the memory it drew on): admins only, never on stage. */}
+              <p className="muted small">
+                🛠 Admin ·{" "}
+                <a href={`/api/admin/after-dark/why?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`} target="_blank" rel="noreferrer">
+                  Why each line was written (JSON)
+                </a>
+              </p>
+              {/* Publish a night as a Short (lib/adult/shorts.ts): two of the season's house cast only. */}
+              {(await housePair(db, scene.a.id, scene.b.id)) && <ShortsPanel a={scene.a} b={scene.b} />}
+            </>
+          ) : null
         }
       />
     </article>

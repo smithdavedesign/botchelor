@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 import { TwoSidesView } from "@/app/after-dark/shorts/TwoSides";
 import type { SidesNight, TwoSides } from "@/lib/adult/monologues";
@@ -13,7 +13,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month
  * inner monologue of it and their morning-after texts. Written once a night (counted against the month), then kept.
  * Loaded when opened.
  */
-export default function TwoSidesPanel({ a, b }: { a: { id: string }; b: { id: string } }) {
+export default function TwoSidesPanel({ a, b, flat = false }: { a: { id: string }; b: { id: string }; flat?: boolean }) {
   const [panel, setPanel] = useState<{ nights: SidesNight[]; left: number | null } | null>(null);
   const [open, setOpen] = useState<{ id: string; sides: TwoSides } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -36,8 +36,15 @@ export default function TwoSidesPanel({ a, b }: { a: { id: string }; b: { id: st
     if (res.data.written) void load();
   }
 
+  // On the page's Two sides tab (flat): open, and loaded as it shows.
+  useEffect(() => {
+    if (flat && !panel) void load();
+    // Once, when the tab first shows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flat]);
+
   return (
-    <details className="ad-panel ad-two-sides" onToggle={(e) => (e.currentTarget.open && !panel ? void load() : undefined)}>
+    <details className={`ad-panel ad-two-sides${flat ? " is-flat" : ""}`} open={flat || undefined} onToggle={(e) => (e.currentTarget.open && !panel ? void load() : undefined)}>
       <summary>🌗 Two sides of the night</summary>
       {error && (
         <p className="error" role="alert">

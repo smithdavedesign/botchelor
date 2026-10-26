@@ -14,7 +14,6 @@ import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 import Limits from "./Limits";
 import Memory from "./Memory";
 import Profile from "./Profile";
-import Scenarios from "./Scenarios";
 import Link from "next/link";
 import Reels, { stopReel } from "./Reels";
 import Storyboard from "./Storyboard";
@@ -34,6 +33,12 @@ import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import MediaTags from "../../MediaTags";
 import LocalTime from "../../LocalTime";
 import TrimmableClip from "../../TrimmableClip";
+
+/** The tabs under the theater, in order; the gallery opens first. */
+const PAGE_TABS = ["gallery", "make", "setup", "sides"] as const;
+type PageTab = (typeof PAGE_TABS)[number];
+const PAGE_TAB_LABEL: Record<PageTab, string> = { gallery: "🖼 Gallery", make: "🎞 Make", setup: "⚙️ Set up", sides: "🌗 Two sides" };
+const PAGE_TAB_KEY = "ad-page-tab";
 
 /** A saved night's day, in the viewer's own clock (LocalTime.tsx: never on the server). */
 const NIGHT_DAY = { month: "short", day: "numeric" } as const;
@@ -60,7 +65,8 @@ export default function SceneWriter({
   admin = false,
   scenes = [],
   myRoleplays = [],
-  panels = null,
+  twoSides = null,
+  adminTools = null,
 }: {
   initial: AdultScene;
   gallery: Media[];
@@ -88,8 +94,9 @@ export default function SceneWriter({
   scenes?: readonly CatalogScene[];
   /** The viewer's own roleplays (lib/studio/library.ts asRoleplay). */
   myRoleplays?: readonly Roleplay[];
-  /** The page's own folds (Two sides of the night, Admin): with Set up the night, above the long media section. */
-  panels?: ReactNode;
+  /** The page's Two sides tab (TwoSidesPanel, flat), and the admins' line under the tabs (null for everyone else). */
+  twoSides?: ReactNode;
+  adminTools?: ReactNode;
 }) {
   // Shown until the pause is over, then the buttons come back (the next one probes Hive first).
   const [hivePause, setHivePause] = useState(hive);
@@ -107,6 +114,26 @@ export default function SceneWriter({
   const [planning, setPlanning] = useState<ReelScope | null>(null);
   // Which of their pictures, videos and saved nights is showing (2026-10-25): the pictures, unless a video was just made.
   const [mediaTab, setMediaTab] = useState<"pictures" | "videos" | "nights">("pictures");
+  // Everything under the theater in one tabbed panel (David, 2026-10-25: "cleanup this ux"): the gallery first, then Make,
+  // Set up and Two sides. The tab they last used is kept (a convenience: it can be gone), and ?tab= opens one.
+  const [pageTab, setPageTabState] = useState<PageTab>("gallery");
+  const setPageTab = (t: PageTab) => {
+    setPageTabState(t);
+    try {
+      localStorage.setItem(PAGE_TAB_KEY, t);
+    } catch {}
+  };
+  useEffect(() => {
+    let want: string | null = new URLSearchParams(window.location.search).get("tab");
+    if (!want) {
+      try {
+        want = localStorage.getItem(PAGE_TAB_KEY);
+      } catch {}
+    }
+    if (want && (PAGE_TABS as readonly string[]).includes(want) && !(want === "make" && textOnly)) setPageTabState(want as PageTab);
+    // Once, on opening.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const putReel = useCallback((r: Reel) => {
     setReelList((list) => [r, ...list.filter((x) => x.id !== r.id)]);
     // Done, either way: the "it's being made" note would contradict the video below (a failure says why there).
@@ -329,6 +356,7 @@ export default function SceneWriter({
               setStoryboard(null);
               if (r.status === "making") setReelNote({ text: "🎬 It's being made: a few minutes. It appears under Videos, and plays shot by shot." });
               setMediaTab("videos");
+              setPageTab("gallery");
             }}
             onClose={() => {
               setStoryboard(null);
@@ -455,35 +483,41 @@ export default function SceneWriter({
             {mediaPaused}
           </p>
         )}
-        {!textOnly && <MediaMenu scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />}
-        {/* How the night is set up, folded in one place: the scenario, the limits, what they're into and remember, their faces. */}
-        <details className="ad-panel ad-setup">
-          <summary>
-            ⚙️ Set up the night <span className="muted small">scenario, limits, what they&apos;re into and remember, their faces</span>
-          </summary>
-          <div className="ad-panels">
-            <Scenarios busy={busy} hasLines={scene.lines.length > 0} current={scene.scenario} onStart={(id) => send({ scenario: id })} />
-            <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits, consent) => send({ limits, ...(consent ? { consent: true } : {}) })} />
-            <Profile scene={scene} characters={characters} onScene={setScene} />
-            <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
+        <section className="ad-page-tabs">
+          <div className="ad-studio-tabs ad-page-tabbar" role="tablist" aria-label="Their night">
+            {PAGE_TABS.filter((t) => !(t === "make" && textOnly)).map((t) => (
+              <button key={t} type="button" role="tab" aria-selected={pageTab === t} className={pageTab === t ? "on" : ""} onClick={() => setPageTab(t)}>
+                {t === "gallery" ? `🖼 Gallery (${gallery.length + reelList.length})` : PAGE_TAB_LABEL[t]}
+              </button>
+            ))}
           </div>
-          {!textOnly && (
-            <FacesPanel
-              characters={characters}
-              faces={faces}
-              gallery={gallery}
-              onFace={pickFace}
-              steer={steer}
-              onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
-              onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
-              paused={mediaPaused}
-            />
+          {pageTab === "make" && !textOnly && <MediaMenu flat scene={scene} onReel={putReel} onPicture={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} />}
+          {pageTab === "setup" && (
+            // How the night is set up: the limits, what they're into and remember, their faces. Stories start from Scene &
+            // roleplay in the theater now (its scenario cards), so the scenario list isn't repeated here.
+            <div className="ad-setup-tab">
+              <div className="ad-panels">
+                <Limits intensity={scene.intensity} hardNos={scene.hard_nos} busy={busy} onSave={(limits, consent) => send({ limits, ...(consent ? { consent: true } : {}) })} />
+                <Profile scene={scene} characters={characters} onScene={setScene} />
+                <Memory a={characters[0]} b={characters[1]} onScene={setScene} />
+              </div>
+              {!textOnly && (
+                <FacesPanel
+                  characters={characters}
+                  faces={faces}
+                  gallery={gallery}
+                  onFace={pickFace}
+                  steer={steer}
+                  onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
+                  onPictures={(ms) => setGallery((g) => [...ms.filter((m) => !g.some((x) => x.id === m.id)), ...g])}
+                  paused={mediaPaused}
+                />
+              )}
+            </div>
           )}
-        </details>
-        {/* Set up the night, Two sides and Admin sit above the media, a long scroll (David, 2026-10-25). */}
-        {panels}
-        {/* Their pictures, videos and saved nights, a tab each (2026-10-25: "too much going on"). */}
-        <section className="ad-media-tabs">
+          {pageTab === "sides" && twoSides}
+          {pageTab === "gallery" && (
+        <div className="ad-media-tabs">
           <div className="ad-studio-tabs" role="tablist" aria-label="Their pictures, videos and nights">
             {(
               [
@@ -528,7 +562,11 @@ export default function SceneWriter({
           ) : (
             <p className="muted small">No saved nights yet: Start over files the night that ran, and it plays back here.</p>
           )}
+        </div>
+          )}
         </section>
+        {/* Admins only: their tools as one small line, not a panel of their own. */}
+        {adminTools && <div className="ad-admin-line">{adminTools}</div>}
       </section>
     </MediaAdmin.Provider>
   );

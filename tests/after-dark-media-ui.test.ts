@@ -172,6 +172,10 @@ describe("the controls", () => {
     const html = renderToStaticMarkup(createElement(MediaMenu, { scene, onReel: () => {}, onPicture: () => {} }));
     expect(html).toMatch(/<details class="ad-panel ad-media">/);
     expect(html).toContain("🎞 A clip or a picture of the two of them");
+    // On the page's Make tab: open, no fold of its own, its price in a line.
+    const flat = renderToStaticMarkup(createElement(MediaMenu, { scene, onReel: () => {}, onPicture: () => {}, flat: true }));
+    expect(flat).toMatch(/<details class="ad-panel ad-media is-flat" open="">/);
+    expect(flat).toContain("The theater&#x27;s 📷 does the moment on screen.");
   });
 
   it("brings the next line a beat after a held one's voice ends, not a whole turn later", () => {

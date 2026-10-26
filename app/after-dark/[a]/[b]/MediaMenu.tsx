@@ -52,14 +52,17 @@ export default function MediaMenu({
   onReel,
   onPicture,
   paused = null,
+  flat = false,
 }: {
   scene: AdultScene;
   onReel: (r: Reel) => void;
   onPicture: (m: Media) => void;
   /** Hive's breaker is open (lib/adult/hive-limit.ts): the make buttons are disabled with this as their tooltip (the page shows the notice above). */
   paused?: string | null;
+  /** On the page's Make tab: always open, no fold of its own (its price said in a line instead of the summary). */
+  flat?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(flat);
   const [tab, setTab] = useState<"clip" | "picture">("clip");
   const [clips, setClips] = useState<ClipOffer | null>(null);
   const [pictures, setPictures] = useState<PictureMenu | null>(null);
@@ -135,11 +138,16 @@ export default function MediaMenu({
   }, [tab, pickedOutfit, firstOutfit]);
 
   return (
-    <details className="ad-panel ad-media" open={open} onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+    <details className={`ad-panel ad-media${flat ? " is-flat" : ""}`} open={flat || open} onToggle={(e) => !flat && setOpen((e.currentTarget as HTMLDetailsElement).open)}>
       <summary>
         🎞 A clip or a picture of the two of them
         {clips && pictures ? <span className="muted"> · a clip {priceWords(clips.price)}, a picture {priceWords(pictures.price)}</span> : null}
       </summary>
+      {flat && (
+        <p className="muted small ad-media-price">
+          A clip or a picture of the two of them{clips && pictures ? `: a clip ${priceWords(clips.price)}, a picture ${priceWords(pictures.price)}` : ""}. The theater&apos;s 📷 does the moment on screen.
+        </p>
+      )}
       <div className="ad-chip-row" role="tablist" aria-label="A clip or a picture" style={{ marginBottom: "var(--space-3)" }}>
         <button type="button" role="tab" aria-selected={tab === "clip"} className={`ad-chip${tab === "clip" ? " on" : ""}`} onClick={() => setTab("clip")}>
           🎬 A clip
