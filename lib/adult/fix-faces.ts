@@ -18,6 +18,8 @@ import { keepBytes } from "../object-store";
 import { loadCharacter, type Character } from "../character";
 import { freshViews, identityPackOf } from "../studio/identity-pack";
 import { pickView } from "../studio/identity-views";
+import { askRatio, ratiosFor } from "../studio/formats";
+import { fitRatio } from "../media-tools/image";
 import { runMedia } from "./fallback";
 import { hivePausedMessage } from "./hive-limit";
 import { mediaByIds, outputCheckReady, PICTURES_OFF_NOTE, signedMediaUrl, type Media } from "./media";
@@ -47,7 +49,7 @@ export function fixFacePrompt(target: string, others: readonly { tag: string; fr
 
 type Row = {
   id: string; character_id: string | null; character_b: string | null; mime: string; prompt: string | null; shoot_id: string | null; scene_chapter: number | null;
-  scene_place: string | null; preset: string | null; level: number | null; pov: string | null;
+  scene_place: string | null; preset: string | null; level: number | null; pov: string | null; aspect: string | null;
 };
 
 /** The face a fix gives them: the identity pack's view for the picture's angle, else their face anchor, else the face they keep. */
@@ -65,7 +67,7 @@ export async function fixesOf(db: Db, mediaId: string): Promise<number> {
 export async function fixFaces(db: Db, viewer: string, mediaId: string, opts: { who?: string | null }, baseUrl: string): Promise<FixResult> {
   const row = (
     await db.query<Row>(
-      `select i.id, i.character_id, i.character_b, i.mime, i.prompt, i.shoot_id, i.scene_chapter, i.scene_place, i.preset, i.level,
+      `select i.id, i.character_id, i.character_b, i.mime, i.prompt, i.shoot_id, i.scene_chapter, i.scene_place, i.preset, i.level, i.aspect,
               (select t.value from adult_media_tags t where t.media_id = i.id and t.kind = 'pov' and not t.removed limit 1) as pov
          from adult_images i where i.id = $1 and i.owner_id = $2 and i.status = 'ready' and i.kind = 'scene' and i.mime like 'image/%'`,
       [mediaId, viewer],
@@ -93,6 +95,8 @@ export async function fixFaces(db: Db, viewer: string, mediaId: string, opts: { 
 
   const [keys, settings] = await Promise.all([adultKeys(db), getAdultSettings(db)]);
   const picture = signedMediaUrl(row.id, baseUrl);
+  // In the original's shape (native sizes): the model's nearest ratio, then cut to it.
+  const ratio = row.aspect ?? "3:4";
   const faceUrls = faces.map((f) => signedMediaUrl(f!, baseUrl));
   let file: { bytes: Buffer; mime: string };
   let made: { provider: string; fell_back: boolean };
@@ -103,17 +107,17 @@ export async function fixFaces(db: Db, viewer: string, mediaId: string, opts: { 
         if (p === "replicate") {
           const r = { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora };
           const others = targets.slice(1).map((t, k) => ({ tag: t.tag, from: k + 3 }));
-          return drawReplicateKeyframe(r, fixFacePrompt(targets[0].tag, others, level), [picture, ...faceUrls]);
+          return drawReplicateKeyframe(r, fixFacePrompt(targets[0].tag, others, level), [picture, ...faceUrls], askRatio(ratio, ratiosFor("replicate", r.keyframe)));
         }
         let current: { bytes: Buffer; mime: string } | null = null;
         for (const [k, t] of targets.entries()) {
           const from = current ? `data:${current.mime};base64,${current.bytes.toString("base64")}` : picture;
-          current = await drawKeyframe(keys.venice!, fixFacePrompt(t.tag, [], level), [from, faceUrls[k]]);
+          current = await drawKeyframe(keys.venice!, fixFacePrompt(t.tag, [], level), [from, faceUrls[k]], KEYFRAME_MODEL, askRatio(ratio, ratiosFor("venice", KEYFRAME_MODEL)));
         }
         return current!;
       }),
     );
-    file = logged.value.value;
+    file = await fitRatio(logged.value.value, ratio);
     made = { provider: logged.value.provider, fell_back: logged.value.fell_back };
     sent = requestJson(logged.requests);
   } catch (err) {
@@ -129,11 +133,12 @@ export async function fixFaces(db: Db, viewer: string, mediaId: string, opts: { 
   const id = crypto.randomUUID();
   const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_chapter, scene_place, shoot_id, level, fixed_from, nsfw_score, request)
-     values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb)`,
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_chapter, scene_place, shoot_id, level, fixed_from, nsfw_score, request, aspect)
+     values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20)`,
     [
       id, viewer, row.character_id, row.character_b, row.prompt, file.mime, kept.data, kept.object_key, made.provider, made.fell_back,
       made.provider === "replicate" ? settings.replicate_keyframe_model : KEYFRAME_MODEL, row.preset, row.scene_chapter, row.scene_place, row.shoot_id, row.level, row.id, verdict.nsfw ?? null, sent,
+      row.aspect,
     ],
   );
   // What it shows, as the original shows it, but for the pin for dates (that stays the owner's call).

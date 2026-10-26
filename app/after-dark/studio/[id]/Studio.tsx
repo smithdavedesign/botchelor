@@ -19,6 +19,8 @@ import TrimmableClip from "../../TrimmableClip";
 import FixFaces from "../../FixFaces";
 import IdentityPackGrid from "@/app/studio/IdentityPackGrid";
 import { identityPrice } from "@/lib/studio/identity-views";
+import FormatChips, { tileRatio } from "@/app/studio/FormatChips";
+import type { FormatId } from "@/lib/studio/formats";
 import { actMark, FramingMark, openingView, ViewChips } from "../../FramingChips";
 import ExportDialog from "@/app/studio/ExportDialog";
 import TileTools, { SelectBar } from "@/app/studio/TileTools";
@@ -121,6 +123,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const editModels = s.models.filter((m) => m.job === "edit" && fits(m));
   const newModels = s.models.filter((m) => m.job === "new" && fits(m));
   const [editModel, setEditModel] = useState(initial.models.find((m) => m.job === "edit" && m.ready)?.id ?? initial.models.find((m) => m.job === "edit")?.id ?? "");
+  // The shape a shoot is drawn in (native sizes, lib/studio/formats.ts): the same pick for a shoot alone and together.
+  const [format, setFormat] = useState<FormatId>("portrait");
   const [newModel, setNewModel] = useState(initial.models.find((m) => m.job === "new" && m.ready)?.id ?? initial.models.find((m) => m.job === "new")?.id ?? "");
   // Restyle starts from their look as they were made (restyle_current); only the picks moved away from it are sent.
   const current: Record<string, string> = s.restyle_current ?? {};
@@ -400,7 +404,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 <TrimmableClip id={p.id} src={media(p.id)} trim={p.trim ?? null} canTrim label={`${c.name}, a clip`} onMoment={() => void refresh()} />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media; not for next/image
-                <img src={media(p.id)} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" />
+                <img src={media(p.id)} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" style={{ aspectRatio: tileRatio(p.aspect) }} />
               )}
               {/* Full screen, whole (Lightbox.tsx): a tap opens it centered and uncropped, portrait or landscape. */}
               <button type="button" className="ad-studio-expand" onClick={() => setZoom({ id: p.id, video })} aria-label="View full screen" title="Full screen">
@@ -462,6 +466,15 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   onClick={() => void act(`more:${p.id}`, { action: "variations", character_id: c.id, image_id: p.id, model: picked?.id, ...own }, { title: "More like this" })}
                 >
                   {busy === `more:${p.id}` ? "Drawing…" : "More like this"}
+                </button>
+                <button
+                  type="button"
+                  className="button-ghost small"
+                  disabled={Boolean(busy) || !picked || !usable(picked)}
+                  title={`This very moment from six angles, a set to post together (the feed's 4:5 unless you picked another shape), ${tokens(price(s.prices.carousel))}`}
+                  onClick={() => void act(`carousel:${p.id}`, { action: "carousel", character_id: c.id, image_id: p.id, model: picked?.id, format: format === "portrait" ? "feed" : format, ...own }, { title: "A carousel" })}
+                >
+                  {busy === `carousel:${p.id}` ? "Drawing six angles…" : "🎠 Carousel"}
                 </button>
                 {(!onOwn || s.own_key.provider === "venice") && (
                   <button
@@ -838,6 +851,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             )}
             <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={choices.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setDialog(e.target.value)} />
           </fieldset>
+          <FormatChips value={format} onChange={setFormat} disabled={Boolean(busy)} />
           <div className="ad-studio-go is-main">
             <label>Model {modelSelect(editModels, picked?.id ?? "", setEditModel, "Model", (m) => m.price)}</label>
             <span className="badge">{LEVEL_LABEL[level]}</span>
@@ -845,7 +859,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               type="button"
               className="primary"
               disabled={Boolean(busy) || !picked || !usable(picked)}
-              onClick={() => void act("shoot", { action: "shoot", character_id: c.id, choices, model: picked?.id, ...own }, { title: "This shoot" })}
+              onClick={() => void act("shoot", { action: "shoot", character_id: c.id, choices, model: picked?.id, format, ...own }, { title: "This shoot" })}
             >
               {busy === "shoot" ? `Shooting… ${elapsed()}` : `Shoot ${s.sizes.shoot} · ${tokens(price(picked?.price ?? 0))}`}
             </button>
@@ -973,6 +987,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   </button>
                 </p>
               )}
+              <FormatChips value={format} onChange={setFormat} disabled={Boolean(busy)} />
               <div className="ad-studio-go">
                 <label>
                   Model{" "}
@@ -999,6 +1014,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                         ...(pairPick.reference ? { reference: pairPick.reference } : {}),
                         ...(pairPick.eyes ? { eyes: pairPick.eyes } : {}),
                         model: pairModel?.id,
+                        format,
                         ...own,
                       },
                       { title: `${first} and ${pairMenu.partner.name}` },

@@ -316,6 +316,25 @@ export type PgSubject = { noun: "man" | "woman" | "person"; age: number; look: s
 
 /** The fixed words that keep every picture a show picture, whatever was picked. */
 export const PG_TAIL = "Fully clothed, tasteful and everyday, safe for work. Photorealistic. Everyone shown is an adult.";
+
+/** A PG carousel's angles (the creator suite): one picture's very moment, seen from six places a photographer walks to. */
+export const PG_CAROUSEL_ANGLES = [
+  "in a wide shot, the whole scene in frame",
+  "from the side, at eye level",
+  "in a close-up, the face and shoulders",
+  "from a low angle, looking up",
+  "from behind and to one side, looking back over the shoulder at the camera",
+  "in a medium shot, the camera turned slightly, natural and candid",
+] as const;
+
+/** One of a PG carousel's pictures: the person (their face, when there's a portrait) at the very moment of their picture, from `angle`. */
+export function pgCarouselPrompt(subject: PgSubject, hasFace: boolean, angle: string): string {
+  const who = `a ${subject.age}-year-old ${subject.noun}${subject.look ? `, ${subject.look}` : ""}`;
+  const lead = hasFace
+    ? `A photograph of the person in the first reference picture (${who}), keeping their face exactly, at the very moment in the second reference picture.`
+    : `A photograph of the person in the reference picture (${who}), at the very moment it shows.`;
+  return [lead, `The same pose, clothes, place and light, seen ${angle}.`, PG_TAIL].join(" ");
+}
 export const PG_NEGATIVE = "child, children, kid, teen, teenager, minor, underage, young-looking, school uniform, nudity, nude, topless, lingerie, underwear, cleavage, see-through, sexual, suggestive, provocative pose";
 
 /** The picture's prompt: the same person as the reference (when there is one), then each part, then the fixed tail. */

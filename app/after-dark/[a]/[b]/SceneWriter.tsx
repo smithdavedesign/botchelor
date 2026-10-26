@@ -39,6 +39,7 @@ import TrimmableClip from "../../TrimmableClip";
 import ExportDialog from "@/app/studio/ExportDialog";
 import TileTools, { SelectBar } from "@/app/studio/TileTools";
 import FixFaces from "../../FixFaces";
+import { tileRatio } from "@/app/studio/FormatChips";
 import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
 
 /** The tabs under the theater, in order; the gallery opens first. */
@@ -693,7 +694,7 @@ function Gallery({
                 )
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" />
+                <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" style={{ aspectRatio: tileRatio(m.aspect) }} />
               )}
               <MediaRequest id={m.id} className="badge">
                 {m.nude ? `${m.kind} · undressed` : m.kind}

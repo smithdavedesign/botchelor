@@ -16,6 +16,8 @@
  *    (app/api/studio/pictures/[id]).
  *  - **Identity pack (the creator suite):** eight views of them from their portrait (lib/studio/identity-views.ts), each
  *    checked like a shoot's pictures, for `identity_price` (fewer, a redraw, for their share of it).
+ *  - **Native sizes and carousels (the creator suite):** a shoot in the shape it's posted in (lib/studio/formats.ts), and
+ *    one picture's moment from six angles for `carousel_price`.
  */
 import { createHash } from "node:crypto";
 import { isAdmin } from "../admins";
@@ -28,7 +30,11 @@ import { characterPortrait } from "../portraits";
 import { checkPgPictureText } from "../safety";
 import { checkRating } from "../adult/moderation";
 import { adultKeys, getAdultSettings } from "../adult/settings";
-import { PG_GROUPS, PG_NEGATIVE, pgShootPrompt, planPgShoot, planWords, type PgChoices, type PgSubject } from "./pg-catalog";
+import { PG_CAROUSEL_ANGLES, PG_GROUPS, PG_NEGATIVE, pgCarouselPrompt, pgShootPrompt, planPgShoot, planWords, type PgChoices, type PgSubject } from "./pg-catalog";
+import { veniceSize } from "../adult/media";
+import { fitRatio } from "../media-tools/image";
+import { readBytes } from "../object-store";
+import { askRatio, ratioOf, ratiosFor, sizeFor, type FormatId } from "./formats";
 import { getLibrary, type MyPlace, type MyPrompt } from "./library";
 import { identityPackOf, keepIdentityView, type IdentityPack } from "./identity-pack";
 import { IDENTITY_VIEW_IDS, identityPrice, identityViewPrompt, type IdentityViewId } from "./identity-views";
@@ -90,18 +96,23 @@ export function setPgStudioFetchForTests(f: Fetch | null): void {
 }
 const doFetch: Fetch = (...a) => (testFetch ?? fetch)(...a);
 
-/** One picture in Venice's safe mode: an edit of their face when there is one, else a new picture from words. */
-async function drawPg(key: string, config: PgConfig, prompt: string, face: string | null): Promise<{ bytes: Buffer; mime: string }> {
-  const res = face
+/**
+ * One picture in Venice's safe mode, in the shape asked (native sizes): an edit of `images` (their face first) when
+ * there are any, else a new picture from words. A new picture's size the way its model takes one (veniceSize: Qwen
+ * Image 3 refuses a width and height, 400 "Use aspect_ratio", so a shoot of someone with no portrait drew nothing).
+ */
+async function drawPg(key: string, config: PgConfig, prompt: string, images: string[], ratio = "3:4"): Promise<{ bytes: Buffer; mime: string }> {
+  const size = sizeFor(ratio);
+  const res = images.length
     ? await doFetch(`${VENICE}/image/multi-edit`, {
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-        body: JSON.stringify({ modelId: config.edit_model, prompt, images: [face], safe_mode: true, aspect_ratio: "3:4", output_format: "png" }),
+        body: JSON.stringify({ modelId: config.edit_model, prompt, images, safe_mode: true, aspect_ratio: askRatio(ratio, ratiosFor("venice", config.edit_model)), output_format: "png" }),
       })
     : await doFetch(`${VENICE}/image/generate`, {
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-        body: JSON.stringify({ model: config.new_model, prompt, negative_prompt: PG_NEGATIVE, width: 832, height: 1104, format: "png", safe_mode: true, hide_watermark: true }),
+        body: JSON.stringify({ model: config.new_model, prompt, negative_prompt: PG_NEGATIVE, ...veniceSize(config.new_model, size.width, size.height, ratio), format: "png", safe_mode: true, hide_watermark: true }),
       });
   if (!res.ok) throw new Error(`Venice ${res.status}: ${(await res.text().catch(() => "")).slice(0, 160)}`);
   // Venice's safe mode blurs what it judges adult and says so: never kept.
@@ -118,12 +129,12 @@ async function drawPg(key: string, config: PgConfig, prompt: string, face: strin
     bytes = Buffer.from(b64.replace(/^data:[^,]*,/, ""), "base64");
   }
   if (!bytes.length || bytes.length > MAX_BYTES) throw new Error("Venice returned no usable picture");
-  return { bytes, mime };
+  return fitRatio({ bytes, mime }, ratio);
 }
 
 /* ------------------------------------------------- state ------------------------------------------------- */
 
-export type PgPicture = { id: string; rating: "pg" | "suggestive"; created_at: string; shoot_id: string | null };
+export type PgPicture = { id: string; rating: "pg" | "suggestive"; created_at: string; shoot_id: string | null; aspect?: string | null };
 export type PgShoot = { id: string; status: string; asked: number; made: number; tokens: number; free: boolean; error: string | null; created_at: string };
 export type PgState = {
   character: { id: string; name: string; house: boolean; face: boolean };
@@ -142,6 +153,8 @@ export type PgState = {
   /** Their identity pack's views (the creator suite), and what all eight cost. */
   identity_pack: IdentityPack;
   identity_price: number;
+  /** A carousel's price (one picture's moment from six angles). */
+  carousel_price: number;
 };
 
 /**
@@ -185,8 +198,8 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
   if (!access.ok) return access;
   const { character: c, config, admin } = access;
   const [pictures, shoots, allowance, used, free, face, library] = await Promise.all([
-    db.query<{ id: string; content_rating: "pg" | "suggestive"; created_at: Date; shoot_id: string | null }>(
-      `select id, content_rating, created_at, shoot_id from studio_pg_pictures where owner_id = $1 and character_id = $2 order by created_at desc limit 120`,
+    db.query<{ id: string; content_rating: "pg" | "suggestive"; created_at: Date; shoot_id: string | null; aspect: string | null }>(
+      `select id, content_rating, created_at, shoot_id, aspect from studio_pg_pictures where owner_id = $1 and character_id = $2 order by created_at desc limit 120`,
       [viewer, c.id],
     ),
     db.query<{ id: string; status: string; asked: number; made: number; tokens: number; free: boolean; error: string | null; created_at: Date }>(
@@ -204,7 +217,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
     state: {
       character: { id: c.id, name: c.name, house: c.house, face: Boolean(face) },
       groups: PG_GROUPS,
-      pictures: pictures.rows.map((p) => ({ id: p.id, rating: p.content_rating, created_at: new Date(p.created_at).toISOString(), shoot_id: p.shoot_id })),
+      pictures: pictures.rows.map((p) => ({ id: p.id, rating: p.content_rating, created_at: new Date(p.created_at).toISOString(), shoot_id: p.shoot_id, aspect: p.aspect })),
       shoots: shoots.rows.map((s) => ({ ...s, created_at: new Date(s.created_at).toISOString() })),
       price: config.price,
       free: admin || free,
@@ -215,6 +228,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
       library: { places: library.places, prompts: library.prompts },
       identity_pack: await identityPackOf(db, viewer!, c.id, "pg", face ? faceKey(face) : null),
       identity_price: config.identity_price,
+      carousel_price: config.carousel_price,
     },
   };
 }
@@ -230,7 +244,7 @@ export function setPgStudioPausesForTests(on: boolean): void {
 }
 const CHECK_GAP_MS = 800;
 
-export async function pgShoot(db: Db, viewer: string | null, characterId: string, choices: PgChoices, baseUrl: string): Promise<PgShootResult> {
+export async function pgShoot(db: Db, viewer: string | null, characterId: string, choices: PgChoices, baseUrl: string, opts: { format?: FormatId } = {}): Promise<PgShootResult> {
   const access = await pgAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config, admin } = access;
@@ -254,13 +268,14 @@ export async function pgShoot(db: Db, viewer: string | null, characterId: string
   if (tokens > 0 && !(await spendBoughtTokens(db, owner, tokens))) return fail(402, "needs_tokens", `A shoot is ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the shop page.`);
   const face = await faceReference(db, c, baseUrl);
   const prompt = pgShootPrompt(plan, pgSubject(c), Boolean(face));
+  const ratio = ratioOf(opts.format);
   const id = crypto.randomUUID();
   await db.query(
     `insert into studio_pg_shoots (id, owner_id, character_id, choices, model, tokens, free, asked, status) values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, 'making')`,
-    [id, owner, c.id, JSON.stringify(choices), face ? config.edit_model : config.new_model, tokens, free, asked],
+    [id, owner, c.id, JSON.stringify(opts.format && opts.format !== "portrait" ? { ...choices, format: opts.format } : choices), face ? config.edit_model : config.new_model, tokens, free, asked],
   );
   const drawn = await Promise.all(
-    Array.from({ length: asked }, () => drawPg(keys.venice!, config, prompt, face).then((file) => ({ file }), (err: unknown) => ({ error: err instanceof Error ? err.message.slice(0, 200) : "error" }))),
+    Array.from({ length: asked }, () => drawPg(keys.venice!, config, prompt, face ? [face] : [], ratio).then((file) => ({ file }), (err: unknown) => ({ error: err instanceof Error ? err.message.slice(0, 200) : "error" }))),
   );
   const kept: PgPicture[] = [];
   let lastError: string | null = null;
@@ -279,11 +294,11 @@ export async function pgShoot(db: Db, viewer: string | null, characterId: string
     const pid = crypto.randomUUID();
     const store = await keepBytes("studio-pg", pid, d.file.bytes, d.file.mime);
     await db.query(
-      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [pid, owner, c.id, id, prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, v.rating, v.clothing, face ? config.edit_model : config.new_model],
+      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model, aspect)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [pid, owner, c.id, id, prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, v.rating, v.clothing, face ? config.edit_model : config.new_model, ratio],
     );
-    kept.push({ id: pid, rating: v.rating, created_at: new Date().toISOString(), shoot_id: id });
+    kept.push({ id: pid, rating: v.rating, created_at: new Date().toISOString(), shoot_id: id, aspect: ratio });
   }
   const made = kept.length;
   const refunded = made === 0 && tokens > 0;
@@ -339,7 +354,7 @@ export async function pgIdentityPack(db: Db, viewer: string | null, characterId:
   for (let i = 0; i < views.length; i += 4) {
     const batch = views.slice(i, i + 4).map((view) => {
       const prompt = identityViewPrompt(view, subject, { pg: true });
-      return drawPg(keys.venice!, config, prompt, face).then(
+      return drawPg(keys.venice!, config, prompt, [face]).then(
         (file) => ({ view, prompt, file }),
         (err: unknown) => ({ view, prompt, error: err instanceof Error ? err.message.slice(0, 200) : "error" }),
       );
@@ -380,6 +395,99 @@ export async function pgIdentityPack(db: Db, viewer: string | null, characterId:
       ? `Nothing came through${lastError ? ` (${lastError})` : ""}.${refunded ? " Your tokens are back." : ""}`
       : made < asked
         ? `${made} of ${asked} views came through; the rest didn't pass the Studio's check or failed to draw. Tap one to draw it again.`
+        : null;
+  return {
+    ok: true,
+    shoot: { id, status, asked, made, tokens: refunded ? 0 : tokens, free: false, error: lastError, created_at: new Date().toISOString() },
+    pictures: kept,
+    refunded,
+    message,
+  };
+}
+
+/**
+ * A PG carousel (the creator suite, 2026-10-26): one of their pictures, the very moment from six angles
+ * (PG_CAROUSEL_ANGLES), in the feed's 4:5 unless asked otherwise. Drawn from their portrait and the picture itself (sent
+ * as it is: a provider can't open our pictures' links), each checked as a shoot's are, for `carousel_price` (admins
+ * free), given back whole when nothing came through, and counted against the month's pictures.
+ */
+export async function pgCarousel(db: Db, viewer: string | null, characterId: string, input: { picture_id: string; format?: FormatId }, baseUrl: string): Promise<PgShootResult> {
+  const access = await pgAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const { character: c, config, admin } = access;
+  const owner = viewer!;
+  const src = (
+    await db.query<{ id: string; mime: string; data: Buffer | Uint8Array | null; object_key: string | null; clothing: string | null }>(
+      `select id, mime, data, object_key, clothing from studio_pg_pictures where id = $1 and owner_id = $2 and character_id = $3`,
+      [input.picture_id, owner, c.id],
+    )
+  ).rows[0];
+  if (!src) return fail(404, "not_found", "Pick one of your pictures of them.");
+  const bytes = await readBytes(src);
+  if (!bytes) return fail(404, "not_found", "That picture's file is missing.");
+  const keys = await adultKeys(db);
+  if (!keys.venice) return fail(409, "not_set_up", "The Studio needs a Venice key in the settings.");
+  const asked = PG_CAROUSEL_ANGLES.length;
+  const used = await picturesThisMonth(db, owner);
+  if (!admin && used + asked > config.monthly_cap) return fail(429, "over_cap", `That's ${asked} and ${Math.max(0, config.monthly_cap - used)} are left this month. They reset on the 1st.`);
+  const tokens = admin ? 0 : config.carousel_price;
+  if (tokens > 0 && !(await spendBoughtTokens(db, owner, tokens))) return fail(402, "needs_tokens", `A carousel is ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the shop page.`);
+  const face = await faceReference(db, c, baseUrl);
+  const picture = `data:${src.mime};base64,${bytes.toString("base64")}`;
+  const subject = pgSubject(c);
+  const format = input.format ?? "feed";
+  const ratio = ratioOf(format);
+  // Swimwear in the picture: the check reads it as it would at the beach (lib/adult/moderation.ts checkRating).
+  const beach = /swim/i.test(src.clothing ?? "");
+  const id = crypto.randomUUID();
+  await db.query(
+    `insert into studio_pg_shoots (id, owner_id, character_id, choices, model, tokens, free, asked, status, kind) values ($1, $2, $3, $4::jsonb, $5, $6, false, $7, 'making', 'carousel')`,
+    [id, owner, c.id, JSON.stringify({ source: src.id, format }), config.edit_model, tokens, asked],
+  );
+  const drawn: ({ prompt: string } & ({ file: { bytes: Buffer; mime: string } } | { error: string }))[] = [];
+  for (let i = 0; i < PG_CAROUSEL_ANGLES.length; i += 3) {
+    const batch = PG_CAROUSEL_ANGLES.slice(i, i + 3).map((angle) => {
+      const prompt = pgCarouselPrompt(subject, Boolean(face), angle);
+      return drawPg(keys.venice!, config, prompt, face ? [face, picture] : [picture], ratio).then(
+        (file) => ({ prompt, file }),
+        (err: unknown) => ({ prompt, error: err instanceof Error ? err.message.slice(0, 200) : "error" }),
+      );
+    });
+    drawn.push(...(await Promise.all(batch)));
+  }
+  const kept: PgPicture[] = [];
+  let lastError: string | null = null;
+  let checked = 0;
+  for (const d of drawn) {
+    if ("error" in d) {
+      lastError = d.error;
+      continue;
+    }
+    if (checked++ && pauses) await new Promise((r) => setTimeout(r, CHECK_GAP_MS));
+    const v = await checkRating(db, { base64: d.file.bytes.toString("base64"), mime: d.file.mime }, { beach });
+    if (!v.ok) {
+      lastError = v.reason;
+      continue;
+    }
+    const pid = crypto.randomUUID();
+    const store = await keepBytes("studio-pg", pid, d.file.bytes, d.file.mime);
+    await db.query(
+      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model, aspect)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [pid, owner, c.id, id, d.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, v.rating, v.clothing, config.edit_model, ratio],
+    );
+    kept.push({ id: pid, rating: v.rating, created_at: new Date().toISOString(), shoot_id: id, aspect: ratio });
+  }
+  const made = kept.length;
+  const refunded = made === 0 && tokens > 0;
+  if (refunded) await refundBoughtTokens(db, owner, tokens);
+  const status = made === 0 ? "failed" : made < asked ? "partial" : "ready";
+  await db.query(`update studio_pg_shoots set made = $2, status = $3, error = $4, tokens = $5 where id = $1`, [id, made, status, lastError, refunded ? 0 : tokens]);
+  const message =
+    made === 0
+      ? `Nothing came through${lastError ? ` (${lastError})` : ""}.${refunded ? " Your tokens are back." : ""}`
+      : made < asked
+        ? `${made} of ${asked} came through; the rest didn't pass the Studio's check or failed to draw.`
         : null;
   return {
     ok: true,

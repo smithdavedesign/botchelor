@@ -62,12 +62,14 @@ export const StudioConfig = z.object({
       upscale: z.number().int().min(0).max(100).default(0),
       /** The identity pack's eight views (the creator suite): fewer, a redraw, cost their share of it. */
       identity: z.number().int().min(0).max(100).default(2),
+      /** A carousel: one picture's moment from six angles (the creator suite). */
+      carousel: z.number().int().min(0).max(100).default(1),
       animate_5: z.number().int().min(0).max(100).default(3),
       animate_10: z.number().int().min(0).max(100).default(5),
       own_key: z.number().int().min(0).max(100).default(0),
       share: z.number().int().min(0).max(100).default(0),
     })
-    .default({ shoot: { standard: 1, pro: 2 }, pair: { standard: 1, pro: 2 }, restyle: 1, recast: 1, body: 1, variations: 1, upscale: 0, identity: 2, animate_5: 3, animate_10: 5, own_key: 0, share: 0 }),
+    .default({ shoot: { standard: 1, pro: 2 }, pair: { standard: 1, pro: 2 }, restyle: 1, recast: 1, body: 1, variations: 1, upscale: 0, identity: 2, carousel: 1, animate_5: 3, animate_10: 5, own_key: 0, share: 0 }),
   models: z.array(StudioModel).min(1).max(30).default(DEFAULT_STUDIO_MODELS),
   default_edit: z.string().default("qwen-edit-uncensored"),
   default_new: z.string().default("lustify-v8"),
@@ -109,11 +111,13 @@ export const StudioConfig = z.object({
       monthly_cap: z.number().int().min(0).max(10_000).default(120),
       /** The identity pack's eight views of a character (the creator suite): fewer, a redraw, cost their share of it. */
       identity_price: z.number().int().min(0).max(100).default(2),
+      /** A carousel: one picture's moment from six angles (the creator suite). */
+      carousel_price: z.number().int().min(0).max(100).default(1),
       edit_model: z.string().trim().min(1).max(120).default("qwen-image-2-1-turbo-edit"),
       new_model: z.string().trim().min(1).max(120).default("qwen-image-3"),
       usd: z.number().min(0).max(10).default(0.03),
     })
-    .default({ open_to: "everyone", shoot_size: 4, price: 1, free_first_shoot: true, free_per_day: 100, monthly_cap: 120, identity_price: 2, edit_model: "qwen-image-2-1-turbo-edit", new_model: "qwen-image-3", usd: 0.03 }),
+    .default({ open_to: "everyone", shoot_size: 4, price: 1, free_first_shoot: true, free_per_day: 100, monthly_cap: 120, identity_price: 2, carousel_price: 1, edit_model: "qwen-image-2-1-turbo-edit", new_model: "qwen-image-3", usd: 0.03 }),
   /** Upscale on Venice's upscaler: how much larger, and what one costs (added to an own key's month). */
   upscale: z
     .object({ scale: z.union([z.literal(2), z.literal(4)]).default(2), usd: z.number().min(0).max(10).default(0.02) })
