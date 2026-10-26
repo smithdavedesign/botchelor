@@ -218,6 +218,29 @@ async function main() {
       assert(!/talking and flirting/.test(label), "the label still says the heat");
     });
 
+    await step("Picture this shows what it'll be drawn from, field by field, and takes the owner's corrections", async () => {
+      await theater.getByRole("button", { name: "Pictures and clips" }).click();
+      await page.getByRole("menuitem", { name: /Picture this moment/ }).click();
+      const panel = page.getByRole("dialog", { name: "Create a picture of this moment" });
+      await panel.waitFor();
+      await page.waitForFunction(() => (document.querySelector(".ad-picture-context textarea")?.value ?? "").length > 0, null, { timeout: 15_000 });
+      const field = (name) => panel.getByLabel(name);
+      const happening = await field(/What's happening/).inputValue();
+      assert(/meets her eyes and holds them/.test(happening), `"What's happening" isn't the last lines: ${happening}`);
+      assert((await field(/What they're wearing/).inputValue()) === "Both fully clothed, tops on and done up", "what they're wearing isn't by the stage");
+      assert(/smug couple/.test(await field(/Where/).inputValue()), "the place lost the double date's situation");
+      const mood = await field(/Mood/).inputValue();
+      assert(/^Blind date · /.test(mood), `the mood isn't the roleplay and what they're doing: ${mood}`);
+      // The owner puts right what they wear, and sees it in what will be sent.
+      await field(/What they're wearing/).fill("her in a red dress, him in a white shirt");
+      await panel.getByText("🔎 What will be sent").click();
+      await panel.getByRole("button", { name: "Update with my changes" }).click();
+      await page.waitForFunction(() => /not their clothes: her in a red dress, him in a white shirt/.test(document.querySelector(".ad-pc-prompt p")?.textContent ?? ""), null, { timeout: 15_000 });
+      assert(/yours/.test(await panel.innerText()), "the changed field isn't marked as the owner's");
+      await shot("picture-context");
+      await panel.getByRole("button", { name: "Cancel" }).click();
+    });
+
     await step("the picture's prompt matches the scene", async () => {
       const res = await ctx.request.get(`${app.base}/api/admin/after-dark/picture-prompt?a=${LEXI}&b=${JUNIPER}`);
       assert(res.ok(), `preview: HTTP ${res.status()}`);

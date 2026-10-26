@@ -94,7 +94,7 @@ export const NUDE_FROM = 4;
  * What they wear in a keyframe, by how far the night had gone, never what their portrait wears (2026-10-22, the first
  * live reel: told to keep each "exactly as in their own picture", Lexi kept her portrait's lingerie through the sex).
  */
-const clothesAt = (stage: number) =>
+export const clothesAt = (stage: number) =>
   stage >= NUDE_FROM
     ? "both are nude unless the moment says otherwise"
     : stage >= UNDRESSED_FROM
