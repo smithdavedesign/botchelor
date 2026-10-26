@@ -16,6 +16,7 @@ import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURE
 import { countUse, overCap } from "./usage";
 import { adultModel, adultModelId } from "./mode";
 import { writerChoice } from "./writer";
+import { FALLBACK_WRITER } from "./writer-config";
 import { drawLabel, ensureSet, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
@@ -1179,7 +1180,9 @@ export function parseSceneMeta(raw: string): SceneMeta {
     const p = j.picture;
     const of = p && (p.of === "a" || p.of === "b" || p.of === "both") ? p.of : null;
     const description = p && typeof p.description === "string" ? p.description.trim().slice(0, 400) : "";
-    const place = typeof j.place === "string" && j.place.trim() ? j.place.trim().slice(0, 120) : null;
+    // Without the punctuation a model sometimes leaves on it (":the jeep pulling up outside Rafe's bakery,").
+    const placeText = typeof j.place === "string" ? j.place.replace(/^[\s:;,.\-–—]+|[\s:;,\-–—]+$/g, "") : "";
+    const place = placeText ? placeText.slice(0, 120) : null;
     // v2.4: only a stage number (1 to 5, or one written as a string) is a claim. DeepSeek's JSON broke down into keys like
     // `"stage: 4": ""` (read as stage, ""), Number("") is 0, and the scene fell back to talking mid-sex (the real-model
     // check, 2026-10-23). Anything else is no claim, and the scene keeps its stage.
@@ -1484,6 +1487,8 @@ export const samplingOf = (s: Pick<AdultSettings, "text_temperature" | "frequenc
  */
 export type StepInput = {
   model: Model;
+  /** Who writes the step when the writer twice sends nothing back (lib/adult/writer-config.ts FALLBACK_WRITER). */
+  fallback?: { id: string; model: Model } | null;
   /** The writer's thinking room (lib/adult/writer-config.ts think_tokens), added to SCENE_REPLY_TOKENS. */
   thinkTokens?: number;
   a: Character | null;
@@ -1532,6 +1537,9 @@ export type StepFlags = {
   calls: number;
   /** The chapter's roleplay when this step was written (lib/adult/roleplays.ts). */
   roleplay?: { id: string; swap: boolean };
+  /** The writer sent nothing back and was asked again; and, sent nothing again, who wrote the step instead. */
+  empty_text_retry?: boolean;
+  fell_back_to?: string;
   /** All the safe lines of the first reply were dropped, so it was asked once more. */
   retried: boolean;
   /** Lines that crossed one of the two lines (withheld from every response). */
@@ -1957,9 +1965,34 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   // empty-reply retry gets past it).
   const refusalOf = (o: ReturnType<typeof guard>): string | null => (!o.written.length && refusalIn(o.raw) ? o.raw.slice(0, 400) : null);
   let refusal: string | null = null;
+  // The writer for this step: the one picked, or the fallback once the picked one has twice sent back nothing at all.
+  let model = input.model;
+  let modelOptions = options;
+  const emptyText = (err: unknown) => err instanceof Error && /returned no text/.test(err.message);
+  /** The step's first reply: an empty one is asked once more, then goes to the fallback, instead of failing the step. */
+  const firstReply = async (): Promise<string> => {
+    try {
+      return await model.complete(messages, modelOptions);
+    } catch (err) {
+      if (!emptyText(err)) throw err;
+      flags.empty_text_retry = true;
+      flags.calls++;
+      try {
+        return await model.complete(messages, modelOptions);
+      } catch (again) {
+        if (!emptyText(again) || !input.fallback) throw again;
+        flags.fell_back_to = input.fallback.id;
+        flags.calls++;
+        model = input.fallback.model;
+        // No thinking to make room for on the fallback.
+        modelOptions = { ...options, maxTokens: SCENE_REPLY_TOKENS };
+        return await model.complete(messages, modelOptions);
+      }
+    }
+  };
   try {
     flags.calls++;
-    out = guard(await input.model.complete(messages, options));
+    out = guard(await firstReply());
     refusal = refusalOf(out);
     if (!out.written.length) {
       // v2.4 (Chud × Juniper on prod, 2026-10-23: two Direct steers in about 30 came back with no lines, and the owner had
@@ -1967,7 +2000,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       // month's cap counts steps, not calls.
       flags.empty_retry = true;
       flags.calls++;
-      out = guard(await input.model.complete([messages[0], { role: "user", content: `${messages[1].content}\n\n${EMPTY_REPLY_NOTE}` }], options));
+      out = guard(await model.complete([messages[0], { role: "user", content: `${messages[1].content}\n\n${EMPTY_REPLY_NOTE}` }], modelOptions));
     }
     if (out.hardHits.length) {
       // A hard limit crossed (lib/adult/limits.ts): those lines are out, and the step is asked once more, told which, with
@@ -1979,7 +2012,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
         `Your last reply crossed the viewer's hard limits (${[...new Set(out.hardHits)].join(", ")}). Those never happen and are never offered or asked for, ` +
         `in a line, an action or a suggestion, whatever the steer says. Write ${LINES_PER_TURN} new lines that keep to them. Reply with the JSON again.`;
       try {
-        const second = guard(await input.model.complete([messages[0], { role: "user", content: `${messages[1].content}\n\n${limitsNote}` }], options));
+        const second = guard(await model.complete([messages[0], { role: "user", content: `${messages[1].content}\n\n${limitsNote}` }], modelOptions));
         if (second.kept.length || !out.kept.length) out = second;
       } catch (err) {
         if (!out.kept.length) throw err;
@@ -1999,7 +2032,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       const again: ChatMessage[] = hot
         ? [messages[0], { role: "user", content: `${messages[1].content}\n\n${note}` }]
         : [...messages, { role: "assistant", content: out.raw }, { role: "user", content: note }];
-      out = guard(await input.model.complete(again, hot ? hotter(options) : options));
+      out = guard(await model.complete(again, hot ? hotter(modelOptions) : modelOptions));
     }
     // v2.3: a Direct steer's quoted line that no kept line said: once more, saying which (the step's one retry, so only
     // when it hasn't had it). The new take is used only when it says more of them; otherwise the first stands, as written.
@@ -2017,7 +2050,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       const said = quotes.length - missing.length;
       let second: ReturnType<typeof guard> | null = null;
       try {
-        second = guard(await input.model.complete([...messages, { role: "assistant", content: out.raw }, { role: "user", content: note }], options));
+        second = guard(await model.complete([...messages, { role: "assistant", content: out.raw }, { role: "user", content: note }], modelOptions));
       } catch {
         second = null;
       }
@@ -2131,7 +2164,8 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   if (v2 && stamped.some((l) => (l.stage ?? 0) >= UNDRESSING)) {
     const batch = stamped;
     const check = await checkAsides(
-      input.model,
+      // The step's writer: the fallback, when it wrote the lines.
+      model,
       {
         history: night,
         batch,
@@ -2337,6 +2371,8 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const profile = await sceneProfile(db, scene, adminId);
   const step = await writeSceneStep({
     model: await adultModel(db, process.env, { model: writer }),
+    // When the writer twice sends nothing back, the step is written by the fast one instead of failing.
+    fallback: writer === FALLBACK_WRITER ? null : { id: FALLBACK_WRITER, model: await adultModel(db, process.env, { model: FALLBACK_WRITER }) },
     thinkTokens: think_tokens,
     a,
     b,

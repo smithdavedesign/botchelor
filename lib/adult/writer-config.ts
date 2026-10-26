@@ -33,6 +33,11 @@ export const DEFAULT_WRITERS: WriterModel[] = [
   { id: "deepseek/deepseek-chat-v3.1:nitro", label: "DeepSeek V3.1", note: "fast; about 10 s a step", think_tokens: 0 },
 ];
 export const DEFAULT_WRITER = "z-ai/glm-4.6";
+/**
+ * Who writes a step when the writer twice sends nothing back (2026-10-25: GLM-4.6 returned no text on 5 of 18 steps in
+ * six hours, each one an error the owner had to retry): the fast one, with no thinking to run out of room on.
+ */
+export const FALLBACK_WRITER = "deepseek/deepseek-chat-v3.1:nitro";
 
 export const WriterConfig = z.object({
   /** The writer of everyone who hasn't picked one. */

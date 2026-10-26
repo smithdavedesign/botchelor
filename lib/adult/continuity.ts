@@ -283,8 +283,15 @@ const sentences = (text: string): string[] => text.split(/(?<=[.!?*])\s+/).filte
 /** Whether a line suggests going somewhere: a lead plus a place, or a question naming one ("My place, perhaps?"). */
 export function proposesMove(text: string): boolean {
   if (NOT_GOING.test(text)) return false;
-  return sentences(text).some((s) => WHERE.test(s) && (GO.test(s) || /\?\s*$/.test(s.trim())));
+  return sentences(text).some((s) => NEARBY.test(s) || ((WHERE.test(s) || PLACE_WORD.test(s)) && (GO.test(s) || /\?\s*$/.test(s.trim()))));
 }
+/** Any place a set can be, named in a sentence (SYNONYMS): "the bakery", "his workshop". */
+const PLACE_WORD = new RegExp(`\\b(?:${Object.keys(SYNONYMS).join("|")})\\b`, "i");
+/**
+ * An invitation said as how close somewhere is: "The bakery is ten minutes from here", "my place is just around the
+ * corner" (Star × Rafe, 2026-10-25: no "let's", no question mark, and "Lead the way" agreed to it).
+ */
+const NEARBY = /\b(?:is|it's|its|are)\s+(?:only\s+|just\s+|right\s+)?(?:(?:\w+\s+){0,2}(?:minutes?|blocks?)\s+(?:from here|away)|a (?:short )?walk(?: away)?|around the corner|round the corner|down the (?:street|road|block)|nearby|close by|not far)\b/i;
 
 /** Whether a line goes along with a suggestion to move: a yes, a nod, following. Never a no. */
 export function agreesToMove(text: string): boolean {
@@ -447,16 +454,24 @@ export function settlePlace(input: {
   };
   const claim = claimed.set ?? claimed.place;
   const want = canonicalSet(claim);
-  // Nothing new, or no place in it ("an intimate, private space", "on the swing"): they're where they were.
-  if (!claim || !want.known) return orShown(keep());
+  // Nothing new: they're where they were.
+  if (!claim) return orShown(keep());
+  // A place the rules don't know ("the bakery", "his workshop"): only when the lines agreed to go there by that name;
+  // otherwise it names nowhere ("an intimate, private space", "on the swing") and they're where they were.
+  if (!want.known) {
+    const named = namedMove(input.lines, input.from, claimed.set ?? claim, input.names);
+    if (!named) return orShown(keep());
+    if (input.movesThisChapter >= MAX_SCENE_MOVES) return keep({ to: claimed.set ?? claim, reason: "cap" });
+    return { place: claimed.place ?? claim, set: claimed.set ?? claim, moved: named, rejected: null };
+  }
   const now = canonicalSet(here);
   // The first set of the scene, or one so vague it named nowhere: the model's names it, and that's no move. Unless the
-  // place was chosen for them: then it stays, however vague, and only the lines agreeing to go take them elsewhere.
+  // place was chosen for them: then the model's claim never renames it, but the lines agreeing to go still take them
+  // elsewhere, by the rules below (David, 2026-10-25: they agreed to go to his bakery from "A safari jeep at dawn", a
+  // place the rules don't know, and the move was refused as "no agreement" twice).
   if (!here || !now.known) {
-    if (input.locked && here) return orShown(keep({ to: claimed.set ?? want.canonical, reason: "no_agreement" }));
-    return { place: claimed.place ?? current.place, set: claimed.set ?? (claimed.place ? want.canonical : current.set), moved: null, rejected: null };
-  }
-  if (samePlace(here, claim) && !ownerChanged(now, want, input.homeNow, input.names)) return orShown(keep());
+    if (!(input.locked && here)) return { place: claimed.place ?? current.place, set: claimed.set ?? (claimed.place ? want.canonical : current.set), moved: null, rejected: null };
+  } else if (samePlace(here, claim) && !ownerChanged(now, want, input.homeNow, input.names)) return orShown(keep());
   const agreedHere = agreedMove(input.lines, input.from);
   const to = claimed.set ?? want.canonical;
   // v2 (fromLines): a move agreed earlier tonight, or an invitation home, that they're only now arriving at (pendingMove).
@@ -468,6 +483,25 @@ export function settlePlace(input: {
   const at = agreedHere ? agreedHere.agree - input.from : Math.max(0, input.lines.slice(input.from).findIndex((l) => GOING.test(actionsOf(l.text)) || ARRIVING.test(l.text)));
   return { place: claimed.place ?? to, set: to, moved: { at, to, home: move.home ?? homeFromOwner(want, input.names) }, rejected: null };
 }
+
+/**
+ * A move to a place the rules don't know, agreed by name: an agreed move (agreedMove) in these lines or the last
+ * PENDING_REACH whose invitation names the place's own word ("The bakery is ten minutes from here" / "Lead the way" →
+ * "the bakery"). Where among the new lines they went: the agreeing line when it's new, else the first line going or
+ * arriving.
+ */
+function namedMove(lines: readonly PlaceLine[], from: number, place: string, names: { a: string; b: string }): Settled["moved"] {
+  const word = place.toLowerCase().replace(/[^\p{L}\s'-]/gu, " ").split(/\s+/).filter((w) => w.length > 3 && !/['’]s$/.test(w) && !STOP_WORDS.has(w)).at(-1);
+  if (!word) return null;
+  const start = Math.max(0, lines.length - PENDING_REACH);
+  // Agreed in these lines or earlier tonight (still within reach): the latest agreement in the window.
+  const move = agreedMove(lines.slice(start), 0);
+  if (!move || !new RegExp(`\\b${word}\\b`, "i").test(lines[start + move.proposal].text)) return null;
+  const agree = start + move.agree;
+  const at = agree >= from ? agree - from : Math.max(0, lines.slice(from).findIndex((l) => GOING.test(actionsOf(l.text)) || ARRIVING.test(l.text)));
+  return { at, to: place, home: move.home ?? homeFromOwner(canonicalSet(place), names) };
+}
+const STOP_WORDS = new Set(["with", "from", "into", "onto", "over", "under", "near", "outside", "inside", "their", "there", "where", "rain", "rainy", "night", "dawn", "morning", "evening"]);
 
 /** The place text for a kept set: the model's detail ("on the bed") when it names nowhere else, else what it was. */
 function placeDetail(current: { place: string | null; set: string | null }, claimed: { place: string | null; set: string | null }): string | null {
