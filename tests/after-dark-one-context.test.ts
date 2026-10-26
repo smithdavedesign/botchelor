@@ -150,6 +150,17 @@ describe("one context for every scene picture", () => {
     expect(await kick("the garden", 6 + PICTURE_GAP)).toBe(true);
   });
 
+  it("a place's own picture waits when the theater offered one of the same moment (the test night, 2026-10-26)", async () => {
+    const lines = Array.from({ length: 6 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*kisses her ${i}* Again.`, stage: 3 }));
+    const { id, cookie } = await setup(lines, "his apartment");
+    await post({ auto_scene_pictures: true }, cookie, settingsPost, "/api/admin/after-dark/settings");
+    fakeMedia();
+    const sceneId = (await t.db.query<{ id: string }>(`select id from adult_scenes`)).rows[0].id;
+    await t.db.query(`insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place) values ('b1', $1, $2, $3, $4, 1, 5, 'undress', 'undressing', 3, 'his apartment')`, [id, sceneId, LEXI, RAFE]);
+    const [a, b] = [await loadCharacter(t.db, LEXI), await loadCharacter(t.db, RAFE)];
+    expect(await kickAutoPicture(t.db, id, { id: sceneId, chapter: 1, place: "his apartment", set_place: "his apartment", stage: 3, lines }, a, b)).toBe(false);
+  });
+
   it("at sex, a dressed body reference gives way to the nude baseline; a nude one is used (Sweet's camisole, 2026-10-26)", async () => {
     const dressed = await setup(at(4), "Lexi's bedroom");
     const edits = fakeMedia();
@@ -167,7 +178,7 @@ describe("one context for every scene picture", () => {
     expect(later.find((e) => /from Picture 2 together/.test(e.prompt))!.images.join(" ")).toContain("body-lexi");
   });
 
-  it("a picture the lines ask for, of both, is drawn from their faces, its description leading; a chapter's own too", async () => {
+  it("a picture the lines ask for, of both, is drawn from their faces, its description leading, instead of the chapter's own", async () => {
     const { cookie } = await setup(at(0), "a rooftop bar");
     await post({ auto_scene_pictures: true }, cookie, settingsPost, "/api/admin/after-dark/settings");
     const edits = fakeMedia();
@@ -189,10 +200,13 @@ describe("one context for every scene picture", () => {
     expect(r.auto_picture).toBe(true);
     await autoPicturesSettled();
     await beatPicturesSettled();
+    // The asked picture draws after the response, on its own: wait for it.
+    for (let i = 0; i < 100 && !(await t.db.query(`select 1 from adult_beats where kind = 'asked' and status = 'drawn'`)).rows.length; i++) await new Promise((r) => setTimeout(r, 20));
     const asked = edits.find((e) => /squeezed into one selfie/.test(e.prompt));
     expect(asked?.prompt).toMatch(/^Make one photograph of the .+ from Picture 1 and the .+ from Picture 2 together/);
     expect(asked?.prompt).toContain("Most important, do exactly this: the two of them squeezed into one selfie at the bar, laughing.");
-    const kinds = (await t.db.query<{ kind: string; status: string }>(`select kind, status from adult_beats order by created_at`)).rows;
-    expect(kinds).toEqual(expect.arrayContaining([{ kind: "chapter", status: "drawn" }, { kind: "asked", status: "drawn" }]));
+    const kinds = (await t.db.query<{ kind: string; status: string }>(`select kind, status from adult_beats where scene_id = $1 order by created_at`, [r.scene.id])).rows;
+    // The one they asked for is this moment's picture: the chapter's own of the same lines isn't drawn too (2026-10-26).
+    expect(kinds).toEqual([{ kind: "asked", status: "drawn" }]);
   });
 });

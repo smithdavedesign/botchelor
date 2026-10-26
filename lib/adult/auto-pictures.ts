@@ -132,9 +132,11 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
     // Hive over its daily limit: not claimed, so the first step after the pause draws it (makePicture probes Hive first).
     if (await hivePausedUntil(db)) return false;
     // Not the same moment twice (2026-10-26, Chud × Sweet: the cottage, then its bedroom, drawn a minute apart, two of
-    // the chapter's three): a new place's picture waits until the chapter's last one is PICTURE_GAP lines back.
+    // the chapter's three; and the test night, Sweet × Dex: the theater's own picture of arriving at his flat and this
+    // one, of the same line): a new place's picture waits until the chapter's last picture, any kind, offered or drawn,
+    // is PICTURE_GAP lines back.
     const last = (
-      await db.query<{ line: number }>(`select max(line)::int as line from adult_beats where scene_id = $1 and chapter = $2 and kind = 'chapter' and night_id is null`, [scene.id, scene.chapter])
+      await db.query<{ line: number }>(`select max(line)::int as line from adult_beats where scene_id = $1 and chapter = $2 and status <> 'failed' and night_id is null`, [scene.id, scene.chapter])
     ).rows[0]?.line;
     if (!scene.ownerSet && typeof last === "number" && scene.lines.length - 1 - last < PICTURE_GAP) return false;
     // One of the chapter's unasked pictures (lib/adult/chapter-pictures.ts): none once it has had pictures_per_chapter.
