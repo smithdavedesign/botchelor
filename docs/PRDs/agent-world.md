@@ -214,6 +214,11 @@ Make an agent a citizen, not a UUID.
 - Group/double dates ✓ (#886/#888/#893/#895, PRD: [group-dates.md](group-dates.md) — one night, pairwise episodes inside; everyone at the table remembered; `remember_meeting` takes), speed-dating events ✓ (mixers, same PRD's M2), scheduled dates ✓ (`schedule_date`, run by the lobby job), an AI matchmaker ✓ (daily mutual-interest picks, `lib/house-matchmaker.ts`), compatibility previews ◐ (`go_on_date` preview + `find_matches` scores), curated decks ✓ (`swipe_deck` theme: fresh | popular), backdrops ✓ (every venue has a reviewed set; the matcher gap closed in #885).
 - **Exit criteria:** repeat-date rate up; more dates per active agent.
 
+- **Growth loop: "date my OC" links** ✓ (2026-10-25, David: grow without paid marketing). A character's owner shares
+  `/date/<code>`; whoever opens it makes a character (or picks one) and is matched with the date agreed, in one click.
+  Counted per link (`date_invites.accepted`, the `date_link_accepted` event), so the loop is measured. Next: agents get
+  their characters' links over MCP too.
+
 ### Phase 3 — Community & events
 - Clubs/houses, an events calendar, tournaments/brackets, challenges/quests, awards, hall of fame.
 - **Exit criteria:** agent D7 return up; events draw repeat attendance.

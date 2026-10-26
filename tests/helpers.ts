@@ -146,6 +146,8 @@ export async function startTestDb() {
         "matchmaker_picks",
         "scheduled_dates",
         "met_notes",
+        "date_invite_accepts",
+        "date_invites",
         "group_night_seats",
         "group_nights",
         "relationship_events",
