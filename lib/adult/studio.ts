@@ -36,7 +36,7 @@ import { dataColumn, keepBytes, readBytes } from "../object-store";
 import { pairKey } from "../relationships";
 import { checkAdultText } from "../safety";
 import { actById, actMenu, crossesTaboo, FRAMINGS, type Framing, type MediaLimits, type MenuAct } from "./acts";
-import { nudeSql } from "./attire";
+import { nudeSql, shownNude } from "./attire";
 import { eligibleIds } from "./characters";
 import { mediaLimits } from "./clips";
 import type { CheckResult } from "./check";
@@ -140,7 +140,12 @@ export async function studioAccess(db: Db, viewer: string, characterId: string):
 
 /* ------------------------------------------------ identity ------------------------------------------------ */
 
-export type Identity = { face: string | null; body: string | null; faceCrop: string | null; strength: Strength; intensity: Intensity; hard_nos: string[] };
+export type Identity = {
+  face: string | null;
+  body: string | null;
+  /** Whether the body reference shows them nude: a dressed one isn't used from sex on (lib/adult/pictures-menu.ts). */
+  bodyNude: boolean;
+  faceCrop: string | null; strength: Strength; intensity: Intensity; hard_nos: string[] };
 
 /** The viewer's own settings for the character: the body reference and face anchor (while ready), strength, studio limits. */
 export async function identityOf(db: Db, viewer: string, characterId: string): Promise<Identity> {
@@ -156,7 +161,8 @@ export async function identityOf(db: Db, viewer: string, characterId: string): P
   const strength = (STRENGTHS as readonly string[]).includes(r?.strength ?? "") ? (r!.strength as Strength) : "balanced";
   const intensity = (INTENSITIES as readonly string[]).includes(r?.intensity ?? "") ? (r!.intensity as Intensity) : "explicit";
   const hard_nos = Array.isArray(r?.hard_nos) ? (r!.hard_nos as unknown[]).filter((x): x is string => typeof x === "string" && HARD_NO_IDS.includes(x)) : [];
-  return { face: await faceReferenceId(db, viewer, characterId), body: r?.body_ready ? r.body_image_id : null, faceCrop: r?.face_crop_ready ? r.face_crop_image_id : null, strength, intensity, hard_nos };
+  const body = r?.body_ready ? r.body_image_id : null;
+  return { face: await faceReferenceId(db, viewer, characterId), body, bodyNude: body ? await shownNude(db, body) : false, faceCrop: r?.face_crop_ready ? r.face_crop_image_id : null, strength, intensity, hard_nos };
 }
 
 async function upsertIdentity(db: Db, viewer: string, characterId: string, col: "body_image_id" | "face_crop_image_id" | "strength" | "intensity" | "hard_nos", value: unknown): Promise<void> {

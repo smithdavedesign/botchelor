@@ -6,7 +6,7 @@ import { fitPrompt, type ReelPerson } from "@/lib/adult/reels";
 // a bed in a ballroom, and the owner's mood cut off mid-sentence.
 const person = (tag: string, noun: ReelPerson["noun"]): ReelPerson => ({ id: tag, pronouns: noun === "man" ? "he/him" : "she/her", noun, tag, look: "", voice: "", names: [] });
 const CAST: [ReelPerson, ReelPerson] = [person("the man", "man"), person("the woman", "woman")];
-const NONE = { hit: () => false };
+const NONE = { hit: () => null };
 
 describe("the position the lines say", () => {
   it("her on top, as the lines put it", () => {

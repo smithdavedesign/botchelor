@@ -9,6 +9,7 @@
  * ". Nude, alone," and a dressed one's says "Wearing …".
  */
 import type { Character } from "../character";
+import type { Db } from "../db";
 import { looksPictureWords } from "../looks";
 
 export type Attire = "nude" | "dressed";
@@ -24,3 +25,25 @@ export const attireOf = (kind: string, prompt: string): Attire | null => (kind =
 
 /** SQL: the row of adult_images aliased `a` is a nude baseline's (stored, or read from the prompt for older rows). */
 export const nudeSql = (a: string) => `coalesce(${a}.attire, case when ${a}.prompt like '%. Nude, alone,%' then 'nude' else 'dressed' end) = 'nude'`;
+
+/** What a picture's prompt says when it shows them nude, and when it kept or put them in clothes. */
+const NUDE_PROMPT = /\b(?:fully nude|nude|naked)\b/i;
+const CLOTHED_PROMPT = /\bthe clothes too\b|\bwearing (?!(?:fully )?nude\b)/i;
+
+/**
+ * Whether a picture shows them nude, from what made it: a nude baseline, or a prompt that says nude and no clothes. An
+ * upscale is read through to the picture it came from. Unknown is dressed (2026-10-26: Sweet's body reference was a
+ * waist-up picture in a camisole, and every picture of her from sex on kept the camisole on).
+ */
+export async function shownNude(db: Db, id: string): Promise<boolean> {
+  let at: string | null = id;
+  for (let hop = 0; at && hop < 4; hop++) {
+    const row: { prompt: string; attire: string | null } | undefined = (await db.query<{ prompt: string; attire: string | null }>(`select prompt, attire from adult_images where id = $1`, [at])).rows[0];
+    if (!row) return false;
+    if (row.attire) return row.attire === "nude";
+    const from: string | null = /^Picture ([0-9a-f-]{36}), upscaled\b/.exec(row.prompt)?.[1] ?? null;
+    if (!from) return NUDE_PROMPT.test(row.prompt) && !CLOTHED_PROMPT.test(row.prompt);
+    at = from;
+  }
+  return false;
+}

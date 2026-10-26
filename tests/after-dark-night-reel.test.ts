@@ -290,7 +290,7 @@ describe("a video of the whole night", () => {
     const flat = prompts.filter((p) => p.includes("The place: his flat."));
     expect([harbour.length, flat.length]).toEqual([2, 1]);
     for (const p of harbour) expect(p).toContain("both fully clothed");
-    expect(flat[0]).toContain("both are nude unless the moment says otherwise");
+    expect(flat[0]).toContain("both completely naked, none of the clothes from their pictures");
     const row = (await t.db.query<{ scope: string; chapters: unknown }>(`select scope, chapters from adult_reels where id = $1`, [reel.id])).rows[0];
     expect(row).toEqual({ scope: "night", chapters: reel.chapters });
     expect((await listReels(t.db, id, CAST_A, CAST_B))[0]).toMatchObject({ scope: "night", chapters: reel.chapters });

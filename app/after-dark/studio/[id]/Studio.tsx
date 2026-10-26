@@ -1045,6 +1045,12 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                     remove
                   </button>
                 )}
+                {s.identity.body && !s.identity.bodyNude && (
+                  <span className="muted small">
+                    {" "}
+                    — dressed, so pictures from sex on use {c.name}&apos;s nude picture instead. A nude one here keeps the body in those too.
+                  </span>
+                )}
               </figcaption>
             </figure>
             <figure>

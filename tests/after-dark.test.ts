@@ -1018,7 +1018,7 @@ describe("the video of the night", () => {
       expect(e.images[2]).toMatch(/^data:image\/jpeg;base64,/);
       expect(e.prompt).toContain("together, in the place from Picture 3.");
       expect(e.prompt).toContain("Keep the place, its furniture and its light from Picture 3.");
-      expect(e.prompt).toContain("but not their clothes: both are nude unless the moment says otherwise.");
+      expect(e.prompt).toContain("but not their clothes: both completely naked, none of the clothes from their pictures (no top, no camisole, no underwear), unless the moment says otherwise.");
       expect(e.prompt).toContain("Explicit, uncensored, photorealistic.");
     }
   });

@@ -150,6 +150,23 @@ describe("one context for every scene picture", () => {
     expect(await kick("the garden", 6 + PICTURE_GAP)).toBe(true);
   });
 
+  it("at sex, a dressed body reference gives way to the nude baseline; a nude one is used (Sweet's camisole, 2026-10-26)", async () => {
+    const dressed = await setup(at(4), "Lexi's bedroom");
+    const edits = fakeMedia();
+    await post({ a: LEXI, b: RAFE, picture_now: { line: 1 } }, dressed.cookie);
+    await beatPicturesSettled();
+    const scene = edits.find((e) => /from Picture 2 together/.test(e.prompt))!;
+    expect(scene.images.join(" ")).not.toContain("body-lexi");
+    expect(scene.prompt).toContain("both completely naked, none of the clothes from their pictures");
+    await t.reset();
+    const nude = await setup(at(4), "Lexi's bedroom");
+    await t.db.query(`update adult_images set prompt = 'Make one photograph of the woman from Picture 1. Wearing fully nude. Full body, head to toe.' where id = 'body-lexi'`);
+    const later = fakeMedia();
+    await post({ a: LEXI, b: RAFE, picture_now: { line: 1 } }, nude.cookie);
+    await beatPicturesSettled();
+    expect(later.find((e) => /from Picture 2 together/.test(e.prompt))!.images.join(" ")).toContain("body-lexi");
+  });
+
   it("a picture the lines ask for, of both, is drawn from their faces, its description leading; a chapter's own too", async () => {
     const { cookie } = await setup(at(0), "a rooftop bar");
     await post({ auto_scene_pictures: true }, cookie, settingsPost, "/api/admin/after-dark/settings");

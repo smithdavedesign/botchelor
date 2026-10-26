@@ -97,7 +97,8 @@ export const NUDE_FROM = 4;
  */
 export const clothesAt = (stage: number) =>
   stage >= NUDE_FROM
-    ? "both are nude unless the moment says otherwise"
+    ? // 2026-10-26: "nude unless the moment says otherwise" kept the camisole from her picture on. Spelled out, it comes off.
+      "both completely naked, none of the clothes from their pictures (no top, no camisole, no underwear), unless the moment says otherwise"
     : stage >= UNDRESSED_FROM
       ? "they're half undressed, as the moment says"
       : // Clips of 2026-10-22: "dressed as the moment says" still lost the man's shirt in a kiss. Spelled out, it stays on.
