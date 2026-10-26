@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import config from "@/next.config";
 
-// ffmpeg's binary (~75 MB) ships with one route only (2026-10-26: a static import let the build's file tracer follow
+// ffmpeg's binary (~75 MB) ships with the routes that run it only (2026-10-26: a static import let the build's file tracer follow
 // ffmpeg-static into 236 of 247 routes, and production's deploy ran out of disk; #929 reverted it).
 describe("the ffmpeg binary", () => {
   it("is never imported by its package's name, anywhere in the app", () => {
@@ -18,7 +18,7 @@ describe("the ffmpeg binary", () => {
     expect(hits).toBe("");
   });
 
-  it("goes with the one route that runs it", () => {
-    expect(Object.keys(config.outputFileTracingIncludes ?? {})).toEqual(["/api/admin/after-dark/moments"]);
+  it("goes with the two routes that run it, and no others", () => {
+    expect(Object.keys(config.outputFileTracingIncludes ?? {})).toEqual(["/api/admin/after-dark/moments", "/api/admin/after-dark/export"]);
   });
 });

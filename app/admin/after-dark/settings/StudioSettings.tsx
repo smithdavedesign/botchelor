@@ -16,6 +16,7 @@ const CAP_LABEL: Record<UsageKind, string> = {
   studio_byok: "Studio pictures (their own key)",
   upscales: "Upscales",
   moments: "Moments from clips (stills, boomerangs, loops)",
+  captions: "Captions written",
 };
 
 /**
