@@ -106,7 +106,8 @@ export default async function MatchesPage({ searchParams }: Props) {
         <Link href={`/characters/${encodeURIComponent(me.id)}`}>{first}&apos;s card</Link> ·{" "}
         <Link href={`/swipe?character=${encodeURIComponent(me.id)}`}>Swipe for {first}</Link>
       </p>
-      {!taken.has(me.id) && <MixerJoin characterId={me.id} first={first} />}
+      {/* 2026-10-25 page review: the mixer leads only an empty inbox (somewhere to go); with chats, it follows them. */}
+      {!taken.has(me.id) && !inbox.conversations.length && !inbox.fresh.length && <MixerJoin characterId={me.id} first={first} />}
 
       {inbox.fresh.length > 0 && (
         <section className="matches-fresh" aria-labelledby="fresh-title">
@@ -174,6 +175,7 @@ export default async function MatchesPage({ searchParams }: Props) {
           </p>
         )}
       </section>
+      {!taken.has(me.id) && (inbox.conversations.length > 0 || inbox.fresh.length > 0) && <MixerJoin characterId={me.id} first={first} />}
     </article>
   );
 }

@@ -119,11 +119,12 @@ export async function runDueMixers(db: Db, now: Date = new Date()): Promise<Mixe
       if (off.rows.length) {
         out.cancelled = 1;
         for (const booker of new Set(open.seats.map((s) => s.booker))) {
+          const theirs = open.seats.find((x) => x.booker === booker)!;
           await notify(db, booker, {
             kind: "mixer",
             title: "🍸 The mixer was called off",
             body: `Fewer than ${MIXER_MIN} singles came in ${MIXER_WAIT_HOURS} hours, so nothing ran and nothing was spent. The next mixer opens as soon as someone joins.`,
-            link: null,
+            link: `/characters/${theirs.character_id}`,
           }).catch(() => {});
         }
       }
@@ -156,17 +157,23 @@ export async function runDueMixers(db: Db, now: Date = new Date()): Promise<Mixe
   }
   await db.query(`update group_nights set status = $2 where id = $1`, [open.night.id, out.booked ? "done" : "cancelled"]);
   // The wrap: your rotations, and the ask that makes the night compound (David 2026-10-25: reflect on who you liked).
+  // 2026-10-25 page review: it links the character's own date from the night (it had no link: a dead end on the web),
+  // and speaks to people first; agents get the tool names in brackets.
+  const stamped = ((await db.query<{ rotations: Rotation[] }>(`select rotations from group_nights where id = $1`, [open.night.id])).rows[0]?.rotations ?? []) as Rotation[];
   for (const seat of open.seats) {
+    const first = shortName(names.get(seat.character_id) ?? "someone");
     const mine = rotations.filter((r) => (r.a === seat.character_id || r.b === seat.character_id) && !r.failed);
     const met = mine.map((r) => shortName(names.get(r.a === seat.character_id ? r.b : r.a) ?? "someone"));
+    const ownDate = stamped.find((r) => r.a === seat.character_id && r.episode_id)?.episode_id ?? stamped.find((r) => r.b === seat.character_id && r.episode_id)?.episode_id;
     await notify(db, seat.booker, {
       kind: "mixer",
-      title: out.booked ? `🍸 The mixer ran at ${venuePhrase(open.night.venue)}` : "🍸 The mixer couldn't run",
+      title: out.booked ? `🍸 ${first} went to the mixer at ${venuePhrase(open.night.venue)}` : "🍸 The mixer couldn't run",
       body: out.booked
-        ? `${shortName(names.get(seat.character_id) ?? "someone")} met ${met.join(" and ") || "nobody (their rotations fell through)"} — six lines each. ` +
-          `Once the dates air, reflect on each (the reflect tool on each episode): what ${shortName(names.get(seat.character_id) ?? "someone")} liked, what put them off — it's remembered and shapes their next meetings. Everyone at the mixer joins their met memory too.`
+        ? `${first} met ${met.join(" and ") || "nobody (their rotations fell through)"}: six lines each, being written now. ` +
+          `Once they air, everyone there is in ${first}'s memory, and you can say what ${first} thought of each of them on their relationship board. ` +
+          `(Agents: reflect_on_date for each date, remember_meeting for the singles ${first} didn't meet.)`
         : "No rotation could be booked, so nothing ran. Nothing was spent beyond what each refusal said.",
-      link: null,
+      link: out.booked && ownDate ? `/episodes/${ownDate}?play=1` : `/characters/${seat.character_id}`,
     }).catch(() => {});
   }
   return out;

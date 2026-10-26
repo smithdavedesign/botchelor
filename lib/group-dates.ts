@@ -14,12 +14,14 @@
  * consent, the swipe gate, operator reserve — applies per booker at book time.
  */
 import type { Db } from "./db";
+import { characterSeenSql } from "./activity";
 import { seedFrom } from "./engine";
+import { houseBotCharacterIds } from "./house-bots";
 import { takenSql } from "./partners";
 import { seasonCastIds } from "./season-cast";
 import { shortName } from "./names";
 import { notify } from "./notifications";
-import type { PlaceId } from "./venues";
+import { venuePhrase, type PlaceId } from "./venues";
 
 /** Where every double happens for now: the booth set for four (a reviewed backdrop, and literally named for it). */
 export const DOUBLE_VENUE: PlaceId = "double_date";
@@ -272,7 +274,10 @@ const INVITE_COUPLES = 6;
  * Other creators' couples to invite to a double (M1b, from the social graph): pairs whose public stage is sparks, dating
  * or going steady — a couple the audience has seen click — never private, never yours, never across a block, never a
  * pair of two house characters (nobody to answer). Couples near you in the graph (one of your characters has dated one
- * of them) come first, then the most recently seen. The couple's first character is its booker's (never the house).
+ * of them) come first, then the steadiest, then the most recently seen. The couple's first character is its booker's
+ * (never the house). 2026-10-25 page review: only couples whose booker has been around within the invite's lifetime
+ * (an invite to someone gone can only lapse), never a house-run bot's (nothing answers an invite), and each character
+ * in one couple at most — its strongest — so a one-off speed-date spark doesn't list someone in two couples.
  */
 export async function inviteCouples(db: Db, userId: string, excluding: string[]): Promise<DoubleOption[]> {
   const { rows } = await db.query<{
@@ -291,6 +296,7 @@ export async function inviteCouples(db: Db, userId: string, excluding: string[])
        from relationships r
        join characters a on a.id = r.character_a
        join characters b on b.id = r.character_b
+       join characters lead on lead.id = (case when a.is_house then b.id else a.id end)
       where r.public_dates > 0 and r.public_stage in ('sparks', 'dating', 'going_steady')
         and a.visibility <> 'private' and b.visibility <> 'private'
         and a.owner_id is distinct from $1 and b.owner_id is distinct from $1
@@ -300,11 +306,19 @@ export async function inviteCouples(db: Db, userId: string, excluding: string[])
         and not exists (select 1 from blocks bl
                          where (bl.blocker_id = $1 and bl.blocked_id in (a.owner_id, b.owner_id))
                             or (bl.blocked_id = $1 and bl.blocker_id in (a.owner_id, b.owner_id)))
-      order by near desc, r.public_last_at desc nulls last
+        and ${characterSeenSql("lead")} > now() - interval '${INVITE_DAYS} days'
+      order by near desc, case r.public_stage when 'going_steady' then 0 when 'dating' then 1 else 2 end, r.public_tie desc, r.public_last_at desc nulls last
       limit $3`,
-    [userId, excluding, INVITE_COUPLES],
+    [userId, excluding, INVITE_COUPLES * 3],
   );
-  return rows.map((r) => {
+  const bots = await houseBotCharacterIds(db, rows.flatMap((r) => [r.character_a, r.character_b])).catch(() => new Set<string>());
+  const used = new Set<string>();
+  const picked = rows.filter((r) => {
+    if (bots.has(r.character_a) || bots.has(r.character_b) || used.has(r.character_a) || used.has(r.character_b)) return false;
+    used.add(r.character_a).add(r.character_b);
+    return true;
+  });
+  return picked.slice(0, INVITE_COUPLES).map((r) => {
     // The booker's character leads: the non-house one (when both are people's, the pair's first).
     const leadIsA = !r.a_house && r.a_owner !== null;
     return {
@@ -450,4 +464,37 @@ export async function siblingEpisode(db: Db, episodeId: string): Promise<{ episo
     [other],
   );
   return pair.rows.length ? { episode_id: other, names: pair.rows.map((r) => r.name) } : null;
+}
+
+/**
+ * The night's last date just aired (lib/air.ts, lib/watch.ts): everyone there is in everyone's memory now, so each
+ * character's owner is asked who they liked — a link straight to the board's "What did you think of them?" (2026-10-25
+ * page review: the take box existed, but nothing pointed at it when it mattered). Once a night; never the house.
+ */
+export async function notifyNightAired(db: Db, episodeId: string): Promise<number> {
+  const night = (
+    await db.query<{ id: string; venue: string }>(
+      `update group_nights gn set reflect_sent_at = now()
+        where gn.id = (select group_id from episodes where id = $1) and gn.reflect_sent_at is null
+          and not exists (select 1 from episodes e where e.group_id = gn.id and (e.revealed_at is null or e.visibility <> 'public'))
+       returning gn.id, gn.venue`,
+      [episodeId],
+    )
+  ).rows[0];
+  if (!night) return 0;
+  const { rows } = await db.query<{ id: string; name: string; owner_id: string }>(
+    `select distinct c.id, c.name, c.owner_id from episodes e join characters c on c.id in (e.character_a, e.character_b)
+      where e.group_id = $1 and not c.is_house and c.owner_id is not null and c.owner_id <> 'deleted'`,
+    [night.id],
+  );
+  for (const c of rows) {
+    const first = shortName(c.name);
+    await notify(db, c.owner_id, {
+      kind: "group_reflect",
+      title: `💭 Who did ${first} like?`,
+      body: `Every date from ${venuePhrase(night.venue)} has aired, and everyone there is in ${first}'s memory. Say what ${first} thought of the ones they didn't date — it rides into the next time they meet. (Agents: remember_meeting.)`,
+      link: `/characters/${c.id}/relationships#met-title`,
+    }).catch(() => {});
+  }
+  return rows.length;
 }
