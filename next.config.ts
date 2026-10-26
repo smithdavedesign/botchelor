@@ -3,15 +3,20 @@ import { AI_HEADERS } from "./lib/ai-mark";
 import { afterDarkNextConfig } from "./lib/after-dark-host";
 import { siteUrl } from "./lib/site";
 
+/** ffmpeg-static's binary and what Node needs to load the package (lib/media-tools/ffmpeg.ts). */
+const FFMPEG = ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffmpeg-static/index.js", "./node_modules/ffmpeg-static/package.json"];
+
 const nextConfig: NextConfig = {
   // PGlite (local fallback database) ships WASM files and must be loaded by Node, not bundled. ffmpeg-static is a path to
   // a binary (lib/media-tools/ffmpeg.ts), loaded by Node too.
   serverExternalPackages: ["@electric-sql/pglite", "ffmpeg-static"],
-  // The ffmpeg binary (~75 MB) goes with the one route that runs it (lib/adult/moments.ts: a clip's moments, the frame a
-  // clip keeps going from). lib/media-tools/ffmpeg.ts loads the package by a name made at run time, so the file tracer
-  // doesn't follow it into every route (2026-10-26: it was in 236, and production's deploy ran out of disk).
+  // The ffmpeg binary (~75 MB) goes with the two routes that run it: the moments route (lib/adult/moments.ts: a clip's
+  // moments, the frame a clip keeps going from) and After Dark's exports (lib/media-tools/export.ts re-encodes clips).
+  // lib/media-tools/ffmpeg.ts loads the package by a name made at run time, so the file tracer doesn't follow it into
+  // every route (2026-10-26: it was in 236, and production's deploy ran out of disk).
   outputFileTracingIncludes: {
-    "/api/admin/after-dark/moments": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffmpeg-static/index.js", "./node_modules/ffmpeg-static/package.json"],
+    "/api/admin/after-dark/moments": FFMPEG,
+    "/api/admin/after-dark/export": FFMPEG,
   },
   // The house cast's portraits and the venue backdrops in public/cast were drawn by a model: they carry the XMP mark
   // (scripts/stamp-ai-marks.mjs) and go out with the same "AI-generated" headers as every other generated file

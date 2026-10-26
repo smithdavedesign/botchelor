@@ -9,7 +9,8 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AI_DESCRIPTION } from "../ai-mark";
+import { AI_DESCRIPTION, markAiVideo } from "../ai-mark";
+import { badgePng, cropBox, EXPORT_SIZES, type ExportSize } from "./image";
 
 /** A video's trim (lib/adult/trim.ts): where it starts and ends, and the parts cut out, in seconds. */
 export type KeptTrim = { start: number; end: number | null; cuts: [number, number][] };
@@ -69,12 +70,26 @@ export async function runFfmpeg(run: FfmpegRun): Promise<FfmpegResult> {
   }
 }
 
-/** A video's length in seconds, read from what ffmpeg says about its input (ffmpeg-static ships no ffprobe). */
-export async function videoDuration(video: Buffer): Promise<number> {
+/** What a video is: its length in seconds, its frame's size, and whether it has sound. */
+export type VideoInfo = { duration: number; w: number; h: number; audio: boolean };
+
+/** A video's length, size and sound, read from what ffmpeg says about its input (ffmpeg-static ships no ffprobe). */
+export async function videoInfo(video: Buffer): Promise<VideoInfo> {
   const { stderr } = await runFfmpeg({ args: ["-i", "in.mp4"], inputs: { "in.mp4": video }, outputs: [], quiet: false, allowFail: true, timeoutMs: 20_000 });
-  const m = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr);
-  if (!m) throw new FfmpegError("couldn't read the clip's length");
-  return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+  const d = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr);
+  if (!d) throw new FfmpegError("couldn't read the clip's length");
+  const size = /Stream #[^\n]*Video:[^\n]*?,\s*(\d{2,5})x(\d{2,5})/.exec(stderr);
+  return {
+    duration: Number(d[1]) * 3600 + Number(d[2]) * 60 + Number(d[3]),
+    w: size ? Number(size[1]) : 0,
+    h: size ? Number(size[2]) : 0,
+    audio: /Stream #[^\n]*Audio:/.test(stderr),
+  };
+}
+
+/** A video's length in seconds. */
+export async function videoDuration(video: Buffer): Promise<number> {
+  return (await videoInfo(video)).duration;
 }
 
 /** The shortest stretch kept, and the shortest loop worth making. */
@@ -100,9 +115,16 @@ const sec = (n: number) => n.toFixed(3);
  * The filter graph that plays only what's kept, at an even size and a steady 24 fps (what xfade and the encoder want),
  * into the label `[base]`.
  */
-function keptGraph(parts: readonly [number, number][]): string {
+function keptGraph(parts: readonly [number, number][], opts: { audio?: boolean } = {}): string {
   const pieces = parts.map(([a, b], k) => `[0:v]trim=start=${sec(a)}:end=${sec(b)},setpts=PTS-STARTPTS[p${k}]`);
-  const joined = parts.length > 1 ? `${parts.map((_, k) => `[p${k}]`).join("")}concat=n=${parts.length}:v=1:a=0[kept]` : null;
+  // With its sound (an export of a clip that has some): the same stretches of it, into `[abase]`.
+  const sounds = opts.audio ? parts.map(([a, b], k) => `[0:a]atrim=start=${sec(a)}:end=${sec(b)},asetpts=PTS-STARTPTS[s${k}]`) : [];
+  const n = parts.length;
+  if (opts.audio) {
+    const joined = `${parts.map((_, k) => `[p${k}][s${k}]`).join("")}concat=n=${n}:v=1:a=1[kept][abase]`;
+    return [...pieces, ...sounds, joined, `[kept]fps=24,format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2[base]`].join(";");
+  }
+  const joined = n > 1 ? `${parts.map((_, k) => `[p${k}]`).join("")}concat=n=${n}:v=1:a=0[kept]` : null;
   const into = joined ? "kept" : "p0";
   return [...pieces, ...(joined ? [joined] : []), `[${into}]fps=24,format=yuv420p,scale=trunc(iw/2)*2:trunc(ih/2)*2[base]`].join(";");
 }
@@ -152,4 +174,51 @@ export async function seamlessLoop(video: Buffer, trim?: KeptTrim | null, fade =
   const graph = `${keptGraph(parts)};[base]split[m0][h0];[m0]trim=start=${sec(f)},setpts=PTS-STARTPTS[m];[h0]trim=end=${sec(f)},setpts=PTS-STARTPTS[h];[m][h]xfade=transition=fade:duration=${sec(f)}:offset=${sec(length - 2 * f)}[out]`;
   const { files } = await runFfmpeg({ args: ["-i", "in.mp4", "-filter_complex", graph, "-map", "[out]", ...VIDEO_OUT, "-y", "out.mp4"], inputs: { "in.mp4": video }, outputs: ["out.mp4"] });
   return files["out.mp4"];
+}
+
+/**
+ * A clip as it's exported (lib/media-tools/export.ts): what its trim keeps, at a social size (cut to its shape a quarter
+ * of the way down, like a picture, and never enlarged) or its own, with the "AI" badge laid over it or not, and its
+ * sound when it has some. Untrimmed, at its own size, without the badge, it isn't re-encoded at all. Marked AI-generated
+ * (an XMP box, as every MP4 kept is).
+ */
+export async function exportVideo(video: Buffer, opts: { size: ExportSize; trim?: KeptTrim | null; badge?: boolean }): Promise<Buffer> {
+  const trimmed = Boolean(opts.trim && (opts.trim.start > 0 || opts.trim.end !== null || opts.trim.cuts.length));
+  if (opts.size === "original" && !trimmed && !opts.badge) return markAiVideo(video);
+  const info = await videoInfo(video);
+  const parts = keptParts(info.duration, opts.trim);
+  if (!parts.length) throw new FfmpegError("nothing is left of the clip to export");
+  const even = (n: number) => Math.max(2, n - (n % 2));
+  let w = even(info.w || 720);
+  let h = even(info.h || 960);
+  const steps: string[] = [keptGraph(parts, { audio: info.audio })];
+  let last = "base";
+  if (opts.size !== "original") {
+    const target = EXPORT_SIZES[opts.size];
+    const box = cropBox(w, h, target.w, target.h);
+    const scale = Math.min(1, target.w / box.width);
+    const cw = even(box.width);
+    const ch = even(box.height);
+    w = even(Math.round(cw * scale));
+    h = even(Math.round(ch * scale));
+    steps.push(`[base]crop=${cw}:${ch}:${box.left}:${box.top},scale=${w}:${h}[sized]`);
+    last = "sized";
+  }
+  const inputs: Record<string, Buffer> = { "in.mp4": video };
+  const args = ["-i", "in.mp4"];
+  if (opts.badge) {
+    inputs["badge.png"] = await badgePng(w, h, opts.size);
+    args.push("-i", "badge.png");
+    steps.push(`[${last}][1:v]overlay=0:0[out]`);
+    last = "out";
+  }
+  const sound = info.audio ? ["-map", "[abase]", "-c:a", "aac", "-b:a", "128k"] : [];
+  const out = VIDEO_OUT.filter((a) => a !== "-an");
+  const { files } = await runFfmpeg({
+    args: [...args, "-filter_complex", steps.join(";"), "-map", `[${last}]`, ...sound, ...(info.audio ? out : VIDEO_OUT), "-y", "out.mp4"],
+    inputs,
+    outputs: ["out.mp4"],
+    timeoutMs: 90_000,
+  });
+  return markAiVideo(files["out.mp4"]);
 }

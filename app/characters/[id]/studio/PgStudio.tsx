@@ -7,6 +7,9 @@ import { PG_CUSTOM_MAX, type PgChoices, type PgGroup, type PgGroupId } from "@/l
 import type { PgPicture, PgState } from "@/lib/studio/pg";
 import type { Library } from "@/lib/studio/library";
 import CreateLibrary from "@/app/studio/CreateLibrary";
+import ExportDialog from "@/app/studio/ExportDialog";
+import TileTools, { SelectBar } from "@/app/studio/TileTools";
+import { PG_API, useSelection, type Selection } from "@/app/studio/selection";
 
 const pictureUrl = (id: string) => `/api/studio/pictures/${id}`;
 
@@ -25,6 +28,9 @@ export default function PgStudio({ initial }: { initial: PgState }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   const [fresh, setFresh] = useState<PgPicture[]>([]);
+  // The creator suite (2026-10-26): pictures picked to export together, and the export open for them.
+  const sel = useSelection();
+  const [exporting, setExporting] = useState<string[] | null>(null);
   const c = state.character;
   const groups = state.groups as readonly PgGroup[];
 
@@ -187,7 +193,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
               {note.text}
             </p>
           )}
-          {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} onUse={usePicture} afterDark={afterDark} />}
+          {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} onUse={usePicture} afterDark={afterDark} sel={sel} />}
         </>
       ) : tab === "create" ? (
         <CreateLibrary scope="safe" onLibrary={onLibrary} />
@@ -198,7 +204,18 @@ export default function PgStudio({ initial }: { initial: PgState }) {
               {note.text}
             </p>
           )}
-          <Pictures items={state.pictures} onDelete={remove} onUse={usePicture} afterDark={afterDark} />
+          {!sel.selecting && (
+            <p className="studio-gallery-head">
+              <button type="button" className="button-ghost small" onClick={sel.start} title="Pick pictures to download together: sizes for stories and feeds, captions, a contact sheet">
+                ⬇ Pick to export
+              </button>
+            </p>
+          )}
+          <Pictures items={state.pictures} onDelete={remove} onUse={usePicture} afterDark={afterDark} sel={sel} />
+          {sel.selecting && (
+            <SelectBar count={sel.ids.length} total={state.pictures.length} onAll={() => sel.set(state.pictures.map((p) => p.id))} onExport={() => setExporting(sel.ids)} onDone={sel.done} />
+          )}
+          {exporting && <ExportDialog ids={exporting} api={PG_API} onClose={() => setExporting(null)} />}
         </>
       ) : (
         <p className="muted">No pictures yet: a shoot puts its pictures here.</p>
@@ -207,11 +224,23 @@ export default function PgStudio({ initial }: { initial: PgState }) {
   );
 }
 
-function Pictures({ items, onDelete, onUse, afterDark = false }: { items: PgPicture[]; onDelete: (id: string) => void; onUse?: (id: string, as: "portrait" | "face") => void; afterDark?: boolean }) {
+function Pictures({
+  items,
+  onDelete,
+  onUse,
+  afterDark = false,
+  sel,
+}: {
+  items: PgPicture[];
+  onDelete: (id: string) => void;
+  onUse?: (id: string, as: "portrait" | "face") => void;
+  afterDark?: boolean;
+  sel?: Selection;
+}) {
   return (
     <ul className="pg-pictures">
       {items.map((p) => (
-        <li key={p.id} className="card">
+        <li key={p.id} className={`card${sel?.has(p.id) ? " picked" : ""}`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- the owner's private picture, from its own route */}
           <img src={pictureUrl(p.id)} alt="A Studio picture" loading="lazy" />
           <span className="pg-picture-meta">
@@ -232,6 +261,8 @@ function Pictures({ items, onDelete, onUse, afterDark = false }: { items: PgPict
               Delete
             </button>
           </span>
+          {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
+          <TileTools id={p.id} api={PG_API} selecting={sel?.selecting} selected={sel?.has(p.id)} onToggle={() => sel?.toggle(p.id)} />
         </li>
       ))}
     </ul>
