@@ -2320,3 +2320,35 @@ test calls a checker over the network. No picture is ever kept unchecked: the ch
 guard against a picture that reads as under 18, which the law forbids whoever sees it, and Venice's and Replicate's
 terms require. Videos stay Hive's (the alternatives don't read video).
 
+
+## A clip's moments: a still, a boomerang, a loop, and keep going from here (2026-10-26)
+
+David: "save a image or offering a boomerang for a clip … if we really like a video and want it to continue where it
+left off". `lib/adult/moments.ts`, `lib/media-tools/ffmpeg.ts`, `POST /api/admin/after-dark/moments`,
+`app/after-dark/MomentTools.tsx`.
+
+- **ffmpeg is back** (`ffmpeg-static` 5.3.0, approved in `allowScripts`), shipped only with the moments and clips routes
+  (`next.config.ts outputFileTracingIncludes`). #688 removed it when a night's shots stopped chaining. A clip is cut
+  from our own copy (signed links never hand a provider a video), in a temp folder per run, with a time limit.
+  ffmpeg-static is GPL-3.0 and runs as a separate process on our servers only.
+- **Save this moment** (📸, free): the frame at the second the player is paused on, kept as a picture of the same one or
+  two people (`kind` scene, `source_image` the clip, `moment_at`). It's a picture of its own from then on, so it gets
+  the full output check (moderation and the age question; one of Hive's 100 a day), and a refusal is logged and
+  nothing kept. The same moment again (within a frame) is the one already kept. It takes the clip's tags, and its level
+  (`adult_images.level`) from the clip's stage tag, so whatever is made from it next (Animate, a share) reads how far
+  it goes.
+- **Boomerang** (↔) and **loop** (∞), free: new videos (`derived`) made of the clip's own frames, honouring its trim.
+  A boomerang plays what's kept forward and back; a loop fades its last 0.6 s into its start, so it ends on the frame
+  it starts on. They're re-orderings and blends of frames that passed the clip's own check, so nothing new is checked
+  (and they work while Hive is paused). The same one for the same trim is the one already made.
+- **Keep going from here** (▶▶): `{continue, at, media_id?, mode?}` on the clips route. The frame at `at` (or the
+  clip's end, which the chain's own Keep going button now sends) is cut and asked the age question like any keyframe
+  (`momentFrame`), before anything is spent. **Seamless** (the default): the next clip's video starts straight from
+  that frame (`from_cut`), nothing drawn. **Fresh faces**: a new keyframe of their two faces with the frame as Picture 3
+  ("at the very moment in Picture 3"). After `SEAMLESS_RUN_MAX` (2) seamless links in a row the next is fresh faces
+  automatically (and says so), so a long chain can't drift away from their faces. A shot of a night's video can be kept
+  going from too (`media_id`): that starts a clip of its own, "Kept going".
+- Counted against the month's **moments** (`adult_usage.moments`, `cap_moments` 100; admins uncapped). Owner only:
+  never someone else's clip, an admin's moderator view or one shared with them.
+- Where: the player's "⋯ This shot" (all four, with the time the player is on), and 📸 Moments on every clip tile in
+  the scene gallery and the Studio (a still, a boomerang, a loop). What's made lands in the gallery.

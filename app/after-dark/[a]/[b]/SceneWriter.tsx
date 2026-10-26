@@ -557,7 +557,7 @@ export default function SceneWriter({
             />
           ) : mediaTab === "videos" ? (
             reelList.length ? (
-              <Reels reels={reelList} onChange={putReel} />
+              <Reels reels={reelList} onChange={putReel} onMedia={(m) => setGallery((g) => [m, ...g.filter((x) => x.id !== m.id)])} />
             ) : (
               <p className="muted small">No videos yet: 🎬 Video in the theater&apos;s ⋯ makes one, from a storyboard you check first.</p>
             )
@@ -680,7 +680,7 @@ function Gallery({
               {m.kind === "video" ? (
                 status === "ready" ? (
                   // Plays its trim, and ✂️ trims it (lib/adult/trim.ts).
-                  <TrimmableClip id={m.id} src={mediaUrl(m.id)} trim={m.trim ?? null} canTrim label="A clip" />
+                  <TrimmableClip id={m.id} src={mediaUrl(m.id)} trim={m.trim ?? null} canTrim label="A clip" onMoment={onAdd} />
                 ) : (
                   <p className="muted small">{status === "failed" ? "The clip failed." : "Clip on its way…"}</p>
                 )

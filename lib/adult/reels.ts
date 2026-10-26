@@ -192,6 +192,8 @@ export type ReelShot = {
   from_picture?: boolean;
   /** It IS a video the owner already made (useShotVideo): `media_id` is that clip, the shot is done (ready), not filmed. */
   from_video?: boolean;
+  /** It starts straight from a frame cut from the video before it (Keep going from here, seamless): `media_id` and `frame_id` are it. */
+  from_cut?: boolean;
   /** Drawn like one of the pair's pictures (the storyboard's Draw like it): its pose, framing and place, as Picture 3. */
   ref_id?: string;
   /** Re-filmed (refilmShot): what this shot's new video cost, given back if it fails and cleared once it's settled. */
@@ -204,7 +206,20 @@ export type ReelShot = {
  * A clip (lib/adult/clips.ts): one shot made on request, from the menu's act or the scene's latest moment, and the clip
  * it keeps going from. `label` is what the videos list calls it.
  */
-export type ClipMeta = { act: string | null; swap: boolean; from: string | null; stage: number; place: string | null; label: string };
+export type ClipMeta = {
+  act: string | null;
+  swap: boolean;
+  from: string | null;
+  stage: number;
+  place: string | null;
+  label: string;
+  /**
+   * Kept going from a moment of a video (lib/adult/clips.ts, lib/adult/moments.ts): the video, the second it was cut
+   * at, and whether the clip starts straight from that frame (seamless) or from a fresh keyframe of their faces with it
+   * as Picture 3.
+   */
+  cut?: { video: string; at: number; seamless: boolean };
+};
 /** A video: a night's reel (`kind` "night", the default) or a clip; `a` and `b` are the pair's ids, lower first. */
 export type Reel = {
   id: string;
@@ -746,11 +761,14 @@ function cutAtClause(text: string, max: number): string {
  * keyframe (Picture 3: the place, the light, the framing, how they're posed and dressed), moved on by what they did in
  * that shot.
  */
-export function continuePrompt(cast: readonly [ReelPerson, ReelPerson], after: string, stage: number, opts: { explicit?: boolean } = {}): string {
+export function continuePrompt(cast: readonly [ReelPerson, ReelPerson], after: string, stage: number, opts: { explicit?: boolean; cut?: boolean } = {}): string {
   const [a, b] = cast;
-  const head =
-    `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together, a few seconds after the moment in Picture 3. ` +
-    "Picture 3 is the shot just before this one: keep its place, its light, its camera angle and framing, and what each of them is wearing or not, and carry how they're posed on from it, after this:";
+  // From a moment cut from the video before (lib/adult/moments.ts): that very moment, with their faces drawn fresh.
+  const head = opts.cut
+    ? `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together, at the very moment in Picture 3. ` +
+      "Picture 3 is a still from the shot just before this one: keep its place, its light, its camera angle and framing, what each of them is wearing or not, and exactly how they're posed, then carry on with this:"
+    : `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together, a few seconds after the moment in Picture 3. ` +
+      "Picture 3 is the shot just before this one: keep its place, its light, its camera angle and framing, and what each of them is wearing or not, and carry how they're posed on from it, after this:";
   const keep = "Keep each of them as in their own picture, the same face, hair, skin tone and body. Two people only, both faces visible.";
   return fitPrompt([head], after, [whoIsWho(cast), keep, tailAt(stage, opts.explicit ?? true)]);
 }
@@ -1229,7 +1247,7 @@ async function queueShot(ctx: Pick<ShotContext, "cast" | "venice" | "model" | "b
 /** The reel holding the one-at-a-time slot, for the refusal: which pair, how far along, and whether it looks stuck. */
 export type BusyReel = { id: string; a: string; b: string; names: [string, string]; done: number; shots: number; minutes: number; stalled: boolean };
 
-export type MakeReelResult = { ok: true; reel: Reel } | { ok: false; status: number; error: string; message: string; busy?: BusyReel };
+export type MakeReelResult = { ok: true; reel: Reel; note?: string } | { ok: false; status: number; error: string; message: string; busy?: BusyReel };
 
 /** What the refusal says about the reel in the way: the pair's names, progress, and, once it's stuck, what to do. */
 export function busyMessage(r: BusyReel): string {

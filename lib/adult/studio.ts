@@ -946,7 +946,7 @@ async function soloPicture(db: Db, viewer: string, characterId: string, imageId:
   const r = (
     await db.query<Omit<Solo, "level"> & { shoot_level: number | null; nude: boolean }>(
       `select i.id, i.kind, i.preset, i.scene_place as place, i.mime, ${dataColumn("i")}, i.object_key,
-              (select (s.choices->>'level')::int from adult_studio_shoots s where s.id = i.shoot_id and s.kind in ('shoot', 'variations', 'upscale')) as shoot_level,
+              coalesce(i.level, (select (s.choices->>'level')::int from adult_studio_shoots s where s.id = i.shoot_id and s.kind in ('shoot', 'variations', 'upscale'))) as shoot_level,
               ((i.kind = 'baseline' and ${nudeSql("i")})
                 or exists (select 1 from adult_studio_shoots s where s.id = i.shoot_id and s.kind = 'body' and (s.choices->>'nude')::boolean)) as nude
          from adult_images i
@@ -970,7 +970,7 @@ async function pairSource(db: Db, viewer: string, characterId: string, imageId: 
   const r = (
     await db.query<Omit<Solo, "level"> & { shoot_level: number | null }>(
       `select i.id, i.kind, i.preset, i.scene_place as place, i.mime, ${dataColumn("i")}, i.object_key,
-              (select (s.choices->>'level')::int from adult_studio_shoots s where s.id = i.shoot_id and s.kind = 'pair') as shoot_level
+              coalesce(i.level, (select (s.choices->>'level')::int from adult_studio_shoots s where s.id = i.shoot_id and s.kind = 'pair')) as shoot_level
          from adult_images i
         where i.id = $1 and (i.character_id = $2 or i.character_b = $2) and i.character_b is not null and i.kind = 'scene' and i.status = 'ready'
           and (i.owner_id = $3 or exists (select 1 from admins a where a.user_id = $3))`,

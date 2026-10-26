@@ -223,6 +223,14 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     return () => clearInterval(t);
   }, [making, c.id]);
 
+  /** The page's state again (GET), after something made outside a Studio action lands in the gallery (a clip's moment). */
+  async function refresh() {
+    const res = await fetch(`/api/admin/after-dark/studio?character=${encodeURIComponent(c.id)}`)
+      .then((r) => r.json())
+      .catch(() => null);
+    if (res?.state) setS(res.state as StudioState);
+  }
+
   /** Saves the shoot's (or Together's) choices under a name, to run again on any of their characters. */
   function saveSetup(kind: "shoot" | "pair", choices: Record<string, unknown>, model: string | undefined) {
     // The button stays clickable without a name (David, 2026-10-24: a greyed-out Save read as broken): it says what's
@@ -377,7 +385,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             <div className="ad-studio-media">
               {video ? (
                 // Plays its trim, and ✂️ trims it (lib/adult/trim.ts).
-                <TrimmableClip id={p.id} src={media(p.id)} trim={p.trim ?? null} canTrim label={`${c.name}, a clip`} />
+                <TrimmableClip id={p.id} src={media(p.id)} trim={p.trim ?? null} canTrim label={`${c.name}, a clip`} onMoment={() => void refresh()} />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media; not for next/image
                 <img src={media(p.id)} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" />
