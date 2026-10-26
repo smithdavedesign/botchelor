@@ -6,6 +6,7 @@ import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { runAdultTool } from "@/lib/adult/mcp";
 import { observeNight } from "@/lib/adult/observer";
 import { setMediaFetchForTests, VENICE_IMAGE } from "@/lib/adult/media";
+import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { quoteOverlap, quotesKept, saysQuote, steerQuotes, withoutQuotes } from "@/lib/adult/quotes";
 import { INTENSITIES, INTENSITY, intensityOf, NO_LIMITS, overIntensity, plainTalk, type Intensity } from "@/lib/adult/limits";
@@ -319,6 +320,9 @@ afterAll(async () => {
   await t.close();
 });
 beforeEach(async () => {
+  // No picture call ever leaves the test: a scene picture's edit fails unless a test stubs it (fakeMedia).
+  setReelFetchForTests(async () => new Response("no", { status: 500 }));
+  setReelPausesForTests(false);
   await t.reset();
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -330,6 +334,8 @@ beforeEach(async () => {
   setSetsFetchForTests(async () => new Response("no", { status: 500 }));
 });
 afterEach(async () => {
+  setReelFetchForTests(null);
+  setReelPausesForTests(true);
   await autoPicturesSettled();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
@@ -407,13 +413,21 @@ describe("a picture for each chapter and each place", () => {
   const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
   const CLEAN_MOD = { output: [{ classes: [{ class: "yes_child_present", value: 0.01 }, { class: "no_child_present", value: 0.99 }, { class: "general_nsfw", value: 0.5 }] }] };
   const ADULTS = { choices: [{ message: { role: "assistant", content: '{"answer": "ADULTS"}' } }] };
-  /** Venice and Hive, stubbed: every picture drawn is counted. */
+  /**
+   * Venice and Hive, stubbed: every scene picture drawn is counted. Since 2026-10-25 a chapter's picture is drawn like
+   * every scene picture, from their two baselines (Venice's multi-edit: lib/adult/beats.ts drawNightMoment); the
+   * baselines themselves, drawn first when they have none, are Venice's text-to-image, and aren't counted here.
+   */
   function fakeMedia() {
     const drawn: string[] = [];
-    setMediaFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+    setMediaFetchForTests(async (input: RequestInfo | URL) => {
       if (String(input) !== VENICE_IMAGE) return new Response("unexpected", { status: 500 });
-      drawn.push(String(JSON.parse(String(init?.body)).prompt));
       return Response.json({ id: "x", images: [Buffer.from(PNG).toString("base64")], timing: {} });
+    });
+    setReelFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (!String(input).endsWith("/image/multi-edit")) return new Response("?", { status: 500 });
+      drawn.push(String(JSON.parse(String(init?.body ?? "{}")).prompt));
+      return new Response(new Uint8Array(PNG), { headers: { "content-type": "image/png" } });
     });
     setCheckFetchForTests(async (input: RequestInfo | URL) => Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD));
     return drawn;
@@ -431,7 +445,8 @@ describe("a picture for each chapter and each place", () => {
     expect(r.auto_picture).toBe(true);
     await autoPicturesSettled();
     expect(drawn).toHaveLength(1);
-    expect(drawn[0]).toMatch(/Setting: the lighthouse\./);
+    expect(drawn[0]).toMatch(/The place: the lighthouse\./);
+    expect(drawn[0]).toMatch(/from Picture 1 and the .+ from Picture 2 together/);
     expect(await scenePictures()).toEqual([{ scene_chapter: 1, scene_place: "the lighthouse", character_b: CAST_B }]);
     const gallery = (await get(cookie)).gallery as { kind: string; chapter: number | null; place: string | null }[];
     expect(gallery.find((m) => m.kind === "scene")).toMatchObject({ chapter: 1, place: "the lighthouse" });

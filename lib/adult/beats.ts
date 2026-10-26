@@ -35,7 +35,9 @@ import { picturesBlocked } from "./readiness";
 import { refundBoughtTokens } from "../allowance";
 import { roleplayById } from "./roleplays";
 import { venueSituation } from "./scene-catalog";
-import { ownRoleplay } from "../studio/library";
+import { ownPlaceSituation, ownRoleplay } from "../studio/library";
+import { isPublicPlace } from "./continuity";
+import { looksPictureWords } from "../looks";
 import { overCap } from "./usage";
 
 const UNDRESSING = 3;
@@ -48,7 +50,7 @@ const AFTERGLOW_AFTER = 4;
 /** The lines a beat picture reads what was happening from: the beat's line and the ones just before it. */
 const MOMENT_LINES = 6;
 
-export type BeatKind = "undressing" | "sex" | "position" | "climax" | "afterglow" | "chosen";
+export type BeatKind = "undressing" | "sex" | "position" | "climax" | "afterglow" | "chosen" | "chapter" | "asked";
 export type BeatStatus = "offered" | "later" | "drawing" | "drawn" | "failed";
 
 /** A moment found in the lines: its line (in the chapter), the act it's drawn as, what kind of moment, the stage. */
@@ -146,6 +148,8 @@ export function beatLabel(kind: BeatKind, act: string): string {
   if (kind === "position") return `A new position: ${name.toLowerCase()}`;
   if (kind === "climax") return "The climax";
   if (kind === "afterglow") return "The afterglow";
+  if (kind === "chapter") return "This chapter";
+  if (kind === "asked") return "The picture they asked for";
   return name;
 }
 
@@ -328,10 +332,14 @@ export async function planBeat(db: Db, beat: Pick<BeatRow, "owner_id" | "scene_i
   const stage = Math.max(beat.stage, act?.dress ?? 0);
   // What the night says, field by field.
   const roleplay = await chapterRoleplayTitle(db, beat);
+  // What each of them wears, from their own looks, until they undress (one context for every picture).
+  const situation = await situationOf(db, beat.owner_id, beat.place);
+  const publicPlace = isPublicPlace(beat.place) || Boolean(situation);
+  const outfits = stage >= UNDRESSING ? null : outfitsOf(cast, [ca, cb], beat.owner_id, stage, publicPlace);
   const fields: PictureFields = {
     happening: recentActions([...moment], 3).join("; "),
-    wearing: wearingAt(stage),
-    place: placeWithSituation(beat.place),
+    wearing: outfits ?? wearingAt(stage),
+    place: withSituation(beat.place, situation),
     mood: [roleplay, moment.at(-1)?.doing].filter(Boolean).join(" · "),
   };
   // The owner's changes, held to the lines and the pair's limits like everything drawn.
@@ -342,20 +350,40 @@ export async function planBeat(db: Db, beat: Pick<BeatRow, "owner_id" | "scene_i
   if (!frame) return { ok: false, status: 422, message: "That moment crosses one of the lines." };
   const mood = own?.mood ?? fields.mood;
   const framed = `${frame}${mood ? ` The mood: ${withoutNames(mood, cast)}.` : ""}`;
-  const place = own?.place ?? beat.place;
+  const place = own?.place ?? withSituation(beat.place, situation);
   const where = place ? placeWords(place, cast) : null;
+  // Their own outfits, the night's guess unless the owner wrote their own (stage clothes words past it, clothesAt).
+  const clothes = own?.wearing ?? (outfits ? `${outfits}, both fully clothed` : undefined);
   const custom = [own?.extra, beat.custom].filter(Boolean).join(". ") || undefined;
   const promptFor = (withSet: boolean) =>
-    keyframePrompt(cast, framed, where, stage, withSet, { explicit: limits.explicit, custom, dialog: beat.dialog ?? undefined, ...(own?.wearing ? { clothes: withoutNames(own.wearing, cast) } : {}) });
+    keyframePrompt(cast, framed, where, stage, withSet, { explicit: limits.explicit, custom, dialog: beat.dialog ?? undefined, ...(clothes ? { clothes: withoutNames(clothes, cast) } : {}) });
   return { ok: true, fields, edit: own, prompt: promptFor(false), promptFor, characters: [ca, cb], stage };
 }
 
+/** What a place puts them in: a library venue's own words, or one of the owner's own places' (lib/studio/library.ts). */
+async function situationOf(db: Db, owner: string, place: string | null): Promise<string | null> {
+  return venueSituation(place) ?? (await ownPlaceSituation(db, owner, place).catch(() => null));
+}
 /** The place, and what it puts them in, said once ("an awkward double date with a smug couple…", not the name twice). */
-function placeWithSituation(place: string | null): string {
+function withSituation(place: string | null, situation: string | null): string {
   if (!place) return "";
-  const situation = venueSituation(place);
   if (!situation) return place;
   return situation.toLowerCase().startsWith(place.toLowerCase()) ? situation : `${place}: ${situation}`;
+}
+
+/**
+ * What each of them wears, from their own looks (lib/looks.ts looksPictureWords), by common sense: what they wear out in
+ * public or before it's gone past flirting, After Dark's outfit (the owner's own pick) somewhere private from kissing
+ * on. "The woman with auburn hair in a fitted white t-shirt and blue jeans; the man in a navy suit". Null when neither
+ * has an outfit picked (then the stage's words: wearingAt).
+ */
+function outfitsOf(cast: readonly [ReelPerson, ReelPerson], people: readonly [Character, Character], owner: string, stage: number, publicPlace: boolean): string | null {
+  const worn = people.map((c) => {
+    const p = looksPictureWords(c.extras?.looks, c.ownerId === owner);
+    return publicPlace || stage < 2 ? p.everyday : (p.outfit ?? p.everyday);
+  });
+  if (!worn.some(Boolean)) return null;
+  return cast.map((who, i) => `${i === 0 ? who.tag.charAt(0).toUpperCase() + who.tag.slice(1) : who.tag} in ${worn[i] ?? "everyday clothes"}`).join("; ");
 }
 
 /** The chapter's roleplay's title, for the mood (the running chapter's only: a filed night doesn't keep it). */
@@ -369,7 +397,7 @@ async function chapterRoleplayTitle(db: Db, beat: Pick<BeatRow, "scene_id" | "ow
 }
 
 /** Draws one beat's picture and keeps it, or marks it failed with why (and gives back what a redraw cost). */
-async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<boolean> {
+async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<{ ok: true } | { ok: false; reason: string }> {
   const fail = async (why: string) => {
     console.warn(`[after-dark] a beat picture didn't come (${beat.kind}, chapter ${beat.chapter}): ${why.slice(0, 160)}`);
     await db.query(`update adult_beats set status = 'failed' where id = $1`, [beat.id]);
@@ -377,7 +405,7 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<boolean
       await refundBoughtTokens(db, beat.owner_id, beat.paid).catch(() => {});
       await db.query(`update adult_beats set paid = 0 where id = $1`, [beat.id]);
     }
-    return false;
+    return { ok: false as const, reason: why };
   };
   try {
     const settings = await getAdultSettings(db);
@@ -401,7 +429,7 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<boolean
     );
     if (!kept.ok) return fail(kept.message);
     await db.query(`update adult_beats set status = 'drawn', picture_id = $2 where id = $1`, [beat.id, kept.picture.id]);
-    return true;
+    return { ok: true as const };
   } catch (err) {
     return fail(err instanceof Error ? err.message : "error");
   }
@@ -519,6 +547,30 @@ export async function pictureNow(
   );
   drawLater(db, rows, baseUrl);
   return { ok: true, beat: publicBeat(rows[0]) };
+}
+
+/**
+ * A night's own picture, drawn like every other scene picture (one context, from their faces: planBeat, keepPictureOfBoth)
+ * rather than from words alone (David, 2026-10-25: "look at the flow and prompts and data … and tighten it up"): the
+ * chapter's and a new place's (lib/adult/auto-pictures.ts, kind "chapter"), and one the lines asked for ("asked", its
+ * description leading it). Kept as a beat at the scene's latest line, so it can be redrawn with its moment. Drawn now;
+ * the reason when it doesn't come.
+ */
+export async function drawNightMoment(
+  db: Db,
+  ownerId: string,
+  scene: { id: string; a: string; b: string; chapter: number; place: string | null; stage: number; lines: readonly { text: string; stage?: number }[]; lineCount: number },
+  opts: { kind: "chapter" | "asked"; custom?: string | null; baseUrl?: string },
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const at = Math.max(0, scene.lineCount - 1);
+  const { act, stage } = chosenAt(scene, scene.lines.length - 1);
+  const custom = cleanWords(opts.custom ?? undefined, SCENE_CUSTOM_MAX);
+  if (!guideSafe([custom])) return { ok: false, reason: "the picture they asked for crosses one of the lines" };
+  const { rows } = await db.query<BeatRow>(
+    `insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place, status, custom) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'drawing', $12) returning *`,
+    [crypto.randomUUID(), ownerId, scene.id, scene.a, scene.b, scene.chapter, at, act, opts.kind, Math.max(stage, scene.stage), scene.place, custom],
+  );
+  return drawBeat(db, rows[0], opts.baseUrl ?? siteUrl());
 }
 
 /** The moment a line is, for a picture the owner picks there: the act its position or stage says, and its stage. */

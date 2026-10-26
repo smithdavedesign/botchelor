@@ -249,8 +249,11 @@ async function main() {
       await page.waitForFunction(() => (document.querySelector(".ad-picture-context textarea")?.value ?? "").length > 0, null, { timeout: 15_000 });
       const field = (name) => panel.getByLabel(name);
       const happening = await field(/What's happening/).inputValue();
-      assert(/meets her eyes and holds them/.test(happening), `"What's happening" isn't the last lines: ${happening}`);
-      assert((await field(/What they're wearing/).inputValue()) === "Both fully clothed, tops on and done up", "what they're wearing isn't by the stage");
+      const lastAction = ((await sceneNow()).lines.at(-1)?.text ?? "").match(/^\*([^*]+)\*/)?.[1] ?? "";
+      assert(lastAction && happening.includes(lastAction.trim()), `"What's happening" isn't the last lines: ${happening}`);
+      // What they wear, from their own looks (PR 3): Lexi's everyday outfit at a restaurant.
+      const wearing = await field(/What they're wearing/).inputValue();
+      assert(/in a fitted white t-shirt and blue jeans/.test(wearing), `what they're wearing isn't from her looks: ${wearing}`);
       assert(/smug couple/.test(await field(/Where/).inputValue()), "the place lost the double date's situation");
       const mood = await field(/Mood/).inputValue();
       assert(/^Blind date · /.test(mood), `the mood isn't the roleplay and what they're doing: ${mood}`);
@@ -269,13 +272,15 @@ async function main() {
       assert(res.ok(), `preview: HTTP ${res.status()}`);
       const { prompt } = await res.json();
       console.log(`      ${prompt}`);
-      assert(/Setting: an awkward double date with a smug couple who finish each other's sentences\./.test(prompt), "no double date in the setting");
-      assert(/a fitted white t-shirt and blue jeans/.test(prompt), "not in her everyday outfit");
+      // One context for every picture (PR 3): drawn from their two faces, never guessed from words.
+      assert(/Make one photograph of the .+ from Picture 1 and the .+ from Picture 2 together/.test(prompt), "not drawn from their faces");
+      assert(/The place: an awkward double date with a smug couple who finish each other's sentences\./.test(prompt), "no double date in the place");
+      assert(/in a fitted white t-shirt and blue jeans/.test(prompt), "Lexi isn't in her own everyday outfit");
+      assert(/both fully clothed/.test(prompt), "not fully clothed at a restaurant");
       assert(!/lingerie|underwear|\bnude\b/i.test(prompt), "dressed for After Dark at a restaurant");
-      assert(/dressed for going out, in everyday clothes, out in public/.test(prompt), "not dressed to be out");
       assert(!/\bhis\b/i.test(prompt), "a 'his' with two women");
-      const now = prompt.match(/Just now: (.+?)\. Photorealistic/)?.[1] ?? "";
-      assert(now.length > 0, "no 'Just now'");
+      const now = prompt.match(/What is happening: (.+?)\. /)?.[1] ?? "";
+      assert(now.length > 0, "no 'What is happening'");
       assert(!/\b(?:a|an|the|of|to|in|with|letting)(?:;|$)/.test(now), `an action cut off mid-phrase: ${now}`);
       await shot("played");
     });

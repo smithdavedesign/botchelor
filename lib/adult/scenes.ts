@@ -17,7 +17,7 @@ import { countUse, overCap } from "./usage";
 import { adultModel, adultModelId } from "./mode";
 import { writerChoice } from "./writer";
 import { FALLBACK_WRITER } from "./writer-config";
-import { drawLabel, ensureSet, resolveSet } from "../sets";
+import { drawLabel, ensureSet, inBackground, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
 import type { Turn } from "../conversation";
@@ -126,7 +126,7 @@ import {
 import { DEFAULT_PROMPT_VERSION, getAdultSettings, SCENE_PROMPT_REVISION, type AdultSettings, type PromptVersion } from "./settings";
 import { carriesQuote, quotedSpans, quotesKept, steerQuotes, withoutQuotes, type QuoteCheck, type SteerQuote } from "./quotes";
 import { kickAutoPicture } from "./auto-pictures";
-import { chapterBeats, clearBeats, fileBeats, recordBeats, rewindBeats, type PublicBeat } from "./beats";
+import { chapterBeats, clearBeats, drawNightMoment, fileBeats, recordBeats, rewindBeats, type PublicBeat } from "./beats";
 import { castNames, sceneCharacter, styleExamples, voiceKitLines } from "./voice";
 import { ACTION_ONLY_MAX, ACTION_ONLY_WINDOW, actionOnlyRun, checkAsides, misattributedQuote, overusedTics, TIC_CAP, withoutQuote, withoutTics } from "./asides";
 export { SOFT_CHAPTERS } from "./stages";
@@ -2440,6 +2440,8 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const pictures: Media[] = [];
   let picture_note: string | undefined;
   const askedKey = `${scene.chapter}#asked:${scene.lines.length}`;
+  // A picture of both they asked for, drawing after the response: the page looks for it, like the chapter's own.
+  let askedBoth = false;
   let asked: typeof meta.picture | null = null;
   if ((meta.explicit || meta.picture) && !(await outputCheckReady(db))) picture_note = PICTURES_OFF_NOTE;
   else if ((meta.explicit || meta.picture) && a && b && (await pictureKeyReady(db))) {
@@ -2451,7 +2453,20 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
         meta.picture && !notReady && (await claimChapterPicture(db, scene.id, scene.chapter, askedKey, (await getAdultSettings(db)).pictures_per_chapter)) ? meta.picture : null;
       if (meta.picture && notReady) picture_note = notReady;
       if (meta.picture && !asked) picture_note = "This chapter's pictures are drawn: 📸 Picture this draws another.";
-      if (asked) {
+      if (asked && asked.of === "both") {
+        // Of both of them: drawn like every scene picture, from their faces with the night's context (lib/adult/beats.ts
+        // drawNightMoment), its description leading; after the response, so a slow draw never holds up the step.
+        const night = { id: scene.id, a: scene.a.id, b: scene.b.id, chapter: scene.chapter, place: set_place ?? place, stage, lines: lines.slice(-6), lineCount: lines.length };
+        const description = asked.description;
+        askedBoth = true;
+        inBackground(() =>
+          drawNightMoment(db, adminId, night, { kind: "asked", custom: description }).then(async (r) => {
+            if (r.ok) return;
+            console.warn(`[after-dark] the picture they asked for didn't come: ${r.reason.slice(0, 160)}`);
+            await releaseChapterPicture(db, scene.id, askedKey).catch(() => {});
+          }),
+        );
+      } else if (asked) {
         const forOne = asked.of === "b" ? b.id : a.id;
         // The same context a chapter's picture gets (lib/adult/auto-pictures.ts autoPicturePrompt): the place's pronouns put
         // right, what it puts them in, and dressed for it.
@@ -2511,7 +2526,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     dropped: step.flags.names_dropped + step.flags.alternation_dropped + step.flags.refused + (step.flags.whispers_said ?? 0),
     pictures,
     ...(picture_note ? { picture_note } : {}),
-    ...(autoPicture ? { auto_picture: true } : {}),
+    ...(autoPicture || askedBoth ? { auto_picture: true } : {}),
   };
 }
 

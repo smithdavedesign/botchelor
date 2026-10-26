@@ -393,11 +393,15 @@ describe("while Hive is paused", () => {
     const [a, b] = await Promise.all([loadCharacter(t.db, RAFE), loadCharacter(t.db, JUNIPER)]);
     const at = { id: s.id, chapter: 1, place: "her bedroom", set_place: null, stage: 2, lines: night };
     await pauseHive(t.db, COULDNT_RUN_429);
-    const drawn = fakeVenicePictures();
+    // Drawn like every scene picture since 2026-10-25: their baselines made first (Venice's text-to-image), then the
+    // picture from them (Venice's multi-edit), the one counted here.
+    fakeVenicePictures();
+    const edits = fakeVeniceReels();
+    const drawn = { get length() { return edits.filter((p) => p === "/image/multi-edit").length; } } as unknown as unknown[];
     const hive = fakeHive();
     expect(await kickAutoPicture(t.db, id, at, a, b)).toBe(false);
     expect((await t.db.query<{ auto_pictures: string[] }>(`select auto_pictures from adult_scenes where id = $1`, [s.id])).rows[0].auto_pictures).toEqual([]);
-    expect(drawn).toEqual([]);
+    expect(drawn.length).toBe(0);
     expect(hive.calls).toEqual([]);
     now += HIVE_PAUSE_FIRST_MS + 1;
     expect(await kickAutoPicture(t.db, id, at, a, b)).toBe(true);
