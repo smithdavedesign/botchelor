@@ -78,6 +78,9 @@ the keychain (`~/ai-stack/bin/secrets`, never in a file). Propose: start with on
 
 ## Billing — Segpay first, Verotel as backup (2026-10-24)
 
+> **Applying (2026-10-25):** the readiness table, the application packet (business description, moderation write-up, the
+> two emails), the monthly report and the one-command setup are in `docs/after-dark-processor-application.md`.
+
 Built complete and **off**: with no processor's settings in the environment, the subscribe page keeps its waitlist and
 every billing route answers not found. Code: `lib/adult/billing.ts` (orders, applying postbacks, the account page's
 state, California's notices, the admin view), `lib/adult/billing-segpay.ts`, `lib/adult/billing-verotel.ts`; tests in
