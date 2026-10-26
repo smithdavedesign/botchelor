@@ -843,7 +843,7 @@ export async function nudeBaselines(db: Db, ownerId: string, a: Character, b: Ch
 }
 
 /** A nude baseline edited from the face kept (lib/adult/media.ts ensureNudeBaseline), on the configured provider like a keyframe. */
-function faceEdit(db: Db, baseUrl: string): FaceEdit {
+export function faceEdit(db: Db, baseUrl: string): FaceEdit {
   return async (prompt, faceId) => {
     const [keys, settings] = await Promise.all([adultKeys(db), getAdultSettings(db)]);
     const face = [signedMediaUrl(faceId, baseUrl)];

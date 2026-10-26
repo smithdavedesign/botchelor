@@ -329,7 +329,7 @@ describe("the face a viewer's pictures and videos keep", () => {
     expect((await call(facePost, "/api/admin/after-dark/face", { character_id: "not-a-character", image_id: pic }, sub.cookie)).status).toBe(404);
     expect((await call(facePost, "/api/admin/after-dark/face", { character_id: JUNIPER, image_id: pic }, (await subscriber()).cookie)).status).toBe(404);
     const res = await call(facePost, "/api/admin/after-dark/face", { character_id: JUNIPER, image_id: pic }, sub.cookie);
-    expect(await res.json()).toEqual({ image_id: pic, nude: false });
+    expect(await res.json()).toMatchObject({ image_id: pic, nude: false, faces: { image_id: pic, picked: true } });
   });
 });
 
