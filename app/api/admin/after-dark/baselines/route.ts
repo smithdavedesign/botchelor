@@ -3,6 +3,8 @@ import { loadCharacter } from "@/lib/character";
 import { eligibleIds } from "@/lib/adult/characters";
 import { HivePausedError } from "@/lib/adult/hive-limit";
 import { drawBaselineChoices } from "@/lib/adult/media";
+import { faceEdit } from "@/lib/adult/reels";
+import { requestBase } from "@/lib/site";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
 import { getDb } from "@/lib/db";
@@ -11,7 +13,7 @@ import { handle, json, parseBody, readJson } from "@/lib/http";
 // Three pictures, each drawn and checked in turn: 10 to 30 seconds apiece.
 export const maxDuration = 300;
 
-// `nude`: three nude ones, for the face of their undressed moments (lib/adult/attire.ts).
+// `nude`: three nude ones, for the face of their undressed moments (lib/adult/attire.ts), edited from the face they keep.
 const Input = z.object({ character_id: z.string().min(1).max(64), nude: z.boolean().optional() });
 
 /** Not found for everyone but a viewer after dark is open to (lib/adult/mode.ts). */
@@ -34,7 +36,9 @@ export const POST = handle(async (req: Request) => {
   const c = await loadCharacter(db, input.character_id);
   if (!c) return hidden();
   try {
-    const r = await drawBaselineChoices(db, viewer, c, { nude: input.nude === true });
+    // Undressed: edits of the face they keep, so all three are them.
+    const nude = input.nude === true;
+    const r = await drawBaselineChoices(db, viewer, c, { nude, ...(nude ? { editFace: faceEdit(db, requestBase(req)) } : {}) });
     if (!r.pictures.length) return json({ error: "not_made", message: `None of the three came through: ${r.failed[0] ?? "try again"}` }, 502);
     return json({ pictures: r.pictures, failed: r.failed.length });
   } catch (err) {

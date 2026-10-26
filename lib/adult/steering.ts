@@ -148,8 +148,9 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
  *  4. else any baseline, the newest.
  * A dressed baseline comes before a nude one in 2 to 4: a character who wears something keeps it on until they undress.
  * `nude`, for an undressed moment: only a nude baseline (lib/adult/attire.ts). The nude face they picked, else the face
- * they picked if it's nude, else the nude one edited from their face, else the same order among nude baselines. Null when the character has no such baseline yet
- * (the caller makes one: lib/adult/media.ts ensureNudeBaseline).
+ * they picked if it's nude, else the nude one edited from their face (lib/adult/media.ts ensureNudeBaseline makes it), and
+ * never another: null when there's none yet, and the caller keeps the dressed face. With no face at all, or a nude one,
+ * the same order among nude baselines.
  */
 export async function faceReferenceId(db: Db, viewerId: string, characterId: string, opts: { nude?: boolean } = {}): Promise<string | null> {
   const nude = opts.nude === true;
@@ -176,6 +177,10 @@ export async function faceReferenceId(db: Db, viewerId: string, characterId: str
       )
     ).rows[0]?.id;
     if (fromFace) return fromFace;
+    // Never another nude picture of them instead (one drawn from words is someone else; 2026-10-26): with none made from
+    // their face, null, and the caller keeps the dressed face. The same person in their clothes beats a stranger.
+    const faceNude = (await db.query<{ nude: boolean }>(`select ${nudeSql("i")} as nude from adult_images i where i.id = $1`, [face])).rows[0]?.nude;
+    if (!faceNude) return null;
   }
   const { rows } = await db.query<{ id: string }>(
     `select i.id from adult_images i
@@ -194,7 +199,12 @@ export async function faceReferenceId(db: Db, viewerId: string, characterId: str
 }
 
 /** One character's faces for a viewer: the one everything keeps, and for a character who wears something, the nude one. */
-export type FaceInfo = { image_id: string | null; picked: boolean; nude: { image_id: string | null; picked: boolean } | null };
+export type FaceInfo = {
+  image_id: string | null;
+  picked: boolean;
+  /** `from_face`: the nude one was made from the face above (an edit of it), so it's the same person. */
+  nude: { image_id: string | null; picked: boolean; from_face: boolean } | null;
+};
 
 /** Each character's faces for this viewer (faceReferenceId), and whether they picked them, for the page's faces panel. */
 export async function facesFor(db: Db, viewerId: string, characterIds: string[]): Promise<Record<string, FaceInfo>> {
@@ -212,10 +222,13 @@ export async function facesFor(db: Db, viewerId: string, characterIds: string[])
   for (const id of characterIds) {
     const c = await loadCharacter(db, id);
     const dressed = c ? wearsSomething(c, viewerId) : false;
+    const face = await faceReferenceId(db, viewerId, id);
+    const nudeId = dressed ? await faceReferenceId(db, viewerId, id, { nude: true }) : null;
+    const fromFace = nudeId && face ? (await db.query(`select 1 from adult_images where id = $1 and source_image = $2`, [nudeId, face])).rows.length > 0 : false;
     out[id] = {
-      image_id: await faceReferenceId(db, viewerId, id),
+      image_id: face,
       picked: picked.has(id),
-      nude: dressed ? { image_id: await faceReferenceId(db, viewerId, id, { nude: true }), picked: pickedNude.has(id) } : null,
+      nude: dressed ? { image_id: nudeId, picked: pickedNude.has(id), from_face: fromFace } : null,
     };
   }
   return out;
@@ -248,6 +261,8 @@ export async function setFaceReference(
   }
   const c = m.nude ? await loadCharacter(db, characterId) : null;
   const table = c && wearsSomething(c, viewerId) ? "adult_nude_refs" : "adult_face_refs";
+  // A new face: the nude one picked before was of the old one, so it goes, and the nude face follows the new face.
+  if (table === "adult_face_refs") await db.query(`delete from adult_nude_refs where owner_id = $1 and character_id = $2`, [viewerId, characterId]);
   await db.query(
     `insert into ${table} (owner_id, character_id, image_id) values ($1, $2, $3)
      on conflict (owner_id, character_id) do update set image_id = excluded.image_id, set_at = now()`,

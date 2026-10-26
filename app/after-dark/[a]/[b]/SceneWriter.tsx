@@ -184,12 +184,9 @@ export default function SceneWriter({
     }).catch(() => null);
     if (!res) return "That didn't reach the server. Check your connection and try again.";
     if (!res.ok) return res.message;
-    // The server says which face it was: a nude baseline is the face of their undressed moments (lib/adult/attire.ts).
-    const face = { image_id: (res.data.image_id as string | null) ?? null, picked: imageId !== null };
-    setFaces((f) => {
-      const was = f[characterId] ?? { image_id: null, picked: false, nude: null };
-      return { ...f, [characterId]: res.data.nude ? { ...was, nude: face } : { ...was, ...face } };
-    });
+    // The server says both faces as they are now: a new face takes the nude one with it (lib/adult/steering.ts).
+    const now = res.data.faces as Faces[string] | undefined;
+    if (now) setFaces((f) => ({ ...f, [characterId]: now }));
     return null;
   }
   const [busy, setBusy] = useState(false);

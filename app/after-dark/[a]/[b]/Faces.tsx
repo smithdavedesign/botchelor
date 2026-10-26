@@ -17,7 +17,7 @@ const tagWords = (t: RatingTag) => ((PICTURE_TAGS as Record<string, string>)[t] 
  * Each one's faces for this viewer (lib/adult/steering.ts facesFor), and whether they picked them: the face everything
  * keeps, and for a character who wears something, the nude one their undressed moments start from (lib/adult/attire.ts).
  */
-export type Faces = Record<string, { image_id: string | null; picked: boolean; nude?: { image_id: string | null; picked: boolean } | null }>;
+export type Faces = Record<string, { image_id: string | null; picked: boolean; nude?: { image_id: string | null; picked: boolean; from_face?: boolean } | null }>;
 
 /**
  * The face each of them keeps (lib/adult/steering.ts): every picture and video of them starts from it. It's the one
@@ -189,22 +189,27 @@ function FaceCard({
         // picture made from the dressed one keeps what it wears (lib/adult/attire.ts).
         <div className="ad-face-nude">
           <p className="muted small">
-            <strong>In intimate scenes:</strong>{" "}
-            {face.nude.picked ? "the nude picture you picked." : face.nude.image_id ? "their nude picture, picked for you." : "a nude picture of them, drawn the first time one is needed."}
+            <strong>In intimate scenes:</strong> {nudeLine(face.nude)}
           </p>
           {nudeShown && (
             // eslint-disable-next-line @next/next/no-img-element
             <img className="ad-face-pic is-nude" src={mediaUrl(nudeShown)} alt={`The face kept for ${character.name} in intimate scenes`} loading="lazy" />
           )}
+          {face.nude.image_id && !face.nude.from_face && (
+            <p className="error small" role="status">
+              This one wasn&apos;t made from the face above, so it may not look like them. Draw three from their face, or let it pick (it uses only ones made from
+              their face).
+            </p>
+          )}
           <div className="ad-face-actions">
             <button
               type="button"
               className="secondary small"
-              disabled={Boolean(drawing) || Boolean(paused)}
-              title={paused ?? "Three nude waist-up pictures, one in each light, for their intimate scenes. Uses three of this month's pictures."}
+              disabled={Boolean(drawing) || Boolean(paused) || !face.image_id}
+              title={paused ?? (face.image_id ? "Three nude pictures made from the face above, one in each light. Uses three of this month's pictures." : "They need a face first.")}
               onClick={() => void draw(true)}
             >
-              {drawing === "nude" ? "Drawing three (about a minute)…" : "Draw three, undressed"}
+              {drawing === "nude" ? "Drawing three (about a minute)…" : "Draw three from this face, undressed"}
             </button>
             {face.nude.picked && (
               <button type="button" className="button-ghost small" disabled={busy} onClick={() => void use(null, { nude: true })}>
@@ -234,4 +239,11 @@ function FaceCard({
       )}
     </div>
   );
+}
+
+/** What the intimate-scenes face is: always one made from the face above, unless they picked another themselves. */
+function nudeLine(nude: { image_id: string | null; picked: boolean; from_face?: boolean }): string {
+  if (!nude.image_id) return "made from the face above the first time one is needed. Until then their pictures keep the face above, clothes and all.";
+  if (nude.picked) return nude.from_face ? "the nude picture you picked, made from the face above." : "the nude picture you picked.";
+  return "made from the face above.";
 }

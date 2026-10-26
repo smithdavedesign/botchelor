@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eligibleIds } from "@/lib/adult/characters";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
-import { setFaceReference } from "@/lib/adult/steering";
+import { facesFor, setFaceReference } from "@/lib/adult/steering";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 
@@ -29,5 +29,7 @@ export const POST = handle(async (req: Request) => {
   if (!(await eligibleIds(db, viewer)).has(input.character_id)) return hidden();
   const r = await setFaceReference(db, viewer, input.character_id, input.image_id, input.rivals ?? [], { nude: input.nude === true });
   if (!r.ok) return json({ error: r.error, message: r.message }, r.status);
-  return json({ image_id: r.image_id, nude: r.nude === true });
+  // Both of their faces as they are now: a new face takes the nude one with it (lib/adult/steering.ts setFaceReference).
+  const faces = (await facesFor(db, viewer, [input.character_id]))[input.character_id];
+  return json({ image_id: r.image_id, nude: r.nude === true, faces });
 });

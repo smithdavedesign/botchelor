@@ -481,12 +481,18 @@ async function storePicture(
  * their look as it is now (picks changed since the first one are in). Each is checked like any picture; one that doesn't
  * come through is left out and said why. The viewer picks one as the face (lib/adult/steering.ts setFaceReference).
  */
-export async function drawBaselineChoices(db: Db, ownerId: string, c: Character, opts: { nude?: boolean } = {}): Promise<{ pictures: Media[]; failed: string[] }> {
+export async function drawBaselineChoices(db: Db, ownerId: string, c: Character, opts: { nude?: boolean; editFace?: FaceEdit } = {}): Promise<{ pictures: Media[]; failed: string[] }> {
   const pictures: Media[] = [];
   const failed: string[] = [];
+  // Undressed, for one who wears something and has a face: three edits of that face, never three new people (2026-10-26).
+  const face = opts.nude && opts.editFace && wearsSomething(c, ownerId) ? await faceReferenceId(db, ownerId, c.id) : null;
   for (const p of PICTURE_PRESETS) {
     try {
-      pictures.push(await makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId, p.light, opts), kind: "baseline", character_id: c.id, preset: p.id }));
+      pictures.push(
+        face && opts.editFace
+          ? (await withRequestLog(() => nudeFromFace(db, ownerId, c, face, opts.editFace!, p))).value
+          : await makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId, p.light, opts), kind: "baseline", character_id: c.id, preset: p.id }),
+      );
     } catch (e) {
       // Hive out for the day, or this month's pictures used up (lib/adult/usage.ts overCap): the rest would fail the same way.
       if (e instanceof HivePausedError) throw e;
@@ -537,16 +543,16 @@ export async function ensureNudeBaseline(db: Db, ownerId: string, c: Character, 
 export type FaceEdit = (prompt: string, faceId: string) => Promise<{ bytes: Buffer; mime: string; provider: string; fell_back: boolean; model: string }>;
 
 /** A nude baseline's prompt as an edit of the face kept: the same person as Picture 1, the same framing, undressed. */
-export function nudeFromFacePrompt(c: Character, viewer?: string | null): string {
-  return `Make one photograph of the same person as in Picture 1: the same face, hair, skin tone and body, without their clothes. ${baselinePrompt(c, viewer, "natural light", { nude: true })}`;
+export function nudeFromFacePrompt(c: Character, viewer?: string | null, light = "natural light"): string {
+  return `Make one photograph of the same person as in Picture 1: the same face, hair, skin tone and body, without their clothes. ${baselinePrompt(c, viewer, light, { nude: true })}`;
 }
 
 /** The nude baseline edited from `faceId`, held to the same lines, limits and output check as any picture. */
-async function nudeFromFace(db: Db, ownerId: string, c: Character, faceId: string, edit: FaceEdit): Promise<Media> {
+async function nudeFromFace(db: Db, ownerId: string, c: Character, faceId: string, edit: FaceEdit, preset?: (typeof PICTURE_PRESETS)[number]): Promise<Media> {
   if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
   const capped = await overCap(db, ownerId, "pictures");
   if (capped) throw new Error(capped);
-  const prompt = nudeFromFacePrompt(c, ownerId);
+  const prompt = nudeFromFacePrompt(c, ownerId, preset?.light);
   const check = checkAdultText({ prompt });
   if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
   const gate = await mediaGate(db, { owner: ownerId });
@@ -557,7 +563,7 @@ async function nudeFromFace(db: Db, ownerId: string, c: Character, faceId: strin
   const { bytes, mime, ...made } = await edit(prompt, faceId);
   const verdict = await checkMedia(db, { base64: bytes.toString("base64"), mime }, "image", { owner: ownerId });
   if (!verdict.ok) return discarded(db, ownerId, "baseline", verdict);
-  return storePicture(db, ownerId, { prompt, kind: "baseline", character_id: c.id, source_image: faceId }, { bytes, mime }, null, made);
+  return storePicture(db, ownerId, { prompt, kind: "baseline", character_id: c.id, source_image: faceId, preset: preset?.id ?? null }, { bytes, mime }, null, made);
 }
 
 /**

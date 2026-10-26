@@ -5,7 +5,7 @@ import { POST as facePost } from "@/app/api/admin/after-dark/face/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { attireOf } from "@/lib/adult/attire";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
-import { baselinePrompt, ensureNudeBaseline, listMedia, setMediaFetchForTests } from "@/lib/adult/media";
+import { baselinePrompt, drawBaselineChoices, ensureNudeBaseline, listMedia, setMediaFetchForTests } from "@/lib/adult/media";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { keepPictureOfBoth } from "@/lib/adult/pictures-menu";
 import { baselines, reelCast, setReelFetchForTests, setReelPausesForTests, startShots, type Reel, type ReelShot } from "@/lib/adult/reels";
@@ -184,30 +184,73 @@ describe("a nude baseline edited from the face kept", () => {
   });
 });
 
+describe("three to pick from, undressed", () => {
+  it("are three edits of the face they keep, one in each light, never three new people", async () => {
+    const { id, cookie } = await admin();
+    await setUp(cookie);
+    await dressJuniper();
+    fakeHive();
+    const { pictures } = fakeVenice();
+    await baseline("her-face", id, JUNIPER, DRESSED, 10);
+    const juniper = (await loadCharacter(t.db, JUNIPER))!;
+    const edit = vi.fn(async () => ({ bytes: Buffer.from(PNG), mime: "image/png", provider: "venice", fell_back: false, model: "qwen-edit-uncensored" }));
+    const r = await drawBaselineChoices(t.db, id, juniper, { nude: true, editFace: edit });
+    expect(r.pictures).toHaveLength(3);
+    expect(pictures).toHaveLength(0);
+    expect(edit.mock.calls.map((c) => (c as unknown[])[1])).toEqual(["her-face", "her-face", "her-face"]);
+    const rows = (await t.db.query<{ source_image: string; attire: string }>(`select source_image, attire from adult_images where id = any($1)`, [r.pictures.map((p) => p.id)])).rows;
+    expect(rows.every((x) => x.source_image === "her-face" && x.attire === "nude")).toBe(true);
+    // Any of them, picked, is their intimate face, and the panel says it's made from the face above.
+    await setFaceReference(t.db, id, JUNIPER, r.pictures[1].id);
+    expect((await facesFor(t.db, id, [JUNIPER]))[JUNIPER].nude).toEqual({ image_id: r.pictures[1].id, picked: true, from_face: true });
+  });
+});
+
 describe("the face a moment starts from", () => {
-  it("is a dressed baseline for a dressed moment, even when a nude one is newer, and only a nude one undressed", async () => {
+  it("is a dressed baseline for a dressed moment; undressed, only a nude one made from that face, never another", async () => {
     const { id } = await admin();
     await dressJuniper();
     await baseline("dressed-old", id, JUNIPER, DRESSED, 30);
+    // A newer nude one drawn from words (the 2026-10-26 bug's): not made from her face, so never her intimate face.
     await baseline("nude-new", id, JUNIPER, NUDE, 5);
     expect(await faceReferenceId(t.db, id, JUNIPER)).toBe("dressed-old");
-    expect(await faceReferenceId(t.db, id, JUNIPER, { nude: true })).toBe("nude-new");
+    expect(await faceReferenceId(t.db, id, JUNIPER, { nude: true })).toBeNull();
     expect(await baselines(t.db, JUNIPER, RAFE, id, { nude: true })).toBeNull();
+    // One made from her face is.
+    await baseline("nude-from-face", id, JUNIPER, NUDE, 10);
+    await t.db.query(`update adult_images set source_image = 'dressed-old' where id = 'nude-from-face'`);
+    expect(await faceReferenceId(t.db, id, JUNIPER, { nude: true })).toBe("nude-from-face");
     // A face picked (dressed) is never the undressed one; a nude one picked is, and leaves the dressed face alone.
     expect(await setFaceReference(t.db, id, JUNIPER, "dressed-old")).toEqual({ ok: true, image_id: "dressed-old", nude: false });
-    expect(await faceReferenceId(t.db, id, JUNIPER, { nude: true })).toBe("nude-new");
+    expect(await faceReferenceId(t.db, id, JUNIPER, { nude: true })).toBe("nude-from-face");
     await baseline("nude-liked", id, JUNIPER, NUDE, 20);
     expect(await setFaceReference(t.db, id, JUNIPER, "nude-liked")).toEqual({ ok: true, image_id: "nude-liked", nude: true });
     expect(await faceReferenceId(t.db, id, JUNIPER, { nude: true })).toBe("nude-liked");
     expect(await faceReferenceId(t.db, id, JUNIPER)).toBe("dressed-old");
+    // The panel says the one they picked wasn't made from the face above.
     expect(await facesFor(t.db, id, [JUNIPER, RAFE])).toEqual({
-      [JUNIPER]: { image_id: "dressed-old", picked: true, nude: { image_id: "nude-liked", picked: true } },
+      [JUNIPER]: { image_id: "dressed-old", picked: true, nude: { image_id: "nude-liked", picked: true, from_face: false } },
       [RAFE]: { image_id: null, picked: false, nude: null },
     });
-    // Back to the default for the undressed face only: the one they picked keeps its 👍, so it still leads.
-    expect(await setFaceReference(t.db, id, JUNIPER, null, [], { nude: true })).toEqual({ ok: true, image_id: "nude-liked", nude: true });
+    // Back to the default for the undressed face: the one made from her face.
+    expect(await setFaceReference(t.db, id, JUNIPER, null, [], { nude: true })).toEqual({ ok: true, image_id: "nude-from-face", nude: true });
     expect((await t.db.query(`select 1 from adult_nude_refs`)).rows).toHaveLength(0);
-    expect(await faceReferenceId(t.db, id, JUNIPER)).toBe("dressed-old");
+    expect((await facesFor(t.db, id, [JUNIPER]))[JUNIPER].nude).toEqual({ image_id: "nude-from-face", picked: false, from_face: true });
+  });
+
+  it("follows a new face: the nude one picked for the old face goes, and none from another face is used", async () => {
+    const { id } = await admin();
+    await dressJuniper();
+    await baseline("face-1", id, JUNIPER, DRESSED, 30);
+    await baseline("face-2", id, JUNIPER, DRESSED, 20);
+    await baseline("nude-of-1", id, JUNIPER, NUDE, 10);
+    await t.db.query(`update adult_images set source_image = 'face-1' where id = 'nude-of-1'`);
+    await setFaceReference(t.db, id, JUNIPER, "face-1");
+    await setFaceReference(t.db, id, JUNIPER, "nude-of-1");
+    expect(await faceReferenceId(t.db, id, JUNIPER, { nude: true })).toBe("nude-of-1");
+    await setFaceReference(t.db, id, JUNIPER, "face-2");
+    expect((await t.db.query(`select 1 from adult_nude_refs`)).rows).toHaveLength(0);
+    expect(await faceReferenceId(t.db, id, JUNIPER, { nude: true })).toBeNull();
   });
 
   it("for a character who wears nothing, a nude baseline picked is simply their face", async () => {
@@ -215,7 +258,7 @@ describe("the face a moment starts from", () => {
     await setUp(cookie);
     await baseline("rafe-1", id, RAFE, NUDE, 10);
     const res = await call(facePost, "/api/admin/after-dark/face", { character_id: RAFE, image_id: "rafe-1" }, cookie);
-    expect(await res.json()).toEqual({ image_id: "rafe-1", nude: false });
+    expect(await res.json()).toEqual({ image_id: "rafe-1", nude: false, faces: { image_id: "rafe-1", picked: true, nude: null } });
     expect(await faceReferenceId(t.db, id, RAFE)).toBe("rafe-1");
     expect(await faceReferenceId(t.db, id, RAFE, { nude: true })).toBe("rafe-1");
   });
