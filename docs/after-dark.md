@@ -2352,3 +2352,38 @@ left off". `lib/adult/moments.ts`, `lib/media-tools/ffmpeg.ts`, `POST /api/admin
   never someone else's clip, an admin's moderator view or one shared with them.
 - Where: the player's "⋯ This shot" (all four, with the time the player is on), and 📸 Moments on every clip tile in
   the scene gallery and the Studio (a still, a boomerang, a loop). What's made lands in the gallery.
+
+## The creator suite: exports and captions (2026-10-26)
+
+David: "how else can we make this nice for content creators", then the four calls in docs/PRDs/creator-suite.md (both
+Studios, the default prices, delight without pressure, a hidden AI label with an optional badge).
+
+**Export pack** (`lib/media-tools/export.ts`; `POST/GET /api/admin/after-dark/export`, and `/api/studio/export` for the
+PG Studio; `app/studio/ExportDialog.tsx`):
+- Pick pictures and clips (⬇ Pick to export on the Studio's Gallery, the scene gallery, the PG Studio) → sizes (as made,
+  Story 9:16, Feed 4:5, Square 1:1), JPG or PNG, and optionally captions.txt, a contact sheet (sheet.jpg) and a small
+  "AI" badge in each corner (drawn as shapes: no fonts needed). One file on its own downloads as itself; more is a zip
+  with about.txt. ⬇ Download on any tile is the same, as made.
+- Pictures: sharp (`lib/media-tools/image.ts`), cut to the shape a quarter of the way down (faces sit high), never
+  enlarged, re-marked after encoding. Clips: ffmpeg (`exportVideo`): the trim honoured, cut to the shape, their sound
+  kept, at most six resized in one export.
+- Every file carries the AI-generated mark in its own metadata (IPTC DigitalSourceType in XMP), badge or not. MP4s now
+  get it too (`markAiVideo`: a top-level XMP `uuid` box at the end), and so does every video kept (`keepBytes`).
+- Only what's theirs: their own ready pictures and clips (never a share, never an admin's moderator view), and only
+  with their own characters or the house cast in them; anything else is left out and said why. File names say nothing
+  about what's in them while the neutral title is on (the default).
+- Kept a day: in the bucket under `exports/<id>/<name>` (a function can't send over 4.5 MB itself), downloaded from a
+  signed link that names the file (S3; on Bunny the key's last part is the name); with no bucket, in the row (20 MB, 4 MB
+  on Vercel). `media_exports`; the daily job prunes them; account deletion removes their files. Free; 10 an hour, 40 a
+  day, one at a time.
+
+**Captions in their voice** (`lib/studio/captions.ts`; After Dark `lib/adult/captions.ts`, PG `lib/studio/pg-captions.ts`;
+✍️ Caption on every tile, `app/studio/CaptionsPanel.tsx`):
+- Three captions (playful, tender, teasing), a few hashtags (#AIgenerated #AIart always added) and one line safe for
+  anywhere, each with Copy. Written from what the picture shows (its tags; for the PG Studio, its menu picks) and the
+  character's own voice kit (`voiceKitLines`): never the picture, never a provider's prompt.
+- Held to the lines: After Dark's captions by `checkAdultText` and `crossesTaboo`, every safe line and every PG caption
+  by `checkPgPictureText`; one that fails is dropped, one retry, then "try again". Kept on the picture (`captions`),
+  "Three more" writes again.
+- After Dark: its text model (fast, not the scene writer), counted (`captions`, 300 a month). PG: the show's free model
+  ($0), 30 an hour.
