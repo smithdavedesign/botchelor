@@ -200,6 +200,16 @@ describe("through a step, from undressing on", () => {
     expect(await tryWith("Keep going, slowly.")).toEqual({ last: "*pulls him closer* Keep going, slowly.", n: 1 });
   });
 
+  it("a separate checker runs the check, so a slow writer never times it out (2026-10-26)", async () => {
+    const { model, calls } = scripted([sceneReply]);
+    const checked: ChatMessage[][] = [];
+    const checker: Model = { complete: async (m) => (checked.push(m), JSON.stringify({ asides: ["H2", "H4", "N2"], rewrites: { N2: "Don't you dare move." } })) };
+    const r = await writeSceneStep(input(model, { checker }));
+    expect(calls.filter(isAsideCall)).toHaveLength(0);
+    expect(checked).toHaveLength(1);
+    expect(r.ok && r.lines[1].text).toBe("*pulls him closer* Don't you dare move.");
+  });
+
   it("within her share, the aside stays as written", async () => {
     const { model } = scripted([sceneReply], { asides: ["N2"], rewrites: { N2: "Don't you dare move." } });
     const r = await writeSceneStep(input(model));

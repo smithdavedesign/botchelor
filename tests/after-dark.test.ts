@@ -722,7 +722,7 @@ describe("what a picture's prompt knows", () => {
     expect(scenePrompt(chud, s, "b", "by the pool", { place: "the pool", stage: 1, recent: [] }, "owner-1")).not.toMatch(/pubic/);
     // Two women with no hair picked are told apart some other way, never by the grooming pick.
     const bare = star({ gender: "woman", ethnicity: "latina", after_dark: { grooming: "trimmed" } });
-    expect(reelCast(bare, star({ gender: "woman", ethnicity: "asian" }), "owner-1")[0].tag).toBe("the woman with Latina");
+    expect(reelCast(bare, star({ gender: "woman", ethnicity: "asian" }), "owner-1")[0].tag).toBe("the Latina woman");
   });
 
   it("keeps the private After Dark picks to the owner's pictures, and their outfit to somewhere private past flirting, until they undress", () => {
@@ -864,6 +864,7 @@ import {
   placesOf,
   placeWords,
   reelCast,
+  tellApart,
   setReelFetchForTests,
   setReelPausesForTests,
   shotPrompt,
@@ -1017,7 +1018,7 @@ describe("the video of the night", () => {
       expect(e.images[2]).toMatch(/^data:image\/jpeg;base64,/);
       expect(e.prompt).toContain("together, in the place from Picture 3.");
       expect(e.prompt).toContain("Keep the place, its furniture and its light from Picture 3.");
-      expect(e.prompt).toContain("but not their clothes: both are nude unless the moment says otherwise.");
+      expect(e.prompt).toContain("but not their clothes: both completely naked, none of the clothes from their pictures (no top, no camisole, no underwear), unless the moment says otherwise.");
       expect(e.prompt).toContain("Explicit, uncensored, photorealistic.");
     }
   });
@@ -1261,6 +1262,21 @@ describe("the video of the night", () => {
     const [rafe, juniper, marisol, dex] = await Promise.all(["house-rafe", "house-juniper", "house-marisol", "house-dex"].map((x) => loadCharacter(t.db, x)));
     expect(reelCast(rafe!, juniper!).map((p) => p.tag)).toEqual(["the man", "the woman"]);
     expect(reelCast(juniper!, marisol!).map((p) => p.tag)).toEqual(["the woman with long auburn hair", "the woman with a sleek black bob"]);
+    // Two brunettes (Coco and Sweet, 2026-10-26): told apart by what differs, never by the hair they share.
+    expect(
+      tellApart(
+        [
+          "Latina, rich chocolate-brown hair tied back in a long high ponytail, hazel eyes, a toned athletic build",
+          "Caucasian, a lighter skin tone, long straight rich chocolate-brown hair falling past the shoulders, hazel eyes, a curvy hourglass figure",
+        ],
+        "woman",
+      ),
+    ).toEqual(["the Latina woman", "the Caucasian woman"]);
+    // The same background: the hair's style, then the build.
+    expect(tellApart(["Caucasian, rich chocolate-brown hair tied back in a high ponytail", "Caucasian, rich chocolate-brown hair"], "woman")).toEqual([
+      "the woman with a high ponytail",
+      "the woman",
+    ]);
     expect(feature("in his early forties with dark brown skin, close-cropped hair greying at the temples")).toBe("close-cropped hair");
     expect(feature("Caucasian, a short chin-length golden blonde bob, bright clear blue eyes")).toBe("a short chin-length golden blonde bob");
     expect(feature("heavyset in his early forties with dark brown skin")).toBe("dark brown skin");

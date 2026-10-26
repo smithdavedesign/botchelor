@@ -750,6 +750,9 @@ const topicStopWords = (): ReadonlySet<string> =>
 export function topicsOf(c: Character | null, names: readonly string[] = []): string[] {
   if (!c) return [];
   const e = publicExtras(c.extras);
+  // The words a line of work talks in, though no sheet writes them (2026-10-26: Sweet, an actress, said "performance",
+  // "encore", "co-star", "finale" and "curtain call" thirty-odd times in one chapter, and "actress" was the only topic).
+  const field = FIELDS.filter(([re]) => re.test(`${e.occupation ?? ""} ${c.bio ?? ""}`)).flatMap(([, words]) => words);
   const sources = [c.bio, e.occupation, ...(e.hobbies ?? []), e.quirk, e.hidden_talent, e.guilty_pleasure, e.catchphrase];
   const skip = phraseNames(c.name, ...names);
   const stop = topicStopWords();
@@ -760,8 +763,24 @@ export function topicsOf(c: Character | null, names: readonly string[] = []): st
     const s = stem(w);
     if (s.length >= 3 && !stop.has(s) && !skip.has(s) && !placeIn(w) && !placeIn(s)) out.add(s);
   }
+  for (const w of field) out.add(stem(w));
   return [...out];
 }
+
+/**
+ * A line of work's own vocabulary, by what the sheet calls it: only jargon, never a word a scene uses for itself ("stage",
+ * "scene", "set", "act" and "call" stay out).
+ */
+const FIELDS: readonly (readonly [RegExp, readonly string[]])[] = [
+  [/\b(?:actress|actor|acting|theatre|theater|stage actor|film star)\b/i, ["performance", "performer", "encore", "co-star", "costar", "finale", "curtain", "audience", "ovation", "applause", "rehearsal", "premiere", "understudy", "script", "director", "spotlight", "matinee", "intermission"]],
+  [/\b(?:umpire|line judge|referee|tennis)\b/i, ["umpire", "referee", "verdict", "rally", "deuce", "tiebreak", "racket", "racquet", "scoreboard", "linesman"]],
+  [/\b(?:chef|cook|baker|bakery|pastry)\b/i, ["recipe", "simmer", "garnish", "frosting", "icing", "dough", "pastry", "souffle", "seasoning"]],
+  [/\b(?:lawyer|attorney|solicitor|barrister|judge)\b/i, ["objection", "verdict", "testimony", "cross-examine", "sustained", "overruled", "courtroom"]],
+  [/\b(?:pilot|flight attendant|airline)\b/i, ["turbulence", "runway", "takeoff", "landing", "cockpit", "altitude", "autopilot", "co-pilot"]],
+  [/\b(?:programmer|developer|software|engineer|coder)\b/i, ["debug", "deploy", "server", "compile", "algorithm", "reboot", "bandwidth"]],
+  [/\b(?:doctor|nurse|surgeon|medic|paramedic)\b/i, ["diagnosis", "prescription", "symptom", "examination", "vitals"]],
+  [/\b(?:firefighter|fireman)\b/i, ["hose", "extinguish", "extinguisher"]],
+];
 
 /**
  * Whether a word's stem is a topic's: the same stem, an inflection carrying it on ("lighthouses", "podcasting",

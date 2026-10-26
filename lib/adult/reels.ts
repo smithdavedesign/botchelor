@@ -97,7 +97,8 @@ export const NUDE_FROM = 4;
  */
 export const clothesAt = (stage: number) =>
   stage >= NUDE_FROM
-    ? "both are nude unless the moment says otherwise"
+    ? // 2026-10-26: "nude unless the moment says otherwise" kept the camisole from her picture on. Spelled out, it comes off.
+      "both completely naked, none of the clothes from their pictures (no top, no camisole, no underwear), unless the moment says otherwise"
     : stage >= UNDRESSED_FROM
       ? "they're half undressed, as the moment says"
       : // Clips of 2026-10-22: "dressed as the moment says" still lost the man's shirt in a kiss. Spelled out, it stays on.
@@ -289,23 +290,65 @@ export function feature(look: string): string {
   return parts[0]?.split(/\s+/).slice(0, 6).join(" ") ?? "";
 }
 
+/** Words that say nothing about who's who ("a", "with", "hair", "eyes"…). */
+const PLAIN = new Set(["a", "an", "the", "with", "and", "in", "of", "her", "his", "their", "to", "at", "past", "hair", "eyes", "skin", "tone", "build", "figure", "frame"]);
+const contentWords = (s: string): string[] =>
+  s
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}'-]+/u)
+    .filter((w) => w && !PLAIN.has(w));
+
+/**
+ * What tells each of two people of the same gender apart (2026-10-26: Coco and Sweet, both brunettes, were "the woman with
+ * rich chocolate-brown hair" and "the woman with long straight rich chocolate-brown hair", which a picture model can't
+ * tell apart). Each look's features in order (the hair, its style, where they're from, their build, the rest) are
+ * scored by how many of their words the other's look doesn't have; the most telling one wins, the earlier on a tie, and
+ * one that tells nothing is never taken. A short "Latina" first part is said as "the Latina woman".
+ */
+export function tellApart(looks: readonly [string, string], noun: ReelPerson["noun"]): [string, string] {
+  const one = (look: string, other: string): string => {
+    const theirs = new Set(contentWords(other));
+    const parts = look.split(/,\s*/).map((p) => p.trim()).filter(Boolean);
+    const hairPart = parts.find((p) => HAIR.test(p)) ?? "";
+    // A style word past the colour ("… tied back in a long high ponytail"): the few words before it.
+    const style = /\b(?:bob|curls|braids|bun|ponytail|locks|afro|dreadlocks|buzz cut|crew cut|undercut|mohawk)\b/i.exec(hairPart);
+    const styled = style?.index !== undefined ? [...hairPart.slice(0, style.index).split(/\b(?:with|and|in)\b/i).pop()!.trim().split(/\s+/).filter(Boolean).slice(-3), style[0]].join(" ") : "";
+    // A short capitalised part ("Latina", "East Asian") reads as "the Latina woman".
+    const adjective = (t: string) => parts.includes(t) && /^\p{Lu}[\p{L}-]*( \p{Lu}[\p{L}-]*)?$/u.test(t);
+    const candidates = [feature(look), styled, ...parts.filter((p) => p !== hairPart).map((p) => p.split(/\s+/).slice(0, 7).join(" "))]
+      .filter(Boolean)
+      .map((text) => ({ text, adjective: adjective(text) }));
+    let best: { text: string; adjective: boolean; score: number } | null = null;
+    for (const c of candidates) {
+      const words = contentWords(c.text);
+      if (!words.length) continue;
+      const score = words.filter((w) => !theirs.has(w)).length / words.length;
+      if (score > 0 && (!best || score > best.score)) best = { ...c, score };
+    }
+    if (!best) return `the ${noun}`;
+    return best.adjective ? `the ${best.text} ${noun}` : `the ${noun} with ${best.text}`;
+  };
+  return [one(looks[0], looks[1]), one(looks[1], looks[0])];
+}
+
 /** The same voice words for a character in every shot. */
 const voiceWords = (noun: ReelPerson["noun"], age: number) =>
   noun === "man" ? (age >= 35 ? "a deep, warm man's voice" : "a man's voice") : noun === "woman" ? (age >= 35 ? "a low, warm woman's voice" : "a bright woman's voice") : "a soft voice";
 
 /**
- * The two of them as a reel names them: "the woman" and "the man"; two women (or two men) by their hair, so a picture
- * model can tell them apart; and, when even that reads the same, first and second.
+ * The two of them as a reel names them: "the woman" and "the man"; two women (or two men) by what tells them apart
+ * (tellApart), so a picture model can tell who's who; and, when even that reads the same, first and second.
  */
 export function reelCast(a: Character, b: Character, viewer?: string | null): [ReelPerson, ReelPerson] {
-  const one = (c: Character, other: Character): ReelPerson => {
+  const same = nounOf(a.pronouns) === nounOf(b.pronouns);
+  const tags = same ? tellApart([lookWords(a, true, viewer, true), lookWords(b, true, viewer, true)], nounOf(a.pronouns)) : null;
+  const one = (c: Character, tag: string | null): ReelPerson => {
     const noun = nounOf(c.pronouns);
-    const f = noun === nounOf(other.pronouns) ? feature(lookWords(c, true, viewer, true)) : "";
     return {
       id: c.id,
       pronouns: c.pronouns,
       noun,
-      tag: f ? `the ${noun} with ${f}` : `the ${noun}`,
+      tag: tag ?? `the ${noun}`,
       look: lookWords(c, false, viewer),
       voice: voiceWords(noun, c.age),
       names: c.name
@@ -315,7 +358,7 @@ export function reelCast(a: Character, b: Character, viewer?: string | null): [R
         .map(cap),
     };
   };
-  const pair: [ReelPerson, ReelPerson] = [one(a, b), one(b, a)];
+  const pair: [ReelPerson, ReelPerson] = [one(a, tags?.[0] ?? null), one(b, tags?.[1] ?? null)];
   if (pair[0].tag === pair[1].tag) {
     pair[0].tag = `the first ${pair[0].noun}`;
     pair[1].tag = `the second ${pair[1].noun}`;
@@ -665,7 +708,7 @@ export function keyframePrompt(
   const dialog = opts.dialog?.trim() ? ` A speech bubble near them reads: "${opts.dialog.trim().replace(/"/g, "'")}".` : "";
   // What they wear: by how far the night had gone, or a picture's chosen outfit (lib/adult/pictures-menu.ts).
   const keep =
-    `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${opts.clothes ?? clothesAt(stage)}.` +
+    `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${(opts.clothes ?? clothesAt(stage)).replace(/[.\s]+$/, "")}.` +
     `${opts.reference ? " Take only the pose, the framing and the place from Picture 3: the people in it are the two from Pictures 1 and 2." : withSet ? (opts.light ? " Keep the place and its furniture from Picture 3." : " Keep the place, its furniture and its light from Picture 3.") : ""} Two people only, both faces visible.`;
   // The owner's words on single sections (the Together tab's, "Also — place: …"), on top of what the chips say.
   const extra = opts.extra?.trim() ? ` ${opts.extra.trim()}` : "";
@@ -681,11 +724,20 @@ const whoIsWho = ([a, b]: readonly [ReelPerson, ReelPerson]) =>
  */
 const tailAt = (stage: number, explicit: boolean) =>
   stage < UNDRESSED_FROM ? "Photorealistic. Both are adults." : explicit ? "Explicit, uncensored, photorealistic. Both are adults." : "Sensual and tasteful, nothing graphic, photorealistic. Both are adults.";
-/** A keyframe's prompt within the edit model's limit: the middle (the still) is what gets cut short. */
-function fitPrompt(before: string[], middle: string, after: string[]): string {
+/**
+ * A keyframe's prompt within the edit model's limit: the middle (the still) is what gets cut short, back to the last whole
+ * sentence or clause that fits, never mid-sentence (2026-10-26: "The mood: The vampire's invitation - the The place:").
+ */
+export function fitPrompt(before: string[], middle: string, after: string[]): string {
   const room = KEYFRAME_PROMPT_MAX - [...before, ...after].filter(Boolean).join(" ").length - 2;
-  const still = middle.length <= room ? middle : middle.slice(0, Math.max(0, room)).replace(/\s+\S*$/, "");
-  return [...before, still, ...after].filter(Boolean).join(" ");
+  return [...before, middle.length <= room ? middle : cutAtClause(middle, Math.max(0, room)), ...after].filter(Boolean).join(" ");
+}
+/** At most `max` characters of `text`, ending at a sentence's or a clause's end (a clause's ";" becomes "."). */
+function cutAtClause(text: string, max: number): string {
+  const head = text.slice(0, max);
+  const end = Math.max(head.lastIndexOf(". "), head.lastIndexOf("; "), head.endsWith(".") ? head.length - 1 : -1);
+  if (end < 0) return head.replace(/\s+\S*$/, "");
+  return `${head.slice(0, end)}.`;
 }
 
 /**

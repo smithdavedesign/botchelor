@@ -40,7 +40,7 @@ import {
 import { agreedMove, historyPhrase, isPublicPlace as isPublicSet, MAX_SCENE_MOVES, placeLocked, proposesMove, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
 import { loadChain } from "../text-chain";
 import { placeParts, venuePhrase } from "../venues";
-import { activeLimit, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
+import { activeLimit, climaxesIn, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
 import { stageShown, stagesFor, withoutSteerCopy } from "./stage-floor";
 import { textModelHistory, writtenBy, type WrittenBy } from "./model-log";
 import { fileSteps, flagStep, logStep, markRewound, stepIndexOf, stepsOf, unfileSteps, type StepRow } from "./steps";
@@ -84,7 +84,7 @@ import {
   type SheetItem,
   type ShownFact,
 } from "./facts";
-import { givenName, guardAlternation, guardNames, repairFragments } from "./guards";
+import { givenName, guardAlternation, guardNames, repairFragments, withoutSelfAddress } from "./guards";
 import {
   ACTION_WINDOW,
   actionOf,
@@ -662,10 +662,20 @@ function craftLines(
   if (now.stage >= STAGES.length - 1) {
     const climax = recentClimax(lines);
     const again = "one of them starts it in a line (asks, or reaches for the other) and the other answers";
+    // Every climax this chapter (2026-10-26, Coco × Sweet: three in 66 lines, each followed by "the night is still
+    // young" and another round): past the afterglow, the night moves on instead of going round again.
+    const climaxes = climaxesIn(lines);
+    const since = climaxes.length ? lines.length - 1 - climaxes[climaxes.length - 1] : -1;
+    const moveOn =
+      "move the night on: a little later (a time skip: later that night, the small hours, the morning) or something new they do together (food from the kitchen, a shower, a walk, talking about tomorrow, something that interrupts them), shown in the first line's action";
     rules.push(
       climax
         ? `- They've reached a climax (${first(climax.who)}: "${climax.text.replace(/\*[^*]*\*/g, "").trim().slice(0, 60)}"): now the afterglow, a resolution. They check in with each other, stay warm, make each other laugh; it doesn't start over unless ${again}.`
-        : `- This is the last stage: write toward a climax, then a resolution or an afterglow beat (checking in, warmth, a joke), instead of looping. The build-up ("almost there", "so close") is said once, not again and again: then the climax comes. After an afterglow or aftercare it only picks up again when ${again}; it never just resumes.`,
+        : climaxes.length >= 2
+          ? `- They've already had ${climaxes.length} climaxes in this part of the night: it winds down now. No more rounds unless the owner's steer asks for one; ${moveOn}, or let them drift toward sleep.`
+          : since >= 0
+            ? `- They've had their climax and the afterglow (${since} lines ago): don't start another round on your own. ${moveOn.replace(/^m/, "M")}. Another round only when ${again}, and then it builds again from kissing and touching, never straight back mid-act.`
+            : `- This is the last stage: write toward a climax, then a resolution or an afterglow beat (checking in, warmth, a joke), instead of looping. The build-up ("almost there", "so close") is said once, not again and again: then the climax comes. After an afterglow or aftercare it only picks up again when ${again}; it never just resumes.`,
     );
   }
   const notes: string[] = [];
@@ -1024,10 +1034,11 @@ function carryLines(c: ChapterCarry, nameOf: (who: "a" | "b") => string): string
   if (!c.first) return c.floor ? [`This chapter carries on from the last one, at ${stage}: it doesn't go back to an earlier stage.`] : [];
   const tail = c.tail.slice(-CARRY_TAIL).map((l) => `${nameOf(l.who)}: ${l.text}`);
   if (c.afterglow) {
+    // 2026-10-26, Chud × Sweet: chapter 2 opened "collapses beside her" again, then another round, as chapter 1 had ended.
     return [
       `A new chapter of the night starts here. The last one ended in an afterglow, at ${c.place}, after ${STAGES[c.stage]}; its last lines:`,
       ...tail,
-      "Continue from there, in the same place: it only picks up again when one of them starts it in a line and the other answers.",
+      "This chapter opens a little later, on something new: a time skip (later that night, the small hours, the morning) or something they do together (food, a shower, a walk, talking in the dark, something that interrupts them), shown in the first line's action. Don't repeat the afterglow and don't open mid-act. It only turns intimate again when one of them starts it in a line and the other answers, and then it builds again.",
     ];
   }
   return [
@@ -1046,7 +1057,7 @@ export function chapterCarry(scene: Pick<SceneState, "chapter" | "prev_tail" | "
   const last = scene.prev_tail.at(-1)!;
   const stage = typeof last.stage === "number" ? last.stage : scene.stage;
   const afterglow = recentClimax(scene.prev_tail) !== null;
-  return { stage, place, tail: scene.prev_tail, afterglow, first: scene.lines.length === 0, floor: !afterglow && !scene.lines.some((l) => climaxIn(l.text)) };
+  return { stage, place, tail: scene.prev_tail, afterglow, first: scene.lines.length === 0, floor: !afterglow && !scene.lines.some((l) => climaxIn(l.text, l.doing)) };
 }
 
 /** Letters outside the Latin script: the Venice text model sometimes slips into Russian, mostly in the actions. */
@@ -1108,7 +1119,7 @@ export function parseSceneLines(reply: string, names: { a: string; b: string }):
       // The private notes (why, memory), kept only when they're there: short, and never shown.
       const note = (v: unknown) => (typeof v === "string" && v.trim() && !/^(null|none|n\/a)$/i.test(v.trim()) ? v.trim().replace(/\s+/g, " ").slice(0, NOTE_MAX) : null);
       const out = arr
-        .map((x) => ({ side: typeof x.who === "string" ? sideOf(x.who.trim().toLowerCase()) : null, text: withAction(x), why: note(x.why), memory: note(x.memory), doing: cleanDoing(x.doing) }))
+        .map((x) => ({ side: typeof x.who === "string" ? sideOf(x.who.trim().toLowerCase()) : null, text: withAction(x), why: note(x.why), memory: note(x.memory), doing: cleanDoing(x.doing, [names.a, names.b]) }))
         .filter((x): x is { side: "a" | "b"; text: string; why: string | null; memory: string | null; doing: string | null } => x.side !== null && typeof x.text === "string" && Boolean(x.text.trim()))
         .map((x) => ({ who: x.side, text: clean(x.text), ...(x.why ? { why: x.why } : {}), ...(x.why || x.memory ? { memory: x.memory } : {}), ...(x.doing ? { doing: x.doing } : {}) }));
       if (out.length) return out;
@@ -1133,7 +1144,7 @@ export function parseSceneLines(reply: string, names: { a: string; b: string }):
     const last = out[out.length - 1];
     const v = value.trim().replace(/^["“]|["”]$/g, "");
     if (/\bdoing\b/i.test(label)) {
-      const doing = cleanDoing(v);
+      const doing = cleanDoing(v, [names.a, names.b]);
       if (doing) last.doing = doing;
     } else if (/\bmemor/i.test(label)) last.memory = v && !/^(null|none|n\/a)$/i.test(v) ? v.slice(0, NOTE_MAX) : null;
     else if (v && !last.why) last.why = v.replace(/\s+/g, " ").slice(0, NOTE_MAX);
@@ -1183,7 +1194,9 @@ export function parseSceneMeta(raw: string): SceneMeta {
     const description = p && typeof p.description === "string" ? p.description.trim().slice(0, 400) : "";
     // Without the punctuation a model sometimes leaves on it (":the jeep pulling up outside Rafe's bakery,").
     const placeText = typeof j.place === "string" ? j.place.replace(/^[\s:;,.\-–—]+|[\s:;,\-–—]+$/g, "") : "";
-    const place = placeText ? placeText.slice(0, 120) : null;
+    // A place, not what they're doing there (2026-10-26: "Kneeling on the rug in the masquerade ballroom, Coco pinning
+    // Sweet beneath her as she climaxes." was kept as where they were).
+    const place = placeText && !doingNotPlace(placeText) ? placeText.slice(0, 120) : null;
     // v2.4: only a stage number (1 to 5, or one written as a string) is a claim. DeepSeek's JSON broke down into keys like
     // `"stage: 4": ""` (read as stage, ""), Number("") is 0, and the scene fell back to talking mid-sex (the real-model
     // check, 2026-10-23). Anything else is no claim, and the scene keeps its stage.
@@ -1195,6 +1208,10 @@ export function parseSceneMeta(raw: string): SceneMeta {
     return { explicit: false, picture: null, place: null, stage: null, set: null, suggestions: {} };
   }
 }
+
+/** A "place" that's an action: it opens on what someone's doing, says what happens as it does, or runs on too long. */
+export const doingNotPlace = (text: string): boolean =>
+  /^\s*\p{L}{2,}ing\s+(?:on|in|at|against|by|beneath|under|together|with|across|over|into|onto|the|a|her|his|their)\b/iu.test(text) || /\b(?:as|while) (?:she|he|they|her|him)\b/i.test(text) || text.trim().split(/\s+/).length > 12;
 
 /** A scene line as a date turn, for the dates' critics (lib/quality.ts lineIssues). */
 const asTurn = (l: SceneLine): Turn => {
@@ -1490,6 +1507,12 @@ export type StepInput = {
   model: Model;
   /** Who writes the step when the writer twice sends nothing back (lib/adult/writer-config.ts FALLBACK_WRITER). */
   fallback?: { id: string; model: Model } | null;
+  /**
+   * Who runs the aside check (lib/adult/asides.ts), when it isn't the writer: the fast one. 2026-10-26, two of David's
+   * nights on GLM-4.6: the check timed out at ASIDE_TIMEOUT_MS on every step it ran (21 of 29 in one), paid for and
+   * thrown away, six seconds a step, and no check at all. On DeepSeek it took 0.4 to 1.2 s.
+   */
+  checker?: Model | null;
   /** The writer's thinking room (lib/adult/writer-config.ts think_tokens), added to SCENE_REPLY_TOKENS. */
   thinkTokens?: number;
   a: Character | null;
@@ -1825,9 +1848,16 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
         continue;
       }
       flags.names_repaired += g.repairs.length;
+      // Nobody calls out their own name (2026-10-26: "Fuck... Coco." from Coco, a line given to the wrong one of them).
+      const unselfed = withoutSelfAddress(g.text, l.who === "a" ? names.a : names.b, l.who === "a" ? names.b : names.a);
+      if (!unselfed) {
+        drops.push({ who: l.who, text: l.text, reason: "calls out the speaker's own name: the other one's line" });
+        continue;
+      }
+      if (unselfed !== g.text) flags.names_repaired++;
       // The steer acted out, never quoted (lib/adult/stage-floor.ts): an action that copies it goes, a line that does is dropped.
       // v2.3: a steer's quoted lines are meant to be said, so only the rest of it is held to that rule.
-      const own = withoutSteerCopy(g.text, copyRule);
+      const own = withoutSteerCopy(unselfed, copyRule);
       if (!own) {
         drops.push({ who: l.who, text: l.text, reason: "copied the steer instead of acting it out" });
         continue;
@@ -2165,8 +2195,8 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   if (v2 && stamped.some((l) => (l.stage ?? 0) >= UNDRESSING)) {
     const batch = stamped;
     const check = await checkAsides(
-      // The step's writer: the fallback, when it wrote the lines.
-      model,
+      // The fast checker when there is one; else the step's writer (the fallback, when it wrote the lines).
+      input.checker ?? model,
       {
         history: night,
         batch,
@@ -2370,10 +2400,13 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // Their own writer (lib/adult/writer.ts): the one they picked, else the default, with room for its thinking.
   const { id: writer, think_tokens } = await writerChoice(db, adminId);
   const profile = await sceneProfile(db, scene, adminId);
+  const fast = writer === FALLBACK_WRITER ? null : await adultModel(db, process.env, { model: FALLBACK_WRITER });
   const step = await writeSceneStep({
     model: await adultModel(db, process.env, { model: writer }),
     // When the writer twice sends nothing back, the step is written by the fast one instead of failing.
-    fallback: writer === FALLBACK_WRITER ? null : { id: FALLBACK_WRITER, model: await adultModel(db, process.env, { model: FALLBACK_WRITER }) },
+    fallback: fast ? { id: FALLBACK_WRITER, model: fast } : null,
+    // The aside check runs on the fast one too: a thinking writer never answers it in time.
+    checker: fast,
     thinkTokens: think_tokens,
     a,
     b,
@@ -2695,7 +2728,7 @@ export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, 
   });
   // A picture of them at the new place (lib/adult/auto-pictures.ts), once a chapter per place; never fails the cut.
   const [ca, cb] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id)]);
-  const autoPicture = await kickAutoPicture(db, ownerId, { id: scene.id, chapter: scene.chapter, place: named, set_place, stage: scene.stage, lines: scene.lines }, ca, cb);
+  const autoPicture = await kickAutoPicture(db, ownerId, { id: scene.id, chapter: scene.chapter, place: named, set_place, stage: scene.stage, lines: scene.lines, ownerSet: true }, ca, cb);
   return { ok: true, scene: publicScene({ ...scene, place: named, set_place, cut_to: named, place_history, moves, suggestions: [], undo: [] }), ...(autoPicture ? { auto_picture: true } : {}) };
 }
 

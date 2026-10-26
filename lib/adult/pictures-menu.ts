@@ -26,6 +26,7 @@ import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { mediaLimits, nightStands } from "./clips";
 import { isPublicPlace } from "./continuity";
 import { ensureBaseline, signedMediaUrl, type Media } from "./media";
+import { shownNude } from "./attire";
 import { baselines, drawKeyframe, drawReplicateKeyframe, KEYFRAME_MODEL, keyframePrompt, NUDE_FROM, nudeBaselines, placeWords, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
@@ -233,15 +234,19 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
 /** Why a picture of both wasn't kept; `pausedErr` when a baseline made first found Hive out. */
 /** From "undressing" (stage 4 of 5) on, a night's picture starts from their body references. */
 const BODY_FROM = 3;
-/** Each one's body reference set in the Studio (adult_identity.body_image_id, ready), or null. */
-async function bodyReferences(db: Db, ownerId: string, ids: readonly [string, string]): Promise<[string | null, string | null]> {
+/** Each one's body reference set in the Studio (adult_identity.body_image_id, ready), and whether it shows them nude; or null. */
+async function bodyReferences(db: Db, ownerId: string, ids: readonly [string, string]): Promise<[BodyReference | null, BodyReference | null]> {
   const { rows } = await db.query<{ character_id: string; id: string }>(
     `select d.character_id, i.id from adult_identity d join adult_images i on i.id = d.body_image_id and i.status = 'ready' where d.owner_id = $1 and d.character_id = any($2)`,
     [ownerId, [...ids]],
   );
-  const of = (c: string) => rows.find((r) => r.character_id === c)?.id ?? null;
-  return [of(ids[0]), of(ids[1])];
+  const of = async (c: string): Promise<BodyReference | null> => {
+    const id = rows.find((r) => r.character_id === c)?.id;
+    return id ? { id, nude: await shownNude(db, id) } : null;
+  };
+  return [await of(ids[0]), await of(ids[1])];
 }
+type BodyReference = { id: string; nude: boolean };
 
 export type KeepFailure = { ok: false; status: number; error: "hive_paused" | "check_busy" | "discarded" | "not_made"; message: string; pausedErr?: HivePausedError };
 
@@ -278,8 +283,11 @@ export async function keepPictureOfBoth(
     if (!bases) throw new Error("a picture of each of them is needed first");
     // A night's picture from undressing on: each one's body reference from the Studio, head to toe, when they have one
     // (David, 2026-10-25: their face and body set up first, so the date's pictures aren't guesses); the face otherwise.
+    // From sex on, only a body reference that's itself nude: an edit keeps what its pictures wear, whatever the prompt
+    // says, so a dressed one gives way to the nude baseline.
     const bodies = ctx.scene && (plan.stage ?? 0) >= BODY_FROM ? await bodyReferences(db, ownerId, [ca.id, cb.id]) : [null, null];
-    const faces = bases.map((id, i) => signedMediaUrl(bodies[i] ?? id, baseUrl));
+    const usable = bodies.map((r) => (r && (r.nude || (plan.stage ?? 0) < NUDE_FROM) ? r.id : null));
+    const faces = bases.map((id, i) => signedMediaUrl(usable[i] ?? id, baseUrl));
     const set = plan.place ? ((await setPictures(db, [plan.place])).get(plan.place) ?? null) : null;
     // With the place's drawn set as Picture 3, the prompt says to keep its room and its light.
     prompt = plan.promptFor(Boolean(set));

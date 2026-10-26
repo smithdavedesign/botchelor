@@ -18,7 +18,7 @@ import { canonicalSet, type MoveLog } from "./continuity";
 import { givenName } from "./guards";
 import { stageShown } from "./stage-floor";
 
-type Line = { who: "a" | "b"; text: string; stage?: number | null };
+type Line = { who: "a" | "b"; text: string; stage?: number | null; doing?: string };
 
 /** What a line says: its *actions* out, curly quotes straightened, lower case. Same length as the text it came from. */
 const plain = (text: string) => text.replace(/\*[^*]*\*/g, (m) => " ".repeat(m.length)).replace(/[’‘`]/g, "'").replace(/…/g, ".").toLowerCase();
@@ -347,15 +347,43 @@ export function linesAtPlace(scene: { lines: readonly { moved_to?: string }[]; p
 // The arc
 // ---------------------------------------------------------------------------------------------------------------------
 
-/** A climax, plainly on the page. */
-const CLIMAX = /\b(?:orgasm\w*|climax(?:es|ed|ing)?|cum(?:s|ming)?|(?:came|comes|coming) (?:hard|undone|apart|for (?:me|you|her|him|them))|shatter(?:s|ed|ing)? (?:around|beneath|under|against))\b/i;
-export const climaxIn = (text: string): boolean => CLIMAX.test(text);
+/**
+ * A climax, plainly on the page. 2026-10-26, David's two nights: the writer rarely names it ("her body tenses then goes
+ * slack against the curtains", "convulses… clenches around her", "arches once, then goes limp", "comes apart with a
+ * silent scream"), so the after-it rule never came and the night went round again and again.
+ */
+const CLIMAX = new RegExp(
+  [
+    String.raw`\b(?:orgasm\w*|climax(?:es|ed|ing)?|cum(?:s|ming)?|(?:came|comes|coming) (?:hard|undone|apart|for (?:me|you|her|him|them))|shatter(?:s|ed|ing)? (?:around|beneath|under|against))\b`,
+    String.raw`\b(?:comes?|came|coming|falls?|fell|falling) apart\b`,
+    String.raw`\b(?:tips?|tipped|tipping|tumbles?|tumbled|goes|went) over the edge\b`,
+    String.raw`\b(?:whole )?body (?:convulses|convulsing|shatters|clenches)\b`,
+    String.raw`\b(?:arches|tenses|shudders|stiffens)\b[^.!?]{0,60}\bthen (?:goes|went) (?:limp|slack)\b`,
+    String.raw`\bwaves? of (?:release|pleasure) (?:crash|wash|rip|tear)\w*`,
+  ].join("|"),
+  "i",
+);
+/** What the writer says they're doing at a climax ("climaxing", "riding the wave of release"), from the start of it. */
+const CLIMAX_DOING = /^(?:climax(?:ing|es)?|orgasm\w*|coming|cumming|riding (?:the|a) wave of release|shattering|release)\b/i;
+export const climaxIn = (text: string, doing?: string | null): boolean => CLIMAX.test(text) || Boolean(doing && CLIMAX_DOING.test(doing.trim()));
 
 /** How far back the prompt looks for a climax: inside this, the next lines are the afterglow. */
 export const CLIMAX_RECENT = 12;
 
 /** The latest line in the last CLIMAX_RECENT that shows a climax, or null. */
 export function recentClimax(lines: readonly Line[]): Line | null {
-  for (let i = lines.length - 1; i >= Math.max(0, lines.length - CLIMAX_RECENT); i--) if (climaxIn(lines[i].text)) return lines[i];
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - CLIMAX_RECENT); i--) if (climaxIn(lines[i].text, lines[i].doing)) return lines[i];
   return null;
+}
+
+/** Each climax in these lines, by index: a run of climax lines (one each, or both of them) counts once. */
+export function climaxesIn(lines: readonly Line[]): number[] {
+  const at: number[] = [];
+  let last = -Infinity;
+  lines.forEach((l, i) => {
+    if (!climaxIn(l.text, l.doing)) return;
+    if (i - last > 3) at.push(i);
+    last = i;
+  });
+  return at;
 }
