@@ -19,7 +19,7 @@
  * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
  */
 import { createServer } from "node:http";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { chromium } from "playwright-core";
@@ -142,6 +142,12 @@ async function main() {
       [LEXI, owner, JSON.stringify({ looks: LOOKS })],
     );
     await db.query(`insert into adult_switches (owner_id, character_id) values ($1, $2)`, [owner, LEXI]);
+    // Her pictures so far: a baseline drawn but never picked as her face, and a body reference already set
+    // (lib/adult/readiness.ts: a face picked is what's missing). A PG portrait of the repo's own stands in for both.
+    const portrait = readFileSync(join(ROOT, "public", "cast", "house-imogen-v3.webp"));
+    await db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ('lexi-base', $1, $2, 'baseline', 'p', 'image/webp', $3)`, [owner, LEXI, portrait]);
+    await db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ('lexi-body', $1, $2, 'scene', 'p', 'image/webp', $3)`, [owner, LEXI, portrait]);
+    await db.query(`insert into adult_identity (owner_id, character_id, body_image_id) values ($1, $2, 'lexi-body')`, [owner, LEXI]);
     await db.close();
     app = await startApp(port, env);
 
@@ -162,6 +168,23 @@ async function main() {
       await page.goto(`${app.base}${scenePath}`);
       await card.waitFor({ timeout: 30_000 });
       assert((await sceneNow()).lines.length === 0, "lines were written before Start");
+    });
+
+    await step("Lexi isn't set up for pictures: the card says what's missing, and the Studio sets it in one tap", async () => {
+      const text = await card.innerText();
+      assert(/Lexi\s+○ face · ✓ body/.test(text), `the start card doesn't say Lexi's face is missing: ${text}`);
+      assert(/nothing is guessed/.test(text), "the start card doesn't say pictures wait");
+      await card.getByRole("link", { name: "Set up in the Studio →" }).click();
+      const ready = page.locator(".ad-ready-card");
+      await ready.waitFor({ timeout: 30_000 });
+      assert(/Before After Dark can picture Lexi/.test(await ready.innerText()), "the Studio doesn't open on what's missing");
+      await shot("studio-not-ready");
+      await ready.getByRole("button", { name: "Use the one shown below" }).click();
+      await page.waitForFunction(() => /✓ Lexi is ready for After Dark's pictures/.test(document.querySelector(".ad-ready-card")?.textContent ?? ""), null, { timeout: 15_000 });
+      await shot("studio-ready");
+      await page.goto(`${app.base}${scenePath}`);
+      await card.waitFor({ timeout: 30_000 });
+      assert(!/○ face/.test(await card.innerText()), "the start card still says Lexi isn't set up");
     });
 
     await step("Scene & roleplay: the double date, as a Blind date", async () => {

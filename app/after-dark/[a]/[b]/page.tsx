@@ -10,6 +10,7 @@ import { facesFor, steerSummary } from "@/lib/adult/steering";
 import { listReels } from "@/lib/adult/reels";
 import { hiveNotice } from "@/lib/adult/hive-limit";
 import { listNights, openScene } from "@/lib/adult/scenes";
+import { pairReadiness } from "@/lib/adult/readiness";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { mineScenes, sceneCatalog } from "@/lib/adult/scene-catalog";
 import { asRoleplay, getLibrary } from "@/lib/studio/library";
@@ -44,6 +45,8 @@ export default async function AfterDarkScenePage({ params }: Props) {
   const admin = await adultViewerFromCookies(db, await cookies());
   if (!admin) notFound();
   const here = await currentHere();
+  // Where only the scenes are allowed (lib/jurisdiction.ts) there are no pictures to set them up for.
+  const textOnlyHere = here.mode === "text_only";
   const scene = await openScene(db, admin, a, b);
   if (!scene) notFound();
   // The viewer's own venues and roleplays (lib/studio/library.ts), beside the show's in Scene & roleplay.
@@ -85,6 +88,7 @@ export default async function AfterDarkScenePage({ params }: Props) {
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}
         reelTokens={(await getAdultSettings(db)).reel_tokens}
+        readiness={textOnlyHere ? [] : await pairReadiness(db, admin, scene.a.id, scene.b.id)}
         chapterTokens={(await isAdmin(db, admin)) ? 0 : (await getAdultSettings(db)).chapter_tokens}
         hive={await hiveNotice(db)}
         faces={await facesFor(db, admin, [scene.a.id, scene.b.id])}

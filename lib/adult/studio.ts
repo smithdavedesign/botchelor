@@ -25,6 +25,7 @@
  *    free redo for a shoot the viewer 👎'd whole; monthly caps per person (lib/adult/usage.ts).
  *  - **The check:** every picture passes the output check before it's kept (lib/adult/check.ts), as everywhere.
  */
+import { readinessOf, type Readiness } from "./readiness";
 import { isAdmin } from "../admins";
 import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { loadCharacter, type Character } from "../character";
@@ -1271,6 +1272,8 @@ export async function redoShoot(db: Db, viewer: string, shootId: string, baseUrl
 export type StudioState = {
   character: { id: string; name: string; noun: Noun; house: boolean; own: boolean };
   identity: Identity;
+  /** Whether After Dark can picture them yet: a face picked and a body reference (lib/adult/readiness.ts). */
+  ready: Readiness | null;
   menu: ReturnType<typeof studioMenu>;
   restyle: ReturnType<typeof restyleMenu>;
   /** Their look now, on the restyle menu (restyleCurrent): the menu starts there. */
@@ -1359,6 +1362,7 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
     state: {
       character: { id: c.id, name: c.name, noun, house: c.house, own: c.ownerId === viewer },
       identity,
+      ready: await readinessOf(db, viewer, c.id),
       menu: studioMenu(shootLimits(identity, config), noun),
       restyle: restyleMenu(gender),
       restyle_current: restyleCurrent(c.extras?.looks, gender, c.ownerId === viewer),

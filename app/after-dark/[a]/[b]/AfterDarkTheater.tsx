@@ -25,6 +25,7 @@ import type { WriterOptions } from "@/lib/adult/writer";
 import { libraryVenueFor, type CatalogScene } from "@/lib/adult/scene-catalog";
 import SetSceneModal, { preloadScenes, type RoleplayPick } from "./SetSceneModal";
 import PictureContext from "./PictureContext";
+import type { Readiness } from "@/lib/adult/readiness";
 import type { PictureEdit } from "@/lib/adult/beats";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 
@@ -122,6 +123,7 @@ export default function AfterDarkTheater({
   videoChapters = [],
   videoTokens = 15,
   chapterTokens = 0,
+  readiness = [],
   videoNote = null,
   mediaPaused = null,
   feedbackRef = null,
@@ -183,6 +185,8 @@ export default function AfterDarkTheater({
   videoTokens?: number;
   /** A chapter's price for this viewer (0: free, an admin): Start and the Next that opens a chapter say it. */
   chapterTokens?: number;
+  /** Whether each of them is set up for pictures (lib/adult/readiness.ts): the start card's checklist. */
+  readiness?: readonly Readiness[];
   videoNote?: string | null;
   /** Hive's breaker is open (lib/adult/hive-limit.ts): the clip and video buttons are disabled, with this as their tooltip. */
   mediaPaused?: string | null;
@@ -331,6 +335,29 @@ export default function AfterDarkTheater({
                 <p className="muted small ad-start-plan">
                   💬 {firstName(a)} × {firstName(b)} decided on {scene.planned.place} by text.
                 </p>
+              )}
+              {readiness.some((r) => !r.ready) && (
+                // Creation → their face and body → After Dark (David, 2026-10-25): what's missing, and where to set it.
+                <ul className="ad-start-ready" aria-label="Pictures">
+                  {readiness.map((r) => (
+                    <li key={r.id}>
+                      <strong>{r.name.split(/\s+/)[0]}</strong>{" "}
+                      {r.ready ? (
+                        "✓ ready for pictures"
+                      ) : (
+                        <>
+                          {`${r.face ? "✓" : "○"} face · ${r.body ? "✓" : "○"} body`}{" "}
+                          {r.own && (
+                            <a href={r.studio} className="ad-start-setup">
+                              Set up in the Studio →
+                            </a>
+                          )}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                  <li className="muted small">Until both are set up, the night runs without pictures: nothing is guessed.</li>
+                </ul>
               )}
               <p className="ad-start-rp">{rpOf(scene.roleplay?.id) ? `${rpOf(scene.roleplay?.id)!.icon} ${rpOf(scene.roleplay?.id)!.title}` : "💬 No roleplay: just the two of them"}</p>
               <div className="ad-start-actions">

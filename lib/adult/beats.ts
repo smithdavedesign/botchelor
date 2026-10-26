@@ -31,6 +31,7 @@ import { keyframePrompt, placeWords, reelCast, withoutNames, type ReelPerson } f
 import { thumbsDown } from "./steering";
 import { adultKeys, getAdultSettings } from "./settings";
 import { claimChapterPicture } from "./chapter-pictures";
+import { picturesBlocked } from "./readiness";
 import { refundBoughtTokens } from "../allowance";
 import { roleplayById } from "./roleplays";
 import { venueSituation } from "./scene-catalog";
@@ -316,6 +317,9 @@ export type PicturePlan =
 export async function planBeat(db: Db, beat: Pick<BeatRow, "owner_id" | "scene_id" | "character_a" | "character_b" | "chapter" | "line" | "act" | "kind" | "stage" | "place" | "night_id" | "custom" | "dialog">, edit: PictureEdit | null): Promise<PicturePlan> {
   const [ca, cb] = await Promise.all([loadCharacter(db, beat.character_a), loadCharacter(db, beat.character_b)]);
   if (!ca || !cb) return { ok: false, status: 404, message: "One of them is missing." };
+  // Never a picture of a character nobody has set up: it would only be a guess (lib/adult/readiness.ts).
+  const blocked = await picturesBlocked(db, beat.owner_id, beat.character_a, beat.character_b);
+  if (blocked) return { ok: false, status: 409, message: blocked };
   const cast = reelCast(ca, cb, beat.owner_id);
   const limits = await mediaLimits(db, beat.owner_id, beat.character_a, beat.character_b);
   const lines = (await beatLines(db, beat as BeatRow)) as { text: string; doing?: string }[];
@@ -436,6 +440,8 @@ export async function answerBeat(db: Db, ownerId: string, beatId: string, answer
     return { ok: true, beat: publicBeat(rows[0] ?? row) };
   }
   if (!(await beatPicturesReady(db))) return { ok: false, status: 409, message: "Beat pictures are off, or the picture keys aren't saved, in After Dark's settings." };
+  const notReady = await picturesBlocked(db, ownerId, row.character_a, row.character_b);
+  if (notReady) return { ok: false, status: 409, message: notReady };
   // The owner's own words for this moment, if they gave any, lead the picture (held to the lines first).
   const custom = cleanWords(guide.custom, SCENE_CUSTOM_MAX);
   const dialog = cleanWords(guide.dialog, SCENE_DIALOG_MAX);
@@ -480,6 +486,8 @@ export async function pictureNow(
   opts: { paid?: number; fresh?: boolean } = {},
 ): Promise<BeatAnswer> {
   if (!(await beatPicturesReady(db))) return { ok: false, status: 409, message: "Beat pictures are off, or the picture keys aren't saved, in After Dark's settings." };
+  const notReady = await picturesBlocked(db, ownerId, scene.a, scene.b);
+  if (notReady) return { ok: false, status: 409, message: notReady };
   const at = Math.max(0, Math.min(line, scene.lines.length - 1));
   if (!scene.lines.length) return { ok: false, status: 409, message: "Let the night start first." };
   const custom = cleanWords(guide.custom, SCENE_CUSTOM_MAX);
@@ -564,6 +572,8 @@ export async function redrawPicture(
   price = 0,
 ): Promise<BeatAnswer> {
   if (!(await beatPicturesReady(db))) return { ok: false, status: 409, message: "Beat pictures are off, or the picture keys aren't saved, in After Dark's settings." };
+  const notReady = await picturesBlocked(db, ownerId, scene.a, scene.b);
+  if (notReady) return { ok: false, status: 409, message: notReady };
   const pic = (await db.query<{ id: string; scene_chapter: number | null }>(`select id, scene_chapter from adult_images where id = $1 and owner_id = $2 and kind = 'scene' and status = 'ready'`, [pictureId, ownerId])).rows[0];
   if (!pic) return { ok: false, status: 404, message: "That picture isn't one of this night's." };
   const clean = cleanEdit(edit);

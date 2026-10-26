@@ -38,6 +38,7 @@
  * The keyframes are drawn, checked and queued when the reel starts. Shots take minutes on Venice, so a reel is then
  * advanced by whoever's watching (GET polls advanceReel).
  */
+import { picturesBlocked } from "./readiness";
 import { isAdmin } from "../admins";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import type { Character } from "../character";
@@ -1303,6 +1304,9 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return { ok: false, status: 404, error: "not_found", message: "Pick two characters who are in after dark." };
   const [a, b] = pair;
+  // Never a video of a character nobody has set up (lib/adult/readiness.ts).
+  const notReady = await picturesBlocked(db, ownerId, a, b);
+  if (notReady) return { ok: false, status: 409, error: "not_ready", message: notReady };
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
   // Made where After Dark's media is made: Venice, or Replicate as the backup.
@@ -1366,6 +1370,9 @@ export async function planReel(db: Db, ownerId: string, x: string, y: string, li
   const pair = await eligiblePair(db, ownerId, x, y);
   if (!pair) return { ok: false, status: 404, error: "not_found", message: "Pick two characters who are in after dark." };
   const [a, b] = pair;
+  // Never a video of a character nobody has set up (lib/adult/readiness.ts).
+  const notReady = await picturesBlocked(db, ownerId, a, b);
+  if (notReady) return { ok: false, status: 409, error: "not_ready", message: notReady };
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
   const onReplicate = settings.media_provider === "replicate";
