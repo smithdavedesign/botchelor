@@ -276,8 +276,13 @@ const WHERE =
   /\b(my place|your place|mine|yours|home|inside|upstairs|downstairs|elsewhere|somewhere|out of here|private|bedroom|bed|room|car|cab|taxi|balcony|terrace|shower|bath|kitchen|couch|sofa|hotel|door|outside|roof|rooftop|pool|hallway|elevator|lift)\b/i;
 const NOT_GOING = /\b(let's not|lets not|stay(?:ing)? (?:here|put|right here)|not going anywhere)\b/i;
 /** One of their homes, said by the one whose home it is (the same words as a date's move, lib/places.ts). */
-const MY_HOME = /\b(?:(?:my|our) (?:place|flat|apartment|house|home|bedroom|room|pad)\b|(?:back to|over to|round to|to) mine\b|come (?:over|round|back to mine)\b)/i;
-const YOUR_HOME = /\b(?:your (?:place|flat|apartment|house|home|bedroom|room|pad)|(?:back to|over to|round to|to) yours)\b/i;
+/**
+ * The words a home goes by in an invitation: the same homes the sets know (2026-10-26, the test night: "My penthouse has
+ * better acoustics" was no invitation, and nine arrivals at her place were refused while they took the lift up).
+ */
+const HOME_WORDS = "place|flat|apartment|house|home|bedroom|room|pad|loft|condo|penthouse|townhouse|mansion|suite|cabin";
+const MY_HOME = new RegExp(`\\b(?:(?:my|our) (?:${HOME_WORDS})\\b|(?:back to|over to|round to|to) mine\\b|come (?:over|round|back to mine)\\b)`, "i");
+const YOUR_HOME = new RegExp(`\\b(?:your (?:${HOME_WORDS})|(?:back to|over to|round to|to) yours)\\b`, "i");
 /** Going along with it, in a scene's terms: a nod, following, "lead the way". A refusal always overrides. */
 const SCENE_YES =
   /\b(nods?|nodding|follows?|following|you're right|youre right|lead the way|take me|show me|please|god,? yes|mm+-?h?m+|mhm|lets? (?:him|her) lead|doesn't resist|after you|right behind you|let's go|lets go|i'm yours|gladly|happily|can't wait|cant wait|(?:saunters?|heads?|walks?|moves?) (?:toward|towards|for|to) the door|takes? (?:his|her) hand)\b/i;

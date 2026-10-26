@@ -45,3 +45,26 @@ describe("getting out of their clothes isn't leaving", () => {
     expect(shownMove(lines, 0, "the jazz bar", NAMES)?.to).toBe("the street");
   });
 });
+
+describe("an invitation home, in the home's own word", () => {
+  // Run 2 (Sweet thang × Juniper): "My penthouse has better acoustics", then out of the bar, up in the lift, the door
+  // unlocked, and every arrival at her place refused for fifty lines, held at kissing in a bar they'd left.
+  const night = [
+    l("a", "*Her hand stills, and she glances around the dark bar.* This backstage is too crowded. My penthouse has better acoustics for that kind of broadcast."),
+    l("b", "*Her gaze stays locked on Sweet as she steps back.* A penthouse. A different kind of echo. High altitude."),
+    l("a", "*A slow, triumphant smile spreads across her face as she takes Juniper's hand.* Exactly. No gulls. Just me."),
+    l("b", "*As they walk towards the exit, she undoes the top button of Sweet's jacket.* That coat would block the cross-breeze."),
+    l("a", "*She shrugs the jacket from her shoulders, letting it fall over an empty chair.* Good. The noise stays here then."),
+    l("b", "*She lets the oversized storm coat slide from her shoulders to the floor.* The lamp is still on."),
+    l("a", "*She takes Juniper's hand again, pulling her toward the stairs to the street.* That lamp is taking an elevator. Let's go."),
+    l("b", "*Glances back at the drummer.* He'll think it's a haunting. A sudden disappearance."),
+    l("a", "*Tugs Juniper's hand, leading her up the stairs.* Let him. The real haunting is just getting started."),
+    l("b", "*Steps out of the elevator into a quiet, carpeted hallway.* No wind up here. The air is still."),
+    l("a", "*Unlocks the door and pushes it open.* I can make some. Or we can just make our own weather."),
+  ];
+  it("\"my penthouse\" is an invitation home, and arriving there takes them there", () => {
+    const bar = "A basement jazz bar, one table left";
+    const r = settlePlace({ current: { place: bar, set: bar }, claimed: { place: "Sweet's place", set: null }, lines: night, from: 6, movesThisChapter: 1, homeNow: null, names: { a: "Sweet thang", b: "Juniper Vale" }, fromLines: true, locked: true });
+    expect(r.moved).toMatchObject({ home: "a" });
+  });
+});
