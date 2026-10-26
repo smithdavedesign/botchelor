@@ -43,6 +43,8 @@ export type AutoPictureScene = {
   home?: "a" | "b" | null;
   /** What the owner's own venue is like, when they're at one of theirs (lib/studio/library.ts ownPlaceSituation). */
   situation?: string | null;
+  /** The owner just set the scene there: its picture doesn't wait for PICTURE_GAP. */
+  ownerSet?: boolean;
 };
 
 /** The claim for a chapter's picture at a place: "5:the rainy garden". */
@@ -54,6 +56,9 @@ export async function autoPicturesReady(db: Db): Promise<boolean> {
   const { auto_scene_pictures } = await getAdultSettings(db);
   return auto_scene_pictures && (await outputCheckReady(db)) && (await pictureKeyReady(db));
 }
+
+/** How many lines after the chapter's last picture a new place's picture can be drawn. */
+export const PICTURE_GAP = 12;
 
 /** How long a picture that didn't come waits before a step asks for it again. */
 export const RETRY_AFTER_MS = 3 * 60_000;
@@ -126,6 +131,12 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
     if (failed !== undefined && clock() - failed < RETRY_AFTER_MS) return false;
     // Hive over its daily limit: not claimed, so the first step after the pause draws it (makePicture probes Hive first).
     if (await hivePausedUntil(db)) return false;
+    // Not the same moment twice (2026-10-26, Chud × Sweet: the cottage, then its bedroom, drawn a minute apart, two of
+    // the chapter's three): a new place's picture waits until the chapter's last one is PICTURE_GAP lines back.
+    const last = (
+      await db.query<{ line: number }>(`select max(line)::int as line from adult_beats where scene_id = $1 and chapter = $2 and kind = 'chapter' and night_id is null`, [scene.id, scene.chapter])
+    ).rows[0]?.line;
+    if (!scene.ownerSet && typeof last === "number" && scene.lines.length - 1 - last < PICTURE_GAP) return false;
     // One of the chapter's unasked pictures (lib/adult/chapter-pictures.ts): none once it has had pictures_per_chapter.
     if (!(await claimChapterPicture(db, scene.id, scene.chapter, key, (await getAdultSettings(db)).pictures_per_chapter))) return false;
     const snapshot: AutoPictureScene = { ...scene, lines: scene.lines.slice(-6), lineCount: scene.lines.length };

@@ -1490,6 +1490,12 @@ export type StepInput = {
   model: Model;
   /** Who writes the step when the writer twice sends nothing back (lib/adult/writer-config.ts FALLBACK_WRITER). */
   fallback?: { id: string; model: Model } | null;
+  /**
+   * Who runs the aside check (lib/adult/asides.ts), when it isn't the writer: the fast one. 2026-10-26, two of David's
+   * nights on GLM-4.6: the check timed out at ASIDE_TIMEOUT_MS on every step it ran (21 of 29 in one), paid for and
+   * thrown away, six seconds a step, and no check at all. On DeepSeek it took 0.4 to 1.2 s.
+   */
+  checker?: Model | null;
   /** The writer's thinking room (lib/adult/writer-config.ts think_tokens), added to SCENE_REPLY_TOKENS. */
   thinkTokens?: number;
   a: Character | null;
@@ -2165,8 +2171,8 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   if (v2 && stamped.some((l) => (l.stage ?? 0) >= UNDRESSING)) {
     const batch = stamped;
     const check = await checkAsides(
-      // The step's writer: the fallback, when it wrote the lines.
-      model,
+      // The fast checker when there is one; else the step's writer (the fallback, when it wrote the lines).
+      input.checker ?? model,
       {
         history: night,
         batch,
@@ -2370,10 +2376,13 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   // Their own writer (lib/adult/writer.ts): the one they picked, else the default, with room for its thinking.
   const { id: writer, think_tokens } = await writerChoice(db, adminId);
   const profile = await sceneProfile(db, scene, adminId);
+  const fast = writer === FALLBACK_WRITER ? null : await adultModel(db, process.env, { model: FALLBACK_WRITER });
   const step = await writeSceneStep({
     model: await adultModel(db, process.env, { model: writer }),
     // When the writer twice sends nothing back, the step is written by the fast one instead of failing.
-    fallback: writer === FALLBACK_WRITER ? null : { id: FALLBACK_WRITER, model: await adultModel(db, process.env, { model: FALLBACK_WRITER }) },
+    fallback: fast ? { id: FALLBACK_WRITER, model: fast } : null,
+    // The aside check runs on the fast one too: a thinking writer never answers it in time.
+    checker: fast,
     thinkTokens: think_tokens,
     a,
     b,
@@ -2695,7 +2704,7 @@ export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, 
   });
   // A picture of them at the new place (lib/adult/auto-pictures.ts), once a chapter per place; never fails the cut.
   const [ca, cb] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id)]);
-  const autoPicture = await kickAutoPicture(db, ownerId, { id: scene.id, chapter: scene.chapter, place: named, set_place, stage: scene.stage, lines: scene.lines }, ca, cb);
+  const autoPicture = await kickAutoPicture(db, ownerId, { id: scene.id, chapter: scene.chapter, place: named, set_place, stage: scene.stage, lines: scene.lines, ownerSet: true }, ca, cb);
   return { ok: true, scene: publicScene({ ...scene, place: named, set_place, cut_to: named, place_history, moves, suggestions: [], undo: [] }), ...(autoPicture ? { auto_picture: true } : {}) };
 }
 

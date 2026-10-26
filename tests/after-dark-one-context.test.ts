@@ -1,13 +1,14 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
-import { autoPicturesSettled } from "@/lib/adult/auto-pictures";
+import { autoPicturesSettled, kickAutoPicture, PICTURE_GAP } from "@/lib/adult/auto-pictures";
 import { beatPicturesSettled } from "@/lib/adult/beats";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { loadCharacter } from "@/lib/character";
 import { sessionCookies } from "@/lib/http";
 import type { ChatMessage } from "@/lib/model";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -130,6 +131,23 @@ describe("one context for every scene picture", () => {
     await post({ a: LEXI, b: RAFE, picture_now: { line: 1 } }, undressed.cookie);
     await beatPicturesSettled();
     expect(later[0].images.join(" ")).toContain("body-lexi");
+  });
+
+  it("a new place's picture waits until the chapter's last is PICTURE_GAP lines back; the owner's own Set the scene doesn't", async () => {
+    const lines = Array.from({ length: 6 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*kisses her ${i}* Again.`, stage: 4 }));
+    const { id, cookie } = await setup(lines, "the seaside cottage");
+    await post({ auto_scene_pictures: true }, cookie, settingsPost, "/api/admin/after-dark/settings");
+    fakeMedia();
+    const sceneId = (await t.db.query<{ id: string }>(`select id from adult_scenes`)).rows[0].id;
+    const [a, b] = [await loadCharacter(t.db, LEXI), await loadCharacter(t.db, RAFE)];
+    const kick = (place: string, n: number, ownerSet = false) =>
+      kickAutoPicture(t.db, id, { id: sceneId, chapter: 1, place, set_place: place, stage: 4, lines: [...lines, ...lines, ...lines].slice(0, n), ownerSet }, a, b);
+    expect(await kick("the seaside cottage", 4)).toBe(true);
+    await autoPicturesSettled();
+    expect(await kick("the cozy bedroom", 6)).toBe(false);
+    expect(await kick("the cozy bedroom", 6, true)).toBe(true);
+    await autoPicturesSettled();
+    expect(await kick("the garden", 6 + PICTURE_GAP)).toBe(true);
   });
 
   it("a picture the lines ask for, of both, is drawn from their faces, its description leading; a chapter's own too", async () => {

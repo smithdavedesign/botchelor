@@ -129,9 +129,22 @@ const POSITIONS: readonly (readonly [string, RegExp])[] = [
   ["behind", /\b(from behind|bends? (?:her|him) over|bent over|on (?:her|his|their) (?:hands and )?knees|doggy)/],
   ["spooning", /\b(spoon(?:s|ing|ed)?|on (?:their|her|his) sides?)\b/],
   ["lap", /\b(in(?:to)? (?:his|her) lap|on (?:his|her) lap)\b/],
-  ["on_top", /\b(on top of (?:him|her)|rid(?:es|ing) (?:him|her)\b|straddl\w*|sinks? (?:down )?onto (?:him|her)|climbs? (?:on top|onto (?:him|her)))/],
-  ["face_to_face", /\b(missionary|on (?:her|his) back\b|pins? (?:her|him) (?:to|against|into) the (?:bed|mattress|sheets)|wraps? (?:her|his) legs around)/],
+  // 2026-10-26, Chud × Sweet: "slides her leg over his hips, settling against him" and "rises up slightly, then sinks
+  // down, taking him inside her" were both drawn with him on top.
+  [
+    "on_top",
+    /\b(on top of (?:him|her)|rid(?:es|ing) (?:him|her)\b|straddl\w*|astride|sinks? (?:down )?onto (?:him|her)|sinks? down,? taking (?:him|her)|climbs? (?:on top|onto (?:him|her))|(?:slides?|swings?|throws?) (?:her|his|a) leg over (?:his|her) (?:hips|waist)|settles? (?:on top|astride))/,
+  ],
+  ["face_to_face", /\b(missionary|on (?:her|his) back\b|pins? (?:her|him) (?:to|against|into) the (?:bed|mattress|sheets)|pin(?:s|ning|ned)? [\w'-]+ (?:beneath|under(?:neath)?) (?:him|her)|wraps? (?:her|his) legs around)/],
 ];
+
+/**
+ * A line that's after it, not a new position (2026-10-26, Coco × Sweet: "pulling Sweet into her lap on the floor,
+ * wrapping an arm around her waist", once it was over, was drawn as sex in a lap on the edge of a bed).
+ */
+const AFTERGLOW =
+  /\b(collaps(?:es|ed|ing)|afterglow|catch(?:es|ing)? (?:her|his|their) breath|breathing (?:slowly )?even(?:s|ing)? out|lying together|lie together|rests? (?:her|his) head on|head on (?:her|his) chest|curls? (?:up )?against|nuzzl(?:es|ing) (?:into|closer)|go(?:es)? limp|went limp|sweat cooling)\b/;
+export const afterglowIn = (text: string): boolean => AFTERGLOW.test(text.toLowerCase().replace(/’/g, "'"));
 
 /** The position a line plainly shows (an act id), or null. */
 export function positionIn(text: string): string | null {
@@ -186,7 +199,7 @@ export function findBeats(
       position = named && allowed(named) ? named : "face_to_face";
       add({ line: i, act: position, kind: "sex", stage });
     } else if (stage >= SEX) {
-      const named = positionIn(text);
+      const named = afterglowIn(text) ? null : positionIn(text);
       if (named && named !== position && allowed(named) && !all().some((b) => (b.kind === "sex" || b.kind === "position") && b.act === named)) {
         position = named;
         add({ line: i, act: named, kind: "position", stage });
@@ -202,10 +215,13 @@ export function findBeats(
   return found;
 }
 
-/** A still's bed, where the place isn't one: "On a bed, having sex…" in a kitchen becomes "Having sex…". */
+/**
+ * A still's bed, where the place isn't one: "On a bed, having sex…" in a kitchen becomes "Having sex…", and "sits on the
+ * edge of a bed" in a ballroom just sits.
+ */
 export function poseHere(pose: string, place: string | null): string {
   if (!place || /\b(bed|bedroom|bunk|hotel|room)\b/i.test(place)) return pose;
-  const cut = pose.replace(/^(?:On a bed|In bed)[,:]\s*/i, "");
+  const cut = pose.replace(/^(?:On a bed|In bed)[,:]\s*/i, "").replace(/ on the edge of a bed\b/gi, "");
   return cut === pose ? pose : `${cut.charAt(0).toUpperCase()}${cut.slice(1)}`;
 }
 
@@ -222,15 +238,21 @@ export function beatFrame(
   limits: Pick<MediaLimits, "hit">,
   /** The owner's own "what's happening" (PictureEdit), in place of the lines'. */
   happeningOwn?: string,
+  /**
+   * The mood (the roleplay, what they're doing), before what's happening: a prompt cut short loses the end, and the
+   * lines' actions are the least of it (2026-10-26: "The mood: The vampire's invitation - the The place:").
+   */
+  mood?: string,
 ): string | null {
   const act = actById(beat.act);
   if (!act) return null;
   const pose = poseHere(actFor(act, cast).pose, place);
   const peak = beat.kind === "climax" ? " Both of them at the peak, faces flushed, eyes closed." : "";
-  const base = `${pose}${peak} ${FRAMING_WORDS[act.framing]}`;
   const ok = (words: string) => checkAdultText({ words }).ok && !crossesTaboo(words) && !limits.hit(words);
+  const felt = mood ? withoutNames(mood, cast).replace(/[.\s]+$/, "") : "";
+  const base = `${pose}${peak} ${FRAMING_WORDS[act.framing]}${felt && ok(felt) ? ` The mood: ${felt}.` : ""}`;
   if (!ok(base)) return null;
-  const happening = withoutNames(happeningOwn ?? recentActions([...moment], 3).join("; "), cast);
+  const happening = withoutNames(happeningOwn ?? recentActions([...moment], 3).join("; "), cast).replace(/[.\s]+$/, "");
   return happening && ok(happening) ? `${base} What is happening: ${happening}.` : base;
 }
 
@@ -346,10 +368,8 @@ export async function planBeat(db: Db, beat: Pick<BeatRow, "owner_id" | "scene_i
   const own = cleanEdit(edit);
   const words = own ? Object.values(own).join(" ") : "";
   if (words && !(guideSafe([words]) && !limits.hit(words))) return { ok: false, status: 422, message: "That crosses one of the lines After Dark never crosses, or one of your limits." };
-  const frame = beatFrame(beat, cast, moment, beat.place, limits, own?.happening);
-  if (!frame) return { ok: false, status: 422, message: "That moment crosses one of the lines." };
-  const mood = own?.mood ?? fields.mood;
-  const framed = `${frame}${mood ? ` The mood: ${withoutNames(mood, cast)}.` : ""}`;
+  const framed = beatFrame(beat, cast, moment, beat.place, limits, own?.happening, own?.mood ?? fields.mood);
+  if (!framed) return { ok: false, status: 422, message: "That moment crosses one of the lines." };
   const place = own?.place ?? withSituation(beat.place, situation);
   const where = place ? placeWords(place, cast) : null;
   // Their own outfits, the night's guess unless the owner wrote their own (stage clothes words past it, clothesAt).
@@ -576,8 +596,11 @@ export async function drawNightMoment(
 /** The moment a line is, for a picture the owner picks there: the act its position or stage says, and its stage. */
 function chosenAt(scene: { lines: readonly { text: string; stage?: number }[]; stage: number }, at: number): { act: string; stage: number } {
   const stage = scene.lines[at]?.stage ?? scene.stage;
-  const position = scene.lines.slice(0, at + 1).map((l) => positionIn(l.text)).filter(Boolean).at(-1) ?? null;
-  return { act: stage >= SEX ? (position ?? "face_to_face") : stage >= UNDRESSING ? "undress" : stage >= 2 ? "kiss" : "close", stage };
+  const position = scene.lines.slice(0, at + 1).map((l) => (afterglowIn(l.text) ? null : positionIn(l.text))).filter(Boolean).at(-1) ?? null;
+  // Lying together after it, with no new position named since: the afterglow, not sex.
+  const recent = scene.lines.slice(Math.max(0, at - 1), at + 1);
+  const after = stage >= SEX && recent.some((l) => afterglowIn(l.text)) && !recent.some((l) => positionIn(l.text) && !afterglowIn(l.text));
+  return { act: after ? "afterglow" : stage >= SEX ? (position ?? "face_to_face") : stage >= UNDRESSING ? "undress" : stage >= 2 ? "kiss" : "close", stage };
 }
 
 /**
