@@ -12,6 +12,17 @@ const secs = (t: number) => `${(Math.round(t * 10) / 10).toFixed(1)} s`;
 type Done = { text: string; media?: Media; error?: boolean };
 
 /**
+ * Keep going from a moment of a shot (lib/adult/clips.ts): its frame cut and checked first (the moments route, the one
+ * ffmpeg runs in), then a new clip from it. Resolves to the clips route's answer, or null when nothing reached the server.
+ */
+export async function keepGoingFromMoment(reelId: string, mediaId: string, at: number | "end", mode: "seamless" | "fresh" = "seamless") {
+  const cut = await requestJson("/api/admin/after-dark/moments", { action: "frame", media_id: mediaId, at }).catch(() => null);
+  if (!cut?.ok) return cut;
+  const frame = cut.data.frame as { id: string };
+  return requestJson("/api/admin/after-dark/clips", { continue: reelId, media_id: mediaId, frame_id: frame.id, mode }).catch(() => null);
+}
+
+/**
  * A clip's moments (lib/adult/moments.ts; David, 2026-10-26: "save a image or offering a boomerang for a clip … continue
  * where it left off"): 📸 the frame on screen kept as a picture, ↔ a boomerang and ∞ a loop of what its trim keeps, and,
  * for a shot of one of their videos, ▶▶ keep going from the second it's paused on (lib/adult/clips.ts), straight on from
@@ -54,7 +65,7 @@ export default function MomentTools({
     const at = Math.round(now() * 100) / 100;
     setBusy("keep");
     setDone(null);
-    const res = await requestJson("/api/admin/after-dark/clips", { continue: keepGoing.reelId, media_id: mediaId, at, mode }).catch(() => null);
+    const res = await keepGoingFromMoment(keepGoing.reelId, mediaId, at, mode);
     setBusy(null);
     if (!res) return setDone({ text: "That didn't reach the server. Check your connection and try again.", error: true });
     if (!res.ok) return setDone({ text: res.message, error: true });

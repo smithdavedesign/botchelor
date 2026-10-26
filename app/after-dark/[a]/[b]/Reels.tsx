@@ -12,7 +12,7 @@ import RateMedia from "./RateMedia";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import type { Trim } from "@/lib/adult/trim";
 import TrimPanel from "../../TrimPanel";
-import MomentTools from "../../MomentTools";
+import MomentTools, { keepGoingFromMoment } from "../../MomentTools";
 import type { Media } from "@/lib/adult/media";
 import { trimStep } from "../../trimPlayback";
 
@@ -252,8 +252,9 @@ function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[];
     if (!from) return;
     setAsking(true);
     setNote(null);
-    // From where it ended (lib/adult/moments.ts): the next shot starts on the clip's last frame.
-    const res = await requestJson("/api/admin/after-dark/clips", { continue: from.id, at: "end" }).catch(() => null);
+    // From where it ended (lib/adult/moments.ts): the next shot starts on the clip's last frame (its last shot that plays).
+    const last = [...from.shots].reverse().find((x) => playable(x));
+    const res = last?.media_id ? await keepGoingFromMoment(from.id, last.media_id, "end") : await requestJson("/api/admin/after-dark/clips", { continue: from.id }).catch(() => null);
     setAsking(false);
     if (!res) return setNote({ text: "That didn't reach the server. Check your connection and try again." });
     if (!res.ok) return setNote({ text: res.message, busy: (res.data.busy as BusyReel | undefined) ?? undefined });

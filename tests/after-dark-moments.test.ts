@@ -111,6 +111,13 @@ async function ready(cookie: string, ownerId: string) {
 }
 const clip = (cookie: string, body: Record<string, unknown>) => call(clipsPost, "/api/admin/after-dark/clips", body, cookie);
 const moments = (cookie: string, body: Record<string, unknown>) => call(momentsPost, "/api/admin/after-dark/moments", body, cookie);
+/** Keep going from a moment: its frame cut first (the moments route), then the clip from it (the clips route). */
+async function keepFrom(cookie: string, reelId: string, mediaId: string, at: number | "end", extra: Record<string, unknown> = {}) {
+  const cut = await moments(cookie, { action: "frame", media_id: mediaId, at });
+  if (cut.status !== 200) return cut;
+  const frame = (await cut.json()).frame as { id: string };
+  return clip(cookie, { continue: reelId, media_id: mediaId, frame_id: frame.id, ...extra });
+}
 const advance = async (id: string, cookie: string) => (await (await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${id}`, { headers: { cookie } }))).json()).reel as Reel;
 /** A clip of the two of them kissing, made and collected: its reel, and its video's id. */
 async function kissClip(cookie: string): Promise<{ reel: Reel; video: string }> {
@@ -211,7 +218,7 @@ describe("keep going from here", () => {
     const { reel, video } = await kissClip(cookie);
     hive.length = 0;
     seen.length = 0;
-    const res = await clip(cookie, { continue: reel.id, at: "end" });
+    const res = await keepFrom(cookie, reel.id, video, "end");
     expect(res.status).toBe(200);
     const next = (await res.json()).reel as Reel;
     expect(next.clip).toMatchObject({ from: reel.id, cut: { video, seamless: true } });
@@ -231,9 +238,9 @@ describe("keep going from here", () => {
     await ready(cookie, id);
     const seen = fakeVenice();
     fakeHive();
-    const { reel } = await kissClip(cookie);
+    const { reel, video } = await kissClip(cookie);
     seen.length = 0;
-    const next = (await (await clip(cookie, { continue: reel.id, at: 1.2, mode: "fresh" })).json()).reel as Reel;
+    const next = (await (await keepFrom(cookie, reel.id, video, 1.2, { mode: "fresh" })).json()).reel as Reel;
     expect(next.clip!.cut).toMatchObject({ at: 1.2, seamless: false });
     const edit = seen.find((s) => s.path === "/image/multi-edit")!;
     const pictures = (edit.body.images as string[]).map(mediaOf);
@@ -249,12 +256,12 @@ describe("keep going from here", () => {
     fakeHive();
     let from = (await kissClip(cookie)).reel;
     for (let k = 0; k < SEAMLESS_RUN_MAX; k++) {
-      const next = (await (await clip(cookie, { continue: from.id, at: "end" })).json()).reel as Reel;
+      const next = (await (await keepFrom(cookie, from.id, from.shots[0].media_id!, "end")).json()).reel as Reel;
       expect(next.clip!.cut!.seamless).toBe(true);
       from = await advance(next.id, cookie);
     }
     seen.length = 0;
-    const res = await (await clip(cookie, { continue: from.id, at: "end" })).json();
+    const res = await (await keepFrom(cookie, from.id, from.shots[0].media_id!, "end")).json();
     expect((res.reel as Reel).clip!.cut!.seamless).toBe(false);
     expect(res.note).toMatch(/fresh picture of their faces/);
     expect(seen.some((s) => s.path === "/image/multi-edit")).toBe(true);
@@ -268,12 +275,14 @@ describe("keep going from here", () => {
     const { reel, video } = await kissClip(cookie);
     // The clip as if it were a shot of the night's video.
     await t.db.query(`update adult_reels set kind = 'night', clip = null where id = $1`, [reel.id]);
-    const res = await clip(cookie, { continue: reel.id, media_id: video, at: 2 });
+    const res = await keepFrom(cookie, reel.id, video, 2);
     expect(res.status).toBe(200);
     const next = (await res.json()).reel as Reel;
     expect(next.clip).toMatchObject({ from: null, label: "Kept going", cut: { video, seamless: true } });
-    // A shot that isn't in that video isn't kept going from.
-    expect((await clip(cookie, { continue: reel.id, media_id: "not-a-shot", at: 2 })).status).toBe(404);
+    // A shot that isn't in that video isn't kept going from; nor is a frame once a clip has started from it.
+    expect((await clip(cookie, { continue: reel.id, media_id: "not-a-shot", frame_id: next.shots[0].frame_id })).status).toBe(404);
+    expect((await advance(next.id, cookie)).status).toBe("ready");
+    expect((await clip(cookie, { continue: reel.id, media_id: video, frame_id: next.shots[0].frame_id })).status).toBe(404);
   });
 });
 

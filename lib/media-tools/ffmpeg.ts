@@ -27,11 +27,18 @@ export function setFfmpegForTests(r: Runner | null): void {
   runnerForTests = r;
 }
 
-/** Where the binary is: FFMPEG_PATH when it's set (a system ffmpeg), else ffmpeg-static's. */
+/**
+ * Where the binary is: FFMPEG_PATH when it's set (a system ffmpeg), else ffmpeg-static's. The package is loaded by a name
+ * made at run time, never imported by its name: ffmpeg-static says where its binary is with path.join(__dirname,
+ * "ffmpeg"), which the build's file tracer follows into every route that imports this file, however far away (2026-10-26:
+ * the ~75 MB binary in 236 of 247 routes, and production's deploy ran out of disk). The binary ships with the one route
+ * that runs it (next.config.ts outputFileTracingIncludes; tests/media-tools-tracing.test.ts holds it there).
+ */
 async function binary(): Promise<string> {
   const own = process.env.FFMPEG_PATH;
   if (own) return own;
-  const mod = (await import("ffmpeg-static")) as { default?: string | null };
+  const name = ["ffmpeg", "static"].join(String.fromCharCode(45));
+  const mod = (await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ name)) as { default?: string | null };
   const path = mod.default ?? null;
   if (!path) throw new FfmpegError("ffmpeg isn't available on this server");
   return path;
