@@ -25,7 +25,7 @@ import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { sharedWith } from "./shares";
 import { fallbackNote, providerError, runMedia, type Ran } from "./fallback";
 import { hivePausedMessage, HivePausedError, hivePausedUntil } from "./hive-limit";
-import { attireOf, nudeSql } from "./attire";
+import { attireOf, nudeSql, wearsSomething } from "./attire";
 import { PICTURE_PRESETS, type PresetId } from "./rating-tags";
 import { runModel } from "./replicate";
 import { choosePreset, faceReferenceId, NO_STEERING, steeringFor, withSteering } from "./steering";
@@ -454,7 +454,7 @@ async function makePictureLogged(db: Db, ownerId: string, opts: PictureOpts): Pr
 async function storePicture(
   db: Db,
   ownerId: string,
-  opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null; preset?: string | null } & PictureScene,
+  opts: { prompt: string; kind: "baseline" | "scene"; character_id: string; character_b?: string | null; preset?: string | null; source_image?: string | null } & PictureScene,
   file: { bytes: Buffer; mime: string },
   url: string | null,
   made: { provider: string; fell_back: boolean; model?: string | null },
@@ -467,8 +467,8 @@ async function storePicture(
   const preset = opts.preset ?? null;
   const attire = attireOf(opts.kind, opts.prompt);
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place, provider, fell_back, model, preset, attire, request) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb)`,
-    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place, made.provider, made.fell_back, made.model ?? null, preset, attire, currentRequests()],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place, provider, fell_back, model, preset, attire, request, source_image) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19)`,
+    [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place, made.provider, made.fell_back, made.model ?? null, preset, attire, currentRequests(), opts.source_image ?? null],
   );
   return {
     id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null, chapter, place,
@@ -508,7 +508,21 @@ export async function ensureBaseline(db: Db, ownerId: string, c: Character): Pro
  * The character's nude baseline, for undressed moments (lib/adult/attire.ts), made the first time it's needed: the same
  * look and framing as their baseline, without the outfit. A character who wears nothing has one already, their baseline.
  */
-export async function ensureNudeBaseline(db: Db, ownerId: string, c: Character): Promise<Media | null> {
+export async function ensureNudeBaseline(db: Db, ownerId: string, c: Character, editFace?: FaceEdit): Promise<Media | null> {
+  // From the face this viewer keeps (2026-10-26: a nude one drawn from words alone was a new person, and every picture at
+  // sex after it showed her): an edit of it, undressed, once per face. Words alone only with no face to edit, or no editor.
+  // One who wears nothing: their baseline is nude already.
+  const face = editFace && wearsSomething(c, ownerId) ? await faceReferenceId(db, ownerId, c.id) : null;
+  if (face && editFace) {
+    const { rows } = await db.query<{ nude: boolean; from_it: boolean }>(
+      `select ${nudeSql("i")} as nude,
+              exists (select 1 from adult_images n where n.source_image = i.id and n.kind = 'baseline' and n.status = 'ready' and ${nudeSql("n")}) as from_it
+         from adult_images i where i.id = $1`,
+      [face],
+    );
+    if (rows[0]?.nude || rows[0]?.from_it) return null;
+    return (await withRequestLog(() => nudeFromFace(db, ownerId, c, face, editFace))).value;
+  }
   const have = (
     await db.query<{ id: string }>(
       `select id from adult_images where character_id = $1 and character_b is null and kind = 'baseline' and status = 'ready' and ${nudeSql("adult_images")} limit 1`,
@@ -517,6 +531,33 @@ export async function ensureNudeBaseline(db: Db, ownerId: string, c: Character):
   ).rows[0];
   if (have) return null;
   return makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId, undefined, { nude: true }), kind: "baseline", character_id: c.id });
+}
+
+/** One picture edited from a face (lib/adult/reels.ts nudeBaselines: the multi-image edit on the configured provider). */
+export type FaceEdit = (prompt: string, faceId: string) => Promise<{ bytes: Buffer; mime: string; provider: string; fell_back: boolean; model: string }>;
+
+/** A nude baseline's prompt as an edit of the face kept: the same person as Picture 1, the same framing, undressed. */
+export function nudeFromFacePrompt(c: Character, viewer?: string | null): string {
+  return `Make one photograph of the same person as in Picture 1: the same face, hair, skin tone and body, without their clothes. ${baselinePrompt(c, viewer, "natural light", { nude: true })}`;
+}
+
+/** The nude baseline edited from `faceId`, held to the same lines, limits and output check as any picture. */
+async function nudeFromFace(db: Db, ownerId: string, c: Character, faceId: string, edit: FaceEdit): Promise<Media> {
+  if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
+  const capped = await overCap(db, ownerId, "pictures");
+  if (capped) throw new Error(capped);
+  const prompt = nudeFromFacePrompt(c, ownerId);
+  const check = checkAdultText({ prompt });
+  if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
+  const gate = await mediaGate(db, { owner: ownerId });
+  if (!gate.ok) {
+    await logRejection(db, ownerId, "baseline", gate.reason);
+    throw new HivePausedError(gate.until, gate.message);
+  }
+  const { bytes, mime, ...made } = await edit(prompt, faceId);
+  const verdict = await checkMedia(db, { base64: bytes.toString("base64"), mime }, "image", { owner: ownerId });
+  if (!verdict.ok) return discarded(db, ownerId, "baseline", verdict);
+  return storePicture(db, ownerId, { prompt, kind: "baseline", character_id: c.id, source_image: faceId }, { bytes, mime }, null, made);
 }
 
 /**
