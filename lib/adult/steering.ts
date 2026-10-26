@@ -148,7 +148,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
  *  4. else any baseline, the newest.
  * A dressed baseline comes before a nude one in 2 to 4: a character who wears something keeps it on until they undress.
  * `nude`, for an undressed moment: only a nude baseline (lib/adult/attire.ts). The nude face they picked, else the face
- * they picked if it's nude, else the same order among nude baselines. Null when the character has no such baseline yet
+ * they picked if it's nude, else the nude one edited from their face, else the same order among nude baselines. Null when the character has no such baseline yet
  * (the caller makes one: lib/adult/media.ts ensureNudeBaseline).
  */
 export async function faceReferenceId(db: Db, viewerId: string, characterId: string, opts: { nude?: boolean } = {}): Promise<string | null> {
@@ -164,6 +164,19 @@ export async function faceReferenceId(db: Db, viewerId: string, characterId: str
     ).rows[0]?.image_id ?? null;
   const picked = nude ? ((await pickedIn("adult_nude_refs")) ?? (await pickedIn("adult_face_refs"))) : await pickedIn("adult_face_refs");
   if (picked) return picked;
+  // Undressed, next the nude one edited from the face they keep (lib/adult/media.ts ensureNudeBaseline), unless 👎'd.
+  const face = nude ? await faceReferenceId(db, viewerId, characterId) : null;
+  if (face) {
+    const fromFace = (
+      await db.query<{ id: string }>(
+        `select i.id from adult_images i left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $1
+          where i.source_image = $2 and i.kind = 'baseline' and i.status = 'ready' and ${nudeSql("i")} and coalesce(r.rating, 0) >= 0
+          order by i.created_at desc limit 1`,
+        [viewerId, face],
+      )
+    ).rows[0]?.id;
+    if (fromFace) return fromFace;
+  }
   const { rows } = await db.query<{ id: string }>(
     `select i.id from adult_images i
       left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $1

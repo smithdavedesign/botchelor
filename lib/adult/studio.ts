@@ -900,7 +900,7 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
   try {
     for (const x of p.people) await ensureBaseline(db, viewer, x);
     // From sex on, their nude faces: an edit keeps what the pictures it starts from wear (lib/adult/attire.ts).
-    bases = (plan.stage >= NUDE_FROM ? await nudeBaselines(db, viewer, ca, cb) : null) ?? (await baselines(db, ca.id, cb.id, viewer));
+    bases = (plan.stage >= NUDE_FROM ? await nudeBaselines(db, viewer, ca, cb, baseUrl) : null) ?? (await baselines(db, ca.id, cb.id, viewer));
   } catch (err) {
     return fail(err instanceof HivePausedError ? 503 : 502, "no_face", `A first picture of each of them couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).`);
   }

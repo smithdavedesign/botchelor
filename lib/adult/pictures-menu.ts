@@ -261,7 +261,7 @@ export async function keepPictureOfBoth(
   try {
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
     // At sex (NUDE_FROM), from their nude baselines: an edit keeps what the pictures it starts from wear (lib/adult/attire.ts).
-    const nude = (plan.stage ?? 0) >= NUDE_FROM ? await nudeBaselines(db, ownerId, ca, cb) : null;
+    const nude = (plan.stage ?? 0) >= NUDE_FROM ? await nudeBaselines(db, ownerId, ca, cb, baseUrl) : null;
     const bases = nude ?? (await baselines(db, ca.id, cb.id, ownerId));
     if (!bases) throw new Error("a picture of each of them is needed first");
     const faces = bases.map((id) => signedMediaUrl(id, baseUrl));

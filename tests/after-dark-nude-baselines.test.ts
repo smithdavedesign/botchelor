@@ -158,6 +158,32 @@ describe("a nude baseline", () => {
   });
 });
 
+describe("a nude baseline edited from the face kept", () => {
+  it("is an edit of the face they picked, not a new person from words, and is the face their undressed moments keep", async () => {
+    const { id, cookie } = await admin();
+    await setUp(cookie);
+    await dressJuniper();
+    fakeHive();
+    const { pictures, edits } = fakeVenice();
+    // An older words-only nude one exists (the 2026-10-26 bug's): it's not her picked face, so it isn't kept.
+    await baseline("nude-from-words", id, JUNIPER, NUDE, 20);
+    await baseline("her-face", id, JUNIPER, DRESSED, 10);
+    await setFaceReference(t.db, id, JUNIPER, "her-face");
+    const juniper = (await loadCharacter(t.db, JUNIPER))!;
+    const edit = vi.fn(async () => ({ bytes: Buffer.from(PNG), mime: "image/png", provider: "venice", fell_back: false, model: "qwen-edit-uncensored" }));
+    const made = (await ensureNudeBaseline(t.db, id, juniper, edit))!;
+    expect(edit).toHaveBeenCalledTimes(1);
+    expect(edit.mock.calls[0]).toEqual([expect.stringMatching(/^Make one photograph of the same person as in Picture 1: .*\. Nude, alone, waist-up/), "her-face"]);
+    expect(pictures).toHaveLength(0);
+    expect((await t.db.query(`select attire, source_image from adult_images where id = $1`, [made.id])).rows[0]).toEqual({ attire: "nude", source_image: "her-face" });
+    expect(await faceReferenceId(t.db, id, JUNIPER, { nude: true })).toBe(made.id);
+    // Once per face: asked again, nothing new.
+    expect(await ensureNudeBaseline(t.db, id, juniper, edit)).toBeNull();
+    expect(edit).toHaveBeenCalledTimes(1);
+    expect(edits).toHaveLength(0);
+  });
+});
+
 describe("the face a moment starts from", () => {
   it("is a dressed baseline for a dressed moment, even when a nude one is newer, and only a nude one undressed", async () => {
     const { id } = await admin();
@@ -205,10 +231,11 @@ describe("pictures and videos at sex", () => {
     expect(res.status).toBe(200);
     const clip = (await res.json()).reel as Reel;
     expect(clip.status).toBe("making");
-    // Juniper's nude baseline was drawn first; Rafe's own baseline is nude already.
-    expect(pictures).toHaveLength(1);
+    // Juniper's nude baseline was made first, an edit of her face; Rafe's own baseline is nude already.
+    expect(pictures).toHaveLength(0);
+    expect(edits[0].images).toEqual(["base-juniper"]);
     const nudeJuniper = (await t.db.query<{ id: string }>(`select id from adult_images where character_id = $1 and attire = 'nude'`, [JUNIPER])).rows[0].id;
-    expect(edits[0].images.slice(0, 2)).toEqual([nudeJuniper, "base-rafe"]);
+    expect(edits[1].images.slice(0, 2)).toEqual([nudeJuniper, "base-rafe"]);
   });
 
   it("keep a dressed moment on the dressed baseline", async () => {
@@ -231,10 +258,11 @@ describe("pictures and videos at sex", () => {
     const kept = await keepPictureOfBoth(t.db, id, [ca, cb], { place: null, stage: 4, promptFor: () => "Make one photograph of the woman from Picture 1 and the man from Picture 2 together. Both are adults." }, ctx);
     expect(kept.ok).toBe(true);
     const nudeJuniper = (await t.db.query<{ id: string }>(`select id from adult_images where character_id = $1 and attire = 'nude'`, [JUNIPER])).rows[0].id;
-    expect(edits[0].images).toEqual([nudeJuniper, "base-rafe"]);
+    // Her nude face first (an edit of her face), then the two of them from it.
+    expect(edits.map((e) => e.images)).toEqual([["base-juniper"], [nudeJuniper, "base-rafe"]]);
     // Undressing (stage 3) is still the dressed baseline: down to what they wear.
     await keepPictureOfBoth(t.db, id, [ca, cb], { place: null, stage: 3, promptFor: () => "Make one photograph of the woman from Picture 1 and the man from Picture 2 together. Both are adults." }, ctx);
-    expect(edits[1].images).toEqual(["base-juniper", "base-rafe"]);
+    expect(edits[2].images).toEqual(["base-juniper", "base-rafe"]);
   });
 
   it("start each shot of a whole night from the faces of its own moment: dressed before sex, nude at it", async () => {
