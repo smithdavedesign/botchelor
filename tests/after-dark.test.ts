@@ -1271,7 +1271,17 @@ describe("the video of the night", () => {
         ],
         "woman",
       ),
-    ).toEqual(["the Latina woman", "the Caucasian woman"]);
+    ).toEqual(["the woman with a long high ponytail", "the Caucasian woman"]);
+    // Two women whose hair differs: by their hair, before eyes too small to tell (Sweet × Juniper, 2026-10-26).
+    expect(
+      tellApart(
+        [
+          "Caucasian, long straight rich chocolate-brown hair falling past the shoulders, hazel eyes",
+          "Caucasian, pale freckled skin, long auburn hair, calm grey eyes",
+        ],
+        "woman",
+      ),
+    ).toEqual(["the woman with long straight rich chocolate-brown hair", "the woman with long auburn hair"]);
     // The same background: the hair's style, then the build.
     expect(tellApart(["Caucasian, rich chocolate-brown hair tied back in a high ponytail", "Caucasian, rich chocolate-brown hair"], "woman")).toEqual([
       "the woman with a high ponytail",

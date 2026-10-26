@@ -662,20 +662,19 @@ function craftLines(
   if (now.stage >= STAGES.length - 1) {
     const climax = recentClimax(lines);
     const again = "one of them starts it in a line (asks, or reaches for the other) and the other answers";
-    // Every climax this chapter (2026-10-26, Coco × Sweet: three in 66 lines, each followed by "the night is still
-    // young" and another round): past the afterglow, the night moves on instead of going round again.
+    // Every climax this chapter (2026-10-26, Coco × Sweet: three in 66 lines, each the same round again). What they do
+    // after is theirs to decide (David: "I don't want to dictate what they decide … but I do want the user experience of
+    // watching to be good"): the writer is held only to not replaying what the night has already shown.
     const climaxes = climaxesIn(lines);
     const since = climaxes.length ? lines.length - 1 - climaxes[climaxes.length - 1] : -1;
-    const moveOn =
-      "move the night on: a little later (a time skip: later that night, the small hours, the morning) or something new they do together (food from the kitchen, a shower, a walk, talking about tomorrow, something that interrupts them), shown in the first line's action";
+    const theirs =
+      "What happens next is theirs to decide, as these two would: rest, talk, laugh, get up for something, fall asleep, or go again. Whatever they choose is something the night hasn't shown yet, not a replay";
     rules.push(
       climax
         ? `- They've reached a climax (${first(climax.who)}: "${climax.text.replace(/\*[^*]*\*/g, "").trim().slice(0, 60)}"): now the afterglow, a resolution. They check in with each other, stay warm, make each other laugh; it doesn't start over unless ${again}.`
-        : climaxes.length >= 2
-          ? `- They've already had ${climaxes.length} climaxes in this part of the night: it winds down now. No more rounds unless the owner's steer asks for one; ${moveOn}, or let them drift toward sleep.`
-          : since >= 0
-            ? `- They've had their climax and the afterglow (${since} lines ago): don't start another round on your own. ${moveOn.replace(/^m/, "M")}. Another round only when ${again}, and then it builds again from kissing and touching, never straight back mid-act.`
-            : `- This is the last stage: write toward a climax, then a resolution or an afterglow beat (checking in, warmth, a joke), instead of looping. The build-up ("almost there", "so close") is said once, not again and again: then the climax comes. After an afterglow or aftercare it only picks up again when ${again}; it never just resumes.`,
+        : since >= 0
+          ? `- They've had ${climaxes.length > 1 ? `${climaxes.length} climaxes` : "their climax"} and the afterglow (${since} lines ago). ${theirs}: if they go again, it's because ${again}, and it's new (another pace, place or feeling), never the same round over${climaxes.length > 1 ? ", and the more they've done tonight, the more the next thing differs from it" : ""}.`
+          : `- This is the last stage: write toward a climax, then a resolution or an afterglow beat (checking in, warmth, a joke), instead of looping. The build-up ("almost there", "so close") is said once, not again and again: then the climax comes. After an afterglow or aftercare it only picks up again when ${again}; it never just resumes.`,
     );
   }
   const notes: string[] = [];
@@ -1038,7 +1037,7 @@ function carryLines(c: ChapterCarry, nameOf: (who: "a" | "b") => string): string
     return [
       `A new chapter of the night starts here. The last one ended in an afterglow, at ${c.place}, after ${STAGES[c.stage]}; its last lines:`,
       ...tail,
-      "This chapter opens a little later, on something new: a time skip (later that night, the small hours, the morning) or something they do together (food, a shower, a walk, talking in the dark, something that interrupts them), shown in the first line's action. Don't repeat the afterglow and don't open mid-act. It only turns intimate again when one of them starts it in a line and the other answers, and then it builds again.",
+      "How this chapter opens is theirs to decide, straight on or a while later, as these two would; it opens on something the night hasn't shown yet, not the afterglow again. It only turns intimate again when one of them starts it in a line and the other answers.",
     ];
   }
   return [

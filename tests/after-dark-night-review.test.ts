@@ -8,7 +8,9 @@ import type { Character } from "@/lib/character";
 // David's two test nights, 2026-10-26 (Coco × Sweet, Chud × Sweet): the small things.
 describe("the night's small things", () => {
   it("nobody calls out their own name: the name goes, the rest stays", () => {
-    expect(withoutSelfAddress("*Her whole body tenses as she shudders.* Fuck... Coco.", "Coco Delacroix-Santos", "Sweet thang")).toBe("*Her whole body tenses as she shudders.* Fuck.");
+    expect(withoutSelfAddress("*Her whole body tenses as she shudders.* Fuck... Coco.", "Coco Delacroix-Santos", "Sweet thang")).toBe("*Her whole body tenses as she shudders.* Fuck...");
+    // Every other line as written, its pauses kept (2026-10-26: each "..." had become ".").
+    expect(withoutSelfAddress("*Her palms press flat against the glass.* It's... screaming for you.", "Juniper Vale", "Sweet thang")).toBe("*Her palms press flat against the glass.* It's... screaming for you.");
     expect(withoutSelfAddress("Yes, Coco. Right there.", "Coco Delacroix-Santos", "Sweet thang")).toBe("Yes. Right there.");
     expect(withoutSelfAddress("Coco.", "Coco Delacroix-Santos", "Sweet thang")).toBeNull();
     // The other's name, a name in an action, and saying who they are, stay.

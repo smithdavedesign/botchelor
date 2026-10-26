@@ -416,14 +416,18 @@ describe("(7) the arc", () => {
     expect(climaxesIn(lines(["a", "*her body convulses* Yes."], ["b", "*comes apart beneath her*"], ["a", "*holds her*"], ["b", "Stay."], ["a", "Again."], ["b", "*goes over the edge again*"]))).toEqual([0, 5]);
   });
 
-  it("past the afterglow the night moves on; after two, it winds down", () => {
+  it("past the afterglow, what comes next is theirs to choose, held only to not replaying the night", () => {
     const climax = { who: "b" as const, text: "*her whole body convulses* Coco." };
     const quiet = (n: number) => Array.from({ length: n }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*strokes her hair ${i}* Mm.` }));
     const once = v2([...banter(4), climax, ...quiet(14)], { stage: 4, linesAtStage: 20 })[0].content;
-    expect(once).toContain("- They've had their climax and the afterglow (14 lines ago): don't start another round on your own. Move the night on: a little later");
+    expect(once).toContain("- They've had their climax and the afterglow (14 lines ago). What happens next is theirs to decide, as these two would");
+    expect(once).toContain("never the same round over.");
     expect(once).not.toContain("write toward a climax");
+    // David, 2026-10-26: "I don't want to dictate what they decide": no list of things to do, no "winds down".
+    expect(once).not.toMatch(/food from the kitchen|a shower|winds down|don't start another round/);
     const twice = v2([...banter(4), climax, ...quiet(6), climax, ...quiet(14)], { stage: 4, linesAtStage: 20 })[0].content;
-    expect(twice).toContain("- They've already had 2 climaxes in this part of the night: it winds down now.");
+    expect(twice).toContain("- They've had 2 climaxes and the afterglow (14 lines ago).");
+    expect(twice).toContain("the more they've done tonight, the more the next thing differs from it.");
   });
 
   it("measures how many lines carry a sensory detail", () => {

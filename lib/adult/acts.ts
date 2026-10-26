@@ -286,8 +286,8 @@ export function fillAct(text: string, x: { tag: string; noun: ReelPerson["noun"]
   const [xp, xo] = PRONOUNS[x.noun];
   const [yp, yo] = PRONOUNS[y.noun];
   const filled = text
-    .replace(/\{X's\}/g, `${x.tag}'s`)
-    .replace(/\{Y's\}/g, `${y.tag}'s`)
+    .replace(/\{X's\}/g, possessive(x.tag))
+    .replace(/\{Y's\}/g, possessive(y.tag))
     .replace(/\{Xp\}/g, xp)
     .replace(/\{Yp\}/g, yp)
     .replace(/\{Xo\}/g, xo)
@@ -302,6 +302,9 @@ export function fillAct(text: string, x: { tag: string; noun: ReelPerson["noun"]
  * An act as a picture model reads it, for these two, with the two of them in by how they look: its pose, its still (the
  * pose and what they wear in a clip of it), its motion and its next.
  */
+/** "the woman's", but "the woman with calm grey eyes'" never "eyes's". */
+const possessive = (tag: string): string => (/s$/i.test(tag) && !/\b(?:woman|man|person)$/i.test(tag) ? `${tag}'` : `${tag}'s`);
+
 export function actFor(act: Act, cast: readonly [ReelPerson, ReelPerson], swap = false): { pose: string; frame: string; motion: string; next: string; lead: 0 | 1 } {
   const { x, y } = rolesFor(act, cast, swap);
   const [px, py] = [cast[x], cast[y]];

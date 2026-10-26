@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { actById, actFor } from "@/lib/adult/acts";
 import { afterglowIn, beatFrame, findBeats, poseHere, positionIn } from "@/lib/adult/beats";
 import { fitPrompt, type ReelPerson } from "@/lib/adult/reels";
 
@@ -35,6 +36,13 @@ describe("the still", () => {
     const lap = "Having sex sitting up: the woman sits on the edge of a bed and the man sits astride the woman's lap, facing her.";
     expect(poseHere(lap, "the masquerade ballroom")).toBe("Having sex sitting up: the woman sits and the man sits astride the woman's lap, facing her.");
     expect(poseHere(lap, "her bedroom")).toBe(lap);
+    expect(poseHere("On a bed: the woman lies back against the pillows.", "Sweet's living room")).toBe("The woman lies back against the pillows.");
+    expect(poseHere("On a bed: the woman lies back against the pillows.", "the hotel room")).toBe("On a bed: the woman lies back against the pillows.");
+  });
+
+  it("a tag ending in s takes an apostrophe, not 's", () => {
+    const pose = actFor(actById("close")!, [person("the woman with calm grey eyes", "woman"), person("the woman", "woman")]).pose;
+    expect(pose).toContain("the woman with calm grey eyes' hand resting on the woman's arm");
   });
 
   it("the mood comes before the lines' actions, each said once, whole", () => {
