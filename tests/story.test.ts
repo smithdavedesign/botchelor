@@ -9,7 +9,8 @@ import { connections, findMilestones, loadCharacterMemory, metBefore, pairStatus
 import { buildReflectionMessages } from "@/lib/reflection";
 import type { DramaAnswer, DramaQuestion, Ending } from "@/lib/rules";
 import { checkFields } from "@/lib/safety";
-import { weekIdOf } from "@/lib/season-window";
+// The week a "this week" update is stored for (lib/life.ts: weekIdOf), not the monthly season (lib/season-cast.ts).
+import { weekIdOf as seasonIdAt } from "@/lib/season-window";
 import { buildDate, DEFAULT_DATE_REQUEST } from "@/lib/simulation";
 import { api, newUserCookie, startTestDb, validCharacter } from "./helpers";
 
@@ -202,19 +203,17 @@ describe("a life that moves", () => {
     expect(res.status).toBe(201);
     const id = (await res.json()).id;
     const stored = (await t.db.query<Any>(`select this_week from characters where id = $1`, [id])).rows[0].this_week;
-    // this_week is stamped with the week's id (lib/life.ts), not the season's: since seasons went monthly (2026-10-19)
-    // the two only matched in the first week.
-    expect(stored).toEqual({ text: "Adopted a very old cat", season: weekIdOf(new Date()) });
+    expect(stored).toEqual({ text: "Adopted a very old cat", season: seasonIdAt(new Date()) });
     expect((await loadCharacter(t.db, id))!.thisWeek).toBe("Adopted a very old cat");
 
     expect((await api.editCharacter(id, { this_week: "Watched porn all week" }, owner)).status).toBe(422);
     expect((await api.editCharacter(id, { this_week: null }, owner)).status).toBe(200);
     expect((await t.db.query<Any>(`select this_week from characters where id = $1`, [id])).rows[0].this_week).toBeNull();
-    expect((await loadCharacter(t.db, id))!.thisWeek).toBe(dealtEvent(id, weekIdOf(new Date())));
+    expect((await loadCharacter(t.db, id))!.thisWeek).toBe(dealtEvent(id, seasonIdAt(new Date())));
 
     const c = (await loadCharacter(t.db, id))!;
     const built = await buildDate(t.db, "ep-week", { id, sheet: { name: c.name, age: c.age, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, house: false } }, { id, sheet: { name: c.name, age: c.age, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, house: false } }, DEFAULT_DATE_REQUEST);
-    expect(built.characters[0].thisWeek).toBe(dealtEvent(id, weekIdOf(new Date())));
+    expect(built.characters[0].thisWeek).toBe(dealtEvent(id, seasonIdAt(new Date())));
   });
 });
 

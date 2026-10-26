@@ -1520,3 +1520,58 @@ a.ad-scenes-make-link {
   font-size: 0.8rem;
   white-space: nowrap;
 }
+
+/* ---------------- under the theater: one tabbed panel (SceneWriter.tsx; David, 2026-10-25: "cleanup this ux") ---------------- */
+.ad-page-tabs {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border: 1px solid var(--ad-line, var(--line));
+  border-radius: 1rem;
+  background: var(--ad-card, var(--card));
+}
+.ad-page-tabs > .ad-page-tabbar {
+  margin-bottom: var(--space-3);
+}
+/* Inside the panel the gallery's own tabs, the Make menu and Two sides sit flat: no card, no fold of their own. */
+.ad-page-tabs .ad-media-tabs {
+  margin-top: 0;
+}
+.ad-page-tabs .ad-panel.is-flat {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.ad-page-tabs .ad-panel.is-flat > summary {
+  display: none;
+}
+.ad-media-price {
+  margin: 0 0 var(--space-3);
+}
+.ad-setup-tab {
+  display: grid;
+  gap: var(--space-3);
+}
+.ad-admin-line {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.ad-admin-line p {
+  margin: 0;
+}
+/* A phone: the four tabs wrap onto two rows rather than scroll (the first was cut off at the edge). */
+@media (max-width: 520px) {
+  .ad-page-tabs {
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+  .ad-page-tabs > .ad-page-tabbar,
+  .ad-page-tabs .ad-media-tabs > .ad-studio-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 0;
+  }
+  .ad-page-tabs > .ad-page-tabbar button,
+  .ad-page-tabs .ad-media-tabs > .ad-studio-tabs button {
+    font-size: var(--text-sm);
+  }
+}
