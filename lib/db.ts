@@ -2188,6 +2188,10 @@ alter table adult_settings add column if not exists beat_pictures boolean;
 -- the exact scene"): a custom direction that leads the picture, and a line for a speech bubble. Both held to the lines.
 alter table adult_beats add column if not exists custom text;
 alter table adult_beats add column if not exists dialog text;
+-- What the owner changed in a scene picture's context before it was drawn (lib/adult/beats.ts PictureEdit, 2026-10-25:
+-- "add the context that will be sent, and allow additional context"), and what a redraw cost them (given back if it fails).
+alter table adult_beats add column if not exists edit jsonb;
+alter table adult_beats add column if not exists paid integer not null default 0;
 
 -- The After Dark library (lib/adult/library.ts; David, 2026-10-24): which model drew a picture (null: from before it was
 -- kept, when only its provider was), and each viewer's 1–5 stars on a picture or a video (item_id: an adult_images or an

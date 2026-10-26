@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { answerBeat, pictureNow, SCENE_CUSTOM_MAX, SCENE_DIALOG_MAX } from "@/lib/adult/beats";
+import { answerBeat, PICTURE_FIELD_MAX, pictureNow, previewPicture, redrawPicture, SCENE_CUSTOM_MAX, SCENE_DIALOG_MAX } from "@/lib/adult/beats";
 import { adultViewer } from "@/lib/adult/mode";
 import { listMedia } from "@/lib/adult/media";
 import { WHISPER_MAX } from "@/lib/adult/director";
@@ -39,6 +39,14 @@ import { requestBase } from "@/lib/site";
 export const maxDuration = 300;
 
 const id = z.string().min(1).max(64);
+/** The owner's changes to a scene picture's context (lib/adult/beats.ts PictureEdit). */
+const PictureEditInput = z.object({
+  happening: z.string().max(PICTURE_FIELD_MAX).optional(),
+  wearing: z.string().max(PICTURE_FIELD_MAX).optional(),
+  place: z.string().max(PICTURE_FIELD_MAX).optional(),
+  mood: z.string().max(PICTURE_FIELD_MAX).optional(),
+  extra: z.string().max(SCENE_CUSTOM_MAX).optional(),
+});
 const Input = z.object({
   a: id,
   b: id,
@@ -75,8 +83,11 @@ const Input = z.object({
     .optional(),
   // Beat pictures (lib/adult/beats.ts): the viewer's answer to an offered moment, or Picture this at a line. `custom`
   // leads the scene picture and `dialog` is a speech-bubble line (both optional; held to the lines).
-  beat: z.object({ id, answer: z.enum(["now", "later"]), custom: z.string().max(SCENE_CUSTOM_MAX).optional(), dialog: z.string().max(SCENE_DIALOG_MAX).optional() }).optional(),
-  picture_now: z.object({ line: z.number().int().min(0).max(10_000), custom: z.string().max(SCENE_CUSTOM_MAX).optional(), dialog: z.string().max(SCENE_DIALOG_MAX).optional() }).optional(),
+  beat: z.object({ id, answer: z.enum(["now", "later"]), custom: z.string().max(SCENE_CUSTOM_MAX).optional(), dialog: z.string().max(SCENE_DIALOG_MAX).optional(), edit: PictureEditInput.optional() }).optional(),
+  picture_now: z.object({ line: z.number().int().min(0).max(10_000), custom: z.string().max(SCENE_CUSTOM_MAX).optional(), dialog: z.string().max(SCENE_DIALOG_MAX).optional(), edit: PictureEditInput.optional() }).optional(),
+  // What a scene picture would be drawn from, nothing drawn (lib/adult/beats.ts previewPicture), and Redraw.
+  picture_preview: z.object({ beat: id.optional(), line: z.number().int().min(0).max(10_000).optional(), picture: id.optional(), edit: PictureEditInput.optional() }).optional(),
+  redraw: z.object({ picture_id: id, edit: PictureEditInput.optional() }).optional(),
   // GDPR Art. 9 (lib/adult/profile.ts PROFILE_CONSENT_TEXT): the ticked consent, sent with a save of turn-ons or hard
   // nos (consent), or on its own when the box is ticked (profile_consent: what was saved before is now under it).
   consent: z.literal(true).optional(),
@@ -200,12 +211,35 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     if (!r.ok) return json({ error: "not_saved", message: r.message }, r.status);
     return json({ scene: r.scene, memory: r.memory });
   }
+  if (input.picture_preview) {
+    // What it would be drawn from, as the form shows it: nothing drawn, nothing spent.
+    const scene = await openScene(db, admin, input.a, input.b);
+    if (!scene) return hidden();
+    const plan = await previewPicture(db, admin, { ...scene, a: scene.a.id, b: scene.b.id, place: scene.set_place ?? scene.place }, input.picture_preview, input.picture_preview.edit);
+    if (!plan.ok) return json({ error: "not_previewed", message: plan.message }, plan.status);
+    return json({ preview: { fields: plan.fields, edit: plan.edit, prompt: plan.prompt } });
+  }
+  if (input.redraw) {
+    const scene = await openScene(db, admin, input.a, input.b);
+    if (!scene) return hidden();
+    // Free for an admin; anyone else pays what a picture from the shot menu costs, given back if it doesn't come.
+    const price = (await isAdmin(db, admin)) ? 0 : (await getAdultSettings(db)).menu_picture_tokens;
+    if (price > 0 && !(await spendBoughtTokens(db, admin, price))) {
+      return json({ error: "needs_tokens", message: `Redrawing a picture costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.` }, 402);
+    }
+    const r = await redrawPicture(db, admin, input.redraw.picture_id, input.redraw.edit, requestBase(req), { ...scene, a: scene.a.id, b: scene.b.id, place: scene.set_place ?? scene.place }, price);
+    if (!r.ok) {
+      if (price > 0) await refundBoughtTokens(db, admin, price);
+      return json({ error: "not_pictured", message: r.message }, r.status);
+    }
+    return json({ scene: (await openScene(db, admin, input.a, input.b)) ?? scene, beat: r.beat });
+  }
   if (input.beat || input.picture_now) {
     const scene = await openScene(db, admin, input.a, input.b);
     if (!scene) return hidden();
     const r = input.beat
-      ? await answerBeat(db, admin, input.beat.id, input.beat.answer, requestBase(req), { custom: input.beat.custom, dialog: input.beat.dialog })
-      : await pictureNow(db, admin, { ...scene, a: scene.a.id, b: scene.b.id, place: scene.set_place ?? scene.place }, input.picture_now!.line, requestBase(req), { custom: input.picture_now!.custom, dialog: input.picture_now!.dialog });
+      ? await answerBeat(db, admin, input.beat.id, input.beat.answer, requestBase(req), { custom: input.beat.custom, dialog: input.beat.dialog, edit: input.beat.edit })
+      : await pictureNow(db, admin, { ...scene, a: scene.a.id, b: scene.b.id, place: scene.set_place ?? scene.place }, input.picture_now!.line, requestBase(req), { custom: input.picture_now!.custom, dialog: input.picture_now!.dialog, edit: input.picture_now!.edit });
     if (!r.ok) return json({ error: "not_pictured", message: r.message }, r.status);
     // The scene again, with the beat's new status; the picture lands in the gallery a little later.
     return json({ scene: (await openScene(db, admin, input.a, input.b)) ?? scene, beat: r.beat });

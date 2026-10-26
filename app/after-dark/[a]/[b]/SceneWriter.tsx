@@ -8,6 +8,8 @@ import type { CrisisResources } from "@/lib/crisis";
 import type { PublicBeat } from "@/lib/adult/beats";
 import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
+import PictureContext from "./PictureContext";
+import type { PictureEdit } from "@/lib/adult/beats";
 import AfterDarkTheater from "./AfterDarkTheater";
 import type { CatalogScene } from "@/lib/adult/scene-catalog";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
@@ -285,7 +287,12 @@ export default function SceneWriter({
    * Beat pictures (lib/adult/beats.ts): the viewer's answer to a moment worth a picture, or Picture this at a line. Apart
    * from send(): nothing is written, so autoplay's "nothing new" stop doesn't apply.
    */
-  async function beatAction(body: { beat: { id: string; answer: "now" | "later"; custom?: string } } | { picture_now: { line: number; custom?: string } }) {
+  async function beatAction(
+    body:
+      | { beat: { id: string; answer: "now" | "later"; custom?: string; edit?: PictureEdit } }
+      | { picture_now: { line: number; custom?: string; edit?: PictureEdit } }
+      | { redraw: { picture_id: string; edit?: PictureEdit } },
+  ) {
     const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
     if (!res || !res.ok) {
       setNote({ text: res ? res.message : "Network error. Try again.", error: true });
@@ -295,7 +302,7 @@ export default function SceneWriter({
     const beat = res.data.beat as PublicBeat | undefined;
     if (beat?.status === "drawing") {
       lookForPictures();
-      setNote({ text: `📸 ${beat.label}: drawing it now. It lands in the gallery below in a minute or so.` });
+      setNote({ text: `📸 ${"redraw" in body ? "Drawing it again" : `${beat.label}: drawing it now`}. It lands in the gallery below in a minute or so.` });
     }
   }
 
@@ -412,8 +419,8 @@ export default function SceneWriter({
             suggestions={scene.suggestions}
             onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
             beats={textOnly ? [] : (scene.beats ?? [])}
-            onBeat={textOnly ? undefined : (id, answer, guide) => beatAction({ beat: { id, answer, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
-            onPictureNow={(line, guide) => beatAction({ picture_now: { line, ...(guide?.custom ? { custom: guide.custom } : {}) } })}
+            onBeat={textOnly ? undefined : (id, answer, guide) => beatAction({ beat: { id, answer, ...(guide?.custom ? { custom: guide.custom } : {}), ...(guide?.edit ? { edit: guide.edit } : {}) } })}
+            onPictureNow={(line, guide) => beatAction({ picture_now: { line, ...(guide?.custom ? { custom: guide.custom } : {}), ...(guide?.edit ? { edit: guide.edit } : {}) } })}
             onMakeVideo={(scope) => planVideo(scope)}
             onPlanVideo={(scope) => planVideo(scope)}
             writer={writer}
@@ -536,7 +543,16 @@ export default function SceneWriter({
               {textOnly}
             </p>
           ) : mediaTab === "pictures" ? (
-            <Gallery items={gallery} problem={scene.picture_note} onAdd={(m) => setGallery((g) => [m, ...g])} paused={mediaPaused} faces={faces} onFace={pickFace} />
+            <Gallery
+              items={gallery}
+              problem={scene.picture_note}
+              onAdd={(m) => setGallery((g) => [m, ...g])}
+              paused={mediaPaused}
+              faces={faces}
+              onFace={pickFace}
+              pair={textOnly ? undefined : { a: scene.a.id, b: scene.b.id }}
+              onRedraw={(id, edit) => beatAction({ redraw: { picture_id: id, ...(edit ? { edit } : {}) } })}
+            />
           ) : mediaTab === "videos" ? (
             reelList.length ? (
               <Reels reels={reelList} onChange={putReel} />
@@ -591,6 +607,8 @@ function Gallery({
   paused = null,
   faces = {},
   onFace,
+  pair,
+  onRedraw,
 }: {
   items: Media[];
   problem: string | null;
@@ -598,7 +616,12 @@ function Gallery({
   paused?: string | null;
   faces?: Faces;
   onFace?: (characterId: string, imageId: string | null) => Promise<string | null>;
+  /** The pair, for a scene picture's Redraw (its context form asks the scene's route). */
+  pair?: { a: string; b: string };
+  onRedraw?: (pictureId: string, edit: PictureEdit | undefined) => Promise<void>;
 }) {
+  // Redraw (David, 2026-10-25: "regenerate an image for a scene in case it's wrong"): the picture whose context is open.
+  const [redrawing, setRedrawing] = useState<string | null>(null);
   const [motion, setMotion] = useState("");
   const [pending, setPending] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -684,6 +707,27 @@ function Gallery({
               )}
               {status === "ready" && <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))} />}
               {status === "ready" && <MediaTags id={m.id} pinned={m.date_pin} />}
+              {status === "ready" && m.kind === "scene" && pair && onRedraw && (
+                // The same moment drawn again, its context put right first; the old picture stays.
+                redrawing === m.id ? (
+                  <PictureContext
+                    a={pair.a}
+                    b={pair.b}
+                    target={{ picture: m.id }}
+                    disabled={Boolean(paused)}
+                    submitLabel="↻ Redraw it"
+                    onSubmit={(edit) => {
+                      setRedrawing(null);
+                      void onRedraw(m.id, edit);
+                    }}
+                    onCancel={() => setRedrawing(null)}
+                  />
+                ) : (
+                  <button type="button" className="button-ghost small" disabled={Boolean(paused)} title={paused ?? "Draw this moment again, after checking what it's drawn from"} onClick={() => setRedrawing(m.id)}>
+                    ↻ Redraw
+                  </button>
+                )
+              )}
               {status === "ready" && m.kind !== "video" && m.character_id && !m.character_b && onFace && (
                 // One of them alone: it can be the face every picture and video of them keeps.
                 faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id ? (

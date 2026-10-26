@@ -6997,10 +6997,12 @@ a.phone-head-btn {
 .ad-beat-offer {
   position: absolute;
   left: 50%;
-  top: 22%;
+  top: 6%;
   transform: translateX(-50%);
   z-index: 4;
-  width: min(26rem, calc(100% - 32px));
+  width: min(30rem, calc(100% - 32px));
+  max-height: 88%;
+  overflow-y: auto;
   padding: var(--space-3);
   border: 1px solid var(--accent);
   border-radius: 12px;
@@ -7064,6 +7066,66 @@ a.phone-head-btn {
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+/* A scene picture's context before it's drawn (PictureContext.tsx): each field the night's guess, the owner's to change. */
+.ad-picture-context {
+  display: grid;
+  gap: var(--space-2);
+}
+.ad-pc-field {
+  display: grid;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+.ad-pc-label {
+  color: #cbb8e0;
+  font-weight: 600;
+}
+.ad-pc-changed {
+  color: var(--accent);
+  font-weight: 600;
+}
+.ad-pc-field textarea,
+.ad-pc-field input {
+  width: 100%;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid rgba(203, 184, 224, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+}
+.ad-pc-prompt summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #cbb8e0;
+}
+.ad-pc-prompt p {
+  max-height: 10rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  opacity: 0.85;
+}
+.ad-pc-note {
+  color: #ffb4b4;
+  margin: 0;
+}
+/* In the gallery, the form sits under its picture, on the page's own colours. */
+.after-dark li .ad-picture-context {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line, rgba(203, 184, 224, 0.3));
+  border-radius: 10px;
+}
+@media (max-width: 720px) {
+  .ad-beat-offer {
+    position: fixed;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+    max-height: 80vh;
+  }
 }
 .ad-beat-guide {
   display: block;

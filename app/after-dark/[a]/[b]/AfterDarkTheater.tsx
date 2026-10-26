@@ -24,6 +24,8 @@ import WriterPicker from "../../WriterPicker";
 import type { WriterOptions } from "@/lib/adult/writer";
 import { libraryVenueFor, type CatalogScene } from "@/lib/adult/scene-catalog";
 import SetSceneModal, { preloadScenes, type RoleplayPick } from "./SetSceneModal";
+import PictureContext from "./PictureContext";
+import type { PictureEdit } from "@/lib/adult/beats";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 
 /** A saved chapter the 📖 menu can play again (lib/adult/scenes.ts AdultNight, trimmed). */
@@ -194,8 +196,8 @@ export default function AfterDarkTheater({
   onSuggest?: (text: string) => Promise<void>;
   /** The chapter's moments worth a picture; the viewer's answer to one; and Picture this, at a line. */
   beats?: readonly PublicBeat[];
-  onBeat?: (id: string, answer: "now" | "later", guide?: { custom?: string }) => Promise<void>;
-  onPictureNow?: (line: number, guide?: { custom?: string }) => Promise<void>;
+  onBeat?: (id: string, answer: "now" | "later", guide?: { custom?: string; edit?: PictureEdit }) => Promise<void>;
+  onPictureNow?: (line: number, guide?: { custom?: string; edit?: PictureEdit }) => Promise<void>;
   onExit: () => void;
   /** The steer goes to one of them only, as a whisper (lib/adult/director.ts); null: to the scene. Shared with the page. */
   whisperTo?: "a" | "b" | null;
@@ -223,8 +225,6 @@ export default function AfterDarkTheater({
   // A moment worth a picture, reached: playback waits for the viewer's answer.
   const [beatHold, setBeatHold] = useState(false);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(() => new Set());
-  // The owner's own words for the next scene picture (David, 2026-10-24: "more specifics otherwise it fails the scene").
-  const [guide, setGuide] = useState("");
   // Hitting 📸 opens a panel to agree on what the picture shows before it's drawn (David, 2026-10-24); its line.
   const [picturing, setPicturing] = useState<{ line: number } | null>(null);
   // A replay doesn't auto-play on open; the running scene still catches up and carries on.
@@ -261,10 +261,9 @@ export default function AfterDarkTheater({
   }, [live, autoplay, busy, waiting, left, onWrite]);
   const offer = live && onBeat ? (beats.find((x) => x.status === "offered" && !answered.has(x.id) && x.line < shown.length) ?? null) : null;
   useEffect(() => setBeatHold(Boolean(offer)), [offer]);
-  async function answer(id: string, a: "now" | "later") {
+  async function answer(id: string, a: "now" | "later", edit?: PictureEdit) {
     setAnswered((s) => new Set([...s, id]));
-    await onBeat?.(id, a, a === "now" && guide.trim() ? { custom: guide.trim() } : undefined);
-    setGuide("");
+    await onBeat?.(id, a, a === "now" && edit ? { edit } : undefined);
   }
   const latestAction = shown.length ? shown[shown.length - 1].action : "";
   const label = stageLabel(scene, shown.length, myRoleplays);
@@ -353,16 +352,8 @@ export default function AfterDarkTheater({
                 <strong>📸 {offer.label}</strong>
                 <span className="muted small"> Picture this moment? It&apos;s drawn from the last few lines and lands in their gallery.</span>
               </p>
-              {/* The owner can say exactly what the picture should show, so it does the exact scene (lib/adult/beats.ts). */}
-              <input className="ad-beat-guide" type="text" value={guide} maxLength={400} placeholder="Add exactly what it should show (optional) — this leads the picture" disabled={Boolean(mediaPaused)} onChange={(e) => setGuide(e.target.value)} />
-              <div className="ad-beat-actions">
-                <button type="button" className="primary small" onClick={() => void answer(offer.id, "now")}>
-                  Picture it
-                </button>
-                <button type="button" className="button-ghost small" onClick={() => void answer(offer.id, "later")} title="Carry on. Press 📸 when you want it; if you never do, it's drawn when the chapter ends.">
-                  Not now
-                </button>
-              </div>
+              {/* What it'll be drawn from, field by field, each one the owner's to change (lib/adult/beats.ts PictureEdit). */}
+              <PictureContext a={a.id} b={b.id} target={{ beat: offer.id }} disabled={Boolean(mediaPaused)} submitLabel="Picture it" cancelLabel="Not now" onSubmit={(edit) => void answer(offer.id, "now", edit)} onCancel={() => void answer(offer.id, "later")} />
             </div>
           )}
           {picturing && onPictureNow && (
@@ -370,28 +361,21 @@ export default function AfterDarkTheater({
             <div className="ad-beat-offer" role="dialog" aria-label="Create a picture of this moment">
               <p>
                 <strong>📸 Picture this moment</strong>
-                <span className="muted small"> It draws the two of them from here: “{(scene.lines[picturing.line]?.text ?? "the scene so far").slice(0, 140)}”. Add anything it should show, then create it.</span>
+                <span className="muted small"> It draws the two of them from here. Check what it&apos;ll show and put right anything that&apos;s off, then create it.</span>
               </p>
-              <input className="ad-beat-guide" type="text" value={guide} maxLength={400} placeholder="Add exactly what it should show (optional) — this leads the picture" disabled={Boolean(mediaPaused)} onChange={(e) => setGuide(e.target.value)} />
-              <div className="ad-beat-actions">
-                <button
-                  type="button"
-                  className="primary small"
-                  disabled={Boolean(mediaPaused)}
-                  onClick={() => {
-                    const line = picturing.line;
-                    const g = guide.trim() ? { custom: guide.trim() } : undefined;
-                    setPicturing(null);
-                    setGuide("");
-                    void onPictureNow(line, g);
-                  }}
-                >
-                  Create picture
-                </button>
-                <button type="button" className="button-ghost small" onClick={() => { setPicturing(null); setGuide(""); }}>
-                  Cancel
-                </button>
-              </div>
+              <PictureContext
+                a={a.id}
+                b={b.id}
+                target={{ line: picturing.line }}
+                disabled={Boolean(mediaPaused)}
+                submitLabel="Create picture"
+                onSubmit={(edit) => {
+                  const line = picturing.line;
+                  setPicturing(null);
+                  void onPictureNow(line, edit ? { edit } : undefined);
+                }}
+                onCancel={() => setPicturing(null)}
+              />
             </div>
           )}
         </div>

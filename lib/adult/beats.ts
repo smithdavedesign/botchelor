@@ -31,6 +31,10 @@ import { keyframePrompt, placeWords, reelCast, withoutNames, type ReelPerson } f
 import { thumbsDown } from "./steering";
 import { adultKeys, getAdultSettings } from "./settings";
 import { claimChapterPicture } from "./chapter-pictures";
+import { refundBoughtTokens } from "../allowance";
+import { roleplayById } from "./roleplays";
+import { venueSituation } from "./scene-catalog";
+import { ownRoleplay } from "../studio/library";
 import { overCap } from "./usage";
 
 const UNDRESSING = 3;
@@ -70,7 +74,48 @@ type BeatRow = {
   /** The owner's own words for this scene picture: a direction that leads it, and a speech-bubble line (both optional). */
   custom: string | null;
   dialog: string | null;
+  /** What the owner changed in its context before it was drawn (PictureEdit), and what a redraw cost them. */
+  edit: PictureEdit | null;
+  paid: number;
 };
+
+/**
+ * What a scene picture is drawn from, as the owner sees it and can change it before it's drawn (David, 2026-10-25: "add
+ * the context that will be sent, and allow additional context … what they are wearing and whether they are clothed, or
+ * trash talking or flirting … more confidence the better"). Each is a guess from the night until the owner changes it,
+ * and a change replaces the guess rather than being added to it.
+ */
+export type PictureFields = {
+  /** What they're doing, from the last lines' actions. */
+  happening: string;
+  /** What they're wearing, by how far the night has gone. */
+  wearing: string;
+  /** Where they are, and what the place puts them in. */
+  place: string;
+  /** The mood: the chapter's roleplay and what the writer says they're doing (lib/adult/doing.ts). */
+  mood: string;
+};
+/** The owner's changes: any of the fields, and anything else (which leads the picture, like their own words did). */
+export type PictureEdit = Partial<PictureFields> & { extra?: string };
+export const PICTURE_FIELD_MAX = 300;
+const FIELDS = ["happening", "wearing", "place", "mood"] as const;
+
+/** An edit as it's kept: each field trimmed and held to PICTURE_FIELD_MAX (anything else to SCENE_CUSTOM_MAX); null when empty. */
+export function cleanEdit(e: unknown): PictureEdit | null {
+  if (!e || typeof e !== "object") return null;
+  const out: PictureEdit = {};
+  for (const k of [...FIELDS, "extra"] as const) {
+    const v = (e as Record<string, unknown>)[k];
+    if (typeof v !== "string") continue;
+    const t = v.trim().replace(/\s+/g, " ").slice(0, k === "extra" ? SCENE_CUSTOM_MAX : PICTURE_FIELD_MAX);
+    if (t) out[k] = t;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** How the owner sees "what they're wearing", by how far the night has gone (the prompt keeps clothesAt's own words). */
+const wearingAt = (stage: number): string =>
+  stage >= SEX ? "Both nude" : stage >= UNDRESSING ? "Half undressed" : "Both fully clothed, tops on and done up";
 
 /**
  * The positions, as the lines name them, each the act it's drawn as: most specific first (going down before the rest,
@@ -170,6 +215,8 @@ export function beatFrame(
   moment: readonly { text: string }[],
   place: string | null,
   limits: Pick<MediaLimits, "hit">,
+  /** The owner's own "what's happening" (PictureEdit), in place of the lines'. */
+  happeningOwn?: string,
 ): string | null {
   const act = actById(beat.act);
   if (!act) return null;
@@ -178,7 +225,7 @@ export function beatFrame(
   const base = `${pose}${peak} ${FRAMING_WORDS[act.framing]}`;
   const ok = (words: string) => checkAdultText({ words }).ok && !crossesTaboo(words) && !limits.hit(words);
   if (!ok(base)) return null;
-  const happening = withoutNames(recentActions([...moment], 3).join("; "), cast);
+  const happening = withoutNames(happeningOwn ?? recentActions([...moment], 3).join("; "), cast);
   return happening && ok(happening) ? `${base} What is happening: ${happening}.` : base;
 }
 
@@ -257,11 +304,75 @@ export async function beatPicturesSettled(): Promise<void> {
   while (pending.size) await Promise.allSettled([...pending]);
 }
 
-/** Draws one beat's picture and keeps it, or marks it failed with why. */
+/** A scene picture planned: the fields the owner sees, and the prompt they make (with the place's set as Picture 3, or not). */
+export type PicturePlan =
+  | { ok: true; fields: PictureFields; edit: PictureEdit | null; prompt: string; promptFor: (withSet: boolean) => string; characters: [Character, Character]; stage: number }
+  | { ok: false; status: number; message: string };
+
+/**
+ * Plans a beat's picture: what the night says (the fields) and, with the owner's changes over it, the prompt. Shared by
+ * the drawing, the preview (nothing drawn) and a redraw, so what the owner sees is what's sent. Pure apart from reads.
+ */
+export async function planBeat(db: Db, beat: Pick<BeatRow, "owner_id" | "scene_id" | "character_a" | "character_b" | "chapter" | "line" | "act" | "kind" | "stage" | "place" | "night_id" | "custom" | "dialog">, edit: PictureEdit | null): Promise<PicturePlan> {
+  const [ca, cb] = await Promise.all([loadCharacter(db, beat.character_a), loadCharacter(db, beat.character_b)]);
+  if (!ca || !cb) return { ok: false, status: 404, message: "One of them is missing." };
+  const cast = reelCast(ca, cb, beat.owner_id);
+  const limits = await mediaLimits(db, beat.owner_id, beat.character_a, beat.character_b);
+  const lines = (await beatLines(db, beat as BeatRow)) as { text: string; doing?: string }[];
+  const moment = lines.slice(Math.max(0, beat.line - MOMENT_LINES + 1), beat.line + 1);
+  const act = actById(beat.act);
+  const stage = Math.max(beat.stage, act?.dress ?? 0);
+  // What the night says, field by field.
+  const roleplay = await chapterRoleplayTitle(db, beat);
+  const fields: PictureFields = {
+    happening: recentActions([...moment], 3).join("; "),
+    wearing: wearingAt(stage),
+    place: placeWithSituation(beat.place),
+    mood: [roleplay, moment.at(-1)?.doing].filter(Boolean).join(" · "),
+  };
+  // The owner's changes, held to the lines and the pair's limits like everything drawn.
+  const own = cleanEdit(edit);
+  const words = own ? Object.values(own).join(" ") : "";
+  if (words && !(guideSafe([words]) && !limits.hit(words))) return { ok: false, status: 422, message: "That crosses one of the lines After Dark never crosses, or one of your limits." };
+  const frame = beatFrame(beat, cast, moment, beat.place, limits, own?.happening);
+  if (!frame) return { ok: false, status: 422, message: "That moment crosses one of the lines." };
+  const mood = own?.mood ?? fields.mood;
+  const framed = `${frame}${mood ? ` The mood: ${withoutNames(mood, cast)}.` : ""}`;
+  const place = own?.place ?? beat.place;
+  const where = place ? placeWords(place, cast) : null;
+  const custom = [own?.extra, beat.custom].filter(Boolean).join(". ") || undefined;
+  const promptFor = (withSet: boolean) =>
+    keyframePrompt(cast, framed, where, stage, withSet, { explicit: limits.explicit, custom, dialog: beat.dialog ?? undefined, ...(own?.wearing ? { clothes: withoutNames(own.wearing, cast) } : {}) });
+  return { ok: true, fields, edit: own, prompt: promptFor(false), promptFor, characters: [ca, cb], stage };
+}
+
+/** The place, and what it puts them in, said once ("an awkward double date with a smug couple…", not the name twice). */
+function placeWithSituation(place: string | null): string {
+  if (!place) return "";
+  const situation = venueSituation(place);
+  if (!situation) return place;
+  return situation.toLowerCase().startsWith(place.toLowerCase()) ? situation : `${place}: ${situation}`;
+}
+
+/** The chapter's roleplay's title, for the mood (the running chapter's only: a filed night doesn't keep it). */
+async function chapterRoleplayTitle(db: Db, beat: Pick<BeatRow, "scene_id" | "owner_id" | "chapter" | "night_id">): Promise<string | null> {
+  if (beat.night_id) return null;
+  const row = (await db.query<{ roleplay: { id?: string; chapter?: number } | null; chapter: number }>(`select roleplay, chapter from adult_scenes where id = $1 and owner_id = $2`, [beat.scene_id, beat.owner_id])).rows[0];
+  const id = row?.roleplay?.id;
+  if (!id || row.roleplay?.chapter !== beat.chapter) return null;
+  const rp = roleplayById(id) ?? (await ownRoleplay(db, beat.owner_id, id).catch(() => null));
+  return rp?.title ?? null;
+}
+
+/** Draws one beat's picture and keeps it, or marks it failed with why (and gives back what a redraw cost). */
 async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<boolean> {
   const fail = async (why: string) => {
     console.warn(`[after-dark] a beat picture didn't come (${beat.kind}, chapter ${beat.chapter}): ${why.slice(0, 160)}`);
     await db.query(`update adult_beats set status = 'failed' where id = $1`, [beat.id]);
+    if (beat.paid > 0) {
+      await refundBoughtTokens(db, beat.owner_id, beat.paid).catch(() => {});
+      await db.query(`update adult_beats set paid = 0 where id = $1`, [beat.id]);
+    }
     return false;
   };
   try {
@@ -271,24 +382,17 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<boolean
     if (!gate.ok) return fail(gate.reason);
     const capped = await overCap(db, beat.owner_id, "pictures");
     if (capped) return fail(capped);
-    const [ca, cb] = await Promise.all([loadCharacter(db, beat.character_a), loadCharacter(db, beat.character_b)]);
-    if (!ca || !cb) return fail("one of them is missing");
-    const cast = reelCast(ca, cb, beat.owner_id);
-    const limits = await mediaLimits(db, beat.owner_id, beat.character_a, beat.character_b);
-    const lines = await beatLines(db, beat);
-    const moment = lines.slice(Math.max(0, beat.line - MOMENT_LINES + 1), beat.line + 1);
-    const frame = beatFrame(beat, cast, moment, beat.place, limits);
-    if (!frame) return fail("that moment crosses one of the lines");
-    const act = actById(beat.act);
-    const stage = Math.max(beat.stage, act?.dress ?? 0);
-    const place = beat.place ? placeWords(beat.place, cast) : null;
+    const plan = await planBeat(db, beat, beat.edit);
+    if (!plan.ok) return fail(plan.message);
+    const [ca, cb] = plan.characters;
+    const stage = plan.stage;
     const reject = (reason: string) =>
       db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'scene', $3)`, [crypto.randomUUID(), beat.owner_id, `beat picture: ${reason}`.slice(0, 300)]).catch(() => {});
     const kept = await keepPictureOfBoth(
       db,
       beat.owner_id,
       [ca, cb],
-      { place: beat.place, stage, promptFor: (withSet) => keyframePrompt(cast, frame, place, stage, withSet, { explicit: limits.explicit, custom: beat.custom ?? undefined, dialog: beat.dialog ?? undefined }) },
+      { place: beat.place, stage, promptFor: plan.promptFor },
       { keys, settings, baseUrl, reject, scene: { chapter: beat.chapter, place: beat.place } },
     );
     if (!kept.ok) return fail(kept.message);
@@ -324,7 +428,7 @@ export type BeatAnswer = { ok: true; beat: PublicBeat } | { ok: false; status: n
  * The viewer's answer to an offered beat: "now" draws it (after the response; it lands in the gallery), "later" leaves it
  * for them to pick their moment, or for the chapter's close.
  */
-export async function answerBeat(db: Db, ownerId: string, beatId: string, answer: "now" | "later", baseUrl: string, guide: { custom?: string; dialog?: string } = {}): Promise<BeatAnswer> {
+export async function answerBeat(db: Db, ownerId: string, beatId: string, answer: "now" | "later", baseUrl: string, guide: { custom?: string; dialog?: string; edit?: unknown } = {}): Promise<BeatAnswer> {
   const row = (await db.query<BeatRow>(`select * from adult_beats where id = $1 and owner_id = $2`, [beatId, ownerId])).rows[0];
   if (!row) return { ok: false, status: 404, message: "That moment isn't there any more." };
   if (answer === "later") {
@@ -336,7 +440,13 @@ export async function answerBeat(db: Db, ownerId: string, beatId: string, answer
   const custom = cleanWords(guide.custom, SCENE_CUSTOM_MAX);
   const dialog = cleanWords(guide.dialog, SCENE_DIALOG_MAX);
   if (!guideSafe([custom, dialog])) return { ok: false, status: 422, message: "That crosses one of the lines After Dark never crosses." };
-  if (custom || dialog) await db.query(`update adult_beats set custom = $2, dialog = $3 where id = $1`, [row.id, custom, dialog]);
+  // The owner's changes to its context (PictureEdit), checked as the picture would use them before anything's drawn.
+  const edit = cleanEdit(guide.edit);
+  if (edit) {
+    const plan = await planBeat(db, { ...row, custom, dialog }, edit);
+    if (!plan.ok) return { ok: false, status: plan.status, message: plan.message };
+  }
+  if (custom || dialog || edit) await db.query(`update adult_beats set custom = $2, dialog = $3, edit = $4::jsonb where id = $1`, [row.id, custom, dialog, edit ? JSON.stringify(edit) : null]);
   const claimed = await claim(db, "id = $1", [row.id]);
   drawLater(db, claimed, baseUrl);
   return { ok: true, beat: publicBeat(claimed[0] ?? row) };
@@ -365,7 +475,9 @@ export async function pictureNow(
   scene: { id: string; a: string; b: string; chapter: number; lines: readonly { text: string; stage?: number }[]; stage: number; place: string | null },
   line: number,
   baseUrl: string,
-  guide: { custom?: string; dialog?: string } = {},
+  guide: { custom?: string; dialog?: string; edit?: unknown } = {},
+  /** `paid`: what this picture cost (given back if it doesn't come); `fresh`: never reuse a waiting moment (a redraw). */
+  opts: { paid?: number; fresh?: boolean } = {},
 ): Promise<BeatAnswer> {
   if (!(await beatPicturesReady(db))) return { ok: false, status: 409, message: "Beat pictures are off, or the picture keys aren't saved, in After Dark's settings." };
   const at = Math.max(0, Math.min(line, scene.lines.length - 1));
@@ -373,8 +485,9 @@ export async function pictureNow(
   const custom = cleanWords(guide.custom, SCENE_CUSTOM_MAX);
   const dialog = cleanWords(guide.dialog, SCENE_DIALOG_MAX);
   if (!guideSafe([custom, dialog])) return { ok: false, status: 422, message: "That crosses one of the lines After Dark never crosses." };
+  const edit = cleanEdit(guide.edit);
   // A moment already offered for this line is reused — unless the owner gave their own words, which get a fresh picture.
-  if (!custom && !dialog) {
+  if (!custom && !dialog && !edit && !opts.fresh) {
     const waiting = (
       await db.query<BeatRow>(
         `select * from adult_beats where scene_id = $1 and chapter = $2 and night_id is null and line <= $3 and status in ('offered', 'later') order by line desc limit 1`,
@@ -387,12 +500,84 @@ export async function pictureNow(
       return { ok: true, beat: publicBeat(claimed[0] ?? waiting) };
     }
   }
-  const stage = scene.lines[at].stage ?? scene.stage;
-  const position = scene.lines.slice(0, at + 1).map((l) => positionIn(l.text)).filter(Boolean).at(-1) ?? null;
-  const act = stage >= SEX ? (position ?? "face_to_face") : stage >= UNDRESSING ? "undress" : stage >= 2 ? "kiss" : "close";
+  const { act, stage } = chosenAt(scene, at);
+  if (edit) {
+    const plan = await planBeat(db, { owner_id: ownerId, scene_id: scene.id, character_a: scene.a, character_b: scene.b, chapter: scene.chapter, line: at, act, kind: "chosen", stage, place: scene.place, night_id: null, custom, dialog }, edit);
+    if (!plan.ok) return { ok: false, status: plan.status, message: plan.message };
+  }
   const { rows } = await db.query<BeatRow>(
-    `insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place, status, custom, dialog) values ($1, $2, $3, $4, $5, $6, $7, $8, 'chosen', $9, $10, 'drawing', $11, $12) returning *`,
-    [crypto.randomUUID(), ownerId, scene.id, scene.a, scene.b, scene.chapter, at, act, stage, scene.place, custom, dialog],
+    `insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place, status, custom, dialog, edit, paid) values ($1, $2, $3, $4, $5, $6, $7, $8, 'chosen', $9, $10, 'drawing', $11, $12, $13::jsonb, $14) returning *`,
+    [crypto.randomUUID(), ownerId, scene.id, scene.a, scene.b, scene.chapter, at, act, stage, scene.place, custom, dialog, edit ? JSON.stringify(edit) : null, opts.paid ?? 0],
+  );
+  drawLater(db, rows, baseUrl);
+  return { ok: true, beat: publicBeat(rows[0]) };
+}
+
+/** The moment a line is, for a picture the owner picks there: the act its position or stage says, and its stage. */
+function chosenAt(scene: { lines: readonly { text: string; stage?: number }[]; stage: number }, at: number): { act: string; stage: number } {
+  const stage = scene.lines[at]?.stage ?? scene.stage;
+  const position = scene.lines.slice(0, at + 1).map((l) => positionIn(l.text)).filter(Boolean).at(-1) ?? null;
+  return { act: stage >= SEX ? (position ?? "face_to_face") : stage >= UNDRESSING ? "undress" : stage >= 2 ? "kiss" : "close", stage };
+}
+
+/**
+ * What a scene picture would be drawn from, nothing drawn or spent (the theater's form before Picture it, and Redraw's):
+ * an offered beat's, or the moment at a line of the running chapter, with the owner's changes over it.
+ */
+export async function previewPicture(
+  db: Db,
+  ownerId: string,
+  scene: { id: string; a: string; b: string; chapter: number; lines: readonly { text: string; stage?: number }[]; stage: number; place: string | null },
+  target: { beat?: string; line?: number; picture?: string },
+  edit: unknown,
+): Promise<PicturePlan> {
+  // A picture already drawn (Redraw's form): the moment its beat was, the owner's changes then as the starting point.
+  if (target.picture) {
+    const row = (await db.query<BeatRow>(`select * from adult_beats where picture_id = $1 and owner_id = $2 order by created_at desc limit 1`, [target.picture, ownerId])).rows[0];
+    if (row) return planBeat(db, row, cleanEdit(edit) ?? row.edit);
+  }
+  if (target.beat) {
+    const row = (await db.query<BeatRow>(`select * from adult_beats where id = $1 and owner_id = $2`, [target.beat, ownerId])).rows[0];
+    if (!row) return { ok: false, status: 404, message: "That moment isn't there any more." };
+    return planBeat(db, row, cleanEdit(edit));
+  }
+  if (!scene.lines.length) return { ok: false, status: 409, message: "Let the night start first." };
+  const at = Math.max(0, Math.min(target.line ?? scene.lines.length - 1, scene.lines.length - 1));
+  const { act, stage } = chosenAt(scene, at);
+  return planBeat(db, { owner_id: ownerId, scene_id: scene.id, character_a: scene.a, character_b: scene.b, chapter: scene.chapter, line: at, act, kind: "chosen", stage, place: scene.place, night_id: null, custom: null, dialog: null }, cleanEdit(edit));
+}
+
+/**
+ * Redraw (David, 2026-10-25: "a button to regenerate an image for a scene in case it's wrong"): a scene picture drawn
+ * again for the same moment, with the owner's changes to its context. A beat's picture keeps its moment (its line, act
+ * and place, in its chapter or the saved night it went with); a chapter's own picture is drawn again at the running
+ * chapter's latest line. The old picture stays in the gallery (👎 or Archive it). `price` is in bought tokens (0: free),
+ * taken by the caller and given back if the picture doesn't come.
+ */
+export async function redrawPicture(
+  db: Db,
+  ownerId: string,
+  pictureId: string,
+  edit: unknown,
+  baseUrl: string,
+  scene: { id: string; a: string; b: string; chapter: number; lines: readonly { text: string; stage?: number }[]; stage: number; place: string | null },
+  price = 0,
+): Promise<BeatAnswer> {
+  if (!(await beatPicturesReady(db))) return { ok: false, status: 409, message: "Beat pictures are off, or the picture keys aren't saved, in After Dark's settings." };
+  const pic = (await db.query<{ id: string; scene_chapter: number | null }>(`select id, scene_chapter from adult_images where id = $1 and owner_id = $2 and kind = 'scene' and status = 'ready'`, [pictureId, ownerId])).rows[0];
+  if (!pic) return { ok: false, status: 404, message: "That picture isn't one of this night's." };
+  const clean = cleanEdit(edit);
+  const beat = (await db.query<BeatRow>(`select * from adult_beats where picture_id = $1 and owner_id = $2 order by created_at desc limit 1`, [pictureId, ownerId])).rows[0];
+  if (!beat) {
+    if (pic.scene_chapter !== scene.chapter) return { ok: false, status: 409, message: "That chapter has closed: pick its moment again with 📸 Picture this in a replay." };
+    return pictureNow(db, ownerId, scene, scene.lines.length - 1, baseUrl, { edit: clean ?? {} }, { paid: price, fresh: true });
+  }
+  const plan = await planBeat(db, beat, clean ?? beat.edit);
+  if (!plan.ok) return { ok: false, status: plan.status, message: plan.message };
+  const { rows } = await db.query<BeatRow>(
+    `insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place, status, custom, dialog, night_id, edit, paid)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, 'chosen', $9, $10, 'drawing', $11, $12, $13, $14::jsonb, $15) returning *`,
+    [crypto.randomUUID(), ownerId, beat.scene_id, beat.character_a, beat.character_b, beat.chapter, beat.line, beat.act, beat.stage, beat.place, beat.custom, beat.dialog, beat.night_id, JSON.stringify(clean ?? beat.edit ?? {}), price],
   );
   drawLater(db, rows, baseUrl);
   return { ok: true, beat: publicBeat(rows[0]) };
