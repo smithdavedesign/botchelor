@@ -454,9 +454,16 @@ export const STUDIO_PROMPT_MAX = 1500;
  * there is one), the next the place's drawn set (when there is one). Who they are, as an adult never under
  * IMAGE_MIN_AGE; what's kept; then each choice; then the level's closing words.
  */
-export function shootPrompt(plan: ShootPlan, subject: Subject, refs: { body: boolean; set: boolean }, strength: Strength = "balanced"): string {
+export function shootPrompt(plan: ShootPlan, subject: Subject, refs: { body: boolean; set: boolean; angle?: number }, strength: Strength = "balanced"): string {
   const who = subject.noun === "person" ? "person" : subject.noun;
-  const pictures = [`Make one photograph of the ${who} from Picture 1`, refs.body ? ", with the body from Picture 2" : "", refs.set ? `, in the place from Picture ${refs.body ? 3 : 2}` : "", "."].join("");
+  const pictures = [
+    `Make one photograph of the ${who} from Picture 1`,
+    refs.body ? ", with the body from Picture 2" : "",
+    refs.set ? `, in the place from Picture ${refs.body ? 3 : 2}` : "",
+    ".",
+    // An extra angle of the face (their identity pack, lib/studio/identity-views.ts): the same person, never a second.
+    refs.angle ? ` Picture ${refs.angle} is the same ${who}'s face from another angle: the same person, not someone else in the picture.` : "",
+  ].join("");
   const age = Math.max(IMAGE_MIN_AGE, Math.round(subject.age || IMAGE_MIN_AGE));
   const person = `A ${age}-year-old adult ${who}${subject.look ? `, ${subject.look}` : ""}.`;
   const by = (g: GroupId) => plan.parts.filter((p) => p.group === g).map((p) => p.words);

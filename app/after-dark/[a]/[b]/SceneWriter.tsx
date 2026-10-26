@@ -38,6 +38,7 @@ import LocalTime from "../../LocalTime";
 import TrimmableClip from "../../TrimmableClip";
 import ExportDialog from "@/app/studio/ExportDialog";
 import TileTools, { SelectBar } from "@/app/studio/TileTools";
+import FixFaces from "../../FixFaces";
 import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
 
 /** The tabs under the theater, in order; the gallery opens first. */
@@ -713,7 +714,17 @@ function Gallery({
                   Make it move
                 </button>
               )}
-              {status === "ready" && <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))} />}
+              {status === "ready" && (
+                <RateMedia
+                  id={m.id}
+                  kind={m.kind}
+                  rating={m.rating ?? null}
+                  tags={m.tags ?? []}
+                  onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))}
+                  // 🩹 Fix faces (lib/adult/fix-faces.ts): the fixed one joins the gallery; bolder after "Doesn't look like them".
+                  extra={(r) => m.kind === "scene" && <FixFaces id={m.id} src={mediaUrl} label="The picture" onFixed={onAdd} nudge={r.rating === -1 && r.tags.includes("face")} />}
+                />
+              )}
               {status === "ready" && <MediaTags id={m.id} pinned={m.date_pin} />}
               {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
               {status === "ready" && <TileTools id={m.id} api={AFTER_DARK_API} selecting={sel.selecting} selected={sel.has(m.id)} onToggle={() => sel.toggle(m.id)} />}

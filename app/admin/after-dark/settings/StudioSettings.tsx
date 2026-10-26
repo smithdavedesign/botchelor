@@ -71,6 +71,8 @@ export default function StudioSettings({ initial }: { initial: AdultSettings }) 
             ["Body reference", price("body"), (n: number) => ({ prices: { body: n } })],
             ["More like this", price("variations"), (n: number) => ({ prices: { variations: n } })],
             ["Upscale", price("upscale"), (n: number) => ({ prices: { upscale: n } })],
+            ["Identity pack (8 views; fewer cost their share)", price("identity"), (n: number) => ({ prices: { identity: n } })],
+            ["PG Studio identity pack", studio.pg.identity_price, (n: number) => ({ pg: { identity_price: n } })],
             ["Animate 5 s", price("animate_5"), (n: number) => ({ prices: { animate_5: n } })],
             ["Animate 10 s", price("animate_10"), (n: number) => ({ prices: { animate_10: n } })],
             ["On their own key", price("own_key"), (n: number) => ({ prices: { own_key: n } })],
@@ -95,6 +97,7 @@ export default function StudioSettings({ initial }: { initial: AdultSettings }) 
           ["pov", "POV shots"],
           ["free_redo", "A free redo for a shoot they 👎'd whole"],
           ["reference_set_everywhere", "Nights, clips and beat pictures send body references too (test first)"],
+          ["identity_in_shoots", "Shoots send the identity pack's view for the angle too, when the model has room (test first)"],
         ] as const
       ).map(([k, label]) => (
         <label key={k} className="ad-check-row">

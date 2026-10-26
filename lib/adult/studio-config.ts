@@ -60,12 +60,14 @@ export const StudioConfig = z.object({
       body: z.number().int().min(0).max(100).default(1),
       variations: z.number().int().min(0).max(100).default(1),
       upscale: z.number().int().min(0).max(100).default(0),
+      /** The identity pack's eight views (the creator suite): fewer, a redraw, cost their share of it. */
+      identity: z.number().int().min(0).max(100).default(2),
       animate_5: z.number().int().min(0).max(100).default(3),
       animate_10: z.number().int().min(0).max(100).default(5),
       own_key: z.number().int().min(0).max(100).default(0),
       share: z.number().int().min(0).max(100).default(0),
     })
-    .default({ shoot: { standard: 1, pro: 2 }, pair: { standard: 1, pro: 2 }, restyle: 1, recast: 1, body: 1, variations: 1, upscale: 0, animate_5: 3, animate_10: 5, own_key: 0, share: 0 }),
+    .default({ shoot: { standard: 1, pro: 2 }, pair: { standard: 1, pro: 2 }, restyle: 1, recast: 1, body: 1, variations: 1, upscale: 0, identity: 2, animate_5: 3, animate_10: 5, own_key: 0, share: 0 }),
   models: z.array(StudioModel).min(1).max(30).default(DEFAULT_STUDIO_MODELS),
   default_edit: z.string().default("qwen-edit-uncensored"),
   default_new: z.string().default("lustify-v8"),
@@ -76,6 +78,8 @@ export const StudioConfig = z.object({
   free_redo: z.boolean().default(true),
   /** Keyframes in nights, clips, the menu and beat pictures send each one's body reference too (off until tested). */
   reference_set_everywhere: z.boolean().default(false),
+  /** A shoot sends their face from the angle it needs too, from their identity pack, when the model has room (off until tested). */
+  identity_in_shoots: z.boolean().default(false),
   /** Option ids taken off the menus (lib/adult/studio-catalog.ts). */
   disabled_options: z.array(z.string().max(60)).max(300).default([]),
   share: z
@@ -103,11 +107,13 @@ export const StudioConfig = z.object({
       free_first_shoot: z.boolean().default(true),
       free_per_day: z.number().int().min(0).max(10_000).default(100),
       monthly_cap: z.number().int().min(0).max(10_000).default(120),
+      /** The identity pack's eight views of a character (the creator suite): fewer, a redraw, cost their share of it. */
+      identity_price: z.number().int().min(0).max(100).default(2),
       edit_model: z.string().trim().min(1).max(120).default("qwen-image-2-1-turbo-edit"),
       new_model: z.string().trim().min(1).max(120).default("qwen-image-3"),
       usd: z.number().min(0).max(10).default(0.03),
     })
-    .default({ open_to: "everyone", shoot_size: 4, price: 1, free_first_shoot: true, free_per_day: 100, monthly_cap: 120, edit_model: "qwen-image-2-1-turbo-edit", new_model: "qwen-image-3", usd: 0.03 }),
+    .default({ open_to: "everyone", shoot_size: 4, price: 1, free_first_shoot: true, free_per_day: 100, monthly_cap: 120, identity_price: 2, edit_model: "qwen-image-2-1-turbo-edit", new_model: "qwen-image-3", usd: 0.03 }),
   /** Upscale on Venice's upscaler: how much larger, and what one costs (added to an own key's month). */
   upscale: z
     .object({ scale: z.union([z.literal(2), z.literal(4)]).default(2), usd: z.number().min(0).max(10).default(0.02) })

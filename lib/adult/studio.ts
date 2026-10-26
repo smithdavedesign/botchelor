@@ -19,6 +19,8 @@
  *    on Venice's upscaler, each checked and kept like any other.
  *  - **Their own key (v2):** any job on the Venice or Replicate key they connected (Connections, After Dark pictures):
  *    `prices.own_key` tokens, their key's month and cap, our check still on every picture.
+ *  - **Identity pack (the creator suite):** eight views of them (lib/studio/identity-views.ts), each an edit of the face
+ *    they keep, for Fix faces (lib/adult/fix-faces.ts) and, when the setting is on, an extra angle in shoots.
  *  - **Setups, Animate (v3):** a shoot's choices saved under a name and run on any of their characters; a picture of one
  *    of them made a 5 or 10 s clip on After Dark's video model, queued and collected as the page polls, checked by Hive.
  *  - **Price and caps:** a shoot's tokens are taken first (admins free), given back whole when nothing came through; one
@@ -109,6 +111,8 @@ import { studioTileId, TILE_GROUPS } from "./studio-tiles";
 import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
 import { countUse, overCap, usageLeft } from "./usage";
 import { requestJson, withRequestLog, type LoggedRequest } from "./request-log";
+import { freshViews, identityPackOf, keepIdentityView, type IdentityPack } from "../studio/identity-pack";
+import { IDENTITY_VIEW_IDS, identityPrice, identityViewPrompt, pickView, type IdentityViewId } from "../studio/identity-views";
 
 /* ------------------------------------------------- who may ------------------------------------------------- */
 
@@ -147,27 +151,40 @@ export type Identity = {
   body: string | null;
   /** Whether the body reference shows them nude: a dressed one isn't used from sex on (lib/adult/pictures-menu.ts). */
   bodyNude: boolean;
-  faceCrop: string | null; strength: Strength; intensity: Intensity; hard_nos: string[] };
+  faceCrop: string | null;
+  /** A face anchor drawn from an earlier face (they've picked another since): shown to redraw, never used. */
+  faceCropStale: string | null;
+  strength: Strength; intensity: Intensity; hard_nos: string[] };
 
 /** The viewer's own settings for the character: the body reference and face anchor (while ready), strength, studio limits. */
 export async function identityOf(db: Db, viewer: string, characterId: string): Promise<Identity> {
   const r = (
-    await db.query<{ body_image_id: string | null; face_crop_image_id: string | null; strength: string | null; intensity: string | null; hard_nos: unknown; body_ready: boolean | null; face_crop_ready: boolean | null }>(
-      `select i.body_image_id, i.face_crop_image_id, i.strength, i.intensity, i.hard_nos,
+    await db.query<{
+      body_image_id: string | null; face_crop_image_id: string | null; face_crop_from: string | null; strength: string | null; intensity: string | null; hard_nos: unknown;
+      body_ready: boolean | null; face_crop_ready: boolean | null; face_crop_at: Date | string | null; face_set_at: Date | string | null;
+    }>(
+      `select i.body_image_id, i.face_crop_image_id, i.face_crop_from, i.strength, i.intensity, i.hard_nos,
               (select m.status = 'ready' from adult_images m where m.id = i.body_image_id) as body_ready,
-              (select m.status = 'ready' from adult_images m where m.id = i.face_crop_image_id) as face_crop_ready
+              (select m.status = 'ready' from adult_images m where m.id = i.face_crop_image_id) as face_crop_ready,
+              (select m.created_at from adult_images m where m.id = i.face_crop_image_id) as face_crop_at,
+              (select f.set_at from adult_face_refs f where f.owner_id = i.owner_id and f.character_id = i.character_id) as face_set_at
          from adult_identity i where i.owner_id = $1 and i.character_id = $2`,
       [viewer, characterId],
     )
   ).rows[0];
+  const face = await faceReferenceId(db, viewer, characterId);
+  // The anchor is drawn from a face: one drawn from an earlier face isn't used (2026-10-26: picking a new face left every
+  // shoot leading with the old face's close-up). An anchor from before face_crop_from: stale when a face was picked since.
+  const anchor = r?.face_crop_ready ? r.face_crop_image_id : null;
+  const stale = Boolean(anchor) && (r!.face_crop_from ? r!.face_crop_from !== face : Boolean(r!.face_set_at && r!.face_crop_at && new Date(r!.face_set_at) > new Date(r!.face_crop_at)));
   const strength = (STRENGTHS as readonly string[]).includes(r?.strength ?? "") ? (r!.strength as Strength) : "balanced";
   const intensity = (INTENSITIES as readonly string[]).includes(r?.intensity ?? "") ? (r!.intensity as Intensity) : "explicit";
   const hard_nos = Array.isArray(r?.hard_nos) ? (r!.hard_nos as unknown[]).filter((x): x is string => typeof x === "string" && HARD_NO_IDS.includes(x)) : [];
   const body = r?.body_ready ? r.body_image_id : null;
-  return { face: await faceReferenceId(db, viewer, characterId), body, bodyNude: body ? await shownNude(db, body) : false, faceCrop: r?.face_crop_ready ? r.face_crop_image_id : null, strength, intensity, hard_nos };
+  return { face, body, bodyNude: body ? await shownNude(db, body) : false, faceCrop: stale ? null : anchor, faceCropStale: stale ? anchor : null, strength, intensity, hard_nos };
 }
 
-async function upsertIdentity(db: Db, viewer: string, characterId: string, col: "body_image_id" | "face_crop_image_id" | "strength" | "intensity" | "hard_nos", value: unknown): Promise<void> {
+async function upsertIdentity(db: Db, viewer: string, characterId: string, col: "body_image_id" | "face_crop_image_id" | "face_crop_from" | "strength" | "intensity" | "hard_nos", value: unknown): Promise<void> {
   const v = col === "hard_nos" ? JSON.stringify(value) : value;
   await db.query(
     `insert into adult_identity (owner_id, character_id, ${col}) values ($1, $2, $3${col === "hard_nos" ? "::jsonb" : ""})
@@ -221,7 +238,7 @@ async function drawOne(db: Db, m: StudioModel, keys: Keys, prompt: string, image
 
 /* --------------------------------------------------- jobs --------------------------------------------------- */
 
-export type ShootKind = "shoot" | "restyle" | "recast" | "body" | "face" | "pair" | "variations" | "upscale" | "animate";
+export type ShootKind = "shoot" | "restyle" | "recast" | "body" | "face" | "pair" | "variations" | "upscale" | "animate" | "identity";
 export type Shoot = {
   id: string;
   kind: ShootKind;
@@ -250,11 +267,20 @@ const pause = (ms: number) => (pauses ? new Promise<void>((r) => setTimeout(r, m
 /** Between two checks, so a shoot's four don't reach the checker as one burst (it rate-limits). */
 const CHECK_GAP_MS = 1500;
 
+/** `run` over every item, at most `size` at a time, the results in the items' order. */
+async function inBatches<T, R>(items: readonly T[], size: number, run: (item: T) => Promise<R>): Promise<R[]> {
+  const step = Math.max(1, size);
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += step) out.push(...(await Promise.all(items.slice(i, i + step).map(run))));
+  return out;
+}
+
 type JobSpec = {
   kind: ShootKind;
   /** What the pictures are kept as: a baseline (a face candidate) or a picture of them alone. */
   pictureKind: "baseline" | "scene";
-  prompts: { prompt: string; preset: PresetId | null }[];
+  /** Each picture's prompt, and the pictures it's drawn from when they aren't the job's (`images`). */
+  prompts: JobPrompt[];
   images: string[];
   negative: string;
   model: StudioModel;
@@ -270,7 +296,12 @@ type JobSpec = {
   cap?: "studio" | "upscales";
   /** Draws each picture itself instead of the model (an upscale). */
   draw?: (keys: Keys, p: { prompt: string }) => Promise<{ bytes: Buffer; mime: string }>;
+  /** Told each picture kept, with the prompt it came from (an identity pack keeps which view it is). */
+  onKept?: (pictureId: string, p: JobPrompt) => Promise<void>;
+  /** At most this many drawn at once (all of them by default): an identity pack's eight go four at a time, like two shoots. */
+  concurrency?: number;
 };
+type JobPrompt = { prompt: string; preset: PresetId | null; images?: string[]; view?: IdentityViewId };
 
 const shootRow = (r: {
   id: string; kind: ShootKind; status: Shoot["status"]; model: string | null; provider: string | null; tokens: number; asked: number; made: number; pictures: unknown;
@@ -328,19 +359,17 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
      values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, 'making', $12)`,
     [id, viewer, c.id, spec.partner ?? null, spec.kind, JSON.stringify(spec.choices ?? {}), spec.model.id, spec.model.provider, Boolean(own), pays ? spec.tokens : 0, asked, spec.redoOf ?? null],
   );
-  // Every picture at once (each a minute or so), then checked one at a time.
-  const drawn = await Promise.all(
-    spec.prompts.map((p) =>
-      // Each with its own log of what it sent (lib/adult/request-log.ts), kept with the picture.
-      withRequestLog(() => (spec.draw ? spec.draw(keys, p) : drawOne(db, spec.model, keys, p.prompt, spec.images, spec.negative))).then(
-        ({ value: file, requests }) => ({ file, p, requests }),
-        (err: unknown) => {
-          // A refusal of their own key (invalid, out of credit) goes on its Connections card, as a portrait's does.
-          const status = (err as { status?: number })?.status;
-          if (own && status) void recordJobFailure(db, viewer, "after_dark", own.provider, `${err instanceof Error ? err.message : "error"} (HTTP ${status})`);
-          return { error: err instanceof Error ? err.message.slice(0, 200) : "error" };
-        },
-      ),
+  // Every picture at once (each a minute or so), or `concurrency` at a time, then checked one at a time.
+  const drawn = await inBatches(spec.prompts, spec.concurrency ?? spec.prompts.length, (p) =>
+    // Each with its own log of what it sent (lib/adult/request-log.ts), kept with the picture.
+    withRequestLog(() => (spec.draw ? spec.draw(keys, p) : drawOne(db, spec.model, keys, p.prompt, p.images ?? spec.images, spec.negative))).then(
+      ({ value: file, requests }) => ({ file, p, requests }),
+      (err: unknown) => {
+        // A refusal of their own key (invalid, out of credit) goes on its Connections card, as a portrait's does.
+        const status = (err as { status?: number })?.status;
+        if (own && status) void recordJobFailure(db, viewer, "after_dark", own.provider, `${err instanceof Error ? err.message : "error"} (HTTP ${status})`);
+        return { error: err instanceof Error ? err.message.slice(0, 200) : "error" };
+      },
     ),
   );
   const kept: Media[] = [];
@@ -375,6 +404,7 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
       ],
     );
     await countUse(db, viewer, capKind);
+    await spec.onKept?.(pid, d.p);
     kept.push({
       id: pid, character_id: first, character_b: second, kind: spec.pictureKind, status: "ready", created_at: new Date().toISOString(), mime: d.file.mime, clip: false,
       place: spec.place, provider: spec.model.provider, fell_back: false, note: null, preset: d.p.preset, rating: null, tags: [], face: false,
@@ -421,9 +451,9 @@ async function faceLink(db: Db, viewer: string, c: Character, baseUrl: string): 
  * "Sharpen the face": a tight head-and-shoulders close-up made once from the baseline and set as the face anchor, so
  * every later shoot leads with the face itself and a heavy override changes the pose and scene without drifting it
  * (David, 2026-10-24: "provide a headshot as context, then let the rest override"). Drawn and checked like any picture;
- * the one that comes through becomes the character's face anchor (adult_identity.face_crop_image_id). An edit model only
- * (it reworks the baseline). Until one is made, shoots use the baseline exactly as before — this can only add a sharper
- * face, never make one worse.
+ * the one that comes through becomes the character's face anchor (adult_identity.face_crop_image_id), with the face it
+ * was drawn from (face_crop_from). An edit model only (it reworks the baseline). Until one is made, or once they pick a
+ * new face (identityOf sets an anchor of an earlier face aside), shoots use the face they keep itself.
  */
 export async function faceAnchorShoot(db: Db, viewer: string, characterId: string, input: { model?: string | null; own_key?: boolean }, baseUrl: string): Promise<JobResult> {
   const access = await studioAccess(db, viewer, characterId);
@@ -439,9 +469,48 @@ export async function faceAnchorShoot(db: Db, viewer: string, characterId: strin
     kind: "face", pictureKind: "scene", prompts: [{ prompt, preset: null }], images: [face], negative: NEGATIVE_PROMPT,
     model, tokens: input.own_key ? config.prices.own_key : config.prices.body, choices: {}, place: null, ownKey: input.own_key === true,
   });
-  // The one that came through becomes the anchor (every later shoot's Picture 1), so it's used, not just stored.
-  if (res.ok && res.pictures[0]) await upsertIdentity(db, viewer, c.id, "face_crop_image_id", res.pictures[0].id);
+  // The one that came through becomes the anchor (every later shoot's Picture 1), so it's used, not just stored, with
+  // the face it was drawn from: a new face picked later sets it aside (identityOf).
+  if (res.ok && res.pictures[0]) {
+    await upsertIdentity(db, viewer, c.id, "face_crop_image_id", res.pictures[0].id);
+    await upsertIdentity(db, viewer, c.id, "face_crop_from", await faceReferenceId(db, viewer, c.id));
+  }
   return res;
+}
+
+/**
+ * The identity pack (the creator suite, 2026-10-26; lib/studio/identity-views.ts): eight views of them, each an edit of
+ * the face they keep (the face anchor when there is one), so Fix faces and, when the setting is on, later shoots can be
+ * shown their face from the angle they need. All eight for the pack's price, or just the ones asked for (a redraw) for
+ * their share of it. Each view that comes through replaces that view, kept with the face it was drawn from.
+ */
+export async function identityPack(db: Db, viewer: string, characterId: string, input: { views?: IdentityViewId[]; model?: string | null; own_key?: boolean }, baseUrl: string): Promise<JobResult> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const { character: c, config } = access;
+  const model = studioModel(config, "edit", input.model);
+  if (!model) return fail(422, "unknown_model", "Pick one of the Studio's edit models.");
+  const views = input.views?.length ? IDENTITY_VIEW_IDS.filter((v) => input.views!.includes(v)) : [...IDENTITY_VIEW_IDS];
+  if (!views.length) return fail(422, "unknown_view", "Pick the views to draw.");
+  const link = await faceLink(db, viewer, c, baseUrl);
+  if (typeof link !== "string") return link;
+  const identity = await identityOf(db, viewer, c.id);
+  const face = identity.faceCrop ? signedMediaUrl(identity.faceCrop, baseUrl) : link;
+  const body = identity.body && model.max_images >= 2 ? signedMediaUrl(identity.body, baseUrl) : null;
+  const subject = subjectOf(c, viewer, false);
+  const prompts: JobPrompt[] = views.map((view) => ({
+    prompt: identityViewPrompt(view, subject, { body: view === "full_body" && Boolean(body), outfit: subject.outfit }),
+    preset: null,
+    images: view === "full_body" && body ? [face, body] : [face],
+    view,
+  }));
+  const from = identity.face;
+  return runJob(db, viewer, access, {
+    kind: "identity", pictureKind: "scene", prompts, images: [face], negative: NEGATIVE_PROMPT, model,
+    tokens: input.own_key ? config.prices.own_key : identityPrice(config.prices.identity, views.length),
+    choices: { views, level: 0 }, place: null, ownKey: input.own_key === true, concurrency: 4,
+    onKept: (pictureId, p) => (p.view ? keepIdentityView(db, viewer, c.id, "after_dark", p.view, pictureId, from) : Promise.resolve()),
+  });
 }
 
 /** The words a check reads: the choices and the look, never the prompt's fixed words. */
@@ -515,8 +584,18 @@ export async function shoot(db: Db, viewer: string, characterId: string, input: 
     images.push(model.provider === "replicate" ? replicateSetImage(set, plan.place!, baseUrl) : set);
     refs.set = true;
   }
+  // Their face from the angle the shot needs, out of their identity pack, last (so the other pictures keep their
+  // numbers), when the model has room and the setting is on: off until a live test shows it never adds a second person.
+  let angle: number | undefined;
+  if (config.identity_in_shoots && identity.strength !== "loose" && model.max_images > images.length) {
+    const view = pickView(freshViews(await identityPackOf(db, viewer, c.id, "after_dark", identity.face)), plan.parts.map((p) => p.words).join(" "));
+    if (view) {
+      images.push(signedMediaUrl(view.id, baseUrl));
+      angle = images.length;
+    }
+  }
   const steer = await steeringFor(db, viewer, [c.id]).catch(() => NO_STEERING);
-  const prompt = withSteering(shootPrompt(plan, subject, refs, identity.strength), steer, null);
+  const prompt = withSteering(shootPrompt(plan, subject, { ...refs, angle }, identity.strength), steer, null);
   return runJob(db, viewer, access, {
     kind: "shoot",
     pictureKind: "scene",
@@ -1365,6 +1444,8 @@ export type StudioState = {
   /** Animate (v3): the motions on offer, and the viewer's animations still being made (the page polls while there are). */
   motions: { id: string; label: string }[];
   animating: Shoot[];
+  /** Their identity pack's views (the creator suite): each one's picture, and whether it was drawn from an earlier face. */
+  identity_pack: IdentityPack;
 };
 
 export async function studioState(db: Db, viewer: string, characterId: string): Promise<{ ok: true; state: StudioState } | StudioFail> {
@@ -1444,6 +1525,7 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
       setups: await listSetups(db, viewer),
       motions: ANIMATE_MOTIONS.filter((m) => !config.disabled_options.includes(`motion.${m.id}`)).map(({ id, label }) => ({ id, label })),
       animating: shoots.filter((x) => x.kind === "animate" && x.status === "making"),
+      identity_pack: await identityPackOf(db, viewer, c.id, "after_dark", identity.face),
     },
   };
 }

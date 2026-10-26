@@ -10,16 +10,19 @@ import CreateLibrary from "@/app/studio/CreateLibrary";
 import ExportDialog from "@/app/studio/ExportDialog";
 import TileTools, { SelectBar } from "@/app/studio/TileTools";
 import { PG_API, useSelection, type Selection } from "@/app/studio/selection";
+import IdentityPackGrid from "@/app/studio/IdentityPackGrid";
+import { identityPrice, type IdentityViewId } from "@/lib/studio/identity-views";
 
 const pictureUrl = (id: string) => `/api/studio/pictures/${id}`;
 
 /**
  * The PG Studio's page (lib/studio/pg.ts): Shoot (the menus, a pick or a few per group, their own words, then a shoot of
- * four) and Gallery (every picture they've kept, each with its rating). One open group at a time keeps a phone's page short.
+ * four), Gallery (every picture they've kept, each with its rating) and Identity (their identity pack's eight views). One
+ * open group at a time keeps a phone's page short.
  */
 export default function PgStudio({ initial }: { initial: PgState }) {
   const [state, setState] = useState(initial);
-  const [tab, setTab] = useState<"shoot" | "gallery" | "create">("shoot");
+  const [tab, setTab] = useState<"shoot" | "gallery" | "identity" | "create">("shoot");
   // One of their own venues (Create), standing in for the menu's place.
   const [ownPlace, setOwnPlace] = useState<string | null>(null);
   const [choices, setChoices] = useState<Partial<Record<PgGroupId, string | string[]>>>({});
@@ -73,6 +76,21 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     setNote(res.data.message ? { text: String(res.data.message), error: pics.length === 0 } : { text: `${pics.length} new picture${pics.length === 1 ? "" : "s"}: they're in the gallery too.` });
   }
 
+  // The identity pack (the creator suite): all eight views, or the ones picked to redraw.
+  async function drawPack(views: IdentityViewId[]) {
+    setBusy(true);
+    setNote(null);
+    const res = await requestJson(`/api/characters/${c.id}/studio`, { action: "identity_pack", views }, "POST", { timeoutMs: 290_000 }).catch(() => null);
+    setBusy(false);
+    if (!res) return setNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
+    if (!res.ok) return setNote({ text: res.message, error: true });
+    const refresh = await fetch(`/api/characters/${c.id}/studio`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (refresh) setState(refresh as PgState);
+    const n = ((res.data.pictures as PgPicture[]) ?? []).length;
+    setNote(res.data.message ? { text: String(res.data.message), error: n === 0 } : { text: `${n} view${n === 1 ? "" : "s"} drawn: they're in the gallery too.` });
+  }
+  const tokenWord = (n: number) => (n === 0 ? "free" : `${n} token${n === 1 ? "" : "s"}`);
+
   // The Create tab saved or deleted something: the Where menu and the prompts row follow at once.
   const onLibrary = useCallback((lib: Library) => setState((s) => ({ ...s, library: { places: lib.places.filter((p) => p.mode === "safe"), prompts: lib.prompts.filter((p) => p.mode === "safe") } })), []);
 
@@ -108,6 +126,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
           [
             ["shoot", "📸 Shoot"],
             ["gallery", `🖼 Gallery (${state.pictures.length})`],
+            ["identity", "🪪 Identity"],
             ["create", "✨ Create"],
           ] as const
         ).map(([id, label]) => (
@@ -197,6 +216,27 @@ export default function PgStudio({ initial }: { initial: PgState }) {
         </>
       ) : tab === "create" ? (
         <CreateLibrary scope="safe" onLibrary={onLibrary} />
+      ) : tab === "identity" ? (
+        <>
+          {note && (
+            <p className={note.error ? "error" : "notice"} role={note.error ? "alert" : "status"}>
+              {note.text}
+            </p>
+          )}
+          {c.face ? (
+            <IdentityPackGrid
+              pack={state.identity_pack}
+              name={c.name}
+              price={(n) => (state.admin ? "free for admins" : tokenWord(identityPrice(state.identity_price, n)))}
+              src={pictureUrl}
+              busy={busy}
+              uses={`Eight views of ${c.name.split(/\s+/)[0]} from their portrait: the same face from every angle, to post as a set or keep for later shoots.`}
+              onDraw={(views) => void drawPack(views)}
+            />
+          ) : (
+            <p className="muted">The identity pack is drawn from their portrait: give {c.name.split(/\s+/)[0]} one first.</p>
+          )}
+        </>
       ) : state.pictures.length ? (
         <>
           {note && (
