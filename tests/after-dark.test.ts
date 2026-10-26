@@ -1,3 +1,4 @@
+import { beatPicturesSettled } from "@/lib/adult/beats";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { adultModeEnabled, setAdultModelForTests } from "@/lib/adult/mode";
@@ -286,7 +287,8 @@ describe("on the site, from the settings panel", () => {
     scripted(JSON.stringify({ lines: [{ who: "a", text: "Come here." }, { who: "b", text: "Make me." }], explicit: true, picture: null }));
     const first = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
     expect(first.pictures.map((p: { kind: string }) => p.kind)).toEqual(["baseline", "baseline"]);
-    scripted(JSON.stringify({ lines: [{ who: "a", text: "Again." }], explicit: true, picture: { of: "both", description: "the two of them on the sofa" } }));
+    // One of them (a picture of both is drawn from their faces since 2026-10-25: tests/after-dark-one-context.test.ts).
+    scripted(JSON.stringify({ lines: [{ who: "a", text: "Again." }], explicit: true, picture: { of: "a", description: "her on the sofa" } }));
     const second = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
     expect(second.pictures.map((p: { kind: string }) => p.kind)).toEqual(["scene"]);
     expect(seen.filter((s) => s.startsWith("POST https://fal.run/"))).toHaveLength(3);
@@ -623,7 +625,7 @@ describe("the picture request", () => {
     expect(sent).toMatchObject({ model_name: "SG161222/RealVisXL_V4.0", prompt_weighting: true, negative_prompt: expect.stringMatching(/teen.*minor/) });
   });
 
-  it("a picture of one of them keeps their face (their baseline as the reference); of both, or with no face found, it goes from the words", async () => {
+  it("a picture of one of them keeps their face (their baseline as the reference), or with no face found goes from the words; of both, from their faces", async () => {
     const { cookie } = await admin();
     await call(settingsPost, "/api/admin/after-dark/settings", { fal_key: "placeholder-media-WXYZ", hive_key: "placeholder-hive", auto_scene_pictures: false }, cookie);
     const sent: { url: string; body: Record<string, unknown> }[] = [];
@@ -654,10 +656,19 @@ describe("the picture request", () => {
     expect((await (await post({ a: CAST_A, b: CAST_B }, cookie)).json()).pictures).toHaveLength(1);
     expect(sent.map((s) => s.url)).toEqual([`https://fal.run/${FACE_MODEL}`, "https://fal.run/fal-ai/lora"]);
 
+    // Of both: drawn like every scene picture, from their two faces (lib/adult/beats.ts drawNightMoment), never fal's words.
     sent.length = 0;
+    const edits: string[] = [];
+    setReelFetchForTests(async (input: RequestInfo | URL) => {
+      edits.push(String(input));
+      return new Response("no", { status: 500 });
+    });
     scripted(JSON.stringify({ lines: [{ who: "a", text: "Both of us." }], explicit: true, picture: { of: "both", description: "the two of them" } }));
-    await post({ a: CAST_A, b: CAST_B }, cookie);
-    expect(sent.map((s) => s.url)).toEqual(["https://fal.run/fal-ai/lora"]);
+    const both = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
+    expect(both.auto_picture).toBe(true);
+    await beatPicturesSettled();
+    expect(sent.map((s) => s.url)).toEqual([]);
+    setReelFetchForTests(null);
   });
 });
 

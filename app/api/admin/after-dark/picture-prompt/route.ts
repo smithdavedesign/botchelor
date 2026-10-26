@@ -1,8 +1,7 @@
 import { isAdmin } from "@/lib/admins";
-import { autoPicturePrompt } from "@/lib/adult/auto-pictures";
+import { previewPicture } from "@/lib/adult/beats";
 import { adultViewer } from "@/lib/adult/mode";
 import { openScene } from "@/lib/adult/scenes";
-import { loadCharacter } from "@/lib/character";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 
@@ -10,9 +9,10 @@ import { handle, json } from "@/lib/http";
 const hidden = () => json({ error: "not_found" }, 404);
 
 /**
- * The prompt the chapter's picture would be drawn from, as the scene stands now (lib/adult/auto-pictures.ts
- * autoPicturePrompt): nothing is drawn or spent. `?a=&b=`. Admins only, to check what a picture will say before paying
- * for it (David, 2026-10-25: the prompt had her in lingerie leaving a bar), and for scripts/e2e-after-dark-scene.mjs.
+ * The prompt the chapter's picture would be drawn from, as the scene stands now: the moment at its latest line, through
+ * the same plan every scene picture is drawn from (lib/adult/beats.ts planBeat: their faces, the lines, what they wear,
+ * the place and its situation, the mood). Nothing is drawn or spent. `?a=&b=`. Admins only, to check what a picture will
+ * say before paying for it, and for scripts/e2e-after-dark-scene.mjs.
  */
 export const GET = handle(async (req: Request) => {
   const db = await getDb();
@@ -21,13 +21,7 @@ export const GET = handle(async (req: Request) => {
   const q = new URL(req.url).searchParams;
   const scene = await openScene(db, viewer, q.get("a") ?? "", q.get("b") ?? "");
   if (!scene) return hidden();
-  const [a, b] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id)]);
-  if (!a || !b) return hidden();
-  const prompt = autoPicturePrompt(
-    { id: scene.id, chapter: scene.chapter, place: scene.place ?? scene.date?.setting ?? null, set_place: scene.set_place, stage: scene.stage, lines: scene.lines, home: scene.place_history.at(-1)?.home ?? null },
-    a,
-    b,
-    viewer,
-  );
-  return json({ prompt, chapter: scene.chapter, stage: scene.stage, place: scene.set_place ?? scene.place });
+  const plan = await previewPicture(db, viewer, { ...scene, a: scene.a.id, b: scene.b.id, place: scene.set_place ?? scene.place }, {}, null);
+  if (!plan.ok) return json({ error: "not_previewed", message: plan.message }, plan.status);
+  return json({ prompt: plan.prompt, fields: plan.fields, chapter: scene.chapter, stage: scene.stage, place: scene.set_place ?? scene.place });
 });

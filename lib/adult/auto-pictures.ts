@@ -2,10 +2,10 @@
  * A picture for each chapter and each place (David, 2026-10-23: a pair five chapters in had three pictures, two of them
  * baselines, and nothing drawn when the balloon became a rainy garden). Each time a chapter's first lines are written,
  * and each time the place changes in a chapter (an agreed move, or Set the scene), one picture of the two of them is
- * drawn where they are, at the stage they're at, from the last few lines. It goes through makePicture
- * (lib/adult/media.ts) like any scene picture: the provider in the settings, the output check (Hive) on the bytes
- * before they're stored, the month's picture cap. The baselines (one per character, the face reference) are never
- * redrawn.
+ * drawn where they are, at the stage they're at, from the last few lines. Since 2026-10-25 it's drawn like every scene
+ * picture (lib/adult/beats.ts drawNightMoment): from their faces, with the night's one context (what they wear, the
+ * place and its situation, the mood), checked before it's kept, counted in the month's pictures, and redrawable. The
+ * baselines (one per character, the face reference) are never redrawn.
  *
  * At most one per chapter and place: each is claimed on the scene (adult_scenes.auto_pictures) before it's drawn, so a
  * retry, a rewind and a redo, or the same place twice in a chapter, never draws it twice. The drawing runs after the
@@ -21,9 +21,9 @@ import { inBackground } from "../sets";
 import { hivePausedUntil } from "./hive-limit";
 import { isPublicPlace } from "./continuity";
 import { repairPlacePronouns } from "./craft";
-import { makePicture, outputCheckReady, pictureKeyReady, recentActions, scenePrompt, type Media } from "./media";
+import { drawNightMoment } from "./beats";
+import { outputCheckReady, pictureKeyReady, recentActions, scenePrompt } from "./media";
 import { venueSituation } from "./scene-catalog";
-import { ownPlaceSituation } from "../studio/library";
 import { getAdultSettings } from "./settings";
 import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
 import { picturesBlocked } from "./readiness";
@@ -31,6 +31,8 @@ import { mediaAllowedFor } from "./place";
 
 /** What an automatic picture needs from the scene: which one, its chapter, where they are, how far it's gone, the lines. */
 export type AutoPictureScene = {
+  /** How many lines the scene has (the snapshot keeps only the last few): the picture's line is the latest. */
+  lineCount?: number;
   id: string;
   chapter: number;
   place: string | null;
@@ -82,13 +84,19 @@ export function autoPicturePrompt(scene: AutoPictureScene, a: Character, b: Char
   return scenePrompt(a, b, "both", DESCRIPTION, { place, stage: scene.stage, recent: recentActions([...scene.lines].slice(-6), 3), situation, publicPlace }, ownerId);
 }
 
-/** Draws the picture (makePicture: the provider, the output check, the cap). */
-export async function drawAutoPicture(db: Db, ownerId: string, scene: AutoPictureScene, a: Character, b: Character): Promise<Media> {
-  const where = scene.set_place ?? scene.place;
-  const own = scene.situation ?? (await ownPlaceSituation(db, ownerId, where).catch(() => null));
-  const prompt = autoPicturePrompt({ ...scene, situation: own }, a, b, ownerId);
-  // A picture of both goes without a face reference: the face model reads one face (lib/adult/media.ts FACE_MODEL).
-  return makePicture(db, ownerId, { prompt, kind: "scene", character_id: a.id, character_b: b.id, face_of: null, scene_chapter: scene.chapter, scene_place: where });
+/**
+ * Draws the picture, as every other scene picture is drawn (David, 2026-10-25: one context, from their faces, not
+ * guessed from words): a beat of kind "chapter" at the scene's latest line (lib/adult/beats.ts drawNightMoment), which
+ * can be redrawn with its moment. Throws the reason when it doesn't come.
+ */
+export async function drawAutoPicture(db: Db, ownerId: string, scene: AutoPictureScene, a: Character, b: Character): Promise<void> {
+  const r = await drawNightMoment(
+    db,
+    ownerId,
+    { id: scene.id, a: a.id, b: b.id, chapter: scene.chapter, place: scene.set_place ?? scene.place, stage: scene.stage, lines: scene.lines, lineCount: scene.lineCount ?? scene.lines.length },
+    { kind: "chapter" },
+  );
+  if (!r.ok) throw new Error(r.reason);
 }
 
 const pending = new Set<Promise<unknown>>();
@@ -120,7 +128,7 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
     if (await hivePausedUntil(db)) return false;
     // One of the chapter's unasked pictures (lib/adult/chapter-pictures.ts): none once it has had pictures_per_chapter.
     if (!(await claimChapterPicture(db, scene.id, scene.chapter, key, (await getAdultSettings(db)).pictures_per_chapter))) return false;
-    const snapshot: AutoPictureScene = { ...scene, lines: scene.lines.slice(-6) };
+    const snapshot: AutoPictureScene = { ...scene, lines: scene.lines.slice(-6), lineCount: scene.lines.length };
     inBackground(() => {
       const work = drawAutoPicture(db, ownerId, snapshot, a, b).then(
         () => void failedAt.delete(`${scene.id}|${key}`),
@@ -129,7 +137,7 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
           // The check looked and refused it (an age check's MINOR, the moderation): drawing it again would be paid for and
           // refused the same way (2026-10-25: three in seven minutes). The claim stays, so this chapter and place don't
           // draw it again, and the scene says why.
-          if (/discarded by the output check/.test(why)) {
+          if (/discarded by the output check|safety check discarded/.test(why)) {
             console.warn(`[after-dark] chapter ${snapshot.chapter}'s picture was refused by the check (not drawn again): ${why.slice(0, 160)}`);
             const note = /age check|minor/i.test(why)
               ? `${a.name} and ${b.name}'s picture read as under 18 to the age check, so it wasn't kept, and it won't be drawn again this chapter. An older age or a realistic look draws better.`
