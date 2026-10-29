@@ -81,7 +81,7 @@ export default async function AfterDarkScenePage({ params }: Props) {
       })()}
       <SceneWriter
         initial={scene}
-        gallery={await listMedia(db, [scene.a.id, scene.b.id], admin)}
+        gallery={await listMedia(db, [scene.a.id, scene.b.id], admin, { withArchived: true })}
         characters={characters}
         scenes={[...mineScenes(library.places, drawnSets), ...sceneCatalog(drawnSets)]}
         myRoleplays={library.roleplays.map(asRoleplay)}

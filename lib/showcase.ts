@@ -374,3 +374,61 @@ export async function postMedia(db: Db, v: ShowcaseViewer, postId: string): Prom
   if (!mine && !v.ratings.includes(rating)) return null;
   return { source: r.source, media_id: r.media_id, rating };
 }
+
+/* -------------------------------------------------- publishing the best -------------------------------------------------- */
+
+/**
+ * The owner's best work, to publish in one go (David, 2026-10-29: "add all the assets we have so far that have a good
+ * rating as the baseline for the showcase so it's not empty"): their own pictures and clips they 👍'd or an admin gave
+ * 4 or 5 stars (a clip of a reel given 4 or 5 too), never one 👎'd or given 1 to 3 stars or taken out to the Archive,
+ * and their PG Studio pictures rated pg. Never a picture with someone else's character: that needs its owner's OK,
+ * asked one post at a time, never in bulk on someone's behalf.
+ */
+export async function bestOf(db: Db, owner: string): Promise<{ after_dark: string[]; pg: string[] }> {
+  const ad = (
+    await db.query<{ id: string }>(
+      `select i.id from adult_images i
+         join characters c on c.id = i.character_id
+         left join characters cb on cb.id = i.character_b
+        where i.owner_id = $1 and i.status = 'ready' and i.kind in ('scene', 'baseline', 'video')
+          and (c.is_house or c.owner_id = $1) and (cb.id is null or cb.is_house or cb.owner_id = $1)
+          and (exists (select 1 from adult_media_thumbs t where t.media_id = i.id and t.owner_id = $1 and t.rating = 1)
+               or exists (select 1 from adult_media_ratings r where r.item_id = i.id and r.rating >= 4)
+               or exists (select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
+                           join adult_media_ratings r on r.item_id = v.id and r.item_kind = 'reel' and r.rating >= 4
+                          where v.owner_id = $1 and s->>'media_id' = i.id))
+          and not exists (select 1 from adult_media_thumbs t where t.media_id = i.id and t.rating = -1)
+          and not exists (select 1 from adult_media_ratings r where r.item_id = i.id and r.rating <= 3)
+          and not exists (select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
+                           where v.owner_id = $1 and s->>'media_id' = i.id and s ? 'archived_at')
+        order by i.created_at`,
+      [owner],
+    )
+  ).rows.map((r) => r.id);
+  const pg = (await db.query<{ id: string }>(`select id from studio_pg_pictures where owner_id = $1 and content_rating = 'pg' order by created_at`, [owner])).rows.map((r) => r.id);
+  return { after_dark: ad, pg };
+}
+
+/** Publishes the owner's best (bestOf) under their handle: each as one post would be, those already up left as they are. */
+export async function publishBest(db: Db, owner: string): Promise<{ ok: true; published: number; already: number; failed: number } | Fail> {
+  if (!(await creatorProfile(db, owner))) return fail(409, "no_profile", "Pick your creator handle first.");
+  const best = await bestOf(db, owner);
+  const existing = new Set(
+    (await db.query<{ media_id: string }>(`select media_id from showcase_posts where owner_id = $1`, [owner])).rows.map((r) => r.media_id),
+  );
+  let published = 0;
+  let already = 0;
+  let failed = 0;
+  for (const [source, ids] of [["after_dark", best.after_dark], ["pg", best.pg]] as const) {
+    for (const media_id of ids) {
+      if (existing.has(media_id)) {
+        already++;
+        continue;
+      }
+      const r = await publish(db, owner, { source, media_id });
+      if (r.ok) published++;
+      else failed++;
+    }
+  }
+  return { ok: true, published, already, failed };
+}

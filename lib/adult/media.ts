@@ -80,6 +80,12 @@ export type Media = {
   favorite?: boolean;
   /** On the showcase (lib/showcase.ts): its post, live or waiting for the other owner's OK. */
   post?: { id: string; status: string } | null;
+  /** For the galleries' filters (lib/media-filter.ts): what it shows (act, place, pov), its stars (the library's 1–5,
+   * averaged; a reel's for its shots), whether it's in the Archive, and the kind of reel it's a shot of. */
+  show_tags?: { kind: string; value: string }[] | null;
+  stars?: number | null;
+  archived?: boolean;
+  reel_kind?: string | null;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -694,6 +700,12 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             (select json_build_object('id', sp.id, 'status', sp.status) from showcase_posts sp where sp.source = 'after_dark' and sp.media_id = i.id and sp.status <> 'removed') as post,
             -- Tagged as the two of them together (lib/adult/media-tags.ts "who"), however it was made.
             exists (select 1 from adult_media_tags wt where wt.media_id = i.id and wt.kind = 'who' and wt.value = 'pair' and not wt.removed) as together,
+            -- Its stars (the library's), its own or its reel's, and whether it's in the Archive; the reel it's a shot of.
+            (select round(avg(sr.rating)::numeric, 1)::float from adult_media_ratings sr
+              where sr.item_id = i.id or (i.kind = 'video' and sr.item_kind = 'reel' and sr.item_id in (
+                select v.id from adult_reels v cross join lateral jsonb_array_elements(v.shots) s where v.owner_id = i.owner_id and s->>'media_id' = i.id))) as stars,
+            exists (select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at') as archived,
+            (select v.kind from adult_reels v cross join lateral jsonb_array_elements(v.shots) s where v.owner_id = i.owner_id and s->>'media_id' = i.id limit 1) as reel_kind,
             -- What it shows, for the tile's label (lib/adult/tag-labels.ts showsLabel).
             (select json_agg(json_build_object('kind', st.kind, 'value', st.value) order by st.source = 'manual' desc, st.created_at)
                from adult_media_tags st where st.media_id = i.id and not st.removed and st.kind in ('act', 'place', 'pov')) as show_tags
@@ -701,9 +713,10 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
        left join adult_media_thumbs r on r.media_id = i.id and r.owner_id = $2
        left join adult_face_refs f on f.image_id = i.id and f.owner_id = $2
        left join adult_nude_refs n on n.image_id = i.id and n.owner_id = $2`;
-const mediaRow = ({ face_of, show_tags, ...r }: Media & { face_of: string | null; show_tags?: { kind: string; value: string }[] | null }): Media => ({
+const mediaRow = ({ face_of, ...r }: Media & { face_of: string | null }): Media => ({
   ...r,
-  shows: showsLabel(show_tags),
+  show_tags: r.show_tags ?? [],
+  shows: showsLabel(r.show_tags),
   rating: r.rating ?? null,
   created_at: new Date(r.created_at).toISOString(),
   note: fallbackNote(r.provider, r.fell_back),
@@ -722,7 +735,7 @@ export async function mediaByIds(db: Db, ids: string[], viewerId: string): Promi
   return rows.map(mediaRow);
 }
 
-export async function listMedia(db: Db, ids: string[], viewerId: string | null = null): Promise<Media[]> {
+export async function listMedia(db: Db, ids: string[], viewerId: string | null = null, opts: { withArchived?: boolean } = {}): Promise<Media[]> {
   // Tagged first, for the tiles' labels (lib/adult/media-tags.ts): the back-fill of what's never been looked at.
   if (viewerId) await (await import("./media-tags")).ensureTagged(db, viewerId, ids);
   // Theirs alone, or of these characters together: never a picture or video with someone else in it (a character's
@@ -734,13 +747,14 @@ export async function listMedia(db: Db, ids: string[], viewerId: string | null =
     `${MEDIA_SELECT}
       where i.character_id = any($1) and (i.character_b is null or i.character_b = any($1)) and i.kind not in ('frame', 'audio')
         and ($2::text is null or i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
-        and (i.kind <> 'video' or not exists (
+        -- A gallery with its filters (lib/media-filter.ts) asks for the Archive too, each marked (shown under Archived).
+        and ($3::boolean or i.kind <> 'video' or not exists (
           select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
            where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at'
              -- One a 👎 took out stays in the gallery (under Not liked), so the 👎 can be taken back there.
              and coalesce(s->>'archived_by', '') <> 'rating'))
       order by i.created_at desc limit 60`,
-    [ids, viewerId],
+    [ids, viewerId, opts.withArchived === true],
   );
   return rows.map(mediaRow);
 }
@@ -751,7 +765,7 @@ export async function listMedia(db: Db, ids: string[], viewerId: string | null =
  * any partner, from the Studio and from their dates, newest first — tagged first (lib/adult/media-tags.ts), each with
  * the partner it shows, if any. Like listMedia, no keyframes or voices, and a shot taken out of its video is in the Archive.
  */
-export async function characterMedia(db: Db, characterId: string, viewerId: string, limit = 200): Promise<Media[]> {
+export async function characterMedia(db: Db, characterId: string, viewerId: string, limit = 200, opts: { withArchived?: boolean } = {}): Promise<Media[]> {
   const { ensureTagged } = await import("./media-tags");
   await ensureTagged(db, viewerId, [characterId]);
   const { rows } = await db.query<Media & { face_of: string | null; partner_id: string | null; partner_name: string | null }>(
@@ -759,14 +773,14 @@ export async function characterMedia(db: Db, characterId: string, viewerId: stri
        ${MEDIA_SELECT}
         where (i.character_id = $1 or i.character_b = $1) and i.kind not in ('frame', 'audio')
           and (i.owner_id = $2 or exists (select 1 from admins a where a.user_id = $2))
-          and (i.kind <> 'video' or not exists (
+          and ($4::boolean or i.kind <> 'video' or not exists (
             select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s
              where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at'
                and coalesce(s->>'archived_by', '') <> 'rating'))
         order by i.created_at desc limit $3
      ) m left join characters p on p.id = (case when m.character_id = $1 then m.character_b else m.character_id end)
      order by m.created_at desc`,
-    [characterId, viewerId, limit],
+    [characterId, viewerId, limit, opts.withArchived === true],
   );
   return rows.map(({ partner_id, partner_name, ...r }) => ({ ...mediaRow(r), partner: partner_id ? { id: partner_id, name: partner_name ?? "" } : null }));
 }

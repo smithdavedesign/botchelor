@@ -15,6 +15,8 @@ import IdentityPackGrid from "@/app/studio/IdentityPackGrid";
 import { identityPrice, type IdentityViewId } from "@/lib/studio/identity-views";
 import FormatChips, { tileRatio } from "@/app/studio/FormatChips";
 import { FORMATS, type FormatId } from "@/lib/studio/formats";
+import PgFilterBar from "@/app/studio/PgFilterBar";
+import { DEFAULT_PG_FILTER, filterPg, type PgFilter } from "@/lib/media-filter";
 
 const pictureUrl = (id: string) => `/api/studio/pictures/${id}`;
 
@@ -39,6 +41,8 @@ export default function PgStudio({ initial }: { initial: PgState }) {
   // The creator suite (2026-10-26): pictures picked to export together, and the export open for them.
   const sel = useSelection();
   const [exporting, setExporting] = useState<string[] | null>(null);
+  const [filter, setFilter] = useState<PgFilter>(DEFAULT_PG_FILTER);
+  const shown = filterPg(state.pictures, filter);
   const c = state.character;
   const groups = state.groups as readonly PgGroup[];
 
@@ -291,9 +295,10 @@ export default function PgStudio({ initial }: { initial: PgState }) {
               </button>
             </p>
           )}
-          <Pictures items={state.pictures} onDelete={remove} onUse={usePicture} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} />
+          <PgFilterBar items={state.pictures} value={filter} onChange={setFilter} shown={shown.length} />
+          <Pictures items={shown} onDelete={remove} onUse={usePicture} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} />
           {sel.selecting && (
-            <SelectBar count={sel.ids.length} total={state.pictures.length} onAll={() => sel.set(state.pictures.map((p) => p.id))} onExport={() => setExporting(sel.ids)} onDone={sel.done} />
+            <SelectBar count={sel.ids.length} total={shown.length} onAll={() => sel.set(shown.map((p) => p.id))} onExport={() => setExporting(sel.ids)} onDone={sel.done} />
           )}
           {exporting && <ExportDialog ids={exporting} api={PG_API} onClose={() => setExporting(null)} />}
         </>

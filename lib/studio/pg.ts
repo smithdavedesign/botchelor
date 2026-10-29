@@ -135,7 +135,16 @@ export async function drawPg(key: string, config: PgConfig, prompt: string, imag
 
 /* ------------------------------------------------- state ------------------------------------------------- */
 
-export type PgPicture = { id: string; rating: "pg" | "suggestive"; created_at: string; shoot_id: string | null; aspect?: string | null; post?: { id: string; status: string } | null };
+export type PgPicture = {
+  id: string;
+  rating: "pg" | "suggestive";
+  created_at: string;
+  shoot_id: string | null;
+  aspect?: string | null;
+  post?: { id: string; status: string } | null;
+  /** What made it and where (the gallery's filters, lib/media-filter.ts). */
+  tags?: PgTag[];
+};
 export type PgShoot = { id: string; status: string; asked: number; made: number; tokens: number; free: boolean; error: string | null; created_at: string };
 export type PgState = {
   character: { id: string; name: string; house: boolean; face: boolean };
@@ -199,8 +208,8 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
   if (!access.ok) return access;
   const { character: c, config, admin } = access;
   const [pictures, shoots, allowance, used, free, face, library] = await Promise.all([
-    db.query<{ id: string; content_rating: "pg" | "suggestive"; created_at: Date; shoot_id: string | null; aspect: string | null }>(
-      `select id, content_rating, created_at, shoot_id, aspect from studio_pg_pictures where owner_id = $1 and character_id = $2 order by created_at desc limit 120`,
+    db.query<{ id: string; content_rating: "pg" | "suggestive"; created_at: Date; shoot_id: string | null; aspect: string | null; tags: PgTag[] | null }>(
+      `select id, content_rating, created_at, shoot_id, aspect, tags from studio_pg_pictures where owner_id = $1 and character_id = $2 order by created_at desc limit 120`,
       [viewer, c.id],
     ),
     db.query<{ id: string; status: string; asked: number; made: number; tokens: number; free: boolean; error: string | null; created_at: Date }>(
@@ -220,7 +229,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
     state: {
       character: { id: c.id, name: c.name, house: c.house, face: Boolean(face) },
       groups: PG_GROUPS,
-      pictures: pictures.rows.map((p) => ({ id: p.id, rating: p.content_rating, created_at: new Date(p.created_at).toISOString(), shoot_id: p.shoot_id, aspect: p.aspect, post: posts[p.id] ?? null })),
+      pictures: pictures.rows.map((p) => ({ id: p.id, rating: p.content_rating, created_at: new Date(p.created_at).toISOString(), shoot_id: p.shoot_id, aspect: p.aspect, post: posts[p.id] ?? null, tags: (Array.isArray(p.tags) ? p.tags : []).filter((t) => t.kind === "made" || t.kind === "place") })),
       shoots: shoots.rows.map((s) => ({ ...s, created_at: new Date(s.created_at).toISOString() })),
       price: config.price,
       free: admin || free,

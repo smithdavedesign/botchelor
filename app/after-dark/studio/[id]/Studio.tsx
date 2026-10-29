@@ -1,5 +1,7 @@
 "use client";
 
+import MediaFilterBar from "../../MediaFilterBar";
+import { DEFAULT_FILTER, filterMedia, type MediaFilter } from "@/lib/media-filter";
 import PublishButton from "@/app/showcase/PublishButton";
 import RateDeck from "../../RateDeck";
 import FavoriteStar from "../../FavoriteStar";
@@ -165,6 +167,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const [galleryTab, setGalleryTab] = useState<"studio" | "dates" | "favorites">("studio");
   // Rate your pictures (app/after-dark/RateDeck.tsx): open, with the ones not rated yet.
   const [rating, setRating] = useState(false);
+  const [filter, setFilter] = useState<MediaFilter>(DEFAULT_FILTER);
   // Their dates' media tagged as two of them, with whoever's picked on the Together tab (everyone, before anyone is).
   /** After Shoot like this (far down the page): the picture it'll shoot like, next to the Shoot button, in view. */
   const showReference = () => setTimeout(() => document.querySelector(".ad-studio-reference")?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
@@ -424,7 +427,9 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   // pictures the rating deck shows (theirs not rated yet).
   const favorites = [...s.studio_gallery, ...s.dates_gallery].filter((m) => m.favorite);
   const shown = galleryTab === "studio" ? s.studio_gallery : galleryTab === "dates" ? s.dates_gallery : favorites;
-  const unrated = shown.filter((m) => m.kind !== "video" && m.rating == null);
+  // The gallery's filters (lib/media-filter.ts), the same over every tab here: no 👎, 1–3★ or Archive by default.
+  const filtered = filterMedia(shown, filter);
+  const unrated = shown.filter((m) => !m.archived && m.kind !== "video" && m.rating == null);
 
   /** How many a shoot makes: four as it always was, or a bigger shoot that lands picture by picture (the fifth four free). */
   const sizeChips = s.shoot_sizes.length > 1 && (
@@ -784,7 +789,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
       </p>
     </div>
   );
-  const latest = fresh && fresh.pictures.length > 0 ? null : s.gallery.slice(0, 4);
+  // The latest few, as the gallery shows them by default (no 👎 or 1–3★).
+  const latest = fresh && fresh.pictures.length > 0 ? null : filterMedia(s.gallery, DEFAULT_FILTER).slice(0, 4);
 
   return (
     <section className={`ad-studio-main${full ? " is-full" : ""}`} aria-label={full ? `${c.name}'s studio, full screen` : undefined}>
@@ -1121,10 +1127,13 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               )}
             </>
           )}
+          {(s.pair_gallery.length > 0 || datesTogether.length > 0) && (
+            <MediaFilterBar items={[...s.pair_gallery, ...datesTogether]} value={filter} onChange={setFilter} shown={filterMedia([...s.pair_gallery, ...datesTogether], filter).length} />
+          )}
           {s.pair_gallery.length > 0 && (
             <>
               <h2>Shoots together</h2>
-              {gallery(s.pair_gallery, {
+              {gallery(filterMedia(s.pair_gallery, filter), {
                 pair: true,
                 shootLike: partner
                   ? (p) => {
@@ -1139,7 +1148,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             <>
               {/* Their dates' media of the two of them (tagged together, lib/adult/media-tags.ts), to shoot with (David, 2026-10-25). */}
               <h2>From their dates{pairMenu ? ` with ${pairMenu.partner.name.split(/\s+/)[0]}` : ""}</h2>
-              {gallery(datesTogether, {
+              {gallery(filterMedia(datesTogether, filter), {
                 pair: true,
                 shootLike: (p) => {
                   const other = p.partner?.id;
@@ -1425,20 +1434,23 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             </p>
           )}
           {rating && <RateDeck items={unrated} src={media} onClose={(changed) => { setRating(false); if (changed) void refresh(); }} />}
-          {galleryTab === "favorites" ? (
-            favorites.length ? gallery(favorites) : <p className="muted">No favorites yet: ☆ a picture, or swipe one up in Rate.</p>
+          {shown.length > 0 && <MediaFilterBar items={shown} value={filter} onChange={setFilter} shown={filtered.length} />}
+          {shown.length > 0 && !filtered.length ? (
+            <p className="muted">Nothing here with these filters.</p>
+          ) : galleryTab === "favorites" ? (
+            favorites.length ? gallery(filtered) : <p className="muted">No favorites yet: ☆ a picture, or swipe one up in Rate.</p>
           ) : galleryTab === "studio" ? (
-            s.studio_gallery.length ? gallery(s.studio_gallery) : <p className="muted">Nothing yet: what you shoot here lands here.</p>
+            s.studio_gallery.length ? gallery(filtered) : <p className="muted">Nothing yet: what you shoot here lands here.</p>
           ) : s.dates_gallery.length ? (
-            gallery(s.dates_gallery)
+            gallery(filtered)
           ) : (
             <p className="muted">Nothing from their dates yet: pictures and clips from the theater land here, alone and with whoever they were with.</p>
           )}
           {sel.selecting && (
             <SelectBar
               count={sel.ids.length}
-              total={shown.length}
-              onAll={() => sel.set(shown.map((p) => p.id))}
+              total={filtered.length}
+              onAll={() => sel.set(filtered.map((p) => p.id))}
               onExport={() => setExporting(sel.ids)}
               onDone={sel.done}
             />
