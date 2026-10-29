@@ -2,8 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GET } from "@/app/api/sets/[slug]/route";
 import { HIVE_MODERATION, setCheckFetchForTests } from "@/lib/adult/check";
 import { saveAdultSettings } from "@/lib/adult/settings";
-import { ensureSet, SET_MODEL, setPrompt, setSetsFetchForTests } from "@/lib/sets";
-import { setPath } from "@/lib/venues";
+import { drawQueuedSets, ensureSet, listSetQueue, SET_MODEL, setPrompt, setSetsFetchForTests } from "@/lib/sets";
+import { normalizeScene, setPath } from "@/lib/venues";
 import { BASE_URL, startTestDb } from "./helpers";
 
 // Drawn sets for places of their own (lib/sets.ts): once per place, screened by Hive, served for the scene's backdrop.
@@ -87,5 +87,28 @@ describe("drawn sets", () => {
     expect(await ensureSet(t.db, null)).toBe("skipped");
     expect(await ensureSet(t.db, "elsewhere@the observatory")).toBe("failed");
     expect(drawn).toEqual([]);
+  });
+});
+
+describe("the queue of sets still to draw (David, 2026-10-26: \"if we don't have a picture for the scene add it to a queue\")", () => {
+  it("draws the due ones a scene left behind, cut off or failed for a passing reason; leaves the rest; lists what's waiting", async () => {
+    await keys();
+    const drawn = fakeFal();
+    hive(CLEAN);
+    // A bathroom cut off mid-draw half an hour ago, a kitchen whose retry is due, a cellar not due yet, a dungeon refused.
+    await t.db.query(
+      `insert into place_sets (normalized, label, status, reason, attempts, retry_at, updated_at) values
+         ($1, 'Sweet''s bathroom', 'drawing', null, 0, null, now() - interval '30 minutes'),
+         ('kitchen', 'kitchen', 'failed', 'fal 503', 1, now() - interval '1 minute', now() - interval '20 minutes'),
+         ('cellar', 'cellar', 'failed', 'fal 503', 1, now() + interval '1 hour', now() - interval '5 minutes'),
+         ('dungeon', 'dungeon', 'refused', 'the safety check refused it', 1, null, now())`,
+      [normalizeScene("Sweet's bathroom")],
+    );
+    expect((await listSetQueue(t.db)).map((q) => q.label).sort()).toEqual(["Sweet's bathroom", "cellar", "dungeon", "kitchen"]);
+    const done = await drawQueuedSets(t.db, 5);
+    expect(done.map((d) => d.label).sort()).toEqual(["Sweet's bathroom", "kitchen"]);
+    expect(done.every((d) => d.status === "ready")).toBe(true);
+    expect(drawn).toHaveLength(2);
+    expect((await listSetQueue(t.db)).map((q) => q.label).sort()).toEqual(["cellar", "dungeon"]);
   });
 });

@@ -2167,7 +2167,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     // The closest set already drawn for the new place, else its canonical name, drawn once in the background.
     set_place = await resolve(settled.moved.to);
     kept[settled.moved.at] = { ...kept[settled.moved.at], moved_to: set_place };
-    moves.push({ chapter: scene.chapter, at: scene.lines.length + settled.moved.at, from: scene.set_place ?? scene.place, to: set_place, taken: true, reason: "agreed" });
+    moves.push({ chapter: scene.chapter, at: scene.lines.length + settled.moved.at, from: scene.set_place ?? scene.place, to: set_place, taken: true, reason: settled.moved.room ? "room" : "agreed" });
     place_history = [...place_history, { place: place ?? set_place, set: set_place, home: settled.moved.home, chapter: scene.chapter }];
   } else if (set_place && set_place !== scene.set_place) {
     // The scene's first set (or one named where the old one named nowhere, or v2.2's "Lexis bedroom" put right): the

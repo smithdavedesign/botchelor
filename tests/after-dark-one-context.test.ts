@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { autoPicturesSettled, kickAutoPicture, PICTURE_GAP } from "@/lib/adult/auto-pictures";
-import { beatPicturesSettled } from "@/lib/adult/beats";
+import { beatPicturesSettled, OLDER_WORDS } from "@/lib/adult/beats";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { setFramingViewForTests } from "@/lib/adult/framing";
 import { setAdultModelForTests } from "@/lib/adult/mode";
@@ -161,6 +161,44 @@ describe("one context for every scene picture", () => {
     await t.db.query(`insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place) values ('b1', $1, $2, $3, $4, 1, 5, 'undress', 'undressing', 3, 'his apartment')`, [id, sceneId, LEXI, RAFE]);
     const [a, b] = [await loadCharacter(t.db, LEXI), await loadCharacter(t.db, RAFE)];
     expect(await kickAutoPicture(t.db, id, { id: sceneId, chapter: 1, place: "his apartment", set_place: "his apartment", stage: 3, lines }, a, b)).toBe(false);
+  });
+
+  describe("an age check that reads one of them as young (David, 2026-10-26: \"proper error handling if they flag as too young\")", () => {
+    /** The age check answering MINOR for the first `minors` pictures, then ADULTS. */
+    function ageCheck(minors: number) {
+      const edits = fakeMedia();
+      let asked = 0;
+      setCheckFetchForTests(async (input: RequestInfo | URL) =>
+        Response.json(String(input) === HIVE_VLM ? (asked++ < minors ? { choices: [{ message: { role: "assistant", content: '{"answer": "MINOR"}' } }] } : ADULTS) : CLEAN_MOD),
+      );
+      return edits;
+    }
+
+    it("is drawn once more, plainly older, through the same check, and kept when that passes", async () => {
+      const { cookie } = await setup(at(2), "Lexi's bedroom");
+      const edits = ageCheck(1);
+      await post({ a: LEXI, b: RAFE, picture_now: { line: 1 } }, cookie);
+      await beatPicturesSettled();
+      const scene = edits.filter((e) => /from Picture 2 together/.test(e.prompt));
+      expect(scene).toHaveLength(2);
+      expect(scene[0].prompt).not.toContain(OLDER_WORDS);
+      expect(scene[1].prompt).toContain(OLDER_WORDS);
+      expect(scene[1].prompt.length).toBeLessThanOrEqual(1500);
+      expect((await t.db.query<{ status: string }>(`select status from adult_beats where kind = 'chosen' order by created_at desc limit 1`)).rows[0].status).toBe("drawn");
+    });
+
+    it("refused both times: the beat says who and what fixes it, and so does the scene", async () => {
+      const { cookie } = await setup(at(2), "Lexi's bedroom");
+      ageCheck(9);
+      await post({ a: LEXI, b: RAFE, picture_now: { line: 1 } }, cookie);
+      await beatPicturesSettled();
+      const beat = (await t.db.query<{ status: string; fail_reason: string }>(`select status, fail_reason from adult_beats where kind = 'chosen' order by created_at desc limit 1`)).rows[0];
+      expect(beat.status).toBe("failed");
+      expect(beat.fail_reason).toMatch(/^The age check read Lexi as possibly under 18, so the picture wasn't kept, even drawn again older\. Open Lexi's Studio/);
+      const page = (await (await GET(new Request(`${BASE_URL}/api/admin/after-dark?a=${LEXI}&b=${RAFE}`, { headers: { cookie } }))).json()).scene;
+      expect(page.picture_note).toBe(beat.fail_reason);
+      expect(page.beats.find((b: { status: string }) => b.status === "failed")?.reason).toBe(beat.fail_reason);
+    });
   });
 
   it("at sex, a dressed body reference gives way to the nude baseline; a nude one is used (Sweet's camisole, 2026-10-26)", async () => {

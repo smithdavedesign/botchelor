@@ -420,7 +420,7 @@ export function shownMove(lines: readonly PlaceLine[], from: number, here: strin
 /** One stop in a night: where they were, the set it was on, whose home it is (when it's one), and the chapter. */
 export type PlaceStop = { place: string; set: string | null; home: "a" | "b" | null; chapter: number };
 /** A move the model reported, and whether it was taken (the observer reads the ones that weren't). */
-export type MoveLog = { chapter: number; at: number; from: string | null; to: string; taken: boolean; reason: "agreed" | "no_agreement" | "cap" | "already_there" | "set_scene" | "plan" };
+export type MoveLog = { chapter: number; at: number; from: string | null; to: string; taken: boolean; reason: "agreed" | "no_agreement" | "cap" | "already_there" | "set_scene" | "plan" | "room" };
 
 /**
  * Whether where they are was chosen for them, not by the model (David, 2026-10-25: "I sent them on it, but it chose the
@@ -437,7 +437,7 @@ export type Settled = {
   place: string | null;
   set: string | null;
   /** The move taken: the agreeing line's index among the new lines, where they went, and whose home it is. */
-  moved: { at: number; to: string; home: "a" | "b" | null } | null;
+  moved: { at: number; to: string; home: "a" | "b" | null; room?: boolean } | null;
   /** A move the model reported that wasn't taken, and why. */
   rejected: { to: string; reason: MoveLog["reason"] } | null;
 };
@@ -476,6 +476,8 @@ export function settlePlace(input: {
   const want = canonicalSet(claim);
   // Nothing new: they're where they were.
   if (!claim) return orShown(keep());
+  const room = roomMove(input, claim);
+  if (room) return room;
   // A place the rules don't know ("the bakery", "his workshop"): only when the lines agreed to go there by that name;
   // otherwise it names nowhere ("an intimate, private space", "on the swing") and they're where they were.
   if (!want.known) {
@@ -507,6 +509,40 @@ export function settlePlace(input: {
   // An agreement in these lines moves them there; one from before moves them where these lines show them going, else at the start.
   const at = agreedHere ? agreedHere.agree - input.from : Math.max(0, input.lines.slice(input.from).findIndex((l) => GOING.test(movingActions(l.text)) || ARRIVING.test(l.text)));
   return { place: claimed.place ?? to, set: to, moved: { at, to, home: move.home ?? homeFromOwner(canonicalSet(to), input.names) ?? homeFromOwner(want, input.names) }, rejected: null };
+}
+
+/** The rooms of a home a line can take them to, as the lines say them. */
+const ROOM_WORDS: readonly (readonly [RegExp, string])[] = [
+  [/\b(?:bathroom|bath ?tub|bathtub|tub|shower)\b/i, "bathroom"],
+  [/\bkitchen\b/i, "kitchen"],
+  [/\bbedroom\b/i, "bedroom"],
+  [/\bliving room\b|\blounge\b/i, "living room"],
+  [/\bbalcony\b|\bterrace\b/i, "balcony"],
+  [/\bdining room\b/i, "dining room"],
+];
+const roomIn = (text: string): string | null => ROOM_WORDS.find(([re]) => re.test(text))?.[1] ?? null;
+
+/**
+ * From one room of the home they're in to another (2026-10-26, Sweet × Juniper in her penthouse: "Sweet's penthouse, in
+ * the bathroom" read as just her home, and "the bathroom" needed an agreement no one makes to cross a hallway, so the night
+ * stayed in her living room through a whole bath): the room the model names, when the new lines put them there, is where
+ * they are. No agreement, and it doesn't count against the night's moves. Null when it isn't a room move.
+ */
+function roomMove(input: Parameters<typeof settlePlace>[0], claim: string): Settled | null {
+  const home = input.homeNow;
+  if (!home) return null;
+  const room = roomIn(claim);
+  const owner = homeFromOwner(canonicalSet(claim), input.names);
+  if (!room || (owner && owner !== home)) return null;
+  const here = input.current.set ?? input.current.place ?? "";
+  if (roomIn(here) === room) return null;
+  // Where they get there: the first new line whose action puts them in it, else the first that names it.
+  const fresh = input.lines.slice(input.from);
+  const shown = fresh.findIndex((l) => roomIn(actionsOf(l.text)) === room);
+  const at = shown >= 0 ? shown : fresh.findIndex((l) => roomIn(l.text) === room);
+  if (at < 0) return null;
+  const to = `${input.names[home].split(/\s+/)[0]}'s ${room}`;
+  return { place: input.claimed.place ?? to, set: to, moved: { at, to, home, room: true }, rejected: null };
 }
 
 /**
