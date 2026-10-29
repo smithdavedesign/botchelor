@@ -2570,3 +2570,21 @@ A shoot of four took a minute or two and came back all at once. The Studio now a
 - **Not done:** the plan's "content_rating from level on every Studio picture" stays undone on purpose.
   `lib/content-rating.ts` lets a rating come down only through a check that measured the picture, never from a choice
   like a level, and the twin's PG check is that path.
+
+## Rate your pictures, and favorites (2026-10-26)
+
+**The rating deck** (`app/after-dark/RateDeck.tsx`, `app/useSwipe.ts`): "🃏 Rate N new" on the Studio's gallery opens
+the gallery tab's unrated pictures full screen, one at a time.
+- **The moves:** → 👍, ← 👎 (then what was off, or Skip), ↑ ⭐ a favorite (and a 👍). The buttons and the arrow keys do
+  the same, and Esc closes it.
+- **Where ratings go:** each one goes through the usual rate route, so it steers their next pictures, as the deck says.
+- **No pressure:** no counts to beat and no timer (David's "delight, no pressure"). It ends when the pile does.
+- **The gesture:** `useSwipe` is a small hook of its own. The dating deck (`app/swipe/SwipeDeck.tsx`) keeps its own
+  code, unchanged.
+
+**Favorites** (`media_favorites`, `POST /api/admin/after-dark/favorites`, `app/after-dark/FavoriteStar.tsx`):
+- A ☆/★ on every Studio tile, and a ⭐ Favorites tab beside Studio and After Dark in the gallery.
+- The owner's own pictures and clips only; deleted with the account.
+
+**Screenshots:** `npm run screenshots:studio` now also captures the shape and size chips, the identity pack, a tile's
+creator tools and the rating deck, desktop and phone, each checked for no sideways scroll on a phone.

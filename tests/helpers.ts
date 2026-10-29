@@ -162,6 +162,8 @@ export async function startTestDb() {
         "adult_rejections",
         // Exports (lib/media-tools/export.ts): a person's packed downloads, kept a day.
         "media_exports",
+        // Favorites (the Studio's ⭐).
+        "media_favorites",
         // Identity packs' views (lib/studio/identity-pack.ts), in both Studios.
         "identity_views",
         "adult_usage",

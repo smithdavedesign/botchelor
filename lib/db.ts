@@ -2528,6 +2528,14 @@ alter table adult_studio_shoots add column if not exists leased_until timestampt
 -- SFW twins (lib/adult/sfw-twin.ts): the After Dark picture a safe-for-work one was made from.
 alter table adult_images add column if not exists twin_of text;
 alter table studio_pg_pictures add column if not exists twin_of text;
+-- Favorites (the creator suite): the After Dark pictures and clips each person starred (the Studio's ⭐ and the rating
+-- deck's swipe up), theirs alone.
+create table if not exists media_favorites (
+  owner_id text not null,
+  media_id text not null references adult_images (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (owner_id, media_id)
+);
 alter table adult_identity add column if not exists face_crop_from text;
 alter table studio_pg_shoots add column if not exists kind text not null default 'shoot';
 create table if not exists identity_views (

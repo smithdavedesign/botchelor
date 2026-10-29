@@ -269,6 +269,11 @@ async function main() {
       await under(page, ".ad-studio-group:nth-of-type(5)");
       if (size === "phone") await noSideways(page, "the shoot's menus");
       await shot(page, `studio-shoot-${size}`);
+      // The creator suite: the shape it's drawn in and how many (native sizes, bigger shoots).
+      await under(page, ".studio-formats");
+      assert(await page.locator(".studio-sizes").isVisible(), "the shoot's sizes aren't there");
+      if (size === "phone") await noSideways(page, "the shape and size chips");
+      await shot(page, `studio-shoot-formats-${size}`);
       // Come back later: the picks are still there.
       await page.reload();
       await page.locator("fieldset.ad-studio-group", { has: page.locator("legend", { hasText: "Wardrobe" }) }).getByRole("button", { name: "Evening", exact: true }).first().waitFor({ timeout: 30_000 });
@@ -298,6 +303,11 @@ async function main() {
       await hair.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 140));
       if (size === "phone") await noSideways(page, "the restyle");
       await shot(page, `studio-restyle-${size}`);
+      // The identity pack's eight views (none drawn yet: the empty tiles and what drawing them costs).
+      await under(page, ".studio-identity-pack");
+      assert((await page.locator(".studio-identity-view").count()) === 8, "the identity pack doesn't show eight views");
+      if (size === "phone") await noSideways(page, "the identity pack");
+      await shot(page, `studio-identity-pack-${size}`);
       await tab("Shoot");
       // Together: him picked, a slow dance on the rooftop.
       await tab("Together");
@@ -328,6 +338,22 @@ async function main() {
       await page.evaluate(() => document.querySelector('.ad-studio-item:has(img[src*="studio-shot-2"]) .ad-studio-share')?.scrollIntoView({ block: "center" }));
       if (size === "phone") await noSideways(page, "the gallery's share panel");
       await shot(page, `studio-gallery-share-${size}`);
+      await first.getByRole("button", { name: "Share…" }).click();
+      // A tile's creator tools: the star, Fix faces, the SFW twin, a carousel.
+      await page.evaluate(() => document.querySelector('.ad-studio-item:has(img[src*="studio-shot-2"])')?.scrollIntoView({ block: "start" }));
+      assert(await first.getByRole("button", { name: /Fix faces/ }).isVisible(), "no Fix faces on a picture");
+      assert(await first.getByRole("button", { name: /SFW twin/ }).isVisible(), "no SFW twin on a picture");
+      if (size === "phone") await noSideways(page, "a tile's creator tools");
+      await shot(page, `studio-gallery-tools-${size}`);
+      // Rate your pictures: the deck, full screen, the first one up.
+      const rate = page.getByRole("button", { name: /Rate \d+ new/ });
+      if (await rate.isVisible()) {
+        await rate.click();
+        await page.locator(".ad-rate-deck img").waitFor({ timeout: 10_000 });
+        if (size === "phone") await noSideways(page, "the rating deck");
+        await shot(page, `studio-rate-deck-${size}`);
+        await page.getByRole("button", { name: "Done" }).click();
+      }
       await first.getByRole("button", { name: "Share…" }).click();
       // The Gallery's After Dark tab: what came from their dates, alone and with whoever they were with; then back.
       await page.getByRole("tab", { name: /^After Dark/ }).click();

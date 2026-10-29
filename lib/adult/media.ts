@@ -76,6 +76,8 @@ export type Media = {
   aspect?: string | null;
   /** A picture with its faces fixed (lib/adult/fix-faces.ts): the one it was fixed from. */
   fixed_from?: string | null;
+  /** Starred by the viewer (the Studio's ⭐, the rating deck's swipe up). */
+  favorite?: boolean;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -681,6 +683,8 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             i.derived, i.moment_at, (case when i.derived is not null or i.moment_at is not null then i.source_image end) as from_clip,
             -- Its shape (native sizes) and, its faces fixed, the picture it was fixed from (lib/adult/fix-faces.ts).
             i.aspect, i.fixed_from,
+            -- Starred by the viewer (media_favorites).
+            exists (select 1 from media_favorites fv where fv.media_id = i.id and fv.owner_id = $2) as favorite,
             -- Tagged as the two of them together (lib/adult/media-tags.ts "who"), however it was made.
             exists (select 1 from adult_media_tags wt where wt.media_id = i.id and wt.kind = 'who' and wt.value = 'pair' and not wt.removed) as together,
             -- What it shows, for the tile's label (lib/adult/tag-labels.ts showsLabel).

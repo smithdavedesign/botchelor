@@ -2,6 +2,24 @@
 
 ## Screenshots
 
+The creator suite (2026-10-26). The Studio now:
+- draws in the shape you post in (Portrait, Story, Feed, Square, Wide);
+- makes bigger shoots that land picture by picture;
+- builds an identity pack of eight views per character;
+- puts 🩹 Fix faces, 👕 an SFW twin, 🎠 a carousel and a ⭐ on every picture;
+- offers camera moves for clips;
+- has a swipe deck to rate your pictures.
+
+Captured by `npm run screenshots:studio` with seeded PG stand-ins (nothing drawn). Code:
+[`lib/adult/studio.ts`](lib/adult/studio.ts), [`lib/adult/fix-faces.ts`](lib/adult/fix-faces.ts),
+[`lib/studio/formats.ts`](lib/studio/formats.ts); docs/PRDs/creator-suite.md.
+
+![The Studio's Shoot tab on desktop: the shape chips (Portrait 3:4 to Wide 16:9) and how many (4, 8, 12, 20) above the Shoot button](docs/screenshots/studio-shoot-formats-desktop.png)
+![A gallery picture on a phone: the star, 👍/👎, Fix faces, SFW twin, More like this and Carousel](docs/screenshots/studio-gallery-tools-phone.png)
+![Rate your pictures on desktop: one picture full screen, 👎 ⭐ 👍, and what each rating steers](docs/screenshots/studio-rate-deck-desktop.png)
+![The identity pack on desktop: eight views to draw, from Straight on to Full body](docs/screenshots/studio-identity-pack-desktop.png)
+![Animate on a phone: the motions, then a camera-move tile per move over the picture](docs/screenshots/studio-gallery-animate-phone.png)
+
 The Studio for everyone, and the Create library (2026-10-25). Each character's safe **📸 Studio**
 (`/characters/[id]/studio`): eleven menus and your own words, four pictures that keep their face, and every picture
 checked safe before it's kept. **✨ Create** (in both Studios) keeps your own venues, prompts and roleplays: venues and

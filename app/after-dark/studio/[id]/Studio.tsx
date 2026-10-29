@@ -1,5 +1,7 @@
 "use client";
 
+import RateDeck from "../../RateDeck";
+import FavoriteStar from "../../FavoriteStar";
 import SfwTwin from "../../SfwTwin";
 import CameraMoves from "../../CameraMoves";
 import type { CameraMoveId } from "@/lib/adult/camera-moves";
@@ -159,7 +161,9 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
   };
   // The Gallery's two tabs (David, 2026-10-25): what was made here, and what came from their dates.
-  const [galleryTab, setGalleryTab] = useState<"studio" | "dates">("studio");
+  const [galleryTab, setGalleryTab] = useState<"studio" | "dates" | "favorites">("studio");
+  // Rate your pictures (app/after-dark/RateDeck.tsx): open, with the ones not rated yet.
+  const [rating, setRating] = useState(false);
   // Their dates' media tagged as two of them, with whoever's picked on the Together tab (everyone, before anyone is).
   /** After Shoot like this (far down the page): the picture it'll shoot like, next to the Shoot button, in view. */
   const showReference = () => setTimeout(() => document.querySelector(".ad-studio-reference")?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
@@ -400,6 +404,12 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     });
   }
 
+  // The gallery's tabs: everything of theirs in the Studio, from their dates, and their ⭐ favorites of both; and the
+  // pictures the rating deck shows (theirs not rated yet).
+  const favorites = [...s.studio_gallery, ...s.dates_gallery].filter((m) => m.favorite);
+  const shown = galleryTab === "studio" ? s.studio_gallery : galleryTab === "dates" ? s.dates_gallery : favorites;
+  const unrated = shown.filter((m) => m.kind !== "video" && m.rating == null);
+
   /** How many a shoot makes: four as it always was, or a bigger shoot that lands picture by picture (the fifth four free). */
   const sizeChips = s.shoot_sizes.length > 1 && (
     <div className="studio-sizes" role="radiogroup" aria-label="How many pictures">
@@ -472,6 +482,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
             <TileTools id={p.id} api={AFTER_DARK_API} selecting={sel.selecting} selected={sel.has(p.id)} onToggle={() => sel.toggle(p.id)} />
             <div className="ad-studio-item-tools">
+              <FavoriteStar id={p.id} on={p.favorite} onChange={() => void refresh()} />
               <RateMedia
                 id={p.id}
                 kind={p.kind}
@@ -1375,6 +1386,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               [
                 ["studio", `Studio (${s.studio_gallery.length})`],
                 ["dates", `After Dark (${s.dates_gallery.length})`],
+                ["favorites", `⭐ Favorites (${favorites.length})`],
               ] as const
             ).map(([id, label]) => (
               <button key={id} type="button" role="tab" aria-selected={galleryTab === id} className={galleryTab === id ? "on" : ""} onClick={() => setGalleryTab(id)}>
@@ -1382,14 +1394,22 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               </button>
             ))}
           </div>
-          {(galleryTab === "studio" ? s.studio_gallery : s.dates_gallery).length > 0 && !sel.selecting && (
+          {shown.length > 0 && !sel.selecting && (
             <p className="studio-gallery-head">
+              {unrated.length > 0 && (
+                <button type="button" className="button-ghost small" onClick={() => setRating(true)} title="Swipe through the ones you haven't rated: each rating steers their next pictures">
+                  🃏 Rate {unrated.length} new
+                </button>
+              )}
               <button type="button" className="button-ghost small" onClick={sel.start} title="Pick pictures and clips to download together: sizes for stories and feeds, captions, a contact sheet">
                 ⬇ Pick to export
               </button>
             </p>
           )}
-          {galleryTab === "studio" ? (
+          {rating && <RateDeck items={unrated} src={media} onClose={(changed) => { setRating(false); if (changed) void refresh(); }} />}
+          {galleryTab === "favorites" ? (
+            favorites.length ? gallery(favorites) : <p className="muted">No favorites yet: ☆ a picture, or swipe one up in Rate.</p>
+          ) : galleryTab === "studio" ? (
             s.studio_gallery.length ? gallery(s.studio_gallery) : <p className="muted">Nothing yet: what you shoot here lands here.</p>
           ) : s.dates_gallery.length ? (
             gallery(s.dates_gallery)
@@ -1399,8 +1419,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
           {sel.selecting && (
             <SelectBar
               count={sel.ids.length}
-              total={(galleryTab === "studio" ? s.studio_gallery : s.dates_gallery).length}
-              onAll={() => sel.set((galleryTab === "studio" ? s.studio_gallery : s.dates_gallery).map((p) => p.id))}
+              total={shown.length}
+              onAll={() => sel.set(shown.map((p) => p.id))}
               onExport={() => setExporting(sel.ids)}
               onDone={sel.done}
             />
