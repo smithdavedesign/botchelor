@@ -654,6 +654,12 @@ const UNDRESSING = STAGES.indexOf("undressing");
  * work or hobbies have had their share of their last lines (lib/adult/quality.ts topicEvery) is told which words to
  * leave alone, like a worn phrase. `steered`: the steer and whispers, whose topic words are theirs to ask for.
  */
+/**
+ * No fade to black (2026-10-29, the Rivals test night: 28 lines of rivalry at talking and flirting, then line 29 woke them
+ * in the afterglow, kissing, undressing and sex skipped): whatever it becomes, it happens on the page, one stage at a time.
+ */
+const NO_SKIP = " It never skips ahead or cuts to afterwards: anything it becomes happens on the page, one step at a time.";
+
 function craftLines(
   a: Character | null,
   b: Character | null,
@@ -956,8 +962,8 @@ export function sceneMessages(
           : now.profile?.roleplay
             ? // A roleplay sets its own pace (David, 2026-10-29): further only when the roles take it there, never on a timer.
               (now.linesAtStage ?? 0) < ROLEPLAY_LINES_PER_STAGE || now.stage >= STAGES.length - 1
-              ? `- Stay in the roleplay at ${STAGES[now.stage]}: these lines play the roles out (what they want from each other as their roles, the game between them, what's at stake), and don't move on to the next stage yet.`
-              : `- The roleplay sets the pace. It can go one stage further, to ${STAGES[now.stage + 1]}, only if the roles' story takes it there in these lines (a dare taken, a line crossed between the roles, a choice both make in character); staying where it is, in the roles, is just as good.`
+              ? `- Stay in the roleplay at ${STAGES[now.stage]}: these lines play the roles out (what they want from each other as their roles, the game between them, what's at stake), and don't move on to the next stage yet.${NO_SKIP}`
+              : `- The roleplay sets the pace. It can go one stage further, to ${STAGES[now.stage + 1]}, only if the roles' story takes it there in these lines (a dare taken, a line crossed between the roles, a choice both make in character); staying where it is, in the roles, is just as good.${NO_SKIP}`
             : (now.linesAtStage ?? 0) < MIN_LINES_PER_STAGE
               ? `- Tease it out. These lines stay at ${STAGES[now.stage]}: linger in it, with talk, looks, hesitation and anticipation. Don't move on to the next stage yet.`
               : now.stage < STAGES.length - 1

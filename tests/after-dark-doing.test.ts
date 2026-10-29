@@ -105,6 +105,8 @@ describe("a roleplay the writer plays, and the transcript shows", () => {
     const at14 = prompt(1, 14);
     expect(at14).toContain("- Stay in the roleplay at tension and the first touches: these lines play the roles out");
     expect(at14).not.toContain("Move it on");
+    // No fade to black (the Rivals test night skipped from flirting to the afterglow).
+    expect(at14).toContain("It never skips ahead or cuts to afterwards: anything it becomes happens on the page, one step at a time.");
     // Past 24, it may go further, only if the roles take it there.
     expect(prompt(1, 25)).toContain("- The roleplay sets the pace. It can go one stage further, to kissing, only if the roles' story takes it there");
     // The roles stay through anything intimate, and the premise isn't where it has to end.
