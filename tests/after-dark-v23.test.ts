@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { OLDER_WORDS } from "@/lib/adult/beats";
 import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { autoPictureKey, autoPicturesSettled, RETRY_AFTER_MS, setAutoPictureClockForTests } from "@/lib/adult/auto-pictures";
@@ -564,7 +565,7 @@ describe("a picture for each chapter and each place", () => {
     }
   });
 
-  it("one the age check refuses isn't drawn again, paid for again and refused again; the scene says why (2026-10-25)", async () => {
+  it("one the age check refuses isn't drawn again, paid for again and refused again; the scene says who and why (2026-10-25)", async () => {
     const { cookie } = await admin();
     await media(true, cookie);
     let now = 1_000_000;
@@ -580,10 +581,12 @@ describe("a picture for each chapter and each place", () => {
       scripted(() => six({ place: "the lighthouse", set: "the lighthouse" }));
       await post({ a: CAST_A, b: CAST_B }, cookie);
       await autoPicturesSettled();
+      // Her face picture itself was refused (drawn first): nothing to draw older, and the note says who (2026-10-26).
       expect(drawn).toHaveLength(1);
+      expect(drawn.join(" ")).not.toContain(OLDER_WORDS);
       expect(await scenePictures()).toEqual([]);
       const scene = (await get(cookie)).scene as { picture_note: string | null };
-      expect(scene.picture_note).toMatch(/read as under 18 to the age check.*won't be drawn again this chapter/);
+      expect(scene.picture_note).toBe("The age check read Juniper Vale as possibly under 18, so the picture wasn't kept.");
       now += RETRY_AFTER_MS + 1;
       await post({ a: CAST_A, b: CAST_B }, cookie);
       await autoPicturesSettled();

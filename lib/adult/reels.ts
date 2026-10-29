@@ -746,7 +746,7 @@ export function keyframePrompt(
   place: string | null,
   stage: number,
   withSet: boolean,
-  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; extra?: string; dialog?: string; reference?: boolean; steer?: string } = {},
+  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; extra?: string; dialog?: string; reference?: boolean; steer?: string; older?: string } = {},
 ): string {
   const [a, b] = cast;
   // Drawn like a picture they already have (the storyboard's Draw like it): Picture 3 is that picture, for its pose,
@@ -769,7 +769,7 @@ export function keyframePrompt(
   const extra = opts.extra?.trim() ? ` ${opts.extra.trim()}` : "";
   // What the viewer's ratings of the two of them steer toward (lib/adult/steering.ts), just before the closing words.
   const steer = opts.steer?.trim() ? `${cap(opts.steer.trim().replace(/[.\s]*$/, ""))}.` : "";
-  return fitPrompt([head, whoIsWho(cast)], `${custom}${frame}${extra}${dialog}`, [where, light, keep, steer, tailAt(stage, opts.explicit ?? true)]);
+  return fitPrompt([head, whoIsWho(cast), opts.older ?? ""], `${custom}${frame}${extra}${dialog}`, [where, light, keep, steer, tailAt(stage, opts.explicit ?? true)]);
 }
 
 /**
@@ -784,7 +784,7 @@ export function povPrompt(
   place: string | null,
   stage: number,
   withSet: boolean,
-  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; extra?: string; dialog?: string; steer?: string; continueFrom?: "same" | "after" } = {},
+  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; extra?: string; dialog?: string; steer?: string; continueFrom?: "same" | "after"; older?: string } = {},
 ): string {
   const viewer = cast[eyes === "a" ? 0 : 1];
   const shown = cast[eyes === "a" ? 1 : 0];
@@ -802,7 +802,7 @@ export function povPrompt(
     `${withSet && !opts.continueFrom ? " Keep the place, its furniture and its light from Picture 2." : ""}` +
     ` Of ${viewer.tag}, whose eyes these are, only hands, arms, hips or thighs at the edge of the frame, never a face: one person in full.`;
   const steer = opts.steer?.trim() ? `${cap(opts.steer.trim().replace(/[.\s]*$/, ""))}.` : "";
-  return fitPrompt([head], `${custom}${still}${extra}${dialog}`, [where, light, keep, steer, tailAt(stage, opts.explicit ?? true)]);
+  return fitPrompt([head, opts.older ?? ""], `${custom}${still}${extra}${dialog}`, [where, light, keep, steer, tailAt(stage, opts.explicit ?? true)]);
 }
 
 /** Which of them is which picture, when "the woman" and "the man" don't already say it. */

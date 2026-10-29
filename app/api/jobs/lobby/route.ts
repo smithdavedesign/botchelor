@@ -6,7 +6,7 @@ import { airDueDates } from "@/lib/air";
 import { autoplayQuietOwnDates } from "@/lib/own-date";
 import { runDueScheduledDates } from "@/lib/scheduled-dates";
 import { runDueMixers } from "@/lib/group-dates-run";
-import { retryDueSets } from "@/lib/sets";
+import { drawQueuedSets, retryDueSets } from "@/lib/sets";
 import { runWhileAway } from "@/lib/away";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
@@ -28,6 +28,8 @@ async function run(req: Request): Promise<Response> {
   const handed_over = await autoplayQuietOwnDates(db).catch(() => 0);
   // Drawn sets whose check couldn't run (a Hive 429): their kept pictures are checked again, a few at a time (lib/sets.ts).
   const sets_rechecked = (await retryDueSets(db, 3).catch(() => [])).length;
+  // The places scenes went whose set never landed (a draw cut off, a passing failure due again): drawn a couple at a time.
+  const sets_drawn = (await drawQueuedSets(db, 2).catch(() => [])).length;
   // While they're away (lib/away.ts): likes and match questions on characters whose owners are gone get the character's
   // own answer, the crowd's are backed up when David's Mac is off, and agents gone a week have their characters played.
   const away = await runWhileAway(db).catch(() => ({}));
@@ -35,7 +37,7 @@ async function run(req: Request): Promise<Response> {
   const scheduled = await runDueScheduledDates(db).catch(() => ({ ran: 0, booked: 0, waiting: 0, failed: 0 }));
   // The speed-dating mixer (lib/group-dates-run.ts): runs once enough singles joined, through the normal booking route.
   const mixers = await runDueMixers(db).catch(() => ({ ran: 0, booked: 0, failed: 0, cancelled: 0, waiting: 0 }));
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

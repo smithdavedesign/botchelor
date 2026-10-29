@@ -297,3 +297,42 @@ export async function drawMissingSets(db: Db, limit = 10): Promise<{ label: stri
   for (const r of rows) out.push({ label: r.label, status: await ensureSet(db, r.label) });
   return out;
 }
+
+/** One place in the queue of sets still to draw: what it's called, where it stands, and why the last try didn't land. */
+export type QueuedSet = { label: string; status: SetStatus; reason: string | null; attempts: number; retry_at: string | null; updated_at: string };
+
+/**
+ * The queue (David, 2026-10-26: "if we don't have a picture for the scene add it to a queue for us to generate and add to
+ * the DB"): every place a scene went gets a place_sets row the moment it's named (resolveSet → ensureSet), drawn in the
+ * background. This is what hasn't landed yet: drawing, waiting on a retry, failed, or refused. Newest first.
+ */
+export async function listSetQueue(db: Db, limit = 50): Promise<QueuedSet[]> {
+  const { rows } = await db.query<QueuedSet & { retry_at: Date | null; updated_at: Date }>(
+    `select label, status, reason, attempts, retry_at, updated_at from place_sets where status <> 'ready' order by updated_at desc limit $1`,
+    [Math.max(1, Math.min(limit, 200))],
+  );
+  return rows.map((r) => ({ ...r, retry_at: r.retry_at ? new Date(r.retry_at).toISOString() : null, updated_at: new Date(r.updated_at).toISOString() }));
+}
+
+/**
+ * Draws the queue's due sets that have no picture yet, a few at a time: a passing failure whose retry is due, or one cut
+ * off mid-draw. Before this only a scene going back there drew it again, so a room drawn once and cut off stayed blank.
+ * Kept pictures waiting on their check are retryDueSets'. Refused and finally failed ones are left for an admin.
+ */
+export async function drawQueuedSets(db: Db, limit = 2): Promise<{ label: string; status: string }[]> {
+  if (await hiveCooling(db)) return [];
+  const { rows } = await db.query<{ label: string }>(
+    `select label from place_sets
+      where data is null
+        and ((status = 'failed' and retry_at is not null and retry_at <= now() and attempts < $2)
+          or (status = 'drawing' and updated_at < now() - ($3::int * interval '1 millisecond')))
+      order by updated_at limit $1`,
+    [Math.max(1, Math.min(limit, 10)), RETRY_ATTEMPTS, STALE_DRAWING_MS],
+  );
+  const out: { label: string; status: string }[] = [];
+  for (const r of rows) {
+    out.push({ label: r.label, status: await ensureSet(db, r.label) });
+    if (await hiveCooling(db)) break;
+  }
+  return out;
+}

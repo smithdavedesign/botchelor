@@ -68,3 +68,27 @@ describe("an invitation home, in the home's own word", () => {
     expect(r.moved).toMatchObject({ home: "a" });
   });
 });
+
+describe("from one room of her home to another", () => {
+  // Run 2, chapter 2: from her kitchen counter to the bathroom and the bath; the set stayed "Sweet's living room".
+  const night = [
+    l("a", "*She drops the cloth into the sink with a soft plink.* You're right. The bathroom has a better view of the dawn."),
+    l("b", "*She pushes herself up from the counter and turns.* Show me the way."),
+    l("a", "The best part of the show is the sold-out encore. Come on."),
+    l("b", "*She follows willingly, her bare feet silent on the polished floors.* The floor is smooth under my feet."),
+    l("a", "*She pushes open a frosted glass door, revealing a bathroom with a massive, floor-to-ceiling window.* I told you."),
+    l("b", "*She leans her head back against Sweet's shoulder.* Hold me here until the light comes."),
+  ];
+  const settle = (claim: string, homeNow: "a" | "b" | null = "a") =>
+    settlePlace({ current: { place: "Sweet's penthouse living room", set: "Sweet's living room" }, claimed: { place: claim, set: null }, lines: night, from: 0, movesThisChapter: 2, homeNow, names: { a: "Sweet thang", b: "Juniper Vale" }, fromLines: true });
+
+  it("the room the model names, when the lines take them there, however it's put; no agreement, and past the night's two moves", () => {
+    for (const claim of ["Sweet's penthouse, in the bathroom", "the bathroom", "Sweet's bathroom"]) expect(settle(claim)).toMatchObject({ set: "Sweet's bathroom", moved: { at: 4, home: "a", room: true } });
+  });
+
+  it("not out of someone else's home, nor to a room the lines never reach", () => {
+    expect(settle("Juniper's bathroom").moved?.room).toBeFalsy();
+    expect(settle("the kitchen").moved).toBeNull();
+    expect(settle("the bathroom", null).moved?.room).toBeFalsy();
+  });
+});

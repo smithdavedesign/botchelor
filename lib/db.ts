@@ -2213,6 +2213,8 @@ alter table adult_beats add column if not exists edit jsonb;
 -- than POV shots"): picked once from how well that act's framings do, kept so a redraw and a reel's shot keep it.
 alter table adult_beats add column if not exists eyes text check (eyes in ('a', 'b'));
 alter table adult_beats add column if not exists paid integer not null default 0;
+-- Why a beat's picture didn't come (lib/adult/beats.ts drawBeat), for the page: an age check's refusal says who and what fixes it.
+alter table adult_beats add column if not exists fail_reason text;
 
 -- The After Dark library (lib/adult/library.ts; David, 2026-10-24): which model drew a picture (null: from before it was
 -- kept, when only its provider was), and each viewer's 1–5 stars on a picture or a video (item_id: an adult_images or an

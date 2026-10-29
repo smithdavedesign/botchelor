@@ -21,7 +21,7 @@ import { inBackground } from "../sets";
 import { hivePausedUntil } from "./hive-limit";
 import { isPublicPlace } from "./continuity";
 import { repairPlacePronouns } from "./craft";
-import { drawNightMoment } from "./beats";
+import { ageRefused, drawNightMoment } from "./beats";
 import { outputCheckReady, pictureKeyReady, recentActions, scenePrompt } from "./media";
 import { venueSituation } from "./scene-catalog";
 import { getAdultSettings } from "./settings";
@@ -152,6 +152,8 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
           // draw it again, and the scene says why.
           if (/discarded by the output check|safety check discarded/.test(why)) {
             console.warn(`[after-dark] chapter ${snapshot.chapter}'s picture was refused by the check (not drawn again): ${why.slice(0, 160)}`);
+            // An age check's refusal: drawBeat tried again older and wrote the scene's note (who, and what fixes it).
+            if (ageRefused(why)) return;
             const note = /age check|minor/i.test(why)
               ? `${a.name} and ${b.name}'s picture read as under 18 to the age check, so it wasn't kept, and it won't be drawn again this chapter. An older age or a realistic look draws better.`
               : `${a.name} and ${b.name}'s picture didn't pass the check, so it wasn't kept, and it won't be drawn again this chapter.`;

@@ -207,12 +207,18 @@ export default function SceneWriter({
   const nameOf = (who: "a" | "b") => (who === "a" ? scene.a.name : scene.b.name).split(/\s+/)[0];
 
   /** Fetches the gallery again a little later (twice: a picture and its checks take a while), adding what's new. */
-  function lookForPictures() {
-    for (const ms of [20_000, 60_000]) {
+  function lookForPictures(beatId?: string) {
+    for (const ms of [20_000, 60_000, 120_000]) {
       setTimeout(async () => {
         const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
         const fresh = (r?.gallery as Media[] | undefined) ?? [];
         if (fresh.length) setGallery((g) => [...fresh.filter((m) => !g.some((x) => x.id === m.id)), ...g]);
+        // Why a picture didn't come (an age check's refusal says who and what fixes it): on the scene, and said here.
+        const now = r?.scene as AdultScene | undefined;
+        if (!now) return;
+        setScene((s) => ({ ...s, picture_note: now.picture_note, beats: now.beats }));
+        const failed = beatId ? now.beats?.find((b) => b.id === beatId && b.status === "failed") : undefined;
+        if (failed) setNote({ text: `📸 ${failed.reason ?? `${failed.label}: the picture didn't come. Try Redraw.`}`, error: true });
       }, ms);
     }
   }
@@ -308,7 +314,7 @@ export default function SceneWriter({
     setScene(res.data.scene as AdultScene);
     const beat = res.data.beat as PublicBeat | undefined;
     if (beat?.status === "drawing") {
-      lookForPictures();
+      lookForPictures(beat.id);
       setNote({ text: `📸 ${"redraw" in body ? "Drawing it again" : `${beat.label}: drawing it now`}. It lands in the gallery below in a minute or so.` });
     }
   }

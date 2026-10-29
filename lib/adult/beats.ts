@@ -58,7 +58,7 @@ export type BeatStatus = "offered" | "later" | "drawing" | "drawn" | "failed";
 export type FoundBeat = { line: number; act: string; kind: BeatKind; stage: number };
 
 /** A beat as the page gets it. */
-export type PublicBeat = { id: string; line: number; kind: BeatKind; act: string; label: string; status: BeatStatus; picture_id: string | null };
+export type PublicBeat = { id: string; line: number; kind: BeatKind; act: string; label: string; status: BeatStatus; picture_id: string | null; reason?: string | null };
 
 type BeatRow = {
   id: string;
@@ -83,6 +83,8 @@ type BeatRow = {
   /** What the owner changed in its context before it was drawn (PictureEdit), and what a redraw cost them. */
   edit: PictureEdit | null;
   paid: number;
+  /** Why its picture didn't come, in the owner's words (drawBeat). */
+  fail_reason?: string | null;
 };
 
 /**
@@ -263,7 +265,7 @@ export function beatFrame(
   return happening && ok(happening) ? `${base} What is happening: ${happening}.` : base;
 }
 
-const publicBeat = (r: BeatRow): PublicBeat => ({ id: r.id, line: r.line, kind: r.kind, act: r.act, label: beatLabel(r.kind, r.act), status: r.status, picture_id: r.picture_id });
+const publicBeat = (r: BeatRow): PublicBeat => ({ id: r.id, line: r.line, kind: r.kind, act: r.act, label: beatLabel(r.kind, r.act), status: r.status, picture_id: r.picture_id, ...(r.status === "failed" && r.fail_reason ? { reason: r.fail_reason } : {}) });
 
 /** Whether beat pictures can be made: the setting on, and the provider's and Hive's keys saved. */
 export async function beatPicturesReady(db: Db): Promise<boolean> {
@@ -340,7 +342,7 @@ export async function beatPicturesSettled(): Promise<void> {
 
 /** A scene picture planned: the fields the owner sees, and the prompt they make (with the place's set as Picture 3, or not). */
 export type PicturePlan =
-  | { ok: true; fields: PictureFields; edit: PictureEdit | null; prompt: string; promptFor: (withSet: boolean) => string; characters: [Character, Character]; stage: number; act: string; eyes: Eyes | null }
+  | { ok: true; fields: PictureFields; edit: PictureEdit | null; prompt: string; promptFor: (withSet: boolean, older?: boolean) => string; characters: [Character, Character]; stage: number; act: string; eyes: Eyes | null }
   | { ok: false; status: number; message: string };
 
 /**
@@ -390,7 +392,11 @@ export async function planBeat(
   const clothes = own?.wearing ?? (outfits ? `${outfits}, both fully clothed` : undefined);
   const custom = [own?.extra, beat.custom].filter(Boolean).join(". ") || undefined;
   const opts = { explicit: limits.explicit, custom, dialog: beat.dialog ?? undefined, ...(clothes ? { clothes: withoutNames(clothes, cast) } : {}) };
-  const promptFor = (withSet: boolean) => (eyes ? povPrompt(cast, eyes, framed, where, stage, withSet, opts) : keyframePrompt(cast, framed, where, stage, withSet, opts));
+  // `older`: the second try after an age check read one of them as young (drawBeat).
+  const promptFor = (withSet: boolean, older = false) => {
+    const o = older ? { ...opts, older: OLDER_WORDS } : opts;
+    return eyes ? povPrompt(cast, eyes, framed, where, stage, withSet, o) : keyframePrompt(cast, framed, where, stage, withSet, o);
+  };
   return { ok: true, fields, edit: own, prompt: promptFor(false), promptFor, characters: [ca, cb], stage, act: beat.act, eyes };
 }
 
@@ -444,15 +450,56 @@ async function chapterRoleplayTitle(db: Db, beat: Pick<BeatRow, "scene_id" | "ow
   return rp?.title ?? null;
 }
 
+/** An age check's refusal: someone in the picture could be under 18, or it couldn't tell. */
+export const ageRefused = (why: string): boolean => /age check[^)]*\b(?:MINOR|UNSURE|minor)\b|under 18/i.test(why);
+
+/**
+ * What a picture's prompt adds on its second try after an age check refused it (David, 2026-10-26: "proper error handling
+ * if they flag as too young"): both drawn plainly as the adults they are. The same check runs on the new picture, and
+ * only ADULTS passes; this never lowers the bar, it only asks the picture model not to draw them young.
+ */
+export const OLDER_WORDS =
+  "Both are grown adults, clearly in their late twenties or older: mature adult faces and bodies, adult proportions, nothing youthful or childlike about either of them.";
+
+/**
+ * Which of them an age check most likely read as young, to name in the note: the younger, else one drawn in an anime
+ * style (it reads young), else the owner's own (the house cast is reviewed). Null when nothing points either way.
+ */
+export function youngerLooking(people: readonly [Character, Character], owner: string): Character | null {
+  const [a, b] = people;
+  if (a.age !== b.age) return a.age < b.age ? a : b;
+  const anime = people.filter((c) => (c.extras?.looks as { style?: string } | undefined)?.style === "anime");
+  if (anime.length === 1) return anime[0];
+  const own = people.filter((c) => c.ownerId === owner);
+  return own.length === 1 ? own[0] : null;
+}
+
+/** The owner's note when the age check refused both tries: who, what was given back, and what fixes it. */
+export function ageRefusalNote(people: readonly [Character, Character], owner: string, refunded: number, retried: boolean): string {
+  const who = youngerLooking(people, owner);
+  const back = refunded > 0 ? ` The ${refunded === 1 ? "token is" : "tokens are"} back.` : "";
+  const again = retried ? ", even drawn again older" : "";
+  if (!who) return `The age check couldn't tell that both of them are adults, so the picture wasn't kept${again}.${back} A more mature face in the Studio for either of them fixes it.`;
+  const studio = who.ownerId === owner ? ` Open ${who.name}'s Studio and pick a more mature face (or give ${who.name} an older age): every picture is drawn from it.` : "";
+  return `The age check read ${who.name} as possibly under 18, so the picture wasn't kept${again}.${back}${studio}`;
+}
+
 /** Draws one beat's picture and keeps it, or marks it failed with why (and gives back what a redraw cost). */
 async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  let people: [Character, Character] | null = null;
+  // Whether a second picture, drawn older, was actually made (a refused face picture makes none: the note says so).
+  let retried = false;
   const fail = async (why: string) => {
     console.warn(`[after-dark] a beat picture didn't come (${beat.kind}, chapter ${beat.chapter}): ${why.slice(0, 160)}`);
-    await db.query(`update adult_beats set status = 'failed' where id = $1`, [beat.id]);
+    const refunded = beat.paid;
     if (beat.paid > 0) {
       await refundBoughtTokens(db, beat.owner_id, beat.paid).catch(() => {});
       await db.query(`update adult_beats set paid = 0 where id = $1`, [beat.id]);
     }
+    // The page says why (PublicBeat.reason); an age refusal also says it on the scene, where the theater shows its problems.
+    const said = ageRefused(why) && people ? ageRefusalNote(people, beat.owner_id, refunded, retried) : why;
+    await db.query(`update adult_beats set status = 'failed', fail_reason = $2 where id = $1`, [beat.id, said.slice(0, 400)]);
+    if (ageRefused(why) && people && !beat.night_id) await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [beat.scene_id, said]).catch(() => {});
     return { ok: false as const, reason: why };
   };
   try {
@@ -465,16 +512,26 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<{ ok: t
     const plan = await planBeat(db, beat, beat.edit);
     if (!plan.ok) return fail(plan.message);
     const [ca, cb] = plan.characters;
+    people = [ca, cb];
     const stage = plan.stage;
     const reject = (reason: string) =>
       db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'scene', $3)`, [crypto.randomUUID(), beat.owner_id, `beat picture: ${reason}`.slice(0, 300)]).catch(() => {});
-    const kept = await keepPictureOfBoth(
-      db,
-      beat.owner_id,
-      [ca, cb],
-      { place: beat.place, stage, promptFor: plan.promptFor, act: plan.act, ...(plan.eyes ? { eyes: plan.eyes } : {}) },
-      { keys, settings, baseUrl, reject, scene: { chapter: beat.chapter, place: beat.place } },
-    );
+    const draw = (promptFor: (withSet: boolean) => string) =>
+      keepPictureOfBoth(
+        db,
+        beat.owner_id,
+        [ca, cb],
+        { place: beat.place, stage, promptFor, act: plan.act, ...(plan.eyes ? { eyes: plan.eyes } : {}) },
+        { keys, settings, baseUrl, reject, scene: { chapter: beat.chapter, place: beat.place } },
+      );
+    let kept = await draw(plan.promptFor);
+    // An age check read one of them as young: once more, drawn plainly older, through the same check (OLDER_WORDS).
+    if (!kept.ok && kept.error === "discarded" && ageRefused(kept.message)) {
+      kept = await draw((withSet) => {
+        retried = true;
+        return plan.promptFor(withSet, true);
+      });
+    }
     if (!kept.ok) return fail(kept.message);
     await db.query(`update adult_beats set status = 'drawn', picture_id = $2, eyes = $3 where id = $1`, [beat.id, kept.picture.id, plan.eyes]);
     return { ok: true as const };
