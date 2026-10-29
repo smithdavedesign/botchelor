@@ -95,6 +95,42 @@
 .ad-pair .badge {
   margin-left: auto;
 }
+/* A night to pick up again (the audit, 2026-10-29): both faces, then who, the last line and when, the whole card a link. */
+.after-dark-mode a.ad-pair-link {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
+}
+.ad-pair-faces {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.ad-pair-faces .char-name + .char-name {
+  margin-left: -0.6rem;
+}
+.ad-pair-faces .char-name-text {
+  display: none;
+}
+.ad-pair-body {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.ad-pair-names {
+  font-size: var(--text-md, 1.05rem);
+}
+.ad-pair-last {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ad-pair-link:hover .ad-pair-names,
+.ad-pair-link:focus-visible .ad-pair-names {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 /* Pick one of the cast: a face each, in a row that wraps. */
 .ad-cast-chips {
   display: flex;
@@ -1641,3 +1677,58 @@ a.ad-scenes-make-link {
     display: none;
   }
 }
+/* The hub's settings (who's in, the writer): one card, closed until wanted; the cards inside sit flat in it. */
+.ad-hub-settings > summary {
+  cursor: pointer;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ad-hub-settings[open] > summary {
+  margin-bottom: var(--space-2);
+}
+.ad-hub-settings .card {
+  border: 0;
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+  background: transparent;
+}
+/* The subscribe page's preview (app/after-dark/subscribe/WhatsInside.tsx): the cast, a few places, the roleplays, what you get. */
+.ad-inside {
+  margin-top: var(--space-5);
+}
+.ad-inside-places {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-3);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: var(--space-2);
+}
+.ad-inside-places li {
+  display: grid;
+  gap: 0.25rem;
+}
+.ad-inside-places img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 0.8rem;
+}
+.ad-inside-plays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+.ad-inside-list {
+  display: grid;
+  gap: var(--space-2);
+  padding-left: 1.1rem;
+}
+.ad-inside-price {
+  font-weight: 600;
+}
+

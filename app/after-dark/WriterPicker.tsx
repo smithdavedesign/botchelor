@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
 import type { WriterOptions } from "@/lib/adult/writer";
+import { plainName } from "@/lib/adult/writer-config";
 
 /**
  * Who writes your scenes (lib/adult/writer.ts): a writer from the list, kept for every scene and the two sides of a
@@ -45,8 +46,7 @@ export default function WriterPicker({ initial, compact = false, icon = false }:
     <select id={compact ? "ad-writer-compact" : "ad-writer"} value={w.chosen} disabled={busy} onChange={(e) => void pick(e.target.value)} title={chosen?.note || undefined}>
       {w.models.map((m) => (
         <option key={m.id} value={m.id} title={m.note || undefined}>
-          {m.label}
-          {!compact && m.note ? `: ${m.note}` : ""}
+          {compact ? m.label : plainName(m) === m.label ? `${m.label}${m.note ? `: ${m.note}` : ""}` : `${plainName(m)} (${m.label})`}
           {!compact && m.id === w.default ? " (the default)" : ""}
         </option>
       ))}

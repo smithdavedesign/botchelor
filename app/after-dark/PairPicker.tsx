@@ -3,25 +3,57 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import CharacterName from "@/app/CharacterName";
+import type { CastPair } from "@/lib/adult/scenes";
 
-type Who = { id: string; name: string };
-type Pair = { a: Who; b: Who; lines: number; path: string };
+type Who = { id: string; name: string; photo?: string | null };
+type Pair = CastPair;
 
 const first = (n: string) => n.split(/\s+/)[0];
 
-/** One pair already under way: both faces and names as one link to its scene, the lines badge outside its underline. */
+/** "just now", "12 min ago", "3 h ago", "yesterday", "4 days ago", then the date. */
+function ago(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return "";
+  const min = Math.round((now - new Date(iso).getTime()) / 60_000);
+  if (min < 2) return "just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  if (d === 1) return "yesterday";
+  if (d < 7) return `${d} days ago`;
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+/**
+ * One night under way, as a card to pick up again (the audit, 2026-10-29): both faces (the ones kept for this viewer, so
+ * behind the privacy blur when it's on), the night's last line, its chapter and when it was played.
+ */
 function PairRow({ p }: { p: Pair }) {
+  const meta = [p.chapter && p.chapter > 1 ? `Chapter ${p.chapter}` : "", p.lines > 0 ? `${p.lines} lines` : "", ago(p.updated_at)].filter(Boolean).join(" · ");
   return (
     <li className="card ad-pair">
       <Link href={p.path} className="ad-pair-link">
-        <CharacterName character={p.a} link={false} strong />
-        <span className="ad-pair-x" aria-hidden="true">
-          ×
+        <span className="ad-pair-faces" aria-hidden="true">
+          <CharacterName character={p.a} label="" link={false} size={40} />
+          <CharacterName character={p.b} label="" link={false} size={40} />
         </span>
-        <span className="sr-only"> and </span>
-        <CharacterName character={p.b} link={false} strong />
+        <span className="ad-pair-body">
+          <span className="ad-pair-names">
+            <strong>{first(p.a.name)}</strong>
+            <span className="ad-pair-x" aria-hidden="true">
+              {" "}×{" "}
+            </span>
+            <span className="sr-only"> and </span>
+            <strong>{first(p.b.name)}</strong>
+          </span>
+          {p.last && (
+            <span className="ad-pair-last muted small">
+              {p.last.who}: “{p.last.text}”
+            </span>
+          )}
+          {meta && <span className="ad-pair-meta muted small">{meta}</span>}
+        </span>
       </Link>
-      {p.lines > 0 && <span className="badge">{p.lines} lines</span>}
     </li>
   );
 }
@@ -45,7 +77,8 @@ function Face({ c, on, onPick }: { c: Who; on: boolean; onPick: () => void }) {
 export default function PairPicker({ pairs }: { pairs: Pair[] }) {
   const [one, setOne] = useState<string | null>(null);
   const [two, setTwo] = useState<string | null>(null);
-  const going = pairs.filter((p) => p.lines > 0);
+  // Under way (lines, or a chapter filed), the latest played first.
+  const going = pairs.filter((p) => p.lines > 0 || (p.chapter ?? 1) > 1).sort((x, y) => (y.updated_at ?? "").localeCompare(x.updated_at ?? ""));
   // Everyone in a pair, once each, by name.
   const cast = useMemo(() => {
     const seen = new Map<string, Who>();
@@ -109,7 +142,7 @@ export default function PairPicker({ pairs }: { pairs: Pair[] }) {
               {chosen && (
                 <p className="ad-pair-go">
                   <Link className="button primary" href={chosen.path}>
-                    {chosen.lines > 0 ? "Continue" : "Start"} {first(chosen.a.name)} × {first(chosen.b.name)}
+                    {chosen.lines > 0 || (chosen.chapter ?? 1) > 1 ? "Continue" : "Start"} {first(chosen.a.name)} × {first(chosen.b.name)}
                   </Link>
                   {chosen.lines > 0 && <span className="badge">{chosen.lines} lines</span>}
                 </p>

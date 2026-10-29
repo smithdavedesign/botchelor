@@ -9,6 +9,7 @@ import { getAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import SubscribeForm from "./SubscribeForm";
+import WhatsInside from "./WhatsInside";
 import { currentHere } from "../view";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,8 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
   if ((await canAfterDark(db, auth)).ok) redirect("/after-dark");
   const params = await searchParams;
   const processors = configuredProcessors();
+  // Shorts to point at, only when there are some (the link to an empty page was the only taste there was).
+  const shorts = Number((await db.query<{ n: number }>(`select count(*)::int as n from adult_shorts`).catch(() => ({ rows: [{ n: 0 }] }))).rows[0]?.n ?? 0);
 
   if (!processors.length) {
     return (
@@ -41,9 +44,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
           </p>
           <p className="muted">Subscriptions open soon, with an age check. Leave your email and you&apos;ll hear first.</p>
           <WaitlistForm refSlug="after-dark" />
-          <p className="muted small">
-            A taste of what&apos;s on, blurred: <Link href="/after-dark/shorts">the Shorts</Link>, the house cast&apos;s nights as episodes.
-          </p>
+          <WhatsInside shorts={shorts} price={priceLabel(subscriptionPrice())} />
         </article>
       </div>
     );
@@ -89,6 +90,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
             <li>Cancel any time online. What you&apos;ve paid for stays open to the end of the month.</li>
           </ul>
         </section>
+        <WhatsInside shorts={shorts} price={null} />
         {auth?.authenticated ? (
           <SubscribeForm
             price={price}
