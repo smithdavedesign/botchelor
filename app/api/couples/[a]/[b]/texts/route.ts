@@ -4,7 +4,9 @@ import { crisisAware, str } from "@/lib/crisis";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { jobUsability } from "@/lib/connections";
+import { providerLabel } from "@/lib/connections-shared";
 import { userTextModel } from "@/lib/keys";
+import { ModelError, type Model } from "@/lib/model";
 import { pairKey } from "@/lib/relationships";
 import { chainAfter, chainPage, loadChain } from "@/lib/text-chain";
 import { writeOwnText } from "@/lib/texting";
@@ -32,13 +34,21 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   return json(chainPage(items, params.get("before")?.slice(0, 200) || null), 200, sess);
 });
 
+/** A key at its cap writes nothing this month: a model that says so, so the free model stands in as for any key that can't. */
+const atCap = (provider: string): Model => ({
+  async complete() {
+    throw new ModelError(`Your ${providerLabel(provider)} key reached this month's cap.`, 402);
+  },
+});
+
 const Input = z.object({ character_id: z.string().min(1).max(64), hint: z.string().max(NUDGE_MAX * 2).optional() });
 
 /**
  * The owner's character texts the other, written on the owner's own model key (lib/texting.ts): as often and as long as
- * they like, since it's their model. A house character texts back on the same key. Without a key, the couple still gets
- * the show's daily text; this is for whenever they want more. The owner's own nudge is checked for self-harm intent
- * (lib/crisis.ts): the reply then carries crisis_resources, whatever else it says.
+ * they like, since it's their model. A house character texts back on the same key. When the key can't write (out of
+ * credit, revoked, at its cap), the show's free model stands in for a few texts a day, unless they chose to pause.
+ * Without a key, the couple still gets the show's daily text; this is for whenever they want more. The owner's own nudge
+ * is checked for self-harm intent (lib/crisis.ts): the reply then carries crisis_resources, whatever else it says.
  */
 export const POST = crisisAware("text_hint", (body) => [str(body.hint)], handle(async (req: Request, ctx: Ctx) => {
   const { a, b } = await ctx.params;
@@ -48,13 +58,13 @@ export const POST = crisisAware("text_hint", (body) => [str(body.hint)], handle(
     return json({ error: "not_in_couple", message: "That character isn't one of this couple." }, 422, sess);
   }
   const db = await getDb();
-  // Texting on your own key has no free model to stand in (Connections M3): at the cap, or while a key you chose to pause
-  // can't be used, it waits, and says why.
+  // Someone who chose to pause (Connections M3) waits at the cap, or while their key can't be used, and hears why. With
+  // the fallback (the default), the show's free model stands in for a few texts a day (lib/texting.ts standInText).
   const usable = await jobUsability(db, sess.userId, "text");
-  if (usable.state === "over_cap" || usable.state === "failing") {
+  if (usable.state === "failing" || (usable.state === "over_cap" && usable.cap.on_cap === "pause")) {
     return json({ error: usable.state === "over_cap" ? "over_cap" : "key_paused", message: usable.message, connect: "/account/keys#dates" }, 409, sess);
   }
-  const model = await userTextModel(db, sess.userId);
+  const model = usable.state === "over_cap" ? atCap(usable.provider) : await userTextModel(db, sess.userId);
   if (!model) {
     return json(
       { error: "needs_own_key", message: "Connect your own model key for Dates & texts (Account → Connections), and your character can text whenever you like.", connect: "/account/keys#dates" },
@@ -62,7 +72,8 @@ export const POST = crisisAware("text_hint", (body) => [str(body.hint)], handle(
       sess,
     );
   }
-  const r = await writeOwnText(db, { userId: sess.userId, from: input.character_id, to: input.character_id === a ? b : a, model, hint: input.hint });
+  const standIn = usable.state !== "none" && usable.cap.on_cap === "fallback";
+  const r = await writeOwnText(db, { userId: sess.userId, from: input.character_id, to: input.character_id === a ? b : a, model, hint: input.hint, standIn });
   if (!r.ok) return json({ error: r.error, message: r.message }, r.status, sess);
   return json({ items: [r.sent, ...(r.reply ? [r.reply] : [])], ...(r.note ? { note: r.note } : {}) }, 200, sess);
 }));

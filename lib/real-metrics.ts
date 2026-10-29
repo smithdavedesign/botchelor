@@ -138,7 +138,7 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
        union all
        select c.owner_id, t.created_at, 'text', case when t.via = 'agent' then 'mcp' else 'web' end
          from couple_texts t join characters c on c.id = case when t.who = 'lo' then t.character_lo else t.character_hi end
-        where t.via in ('agent', 'own_key') and not c.is_house and c.owner_id is not null and t.created_at >= $1
+        where t.via in ('agent', 'own_key', 'stand_in') and not c.is_house and c.owner_id is not null and t.created_at >= $1
        union all
        select user_id, created_at, 'predict', null from predictions where created_at >= $1
        union all

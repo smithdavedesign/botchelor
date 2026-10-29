@@ -7,7 +7,8 @@
  *    nothing and has no daily cap. The other character's owner hears about it (my_notifications); when that's another
  *    agent, it texts back the same way, so two agents can keep a conversation going between dates.
  *  - **A person with their own model key** (the phone on the couple page): their key writes their character's next
- *    text, as long as it likes, as often as they like.
+ *    text, as long as it likes, as often as they like. When the key can't (out of credit, revoked, at its cap), the
+ *    show's free model stands in for a few short texts a day (standInText), unless they chose to pause.
  *  - **A house character** has no owner to answer, so it texts back itself: on the sender's key when a person's key
  *    wrote the text (a house character has no private soul: lib/keys.ts buildKeyForSide), or on the show's free model,
  *    up to HOUSE_TEXT_REPLIES a couple a day, when an agent wrote it. Only that reply is ever on us.
@@ -41,7 +42,19 @@ export function houseReplyCap(env: Record<string, string | undefined> = process.
   return Number.isFinite(n) ? Math.max(0, Math.min(50, Math.floor(n))) : 3;
 }
 
-/** The house cast's replies on the show's model, show-wide, per day. HOUSE_TEXT_REPLIES_DAILY overrides; 0 stops them. */
+/**
+ * How many of a person's texts the show's model writes for them, per couple per day, when their own key can't
+ * (standInText). STAND_IN_TEXTS overrides; 0 stops them.
+ */
+export function standInCap(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.STAND_IN_TEXTS?.trim() || 3);
+  return Number.isFinite(n) ? Math.max(0, Math.min(50, Math.floor(n))) : 3;
+}
+
+/**
+ * The house cast's texts on the show's model, show-wide, per day: their replies, and the texts it stands in for people
+ * whose key can't write. HOUSE_TEXT_REPLIES_DAILY overrides; 0 stops them.
+ */
 export function houseReplyDailyCap(env: Record<string, string | undefined> = process.env): number {
   const n = Number(env.HOUSE_TEXT_REPLIES_DAILY?.trim() || 100);
   return Number.isFinite(n) ? Math.max(0, Math.min(2000, Math.floor(n))) : 100;
@@ -149,14 +162,20 @@ function writeLine(model: Model, messages: ChatMessage[], max: number, me: Chara
   return writeCritiquedText(model, messages, (raw) => parseAfterglowLine(raw, "a", max)?.text ?? null, (text) => critiqueText(thread, text, me, them), "texting");
 }
 
-/** How many replies a house character has left today on the show's model: for this couple, and show-wide. */
-async function houseRepliesLeft(db: Db, lo: string, hi: string): Promise<{ couple: number; show: number }> {
-  const { rows } = await db.query<{ couple: number; show: number }>(
-    `select (select count(*)::int from couple_texts where character_lo = $1 and character_hi = $2 and day = $3::date and via in ('show', 'away')) as couple,
-            (select count(*)::int from couple_texts where day = $3::date and via in ('show', 'away')) as show`,
+/**
+ * What the show's model has left today: a house character's replies to this couple, its stand-ins for this couple's
+ * owner (standInText), and both of those show-wide.
+ */
+async function showTextsLeft(db: Db, lo: string, hi: string): Promise<{ couple: number; standIns: number; show: number }> {
+  const { rows } = await db.query<{ couple: number; stand_ins: number; show: number }>(
+    `select count(*) filter (where character_lo = $1 and character_hi = $2 and via in ('show', 'away'))::int as couple,
+            count(*) filter (where character_lo = $1 and character_hi = $2 and via = 'stand_in')::int as stand_ins,
+            count(*)::int as show
+       from couple_texts where day = $3::date and via in ('show', 'away', 'stand_in')`,
     [lo, hi, dayOf(new Date())],
   );
-  return { couple: houseReplyCap() - (rows[0]?.couple ?? 0), show: houseReplyDailyCap() - (rows[0]?.show ?? 0) };
+  const r = rows[0];
+  return { couple: houseReplyCap() - (r?.couple ?? 0), standIns: standInCap() - (r?.stand_ins ?? 0), show: houseReplyDailyCap() - (r?.show ?? 0) };
 }
 
 /**
@@ -167,7 +186,7 @@ async function houseReply(db: Db, p: Pair, creatorId: string, ownModel: Model | 
   const house = p.them;
   const name = shortName(house.name);
   if (!ownModel) {
-    const left = await houseRepliesLeft(db, p.lo, p.hi);
+    const left = await showTextsLeft(db, p.lo, p.hi);
     if (left.couple <= 0) return { text: null, note: `${name} has texted back ${houseReplyCap()} times today, which is as many as a house character does. More tomorrow.` };
     if (left.show <= 0) return { text: null, note: `The house cast has used up today's texts. ${name} will text back tomorrow.` };
   }
@@ -214,30 +233,63 @@ export async function sendText(db: Db, o: { userId: string; from: string; to: st
 }
 
 /**
+ * The prompt for the owner's character's next text, from the dates this owner can bring in: open-ended with their whole
+ * thread (the newest that fit, when it's very long) on their key, one short text on the show's (standInText).
+ */
+async function ownTextPrompt(db: Db, p: Pair, userId: string, hint: string, open: boolean): Promise<{ thread: ThreadText[]; messages: ChatMessage[] }> {
+  const chain = await loadChain(db, p.lo, p.hi, { usableBy: userId });
+  const names = p.mine === "lo" ? [p.me.name, p.them.name] : [p.them.name, p.me.name];
+  const thread = threadFor(chain, names[0], names[1], open ? dateTextsBudget() : SHOW_THREAD_CHARS);
+  const messages = buildTextMessages(p.me, p.them, withAfterDark(pairContext(p.rel, p.me.id, userId, null), await afterDarkNote(db, p.me.id, p.them.id)), thread, {
+    nudge: hint || (await activeNudge(db, p.me.id, p.them.id)),
+    alsoSeeing: await alsoSeeing(db, p.me.id, p.them.id),
+    open,
+  });
+  return { thread, messages };
+}
+
+/**
+ * The owner's text on the show's free model, when their own key can't write it (`why`, in plain words) and they let the
+ * free model stand in (Connections' fallback, the default; David, 2026-10-29). One short text like the show's, up to
+ * standInCap a couple a day, out of the house cast's show-wide budget; a house partner then answers on the show's model,
+ * within its own cap.
+ */
+async function standInText(db: Db, p: Pair, userId: string, hint: string, why: string): Promise<TextResult> {
+  const left = await showTextsLeft(db, p.lo, p.hi);
+  if (left.standIns <= 0 || left.show <= 0) {
+    return refuse(502, "no_text", `Your model didn't write a text. ${why} Botchelor's free model has written all the texts it stands in for today. More tomorrow.`);
+  }
+  const prompt = await ownTextPrompt(db, p, userId, hint, false);
+  const written = await writeLine(getModel(undefined, false), prompt.messages, AFTERGLOW_TEXT_MAX, p.me, p.them, prompt.thread);
+  if (written.text === null) return refuse(502, "no_text", `Your model didn't write a text. ${why} Botchelor's free model couldn't either just now. Try again in a bit.`);
+  const sent = await store(db, p, p.mine, written.text, "stand_in");
+  const told = await tell(db, p, written.text, userId);
+  const more = Math.min(left.standIns, left.show) - 1;
+  const note = `${why} Botchelor's free model wrote this one (${more > 0 ? `${more} more today` : "the last one today"}).`;
+  if (p.theirOwner !== null && !p.adopted) return { ok: true, sent, reply: null, note, couplePage: couplePage(p), told };
+  const reply = await houseReply(db, p, userId, null);
+  return { ok: true, sent, reply: reply.text, note: reply.note ? `${note} ${reply.note}` : note, couplePage: couplePage(p) };
+}
+
+/**
  * A person's character texts, written on that person's own model key (the couple page's phone). Open-ended and
  * unlimited: it's their model. `hint` is an optional word from them on what to text about (like a nudge). A house
  * character on the other end texts back on the same key; another owner's character answers when its owner does.
+ * `standIn`: when the key can't write, the show's free model does, a few a day (standInText); without it, they hear why.
  */
-export async function writeOwnText(db: Db, o: { userId: string; from: string; to: string; model: Model; hint?: string | null }): Promise<TextResult> {
+export async function writeOwnText(db: Db, o: { userId: string; from: string; to: string; model: Model; hint?: string | null; standIn?: boolean }): Promise<TextResult> {
   const hint = (o.hint ?? "").trim().replace(/\s+/g, " ");
   if (hint.length > NUDGE_MAX) return refuse(422, "invalid_hint", `What to text about: up to ${NUDGE_MAX} characters.`);
   if (hint && !checkFields({ hint }).ok) return refuse(422, "content_rejected", "Keep it clean: no real people, minors or sexual content.");
   const p = await pairFor(db, o.userId, o.from, o.to);
   if ("ok" in p) return p;
   if (await tooFast(db, p.me.id)) return refuse(429, "slow_down", `${shortName(p.me.name)} has sent ${TEXTS_PER_MINUTE} texts in the last minute. Give it a moment.`);
-  // Their whole thread (the newest that fit, when it's very long), from the dates this owner can bring in.
-  const chain = await loadChain(db, p.lo, p.hi, { usableBy: o.userId });
-  const names = p.mine === "lo" ? [p.me.name, p.them.name] : [p.them.name, p.me.name];
-  const thread = threadFor(chain, names[0], names[1], dateTextsBudget());
-  const messages = buildTextMessages(p.me, p.them, withAfterDark(pairContext(p.rel, p.me.id, o.userId, null), await afterDarkNote(db, p.me.id, p.them.id)), thread, {
-    nudge: hint || (await activeNudge(db, p.me.id, p.them.id)),
-    alsoSeeing: await alsoSeeing(db, p.me.id, p.them.id),
-    open: true,
-  });
-  const written = await writeLine(o.model, messages, TEXT_MAX, p.me, p.them, thread);
+  const prompt = await ownTextPrompt(db, p, o.userId, hint, true);
+  const written = await writeLine(o.model, prompt.messages, TEXT_MAX, p.me, p.them, prompt.thread);
   // Why, in plain words with the fix (lib/keys.ts keyTrouble): an empty-handed 502 left nothing to go on (2026-10-29,
-  // a Google key out of credit). Texting on your own key has no free model to stand in (docs/PRDs/connections.md).
+  // a Google key out of credit). A key that couldn't write is stood in for; a reply with no text in it isn't.
   if (written.text === null) {
+    if (written.error && o.standIn) return standInText(db, p, o.userId, hint, written.error.message);
     return refuse(502, "no_text", written.error ? `Your model didn't write a text. ${written.error.message}` : "Your model answered, but not with a text. Try again, or pick another model on Connections.");
   }
   const line = written.text;

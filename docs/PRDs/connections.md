@@ -373,7 +373,9 @@ sent, kept an hour per instance) and `modelsFor`; each key's own list kept with 
 - At the cap, or when the key fails for a reason only its owner can fix (invalid, out of credit, rate limited): **fallback**
   (the default) runs their side on Botchelor's free model, with a notice and the card saying so; **pause** holds the dates
   they book until it's fixed (booking says why, in plain words), while dates others book with their character still happen
-  on the show's model. Texting on their own key and portraits and clips have no free model: at the cap they wait, both ways.
+  on the show's model. Texting on their own key gets a few short texts a day from the free model when the key can't write
+  (fallback; STAND_IN_TEXTS a couple a day, 3 by default, out of the house cast's daily text budget; David, 2026-10-29),
+  and waits for someone who chose pause. Portraits and clips have no free model: at the cap they wait, both ways.
   A key that fails partway through a date never costs the date: the rest of it runs on the free model.
 - Tests: the accounting (reported and estimated cost, the month boundary), the cap, the 80% notice (once a month, email when
   opted in), fallback and pause for each job, and the notices' words.

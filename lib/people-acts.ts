@@ -26,4 +26,4 @@ export const PEOPLE_ACTS_SQL = `
   union all select c.owner_id, s.created_at from swipes s join characters c on c.id = s.swiper
             where c.created_via = 'web' and not c.is_house and c.owner_id is not null
   union all select c.owner_id, t.created_at from couple_texts t join characters c on c.id = case when t.who = 'lo' then t.character_lo else t.character_hi end
-            where t.via = 'own_key' and c.owner_id is not null`;
+            where t.via in ('own_key', 'stand_in') and c.owner_id is not null`;

@@ -135,9 +135,10 @@ const GRID_SQL: Record<Measure, string> = {
   // First dates (not follow-ups) that aired, and whether a second date was booked within SECOND_DATE_DAYS.
   first_dates: `select 'first_dates', ${DAY("e.revealed_at")}, ${DATE_LENSES}, case when ${FOLLOWED} then 'followed' else 'not' end, count(*)::int
     from ${DATE_JOIN} where e.followup_of is null and e.revealed_at >= $1 and e.revealed_at < $2 group by 2, 3, 4, 5, 6, 7`,
-  // Texts between dates, by who wrote them: a person's own key, an agent, or the show answering one (a house reply, a new
-  // match's opener). The scheduled daily exchange is left out: it follows how many couples exist, not what anyone did.
-  texts: `select 'texts', ${DAY("t.created_at")}, (t.via = 'own_key'), (t.via = 'agent'), (lo.is_house or hi.is_house),
+  // Texts between dates, by who wrote them: a person (on their own key, or the show's model standing in for it), an agent,
+  // or the show answering one (a house reply, a new match's opener). The scheduled daily exchange is left out: it follows
+  // how many couples exist, not what anyone did.
+  texts: `select 'texts', ${DAY("t.created_at")}, (t.via in ('own_key', 'stand_in')), (t.via = 'agent'), (lo.is_house or hi.is_house),
       (coalesce(lo.owner_id = any($3::text[]), false) or coalesce(hi.owner_id = any($3::text[]), false)), t.via, count(*)::int
     from couple_texts t join characters lo on lo.id = t.character_lo join characters hi on hi.id = t.character_hi
     where t.day >= $5::date and t.day <= $6::date and t.created_at >= $1 and t.created_at < $2 and t.via <> 'daily' group by 2, 3, 4, 5, 6, 7`,
@@ -277,7 +278,7 @@ export async function loadNewcomers(db: Db, w: Window, ours: readonly string[], 
             exists (select 1 from ${DATE_JOIN} where e.followup_of is not null and ${theirs}) as second_date,
             exists (select 1 from accounts ac where ac.user_id = c.id) as account,
             exists (select 1 from couple_texts t join characters s on s.id = case when t.who = 'lo' then t.character_lo else t.character_hi end
-                     where t.via = 'own_key' and s.owner_id = c.id) as texted
+                     where t.via in ('own_key', 'stand_in') and s.owner_id = c.id) as texted
        from cohort c join active d on d.id = c.id`,
     [w.start, w.end, ours, includeOurs],
   );
