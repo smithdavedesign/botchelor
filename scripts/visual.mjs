@@ -311,11 +311,17 @@ async function main() {
       await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
       await adminSignIn(ctx.request);
       const html = await (await ctx.request.get(`${base}/after-dark`)).text();
-      scenePath = html.match(/href="(\/after-dark\/[^/"?]+\/[^/"?]+)"/)?.[1] ?? scenePath;
+      // A pair's page, not a Studio's or a Short's (the home lists the Studio first since #778); a new admin has none, so
+      // two of the cast the pair picker offers, whose page starts their scene.
+      const cast = [...new Set(html.match(/house-[a-z]+/g) ?? [])].slice(0, 2).sort();
+      scenePath = html.match(/href="(\/after-dark\/(?!studio\/|shorts\/)[^/"?]+\/[^/"?]+)"/)?.[1] ?? (cast.length === 2 ? `/after-dark/${cast[0]}/${cast[1]}` : scenePath);
       await ctx.close();
     }
     const writeScene = async (page) => {
       // The page opens on the theater (2026-10-25): the scene is written there.
+      // A new night waits on its start card (#896): Start it, then steer the next lines from the bar.
+      const start = page.locator(".theater .ad-start-card").getByRole("button", { name: /Start the night/ });
+      if (await start.count()) await start.click();
       const bar = page.locator(".ad-theater-bar");
       await bar.getByRole("textbox", { name: "Steer it (optional)" }).fill("they share a cab home");
       await bar.getByRole("button", { name: "Next" }).click();

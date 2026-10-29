@@ -203,7 +203,8 @@ async function main() {
     page.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && errors.push(`console: ${m.text()}`));
     const studio = `${app.base}/after-dark/studio/${HER}`;
     const tab = (name) => page.getByRole("tab", { name, exact: true }).click();
-    const group = (legend) => page.locator("fieldset.ad-studio-group", { has: page.locator("legend", { hasText: legend }) });
+    // The legend's own name, not any legend that mentions it ("Filthy: one act, in place of a pose" isn't Pose).
+    const group = (legend) => page.locator("fieldset.ad-studio-group", { has: page.locator("legend", { hasText: new RegExp(`^\\s*${legend}`) }) });
     const note = () => page.locator(".ad-studio-main > [role=status], .ad-studio-main > [role=alert]").first();
     const noteText = async () => ((await note().count()) ? (await note().innerText()).trim() : "");
     /**
@@ -234,8 +235,12 @@ async function main() {
     ]) {
       console.log(`\n${size}`);
       await page.setViewportSize({ width: w, height: h });
+      // The Studio opens where they left off (the tab and the picks, remembered in this browser): each size starts fresh.
+      await page.goto(studio);
+      await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("bz-studio:")).forEach((k) => localStorage.removeItem(k)));
       await page.goto(studio);
       await page.locator(".ad-studio-group").first().waitFor({ timeout: 30_000 });
+      await page.getByRole("tab", { name: "Shoot" }).click();
 
       await step(`${size}: Shoot: picking a chip turns it on, and again turns it off`, async () => {
         const chip = group("Pose").getByRole("button").first();
@@ -430,7 +435,7 @@ async function main() {
     await page.setViewportSize({ width: 1280, height: 900 });
     await step("the character page offers the Studio (an admin, a house character)", async () => {
       await page.goto(`${app.base}/characters/${HER}`);
-      const card = page.locator("section.character-studio");
+      const card = page.locator("section.character-studio-after-dark");
       await card.waitFor({ timeout: 15_000 });
       const open = card.getByRole("link", { name: "Open the Studio" });
       assert((await open.getAttribute("href"))?.endsWith(`/after-dark/studio/${HER}`), `the link goes to ${await open.getAttribute("href")}`);
@@ -464,6 +469,8 @@ async function main() {
     await step("the scene's gallery: sections, and a 👎 moves a picture to Not liked (and back)", async () => {
       const [a, b] = [HER, HIM].sort();
       await page.goto(`${app.base}/after-dark/${a}/${b}`);
+      // The page opens on the theater (#845): Exit leaves it for the gallery below.
+      await page.locator(".theater").getByRole("button", { name: "Exit", exact: true }).click();
       const gallery = page.locator("section", { has: page.getByRole("heading", { name: "Gallery", exact: true }) }).last();
       await gallery.getByRole("heading", { name: "Pictures", exact: true }).waitFor({ timeout: 20_000 });
       const pictures = gallery.locator(".ad-gallery-section", { has: page.getByRole("heading", { name: "Pictures", exact: true }) });

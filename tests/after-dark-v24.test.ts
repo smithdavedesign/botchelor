@@ -333,6 +333,16 @@ describe("a reply with no lines in it", () => {
     expect(ok.ok && ok.flags.empty_retry).toBeUndefined();
   });
 
+  it("empty twice with a fast writer to fall back on: it writes the step (the audit, 2026-10-29)", async () => {
+    const slow = scripted("", "   ");
+    const fast = scripted(out);
+    const r = await step(slow.model, { fallback: { id: "deepseek/deepseek-chat-v3.1:nitro", model: fast.model } });
+    expect(slow.calls).toHaveLength(2);
+    expect(fast.calls).toHaveLength(1);
+    expect(r.ok && r.lines.map((l) => l.text)).toEqual(["Here.", "Finally."]);
+    expect(r.ok && r.flags).toMatchObject({ empty_retry: true, fell_back_to: "deepseek/deepseek-chat-v3.1:nitro", calls: 3 });
+  });
+
   it("a reply whose JSON broke down after its lines claims no stage: the scene keeps its own", async () => {
     // As the real-model check saw it: the lines whole, then keys like "stage: 4" with nothing in them.
     const broken = `{"lines": [{"who": "a", "text": "Here."}, {"who": "b", "text": "Finally."}], "place": "", ": ": "", "stage: 4": "", "explicit: false": ""}`;

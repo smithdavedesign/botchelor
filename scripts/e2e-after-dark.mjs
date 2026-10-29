@@ -214,6 +214,8 @@ async function main() {
           await page.goto(`${base}${scenePath}`);
           const bar = ".ad-theater-bar";
           await page.locator(bar).getByRole("checkbox", { name: "Autoplay" }).check();
+          // A new night waits on its start card (#896) until it's started: then autoplay carries it on.
+          await page.locator(".theater .ad-start-card").getByRole("button", { name: /Start the night/ }).click();
           await page.locator(".theater .chat-thread").getByText(SAFE[1]).first().waitFor({ state: "attached", timeout: 30_000 });
           await page.waitForFunction((sel) => !document.querySelector(sel)?.checked, `${bar} input[type=checkbox]`, { timeout: 30_000 });
           const stopped = posts;
@@ -246,7 +248,8 @@ async function main() {
         // Rewind is in the theater's ⋯.
         await page.locator(".theater").getByRole("button", { name: "More tools" }).click();
         await page.locator(".theater").getByRole("button", { name: "↺ Rewind" }).click();
-        await page.locator(".theater").getByText("Press Next to begin.").waitFor({ timeout: 15_000 });
+        // Empty again, the night waits on its start card (#896).
+        await page.locator(".theater .ad-start-card").waitFor({ timeout: 15_000 });
       } finally {
         await ctx.close();
       }
@@ -265,7 +268,8 @@ async function main() {
         await page.locator(".theater .chat-thread").getByText(SAFE[1]).waitFor({ state: "attached", timeout: 30_000 });
         await page.locator(".theater").getByRole("button", { name: "More tools" }).click();
         await page.locator(".theater").getByRole("button", { name: "Start over" }).click();
-        await page.locator(".theater").getByText("Press Next to begin.").waitFor({ timeout: 15_000 });
+        // Empty again, the night waits on its start card (#896).
+        await page.locator(".theater .ad-start-card").waitFor({ timeout: 15_000 });
         // The night that ran is a saved chapter now: 📖 plays it again over the theater.
         await page.locator(".theater .ad-chapter-chip").click();
         await page.locator(".ad-chapter-menu button.ad-chapter-item").first().click();
