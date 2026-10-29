@@ -65,8 +65,9 @@ export default function ModerationSettings({ initial }: { initial: AdultSettings
       </select>
       <label htmlFor="ad-mod-pg">Who checks the show&apos;s own pictures (place sets, look tiles, season portraits)</label>
       <select id="ad-mod-pg" value={m.pg_via} disabled={busy} onChange={(e) => void save({ moderation: { pg_via: e.target.value } })}>
+        <option value="auto">The alternatives when one is set up, else Hive (leaves Hive&apos;s 100 for After Dark)</option>
         <option value="hive">Hive</option>
-        <option value="alt">The alternatives (leaves Hive&apos;s 100 for After Dark)</option>
+        <option value="alt">The alternatives only</option>
       </select>
       <fieldset className="ad-studio-group">
         <legend>The alternatives</legend>

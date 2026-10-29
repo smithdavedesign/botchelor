@@ -53,7 +53,8 @@ const JPEG = new Uint8Array([255, 216, 255, 224, 1, 2, 3]);
 const CLEAN = { output: [{ classes: [{ class: "no_child_present", value: 0.99 }, { class: "yes_child_present", value: 0.01 }, { class: "general_nsfw", value: 0.01 }] }] };
 const ADULTS = { choices: [{ message: { content: "ADULTS" } }] };
 const signedIn = (userId: string) => sessionCookies({ userId, authenticated: true })[0].split(";")[0];
-const keys = () => saveAdultSettings(t.db, { fal_key: "placeholder-fal", hive_key: "placeholder-hive", venice_key: "placeholder-venice" });
+// Hive checks the show's pictures here (pg_via "hive"): with Venice's key saved, "auto" would send them to its check.
+const keys = () => saveAdultSettings(t.db, { fal_key: "placeholder-fal", hive_key: "placeholder-hive", venice_key: "placeholder-venice", moderation: { pg_via: "hive" } });
 
 function fakeProviders() {
   const calls: { model: string; prompt: string }[] = [];

@@ -288,7 +288,7 @@ describe("After Dark's media in the bucket", () => {
 });
 
 describe("looks tiles in the bucket", () => {
-  const keys = () => saveAdultSettings(t.db, { fal_key: "placeholder-fal", hive_key: "placeholder-hive", venice_key: "placeholder-venice" });
+  const keys = () => saveAdultSettings(t.db, { fal_key: "placeholder-fal", hive_key: "placeholder-hive", venice_key: "placeholder-venice", moderation: { pg_via: "hive" } });
   function fakeLooks() {
     setLooksFetchForTests(async (input: RequestInfo | URL) => {
       const url = String(input);

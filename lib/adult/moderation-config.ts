@@ -27,7 +27,11 @@ export const ModerationConfig = z.object({
     .refine((v) => /^https:\/\/\S+$/.test(v), "an https URL")
     .nullable()
     .default(null),
-  pg_via: z.enum(["hive", "alt"]).default("hive"),
+  /**
+   * Who checks the show's own pictures: "auto" (the default since the audit of 2026-10-29: Hive's 100 a day ran out, and
+   * the show's backdrops and portraits spent them) the alternatives when one is ready, else Hive; or one of them always.
+   */
+  pg_via: z.enum(["auto", "hive", "alt"]).default("auto"),
   /**
    * An admin's own pictures (David, 2026-10-24: "can we turn hive off as admin? … set it on production so I'm not hive
    * blocked"): "alt" checks them with the alternatives instead of Hive (the Venice vision model's age question: no daily
