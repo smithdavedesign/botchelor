@@ -386,3 +386,104 @@ li.picked {
 .studio-format.chip-on .studio-format-shape {
   opacity: 1;
 }
+
+/* How many a shoot makes (Studio.tsx sizeChips): the format chips' look. */
+.studio-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+.studio-sizes button.chip {
+  margin: 0;
+  padding: 0.3rem 0.85rem;
+  border: 1.5px solid var(--line);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.studio-sizes button.chip:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--accent);
+}
+.studio-sizes button.chip-on {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+
+/* A bigger shoot as it lands (app/studio/ShootReveal.tsx): a slot per picture, each developing in as it's kept. Opacity
+   and a slight scale only, never a filter (discreet mode's blur stays as it is); still for reduced motion. */
+.studio-reveal {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+}
+.studio-reveal-head {
+  margin: 0;
+}
+.studio-reveal-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.studio-reveal-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.6s ease;
+}
+.studio-reveal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.studio-reveal-grid img,
+.studio-skeleton {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--radius);
+}
+.studio-skeleton {
+  background: linear-gradient(100deg, var(--soft) 30%, var(--card) 50%, var(--soft) 70%);
+  background-size: 300% 100%;
+  animation: studio-shimmer 1.6s ease-in-out infinite;
+}
+.studio-develop {
+  animation: studio-develop 0.7s ease-out both;
+}
+@keyframes studio-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@keyframes studio-develop {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-skeleton,
+  .studio-develop {
+    animation: none;
+  }
+  .studio-reveal-bar span {
+    transition: none;
+  }
+}
