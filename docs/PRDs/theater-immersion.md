@@ -35,9 +35,9 @@ What Venice, After Dark's provider, already offers (its model list and quotes, 2
 
 | # | What | How | Cost | Status |
 |---|------|-----|------|--------|
-| 1 | **A living portrait** in place of the round icon | A few seconds of them, still and natural (breathing, blinking, a small smile), made once from the face they keep for this viewer; played over that face, faded back into it at the end, so the loop never shows its seam | one clip per face, once | ✅ #(this PR) |
-| 2 | **Expressions**, SillyTavern's way | Seven edits of their face (smile, laugh, flirty, intense, tender, surprised, annoyed), made once; the writer gives each line a `face`, and the theater shows the speaker's | seven pictures per face, once; nothing per line | ✅ #(this PR) |
-| 3 | **Voices that act** | A voice model for the night's lines: Kokoro, Inworld or Orpheus, with a stock voice each by their pronouns; on Orpheus, a laugh, sigh, gasp or groan in the line's action is heard | 0.04¢ to 0.6¢ a line | ✅ #(this PR); pick by ear in settings |
+| 1 | **A living portrait** in place of the round icon | A few seconds of them, still and natural (breathing, blinking, a small smile), made once from the face they keep for this viewer; played over that face, faded back into it at the end, so the loop never shows its seam | one clip per face, once | ✅ #960 |
+| 2 | **Expressions**, SillyTavern's way | Seven edits of their face (smile, laugh, flirty, intense, tender, surprised, annoyed), made once; the writer gives each line a `face`, and the theater shows the speaker's | seven pictures per face, once; nothing per line | ✅ #960 |
+| 3 | **Voices that act** | A voice model for the night's lines: Kokoro, Inworld or Orpheus, with a stock voice each by their pronouns; on Orpheus, a laugh, sigh, gasp or groan in the line's action is heard | 0.04¢ to 0.6¢ a line | ✅ #960; pick by ear in settings |
 | 4 | **Talking moments** | "Hear it from them" on a line worth it: a 5 s clip of that face saying the voiced line (Wan, audio in). One face only: lip-sync on a shot of two moved the wrong mouth (#688) | ~$0.28 a clip: a token item | 🔜 |
 | 5 | **Pictures that feel instant** | Show the closest picture they already have at once (scene-match) and swap the new one in when it lands; start drawing the next moment's picture while the lines before it play | the same pictures, sooner | 🔜 |
 | 6 | **The sound of the place** | A quiet bed per venue (a jazz bar's murmur, waves, rain), made once per place, under the voices | per place, once | 🔜 |
