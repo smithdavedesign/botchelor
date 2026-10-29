@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { getLeague, LEAGUE_MEMBER_CAP, weekWindow } from "@/lib/leagues";
-import { seasonAt } from "@/lib/seasons";
+import { seasonAt, seasonWindow } from "@/lib/seasons";
 import { api, named, newUserCookie, setupEpisode, startTestDb, userIdOf } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -88,8 +88,10 @@ describe("weekly league leaderboard (exit criterion)", () => {
     const { a } = await playTwoEpisodes([[wren, ["friends", "disaster"]]]);
     expect((await board(league.id))[0].points).toBe(20);
 
-    // Move one episode's air time into last week: it leaves the weekly board but stays in all-time points.
-    await t.db.query("update episodes set revealed_at = now() - interval '8 days' where id = $1", [a.episode.id]);
+    // Move one episode's air time to just before this season began: it leaves the board but stays in all-time points.
+    // (The board counts the season, a month since 2026-10-19. "8 days ago" stopped being outside it on 2026-10-28.)
+    const seasonStart = seasonWindow(new Date()).start;
+    await t.db.query("update episodes set revealed_at = $2 where id = $1", [a.episode.id, new Date(seasonStart.getTime() - 60_000).toISOString()]);
     expect((await board(league.id))[0].points).toBe(10);
     expect((await (await api.me(wren)).json()).points).toBe(20);
 
