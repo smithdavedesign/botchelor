@@ -2571,6 +2571,13 @@ alter table showcase_posts add column if not exists held boolean not null defaul
 alter table showcase_posts add column if not exists remix jsonb;
 -- 2026-10-29: whether the post shows the prompt that made it (lib/showcase-made.ts; the creator's pick, on by default).
 alter table showcase_posts add column if not exists show_prompt boolean not null default true;
+-- A portrait, an SFW twin or one cut from a Studio item isn't from a date (the showcase's "From dates"; lib/showcase.ts
+-- FROM_DATE decides it for new posts).
+update showcase_posts p set from_date = false
+  from adult_images i
+ where p.source = 'after_dark' and p.from_date and i.id = p.media_id
+   and (i.kind = 'baseline' or i.shoot_id is not null or i.twin_of is not null
+        or exists (select 1 from adult_images src where src.id = i.source_image and src.shoot_id is not null));
 -- A video kept before its row named its model: the model its reel's shot names (the showcase says what made it).
 update adult_images i set model = s.model
   from (select distinct on (x->>'media_id') x->>'media_id' as media_id, x->>'model' as model

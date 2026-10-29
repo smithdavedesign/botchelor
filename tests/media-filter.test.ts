@@ -22,6 +22,7 @@ describe("what a thing is", () => {
     expect(typeOf(m("a", { kind: "video", reel_kind: "night" }))).toBe("reel");
     expect(typeOf(m("a", { kind: "video", derived: "boomerang" }))).toBe("boomerang");
     expect(typeOf(m("a", { kind: "video", derived: "loop", reel_kind: "clip" }))).toBe("loop");
+    expect(typeOf(m("a", { twin: true }))).toBe("twin");
   });
 });
 
@@ -35,14 +36,17 @@ describe("the gallery filter", () => {
     m("plain"),
     m("clip", { kind: "video", reel_kind: "clip", show_tags: [{ kind: "act", value: "kiss" }] }),
     m("archived", { kind: "video", archived: true, rating: 1 }),
+    // Averages: 3.2 is 1–3 stars (hidden by default), 3.5 is four.
+    m("three-ish", { stars: 3.2 }),
+    m("three-and-a-half", { stars: 3.5 }),
   ];
 
   it("hides 👎, 1–3★ and the Archive by default, each a tap away", () => {
-    expect(ids(filterMedia(items, DEFAULT_FILTER))).toEqual(["liked", "four", "plain", "clip"]);
-    expect(ids(filterMedia(items, { ...DEFAULT_FILTER, rating: "disliked" }))).toEqual(["down", "three", "liked-but-low"]);
-    expect(ids(filterMedia(items, { ...DEFAULT_FILTER, rating: "liked" }))).toEqual(["liked", "four"]);
+    expect(ids(filterMedia(items, DEFAULT_FILTER))).toEqual(["liked", "four", "plain", "clip", "three-and-a-half"]);
+    expect(ids(filterMedia(items, { ...DEFAULT_FILTER, rating: "disliked" }))).toEqual(["down", "three", "liked-but-low", "three-ish"]);
+    expect(ids(filterMedia(items, { ...DEFAULT_FILTER, rating: "liked" }))).toEqual(["liked", "four", "three-and-a-half"]);
     expect(ids(filterMedia(items, { ...DEFAULT_FILTER, rating: "unrated" }))).toEqual(["plain", "clip"]);
-    expect(ids(filterMedia(items, { ...DEFAULT_FILTER, rating: "all" }))).toHaveLength(7);
+    expect(ids(filterMedia(items, { ...DEFAULT_FILTER, rating: "all" }))).toHaveLength(9);
     expect(ids(filterMedia(items, { ...DEFAULT_FILTER, archived: true }))).toEqual(["archived"]);
   });
 
@@ -52,28 +56,28 @@ describe("the gallery filter", () => {
     expect(ids(filterMedia(items, { ...DEFAULT_FILTER, place: "beach" }))).toEqual(["liked"]);
     expect(ids(filterMedia(items, { ...DEFAULT_FILTER, pov: true }))).toEqual(["four"]);
     expect(ids(filterMedia(items, { ...DEFAULT_FILTER, favorites: true }))).toEqual(["four"]);
-    expect(ids(filterMedia(items, DEFAULT_FILTER, (x) => (x.id === "plain" ? -1 : (x.rating ?? null))))).toEqual(["liked", "four", "clip"]);
+    expect(ids(filterMedia(items, DEFAULT_FILTER, (x) => (x.id === "plain" ? -1 : (x.rating ?? null))))).toEqual(["liked", "four", "clip", "three-and-a-half"]);
   });
 
   it("counts what there is to filter by, the Archive apart, and how many the default hides", () => {
     const f = mediaFacets(items);
     expect(f.type).toEqual([
-      ["picture", 6],
+      ["picture", 8],
       ["clip", 1],
     ]);
     expect(f.act).toEqual([["kiss", 2]]);
     expect(f.place).toEqual([["beach", 1]]);
-    expect([f.pov, f.favorites, f.archived, f.hidden]).toEqual([1, 1, 1, 3]);
+    expect([f.pov, f.favorites, f.archived, f.hidden]).toEqual([1, 1, 1, 4]);
   });
 
   it("shows chips only for what's there, with counts, and says what the default hides", () => {
     const html = renderToStaticMarkup(createElement(MediaFilterBar, { items, value: DEFAULT_FILTER, onChange: () => {}, shown: 4 }));
-    expect(html).toContain("Pictures<span class=\"media-filter-count\">6</span>");
+    expect(html).toContain("Pictures<span class=\"media-filter-count\">8</span>");
     expect(html).toContain("Clips");
     expect(html).toContain("First person");
     expect(html).toContain("🗄 Archived");
     expect(html).toContain('aria-label="Pose"');
-    expect(html).toContain("4 shown · 3 with a 👎 or 1–3★ hidden");
+    expect(html).toContain("4 shown · 4 with a 👎 or 1–3★ hidden");
     expect(html).not.toContain("Clear the filters");
     expect(html).not.toContain("Boomerangs");
     const one = renderToStaticMarkup(createElement(MediaFilterBar, { items: [m("x")], value: { ...DEFAULT_FILTER, rating: "all" }, onChange: () => {}, shown: 1 }));

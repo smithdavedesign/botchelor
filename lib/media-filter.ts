@@ -8,9 +8,9 @@
  */
 import type { Media } from "./adult/media";
 
-export const MEDIA_TYPES = ["picture", "face", "clip", "reel", "boomerang", "loop"] as const;
+export const MEDIA_TYPES = ["picture", "twin", "face", "clip", "reel", "boomerang", "loop"] as const;
 export type MediaType = (typeof MEDIA_TYPES)[number];
-export const MEDIA_TYPE_LABEL: Record<MediaType, string> = { picture: "Pictures", face: "Faces", clip: "Clips", reel: "Date reels", boomerang: "Boomerangs", loop: "Loops" };
+export const MEDIA_TYPE_LABEL: Record<MediaType, string> = { picture: "Pictures", twin: "SFW twins", face: "Faces", clip: "Clips", reel: "Date reels", boomerang: "Boomerangs", loop: "Loops" };
 
 export const RATING_VIEWS = ["good", "liked", "unrated", "disliked", "all"] as const;
 export type RatingView = (typeof RATING_VIEWS)[number];
@@ -25,17 +25,21 @@ export const RATING_LABEL: Record<RatingView, string> = {
 export type MediaFilter = { type: MediaType | null; act: string | null; place: string | null; pov: boolean; rating: RatingView; favorites: boolean; archived: boolean };
 export const DEFAULT_FILTER: MediaFilter = { type: null, act: null, place: null, pov: false, rating: "good", favorites: false, archived: false };
 
-/** What kind of thing it is: a picture, a face (a baseline), a clip, a shot of a date's reel, a boomerang or a loop. */
-export function typeOf(m: Pick<Media, "kind" | "derived" | "reel_kind">): MediaType {
+/** What kind of thing it is: a picture, an SFW twin, a face (a baseline), a clip, a shot of a date's reel, a boomerang or a loop. */
+export function typeOf(m: Pick<Media, "kind" | "derived" | "reel_kind" | "twin">): MediaType {
   if (m.kind === "baseline") return "face";
+  if (m.twin) return "twin";
   if (m.kind !== "video") return "picture";
   if (m.derived === "boomerang" || m.derived === "loop") return m.derived;
   return m.reel_kind && m.reel_kind !== "clip" ? "reel" : "clip";
 }
 
-/** Disliked: their 👎, or at most 3 stars. Liked: their 👍, or 4 stars or more. */
-const disliked = (m: Pick<Media, "rating" | "stars">) => m.rating === -1 || (typeof m.stars === "number" && m.stars <= 3);
-const liked = (m: Pick<Media, "rating" | "stars">) => !disliked(m) && (m.rating === 1 || (typeof m.stars === "number" && m.stars >= 4));
+/**
+ * Disliked: their 👎, or 1–3 stars (an average under 3.5, as the library counts it: 3.5 rounds to 4). Liked: their 👍,
+ * or 4–5 stars.
+ */
+const disliked = (m: Pick<Media, "rating" | "stars">) => m.rating === -1 || (typeof m.stars === "number" && m.stars < 3.5);
+const liked = (m: Pick<Media, "rating" | "stars">) => !disliked(m) && (m.rating === 1 || (typeof m.stars === "number" && m.stars >= 3.5));
 
 /** Whether an item has a tag (what it shows: act, place, pov). */
 const hasTag = (m: Pick<Media, "show_tags">, kind: string, value?: string) => (m.show_tags ?? []).some((t) => t.kind === kind && (value === undefined || t.value === value));

@@ -4,6 +4,7 @@ import RemixButton from "./RemixButton";
 import ReportPost from "./ReportPost";
 import LikeButton from "./LikeButton";
 import MadeWith from "./MadeWith";
+import AdminSide from "./AdminSide";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { Post } from "@/lib/showcase";
@@ -17,7 +18,7 @@ const src = (p: Post) => `/api/showcase/${p.id}/media`;
  * and prompt, MadeWith), and the ones either side
  * (← → and Esc). An explicit one (admins only for now) stays blurred until it's tapped.
  */
-export default function ShowcaseGrid({ posts }: { posts: Post[] }) {
+export default function ShowcaseGrid({ posts, admin = false }: { posts: Post[]; admin?: boolean }) {
   const [open, setOpen] = useState<number | null>(null);
   const [shown, setShown] = useState<Set<string>>(new Set());
   const close = useCallback(() => setOpen(null), []);
@@ -49,6 +50,8 @@ export default function ShowcaseGrid({ posts }: { posts: Post[] }) {
               <button type="button" className="showcase-open" style={{ aspectRatio: (x.aspect ?? "3:4").replace(":", " / ") }} onClick={() => (veiled ? setShown((s) => new Set(s).add(x.id)) : setOpen(i))} aria-label={veiled ? "Show this explicit post" : `Open: ${describe(x)}`}>
                 {media(x)}
                 {x.medium !== "picture" && <span className="showcase-badge" aria-hidden="true">{x.medium === "boomerang" ? "↔" : x.medium === "loop" ? "∞" : "▶"}</span>}
+                {/* Suggestive (signed-in people only, lib/content-rating.ts): said on the tile, like the PG Studio's. */}
+                {x.rating === "suggestive" && <span className="showcase-rating">Suggestive</span>}
                 {veiled && <span className="showcase-veil">After Dark · tap to show</span>}
               </button>
               <p className="showcase-by small">
@@ -82,6 +85,7 @@ export default function ShowcaseGrid({ posts }: { posts: Post[] }) {
               </p>
               <p className="muted small">{[p.act ? actLabel(p.act) : "", p.place ? placeLabel(p.place) : "", p.pov ? "First person" : "", p.from_date ? "From a date" : "From the Studio"].filter(Boolean).join(" · ")}</p>
               <MadeWith postId={p.id} />
+              {admin && <AdminSide key={`side-${p.id}`} post={p} />}
               <RemixButton key={`remix-${p.id}`} post={p} />
               <p className="muted small">Made with AI. Every character is a fictional adult.</p>
               <ReportPost key={`report-${p.id}`} postId={p.id} />

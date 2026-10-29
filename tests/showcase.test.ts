@@ -116,13 +116,17 @@ describe("who sees what", () => {
     const sugg = await pgPicture(me.id, me.character, "suggestive");
     const nsfw = await adPicture(me.id, me.character);
     for (const [source, media_id] of [["pg", pg], ["pg", sugg], ["after_dark", nsfw]]) expect((await publish(me.cookie, { source, media_id })).status).toBe(200);
-    const ids = async (cookie?: string) => (await list("", cookie)).posts.map((p) => p.media_id).sort();
+    // Both sides: safe for work (the default) and After Dark (by rating, for whoever may see it).
+    const ids = async (cookie?: string) => [...(await list("", cookie)).posts, ...(await list("?side=after_dark", cookie)).posts].map((p) => p.media_id).sort();
     const fan = await person({ entitled: true });
     const plain = (await person()).cookie;
     expect(await ids()).toEqual([pg]);
     expect(await ids(plain)).toEqual([pg, sugg].sort());
     expect(await ids(fan.cookie)).toEqual([pg, sugg].sort());
     expect(await ids(me.cookie)).toEqual([pg, sugg, nsfw].sort());
+    // An admin's default is the safe side too: explicit only when they turn to After Dark.
+    expect((await list("", me.cookie)).posts.map((p) => p.media_id).sort()).toEqual([pg, sugg].sort());
+    expect((await list("?side=after_dark", me.cookie)).posts.map((p) => p.media_id)).toEqual([nsfw]);
     await saveAdultSettings(t.db, { studio: { showcase: { explicit_open: true } } });
     expect(await ids(fan.cookie)).toEqual([pg, sugg, nsfw].sort());
     expect(await ids(plain)).toEqual([pg, sugg].sort());
@@ -144,15 +148,15 @@ describe("taking posts down and filtering", () => {
     await t.db.query(`insert into adult_media_tags (media_id, owner_id, kind, value, source) values ($1, $2, 'act', 'kiss', 'choice')`, [kiss, me.id]);
     const clip = await adPicture(me.id, me.character, null, { kind: "video", mime: "video/mp4", shoot: "s1" });
     for (const m of [kiss, clip]) await publish(me.cookie, { source: "after_dark", media_id: m });
-    expect((await list("?medium=clip", me.cookie)).posts.map((p) => p.media_id)).toEqual([clip]);
-    expect((await list("?act=kiss", me.cookie)).posts.map((p) => p.media_id)).toEqual([kiss]);
-    expect((await list("?from=studio", me.cookie)).posts.map((p) => p.media_id)).toEqual([clip]);
-    expect((await list("?creator=mara", me.cookie)).posts).toHaveLength(2);
-    expect((await list(`?character=${me.character}`, me.cookie)).posts).toHaveLength(2);
-    expect((await list("?creator=nobody", me.cookie)).posts).toHaveLength(0);
+    expect((await list("?medium=clip&side=after_dark", me.cookie)).posts.map((p) => p.media_id)).toEqual([clip]);
+    expect((await list("?act=kiss&side=after_dark", me.cookie)).posts.map((p) => p.media_id)).toEqual([kiss]);
+    expect((await list("?from=studio&side=after_dark", me.cookie)).posts.map((p) => p.media_id)).toEqual([clip]);
+    expect((await list("?creator=mara&side=after_dark", me.cookie)).posts).toHaveLength(2);
+    expect((await list(`?character=${me.character}&side=after_dark`, me.cookie)).posts).toHaveLength(2);
+    expect((await list("?creator=nobody&side=after_dark", me.cookie)).posts).toHaveLength(0);
     const id = (await t.db.query<{ id: string }>(`select id from showcase_posts where media_id = $1`, [kiss])).rows[0].id;
     expect((await postDelete(req(`/api/showcase/posts/${id}`, { method: "DELETE", cookie: me.cookie }), { params: Promise.resolve({ id }) })).status).toBe(200);
-    expect((await list("", me.cookie)).posts).toHaveLength(1);
+    expect((await list("?side=after_dark", me.cookie)).posts).toHaveLength(1);
     // A moderator (another admin) takes the clip down: it stays down.
     const mod = await person({ admin: true });
     const cid = (await t.db.query<{ id: string }>(`select id from showcase_posts where media_id = $1`, [clip])).rows[0].id;
