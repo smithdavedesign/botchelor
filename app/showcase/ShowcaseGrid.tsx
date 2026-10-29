@@ -6,7 +6,7 @@ import LikeButton from "./LikeButton";
 import MadeWith from "./MadeWith";
 import AdminSide from "./AdminSide";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Post } from "@/lib/showcase";
 import { actLabel, placeLabel } from "@/lib/showcase-labels";
 
@@ -14,7 +14,8 @@ const src = (p: Post) => `/api/showcase/${p.id}/media`;
 
 /**
  * The showcase's grid and its viewer (lib/showcase.ts): a masonry of pictures and clips in their own shapes (clips play
- * muted, looping), and a tap opens one large with who made it, who's in it, what it shows, how it was made (the model
+ * muted, looping: on hover or focus, or on a touch screen while mostly in view; never while still blurred), and a tap
+ * opens one large with who made it, who's in it, what it shows, how it was made (the model
  * and prompt, MadeWith), and the ones either side
  * (← → and Esc). An explicit one (admins only for now) stays blurred until it's tapped.
  */
@@ -22,6 +23,31 @@ export default function ShowcaseGrid({ posts, admin = false }: { posts: Post[]; 
   const [open, setOpen] = useState<number | null>(null);
   const [shown, setShown] = useState<Set<string>>(new Set());
   const close = useCallback(() => setOpen(null), []);
+  // Each tile's clip, to play on hover (David, 2026-10-29: "if unblurred on hover have the video start").
+  const clips = useRef(new Map<string, HTMLVideoElement>());
+  const play = (id: string) => void clips.current.get(id)?.play().catch(() => {});
+  const stop = (id: string) => {
+    const v = clips.current.get(id);
+    if (!v) return;
+    v.pause();
+    v.currentTime = 0;
+  };
+  // A touch screen has no hover: there a clip plays while it's mostly in view (never with reduced motion, never blurred).
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined" || window.matchMedia("(hover: hover)").matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          const v = e.target as HTMLVideoElement;
+          if (e.intersectionRatio >= 0.6 && v.dataset.veiled !== "1") void v.play().catch(() => {});
+          else v.pause();
+        }
+      },
+      { threshold: [0, 0.6] },
+    );
+    for (const v of clips.current.values()) io.observe(v);
+    return () => io.disconnect();
+  }, [posts, shown]);
   useEffect(() => {
     if (open === null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -32,9 +58,20 @@ export default function ShowcaseGrid({ posts, admin = false }: { posts: Post[]; 
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, posts.length, close]);
-  const media = (p: Post, big = false) =>
+  const media = (p: Post, big = false, veiled = false) =>
     p.mime.startsWith("video/") ? (
-      <video src={src(p)} muted loop playsInline autoPlay={big} preload="metadata" controls={big} aria-label={describe(p)} />
+      <video
+        ref={big ? undefined : (el) => void (el ? clips.current.set(p.id, el) : clips.current.delete(p.id))}
+        data-veiled={veiled ? "1" : undefined}
+        src={src(p)}
+        muted
+        loop
+        playsInline
+        autoPlay={big}
+        preload="metadata"
+        controls={big}
+        aria-label={describe(p)}
+      />
     ) : (
       // eslint-disable-next-line @next/next/no-img-element -- served by the showcase's own gate, not next/image
       <img src={src(p)} alt={describe(p)} loading="lazy" />
@@ -47,8 +84,18 @@ export default function ShowcaseGrid({ posts, admin = false }: { posts: Post[]; 
           const veiled = x.rating === "nsfw" && !shown.has(x.id);
           return (
             <li key={x.id} className={`showcase-tile${veiled ? " veiled" : ""}`}>
-              <button type="button" className="showcase-open" style={{ aspectRatio: (x.aspect ?? "3:4").replace(":", " / ") }} onClick={() => (veiled ? setShown((s) => new Set(s).add(x.id)) : setOpen(i))} aria-label={veiled ? "Show this explicit post" : `Open: ${describe(x)}`}>
-                {media(x)}
+              <button
+                type="button"
+                className="showcase-open"
+                style={{ aspectRatio: (x.aspect ?? "3:4").replace(":", " / ") }}
+                onClick={() => (veiled ? setShown((s) => new Set(s).add(x.id)) : setOpen(i))}
+                onPointerEnter={(e) => !veiled && e.pointerType === "mouse" && play(x.id)}
+                onPointerLeave={() => stop(x.id)}
+                onFocus={() => !veiled && play(x.id)}
+                onBlur={() => stop(x.id)}
+                aria-label={veiled ? "Show this explicit post" : `Open: ${describe(x)}`}
+              >
+                {media(x, false, veiled)}
                 {x.medium !== "picture" && <span className="showcase-badge" aria-hidden="true">{x.medium === "boomerang" ? "↔" : x.medium === "loop" ? "∞" : "▶"}</span>}
                 {/* Suggestive (signed-in people only, lib/content-rating.ts): said on the tile, like the PG Studio's. */}
                 {x.rating === "suggestive" && <span className="showcase-rating">Suggestive</span>}
