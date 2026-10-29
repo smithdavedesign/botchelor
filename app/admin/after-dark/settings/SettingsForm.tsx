@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
 import type { HiveState } from "@/lib/adult/hive-limit";
-import type { AdultSettings } from "@/lib/adult/settings";
+import type { AdultSettings, VoiceModel } from "@/lib/adult/settings";
 
 /** A number field's value: a number, or null when it's empty (the setting's default, or none). */
 const numberOrNull = (v: string): number | null => (v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));
@@ -77,6 +77,8 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
       replicate_keyframe_model: s.replicate_keyframe_model,
       replicate_video_model: s.replicate_video_model,
       replicate_voice_model: s.replicate_voice_model,
+      voice_model: s.voice_model,
+      presence_loop_model: s.presence_loop_model,
       replicate_video_lora: s.replicate_video_lora ?? "",
       ...(replicateKey.trim() ? { replicate_key: replicateKey.trim() } : {}),
     });
@@ -196,6 +198,25 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
         <input id="ad-clip-tokens" type="number" min={0} max={100} value={s.clip_tokens} onChange={(e) => setS({ ...s, clip_tokens: Number(e.target.value) || 0 })} />
         <label htmlFor="ad-menu-picture-tokens">A picture from the shot menu (the two of them, as composed), in bought tokens; it counts against the month&apos;s pictures too</label>
         <input id="ad-menu-picture-tokens" type="number" min={0} max={100} value={s.menu_picture_tokens} onChange={(e) => setS({ ...s, menu_picture_tokens: Number(e.target.value) || 0 })} />
+      </details>
+      <details className="ad-settings-section">
+        <summary>
+          <h3>Voices and living faces: Venice</h3>
+        </summary>
+        <p className="muted small">
+          The voice the theater speaks each line in, a stock one per character by their pronouns (docs/PRDs/theater-immersion.md). Orpheus
+          laughs, sighs and gasps where a line&apos;s action does. A line already voiced in one model is kept; another model voices it again.
+        </p>
+        <label htmlFor="ad-voice-model">Voice model</label>
+        <select id="ad-voice-model" value={s.voice_model} onChange={(e) => setS({ ...s, voice_model: e.target.value as VoiceModel })}>
+          {/* Timed 2026-10-29, one line each. Chatterbox HD (24 s a line) can't keep up with the theater, so it isn't offered. */}
+          <option value="kokoro">Kokoro: plain, 1 to 2 s a line, about 0.04¢</option>
+          <option value="inworld">Inworld 1.5 Max: warmer, about 3 s a line, about 0.13¢</option>
+          <option value="orpheus">Orpheus: acts, laughs and sighs, 4 s a line once warm (minutes cold: a night&apos;s first lines may play silent), about 0.6¢</option>
+          {s.voice_model === "chatterbox" && <option value="chatterbox">Chatterbox HD: too slow for the theater (24 s a line)</option>}
+        </select>
+        <label htmlFor="ad-presence-loop-model">Living portrait model (a 5-second loop of each face, made once, from ✨ Bring them to life in the theater)</label>
+        <input id="ad-presence-loop-model" value={s.presence_loop_model} onChange={(e) => setS({ ...s, presence_loop_model: e.target.value })} />
       </details>
       <details className="ad-settings-section">
         <summary>

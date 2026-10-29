@@ -432,6 +432,8 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
 const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["adult_media_ratings", "user_id"], ["adult_media_thumbs", "owner_id"], ["adult_short_views", "user_id"], ["adult_short_calls", "user_id"],
   ["adult_beats", "owner_id"], ["adult_monologues", "owner_id"], ["adult_voice_lines", "owner_id"], ["adult_reels", "owner_id"],
+  // Their characters' presence in the theater (lib/adult/presence.ts): expressions and living portraits.
+  ["adult_presence", "owner_id"],
   ["adult_steps", "owner_id"], ["adult_facts", "owner_id"], ["adult_memories", "owner_id"], ["adult_rejections", "owner_id"],
   ["adult_light_picks", "owner_id"], ["adult_face_refs", "owner_id"], ["adult_nude_refs", "owner_id"], ["adult_identity", "owner_id"],
   // The Studio's shares (as the sharer, and as the one shared with), share settings and saved setups.

@@ -16,6 +16,9 @@ import { TheaterListen } from "./Listen";
 import CaptureMenu from "./CaptureMenu";
 import SceneBackdrop from "./SceneBackdrop";
 import { useSceneMedia } from "./useSceneMedia";
+import { presenceUrl, usePresence } from "./usePresence";
+import LivingFace from "../../LivingFace";
+import Avatar from "@/app/Avatar";
 import VideoChoice from "./VideoChoice";
 import type { NightChapter } from "@/lib/adult/nights";
 import type { ReelScope } from "@/lib/adult/reels";
@@ -255,6 +258,46 @@ export default function AfterDarkTheater({
   const [a, b] = characters;
   // Media the pair already has of the moment (a picture to offer, a clip to loop behind the scene), live scenes only.
   const sceneMedia = useSceneMedia(a.id, b.id, shown.length, live);
+  // Their living faces (lib/adult/presence.ts): the speaker's expression, the listener's loop, else the face.
+  const { presence, make: makePresence } = usePresence(a.id, b.id);
+  const [presenceNote, setPresenceNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!presenceNote) return;
+    const t = window.setTimeout(() => setPresenceNote(null), 12_000);
+    return () => window.clearTimeout(t);
+  }, [presenceNote]);
+  const faceOf = (side: "a" | "b") => {
+    const c = side === "a" ? a : b;
+    const p = presence[c.id];
+    if (!p) return undefined;
+    // Their line's expression while it's the one on screen; listening, their loop if they have one, else that look held.
+    let expression: string | undefined;
+    for (let i = shown.length - 1; i >= 0; i--) {
+      if (scene.lines[i]?.who !== side) continue;
+      const f = scene.lines[i].face;
+      const speaking = i === shown.length - 1;
+      expression = f && f !== "neutral" && (speaking || !p.loop) ? p.expressions[f] : undefined;
+      break;
+    }
+    return (
+      <LivingFace
+        face={`/api/admin/after-dark/media/${encodeURIComponent(p.face_id)}`}
+        expression={expression ? presenceUrl(expression) : null}
+        loop={p.loop ? presenceUrl(p.loop) : null}
+        name={c.name}
+        size={132}
+        fallback={<Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} photoSrc={c.photo} size={132} />}
+      />
+    );
+  };
+  // "✨ Bring them to life" is offered while either still lacks some of it and nothing's on its way.
+  const canBringToLife = [a, b].some((c) => !presence[c.id] || (!presence[c.id].making && presence[c.id].missing > 0));
+  const bringToLife = async () => {
+    setTools(false);
+    setPresenceNote("Bringing them to life: their expressions and a living portrait, ready in a few minutes.");
+    const why = await makePresence();
+    if (why) setPresenceNote(why);
+  };
   const caughtUp = shown.length >= turns.length;
   const left = turns.length - shown.length;
   // Autoplay: the next lines are on their way before the stage runs out (paused playback stops it writing further ahead).
@@ -319,6 +362,8 @@ export default function AfterDarkTheater({
             setUrl={stage.setUrl}
             lineA={lastOf(shown, "a")}
             lineB={lastOf(shown, "b")}
+            faceA={faceOf("a")}
+            faceB={faceOf("b")}
             actLabel={label}
             placeholder={waiting ? "" : scene.lines.length ? "…" : "Press Next to begin."}
           />
@@ -515,6 +560,11 @@ export default function AfterDarkTheater({
                   <button type="button" className="button-ghost small" disabled={busy || !steps.canReset} onClick={() => (setTools(false), steps.onReset())} title="File tonight under their nights and start a new one">
                     Start over
                   </button>
+                  {canBringToLife && (
+                    <button type="button" className="button-ghost small" onClick={() => void bringToLife()} title="Their expressions as they speak, and a living portrait in place of the still face: made once, kept for every night">
+                      ✨ Bring them to life
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -602,9 +652,9 @@ export default function AfterDarkTheater({
                   </span>
                 )}
               </div>
-              {(videoNote || note) && (
+              {(videoNote || note || presenceNote) && (
                 <p className="ad-theater-note" role="status">
-                  {videoNote || note}
+                  {videoNote || note || presenceNote}
                 </p>
               )}
               {crisis}

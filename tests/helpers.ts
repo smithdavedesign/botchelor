@@ -160,6 +160,7 @@ export async function startTestDb() {
         "adult_short_views",
         "adult_shorts",
         "adult_rejections",
+        "adult_presence",
         // Exports (lib/media-tools/export.ts): a person's packed downloads, kept a day.
         "media_exports",
         // Favorites (the Studio's ⭐).

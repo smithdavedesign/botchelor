@@ -49,6 +49,7 @@ import { consentRefusal, framingOf, hasProfileConsent, mayEditProfile, profileLi
 import { scenarioById, type Scenario } from "./scenarios";
 import { venueSituation } from "./scene-catalog";
 import { carryDoing, cleanDoing } from "./doing";
+import { FACES, isFace, type Face } from "./faces";
 import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
 import { picturesBlocked } from "./readiness";
 
@@ -151,11 +152,13 @@ export type SceneLine = {
   fact_ids?: string[];
   /** What the two of them are doing at this line, in the writer's words (lib/adult/doing.ts): the theater's label. */
   doing?: string;
+  /** The speaker's expression as they say it (lib/adult/presence.ts FACES): the face the theater shows. Neutral when left out. */
+  face?: Face;
 };
 
 /** The lines as the page and the player get them: who and what, never the private notes. */
 export const publicLines = (lines: readonly SceneLine[]): SceneLine[] =>
-  lines.map((l) => ({ who: l.who, text: l.text, ...(typeof l.stage === "number" ? { stage: l.stage } : {}), ...(l.doing ? { doing: l.doing } : {}) }));
+  lines.map((l) => ({ who: l.who, text: l.text, ...(typeof l.stage === "number" ? { stage: l.stage } : {}), ...(l.doing ? { doing: l.doing } : {}), ...(l.face ? { face: l.face } : {}) }));
 export type AdultScene = {
   id: string;
   lines: SceneLine[];
@@ -1032,13 +1035,15 @@ export function sceneMessages(
     // A whisper to one of them (lib/adult/director.ts): that one's own secret intention, never said aloud.
     (whispered.length ? ` ${whispered.join(" ")}` : "") +
     (avoid.length ? ` Don't lean on these words again: ${avoid.join(", ")}.` : "") +
-    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null${v2 ? ', "doing": "..."' : ""}}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. ${v2 ? "the bedroom" : "his bedroom"}: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null${v2 ? ', "suggestions": {"mild": "...", "flirty": "...", "spicy": "..."}' : ""}}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
+    ` Reply with a JSON object: {"lines": [{"who": "a", "action": "...", "text": "...", "why": "...", "memory": null${v2 ? ', "doing": "...", "face": "smile"' : ""}}, {"who": "b", "action": "", "text": "...", "why": "...", "memory": ${v2 ? (cite ? `"${cite}"` : "null") : '"..."'}${v2 ? ', "face": "flirty"' : ""}}], "place": "where they are at the end of these lines", "set": "the place itself in 2 to 4 words, e.g. ${v2 ? "the bedroom" : "his bedroom"}: the same as now unless they agreed to go somewhere", "stage": 1, "explicit": false, "picture": null${v2 ? ', "suggestions": {"mild": "...", "flirty": "...", "spicy": "..."}' : ""}}, where "a" is ${first("a")} and "b" is ${first("b")}, and "stage" is the stage number (1 to ${STAGES.length}) at the end of these lines.` +
     (v2
       ? ` On every line, "why" is one short private sentence on why this character says or does this now, naming the specific thing behind it: a memory, a detail from their sheet (their job, a hobby, a tell, a line of their bio), what they want, or what just happened; never a trait word on its own ("${first("b")} is ${trait}" says nothing), and each line's why is its own ("the moment" says nothing either).` +
         // v2.2: Lexi × Dex's climax gave whys like "The climax, the shared moment" (2026-10-22).
         ` It's a whole sentence about this character's own reason, with a verb, even at the climax: never a fragment ("the climax, the shared moment").` +
         // What they're doing (lib/adult/doing.ts): the theater's label, in the writer's words, not the heat's.
         ` On the first line, and on any line where what the two of them are doing changes, "doing" says what they're doing now in 2 to 6 plain words${now.profile?.roleplay ? ", in the roleplay's own terms" : ""} (like "sizing up the smug couple" or "slow dancing in the kitchen"); leave it out on the other lines.` +
+        // Their expression (lib/adult/presence.ts): the face the theater shows as the line plays.
+        ` Every line's "face" is the speaker's expression as they say it, one word: ${FACES.join(", ")}.` +
         (now.profile?.roleplay
           ? ` While the roleplay runs, each "why" also says how the line plays it (the role, the premise: "${now.profile.roleplay.rp.title}"), or why it steps out of it.`
           : "") +
@@ -1163,8 +1168,8 @@ export function parseSceneLines(reply: string, names: { a: string; b: string }):
   if (start !== -1 && end > start) {
     try {
       const parsed = JSON.parse(trimmed.startsWith("{") ? trimmed : raw.slice(start, end + 1)) as
-        | { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown; doing?: unknown; lines?: { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown; doing?: unknown }[] }
-        | { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown; doing?: unknown }[];
+        | { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown; doing?: unknown; face?: unknown; lines?: { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown; doing?: unknown; face?: unknown }[] }
+        | { who?: string; text?: string; action?: string; why?: unknown; memory?: unknown; doing?: unknown; face?: unknown }[];
       const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed.lines) ? parsed.lines : [parsed];
       // The action leads, in asterisks, so it never lands in the middle of a sentence.
       const withAction = (x: { text?: string; action?: string }) => {
@@ -1175,9 +1180,17 @@ export function parseSceneLines(reply: string, names: { a: string; b: string }):
       // The private notes (why, memory), kept only when they're there: short, and never shown.
       const note = (v: unknown) => (typeof v === "string" && v.trim() && !/^(null|none|n\/a)$/i.test(v.trim()) ? v.trim().replace(/\s+/g, " ").slice(0, NOTE_MAX) : null);
       const out = arr
-        .map((x) => ({ side: typeof x.who === "string" ? sideOf(x.who.trim().toLowerCase()) : null, text: withAction(x), why: note(x.why), memory: note(x.memory), doing: cleanDoing(x.doing, [names.a, names.b]) }))
-        .filter((x): x is { side: "a" | "b"; text: string; why: string | null; memory: string | null; doing: string | null } => x.side !== null && typeof x.text === "string" && Boolean(x.text.trim()))
-        .map((x) => ({ who: x.side, text: clean(x.text), ...(x.why ? { why: x.why } : {}), ...(x.why || x.memory ? { memory: x.memory } : {}), ...(x.doing ? { doing: x.doing } : {}) }));
+        .map((x) => ({
+          side: typeof x.who === "string" ? sideOf(x.who.trim().toLowerCase()) : null,
+          text: withAction(x),
+          why: note(x.why),
+          memory: note(x.memory),
+          doing: cleanDoing(x.doing, [names.a, names.b]),
+          // Their expression (lib/adult/presence.ts): one of the words, lower-cased; anything else is no expression.
+          face: typeof x.face === "string" && isFace(x.face.trim().toLowerCase()) ? (x.face.trim().toLowerCase() as Face) : null,
+        }))
+        .filter((x): x is { side: "a" | "b"; text: string; why: string | null; memory: string | null; doing: string | null; face: Face | null } => x.side !== null && typeof x.text === "string" && Boolean(x.text.trim()))
+        .map((x) => ({ who: x.side, text: clean(x.text), ...(x.why ? { why: x.why } : {}), ...(x.why || x.memory ? { memory: x.memory } : {}), ...(x.doing ? { doing: x.doing } : {}), ...(x.face && x.face !== "neutral" ? { face: x.face } : {}) }));
       if (out.length) return out;
     } catch {
       /* fall through */

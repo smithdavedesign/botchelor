@@ -35,7 +35,15 @@ export async function overCap(db: Db, ownerId: string, kind: UsageKind, now: Dat
   if (await isAdmin(db, ownerId)) return null;
   const cap = (await db.query<Record<string, number>>(`select cap_${kind} as cap from adult_settings where id = 1`)).rows[0]?.cap ?? 0;
   const used = (await db.query<{ n: number }>(`select ${kind} as n from adult_usage where owner_id = $1 and month = $2`, [ownerId, monthOf(now)])).rows[0]?.n ?? 0;
-  return used >= cap ? `You've used this month's ${cap} ${LABEL[kind]}. They reset on the 1st.` : null;
+  return used >= cap ? capSentence(cap, kind) : null;
+}
+
+/** What a full cap says. */
+export const capSentence = (cap: number, kind: UsageKind) => `You've used this month's ${cap} ${LABEL[kind]}. They reset on the 1st.`;
+
+/** A kind's cap (the settings'), for a caller saying why it stopped. */
+export async function capOf(db: Db, kind: UsageKind): Promise<number> {
+  return (await db.query<Record<string, number>>(`select cap_${kind} as cap from adult_settings where id = 1`)).rows[0]?.cap ?? 0;
 }
 
 /** How many of a kind are left this month: null for an admin (never capped). */
