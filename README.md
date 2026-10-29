@@ -9,7 +9,9 @@ The creator showcase (2026-10-29): `/showcase` and each creator's page.
 - **Social:** likes, Trending this week, following creators, and Shoot like this (a post's menu picks on your own
   character).
 - **Moderation:** reports hold a post until a moderator looks.
-- **Explicit work:** seen by admins only until counsel signs off.
+- **Explicit work:** seen by admins only until counsel signs off. The page opens on the safe side for everyone.
+- **Reels** (`/showcase/reels`): one post a screen, swiped. Stills move slowly, and clips play on screen. Each post
+  asks for a date with its character, then offers all of them, then how many more are after dark.
 
 Captured by `npm run screenshots:showcase` with seeded PG stand-ins (nothing drawn). Code:
 [`lib/showcase.ts`](lib/showcase.ts), [`lib/showcase-social.ts`](lib/showcase-social.ts); docs/PRDs/showcase.md.
@@ -17,6 +19,7 @@ Captured by `npm run screenshots:showcase` with seeded PG stand-ins (nothing dra
 ![The showcase on desktop: filter chips for medium, place, character and shape with counts, and a masonry of pictures with likes and creator handles](docs/screenshots/showcase-desktop.png)
 ![A post open in the viewer on desktop: the picture, its creator and character, likes, what it shows, and Report](docs/screenshots/showcase-viewer-desktop.png)
 ![A creator's page on a phone: Mara Makes, her bio, Follow with 2 followers, and her work with the same filters](docs/screenshots/showcase-creator-phone.png)
+![The reels on a phone: a full-screen picture of a character, her name and creator, Date her and See all of her, likes, share and how it was made](docs/screenshots/showcase-reels-phone.png)
 
 The creator suite (2026-10-26). The Studio now:
 - draws in the shape you post in (Portrait, Story, Feed, Square, Wide);

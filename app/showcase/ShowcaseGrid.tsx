@@ -132,6 +132,9 @@ export default function ShowcaseGrid({ posts, admin = false }: { posts: Post[]; 
               </p>
               <p className="muted small">{[p.act ? actLabel(p.act) : "", p.place ? placeLabel(p.place) : "", p.pov ? "First person" : "", p.from_date ? "From a date" : "From the Studio"].filter(Boolean).join(" · ")}</p>
               <MadeWith postId={p.id} />
+              <p className="small">
+                <Link href={`/showcase/reels?start=${encodeURIComponent(p.id)}${p.rating === "nsfw" ? "&side=after_dark" : ""}`}>▶ Watch as reels from here</Link>
+              </p>
               {admin && <AdminSide key={`side-${p.id}`} post={p} />}
               <RemixButton key={`remix-${p.id}`} post={p} />
               <p className="muted small">Made with AI. Every character is a fictional adult.</p>

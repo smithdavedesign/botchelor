@@ -1,8 +1,9 @@
 /**
  * npm run screenshots:showcase: real-browser screenshots of the creator showcase (lib/showcase.ts, docs/PRDs/showcase.md),
  * desktop and phone, into docs/screenshots/: the showcase with its filters, a filtered view, a post open in the viewer,
- * and a creator's page. It checks the filters narrow the grid, a clip plays on hover and stops after, the viewer says
- * how a post was made (its model and prompt, lib/showcase-made.ts), and the page never scrolls sideways on a phone.
+ * a creator's page, and the reels (app/showcase/reels). It checks the filters narrow the grid, a clip plays on hover and
+ * stops after, the viewer says how a post was made (its model and prompt, lib/showcase-made.ts), the reels move a
+ * still, swipe to the next, load more as they go and play a clip on screen, and nothing scrolls sideways on a phone.
  *
  * It builds the app and runs it on a throwaway local database. Nothing is drawn and nothing explicit is shown: the posts
  * are PG stand-ins made here from the repo's own cast portraits (public/cast) with ffmpeg, seeded straight in.
@@ -100,6 +101,9 @@ async function seed() {
       `insert into showcase_posts (id, owner_id, source, media_id, character_id, rating, medium, aspect, status, published_at, tags) values ('post-clip', 'u-mara', 'after_dark', 'clip-1', $1, 'pg', 'clip', '3:4', 'live', now(), '[]'::jsonb)`,
       [CAST[0]],
     );
+    // One After Dark post (a PG stand-in, only ever counted for a visitor): the reels' "🌙 1 more of Juniper after dark".
+    await db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status, content_rating) values ('ad-1', 'u-mara', $1, 'scene', 'p', 'image/png', $2, 'ready', 'nsfw')`, [CAST[0], media[`${CAST[0]}-natural`]]);
+    await db.query(`insert into showcase_posts (id, owner_id, source, media_id, character_id, rating, medium, status, published_at, tags) values ('post-ad', 'u-mara', 'after_dark', 'ad-1', $1, 'nsfw', 'picture', 'live', now() - interval '1 day', '[]'::jsonb)`, [CAST[0]]);
     await db.query(`insert into creator_follows (follower_id, creator_id) values ('fan-1', 'u-mara'), ('fan-2', 'u-mara')`);
   } finally {
     await db.close();
@@ -141,7 +145,12 @@ async function main() {
       [390, 844, "phone"],
     ]) {
       // A phone is a touch screen (no hover), not just a narrow window: that's what decides how clips play.
-      const ctx = await browser.newContext({ viewport: { width: w, height: h }, ...(size === "phone" ? { isMobile: true, hasTouch: true } : {}) });
+      // A visitor's browser, not "HeadlessChrome": lib/bots.ts counts that as a bot, and a bot gets no After Dark count.
+      const userAgent =
+        size === "phone"
+          ? "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36"
+          : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+      const ctx = await browser.newContext({ viewport: { width: w, height: h }, userAgent, ...(size === "phone" ? { isMobile: true, hasTouch: true } : {}) });
       await ctx.addCookies([{ name: "bz_adult", value: "1", url: app.base }]);
       const page = await ctx.newPage();
       await page.goto(`${app.base}/showcase`);
@@ -202,6 +211,38 @@ async function main() {
       assert((await page.locator(".showcase-tile").count()) === 9, "Mara's page doesn't show her 9 posts");
       if (size === "phone") await noSideways(page, "a creator's page");
       await shot(page, `showcase-creator-${size}`);
+      // The reels: a still moving, the next one a swipe (or ↓) away, more loading as they go, the clip playing on screen.
+      await page.goto(`${app.base}/showcase/reels`);
+      const slide = (i) => page.locator(`[role="feed"] [data-i="${i}"]`);
+      await slide(0).locator("img, video").first().waitFor({ timeout: 15_000 });
+      await page.waitForFunction(() => document.querySelector('[role="feed"] [data-i="0"]')?.getAttribute("aria-current") === "true", null, { timeout: 10_000 });
+      // Most liked this week first: the seed's most liked post, a still.
+      assert((await slide(0).locator("video").count()) === 0, "the reels don't start with the most liked post");
+      await page.waitForFunction(() => document.querySelector('[role="feed"] [data-i="0"] img:not([aria-hidden])')?.complete, null, { timeout: 15_000 });
+      const moving = await slide(0).locator("img:not([aria-hidden])").evaluate((img) => getComputedStyle(img).animationName);
+      assert(moving && moving !== "none", `the first still doesn't move (${moving})`);
+      assert((await slide(0).getByRole("link", { name: /^💘 Date / }).count()) === 1, "the first reel doesn't ask for a date");
+      if (size === "phone") await noSideways(page, "the reels");
+      await shot(page, `showcase-reels-${size}`);
+      const next = async (i) => {
+        if (size === "desktop") await page.keyboard.press("ArrowDown");
+        else await page.locator('[role="feed"]').evaluate((f, n) => f.scrollTo({ top: n * f.clientHeight }), i);
+        await page.waitForFunction((n) => document.querySelector(`[role="feed"] [data-i="${n}"]`)?.getAttribute("aria-current") === "true", i, { timeout: 10_000 });
+      };
+      await next(1);
+      console.log(`  ✓ the reels: a still moves (${moving}), and the next is a ${size === "desktop" ? "↓" : "swipe"} away`);
+      const first = await page.locator('[role="feed"] [data-i]').count();
+      for (let i = 2; i <= 7; i++) await next(i);
+      await page.waitForFunction((n) => document.querySelectorAll('[role="feed"] [data-i]').length > n, first, { timeout: 10_000 });
+      console.log(`  ✓ the reels load more as they go (${first} → ${await page.locator('[role="feed"] [data-i]').count()} screens)`);
+      // The card after the first few, and the After Dark count on Juniper's reels for a visitor.
+      assert((await page.getByText("Make your own character").count()) > 0, "no card to make a character");
+      assert((await page.getByText(/🌙 1 more of Juniper after dark/).count()) > 0, "no After Dark count on Juniper's reels");
+      // The clip: playing once it's the one on screen.
+      const clipAt = await page.locator('[role="feed"] video[data-v]').first().getAttribute("data-v");
+      await page.locator('[role="feed"]').evaluate((f, n) => f.querySelector(`[data-i="${n}"]`).scrollIntoView(), clipAt);
+      await page.waitForFunction((n) => { const v = document.querySelector(`video[data-v="${n}"]`); return v && !v.paused; }, clipAt, { timeout: 10_000 });
+      console.log("  ✓ the reels play a clip while it's on screen");
       await ctx.close();
     }
   } finally {
