@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { simulateAfterglow } from "@/lib/afterglow";
 import { buildTextMessages } from "@/lib/between-dates";
 import { assembleCharacter, type Character } from "@/lib/character";
 import { fixedEngine, NEUTRAL_SIGNALS, type DateInput, type SideSetup } from "@/lib/engine";
-import type { ChatMessage, Model } from "@/lib/model";
+import { ModelError, type ChatMessage, type Model } from "@/lib/model";
 import { critiqueText, planAlreadyMade, writeCritiquedText, type ThreadText } from "@/lib/text-critic";
 
 // Chud × Nell (2026-10-18): the date held together; the texts after it didn't. Chud opened 11 of 12 texts with
@@ -73,19 +73,30 @@ describe("writeCritiquedText: one revision, never a lost text", () => {
 
   it("sends a flagged text back once and keeps the revision", async () => {
     const { m, calls } = model([JSON.stringify({ text: "Hello good looking, again." }), JSON.stringify({ text: "Did the archway survive the night?" })]);
-    expect(await writeCritiquedText(m, [{ role: "user", content: "x" }], parse, flagFirst, "test")).toBe("Did the archway survive the night?");
+    expect((await writeCritiquedText(m, [{ role: "user", content: "x" }], parse, flagFirst, "test")).text).toBe("Did the archway survive the night?");
     expect(calls[1].at(-1)?.content).toMatch(/^Revise that text:/);
   });
 
   it("keeps the first draft when the revision doesn't parse", async () => {
     const { m } = model([JSON.stringify({ text: "Hello good looking, again." }), "not json"]);
-    expect(await writeCritiquedText(m, [{ role: "user", content: "x" }], parse, flagFirst, "test")).toBe("Hello good looking, again.");
+    expect((await writeCritiquedText(m, [{ role: "user", content: "x" }], parse, flagFirst, "test")).text).toBe("Hello good looking, again.");
   });
 
   it("costs one call when nothing's flagged", async () => {
     const { m, calls } = model([JSON.stringify({ text: "Morning. How's the stopwatch?" })]);
-    expect(await writeCritiquedText(m, [{ role: "user", content: "x" }], parse, flagFirst, "test")).toBe("Morning. How's the stopwatch?");
+    expect((await writeCritiquedText(m, [{ role: "user", content: "x" }], parse, flagFirst, "test")).text).toBe("Morning. How's the stopwatch?");
     expect(calls).toHaveLength(1);
+  });
+
+  it("says why there's no text: the model's last refusal, or none when it answered without one, and logs it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const refusing: Model = { async complete() { throw new ModelError("Google: out of credit. Top up.", 429); } };
+    const none = await writeCritiquedText(refusing, [{ role: "user", content: "x" }], parse, flagFirst, "test");
+    expect(none).toEqual({ text: null, error: expect.objectContaining({ message: "Google: out of credit. Top up.", status: 429 }) });
+    const { m } = model(["not json", "still not"]);
+    expect(await writeCritiquedText(m, [{ role: "user", content: "x" }], parse, flagFirst, "test")).toEqual({ text: null, error: null });
+    expect(warn.mock.calls.map((c) => c[0])).toEqual(["[test] no text after two tries: Google: out of credit. Top up.", "[test] no text after two tries: the replies had no text in them"]);
+    warn.mockRestore();
   });
 });
 

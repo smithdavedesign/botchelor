@@ -842,8 +842,8 @@ function answerNote(yes: boolean, last: boolean): string {
 }
 
 /** One opening-chat text, critiqued for repetition (lib/text-critic.ts) like every other text. */
-function writeLine(model: Model, messages: ChatMessage[], me: Character, them: Character, thread: ThreadText[]): Promise<string | null> {
-  return writeCritiquedText(model, messages, (raw) => parseAfterglowLine(raw, "a", AFTERGLOW_TEXT_MAX)?.text ?? null, (text) => critiqueText(thread, text, me, them), "swipes");
+async function writeLine(model: Model, messages: ChatMessage[], me: Character, them: Character, thread: ThreadText[]): Promise<string | null> {
+  return (await writeCritiquedText(model, messages, (raw) => parseAfterglowLine(raw, "a", AFTERGLOW_TEXT_MAX)?.text ?? null, (text) => critiqueText(thread, text, me, them), "swipes")).text;
 }
 
 /**

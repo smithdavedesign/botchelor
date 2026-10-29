@@ -59,9 +59,13 @@ export function planAlreadyMade(thread: readonly ThreadText[]): string | null {
   return recent[recent.length - 1].text;
 }
 
+/** A text, or none and why: the model's last refusal, or null when it answered but no reply had a text in it. */
+export type Written = { text: string; error: null } | { text: null; error: ModelError | null };
+
 /**
  * One text from a model, critiqued: two tries for a usable reply, then (if the critic flags it) one revision with the
- * note. The revision is kept only if it parses; otherwise the first draft stands. Null when no usable text came back.
+ * note. The revision is kept only if it parses; otherwise the first draft stands. No text when no usable reply came
+ * back, with the reason for whoever asked (a person's phone says it: a 502 there used to leave no trace, 2026-10-29).
  */
 export async function writeCritiquedText(
   model: Model,
@@ -69,20 +73,25 @@ export async function writeCritiquedText(
   parse: (raw: string) => string | null,
   critique: (text: string) => string | null,
   where: string,
-): Promise<string | null> {
+): Promise<Written> {
   let draft: { raw: string; text: string } | null = null;
+  let error: ModelError | null = null;
   for (let attempt = 0; attempt < 2 && !draft; attempt++) {
     try {
       const raw = await model.complete(messages, { temperature: 0.9 });
       const text = parse(raw);
       if (text) draft = { raw, text };
     } catch (err) {
-      if (!(err instanceof ModelError)) console.error(`[${where}] model call failed:`, err instanceof Error ? err.message : "unknown");
+      if (err instanceof ModelError) error = err;
+      else console.error(`[${where}] model call failed:`, err instanceof Error ? err.message : "unknown");
     }
   }
-  if (!draft) return null;
+  if (!draft) {
+    console.warn(`[${where}] no text after two tries: ${error ? error.message : "the replies had no text in them"}`);
+    return { text: null, error };
+  }
   const note = critique(draft.text);
-  if (!note) return draft.text;
+  if (!note) return { text: draft.text, error: null };
   try {
     const revised = parse(
       await model.complete(
@@ -90,8 +99,8 @@ export async function writeCritiquedText(
         { temperature: 0.9 },
       ),
     );
-    return revised ?? draft.text;
+    return { text: revised ?? draft.text, error: null };
   } catch {
-    return draft.text;
+    return { text: draft.text, error: null };
   }
 }

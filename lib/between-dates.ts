@@ -286,7 +286,7 @@ export async function sendDailyTexts(
         });
         // Any model failure (a refusal, a timeout, a 429) is a text that didn't happen, not a broken couple. The text is
         // critiqued for repetition first (lib/text-critic.ts), like a date's lines.
-        const text = await writeCritiquedText(model, messages, (raw) => parseAfterglowLine(raw, "a")?.text ?? null, (t) => critiqueText(thread, t, me, them), "between-dates");
+        const { text } = await writeCritiquedText(model, messages, (raw) => parseAfterglowLine(raw, "a")?.text ?? null, (t) => critiqueText(thread, t, me, them), "between-dates");
         if (!text) break;
         const stored = await insertText(db, c.lo, c.hi, who, text, "daily", now);
         sent.push({ who, text, day: stored.day, seq: stored.seq });

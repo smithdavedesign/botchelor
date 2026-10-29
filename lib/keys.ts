@@ -22,11 +22,13 @@ import {
   DIALOGUE_TEMPERATURE,
   isTextProvider,
   plainError,
+  providerLabel,
   samplingFor,
   TEXT_PROVIDERS,
   type CapSettings,
   type ErrorKind,
   type Job,
+  type PlainError,
   type Sampling,
   type TextProvider,
 } from "./connections-shared";
@@ -193,6 +195,22 @@ export async function listUserKeys(db: Db, userId: string): Promise<StoredKeyInf
   return out.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
 }
 
+const withFix = (e: PlainError): string => `${e.message}${e.fix ? ` ${e.fix.label}.` : ""}`;
+
+/**
+ * A failed call on a person's key in plain words with its fix (lib/connections-shared.ts plainError), never the
+ * provider's own: that can carry an account id or a model's internals. A call that got no answer (lib/model.ts) is a
+ * timeout, the network, or a reply with nothing in it.
+ */
+function keyTrouble(provider: string, model: string, err: ModelError): string {
+  if (err.status !== undefined) {
+    const kind = classifyRefusal(err.status, err.message);
+    return kind === "unknown" ? `${providerLabel(provider)} turned the call down (HTTP ${err.status}).` : withFix(plainError(provider, kind, { model }));
+  }
+  if (/no text/.test(err.message)) return `${providerLabel(provider)} answered with nothing in it.`;
+  return withFix(plainError(provider, /TimeoutError|AbortError/.test(err.message) ? "provider_down" : "unreachable"));
+}
+
 /** The failures that turn a key off for the rest of a date: a retry can't fix them, only its owner can (or the minute). */
 const KEY_OFF: readonly ErrorKind[] = ["invalid_key", "no_credit", "unreadable", "rate_limited"];
 /** The ones its owner is told about (a limit passes on its own). */
@@ -206,7 +224,8 @@ const TELL_OWNER: readonly ErrorKind[] = ["invalid_key", "no_credit", "unreadabl
  *    and cap notices, and at the cap the key stops for the rest of the date;
  *  - its fallback (M3): when the key is at its cap or fails (out of credit, revoked, limited, or the provider is down), the
  *    show's model writes instead, so a date is never lost to a key. With no fallback (texting on your own key), the
- *    error goes back up, with the key scrubbed out of it.
+ *    error goes back up in plain words with its fix (keyTrouble), for the phone to say; the provider's own words, with
+ *    the key scrubbed out, go to the server log.
  */
 function personalModel(
   db: Db,
@@ -224,7 +243,7 @@ function personalModel(
   };
   return {
     async complete(messages, options) {
-      if (off) return stoodIn(messages, options, off === "over_cap" ? "your key reached this month's cap" : plainError(key.provider, off).message, off === "over_cap" ? 402 : undefined);
+      if (off) return stoodIn(messages, options, off === "over_cap" ? "Your key reached this month's cap." : withFix(plainError(key.provider, off)), off === "over_cap" ? 402 : undefined);
       const usages: Usage[] = [];
       let out: string;
       try {
@@ -237,13 +256,14 @@ function personalModel(
         });
       } catch (err) {
         if (!(err instanceof ModelError)) throw err;
+        console.warn(`[own key] ${key.provider} ${key.model}: ${scrubKey(err.message, key.apiKey)}`);
         const kind = refusalKind(err.status, err.message);
         if (kind) {
           const isNew = await recordError(db, userId, key.provider, kind, { model: key.model });
           if (isNew && TELL_OWNER.includes(kind)) await noteFailure(db, userId, "text", key.provider, kind, key.cap);
           if (KEY_OFF.includes(kind)) off = kind;
         }
-        return stoodIn(messages, options, scrubKey(err.message, key.apiKey), err.status);
+        return stoodIn(messages, options, keyTrouble(key.provider, key.model, err), err.status);
       }
       if (!used) {
         used = true;
