@@ -1340,6 +1340,16 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             >
               {busy === "recast" ? "Drawing…" : `Draw ${s.sizes.recast} · ${tokens(price(s.prices.recast))}`}
             </button>
+            {/* When the age check keeps reading them as young (the scene's note says so): faces that read plainly adult. */}
+            <button
+              type="button"
+              className="secondary"
+              disabled={Boolean(busy) || !pickedNew || !usable(pickedNew)}
+              title="New faces drawn plainly older: for a character the age check keeps reading as young"
+              onClick={() => void act("recast", { action: "recast", character_id: c.id, model: pickedNew?.id, older: true, ...own }, { title: "Older-looking faces: pick one" })}
+            >
+              Older-looking faces
+            </button>
           </div>
 
           <h2>Body reference</h2>

@@ -33,6 +33,14 @@ export const DEFAULT_WRITERS: WriterModel[] = [
   { id: "deepseek/deepseek-chat-v3.1:nitro", label: "DeepSeek V3.1", note: "fast; about 10 s a step", think_tokens: 0 },
 ];
 export const DEFAULT_WRITER = "z-ai/glm-4.6";
+
+/**
+ * What a person reads for each writer, in plain words, before the model's name (the audit, 2026-10-29: "GLM-4.6" and
+ * "DeepSeek V3.1" mean nothing to someone picking how their night is written). By id, so a list already saved in the
+ * settings reads the same; a writer added later shows its label.
+ */
+const PLAIN: Record<string, string> = { "z-ai/glm-4.6": "Richer, slower", "deepseek/deepseek-chat-v3.1:nitro": "Quick" };
+export const plainName = (m: Pick<WriterModel, "id" | "label">): string => PLAIN[m.id] ?? m.label;
 /**
  * Who writes a step when the writer twice sends nothing back (2026-10-25: GLM-4.6 returned no text on 5 of 18 steps in
  * six hours, each one an error the owner had to retry): the fast one, with no thinking to run out of room on.

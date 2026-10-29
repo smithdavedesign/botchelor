@@ -86,7 +86,7 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("shoot"), character_id: id, choices: Choices, model, own_key, format, size }),
   z.object({ action: z.literal("restyle"), character_id: id, changes: Changes, model, own_key }),
   z.object({ action: z.literal("save_looks"), character_id: id, changes: Changes }),
-  z.object({ action: z.literal("recast"), character_id: id, model, own_key }),
+  z.object({ action: z.literal("recast"), character_id: id, model, own_key, older: z.boolean().optional() }),
   z.object({ action: z.literal("body"), character_id: id, nude: z.boolean().optional(), model, own_key }),
   z.object({ action: z.literal("face"), character_id: id, model, own_key }),
   // The identity pack's views (lib/studio/identity-views.ts): all eight, or the ones asked for.
@@ -190,7 +190,7 @@ export const POST = handle(async (req: Request) => {
       case "restyle":
         return job(input.character_id, await restyle(db, viewer, input.character_id, { changes: input.changes, model: input.model, own_key: input.own_key }, base));
       case "recast":
-        return job(input.character_id, await recast(db, viewer, input.character_id, { model: input.model, own_key: input.own_key }));
+        return job(input.character_id, await recast(db, viewer, input.character_id, { model: input.model, own_key: input.own_key, older: input.older }));
       case "body":
         return job(input.character_id, await bodyShoot(db, viewer, input.character_id, { nude: input.nude, model: input.model, own_key: input.own_key }, base));
       case "face":

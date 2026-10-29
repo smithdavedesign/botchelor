@@ -96,10 +96,14 @@ export default async function AfterDarkPage() {
         </nav>
         <h1>After Dark</h1>
         <p className="muted">
-          The adult season: this season&apos;s cast, and any of your characters you switch on (with the house characters they date). Nothing here
-          is shown anywhere in the show. Two lines hold: nobody under 18, and no real people.
+          The adult season: this season&apos;s cast, and any of your characters you switch on. Nothing here is shown anywhere in the show. Two
+          lines hold: nobody under 18, and no real people.
         </p>
-        <Switches initial={switchable} />
+        {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
+        <section>
+          <h2>Scenes</h2>
+          <PairPicker pairs={pairs} />
+        </section>
         {studio.length > 0 && (
           <section className="card">
             <h2>🎨 Studio</h2>
@@ -113,11 +117,16 @@ export default async function AfterDarkPage() {
             </nav>
           </section>
         )}
-        <section>
-          <h2>Scenes</h2>
-          <PairPicker pairs={pairs} />
-        </section>
-        <WriterPicker initial={writer} />
+        {/* Set once, changed rarely: who's in, and who writes. */}
+        <details className="card ad-hub-settings">
+          <summary>
+            <strong>Your settings</strong> <span className="muted small">
+              · who&apos;s in{switchable.some((c) => c.on) ? ` (${switchable.filter((c) => c.on).length})` : ""} · the writer
+            </span>
+          </summary>
+          <Switches initial={switchable} />
+          <WriterPicker initial={writer} />
+        </details>
         <SharedWithYou initial={shared} textOnly={here.mode === "text_only" ? here.reason : null} />
         <div id="privacy">
           <PrivacyCard initial={privacy} />

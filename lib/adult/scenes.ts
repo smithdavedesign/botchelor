@@ -267,25 +267,71 @@ export async function eligiblePair(db: Db, ownerId: string, x: string, y: string
 }
 
 /** Every pair of the characters who can be in after dark, with how far each pair's scene has gone for this admin. */
-export async function listCastPairs(db: Db, adminId: string) {
+/** One pair on the hub: who, how far their night has got, and (under way) where it was left. */
+export type CastPair = {
+  a: { id: string; name: string; photo?: string | null };
+  b: { id: string; name: string; photo?: string | null };
+  lines: number;
+  path: string;
+  /** Under way: the night's last line ("Sweet: …", its action out), its chapter, and when it was last played. */
+  last?: { who: string; text: string } | null;
+  chapter?: number;
+  updated_at?: string | null;
+};
+
+/**
+ * Every pair of who's in for this person, and how far each one's night has got. The ones under way also carry the face
+ * this person keeps for each of them (their After Dark face, a picture behind the privacy blur), the night's last line and
+ * when it was played (the audit, 2026-10-29: the hub listed nights as names and a line count, with initials for faces).
+ */
+export async function listCastPairs(db: Db, adminId: string): Promise<CastPair[]> {
   const cast = [...(await eligibleIds(db, adminId))];
   const names = new Map(
     (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [cast])).rows.map((r) => [r.id, r.name]),
   );
+  type Row = { character_a: string; character_b: string; n: number; chapter: number; updated_at: Date | string | null; last: { who?: string; text?: string } | null };
   const scenes = new Map(
     (
-      await db.query<{ character_a: string; character_b: string; n: number }>(
-        `select character_a, character_b, jsonb_array_length(lines) as n from adult_scenes where owner_id = $1`,
+      await db.query<Row>(
+        `select character_a, character_b, jsonb_array_length(lines) as n, chapter, updated_at, lines -> (jsonb_array_length(lines) - 1) as last
+           from adult_scenes where owner_id = $1`,
         [adminId],
       )
-    ).rows.map((r) => [`${r.character_a}/${r.character_b}`, r.n]),
+    ).rows.map((r) => [`${r.character_a}/${r.character_b}`, r]),
   );
-  const pairs: { a: { id: string; name: string }; b: { id: string; name: string }; lines: number; path: string }[] = [];
+  // The face each keeps for this person (adult_face_refs), for the pairs under way.
+  const faces = new Map(
+    (
+      await db.query<{ character_id: string; image_id: string }>(
+        `select f.character_id, f.image_id from adult_face_refs f join adult_images i on i.id = f.image_id and i.status = 'ready' where f.owner_id = $1 and f.character_id = any($2)`,
+        [adminId, cast],
+      )
+    ).rows.map((r) => [r.character_id, `/api/admin/after-dark/media/${encodeURIComponent(r.image_id)}`]),
+  );
+  const pairs: CastPair[] = [];
   const sorted = [...cast].sort();
   for (let i = 0; i < sorted.length; i++) {
     for (let j = i + 1; j < sorted.length; j++) {
       const [a, b] = [sorted[i], sorted[j]];
-      pairs.push({ a: { id: a, name: names.get(a) ?? a }, b: { id: b, name: names.get(b) ?? b }, lines: scenes.get(`${a}/${b}`) ?? 0, path: `/after-dark/${a}/${b}` });
+      const row = scenes.get(`${a}/${b}`);
+      const lines = row?.n ?? 0;
+      // Under way: lines in this chapter, or chapters filed (a new chapter starts empty).
+      const going = lines > 0 || (row?.chapter ?? 1) > 1;
+      const who = (id: string) => ({ id, name: names.get(id) ?? id, ...(going ? { photo: faces.get(id) ?? null } : {}) });
+      const said = row?.last?.text ? row.last.text.replace(/\*[^*]*\*/g, " ").replace(/\s+/g, " ").trim() : "";
+      pairs.push({
+        a: who(a),
+        b: who(b),
+        lines,
+        path: `/after-dark/${a}/${b}`,
+        ...(going
+          ? {
+              last: said ? { who: (row!.last!.who === "b" ? names.get(b) ?? b : names.get(a) ?? a).split(/\s+/)[0], text: said.slice(0, 140) } : null,
+              chapter: row!.chapter,
+              updated_at: row!.updated_at ? new Date(row!.updated_at).toISOString() : null,
+            }
+          : {}),
+      });
     }
   }
   return pairs;

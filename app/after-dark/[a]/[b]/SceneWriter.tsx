@@ -724,65 +724,72 @@ function Gallery({
                 // Made on the other provider because the configured one was limited (lib/adult/fallback.ts).
                 <span className="muted small ad-picture-fallback">{m.note}</span>
               )}
-              {m.clip && (
-                <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)} disabled={Boolean(paused)} title={paused ?? undefined}>
-                  Make it move
-                </button>
-              )}
               {status === "ready" && (
-                <RateMedia
-                  id={m.id}
-                  kind={m.kind}
-                  rating={m.rating ?? null}
-                  tags={m.tags ?? []}
-                  onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))}
-                  // 🩹 Fix faces (lib/adult/fix-faces.ts): the fixed one joins the gallery; bolder after "Doesn't look like them".
-                  extra={(r) =>
-                    m.kind === "scene" && (
+                <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))} />
+              )}
+              {status === "ready" && m.character_id && !m.character_b && (faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id) && (
+                <span className="badge ad-face-badge">✓ Their face</span>
+              )}
+              {/* Picking pictures to export: the tick stays on the tile. */}
+              {status === "ready" && sel.selecting && <TileTools id={m.id} api={AFTER_DARK_API} selecting selected={sel.has(m.id)} onToggle={() => sel.toggle(m.id)} />}
+              {/* Everything else a picture can do, in one ⋯ (the audit, 2026-10-29: about ten buttons under every picture, some
+                  700 on a phone's night page). */}
+              {(status === "ready" || m.clip) && !sel.selecting && (
+                <details className="ad-tile-more" open={redrawing === m.id || undefined}>
+                  <summary title="Fix faces, tags, publish, download, redraw, use as their face">⋯</summary>
+                  <div className="ad-tile-menu">
+                    {m.clip && (
+                      <button type="button" className="button-ghost small" onClick={() => void makeClip(m.id)} disabled={Boolean(paused)} title={paused ?? undefined}>
+                        Make it move
+                      </button>
+                    )}
+                    {status === "ready" && m.kind === "scene" && (
                       <>
-                        <FixFaces id={m.id} src={mediaUrl} label="The picture" onFixed={onAdd} nudge={r.rating === -1 && r.tags.includes("face")} />
+                        {/* 🩹 Fix faces (lib/adult/fix-faces.ts): the fixed one joins the gallery; bolder after "Doesn't look like them". */}
+                        <FixFaces id={m.id} src={mediaUrl} label="The picture" onFixed={onAdd} nudge={ratingOf(m) === -1 && (m.tags ?? []).includes("face")} />
                         {/* 👕 The same picture safe for work (lib/adult/sfw-twin.ts); a twin of two joins this gallery. */}
                         <SfwTwin id={m.id} onAdded={onAdd} />
                       </>
-                    )
-                  }
-                />
-              )}
-              {status === "ready" && <MediaTags id={m.id} pinned={m.date_pin} />}
-              {/* 📣 On the creator showcase (lib/showcase.ts), under their handle. */}
-              {status === "ready" && <PublishButton source="after_dark" mediaId={m.id} post={m.post ?? null} />}
-              {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
-              {status === "ready" && <TileTools id={m.id} api={AFTER_DARK_API} selecting={sel.selecting} selected={sel.has(m.id)} onToggle={() => sel.toggle(m.id)} />}
-              {status === "ready" && m.kind === "scene" && pair && onRedraw && (
-                // The same moment drawn again, its context put right first; the old picture stays.
-                redrawing === m.id ? (
-                  <PictureContext
-                    a={pair.a}
-                    b={pair.b}
-                    target={{ picture: m.id }}
-                    disabled={Boolean(paused)}
-                    submitLabel="↻ Redraw it"
-                    onSubmit={(edit) => {
-                      setRedrawing(null);
-                      void onRedraw(m.id, edit);
-                    }}
-                    onCancel={() => setRedrawing(null)}
-                  />
-                ) : (
-                  <button type="button" className="button-ghost small" disabled={Boolean(paused)} title={paused ?? "Draw this moment again, after checking what it's drawn from"} onClick={() => setRedrawing(m.id)}>
-                    ↻ Redraw
-                  </button>
-                )
-              )}
-              {status === "ready" && m.kind !== "video" && m.character_id && !m.character_b && onFace && (
-                // One of them alone: it can be the face every picture and video of them keeps.
-                faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id ? (
-                  <span className="badge ad-face-badge">✓ Their face</span>
-                ) : (
-                  <button type="button" className="button-ghost small" disabled={facing === m.id} onClick={() => void keepFace(m)}>
-                    {facing === m.id ? "Keeping it…" : "Use this face"}
-                  </button>
-                )
+                    )}
+                    {status === "ready" && <MediaTags id={m.id} pinned={m.date_pin} />}
+                    {/* 📣 On the creator showcase (lib/showcase.ts), under their handle. */}
+                    {status === "ready" && <PublishButton source="after_dark" mediaId={m.id} post={m.post ?? null} />}
+                    {/* ⬇ Download and ✍️ captions in their voice (app/studio/TileTools.tsx). */}
+                    {status === "ready" && <TileTools id={m.id} api={AFTER_DARK_API} selecting={false} selected={false} onToggle={() => sel.toggle(m.id)} />}
+                    {status === "ready" && m.kind === "scene" && pair && onRedraw && (
+                      // The same moment drawn again, its context put right first; the old picture stays.
+                      redrawing === m.id ? (
+                        <PictureContext
+                          a={pair.a}
+                          b={pair.b}
+                          target={{ picture: m.id }}
+                          disabled={Boolean(paused)}
+                          submitLabel="↻ Redraw it"
+                          onSubmit={(edit) => {
+                            setRedrawing(null);
+                            void onRedraw(m.id, edit);
+                          }}
+                          onCancel={() => setRedrawing(null)}
+                        />
+                      ) : (
+                        <button type="button" className="button-ghost small" disabled={Boolean(paused)} title={paused ?? "Draw this moment again, after checking what it's drawn from"} onClick={() => setRedrawing(m.id)}>
+                          ↻ Redraw
+                        </button>
+                      )
+                    )}
+                    {status === "ready" &&
+                      m.kind !== "video" &&
+                      m.character_id &&
+                      !m.character_b &&
+                      onFace &&
+                      !(faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id) && (
+                        // One of them alone: it can be the face every picture and video of them keeps.
+                        <button type="button" className="button-ghost small" disabled={facing === m.id} onClick={() => void keepFace(m)}>
+                          {facing === m.id ? "Keeping it…" : "Use this face"}
+                        </button>
+                      )}
+                  </div>
+                </details>
               )}
             </li>
           );

@@ -715,11 +715,39 @@ export async function ownPlaces(db: Db, viewer: string, characterId: string): Pr
     [viewer, characterId],
   );
   const sets = await setPictures(db, rows.map((r) => r.place));
-  const nights = rows.filter((r) => sets.get(r.place)).map((r) => r.place);
+  // Cleaned for the menu (the audit, 2026-10-29: "street (theirs)" from a move that went wrong, and "Lexis bedroom"):
+  // a bare generic word isn't a place of theirs, a possessive gets its apostrophe back, and "the x" is "x" once.
+  const names = (
+    await db.query<{ name: string }>(
+      `select distinct c.name from adult_scenes s join characters c on c.id in (s.character_a, s.character_b) where s.owner_id = $1 and $2 in (s.character_a, s.character_b)`,
+      [viewer, characterId],
+    )
+  ).rows.map((r) => r.name.split(/\s+/)[0]);
+  const seen = new Set<string>();
+  const nights = rows
+    .filter((r) => sets.get(r.place))
+    .map((r) => cleanPlaceLabel(r.place, names))
+    .filter((label): label is string => {
+      if (!label) return false;
+      const key = label.toLowerCase().replace(/^the\s+/, "");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   const mine = (await db.query<{ name: string }>(`select name from creator_places where owner_id = $1 order by created_at desc limit 30`, [viewer]).catch(() => ({ rows: [] as { name: string }[] }))).rows
     .map((r) => r.name)
     .filter((n) => !nights.some((x) => x.toLowerCase() === n.toLowerCase()));
   return [...nights, ...mine].map((label, i) => ({ id: `own:${i}`, label, public: isPublicPlace(label) }));
+}
+
+/**
+ * A place of theirs as the menu shows it: null for a bare generic word ("street": no place anyone would pick), else the
+ * label with a name's possessive put right ("Lexis bedroom" → "Lexi's bedroom", for the names given).
+ */
+export function cleanPlaceLabel(label: string, names: readonly string[]): string | null {
+  const t = label.trim();
+  if (!/\s/.test(t)) return null;
+  return names.reduce((out, n) => (n.length >= 2 ? out.replace(new RegExp(`^(${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})s\\b`, "i"), "$1's") : out), t);
 }
 
 export async function shoot(db: Db, viewer: string, characterId: string, input: ShootInput, baseUrl: string, opts: { redoOf?: string; free?: boolean } = {}): Promise<JobResult> {
@@ -982,7 +1010,14 @@ export async function saveRestyleLooks(db: Db, viewer: string, characterId: stri
 
 /* -------------------------------------------------- recast -------------------------------------------------- */
 
-export async function recast(db: Db, viewer: string, characterId: string, input: { model?: string | null; own_key?: boolean }): Promise<JobResult> {
+/**
+ * What an older-looking recast adds to each face's prompt (the audit, 2026-10-29: an 18-year-old character's pictures were
+ * refused by the age check again and again, every one drawn from her face). Every picture keeps the face, so a face that
+ * reads plainly adult is the fix; the check still looks at each one.
+ */
+export const OLDER_FACE_WORDS = "Clearly a grown adult in their late twenties or older: a mature adult face and features, nothing youthful about them.";
+
+export async function recast(db: Db, viewer: string, characterId: string, input: { model?: string | null; own_key?: boolean; older?: boolean }): Promise<JobResult> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config } = access;
@@ -991,7 +1026,8 @@ export async function recast(db: Db, viewer: string, characterId: string, input:
   const steer = await steeringFor(db, viewer, [c.id]).catch(() => NO_STEERING);
   const prompts = Array.from({ length: config.recast_candidates }, (_, i) => {
     const p = PICTURE_PRESETS[i % PICTURE_PRESETS.length];
-    return { prompt: withSteering(baselinePrompt(c, viewer, p.light), steer, null), preset: p.id };
+    const base = baselinePrompt(c, viewer, p.light);
+    return { prompt: withSteering(input.older ? `${base} ${OLDER_FACE_WORDS}` : base, steer, null), preset: p.id };
   });
   return runJob(db, viewer, access, {
     kind: "recast", pictureKind: "baseline", prompts, images: [], negative: [NEGATIVE_PROMPT, ...steer.negative].join(", "), model,

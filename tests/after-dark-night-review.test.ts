@@ -3,6 +3,8 @@ import { cleanDoing } from "@/lib/adult/doing";
 import { withoutSelfAddress } from "@/lib/adult/guards";
 import { topicsOf, topicWordsSaid } from "@/lib/adult/quality";
 import { doingNotPlace } from "@/lib/adult/scenes";
+import { cleanPlaceLabel } from "@/lib/adult/studio";
+import { studioMenu } from "@/lib/adult/studio-catalog";
 import type { Character } from "@/lib/character";
 
 // David's two test nights, 2026-10-26 (Coco × Sweet, Chud × Sweet): the small things.
@@ -38,4 +40,15 @@ describe("the night's small things", () => {
     expect(topicWordsSaid("*nips at her ear* The finale is when you beg for it. What a performance, co-star.", topics)).toEqual(expect.arrayContaining(["finale", "performance"]));
     expect(topicWordsSaid("*pulls her onto the stage of the bed* Stay right there.", topics)).toEqual([]);
   });
+
+  it("the Studio's menu opens on a pose, an outfit and a place, Filthy's acts last; its own places read cleanly (the audit, 2026-10-29)", () => {
+    const ALL: Parameters<typeof studioMenu>[0] = { maxLevel: 3, hardNos: [], disabled: new Set(), pov: true };
+    const ids = studioMenu(ALL, "woman").map((g) => g.id);
+    expect(ids.slice(0, 3)).toEqual(["pose", "wardrobe", "place"]);
+    expect(ids.at(-1)).toBe("filthy");
+    expect(cleanPlaceLabel("street", ["Sweet"])).toBeNull();
+    expect(cleanPlaceLabel("Lexis bedroom", ["Lexi", "Dex"])).toBe("Lexi's bedroom");
+    expect(cleanPlaceLabel("the masquerade ballroom", ["Coco"])).toBe("the masquerade ballroom");
+  });
 });
+
