@@ -9,7 +9,7 @@ import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { getAdultSettings, saveAdultSettings } from "@/lib/adult/settings";
 import { rateMedia } from "@/lib/adult/steering";
-import { restyleCurrent, restyleMenu, restyleWords, setStudioPausesForTests, studioAccess } from "@/lib/adult/studio";
+import { OLDER_FACE_WORDS, restyleCurrent, restyleMenu, restyleWords, setStudioPausesForTests, studioAccess } from "@/lib/adult/studio";
 import {
   ALL_OPTION_IDS,
   animatePrompt,
@@ -473,6 +473,11 @@ describe("identity", () => {
     expect(news).toHaveLength(3);
     expect(news[0].model).toBe("chroma");
     expect(news[0].prompt).toMatch(/waist-up, facing the camera/);
+    expect(news[0].prompt).not.toContain(OLDER_FACE_WORDS);
+    // Older-looking faces (the audit, 2026-10-29: for one the age check keeps reading as young): the same, plainly adult.
+    await post({ action: "recast", character_id: character, model: "chroma", older: true }, cookie);
+    expect(news.slice(3)).toHaveLength(3);
+    expect(news.slice(3).every((x) => x.prompt.includes(OLDER_FACE_WORDS))).toBe(true);
     // A model off the list, or of the wrong kind, is refused.
     expect((await post({ action: "recast", character_id: character, model: "qwen-edit-uncensored" }, cookie)).status).toBe(422);
     expect(owner).toBeTruthy();

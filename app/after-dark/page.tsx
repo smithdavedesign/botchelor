@@ -120,7 +120,9 @@ export default async function AfterDarkPage() {
         {/* Set once, changed rarely: who's in, and who writes. */}
         <details className="card ad-hub-settings">
           <summary>
-            <strong>Your settings</strong> <span className="muted small">· who&apos;s in ({switchable.filter((c) => c.on).length}) · the writer</span>
+            <strong>Your settings</strong> <span className="muted small">
+              · who&apos;s in{switchable.some((c) => c.on) ? ` (${switchable.filter((c) => c.on).length})` : ""} · the writer
+            </span>
           </summary>
           <Switches initial={switchable} />
           <WriterPicker initial={writer} />

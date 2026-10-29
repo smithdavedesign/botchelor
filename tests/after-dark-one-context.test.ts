@@ -275,5 +275,20 @@ describe("one context for every scene picture", () => {
       expect((await sceneMatchGet(new Request(`${BASE_URL}/api/admin/after-dark/scene-match${q}`, { headers: { cookie: c } }))).status).toBe(404);
     }
   });
+
+  it("the hub's nights under way: both faces kept for this viewer, the last line, its chapter and when (the audit, 2026-10-29)", async () => {
+    const { id } = await setup(at(2), "Lexi's bedroom");
+    const { listCastPairs } = await import("@/lib/adult/scenes");
+    const pairs = await listCastPairs(t.db, id);
+    const night = pairs.find((p) => p.lines > 0)!;
+    // The pair is kept lower id first (house-rafe, lexi-own): the last line, "b"'s, is Lexi's.
+    expect(night.last).toEqual({ who: "Lexi", text: "So." });
+    expect(night.chapter).toBe(1);
+    expect(night.updated_at).toMatch(/^\d{4}-/);
+    // Lexi's face is the one she picked (adult_face_refs), behind the privacy blur's /after-dark/ hook; Rafe has none kept.
+    const lexi = [night.a, night.b].find((c) => c.id === LEXI)!;
+    expect(lexi.photo).toBe("/api/admin/after-dark/media/base-lexi");
+    expect(pairs.find((p) => p.lines === 0)?.last).toBeUndefined();
+  });
 });
 

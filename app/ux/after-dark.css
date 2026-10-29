@@ -1731,4 +1731,39 @@ a.ad-scenes-make-link {
 .ad-inside-price {
   font-weight: 600;
 }
+/* A picture's ⋯ (app/after-dark/[a]/[b]/SceneWriter.tsx Gallery): everything but 👍/👎, closed until wanted. */
+.ad-tile-more {
+  width: 100%;
+}
+.ad-tile-more > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.75rem;
+  min-height: 2.2rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ad-ink, #fff) 25%, transparent);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.ad-tile-more > summary::-webkit-details-marker {
+  display: none;
+}
+.ad-tile-more[open] > summary {
+  margin-bottom: var(--space-1);
+}
+.ad-tile-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+/* Two pictures a row on a phone, not one tall column (the night page ran to 32,000 px). */
+@media (max-width: 600px) {
+  .after-dark-mode .after-dark-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+}
 

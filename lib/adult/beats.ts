@@ -480,7 +480,7 @@ export function ageRefusalNote(people: readonly [Character, Character], owner: s
   const back = refunded > 0 ? ` The ${refunded === 1 ? "token is" : "tokens are"} back.` : "";
   const again = retried ? ", even drawn again older" : "";
   if (!who) return `The age check couldn't tell that both of them are adults, so the picture wasn't kept${again}.${back} A more mature face in the Studio for either of them fixes it.`;
-  const studio = who.ownerId === owner ? ` Open ${who.name}'s Studio and pick a more mature face (or give ${who.name} an older age): every picture is drawn from it.` : "";
+  const studio = who.ownerId === owner ? ` Open ${who.name}'s Studio: Identity → Older-looking faces, then Use this face (or give ${who.name} an older age). Every picture is drawn from it.` : "";
   return `The age check read ${who.name} as possibly under 18, so the picture wasn't kept${again}.${back}${studio}`;
 }
 

@@ -351,8 +351,15 @@ export function optionLocked(group: GroupId, opt: StudioOption, limits: ShootLim
 }
 
 /** The menus for a viewer: each group's options, each with why it's locked (null: it isn't). */
+/**
+ * The order the Studio shows the groups in (the audit, 2026-10-29: it opened on Filthy's acts, before a pose, an outfit or
+ * a place): how a shoot is usually built, the explicit acts last. Only the menu's order: a prompt reads GROUP_IDS'.
+ */
+const MENU_ORDER: readonly GroupId[] = ["pose", "wardrobe", "place", "framing", "angle", "pov", "accessories", "light", "expression", "filthy"];
+
 export function studioMenu(limits: ShootLimits, noun: Noun): { id: GroupId; title: string; multi: number; options: { id: string; label: string; level: Level; public: boolean; locked: string | null }[] }[] {
-  return STUDIO_GROUPS.map((g) => ({
+  const order = (g: GroupId) => (MENU_ORDER.indexOf(g) + 1 || MENU_ORDER.length + 1);
+  return [...STUDIO_GROUPS].sort((x, y) => order(x.id) - order(y.id)).map((g) => ({
     id: g.id,
     title: g.title,
     multi: g.multi ?? 1,
