@@ -1767,8 +1767,8 @@ async function collectReplicateShot(
   const mediaId = crypto.randomUUID();
   const kept = await keepBytes("after-dark", mediaId, file.bytes, "video/mp4");
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, request) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'replicate', $9, $10::jsonb)`,
-    [mediaId, ownerId, pair.character_a, pair.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true, requestJson(s.request)],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, request, model) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'replicate', $9, $10::jsonb, $11)`,
+    [mediaId, ownerId, pair.character_a, pair.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true, requestJson(s.request), s.model ?? null],
   );
   s.status = "ready";
   s.media_id = mediaId;
@@ -1877,8 +1877,8 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     const mediaId = crypto.randomUUID();
     const kept = await keepBytes("after-dark", mediaId, bytes, "video/mp4");
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, request) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'venice', $9, $10::jsonb)`,
-      [mediaId, ownerId, row.character_a, row.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true, requestJson(s.request)],
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, request, model) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'venice', $9, $10::jsonb, $11)`,
+      [mediaId, ownerId, row.character_a, row.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true, requestJson(s.request), s.model ?? null],
     );
     s.status = "ready";
     s.media_id = mediaId;

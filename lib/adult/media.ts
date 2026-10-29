@@ -628,9 +628,9 @@ export async function startClip(db: Db, ownerId: string, imageId: string, motion
   await countUse(db, ownerId, "clips");
   const id = crypto.randomUUID();
   await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, request_id, source_image, request)
-     values ($1, $2, $3, $4, 'video', $5, 'video/mp4', 'pending', $6, $7, $8::jsonb)`,
-    [id, ownerId, pic.character_id, pic.character_b, prompt, request_id, imageId, requestJson([{ at: `${FAL_QUEUE}/${video_model}`, body: cleanBody(body) }])],
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, status, request_id, source_image, request, provider, model)
+     values ($1, $2, $3, $4, 'video', $5, 'video/mp4', 'pending', $6, $7, $8::jsonb, 'fal', $9)`,
+    [id, ownerId, pic.character_id, pic.character_b, prompt, request_id, imageId, requestJson([{ at: `${FAL_QUEUE}/${video_model}`, body: cleanBody(body) }]), video_model],
   );
   return { id, character_id: pic.character_id, character_b: pic.character_b, kind: "video", status: "pending", created_at: new Date().toISOString(), mime: "video/mp4" };
 }

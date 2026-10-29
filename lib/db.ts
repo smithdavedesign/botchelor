@@ -2569,6 +2569,14 @@ create index if not exists showcase_posts_live_idx on showcase_posts (published_
 -- someone can shoot it again with (Remix: never the creator's own words, places or partner).
 alter table showcase_posts add column if not exists held boolean not null default false;
 alter table showcase_posts add column if not exists remix jsonb;
+-- 2026-10-29: whether the post shows the prompt that made it (lib/showcase-made.ts; the creator's pick, on by default).
+alter table showcase_posts add column if not exists show_prompt boolean not null default true;
+-- A video kept before its row named its model: the model its reel's shot names (the showcase says what made it).
+update adult_images i set model = s.model
+  from (select distinct on (x->>'media_id') x->>'media_id' as media_id, x->>'model' as model
+          from adult_reels r cross join lateral jsonb_array_elements(r.shots) x
+         where x->>'media_id' is not null and x->>'model' is not null) s
+ where i.id = s.media_id and i.kind = 'video' and i.model is null;
 create index if not exists showcase_posts_owner_idx on showcase_posts (owner_id);
 create table if not exists showcase_consents (
   post_id text not null references showcase_posts (id) on delete cascade,
