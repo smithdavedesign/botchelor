@@ -18,7 +18,7 @@ describe("the ffmpeg binary", () => {
     expect(hits).toBe("");
   });
 
-  it("goes with the two routes that run it, and no others", () => {
-    expect(Object.keys(config.outputFileTracingIncludes ?? {})).toEqual(["/api/admin/after-dark/moments", "/api/admin/after-dark/export"]);
+  it("goes with the three routes that run it, and no others", () => {
+    expect(Object.keys(config.outputFileTracingIncludes ?? {})).toEqual(["/api/admin/after-dark/moments", "/api/admin/after-dark/export", "/api/admin/showcase/animate"]);
   });
 });

@@ -74,13 +74,16 @@ type ImageRow = {
   id: string; kind: string; mime: string; prompt: string | null; model: string | null; provider: string | null; request: LoggedRequest[] | null;
   created_at: Date | string; source_image: string | null; derived: string | null; moment_at: number | null; fixed_from: string | null; twin_of: string | null;
   owner_id: string; character_id: string | null; character_b: string | null; shoot_kind: string | null; reel_kind: string | null; shot_model: string | null; shot_motion: string | null;
+  /** A living portrait (lib/showcase-loops.ts): a safe picture brought to life. */
+  loop: boolean;
 };
 
 async function imageRow(db: Db, id: string): Promise<ImageRow | null> {
   return (
     await db.query<ImageRow>(
       `select i.id, i.kind, i.mime, i.prompt, i.model, i.provider, i.request, i.created_at, i.source_image, i.derived, i.moment_at, i.fixed_from, i.twin_of,
-              i.owner_id, i.character_id, i.character_b, s.kind as shoot_kind, shot.reel_kind, shot.model as shot_model, shot.motion as shot_motion
+              i.owner_id, i.character_id, i.character_b, s.kind as shoot_kind, shot.reel_kind, shot.model as shot_model, shot.motion as shot_motion,
+              exists (select 1 from showcase_loops l where l.media_id = i.id) as loop
          from adult_images i
          left join adult_studio_shoots s on s.id = i.shoot_id
          left join lateral (select r.kind as reel_kind, x->>'model' as model, x->>'motion' as motion from adult_reels r cross join lateral jsonb_array_elements(r.shots) x
@@ -105,6 +108,7 @@ function howOf(r: ImageRow): string {
   if (r.twin_of) return "An SFW twin: another picture made again safe for work";
   if (r.kind === "baseline") return "Their After Dark portrait";
   if (r.kind === "video") {
+    if (r.loop) return "A living portrait: their safe picture, brought to life";
     if (r.derived === "boomerang") return "A boomerang of a clip";
     if (r.derived === "loop") return "A loop of a clip";
     return r.reel_kind && r.reel_kind !== "clip" ? "A shot of a date's video" : "A clip";
