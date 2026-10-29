@@ -31,7 +31,7 @@ export default function ShowcaseModeration() {
   }
   async function publishBest() {
     setBusy(true);
-    setNote("Publishing… a few seconds for each.");
+    setNote("Publishing… a minute or two for a hundred. If it stops early, click again: what's up stays up.");
     const res = await requestJson("/api/admin/showcase", { action: "publish_best" }, "POST", { timeoutMs: 280_000 }).catch(() => null);
     setBusy(false);
     setNote(res?.ok ? `Published ${res.data.published}${res.data.already ? ` (${res.data.already} were up already)` : ""}${res.data.failed ? `; ${res.data.failed} couldn't be` : ""}.` : (res?.message ?? "That didn't go through."));
