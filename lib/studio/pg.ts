@@ -30,7 +30,7 @@ import { characterPortrait } from "../portraits";
 import { checkPgPictureText } from "../safety";
 import { checkRating } from "../adult/moderation";
 import { adultKeys, getAdultSettings } from "../adult/settings";
-import { PG_CAROUSEL_ANGLES, PG_GROUPS, PG_NEGATIVE, pgCarouselPrompt, pgShootPrompt, planPgShoot, planWords, type PgChoices, type PgSubject } from "./pg-catalog";
+import { PG_CAROUSEL_ANGLES, PG_GROUPS, PG_NEGATIVE, pgCarouselPrompt, pgShootPrompt, pgTagsOf, planPgShoot, planWords, type PgChoices, type PgSubject, type PgTag } from "./pg-catalog";
 import { veniceSize } from "../adult/media";
 import { fitRatio } from "../media-tools/image";
 import { readBytes } from "../object-store";
@@ -294,9 +294,9 @@ export async function pgShoot(db: Db, viewer: string | null, characterId: string
     const pid = crypto.randomUUID();
     const store = await keepBytes("studio-pg", pid, d.file.bytes, d.file.mime);
     await db.query(
-      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model, aspect)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [pid, owner, c.id, id, prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, v.rating, v.clothing, face ? config.edit_model : config.new_model, ratio],
+      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model, aspect, tags)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)`,
+      [pid, owner, c.id, id, prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, v.rating, v.clothing, face ? config.edit_model : config.new_model, ratio, JSON.stringify(pgTagsOf(choices, "shoot"))],
     );
     kept.push({ id: pid, rating: v.rating, created_at: new Date().toISOString(), shoot_id: id, aspect: ratio });
   }
@@ -378,9 +378,9 @@ export async function pgIdentityPack(db: Db, viewer: string | null, characterId:
     const pid = crypto.randomUUID();
     const store = await keepBytes("studio-pg", pid, d.file.bytes, d.file.mime);
     await db.query(
-      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [pid, owner, c.id, id, d.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, v.rating, v.clothing, config.edit_model],
+      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model, tags)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)`,
+      [pid, owner, c.id, id, d.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, v.rating, v.clothing, config.edit_model, JSON.stringify([{ kind: "made", value: "identity" }, { kind: "view", value: d.view }])],
     );
     await keepIdentityView(db, owner, c.id, "pg", d.view, pid, from);
     kept.push({ id: pid, rating: v.rating, created_at: new Date().toISOString(), shoot_id: id });
@@ -417,14 +417,16 @@ export async function pgCarousel(db: Db, viewer: string | null, characterId: str
   const { character: c, config, admin } = access;
   const owner = viewer!;
   const src = (
-    await db.query<{ id: string; mime: string; data: Buffer | Uint8Array | null; object_key: string | null; clothing: string | null }>(
-      `select id, mime, data, object_key, clothing from studio_pg_pictures where id = $1 and owner_id = $2 and character_id = $3`,
+    await db.query<{ id: string; mime: string; data: Buffer | Uint8Array | null; object_key: string | null; clothing: string | null; tags: PgTag[] | null }>(
+      `select id, mime, data, object_key, clothing, tags from studio_pg_pictures where id = $1 and owner_id = $2 and character_id = $3`,
       [input.picture_id, owner, c.id],
     )
   ).rows[0];
   if (!src) return fail(404, "not_found", "Pick one of your pictures of them.");
   const bytes = await readBytes(src);
   if (!bytes) return fail(404, "not_found", "That picture's file is missing.");
+  // What it shows goes with each angle of it.
+  const srcTags = Array.isArray(src.tags) ? src.tags : [];
   const keys = await adultKeys(db);
   if (!keys.venice) return fail(409, "not_set_up", "The Studio needs a Venice key in the settings.");
   const asked = PG_CAROUSEL_ANGLES.length;
@@ -472,9 +474,9 @@ export async function pgCarousel(db: Db, viewer: string | null, characterId: str
     const pid = crypto.randomUUID();
     const store = await keepBytes("studio-pg", pid, d.file.bytes, d.file.mime);
     await db.query(
-      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model, aspect)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [pid, owner, c.id, id, d.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, v.rating, v.clothing, config.edit_model, ratio],
+      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model, aspect, tags)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)`,
+      [pid, owner, c.id, id, d.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, v.rating, v.clothing, config.edit_model, ratio, JSON.stringify([{ kind: "made", value: "carousel" }, ...srcTags.filter((t) => t.kind !== "made")])],
     );
     kept.push({ id: pid, rating: v.rating, created_at: new Date().toISOString(), shoot_id: id, aspect: ratio });
   }

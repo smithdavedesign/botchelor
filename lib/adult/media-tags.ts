@@ -10,8 +10,10 @@
  * custom prompt, per-section extras, a clip's guide; modelTagPending), and `manual` (the owner, as chips). A tag the
  * owner removes is kept as `removed`, so no automatic pass ever puts it back.
  *
- * Nothing is tagged on write: ensureTagged tags a pair's untagged media whenever it's looked up (the theater's match,
- * the Studio, the storyboard's picker), which also back-fills everything made before tags existed.
+ * Tagged as it's made (David, 2026-10-29: "always tag assets on creation to help with filtering and showing in theater
+ * during dates for the right time"): every path that keeps a picture or a clip calls tagNow once it's ready (a night's
+ * shot videos once the reel is saved, since their tags come from its shot). ensureTagged still runs on every lookup (the
+ * theater's match, the Studio, the storyboard's picker): the back-fill of everything made before, and a safety net.
  *
  * The theater and the storyboard rank by these (scoreMedia): the act most, then the place, then who's in it (the pair,
  * then a first-person picture of one of them — the viewer stands in for the partner — then one of them alone), pinned
@@ -216,6 +218,30 @@ export async function ensureTagged(db: Db, ownerId: string, characters: readonly
       order by created_at desc limit $3`,
     [ownerId, characters, limit, opts.anyOwner === true],
   );
+  return tagRows(db, rows);
+}
+
+/**
+ * Tags these pictures and clips now, as they're made (each ready one not tagged yet; anything else is left alone). Never
+ * in the way of what made them: a failure is logged, and the next look (ensureTagged) tags it instead.
+ */
+export async function tagNow(db: Db, ids: readonly (string | null | undefined)[]): Promise<number> {
+  const want = [...new Set(ids.filter((x): x is string => Boolean(x)))];
+  if (!want.length) return 0;
+  try {
+    const { rows } = await db.query<{ id: string; owner_id: string }>(
+      `select id, owner_id from adult_images where id = any($1::text[]) and tagged_at is null and status = 'ready' and kind in ('scene', 'baseline', 'video')`,
+      [want],
+    );
+    return await tagRows(db, rows);
+  } catch (err) {
+    console.log(JSON.stringify({ event: "media_tag_on_create_failed", detail: err instanceof Error ? err.message.slice(0, 200) : "error" }));
+    return 0;
+  }
+}
+
+/** Tags each row from its own record and what it was made from, keeping what it was tagged with when made. */
+async function tagRows(db: Db, rows: readonly { id: string; owner_id: string }[]): Promise<number> {
   if (!rows.length) return 0;
   const ctx = await contexts(db, rows.map((r) => r.id));
   // What each was made from: a clip's start picture, or a variation's or upscale's picture (its shoot's `source`).

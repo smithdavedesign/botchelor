@@ -68,7 +68,7 @@ import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { STAGES } from "./stages";
 import { faceReferenceId, NO_STEERING, ratingsFor, steeringFor } from "./steering";
 import { logRequest, requestJson, withRequestLog, type LoggedRequest } from "./request-log";
-import { candidates, ensureTagged, placeKeys, rank } from "./media-tags";
+import { candidates, ensureTagged, placeKeys, rank, tagNow } from "./media-tags";
 
 export const VENICE = "https://api.venice.ai/api/v1";
 /** Shots in a reel, and how many words a shot can carry (people say about 2.5 words a second). */
@@ -1889,6 +1889,8 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     await venice(keys.venice, "/video/retrieve", { model: s.model, queue_id: s.queue_id, delete_media_on_completion: true }).catch(() => {});
   }
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1`, [id, JSON.stringify(shots)]);
+  // The shots that landed, tagged now the reel says what each shows (lib/adult/media-tags.ts tagNow).
+  await tagNow(db, shots.filter((s) => s.status === "ready").map((s) => s.media_id));
   return settleIfDone(db, id);
 }
 

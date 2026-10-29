@@ -42,7 +42,7 @@ import { pairKey } from "../relationships";
 import { checkAdultText } from "../safety";
 import { actById, actMenu, crossesTaboo, FRAMINGS, type Eyes, type Framing, type MediaLimits, type MenuAct } from "./acts";
 import { framingScores } from "./framing";
-import { levelForStage } from "./media-tags";
+import { levelForStage, modelTagLater, ownWords, tagNow } from "./media-tags";
 import { nudeSql, shownNude } from "./attire";
 import { eligibleIds } from "./characters";
 import { mediaLimits } from "./clips";
@@ -334,6 +334,9 @@ const shootRow = (r: {
 /** A shoot row's columns, as shootRow reads them. */
 const SHOOT_COLUMNS = "id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at, (plan is not null) as background";
 
+/** Whether a job's choices carry the owner's own words (what the text model reads for tags). */
+const ownWordsIn = (choices: unknown): boolean => Boolean(choices && typeof choices === "object" && ownWords(choices as Record<string, unknown>));
+
 /** A job's choices' level (0 dressed … 3 explicit), when they say one. */
 const levelOf = (choices: unknown): number | null => {
   const l = (choices as { level?: unknown } | null)?.level;
@@ -422,6 +425,8 @@ async function drawAndKeep(db: Db, viewer: string, c: Character, spec: JobSpec, 
       ],
     );
     await countUse(db, viewer, capKind);
+    // Tagged as it's made, from the shoot's own choices (lib/adult/media-tags.ts tagNow).
+    await tagNow(db, [pid]);
     await spec.onKept?.(pid, d.p);
     kept.push({
       id: pid, character_id: first, character_b: second, kind: spec.pictureKind, status: "ready", created_at: new Date().toISOString(), mime: d.file.mime, clip: false,
@@ -475,6 +480,8 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
     return { ok: true, shoot: shot, pictures: await mediaByIds(db, shot.pictures, viewer), refunded: false, message: shot.status === "making" ? `Shooting ${asked}: each one lands below as it's kept.` : null };
   }
   const { kept, lastError, paused } = await drawAndKeep(db, viewer, c, spec, spec.prompts, id, keys, own, capKind);
+  // Their own words (custom, extras), read by the text model for the place and act, after the answer.
+  if (kept.length && ownWordsIn(spec.choices)) await modelTagLater(db, viewer, [c.id]);
   const made = kept.length;
   const status: Shoot["status"] = made === 0 ? "failed" : made < asked ? "partial" : "ready";
   const refunded = made === 0 && pays;
@@ -1613,6 +1620,7 @@ export async function collectAnimations(db: Db, viewer: string): Promise<void> {
       [vid, viewer, r.character_id, `Studio clip: ${r.choices.motion ?? (r.choices.guide ? "your direction" : "clip")}`, kept.data, kept.object_key, r.choices.source, r.model, r.id, requestJson(r.choices.request)],
     );
     await countUse(db, viewer, "clips");
+    await tagNow(db, [vid]);
     await releaseVideo(keys.venice, r.model, r.choices.queue_id);
   }
 }

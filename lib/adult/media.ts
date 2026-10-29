@@ -481,6 +481,8 @@ async function storePicture(
     `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, remote_url, scene_chapter, scene_place, provider, fell_back, model, preset, attire, request, source_image) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19)`,
     [id, ownerId, opts.character_id, opts.character_b ?? null, opts.kind, opts.prompt, file.mime, kept.data, kept.object_key, url, chapter, place, made.provider, made.fell_back, made.model ?? null, preset, attire, currentRequests(), opts.source_image ?? null],
   );
+  // Tagged as it's made (lib/adult/media-tags.ts tagNow): what it shows, for the filters and the theater.
+  await (await import("./media-tags")).tagNow(db, [id]);
   return {
     id, character_id: opts.character_id, character_b: opts.character_b ?? null, kind: opts.kind, status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: url !== null, chapter, place,
     provider: made.provider, fell_back: made.fell_back, note: fallbackNote(made.provider, made.fell_back), preset, rating: null, tags: [], face: false,
@@ -661,6 +663,7 @@ export async function pollClip(db: Db, id: string, viewerId: string): Promise<st
   const file = await download(body.video.url);
   const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
   await db.query(`update adult_images set status = 'ready', data = $2, object_key = $3, mime = $4, remote_url = $5 where id = $1`, [id, kept.data, kept.object_key, file.mime, body.video.url]);
+  await (await import("./media-tags")).tagNow(db, [id]);
   return "ready";
 }
 

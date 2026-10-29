@@ -80,9 +80,9 @@ export async function sfwTwin(db: Db, viewer: string, mediaId: string, baseUrl: 
     const id = crypto.randomUUID();
     const kept = await keepBytes("studio-pg", id, file.bytes, file.mime);
     await db.query(
-      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model, aspect, twin_of)
-       values ($1, $2, $3, null, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [id, viewer, people[0].id, "An SFW twin of an After Dark picture", file.mime, kept.data, kept.object_key, v.rating, v.clothing, settings.studio.pg.edit_model, ratio, row.id],
+      `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model, aspect, twin_of, tags)
+       values ($1, $2, $3, null, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)`,
+      [id, viewer, people[0].id, "An SFW twin of an After Dark picture", file.mime, kept.data, kept.object_key, v.rating, v.clothing, settings.studio.pg.edit_model, ratio, row.id, JSON.stringify([{ kind: "made", value: "twin" }])],
     );
     return { ok: true, where: "pg", picture: { id, rating: v.rating }, character_id: people[0].id, original: row.id };
   }
@@ -96,6 +96,15 @@ export async function sfwTwin(db: Db, viewer: string, mediaId: string, baseUrl: 
      values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', 'venice', $9, 0, $10, $11, $12, $13)`,
     [id, viewer, row.character_id, row.character_b, "An SFW twin", file.mime, kept.data, kept.object_key, settings.studio.pg.edit_model, ratio, verdict.nsfw ?? null, v.rating, row.id],
   );
+  // What it shows, as it's made: who and where from the original, dressed now (stage 0); never its act or a view.
+  await db.query(
+    `insert into adult_media_tags (media_id, owner_id, kind, value, source)
+     select $2, $3, kind, value, 'derived' from adult_media_tags where media_id = $1 and not removed and kind in ('who', 'place', 'light')
+     union all select $2, $3, 'stage', '0', 'choice'
+     on conflict (media_id, kind, value) do nothing`,
+    [row.id, id, viewer],
+  );
+  await db.query(`update adult_images set tagged_at = now() where id = $1`, [id]);
   const [picture] = await mediaByIds(db, [id], viewer);
   return { ok: true, where: "after_dark", picture, original: row.id };
 }
