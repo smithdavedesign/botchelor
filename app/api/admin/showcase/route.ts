@@ -1,14 +1,12 @@
 import { z } from "zod";
-import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
+import { adminAuthorized, adminOwnerOf, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
-import { frontierAuthorized } from "@/lib/model";
 import { decidePost, moderationQueue, reratePost } from "@/lib/showcase-moderation";
-import { isAdmin, isSignedInAdmin } from "@/lib/admins";
-import type { Db } from "@/lib/db";
 import { mediaRefusal } from "@/lib/adult/place";
 import { bestOf, creatorProfile, publishBest, twinBest, twinCandidates } from "@/lib/showcase";
 import { requestBase } from "@/lib/site";
+import { LOOP_USD, loopTargets } from "@/lib/showcase-loops";
 
 export const dynamic = "force-dynamic";
 // A batch of SFW twins (twinBest): a few edits of a minute or so each, drawn together.
@@ -23,7 +21,10 @@ export const GET = handle(async (req: Request) => {
   const best = me ? await bestOf(db, me) : { after_dark: [], pg: [] };
   const live = me ? (await db.query<{ n: number }>(`select count(*)::int as n from showcase_posts where owner_id = $1`, [me])).rows[0].n : 0;
   const twins = me ? (await twinCandidates(db, me)).length : 0;
-  return json({ posts: await moderationQueue(db), mine: { profile: me ? await creatorProfile(db, me) : null, best: { after_dark: best.after_dark.length, pg: best.pg.length }, posted: live, twins } });
+  // Living portraits still to make (lib/showcase-loops.ts): their safe pictures, and the agent-made characters'.
+  const toLoop = me ? await loopTargets(db, me, requestBase(req), { agents: true }) : [];
+  const loops = { mine: toLoop.filter((x) => x.source === "post").length, agents: toLoop.filter((x) => x.source === "portrait").length, usd: LOOP_USD };
+  return json({ posts: await moderationQueue(db), mine: { profile: me ? await creatorProfile(db, me) : null, best: { after_dark: best.after_dark.length, pg: best.pg.length }, posted: live, twins, loops } });
 });
 
 const Decision = z.union([
@@ -37,12 +38,6 @@ const Decision = z.union([
   z.object({ action: z.literal("twin_best"), skip: z.array(z.string().min(1).max(64)).max(500).default([]), owner: z.string().min(1).max(64).optional() }),
 ]);
 
-/** Whose best work: a signed-in admin's own, or (with the admin password) the admin named. Never anyone else's. */
-async function ownerOf(db: Db, req: Request, named: string | undefined): Promise<string | null> {
-  if (named) return frontierAuthorized(req) && (await isAdmin(db, named)) ? named : null;
-  const me = authFromRequest(req);
-  return me && (await isSignedInAdmin(db, me)) ? me.userId : null;
-}
 
 /** Admin only: release a held post, or remove one for good. */
 export const POST = handle(async (req: Request) => {
@@ -51,7 +46,7 @@ export const POST = handle(async (req: Request) => {
   const admin = authFromRequest(req)?.userId ?? "admin";
   if ("action" in input) {
     const db = await getDb();
-    const owner = await ownerOf(db, req, input.owner);
+    const owner = await adminOwnerOf(db, req, input.owner);
     if (!owner) return json({ error: "not_found", message: "Whose best work? An admin's own, or an admin's id with the admin password." }, 404);
     if (input.action === "twin_best") {
       const refused = await mediaRefusal(db, owner);

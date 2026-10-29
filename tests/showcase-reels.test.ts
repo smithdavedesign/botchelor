@@ -122,7 +122,11 @@ describe("the reels' page", () => {
     const w = await world(CARD_EVERY + 1);
     const posts = (await listShowcase(t.db, ANYONE, { sort: "trending" }, { pageSize: REEL_PAGE })).posts;
     const html = render({ initial: posts, locked: { [w.mara]: 2 } });
-    expect(html.match(/💘 Date Mara/g)).toHaveLength(CARD_EVERY + 1);
+    // Mara isn't open to dates: her page, to meet her. Once she is, a date.
+    expect(html.match(/Meet Mara/g)).toHaveLength(CARD_EVERY + 1);
+    await t.db.query(`update characters set open_to_dates = true where id = $1`, [w.mara]);
+    const open = (await listShowcase(t.db, ANYONE, { sort: "trending" }, { pageSize: REEL_PAGE })).posts;
+    expect(render({ initial: open }).match(/💘 Date Mara/g)).toHaveLength(CARD_EVERY + 1);
     expect(html).toContain(`href="/characters/${w.mara}"`);
     expect(html).toContain(`href="/showcase?character=${w.mara}"`);
     expect(html).toContain("🌙 2 more of Mara after dark");

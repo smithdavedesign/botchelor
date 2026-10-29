@@ -5,7 +5,14 @@ import { requestJson } from "@/app/request";
 import type { HeldPost } from "@/lib/showcase-moderation";
 
 /** Admin: showcase posts held by a report, then reported ones still up; release or remove each (lib/showcase-moderation.ts). */
-type Mine = { profile: { handle: string; display_name: string } | null; best: { after_dark: number; pg: number }; posted: number; twins: number };
+type Mine = {
+  profile: { handle: string; display_name: string } | null;
+  best: { after_dark: number; pg: number };
+  posted: number;
+  twins: number;
+  /** Living portraits still to make (lib/showcase-loops.ts): their safe pictures, the agent-made characters' portraits. */
+  loops?: { mine: number; agents: number; usd: number };
+};
 type TwinBatch = { made: { original: string; id: string }[]; failed: { original: string; message: string }[]; left: number };
 /** About what one SFW twin costs on Venice (the PG Studio's edit model, studio.pg.usd). */
 const TWIN_USD = 0.03;
@@ -64,6 +71,29 @@ export default function ShowcaseModeration() {
     setBusy(false);
     void load();
   }
+  // Living portraits (lib/showcase-loops.ts), a few at a time until none are left.
+  async function animate(agents: boolean) {
+    setBusy(true);
+    let made = 0;
+    let failed = 0;
+    for (;;) {
+      setNote(`Bringing pictures to life… ${made} made${failed ? `, ${failed} not kept` : ""}. About a minute for each three; keep this page open.`);
+      const res = await requestJson("/api/admin/showcase/animate", { agents }, "POST", { timeoutMs: 295_000 }).catch(() => null);
+      if (!res?.ok) {
+        setNote(`${res?.message ?? "That stopped."} ${made} made so far: click again to carry on.`);
+        break;
+      }
+      const b = res.data as unknown as { made: string[]; failed: unknown[]; left: number };
+      made += b.made.length;
+      failed += b.failed.length;
+      if (!b.left || (!b.made.length && !b.failed.length)) {
+        setNote(`${made} living portrait${made === 1 ? "" : "s"} up${failed ? `; ${failed} not kept (a frame didn't pass, or the model said no)` : ""}.`);
+        break;
+      }
+    }
+    setBusy(false);
+    void load();
+  }
   const best = mine ? mine.best.after_dark + mine.best.pg : 0;
   const yours = mine && (
     <section className="card showcase-form">
@@ -89,6 +119,21 @@ export default function ShowcaseModeration() {
             Make my page
           </button>
         </>
+      )}
+      {mine.loops && mine.loops.mine + mine.loops.agents > 0 && (
+        <p className="small">
+          {mine.loops.mine > 0 && (
+            <button type="button" className="button-ghost small" disabled={busy} onClick={() => void animate(false)}>
+              🎬 Bring my safe pictures to life ({mine.loops.mine}, about ${(mine.loops.mine * mine.loops.usd).toFixed(2)})
+            </button>
+          )}{" "}
+          {mine.loops.agents > 0 && (
+            <button type="button" className="button-ghost small" disabled={busy} onClick={() => void animate(true)}>
+              🎬 And the agent-made characters ({mine.loops.agents}, about ${(mine.loops.agents * mine.loops.usd).toFixed(2)})
+            </button>
+          )}{" "}
+          <span className="muted">Short clips for the reels, each frame through the PG check. Agent-made characters post as @botchelor.</span>
+        </p>
       )}
       {mine.twins > 0 && (
         <p className="small">

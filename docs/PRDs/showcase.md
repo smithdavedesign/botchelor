@@ -64,7 +64,8 @@ Every filter is a link, so a filtered view can be shared, and the PG side can be
 | 7 | How it was made: the model, prompt and characters in the viewer (`lib/showcase-made.ts`); the prompt is the creator's to share | #953, live |
 | 8 | Filters fixed: sides by rating (safe by default), From dates, counts without their own pick, the layout, an admin's re-rate | #956, live |
 | 9 | Clips play on hover (and in view on a phone) | #957 |
-| 10 | Reels: one post a screen, swiped; living photos; a date as the first ask; After Dark's count → the subscription | this PR |
+| 10 | Reels: one post a screen, swiped; living photos; a date as the first ask; After Dark's count → the subscription | #958, live |
+| 11 | Living portraits: real clips of the safe pictures (David's) and the agent-made characters' safe portraits (@botchelor) | this PR |
 
 ## Open, for David or counsel
 
@@ -111,3 +112,32 @@ research a bit and decide what makes sense to get user to buy in."
   - Needs David's OK: it's spend.
 - **The After Dark subscription** opens only with its processor (Segpay or Verotel) and counsel. Until then the
   waitlist counts who wants it.
+
+## Living portraits (2026-10-29)
+
+David, after the reels: "do it for all my characters and agent made characters go for it" (the real animated clips, with
+the spend).
+
+- **What gets animated** (`lib/showcase-loops.ts`):
+  - David's live pg pictures on the showcase, posted under his handle through `publish()`.
+  - Every **public** agent-made character's newest approved pg portrait, posted under the show's own handle
+    **@botchelor** (`SHOW_CREATOR`), never a person's.
+- **Why the show may animate other people's characters:** the terms' licence lets the show "host, store, copy, show,
+  adapt… share and promote" characters "on Botchelor and in posts about it", and these are the show promoting public
+  characters on its own reels.
+- **What's left out:** a private character, and one with no safe portrait. No look is ever made up for someone else's
+  character.
+- **How:**
+  - Replicate's Wan 2.2 image to video at 720p, about $0.11 a clip. Replicate's own safety checker stays on.
+  - The prompt only brings the picture to life: a breath, a blink, a smile, a breeze, the camera easing in. The same
+    clothes, place and light.
+  - Before anything is kept, three frames (start, middle, end) each go through the PG check and its age question. One
+    that fails is never stored, and never tried again (`showcase_loops`).
+- **Running it:** `/admin/showcase` has "🎬 Bring my safe pictures to life" and "And the agent-made characters", three
+  clips a request until none are left. `POST /api/admin/showcase/animate` also takes the admin password with an
+  admin's `owner`.
+- **Ships ffmpeg** with that route only (`next.config.ts`), to cut the frames.
+- **Also in this PR:**
+  - A private character's posts stay off the public showcase (their owner still sees them).
+  - The reels' first ask is "💘 Date" only for a character who can be asked out by name (the house cast, or open to
+    dates). Anyone else gets "Meet".

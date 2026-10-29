@@ -92,11 +92,11 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
     vi.resetModules();
     const { default: config } = await import("@/next.config");
     // Plus the "AI-generated" headers on the shipped cast pictures (lib/ai-mark.ts), which don't depend on the switch.
-    // And ffmpeg (lib/media-tools/ffmpeg.ts), only in the two routes that run it, which don't depend on the switch either.
+    // And ffmpeg (lib/media-tools/ffmpeg.ts), only in the three routes that run it, which don't depend on the switch either.
     const ffmpeg = ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffmpeg-static/index.js", "./node_modules/ffmpeg-static/package.json"];
     expect(config).toEqual({
       serverExternalPackages: ["@electric-sql/pglite", "ffmpeg-static"],
-      outputFileTracingIncludes: { "/api/admin/after-dark/moments": ffmpeg, "/api/admin/after-dark/export": ffmpeg },
+      outputFileTracingIncludes: { "/api/admin/after-dark/moments": ffmpeg, "/api/admin/after-dark/export": ffmpeg, "/api/admin/showcase/animate": ffmpeg },
       headers: expect.any(Function),
     });
     expect(await config.headers!()).toEqual([

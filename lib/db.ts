@@ -2595,6 +2595,22 @@ alter table showcase_posts add column if not exists held boolean not null defaul
 alter table showcase_posts add column if not exists remix jsonb;
 -- 2026-10-29: whether the post shows the prompt that made it (lib/showcase-made.ts; the creator's pick, on by default).
 alter table showcase_posts add column if not exists show_prompt boolean not null default true;
+-- Living portraits (lib/showcase-loops.ts; David, 2026-10-29): a safe picture brought to life as a short clip, each
+-- picture or portrait once. owner_id is whose post it becomes: the creator's, or the show's own for a public
+-- character someone else made.
+create table if not exists showcase_loops (
+  id text primary key,
+  owner_id text not null,
+  source text not null check (source in ('post', 'portrait')),
+  source_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  status text not null default 'making' check (status in ('making', 'ready', 'failed')),
+  media_id text,
+  post_id text,
+  error text,
+  created_at timestamptz not null default now(),
+  unique (source, source_id)
+);
 -- A portrait, an SFW twin or one cut from a Studio item isn't from a date (the showcase's "From dates"; lib/showcase.ts
 -- FROM_DATE decides it for new posts).
 update showcase_posts p set from_date = false

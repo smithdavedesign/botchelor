@@ -97,6 +97,8 @@ export type Post = {
   /** Its likes, and whether this viewer is one of them (lib/showcase-social.ts). */
   likes: number;
   liked: boolean;
+  /** Whether its character can be asked on a date by name (the house cast, or open to dates): the reels' 💘. */
+  dateable?: boolean;
 };
 
 type SourceRow = {
@@ -297,6 +299,9 @@ export const sideOf = (f: Filters): "pg" | "after_dark" => (f.side === "after_da
 function where(v: ShowcaseViewer, f: Filters, opts: { anySide?: boolean } = {}): { sql: string; args: unknown[] } {
   const args: unknown[] = [v.ratings];
   const parts = ["p.status = 'live'", "not p.held", "p.rating = any($1::text[])", "not cp.hidden"];
+  // A private character (lib/db.ts) is shown to its owner's own posts' viewer only: never on the public showcase.
+  args.push(v.id ?? "");
+  parts.push(`(p.owner_id = $${args.length} or (c.visibility = 'public' and coalesce(cb.visibility, 'public') = 'public'))`);
   // Each `?` in a part is that part's one value.
   const add = (sql: string, value: unknown) => {
     args.push(value);
@@ -335,10 +340,10 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
   const order = f.sort === "trending" ? "(select count(*) from showcase_likes l where l.post_id = p.id and l.created_at > now() - interval '7 days') desc, p.published_at desc nulls last, p.id" : "p.published_at desc nulls last, p.id";
   const { rows } = await db.query<Omit<Post, "creator" | "character" | "partner" | "published_at" | "mine" | "mime"> & {
     handle: string; display_name: string; character_id: string; character_name: string; character_b: string | null; partner_name: string | null; published_at: Date; owner_id: string; mime: string | null;
-    likes: number; liked: boolean; remixable: boolean;
+    likes: number; liked: boolean; remixable: boolean; dateable: boolean;
   }>(
     `select p.id, p.source, p.media_id, p.rating, p.medium, p.aspect, p.act, p.place, p.pov, p.from_date, p.caption, p.status, p.published_at, p.owner_id, (p.remix is not null) as remixable,
-            cp.handle, cp.display_name, p.character_id, c.name as character_name, p.character_b, cb.name as partner_name,
+            cp.handle, cp.display_name, p.character_id, c.name as character_name, p.character_b, cb.name as partner_name, (c.is_house or c.open_to_dates) as dateable,
             coalesce((select i.mime from adult_images i where p.source = 'after_dark' and i.id = p.media_id and i.status = 'ready'),
                      (select g.mime from studio_pg_pictures g where p.source = 'pg' and g.id = p.media_id)) as mime,
             (select count(*)::int from showcase_likes l where l.post_id = p.id) as likes,
@@ -356,7 +361,7 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
       caption: r.caption, status: r.status, published_at: new Date(r.published_at).toISOString(),
       creator: { handle: r.handle, display_name: r.display_name }, character: { id: r.character_id, name: r.character_name },
       partner: r.character_b ? { id: r.character_b, name: r.partner_name ?? "" } : null, mine: Boolean(v.id && r.owner_id === v.id),
-      likes: r.likes, liked: r.liked, remixable: r.remixable,
+      likes: r.likes, liked: r.liked, remixable: r.remixable, dateable: r.dateable,
     }));
   return { posts: posts.slice(0, size), more: rows.length > size };
 }
