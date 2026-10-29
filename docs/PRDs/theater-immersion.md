@@ -35,8 +35,8 @@ What Venice, After Dark's provider, already offers (its model list and quotes, 2
 
 | # | What | How | Cost | Status |
 |---|------|-----|------|--------|
-| 1 | **A living portrait** in place of the round icon | A few seconds of them, still and natural (breathing, blinking, a small smile), made once from the face they keep for this viewer; played over that face, faded back into it at the end, so the loop never shows its seam | one clip per face, once | ✅ #960 |
-| 2 | **Expressions**, SillyTavern's way | Seven edits of their face (smile, laugh, flirty, intense, tender, surprised, annoyed), made once; the writer gives each line a `face`, and the theater shows the speaker's | seven pictures per face, once; nothing per line | ✅ #960 |
+| 1 | **A living portrait** in place of the round icon | A few seconds of them, still and natural (breathing, blinking, a small smile), made once from their portrait (below); played over it, faded back into it at the end, so the loop never shows its seam | one clip per face, once | ✅ #960, from a portrait in the follow-up |
+| 2 | **Expressions**, SillyTavern's way | Seven edits of their portrait (smile, laugh, flirty, intense, tender, surprised, annoyed), made once; the writer gives each line a `face`, and the theater shows the speaker's | seven pictures per face, once; nothing per line | ✅ #960 |
 | 3 | **Voices that act** | A voice model for the night's lines: Kokoro, Inworld or Orpheus, with a stock voice each by their pronouns; on Orpheus, a laugh, sigh, gasp or groan in the line's action is heard | 0.04¢ to 0.6¢ a line | ✅ #960; pick by ear in settings |
 | 4 | **Talking moments** | "Hear it from them" on a line worth it: a 5 s clip of that face saying the voiced line (Wan, audio in). One face only: lip-sync on a shot of two moved the wrong mouth (#688) | ~$0.28 a clip: a token item | 🔜 |
 | 5 | **Pictures that feel instant** | Show the closest picture they already have at once (scene-match) and swap the new one in when it lands; start drawing the next moment's picture while the lines before it play | the same pictures, sooner | 🔜 |
@@ -51,13 +51,18 @@ texts between nights, the reel storyboard.
 
 ## 1–3, as built
 
-- **Where the presence lives:** `adult_presence`, one row per viewer, character, face and part (an expression or the
-  loop), kept out of `adult_images` so no gallery, library or export ever lists it; served by
+- **Their portrait first** (found live, 2026-10-29): a kept face is often a whole-body picture, sometimes undressed, and
+  on the stage's 132 px tile the face in it is about 25 px, so no expression read. So the first thing made is one checked
+  edit of the kept face, from the collarbones up, in a plain top. The expressions and the loop are made from it, and it's
+  the still the theater shows. A new portrait starts the rest over. Providers fetch it by a short-lived signed link
+  (`signedPresenceUrl`), the media route's kind, scoped to presence files.
+- **Where the presence lives:** `adult_presence`, one row per viewer, character, face and part (the portrait, an
+  expression or the loop), kept out of `adult_images` so no gallery, library or export ever lists it; served by
   `/api/admin/after-dark/presence/<id>` to its owner only, behind the privacy blur's `/after-dark/` hook.
 - **When it's made:** only when asked ("✨ Bring them to life" in the theater's ⋯), once per face: a new face kept makes
   the old one's presence stale. What would stop it (no face yet, no output check, the month's pictures used) is said at
-  once. The loop is queued first, so Venice renders it while the seven expressions are drawn, three at a time, inside
-  one function's five minutes; the theater asks again every 30 s until they're in. Each expression is checked like any
+  once. The portrait is drawn first; then the loop is queued, so Venice renders it while the seven expressions are drawn,
+  three at a time, inside one function's five minutes (live: both of a pair done 138 s after the click); the theater asks again every 30 s until they're in. Each expression is checked like any
   picture; the loop like any video (Hive). One left "making" by a function that died counts as missing after 10 minutes.
 - **On the stage:** the speaker shows their line's expression; the one listening, their loop over the still face, faded
   back into it before its end so the seam never shows (with no loop yet, their last look is held). With reduced motion,

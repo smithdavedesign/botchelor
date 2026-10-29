@@ -281,7 +281,7 @@ export default function AfterDarkTheater({
     }
     return (
       <LivingFace
-        face={`/api/admin/after-dark/media/${encodeURIComponent(p.face_id)}`}
+        face={p.portrait ? presenceUrl(p.portrait) : `/api/admin/after-dark/media/${encodeURIComponent(p.face_id)}`}
         expression={expression ? presenceUrl(expression) : null}
         loop={p.loop ? presenceUrl(p.loop) : null}
         name={c.name}

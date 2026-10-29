@@ -4,7 +4,8 @@ import { GET as presenceFileGet } from "@/app/api/admin/after-dark/presence/[id]
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { setAdultModelForTests } from "@/lib/adult/mode";
-import { collectPresence, EXPRESSIONS, expressionPrompt, LOOP_PROMPT, makePresence, presenceOf } from "@/lib/adult/presence";
+import { signedPresenceUrl } from "@/lib/adult/media";
+import { collectPresence, EXPRESSIONS, expressionPrompt, LOOP_PROMPT, makePresence, PORTRAIT_PROMPT, presenceOf } from "@/lib/adult/presence";
 import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { deleteAfterDarkData } from "@/lib/account";
@@ -99,25 +100,29 @@ const parts = async (owner: string) =>
   (await t.db.query<{ part: string; expression: string | null; status: string; error: string | null }>(`select part, expression, status, error from adult_presence where owner_id = $1 order by part, expression`, [owner])).rows;
 
 describe("a character's presence", () => {
-  it("is seven expressions of the face they keep, each checked, and a loop queued from that face, then collected", async () => {
+  it("is their portrait from the face they keep, seven expressions of it, each checked, and a loop queued from it, then collected", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id, { presence_loop_model: "wan-2.6-flash-image-to-video" });
     fakeHive();
     const seen = fakeVenice({ done: () => false });
     const made = await makePresence(t.db, id, JUNIPER, BASE_URL);
-    expect(made).toEqual({ ok: true, made: 7, queued: true, failed: [] });
-    // Each edit is the face itself, asked for one look; the loop starts from that same face.
+    expect(made).toEqual({ ok: true, made: 8, queued: true, failed: [] });
+    // The portrait first, from the face they keep; then every look and the loop from the portrait.
     const edits = seen.filter((s) => s.path === "/image/multi-edit");
-    expect(edits.map((e) => e.body.prompt)).toEqual(expect.arrayContaining(Object.keys(EXPRESSIONS).map((e) => expressionPrompt(e as keyof typeof EXPRESSIONS))));
-    expect(edits.every((e) => String((e.body.images as string[])[0]).includes("/media/face-juniper"))).toBe(true);
+    expect(edits[0].body.prompt).toBe(PORTRAIT_PROMPT);
+    expect(String((edits[0].body.images as string[])[0])).toContain("/media/face-juniper");
+    let p = (await presenceOf(t.db, id, [JUNIPER]))[JUNIPER];
+    const fromPortrait = `/presence/${p.portrait}?`;
+    expect(edits.slice(1).map((e) => e.body.prompt)).toEqual(expect.arrayContaining(Object.keys(EXPRESSIONS).map((e) => expressionPrompt(e as keyof typeof EXPRESSIONS))));
+    expect(edits.slice(1).every((e) => String((e.body.images as string[])[0]).includes(fromPortrait))).toBe(true);
     const queued = seen.find((s) => s.path === "/video/queue")!;
     expect(queued.body).toMatchObject({ model: "wan-2.6-flash-image-to-video", prompt: LOOP_PROMPT, duration: "5s" });
-    expect(String(queued.body.image_url)).toContain("/media/face-juniper");
-    // Queued first, so Venice renders it while the expressions are drawn.
-    expect(seen.findIndex((s) => s.path === "/video/queue")).toBeLessThan(seen.findIndex((s) => s.path === "/image/multi-edit"));
+    expect(String(queued.body.image_url)).toContain(fromPortrait);
+    // The loop's queued before the expressions, so Venice renders it while they're drawn.
+    expect(seen.findIndex((s) => s.path === "/video/queue")).toBeLessThan(seen.findIndex((s, i) => s.path === "/image/multi-edit" && i > 0));
 
-    let p = (await presenceOf(t.db, id, [JUNIPER]))[JUNIPER];
     expect(p).toMatchObject({ face_id: "face-juniper", loop: null, making: true, missing: 0 });
+    expect(p.portrait).toBeTruthy();
     expect(Object.keys(p.expressions).sort()).toEqual(Object.keys(EXPRESSIONS).sort());
     // Still making at Venice: nothing kept yet.
     expect(await collectPresence(t.db, id)).toBe(0);
@@ -128,7 +133,7 @@ describe("a character's presence", () => {
     expect(p.loop).toBeTruthy();
     expect(p.making).toBe(false);
     const usage = (await t.db.query<{ pictures: number; clips: number }>(`select pictures, clips from adult_usage where owner_id = $1`, [id])).rows[0];
-    expect(usage).toMatchObject({ pictures: 7, clips: 1 });
+    expect(usage).toMatchObject({ pictures: 8, clips: 1 });
     // A second ask makes nothing again.
     const again = fakeVenice();
     expect(await makePresence(t.db, id, JUNIPER, BASE_URL)).toEqual({ ok: true, made: 0, queued: false, failed: [] });
@@ -141,11 +146,11 @@ describe("a character's presence", () => {
   it("keeps out an expression the check refuses, logs it, and draws only that one again on the next ask", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);
-    // The first moderation call is the first expression drawn: refused as a minor.
-    fakeHive((n) => (n === 0 ? CHILD_MOD : null));
+    // The second picture checked is the first expression drawn (the portrait is the first): refused as a minor.
+    fakeHive((n) => (n === 1 ? CHILD_MOD : null));
     fakeVenice({ done: () => false });
     const made = await makePresence(t.db, id, RAFE, BASE_URL);
-    expect(made).toMatchObject({ ok: true, made: 6, queued: true });
+    expect(made).toMatchObject({ ok: true, made: 7, queued: true });
     if (made.ok) expect(made.failed).toHaveLength(1);
     const failed = (await parts(id)).filter((r) => r.status === "failed");
     expect(failed).toHaveLength(1);
@@ -175,7 +180,29 @@ describe("a character's presence", () => {
       `insert into adult_presence (id, owner_id, character_id, face_id, part, expression, status, updated_at) values ('lost', $1, $2, 'face-juniper-2', 'expression', 'smile', 'making', now() - interval '1 hour')`,
       [id, JUNIPER],
     );
-    expect((await presenceOf(t.db, id, [JUNIPER]))[JUNIPER]).toMatchObject({ making: false, missing: 8 });
+    expect((await presenceOf(t.db, id, [JUNIPER]))[JUNIPER]).toMatchObject({ making: false, missing: 9 });
+  });
+
+  it("makes nothing else when their portrait is refused, and starts the rest over when a portrait is made anew", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeHive((n) => (n === 0 ? CHILD_MOD : null));
+    const seen = fakeVenice({ done: () => false });
+    const refused = await makePresence(t.db, id, JUNIPER, BASE_URL);
+    expect(refused).toMatchObject({ ok: true, made: 0, queued: false });
+    if (refused.ok) expect(refused.failed[0]).toMatch(/^their portrait: /);
+    expect(seen.map((s) => s.path)).toEqual(["/image/multi-edit"]);
+    expect(await parts(id)).toEqual([]);
+    // Rows made from an older base (before portraits): a portrait made now replaces them all.
+    await t.db.query(
+      `insert into adult_presence (id, owner_id, character_id, face_id, part, expression, status, mime, data) values ('old-smile', $1, $2, 'face-juniper', 'expression', 'smile', 'ready', 'image/png', $3)`,
+      [id, JUNIPER, Buffer.from(PNG)],
+    );
+    expect((await presenceOf(t.db, id, [JUNIPER]))[JUNIPER]).toMatchObject({ portrait: null, missing: 8 });
+    fakeHive();
+    fakeVenice({ done: () => false });
+    expect(await makePresence(t.db, id, JUNIPER, BASE_URL)).toMatchObject({ ok: true, made: 8, queued: true });
+    expect((await t.db.query(`select 1 from adult_presence where id = 'old-smile'`)).rows).toHaveLength(0);
   });
 
   it("says why it can't start: no face yet, or no output check", async () => {
@@ -211,6 +238,14 @@ describe("the presence routes", () => {
     const other = await admin();
     const theirs = await presenceFileGet(new Request(`${BASE_URL}/api/admin/after-dark/presence/${fileId}`, { headers: { cookie: other.cookie } }), { params: Promise.resolve({ id: fileId }) });
     expect(theirs.status).toBe(404);
+    // A provider with the portrait's signed link gets its bytes, never cached; unsigned, or another file's link, nothing.
+    const portrait = (presence[JUNIPER] as unknown as { portrait: string }).portrait;
+    const get = (url: string, pid: string) => presenceFileGet(new Request(url), { params: Promise.resolve({ id: pid }) });
+    const signed = await get(signedPresenceUrl(portrait, BASE_URL), portrait);
+    expect(signed.status).toBe(200);
+    expect(signed.headers.get("cache-control")).toBe("private, no-store");
+    expect((await get(`${BASE_URL}/api/admin/after-dark/presence/${portrait}`, portrait)).status).toBe(404);
+    expect((await get(signedPresenceUrl(portrait, BASE_URL), fileId)).status).toBe(404);
   });
 
   it("says at once when it can't start, rather than starting nothing in the background", async () => {
