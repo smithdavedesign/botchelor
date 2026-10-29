@@ -382,7 +382,8 @@ export async function postMedia(db: Db, v: ShowcaseViewer, postId: string): Prom
  * rating as the baseline for the showcase so it's not empty"): their own pictures and clips they 👍'd or an admin gave
  * 4 or 5 stars (a clip of a reel given 4 or 5 too), never one 👎'd or given 1 to 3 stars or taken out to the Archive,
  * and their PG Studio pictures rated pg. Never a picture with someone else's character: that needs its owner's OK,
- * asked one post at a time, never in bulk on someone's behalf.
+ * asked one post at a time, never in bulk on someone's behalf. The SFW twin of a picture in it (lib/adult/sfw-twin.ts,
+ * rated pg or suggestive) is in it too: it's the same good picture, dressed, for the side everyone sees.
  */
 export async function bestOf(db: Db, owner: string): Promise<{ after_dark: string[]; pg: string[] }> {
   const ad = (
@@ -405,8 +406,63 @@ export async function bestOf(db: Db, owner: string): Promise<{ after_dark: strin
       [owner],
     )
   ).rows.map((r) => r.id);
-  const pg = (await db.query<{ id: string }>(`select id from studio_pg_pictures where owner_id = $1 and content_rating = 'pg' order by created_at`, [owner])).rows.map((r) => r.id);
-  return { after_dark: ad, pg };
+  const twins = (
+    await db.query<{ id: string }>(
+      `select id from adult_images where owner_id = $1 and twin_of = any($2::text[]) and status = 'ready' and content_rating in ('pg', 'suggestive') order by created_at`,
+      [owner, ad],
+    )
+  ).rows.map((r) => r.id);
+  const pg = (
+    await db.query<{ id: string }>(`select id from studio_pg_pictures where owner_id = $1 and (content_rating = 'pg' or twin_of = any($2::text[])) order by created_at`, [owner, ad])
+  ).rows.map((r) => r.id);
+  return { after_dark: [...ad, ...twins.filter((id) => !ad.includes(id))], pg };
+}
+
+/**
+ * Their best pictures (bestOf) with no SFW twin yet, best first (most stars, then newest): what "Make SFW twins of my
+ * best" works through (David, 2026-10-29, to fill the side of the showcase everyone sees). Never a twin of a twin, nor
+ * a clip.
+ */
+export async function twinCandidates(db: Db, owner: string): Promise<string[]> {
+  const best = (await bestOf(db, owner)).after_dark;
+  if (!best.length) return [];
+  return (
+    await db.query<{ id: string }>(
+      `select i.id from adult_images i
+        where i.id = any($2::text[]) and i.owner_id = $1 and i.status = 'ready' and i.kind in ('scene', 'baseline') and i.mime like 'image/%' and i.twin_of is null
+          and not exists (select 1 from adult_images t where t.twin_of = i.id and t.status = 'ready')
+          and not exists (select 1 from studio_pg_pictures p where p.twin_of = i.id)
+        order by (select max(r.rating) from adult_media_ratings r where r.item_id = i.id) desc nulls last, i.created_at desc`,
+      [owner, best],
+    )
+  ).rows.map((r) => r.id);
+}
+
+/** How many twins are drawn at once: each is an edit of a minute or so, and a batch has to fit in one request. */
+export const TWIN_BATCH = 3;
+
+/**
+ * The next few twins of their best (twinCandidates), drawn together through sfwTwin, so every rule of a twin holds:
+ * safe mode, the PG check, admins free and anyone else paying for each. `skip`: ones that didn't come through
+ * earlier, so a run moves on past them. Each one made is left for "Publish my best work" to post.
+ */
+export async function twinBest(
+  db: Db,
+  owner: string,
+  baseUrl: string,
+  skip: readonly string[] = [],
+): Promise<{ ok: true; made: { original: string; id: string; where: "pg" | "after_dark" }[]; failed: { original: string; message: string }[]; left: number }> {
+  const todo = (await twinCandidates(db, owner)).filter((id) => !skip.includes(id));
+  const batch = todo.slice(0, TWIN_BATCH);
+  const { sfwTwin } = await import("./adult/sfw-twin");
+  const results = await Promise.all(batch.map((id) => sfwTwin(db, owner, id, baseUrl).catch((err: unknown) => ({ ok: false as const, status: 500, error: "error", message: err instanceof Error ? err.message.slice(0, 160) : "error" }))));
+  const made: { original: string; id: string; where: "pg" | "after_dark" }[] = [];
+  const failed: { original: string; message: string }[] = [];
+  results.forEach((r, i) => {
+    if (r.ok) made.push({ original: batch[i], id: r.picture.id, where: r.where });
+    else failed.push({ original: batch[i], message: r.message });
+  });
+  return { ok: true, made, failed, left: todo.length - batch.length };
 }
 
 /** Publishes the owner's best (bestOf) under their handle: each as one post would be, those already up left as they are. */

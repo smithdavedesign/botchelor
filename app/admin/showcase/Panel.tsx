@@ -5,7 +5,10 @@ import { requestJson } from "@/app/request";
 import type { HeldPost } from "@/lib/showcase-moderation";
 
 /** Admin: showcase posts held by a report, then reported ones still up; release or remove each (lib/showcase-moderation.ts). */
-type Mine = { profile: { handle: string; display_name: string } | null; best: { after_dark: number; pg: number }; posted: number };
+type Mine = { profile: { handle: string; display_name: string } | null; best: { after_dark: number; pg: number }; posted: number; twins: number };
+type TwinBatch = { made: { original: string; id: string }[]; failed: { original: string; message: string }[]; left: number };
+/** About what one SFW twin costs on Venice (the PG Studio's edit model, studio.pg.usd). */
+const TWIN_USD = 0.03;
 
 export default function ShowcaseModeration() {
   const [posts, setPosts] = useState<HeldPost[] | null>(null);
@@ -37,6 +40,30 @@ export default function ShowcaseModeration() {
     setNote(res?.ok ? `Published ${res.data.published}${res.data.already ? ` (${res.data.already} were up already)` : ""}${res.data.failed ? `; ${res.data.failed} couldn't be` : ""}.` : (res?.message ?? "That didn't go through."));
     void load();
   }
+  // SFW twins of their best (lib/showcase.ts twinBest), a few at a time until none are left; one that doesn't pass the
+  // PG check is skipped from then on.
+  async function makeTwins() {
+    setBusy(true);
+    const skip: string[] = [];
+    let made = 0;
+    for (;;) {
+      setNote(`Drawing SFW twins… ${made} made${skip.length ? `, ${skip.length} didn't pass` : ""}. Keep this page open.`);
+      const res = await requestJson("/api/admin/showcase", { action: "twin_best", skip }, "POST", { timeoutMs: 290_000 }).catch(() => null);
+      if (!res?.ok) {
+        setNote(`${res?.message ?? "That stopped."} ${made} made so far: click again to carry on.`);
+        break;
+      }
+      const batch = res.data as unknown as TwinBatch;
+      made += batch.made.length;
+      skip.push(...batch.failed.map((f) => f.original));
+      if (!batch.left || (!batch.made.length && !batch.failed.length)) {
+        setNote(`${made} SFW twin${made === 1 ? "" : "s"} made${skip.length ? `; ${skip.length} didn't pass the PG check` : ""}. Publish my best work posts them.`);
+        break;
+      }
+    }
+    setBusy(false);
+    void load();
+  }
   const best = mine ? mine.best.after_dark + mine.best.pg : 0;
   const yours = mine && (
     <section className="card showcase-form">
@@ -62,6 +89,14 @@ export default function ShowcaseModeration() {
             Make my page
           </button>
         </>
+      )}
+      {mine.twins > 0 && (
+        <p className="small">
+          <button type="button" className="button-ghost small" disabled={busy} onClick={() => void makeTwins()}>
+            🫧 Make SFW twins of my best ({mine.twins}, about ${(mine.twins * TWIN_USD).toFixed(2)} on Venice)
+          </button>{" "}
+          <span className="muted">Dressed versions for the side everyone sees, each through the PG check.</span>
+        </p>
       )}
       {note && <p className="muted small" role="status">{note}</p>}
     </section>

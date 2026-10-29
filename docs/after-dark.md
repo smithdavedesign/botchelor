@@ -2647,6 +2647,17 @@ docs/PRDs/showcase.md).
   - Only their own characters or the house cast: a pair with someone else's character would ask that owner first, so
     it stays out. PG Studio pictures rated PG go too.
   - Each goes through `publish()`, so every rule above holds: explicit posts stay admin-only until the switch.
+- **SFW twins of my best** (`twinCandidates`/`twinBest`, the same card; David, 2026-10-29, "go for it"): a dressed
+  version of each best picture for the side everyone sees, through `sfwTwin`, so safe mode and the PG check still
+  hold. Admins are free; anyone else pays for each.
+  - Best first (most stars, then newest). Never a clip, a twin, or one already twinned.
+  - Three at a time (`TWIN_BATCH`), each an edit of a minute or so. The button loops until none are left, and skips
+    one the PG check turned down.
+  - About 3¢ each on Venice (`studio.pg.usd`).
+  - The twin of a best picture counts as best work too, so Publish my best work posts it: a solo one from the PG
+    Studio, a pair's from After Dark rated pg or suggestive.
+  - `POST /api/admin/showcase {action: "twin_best" | "publish_best", owner}`: `owner` only with the admin password,
+    and only an admin's id. Without it, only a signed-in admin, for themselves.
 
 ## The galleries' filters (2026-10-29)
 
