@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 import type { CastPair } from "@/lib/adult/scenes";
 
@@ -28,8 +28,9 @@ function ago(iso: string | null | undefined, now = Date.now()): string {
  * One night under way, as a card to pick up again (the audit, 2026-10-29): both faces (the ones kept for this viewer, so
  * behind the privacy blur when it's on), the night's last line, its chapter and when it was played.
  */
-function PairRow({ p }: { p: Pair }) {
-  const meta = [p.chapter && p.chapter > 1 ? `Chapter ${p.chapter}` : "", p.lines > 0 ? `${p.lines} lines` : "", ago(p.updated_at)].filter(Boolean).join(" · ");
+function PairRow({ p, now }: { p: Pair; now: number | null }) {
+  // "6 min ago" only once in the browser: the server's clock and the browser's differ, and React won't hydrate a mismatch.
+  const meta = [p.chapter && p.chapter > 1 ? `Chapter ${p.chapter}` : "", p.lines > 0 ? `${p.lines} lines` : "", now ? ago(p.updated_at, now) : ""].filter(Boolean).join(" · ");
   return (
     <li className="card ad-pair">
       <Link href={p.path} className="ad-pair-link">
@@ -76,6 +77,8 @@ function Face({ c, on, onPick }: { c: Who; on: boolean; onPick: () => void }) {
  */
 export default function PairPicker({ pairs }: { pairs: Pair[] }) {
   const [one, setOne] = useState<string | null>(null);
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => setNow(Date.now()), []);
   const [two, setTwo] = useState<string | null>(null);
   // Under way (lines, or a chapter filed), the latest played first.
   const going = pairs.filter((p) => p.lines > 0 || (p.chapter ?? 1) > 1).sort((x, y) => (y.updated_at ?? "").localeCompare(x.updated_at ?? ""));
@@ -103,7 +106,7 @@ export default function PairPicker({ pairs }: { pairs: Pair[] }) {
           <h3 className="ad-hub-sub">Continue</h3>
           <ul className="list ad-pairs">
             {going.map((p) => (
-              <PairRow key={p.path} p={p} />
+              <PairRow key={p.path} p={p} now={now} />
             ))}
           </ul>
         </>
