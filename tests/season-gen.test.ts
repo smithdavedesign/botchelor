@@ -93,7 +93,8 @@ function fakeProviders(vlm = "ADULTS") {
   return venice;
 }
 
-const keys = () => saveAdultSettings(t.db, { venice_key: "placeholder-venice", hive_key: "placeholder-hive" });
+// Hive checks the portraits here (pg_via "hive"): with Venice's key saved, "auto" would send them to its check.
+const keys = () => saveAdultSettings(t.db, { venice_key: "placeholder-venice", hive_key: "placeholder-hive", moderation: { pg_via: "hive" } });
 
 describe("writing a candidate", () => {
   it("takes a full draft, and refuses a minor, a real person, a taken name or bad JSON", () => {

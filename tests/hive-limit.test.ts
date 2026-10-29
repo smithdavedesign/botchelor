@@ -167,7 +167,7 @@ async function setUp(cookie: string, extra: Record<string, unknown> = {}) {
   await call(
     settingsPost,
     "/api/admin/after-dark/settings",
-    { enabled: true, image_provider: "venice", openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", reel_shots: 3, reel_tokens: 6, clip_tokens: 3, auto_scene_pictures: false, ...extra },
+    { enabled: true, image_provider: "venice", openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", reel_shots: 3, reel_tokens: 6, clip_tokens: 3, auto_scene_pictures: false, moderation: { pg_via: "hive" }, ...extra },
     cookie,
   );
 }

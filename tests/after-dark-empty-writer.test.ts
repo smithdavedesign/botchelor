@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/admin/after-dark/route";
 import { setAdultModelForTests } from "@/lib/adult/mode";
+import { setWriter } from "@/lib/adult/writer";
 import { FALLBACK_WRITER } from "@/lib/adult/writer-config";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -51,6 +52,8 @@ function writer(empties: number) {
 async function step() {
   const id = userIdOf(newUserCookie());
   await claimAdmin(t.db, id);
+  // GLM-4.6 picked, so even the night's first lines are its (a writer left to the default opens on the fast one).
+  await setWriter(t.db, id, "z-ai/glm-4.6");
   const cookie = sessionCookies({ userId: id, authenticated: true })[0].split(";")[0];
   return POST(new Request(`${BASE_URL}/api/admin/after-dark`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ a: CAST_A, b: CAST_B }) }));
 }

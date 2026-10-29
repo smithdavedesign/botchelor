@@ -2406,7 +2406,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const ctx = await stepContext(db, adminId, scene.a.id, scene.b.id);
   const { a, b } = ctx;
   // Their own writer (lib/adult/writer.ts): the one they picked, else the default, with room for its thinking.
-  const { id: writer, think_tokens } = await writerChoice(db, adminId);
+  const { id: writer, think_tokens } = await writerChoice(db, adminId, { opening: scene.lines.length === 0 && scene.chapter === 1 });
   const profile = await sceneProfile(db, scene, adminId);
   const fast = writer === FALLBACK_WRITER ? null : await adultModel(db, process.env, { model: FALLBACK_WRITER });
   const step = await writeSceneStep({

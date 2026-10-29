@@ -17,7 +17,7 @@
  * The modes (`mode`): `hive` (as before), `hive_then_alt` (Hive; when it's paused or can't run, the alternatives),
  * `both` (Hive and the alternatives must all pass), `alt` (the alternatives only). In the alternatives, any refusal
  * refuses, and at least `min_sources` of them must have run and passed. The show's own checks (place sets, look tiles,
- * season portraits) go to Hive or, with `pg_via: "alt"`, to the alternatives asked the show's question (no nudity,
+ * season portraits) go to the alternatives asked the show's question (`pg_via` "auto" when one is ready, or "alt"; else Hive) (no nudity,
  * everyone an adult), which leaves Hive's 100 for After Dark. Videos stay on Hive: the alternatives don't read video.
  */
 import { isAdmin } from "../admins";
@@ -140,6 +140,10 @@ export function readyAlts(m: ModerationConfig, keys: Pick<Keys, "venice" | "sigh
   return m.alts.filter((a) => (a === "venice_vlm" ? Boolean(keys.venice) : a === "sightengine" ? Boolean(m.sightengine_user && keys.sightengine) : Boolean(m.endpoint_url)));
 }
 
+/** Whether the show's own pictures go to the alternatives: always with "alt", with "auto" whenever one is ready. */
+const pgOnAlts = (m: ModerationConfig, keys: Pick<Keys, "venice" | "sightengine" | "moderation_endpoint">): boolean =>
+  m.pg_via === "alt" || (m.pg_via === "auto" && readyAlts(m, keys).length > 0);
+
 /** The alternatives' verdict: any refusal refuses; fewer than `min_sources` passes is no verdict (the check couldn't run). */
 async function runAlts(m: ModerationConfig, keys: Keys, media: Checkable, kind: MediaKind): Promise<CheckResult & { via?: string[] }> {
   if (kind === "video") return { ok: false, reason: "the check couldn't run (videos are checked by Hive only)" };
@@ -224,7 +228,7 @@ export async function checkMedia(db: Db, media: Checkable, kind: MediaKind, who:
   const keys = await adultKeys(db);
   if (devModerationOff()) return devCheck(m, keys, media, kind);
   if (await adminOnAlts(db, m, keys, kind, who)) return runAlts(m, keys, media, kind);
-  if (isPg(kind)) return m.pg_via === "alt" ? runAlts(m, keys, media, kind) : hiveCheck(db, keys, media, kind);
+  if (isPg(kind)) return pgOnAlts(m, keys) ? runAlts(m, keys, media, kind) : hiveCheck(db, keys, media, kind);
   if (m.mode === "alt") return runAlts(m, keys, media, kind);
   const h = await hiveCheck(db, keys, media, kind);
   if (m.mode === "hive" || kind === "video") return h;
@@ -249,7 +253,7 @@ export async function mediaGate(db: Db, opts: { pg?: boolean; video?: boolean; p
   if (devModerationOff()) return { ok: true };
   const alts = readyAlts(m, keys).length > 0;
   if (await adminOnAlts(db, m, keys, opts.video ? "video" : opts.pg ? "pg_image" : "image", opts)) return { ok: true };
-  if (!opts.video && ((opts.pg && m.pg_via === "alt") || (!opts.pg && m.mode === "alt"))) {
+  if (!opts.video && ((opts.pg && pgOnAlts(m, keys)) || (!opts.pg && m.mode === "alt"))) {
     return alts ? { ok: true } : { ok: false, until: new Date(Date.now() + 60_000).toISOString(), message: "No checker is set up: add one in After Dark's settings.", reason: "not drawn: no alternative checker is set up" };
   }
   const g = await hiveGate(db, keys.hive, { probe: opts.probe });
@@ -266,7 +270,7 @@ export async function checkReady(db: Db, opts: { pg?: boolean } = {}): Promise<b
   const s = await getAdultSettings(db);
   const keys = await adultKeys(db);
   const alts = readyAlts(s.moderation, keys).length > 0;
-  if (opts.pg) return s.moderation.pg_via === "alt" ? alts : Boolean(keys.hive);
+  if (opts.pg) return pgOnAlts(s.moderation, keys) ? alts : Boolean(keys.hive);
   if (s.moderation.mode === "alt") return alts;
   return Boolean(keys.hive) || (s.moderation.mode === "hive_then_alt" && alts);
 }

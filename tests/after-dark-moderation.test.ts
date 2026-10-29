@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { pauseHive } from "@/lib/adult/hive-limit";
-import { adminCheckerOf, checkMedia, devModerationOff, mediaGate, setAdminCheckerDefaultForTests, setModerationFetchForTests, SIGHTENGINE_CHECK, VENICE_CHAT } from "@/lib/adult/moderation";
+import { adminCheckerOf, checkMedia, checkReady, devModerationOff, mediaGate, setAdminCheckerDefaultForTests, setModerationFetchForTests, SIGHTENGINE_CHECK, VENICE_CHAT } from "@/lib/adult/moderation";
 import { DEFAULT_MODERATION, mergeModerationConfig, moderationConfigOf } from "@/lib/adult/moderation-config";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
@@ -12,7 +12,7 @@ import { startTestDb } from "./helpers";
 
 describe("the checks' settings", () => {
   it("default to Hive as before, keep what parses, and refuse a bad value", () => {
-    expect(DEFAULT_MODERATION).toMatchObject({ mode: "hive", alts: ["venice_vlm"], min_sources: 1, pg_via: "hive", vlm_model: "qwen3-vl-235b-a22b" });
+    expect(DEFAULT_MODERATION).toMatchObject({ mode: "hive", alts: ["venice_vlm"], min_sources: 1, pg_via: "auto", vlm_model: "qwen3-vl-235b-a22b" });
     // Unset, an admin's own pictures go to the alternatives (production's default; the tests' setup holds them to Hive).
     expect(DEFAULT_MODERATION.admin_checker).toBeUndefined();
     setAdminCheckerDefaultForTests(null);
@@ -137,6 +137,24 @@ describe("checkMedia", () => {
     expect((a[0].body as { response_format: { json_schema: { name: string } } }).response_format.json_schema.name).toBe("pg_check");
     alts({ venice: "UNSAFE" });
     expect((await checkMedia(t.db, PIC, "pg_image")).ok).toBe(false);
+    expect(h).toHaveLength(0);
+  });
+});
+
+describe("the show's own pictures by default (the audit, 2026-10-29: Hive's 100 a day went on backdrops and portraits)", () => {
+  it("go to the alternatives when one is ready, Hive when none is; and a paused Hive doesn't stop them", async () => {
+    const h = hive();
+    alts({ venice: "SAFE" });
+    expect(await checkMedia(t.db, PIC, "set")).toMatchObject({ ok: true });
+    expect(h).toHaveLength(0);
+    await pauseHive(t.db, "test");
+    expect((await mediaGate(t.db, { pg: true })).ok).toBe(true);
+    expect(await checkReady(t.db, { pg: true })).toBe(true);
+    // No Venice key: Hive checks them, as before.
+    await saveAdultSettings(t.db, { venice_key: "" });
+    expect((await mediaGate(t.db, { pg: true })).ok).toBe(false);
+    // Hive's way, and Hive is paused: it couldn't run (nothing sent to the alternatives).
+    expect(await checkMedia(t.db, PIC, "set")).toMatchObject({ ok: false });
     expect(h).toHaveLength(0);
   });
 });

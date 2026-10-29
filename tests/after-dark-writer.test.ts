@@ -6,7 +6,7 @@ import { deleteAfterDarkData } from "@/lib/account";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { SCENE_REPLY_TOKENS } from "@/lib/adult/scenes";
 import { saveAdultSettings } from "@/lib/adult/settings";
-import { setWriter, writerFor, writerOptions } from "@/lib/adult/writer";
+import { setWriter, writerChoice, writerFor, writerOptions } from "@/lib/adult/writer";
 import { DEFAULT_WRITER_CONFIG, mergeWriterConfig, writerConfigOf } from "@/lib/adult/writer-config";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -65,6 +65,14 @@ describe("each person's writer", () => {
     expect((await t.db.query(`select 1 from adult_prefs where user_id = $1`, [me])).rows).toHaveLength(0);
   });
 
+  it("a night's first lines are the fast writer's, unless they picked one themselves (the audit, 2026-10-29)", async () => {
+    const me = userIdOf(newUserCookie());
+    expect(await writerChoice(t.db, me, { opening: true })).toEqual({ id: "deepseek/deepseek-chat-v3.1:nitro", think_tokens: 0 });
+    expect((await writerChoice(t.db, me)).id).toBe("z-ai/glm-4.6");
+    await setWriter(t.db, me, "z-ai/glm-4.6");
+    expect((await writerChoice(t.db, me, { opening: true })).id).toBe("z-ai/glm-4.6");
+  });
+
   it("is picked through the API by someone After Dark is open to, and the admins set the list and the default", async () => {
     const me = userIdOf(newUserCookie());
     await claimAdmin(t.db, me);
@@ -105,8 +113,12 @@ describe("a writer that thinks first", () => {
     await saveAdultSettings(t.db, { enabled: true, openrouter_key: "sk-or-test-0000" });
     const step = () =>
       scenePost(new Request(`${BASE_URL}/api/admin/after-dark`, { method: "POST", headers: { "content-type": "application/json", cookie: signedIn(me) }, body: JSON.stringify({ a: HOUSE_CHARACTERS[0].id, b: HOUSE_CHARACTERS[1].id }) }));
+    // The night's first lines are the fast writer's (writerChoice opening); the next step is the default's, with its room.
     expect((await step()).status).toBe(200);
-    expect(sent[0]).toMatchObject({ model: "z-ai/glm-4.6", max_tokens: SCENE_REPLY_TOKENS + 1200 });
+    expect(sent[0]).toMatchObject({ model: "deepseek/deepseek-chat-v3.1:nitro", max_tokens: SCENE_REPLY_TOKENS });
+    const before = sent.length;
+    expect((await step()).status).toBe(200);
+    expect(sent[before]).toMatchObject({ model: "z-ai/glm-4.6", max_tokens: SCENE_REPLY_TOKENS + 1200 });
     await setWriter(t.db, me, "deepseek/deepseek-chat-v3.1:nitro");
     expect((await step()).status).toBe(200);
     expect(sent.at(-1)).toMatchObject({ model: "deepseek/deepseek-chat-v3.1:nitro", max_tokens: SCENE_REPLY_TOKENS });

@@ -283,8 +283,8 @@ describe("sampling", () => {
     const { cookie } = await admin();
     let calls = capture({ lines: [{ who: "a", text: "Hi." }, { who: "b", text: "Hello." }] });
     await post({ a: CAST_A, b: CAST_B }, cookie);
-    // The reply's 1,600 and the default writer's thinking room (GLM-4.6: 1,200, lib/adult/writer-config.ts).
-    expect(calls[0].options).toMatchObject({ temperature: 0.8, frequencyPenalty: 0.3, presencePenalty: 0.3, maxTokens: 1600 + 1200 });
+    // The night's first lines: the fast writer's 1,600, no thinking room (lib/adult/writer.ts writerChoice opening).
+    expect(calls[0].options).toMatchObject({ temperature: 0.8, frequencyPenalty: 0.3, presencePenalty: 0.3, maxTokens: 1600 });
     expect(calls[0].options).not.toHaveProperty("repetitionPenalty");
     expect([DEFAULT_TEXT_TEMPERATURE, DEFAULT_FREQUENCY_PENALTY, DEFAULT_PRESENCE_PENALTY]).toEqual([0.8, 0.3, 0.3]);
     await saveAdultSettings(t.db, { text_temperature: 0.65, frequency_penalty: 0.5, presence_penalty: null, repetition_penalty: 1.1 });
