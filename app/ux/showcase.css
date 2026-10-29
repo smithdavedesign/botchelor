@@ -187,3 +187,41 @@ a.showcase-chip.chip-on {
     min-width: 100%;
   }
 }
+
+/* Likes and follows (lib/showcase-social.ts), and the requests waiting on someone's OK. */
+.showcase-like-btn {
+  margin: 0;
+  padding: 0 0.3rem;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--accent-text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.showcase-like-btn:hover {
+  transform: none;
+  box-shadow: none;
+}
+.creator-follow {
+  margin: var(--space-2) 0 0;
+}
+.creator-follow button {
+  margin: 0;
+}
+.showcase-requests {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.showcase-requests li {
+  padding: var(--space-3);
+}
+.showcase-requests img,
+.showcase-requests video {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius);
+}

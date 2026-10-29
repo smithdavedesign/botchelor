@@ -1,5 +1,6 @@
 "use client";
 
+import LikeButton from "./LikeButton";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { Post } from "@/lib/showcase";
@@ -47,7 +48,7 @@ export default function ShowcaseGrid({ posts }: { posts: Post[] }) {
                 {veiled && <span className="showcase-veil">After Dark · tap to show</span>}
               </button>
               <p className="showcase-by small">
-                <Link href={`/creators/${x.creator.handle}`}>@{x.creator.handle}</Link> · {x.character.name}
+                <LikeButton postId={x.id} likes={x.likes} liked={x.liked} /> <Link href={`/creators/${x.creator.handle}`}>@{x.creator.handle}</Link> · {x.character.name}
                 {x.partner ? ` & ${x.partner.name}` : ""}
               </p>
             </li>
@@ -72,6 +73,9 @@ export default function ShowcaseGrid({ posts }: { posts: Post[] }) {
                 )}
               </p>
               {p.caption && <p>{p.caption}</p>}
+              <p>
+                <LikeButton key={p.id} postId={p.id} likes={p.likes} liked={p.liked} />
+              </p>
               <p className="muted small">{[p.act ? actLabel(p.act) : "", p.place ? placeLabel(p.place) : "", p.pov ? "First person" : "", p.from_date ? "From a date" : "From the Studio"].filter(Boolean).join(" · ")}</p>
               <p className="muted small">Made with AI. Every character is a fictional adult.</p>
               <p className="showcase-viewer-nav">
