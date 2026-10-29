@@ -20,6 +20,8 @@ import FixFaces from "../../FixFaces";
 import IdentityPackGrid from "@/app/studio/IdentityPackGrid";
 import { identityPrice } from "@/lib/studio/identity-views";
 import FormatChips, { tileRatio } from "@/app/studio/FormatChips";
+import ShootReveal from "@/app/studio/ShootReveal";
+import { shootPrice } from "@/lib/adult/studio-config";
 import type { FormatId } from "@/lib/studio/formats";
 import { actMark, FramingMark, openingView, ViewChips } from "../../FramingChips";
 import ExportDialog from "@/app/studio/ExportDialog";
@@ -50,6 +52,8 @@ const PROVIDER_LABEL = { venice: "Venice", replicate: "Replicate" } as const;
 const SHARE_STATUS: Record<string, string> = { pending: "asked", accepted: "accepted", sent: "sent to their texts" };
 /** How often the page asks after an animation still being made. */
 const POLL_MS = 20_000;
+/** While a bigger shoot is landing, the page looks again this often (each picture shows as it's kept). */
+const REVEAL_MS = 3_000;
 
 type PairPick = { act: string; swap: boolean; outfit: string; framing: string; place: string; light: string; custom?: string; extra?: PairExtra; dialog?: string; reference?: string; eyes?: Eyes | null };
 const NO_PAIR_PICK: PairPick = { act: "", swap: false, outfit: "", framing: "medium", place: "", light: "" };
@@ -125,6 +129,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const [editModel, setEditModel] = useState(initial.models.find((m) => m.job === "edit" && m.ready)?.id ?? initial.models.find((m) => m.job === "edit")?.id ?? "");
   // The shape a shoot is drawn in (native sizes, lib/studio/formats.ts): the same pick for a shoot alone and together.
   const [format, setFormat] = useState<FormatId>("portrait");
+  // How many a shoot makes: the Studio's own (four), or a bigger shoot drawn after the answer.
+  const [size, setSize] = useState<number>(initial.shoot_sizes?.[0] ?? initial.sizes.shoot);
   const [newModel, setNewModel] = useState(initial.models.find((m) => m.job === "new" && m.ready)?.id ?? initial.models.find((m) => m.job === "new")?.id ?? "");
   // Restyle starts from their look as they were made (restyle_current); only the picks moved away from it are sent.
   const current: Record<string, string> = s.restyle_current ?? {};
@@ -185,8 +191,10 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     if (!res.ok) return setNote({ text: res.message, error: true });
     if (res.data.state) setS(res.data.state as StudioState);
     const pictures = (res.data.pictures as Media[] | undefined) ?? [];
-    if (res.data.shoot) setFresh({ title: opts.title ?? "New pictures", pictures, kind: (res.data.shoot as Shoot).kind });
-    if (typeof res.data.message === "string" && res.data.message) setNote({ text: res.data.message, error: pictures.length === 0 });
+    // A bigger shoot answers at once: its pictures land in its reveal as each is kept, not here.
+    const landing = (res.data.shoot as Shoot | undefined)?.status === "making";
+    if (res.data.shoot && !landing) setFresh({ title: opts.title ?? "New pictures", pictures, kind: (res.data.shoot as Shoot).kind });
+    if (typeof res.data.message === "string" && res.data.message) setNote({ text: res.data.message, error: pictures.length === 0 && !landing });
     else if (pictures.length) setNote({ text: `${pictures.length} new picture${pictures.length === 1 ? "" : "s"}.` });
     else if (opts.done) setNote({ text: opts.done });
     return res.data;
@@ -237,6 +245,28 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     }, POLL_MS);
     return () => clearInterval(t);
   }, [making, c.id]);
+
+  // While a bigger shoot is landing, look again every few seconds: each picture shows in its reveal as it's kept.
+  const landing = s.shooting.map((x) => x.id).join(",");
+  useEffect(() => {
+    if (!landing) return;
+    const t = setInterval(async () => {
+      const res = await fetch(`/api/admin/after-dark/studio?character=${encodeURIComponent(c.id)}`)
+        .then((r) => r.json())
+        .catch(() => null);
+      if (!res?.state) return;
+      const next = res.state as StudioState;
+      const done = s.shooting.filter((x) => !next.shooting.some((y) => y.id === x.id));
+      for (const d of done) {
+        const row = next.shoots.find((y) => y.id === d.id);
+        if (row) setNote({ text: row.made ? `Your shoot of ${row.asked} is done: ${row.made} kept${row.made < row.asked ? " (the rest didn't pass the check or failed to draw, and their share of the tokens is back)" : ""}.` : "Nothing came through that shoot, and its tokens are back.", error: !row.made });
+      }
+      setS(next);
+    }, REVEAL_MS);
+    return () => clearInterval(t);
+    // s.shooting is read for what finished; the ids in `landing` are what restarts the timer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [landing, c.id]);
 
   /** The page's state again (GET), after something made outside a Studio action lands in the gallery (a clip's moment). */
   async function refresh() {
@@ -366,6 +396,17 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
       return next;
     });
   }
+
+  /** How many a shoot makes: four as it always was, or a bigger shoot that lands picture by picture (the fifth four free). */
+  const sizeChips = s.shoot_sizes.length > 1 && (
+    <div className="studio-sizes" role="radiogroup" aria-label="How many pictures">
+      {s.shoot_sizes.map((n) => (
+        <button key={n} type="button" role="radio" aria-checked={size === n} className={`chip${size === n ? " chip-on" : ""}`} disabled={Boolean(busy)} onClick={() => setSize(n)} title={n > 4 ? "Drawn after you shoot: each picture lands as it's kept" : "As it always was"}>
+          {n}
+        </button>
+      ))}
+    </div>
+  );
 
   const modelSelect = (list: typeof editModels, value: string, set: (v: string) => void, label: string, priced?: (m: (typeof editModels)[number]) => number) => (
     <select value={value} onChange={(e) => set(e.target.value)} disabled={Boolean(busy)} aria-label={label}>
@@ -759,6 +800,9 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
           {note.text}
         </p>
       )}
+      {s.shooting.map((x) => (
+        <ShootReveal key={x.id} asked={x.asked} made={x.made} pictures={x.pictures} src={media} label={`${x.kind === "pair" ? "Shooting together" : "Shooting"}: ${x.asked} pictures`} started={x.created_at} />
+      ))}
       {making > 0 && (
         <p className="muted small" role="status">
           🎬 Animating, started {Math.max(1, Math.round((Date.now() - new Date(s.animating[0].created_at).getTime()) / 60_000))} min ago. It lands in the gallery once
@@ -852,6 +896,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={choices.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setDialog(e.target.value)} />
           </fieldset>
           <FormatChips value={format} onChange={setFormat} disabled={Boolean(busy)} />
+          {sizeChips}
           <div className="ad-studio-go is-main">
             <label>Model {modelSelect(editModels, picked?.id ?? "", setEditModel, "Model", (m) => m.price)}</label>
             <span className="badge">{LEVEL_LABEL[level]}</span>
@@ -859,9 +904,9 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               type="button"
               className="primary"
               disabled={Boolean(busy) || !picked || !usable(picked)}
-              onClick={() => void act("shoot", { action: "shoot", character_id: c.id, choices, model: picked?.id, format, ...own }, { title: "This shoot" })}
+              onClick={() => void act("shoot", { action: "shoot", character_id: c.id, choices, model: picked?.id, format, size, ...own }, { title: "This shoot" })}
             >
-              {busy === "shoot" ? `Shooting… ${elapsed()}` : `Shoot ${s.sizes.shoot} · ${tokens(price(picked?.price ?? 0))}`}
+              {busy === "shoot" ? `Shooting… ${elapsed()}` : `Shoot ${size} · ${tokens(shootPrice(price(picked?.price ?? 0), size))}`}
             </button>
           </div>
           <p className="muted small">
@@ -988,6 +1033,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 </p>
               )}
               <FormatChips value={format} onChange={setFormat} disabled={Boolean(busy)} />
+              {sizeChips}
               <div className="ad-studio-go">
                 <label>
                   Model{" "}
@@ -1015,13 +1061,14 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                         ...(pairPick.eyes ? { eyes: pairPick.eyes } : {}),
                         model: pairModel?.id,
                         format,
+                        size,
                         ...own,
                       },
                       { title: `${first} and ${pairMenu.partner.name}` },
                     )
                   }
                 >
-                  {busy === "pair" ? `Shooting… ${elapsed()}` : `Shoot ${s.sizes.shoot} together · ${tokens(price(pairModel ? pairMenu.price[pairModel.tier] : 0))}`}
+                  {busy === "pair" ? `Shooting… ${elapsed()}` : `Shoot ${size} together · ${tokens(shootPrice(price(pairModel ? pairMenu.price[pairModel.tier] : 0), size))}`}
                 </button>
               </div>
               <p className="muted small">Pick what they&apos;re doing, what they wear, the framing and the place. Pictures of the two of them also land in their pair&apos;s gallery.</p>

@@ -48,6 +48,11 @@ export const StudioConfig = z.object({
   open_to: z.enum(STUDIO_OPEN_TO).default("admins"),
   /** Pictures a shoot makes, and candidates a restyle, a recast and a body reference make. */
   shoot_size: z.number().int().min(1).max(4).default(4),
+  /**
+   * The bigger shoots on offer too (the creator suite): drawn four at a time after the answer, the price of four for each
+   * four and the fifth four free (shootPrice: 8 for 2 tokens, 12 for 3, 20 for 4).
+   */
+  shoot_sizes: z.array(z.number().int().min(1).max(40)).max(6).default([8, 12, 20]),
   restyle_candidates: z.number().int().min(1).max(4).default(3),
   recast_candidates: z.number().int().min(1).max(4).default(3),
   body_candidates: z.number().int().min(1).max(4).default(2),
@@ -127,6 +132,12 @@ export type StudioConfig = z.infer<typeof StudioConfig>;
 
 /** The defaults, every one. */
 export const DEFAULT_STUDIO_CONFIG: StudioConfig = StudioConfig.parse({});
+
+/** A shoot's tokens for `n` pictures: the price of four for each four, the fifth four free (20 for 4 tokens: David, 2026-10-26). */
+export function shootPrice(perFour: number, n: number): number {
+  const fours = Math.max(1, Math.ceil(n / 4));
+  return perFour * (fours >= 5 ? fours - 1 : fours);
+}
 
 /**
  * The stored JSON as settings: every default filled in. Anything that doesn't parse (a hand-edited row) falls back to

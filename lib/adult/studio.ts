@@ -21,6 +21,8 @@
  *    `prices.own_key` tokens, their key's month and cap, our check still on every picture.
  *  - **Identity pack (the creator suite):** eight views of them (lib/studio/identity-views.ts), each an edit of the face
  *    they keep, for Fix faces (lib/adult/fix-faces.ts) and, when the setting is on, an extra angle in shoots.
+ *  - **Bigger shoots (the creator suite):** 8, 12 or 20 pictures, drawn four at a time after the answer (each batch under
+ *    a lease, carried on by whoever looks next), each picture landing in the gallery as it's kept; a fifth four free.
  *  - **Setups, Animate (v3):** a shoot's choices saved under a name and run on any of their characters; a picture of one
  *    of them made a 5 or 10 s clip on After Dark's video model, queued and collected as the page polls, checked by Hive.
  *  - **Price and caps:** a shoot's tokens are taken first (admins free), given back whole when nothing came through; one
@@ -108,10 +110,10 @@ import {
   type Strength,
   type Subject,
 } from "./studio-catalog";
-import type { StudioConfig, StudioModel } from "./studio-config";
+import { shootPrice, type StudioConfig, type StudioModel } from "./studio-config";
 import { studioTileId, TILE_GROUPS } from "./studio-tiles";
 import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
-import { countUse, overCap, usageLeft } from "./usage";
+import { countUse, overCap, usageLeft, type UsageKind } from "./usage";
 import { requestJson, withRequestLog, type LoggedRequest } from "./request-log";
 import { freshViews, identityPackOf, keepIdentityView, type IdentityPack } from "../studio/identity-pack";
 import { IDENTITY_VIEW_IDS, identityPrice, identityViewPrompt, pickView, type IdentityViewId } from "../studio/identity-views";
@@ -263,6 +265,8 @@ export type Shoot = {
   created_at: string;
   /** A free redo can be asked for: the viewer 👎'd every picture, and it hasn't been redone. */
   redo?: boolean;
+  /** A bigger shoot, drawn four at a time after the answer (its pictures land as each is kept). */
+  background?: boolean;
 };
 
 export type JobResult = { ok: true; shoot: Shoot; pictures: Media[]; refunded: boolean; message: string | null } | StudioFail;
@@ -311,16 +315,23 @@ type JobSpec = {
   concurrency?: number;
   /** The shape the pictures are drawn in ("9:16"; lib/studio/formats.ts), kept on each: 3:4 by default. */
   ratio?: string;
+  /** A bigger shoot: what to build its next batches from (BIG_BATCH at a time, after the answer; advanceShoot). */
+  background?: BigShootPlan;
 };
+/** A bigger shoot's own input, kept on its row, so any later look can build its next pictures the same way. */
+export type BigShootPlan = { action: "shoot"; character_id: string; input: ShootInput; base: string } | { action: "pair"; character_id: string; input: PairInput; base: string };
 type JobPrompt = { prompt: string; preset: PresetId | null; images?: string[]; view?: IdentityViewId };
 
 const shootRow = (r: {
   id: string; kind: ShootKind; status: Shoot["status"]; model: string | null; provider: string | null; tokens: number; asked: number; made: number; pictures: unknown;
-  redo_of: string | null; error: string | null; created_at: string | Date;
+  redo_of: string | null; error: string | null; created_at: string | Date; background?: boolean | null;
 }): Shoot => ({
   id: r.id, kind: r.kind, status: r.status, model: r.model, provider: r.provider, tokens: r.tokens, asked: r.asked, made: r.made,
   pictures: Array.isArray(r.pictures) ? (r.pictures as string[]) : [], redo_of: r.redo_of, error: r.error, created_at: new Date(r.created_at).toISOString(),
+  ...(r.background ? { background: true } : {}),
 });
+/** A shoot row's columns, as shootRow reads them. */
+const SHOOT_COLUMNS = "id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at, (plan is not null) as background";
 
 /** A job's choices' level (0 dressed … 3 explicit), when they say one. */
 const levelOf = (choices: unknown): number | null => {
@@ -332,13 +343,9 @@ const levelOf = (choices: unknown): number | null => {
  * Runs one Studio job: the cap and the gate first (nothing spent on a refusal), the tokens, then every picture drawn at
  * once, checked one after another, and the ones that pass kept. Nothing came through: the tokens come back whole.
  */
-async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok: true }>, spec: JobSpec): Promise<JobResult> {
-  const c = access.character;
+/** The keys a job runs on: ours, or their own (Connections, After Dark pictures) when asked for and usable this month. */
+async function jobKeys(db: Db, viewer: string, access: Extract<StudioAccess, { ok: true }>, spec: Pick<JobSpec, "ownKey" | "model">): Promise<{ ok: true; keys: Keys; own: { provider: string } | null } | StudioFail> {
   const house = await adultKeys(db);
-  if (!(await checkReady(db))) return fail(409, "not_set_up", "Pictures need a checker in After Dark's settings (every picture is checked before it's kept).");
-  // Their own key (Connections, After Dark pictures): its provider must be the model's, and it must be usable this month.
-  let keys: Keys = { venice: house.venice, replicate: house.replicate, hive: house.hive };
-  let own: { provider: string } | null = null;
   if (spec.ownKey) {
     const usable = await jobUsability(db, viewer, "after_dark");
     if (usable.state === "none") return fail(409, "no_own_key", "Connect a Venice or Replicate key under Connections (After Dark pictures) first.");
@@ -347,31 +354,26 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
     if (!jk) return fail(409, "no_own_key", "Connect a Venice or Replicate key under Connections (After Dark pictures) first.");
     if (!access.config.own_keys[jk.provider as "venice" | "replicate"]) return fail(403, "own_key_off", "Own keys for that provider are switched off in the settings.");
     if (jk.provider !== spec.model.provider) return fail(422, "wrong_model", `${spec.model.label} doesn't run on your ${jk.provider === "venice" ? "Venice" : "Replicate"} key: pick one of its models.`);
-    keys = { venice: jk.provider === "venice" ? jk.apiKey : null, replicate: jk.provider === "replicate" ? jk.apiKey : null, hive: house.hive };
-    own = { provider: jk.provider };
-  } else if (spec.model.provider === "venice" ? !keys.venice : !keys.replicate) {
+    return { ok: true, keys: { venice: jk.provider === "venice" ? jk.apiKey : null, replicate: jk.provider === "replicate" ? jk.apiKey : null, hive: house.hive }, own: { provider: jk.provider } };
+  }
+  if (spec.model.provider === "venice" ? !house.venice : !house.replicate) {
     return fail(409, "not_set_up", `${spec.model.label} needs the ${spec.model.provider === "venice" ? "Venice" : "Replicate"} key in After Dark's settings.`);
   }
-  const asked = spec.prompts.length;
+  return { ok: true, keys: { venice: house.venice, replicate: house.replicate, hive: house.hive }, own: null };
+}
+
+type Drawn = { kept: Media[]; lastError: string | null; paused: string | null; drawnCount: number; unchecked: number };
+
+/**
+ * Draws `prompts` (all at once, or `concurrency` at a time), checks each one after another, and keeps the ones that
+ * pass under shoot `shootId`, each counted against the month. What it kept, the last error, a pause of the checker (and
+ * how many drawn pictures it then left unchecked), and how many the provider drew.
+ */
+async function drawAndKeep(db: Db, viewer: string, c: Character, spec: JobSpec, prompts: JobPrompt[], shootId: string, keys: Keys, own: { provider: string } | null, capKind: UsageKind): Promise<Drawn> {
   // A picture of two is kept under the pair's order, as every picture of a pair is (lib/relationships.ts pairKey).
   const [first, second] = spec.partner ? pairKey(c.id, spec.partner) : [c.id, null];
-  const capKind = spec.cap ?? (own ? "studio_byok" : "studio");
-  const left = await usageLeft(db, viewer, capKind);
-  if (left !== null && left < asked) return fail(429, "over_cap", `That's ${asked} and ${left} are left this month. They reset on the 1st.`);
-  const gate = await mediaGate(db, { owner: viewer });
-  if (!gate.ok) return fail(503, "hive_paused", gate.message);
-  const pays = spec.tokens > 0 && !access.admin;
-  if (pays && !(await spendBoughtTokens(db, viewer, spec.tokens))) {
-    return fail(402, "needs_tokens", `That costs ${spec.tokens} token${spec.tokens === 1 ? "" : "s"}. Get more on the shop page.`);
-  }
-  const id = crypto.randomUUID();
-  await db.query(
-    `insert into adult_studio_shoots (id, owner_id, character_id, partner_id, kind, choices, model, provider, own_key, tokens, asked, status, redo_of)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, 'making', $12)`,
-    [id, viewer, c.id, spec.partner ?? null, spec.kind, JSON.stringify(spec.choices ?? {}), spec.model.id, spec.model.provider, Boolean(own), pays ? spec.tokens : 0, asked, spec.redoOf ?? null],
-  );
   // Every picture at once (each a minute or so), or `concurrency` at a time, then checked one at a time.
-  const drawn = await inBatches(spec.prompts, spec.concurrency ?? spec.prompts.length, (p) =>
+  const drawn = await inBatches(prompts, spec.concurrency ?? prompts.length, (p) =>
     // Each with its own log of what it sent (lib/adult/request-log.ts), kept with the picture.
     withRequestLog(() => (spec.draw ? spec.draw(keys, p) : drawOne(db, spec.model, keys, p.prompt, p.images ?? spec.images, spec.negative, spec.ratio))).then(
       ({ value: file, requests }) => ({ file, p, requests }),
@@ -387,12 +389,16 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
   let lastError: string | null = null;
   let checked = 0;
   let paused: string | null = null;
+  let unchecked = 0;
   for (const d of drawn) {
     if ("error" in d) {
       lastError = d.error;
       continue;
     }
-    if (paused) continue;
+    if (paused) {
+      unchecked++;
+      continue;
+    }
     if (checked++) await pause(CHECK_GAP_MS);
     const verdict: CheckResult = await checkMedia(db, { base64: d.file.bytes.toString("base64"), mime: d.file.mime }, "image", { owner: viewer });
     if (!verdict.ok) {
@@ -410,7 +416,7 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
       `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, model, preset, scene_place, shoot_id, nsfw_score, request, level, aspect)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ready', $10, false, $11, $12, $13, $14, $15, $16::jsonb, $17, $18)`,
       [
-        pid, viewer, first, second, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, id, verdict.nsfw ?? null,
+        pid, viewer, first, second, spec.pictureKind, d.p.prompt.slice(0, 2000), d.file.mime, store.data, store.object_key, spec.model.provider, spec.model.id, d.p.preset, spec.place?.slice(0, 120) ?? null, shootId, verdict.nsfw ?? null,
         requestJson(d.requests), levelOf(spec.choices), spec.ratio ?? null,
       ],
     );
@@ -421,17 +427,61 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
       place: spec.place, provider: spec.model.provider, fell_back: false, note: null, preset: d.p.preset, rating: null, tags: [], face: false, aspect: spec.ratio ?? null,
     });
   }
-  const made = kept.length;
   // On their own key, what the provider billed them: every picture it drew, kept or not (the job's monthly cap).
   const drawnCount = drawn.filter((d) => !("error" in d)).length;
   if (own && drawnCount) await recordJobSpend(db, viewer, "after_dark", own.provider, Math.round(spec.model.usd * drawnCount * 10000) / 10000);
+  return { kept, lastError, paused, drawnCount, unchecked };
+}
+
+/** Pictures a bigger shoot draws at once, and how long one look carries it on before leaving the rest to the next. */
+export const BIG_BATCH = 4;
+const ADVANCE_BUDGET_MS = 170_000;
+/** A bigger shoot still making after this is finished as it stands (its missing share of tokens back). */
+const SHOOT_GIVE_UP_MS = 45 * 60 * 1000;
+
+/**
+ * Runs one Studio job: the cap and the gate first (nothing spent on a refusal), the tokens, then every picture drawn at
+ * once, checked one after another, and the ones that pass kept. Nothing came through: the tokens come back whole. A
+ * bigger shoot (`background`) answers at once and is drawn BIG_BATCH at a time after the answer (advanceShoot).
+ */
+async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok: true }>, spec: JobSpec): Promise<JobResult> {
+  const c = access.character;
+  if (!(await checkReady(db))) return fail(409, "not_set_up", "Pictures need a checker in After Dark's settings (every picture is checked before it's kept).");
+  const k = await jobKeys(db, viewer, access, spec);
+  if (!k.ok) return k;
+  const { keys, own } = k;
+  const asked = spec.prompts.length;
+  const capKind = spec.cap ?? (own ? "studio_byok" : "studio");
+  const left = await usageLeft(db, viewer, capKind);
+  if (left !== null && left < asked) return fail(429, "over_cap", `That's ${asked} and ${left} are left this month. They reset on the 1st.`);
+  const gate = await mediaGate(db, { owner: viewer });
+  if (!gate.ok) return fail(503, "hive_paused", gate.message);
+  const pays = spec.tokens > 0 && !access.admin;
+  if (pays && !(await spendBoughtTokens(db, viewer, spec.tokens))) {
+    return fail(402, "needs_tokens", `That costs ${spec.tokens} token${spec.tokens === 1 ? "" : "s"}. Get more on the shop page.`);
+  }
+  const id = crypto.randomUUID();
+  await db.query(
+    `insert into adult_studio_shoots (id, owner_id, character_id, partner_id, kind, choices, model, provider, own_key, tokens, asked, status, redo_of, plan)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, 'making', $12, $13::jsonb)`,
+    [id, viewer, c.id, spec.partner ?? null, spec.kind, JSON.stringify(spec.choices ?? {}), spec.model.id, spec.model.provider, Boolean(own), pays ? spec.tokens : 0, asked, spec.redoOf ?? null, spec.background ? JSON.stringify(spec.background) : null],
+  );
+  if (spec.background) {
+    // The answer goes now; the pictures land as each is kept (the page looks again every few seconds).
+    await later(() => advanceShoot(db, viewer, id));
+    const row = (await db.query<Parameters<typeof shootRow>[0]>(`select ${SHOOT_COLUMNS} from adult_studio_shoots where id = $1`, [id])).rows[0];
+    const shot = shootRow(row);
+    return { ok: true, shoot: shot, pictures: await mediaByIds(db, shot.pictures, viewer), refunded: false, message: shot.status === "making" ? `Shooting ${asked}: each one lands below as it's kept.` : null };
+  }
+  const { kept, lastError, paused } = await drawAndKeep(db, viewer, c, spec, spec.prompts, id, keys, own, capKind);
+  const made = kept.length;
   const status: Shoot["status"] = made === 0 ? "failed" : made < asked ? "partial" : "ready";
   const refunded = made === 0 && pays;
   if (refunded) await refundBoughtTokens(db, viewer, spec.tokens);
   const row = (
     await db.query<Parameters<typeof shootRow>[0]>(
       `update adult_studio_shoots set made = $2, status = $3, pictures = $4::jsonb, error = $5, tokens = $6, updated_at = now() where id = $1
-       returning id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at`,
+       returning ${SHOOT_COLUMNS}`,
       [id, made, status, JSON.stringify(kept.map((k) => k.id)), lastError, refunded ? 0 : pays ? spec.tokens : 0],
     )
   ).rows[0];
@@ -442,6 +492,110 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
         ? `${made} of ${asked} came through; the rest ${paused ? "waited on the safety check" : "didn't pass the check or failed to draw"}.`
         : null;
   return { ok: true, shoot: shootRow(row), pictures: kept, refunded, message: paused && made === 0 ? hivePausedErrorMessage(new HivePausedError(paused, "", true), refunded) : message };
+}
+
+/** After the answer (Next's after()), or at once where there's no request: a script, a test. */
+async function later(run: () => Promise<void>): Promise<void> {
+  const safe = () => run().catch((err) => console.log(JSON.stringify({ event: "studio_shoot_advance_failed", detail: err instanceof Error ? err.message.slice(0, 200) : "error" })));
+  try {
+    const { after } = await import("next/server");
+    after(safe);
+  } catch {
+    await safe();
+  }
+}
+
+/** A bigger shoot's job, built again from what it was asked (the same builder as when it was asked). */
+async function bigShootSpec(db: Db, viewer: string, plan: BigShootPlan): Promise<Built> {
+  return plan.action === "shoot" ? shootSpec(db, viewer, plan.character_id, plan.input, plan.base) : pairSpec(db, viewer, plan.character_id, plan.input, plan.base);
+}
+
+/**
+ * Carries a bigger shoot on: claims its next BIG_BATCH pictures (a lease, so two looks never draw the same ones), builds
+ * the job again, draws, checks and keeps them, and goes on while this run has time; the next look carries on after
+ * that. A batch the checker paused gives back the pictures it left unchecked, for later. The last batch finishes it.
+ */
+export async function advanceShoot(db: Db, viewer: string, shootId: string, opts: { budgetMs?: number } = {}): Promise<void> {
+  const deadline = Date.now() + (opts.budgetMs ?? ADVANCE_BUDGET_MS);
+  while (Date.now() < deadline) {
+    const claim = (
+      await db.query<{ from: number; to: number; asked: number; plan: BigShootPlan }>(
+        `with c as (
+           select id, drawn from adult_studio_shoots
+            where id = $1 and owner_id = $2 and status = 'making' and plan is not null and drawn < asked and (leased_until is null or leased_until < now())
+            for update)
+         update adult_studio_shoots s set drawn = least(s.asked, c.drawn + $3), leased_until = now() + interval '5 minutes', updated_at = now()
+           from c where s.id = c.id
+         returning c.drawn as "from", s.drawn as "to", s.asked, s.plan`,
+        [shootId, viewer, BIG_BATCH],
+      )
+    ).rows[0];
+    if (!claim) return;
+    const release = (made: string[], error: string | null, back = 0) =>
+      db.query(
+        `update adult_studio_shoots set made = made + $2, pictures = pictures || $3::jsonb, error = coalesce($4, error), drawn = drawn - $5, leased_until = null, updated_at = now() where id = $1`,
+        [shootId, made.length, JSON.stringify(made), error, back],
+      );
+    const built = await bigShootSpec(db, viewer, claim.plan);
+    const k = built.ok ? await jobKeys(db, viewer, built.access, built.spec) : built;
+    if (!built.ok || !k.ok) {
+      // It can't be built any more (the character switched out, a key gone): the rest won't come; finished as it stands.
+      await release([], !built.ok ? built.message : (k as StudioFail).message);
+      await db.query(`update adult_studio_shoots set drawn = asked where id = $1`, [shootId]);
+      await finishShoot(db, viewer, shootId);
+      return;
+    }
+    const prompts = Array.from({ length: claim.to - claim.from }, (_, i) => built.spec.prompts[(claim.from + i) % built.spec.prompts.length]);
+    const capKind = built.spec.cap ?? (k.own ? "studio_byok" : "studio");
+    const r = await drawAndKeep(db, viewer, built.access.character, built.spec, prompts, shootId, k.keys, k.own, capKind);
+    await release(r.kept.map((x) => x.id), r.lastError, r.unchecked);
+    if (r.paused) return;
+    if (claim.to >= claim.asked) {
+      await finishShoot(db, viewer, shootId);
+      return;
+    }
+  }
+}
+
+/**
+ * A bigger shoot done (or given up on): ready, partial or failed by what came through, and the share of its tokens for
+ * the pictures that didn't come back (all of them when none did). Once: the first to finish it wins.
+ */
+async function finishShoot(db: Db, viewer: string, shootId: string): Promise<void> {
+  const row = (
+    await db.query<{ made: number; asked: number; tokens: number }>(
+      `update adult_studio_shoots set status = case when made = 0 then 'failed' when made < asked then 'partial' else 'ready' end, leased_until = null, updated_at = now()
+        where id = $1 and owner_id = $2 and status = 'making' returning made, asked, tokens`,
+      [shootId, viewer],
+    )
+  ).rows[0];
+  if (!row || row.tokens <= 0) return;
+  const back = row.made === 0 ? row.tokens : Math.floor((row.tokens * (row.asked - row.made)) / row.asked);
+  if (back <= 0) return;
+  await refundBoughtTokens(db, viewer, back);
+  await db.query(`update adult_studio_shoots set tokens = tokens - $2 where id = $1`, [shootId, back]);
+}
+
+/**
+ * Bigger shoots of theirs still making: one nobody's drawing (its lease run out) carried on after the answer; one whose
+ * last batch was claimed but never kept, finished; one past SHOOT_GIVE_UP_MS, finished as it stands.
+ */
+export async function collectShoots(db: Db, viewer: string): Promise<void> {
+  const { rows } = await db.query<{ id: string; drawn: number; asked: number; free: boolean; old: boolean }>(
+    `select id, drawn, asked, (leased_until is null or leased_until < now()) as free, created_at < $2 as old from adult_studio_shoots
+      where owner_id = $1 and status = 'making' and plan is not null`,
+    [viewer, new Date(Date.now() - SHOOT_GIVE_UP_MS).toISOString()],
+  );
+  for (const r of rows) {
+    if (r.old) {
+      await db.query(`update adult_studio_shoots set drawn = asked, leased_until = null where id = $1`, [r.id]);
+      await finishShoot(db, viewer, r.id);
+    } else if (r.free && r.drawn >= r.asked) {
+      await finishShoot(db, viewer, r.id);
+    } else if (r.free) {
+      await later(() => advanceShoot(db, viewer, r.id));
+    }
+  }
 }
 
 /** The face they keep, made first if they have none (a baseline, as everywhere), as a link the edit model can fetch. */
@@ -529,7 +683,15 @@ const wordsOk = (words: string): boolean => checkAdultText({ words }).ok && !cro
 
 /* --------------------------------------------------- a shoot --------------------------------------------------- */
 
-export type ShootInput = { choices: ShootChoices; model?: string | null; own_key?: boolean; format?: FormatId };
+export type ShootInput = { choices: ShootChoices; model?: string | null; own_key?: boolean; format?: FormatId; size?: number };
+/** A job built and not run yet: what runJob runs. */
+type Built = { ok: true; access: Extract<StudioAccess, { ok: true }>; spec: JobSpec } | StudioFail;
+
+/** How many pictures a shoot makes: the size asked (one of the Studio's sizes), else the Studio's own; null for one it doesn't offer. */
+function shootSizeOf(config: StudioConfig, size: number | undefined): number | null {
+  if (size === undefined || size === config.shoot_size) return config.shoot_size;
+  return config.shoot_sizes.includes(size) ? size : null;
+}
 
 /**
  * The places of the character's nights (the viewer's, with a drawn set), then the viewer's own venues from the Create
@@ -553,11 +715,23 @@ export async function ownPlaces(db: Db, viewer: string, characterId: string): Pr
 }
 
 export async function shoot(db: Db, viewer: string, characterId: string, input: ShootInput, baseUrl: string, opts: { redoOf?: string; free?: boolean } = {}): Promise<JobResult> {
+  const built = await shootSpec(db, viewer, characterId, input, baseUrl, opts);
+  return built.ok ? runJob(db, viewer, built.access, built.spec) : built;
+}
+
+/**
+ * A shoot's job (the Shoot tab's), built and not run: shoot() runs it, and a bigger shoot's later batches are built
+ * again from the same input (advanceShoot), so each batch reads their face, ratings and light as they are by then.
+ */
+async function shootSpec(db: Db, viewer: string, characterId: string, input: ShootInput, baseUrl: string, opts: { redoOf?: string; free?: boolean } = {}): Promise<Built> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config } = access;
   const model = studioModel(config, "edit", input.model);
   if (!model) return fail(422, "unknown_model", "Pick one of the Studio's models.");
+  const size = shootSizeOf(config, input.size);
+  if (size === null) return fail(422, "unknown_size", `A shoot makes ${[config.shoot_size, ...config.shoot_sizes.filter((n) => n !== config.shoot_size)].join(", ")} pictures.`);
+  const big = size > BIG_BATCH;
   const identity = await identityOf(db, viewer, c.id);
   const limits = shootLimits(identity, config);
   const places = input.choices.place?.startsWith("own:") ? await ownPlaces(db, viewer, c.id) : [];
@@ -607,20 +781,25 @@ export async function shoot(db: Db, viewer: string, characterId: string, input: 
   }
   const steer = await steeringFor(db, viewer, [c.id]).catch(() => NO_STEERING);
   const prompt = withSteering(shootPrompt(plan, subject, { ...refs, angle }, identity.strength), steer, null);
-  return runJob(db, viewer, access, {
-    kind: "shoot",
-    pictureKind: "scene",
-    prompts: Array.from({ length: config.shoot_size }, () => ({ prompt, preset })),
-    images,
-    negative: [NEGATIVE_PROMPT, ...steer.negative].join(", "),
-    model,
-    tokens: opts.free ? 0 : input.own_key ? config.prices.own_key : config.prices.shoot[model.tier],
-    choices: { ...input.choices, level: plan.level, ...(input.format && input.format !== "portrait" ? { format: input.format } : {}) },
-    place: plan.place,
-    redoOf: opts.redoOf ?? null,
-    ownKey: input.own_key === true,
-    ratio: ratioOf(input.format),
-  });
+  return {
+    ok: true,
+    access,
+    spec: {
+      kind: "shoot",
+      pictureKind: "scene",
+      prompts: Array.from({ length: size }, () => ({ prompt, preset })),
+      images,
+      negative: [NEGATIVE_PROMPT, ...steer.negative].join(", "),
+      model,
+      tokens: opts.free ? 0 : shootPrice(input.own_key ? config.prices.own_key : config.prices.shoot[model.tier], size),
+      choices: { ...input.choices, level: plan.level, ...(input.format && input.format !== "portrait" ? { format: input.format } : {}), ...(big ? { size } : {}) },
+      place: plan.place,
+      redoOf: opts.redoOf ?? null,
+      ownKey: input.own_key === true,
+      ratio: ratioOf(input.format),
+      ...(big ? { background: { action: "shoot" as const, character_id: c.id, input, base: baseUrl } } : {}),
+    },
+  };
 }
 
 /* -------------------------------------------------- restyle -------------------------------------------------- */
@@ -969,6 +1148,8 @@ export type PairInput = {
   eyes?: Eyes | null;
   /** The shape it's drawn in (native sizes, lib/studio/formats.ts). */
   format?: FormatId;
+  /** How many pictures (one of the Studio's sizes; bigger shoots are drawn after the answer). */
+  size?: number;
 };
 
 /**
@@ -976,11 +1157,20 @@ export type PairInput = {
  * pictures do) and the place's drawn set, planned by the picture menu's rules (lib/adult/pictures-menu.ts planPicture).
  */
 export async function pairShoot(db: Db, viewer: string, characterId: string, input: PairInput, baseUrl: string): Promise<JobResult> {
+  const built = await pairSpec(db, viewer, characterId, input, baseUrl);
+  return built.ok ? runJob(db, viewer, built.access, built.spec) : built;
+}
+
+/** A shoot together's job, built and not run (pairShoot runs it; a bigger one's later batches are built again from it). */
+async function pairSpec(db: Db, viewer: string, characterId: string, input: PairInput, baseUrl: string): Promise<Built> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { config } = access;
   const model = studioModel(config, "edit", input.model);
   if (!model) return fail(422, "unknown_model", "Pick one of the Studio's edit models.");
+  const size = shootSizeOf(config, input.size);
+  if (size === null) return fail(422, "unknown_size", `A shoot makes ${[config.shoot_size, ...config.shoot_sizes.filter((n) => n !== config.shoot_size)].join(", ")} pictures.`);
+  const big = size > BIG_BATCH;
   // Both faces, unless it's seen through one of their eyes (then only the other's).
   if (model.max_images < (input.eyes ? 1 : 2)) return fail(422, "wrong_model", `${model.label} takes one picture, and a picture of two needs both faces.`);
   const p = await pairOf(db, viewer, characterId, input.partner);
@@ -1042,14 +1232,14 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
   if (input.reference) images.push(signedMediaUrl(input.reference, baseUrl));
   const prompt = plan.promptFor(withSet);
   const preset = PICTURE_PRESETS.find((x) => x.id === input.light)?.id ?? null;
-  return runJob(db, viewer, access, {
+  return { ok: true, access, spec: {
     kind: "pair",
     pictureKind: "scene",
-    prompts: Array.from({ length: config.shoot_size }, () => ({ prompt, preset })),
+    prompts: Array.from({ length: size }, () => ({ prompt, preset })),
     images,
     negative: NEGATIVE_PROMPT,
     model,
-    tokens: input.own_key ? config.prices.own_key : config.prices.pair[model.tier],
+    tokens: shootPrice(input.own_key ? config.prices.own_key : config.prices.pair[model.tier], size),
     // `level` too (2026-10-26: read as level 2 without it, so a dressed pair animated as explicit), and whose eyes.
     choices: {
       partner: input.partner,
@@ -1064,12 +1254,14 @@ export async function pairShoot(db: Db, viewer: string, characterId: string, inp
       ...(plan.eyes ? { eyes: plan.eyes } : {}),
       ...(input.reference ? { reference: input.reference } : {}),
       ...(input.format && input.format !== "portrait" ? { format: input.format } : {}),
+      ...(big ? { size } : {}),
     },
     place: plan.place,
     partner: input.partner,
     ownKey: input.own_key === true,
     ratio: ratioOf(input.format),
-  });
+    ...(big ? { background: { action: "pair" as const, character_id: characterId, input, base: baseUrl } } : {}),
+  } };
 }
 
 /* ------------------------------------------- more like this, upscale ------------------------------------------- */
@@ -1428,7 +1620,8 @@ export async function collectAnimations(db: Db, viewer: string): Promise<void> {
 
 /** Whether a shoot can be redone free: the setting on, a shoot (not a restyle), every picture 👎'd by its owner, not redone. */
 async function redoable(db: Db, viewer: string, s: Shoot, config: StudioConfig): Promise<boolean> {
-  if (!config.free_redo || s.kind !== "shoot" || s.redo_of || !s.pictures.length) return false;
+  // Not a bigger shoot's (a free redo of twenty is a gift too far): shoots of four.
+  if (!config.free_redo || s.kind !== "shoot" || s.redo_of || s.background || !s.pictures.length) return false;
   const { rows } = await db.query<{ n: number; down: number; redone: boolean }>(
     `select count(*)::int as n, count(*) filter (where t.rating < 0)::int as down,
             exists (select 1 from adult_studio_shoots r where r.redo_of = $3) as redone
@@ -1443,8 +1636,8 @@ async function redoable(db: Db, viewer: string, s: Shoot, config: StudioConfig):
 /** The free redo: the same choices and model, no tokens, steered by what the 👎s said was off. */
 export async function redoShoot(db: Db, viewer: string, shootId: string, baseUrl: string): Promise<JobResult> {
   const r = (
-    await db.query<Parameters<typeof shootRow>[0] & { character_id: string; choices: ShootChoices & { level?: number }; own_key: boolean }>(
-      `select id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at, character_id, choices, own_key from adult_studio_shoots where id = $1 and owner_id = $2`,
+    await db.query<Parameters<typeof shootRow>[0] & { character_id: string; choices: ShootChoices & { level?: number; format?: FormatId; size?: number }; own_key: boolean }>(
+      `select ${SHOOT_COLUMNS}, character_id, choices, own_key from adult_studio_shoots where id = $1 and owner_id = $2`,
       [shootId, viewer],
     )
   ).rows[0];
@@ -1452,8 +1645,9 @@ export async function redoShoot(db: Db, viewer: string, shootId: string, baseUrl
   const access = await studioAccess(db, viewer, r.character_id);
   if (!access.ok) return access;
   if (!(await redoable(db, viewer, shootRow(r), access.config))) return fail(409, "not_redoable", "A free redo is for a shoot whose every picture you 👎'd, once.");
-  const { level: _level, ...choices } = r.choices ?? {};
-  return shoot(db, viewer, r.character_id, { choices, model: r.model, own_key: r.own_key }, baseUrl, { redoOf: r.id, free: true });
+  // Its own shape again; the level and size aren't menu choices.
+  const { level: _level, format, size: _size, ...choices } = r.choices ?? {};
+  return shoot(db, viewer, r.character_id, { choices, model: r.model, own_key: r.own_key, ...(format ? { format } : {}) }, baseUrl, { redoOf: r.id, free: true });
 }
 
 /* ----------------------------------------------------- state ----------------------------------------------------- */
@@ -1507,6 +1701,9 @@ export type StudioState = {
   animating: Shoot[];
   /** Their identity pack's views (the creator suite): each one's picture, and whether it was drawn from an earlier face. */
   identity_pack: IdentityPack;
+  /** Bigger shoots still landing (the page looks again every few seconds while there are), and the sizes on offer. */
+  shooting: Shoot[];
+  shoot_sizes: number[];
 };
 
 export async function studioState(db: Db, viewer: string, characterId: string): Promise<{ ok: true; state: StudioState } | StudioFail> {
@@ -1515,6 +1712,8 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
   const { character: c, config, admin, noun, gender } = access;
   // Animations finished since the page last asked: checked and kept first, so they're in the gallery below.
   await collectAnimations(db, viewer).catch((err) => console.log(JSON.stringify({ event: "studio_animate_collect_failed", detail: err instanceof Error ? err.message.slice(0, 200) : "error" })));
+  // Bigger shoots nobody's drawing right now: carried on after the answer (their pictures land as each is kept).
+  await collectShoots(db, viewer).catch((err) => console.log(JSON.stringify({ event: "studio_shoot_collect_failed", detail: err instanceof Error ? err.message.slice(0, 200) : "error" })));
   const keys = await adultKeys(db);
   const checker = await checkReady(db);
   const identity = await identityOf(db, viewer, c.id);
@@ -1523,7 +1722,7 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
     ownPlaces(db, viewer, c.id),
     listMedia(db, [c.id], viewer),
     db.query<Parameters<typeof shootRow>[0]>(
-      `select id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at from adult_studio_shoots
+      `select ${SHOOT_COLUMNS} from adult_studio_shoots
         where owner_id = $1 and character_id = $2 order by created_at desc limit 20`,
       [viewer, c.id],
     ),
@@ -1587,6 +1786,8 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
       motions: ANIMATE_MOTIONS.filter((m) => !config.disabled_options.includes(`motion.${m.id}`)).map(({ id, label }) => ({ id, label })),
       animating: shoots.filter((x) => x.kind === "animate" && x.status === "making"),
       identity_pack: await identityPackOf(db, viewer, c.id, "after_dark", identity.face),
+      shooting: shoots.filter((x) => x.background && x.status === "making"),
+      shoot_sizes: [config.shoot_size, ...config.shoot_sizes.filter((n) => n !== config.shoot_size)],
     },
   };
 }

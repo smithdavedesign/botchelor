@@ -31,8 +31,8 @@ as AI, captions, bigger shoots and carousels. Clips need: save a moment, continu
 | 2 | Export pack + captions in their voice + tile tools (both Studios, the scene gallery) | #927, reverted (#929: the deploy ran out of disk); re-landed as #931 after #930 shipped ffmpeg to its routes only; live |
 | 3 | Framing scores + POV for two people | #932, live |
 | 4 | Fix faces + identity pack (and the face anchor follows a new face) | #933, live |
-| 5a | Native sizes + carousels (both Studios; fixes PG shoots without a portrait) | this PR |
-| 5b | Bigger shoots with live reveals | |
+| 5a | Native sizes + carousels (both Studios; fixes PG shoots without a portrait) | #934, live |
+| 5b | Bigger shoots (8, 12, 20) landing as they're kept, After Dark Studio | this PR |
 | 6 | SFW twin + camera-move tiles + content ratings | |
 | 7 | Rating deck + favorites + delight pass + docs and screenshots | |
 

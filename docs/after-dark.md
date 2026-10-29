@@ -2517,3 +2517,28 @@ it's posted in. They also make a carousel: one picture's moment from six angles.
 - **The PG Studio:** from their portrait (when there is one) and the picture itself, sent as data because a provider
   can't open our pictures' links. Each is checked as a shoot's are (swimwear read as at the beach), and counts against
   the month's pictures.
+
+## Bigger shoots, landing as they're kept (2026-10-26)
+
+A shoot of four took a minute or two and came back all at once. The Studio now also offers 8, 12 and 20
+(`shoot_sizes`, both alone and together). Each picture shows up as soon as it's kept.
+
+- **Price:** the price of four for each four, with the fifth four free (`shootPrice` in `lib/adult/studio-config.ts`).
+  That makes 8 for 2 tokens, 12 for 3 and 20 for 4. A pro model's price doubles, and admins don't pay.
+- **The answer comes at once.** The POST spends the tokens, keeps the shoot's own input on its row (`plan`), and draws
+  after the answer (Next's `after()`) in that run's time (`ADVANCE_BUDGET_MS`, inside the route's 300 s).
+- **Batches:** `advanceShoot` claims the next `BIG_BATCH` (4) pictures under a five-minute lease, so two looks never draw
+  the same ones. It builds the job again from that input (the same `shootSpec`/`pairSpec` as a shoot of four), then
+  draws, checks and keeps them, appending to the shoot as each batch lands.
+- **Carrying on:** any look at the Studio (`studioState` → `collectShoots`) carries on a shoot nobody's drawing,
+  finishes one whose last batch was claimed but never kept, and finishes one past 45 minutes as it stands.
+- **When the checker pauses:** a batch gives back the pictures it left unchecked, to be drawn after the pause.
+- **The tokens:** a shoot that ends with fewer pictures gives back the share of its tokens for the ones that didn't
+  come (all of them when none did), once (`finishShoot`). Pictures count against the month as each is kept; the
+  month's room is checked for all of them up front.
+- **The page:** a size row beside the shape chips, and the button says the count and the price. While a shoot lands,
+  the page looks again every 3 s. A reveal card (`app/studio/ShootReveal.tsx`) has a slot per picture, each fading in
+  as it's kept (opacity and a slight scale only, never a filter, so discreet mode's blur holds; still for reduced
+  motion). When it's done, the page says how many were kept and what came back.
+- **No free redo for a bigger shoot** (a redo of twenty for free is too generous). A redo of four keeps its shape.
+- The PG Studio's shoots stay at up to `pg.shoot_size` (8), drawn before the answer.

@@ -2518,6 +2518,11 @@ alter table adult_images add column if not exists fixed_from text references adu
 -- Native sizes (lib/studio/formats.ts): the shape a picture was drawn in ("9:16"); null for one drawn before, all 3:4.
 alter table adult_images add column if not exists aspect text;
 alter table studio_pg_pictures add column if not exists aspect text;
+-- Bigger shoots (lib/adult/studio.ts advanceShoot): the shoot's own input, to build each next batch from; how many of
+-- its pictures have been started; and the lease of whoever's drawing the current batch.
+alter table adult_studio_shoots add column if not exists plan jsonb;
+alter table adult_studio_shoots add column if not exists drawn integer not null default 0;
+alter table adult_studio_shoots add column if not exists leased_until timestamptz;
 alter table adult_identity add column if not exists face_crop_from text;
 alter table studio_pg_shoots add column if not exists kind text not null default 'shoot';
 create table if not exists identity_views (
