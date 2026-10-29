@@ -1,5 +1,8 @@
 "use client";
 
+import SfwTwin from "../../SfwTwin";
+import CameraMoves from "../../CameraMoves";
+import type { CameraMoveId } from "@/lib/adult/camera-moves";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Eyes } from "@/lib/adult/acts";
@@ -164,7 +167,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   // A gallery asset opened full screen (whole, never cropped — Lightbox.tsx; David, 2026-10-25).
   const [zoom, setZoom] = useState<{ id: string; video: boolean } | null>(null);
   const [sharing, setSharing] = useState<{ image: string; to: string; kind: "after_dark" | "photo" } | null>(null);
-  const [animating, setAnimating] = useState<{ image: string; motion: string; seconds: 5 | 10; guide?: string; dialog?: string; transcript?: string } | null>(null);
+  const [animating, setAnimating] = useState<{ image: string; motion: string; seconds: 5 | 10; guide?: string; dialog?: string; transcript?: string; camera?: CameraMoveId } | null>(null);
   const [setupName, setSetupName] = useState("");
   const setupNameRef = useRef<HTMLInputElement>(null);
   const c = s.character;
@@ -475,7 +478,15 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 rating={p.rating ?? null}
                 tags={p.tags ?? []}
                 // 🩹 Fix faces (lib/adult/fix-faces.ts): bolder once they say it doesn't look like them.
-                extra={(r) => p.kind === "scene" && <FixFaces id={p.id} src={media} label={two ? "The picture of them" : `The picture of ${first}`} onFixed={() => void refresh()} nudge={r.rating === -1 && r.tags.includes("face")} />}
+                extra={(r) =>
+                  p.kind === "scene" && (
+                    <>
+                      <FixFaces id={p.id} src={media} label={two ? "The picture of them" : `The picture of ${first}`} onFixed={() => void refresh()} nudge={r.rating === -1 && r.tags.includes("face")} />
+                      {/* 👕 The same picture safe for work (lib/adult/sfw-twin.ts). */}
+                      <SfwTwin id={p.id} price={admin ? "free for admins" : tokens(s.prices.sfw_twin)} onAdded={() => void refresh()} />
+                    </>
+                  )
+                }
               />
               {!two && !video &&
                 (s.identity.face === p.id ? (
@@ -577,6 +588,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                     </button>
                   ))}
                 </div>
+                {/* How the camera moves (lib/adult/camera-moves.ts), each tile a preview over this very picture. */}
+                <CameraMoves value={anim.camera ?? "steady"} onChange={(m) => setAnimating({ ...anim, camera: m })} src={media(p.id)} disabled={Boolean(busy)} />
                 <div className="ad-chip-row" role="group" aria-label="How long">
                   {([5, 10] as const).map((sec) => (
                     <button key={sec} type="button" className={`ad-chip${anim.seconds === sec ? " on" : ""}`} aria-pressed={anim.seconds === sec} disabled={Boolean(busy)} onClick={() => setAnimating({ ...anim, seconds: sec })}>
@@ -593,7 +606,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   className="primary small"
                   disabled={Boolean(busy)}
                   onClick={() =>
-                    void act(`animate:${p.id}`, { action: "animate", character_id: c.id, image_id: p.id, motion: anim.motion, seconds: anim.seconds, guide: anim.guide, dialog: anim.dialog, transcript: anim.transcript }, { title: "Animating" }).then((d) => d && setAnimating(null))
+                    void act(`animate:${p.id}`, { action: "animate", character_id: c.id, image_id: p.id, motion: anim.motion, seconds: anim.seconds, guide: anim.guide, dialog: anim.dialog, transcript: anim.transcript, ...(anim.camera && anim.camera !== "steady" ? { camera: anim.camera } : {}) }, { title: "Animating" }).then((d) => d && setAnimating(null))
                   }
                 >
                   Animate · {tokens(anim.seconds === 10 ? s.prices.animate_10 : s.prices.animate_5)}

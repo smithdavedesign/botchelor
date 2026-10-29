@@ -2542,3 +2542,31 @@ A shoot of four took a minute or two and came back all at once. The Studio now a
   motion). When it's done, the page says how many were kept and what came back.
 - **No free redo for a bigger shoot** (a redo of twenty for free is too generous). A redo of four keeps its shape.
 - The PG Studio's shoots stay at up to `pg.shoot_size` (8), drawn before the answer.
+
+## Camera moves and the SFW twin (2026-10-26)
+
+**Camera moves** (`lib/adult/camera-moves.ts`, `app/after-dark/CameraMoves.tsx`):
+- **The moves:** Locked off, Push in, Pull back, Orbit left and right, Pan, Tilt up, Crane up, Handheld. Each phrase
+  takes the place of "the camera steady" in the video prompt: `animatePrompt` (the Studio's Animate) and `shotPrompt`
+  (a clip's shot, `ReelShot.camera`).
+- **Fixed words:** it's a fixed list, so nothing typed reaches a video model through it.
+- **First-person shots** keep their own camera ("as their eyes would"), so the tiles hide for them.
+- **The tiles:** each previews its move over the very picture (Animate) or a plain frame (a clip from the act menu)
+  while picked, hovered or focused. CSS transforms only, never a filter (discreet mode's blur holds); still for reduced
+  motion.
+
+**The SFW twin** (👕; `lib/adult/sfw-twin.ts`, `POST /api/admin/after-dark/sfw-twin`):
+- **What:** one of their After Dark pictures made again safe for work, for a public post: the same people, place,
+  light and framing, everyone in everyday clothes, an everyday pose.
+- **How:** drawn in Venice's safe mode on the PG Studio's edit model (one its safe mode blurs is never kept), in the
+  original's shape. The PG check (`checkRating`) must say pg or suggestive.
+- **Where it lands:**
+  - A picture of their own character alone goes to the PG Studio's gallery (`studio_pg_pictures.twin_of`), where it
+    can be a profile picture.
+  - One of two (or of a character the PG Studio isn't open to them for) stays in After Dark. It goes through the
+    output check too, at level 0, with the PG check's rating (`content_rating`, brought down by a check that just
+    passed: lib/content-rating.ts).
+- **Price:** `prices.sfw_twin` (1 token), admins free; back when nothing came through. The owner's own pictures only.
+- **Not done:** the plan's "content_rating from level on every Studio picture" stays undone on purpose.
+  `lib/content-rating.ts` lets a rating come down only through a check that measured the picture, never from a choice
+  like a level, and the twin's PG check is that path.

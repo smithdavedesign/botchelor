@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CAMERA_MOVE_IDS, type CameraMoveId } from "@/lib/adult/camera-moves";
 import { clipOffer, makeClip } from "@/lib/adult/clips";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
@@ -15,7 +16,8 @@ const Input = z.union([
   // A moment: the latest, or the line the theater shows (`at`), of the running scene or a saved night.
   z.object({ a: id, b: id, here: z.literal(true), at: z.number().int().min(0).max(5000).optional(), night_id: id.nullable().optional() }),
   // An act, or its view through one of their eyes (`eyes`, in the pair's order).
-  z.object({ a: id, b: id, act: z.string().min(1).max(40), swap: z.boolean().optional(), eyes: z.enum(["a", "b"]).nullable().optional() }),
+  // How the camera moves (lib/adult/camera-moves.ts): steady unless picked.
+  z.object({ a: id, b: id, act: z.string().min(1).max(40), swap: z.boolean().optional(), eyes: z.enum(["a", "b"]).nullable().optional(), camera: z.enum(CAMERA_MOVE_IDS as [CameraMoveId, ...CameraMoveId[]]).nullable().optional() }),
   // Keep going: from a clip of theirs (or a shot of one of their videos, `media_id`), from a moment of it cut first by
   // the moments route (`frame_id`), started straight from that frame or from a fresh keyframe of their faces (`mode`);
   // no frame: as before, from the clip's own start picture.

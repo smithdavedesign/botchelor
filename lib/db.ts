@@ -2523,6 +2523,9 @@ alter table studio_pg_pictures add column if not exists aspect text;
 alter table adult_studio_shoots add column if not exists plan jsonb;
 alter table adult_studio_shoots add column if not exists drawn integer not null default 0;
 alter table adult_studio_shoots add column if not exists leased_until timestamptz;
+-- SFW twins (lib/adult/sfw-twin.ts): the After Dark picture a safe-for-work one was made from.
+alter table adult_images add column if not exists twin_of text;
+alter table studio_pg_pictures add column if not exists twin_of text;
 alter table adult_identity add column if not exists face_crop_from text;
 alter table studio_pg_shoots add column if not exists kind text not null default 'shoot';
 create table if not exists identity_views (

@@ -29,6 +29,7 @@
  *    free redo for a shoot the viewer 👎'd whole; monthly caps per person (lib/adult/usage.ts).
  *  - **The check:** every picture passes the output check before it's kept (lib/adult/check.ts), as everywhere.
  */
+import type { CameraMoveId } from "./camera-moves";
 import { readinessOf, type Readiness } from "./readiness";
 import { isAdmin } from "../admins";
 import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allowance";
@@ -1493,7 +1494,7 @@ const animatingNow = async (db: Db, viewer: string): Promise<boolean> =>
     )
   ).rows.length > 0;
 
-export type AnimateInput = { image_id: string; motion?: string; seconds: number } & AnimateGuide;
+export type AnimateInput = { image_id: string; motion?: string; seconds: number; camera?: CameraMoveId | null } & AnimateGuide;
 
 /**
  * Animate (v3): one of their pictures of the character alone becomes a clip on After Dark's video model (Wan 3.0 on
@@ -1539,7 +1540,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
   let queueId: string;
   let sent: LoggedRequest[] = [];
   try {
-    const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion?.words ?? "", guide, { pair });
+    const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion?.words ?? "", guide, { pair, camera: input.camera });
     // What it sent rides on the shoot until the clip is kept (lib/adult/request-log.ts).
     ({ value: queueId, requests: sent } = await withRequestLog(() =>
       queueVideo(keys.venice!, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative: pair ? ANIMATE_NEGATIVE_PAIR : ANIMATE_NEGATIVE }),
@@ -1553,7 +1554,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
       `insert into adult_studio_shoots (id, owner_id, character_id, kind, choices, model, provider, tokens, asked, status)
        values ($1, $2, $3, 'animate', $4::jsonb, $5, 'venice', $6, 1, 'making')
        returning id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at`,
-      [crypto.randomUUID(), viewer, c.id, JSON.stringify({ source: src.id, motion: motion?.id ?? null, seconds, queue_id: queueId, level: src.level, ...(guide.guide ? { guide: guide.guide } : {}), ...(guide.dialog ? { dialog: guide.dialog } : {}), ...(guide.transcript ? { transcript: guide.transcript } : {}), request: sent }), model, pays ? tokens : 0],
+      [crypto.randomUUID(), viewer, c.id, JSON.stringify({ source: src.id, motion: motion?.id ?? null, seconds, queue_id: queueId, level: src.level, ...(input.camera && input.camera !== "steady" ? { camera: input.camera } : {}), ...(guide.guide ? { guide: guide.guide } : {}), ...(guide.dialog ? { dialog: guide.dialog } : {}), ...(guide.transcript ? { transcript: guide.transcript } : {}), request: sent }), model, pays ? tokens : 0],
     )
   ).rows[0];
   return { ok: true, shoot: shootRow(row), pictures: [], refunded: false, message: `Animating: it takes a few minutes, and lands in the gallery.` };

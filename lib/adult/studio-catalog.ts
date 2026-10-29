@@ -10,6 +10,7 @@
  *
  * Pure: no database, no model. The page and the server share it.
  */
+import { cameraWords } from "./camera-moves";
 import { IMAGE_MIN_AGE } from "../looks";
 import { PICTURE_PRESETS } from "./rating-tags";
 
@@ -615,7 +616,7 @@ export type AnimateGuide = { guide?: string; dialog?: string; transcript?: strin
  * they say (their lips move); `transcript` is the lines around this moment, for the mood. A motion chip is optional once
  * there's a guide. The guide, dialog and transcript are held to the lines by the caller and the clip is Hive-checked.
  */
-export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string, g: AnimateGuide = {}, opts: { pair?: boolean } = {}): string {
+export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string, g: AnimateGuide = {}, opts: { pair?: boolean; camera?: string | null } = {}): string {
   const who = subject.noun === "person" ? "person" : subject.noun;
   const them = opts.pair ? "two people" : who;
   const guide = cleanCustom(g.guide, CUSTOM_MAX);
@@ -638,7 +639,8 @@ export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, moti
         : "Only this one person, exactly as in the picture: the same face, body and clothes (or none), in the same place and light.",
       // Keep the face steady through the clip (David, 2026-10-24: the face drifted from the baseline in the video).
       `Keep the ${opts.pair ? "same two faces" : "same face"} throughout, frame to frame — the very same features, never changing or morphing.`,
-      "One continuous shot, the camera steady: no cuts, nobody new comes in. Realistic, unhurried motion.",
+      // How the camera moves (lib/adult/camera-moves.ts): steady unless a move was picked.
+      `One continuous shot, ${cameraWords(opts.camera)}: no cuts, nobody new comes in. Realistic, unhurried motion.`,
       TAIL[level],
     ],
   );

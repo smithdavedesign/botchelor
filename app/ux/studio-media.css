@@ -487,3 +487,78 @@ li.picked {
     transition: none;
   }
 }
+
+/* Camera moves (app/after-dark/CameraMoves.tsx): a tile per move, previewing it over the picture while picked, hovered
+   or focused. Transforms only, never a filter (discreet mode's blur holds); still for reduced motion. */
+.ad-camera-moves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+.ad-camera {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: center;
+  margin: 0;
+  padding: var(--space-1);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+}
+.ad-camera:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--accent);
+}
+.ad-camera.on {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.ad-camera-view {
+  display: block;
+  width: 54px;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border-radius: calc(var(--radius) / 2);
+  background: var(--soft);
+}
+.ad-camera-view img,
+.ad-camera-blank {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ad-camera-blank {
+  background: radial-gradient(circle at 50% 38%, var(--line) 0 18%, transparent 19%), linear-gradient(180deg, var(--soft), var(--card));
+}
+.ad-camera.on .ad-camera-view > *,
+.ad-camera:hover .ad-camera-view > *,
+.ad-camera:focus-visible .ad-camera-view > * {
+  animation: 2.4s ease-in-out infinite alternate;
+}
+.ad-camera .move-push_in > * { animation-name: cam-push-in; }
+.ad-camera .move-pull_back > * { animation-name: cam-pull-back; }
+.ad-camera .move-orbit_left > * { animation-name: cam-orbit-left; }
+.ad-camera .move-orbit_right > * { animation-name: cam-orbit-right; }
+.ad-camera .move-pan > * { animation-name: cam-pan; }
+.ad-camera .move-tilt_up > * { animation-name: cam-tilt-up; }
+.ad-camera .move-crane_up > * { animation-name: cam-crane-up; }
+.ad-camera .move-handheld > * { animation-name: cam-handheld; animation-duration: 0.9s; }
+@keyframes cam-push-in { from { transform: scale(1); } to { transform: scale(1.3); } }
+@keyframes cam-pull-back { from { transform: scale(1.3); } to { transform: scale(1); } }
+@keyframes cam-orbit-left { from { transform: scale(1.2) translateX(8%); } to { transform: scale(1.2) translateX(-8%); } }
+@keyframes cam-orbit-right { from { transform: scale(1.2) translateX(-8%); } to { transform: scale(1.2) translateX(8%); } }
+@keyframes cam-pan { from { transform: scale(1.25) translateX(-10%); } to { transform: scale(1.25) translateX(10%); } }
+@keyframes cam-tilt-up { from { transform: scale(1.25) translateY(10%); } to { transform: scale(1.25) translateY(-10%); } }
+@keyframes cam-crane-up { from { transform: scale(1.1) translateY(8%); } to { transform: scale(1.3) translateY(-6%); } }
+@keyframes cam-handheld { 0% { transform: scale(1.1) translate(0, 0); } 33% { transform: scale(1.1) translate(1.5%, -1%); } 66% { transform: scale(1.1) translate(-1%, 1.5%); } 100% { transform: scale(1.1) translate(1%, 0.5%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ad-camera .ad-camera-view > * {
+    animation: none !important;
+  }
+}

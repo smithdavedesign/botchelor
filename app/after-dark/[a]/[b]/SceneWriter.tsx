@@ -1,5 +1,6 @@
 "use client";
 
+import SfwTwin from "../../SfwTwin";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
@@ -723,7 +724,15 @@ function Gallery({
                   tags={m.tags ?? []}
                   onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))}
                   // 🩹 Fix faces (lib/adult/fix-faces.ts): the fixed one joins the gallery; bolder after "Doesn't look like them".
-                  extra={(r) => m.kind === "scene" && <FixFaces id={m.id} src={mediaUrl} label="The picture" onFixed={onAdd} nudge={r.rating === -1 && r.tags.includes("face")} />}
+                  extra={(r) =>
+                    m.kind === "scene" && (
+                      <>
+                        <FixFaces id={m.id} src={mediaUrl} label="The picture" onFixed={onAdd} nudge={r.rating === -1 && r.tags.includes("face")} />
+                        {/* 👕 The same picture safe for work (lib/adult/sfw-twin.ts); a twin of two joins this gallery. */}
+                        <SfwTwin id={m.id} onAdded={onAdd} />
+                      </>
+                    )
+                  }
                 />
               )}
               {status === "ready" && <MediaTags id={m.id} pinned={m.date_pin} />}

@@ -19,6 +19,7 @@
  * somewhere public, and nothing the pair's limits rule out (mediaLimits). Price: clip_tokens bought tokens (3 by
  * default), admins free. While Hive is over its daily limit (lib/adult/hive-limit.ts) none starts, and nothing is spent.
  */
+import type { CameraMoveId } from "./camera-moves";
 import { isAdmin } from "../admins";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { loadCharacter } from "../character";
@@ -263,7 +264,7 @@ export async function clipOffer(db: Db, ownerId: string, x: string, y: string): 
  */
 export type ClipAsk =
   | { a: string; b: string; here: true; at?: number; night_id?: string | null }
-  | { a: string; b: string; act: string; swap?: boolean; eyes?: Eyes | null }
+  | { a: string; b: string; act: string; swap?: boolean; eyes?: Eyes | null; camera?: CameraMoveId | null }
   | { continue: string; media_id?: string; frame_id?: string; mode?: KeepGoingMode };
 /** From a moment: start straight from its frame, or from a fresh keyframe of their faces with it as Picture 3. */
 export type KeepGoingMode = "seamless" | "fresh";
@@ -414,7 +415,8 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     const at = Math.max(0, night.lines.length - 1);
     const frame = pov ? `${pov.still} ${upperFirst(act.wear)}.` : `${filled.frame} ${FRAMING_WORDS[act.framing]}`;
     plan = {
-      shot: { line: at, who: filled.lead === 0 ? "a" : "b", text: "", frame, motion: filled.motion, ...(eyes && pov ? { eyes } : {}) },
+      // How the camera moves (a clip's tiles, lib/adult/camera-moves.ts); a first-person shot moves as their eyes would.
+      shot: { line: at, who: filled.lead === 0 ? "a" : "b", text: "", frame, motion: filled.motion, ...(eyes && pov ? { eyes } : ask.camera && ask.camera !== "steady" ? { camera: ask.camera } : {}) },
       stage: act.dress,
       place: places[at] ?? stands.place,
       meta: { act: act.id, swap: ask.swap === true, from: null, stage: act.dress, place: places[at] ?? stands.place, label: pov ? `${act.label}, first person` : act.label, ...(eyes && pov ? { eyes } : {}) },

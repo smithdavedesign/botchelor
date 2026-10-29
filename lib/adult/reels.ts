@@ -38,6 +38,7 @@
  * The keyframes are drawn, checked and queued when the reel starts. Shots take minutes on Venice, so a reel is then
  * advanced by whoever's watching (GET polls advanceReel).
  */
+import { cameraWords, type CameraMoveId } from "./camera-moves";
 import { picturesBlocked } from "./readiness";
 import { isAdmin } from "../admins";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
@@ -201,6 +202,8 @@ export type ReelShot = {
    * first person (the line said off camera when the one whose eyes they are says it).
    */
   eyes?: "a" | "b";
+  /** How the camera moves through it (lib/adult/camera-moves.ts; a clip's tiles): steady when there's none. */
+  camera?: CameraMoveId;
   /** Drawn like one of the pair's pictures (the storyboard's Draw like it): its pose, framing and place, as Picture 3. */
   ref_id?: string;
   /** Re-filmed (refilmShot): what this shot's new video cost, given back if it fails and cleared once it's settled. */
@@ -846,7 +849,7 @@ export function continuePrompt(cast: readonly [ReelPerson, ReelPerson], after: s
 }
 
 /** A shot's prompt: what they do, both kept as they are, one continuous shot, and who says the line (or that nobody does). */
-export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes">, audioIn: boolean): string {
+export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera">, audioIn: boolean): string {
   const speaker = cast[s.who === "a" ? 0 : 1];
   if (s.eyes) {
     // First person (an act's view through one of their eyes): the one in full is the picture's, the other never a face.
@@ -862,7 +865,7 @@ export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<Reel
   }
   const base =
     `${s.motion || "The two of them stay close, moving together."} Two people only: ${cast[0].tag} and ${cast[1].tag}, exactly as in the picture, ` +
-    "the same faces and bodies in the same place. One continuous shot, the camera steady: no cuts, nobody else comes in. Realistic motion.";
+    `the same faces and bodies in the same place. One continuous shot, ${cameraWords(s.camera)}: no cuts, nobody else comes in. Realistic motion.`;
   // A clip with no line in it (lib/adult/clips.ts, an act from the menu): nobody speaks.
   if (!s.text.trim()) return `${base} Neither of them speaks: only their breathing and the sounds of the room.`;
   return audioIn ? `${base} ${cap(speaker.tag)} is the one speaking, lips moving with the words.` : `${base} ${cap(speaker.tag)}, in ${speaker.voice}, says: "${s.text}"`;
