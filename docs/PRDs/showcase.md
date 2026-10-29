@@ -61,7 +61,8 @@ Every filter is a link, so a filtered view can be shared, and the PG side can be
 | 4 | Remix ("Shoot like this"), per-post report and takedown, admin moderation (/admin/showcase), screenshots | #944, live |
 | 5 | Publish my best work (the admin's 👍 / 4–5★, own and house characters only) to seed the showcase; filters in every gallery | #946, live |
 | 6 | SFW twins of the best work, for the side everyone sees | #950, live |
-| 7 | How it was made: the model, prompt and characters in the viewer (`lib/showcase-made.ts`); the prompt is the creator's to share | this PR |
+| 7 | How it was made: the model, prompt and characters in the viewer (`lib/showcase-made.ts`); the prompt is the creator's to share | #953, live |
+| 8 | Filters fixed: sides by rating (safe by default), From dates, counts without their own pick, the layout, an admin's re-rate | this PR |
 
 ## Open, for David or counsel
 

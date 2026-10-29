@@ -45,6 +45,58 @@ a.showcase-chip.chip-on {
   color: var(--muted);
   font-size: 0.7rem;
 }
+/* The two sides (lib/showcase.ts sideOf): safe for work, the default, and After Dark, by each post's rating. */
+.showcase-sides {
+  display: inline-flex;
+  justify-self: start;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 2px;
+  gap: 2px;
+}
+a.showcase-side {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.35rem 0.95rem;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+a.showcase-side.on {
+  background: var(--accent);
+  color: #fff;
+}
+a.showcase-side.on .showcase-count {
+  color: inherit;
+  opacity: 0.8;
+}
+/* What's picked, each with its ×. */
+.showcase-picked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+a.showcase-picked-chip {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--soft);
+  text-decoration: none;
+}
+.showcase-rating {
+  position: absolute;
+  left: var(--space-2);
+  bottom: var(--space-2);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.65rem;
+  pointer-events: none;
+}
 .showcase-clear,
 .showcase-more,
 .showcase-empty {
@@ -216,8 +268,18 @@ a.showcase-chip.chip-on {
     grid-template-columns: 1fr;
     overflow-y: auto;
   }
+  /* A row scrolls sideways on a phone rather than wrapping into a tall block. */
+  .showcase-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .showcase-row > * {
+    flex: none;
+  }
   .showcase-row-label {
-    min-width: 100%;
+    min-width: 0;
   }
 }
 

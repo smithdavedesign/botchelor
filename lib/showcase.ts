@@ -99,14 +99,22 @@ export type Post = {
   liked: boolean;
 };
 
-type SourceRow = { id: string; owner_id: string; character_id: string; character_b: string | null; kind: string; mime: string; aspect: string | null; rating: string | null; derived: string | null; reel_kind: string | null; shoot_id: string | null };
+type SourceRow = {
+  id: string; owner_id: string; character_id: string; character_b: string | null; kind: string; mime: string; aspect: string | null; rating: string | null; derived: string | null; reel_kind: string | null; shoot_id: string | null;
+  /** Made on one of their dates (the "From dates" filter): never a Studio item, a portrait, an SFW twin, or one cut from a Studio item. */
+  from_date: boolean;
+};
+
+/** Whether an After Dark item `i` was made on a date (lib/db.ts puts the same rule on the posts kept before it). */
+const FROM_DATE = `i.kind <> 'baseline' and i.shoot_id is null and i.twin_of is null
+  and not exists (select 1 from adult_images src where src.id = i.source_image and src.shoot_id is not null)`;
 
 /** The item behind a post: one of theirs, ready, a picture or clip (never a voice or a keyframe). */
 async function sourceOf(db: Db, owner: string, source: ShowcaseSource, mediaId: string): Promise<SourceRow | null> {
   if (source === "pg") {
     return (
       await db.query<SourceRow>(
-        `select id, owner_id, character_id, null as character_b, 'scene' as kind, mime, aspect, content_rating as rating, null as derived, null as reel_kind, shoot_id
+        `select id, owner_id, character_id, null as character_b, 'scene' as kind, mime, aspect, content_rating as rating, null as derived, null as reel_kind, shoot_id, false as from_date
            from studio_pg_pictures where id = $1 and owner_id = $2`,
         [mediaId, owner],
       )
@@ -115,7 +123,8 @@ async function sourceOf(db: Db, owner: string, source: ShowcaseSource, mediaId: 
   return (
     await db.query<SourceRow>(
       `select i.id, i.owner_id, i.character_id, i.character_b, i.kind, i.mime, i.aspect, i.content_rating as rating, i.derived, i.shoot_id,
-              (select r.kind from adult_reels r cross join lateral jsonb_array_elements(r.shots) s where r.owner_id = i.owner_id and s->>'media_id' = i.id limit 1) as reel_kind
+              (select r.kind from adult_reels r cross join lateral jsonb_array_elements(r.shots) s where r.owner_id = i.owner_id and s->>'media_id' = i.id limit 1) as reel_kind,
+              (${FROM_DATE}) as from_date
          from adult_images i
         where i.id = $1 and i.owner_id = $2 and i.status = 'ready' and i.kind in ('scene', 'baseline', 'video') and i.character_id is not null`,
       [mediaId, owner],
@@ -171,7 +180,7 @@ export async function publish(db: Db, owner: string, input: { source: ShowcaseSo
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, case when $16 = 'live' then now() end, $17::jsonb, $18)
      on conflict (source, media_id) do update set caption = excluded.caption, rating = excluded.rating, show_prompt = excluded.show_prompt, status = case when showcase_posts.status = 'live' then 'live' else excluded.status end,
        published_at = coalesce(showcase_posts.published_at, excluded.published_at)`,
-    [id, owner, input.source, src.id, src.character_id, src.character_b, rating, mediumOf(src), src.aspect, t.act, t.place, t.pov, input.source === "after_dark" && !src.shoot_id, caption, JSON.stringify(t.tags), status, remix ? JSON.stringify(remix) : null, input.show_prompt !== false],
+    [id, owner, input.source, src.id, src.character_id, src.character_b, rating, mediumOf(src), src.aspect, t.act, t.place, t.pov, src.from_date === true, caption, JSON.stringify(t.tags), status, remix ? JSON.stringify(remix) : null, input.show_prompt !== false],
   );
   for (const c of others) {
     await db.query(`insert into showcase_consents (post_id, owner_id, character_id) values ($1, $2, $3) on conflict do nothing`, [id, c.owner_id, c.id]);
@@ -245,7 +254,10 @@ export async function postsOf(db: Db, owner: string, source: ShowcaseSource, med
 
 export type Filters = {
   creator?: string; character?: string; partner?: string; medium?: Medium; act?: string; place?: string; pov?: boolean;
-  from?: "studio" | "date"; side?: "pg" | "after_dark"; shape?: string; page?: number;
+  from?: "studio" | "date";
+  /** Safe for work (pg and suggestive: the default, for everyone) or After Dark (explicit), by each post's rating. */
+  side?: "pg" | "after_dark";
+  shape?: string; page?: number;
   /** Only creators this viewer follows; the most liked this week first. */
   following?: boolean; sort?: "new" | "trending";
 };
@@ -275,8 +287,14 @@ export function parseFilters(q: URLSearchParams | Record<string, string | string
   };
 }
 
-/** The filters as SQL against showcase_posts `p` (with the viewer's ratings as $1), and their values. */
-function where(v: ShowcaseViewer, f: Filters): { sql: string; args: unknown[] } {
+/** Which side a filter shows: safe for work unless After Dark is asked for. */
+export const sideOf = (f: Filters): "pg" | "after_dark" => (f.side === "after_dark" ? "after_dark" : "pg");
+
+/**
+ * The filters as SQL against showcase_posts `p` (with the viewer's ratings as $1), and their values. `anySide`: both
+ * sides (to count each).
+ */
+function where(v: ShowcaseViewer, f: Filters, opts: { anySide?: boolean } = {}): { sql: string; args: unknown[] } {
   const args: unknown[] = [v.ratings];
   const parts = ["p.status = 'live'", "not p.held", "p.rating = any($1::text[])", "not cp.hidden"];
   // Each `?` in a part is that part's one value.
@@ -294,7 +312,8 @@ function where(v: ShowcaseViewer, f: Filters): { sql: string; args: unknown[] } 
   if (f.pov) parts.push("p.pov");
   if (f.from === "date") parts.push("p.from_date");
   if (f.from === "studio") parts.push("not p.from_date");
-  if (f.side) add("p.source = ?", f.side);
+  // The side is the post's rating, never where it was made: an SFW twin kept in After Dark is safe for work.
+  if (!opts.anySide) parts.push(sideOf(f) === "after_dark" ? "p.rating = 'nsfw'" : "p.rating <> 'nsfw'");
   if (f.shape) add("coalesce(p.aspect, '3:4') = ?", f.shape);
   if (f.following) add("exists (select 1 from creator_follows fo where fo.creator_id = p.owner_id and fo.follower_id = ?)", v.id ?? "");
   return { sql: parts.join(" and "), args };
@@ -341,20 +360,48 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}): 
   return { posts: posts.slice(0, PAGE_SIZE), more: rows.length > PAGE_SIZE };
 }
 
-export type Facets = { medium: [string, number][]; act: [string, number][]; place: [string, number][]; character: [string, string, number][]; shape: [string, number][] };
+export type Facets = {
+  medium: [string, number][]; act: [string, number][]; place: [string, number][]; character: [string, string, number][]; shape: [string, number][];
+  from: [string, number][]; pov: number;
+  /** How many on each side, with every other filter applied. */
+  sides: { pg: number; after_dark: number };
+};
 
-/** What there is to filter by among what this viewer can see (with the other filters applied): each value and its count. */
+/**
+ * What there is to filter by among what this viewer can see: each value and its count. A row's counts leave out that
+ * row's own pick (with a place picked, the other places still show what they'd find), and keep every other filter.
+ */
 export async function showcaseFacets(db: Db, v: ShowcaseViewer, f: Filters = {}): Promise<Facets> {
-  const w = where(v, f);
-  const count = async (col: string) =>
-    (await db.query<{ k: string; n: number }>(`select ${col} as k, count(*)::int as n ${FROM} where ${w.sql} and ${col} is not null group by 1 order by 2 desc limit 24`, w.args)).rows.map((r) => [r.k, r.n] as [string, number]);
+  const without = (...keys: (keyof Filters)[]): Filters => {
+    const g: Filters = { ...f, page: undefined };
+    for (const k of keys) delete g[k];
+    return g;
+  };
+  const count = async (col: string, g: Filters) => {
+    const w = where(v, g);
+    return (await db.query<{ k: string; n: number }>(`select ${col} as k, count(*)::int as n ${FROM} where ${w.sql} and ${col} is not null group by 1 order by 2 desc limit 24`, w.args)).rows.map((r) => [r.k, r.n] as [string, number]);
+  };
+  const wc = where(v, without("character"));
   const characters = (
     await db.query<{ id: string; name: string; n: number }>(
-      `select x.id, x.name, count(*)::int as n from (select c.id, c.name ${FROM} where ${w.sql} union all select cb.id, cb.name ${FROM} where ${w.sql} and cb.id is not null) x group by 1, 2 order by 3 desc limit 24`,
-      w.args,
+      `select x.id, x.name, count(*)::int as n from (select c.id, c.name ${FROM} where ${wc.sql} union all select cb.id, cb.name ${FROM} where ${wc.sql} and cb.id is not null) x group by 1, 2 order by 3 desc limit 24`,
+      wc.args,
     )
   ).rows.map((r) => [r.id, r.name, r.n] as [string, string, number]);
-  return { medium: await count("p.medium"), act: await count("p.act"), place: await count("p.place"), character: characters, shape: await count("coalesce(p.aspect, '3:4')") };
+  const wp = where(v, without("pov"));
+  const pov = (await db.query<{ n: number }>(`select count(*)::int as n ${FROM} where ${wp.sql} and p.pov`, wp.args)).rows[0].n;
+  const ws = where(v, without("side"), { anySide: true });
+  const sides = (await db.query<{ nsfw: number; safe: number }>(`select count(*) filter (where p.rating = 'nsfw')::int as nsfw, count(*) filter (where p.rating <> 'nsfw')::int as safe ${FROM} where ${ws.sql}`, ws.args)).rows[0];
+  return {
+    medium: await count("p.medium", without("medium")),
+    act: await count("p.act", without("act")),
+    place: await count("p.place", without("place")),
+    character: characters,
+    shape: await count("coalesce(p.aspect, '3:4')", without("shape")),
+    from: await count("case when p.from_date then 'date' else 'studio' end", without("from")),
+    pov,
+    sides: { pg: sides.safe, after_dark: sides.nsfw },
+  };
 }
 
 /* -------------------------------------------------- the bytes -------------------------------------------------- */

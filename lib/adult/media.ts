@@ -86,6 +86,8 @@ export type Media = {
   stars?: number | null;
   archived?: boolean;
   reel_kind?: string | null;
+  /** An SFW twin of another picture (lib/adult/sfw-twin.ts): safe for work, kept here because it's of two. */
+  twin?: boolean;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -706,6 +708,7 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
                 select v.id from adult_reels v cross join lateral jsonb_array_elements(v.shots) s where v.owner_id = i.owner_id and s->>'media_id' = i.id))) as stars,
             exists (select 1 from adult_reels v cross join lateral jsonb_array_elements(v.shots) s where v.owner_id = i.owner_id and s->>'media_id' = i.id and s ? 'archived_at') as archived,
             (select v.kind from adult_reels v cross join lateral jsonb_array_elements(v.shots) s where v.owner_id = i.owner_id and s->>'media_id' = i.id limit 1) as reel_kind,
+            (i.twin_of is not null) as twin,
             -- What it shows, for the tile's label (lib/adult/tag-labels.ts showsLabel).
             (select json_agg(json_build_object('kind', st.kind, 'value', st.value) order by st.source = 'manual' desc, st.created_at)
                from adult_media_tags st where st.media_id = i.id and not st.removed and st.kind in ('act', 'place', 'pov')) as show_tags

@@ -2659,6 +2659,37 @@ docs/PRDs/showcase.md).
   - `POST /api/admin/showcase {action: "twin_best" | "publish_best", owner}`: `owner` only with the admin password,
     and only an admin's id. Without it, only a signed-in admin, for themselves.
 
+### The showcase's filters, fixed (2026-10-29)
+
+David, 2026-10-29: "can we improve the filtering it's all over the place. also I see some nsfw in safe areas and vice
+versa, check all the filters work."
+
+What was wrong, and what changed:
+- **The sides went by where a post was made, not its rating** (`p.source`). A pair's SFW twin, kept in After Dark,
+  showed under After Dark, and the safe side was only PG Studio pictures. Now the side is the rating
+  (`lib/showcase.ts sideOf`): **Safe for work** is pg and suggestive, **🌙 After Dark** is explicit.
+- **Explicit mixed into the default view for admins.** Now the default is Safe for work for everyone. Explicit shows
+  only on the After Dark side, for whoever may see it.
+- **"From dates" counted twins, portraits and Studio leftovers.** Now it's only what a date made (`FROM_DATE`: never a
+  Studio item, a portrait, an SFW twin, or one cut from a Studio item). `lib/db.ts` corrects the posts kept before.
+- **A picked filter hid its row's other choices** (picking a place left only that place). Now each row's counts
+  leave out its own pick and keep every other filter (`showcaseFacets`).
+- **Layout:**
+  - The sides are tabs with counts. Switching sides starts the other side afresh, keeping only the sort.
+  - Then Show (Newest, Trending this week, Following), Type, Made (From dates, From the Studio, First person), Pose,
+    Place, Character, Shape. A row shows only when it has a choice.
+  - What's picked sits under the rows, each with its ×.
+  - Rows scroll sideways on a phone.
+  - A suggestive post says so on its tile.
+- **An admin's fix for a misrated post** (`reratePost`, in the viewer):
+  - 🌙 Move to After Dark: at once, and the item's own rating with it.
+  - ☀️ Check if it's safe for work: the PG check again. A pass brings it down; nudity or sex takes it up; an age
+    doubt holds it as well. Ratings only come down on a fresh check that passed (lib/content-rating.ts).
+- **The galleries:**
+  - SFW twins are their own type ("SFW twins") in the After Dark galleries.
+  - Stars count the way the library counts them: under 3.5 is 1–3★, 3.5 and up is 4–5★.
+- **Tests:** `tests/showcase-filters.test.ts` runs every filter against one post of each kind.
+
 ### How it was made (2026-10-29)
 
 David, 2026-10-29: "when someone clicks on the image showcase the model we used to make it. so every asset should have

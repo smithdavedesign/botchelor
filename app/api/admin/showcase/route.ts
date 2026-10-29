@@ -3,7 +3,7 @@ import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
-import { decidePost, moderationQueue } from "@/lib/showcase-moderation";
+import { decidePost, moderationQueue, reratePost } from "@/lib/showcase-moderation";
 import { isAdmin, isSignedInAdmin } from "@/lib/admins";
 import type { Db } from "@/lib/db";
 import { mediaRefusal } from "@/lib/adult/place";
@@ -28,6 +28,8 @@ export const GET = handle(async (req: Request) => {
 
 const Decision = z.union([
   z.object({ post_id: z.string().min(1).max(64), decision: z.enum(["release", "remove"]) }),
+  // Which side it's on, corrected: to After Dark at once, or the PG check again (lib/showcase-moderation.ts reratePost).
+  z.object({ post_id: z.string().min(1).max(64), rerate: z.enum(["after_dark", "check"]) }),
   // Their own best work, published in one go (lib/showcase.ts publishBest).
   // `owner` on these: whose, with the admin password only, and only an admin's (ownerOf).
   z.object({ action: z.literal("publish_best"), owner: z.string().min(1).max(64).optional() }),
@@ -58,6 +60,10 @@ export const POST = handle(async (req: Request) => {
     }
     const r = await publishBest(db, owner);
     return r.ok ? json(r) : json({ error: r.error, message: r.message }, r.status);
+  }
+  if ("rerate" in input) {
+    const r = await reratePost(await getDb(), input.post_id, input.rerate);
+    return r.ok ? json(r) : json({ error: "not_rerated", message: r.message }, r.status);
   }
   return (await decidePost(await getDb(), admin, input.post_id, input.decision)) ? json({ ok: true }) : json({ error: "not_found" }, 404);
 });
