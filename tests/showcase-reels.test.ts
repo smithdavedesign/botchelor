@@ -91,6 +91,10 @@ describe("the reels' posts", () => {
     expect(one.posts.every((p: Post) => p.rating === "pg")).toBe(true);
     // Mara has two after dark (one with the house character), the house character one.
     expect(one.locked).toEqual({ [w.mara]: 2 });
+    // Most liked this week first.
+    const liked = one.posts[3].id;
+    await t.db.query(`insert into showcase_likes (post_id, user_id) values ($1, 'fan-1'), ($1, 'fan-2')`, [liked]);
+    expect((await get("")).posts[0].id).toBe(liked);
     const two = await get("?page=2");
     expect([two.posts.length, two.more]).toEqual([2, false]);
     expect(new Set([...one.posts, ...two.posts].map((p: Post) => p.id)).size).toBe(REEL_PAGE + 2);

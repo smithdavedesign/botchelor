@@ -62,10 +62,52 @@ Every filter is a link, so a filtered view can be shared, and the PG side can be
 | 5 | Publish my best work (the admin's 👍 / 4–5★, own and house characters only) to seed the showcase; filters in every gallery | #946, live |
 | 6 | SFW twins of the best work, for the side everyone sees | #950, live |
 | 7 | How it was made: the model, prompt and characters in the viewer (`lib/showcase-made.ts`); the prompt is the creator's to share | #953, live |
-| 8 | Filters fixed: sides by rating (safe by default), From dates, counts without their own pick, the layout, an admin's re-rate | this PR |
+| 8 | Filters fixed: sides by rating (safe by default), From dates, counts without their own pick, the layout, an admin's re-rate | #956, live |
+| 9 | Clips play on hover (and in view on a phone) | #957 |
+| 10 | Reels: one post a screen, swiped; living photos; a date as the first ask; After Dark's count → the subscription | this PR |
 
 ## Open, for David or counsel
 
 - The legal page and privacy wording for published After Dark work: drafted, for counsel.
 - Whether explicit posts ever go beyond After Dark viewers (never planned).
 - Commercial terms for creators (tips, subscriptions): not in v1.
+
+## Reels and the way in (2026-10-29)
+
+David asked for "an infinite reel / video, scroll-swipe. Like candy.ai has, instagram, ticktock. One idea Similar to
+candy.ai they have a safe image of the person animated with cta to see all there content with a paywall after.
+research a bit and decide what makes sense to get user to buy in."
+
+### What the research said
+- **candy.ai's Shorts** are a vertical feed of short episodic series. The first episode of each plays free; the rest
+  need Premium plus tokens per episode. A tap on a clip opens a chat with that character. In short, the paywall sits
+  on *continuing a story*, not on the feed.
+- **Hard paywalls convert better**, per secondary coverage of RevenueCat's 2026 State of Subscription Apps: about
+  10.7% against 2.1% for freemium by day 35. Twelve-month retention is about the same either way. For companion-shaped
+  products the advice is a hybrid: free to look, pay to go further.
+
+### What we do, and why
+- **The feed stays free and open**, as the top of the funnel. Gating it would cost visitors and shares, and nothing
+  people pay for here is in the feed. David's call for the creator suite also stands: delight, no pressure. So no
+  countdowns, no streaks, and nothing locked that's on the showcase already.
+- **What people pay for is going further with a character.** That's our version of candy.ai's "episode 2", and it's
+  already built:
+  - **💘 Date them** is the first ask on every post. It leads to the character's page, where a date is booked: the
+    first dates are free, then token packs (Stripe, live).
+  - **See all of them** opens their showcase.
+  - **"🌙 N more of them after dark"** shows only for someone After Dark isn't open to. It's a count, never a picture.
+    It leads to After Dark's subscription page, which is the waitlist until the processor and age checks exist. So
+    it doubles as a $0 demand test for After Dark.
+- **A card every 6 posts:** make your own character, or After Dark (for someone who can't see it).
+- **The living photo is David's "safe image of the person animated"**, at $0: each still moves slowly, a different
+  camera move each time.
+- **Measured:** `reel_cta` conversions with `cta` = date / see_all / after_dark / create, in Vercel Analytics and GA4.
+  We can see which ask works before changing any of them.
+
+### Next, for David
+- **Real animated clips of the safe pictures** (image to video, then the PG check on its frames).
+  - Cost: about $0.05 at 480p or $0.11 at 720p a clip on Replicate's Wan 2.2. For the 62 PG posts that's about $3–7.
+    Venice's Wan is also an option.
+  - Needs David's OK: it's spend.
+- **The After Dark subscription** opens only with its processor (Segpay or Verotel) and counsel. Until then the
+  waitlist counts who wants it.

@@ -10,7 +10,8 @@ export const GET = handle(async (req: Request) => {
   const db = await getDb();
   const v = await showcaseViewer(db, req);
   const f = parseFilters(new URL(req.url).searchParams);
-  const r = await listShowcase(db, v, { sort: "trending", ...f }, { pageSize: REEL_PAGE });
+  // Most liked this week first unless asked otherwise (parseFilters leaves `sort` undefined, so it can't be spread over).
+  const r = await listShowcase(db, v, { ...f, sort: f.sort ?? "trending" }, { pageSize: REEL_PAGE });
   const locked = await afterDarkCounts(db, v, r.posts.flatMap((p) => [p.character.id, ...(p.partner ? [p.partner.id] : [])]));
   return json({ ...r, locked });
 });

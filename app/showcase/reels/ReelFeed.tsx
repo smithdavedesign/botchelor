@@ -198,7 +198,7 @@ export default function ReelFeed(props: Props) {
         )}
         {feed.map((x, i) =>
           x.kind === "card" ? (
-            <Card key={`card-${x.n}`} i={i} card={x.card} onNext={() => go(i + 1)} />
+            <Card key={`card-${x.n}`} i={i} card={x.card} active={i === active} onNext={() => go(i + 1)} />
           ) : (
             <Slide
               key={x.post.id}
@@ -217,7 +217,7 @@ export default function ReelFeed(props: Props) {
           ),
         )}
         {!more && feed.length > 0 && (
-          <section className={`${styles.slide} ${styles.card}`} data-i={feed.length} aria-label="The end, for now">
+          <section className={`${styles.slide} ${styles.card}`} data-i={feed.length} aria-label="The end, for now" aria-current={active === feed.length ? "true" : undefined}>
             <div className={styles.cardBody}>
               <h2>That&apos;s everything here, for now</h2>
               <p>New pictures and clips land as their creators publish them.</p>
@@ -364,10 +364,10 @@ const CARDS: Record<ReelCard, { title: string; body: string; cta: string; href: 
   },
 };
 
-function Card({ i, card, onNext }: { i: number; card: ReelCard; onNext: () => void }) {
+function Card({ i, card, active, onNext }: { i: number; card: ReelCard; active: boolean; onNext: () => void }) {
   const c = CARDS[card];
   return (
-    <section className={`${styles.slide} ${styles.card}`} data-i={i} aria-label={c.title}>
+    <section className={`${styles.slide} ${styles.card}`} data-i={i} aria-label={c.title} aria-current={active ? "true" : undefined}>
       <div className={styles.cardBody}>
         <h2>{c.title}</h2>
         <p>{c.body}</p>

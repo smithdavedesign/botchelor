@@ -145,7 +145,12 @@ async function main() {
       [390, 844, "phone"],
     ]) {
       // A phone is a touch screen (no hover), not just a narrow window: that's what decides how clips play.
-      const ctx = await browser.newContext({ viewport: { width: w, height: h }, ...(size === "phone" ? { isMobile: true, hasTouch: true } : {}) });
+      // A visitor's browser, not "HeadlessChrome": lib/bots.ts counts that as a bot, and a bot gets no After Dark count.
+      const userAgent =
+        size === "phone"
+          ? "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36"
+          : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+      const ctx = await browser.newContext({ viewport: { width: w, height: h }, userAgent, ...(size === "phone" ? { isMobile: true, hasTouch: true } : {}) });
       await ctx.addCookies([{ name: "bz_adult", value: "1", url: app.base }]);
       const page = await ctx.newPage();
       await page.goto(`${app.base}/showcase`);
@@ -209,8 +214,11 @@ async function main() {
       // The reels: a still moving, the next one a swipe (or ↓) away, more loading as they go, the clip playing on screen.
       await page.goto(`${app.base}/showcase/reels`);
       const slide = (i) => page.locator(`[role="feed"] [data-i="${i}"]`);
-      await slide(0).locator("img").first().waitFor({ timeout: 15_000 });
+      await slide(0).locator("img, video").first().waitFor({ timeout: 15_000 });
       await page.waitForFunction(() => document.querySelector('[role="feed"] [data-i="0"]')?.getAttribute("aria-current") === "true", null, { timeout: 10_000 });
+      // Most liked this week first: the seed's most liked post, a still.
+      assert((await slide(0).locator("video").count()) === 0, "the reels don't start with the most liked post");
+      await page.waitForFunction(() => document.querySelector('[role="feed"] [data-i="0"] img:not([aria-hidden])')?.complete, null, { timeout: 15_000 });
       const moving = await slide(0).locator("img:not([aria-hidden])").evaluate((img) => getComputedStyle(img).animationName);
       assert(moving && moving !== "none", `the first still doesn't move (${moving})`);
       assert((await slide(0).getByRole("link", { name: /^💘 Date / }).count()) === 1, "the first reel doesn't ask for a date");
