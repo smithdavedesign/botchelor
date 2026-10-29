@@ -1001,9 +1001,15 @@ export async function nudeBaselines(db: Db, ownerId: string, a: Character, b: Ch
 
 /** A nude baseline edited from the face kept (lib/adult/media.ts ensureNudeBaseline), on the configured provider like a keyframe. */
 export function faceEdit(db: Db, baseUrl: string): FaceEdit {
-  return async (prompt, faceId) => {
+  const edit = urlEdit(db);
+  return (prompt, faceId) => edit(prompt, signedMediaUrl(faceId, baseUrl));
+}
+
+/** The same edit from a picture at a URL a provider can fetch (a presence portrait's signed link, lib/adult/presence.ts). */
+export function urlEdit(db: Db): (prompt: string, url: string) => ReturnType<FaceEdit> {
+  return async (prompt, url) => {
     const [keys, settings] = await Promise.all([adultKeys(db), getAdultSettings(db)]);
-    const face = [signedMediaUrl(faceId, baseUrl)];
+    const face = [url];
     const r = replicateMedia(keys, settings);
     const drawn = await runMedia(db, "keyframe", (p) => (p === "replicate" ? drawReplicateKeyframe(r!, prompt, face) : drawKeyframe(keys.venice!, prompt, face)));
     return { bytes: drawn.value.bytes, mime: drawn.value.mime, provider: drawn.provider, fell_back: drawn.fell_back, model: drawn.provider === "replicate" ? settings.replicate_keyframe_model : KEYFRAME_MODEL };

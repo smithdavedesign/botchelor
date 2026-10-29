@@ -800,6 +800,15 @@ export function signedMediaUrl(id: string, baseUrl: string, now = Date.now(), en
   const until = now + MEDIA_LINK_MS;
   return `${baseUrl.replace(/\/$/, "")}/api/admin/after-dark/media/${encodeURIComponent(id)}?until=${until}&sig=${mediaMac(id, until, secret)}`;
 }
+/** The same short-lived link for a presence file (lib/adult/presence.ts), scoped so one can't stand in for the other. */
+export function signedPresenceUrl(id: string, baseUrl: string, now = Date.now(), env: Record<string, string | undefined> = process.env): string {
+  const secret = env.SESSION_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET is not set");
+  const until = now + MEDIA_LINK_MS;
+  return `${baseUrl.replace(/\/$/, "")}/api/admin/after-dark/presence/${encodeURIComponent(id)}?until=${until}&sig=${mediaMac(`presence:${id}`, until, secret)}`;
+}
+export const presenceLinkValid = (id: string, until: string | null, sig: string | null, now = Date.now(), env: Record<string, string | undefined> = process.env) =>
+  mediaLinkValid(`presence:${id}`, until, sig, now, env);
 export function mediaLinkValid(id: string, until: string | null, sig: string | null, now = Date.now(), env: Record<string, string | undefined> = process.env): boolean {
   const secret = env.SESSION_SECRET;
   const t = Number(until);

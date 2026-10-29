@@ -1576,7 +1576,7 @@ create table if not exists adult_presence (
   owner_id text not null,
   character_id text not null references characters (id) on delete cascade,
   face_id text not null,
-  part text not null check (part in ('expression', 'loop')),
+  part text not null check (part in ('portrait', 'expression', 'loop')),
   expression text,
   status text not null default 'making' check (status in ('making', 'ready', 'failed')),
   model text,
@@ -1588,6 +1588,9 @@ create table if not exists adult_presence (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Their portrait (2026-10-29): the base of the rest, added after the table was made.
+alter table adult_presence drop constraint if exists adult_presence_part_check;
+alter table adult_presence add constraint adult_presence_part_check check (part in ('portrait', 'expression', 'loop'));
 create unique index if not exists adult_presence_one on adult_presence (owner_id, character_id, face_id, part, coalesce(expression, ''));
 create index if not exists adult_presence_owner on adult_presence (owner_id, character_id);
 

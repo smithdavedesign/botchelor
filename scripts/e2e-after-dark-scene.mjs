@@ -303,6 +303,7 @@ async function main() {
       for (const e of ["smile", "laugh", "flirty", "intense", "tender", "surprised", "annoyed"]) {
         await pdb.query(`insert into adult_presence (id, owner_id, character_id, face_id, part, expression, status, mime, data) values ($1, $2, $3, $4, 'expression', $5, 'ready', 'image/webp', $6)`, [`lexi-${e}`, owner, LEXI, face, e, portrait]);
       }
+      await pdb.query(`insert into adult_presence (id, owner_id, character_id, face_id, part, status, mime, data) values ('lexi-portrait', $1, $2, $3, 'portrait', 'ready', 'image/webp', $4)`, [owner, LEXI, face, portrait]);
       await pdb.query(`insert into adult_presence (id, owner_id, character_id, face_id, part, status, mime, data) values ('lexi-loop', $1, $2, $3, 'loop', 'ready', 'video/mp4', $4)`, [owner, LEXI, face, Buffer.from([0, 0, 0, 24])]);
       await pdb.close();
       app = await startApp(port, env);
@@ -312,6 +313,8 @@ async function main() {
       await theater.getByRole("button", { name: "Catch up" }).click({ timeout: 5_000 }).catch(() => {});
       const last = (await sceneNow()).lines.at(-1);
       const want = last.who === "b" ? "/presence/lexi-smile" : "/presence/lexi-loop";
+      // Her portrait is the still under it, not the kept face.
+      await page.waitForFunction(() => document.querySelector(".scene-char-b .ad-living-still")?.getAttribute("src")?.includes("/presence/lexi-"), null, { timeout: 15_000 });
       await page.waitForFunction((w) => [...document.querySelectorAll(".scene-char-b .ad-living-face img, .scene-char-b .ad-living-face video")].some((el) => el.getAttribute("src")?.includes(w)), want, { timeout: 15_000 });
       assert((await page.locator(".scene-char-a .ad-living-face").count()) === 0, "Juniper has a living face she was never given");
       await shot("living");
