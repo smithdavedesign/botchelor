@@ -30,7 +30,7 @@ import { loadRelationship, pairContext, pairKey, viewRelationship, type End, typ
 import { checkFields } from "./safety";
 import { matchView } from "./swipes";
 import { betweenText, dateTextsBudget, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
-import { critiqueText, writeCritiquedText, type ThreadText } from "./text-critic";
+import { critiqueText, writeCritiquedText, type ThreadText, type Written } from "./text-critic";
 
 /** A runaway-loop guard, not a quota: one character's texts in a minute. */
 export const TEXTS_PER_MINUTE = 30;
@@ -145,7 +145,7 @@ async function tell(db: Db, p: Pair, text: string, senderId: string): Promise<"n
  * One text from a model, critiqued for repetition (lib/text-critic.ts): two tries, then nothing (a failed reply never
  * fails what came before it). `me` writes it to `them`; `thread` is everything before it.
  */
-function writeLine(model: Model, messages: ChatMessage[], max: number, me: Character, them: Character, thread: ThreadText[]): Promise<string | null> {
+function writeLine(model: Model, messages: ChatMessage[], max: number, me: Character, them: Character, thread: ThreadText[]): Promise<Written> {
   return writeCritiquedText(model, messages, (raw) => parseAfterglowLine(raw, "a", max)?.text ?? null, (text) => critiqueText(thread, text, me, them), "texting");
 }
 
@@ -183,8 +183,8 @@ async function houseReply(db: Db, p: Pair, creatorId: string, ownModel: Model | 
     reply: true,
   });
   const line = await writeLine(ownModel ?? getModel(undefined, false), messages, ownModel ? TEXT_MAX : AFTERGLOW_TEXT_MAX, house, p.me, thread);
-  if (!line) return { text: null, note: `${name} didn't text back this time.` };
-  return { text: await store(db, p, p.theirs, line, ownModel ? "own_key" : p.adopted ? "away" : "show") };
+  if (line.text === null) return { text: null, note: `${name} didn't text back this time.${ownModel && line.error ? ` ${line.error.message}` : ""}` };
+  return { text: await store(db, p, p.theirs, line.text, ownModel ? "own_key" : p.adopted ? "away" : "show") };
 }
 
 /**
@@ -234,8 +234,13 @@ export async function writeOwnText(db: Db, o: { userId: string; from: string; to
     alsoSeeing: await alsoSeeing(db, p.me.id, p.them.id),
     open: true,
   });
-  const line = await writeLine(o.model, messages, TEXT_MAX, p.me, p.them, thread);
-  if (!line) return refuse(502, "no_text", "Your model didn't come back with a text. Try again.");
+  const written = await writeLine(o.model, messages, TEXT_MAX, p.me, p.them, thread);
+  // Why, in plain words with the fix (lib/keys.ts keyTrouble): an empty-handed 502 left nothing to go on (2026-10-29,
+  // a Google key out of credit). Texting on your own key has no free model to stand in (docs/PRDs/connections.md).
+  if (written.text === null) {
+    return refuse(502, "no_text", written.error ? `Your model didn't write a text. ${written.error.message}` : "Your model answered, but not with a text. Try again, or pick another model on Connections.");
+  }
+  const line = written.text;
   const sent = await store(db, p, p.mine, line, "own_key");
   const told = await tell(db, p, line, o.userId);
   if (p.theirOwner !== null && !p.adopted) return { ok: true, sent, reply: null, couplePage: couplePage(p), told };

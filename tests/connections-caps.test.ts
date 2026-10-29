@@ -218,6 +218,22 @@ describe("a person's key on dates: spend, cap and fallback", () => {
     const err = await model.complete([{ role: "user", content: "hi" }]).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ModelError);
     expect((err as Error).message).not.toContain(fakeKey("or"));
+    // In plain words with the fix, for the phone to say (a bare 502 left nothing to go on, 2026-10-29).
+    expect((err as Error).message).toBe("OpenRouter didn't accept this key. Check you copied all of it, or make a new key.");
+  });
+
+  it("a key out of credit, with no fallback: its words say so with the fix, and the notice says texting waits", async () => {
+    await openRouterKey(null);
+    openRouter([jsonRes({ error: { message: "Insufficient credits" } }, 402)]);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const model = (await userTextModel(t.db, U, undefined, env, { now: () => NOW }))!;
+    const err = await model.complete([{ role: "user", content: "hi" }]).catch((e: unknown) => e);
+    expect((err as Error).message).toBe("OpenRouter: out of credit. Top up.");
+    // The next call on it (a retry) says the same without asking the provider again.
+    expect(await model.complete([{ role: "user", content: "again" }]).catch((e: unknown) => (e as Error).message)).toBe("OpenRouter: out of credit. Top up.");
+    expect((await notices()).find((n) => n.kind === "key_failed")?.body).toBe(
+      "OpenRouter: out of credit. Top up. Meanwhile Botchelor's free model stands in for your dates. Texting on your key waits until it works again.",
+    );
   });
 
   it("estimates a call the provider prices nowhere, and counts one it reports no usage for as unpriced", async () => {

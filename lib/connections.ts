@@ -708,7 +708,9 @@ export async function noteSpend(db: Db, userId: string, job: Job, provider: stri
 export async function noteFailure(db: Db, userId: string, job: Job, provider: string, kind: ErrorKind, cap: CapSettings): Promise<void> {
   const e = plainError(provider, kind);
   const meanwhile =
-    job === "text" ? (cap.on_cap === "fallback" ? "Meanwhile Botchelor's free model stands in for your dates." : "Meanwhile your dates wait (you chose that).") : "";
+    job === "text"
+      ? `${cap.on_cap === "fallback" ? "Meanwhile Botchelor's free model stands in for your dates." : "Meanwhile your dates wait (you chose that)."} Texting on your key waits until it works again.`
+      : "";
   await notify(db, userId, {
     kind: "key_failed",
     title: `🔑 Your ${providerLabel(provider)} key stopped working`,

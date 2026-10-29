@@ -7,7 +7,7 @@ import { loadCharacter } from "@/lib/character";
 import { buildTurnMessages } from "@/lib/conversation";
 import { fixedEngine, type SideOutcome } from "@/lib/engine";
 import { handleMcpMessage } from "@/lib/mcp";
-import { setModelForTests, type ChatMessage, type Model } from "@/lib/model";
+import { ModelError, setModelForTests, type ChatMessage, type Model } from "@/lib/model";
 import { listNotifications } from "@/lib/notifications";
 import { pairKey, refreshRelationship, usableFor, visibleTo, type End } from "@/lib/relationships";
 import { buildDate, DEFAULT_DATE_REQUEST } from "@/lib/simulation";
@@ -271,6 +271,22 @@ describe("people text on their own model key (lib/texting.ts writeOwnText)", () 
     const via = (await t.db.query<{ via: string }>(`select via from couple_texts`)).rows.map((x) => x.via);
     expect(via).toHaveLength(12);
     expect(new Set(via)).toEqual(new Set(["own_key"]));
+  });
+
+  it("when their model writes nothing, the phone says why: the key's trouble in plain words, or a reply with no text", async () => {
+    const { creator, userId, character } = await owner();
+    await date(creator, character.id, daysAgo(1));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const outOfCredit: Model = { async complete() { throw new ModelError("Google: out of credit. Top up.", 429); } };
+    expect(await writeOwnText(t.db, { userId, from: character.id, to: HOUSE_PARTNER_ID, model: outOfCredit })).toEqual({
+      ok: false,
+      status: 502,
+      error: "no_text",
+      message: "Your model didn't write a text. Google: out of credit. Top up.",
+    });
+    const rambling: Model = { async complete() { return "Sure! Here's a text you could send."; } };
+    expect(await writeOwnText(t.db, { userId, from: character.id, to: HOUSE_PARTNER_ID, model: rambling })).toMatchObject({ status: 502, message: expect.stringMatching(/^Your model answered, but not with a text/) });
+    expect((await t.db.query(`select 1 from couple_texts where via = 'own_key'`)).rows).toHaveLength(0);
   });
 
   it("the phone's send needs their own key; without one it says how to add it", async () => {
