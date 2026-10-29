@@ -289,6 +289,55 @@ describe("people text on their own model key (lib/texting.ts writeOwnText)", () 
     expect((await t.db.query(`select 1 from couple_texts where via = 'own_key'`)).rows).toHaveLength(0);
   });
 
+  it("when their key can't write, the show's free model stands in: short, a few a day per couple, and says why", async () => {
+    const { creator, userId, character, me, them } = await owner();
+    await date(creator, character.id, daysAgo(1));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const outOfCredit: Model = { async complete() { throw new ModelError("Google: out of credit. Top up.", 429); } };
+    const show = texter(["Saturday still on?", "Wouldn't miss it.", "Bring the stopwatch.", "Only if you bring the map.", "Deal.", "Deal."]);
+    setModelForTests(show);
+    const send = () => writeOwnText(t.db, { userId, from: character.id, to: HOUSE_PARTNER_ID, model: outOfCredit, hint: "ask about Saturday", standIn: true });
+    expect(await send()).toMatchObject({
+      ok: true,
+      sent: { text: "Saturday still on?", who: me },
+      reply: { text: "Wouldn't miss it.", who: them },
+      note: "Google: out of credit. Top up. Botchelor's free model wrote this one (2 more today).",
+    });
+    // One short text like the show's (not open-ended), with their hint.
+    expect(show.asked[0][0].content).toMatch(/short text \(under/);
+    expect(dataOf(show.asked[0])).toMatchObject({ your_creator_asked_you: "ask about Saturday" });
+    expect(await send()).toMatchObject({ ok: true, note: expect.stringMatching(/\(1 more today\)\.$/) });
+    expect(await send()).toMatchObject({ ok: true, note: expect.stringMatching(/\(the last one today\)\.$/) });
+    expect(await send()).toEqual({
+      ok: false,
+      status: 502,
+      error: "no_text",
+      message: "Your model didn't write a text. Google: out of credit. Top up. Botchelor's free model has written all the texts it stands in for today. More tomorrow.",
+    });
+    const via = (await t.db.query<{ via: string; n: number }>(`select via, count(*)::int as n from couple_texts group by via order by via`)).rows;
+    expect(via).toEqual([{ via: "show", n: 3 }, { via: "stand_in", n: 3 }]);
+    // Without the fallback (they chose to pause), or for a reply with no text in it, nobody stands in.
+    expect(await writeOwnText(t.db, { userId, from: character.id, to: HOUSE_PARTNER_ID, model: outOfCredit })).toMatchObject({ status: 502, message: "Your model didn't write a text. Google: out of credit. Top up." });
+    const rambling: Model = { async complete() { return "Sure! Here's a text you could send."; } };
+    expect(await writeOwnText(t.db, { userId, from: character.id, to: HOUSE_PARTNER_ID, model: rambling, standIn: true })).toMatchObject({ status: 502, message: expect.stringMatching(/^Your model answered, but not with a text/) });
+  });
+
+  it("stand-ins come out of the house cast's daily budget, and agents read them as the show's", async () => {
+    vi.stubEnv("HOUSE_TEXT_REPLIES_DAILY", "1");
+    const { creator, userId, character } = await owner();
+    await date(creator, character.id, daysAgo(1));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    setModelForTests(texter(["Saturday still on?"]));
+    const failing: Model = { async complete() { throw new ModelError("Google: out of credit. Top up.", 429); } };
+    expect(await writeOwnText(t.db, { userId, from: character.id, to: HOUSE_PARTNER_ID, model: failing, standIn: true })).toMatchObject({
+      ok: true,
+      reply: null,
+      note: expect.stringMatching(/^Google: out of credit\. Top up\. Botchelor's free model wrote this one \(the last one today\)\. The house cast has used up today's texts\./),
+    });
+    const read = (await rpc("read_texts", { agent_id: userId, character_id: character.id, with: HOUSE_PARTNER_ID })).structuredContent;
+    expect(read.items.find((x: Any) => x.text === "Saturday still on?")).toMatchObject({ written_by: "the_show" });
+  });
+
   it("the phone's send needs their own key; without one it says how to add it", async () => {
     const { creator, character, lo, hi } = await owner();
     await date(creator, character.id, daysAgo(1));

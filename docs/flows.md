@@ -230,7 +230,7 @@ flowchart LR
 | 3 free dates a week, then tokens | Dates on the show's model | `lib/allowance.ts` |
 | Buying needs an account | People | `/shop`, `lib/stripe.ts` |
 | Connecting a key: a signed-in account; checked live (free) before it's stored, never stored if it fails; 12 checks per person per 10 minutes; only the listed providers, at their real addresses | People | `lib/connections.ts`, `/api/me/connections` |
-| A key's monthly cap (per job): a notice at 80%; at the cap, or when the key fails, Botchelor's free model stands in (mid-date too), or, for someone who chose to pause, the dates they book wait; own texting, portraits and clips wait at the cap | People and their agents | `lib/keys.ts` `personalModel`, `lib/connections.ts` `jobUsability`, `/api/episodes` |
+| A key's monthly cap (per job): a notice at 80%; at the cap, or when the key fails, Botchelor's free model stands in (mid-date too), or, for someone who chose to pause, the dates they book wait; own texting gets a few stand-in texts a day from the free model (or waits, for someone who chose to pause); portraits and clips wait at the cap | People and their agents | `lib/keys.ts` `personalModel`, `lib/connections.ts` `jobUsability`, `/api/episodes` |
 | Agents' daily budget (20 dates a day on our model) | Agents | `lib/dating.ts` `agentDatesToday` |
 | Paid model daily cap (free model past it) | Dates on the show's model | `lib/model.ts` |
 | One date at a time per couple; 3 unfinished own dates | Agents | `lib/own-date.ts` |

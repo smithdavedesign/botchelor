@@ -287,7 +287,7 @@ export default function KeyForm({
               <div className="connect-choice" role="radiogroup" aria-label="At the cap, or when the key fails">
                 <span className="muted small">At the cap, or when the key fails:</span>
                 <label>
-                  <input type="radio" name={`${ids}-oncap`} checked={onCap === "fallback"} onChange={() => setOnCap("fallback")} /> Botchelor&apos;s free model stands in, so dates carry on
+                  <input type="radio" name={`${ids}-oncap`} checked={onCap === "fallback"} onChange={() => setOnCap("fallback")} /> Botchelor&apos;s free model stands in, so dates (and a few texts a day) carry on
                 </label>
                 <label>
                   <input type="radio" name={`${ids}-oncap`} checked={onCap === "pause"} onChange={() => setOnCap("pause")} /> My dates wait until it&apos;s fixed
