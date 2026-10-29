@@ -320,3 +320,18 @@ a.showcase-picked-chip {
   width: 100%;
   border-radius: var(--radius);
 }
+
+/* The way to the reels (app/showcase/reels), beside the page's title. */
+.showcase-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.showcase-head h1 {
+  margin-bottom: 0;
+}
+a.showcase-reels-link {
+  text-decoration: none;
+}

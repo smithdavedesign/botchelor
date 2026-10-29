@@ -12,6 +12,8 @@ export type Conversion =
   | "date_started"
   | "prediction_made"
   | "character_rated"
+  // The showcase's reels (app/showcase/reels): which call to action was tapped (date, see_all, after_dark, create).
+  | "reel_cta"
   // GA4's recommended names, so its reports and key-event suggestions pick them up.
   | "sign_up"
   | "begin_checkout"

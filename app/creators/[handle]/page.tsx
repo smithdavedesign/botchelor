@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import FollowButton from "@/app/showcase/FollowButton";
 import { followState } from "@/lib/showcase-social";
@@ -34,7 +35,10 @@ export default async function CreatorPage({ params, searchParams }: Props) {
         <h1>{c.display_name}</h1>
         <p className="muted">@{c.handle}</p>
         {c.bio && <p>{c.bio}</p>}
-        <FollowButton handle={c.handle} {...(await followState(db, viewer.id, c.handle))} />
+        <FollowButton handle={c.handle} {...(await followState(db, viewer.id, c.handle))} />{" "}
+        <Link href={`/showcase/reels?creator=${encodeURIComponent(c.handle)}`} className="button small showcase-reels-link">
+          ▶ Watch as reels
+        </Link>
       </header>
       <ShowcaseBrowser db={db} viewer={viewer} base={`/creators/${c.handle}`} filters={parseFilters(await searchParams)} fixed={{ creator: c.handle }} />
     </main>

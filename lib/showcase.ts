@@ -63,7 +63,7 @@ export async function saveCreatorProfile(db: Db, userId: string, input: { handle
 
 /* -------------------------------------------------- who sees what -------------------------------------------------- */
 
-export type ShowcaseViewer = { id: string | null; admin: boolean; ratings: ContentRating[]; adult?: boolean };
+export type ShowcaseViewer = { id: string | null; admin: boolean; ratings: ContentRating[]; adult?: boolean; bot?: boolean };
 
 /** Whether explicit posts are open beyond admins (David's call: off until counsel and age checks). */
 export async function explicitOpen(db: Db): Promise<boolean> {
@@ -82,7 +82,7 @@ export async function showcaseViewer(db: Db, req: Request): Promise<ShowcaseView
   const adultId = id && !bot ? await adultViewer(db, req) : null;
   const adult = Boolean(adultId && (admin || (await mediaAllowedFor(db, adultId))));
   if (adult && (admin || (await explicitOpen(db)))) ratings.push("nsfw");
-  return { id, admin, ratings, adult };
+  return { id, admin, ratings, adult, bot };
 }
 
 /* -------------------------------------------------- publishing -------------------------------------------------- */
@@ -324,11 +324,12 @@ const FROM = `from showcase_posts p
   join characters c on c.id = p.character_id
   left join characters cb on cb.id = p.character_b`;
 
-/** One page of the showcase for this viewer and these filters, newest first. */
-export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}): Promise<{ posts: Post[]; more: boolean }> {
+/** One page of the showcase for this viewer and these filters, newest first. `pageSize`: the reels' smaller pages. */
+export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, opts: { pageSize?: number } = {}): Promise<{ posts: Post[]; more: boolean }> {
   const w = where(v, f);
   const page = Math.max(1, Math.floor(f.page ?? 1));
-  w.args.push(PAGE_SIZE + 1, (page - 1) * PAGE_SIZE, v.id ?? "");
+  const size = opts.pageSize ?? PAGE_SIZE;
+  w.args.push(size + 1, (page - 1) * size, v.id ?? "");
   const n = w.args.length;
   // Trending: the most liked this week, then the newest.
   const order = f.sort === "trending" ? "(select count(*) from showcase_likes l where l.post_id = p.id and l.created_at > now() - interval '7 days') desc, p.published_at desc nulls last, p.id" : "p.published_at desc nulls last, p.id";
@@ -357,7 +358,25 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}): 
       partner: r.character_b ? { id: r.character_b, name: r.partner_name ?? "" } : null, mine: Boolean(v.id && r.owner_id === v.id),
       likes: r.likes, liked: r.liked, remixable: r.remixable,
     }));
-  return { posts: posts.slice(0, PAGE_SIZE), more: rows.length > PAGE_SIZE };
+  return { posts: posts.slice(0, size), more: rows.length > size };
+}
+
+/**
+ * How many of each character's posts are After Dark's, for someone who can't see them (the reels' "🌙 N more of them
+ * after dark", which leads to the subscription, or the waitlist until it opens). Counts only, never a picture; nothing
+ * for someone who can see them already, or for a bot.
+ */
+export async function afterDarkCounts(db: Db, v: ShowcaseViewer, characterIds: readonly string[]): Promise<Record<string, number>> {
+  if (!characterIds.length || v.bot || v.ratings.includes("nsfw")) return {};
+  const { rows } = await db.query<{ id: string; n: number }>(
+    `select x.id, count(*)::int as n from (
+       select p.character_id as id ${FROM} where p.status = 'live' and not p.held and not cp.hidden and p.rating = 'nsfw' and p.character_id = any($1::text[])
+       union all
+       select p.character_b ${FROM} where p.status = 'live' and not p.held and not cp.hidden and p.rating = 'nsfw' and p.character_b = any($1::text[])
+     ) x group by 1`,
+    [[...new Set(characterIds)]],
+  );
+  return Object.fromEntries(rows.map((r) => [r.id, r.n]));
 }
 
 export type Facets = {
