@@ -315,8 +315,9 @@ function Slide({
           </p>
           {p.caption && <p className={styles.caption}>{p.caption}</p>}
           <p className={styles.ctas}>
+            {/* A date when they can be asked by name; else their page, to meet them (lib/showcase.ts dateable). */}
             <Link href={`/characters/${p.character.id}`} className={styles.cta} onClick={cta("date")}>
-              💘 Date {first}
+              {p.dateable === false ? `Meet ${first}` : `💘 Date ${first}`}
             </Link>
             <Link href={`/showcase?character=${encodeURIComponent(p.character.id)}`} className={styles.ctaGhost} onClick={cta("see_all")}>
               See all of {first}

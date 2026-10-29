@@ -451,7 +451,7 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["media_favorites", "owner_id"],
   // The showcase (lib/showcase.ts): the OKs they gave or were asked for, their posts, and their creator page.
   ["showcase_consents", "owner_id"], ["showcase_likes", "user_id"], ["creator_follows", "follower_id"], ["creator_follows", "creator_id"],
-  ["showcase_posts", "owner_id"], ["creator_profiles", "user_id"],
+  ["showcase_posts", "owner_id"], ["creator_profiles", "user_id"], ["showcase_loops", "owner_id"],
   // Their identity packs' views, in both Studios (lib/studio/identity-pack.ts).
   ["identity_views", "owner_id"],
 ];

@@ -169,6 +169,7 @@ export async function startTestDb() {
         "showcase_likes",
         "creator_follows",
         "showcase_posts",
+        "showcase_loops",
         "creator_profiles",
         // Identity packs' views (lib/studio/identity-pack.ts), in both Studios.
         "identity_views",
