@@ -125,6 +125,11 @@ export const StudioConfig = z.object({
       usd: z.number().min(0).max(10).default(0.03),
     })
     .default({ open_to: "everyone", shoot_size: 4, price: 1, free_first_shoot: true, free_per_day: 100, monthly_cap: 120, identity_price: 2, carousel_price: 1, edit_model: "qwen-image-2-1-turbo-edit", new_model: "qwen-image-3", usd: 0.03 }),
+  /**
+   * The creator showcase (lib/showcase.ts): explicit posts beyond admins. Off (David, 2026-10-29) until counsel signs
+   * off and age checks are live; then on opens them to age-verified people After Dark is open to.
+   */
+  showcase: z.object({ explicit_open: z.boolean().default(false) }).default({ explicit_open: false }),
   /** Upscale on Venice's upscaler: how much larger, and what one costs (added to an own key's month). */
   upscale: z
     .object({ scale: z.union([z.literal(2), z.literal(4)]).default(2), usd: z.number().min(0).max(10).default(0.02) })

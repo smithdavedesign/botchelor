@@ -2531,6 +2531,49 @@ alter table studio_pg_pictures add column if not exists twin_of text;
 -- What a PG picture shows, written as it's made (lib/studio/pg-catalog.ts pgTagsOf): the shoot's picks by group, and
 -- what made it. The showcase filters by it.
 alter table studio_pg_pictures add column if not exists tags jsonb not null default '[]';
+
+-- The creator showcase (lib/showcase.ts, docs/PRDs/showcase.md; David, 2026-10-29): a creator's opt-in handle (never a
+-- login name or an email), the items they chose to publish (one row each, with what it shows copied from its tags for
+-- the filters), and the other owner's OK for a picture with their character in it.
+create table if not exists creator_profiles (
+  user_id text primary key,
+  handle text not null unique,
+  display_name text not null,
+  bio text,
+  hidden boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create table if not exists showcase_posts (
+  id text primary key,
+  owner_id text not null,
+  source text not null check (source in ('after_dark', 'pg')),
+  media_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  character_b text references characters (id) on delete cascade,
+  rating text not null check (rating in ('pg', 'suggestive', 'nsfw')),
+  medium text not null check (medium in ('picture', 'clip', 'reel', 'boomerang', 'loop')),
+  aspect text,
+  act text,
+  place text,
+  pov boolean not null default false,
+  from_date boolean not null default false,
+  caption text,
+  tags jsonb not null default '[]',
+  status text not null default 'live' check (status in ('pending', 'live', 'removed')),
+  created_at timestamptz not null default now(),
+  published_at timestamptz,
+  unique (source, media_id)
+);
+create index if not exists showcase_posts_live_idx on showcase_posts (published_at desc) where status = 'live';
+create index if not exists showcase_posts_owner_idx on showcase_posts (owner_id);
+create table if not exists showcase_consents (
+  post_id text not null references showcase_posts (id) on delete cascade,
+  owner_id text not null,
+  character_id text not null,
+  status text not null default 'asked' check (status in ('asked', 'yes', 'no')),
+  created_at timestamptz not null default now(),
+  primary key (post_id, owner_id, character_id)
+);
 -- Favorites (the creator suite): the After Dark pictures and clips each person starred (the Studio's ⭐ and the rating
 -- deck's swipe up), theirs alone.
 create table if not exists media_favorites (

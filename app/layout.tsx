@@ -30,6 +30,7 @@ import "./ux/create.css";
 import "./ux/show.css";
 import "./ux/agents-footer.css";
 import "./ux/studio-media.css";
+import "./ux/showcase.css";
 
 const TRACKING = trackingConfig();
 

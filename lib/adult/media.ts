@@ -78,6 +78,8 @@ export type Media = {
   fixed_from?: string | null;
   /** Starred by the viewer (the Studio's ⭐, the rating deck's swipe up). */
   favorite?: boolean;
+  /** On the showcase (lib/showcase.ts): its post, live or waiting for the other owner's OK. */
+  post?: { id: string; status: string } | null;
 };
 /** Where a scene picture was drawn: its chapter and place, for the gallery's caption. */
 export type PictureScene = { scene_chapter?: number | null; scene_place?: string | null };
@@ -688,6 +690,8 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             i.aspect, i.fixed_from,
             -- Starred by the viewer (media_favorites).
             exists (select 1 from media_favorites fv where fv.media_id = i.id and fv.owner_id = $2) as favorite,
+            -- Its showcase post, if it's published (lib/showcase.ts).
+            (select json_build_object('id', sp.id, 'status', sp.status) from showcase_posts sp where sp.source = 'after_dark' and sp.media_id = i.id and sp.status <> 'removed') as post,
             -- Tagged as the two of them together (lib/adult/media-tags.ts "who"), however it was made.
             exists (select 1 from adult_media_tags wt where wt.media_id = i.id and wt.kind = 'who' and wt.value = 'pair' and not wt.removed) as together,
             -- What it shows, for the tile's label (lib/adult/tag-labels.ts showsLabel).

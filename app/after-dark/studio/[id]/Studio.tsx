@@ -1,5 +1,6 @@
 "use client";
 
+import PublishButton from "@/app/showcase/PublishButton";
 import RateDeck from "../../RateDeck";
 import FavoriteStar from "../../FavoriteStar";
 import SfwTwin from "../../SfwTwin";
@@ -483,6 +484,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             <TileTools id={p.id} api={AFTER_DARK_API} selecting={sel.selecting} selected={sel.has(p.id)} onToggle={() => sel.toggle(p.id)} />
             <div className="ad-studio-item-tools">
               <FavoriteStar id={p.id} on={p.favorite} onChange={() => void refresh()} />
+              {/* 📣 On the creator showcase (lib/showcase.ts), under their handle. */}
+              <PublishButton source="after_dark" mediaId={p.id} post={p.post ?? null} />
               <RateMedia
                 id={p.id}
                 kind={p.kind}

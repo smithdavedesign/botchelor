@@ -18,12 +18,14 @@ const OWNER_LINKS = [
   { href: "/swipe", label: "Swipe" },
   { href: "/matches", label: "Matches" },
   { href: "/characters", label: "Characters" },
+  { href: "/showcase", label: "Showcase" },
   { href: "/account", label: "Account" },
 ] as const;
 const NEWCOMER_LINKS = [
   { href: "/watch", label: "Watch" },
   { href: "/characters", label: "Characters" },
   { href: "/graph", label: "Constellation" },
+  { href: "/showcase", label: "Showcase" },
   { href: "/account", label: "Account" },
 ] as const;
 

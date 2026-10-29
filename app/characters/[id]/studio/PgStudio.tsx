@@ -1,5 +1,6 @@
 "use client";
 
+import PublishButton from "@/app/showcase/PublishButton";
 import { useCallback, useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
@@ -330,6 +331,8 @@ function Pictures({
               Delete
             </button>
           </span>
+          {/* 📣 On the creator showcase (lib/showcase.ts), under their handle. */}
+          <PublishButton source="pg" mediaId={p.id} post={p.post ?? null} />
           {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
           <TileTools id={p.id} api={PG_API} selecting={sel?.selecting} selected={sel?.has(p.id)} onToggle={() => sel?.toggle(p.id)} />
         </li>
