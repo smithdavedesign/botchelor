@@ -1,5 +1,7 @@
 "use client";
 
+import MediaFilterBar from "../../MediaFilterBar";
+import { DEFAULT_FILTER, filterMedia, type MediaFilter } from "@/lib/media-filter";
 import PublishButton from "@/app/showcase/PublishButton";
 import SfwTwin from "../../SfwTwin";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -369,7 +371,7 @@ export default function SceneWriter({
             reel={storyboard}
             planning={planning}
             names={{ a: scene.a.name, b: scene.b.name }}
-            pictures={gallery}
+            pictures={gallery.filter((m) => !m.archived)}
             tokens={reelTokens}
             paused={mediaPaused}
             onFilmed={(r) => {
@@ -527,7 +529,7 @@ export default function SceneWriter({
                 <FacesPanel
                   characters={characters}
                   faces={faces}
-                  gallery={gallery}
+                  gallery={gallery.filter((m) => !m.archived)}
                   onFace={pickFace}
                   steer={steer}
                   onSteerReset={(characterId, next) => setSteer((st) => ({ ...st, [characterId]: next }))}
@@ -642,6 +644,9 @@ function Gallery({
   const [error, setError] = useState<string | null>(null);
   const [facing, setFacing] = useState<string | null>(null);
   const [rated, setRated] = useState<Record<string, 1 | -1 | null>>({});
+  // The gallery's filters (lib/media-filter.ts): no 👎, 1–3★ or Archive by default. They read each item's rating as the
+  // page got it, so one 👎'd just now stays in sight (under Not liked) with its what's-off chips until the next visit.
+  const [filter, setFilter] = useState<MediaFilter>(DEFAULT_FILTER);
   // The creator suite (2026-10-26): pictures picked to export together, and the export open for them.
   const sel = useSelection();
   const [exporting, setExporting] = useState<string[] | null>(null);
@@ -689,6 +694,7 @@ function Gallery({
   }
   // Sections (David, 2026-10-24): what it is, then the 👎s at the bottom. A rating moves it at once (rated, above).
   const ratingOf = (m: Media) => (m.id in rated ? rated[m.id] : (m.rating ?? null));
+  const shown = filterMedia(items, filter);
   const item = (m: Media) => {
           const status = pending[m.id] ?? m.status;
           return (
@@ -806,8 +812,9 @@ function Gallery({
           {error}
         </p>
       )}
+      <MediaFilterBar items={items} value={filter} onChange={setFilter} shown={shown.length} />
       {SECTIONS.map(([title, fits]) => {
-        const these = items.filter((m) => ratingOf(m) !== -1 && fits(m));
+        const these = shown.filter((m) => ratingOf(m) !== -1 && fits(m));
         return these.length ? (
           <div key={title} className="ad-gallery-section">
             <h3>{title}</h3>
@@ -815,11 +822,11 @@ function Gallery({
           </div>
         ) : null;
       })}
-      {items.some((m) => ratingOf(m) === -1) && (
+      {shown.some((m) => ratingOf(m) === -1) && (
         <div className="ad-gallery-section ad-gallery-disliked">
           <h3>Not liked</h3>
-          <p className="muted small">Your 👎s, kept out of the way here. Taken back, they go back where they were; shots taken out of a video are in its Archive, under Videos.</p>
-          <ul className="after-dark-gallery">{items.filter((m) => ratingOf(m) === -1).map(item)}</ul>
+          <p className="muted small">Your 👎s, kept out of the way here (hidden next time unless the rating filter shows them). Taken back, they go back where they were.</p>
+          <ul className="after-dark-gallery">{shown.filter((m) => ratingOf(m) === -1).map(item)}</ul>
         </div>
       )}
       {sel.selecting && <SelectBar count={sel.ids.length} total={ready.length} onAll={() => sel.set(ready.map((m) => m.id))} onExport={() => setExporting(sel.ids)} onDone={sel.done} />}

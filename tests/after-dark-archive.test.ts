@@ -6,6 +6,7 @@ import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route"
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { archivedClip, clipChains, keepGoingFrom, playable } from "@/lib/adult/clip-chains";
 import { listMedia } from "@/lib/adult/media";
+import { rateItem } from "@/lib/adult/library";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { TAG_FIXES } from "@/lib/adult/rating-tags";
 import { archiveShot, listReels, setReelFetchForTests, setReelPausesForTests, type Reel, type ReelShot } from "@/lib/adult/reels";
@@ -128,6 +129,8 @@ describe("taking a shot out of its video", () => {
     expect(listed[0].shots[0]).toMatchObject({ status: "ready", media_id: shot.media_id, archived_at: archived.shots[0].archived_at });
     // Out of the gallery too: it's in the Archive.
     expect((await listMedia(t.db, [RAFE, JUNIPER], id)).map((m) => m.id)).not.toContain(shot.media_id);
+    // …unless a gallery asks for the Archive too: then it's flagged (lib/media-filter.ts lists it under 🗄 Archived).
+    expect((await listMedia(t.db, [RAFE, JUNIPER], id, { withArchived: true })).find((m) => m.id === shot.media_id)).toMatchObject({ archived: true });
     // Keep going isn't offered, and isn't taken, from a clip in the Archive.
     expect(keepGoingFrom(clipChains(listed)[0])).toBeNull();
     const refused = await clip(cookie, { continue: first.id });
@@ -141,6 +144,9 @@ describe("taking a shot out of its video", () => {
     expect(back.shots[0].archived_at).toBeUndefined();
     expect(playable(back.shots[0])).toBe(true);
     expect((await listMedia(t.db, [RAFE, JUNIPER], id)).map((m) => m.id)).toContain(shot.media_id);
+    // A clip's stars (the library's, given to its reel) come with its shot, for the galleries' rating filter.
+    await rateItem(t.db, id, first.id, 2);
+    expect((await listMedia(t.db, [RAFE, JUNIPER], id)).find((m) => m.id === shot.media_id)).toMatchObject({ archived: false, stars: 2 });
     expect((await clip(cookie, { continue: first.id })).status).toBe(200);
   });
 

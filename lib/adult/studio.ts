@@ -1751,7 +1751,8 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
   const solo = gallery.filter((g) => g.character_b === null);
   // Everything of theirs, alone and with anyone (lib/adult/media.ts characterMedia): the Gallery's Studio and After
   // Dark tabs, and the Together tab's media from their dates.
-  const everything = await characterMedia(db, c.id, viewer);
+  // With the Archive, each marked: the gallery's filters show it under Archived (lib/media-filter.ts).
+  const everything = await characterMedia(db, c.id, viewer, 200, { withArchived: true });
   for (const s of shoots) s.redo = await redoable(db, viewer, s, config);
   const shoot_of: Record<string, string> = {};
   for (const s of shoots) for (const p of s.pictures) shoot_of[p] = s.id;

@@ -11,10 +11,10 @@ import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
 
 describe("the library's query", () => {
   it("reads the page's search params, the defaults for anything unknown, and writes them back without the defaults", () => {
-    const q = libraryQuery({ sort: "rating", type: "clip", character: "house-rafe", model: "wan-3-0-image-to-video", page: "3" });
-    expect(q).toEqual({ sort: "rating", type: "clip", character: "house-rafe", model: "wan-3-0-image-to-video", page: 3 });
-    expect(libraryQuery({ sort: "drop table", type: "nope", page: "-2" })).toEqual({ sort: "newest", type: null, character: null, model: null, page: 1 });
-    expect(libraryHref(q, { page: 4 })).toBe("?sort=rating&type=clip&character=house-rafe&model=wan-3-0-image-to-video&page=4");
+    const q = libraryQuery({ sort: "rating", type: "clip", character: "house-rafe", model: "wan-3-0-image-to-video", rated: "low", page: "3" });
+    expect(q).toEqual({ sort: "rating", type: "clip", character: "house-rafe", model: "wan-3-0-image-to-video", rated: "low", page: 3 });
+    expect(libraryQuery({ sort: "drop table", type: "nope", rated: "1=1", page: "-2" })).toEqual({ sort: "newest", type: null, character: null, model: null, rated: "good", page: 1 });
+    expect(libraryHref(q, { page: 4 })).toBe("?sort=rating&type=clip&character=house-rafe&model=wan-3-0-image-to-video&rated=low&page=4");
     expect(libraryHref(libraryQuery({}))).toBe("?");
     expect(madeBy({ model: null, provider: "venice" })).toBe("venice, model not recorded");
   });
@@ -108,13 +108,39 @@ describe("the library", () => {
     await rateItem(t.db, "u1", p1, 2);
     await rateItem(t.db, "u2", p1, 4);
     await rateItem(t.db, "u1", v, 5);
-    expect(await q({ sort: "rating" })).toEqual([v, p1, p2]);
-    const mine = (await listLibrary(t.db, "u1", libraryQuery({ sort: "rating" }))).items.map((i) => i.rating);
+    expect(await q({ sort: "rating", rated: "all" })).toEqual([v, p1, p2]);
+    const mine = (await listLibrary(t.db, "u1", libraryQuery({ sort: "rating", rated: "all" }))).items.map((i) => i.rating);
     expect(mine).toEqual([
       { average: 5, count: 1, mine: 5 },
       { average: 3, count: 2, mine: 2 },
       { average: null, count: 0, mine: null },
     ]);
+  });
+
+  it("hides what averages 1–3 stars or has its owner's 👎 by default, and shows each rating on its own when asked", async () => {
+    const low = await image("scene", A, B);
+    const edge = await image("scene", A, B);
+    const good = await image("scene", A, B);
+    const down = await image("scene", A, B);
+    const up = await image("scene", A, B);
+    const none = await image("scene", A, B);
+    const v = await reel("night", A, C, [{ status: "ready", media_id: "s" }]);
+    await rateItem(t.db, "u1", low, 3);
+    // 3 and 4 average 3.5: four stars, as the galleries round it.
+    await rateItem(t.db, "u1", edge, 3);
+    await rateItem(t.db, "u2", edge, 4);
+    await rateItem(t.db, "u1", good, 5);
+    await rateItem(t.db, "u1", down, 5);
+    await rateItem(t.db, "u1", v, 1);
+    await t.db.query(`insert into adult_media_thumbs (owner_id, media_id, rating) values ('owner', $1, -1), ('owner', $2, 1)`, [down, up]);
+    const q = (rated?: string) => listLibrary(t.db, "viewer", libraryQuery(rated ? { rated } : {})).then((l) => l.items.map((i) => i.id).sort());
+    expect(await q()).toEqual([edge, good, up, none].sort());
+    expect(await q("liked")).toEqual([edge, good, up].sort());
+    expect(await q("unrated")).toEqual([none]);
+    expect(await q("low")).toEqual([low, down, v].sort());
+    expect(await q("all")).toHaveLength(7);
+    // A page past the end still counts under the filter.
+    expect((await listLibrary(t.db, "viewer", libraryQuery({ rated: "low", page: "5" }))).total).toBe(3);
   });
 
   it("pages by LIBRARY_PAGE_SIZE, and a page past the end still knows the total", async () => {

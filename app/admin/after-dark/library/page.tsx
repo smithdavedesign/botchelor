@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { LIBRARY_PAGE_SIZE, LIBRARY_SORTS, LIBRARY_TYPES, libraryHref, libraryQuery, listLibrary, madeBy, type LibrarySort, type LibraryType } from "@/lib/adult/library";
+import { LIBRARY_PAGE_SIZE, LIBRARY_RATED, LIBRARY_SORTS, LIBRARY_TYPES, libraryHref, libraryQuery, listLibrary, madeBy, type LibraryRated, type LibrarySort, type LibraryType } from "@/lib/adult/library";
 import { signedInAdmin } from "@/lib/adult/mode";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { getDb } from "@/lib/db";
@@ -18,13 +18,15 @@ const day = (iso: string) => new Date(iso).toISOString().slice(0, 16).replace("T
 
 const SORT_LABEL: Record<LibrarySort, string> = { newest: "Newest", oldest: "Oldest", rating: "Rating", characters: "Characters", type: "Type", model: "Model" };
 const TYPE_LABEL: Record<LibraryType, string> = { picture: "Pictures", portrait: "Portraits", video: "Videos of a night", clip: "Clips" };
+const RATED_LABEL: Record<LibraryRated, string> = { good: "Hide 👎 and 1–3★", liked: "👍 or 4–5★ only", unrated: "Not rated yet", low: "👎 or 1–3★", all: "Everything" };
 const TYPE_ONE: Record<LibraryType, string> = { picture: "Picture", portrait: "Portrait", video: "Video", clip: "Clip" };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
  * Every picture, portrait, video and clip After Dark has kept, everyone's, on pages (lib/adult/library.ts): sorted by
- * newest, rating, characters, type or model, and filtered by character, type and model. Rated 1–5 stars. Signed-in
+ * newest, rating, characters, type or model, and filtered by character, type, model and rating (by default nothing at
+ * 1–3 stars or with its owner's 👎). Rated 1–5 stars. Signed-in
  * admins only, as moderators (like the graph); a 404 to everyone else. Videos load only when played.
  */
 export default async function AfterDarkLibraryPage({ searchParams }: { searchParams: SearchParams }) {
@@ -93,10 +95,20 @@ export default async function AfterDarkLibraryPage({ searchParams }: { searchPar
             ))}
           </select>
         </label>
+        <label>
+          Rating{" "}
+          <select name="rated" defaultValue={q.rated}>
+            {LIBRARY_RATED.map((r) => (
+              <option key={r} value={r}>
+                {RATED_LABEL[r]}
+              </option>
+            ))}
+          </select>
+        </label>
         <button type="submit" className="primary small">
           Show
         </button>
-        {(q.type || q.character || q.model || q.sort !== "newest") && (
+        {(q.type || q.character || q.model || q.sort !== "newest" || q.rated !== "good") && (
           <Link className="button-ghost small" href="?">
             Clear
           </Link>

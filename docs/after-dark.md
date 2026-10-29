@@ -2640,3 +2640,38 @@ docs/PRDs/showcase.md).
   - Report on any post goes through the site's own reports (the admins are emailed).
   - A minor, a real person, non-consent or an intimate image holds the post out of sight at once.
   - `/admin/showcase` releases it or removes it for good, and resolves its reports.
+- **Publish my best work** (`bestOf`/`publishBest`, `/admin/showcase` → Your showcase; David, 2026-10-29: "add all
+  the assets we have so far that have a good rating as the baseline for the showcase so it's not empty"):
+  - One click publishes the admin's own best: a 👍 or 4–5★ (a clip's shots by its reel's stars). It skips anything
+    with any 👎 or 1–3★, anything in the Archive, and anything already posted.
+  - Only their own characters or the house cast: a pair with someone else's character would ask that owner first, so
+    it stays out. PG Studio pictures rated PG go too.
+  - Each goes through `publish()`, so every rule above holds: explicit posts stay admin-only until the switch.
+
+## The galleries' filters (2026-10-29)
+
+David, 2026-10-29: "in studio and anywhere where we see assets cleanup the organization by adding filters like tags,
+reels, images, boomerangs, rating, archived … we shouldn't see thumbs down or 1-3 star assets by default."
+
+- **One filter everywhere** (`lib/media-filter.ts`, `app/after-dark/MediaFilterBar.tsx`). It's used in the Studio's
+  Gallery tab (Studio, Dates, Favorites), its Together tab, a scene's gallery, and the Studio's latest-four strip.
+- **Filters:**
+  - What it is: pictures, faces, clips, date reels' shots, boomerangs, loops.
+  - Pose (`act` tags), place, first person.
+  - ⭐ Favorites, 🗄 Archived.
+  - Rating: by default it hides 👎 and 1–3★. The other choices are 👍 or 4–5★ only, not rated yet, 👎 or 1–3★, and
+    everything.
+- **How it shows:** a chip shows only when there's something behind it, with its count. The status line says how many
+  the default hid. Pose and place rows scroll sideways on a phone.
+- **What the media rows carry** (`MEDIA_SELECT`): each item's `show_tags`, its `stars`, `archived` and `reel_kind`.
+  - Stars are the library's average, rounded: 3.5 is 4 stars. A video's stars come from its reel's.
+  - Archived shots still stay out of `listMedia`/`characterMedia` unless a caller passes `{ withArchived: true }`.
+    The Studio, a scene's page and the admin scene API do, so 🗄 Archived can show them. The Storyboard and the face
+    pickers leave them out.
+- **A 👎 tapped just now:** the scene gallery filters by the saved rating, so the tile stays put until the next load,
+  under its "Not liked" section.
+- **The PG Studio** (`app/studio/PgFilterBar.tsx`, `filterPg`): filters by what made a picture (shoot, carousel,
+  identity view, SFW twin), its place, PG or suggestive, and 📣 on the showcase. PG pictures have no ratings, so
+  nothing is hidden by default.
+- **The admin library** (`/admin/after-dark/library`, `rated=`): hides anything averaging under 3.5★ or with its
+  owner's 👎 by default. The other choices are liked, not rated yet, low, and all.

@@ -20,8 +20,15 @@ export type LibraryType = (typeof LIBRARY_TYPES)[number];
 export const LIBRARY_SORTS = ["newest", "oldest", "rating", "characters", "type", "model"] as const;
 export type LibrarySort = (typeof LIBRARY_SORTS)[number];
 export const LIBRARY_PAGE_SIZE = 24;
+/**
+ * Which ratings show (David, 2026-10-29: "we shouldn't see thumbs down or 1-3 star assets by default"): by default
+ * nothing averaging 1–3 stars and nothing its owner gave a 👎, as in the galleries (lib/media-filter.ts); the rest one
+ * pick away. An average rounds as the galleries round it: 3.5 is 4 stars.
+ */
+export const LIBRARY_RATED = ["good", "liked", "unrated", "low", "all"] as const;
+export type LibraryRated = (typeof LIBRARY_RATED)[number];
 
-export type LibraryQuery = { sort: LibrarySort; type: LibraryType | null; character: string | null; model: string | null; page: number };
+export type LibraryQuery = { sort: LibrarySort; type: LibraryType | null; character: string | null; model: string | null; rated: LibraryRated; page: number };
 
 export type LibraryItem = {
   id: string;
@@ -56,12 +63,14 @@ const str = (v: unknown) => (typeof v === "string" ? v : Array.isArray(v) && typ
 export function libraryQuery(p: Record<string, string | string[] | undefined>): LibraryQuery {
   const sort = str(p.sort);
   const type = str(p.type);
+  const rated = str(p.rated);
   const page = Number(str(p.page) ?? 1);
   return {
     sort: (LIBRARY_SORTS as readonly string[]).includes(sort ?? "") ? (sort as LibrarySort) : "newest",
     type: (LIBRARY_TYPES as readonly string[]).includes(type ?? "") ? (type as LibraryType) : null,
     character: str(p.character)?.slice(0, 64) || null,
     model: str(p.model)?.slice(0, 120) || null,
+    rated: (LIBRARY_RATED as readonly string[]).includes(rated ?? "") ? (rated as LibraryRated) : "good",
     page: Number.isInteger(page) && page > 0 ? Math.min(page, 10_000) : 1,
   };
 }
@@ -74,6 +83,7 @@ export function libraryHref(q: LibraryQuery, change: Partial<LibraryQuery> = {})
   if (next.type) sp.set("type", next.type);
   if (next.character) sp.set("character", next.character);
   if (next.model) sp.set("model", next.model);
+  if (next.rated !== "good") sp.set("rated", next.rated);
   if (next.page > 1) sp.set("page", String(next.page));
   const s = sp.toString();
   return s ? `?${s}` : "?";
@@ -101,6 +111,30 @@ const ORDER: Record<LibrarySort, string> = {
   characters: "least(lower(a_name), lower(coalesce(b_name, a_name))), greatest(lower(a_name), lower(coalesce(b_name, a_name))), created_at desc, id",
   type: "type, created_at desc, id",
   model: "model nulls last, provider nulls last, created_at desc, id",
+};
+
+/** Each item with its names, everyone's stars, the viewer's own ($1) and whether its owner gave it a 👎 or a 👍. */
+const NAMED = `
+    with items as (${ITEMS}),
+    rated as (select item_id, avg(rating)::float8 as average, count(*)::int as count from adult_media_ratings group by item_id),
+    named as (
+      select items.*, ca.name as a_name, cb.name as b_name, rated.average, rated.count, mine.rating as mine,
+             exists (select 1 from adult_media_thumbs t where t.media_id = items.id and t.rating = -1) as down,
+             exists (select 1 from adult_media_thumbs t where t.media_id = items.id and t.rating = 1) as up
+        from items
+        left join characters ca on ca.id = items.a
+        left join characters cb on cb.id = items.b
+        left join rated on rated.item_id = items.id
+        left join adult_media_ratings mine on mine.item_id = items.id and mine.user_id = $1
+    )`;
+
+const LOW = "(down or coalesce(average < 3.5, false))";
+const RATED_WHERE: Record<LibraryRated, string | null> = {
+  good: `not ${LOW}`,
+  liked: `not ${LOW} and (up or coalesce(average >= 3.5, false))`,
+  unrated: "not down and not up and average is null",
+  low: LOW,
+  all: null,
 };
 
 type Row = {
@@ -136,19 +170,10 @@ export async function listLibrary(db: Db, viewer: string, q: LibraryQuery): Prom
     where.push(`(a = ${c} or b = ${c})`);
   }
   if (q.model) where.push(`model = ${arg(q.model)}`);
+  if (RATED_WHERE[q.rated]) where.push(RATED_WHERE[q.rated]!);
   const limit = arg(LIBRARY_PAGE_SIZE);
   const offset = arg((q.page - 1) * LIBRARY_PAGE_SIZE);
-  const sql = `
-    with items as (${ITEMS}),
-    rated as (select item_id, avg(rating)::float8 as average, count(*)::int as count from adult_media_ratings group by item_id),
-    named as (
-      select items.*, ca.name as a_name, cb.name as b_name, rated.average, rated.count, mine.rating as mine
-        from items
-        left join characters ca on ca.id = items.a
-        left join characters cb on cb.id = items.b
-        left join rated on rated.item_id = items.id
-        left join adult_media_ratings mine on mine.item_id = items.id and mine.user_id = $1
-    )
+  const sql = `${NAMED}
     select *, count(*) over () as total from named
     ${where.length ? `where ${where.join(" and ")}` : ""}
     order by ${ORDER[q.sort]}
@@ -185,8 +210,8 @@ export async function listLibrary(db: Db, viewer: string, q: LibraryQuery): Prom
 
 /** The count alone, for a page past the end (it has no rows to read the total from). */
 async function countOnly(db: Db, where: string[], params: unknown[]): Promise<number> {
-  // The filters' placeholders count from $1, the viewer, which the count names only to keep them in place.
-  const sql = `with items as (${ITEMS}) select count(*)::int as n from items where $1::text is not null${where.map((w) => ` and ${w}`).join("")}`;
+  // The filters' placeholders count from $1, the viewer (whose own stars the list reads).
+  const sql = `${NAMED} select count(*)::int as n from named where $1::text is not null${where.map((w) => ` and ${w}`).join("")}`;
   return Number((await db.query<{ n: number }>(sql, params)).rows[0]?.n ?? 0);
 }
 

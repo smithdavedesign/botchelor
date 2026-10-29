@@ -118,7 +118,7 @@ export const GET = handle(async (req: Request) => {
     return memory ? json({ memory }) : hidden();
   }
   const scene = await openScene(db, admin, q.get("a") ?? "", q.get("b") ?? "");
-  return scene ? json({ scene, gallery: await listMedia(db, [scene.a.id, scene.b.id], admin) }) : hidden();
+  return scene ? json({ scene, gallery: await listMedia(db, [scene.a.id, scene.b.id], admin, { withArchived: true }) }) : hidden();
 });
 
 // A steer and a whisper are the viewer's own words: checked for self-harm intent (lib/crisis.ts), the reply then
