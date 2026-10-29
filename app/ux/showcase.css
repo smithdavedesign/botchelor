@@ -2,10 +2,12 @@
    own shapes, and a viewer. Tokens only (docs/brand.md). An explicit post stays blurred until tapped (a static blur,
    never animated). */
 
+/* Wider than the site's reading column: a gallery wants the room (centred on the page, a gutter each side). Margins,
+   never a transform: a transform would make this box the viewer's frame, and the full-screen viewer would sit inside it. */
 .showcase-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--space-4);
+  width: min(1200px, calc(100vw - 2rem));
+  margin-left: calc(50% - min(600px, 50vw - 1rem));
+  padding: var(--space-2) 0 var(--space-4);
 }
 .showcase-filters {
   display: grid;

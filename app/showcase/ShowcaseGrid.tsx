@@ -1,5 +1,7 @@
 "use client";
 
+import RemixButton from "./RemixButton";
+import ReportPost from "./ReportPost";
 import LikeButton from "./LikeButton";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -77,7 +79,9 @@ export default function ShowcaseGrid({ posts }: { posts: Post[] }) {
                 <LikeButton key={p.id} postId={p.id} likes={p.likes} liked={p.liked} />
               </p>
               <p className="muted small">{[p.act ? actLabel(p.act) : "", p.place ? placeLabel(p.place) : "", p.pov ? "First person" : "", p.from_date ? "From a date" : "From the Studio"].filter(Boolean).join(" · ")}</p>
+              <RemixButton key={`remix-${p.id}`} post={p} />
               <p className="muted small">Made with AI. Every character is a fictional adult.</p>
+              <ReportPost key={`report-${p.id}`} postId={p.id} />
               <p className="showcase-viewer-nav">
                 <button type="button" className="button-ghost small" disabled={open === 0} onClick={() => setOpen((i) => (i ?? 1) - 1)} aria-label="The one before">←</button>
                 <button type="button" className="button-ghost small" onClick={close}>Close</button>

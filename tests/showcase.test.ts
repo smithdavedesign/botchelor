@@ -174,7 +174,7 @@ describe("the grid", () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { default: ShowcaseGrid } = await import("@/app/showcase/ShowcaseGrid");
-    const base = { source: "after_dark" as const, media_id: "m", mime: "image/png", medium: "picture" as const, aspect: null, act: "kiss", place: null, pov: false, from_date: true, caption: null, status: "live", published_at: "", mine: false, creator: { handle: "mara", display_name: "Mara" }, character: { id: "c", name: "Juniper" }, partner: null, likes: 0, liked: false };
+    const base = { source: "after_dark" as const, media_id: "m", mime: "image/png", medium: "picture" as const, aspect: null, act: "kiss", place: null, pov: false, from_date: true, caption: null, status: "live", published_at: "", mine: false, creator: { handle: "mara", display_name: "Mara" }, character: { id: "c", name: "Juniper" }, partner: null, likes: 0, liked: false, remixable: false };
     const html = renderToStaticMarkup(createElement(ShowcaseGrid, { posts: [{ ...base, id: "p1", rating: "nsfw" as const }, { ...base, id: "p2", rating: "pg" as const }] }));
     expect(html.match(/showcase-tile veiled/g)).toHaveLength(1);
     expect(html).toContain("After Dark · tap to show");

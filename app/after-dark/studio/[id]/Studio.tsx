@@ -28,7 +28,7 @@ import { identityPrice } from "@/lib/studio/identity-views";
 import FormatChips, { tileRatio } from "@/app/studio/FormatChips";
 import ShootReveal from "@/app/studio/ShootReveal";
 import { shootPrice } from "@/lib/adult/studio-config";
-import type { FormatId } from "@/lib/studio/formats";
+import { FORMATS, type FormatId } from "@/lib/studio/formats";
 import { actMark, FramingMark, openingView, ViewChips } from "../../FramingChips";
 import ExportDialog from "@/app/studio/ExportDialog";
 import TileTools, { SelectBar } from "@/app/studio/TileTools";
@@ -221,6 +221,21 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     }
     if (k.full) setFull(true);
     setRestored(true);
+    // Shoot like this (the showcase, lib/showcase.ts remixOf): a post's menu picks, as a setup is loaded.
+    const remix = new URLSearchParams(window.location.search).get("remix");
+    if (remix) {
+      void fetch(`/api/showcase/posts/${encodeURIComponent(remix)}/remix`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { remix?: { studio: string; kind: "shoot" | "pair"; choices: Record<string, unknown>; format: string | null; creator: string } } | null) => {
+          const r = d?.remix;
+          if (!r || r.studio !== "after_dark") return setNote({ text: "That post's picks couldn't be loaded.", error: true });
+          loadSetup({ id: "remix", name: `@${r.creator}'s post`, kind: r.kind, choices: r.choices, model: null, created_at: "" });
+          if (r.format && FORMATS.some((f) => f.id === r.format)) setFormat(r.format as FormatId);
+          setNote({ text: `Shooting like @${r.creator}'s post: their menu picks, your character${r.kind === "pair" ? " (pick who with)" : ""}.` });
+        })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as the page arrives
   }, [initial]);
   const movedKey = JSON.stringify(moved);
   useEffect(() => {

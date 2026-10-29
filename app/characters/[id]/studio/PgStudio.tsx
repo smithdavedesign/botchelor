@@ -14,7 +14,7 @@ import { PG_API, useSelection, type Selection } from "@/app/studio/selection";
 import IdentityPackGrid from "@/app/studio/IdentityPackGrid";
 import { identityPrice, type IdentityViewId } from "@/lib/studio/identity-views";
 import FormatChips, { tileRatio } from "@/app/studio/FormatChips";
-import type { FormatId } from "@/lib/studio/formats";
+import { FORMATS, type FormatId } from "@/lib/studio/formats";
 
 const pictureUrl = (id: string) => `/api/studio/pictures/${id}`;
 
@@ -111,6 +111,24 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     setNote(res.data.message ? { text: String(res.data.message), error: pics.length === 0 } : { text: `A carousel of ${pics.length}: they're in the gallery, in order.` });
   }
   const carouselPrice = state.admin ? "free for admins" : tokenWord(state.carousel_price);
+
+  // Shoot like this (the showcase, lib/showcase.ts remixOf): a post's menu picks on this character, never its words.
+  useEffect(() => {
+    const remix = new URLSearchParams(window.location.search).get("remix");
+    if (!remix) return;
+    void fetch(`/api/showcase/posts/${encodeURIComponent(remix)}/remix`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { remix?: { studio: string; choices: Record<string, unknown>; format: string | null; creator: string } } | null) => {
+        const r = d?.remix;
+        if (!r || r.studio !== "pg") return;
+        const ids = new Set((state.groups as readonly PgGroup[]).map((g) => g.id as string));
+        setChoices(Object.fromEntries(Object.entries(r.choices).filter(([k]) => ids.has(k))) as Partial<Record<PgGroupId, string | string[]>>);
+        if (r.format && FORMATS.some((f) => f.id === r.format)) setFormat(r.format as FormatId);
+        setNote({ text: `Shooting like @${r.creator}'s post: their picks, your character.` });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as the page arrives
+  }, []);
 
   // The Create tab saved or deleted something: the Where menu and the prompts row follow at once.
   const onLibrary = useCallback((lib: Library) => setState((s) => ({ ...s, library: { places: lib.places.filter((p) => p.mode === "safe"), prompts: lib.prompts.filter((p) => p.mode === "safe") } })), []);
