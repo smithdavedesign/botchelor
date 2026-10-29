@@ -4107,7 +4107,7 @@ const pageLink = (page: string | null, anchor = "") =>
  * so "from this_character" alone read as if the agent had said it.
  */
 const writtenBy = (t: ChainText, self: End): "you" | "them" | "the_show" =>
-  t.source === "afterglow" || t.via === "daily" || t.via === "show" || t.via === "away" ? "the_show" : t.who === self ? "you" : "them";
+  t.source === "afterglow" || t.via === "daily" || t.via === "show" || t.via === "away" || t.via === "stand_in" ? "the_show" : t.who === self ? "you" : "them";
 
 /** A text as agents read it (lib/text-chain.ts): who sent it, from this character's side, who wrote it, and which kind it is. */
 /**

@@ -673,7 +673,7 @@ async function claimNotice(db: Db, userId: string, job: Job, which: "warned_at" 
 
 const fallbackWords = (job: Job, cap: CapSettings, now: number) =>
   job === "text" && cap.on_cap === "fallback"
-    ? `Botchelor's free model stands in for your dates until ${resetDay(now)}.`
+    ? `Botchelor's free model stands in for your dates, and for a few texts a day, until ${resetDay(now)}.`
     : `${job === "text" ? "Your dates wait" : job === "image" ? "Portraits wait" : job === "after_dark" ? "Studio pictures on your key wait" : "Clips wait"} until ${resetDay(now)}, or until you raise the cap.`;
 
 /**
@@ -709,7 +709,9 @@ export async function noteFailure(db: Db, userId: string, job: Job, provider: st
   const e = plainError(provider, kind);
   const meanwhile =
     job === "text"
-      ? `${cap.on_cap === "fallback" ? "Meanwhile Botchelor's free model stands in for your dates." : "Meanwhile your dates wait (you chose that)."} Texting on your key waits until it works again.`
+      ? cap.on_cap === "fallback"
+        ? "Meanwhile Botchelor's free model stands in for your dates, and for a few texts a day."
+        : "Meanwhile your dates wait (you chose that), and so does texting on your key."
       : "";
   await notify(db, userId, {
     kind: "key_failed",

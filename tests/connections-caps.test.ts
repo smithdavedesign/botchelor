@@ -17,9 +17,11 @@ import {
 import { capLevel, clampCap, jobCards, money, monthOf, nextMonthStart, PORTRAIT_ESTIMATE_USD, resetDay, WARN_AT } from "@/lib/connections-shared";
 import { setEmailSenderForTests, type EmailMessage } from "@/lib/email";
 import { buildKeyForSide, userTextModel } from "@/lib/keys";
-import { ModelError, type Model } from "@/lib/model";
+import type { SideOutcome } from "@/lib/engine";
+import { ModelError, setModelForTests, type Model } from "@/lib/model";
 import { resetRateLimitsForTests } from "@/lib/rate-limit";
-import { api, BASE_URL, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
+import { pairKey } from "@/lib/relationships";
+import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
 // Connections M3 (docs/PRDs/connections.md): every call on a person's key counted for the month (the provider's own cost,
 // else tokens × list price), a cap per job with a meter, a heads-up at 80% (in the app, and by email when they opted in),
@@ -53,11 +55,13 @@ beforeEach(async () => {
 });
 afterEach(() => {
   setEmailSenderForTests(null);
+  setModelForTests(null);
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
+const side = (): SideOutcome => ({ wants_another: true, agenda_met: true, satisfied: true, dealbreaker_hit: null, want_met: null, note_followed: null });
 const jsonRes = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const notices = async (userId = U) =>
   (await t.db.query<{ kind: string; title: string; body: string; link: string }>(`select kind, title, body, link from notifications where user_id = $1 order by created_at`, [userId])).rows;
@@ -133,7 +137,7 @@ describe("the month's ledger and its notices", () => {
       expect.objectContaining({ kind: "key_usage", title: "🔑 Dates & texts is at 80% of its $1 cap", link: "/account/keys#dates" }),
       expect.objectContaining({ kind: "key_capped", title: "🔑 Dates & texts reached its $1 cap for the month" }),
     ]);
-    expect((await notices())[1].body).toContain("Botchelor's free model stands in for your dates until Nov 1.");
+    expect((await notices())[1].body).toContain("Botchelor's free model stands in for your dates, and for a few texts a day, until Nov 1.");
     // A new month starts the notices again.
     await noteSpend(t.db, U, "text", "openrouter", 0.9, cap, Date.parse("2026-11-02T12:00:00Z"));
     expect((await notices()).map((n) => n.kind)).toEqual(["key_usage", "key_capped", "key_usage"]);
@@ -193,7 +197,7 @@ describe("a person's key on dates: spend, cap and fallback", () => {
     expect(card.error?.message).toBe("OpenRouter: out of credit.");
     const failed = (await notices()).filter((n) => n.kind === "key_failed");
     expect(failed).toHaveLength(1);
-    expect(failed[0]).toMatchObject({ title: "🔑 Your OpenRouter key stopped working", body: expect.stringContaining("Meanwhile Botchelor's free model stands in for your dates.") });
+    expect(failed[0]).toMatchObject({ title: "🔑 Your OpenRouter key stopped working", body: expect.stringContaining("Meanwhile Botchelor's free model stands in for your dates, and for a few texts a day.") });
     expect(failed[0].body).not.toContain(fakeKey("or"));
     // The same failure on the next date isn't told twice.
     const again = (await userTextModel(t.db, U, undefined, env, { fallback: show.model, now: () => NOW }))!;
@@ -232,7 +236,7 @@ describe("a person's key on dates: spend, cap and fallback", () => {
     // The next call on it (a retry) says the same without asking the provider again.
     expect(await model.complete([{ role: "user", content: "again" }]).catch((e: unknown) => (e as Error).message)).toBe("OpenRouter: out of credit. Top up.");
     expect((await notices()).find((n) => n.kind === "key_failed")?.body).toBe(
-      "OpenRouter: out of credit. Top up. Meanwhile Botchelor's free model stands in for your dates. Texting on your key waits until it works again.",
+      "OpenRouter: out of credit. Top up. Meanwhile Botchelor's free model stands in for your dates, and for a few texts a day.",
     );
   });
 
@@ -291,9 +295,9 @@ describe("whether a job can run (jobUsability), and the waits", () => {
     expect((await api.createEpisode({ character_id: character.id, partner_id: HOUSE_PARTNER_ID }, session)).status).toBeLessThan(300);
   });
 
-  it("texting on your own key waits at the cap, in plain words", async () => {
+  it("texting on your own key waits at the cap, in plain words, for someone who chose to pause", async () => {
     const cookie = signedInCookie(U);
-    await openRouterKey(1, "fallback");
+    await openRouterKey(1, "pause");
     await recordUsage(t.db, U, "text", { usd: 1, how: "reported", input: 0, output: 0 });
     const res = await postOwnText(
       new Request(`${BASE_URL}/api/couples/a/b/texts`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ character_id: "a" }) }),
@@ -301,6 +305,34 @@ describe("whether a job can run (jobUsability), and the waits", () => {
     );
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: "over_cap", connect: "/account/keys#dates", message: expect.stringContaining("reached its $1 cap") });
+  });
+
+  it("texting at the cap with the fallback: the free model writes it, and says why", async () => {
+    const cookie = newUserCookie();
+    const owner = userIdOf(cookie);
+    const character = await (await api.createCharacter(validCharacter(), cookie)).json();
+    await registerAccount(t.db, owner, "capped_texter", ["a", "good", "password"].join("-"));
+    const session = signedInCookie(owner);
+    await openRouterKey(1, "fallback", owner);
+    await recordUsage(t.db, owner, "text", { usd: 1.2, how: "reported", input: 0, output: 0 });
+    // A date with the house partner, on the show's model (the key is at its cap).
+    scriptOutcome({ ending: "second_date", sides: [side(), side()] });
+    scriptedModel([episodeJson()]);
+    const episode = await (await api.createEpisode({ character_id: character.id, partner_id: HOUSE_PARTNER_ID }, session)).json();
+    await api.reveal(episode.id, session);
+    const show = scriptedModel([JSON.stringify({ text: "Saturday still on?" }), JSON.stringify({ text: "Wouldn't miss it." })]);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const [lo, hi] = pairKey(character.id, HOUSE_PARTNER_ID);
+    const res = await postOwnText(
+      new Request(`${BASE_URL}/api/couples/${lo}/${hi}/texts`, { method: "POST", headers: { "content-type": "application/json", cookie: session }, body: JSON.stringify({ character_id: character.id }) }),
+      { params: Promise.resolve({ a: lo, b: hi }) },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      items: [{ text: "Saturday still on?" }, { text: "Wouldn't miss it." }],
+      note: "Your OpenRouter key reached this month's cap. Botchelor's free model wrote this one (2 more today).",
+    });
+    expect(show.calls).toHaveLength(2);
   });
 
   it("portraits: one made is counted at its list price; at the cap they wait", async () => {

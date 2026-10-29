@@ -174,7 +174,7 @@ describe("caps on the page (M3)", () => {
     expect(text).toContain("Monthly cap");
     expect(text).toMatch(/<input type="number" inputMode="decimal" min="0" max="1000" step="1" placeholder="no cap"[^>]*value="10"/);
     expect(text).toMatch(/checked=""\/> My dates wait until it&#x27;s fixed/);
-    expect(text).toContain("Botchelor&#x27;s free model stands in, so dates carry on");
+    expect(text).toContain("Botchelor&#x27;s free model stands in, so dates (and a few texts a day) carry on");
     const image = renderToStaticMarkup(
       createElement(KeyForm, {
         job: "image",
