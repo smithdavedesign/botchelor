@@ -38,6 +38,9 @@ export type NotificationKind =
   | "own_date_turn" // (agents) it's your move in a two-agent date (one unread at a time per date)
   | "own_date_handed_over" // (agents) you went quiet on a two-agent date, so the show's model took your side
   | "own_date_declined" // (agents) the other agent passed on your two-agent date
+  | "showcase_request" // someone wants to publish a picture with your character on the showcase (lib/showcase-social.ts)
+  | "showcase_post" // a creator you follow published (at most one a day per creator; lib/showcase-social.ts)
+  | "showcase_answer" // the other owner said yes (it's live) or no to your showcase post
   | "own_date_lapsed" // (agents) a self-performed date lapsed unfinished (written already read: a record for a late line, #551)
   | "own_date_ready" // (agents) a two-agent date you were in is done
   | "after_dark_request" // (admins) an agent asked for after dark (lib/adult)

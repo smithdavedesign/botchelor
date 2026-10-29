@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { myRequests } from "@/lib/showcase-social";
 import { getDb } from "@/lib/db";
 import { parseFilters } from "@/lib/showcase";
 import ShowcaseBrowser from "./ShowcaseBrowser";
@@ -22,6 +24,11 @@ export default async function ShowcasePage({ searchParams }: Props) {
     <main className="showcase-page">
       <h1>Showcase</h1>
       <p className="muted">Pictures, clips and date reels their creators chose to share. Everything here was made with AI, and every character is a fictional adult.</p>
+      {viewer.id && (await myRequests(db, viewer.id)).length > 0 && (
+        <p className="notice">
+          📣 Someone wants to share a picture with one of your characters. <Link href="/showcase/requests">See what&apos;s waiting on you</Link>
+        </p>
+      )}
       <ShowcaseBrowser db={db} viewer={viewer} base="/showcase" filters={parseFilters(await searchParams)} />
     </main>
   );

@@ -63,7 +63,7 @@ export async function saveCreatorProfile(db: Db, userId: string, input: { handle
 
 /* -------------------------------------------------- who sees what -------------------------------------------------- */
 
-export type ShowcaseViewer = { id: string | null; admin: boolean; ratings: ContentRating[] };
+export type ShowcaseViewer = { id: string | null; admin: boolean; ratings: ContentRating[]; adult?: boolean };
 
 /** Whether explicit posts are open beyond admins (David's call: off until counsel and age checks). */
 export async function explicitOpen(db: Db): Promise<boolean> {
@@ -78,11 +78,11 @@ export async function showcaseViewer(db: Db, req: Request): Promise<ShowcaseView
   const admin = id ? await isAdmin(db, id) : false;
   const ratings: ContentRating[] = ["pg"];
   if (id && !bot) ratings.push("suggestive");
-  if (!bot && (admin || (await explicitOpen(db)))) {
-    const adult = await adultViewer(db, req);
-    if (adult && (admin || (await mediaAllowedFor(db, adult)))) ratings.push("nsfw");
-  }
-  return { id, admin, ratings };
+  // After Dark open to them (and media where they are): what lets an asked owner see an explicit post they're asked about.
+  const adultId = id && !bot ? await adultViewer(db, req) : null;
+  const adult = Boolean(adultId && (admin || (await mediaAllowedFor(db, adultId))));
+  if (adult && (admin || (await explicitOpen(db)))) ratings.push("nsfw");
+  return { id, admin, ratings, adult };
 }
 
 /* -------------------------------------------------- publishing -------------------------------------------------- */
@@ -92,6 +92,9 @@ export type Post = {
   act: string | null; place: string | null; pov: boolean; from_date: boolean; caption: string | null; status: string; published_at: string;
   creator: { handle: string; display_name: string }; character: { id: string; name: string }; partner: { id: string; name: string } | null;
   mine: boolean;
+  /** Its likes, and whether this viewer is one of them (lib/showcase-social.ts). */
+  likes: number;
+  liked: boolean;
 };
 
 type SourceRow = { id: string; owner_id: string; character_id: string; character_b: string | null; kind: string; mime: string; aspect: string | null; rating: string | null; derived: string | null; reel_kind: string | null; shoot_id: string | null };
@@ -157,6 +160,7 @@ export async function publish(db: Db, owner: string, input: { source: ShowcaseSo
     await db.query<{ id: string; owner_id: string | null; is_house: boolean }>(`select id, owner_id, is_house from characters where id = any($1::text[])`, [[src.character_id, src.character_b].filter(Boolean)])
   ).rows.filter((c) => !c.is_house && c.owner_id && c.owner_id !== owner);
   const status = others.length ? "pending" : "live";
+  const wasLive = existing?.status === "live";
   const t = await tagsFor(db, input.source, src.id);
   const id = existing?.id ?? crypto.randomUUID();
   await db.query(
@@ -169,13 +173,23 @@ export async function publish(db: Db, owner: string, input: { source: ShowcaseSo
   for (const c of others) {
     await db.query(`insert into showcase_consents (post_id, owner_id, character_id) values ($1, $2, $3) on conflict do nothing`, [id, c.owner_id, c.id]);
   }
+  // The other owners asked for their OK; or, live now, the creator's followers told (lib/showcase-social.ts).
+  const social = await import("./showcase-social");
+  if (status === "pending" && !existing) await social.askForOk(db, id);
+  if (status === "live" && !wasLive) await social.tellFollowers(db, owner);
   return { ok: true, post_id: id, status };
 }
 
-/** Takes a post down: its creator, any time (and an admin, as a moderator: `removed`, and it can't be put back). */
+/**
+ * Takes a post down: its creator, or the other owner of a character in it, any time (and an admin, as a moderator:
+ * `removed`, and it can't be put back).
+ */
 export async function unpublish(db: Db, viewer: string, postId: string): Promise<boolean> {
   const admin = await isAdmin(db, viewer);
-  const r = await db.query(`delete from showcase_posts where id = $1 and owner_id = $2 returning id`, [postId, viewer]);
+  const r = await db.query(
+    `delete from showcase_posts p where p.id = $1 and (p.owner_id = $2 or exists (select 1 from showcase_consents s where s.post_id = p.id and s.owner_id = $2)) returning p.id`,
+    [postId, viewer],
+  );
   if (r.rows.length) return true;
   if (!admin) return false;
   return (await db.query(`update showcase_posts set status = 'removed' where id = $1 returning id`, [postId])).rows.length > 0;
@@ -193,6 +207,8 @@ export async function postsOf(db: Db, owner: string, source: ShowcaseSource, med
 export type Filters = {
   creator?: string; character?: string; partner?: string; medium?: Medium; act?: string; place?: string; pov?: boolean;
   from?: "studio" | "date"; side?: "pg" | "after_dark"; shape?: string; page?: number;
+  /** Only creators this viewer follows; the most liked this week first. */
+  following?: boolean; sort?: "new" | "trending";
 };
 export const PAGE_SIZE = 36;
 
@@ -215,6 +231,8 @@ export function parseFilters(q: URLSearchParams | Record<string, string | string
     side: side === "pg" || side === "after_dark" ? side : undefined,
     shape: shape && /^\d{1,2}:\d{1,2}$/.test(shape) ? shape : undefined,
     page: Math.max(1, Math.floor(Number(get("page") ?? 1)) || 1),
+    following: get("following") === "1" || undefined,
+    sort: get("sort") === "trending" ? "trending" : undefined,
   };
 }
 
@@ -239,6 +257,7 @@ function where(v: ShowcaseViewer, f: Filters): { sql: string; args: unknown[] } 
   if (f.from === "studio") parts.push("not p.from_date");
   if (f.side) add("p.source = ?", f.side);
   if (f.shape) add("coalesce(p.aspect, '3:4') = ?", f.shape);
+  if (f.following) add("exists (select 1 from creator_follows fo where fo.creator_id = p.owner_id and fo.follower_id = ?)", v.id ?? "");
   return { sql: parts.join(" and "), args };
 }
 
@@ -251,19 +270,24 @@ const FROM = `from showcase_posts p
 export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}): Promise<{ posts: Post[]; more: boolean }> {
   const w = where(v, f);
   const page = Math.max(1, Math.floor(f.page ?? 1));
-  w.args.push(PAGE_SIZE + 1, (page - 1) * PAGE_SIZE);
+  w.args.push(PAGE_SIZE + 1, (page - 1) * PAGE_SIZE, v.id ?? "");
   const n = w.args.length;
+  // Trending: the most liked this week, then the newest.
+  const order = f.sort === "trending" ? "(select count(*) from showcase_likes l where l.post_id = p.id and l.created_at > now() - interval '7 days') desc, p.published_at desc nulls last, p.id" : "p.published_at desc nulls last, p.id";
   const { rows } = await db.query<Omit<Post, "creator" | "character" | "partner" | "published_at" | "mine" | "mime"> & {
     handle: string; display_name: string; character_id: string; character_name: string; character_b: string | null; partner_name: string | null; published_at: Date; owner_id: string; mime: string | null;
+    likes: number; liked: boolean;
   }>(
     `select p.id, p.source, p.media_id, p.rating, p.medium, p.aspect, p.act, p.place, p.pov, p.from_date, p.caption, p.status, p.published_at, p.owner_id,
             cp.handle, cp.display_name, p.character_id, c.name as character_name, p.character_b, cb.name as partner_name,
             coalesce((select i.mime from adult_images i where p.source = 'after_dark' and i.id = p.media_id and i.status = 'ready'),
-                     (select g.mime from studio_pg_pictures g where p.source = 'pg' and g.id = p.media_id)) as mime
+                     (select g.mime from studio_pg_pictures g where p.source = 'pg' and g.id = p.media_id)) as mime,
+            (select count(*)::int from showcase_likes l where l.post_id = p.id) as likes,
+            exists (select 1 from showcase_likes l where l.post_id = p.id and l.user_id = $${n}) as liked
        ${FROM}
       where ${w.sql}
-      order by p.published_at desc nulls last, p.id
-      limit $${n - 1} offset $${n}`,
+      order by ${order}
+      limit $${n - 2} offset $${n - 1}`,
     w.args,
   );
   const posts = rows
@@ -273,6 +297,7 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}): 
       caption: r.caption, status: r.status, published_at: new Date(r.published_at).toISOString(),
       creator: { handle: r.handle, display_name: r.display_name }, character: { id: r.character_id, name: r.character_name },
       partner: r.character_b ? { id: r.character_b, name: r.partner_name ?? "" } : null, mine: Boolean(v.id && r.owner_id === v.id),
+      likes: r.likes, liked: r.liked,
     }));
   return { posts: posts.slice(0, PAGE_SIZE), more: rows.length > PAGE_SIZE };
 }
@@ -301,6 +326,9 @@ export async function postMedia(db: Db, v: ShowcaseViewer, postId: string): Prom
   if (!r) return null;
   const rating = ratingOf(r.rating);
   const mine = Boolean(v.id && r.owner_id === v.id);
+  // Asked for their OK: they see what they're asked about (an explicit one only if After Dark is open to them).
+  const asked = Boolean(v.id && !mine && (await db.query(`select 1 from showcase_consents where post_id = $1 and owner_id = $2`, [postId, v.id])).rows.length);
+  if (asked && (rating !== "nsfw" || v.adult)) return { source: r.source, media_id: r.media_id, rating };
   if (!mine && !v.admin && r.status !== "live") return null;
   if (!mine && !v.ratings.includes(rating)) return null;
   return { source: r.source, media_id: r.media_id, rating };

@@ -39,6 +39,8 @@ export default async function ShowcaseBrowser({ db, viewer, base, filters, fixed
           {chip("pov", true, "First person")}
           {chip("from", "date", "From dates")}
           {chip("from", "studio", "From the Studio")}
+          {viewer.id && chip("following", true, "Following")}
+          {chip("sort", "trending", "Trending this week")}
           {explicit && chip("side", "after_dark", "After Dark")}
           {explicit && chip("side", "pg", "Safe for work")}
         </div>

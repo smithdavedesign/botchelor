@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import FollowButton from "@/app/showcase/FollowButton";
+import { followState } from "@/lib/showcase-social";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { parseFilters } from "@/lib/showcase";
@@ -32,6 +34,7 @@ export default async function CreatorPage({ params, searchParams }: Props) {
         <h1>{c.display_name}</h1>
         <p className="muted">@{c.handle}</p>
         {c.bio && <p>{c.bio}</p>}
+        <FollowButton handle={c.handle} {...(await followState(db, viewer.id, c.handle))} />
       </header>
       <ShowcaseBrowser db={db} viewer={viewer} base={`/creators/${c.handle}`} filters={parseFilters(await searchParams)} fixed={{ creator: c.handle }} />
     </main>

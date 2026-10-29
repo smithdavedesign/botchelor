@@ -2624,3 +2624,10 @@ docs/PRDs/showcase.md).
 - **Filters:** what each item was tagged with as it was made.
 - **The gate:** `/api/showcase/[post]/media` serves only a live post of a rating the viewer may see.
 - **Moderation:** an admin's takedown (`removed`) can't be republished.
+- **The other owner's OK** (`lib/showcase-social.ts`):
+  - A pending post asks each other owner once, in neutral words ("Someone wants to share a picture with X"), and
+    shows them what it is on `/showcase/requests`. An explicit one only shows if After Dark is open to them.
+  - Every yes and it goes live (the publisher is told, and so are their followers). One no and it comes down.
+  - Either owner can take it down later.
+- **Likes and follows:** ♥ on posts they can see, and Trending this week. Follow a creator to get their posts under
+  Following, with a quiet notice when they post (at most once a day per creator). No comments in v1.

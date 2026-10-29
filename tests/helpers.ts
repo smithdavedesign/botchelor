@@ -166,6 +166,8 @@ export async function startTestDb() {
         "media_favorites",
         // The showcase (lib/showcase.ts).
         "showcase_consents",
+        "showcase_likes",
+        "creator_follows",
         "showcase_posts",
         "creator_profiles",
         // Identity packs' views (lib/studio/identity-pack.ts), in both Studios.

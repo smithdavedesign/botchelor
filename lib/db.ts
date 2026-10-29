@@ -2574,6 +2574,19 @@ create table if not exists showcase_consents (
   created_at timestamptz not null default now(),
   primary key (post_id, owner_id, character_id)
 );
+-- Likes on posts, and people following creators (lib/showcase-social.ts).
+create table if not exists showcase_likes (
+  post_id text not null references showcase_posts (id) on delete cascade,
+  user_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+create table if not exists creator_follows (
+  follower_id text not null,
+  creator_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (follower_id, creator_id)
+);
 -- Favorites (the creator suite): the After Dark pictures and clips each person starred (the Studio's ⭐ and the rating
 -- deck's swipe up), theirs alone.
 create table if not exists media_favorites (

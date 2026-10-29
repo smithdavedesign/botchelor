@@ -56,8 +56,8 @@ Every filter is a link, so a filtered view can be shared, and the PG side can be
 | # | What | Status |
 |---|---|---|
 | 1 | Tag every picture and clip as it's made, PG pictures too | #941, live |
-| 2 | Creator handles, 📣 Publish, `/showcase` and `/creators/[handle]` with filters, the media gate, the explicit switch | this PR |
-| 3 | The other owner's OK for pairs, likes, following creators, a Following feed, quiet notifications | |
+| 2 | Creator handles, 📣 Publish, `/showcase` and `/creators/[handle]` with filters, the media gate, the explicit switch | #942, live |
+| 3 | The other owner's OK for pairs (/showcase/requests), likes and Trending, following creators and Following, quiet notifications | this PR |
 | 4 | Remix ("Shoot like this"), per-post report and takedown, admin moderation, screenshots, the legal draft for counsel | |
 
 ## Open, for David or counsel
