@@ -93,6 +93,28 @@ describe("a roleplay the writer plays, and the transcript shows", () => {
     expect(text).toContain("in the roleplay's own terms");
   });
 
+  it("a roleplay sets its own pace and keeps its roles at every stage (David, 2026-10-29: Rivals never competed once)", async () => {
+    const [a, b] = await Promise.all([loadCharacter(t.db, CAST_A), loadCharacter(t.db, CAST_B)]);
+    const rp = roleplayById("rivals")!;
+    const profile = { turnOns: { a: [], b: [] }, framing: null, scenario: null, roleplay: { rp, swap: false } };
+    const prompt = (stage: number, linesAtStage: number, withRoleplay = true) =>
+      sceneMessages(a, b, null, [], null, a!.id, { place: "Sweet's living room", set: "Sweet's living room", stage, linesAtStage, ...(withRoleplay ? { profile } : {}) })
+        .map((m) => m.content)
+        .join("\n");
+    // Past the usual 12 lines at a stage: no "Move it on", the roles hold it.
+    const at14 = prompt(1, 14);
+    expect(at14).toContain("- Stay in the roleplay at tension and the first touches: these lines play the roles out");
+    expect(at14).not.toContain("Move it on");
+    // Past 24, it may go further, only if the roles take it there.
+    expect(prompt(1, 25)).toContain("- The roleplay sets the pace. It can go one stage further, to kissing, only if the roles' story takes it there");
+    // The roles stay through anything intimate, and the premise isn't where it has to end.
+    expect(at14).toContain("The roleplay is the story, not a way into sex");
+    expect(at14).toContain("they stay in their roles while it does");
+    expect(at14).toContain("The premise is where the night starts, not where it has to end.");
+    // Without a roleplay, the pace is as it was.
+    expect(prompt(1, 14, false)).toContain("- Move it on.");
+  });
+
   it("/why shows the chapter's roleplay and which steps were written in it", async () => {
     const id = userIdOf(newUserCookie());
     await claimAdmin(t.db, id);
