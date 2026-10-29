@@ -1,7 +1,8 @@
 /**
  * npm run screenshots:showcase: real-browser screenshots of the creator showcase (lib/showcase.ts, docs/PRDs/showcase.md),
  * desktop and phone, into docs/screenshots/: the showcase with its filters, a filtered view, a post open in the viewer,
- * and a creator's page. It checks the filters narrow the grid and the page never scrolls sideways on a phone.
+ * and a creator's page. It checks the filters narrow the grid, the viewer says how a post was made (its model and
+ * prompt, lib/showcase-made.ts), and the page never scrolls sideways on a phone.
  *
  * It builds the app and runs it on a throwaway local database. Nothing is drawn and nothing explicit is shown: the posts
  * are PG stand-ins made here from the repo's own cast portraits (public/cast) with ffmpeg, seeded straight in.
@@ -69,8 +70,16 @@ async function seed() {
           const pic = `pg-${n}`;
           const place = places[n % places.length];
           await db.query(
-            `insert into studio_pg_pictures (id, owner_id, character_id, prompt, mime, data, content_rating, aspect, tags) values ($1, $2, $3, 'PG placeholder', 'image/png', $4, 'pg', $5, $6::jsonb)`,
-            [pic, owner, character, media[`${character}-${look}`], shapes[look], JSON.stringify([{ kind: "made", value: "shoot" }, { kind: "place", value: place }])],
+            `insert into studio_pg_pictures (id, owner_id, character_id, prompt, mime, data, content_rating, aspect, tags, model) values ($1, $2, $3, $4, 'image/png', $5, 'pg', $6, $7::jsonb, 'qwen-image-2-1-turbo-edit')`,
+            [
+              pic,
+              owner,
+              character,
+              `A candid photograph of the person in Picture 1, ${look === "golden" ? "in golden-hour light" : look === "moody" ? "in moody evening light" : "in soft daylight"}, at the ${place}, a relaxed natural smile, everyday clothes. Fully clothed, tasteful and everyday, safe for work. Photorealistic. Everyone shown is an adult.`,
+              media[`${character}-${look}`],
+              shapes[look],
+              JSON.stringify([{ kind: "made", value: "shoot" }, { kind: "place", value: place }]),
+            ],
           );
           await db.query(
             `insert into showcase_posts (id, owner_id, source, media_id, character_id, rating, medium, aspect, place, caption, status, published_at, tags)
@@ -149,6 +158,11 @@ async function main() {
       const box = await page.locator(".showcase-viewer").boundingBox();
       assert(box && box.x === 0 && box.y === 0 && box.width === w, `the viewer doesn't fill the screen: ${JSON.stringify(box)}`);
       assert(await page.locator(".showcase-viewer img").isVisible(), "the viewer's picture isn't in view");
+      // How it was made: the model by name, the prompt folded under it.
+      await page.locator(".showcase-made").getByText("Qwen Image 2.1 Turbo Edit").waitFor({ timeout: 10_000 });
+      assert((await page.locator(".showcase-prompt summary").count()) === 1, "the viewer doesn't offer the prompt");
+      if (size === "desktop") await page.locator(".showcase-prompt summary").click();
+      console.log("  ✓ the viewer says how it was made: the model and the prompt");
       if (size === "phone") await noSideways(page, "the viewer");
       await shot(page, `showcase-viewer-${size}`);
       await page.keyboard.press("Escape");

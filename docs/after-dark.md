@@ -2659,6 +2659,36 @@ docs/PRDs/showcase.md).
   - `POST /api/admin/showcase {action: "twin_best" | "publish_best", owner}`: `owner` only with the admin password,
     and only an admin's id. Without it, only a signed-in admin, for themselves.
 
+### How it was made (2026-10-29)
+
+David, 2026-10-29: "when someone clicks on the image showcase the model we used to make it. so every asset should have
+meta data of model used and prompt used, character(s)."
+
+- **In the viewer** (`app/showcase/MadeWith.tsx` ← `GET /api/showcase/[id]/made` ← `lib/showcase-made.ts madeOf`):
+  - What made it: a Studio shoot, a picture from a date, an SFW twin, a carousel angle, a clip, a date reel's shot, a
+    boomerang…
+  - The model by a readable name, with its id and where it ran.
+  - The prompt, folded, with Copy.
+  - Who's in it.
+  - For a boomerang, loop, still, upscale or fixed-faces picture: the one it came from too.
+  - Only for viewers who may see the post (`postMedia`).
+- **Where each piece comes from:**
+  - Picture: the row's `model` and `prompt`.
+  - Video: the row's `prompt` is a label ("Reel shot: …"), so the prompt is the one in its request log. The model is
+    the row's, else its reel shot's, else the request's.
+  - Video kept before the model was: `lib/db.ts` backfills its model from its reel shot.
+  - New shot videos and fal clips keep their model as they're made.
+- **Not kept is said plainly:** a picture from before 2026-10-24 kept only its provider ("Made on Replicate; the model
+  wasn't kept (before 2026-10-24)"). Nothing is guessed.
+- **Twins:** kept a placeholder prompt before this. Now `sfwTwin` keeps its real prompt (`twinTags` + `twinPrompt`),
+  and the viewer rebuilds an old twin's prompt the same way and keeps it from then on.
+- **When the prompt is hidden:**
+  - The creator unticked "Show the prompt that made it" when publishing (`showcase_posts.show_prompt`, on by default).
+    The model and who's in it always show.
+  - It's a pg or suggestive post whose prompt doesn't pass `checkPgPictureText`, so After Dark's words never reach
+    the PG side.
+  - A twin's viewer never names its original.
+
 ## The galleries' filters (2026-10-29)
 
 David, 2026-10-29: "in studio and anywhere where we see assets cleanup the organization by adding filters like tags,

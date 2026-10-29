@@ -42,6 +42,14 @@ export function twinPrompt(tags: readonly string[]): string {
   ].join(" ");
 }
 
+/** Who's in a twin, as its prompt names them: the one character, or the two as a reel names them (lib/adult/reels.ts). */
+export function twinTags(people: readonly Character[], viewer: string): string[] {
+  return people.length === 2 ? reelCast(people[0], people[1], viewer).map((p) => p.tag) : [`the ${nounOf(people[0])}`];
+}
+
+/** What a twin kept before 2026-10-29 says instead of its prompt (lib/showcase-made.ts puts the real one back). */
+export const TWIN_PLACEHOLDERS: readonly string[] = ["An SFW twin of an After Dark picture", "An SFW twin"];
+
 export async function sfwTwin(db: Db, viewer: string, mediaId: string, baseUrl: string): Promise<TwinResult> {
   const row = (
     await db.query<{ id: string; character_id: string | null; character_b: string | null; aspect: string | null; prompt: string | null }>(
@@ -65,11 +73,11 @@ export async function sfwTwin(db: Db, viewer: string, mediaId: string, baseUrl: 
     if (pays) await refundBoughtTokens(db, viewer, price);
     return fail(status, error, `${message}${pays ? " Your tokens are back." : ""}`);
   };
-  const tags = people.length === 2 ? reelCast(people[0], people[1], viewer).map((p) => p.tag) : [`the ${nounOf(people[0])}`];
+  const prompt = twinPrompt(twinTags(people, viewer));
   const ratio = row.aspect ?? "3:4";
   let file: { bytes: Buffer; mime: string };
   try {
-    file = await fitRatio(await drawPg(keys.venice, settings.studio.pg, twinPrompt(tags), [signedMediaUrl(row.id, baseUrl)], ratio), ratio);
+    file = await fitRatio(await drawPg(keys.venice, settings.studio.pg, prompt, [signedMediaUrl(row.id, baseUrl)], ratio), ratio);
   } catch (err) {
     return back(502, "not_made", `The twin couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).`);
   }
@@ -82,7 +90,7 @@ export async function sfwTwin(db: Db, viewer: string, mediaId: string, baseUrl: 
     await db.query(
       `insert into studio_pg_pictures (id, owner_id, character_id, shoot_id, prompt, mime, data, object_key, content_rating, clothing, model, aspect, twin_of, tags)
        values ($1, $2, $3, null, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)`,
-      [id, viewer, people[0].id, "An SFW twin of an After Dark picture", file.mime, kept.data, kept.object_key, v.rating, v.clothing, settings.studio.pg.edit_model, ratio, row.id, JSON.stringify([{ kind: "made", value: "twin" }])],
+      [id, viewer, people[0].id, prompt, file.mime, kept.data, kept.object_key, v.rating, v.clothing, settings.studio.pg.edit_model, ratio, row.id, JSON.stringify([{ kind: "made", value: "twin" }])],
     );
     return { ok: true, where: "pg", picture: { id, rating: v.rating }, character_id: people[0].id, original: row.id };
   }
@@ -94,7 +102,7 @@ export async function sfwTwin(db: Db, viewer: string, mediaId: string, baseUrl: 
   await db.query(
     `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, model, level, aspect, nsfw_score, content_rating, twin_of)
      values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', 'venice', $9, 0, $10, $11, $12, $13)`,
-    [id, viewer, row.character_id, row.character_b, "An SFW twin", file.mime, kept.data, kept.object_key, settings.studio.pg.edit_model, ratio, verdict.nsfw ?? null, v.rating, row.id],
+    [id, viewer, row.character_id, row.character_b, prompt, file.mime, kept.data, kept.object_key, settings.studio.pg.edit_model, ratio, verdict.nsfw ?? null, v.rating, row.id],
   );
   // What it shows, as it's made: who and where from the original, dressed now (stage 0); never its act or a view.
   await db.query(

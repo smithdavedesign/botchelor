@@ -16,7 +16,7 @@ export default function PublishButton({ source, mediaId, post = null }: { source
   const [now, setNow] = useState<PostState>(post);
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
-  const [form, setForm] = useState({ handle: "", display_name: "", bio: "", caption: "" });
+  const [form, setForm] = useState({ handle: "", display_name: "", bio: "", caption: "", show_prompt: true });
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
 
@@ -37,7 +37,7 @@ export default function PublishButton({ source, mediaId, post = null }: { source
   }
   async function go() {
     setBusy(true);
-    const res = await requestJson("/api/showcase/posts", { source, media_id: mediaId, caption: form.caption || null }).catch(() => null);
+    const res = await requestJson("/api/showcase/posts", { source, media_id: mediaId, caption: form.caption || null, show_prompt: form.show_prompt }).catch(() => null);
     setBusy(false);
     if (!res?.ok) return setNote({ text: res?.message ?? "That didn't reach the server.", error: true });
     const status = String(res.data.status);
@@ -89,6 +89,10 @@ export default function PublishButton({ source, mediaId, post = null }: { source
         <fieldset className="showcase-form">
           <legend className="small">Publish as @{profile.handle}</legend>
           <textarea rows={2} maxLength={300} placeholder="A caption (optional)" value={form.caption} onChange={(e) => setForm({ ...form, caption: e.target.value })} aria-label="Caption" />
+          {/* How it was made (lib/showcase-made.ts): the model and who's in it always show; the prompt is theirs to share. */}
+          <label className="small">
+            <input type="checkbox" checked={form.show_prompt} onChange={(e) => setForm({ ...form, show_prompt: e.target.checked })} /> Show the prompt that made it (the model and who&apos;s in it always show)
+          </label>
           <p className="muted small">
             {source === "after_dark" ? "Explicit posts are seen by admins only for now. " : ""}With someone else&apos;s character, it goes up once their owner says yes. You can unpublish any time.
           </p>

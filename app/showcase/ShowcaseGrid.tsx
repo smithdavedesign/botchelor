@@ -3,6 +3,7 @@
 import RemixButton from "./RemixButton";
 import ReportPost from "./ReportPost";
 import LikeButton from "./LikeButton";
+import MadeWith from "./MadeWith";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { Post } from "@/lib/showcase";
@@ -12,7 +13,8 @@ const src = (p: Post) => `/api/showcase/${p.id}/media`;
 
 /**
  * The showcase's grid and its viewer (lib/showcase.ts): a masonry of pictures and clips in their own shapes (clips play
- * muted, looping), and a tap opens one large with who made it, who's in it, what it shows, and the ones either side
+ * muted, looping), and a tap opens one large with who made it, who's in it, what it shows, how it was made (the model
+ * and prompt, MadeWith), and the ones either side
  * (← → and Esc). An explicit one (admins only for now) stays blurred until it's tapped.
  */
 export default function ShowcaseGrid({ posts }: { posts: Post[] }) {
@@ -79,6 +81,7 @@ export default function ShowcaseGrid({ posts }: { posts: Post[] }) {
                 <LikeButton key={p.id} postId={p.id} likes={p.likes} liked={p.liked} />
               </p>
               <p className="muted small">{[p.act ? actLabel(p.act) : "", p.place ? placeLabel(p.place) : "", p.pov ? "First person" : "", p.from_date ? "From a date" : "From the Studio"].filter(Boolean).join(" · ")}</p>
+              <MadeWith postId={p.id} />
               <RemixButton key={`remix-${p.id}`} post={p} />
               <p className="muted small">Made with AI. Every character is a fictional adult.</p>
               <ReportPost key={`report-${p.id}`} postId={p.id} />

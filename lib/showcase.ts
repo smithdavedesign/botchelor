@@ -145,7 +145,7 @@ async function tagsFor(db: Db, source: ShowcaseSource, mediaId: string): Promise
  * picture with someone else's character waits for that owner's OK (`pending`; lib/showcase-consent.ts). A caption is
  * public words: held to the show's lines on a pg post, to After Dark's on any other.
  */
-export async function publish(db: Db, owner: string, input: { source: ShowcaseSource; media_id: string; caption?: string | null }): Promise<{ ok: true; post_id: string; status: "live" | "pending" } | Fail> {
+export async function publish(db: Db, owner: string, input: { source: ShowcaseSource; media_id: string; caption?: string | null; show_prompt?: boolean }): Promise<{ ok: true; post_id: string; status: "live" | "pending" } | Fail> {
   if (!(await creatorProfile(db, owner))) return fail(409, "no_profile", "Pick your creator handle first.");
   const src = await sourceOf(db, owner, input.source, input.media_id);
   if (!src) return fail(404, "not_found", "There's nothing of yours with that id.");
@@ -167,11 +167,11 @@ export async function publish(db: Db, owner: string, input: { source: ShowcaseSo
   const remix = await remixPicks(db, input.source, src.shoot_id);
   const id = existing?.id ?? crypto.randomUUID();
   await db.query(
-    `insert into showcase_posts (id, owner_id, source, media_id, character_id, character_b, rating, medium, aspect, act, place, pov, from_date, caption, tags, status, published_at, remix)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, case when $16 = 'live' then now() end, $17::jsonb)
-     on conflict (source, media_id) do update set caption = excluded.caption, rating = excluded.rating, status = case when showcase_posts.status = 'live' then 'live' else excluded.status end,
+    `insert into showcase_posts (id, owner_id, source, media_id, character_id, character_b, rating, medium, aspect, act, place, pov, from_date, caption, tags, status, published_at, remix, show_prompt)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, case when $16 = 'live' then now() end, $17::jsonb, $18)
+     on conflict (source, media_id) do update set caption = excluded.caption, rating = excluded.rating, show_prompt = excluded.show_prompt, status = case when showcase_posts.status = 'live' then 'live' else excluded.status end,
        published_at = coalesce(showcase_posts.published_at, excluded.published_at)`,
-    [id, owner, input.source, src.id, src.character_id, src.character_b, rating, mediumOf(src), src.aspect, t.act, t.place, t.pov, input.source === "after_dark" && !src.shoot_id, caption, JSON.stringify(t.tags), status, remix ? JSON.stringify(remix) : null],
+    [id, owner, input.source, src.id, src.character_id, src.character_b, rating, mediumOf(src), src.aspect, t.act, t.place, t.pov, input.source === "after_dark" && !src.shoot_id, caption, JSON.stringify(t.tags), status, remix ? JSON.stringify(remix) : null, input.show_prompt !== false],
   );
   for (const c of others) {
     await db.query(`insert into showcase_consents (post_id, owner_id, character_id) values ($1, $2, $3) on conflict do nothing`, [id, c.owner_id, c.id]);
