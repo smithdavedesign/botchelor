@@ -32,8 +32,8 @@ as AI, captions, bigger shoots and carousels. Clips need: save a moment, continu
 | 3 | Framing scores + POV for two people | #932, live |
 | 4 | Fix faces + identity pack (and the face anchor follows a new face) | #933, live |
 | 5a | Native sizes + carousels (both Studios; fixes PG shoots without a portrait) | #934, live |
-| 5b | Bigger shoots (8, 12, 20) landing as they're kept, After Dark Studio | this PR |
-| 6 | SFW twin + camera-move tiles + content ratings | |
+| 5b | Bigger shoots (8, 12, 20) landing as they're kept, After Dark Studio | #936, live |
+| 6 | SFW twin + camera-move tiles (content ratings from a level: not done, see docs/after-dark.md) | this PR |
 | 7 | Rating deck + favorites + delight pass + docs and screenshots | |
 
 ## Open, for David or the legal workstream

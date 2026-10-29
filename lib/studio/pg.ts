@@ -101,7 +101,7 @@ const doFetch: Fetch = (...a) => (testFetch ?? fetch)(...a);
  * there are any, else a new picture from words. A new picture's size the way its model takes one (veniceSize: Qwen
  * Image 3 refuses a width and height, 400 "Use aspect_ratio", so a shoot of someone with no portrait drew nothing).
  */
-async function drawPg(key: string, config: PgConfig, prompt: string, images: string[], ratio = "3:4"): Promise<{ bytes: Buffer; mime: string }> {
+export async function drawPg(key: string, config: PgConfig, prompt: string, images: string[], ratio = "3:4"): Promise<{ bytes: Buffer; mime: string }> {
   const size = sizeFor(ratio);
   const res = images.length
     ? await doFetch(`${VENICE}/image/multi-edit`, {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CAMERA_MOVE_IDS, type CameraMoveId } from "@/lib/adult/camera-moves";
 import { FRAMINGS } from "@/lib/adult/acts";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
@@ -132,6 +133,8 @@ const Input = z.discriminatedUnion("action", [
     guide: z.string().max(CUSTOM_MAX).optional(),
     dialog: z.string().max(DIALOG_MAX).optional(),
     transcript: z.string().max(TRANSCRIPT_MAX).optional(),
+    // How the camera moves through it (lib/adult/camera-moves.ts): steady unless picked.
+    camera: z.enum(CAMERA_MOVE_IDS as [CameraMoveId, ...CameraMoveId[]]).nullable().optional(),
   }),
   z.object({ action: z.literal("use_body"), character_id: id, image_id: id.nullable() }),
   z.object({ action: z.literal("limits"), character_id: id, intensity: z.string().max(20).optional(), hard_nos: z.array(z.string().max(30)).max(30).optional() }),
@@ -217,7 +220,7 @@ export const POST = handle(async (req: Request) => {
         return ok ? after(input.character_id, {}) : json({ error: "not_found", message: "No setup of yours with that id." }, 404);
       }
       case "animate":
-        return job(input.character_id, await animatePicture(db, viewer, input.character_id, { image_id: input.image_id, motion: input.motion, seconds: input.seconds, guide: input.guide, dialog: input.dialog, transcript: input.transcript }, base));
+        return job(input.character_id, await animatePicture(db, viewer, input.character_id, { image_id: input.image_id, motion: input.motion, seconds: input.seconds, guide: input.guide, dialog: input.dialog, transcript: input.transcript, camera: input.camera }, base));
       case "unshare": {
         // The sharer takes an After Dark share back (a photo already in their texts stays: it was sent).
         const ok = await removeShare(db, viewer, input.share_id);

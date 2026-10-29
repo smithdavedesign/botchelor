@@ -1,5 +1,7 @@
 "use client";
 
+import CameraMoves from "../../CameraMoves";
+import type { CameraMoveId } from "@/lib/adult/camera-moves";
 import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 import type { Eyes, Framing, MenuAct } from "@/lib/adult/acts";
@@ -72,6 +74,8 @@ export default function MediaMenu({
   const [swap, setSwap] = useState(false);
   // Seen through one of their eyes (an act's first-person view), or both in frame (null).
   const [eyes, setEyes] = useState<Eyes | null>(null);
+  // How the camera moves through a clip (lib/adult/camera-moves.ts); a first-person one moves as their eyes would.
+  const [camera, setCamera] = useState<CameraMoveId>("steady");
   const [outfit, setOutfit] = useState<string | null>(null);
   const [framing, setFraming] = useState<Framing>("medium");
   const [place, setPlace] = useState<string | null>(null);
@@ -191,6 +195,7 @@ export default function MediaMenu({
             <legend>Or a moment from the menu</legend>
             <ActChips acts={clipActs} picked={act} onPick={setAct} />
             {clipAct && <ViewChips act={clipAct} eyes={eyes} onPick={pickView} />}
+            {clipAct && !eyes && <CameraMoves value={camera} onChange={setCamera} disabled={busy} />}
             {clipAct && (
               <p className="small">
                 {viewWords(clipAct) ? `${viewWords(clipAct)}: ${shownSays(clipAct)}` : shownSays(clipAct)}{" "}
@@ -202,7 +207,7 @@ export default function MediaMenu({
               </p>
             )}
             <p className="ad-panel-actions">
-              <button type="button" className="primary small" disabled={busy || Boolean(paused) || !clipAct || Boolean(clipAct.why)} title={paused ?? undefined} onClick={() => clipAct && void make("clips", { act: clipAct.id, swap, ...(eyes ? { eyes } : {}) })}>
+              <button type="button" className="primary small" disabled={busy || Boolean(paused) || !clipAct || Boolean(clipAct.why)} title={paused ?? undefined} onClick={() => clipAct && void make("clips", { act: clipAct.id, swap, ...(eyes ? { eyes } : camera !== "steady" ? { camera } : {}) })}>
                 {busy ? "Setting it up…" : `🎬 Make this clip · ${priceWords(clips.price)}`}
               </button>
             </p>
