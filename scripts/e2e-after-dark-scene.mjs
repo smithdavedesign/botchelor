@@ -94,7 +94,15 @@ function startAdultStub(seen) {
         seen.push(text);
         // The pair is stored lower id first: house-juniper is "a", lexi-e2e is "b". Each line is its own speaker's.
         // What they're doing (lib/adult/doing.ts): said on a step's first line, and where it changes.
-        const lines = STEPS[n % STEPS.length].map(([action, said], i) => ({ who: action.startsWith("Lexi") ? "b" : "a", text: `*${action}* ${said}`, why: "the double date", memory: null, ...(DOING[n % STEPS.length][i] ? { doing: DOING[n % STEPS.length][i] } : {}) }));
+        // Each line's face (lib/adult/presence.ts): Lexi smiles, Juniper's are left neutral.
+        const lines = STEPS[n % STEPS.length].map(([action, said], i) => ({
+          who: action.startsWith("Lexi") ? "b" : "a",
+          text: `*${action}* ${said}`,
+          why: "the double date",
+          memory: null,
+          ...(DOING[n % STEPS.length][i] ? { doing: DOING[n % STEPS.length][i] } : {}),
+          ...(action.startsWith("Lexi") ? { face: "smile" } : {}),
+        }));
         n++;
         reply = { lines, place: "a noisy, dimly lit downtown bar", set: "bar", stage: 0, explicit: false, picture: null, suggestions: { mild: "They split the bill", flirty: "Lexi kicks Juniper's ankle under the table", spicy: "They slip out together" } };
       }
@@ -283,6 +291,33 @@ async function main() {
       assert(now.length > 0, "no 'What is happening'");
       assert(!/\b(?:a|an|the|of|to|in|with|letting)(?:;|$)/.test(now), `an action cut off mid-phrase: ${now}`);
       await shot("played");
+    });
+
+    await step("their living faces: Lexi's loop on the stage while she listens, and ✨ says Juniper needs a face first", async () => {
+      assert((await sceneNow()).lines.some((l) => l.who === "b" && l.face === "smile"), "the writer's faces didn't reach the page");
+      // Lexi's presence, as "✨ Bring them to life" would leave it, on the face she keeps (the Studio set it above).
+      await stopApp(app);
+      const pdb = new PGlite(DB_DIR);
+      const face = (await pdb.query(`select image_id from adult_face_refs where owner_id = $1 and character_id = $2`, [owner, LEXI])).rows[0]?.image_id;
+      assert(face, "Lexi keeps no face");
+      for (const e of ["smile", "laugh", "flirty", "intense", "tender", "surprised", "annoyed"]) {
+        await pdb.query(`insert into adult_presence (id, owner_id, character_id, face_id, part, expression, status, mime, data) values ($1, $2, $3, $4, 'expression', $5, 'ready', 'image/webp', $6)`, [`lexi-${e}`, owner, LEXI, face, e, portrait]);
+      }
+      await pdb.query(`insert into adult_presence (id, owner_id, character_id, face_id, part, status, mime, data) values ('lexi-loop', $1, $2, $3, 'loop', 'ready', 'video/mp4', $4)`, [owner, LEXI, face, Buffer.from([0, 0, 0, 24])]);
+      await pdb.close();
+      app = await startApp(port, env);
+      await page.goto(`${app.base}${scenePath}`);
+      const lexi = page.locator(".scene-char-b .ad-living-face");
+      await lexi.waitFor({ timeout: 30_000 });
+      await theater.getByRole("button", { name: "Catch up" }).click({ timeout: 5_000 }).catch(() => {});
+      const last = (await sceneNow()).lines.at(-1);
+      const want = last.who === "b" ? "/presence/lexi-smile" : "/presence/lexi-loop";
+      await page.waitForFunction((w) => [...document.querySelectorAll(".scene-char-b .ad-living-face img, .scene-char-b .ad-living-face video")].some((el) => el.getAttribute("src")?.includes(w)), want, { timeout: 15_000 });
+      assert((await page.locator(".scene-char-a .ad-living-face").count()) === 0, "Juniper has a living face she was never given");
+      await shot("living");
+      await page.getByRole("button", { name: "More tools" }).click();
+      await page.getByRole("button", { name: "✨ Bring them to life" }).click();
+      await page.waitForFunction(() => /no face yet/.test(document.querySelector(".ad-theater-note")?.textContent ?? ""), null, { timeout: 15_000 });
     });
     await ctx.close();
   } finally {

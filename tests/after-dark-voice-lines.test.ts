@@ -7,7 +7,7 @@ import { setAdultModelForTests } from "@/lib/adult/mode";
 import { replicateVoice, voiceFor } from "@/lib/adult/reels";
 import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { DEFAULT_REPLICATE_VOICE_MODEL } from "@/lib/adult/settings";
-import { sayable, setVoiceFetchForTests, VOICE_BATCH_MAX, voiceKey } from "@/lib/adult/voice-lines";
+import { modelVoice, sayable, setVoiceFetchForTests, VOICE_BATCH_MAX, voiceKey } from "@/lib/adult/voice-lines";
 import { claimAdmin } from "@/lib/admins";
 import { loadCharacter } from "@/lib/character";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -205,5 +205,44 @@ describe("a line's voice", () => {
     expect(voiceKey("o1", "af_bella", "Hi.")).not.toBe(voiceKey("o2", "af_bella", "Hi."));
     expect(voiceKey("o1", "af_bella", "Hi.")).not.toBe(voiceKey("o1", "af_nova", "Hi."));
     expect(voiceKey("o1", "af_bella", "Hi.")).toBe(voiceKey("o1", "af_bella", "Hi."));
+  });
+});
+
+describe("a voice model (docs/PRDs/theater-immersion.md #3)", () => {
+  it("makes the lines asked for at once, not one after another, so the one about to play isn't kept waiting", async () => {
+    const { cookie } = await admin();
+    await ready(cookie);
+    let inFlight = 0;
+    let most = 0;
+    setVoiceFetchForTests(async () => {
+      most = Math.max(most, ++inFlight);
+      await new Promise((r) => setTimeout(r, 30));
+      inFlight--;
+      return new Response(MP3, { headers: { "content-type": "audio/mpeg" } });
+    });
+    const v = await voices(await voice(cookie, ask(0, 1, 3)));
+    expect(v.map((x) => x.i)).toEqual([0, 1, 3]);
+    expect(v.every((x) => x.id)).toBe(true);
+    expect(most).toBe(3);
+  });
+
+  it("speaks each line in the settings' model, its own voice per character, with Orpheus's sounds; a line kept in Kokoro is voiced again", async () => {
+    const { cookie } = await admin();
+    const lines = [{ who: "a", text: "*laughs* You kept me waiting by the railing." }, ...LINES.slice(1)];
+    await ready(cookie, lines);
+    const asked = fakeKokoro();
+    const kokoro = await voices(await voice(cookie, [{ i: 0, text: lines[0].text }]));
+    expect(asked[0]).toMatchObject({ model: "tts-kokoro", input: "You kept me waiting by the railing." });
+    await call(settingsPost, "/api/admin/after-dark/settings", { voice_model: "orpheus" }, cookie);
+    asked.length = 0;
+    const orpheus = await voices(await voice(cookie, [{ i: 0, text: lines[0].text }, { i: 1, text: lines[1].text }]));
+    const [juniper, rafe] = [(await loadCharacter(t.db, JUNIPER))!, (await loadCharacter(t.db, RAFE))!];
+    expect(asked).toEqual([
+      { model: "tts-orpheus", input: "<laugh> You kept me waiting by the railing.", voice: modelVoice("orpheus", juniper).split(":")[1], response_format: "wav" },
+      { model: "tts-orpheus", input: "Seven boats? I'll make it up to you with terrible tea.", voice: modelVoice("orpheus", rafe).split(":")[1], response_format: "wav" },
+    ]);
+    expect(orpheus[0].id).not.toBe(kokoro[0].id);
+    // Kept as the WAV it is (only Kokoro gives MP3).
+    expect((await t.db.query<{ mime: string }>(`select mime from adult_images where id = $1`, [orpheus[0].id])).rows[0].mime).toBe("audio/wav");
   });
 });

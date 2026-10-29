@@ -1566,6 +1566,30 @@ create table if not exists adult_voice_lines (
 );
 alter table adult_usage add column if not exists voice_lines integer not null default 0;
 alter table adult_settings add column if not exists cap_voice_lines integer not null default 2000;
+-- The theater, more alive (docs/PRDs/theater-immersion.md): who voices the lines, and the living portrait's model.
+alter table adult_settings add column if not exists voice_model text;
+alter table adult_settings add column if not exists presence_loop_model text;
+-- A character's presence for one viewer (lib/adult/presence.ts): their expressions and their living portrait, made once
+-- from the face they keep for them. Its own table, so no gallery, library or export ever lists it.
+create table if not exists adult_presence (
+  id text primary key,
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  face_id text not null,
+  part text not null check (part in ('expression', 'loop')),
+  expression text,
+  status text not null default 'making' check (status in ('making', 'ready', 'failed')),
+  model text,
+  queue_id text,
+  mime text,
+  data bytea,
+  object_key text,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists adult_presence_one on adult_presence (owner_id, character_id, face_id, part, coalesce(expression, ''));
+create index if not exists adult_presence_owner on adult_presence (owner_id, character_id);
 
 -- Monthly seasons (David, 2026-10-19; lib/season-cast.ts): who's on each season's show, decided once on its first
 -- read. 'dealt' from the old shuffle, 'survivor' the previous season's two most-loved, 'new' a newcomer.

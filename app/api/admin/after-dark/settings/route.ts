@@ -2,7 +2,7 @@ import { z } from "zod";
 import { hiveState, mediaPauses } from "@/lib/adult/hive-limit";
 import { signedInAdmin } from "@/lib/adult/mode";
 import { MODEL_ID } from "@/lib/adult/replicate";
-import { getAdultSettings, MEDIA_PROVIDERS, PROMPT_VERSIONS, saveAdultSettings } from "@/lib/adult/settings";
+import { getAdultSettings, MEDIA_PROVIDERS, VOICE_MODELS, PROMPT_VERSIONS, saveAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { lockedForRequest } from "@/lib/adult/privacy";
 import { USAGE_KINDS } from "@/lib/adult/usage";
@@ -48,6 +48,8 @@ const Input = z.object({
   replicate_keyframe_model: replicateModel.optional(),
   replicate_video_model: replicateModel.optional(),
   replicate_voice_model: replicateModel.optional(),
+  voice_model: z.enum(VOICE_MODELS).optional(),
+  presence_loop_model: z.string().trim().max(120).regex(/^$|^[a-z0-9][a-z0-9._-]*$/i).optional(),
   replicate_video_lora: videoLora.optional(),
   auto_scene_pictures: z.boolean().optional(),
   beat_pictures: z.boolean().optional(),

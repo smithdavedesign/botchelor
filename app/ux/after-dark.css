@@ -1767,3 +1767,28 @@ a.ad-scenes-make-link {
   }
 }
 
+
+/* A living face on the stage (LivingFace.tsx): the expression or the face, the loop playing over it and fading at its end. */
+.ad-living-face {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  flex: none;
+  background: var(--soft);
+  box-shadow: 0 10px 40px -8px rgba(0, 0, 0, 0.8);
+}
+.ad-living-still,
+.ad-living-loop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 18%;
+}
+.ad-living-loop {
+  transition: opacity 0.45s ease;
+}
+.ad-living-loop.fading {
+  opacity: 0;
+}
