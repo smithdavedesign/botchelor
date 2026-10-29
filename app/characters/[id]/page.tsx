@@ -321,7 +321,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {ratings.is_owner && !c.house && !c.private && !partnerStyle?.taken && <ShareDateLink characterId={c.id} first={shortName(c.name)} />}
       {pgStudio && (
         <section className="card character-studio">
-          <h2>📸 Studio</h2>
+          <h2>📸 Photo Studio</h2>
           <p>
             Photo shoots of {shortName(c.name)} for the show: outfits, places, accessories and styles, their face kept, every picture checked safe.{" "}
             <Link className="button" href={`/characters/${c.id}/studio`}>
@@ -331,8 +331,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
       )}
       {studio && (
-        <section className="card character-studio">
-          <h2>🎨 Studio</h2>
+        <section className="card character-studio character-studio-after-dark">
+          <h2>🎨 After Dark Studio</h2>
           {studio.ready ? (
             <p>
               Shoots of {shortName(c.name)}, their face and look, and their gallery, in After Dark.{" "}

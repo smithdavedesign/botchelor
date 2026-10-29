@@ -413,6 +413,9 @@ button.ad-capture-item:disabled {
   .theater-after-dark .theater-tools {
     flex-wrap: nowrap;
   }
+  .theater-after-dark .theater-tools > * {
+    white-space: nowrap;
+  }
   .ad-theater-options {
     gap: var(--space-2) var(--space-3);
   }
@@ -1630,4 +1633,11 @@ a.ad-scenes-make-link {
   color: var(--muted);
   font-size: 0.72em;
   vertical-align: 0.1em;
+}
+/* One row on a 390px phone (the audit, 2026-10-29: seven tools ran off the left edge and cut 📍 in half, and "GLM-4.6"
+   wrapped): the writer is its ✍️ there, its name in the menu it opens. */
+@media (max-width: 420px) {
+  .theater-tools .ad-writer-logo-name {
+    display: none;
+  }
 }

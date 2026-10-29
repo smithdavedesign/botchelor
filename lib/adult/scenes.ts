@@ -2031,6 +2031,15 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
       flags.empty_retry = true;
       flags.calls++;
       out = guard(await model.complete([messages[0], { role: "user", content: `${messages[1].content}\n\n${EMPTY_REPLY_NOTE}` }], modelOptions));
+      // Still no lines (the audit, 2026-10-29: 18 of the week's 28 failed steps, all on GLM-4.6): the fast writer writes
+      // the step, as when the writer sends back nothing at all, instead of the owner pressing again.
+      if (!out.written.length && input.fallback && model !== input.fallback.model) {
+        flags.fell_back_to = input.fallback.id;
+        flags.calls++;
+        model = input.fallback.model;
+        modelOptions = { ...options, maxTokens: SCENE_REPLY_TOKENS };
+        out = guard(await model.complete(messages, modelOptions));
+      }
     }
     if (out.hardHits.length) {
       // A hard limit crossed (lib/adult/limits.ts): those lines are out, and the step is asked once more, told which, with

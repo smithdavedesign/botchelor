@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
+import { GET as picturePromptGet } from "@/app/api/admin/after-dark/picture-prompt/route";
+import { GET as sceneMatchGet } from "@/app/api/admin/after-dark/scene-match/route";
 import { autoPicturesSettled, kickAutoPicture, PICTURE_GAP } from "@/lib/adult/auto-pictures";
 import { beatPicturesSettled, OLDER_WORDS } from "@/lib/adult/beats";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
@@ -251,4 +253,27 @@ describe("one context for every scene picture", () => {
     // The one they asked for is this moment's picture: the chapter's own of the same lines isn't drawn too (2026-10-26).
     expect(kinds).toEqual([{ kind: "asked", status: "drawn" }]);
   });
+
+  // The audit, 2026-10-29: the two After Dark routes with no test of their own.
+  it("the picture prompt and the scene match: an admin's answer, everyone else's not-found", async () => {
+    const { cookie } = await setup(at(2), "Lexi's bedroom");
+    const q = `?a=${LEXI}&b=${RAFE}`;
+    const asAdmin = (h: (r: Request) => Promise<Response>, path: string) => h(new Request(`${BASE_URL}${path}${q}`, { headers: { cookie } }));
+    const prompt = await asAdmin(picturePromptGet, "/api/admin/after-dark/picture-prompt");
+    expect(prompt.status).toBe(200);
+    const body = (await prompt.json()) as { prompt: string; fields: { wearing: string }; stage: number };
+    expect(body.prompt).toMatch(/^Make one photograph of/);
+    expect(body.stage).toBe(2);
+    const match = await asAdmin(sceneMatchGet, "/api/admin/after-dark/scene-match");
+    expect(match.status).toBe(200);
+    expect(await match.json()).toMatchObject({ match: null });
+    // A visitor, and someone signed in who isn't an admin (nor After Dark's): nothing, not even that it's there.
+    const visitor = newUserCookie();
+    const stranger = signedIn(userIdOf(newUserCookie()));
+    for (const c of [visitor, stranger]) {
+      expect((await picturePromptGet(new Request(`${BASE_URL}/api/admin/after-dark/picture-prompt${q}`, { headers: { cookie: c } }))).status).toBe(404);
+      expect((await sceneMatchGet(new Request(`${BASE_URL}/api/admin/after-dark/scene-match${q}`, { headers: { cookie: c } }))).status).toBe(404);
+    }
+  });
 });
+
