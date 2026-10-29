@@ -2611,3 +2611,16 @@ Everything else waited for the next gallery or theater look (`ensureTagged`).
   - A shoot's picks by group (shot, place, activity, wardrobe…), never the owner's own words.
   - What made it (`made`: shoot, identity with its view, carousel with its source's picks, twin).
   - These are the showcase's PG filters (docs/PRDs/showcase.md, next).
+
+## The creator showcase (2026-10-29)
+
+`/showcase` and `/creators/[handle]` show work its creators chose to publish (lib/showcase.ts; the PRD is
+docs/PRDs/showcase.md).
+- **Opt in per item:** 📣 Publish on a Studio tile, a scene's tile or a PG Studio tile, under an opt-in creator handle.
+  Unpublish takes it down at once.
+- **Who sees what:** explicit posts are seen by admins only until `studio.showcase.explicit_open` (David's call: off
+  until counsel and age checks).
+- **Pairs:** a picture with someone else's character waits for that owner's OK; the house cast needs only you.
+- **Filters:** what each item was tagged with as it was made.
+- **The gate:** `/api/showcase/[post]/media` serves only a live post of a rating the viewer may see.
+- **Moderation:** an admin's takedown (`removed`) can't be republished.

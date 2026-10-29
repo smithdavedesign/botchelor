@@ -1,5 +1,6 @@
 "use client";
 
+import PublishButton from "@/app/showcase/PublishButton";
 import SfwTwin from "../../SfwTwin";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
@@ -742,6 +743,8 @@ function Gallery({
                 />
               )}
               {status === "ready" && <MediaTags id={m.id} pinned={m.date_pin} />}
+              {/* 📣 On the creator showcase (lib/showcase.ts), under their handle. */}
+              {status === "ready" && <PublishButton source="after_dark" mediaId={m.id} post={m.post ?? null} />}
               {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
               {status === "ready" && <TileTools id={m.id} api={AFTER_DARK_API} selecting={sel.selecting} selected={sel.has(m.id)} onToggle={() => sel.toggle(m.id)} />}
               {status === "ready" && m.kind === "scene" && pair && onRedraw && (

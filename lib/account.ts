@@ -449,6 +449,8 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["media_exports", "owner_id"],
   // Their ⭐ favorites (app/after-dark/FavoriteStar.tsx).
   ["media_favorites", "owner_id"],
+  // The showcase (lib/showcase.ts): the OKs they gave or were asked for, their posts, and their creator page.
+  ["showcase_consents", "owner_id"], ["showcase_posts", "owner_id"], ["creator_profiles", "user_id"],
   // Their identity packs' views, in both Studios (lib/studio/identity-pack.ts).
   ["identity_views", "owner_id"],
 ];

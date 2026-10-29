@@ -1,0 +1,189 @@
+/* The creator showcase (app/showcase/*, lib/showcase.ts): filter chips as links, a masonry of pictures and clips in their
+   own shapes, and a viewer. Tokens only (docs/brand.md). An explicit post stays blurred until tapped (a static blur,
+   never animated). */
+
+.showcase-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+.showcase-filters {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-4);
+}
+.showcase-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.showcase-row-label {
+  min-width: 5.5rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+a.showcase-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.3rem 0.75rem;
+  border: 1.5px solid var(--line);
+  background: transparent;
+  text-decoration: none;
+}
+a.showcase-chip:hover {
+  border-color: var(--accent);
+}
+a.showcase-chip.chip-on {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.showcase-count {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.showcase-clear,
+.showcase-more,
+.showcase-empty {
+  margin: var(--space-2) 0;
+}
+.showcase-more {
+  text-align: center;
+}
+.showcase-grid {
+  columns: 4 220px;
+  column-gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.showcase-tile {
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  break-inside: avoid;
+}
+.showcase-open {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--soft);
+  box-shadow: none;
+  cursor: zoom-in;
+}
+.showcase-open:hover {
+  transform: none;
+  box-shadow: none;
+}
+.showcase-open img,
+.showcase-open video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.showcase-tile.veiled .showcase-open img,
+.showcase-tile.veiled .showcase-open video {
+  filter: blur(22px);
+}
+.showcase-veil {
+  position: absolute;
+  inset: auto 0 var(--space-3);
+  text-align: center;
+  color: #fff;
+  font-size: var(--text-xs);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.showcase-badge {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: rgba(10, 6, 18, 0.6);
+  color: #fff;
+  font-size: 0.8rem;
+}
+.showcase-by {
+  margin: 0;
+}
+.showcase-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--space-3);
+  background: rgba(8, 4, 14, 0.86);
+}
+.showcase-viewer-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: var(--space-4);
+  max-width: 1100px;
+  width: 100%;
+  max-height: 92vh;
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.showcase-viewer-media {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+}
+.showcase-viewer-media img,
+.showcase-viewer-media video {
+  max-width: 100%;
+  max-height: 86vh;
+  border-radius: var(--radius);
+  object-fit: contain;
+}
+.showcase-viewer-side p {
+  margin: 0 0 var(--space-2);
+}
+.showcase-viewer-nav {
+  display: flex;
+  gap: var(--space-2);
+}
+.showcase-viewer-nav button {
+  margin: 0;
+}
+.creator-head {
+  margin-bottom: var(--space-3);
+}
+.creator-head h1,
+.creator-head p {
+  margin: 0 0 var(--space-1);
+}
+.showcase-publish p,
+.showcase-publish button {
+  margin: 0;
+}
+.showcase-form {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+@media (max-width: 720px) {
+  .showcase-grid {
+    columns: 2 140px;
+  }
+  .showcase-viewer-inner {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .showcase-row-label {
+    min-width: 100%;
+  }
+}

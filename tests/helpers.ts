@@ -164,6 +164,10 @@ export async function startTestDb() {
         "media_exports",
         // Favorites (the Studio's ⭐).
         "media_favorites",
+        // The showcase (lib/showcase.ts).
+        "showcase_consents",
+        "showcase_posts",
+        "creator_profiles",
         // Identity packs' views (lib/studio/identity-pack.ts), in both Studios.
         "identity_views",
         "adult_usage",

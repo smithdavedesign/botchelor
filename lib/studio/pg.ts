@@ -19,6 +19,7 @@
  *  - **Native sizes and carousels (the creator suite):** a shoot in the shape it's posted in (lib/studio/formats.ts), and
  *    one picture's moment from six angles for `carousel_price`.
  */
+import { postsOf } from "../showcase";
 import { createHash } from "node:crypto";
 import { isAdmin } from "../admins";
 import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allowance";
@@ -134,7 +135,7 @@ export async function drawPg(key: string, config: PgConfig, prompt: string, imag
 
 /* ------------------------------------------------- state ------------------------------------------------- */
 
-export type PgPicture = { id: string; rating: "pg" | "suggestive"; created_at: string; shoot_id: string | null; aspect?: string | null };
+export type PgPicture = { id: string; rating: "pg" | "suggestive"; created_at: string; shoot_id: string | null; aspect?: string | null; post?: { id: string; status: string } | null };
 export type PgShoot = { id: string; status: string; asked: number; made: number; tokens: number; free: boolean; error: string | null; created_at: string };
 export type PgState = {
   character: { id: string; name: string; house: boolean; face: boolean };
@@ -212,12 +213,14 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
     faceReference(db, c, baseUrl),
     getLibrary(db, viewer!, { safeOnly: true }).catch(() => ({ places: [], prompts: [], roleplays: [] })),
   ]);
+  // Which are on the showcase (lib/showcase.ts), for each tile's 📣.
+  const posts = await postsOf(db, viewer!, "pg", pictures.rows.map((p) => p.id));
   return {
     ok: true,
     state: {
       character: { id: c.id, name: c.name, house: c.house, face: Boolean(face) },
       groups: PG_GROUPS,
-      pictures: pictures.rows.map((p) => ({ id: p.id, rating: p.content_rating, created_at: new Date(p.created_at).toISOString(), shoot_id: p.shoot_id, aspect: p.aspect })),
+      pictures: pictures.rows.map((p) => ({ id: p.id, rating: p.content_rating, created_at: new Date(p.created_at).toISOString(), shoot_id: p.shoot_id, aspect: p.aspect, post: posts[p.id] ?? null })),
       shoots: shoots.rows.map((s) => ({ ...s, created_at: new Date(s.created_at).toISOString() })),
       price: config.price,
       free: admin || free,
