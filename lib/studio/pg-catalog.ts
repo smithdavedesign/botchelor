@@ -315,6 +315,23 @@ export const planWords = (plan: PgPlan): string => [...plan.parts.map((p) => p.w
 export type PgSubject = { noun: "man" | "woman" | "person"; age: number; look: string };
 
 /** The fixed words that keep every picture a show picture, whatever was picked. */
+/** A PG picture's tag: a group and one of its options (a shoot's picks), or what made it (`made`: shoot, identity, carousel, twin). */
+export type PgTag = { kind: string; value: string };
+
+/**
+ * What a PG picture shows, as tags (the showcase's filters; David, 2026-10-29: "always tag assets on creation"): each
+ * of the shoot's picks by its group (place, activity, wardrobe, shot…), never the owner's own words.
+ */
+export function pgTagsOf(choices: PgChoices, made: string): PgTag[] {
+  const tags: PgTag[] = [{ kind: "made", value: made }];
+  for (const id of PG_GROUP_IDS) {
+    const v = choices[id];
+    for (const x of Array.isArray(v) ? v : v ? [v] : []) if (typeof x === "string" && x) tags.push({ kind: id, value: x.slice(0, 40) });
+  }
+  if (choices.own_place?.name) tags.push({ kind: "place", value: "own" });
+  return tags;
+}
+
 export const PG_TAIL = "Fully clothed, tasteful and everyday, safe for work. Photorealistic. Everyone shown is an adult.";
 
 /** A PG carousel's angles (the creator suite): one picture's very moment, seen from six places a photographer walks to. */

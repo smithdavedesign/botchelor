@@ -29,7 +29,7 @@ import { ensureBaseline, signedMediaUrl, type Media } from "./media";
 import { shownNude } from "./attire";
 import { baselines, drawKeyframe, drawReplicateKeyframe, KEYFRAME_MODEL, keyframePrompt, NUDE_FROM, nudeBaselines, placeWords, povPrompt, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
 import { framingScores } from "./framing";
-import { levelForStage, tagOnCreate } from "./media-tags";
+import { levelForStage, tagNow, tagOnCreate } from "./media-tags";
 import { NO_STEERING, steeringFor } from "./steering";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
@@ -363,6 +363,8 @@ export async function keepPictureOfBoth(
   // What it shows, known now (lib/adult/media-tags.ts tagOnCreate; the framing scores read it), and how far it goes.
   await tagOnCreate(db, id, ownerId, { pair: true, act: plan.act ?? null, eyes: plan.eyes ?? null, stage: plan.stage ?? null }).catch(() => {});
   if (typeof plan.stage === "number") await db.query(`update adult_images set level = $2 where id = $1`, [id, levelForStage(plan.stage)]);
+  // …and the rest of what it shows (its place), now rather than when it's next looked up.
+  await tagNow(db, [id]);
   await countUse(db, ownerId, "pictures");
   return {
     ok: true,

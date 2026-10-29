@@ -2588,3 +2588,26 @@ the gallery tab's unrated pictures full screen, one at a time.
 
 **Screenshots:** `npm run screenshots:studio` now also captures the shape and size chips, the identity pack, a tile's
 creator tools and the rating deck, desktop and phone, each checked for no sideways scroll on a phone.
+
+## Tagged as it's made (2026-10-29)
+
+David: "always tag assets on creation to help with filtering and showing in theater during dates for the right time".
+Before, only pictures of two (`keepPictureOfBoth`) and copies (Fix faces, moments) were tagged when they were made.
+Everything else waited for the next gallery or theater look (`ensureTagged`).
+
+- **`tagNow(db, ids)`** (`lib/adult/media-tags.ts`) tags ready, untagged rows by id with the same derivation as the
+  back-fill. What was tagged at creation (act, pov) stands. A failure is logged and left to the next look, never in
+  the way of the picture.
+- **Called at creation in every path:**
+  - Studio jobs (each picture as it's kept, plus the text model's read of their own words after the answer) and
+    Studio Animate.
+  - Baselines and one-person pictures (`storePicture`), and fal clips when they're ready.
+  - Menu, beat and chapter pictures of two (their place now too).
+  - A night's and a clip's shot videos, once the reel is saved, since their tags come from its shot.
+  - A PG picture used as the After Dark face.
+- **The SFW twin** (in After Dark) takes who, place and light from its original, at stage 0: never its act or a view.
+- **Back-fill:** `ensureTagged` still runs on every lookup, for everything made before, and as a safety net.
+- **PG Studio pictures** carry tags too (`studio_pg_pictures.tags`, `pgTagsOf`):
+  - A shoot's picks by group (shot, place, activity, wardrobe…), never the owner's own words.
+  - What made it (`made`: shoot, identity with its view, carousel with its source's picks, twin).
+  - These are the showcase's PG filters (docs/PRDs/showcase.md, next).

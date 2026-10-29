@@ -13,6 +13,7 @@
  *
  * The owner's own characters only.
  */
+import { tagNow } from "../adult/media-tags";
 import { recordAsset, reviewAsset } from "../assets";
 import { eligibleIds } from "../adult/characters";
 import { canAfterDark } from "../adult/entitlement";
@@ -133,6 +134,8 @@ export async function usePicture(db: Db, viewer: string, characterId: string, in
      values ($1, $2, $3, 'baseline', 'Chosen by its owner as their face', $4, $5, $6, 'ready', 'studio-pg', $7, $8, $9)`,
     [id, viewer, characterId, p.mime, kept.data, kept.object_key, p.model, input.id, p.rating],
   );
+  // Tagged as it's made (lib/adult/media-tags.ts): a baseline, dressed.
+  await tagNow(db, [id]);
   const set = await setFaceReference(db, viewer, characterId, id);
   return set.ok ? { ok: true, face_id: id } : fail(set.status, set.message);
 }
