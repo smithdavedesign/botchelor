@@ -534,3 +534,105 @@ Turning on frontier models, images or video costs money and needs the owner's ap
 Effort: Medium · Confidence: Low
 
 _Researched by the idea pipeline on 2026-10-13 ([original record](https://github.com/smithdavedesign/idea-factory/tree/main/ideas/botchelor)); repo created on David's go-ahead 2026-10-13._
+
+## Installation & Setup
+
+### Prerequisites
+- Node.js (v20.9 or higher)
+- npm
+
+### Installation
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/smithdavedesign/botchelor
+cd botchelor
+npm install
+```
+
+### Environment Configuration
+The application is configured to run locally out of the box without required external services:
+- **Database:** Defaults to a local file-backed PGlite database in `.data/pglite`. To connect to PostgreSQL, set `DATABASE_URL`.
+- **AI Model:** Set `GOOGLE_API_KEY`, or configure `LLM_BASE_URL`, `LLM_API_KEY`, and `LLM_MODEL` to point to an OpenAI-compatible endpoint. Frontier model settings use `FRONTIER_LLM_API_KEY`, `FRONTIER_LLM_BASE_URL`, and `FRONTIER_LLM_MODEL`.
+- **Optional Settings:**
+  - `SESSION_SECRET`: Secret key for session management
+  - `FRONTIER_PASSWORD`: Password for admin panel access (`/admin`)
+  - `STRIPE_PAYMENT_LINK` & `STRIPE_WEBHOOK_SECRET`: Stripe payment processing
+  - `RESEND_API_KEY` & `EMAIL_FROM`: Email notifications
+
+## Usage
+
+### Development & Production
+- Start the local development server (`http://localhost:3000`):
+  ```bash
+  npm run dev
+  ```
+- Build the production bundle:
+  ```bash
+  npm run build
+  ```
+- Start the production server:
+  ```bash
+  npm run start
+  ```
+
+### Testing & Code Quality
+- Run unit and route tests:
+  ```bash
+  npm run test
+  ```
+- Run TypeScript type checking:
+  ```bash
+  npm run typecheck
+  ```
+- Run end-to-end test suites:
+  ```bash
+  npm run e2e
+  npm run e2e:after-dark
+  npm run e2e:after-dark-scene
+  npm run e2e:studio
+  npm run e2e:visual
+  npm run e2e:live
+  ```
+
+### Database Seeding
+- Seed initial database records and prompt libraries:
+  ```bash
+  npm run seed
+  npm run seed:prompts
+  ```
+
+### Simulations
+- Run relationship and visitor simulations:
+  ```bash
+  npm run sim:relationships
+  npm run sim:after-dark
+  npm run sim:visitors
+  ```
+
+### Media & Screenshot Generation
+- Generate screenshots and visual assets:
+  ```bash
+  npm run screenshots
+  npm run screenshots:moves
+  npm run screenshots:ship
+  npm run screenshots:prompts
+  npm run screenshots:share
+  npm run screenshots:chemistry
+  npm run screenshots:after-dark
+  npm run screenshots:studio
+  npm run screenshots:create
+  npm run screenshots:after-dark-media
+  npm run screenshots:after-dark-shorts
+  npm run screenshots:after-dark-storyboard
+  npm run screenshots:after-dark-steering
+  npm run screenshots:after-dark-start
+  npm run screenshots:connections
+  npm run portraits
+  ```
+
+### Payments
+- Test live payment integration:
+  ```bash
+  npm run payment:live
+  ```
