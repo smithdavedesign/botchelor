@@ -1,8 +1,8 @@
 /**
  * npm run screenshots:showcase: real-browser screenshots of the creator showcase (lib/showcase.ts, docs/PRDs/showcase.md),
  * desktop and phone, into docs/screenshots/: the showcase with its filters, a filtered view, a post open in the viewer,
- * and a creator's page. It checks the filters narrow the grid, the viewer says how a post was made (its model and
- * prompt, lib/showcase-made.ts), and the page never scrolls sideways on a phone.
+ * and a creator's page. It checks the filters narrow the grid, a clip plays on hover and stops after, the viewer says
+ * how a post was made (its model and prompt, lib/showcase-made.ts), and the page never scrolls sideways on a phone.
  *
  * It builds the app and runs it on a throwaway local database. Nothing is drawn and nothing explicit is shown: the posts
  * are PG stand-ins made here from the repo's own cast portraits (public/cast) with ffmpeg, seeded straight in.
@@ -47,6 +47,10 @@ function placeholders() {
       out[`${id}-${look}`] = readFileSync(file);
     }
   }
+  // A short PG clip: the portrait, slowly pushing in (a stand-in for an animated picture).
+  const clip = join(dir, "clip.mp4");
+  run(["-loop", "1", "-i", join(ROOT, "public", "cast", `${CAST[0]}-v3.webp`), "-vf", "scale=480:640:force_original_aspect_ratio=increase,crop=480:640,zoompan=z='min(zoom+0.003,1.25)':d=60:s=480x640:fps=30", "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", clip]);
+  out.clip = readFileSync(clip);
   return out;
 }
 
@@ -90,6 +94,12 @@ async function seed() {
         }
       }
     }
+    // One clip, the newest, so it's the first tile.
+    await db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status, content_rating, model, provider) values ('clip-1', 'u-mara', $1, 'video', 'A slow push-in on her portrait.', 'video/mp4', $2, 'ready', 'pg', 'wan-3-0-image-to-video', 'venice')`, [CAST[0], media.clip]);
+    await db.query(
+      `insert into showcase_posts (id, owner_id, source, media_id, character_id, rating, medium, aspect, status, published_at, tags) values ('post-clip', 'u-mara', 'after_dark', 'clip-1', $1, 'pg', 'clip', '3:4', 'live', now(), '[]'::jsonb)`,
+      [CAST[0]],
+    );
     await db.query(`insert into creator_follows (follower_id, creator_id) values ('fan-1', 'u-mara'), ('fan-2', 'u-mara')`);
   } finally {
     await db.close();
@@ -126,21 +136,37 @@ async function main() {
     console.log(`  ✓ ${name}: no sideways scroll on a phone`);
   };
   try {
-    const ctx = await browser.newContext();
-    await ctx.addCookies([{ name: "bz_adult", value: "1", url: app.base }]);
-    const page = await ctx.newPage();
     for (const [w, h, size] of [
       [1280, 900, "desktop"],
       [390, 844, "phone"],
     ]) {
-      await page.setViewportSize({ width: w, height: h });
+      // A phone is a touch screen (no hover), not just a narrow window: that's what decides how clips play.
+      const ctx = await browser.newContext({ viewport: { width: w, height: h }, ...(size === "phone" ? { isMobile: true, hasTouch: true } : {}) });
+      await ctx.addCookies([{ name: "bz_adult", value: "1", url: app.base }]);
+      const page = await ctx.newPage();
       await page.goto(`${app.base}/showcase`);
       await page.locator(".showcase-tile img").first().waitFor({ timeout: 30_000 });
       const all = await page.locator(".showcase-tile").count();
-      assert(all === 16, `the showcase shows ${all} posts, not 16`);
+      assert(all === 17, `the showcase shows ${all} posts, not 17`);
       // The first row loaded (the rest are lazy, below the fold), each a real picture from the showcase's own gate.
       await page.waitForFunction(() => [...document.querySelectorAll(".showcase-tile img")].slice(0, 4).every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 15_000 });
       if (size === "phone") await noSideways(page, "the showcase");
+      // The clip: still until hovered, playing while hovered, stopped (and back at the start) after; on a phone, playing in view.
+      const clip = page.locator(".showcase-tile video").first();
+      await clip.waitFor({ timeout: 10_000 });
+      const paused = () => clip.evaluate((v) => v.paused);
+      if (size === "desktop") {
+        assert(await paused(), "the clip plays before it's hovered");
+        await clip.hover();
+        await page.waitForFunction(() => !document.querySelector(".showcase-tile video").paused && document.querySelector(".showcase-tile video").currentTime > 0.2, null, { timeout: 10_000 });
+        await page.mouse.move(0, 0);
+        await page.waitForFunction(() => document.querySelector(".showcase-tile video").paused, null, { timeout: 5_000 });
+        assert((await clip.evaluate((v) => v.currentTime)) === 0, "the clip doesn't go back to its start once the mouse leaves");
+        console.log("  ✓ a clip plays on hover and stops after");
+      } else {
+        await page.waitForFunction(() => !document.querySelector(".showcase-tile video").paused, null, { timeout: 10_000 });
+        console.log("  ✓ on a phone, a clip plays while it's in view");
+      }
       await shot(page, `showcase-${size}`);
       // A filter: one place.
       await page.locator('[role="group"][aria-label="Place"] a').filter({ hasText: "Beach" }).click();
@@ -150,9 +176,13 @@ async function main() {
       assert(beach > 0 && beach < all, `the Beach filter shows ${beach} of ${all}`);
       console.log(`  ✓ the Beach filter narrows the grid (${beach} of ${all})`);
       await shot(page, `showcase-filtered-${size}`);
-      // A post open in the viewer.
+      // A post open in the viewer (the second tile: the first is the clip, which opens just the same).
       await page.goto(`${app.base}/showcase`);
       await page.locator(".showcase-open").first().click();
+      await page.locator(".showcase-viewer video").waitFor({ timeout: 10_000 });
+      console.log("  ✓ a click on the clip still opens it full size");
+      await page.keyboard.press("Escape");
+      await page.locator(".showcase-open").nth(1).click();
       await page.locator(".showcase-viewer img").waitFor({ timeout: 10_000 });
       // The viewer fills the screen (not some box on the page), its picture in view.
       const box = await page.locator(".showcase-viewer").boundingBox();
@@ -169,9 +199,10 @@ async function main() {
       // A creator's page.
       await page.goto(`${app.base}/creators/mara_makes`);
       await page.locator(".creator-head h1").waitFor({ timeout: 10_000 });
-      assert((await page.locator(".showcase-tile").count()) === 8, "Mara's page doesn't show her 8 posts");
+      assert((await page.locator(".showcase-tile").count()) === 9, "Mara's page doesn't show her 9 posts");
       if (size === "phone") await noSideways(page, "a creator's page");
       await shot(page, `showcase-creator-${size}`);
+      await ctx.close();
     }
   } finally {
     await browser.close();
