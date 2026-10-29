@@ -59,7 +59,7 @@ import { picturesBlocked } from "./readiness";
 const isPublicPlace = (label: string | null | undefined, home: "a" | "b" | null = null): boolean => isPublicSet(label, home) || (!home && Boolean(venueSituation(label)));
 import { roleplayById, roleplayLine, roleplayRule, rolesLine, type Roleplay } from "./roleplays";
 import { ownPlaceSituation, ownRoleplay, USER_ROLEPLAY } from "../studio/library";
-import { MIN_LINES_PER_STAGE, STAGES } from "./stages";
+import { MIN_LINES_PER_STAGE, ROLEPLAY_LINES_PER_STAGE, STAGES } from "./stages";
 import {
   bumpFacts,
   citeMemory,
@@ -953,11 +953,16 @@ export function sceneMessages(
         ? `- It's gone as far as tonight goes (${STAGES[cap]}): these lines stay there, with talk, looks and reactions, and go no further, whatever the steer says.`
         : carry?.floor && now.stage <= carry.stage && (now.linesAtStage ?? 0) < MIN_LINES_PER_STAGE
           ? `- Carry on at ${STAGES[carry.stage]}, unhurried: these lines stay there, and nothing goes back to an earlier stage.`
-          : (now.linesAtStage ?? 0) < MIN_LINES_PER_STAGE
-            ? `- Tease it out. These lines stay at ${STAGES[now.stage]}: linger in it, with talk, looks, hesitation and anticipation. Don't move on to the next stage yet.`
-            : now.stage < STAGES.length - 1
-              ? `- Move it on. It has lingered long enough: in these lines it goes one stage further, to ${STAGES[now.stage + 1]}, and no further.`
-              : "- Take your time: let it unfold, with talk and reactions between the actions.",
+          : now.profile?.roleplay
+            ? // A roleplay sets its own pace (David, 2026-10-29): further only when the roles take it there, never on a timer.
+              (now.linesAtStage ?? 0) < ROLEPLAY_LINES_PER_STAGE || now.stage >= STAGES.length - 1
+              ? `- Stay in the roleplay at ${STAGES[now.stage]}: these lines play the roles out (what they want from each other as their roles, the game between them, what's at stake), and don't move on to the next stage yet.`
+              : `- The roleplay sets the pace. It can go one stage further, to ${STAGES[now.stage + 1]}, only if the roles' story takes it there in these lines (a dare taken, a line crossed between the roles, a choice both make in character); staying where it is, in the roles, is just as good.`
+            : (now.linesAtStage ?? 0) < MIN_LINES_PER_STAGE
+              ? `- Tease it out. These lines stay at ${STAGES[now.stage]}: linger in it, with talk, looks, hesitation and anticipation. Don't move on to the next stage yet.`
+              : now.stage < STAGES.length - 1
+                ? `- Move it on. It has lingered long enough: in these lines it goes one stage further, to ${STAGES[now.stage + 1]}, and no further.`
+                : "- Take your time: let it unfold, with talk and reactions between the actions.",
     now.cutTo
       ? `- The scene has just cut to ${now.cutTo}: they're there now. Open these lines on arriving there (how they got there, what they make of it) and carry on from there.`
       : (now.opening ?? lines.length === 0)
@@ -2234,7 +2239,9 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   if (!place_history.length && (place || set_place)) place_history = [{ place: place ?? set_place!, set: set_place, home: null, chapter: scene.chapter }];
   // Unsteered, the stage moves at most one step, and only once the current one has had its lines; a steer can jump. Never
   // past the intensity's ceiling, a Direct steer included.
-  const allowed = Math.min(cap, steer && steerMode === "direct" ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= MIN_LINES_PER_STAGE ? scene.stage + 1 : scene.stage);
+  // A chapter's roleplay holds a stage twice as long (ROLEPLAY_LINES_PER_STAGE): its story, not the clock, moves it on.
+  const perStage = input.profile?.roleplay ? ROLEPLAY_LINES_PER_STAGE : MIN_LINES_PER_STAGE;
+  const allowed = Math.min(cap, steer && steerMode === "direct" ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= perStage ? scene.stage + 1 : scene.stage);
   // The model's claim, raised to what the lines plainly show when it ran behind them (lib/adult/stage-floor.ts); each line
   // carries the stage it was at, for the theater's label.
   const claimed = Math.min(meta.stage ?? scene.stage, allowed, publicCap !== null && !settled.moved ? publicCap : STAGES.length - 1);

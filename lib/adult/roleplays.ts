@@ -57,7 +57,11 @@ export const roleplayById = (id: string | null | undefined): Roleplay | null => 
 export function roleplayRule(rp: Roleplay, names: { a: string; b: string }, swap: boolean, place: string): string {
   const first = (n: string) => n.split(/\s+/)[0];
   const roles = rolesLine(rp, { a: first(names.a), b: first(names.b) }, swap);
-  return `- This chapter is the roleplay the viewer chose: ${rp.title}.${roles ? ` ${roles}.` : ""} Every line plays it, in their own voices: they act, talk and want as ${roles ? "their roles" : "its premise has them"}, and ${place} becomes part of it (the roleplay's world laid over where they are), never a reason to drop it. Stepping out of the roleplay is something a line does on purpose and says so; the next line can step back in.`;
+  return (
+    `- This chapter is the roleplay the viewer chose: ${rp.title}.${roles ? ` ${roles}.` : ""} Every line plays it, in their own voices: they act, talk and want as ${roles ? "their roles" : "its premise has them"}, and ${place} becomes part of it (the roleplay's world laid over where they are), never a reason to drop it. Stepping out of the roleplay is something a line does on purpose and says so; the next line can step back in.` +
+    // David, 2026-10-29: Star × Sweet's "Rivals" never competed once; it was flirting from line 4 and undressing by 32.
+    ` The roleplay is the story, not a way into sex: its stakes, its power between them and what each role wants drive what happens, and plenty of lines are about that and nothing more. If it turns intimate, it's because the roles got them there, and they stay in their roles while it does (how a rival, a captain or a vampire would want, tease and give in), so the roleplay is never dropped for the explicit.`
+  );
 }
 
 /** Who plays what, in the viewer's words: "Dex plays the boss, June the employee"; null when there are no roles. */
@@ -72,5 +76,5 @@ export function roleplayLine(rp: Roleplay, names: { a: string; b: string }, swap
   const first = (n: string) => n.split(/\s+/)[0];
   const [x, y] = (swap ? [names.b, names.a] : [names.a, names.b]).map(first);
   const premise = rp.premise.replaceAll("{a}", x).replaceAll("{b}", y);
-  return `This chapter's roleplay, chosen by the viewer: ${rp.title}. ${premise} They play it as themselves, in their own voices. Both of them are adults who chose this, and either can stop at any time.`;
+  return `This chapter's roleplay, chosen by the viewer: ${rp.title}. ${premise} The premise is where the night starts, not where it has to end. They play it as themselves, in their own voices. Both of them are adults who chose this, and either can stop at any time.`;
 }
