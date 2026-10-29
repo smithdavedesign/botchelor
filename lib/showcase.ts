@@ -92,6 +92,8 @@ export type Post = {
   act: string | null; place: string | null; pov: boolean; from_date: boolean; caption: string | null; status: string; published_at: string;
   creator: { handle: string; display_name: string }; character: { id: string; name: string }; partner: { id: string; name: string } | null;
   mine: boolean;
+  /** Its menu picks can be shot again ("Shoot like this"): it was made in a Studio shoot. */
+  remixable: boolean;
   /** Its likes, and whether this viewer is one of them (lib/showcase-social.ts). */
   likes: number;
   liked: boolean;
@@ -162,13 +164,14 @@ export async function publish(db: Db, owner: string, input: { source: ShowcaseSo
   const status = others.length ? "pending" : "live";
   const wasLive = existing?.status === "live";
   const t = await tagsFor(db, input.source, src.id);
+  const remix = await remixPicks(db, input.source, src.shoot_id);
   const id = existing?.id ?? crypto.randomUUID();
   await db.query(
-    `insert into showcase_posts (id, owner_id, source, media_id, character_id, character_b, rating, medium, aspect, act, place, pov, from_date, caption, tags, status, published_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, case when $16 = 'live' then now() end)
+    `insert into showcase_posts (id, owner_id, source, media_id, character_id, character_b, rating, medium, aspect, act, place, pov, from_date, caption, tags, status, published_at, remix)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, case when $16 = 'live' then now() end, $17::jsonb)
      on conflict (source, media_id) do update set caption = excluded.caption, rating = excluded.rating, status = case when showcase_posts.status = 'live' then 'live' else excluded.status end,
        published_at = coalesce(showcase_posts.published_at, excluded.published_at)`,
-    [id, owner, input.source, src.id, src.character_id, src.character_b, rating, mediumOf(src), src.aspect, t.act, t.place, t.pov, input.source === "after_dark" && !src.shoot_id, caption, JSON.stringify(t.tags), status],
+    [id, owner, input.source, src.id, src.character_id, src.character_b, rating, mediumOf(src), src.aspect, t.act, t.place, t.pov, input.source === "after_dark" && !src.shoot_id, caption, JSON.stringify(t.tags), status, remix ? JSON.stringify(remix) : null],
   );
   for (const c of others) {
     await db.query(`insert into showcase_consents (post_id, owner_id, character_id) values ($1, $2, $3) on conflict do nothing`, [id, c.owner_id, c.id]);
@@ -178,6 +181,42 @@ export async function publish(db: Db, owner: string, input: { source: ShowcaseSo
   if (status === "pending" && !existing) await social.askForOk(db, id);
   if (status === "live" && !wasLive) await social.tellFollowers(db, owner);
   return { ok: true, post_id: id, status };
+}
+
+/** Menu keys a remix may carry: what a Studio's own menus picked, never words, a place of their own, or who with. */
+const NEVER_REMIXED = new Set(["custom", "extra", "dialog", "reference", "partner", "level", "size", "eyes", "own_place", "source", "seconds", "queue_id", "request", "guide", "transcript"]);
+
+export type RemixPicks = { studio: ShowcaseSource; kind: "shoot" | "pair"; choices: Record<string, unknown>; format: string | null };
+
+/**
+ * The menu picks a post was made with, for "Shoot like this" (David's call: menu picks only, never their typed words
+ * or their characters): from its Studio shoot (alone or together) or its PG shoot; null for one made on a date.
+ */
+async function remixPicks(db: Db, source: ShowcaseSource, shootId: string | null): Promise<RemixPicks | null> {
+  if (!shootId) return null;
+  const row = (
+    await db.query<{ kind: string; choices: Record<string, unknown> | null }>(
+      source === "pg" ? `select coalesce(kind, 'shoot') as kind, choices from studio_pg_shoots where id = $1` : `select kind, choices from adult_studio_shoots where id = $1`,
+      [shootId],
+    )
+  ).rows[0];
+  if (!row || (row.kind !== "shoot" && row.kind !== "pair") || !row.choices) return null;
+  const choices: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row.choices)) {
+    if (NEVER_REMIXED.has(k) || k === "format") continue;
+    // A place of their own (the Studio's own:N) is theirs, not a menu pick.
+    if (typeof v === "string" && v.startsWith("own:")) continue;
+    if (typeof v === "string" || typeof v === "boolean" || (Array.isArray(v) && v.every((x) => typeof x === "string"))) choices[k] = v;
+  }
+  const format = typeof row.choices.format === "string" ? row.choices.format : null;
+  return { studio: source, kind: row.kind as "shoot" | "pair", choices, format };
+}
+
+/** A post's picks to shoot again, for someone who can see it. */
+export async function remixOf(db: Db, v: ShowcaseViewer, postId: string): Promise<(RemixPicks & { creator: string }) | null> {
+  if (!(await postMedia(db, v, postId))) return null;
+  const r = (await db.query<{ remix: RemixPicks | null; handle: string }>(`select p.remix, cp.handle from showcase_posts p join creator_profiles cp on cp.user_id = p.owner_id where p.id = $1`, [postId])).rows[0];
+  return r?.remix ? { ...r.remix, creator: r.handle } : null;
 }
 
 /**
@@ -239,7 +278,7 @@ export function parseFilters(q: URLSearchParams | Record<string, string | string
 /** The filters as SQL against showcase_posts `p` (with the viewer's ratings as $1), and their values. */
 function where(v: ShowcaseViewer, f: Filters): { sql: string; args: unknown[] } {
   const args: unknown[] = [v.ratings];
-  const parts = ["p.status = 'live'", "p.rating = any($1::text[])", "not cp.hidden"];
+  const parts = ["p.status = 'live'", "not p.held", "p.rating = any($1::text[])", "not cp.hidden"];
   // Each `?` in a part is that part's one value.
   const add = (sql: string, value: unknown) => {
     args.push(value);
@@ -276,9 +315,9 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}): 
   const order = f.sort === "trending" ? "(select count(*) from showcase_likes l where l.post_id = p.id and l.created_at > now() - interval '7 days') desc, p.published_at desc nulls last, p.id" : "p.published_at desc nulls last, p.id";
   const { rows } = await db.query<Omit<Post, "creator" | "character" | "partner" | "published_at" | "mine" | "mime"> & {
     handle: string; display_name: string; character_id: string; character_name: string; character_b: string | null; partner_name: string | null; published_at: Date; owner_id: string; mime: string | null;
-    likes: number; liked: boolean;
+    likes: number; liked: boolean; remixable: boolean;
   }>(
-    `select p.id, p.source, p.media_id, p.rating, p.medium, p.aspect, p.act, p.place, p.pov, p.from_date, p.caption, p.status, p.published_at, p.owner_id,
+    `select p.id, p.source, p.media_id, p.rating, p.medium, p.aspect, p.act, p.place, p.pov, p.from_date, p.caption, p.status, p.published_at, p.owner_id, (p.remix is not null) as remixable,
             cp.handle, cp.display_name, p.character_id, c.name as character_name, p.character_b, cb.name as partner_name,
             coalesce((select i.mime from adult_images i where p.source = 'after_dark' and i.id = p.media_id and i.status = 'ready'),
                      (select g.mime from studio_pg_pictures g where p.source = 'pg' and g.id = p.media_id)) as mime,
@@ -297,7 +336,7 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}): 
       caption: r.caption, status: r.status, published_at: new Date(r.published_at).toISOString(),
       creator: { handle: r.handle, display_name: r.display_name }, character: { id: r.character_id, name: r.character_name },
       partner: r.character_b ? { id: r.character_b, name: r.partner_name ?? "" } : null, mine: Boolean(v.id && r.owner_id === v.id),
-      likes: r.likes, liked: r.liked,
+      likes: r.likes, liked: r.liked, remixable: r.remixable,
     }));
   return { posts: posts.slice(0, PAGE_SIZE), more: rows.length > PAGE_SIZE };
 }
@@ -322,8 +361,10 @@ export async function showcaseFacets(db: Db, v: ShowcaseViewer, f: Filters = {})
 
 /** A post's item for this viewer: live (or theirs, or an admin's look), of a rating they may see. Null otherwise. */
 export async function postMedia(db: Db, v: ShowcaseViewer, postId: string): Promise<{ source: ShowcaseSource; media_id: string; rating: ContentRating } | null> {
-  const r = (await db.query<{ source: ShowcaseSource; media_id: string; rating: string; status: string; owner_id: string }>(`select source, media_id, rating, status, owner_id from showcase_posts where id = $1`, [postId])).rows[0];
+  const r = (await db.query<{ source: ShowcaseSource; media_id: string; rating: string; status: string; owner_id: string; held: boolean }>(`select source, media_id, rating, status, owner_id, held from showcase_posts where id = $1`, [postId])).rows[0];
   if (!r) return null;
+  // Held by a serious report: only its creator and the moderators, until an admin looks.
+  if (r.held && !v.admin && !(v.id && r.owner_id === v.id)) return null;
   const rating = ratingOf(r.rating);
   const mine = Boolean(v.id && r.owner_id === v.id);
   // Asked for their OK: they see what they're asked about (an explicit one only if After Dark is open to them).

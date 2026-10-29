@@ -89,6 +89,8 @@ export const AFTER_DARK_HOST_APIS = [
   "/api/feedback/", // the feedback dock on every page
   "/api/waitlist", // the subscribe page's waitlist
   "/api/mcp", // the admin's own agents, for After Dark's tools (lib/adult/mcp.ts)
+  "/api/showcase/", // the Studio's 📣 Publish and Shoot like this (lib/showcase.ts)
+  "/api/creator-profile", // the creator handle 📣 Publish asks for the first time
 ] as const;
 
 export const isAfterDarkPage = (pathname: string): boolean => AFTER_DARK_PAGES.some((r) => covers(r, pathname));

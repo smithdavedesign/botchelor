@@ -2565,6 +2565,10 @@ create table if not exists showcase_posts (
   unique (source, media_id)
 );
 create index if not exists showcase_posts_live_idx on showcase_posts (published_at desc) where status = 'live';
+-- A post held out of sight by a serious report until an admin looks (lib/showcase-moderation.ts), and the menu picks
+-- someone can shoot it again with (Remix: never the creator's own words, places or partner).
+alter table showcase_posts add column if not exists held boolean not null default false;
+alter table showcase_posts add column if not exists remix jsonb;
 create index if not exists showcase_posts_owner_idx on showcase_posts (owner_id);
 create table if not exists showcase_consents (
   post_id text not null references showcase_posts (id) on delete cascade,

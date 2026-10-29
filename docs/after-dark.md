@@ -2631,3 +2631,12 @@ docs/PRDs/showcase.md).
   - Either owner can take it down later.
 - **Likes and follows:** ♥ on posts they can see, and Trending this week. Follow a creator to get their posts under
   Following, with a quiet notice when they post (at most once a day per creator). No comments in v1.
+- **Shoot like this** (🎨, `remixOf`):
+  - A post made in a Studio shoot (alone or together) or a PG shoot keeps its menu picks and shape (`showcase_posts.remix`).
+  - What it never keeps: their typed words, a place of their own, who with, and whose eyes.
+  - "Shoot like this" opens your own character's Studio with those picks, loaded as a saved setup is.
+  - A picture from a date has none.
+- **Reports** (`lib/showcase-moderation.ts`):
+  - Report on any post goes through the site's own reports (the admins are emailed).
+  - A minor, a real person, non-consent or an intimate image holds the post out of sight at once.
+  - `/admin/showcase` releases it or removes it for good, and resolves its reports.

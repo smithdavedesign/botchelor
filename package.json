@@ -27,6 +27,7 @@
     "screenshots:chemistry": "node scripts/chemistry-screenshots.mjs",
     "screenshots:after-dark": "node scripts/after-dark-screenshots.mjs",
     "screenshots:studio": "node scripts/studio-screenshots.mjs",
+    "screenshots:showcase": "node scripts/showcase-screenshots.mjs",
     "screenshots:create": "node scripts/create-screenshots.mjs",
     "screenshots:after-dark-media": "node scripts/after-dark-media-screenshots.mjs",
     "screenshots:after-dark-shorts": "node scripts/after-dark-shorts-screenshots.mjs",

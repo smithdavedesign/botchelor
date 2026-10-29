@@ -2,6 +2,22 @@
 
 ## Screenshots
 
+The creator showcase (2026-10-29): `/showcase` and each creator's page.
+- **What's on it:** work its creators chose to publish, one item at a time under an opt-in handle.
+- **Filters:** medium, pose, place, character, shape, first person, and from a date or the Studio. Each filter is a
+  link.
+- **Social:** likes, Trending this week, following creators, and Shoot like this (a post's menu picks on your own
+  character).
+- **Moderation:** reports hold a post until a moderator looks.
+- **Explicit work:** seen by admins only until counsel signs off.
+
+Captured by `npm run screenshots:showcase` with seeded PG stand-ins (nothing drawn). Code:
+[`lib/showcase.ts`](lib/showcase.ts), [`lib/showcase-social.ts`](lib/showcase-social.ts); docs/PRDs/showcase.md.
+
+![The showcase on desktop: filter chips for medium, place, character and shape with counts, and a masonry of pictures with likes and creator handles](docs/screenshots/showcase-desktop.png)
+![A post open in the viewer on desktop: the picture, its creator and character, likes, what it shows, and Report](docs/screenshots/showcase-viewer-desktop.png)
+![A creator's page on a phone: Mara Makes, her bio, Follow with 2 followers, and her work with the same filters](docs/screenshots/showcase-creator-phone.png)
+
 The creator suite (2026-10-26). The Studio now:
 - draws in the shape you post in (Portrait, Story, Feed, Square, Wide);
 - makes bigger shoots that land picture by picture;
