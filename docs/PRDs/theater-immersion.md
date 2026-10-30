@@ -102,6 +102,10 @@ texts between nights, the reel storyboard.
 - **Price:** a clip on demand's (`clip_tokens`; admins don't pay), counted in the month's clips. Checked like any video
   before it's kept. Refunded when Venice fails, the check refuses it, or it's given up after 20 minutes.
 - **Kept** per viewer, speaker and words: asking again plays the one already made, for nothing.
+- **Found live:** the first one, of Sweet thang, had garbled subtitles burned into most frames. The direction now asks
+  for a clean frame with no text of any kind, and an A/B with the same portrait and voice came back clean on both Wan
+  2.6 Flash ($0.28, 152 s) and Wan 2.7 ($0.55, 67 s). The default stays 2.6 Flash, and 2.7 is the faster choice in
+  settings. Talks made before the fix (`version` 1) are never matched or played again.
 - **On the stage:** it opens over the stage when it's ready (`TalkPlayer.tsx`), with sound, and the theater waits while
   it plays. Once made, a "🗣 Hear <name> say it ▶" chip offers it whenever that line is on stage again. It needs their
   portrait (✨ Bring them to life) and a line with words in it.

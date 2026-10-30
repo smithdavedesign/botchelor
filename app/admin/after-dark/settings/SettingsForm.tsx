@@ -80,6 +80,7 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
       voice_model: s.voice_model,
       presence_loop_model: s.presence_loop_model,
       place_sound_model: s.place_sound_model,
+      talk_model: s.talk_model,
       replicate_video_lora: s.replicate_video_lora ?? "",
       ...(replicateKey.trim() ? { replicate_key: replicateKey.trim() } : {}),
     });
@@ -225,6 +226,11 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
             <span className="muted small">(about 5¢ a new place, at most 20 new places a day)</span>
           </span>
         </label>
+        <label htmlFor="ad-talk-model">
+          Talking moments&apos; model (🗣 in the theater: one face saying a line in its voice; it takes audio in). wan-2.6-flash-image-to-video: 28¢,
+          about 2.5 min; wan-2-7-image-to-video: 55¢, about 1 min. Priced like a clip on demand.
+        </label>
+        <input id="ad-talk-model" value={s.talk_model} onChange={(e) => setS({ ...s, talk_model: e.target.value })} />
         <label htmlFor="ad-place-sound-model">Place sound model (Venice&apos;s, one that loops)</label>
         <input id="ad-place-sound-model" value={s.place_sound_model} onChange={(e) => setS({ ...s, place_sound_model: e.target.value })} />
       </details>

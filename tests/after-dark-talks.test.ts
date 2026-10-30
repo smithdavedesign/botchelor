@@ -124,6 +124,7 @@ describe("a talking moment", () => {
     expect(String(queued.body.image_url)).toContain(`/presence/portrait-${id}?`);
     expect(String(queued.body.audio_url)).toMatch(/^data:audio\/mpeg;base64,/);
     expect(queued.body.audio).toBeUndefined();
+    expect(queued.body.negative_prompt).toMatch(/^subtitles, captions, on-screen text/);
     // The same line again: the one being made, nothing queued again.
     expect(((await (await post({ a: RAFE, b: JUNIPER, i: 0, text: LINES[0].text }, cookie)).json()) as { talk: { id: string } }).talk.id).toBe(talk.id);
     expect(seen.filter((s) => s.path === "/video/queue")).toHaveLength(1);
@@ -138,6 +139,23 @@ describe("a talking moment", () => {
     const other = userIdOf(newUserCookie());
     await claimAdmin(t.db, other);
     expect((await talkFileGet(new Request(`${BASE_URL}/api/admin/after-dark/talk/${talk.id}`, { headers: { cookie: signedIn(other) } }), { params: Promise.resolve({ id: talk.id }) })).status).toBe(404);
+  });
+
+  it("never plays one made before the clean-frame direction: the line is made again", async () => {
+    const id = userIdOf(newUserCookie());
+    await claimAdmin(t.db, id);
+    const cookie = signedIn(id);
+    await ready(cookie, id);
+    fakeHive();
+    const seen = fakeVenice();
+    await t.db.query(
+      `insert into adult_talks (id, owner_id, character_id, key, who, text, status, mime, data, version) values ('old', $1, $2, 'k', 'a', $3, 'ready', 'video/mp4', $4, 1)`,
+      [id, JUNIPER, LINES[0].text, Buffer.from([0, 0, 0, 24])],
+    );
+    expect((await list(cookie)).talks).toEqual([]);
+    expect((await talkFileGet(new Request(`${BASE_URL}/api/admin/after-dark/talk/old`, { headers: { cookie } }), { params: Promise.resolve({ id: "old" }) })).status).toBe(404);
+    expect((await post({ a: RAFE, b: JUNIPER, i: 0, text: LINES[0].text }, cookie)).status).toBe(202);
+    expect(seen.filter((s) => s.path === "/video/queue")).toHaveLength(1);
   });
 
   it("needs their portrait and words to say, and is After Dark's viewers' only", async () => {

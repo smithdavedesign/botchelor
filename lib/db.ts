@@ -1593,6 +1593,8 @@ create table if not exists adult_talks (
   updated_at timestamptz not null default now(),
   unique (owner_id, key)
 );
+-- Which direction made it (lib/adult/talks.ts TALK_VERSION): version 1's had subtitles burned in.
+alter table adult_talks add column if not exists version integer not null default 1;
 -- The sound of a place (lib/adult/place-sounds.ts; docs/PRDs/theater-immersion.md #6): one quiet looping bed per place,
 -- made once and shared by every night there, like a drawn set. Nobody's in it, so it's nobody's.
 create table if not exists place_sounds (
