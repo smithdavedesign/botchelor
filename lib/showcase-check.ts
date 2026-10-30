@@ -13,7 +13,7 @@
  *   safe side; if its SFW twin (lib/adult/sfw-twin.ts) is up already for as many people, the twin stays its one safe
  *   face and the original's post comes down. Nudity or sex keeps it explicit; an age doubt holds it out of sight for a
  *   look in /admin/showcase as well. A check that couldn't run changes nothing and is tried again next time.
- * - **When:** hourly (vercel.json, /api/jobs/showcase-check), a few at a time, and from /admin/showcase.
+ * - **When:** hourly (the DigitalOcean scheduled job in .do/app.yaml, /api/jobs/showcase-check), a few at a time, and from /admin/showcase.
  */
 import type { Db } from "./db";
 import { checkRating } from "./adult/moderation";

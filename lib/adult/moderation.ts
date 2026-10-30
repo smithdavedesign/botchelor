@@ -26,6 +26,7 @@ import { AGE_FORMAT, AGE_QUESTION, checkOutput, checkSet, vlmAnswer, type Checka
 import { hiveGate, underHiveLimit, type HiveGate } from "./hive-limit";
 import { DEFAULT_ADMIN_CHECKER, type AdminChecker, type AltChecker, type ModerationConfig } from "./moderation-config";
 import { adultKeys, getAdultSettings } from "./settings";
+import { isProductionDeploy } from "../deploy";
 
 /** What's being checked: an After Dark picture or keyframe (the age question), a video, or one of the show's own (PG). */
 export type MediaKind = CheckKind | "set" | "pg_image";
@@ -182,11 +183,11 @@ const noVerdict = (v: CheckResult): boolean => !v.ok && /^(the check couldn't ru
  * Dev only (David, 2026-10-24: "disable it [Hive] when developing so we can be unblocked"). With `MODERATION_DEV_OFF=1`
  * off production, the output check doesn't go to Hive: a ready alternative checks instead (the Venice vision model, no
  * daily cap), and with none set up (or for a video, which the alternatives can't read) it passes without a check. This
- * keeps local and preview work off Hive's 100-a-day limit. It can NEVER fire on production: `VERCEL_ENV === "production"`
+ * keeps local and preview work off Hive's 100-a-day limit. It can NEVER fire on production: a production deployment (lib/deploy.ts)
  * ignores the flag, so prod always runs the configured mode. Tests don't set the flag, so it's inert there too.
  */
 export function devModerationOff(e: Record<string, string | undefined> = process.env): boolean {
-  return e.VERCEL_ENV !== "production" && e.MODERATION_DEV_OFF === "1";
+  return !isProductionDeploy(e) && e.MODERATION_DEV_OFF === "1";
 }
 
 /** The dev-off check: a ready alternative if there is one (never for a video), else a pass with no check. */

@@ -15,6 +15,7 @@ import { canAfterDark } from "./entitlement";
 import { pageHeaders, viewerAccess } from "./place";
 import { lockedForCookies, lockedForRequest } from "./privacy";
 import { adultKeys, cloudReady, getAdultSettings } from "./settings";
+import { isDeployed } from "../deploy";
 
 /** Ollama's OpenAI-compatible endpoint on this machine, and an open model that writes adult fiction. */
 export const ADULT_DEFAULT_BASE_URL = "http://localhost:11434/v1";
@@ -27,7 +28,7 @@ export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
  */
 export function adultModeEnabled(env: Record<string, string | undefined> = process.env): boolean {
   if (env.ADULT_MODE !== "1") return false;
-  if (env.VERCEL || env.VERCEL_ENV || env.AFTER_DARK_ONLY === "1") return false;
+  if (isDeployed(env) || env.AFTER_DARK_ONLY === "1") return false;
   return true;
 }
 

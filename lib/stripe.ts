@@ -7,6 +7,7 @@
  * there is a commercial-use host (BUILD.md). Without a valid one, checkout fails closed with 503.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { isProductionDeploy } from "./deploy";
 
 /** Stripe's own libraries default to 5 minutes between the signed timestamp and now. */
 export const WEBHOOK_TOLERANCE_SECONDS = 300;
@@ -32,7 +33,7 @@ export function paymentLinkFromEnv(env: Env = process.env): URL | null {
   try {
     const url = new URL(raw);
     if (url.protocol !== "https:") return null;
-    if (env.VERCEL_ENV === "production" && isTestModeLink(url) && env.STRIPE_ALLOW_TEST_LINK !== "1") return null;
+    if (isProductionDeploy(env) && isTestModeLink(url) && env.STRIPE_ALLOW_TEST_LINK !== "1") return null;
     return url;
   } catch {
     return null;
@@ -45,7 +46,7 @@ export function paymentLinkFromEnv(env: Env = process.env): URL | null {
  * run that STRIPE_ALLOW_TEST_LINK=1 allows.
  */
 export function testEventsGrant(env: Env = process.env): boolean {
-  return env.VERCEL_ENV !== "production" || env.STRIPE_ALLOW_TEST_LINK === "1";
+  return !isProductionDeploy(env) || env.STRIPE_ALLOW_TEST_LINK === "1";
 }
 
 /**
