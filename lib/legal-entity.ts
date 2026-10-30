@@ -3,8 +3,8 @@
  * /content-policy, /2257, /report, /cancel). Change a constant here and every page follows.
  *
  * Today the operator is David Smith, an individual in the United States, trading as Botchelor (no company yet). When an
- * LLC is formed, set OPERATOR to its legal name (e.g. "Botchelor LLC, a Wyoming limited liability company") and
- * GOVERNING_STATE to the state it's formed in. Pure: no env reads except contactEmail().
+ * LLC is formed, set OPERATOR to its legal name ("Botchelor LLC, a California limited liability company"; David's
+ * pick, 2026-10-30: his home state). Pure: no env reads except contactEmail().
  */
 import { AGE_CHECK_COUNTRIES, TEXT_ONLY_COUNTRIES, US_AGE_CHECK_STATES } from "./jurisdiction";
 
@@ -19,9 +19,9 @@ export const OPERATOR_FULL = `${OPERATOR}, an individual in ${OPERATOR_COUNTRY},
 
 /**
  * The state whose law governs the terms, and where arbitration and any court case sit.
- * TODO(David): change this to your home state, or to your LLC's state once it's formed. "Delaware" is a placeholder.
+ * David's home state (2026-10-30), and the LLC's once it's formed there (docs/after-dark-business-setup.md).
  */
-export const GOVERNING_STATE = "Delaware";
+export const GOVERNING_STATE = "California";
 
 /** The support address: CONTACT_EMAIL, read per request so one set after the build shows. Null when it isn't set. */
 export function contactEmail(env: Record<string, string | undefined> = process.env): string | null {
