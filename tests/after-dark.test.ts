@@ -444,7 +444,10 @@ describe("settings over MCP", () => {
     expect(JSON.stringify(await run({}))).not.toMatch(/ciphertext|nonce/);
     // Where the media is made (#698): only the two providers there are.
     expect((await run({ media_provider: "replicate" })).media_provider).toBe("replicate");
-    expect((await run({ media_provider: "fal" })).media_provider).toBe("replicate");
+    // Anything else is refused, as the settings page refuses it (2.15.0: the page's own checks), and nothing changes.
+    const refused = await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "after_dark_settings", arguments: { media_provider: "fal" } } }, { adminKey: key });
+    expect(JSON.stringify(refused)).toMatch(/Not saved: media_provider/);
+    expect((await run({})).media_provider).toBe("replicate");
     expect((await run({ media_provider: "venice" })).media_provider).toBe("venice");
     const stranger = await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "after_dark_settings", arguments: {} } }, {});
     expect((stranger!.error as { message?: string } | undefined)?.message).toMatch(/unknown tool/);

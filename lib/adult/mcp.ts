@@ -4,6 +4,12 @@
  * calling one is an unknown tool. Every other agent sees only request_after_dark (lib/mcp.ts), which asks the admins.
  */
 import { afterDarkBase, afterDarkElsewhere } from "../after-dark-host";
+import { USER_ROLEPLAY } from "../studio/library";
+import { answerBeat, PICTURE_FIELD_MAX, pictureNow, previewPicture, redrawPicture, SCENE_CUSTOM_MAX, SCENE_DIALOG_MAX } from "./beats";
+import { WHISPER_MAX } from "./director";
+import { ROLEPLAY_IDS } from "./roleplays";
+import { SCENARIOS } from "./scenarios";
+import { AdultSettingsInput, SETTINGS_KEY_FIELDS } from "./settings-input";
 import type { Db } from "../db";
 import { eligibleIds, listSwitchable, setAdultSwitch } from "./characters";
 import { hiveState, mediaPauses } from "./hive-limit";
@@ -13,10 +19,28 @@ import { advanceReel, listReels, makeReel, reelNight } from "./reels";
 import { siteUrl } from "../site";
 import { adultAvailable } from "./mode";
 import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX, storedHardNos, type HardNos } from "./limits";
-import { PROFILE_CONSENT_TEXT } from "./profile";
+import { FRAMING_IDS, PROFILE_CONSENT_TEXT } from "./profile";
 import { crisisCheck, crisisField } from "../crisis";
-import { continueScene, listCastPairs, openScene, saveLimits, sceneNotes, type LimitsInput } from "./scenes";
-import { getAdultSettings, saveAdultSettings } from "./settings";
+import {
+  continueScene,
+  forgetWhisper,
+  listCastPairs,
+  listNights,
+  openScene,
+  redoScene,
+  resetScene,
+  rewindScene,
+  saveFraming,
+  saveLimits,
+  sceneNotes,
+  SET_SCENE_MAX,
+  setRoleplay,
+  setSceneTo,
+  startScenario,
+  type LimitsInput,
+} from "./scenes";
+import { getAdultSettings, PROMPT_VERSIONS, saveAdultSettings, VOICE_MODELS } from "./settings";
+import { USAGE_KINDS } from "./usage";
 
 type JsonSchema = Record<string, unknown>;
 const id = { type: "string", maxLength: 64 };
@@ -90,8 +114,11 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     title: "After dark: write the next lines",
     description:
       "Admin only. Writes the next lines of a pair's scene on after dark's model, optionally steered. Nobody under 18 and no real people, " +
-      "always; anything else between the two adults is allowed. Pictures come when the scene turns explicit, or when they ask each other for one. " +
-      "intensity and hard_nos, when given, are saved as the pair's limits first, and hold for this step and after.",
+      "always; anything else between the two adults is allowed. A picture comes when a chapter starts or the place changes, when they ask each other " +
+      "for one, and at the moments that matter (scene.beats: after_dark_picture draws one now). " +
+      "intensity and hard_nos, when given, are saved as the pair's limits first, and hold for this step and after. " +
+      "The director, as on the page: whisper to one of them instead of a steer (it holds until it's done, or forget_whisper), redo (take the last step " +
+      "back and write it again) or rewind (take it back only).",
     inputSchema: {
       type: "object",
       required: ["a", "b"],
@@ -100,7 +127,80 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         b: id,
         direction: { type: "string", maxLength: 300, description: 'With steer_mode direct, words in quotes ("…") are spoken nearly as written, by whoever the steer names.' },
         steer_mode: { type: "string", enum: ["nudge", "direct"], description: "nudge (default): worked toward at the scene's own pace. direct: done now, can skip ahead." },
+        whisper: {
+          type: "object",
+          required: ["to", "text"],
+          description: "A word in one ear (a or b), instead of a steer: only they hear it, and they act on it in their own time.",
+          properties: { to: { type: "string", enum: ["a", "b"] }, text: { type: "string", minLength: 1, maxLength: WHISPER_MAX } },
+        },
+        forget_whisper: { type: "string", enum: ["a", "b"], description: "Drops a whisper still running for a or b; writes nothing." },
+        redo: { type: "boolean", description: "true: takes the last step back and writes it again, with its steer or whisper." },
+        rewind: { type: "boolean", description: "true: takes the last step back (its lines, stage and place); writes nothing." },
         ...LIMIT_PROPS,
+      },
+    },
+    annotations: { readOnlyHint: false },
+  },
+  {
+    name: "after_dark_set_scene",
+    title: "After dark: set the scene",
+    description:
+      "Admin only. What the scene picker on the page sets, in this order when several are given: reset (Start over: the night so far is saved, a new one begins), " +
+      "place (take them somewhere: held there until it's moved again; one the show doesn't know is drawn fresh), roleplay (this chapter's, or null to clear it), " +
+      "framing (how the two are framed, or null), then scenario (starts a night from one of the show's openings and writes its first lines; it sets its own place). " +
+      "Each is checked as on the page.",
+    inputSchema: {
+      type: "object",
+      required: ["a", "b"],
+      properties: {
+        a: id,
+        b: id,
+        reset: { type: "boolean" },
+        place: { type: "string", maxLength: SET_SCENE_MAX },
+        roleplay: {
+          type: ["object", "null"],
+          required: ["id"],
+          description: "One of the show's roleplays, or one of yours (u:<id> from /prompts). swap: true trades who plays which part.",
+          properties: { id: { type: "string", description: `${ROLEPLAY_IDS.join(", ")}, or u:<id>` }, swap: { type: "boolean" } },
+        },
+        framing: { type: ["string", "null"], enum: [...FRAMING_IDS, null] },
+        scenario: { type: "string", enum: SCENARIOS.map((x) => x.id) },
+      },
+    },
+    annotations: { readOnlyHint: false },
+  },
+  {
+    name: "after_dark_picture",
+    title: "After dark: a picture of the scene",
+    description:
+      "Admin only. A scene picture, drawn from both of their faces and the moment, as the theater's 📸 does. One of: line (Picture this at that line of the " +
+      "running chapter), beat_id with answer now or later (a moment the scene offered: after_dark_scene's scene.beats), or picture_id (Redraw a scene " +
+      "picture from the gallery: the old one stays). preview: true says what it would be drawn from (fields and prompt) and draws nothing. custom leads " +
+      "the picture, dialog is a speech-bubble line, and edit changes its context (happening, wearing, place, mood, extra); all held to After Dark's lines. " +
+      "The picture is checked and lands in the gallery a little later (after_dark_scene).",
+    inputSchema: {
+      type: "object",
+      required: ["a", "b"],
+      properties: {
+        a: id,
+        b: id,
+        line: { type: "integer", minimum: 0 },
+        beat_id: id,
+        answer: { type: "string", enum: ["now", "later"] },
+        picture_id: id,
+        preview: { type: "boolean" },
+        custom: { type: "string", maxLength: SCENE_CUSTOM_MAX },
+        dialog: { type: "string", maxLength: SCENE_DIALOG_MAX },
+        edit: {
+          type: "object",
+          properties: {
+            happening: { type: "string", maxLength: PICTURE_FIELD_MAX },
+            wearing: { type: "string", maxLength: PICTURE_FIELD_MAX },
+            place: { type: "string", maxLength: PICTURE_FIELD_MAX },
+            mood: { type: "string", maxLength: PICTURE_FIELD_MAX },
+            extra: { type: "string", maxLength: SCENE_CUSTOM_MAX },
+          },
+        },
       },
     },
     annotations: { readOnlyHint: false },
@@ -109,7 +209,8 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
     name: "after_dark_settings",
     title: "After dark: models and on/off",
     description:
-      "Admin only. Reads after dark's settings, and changes the models, the media provider (venice or replicate) or turns it on or off when given. Keys are never shown or set here " +
+      "Admin only. Reads after dark's settings, and changes any of them that's given, as /admin/after-dark/settings does and with its checks: on or off, the models, " +
+      "the media provider, prices, the writers, the Studio, the checks and the monthly caps. Keys are never shown or set here " +
       "(only on /admin/after-dark/settings). `hive` is the safety check's state: ok, failing (a check couldn't run), paused until a time (nothing is drawn), or probe_next, with the last error. " +
       "`pauses` lists what's paused: Hive (the safety check), which stops every picture and video until it answers again, " +
       "and a media provider cooling down after a 429 or 402.",
@@ -117,10 +218,41 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
       type: "object",
       properties: {
         enabled: { type: "boolean" },
-        text_model: { type: "string", maxLength: 120, description: "An OpenRouter model id." },
-        image_model: { type: "string", maxLength: 120, description: "A fal.ai image model id." },
+        text_model: { type: "string", maxLength: 120, description: "An OpenRouter model id: the default writer when `writer` names none." },
+        text_temperature: { type: ["number", "null"], minimum: 0, maximum: 2, description: "The scene writer's sampling (null: the default); so are the penalties." },
+        frequency_penalty: { type: ["number", "null"], minimum: -2, maximum: 2 },
+        presence_penalty: { type: ["number", "null"], minimum: -2, maximum: 2 },
+        repetition_penalty: { type: ["number", "null"], minimum: 0, maximum: 2 },
+        prompt_version: { type: "string", enum: [...PROMPT_VERSIONS] },
+        writer: { type: "object", description: "The scene writers people can pick, and the default (as the settings page's Writer panel saves it)." },
+        image_provider: { type: "string", enum: ["fal", "venice"], description: "Which of image_model or venice_image_model draws pictures." },
+        image_model: { type: "string", maxLength: 120, description: "A fal.ai image model id (image_provider fal)." },
+        venice_image_model: { type: "string", maxLength: 120, description: "A Venice image model id (image_provider venice)." },
         video_model: { type: "string", maxLength: 120, description: "A fal.ai video model id." },
         image_base: { type: "string", maxLength: 160, description: "For fal-ai/lora: the Hugging Face id of the base model." },
+        reel_model: { type: "string", maxLength: 120 },
+        replicate_picture_model: { type: "string", maxLength: 160, description: "owner/name or owner/name:version, or \"\" for the default; so are the other replicate_*_model." },
+        replicate_keyframe_model: { type: "string", maxLength: 160 },
+        replicate_video_model: { type: "string", maxLength: 160 },
+        replicate_voice_model: { type: "string", maxLength: 160 },
+        replicate_video_lora: { type: "string", maxLength: 1000, description: "Wan's LoRA: one or two https URLs, or \"\" for none." },
+        voice_model: { type: "string", enum: [...VOICE_MODELS] },
+        talk_model: { type: "string", maxLength: 120, description: "The talking moments' model (\"\" for the default); so are presence_loop_model and place_sound_model." },
+        presence_loop_model: { type: "string", maxLength: 120 },
+        place_sound_model: { type: "string", maxLength: 120 },
+        place_sounds: { type: "boolean", description: "The sound of the place under the theater." },
+        draw_ahead: { type: "boolean", description: "Offers Draw ahead in the theater: a viewer who turns it on has the chapter's moments drawn as they're written." },
+        draw_ahead_tokens: { type: "integer", minimum: 0, maximum: 20, description: "What Draw ahead costs a viewer a chapter." },
+        draw_ahead_pictures: { type: "integer", minimum: 0, maximum: 10, description: "How many pictures Draw ahead adds to a chapter's own." },
+        reel_shots: { type: "integer", minimum: 2, maximum: 12 },
+        reel_tokens: { type: "integer", minimum: 0, maximum: 500, description: "What a person pays in bought tokens (admins never pay); so are the other *_tokens." },
+        clip_tokens: { type: "integer", minimum: 0, maximum: 100 },
+        menu_picture_tokens: { type: "integer", minimum: 0, maximum: 100 },
+        chapter_tokens: { type: "integer", minimum: 0, maximum: 100 },
+        pictures_per_chapter: { type: "integer", minimum: 0, maximum: 10 },
+        studio: { type: "object", description: "The Studio's settings (checked on save, as the page's Studio panel)." },
+        moderation: { type: "object", description: "Which checker checks pictures (checked on save)." },
+        caps: { type: "object", description: `Monthly caps, each a whole number: ${USAGE_KINDS.join(", ")}.` },
         auto_scene_pictures: { type: "boolean", description: "A picture of the pair each time a chapter starts or the place changes (on by default)." },
         beat_pictures: { type: "boolean", description: "A picture of each moment that matters (undressing, sex, each new position, the climax, the afterglow), drawn when the chapter closes if the viewer never asked for it (on by default)." },
         media_provider: { type: "string", enum: ["venice", "replicate"], description: "Where pictures, keyframes, videos and voices are made." },
@@ -168,6 +300,19 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
 
 export const ADULT_TOOL_NAMES = new Set(ADULT_TOOLS.map((t) => t.name));
 
+/** The model ids after_dark_settings leaves as they were when sent blank (it always has). */
+const MODEL_FIELDS = new Set(["text_model", "image_model", "video_model", "image_base"]);
+
+/** A whisper in a call's arguments, checked as the page's route checks it; null when there's none. */
+function whisperArg(w: unknown): { to: "a" | "b"; text: string } | { error: string } | null {
+  if (w === undefined || w === null) return null;
+  const { to, text } = (typeof w === "object" ? w : {}) as { to?: unknown; text?: unknown };
+  if ((to !== "a" && to !== "b") || typeof text !== "string" || !text.trim() || text.length > WHISPER_MAX) {
+    return { error: `whisper is { to: "a" or "b", text: 1-${WHISPER_MAX} characters }.` };
+  }
+  return { to, text };
+}
+
 /** The account after-dark scenes over MCP belong to: the first admin. */
 async function sceneOwner(db: Db): Promise<string | null> {
   return (await db.query<{ user_id: string }>(`select user_id from admins order by user_id limit 1`)).rows[0]?.user_id ?? null;
@@ -179,15 +324,20 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
   if (elsewhere) return { error: `After Dark runs on its own host now: connect to ${elsewhere}/api/mcp (with the admin key) for its tools.` };
   // The settings themselves are reachable while it's off (that's where it's turned on). Never the keys.
   if (name === "after_dark_settings") {
-    const patch: Record<string, unknown> = {};
-    if (typeof args.enabled === "boolean") patch.enabled = args.enabled;
-    if (typeof args.auto_scene_pictures === "boolean") patch.auto_scene_pictures = args.auto_scene_pictures;
-    if (typeof args.beat_pictures === "boolean") patch.beat_pictures = args.beat_pictures;
-    for (const k of ["text_model", "image_model", "video_model", "image_base"]) if (typeof args[k] === "string" && (args[k] as string).trim()) patch[k] = (args[k] as string).trim();
-    if (args.media_provider === "venice" || args.media_provider === "replicate") patch.media_provider = args.media_provider;
-    if (typeof args.media_fallback === "boolean") patch.media_fallback = args.media_fallback;
-    // Changes made here go in the settings history as "mcp".
-    const settings = Object.keys(patch).length ? await saveAdultSettings(db, patch, "mcp") : await getAdultSettings(db);
+    // The settings page's own checks (lib/adult/settings-input.ts), less the keys. A model id sent blank is left as it was.
+    const given = Object.fromEntries(Object.entries(args).filter(([k, v]) => !(MODEL_FIELDS.has(k) && typeof v === "string" && !v.trim())));
+    const keys = SETTINGS_KEY_FIELDS.filter((k) => k in given);
+    if (keys.length) return { error: `Keys are set only on /admin/after-dark/settings, never over MCP (${keys.join(", ")}).` };
+    const parsed = AdultSettingsInput.safeParse(given);
+    if (!parsed.success) return { error: `Not saved: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}.` };
+    const patch = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+    // Changes made here go in the settings history as "mcp". A Studio, writer or checks value that doesn't fit its rules is refused, with why.
+    let settings;
+    try {
+      settings = Object.keys(patch).length ? await saveAdultSettings(db, patch, "mcp") : await getAdultSettings(db);
+    } catch (err) {
+      return { error: `Not saved: ${err instanceof Error ? err.message.slice(0, 300) : "invalid"}.` };
+    }
     // Hive's breaker (lib/adult/hive-limit.ts): ok, failing, paused until a time, or probing next; with the last error.
     return { data: { settings, pauses: await mediaPauses(db), hive: await hiveState(db) } };
   }
@@ -197,7 +347,8 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
   const a = String(args.a ?? "");
   const b = String(args.b ?? "");
   // The self-harm check on a steer's own words (lib/crisis.ts): crisis_resources rides on whatever this answers.
-  const crisis = name === "after_dark_write" ? crisisCheck("mcp_after_dark", typeof args.direction === "string" ? args.direction : null) : null;
+  const whisper = whisperArg(args.whisper);
+  const crisis = name === "after_dark_write" ? crisisCheck("mcp_after_dark", typeof args.direction === "string" ? args.direction : null, whisper && "text" in whisper ? whisper.text : null) : null;
   const crisisDetails = crisis ? { details: { crisis_resources: crisis } } : {};
   // The pair's limits, when a scene call carries them: saved first, through the Limits panel's path (lib/adult/scenes.ts).
   // Hard nos are stored only with consent: true (or consent given before, on the page); without it, after_dark_write
@@ -237,7 +388,21 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
       return { data: { scene, gallery: await listMedia(db, [scene.a.id, scene.b.id], owner), written_by } };
     }
     case "after_dark_write": {
-      const r = await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge", { sessionHardNos });
+      // The director (lib/adult/director.ts), as the page's: take the last step back, forget a whisper, or write again.
+      if (args.rewind === true) {
+        const back = await rewindScene(db, owner, a, b);
+        return back.ok ? { data: { scene: back.scene, rewound: back.rewound, nights: await listNights(db, owner, a, b) } } : { error: back.message };
+      }
+      if (args.forget_whisper !== undefined) {
+        if (args.forget_whisper !== "a" && args.forget_whisper !== "b") return { error: 'forget_whisper is "a" or "b".' };
+        const scene = await forgetWhisper(db, owner, a, b, args.forget_whisper);
+        return scene ? { data: { scene } } : { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
+      }
+      if (whisper && "error" in whisper) return { error: whisper.error, ...crisisDetails };
+      const r =
+        args.redo === true
+          ? await redoScene(db, owner, a, b)
+          : await continueScene(db, owner, a, b, typeof args.direction === "string" ? args.direction : null, args.steer_mode === "direct" ? "direct" : "nudge", { sessionHardNos, whisper });
       // Hard nos sent without consent held for this step and were never stored: said so, with what consent covers.
       const unsaved = sessionHardNos ? { hard_nos_saved: false, consent_needed: `${PROFILE_CONSENT_TEXT} (send consent: true to store them)` } : {};
       return r.ok
@@ -249,6 +414,60 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
             },
           }
         : { error: r.message, ...crisisDetails };
+    }
+    case "after_dark_set_scene": {
+      if (args.scenario !== undefined && !SCENARIOS.some((x) => x.id === args.scenario)) return { error: `scenario is one of ${SCENARIOS.map((x) => x.id).join(", ")}.` };
+      if (args.scenario !== undefined && args.place !== undefined) return { error: "A scenario sets its own place: send one or the other." };
+      const roleplay = args.roleplay;
+      if (roleplay !== undefined && roleplay !== null) {
+        const pick = typeof roleplay === "object" ? (roleplay as { id?: unknown }).id : null;
+        if (typeof pick !== "string" || !(ROLEPLAY_IDS.includes(pick) || USER_ROLEPLAY.test(pick))) return { error: `roleplay is { id, swap? }: id is one of ${ROLEPLAY_IDS.join(", ")}, or u:<id> for one of yours.` };
+      }
+      if (args.framing !== undefined && args.framing !== null && !FRAMING_IDS.includes(args.framing as string)) return { error: `framing is one of ${FRAMING_IDS.join(", ")}, or null.` };
+      if (!(await openScene(db, owner, a, b))) return { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
+      const out: Record<string, unknown> = {};
+      if (args.reset === true) await resetScene(db, owner, a, b);
+      if (args.place !== undefined) {
+        const moved = await setSceneTo(db, owner, a, b, String(args.place).slice(0, SET_SCENE_MAX));
+        if (!moved.ok) return { error: moved.message };
+        if (moved.auto_picture) out.auto_picture = "drawing";
+      }
+      if (roleplay !== undefined) {
+        const r = roleplay as { id: string; swap?: unknown } | null;
+        await setRoleplay(db, owner, a, b, r ? { id: r.id, swap: r.swap === true } : null);
+      }
+      if (args.framing !== undefined) await saveFraming(db, owner, a, b, (args.framing as string | null) ?? null);
+      if (args.scenario !== undefined) {
+        const r = await startScenario(db, owner, a, b, args.scenario as string);
+        if (!r.ok) return { error: r.message };
+        Object.assign(out, { added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures });
+      }
+      return { data: { scene: await openScene(db, owner, a, b), ...out, nights: await listNights(db, owner, a, b) } };
+    }
+    case "after_dark_picture": {
+      const scene = await openScene(db, owner, a, b);
+      if (!scene) return { error: "Pick two characters who are in after dark (after_dark_pairs lists them)." };
+      const at = { ...scene, a: scene.a.id, b: scene.b.id, place: scene.set_place ?? scene.place };
+      const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+      const line = typeof args.line === "number" && Number.isInteger(args.line) && args.line >= 0 ? args.line : undefined;
+      const beatId = str(args.beat_id);
+      const pictureId = str(args.picture_id);
+      const guide = { custom: str(args.custom), dialog: str(args.dialog), edit: args.edit && typeof args.edit === "object" ? args.edit : undefined };
+      if (args.preview === true) {
+        const plan = await previewPicture(db, owner, at, { beat: beatId, line, picture: pictureId }, guide.edit);
+        return plan.ok ? { data: { preview: { fields: plan.fields, edit: plan.edit, prompt: plan.prompt } } } : { error: plan.message };
+      }
+      const base = afterDarkBase(siteUrl());
+      // The admin's scenes: nothing is paid for, as on the page.
+      const r = pictureId
+        ? await redrawPicture(db, owner, pictureId, guide.edit, base, at)
+        : beatId
+          ? await answerBeat(db, owner, beatId, args.answer === "later" ? "later" : "now", base, guide)
+          : line !== undefined
+            ? await pictureNow(db, owner, at, line, base, guide)
+            : null;
+      if (!r) return { error: "Send line (Picture this at a line), beat_id (a moment in scene.beats), or picture_id (Redraw); preview: true to see what it would be drawn from." };
+      return r.ok ? { data: { beat: r.beat, note: "Drawing: it lands in the gallery once it's checked (after_dark_scene)." } } : { error: r.message };
     }
     case "after_dark_switch": {
       const ok = await setAdultSwitch(db, owner, String(args.character_id ?? ""), args.on === true);

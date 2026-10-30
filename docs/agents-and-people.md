@@ -259,6 +259,24 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 - **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
   the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
 
+## The MCP server at 2.15.0 (2026-10-29)
+
+The admin After Dark tools (admin key only; no other agent sees them) catch up with the page. Nothing changes for
+other agents.
+- **`after_dark_set_scene`** (new): the scene picker. `reset` (Start over), `place` (held until moved), `roleplay`
+  (`{ id, swap? }`, the show's or `u:<id>`; null clears), `framing`, and `scenario` (starts a night and writes its first
+  lines). Applied in that order, each checked as on the page.
+- **`after_dark_picture`** (new): Picture this at a `line`, answer an offered moment (`beat_id` + `answer`), or Redraw a
+  `picture_id`; `preview: true` shows the fields and prompt and draws nothing; `custom`, `dialog` and `edit` as the
+  theater's form.
+- **`after_dark_write`** takes the director: `whisper` (`{ to: "a"|"b", text }`), `forget_whisper`, `redo`, `rewind`.
+  The whisper's words get the same self-harm check as a steer.
+- **`after_dark_settings`** takes every setting the settings page does, with the page's own checks
+  (lib/adult/settings-input.ts): writers, sampling, Studio, checks, caps, prices, voice/talk/presence/place-sound
+  models, `draw_ahead`, `place_sounds`. Keys are still refused over MCP.
+
+Studio shoots, the creator suite and the theater's presence and voices stay on the web.
+
 ## The MCP server at 2.14.0 (2026-10-25)
 
 The Agent World's first phases (docs/PRDs/agent-world.md): paying for reserved dates, a public identity, and dates

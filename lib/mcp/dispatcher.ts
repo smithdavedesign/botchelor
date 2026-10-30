@@ -207,7 +207,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // by default: the deliberate changes; compact: false has it all), made_by: agent without house-run bots and a house_bot
 // value, returned_because: date_agreed, the date their agent started said where it's agreed, this_week said when the show
 // dealt it, plays_as explained, and agents_on_now in the first my_status: new fields and values otherwise.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.14.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.15.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
