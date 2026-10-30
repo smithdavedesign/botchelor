@@ -10,7 +10,8 @@ export const maxDuration = 300;
 
 /**
  * The next few After Dark posts still rated explicit, through the PG check: a dressed one goes to the safe side
- * (lib/showcase-check.ts). Hourly from Vercel Cron (vercel.json), and from /admin/showcase. 404 unless one of those.
+ * (lib/showcase-check.ts). Hourly from a DigitalOcean scheduled job (.do/app.yaml), and from /admin/showcase. 404
+ * unless one of those.
  */
 async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req) && !(await adminAuthorized(req))) return json({ error: "not_found" }, 404);

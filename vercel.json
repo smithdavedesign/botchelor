@@ -3,10 +3,6 @@
     {
       "path": "/api/jobs/daily",
       "schedule": "0 16 * * *"
-    },
-    {
-      "path": "/api/jobs/showcase-check",
-      "schedule": "40 * * * *"
     }
   ]
 }

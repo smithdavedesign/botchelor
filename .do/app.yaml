@@ -1,7 +1,7 @@
 # After Dark's own host on DigitalOcean App Platform (docs/after-dark-hosting.md, "3. DigitalOcean App Platform").
 # Create it with: Apps → Create App → "Import from app spec" (or `doctl apps create --spec .do/app.yaml`), then fill in
 # every value marked CHANGE_ME as an encrypted secret in the dashboard. Never commit real values to this file.
-# Billing: about $10 a month for the instance below, plus at most $5 for the lobby job; set a spend alert at $15 (runbook step 7).
+# Billing: about $10 a month for the instance below, plus at most $5 for the hourly jobs; set a spend alert at $15 (runbook step 7).
 name: botchelor-after-dark
 region: nyc
 alerts:
@@ -74,10 +74,11 @@ services:
         value: CHANGE_ME
         scope: RUN_AND_BUILD_TIME
       # Never set here: ADULT_MODE, NEXT_PUBLIC_GA_ID, NEXT_PUBLIC_GTM_ID, the site-verification tokens, MEDIA_S3_*.
-# The show's hourly lobby job (app/api/jobs/lobby) runs here, not on Vercel: Vercel's free plan allows only daily cron
-# jobs. It only calls botchelor.com, so the work still runs on Vercel. About $5 a month at most (billed while it runs).
+# The show's hourly jobs (app/api/jobs/lobby and app/api/jobs/showcase-check) are scheduled here, not on Vercel:
+# Vercel's free plan allows only daily cron jobs. One small container calls both on botchelor.com, so the work itself
+# still runs on Vercel. About $5 a month at most (billed while it runs).
 jobs:
-  - name: lobby
+  - name: hourly
     kind: SCHEDULED
     schedule:
       cron: "20 * * * *"
@@ -87,9 +88,11 @@ jobs:
       registry: library
       repository: alpine
       tag: "3.20"
+    # The lobby at :20 and the showcase check at :40, as the two Vercel schedules did.
     run_command: >-
-      sh -c 'wget -q -O - -T 290 -U "botchelor-cron/1.0 (DigitalOcean)"
-      --header "Authorization: Bearer $CRON_SECRET" https://botchelor.com/api/jobs/lobby'
+      sh -c 'call() { wget -q -O - -T 290 -U "botchelor-cron/1.0 (DigitalOcean)"
+      --header "Authorization: Bearer $CRON_SECRET" "https://botchelor.com/api/jobs/$1"; echo; };
+      call lobby; sleep 1200; call showcase-check'
     instance_size_slug: apps-s-1vcpu-0.5gb
     instance_count: 1
     envs:
