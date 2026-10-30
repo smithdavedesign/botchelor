@@ -131,6 +131,27 @@ describe("living portraits", () => {
     expect(await loopTargets(t.db, w.me, BASE_URL)).toEqual([]);
   });
 
+  it("tries a provider's passing trouble again next time, never a safety refusal", async () => {
+    const w = await world();
+    let calls = 0;
+    setReplicateFetchForTests(async (input: RequestInfo | URL) => {
+      if (String(input).startsWith("https://replicate.delivery/")) return new Response(new Uint8Array(MP4), { headers: { "content-type": "video/mp4" } });
+      calls++;
+      // The first: Replicate's own deployment missing; the second: its safety checker; then all well.
+      if (calls === 1) return Response.json({ id: "p1", status: "failed", error: "Model not found: alibaba/wan-2.2-i2v-fast-r8" });
+      if (calls === 2) return Response.json({ id: "p2", status: "failed", error: "NSFW content detected" });
+      return Response.json({ id: `p${calls}`, status: "succeeded", output: "https://replicate.delivery/x/ok.mp4" });
+    });
+    verdict("CLOTHED");
+    const [a, b] = await loopTargets(t.db, w.me, BASE_URL);
+    const { makeLoop } = await import("@/lib/showcase-loops");
+    expect(await makeLoop(t.db, a)).toMatchObject({ ok: false, error: expect.stringMatching(/Model not found/) });
+    expect(await makeLoop(t.db, b)).toMatchObject({ ok: false, error: expect.stringMatching(/NSFW/) });
+    // The first is there to try again; the second isn't.
+    expect((await loopTargets(t.db, w.me, BASE_URL)).map((x) => x.source_id)).toEqual([a.source_id]);
+    expect(await makeLoop(t.db, a)).toMatchObject({ ok: true });
+  });
+
   it("is an admin's alone, and a private character's posts stay off the public showcase", async () => {
     const w = await world();
     const post = (cookie: string, body: unknown = {}) => animatePost(new Request(`${BASE_URL}/x`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) }));
