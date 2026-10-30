@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as madeGet } from "@/app/api/showcase/[id]/made/route";
 import { saveAdultSettings } from "@/lib/adult/settings";
-import { twinPrompt } from "@/lib/adult/sfw-twin";
+import { firstTwinPrompt } from "@/lib/adult/sfw-twin";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { pairKey } from "@/lib/relationships";
 import { publish, saveCreatorProfile, type ShowcaseViewer } from "@/lib/showcase";
@@ -90,8 +90,8 @@ describe("how it was made", () => {
     const res = await madeGet(new Request(`${BASE_URL}/api/showcase/${id}/made`), { params: Promise.resolve({ id }) });
     expect(res.status).toBe(200);
     const made = await res.json();
-    expect(made).toMatchObject({ how: "An SFW twin: another picture made again safe for work", model: { label: "Qwen Image 2.1 Turbo Edit", provider: "Venice" }, prompt: twinPrompt(["the woman"]), from: null });
-    expect((await t.db.query<{ prompt: string }>(`select prompt from studio_pg_pictures where id = $1`, [twin])).rows[0].prompt).toBe(twinPrompt(["the woman"]));
+    expect(made).toMatchObject({ how: "An SFW twin: another picture made again safe for work", model: { label: "Qwen Image 2.1 Turbo Edit", provider: "Venice" }, prompt: firstTwinPrompt(["the woman"]), from: null });
+    expect((await t.db.query<{ prompt: string }>(`select prompt from studio_pg_pictures where id = $1`, [twin])).rows[0].prompt).toBe(firstTwinPrompt(["the woman"]));
 
     // One of two, kept in After Dark rated pg: both named, the same way.
     const [a, b] = pairKey(me.character, HOUSE_CHARACTERS[0].id);

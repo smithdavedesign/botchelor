@@ -23,7 +23,7 @@ export default async function ReelsPage({ searchParams }: Props) {
   const viewer = await pageViewer(db);
   const sp = await searchParams;
   const f = seenFilters(viewer, parseFilters(sp));
-  const first = await listShowcase(db, viewer, { ...f, sort: f.sort ?? "trending", page: 1 }, { pageSize: REEL_PAGE });
+  const first = await listShowcase(db, viewer, { ...f, sort: f.sort ?? "trending", page: 1 }, { pageSize: REEL_PAGE, mix: true });
   const locked = await afterDarkCounts(db, viewer, first.posts.flatMap((p) => [p.character.id, ...(p.partner ? [p.partner.id] : [])]));
   // The filters as asked (never the page or where to start), for the next pages and the way back; After Dark's side
   // only when it's theirs to see.

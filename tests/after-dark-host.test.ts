@@ -96,6 +96,7 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
     const ffmpeg = ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffmpeg-static/index.js", "./node_modules/ffmpeg-static/package.json"];
     expect(config).toEqual({
       serverExternalPackages: ["@electric-sql/pglite", "ffmpeg-static"],
+      outputFileTracingExcludes: { "/**": ["./public/**/*"] },
       outputFileTracingIncludes: { "/api/admin/after-dark/moments": ffmpeg, "/api/admin/after-dark/export": ffmpeg, "/api/admin/showcase/animate": ffmpeg, "/api/jobs/showcase-check": ffmpeg },
       headers: expect.any(Function),
     });

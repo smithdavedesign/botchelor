@@ -111,6 +111,34 @@ describe("the reels' posts", () => {
     expect((await listShowcase(t.db, ADMIN, { side: "after_dark" }, { pageSize: REEL_PAGE })).posts.map((p) => p.media_id).sort()).toEqual(["ad-1", "ad-2"]);
   });
 
+  it("mix creators from the first screen, and a creator's characters before any one of them again", async () => {
+    // Mara posts four of herself, then a second creator three of three characters, all newer: still taking turns.
+    const w = await world(4);
+    const raw = newUserCookie();
+    const sam = userIdOf(raw);
+    await saveCreatorProfile(t.db, sam, { handle: "sam", display_name: "Sam" });
+    const chars: string[] = [];
+    for (const name of ["Ada Vale", "Bo Reyes", "Cy Lund"]) {
+      const id = (await (await api.createCharacter(validCharacter({ name }), raw)).json()).id as string;
+      chars.push(id);
+      for (const k of [1, 2]) {
+        await t.db.query(`insert into studio_pg_pictures (id, owner_id, character_id, prompt, mime, data, content_rating) values ($1, $2, $3, 'p', 'image/png', $4, 'pg')`, [`${id}-${k}`, sam, id, PNG]);
+        const r = await publish(t.db, sam, { source: "pg", media_id: `${id}-${k}` });
+        if (!r.ok) throw new Error(r.message);
+      }
+    }
+    const get = async (q: string) => (await (await reelsGet(new Request(`${BASE_URL}/api/showcase/reels${q}`))).json()).posts as Post[];
+    const all = [...(await get("")), ...(await get("?page=2"))];
+    expect(all).toHaveLength(10);
+    expect(new Set(all.map((p) => p.id)).size).toBe(10);
+    // Turns: Sam, Mara, Sam, Mara… (Sam's are newer), and Sam's three characters before any of them twice.
+    expect(all.slice(0, 8).map((p) => p.creator.handle)).toEqual(["sam", "mara", "sam", "mara", "sam", "mara", "sam", "mara"]);
+    expect(new Set(all.filter((p) => p.creator.handle === "sam").slice(0, 3).map((p) => p.character.id))).toEqual(new Set(chars));
+    // The grid keeps plain newest first.
+    expect((await listShowcase(t.db, ANYONE, {})).posts.slice(0, 6).every((p) => p.creator.handle === "sam")).toBe(true);
+    expect(w.mara).toBeTruthy();
+  });
+
   it("counts After Dark's posts only for someone who can't see them, never for a bot, and never one held or taken down", async () => {
     const w = await world(1);
     expect(await afterDarkCounts(t.db, ANYONE, [w.mara, w.house])).toEqual({ [w.mara]: 2, [w.house]: 1 });

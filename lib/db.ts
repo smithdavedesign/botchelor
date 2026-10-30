@@ -2665,6 +2665,14 @@ alter table showcase_posts add column if not exists show_prompt boolean not null
 -- When an After Dark post still rated explicit was put through the PG check (lib/showcase-check.ts): a dressed one goes
 -- to the safe side, and none is checked twice.
 alter table showcase_posts add column if not exists checked_at timestamptz;
+-- Smaller copies of a post's picture for the tiles and reels (lib/showcase-thumbs.ts), drawn once, gone with the post.
+create table if not exists showcase_thumbs (
+  post_id text not null references showcase_posts (id) on delete cascade,
+  size text not null check (size in ('tile', 'screen')),
+  data bytea not null,
+  created_at timestamptz not null default now(),
+  primary key (post_id, size)
+);
 -- Living portraits (lib/showcase-loops.ts; David, 2026-10-29): a safe picture brought to life as a short clip, each
 -- picture or portrait once. owner_id is whose post it becomes: the creator's, or the show's own for a public
 -- character someone else made.

@@ -47,11 +47,14 @@ describe("camera moves", () => {
 });
 
 describe("the SFW twin's prompt", () => {
-  it("keeps the people, place and light, dresses everyone, and passes the show's own word check", () => {
+  it("keeps the people, place and light, dresses everyone in a new everyday pose, and passes the show's own word check", () => {
     for (const tags of [["the woman"], ["the woman", "the man"]]) {
       const p = twinPrompt(tags);
       expect(p).toContain("safe-for-work");
       expect(p).toContain("in the same place and light");
+      // Never the original's pose or framing.
+      expect(p).toContain("a new pose and a new framing");
+      expect(p).not.toContain("framed the same way");
       expect(checkPgPictureText({ words: p }).ok, p).toBe(true);
     }
     expect(twinPrompt(["the woman", "the man"])).toContain("Two people only.");
@@ -139,14 +142,19 @@ describe("the SFW twin", () => {
     expect((await twin({ media_id: "pic-1" }, other.cookie)).status).toBe(404);
   });
 
-  it("keeps a twin of two in After Dark, through the output check too, rated by the PG check", async () => {
+  it("keeps a twin of two in After Dark, through the output check too, only when the PG check rates it PG", async () => {
     const { owner, cookie, character } = await setup({ admin: true });
-    stubs("REVEALING");
     const [a, b] = pairKey(character, HOUSE_CHARACTERS[0].id);
     await t.db.query(`insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, status, level) values ('pair-1', $1, $2, $3, 'scene', 'p', 'image/png', $4, 'ready', 3)`, [owner, a, b, Buffer.from(PNG)]);
+    // Suggestive (revealing clothes, a pose kept from the original) isn't a twin: not kept.
+    stubs("REVEALING");
+    const refused = await twin({ media_id: "pair-1" }, cookie);
+    expect([refused.status, (await refused.json()).error]).toEqual([422, "not_pg"]);
+    expect((await t.db.query(`select 1 from adult_images where twin_of = 'pair-1'`)).rows).toHaveLength(0);
+    stubs("CLOTHED");
     const out = await (await twin({ media_id: "pair-1" }, cookie)).json();
     expect(out.where).toBe("after_dark");
     const row = (await t.db.query<{ twin_of: string; content_rating: string; level: number; character_b: string }>(`select twin_of, content_rating, level, character_b from adult_images where id = $1`, [out.picture.id])).rows[0];
-    expect(row).toEqual({ twin_of: "pair-1", content_rating: "suggestive", level: 0, character_b: b });
+    expect(row).toEqual({ twin_of: "pair-1", content_rating: "pg", level: 0, character_b: b });
   });
 });

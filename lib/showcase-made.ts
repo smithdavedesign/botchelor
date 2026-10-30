@@ -2,7 +2,7 @@ import type { Db } from "./db";
 import { loadCharacter, type Character } from "./character";
 import { checkPgPictureText } from "./safety";
 import type { LoggedRequest } from "./adult/request-log";
-import { TWIN_PLACEHOLDERS, twinPrompt, twinTags } from "./adult/sfw-twin";
+import { firstTwinPrompt, TWIN_PLACEHOLDERS, twinTags } from "./adult/sfw-twin";
 import { postMedia, type ShowcaseViewer } from "./showcase";
 
 /**
@@ -123,7 +123,8 @@ function howOf(r: ImageRow): string {
 async function twinPromptOf(db: Db, r: { id: string; owner_id: string; character_id: string | null; character_b: string | null }, table: "adult_images" | "studio_pg_pictures"): Promise<string | null> {
   const people = (await Promise.all([r.character_id, r.character_b].filter((x): x is string => Boolean(x)).map((id) => loadCharacter(db, id)))).filter((c): c is Character => Boolean(c));
   if (!people.length) return null;
-  const prompt = twinPrompt(twinTags(people, r.owner_id));
+  // Only twins made before their prompt was kept have a placeholder: they were all made with the first prompt.
+  const prompt = firstTwinPrompt(twinTags(people, r.owner_id));
   await db.query(`update ${table} set prompt = $1 where id = $2 and prompt = any($3::text[])`, [prompt, r.id, TWIN_PLACEHOLDERS]).catch(() => {});
   return prompt;
 }

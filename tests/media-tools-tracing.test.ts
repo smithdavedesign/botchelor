@@ -18,6 +18,10 @@ describe("the ffmpeg binary", () => {
     expect(hits).toBe("");
   });
 
+  it("never takes public/ along: the CDN serves it, no function reads it", () => {
+    expect(config.outputFileTracingExcludes).toEqual({ "/**": ["./public/**/*"] });
+  });
+
   it("goes with the four routes that run it, and no others", () => {
     expect(Object.keys(config.outputFileTracingIncludes ?? {})).toEqual(["/api/admin/after-dark/moments", "/api/admin/after-dark/export", "/api/admin/showcase/animate", "/api/jobs/showcase-check"]);
   });
