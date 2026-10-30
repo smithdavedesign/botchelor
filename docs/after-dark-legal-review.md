@@ -148,7 +148,7 @@ Limassol CY". That's their own merchant accounts, a step for later.
    the age gate. **Drafted 2026-10-24:** `/terms`, `/privacy`, `/content-policy`, `/report` (stored in
    `content_reports`, emailed to the admins, reviewed on `/admin/reports`), `/cancel` and `/2257`, all past the 18+ gate.
    Who runs it and the governing state are one constant each in `lib/legal-entity.ts` (`OPERATOR`, `GOVERNING_STATE`,
-   a placeholder "Delaware" until David picks his state or his LLC's). A lawyer should read them before any money.
+   California since 2026-10-30, David's home state). A lawyer should read them before any money.
 4. A one-page moderation write-up: the output checks, the text filters, logs and a monthly report. Plus a test login
    for their reviewers.
 5. Government ID and a bank letter.
