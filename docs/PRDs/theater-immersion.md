@@ -40,7 +40,7 @@ What Venice, After Dark's provider, already offers (its model list and quotes, 2
 | 3 | **Voices that act** | A voice model for the night's lines: Kokoro, Inworld or Orpheus, with a stock voice each by their pronouns; on Orpheus, a laugh, sigh, gasp or groan in the line's action is heard | 0.04¢ to 0.6¢ a line | ✅ #960; pick by ear in settings |
 | 4 | **Talking moments** | "Hear it from them" on a line worth it: a 5 s clip of that face saying the voiced line (Wan, audio in). One face only: lip-sync on a shot of two moved the wrong mouth (#688) | ~$0.28 a clip: a token item | 🔜 |
 | 5 | **Pictures that feel instant** | Show the closest picture they already have at once (scene-match) and swap the new one in when it lands; start drawing the next moment's picture while the lines before it play | the same pictures, sooner | 🔜 |
-| 6 | **The sound of the place** | A quiet bed per place (a jazz bar's murmur, waves, rain), made once per place and shared, under the voices while 🔈 is on | about 5¢ a place, once | ✅ #(this PR) |
+| 6 | **The sound of the place** | A quiet bed per place (a jazz bar's murmur, waves, rain), made once per place and shared, under the voices while 🔈 is on | about 5¢ a place, once | ✅ #964 |
 | 7 | Living expressions | A loop per expression, not only the still one, so a laugh moves | seven clips per face | 🧭 after 1 and 2 are watched |
 | 8 | The phone's stage | The living face in the phone's thread and header, not only on the desktop stage | — | 🧭 |
 | 9 | Talk back | Say a steer or whisper out loud (speech to text) | per steer | 🧭 |
