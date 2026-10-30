@@ -39,7 +39,7 @@ What Venice, After Dark's provider, already offers (its model list and quotes, 2
 | 2 | **Expressions**, SillyTavern's way | Seven edits of their portrait (smile, laugh, flirty, intense, tender, surprised, annoyed), made once; the writer gives each line a `face`, and the theater shows the speaker's | seven pictures per face, once; nothing per line | ✅ #960 |
 | 3 | **Voices that act** | A voice model for the night's lines: Kokoro, Inworld or Orpheus, with a stock voice each by their pronouns; on Orpheus, a laugh, sigh, gasp or groan in the line's action is heard | 0.04¢ to 0.6¢ a line | ✅ #960; pick by ear in settings |
 | 4 | **Talking moments** | "Hear it from them" on a line worth it: a 5 s clip of that face saying the voiced line (Wan, audio in). One face only: lip-sync on a shot of two moved the wrong mouth (#688) | ~$0.28 a clip: a token item (a clip's price) | ✅ #965 |
-| 5 | **Pictures that feel instant** | A moment being drawn is on the stage at once, as the closest picture they already have, and swaps to its own the moment it lands (checked every 6 s); drawing ahead, as soon as a moment is written, is a setting (off) | the same pictures, sooner | ✅ #967 |
+| 5 | **Pictures that feel instant** | A moment being drawn is on the stage at once, as the closest picture they already have, and swaps to its own the moment it lands (checked every 6 s); drawing ahead, as soon as a moment is written, is the viewer's choice, paid by the chapter | the same pictures, sooner; draw ahead 1 token a chapter for up to 4 more | ✅ #967, draw ahead paid |
 | 6 | **The sound of the place** | A quiet bed per place (a jazz bar's murmur, waves, rain), made once per place and shared, under the voices while 🔈 is on | about 5¢ a place, once | ✅ #964 |
 | 7 | Living expressions | A loop per expression, not only the still one, so a laugh moves | seven clips per face | 🧭 after 1 and 2 are watched |
 | 8 | The phone's stage | The living face in the phone's thread and header, not only on the desktop stage | — | 🧭 |
@@ -122,11 +122,22 @@ texts between nights, the reel storyboard.
   - The theater (`useMomentPictures`) asks whenever the beats change, and every 6 s while one is drawing, for up to
     4 minutes. From the moment's line, for 8 lines, the stage shows its picture, or the stand-in with "📸 Drawing this
     moment" until it lands. `SceneBackdrop` loads the new one before fading it in.
-- **Drawing ahead** (`draw_ahead`, off): each new moment starts drawing as soon as its step is written, so it's ready when
-  its line comes. It only uses the chapter's own unasked pictures (`pictures_per_chapter`), the ones its close would draw
-  anyway, so it costs nothing more except a picture wasted by a rewind past it. It's off because it skips agreeing on the
-  picture before it's drawn (David, 2026-10-24); Redraw stays. A step takes about 70 s to write and lines play every
-  2.6 s, so a moment k lines into a step gets about k × 2.6 s of head start.
+- **Drawing ahead** (`lib/adult/draw-ahead.ts`; David, 2026-10-29: "Yes draw ahead is a good idea, but we would need to
+  limit per chapter and pre charge people tokens if they choose it"):
+  - **The viewer's choice** for a pair's nights, in the theater's ⋯ menu (⚡ Draw ahead). The settings' `draw_ahead` (on)
+    only offers it.
+  - **Turned on**, each new moment starts drawing as soon as its step is written, without "Picture this?" first (Redraw
+    stays). The moments still waiting from the line on stage start drawing right away.
+  - **Paid by the chapter:** `draw_ahead_tokens` (1) is taken before a chapter's first moment is drawn ahead. Admins don't
+    pay.
+  - **Limited per chapter:** a chapter drawn ahead may draw its own pictures (`pictures_per_chapter`, 3) and up to
+    `draw_ahead_pictures` (4) more. At about 3¢ a picture that's at most about 20¢ of pictures for about 68¢ after fees.
+  - **Nothing drawn, nothing paid:** a chapter that drew nothing ahead (no moment came, or each failed) gives its tokens
+    back when it's turned off, at its close or at Start over. A rewind doesn't, since the picture was still drawn.
+  - **Can't pay:** a viewer who can't pay for the next chapter has it turned off, and the theater says why.
+  - **Head start:** a step takes about 70 s to write and lines play every 2.6 s, so a moment k lines into a step gets
+    about k × 2.6 s of head start. Each picture is drawn from the scene's brief (below), not from the step's last
+    lines alone.
 
 ## What a scene picture is drawn from (the brief, 2026-10-29)
 

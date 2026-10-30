@@ -20,6 +20,7 @@ import { useSceneMedia } from "./useSceneMedia";
 import { presenceUrl, usePresence } from "./usePresence";
 import { talkUrl, useTalks } from "./useTalks";
 import { stagePicture, useMomentPictures } from "./useMomentPictures";
+import { useDrawAhead } from "./useDrawAhead";
 import TalkPlayer from "./TalkPlayer";
 import LivingFace from "../../LivingFace";
 import Avatar from "@/app/Avatar";
@@ -271,6 +272,9 @@ export default function AfterDarkTheater({
   const moments = useMomentPictures(a.id, b.id, beats, live);
   const momentOnStage = stagePicture(moments, shown.length - 1);
   const backdrop = momentOnStage ? { kind: "image" as const, id: momentOnStage.id } : sceneMedia.backdrop;
+  // Draw ahead (lib/adult/draw-ahead.ts): the viewer's choice in ⋯, paid by the chapter. Asked again as the chapter and
+  // its moments change (it turns itself off when a chapter can't be paid for).
+  const drawAhead = useDrawAhead(a.id, b.id, `${scene.chapter ?? 1}:${beats.length}`, live && Boolean(onBeat));
   // Their living faces (lib/adult/presence.ts): the speaker's expression, the listener's loop, else the face.
   const { presence, make: makePresence, asking: presenceAsking } = usePresence(a.id, b.id);
   const [presenceNote, setPresenceNote] = useState<string | null>(null);
@@ -344,6 +348,10 @@ export default function AfterDarkTheater({
   };
   // "✨ Bring them to life" is offered while either still lacks some of it and nothing's on its way.
   const canBringToLife = [a, b].some((c) => !presence[c.id] || (!presence[c.id].making && presence[c.id].missing > 0));
+  const toggleDrawAhead = async () => {
+    setTools(false);
+    setPresenceNote(await drawAhead.set(!drawAhead.view?.on, Math.max(0, shown.length - 1)));
+  };
   const bringToLife = async () => {
     setTools(false);
     setPresenceNote("Bringing them to life: their expressions and a living portrait, ready in a few minutes.");
@@ -645,6 +653,21 @@ export default function AfterDarkTheater({
                   {canBringToLife && (
                     <button type="button" className="button-ghost small" onClick={() => void bringToLife()} title="Their expressions as they speak, and a living portrait in place of the still face: made once, kept for every night">
                       ✨ Bring them to life
+                    </button>
+                  )}
+                  {drawAhead.view?.offered && (
+                    <button
+                      type="button"
+                      className="button-ghost small"
+                      aria-pressed={drawAhead.view.on}
+                      onClick={() => void toggleDrawAhead()}
+                      title={
+                        drawAhead.view.on
+                          ? "Each moment is drawn as soon as it's written. Tap to stop: moments wait for \"Picture this?\" again"
+                          : `Each moment drawn as soon as it's written, so it's on the stage when its line plays: up to ${drawAhead.view.pictures} more pictures a chapter, without agreeing on each first (Redraw stays)`
+                      }
+                    >
+                      {drawAhead.view.on ? "⚡ Drawing ahead ✓" : `⚡ Draw ahead${drawAhead.view.price > 0 ? ` · ${drawAhead.view.price} token${drawAhead.view.price === 1 ? "" : "s"} a chapter` : ""}`}
                     </button>
                   )}
                 </div>

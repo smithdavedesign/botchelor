@@ -64,6 +64,14 @@ export const DEFAULT_CHAPTER_TOKENS = 1;
  * picture the viewer asks for (Picture this, the menu) isn't counted here. At 3, a chapter's pictures cost at most ~$0.09.
  */
 export const DEFAULT_PICTURES_PER_CHAPTER = 3;
+/**
+ * Draw ahead (lib/adult/draw-ahead.ts; David, 2026-10-29: "draw ahead is a good idea, but we would need to limit per
+ * chapter and pre charge people tokens if they choose it"): a chapter's moments drawn as soon as they're written, for
+ * this many bought tokens a chapter, taken before its first one is drawn; and how many more pictures than the chapter's
+ * own it may draw. At 4 more, a chapter drawn ahead costs us at most about $0.20 of pictures.
+ */
+export const DEFAULT_DRAW_AHEAD_TOKENS = 1;
+export const DEFAULT_DRAW_AHEAD_PICTURES = 4;
 
 /**
  * Who makes After Dark's explicit media: its pictures, each shot's keyframe, the videos and their voices. Venice, or
@@ -163,8 +171,13 @@ export type AdultSettings = {
   place_sounds: boolean;
   place_sound_model: string;
   talk_model: string;
-  /** Moments drawn as soon as they're written, from the chapter's own pictures (lib/adult/beats.ts recordBeats). */
+  /**
+   * Draw ahead is offered in the theater (lib/adult/draw-ahead.ts): a viewer who turns it on pays `draw_ahead_tokens` a
+   * chapter, and up to `draw_ahead_pictures` more than the chapter's own are drawn as their moments are written.
+   */
   draw_ahead: boolean;
+  draw_ahead_tokens: number;
+  draw_ahead_pictures: number;
   /** An optional LoRA for Wan: one .safetensors URL for both its transformers, or two (high noise, then low). */
   replicate_video_lora: string | null;
   replicate_last4: string | null;
@@ -241,6 +254,8 @@ type Row = {
   place_sound_model: string | null;
   talk_model: string | null;
   draw_ahead: boolean | null;
+  draw_ahead_tokens: number | null;
+  draw_ahead_pictures: number | null;
   replicate_video_lora: string | null;
   replicate_ciphertext: string | null;
   replicate_nonce: string | null;
@@ -304,7 +319,9 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     place_sounds: r?.place_sounds ?? true,
     place_sound_model: r?.place_sound_model || DEFAULT_PLACE_SOUND_MODEL,
     talk_model: r?.talk_model || DEFAULT_TALK_MODEL,
-    draw_ahead: r?.draw_ahead ?? false,
+    draw_ahead: r?.draw_ahead ?? true,
+    draw_ahead_tokens: r?.draw_ahead_tokens ?? DEFAULT_DRAW_AHEAD_TOKENS,
+    draw_ahead_pictures: r?.draw_ahead_pictures ?? DEFAULT_DRAW_AHEAD_PICTURES,
     replicate_video_lora: r?.replicate_video_lora || null,
     replicate_last4: r?.replicate_last4 ?? null,
     replicate_from_env: !r?.replicate_last4 && envReplicate(env) !== null,
@@ -406,6 +423,8 @@ export type SettingsPatch = {
   place_sound_model?: string;
   talk_model?: string;
   draw_ahead?: boolean;
+  draw_ahead_tokens?: number;
+  draw_ahead_pictures?: number;
   auto_scene_pictures?: boolean;
   beat_pictures?: boolean;
   media_fallback?: boolean;
@@ -490,7 +509,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
     const v = patch.caps?.[k];
     if (v !== undefined) put(`cap_${k}`, Math.max(0, Math.floor(v)));
   }
-  for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens", "chapter_tokens", "pictures_per_chapter"] as const) if (patch[k] !== undefined) put(k, patch[k]);
+  for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens", "chapter_tokens", "pictures_per_chapter", "draw_ahead_tokens", "draw_ahead_pictures"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
   for (const k of ["replicate_picture_model", "replicate_keyframe_model", "replicate_video_model", "replicate_voice_model", "replicate_video_lora", "presence_loop_model", "place_sound_model", "talk_model"] as const) {
