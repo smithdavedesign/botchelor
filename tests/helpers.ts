@@ -162,6 +162,7 @@ export async function startTestDb() {
         "adult_rejections",
         "adult_presence",
         "adult_talks",
+        "adult_picture_briefs",
         "place_sounds",
         // Exports (lib/media-tools/export.ts): a person's packed downloads, kept a day.
         "media_exports",

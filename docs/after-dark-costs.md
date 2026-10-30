@@ -32,7 +32,8 @@ things with nobody undressed in them: empty sets, and clips from non-explicit pi
 | Picture moderation | Hive, `hive/visual-moderation` | $3 per 1,000 images ($0.003 each) |
 | Age check on a picture | Hive, `hive/vision-language-model` | $0.50 per million input tokens and $2.50 per million output; about 1,860 in and 3 out per check, so about $0.001. No daily limit listed. |
 | Text moderation (not used yet) | Hive, `hive/text-moderation` | $0.50 per 1,000 requests |
-| A line's voice (voiced nights, `lib/adult/voice-lines.ts`) | Venice, `tts-kokoro` | $3.50 per million characters, so about $0.0004 a line (made once; a replay is free) |
+| A line's voice (voiced nights, `lib/adult/voice-lines.ts`) | Venice, `tts-inworld-1-5-max` since 2026-10-29 (David's pick, the settings' `voice_model`); `tts-kokoro` before | Inworld: $12.50 per million characters, about $0.0013 a line, about $0.10 a night. Kokoro: $3.50, about $0.0004 a line. Made once; a replay is free |
+| A scene picture's brief (`lib/adult/picture-brief.ts`): what the chapter says at the moment | OpenRouter, `deepseek/deepseek-chat-v3.1:nitro` | about $0.001 a picture (read once per moment, kept) |
 
 ### Video (Venice quotes, 720p, made from a starting picture)
 

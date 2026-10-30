@@ -127,3 +127,28 @@ texts between nights, the reel storyboard.
   anyway, so it costs nothing more except a picture wasted by a rewind past it. It's off because it skips agreeing on the
   picture before it's drawn (David, 2026-10-24); Redraw stays. A step takes about 70 s to write and lines play every
   2.6 s, so a moment k lines into a step gets about k × 2.6 s of head start.
+
+## What a scene picture is drawn from (the brief, 2026-10-29)
+
+David, on drawing ahead: "the copy or story doesn't give a full picture … add a quick call to a llm to summarize the
+scene, location, what's happening … this is even true for when we stop to take an image of the scene, like it's
+important to know what they're wearing if there is a cosplay ongoing."
+
+- **The gap:** a scene picture's context was a guess from the last three lines' actions, their usual outfits (or the
+  stage's words once they undress) and the place's name. A costume put on twenty lines back, the shirt that came off and
+  the counter they moved to never reached the picture.
+- **Now** (`lib/adult/picture-brief.ts`): one short call on the fast writer (`FALLBACK_WRITER`, DeepSeek V3.1 on the
+  reviewed hosts) reads the chapter up to the picture's line. Alongside it, it gets who they are, what each usually
+  wears, where the night is, the chapter's roleplay with who plays whom, how far it has gone and what the picture shows.
+  It says as facts: the place, what each has on at that line (a costume exactly), what's still on once they're naked,
+  what's happening, and the mood.
+- It's the night's guess in the picture's form (`planBeat`), for every scene picture: asked for, drawn ahead, the
+  chapter's own and its close's. The owner's changes still replace it, field by field. Each field is held to David's
+  lines and the pair's limits; one that crosses them keeps the old guess.
+- **Clothes by stage:** dressed, "…, both still dressed"; undressing, as it says; naked, the stage's spelled-out words
+  unless something is still on ("both completely naked apart from her gold mask…").
+- **Kept per moment** (`adult_picture_briefs`, keyed by everything it read): the form shows what's then sent, and a
+  redraw reads the same; a rewind or a redo that changes the lines reads it again.
+- **Fail-open:** without the OpenRouter key, past 10 s, on an error or an unreadable reply, the old guess stands.
+- **Cost:** about 0.1¢ a picture (a chapter of at most 120 lines in, about 150 tokens out), free to the viewer, and kept
+  on each row (`cost`).
