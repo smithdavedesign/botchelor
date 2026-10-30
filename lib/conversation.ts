@@ -276,6 +276,20 @@ export function buildTurnMessages(
     ...(tell ? { your_tell_right_now: tell } : {}),
     ...(shape?.enabled ? movesNote(shape, shortName(themChar.name)) : {}),
     conversation_so_far: transcript.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue, ...(t.action ? { did: t.action } : {}) })),
+    // #982 (the 2026-10-30-0907 run: a house bot answered "tea is on me" with "Tea is on you"): their last line, on its
+    // own after the whole conversation, so the reply answers it and gets what it said right before moving on.
+    ...(() => {
+      const last = transcript[transcript.length - 1];
+      if (!last || last.side === side) return {};
+      return {
+        they_just_said: {
+          who: names[last.side === "a" ? 0 : 1],
+          said: last.dialogue,
+          ...(last.action ? { did: last.action } : {}),
+          note: "Your line answers this first: react to what they just said (a joke, a question, an offer), and keep who said or offered what straight, before you move on.",
+        },
+      };
+    })(),
     ...(transcript.length === 0
       ? {
           note: tonightsPlan
