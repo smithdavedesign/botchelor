@@ -11,7 +11,7 @@ import { isAdmin } from "../admins";
 import type { Db } from "../db";
 import { authFromCookieStore, authFromRequest } from "../http";
 import { openAICompatibleModel, type Model } from "../model";
-import { canAfterDark } from "./entitlement";
+import { canAfterDark, openEverywhere } from "./entitlement";
 import { pageHeaders, viewerAccess } from "./place";
 import { lockedForCookies, lockedForRequest } from "./privacy";
 import { adultKeys, cloudReady, getAdultSettings } from "./settings";
@@ -140,7 +140,7 @@ export async function adultViewer(db: Db, req: Request): Promise<string | null> 
   const entitled = await canAfterDark(db, auth);
   if (!entitled.ok || !(await adultAvailable(db))) return null;
   // 2026-10-24 (lib/jurisdiction.ts): where it isn't offered, the same not-found as for a stranger; admins are exempt.
-  if ((await viewerAccess(db, auth!.userId, entitled.why === "admin", req.headers)).mode === "blocked") return null;
+  if ((await viewerAccess(db, auth!.userId, openEverywhere(entitled), req.headers)).mode === "blocked") return null;
   return (await lockedForRequest(db, auth!.userId, req)) ? null : auth!.userId;
 }
 
@@ -149,6 +149,6 @@ export async function adultViewerFromCookies(db: Db, store: { get(name: string):
   const auth = authFromCookieStore(store);
   const entitled = await canAfterDark(db, auth);
   if (!entitled.ok || !(await adultAvailable(db))) return null;
-  if ((await viewerAccess(db, auth!.userId, entitled.why === "admin", await pageHeaders())).mode === "blocked") return null;
+  if ((await viewerAccess(db, auth!.userId, openEverywhere(entitled), await pageHeaders())).mode === "blocked") return null;
   return (await lockedForCookies(db, auth!.userId, store)) ? null : auth!.userId;
 }

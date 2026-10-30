@@ -550,6 +550,9 @@ describe("the scene prompt", () => {
 });
 
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { mediaAllowedFor } from "@/lib/adult/place";
+import { loadOurIds } from "@/lib/our-traffic";
+import { setPlaceForTests } from "@/lib/place";
 
 describe("who it opens for (canAfterDark)", () => {
   const entitle = (userId: string, status: string, ageChecked: boolean, periodEnd: string | null = null) =>
@@ -571,6 +574,29 @@ describe("who it opens for (canAfterDark)", () => {
     await t.db.query(`update adult_entitlements set age_verified_at = now() where user_id = $1`, [u]);
     expect(await canAfterDark(t.db, { userId: u, authenticated: true })).toEqual({ ok: true, why: "subscribed" });
     // A lapsed subscription closes it again, and so does a period that ended.
+    await t.db.query(`update adult_entitlements set period_end = now() - interval '1 day' where user_id = $1`, [u]);
+    expect((await canAfterDark(t.db, { userId: u, authenticated: true })).why).toBe("needs_subscription");
+  });
+
+  it("a reviewer pass opens in every place, counts as ours and carries no admin powers; it ends with its period", async () => {
+    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD" }, (await admin()).cookie);
+    const u = userIdOf(newUserCookie());
+    await t.db.query(
+      `insert into adult_entitlements (user_id, subscription_status, period_end, age_verified_at, provider) values ($1, 'active', now() + interval '30 days', now(), 'reviewer')`,
+      [u],
+    );
+    expect(await canAfterDark(t.db, { userId: u, authenticated: true })).toEqual({ ok: true, why: "reviewer" });
+    // Arizona blocks After Dark for everyone else (lib/jurisdiction.ts); CCBill's reviewers work from there.
+    setPlaceForTests({ country: "US", region: "AZ" });
+    const sub = userIdOf(newUserCookie());
+    await entitle(sub, "active", true);
+    expect((await get(CAST_A, CAST_B, signedIn(sub))).status).toBe(404);
+    expect((await get(CAST_A, CAST_B, signedIn(u))).status).toBe(200);
+    expect(await mediaAllowedFor(t.db, u)).toBe(true);
+    expect(await mediaAllowedFor(t.db, sub)).toBe(false);
+    expect((await call(settingsPost, "/api/admin/after-dark/settings", { enabled: false }, signedIn(u))).status).not.toBe(200);
+    expect(await loadOurIds(t.db)).toContain(u);
+    setPlaceForTests({ country: "US", region: "CA" });
     await t.db.query(`update adult_entitlements set period_end = now() - interval '1 day' where user_id = $1`, [u]);
     expect((await canAfterDark(t.db, { userId: u, authenticated: true })).why).toBe("needs_subscription");
   });

@@ -60,6 +60,7 @@ export async function loadOurIds(db: Db): Promise<string[]> {
   const ourClient = `(coalesce(client_name, '') ~* $1 or coalesce(user_agent, '') ~* $1 or coalesce(client_name, '') like $2)`;
   const { rows } = await db.query<{ id: string }>(
     `select user_id as id from admins
+     union select user_id from adult_entitlements where provider = 'reviewer'
      union select l.agent_id from agent_links l join admins a on a.user_id = l.user_id
      union select agent_id from mcp_sessions where ${ourClient}
      union select agent_id from mcp_calls where agent_id is not null and ${ourClient}

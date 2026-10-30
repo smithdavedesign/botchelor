@@ -184,6 +184,26 @@ the reference client https://github.com/verotel/flexpay-php-client; Segpay,
 https://gethelp.segpay.com/docs/Content/DeveloperDocs/ProcessingAPI/06-Postbacks.htm,
 …/07-PostbackParameters.htm, …/Postbacks-TransactionMatrix.htm and …/02-Parameters-PopulateFields.htm.
 
+### Reviewer pass (2026-10-30)
+
+A processor's compliance team asks for a premium login to review the subscriber experience. CCBill asked on 2026-10-30.
+A reviewer pass is an `adult_entitlements` row with `provider = 'reviewer'`. It's an ordinary active subscription with
+an end date, with three differences:
+- it's open in every place, like an admin (`openEverywhere` in `lib/adult/entitlement.ts`). CCBill works from Tempe,
+  Arizona, which After Dark blocks;
+- it counts as ours (`loadOurIds`), so it never shows as a real subscriber or income;
+- it carries no admin powers.
+
+It's written by hand on prod for a handle+password account made for the reviewer, plus bought tokens for chapters:
+
+```sql
+insert into adult_entitlements (user_id, subscription_status, period_end, age_verified_at, age_method, provider, updated_at)
+values ('<user_id>', 'active', now() + interval '30 days', now(), 'reviewer', 'reviewer', now())
+on conflict (user_id) do update set subscription_status = 'active', period_end = excluded.period_end, provider = 'reviewer', updated_at = now();
+```
+
+It ends on its own at `period_end`. To end it sooner, set `period_end = now()`.
+
 ## #4 Age verification — now legally mandatory, not optional
 
 As of mid-2026 roughly **26 US states require age verification for adult content** (post *Free Speech Coalition v.
