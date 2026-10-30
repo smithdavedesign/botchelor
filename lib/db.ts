@@ -2788,6 +2788,34 @@ create table if not exists identity_views (
   created_at timestamptz not null default now(),
   primary key (owner_id, character_id, studio, view)
 );
+-- The spend tracker (lib/spend.ts, /admin/spend): money in and out that no table records on its own, entered by an
+-- admin (a bill, a prepaid top-up, a sale made elsewhere). A month or year entry repeats from starts_on until ends_on.
+-- seed_key marks one of the documented costs (KNOWN_COSTS), so filling them in twice adds nothing.
+create table if not exists money_entries (
+  id text primary key,
+  kind text not null check (kind in ('cost', 'income')),
+  category text not null check (category in ('api', 'infra', 'other')),
+  provider text not null,
+  label text not null,
+  usd numeric(12, 2) not null check (usd >= 0),
+  every text not null check (every in ('once', 'month', 'year')),
+  starts_on date not null,
+  ends_on date,
+  note text,
+  seed_key text unique,
+  created_by text,
+  created_at timestamptz not null default now()
+);
+-- What each provider said about its balance and usage, at most once a day (the latest reading of the day wins).
+create table if not exists spend_snapshots (
+  day date not null,
+  provider text not null,
+  balance_usd double precision,
+  used_total_usd double precision,
+  used_month_usd double precision,
+  read_at timestamptz not null default now(),
+  primary key (day, provider)
+);
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.

@@ -6146,6 +6146,14 @@ main:has(> .admin-wide) {
   color: var(--muted);
 }
 .chart-table summary,
+/* The spend tracker's month switcher (/admin/spend). */
+.spend-months {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
 .table-tools button {
   font-size: var(--text-sm);
 }
