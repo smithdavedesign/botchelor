@@ -166,7 +166,8 @@ make sure assets are tagged correctly safe and nsfw and live".
     (as an owner's Unpublish), and Publish my best work leaves the original out from then on.
   - **Nudity or sex** keeps it explicit. **An age doubt** also holds it out of sight for a look in /admin/showcase.
   - **A check that couldn't run** changes nothing and is tried again.
-- **When:** hourly (`/api/jobs/showcase-check`, Vercel Cron at :40), a batch of 12, so new After Dark posts are
+- **When:** hourly (`/api/jobs/showcase-check`; Vercel Cron at :40 until 2026-10-30, now the DigitalOcean scheduled job,
+  about 20 minutes after the lobby's :20 run, `docs/hosting.md`), a batch of 12, so new After Dark posts are
   sorted within the hour. `/admin/showcase` has "🔎 Check After Dark's posts for dressed ones" to run it now.
 - **Cost:** one Venice vision call a picture, three a clip.
 - **Ships ffmpeg** with that route too (four routes now).

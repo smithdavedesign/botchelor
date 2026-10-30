@@ -4,11 +4,13 @@ How Botchelor is put together, and the rules that keep it that way. Read this be
 episode path, the schema, or anything touching points, souls or money.
 
 For product scope and milestones see [ROADMAP.md](../ROADMAP.md); for how to run and deploy it see
-[BUILD.md](../BUILD.md); for the visual assets see [image-strategy.md](image-strategy.md).
+[BUILD.md](../BUILD.md) and [hosting.md](hosting.md); for the visual assets see [image-strategy.md](image-strategy.md).
 
 ## The shape of it
 
-One Next.js app (App Router) on Vercel, one Postgres database, one model call per episode. There is no
+One Next.js app (App Router), one Postgres database, one model call per episode. Since 2026-10-30 it runs on
+DigitalOcean App Platform as two apps from the same code, the show and After Dark ([hosting.md](hosting.md)); it ran
+on Vercel before. There is no
 queue, no background worker, no realtime server, no object storage and no image pipeline — every one of
 those was a deliberate "not yet", because the product has to run at **$0 marginal cost** on free models.
 
@@ -176,7 +178,7 @@ the `character_assets` provenance gate that any future hosted asset must pass.
 
 | Variable | Effect when absent |
 | --- | --- |
-| `DATABASE_URL` | locally, a file-backed PGlite under `.data/pglite`; on Vercel, a hard error |
+| `DATABASE_URL` | locally, a file-backed PGlite under `.data/pglite`; on any deployment (`DEPLOY_ENV` or Vercel's variables set, or `AFTER_DARK_ONLY=1`), a hard error |
 | `GOOGLE_API_KEY`, or `LLM_BASE_URL` + `LLM_API_KEY` + `LLM_MODEL` | every model call fails closed, so no episode is written |
 | `STRIPE_PAYMENT_LINK` / `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | the shop is off; nothing can be bought |
 | `STRIPE_WEBHOOK_SECRET` | webhooks are rejected, so nothing is granted |

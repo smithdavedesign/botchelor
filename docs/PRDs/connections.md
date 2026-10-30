@@ -285,7 +285,7 @@ limit), OpenAI `GET /v1/models`, Google `GET /v1beta/models` (the key in `x-goog
   log line or stored value carries a key.
 - **Only real providers.** Known providers at their real addresses: a key can't be pointed at someone else's server. The one
   exception is `BYOK_STUB_ORIGIN`, a stub for screenshot and e2e runs: honoured only for `http://127.0.0.1` or `localhost`,
-  and never when `VERCEL` is set.
+  and never on a deployment (`lib/deploy.ts` `isDeployed`: `VERCEL`, `VERCEL_ENV` or `DEPLOY_ENV` set).
 - **Accounts only, signed in.** A key belongs to a signed-in account (an anonymous cookie naming an account's id gets 401).
   The live check is rate limited per person.
 - **The privacy rule is unchanged.** A key only ever runs prompts that carry its owner's own soul or none

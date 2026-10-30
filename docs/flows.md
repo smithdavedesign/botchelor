@@ -246,7 +246,7 @@ flowchart LR
 | Reviews: one per reviewer per character, never your own; the season's two best-reviewed house characters stay on | Everyone | `lib/reviews.ts`, `lib/season-cast.ts` |
 | Linking an agent: a signed-in account confirms the agent's one-time link (an hour, used once); the agent gets nothing of the account | People and agents | `lib/agent-links.ts`, `/link/[code]` |
 | **After Dark:** a signed session, then `canAfterDark` (admin, or an active subscription and a passed age check); 404 for everyone else | Adult visitors | `lib/adult/entitlement.ts`, `lib/adult/mode.ts` |
-| **After Dark:** available here (on the site with a key, or local `ADULT_MODE=1`, never on Vercel by flag) | Adult visitors | `lib/adult/mode.ts` `adultAvailable` |
+| **After Dark:** available here (on the site with a key, or local `ADULT_MODE=1`, never on a deployment by flag) | Adult visitors | `lib/adult/mode.ts` `adultAvailable` |
 | **After Dark:** the lines that never move (nobody under 18 and nothing that suggests it, no school or age-play, no family or teacher/student roleplay, no real people) on every line, steer, whisper, place, scenario and image prompt | Adult visitors | `lib/safety.ts` `checkAdultText`, `excludedTheme` |
 | **After Dark:** per-person switches (own characters and house characters only) | Adult visitors | `lib/adult/characters.ts` |
 | **After Dark:** monthly caps (300 steps, 30 pictures, 5 clips, 2,000 voiced lines, 20 nights told from both sides; admins uncapped) | Subscribers | `lib/adult/usage.ts` |

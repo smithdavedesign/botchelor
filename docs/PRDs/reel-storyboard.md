@@ -82,7 +82,7 @@ hand-picked, best-of showcase Candy has, made with the owner's eye rather than p
 
 - **Dev switch — DONE (this PR).** `MODERATION_DEV_OFF=1` off production routes every check off Hive (picture → the
   Venice VLM if a key is set, else a pass; video → a pass, since the alternatives can't read video). Hard-gated:
-  `VERCEL_ENV === "production"` ignores it. `lib/adult/moderation.ts` `devModerationOff`. This unblocks building and
+  production ignores it (`VERCEL_ENV`, or off Vercel `DEPLOY_ENV`, = `production`; `lib/deploy.ts`). `lib/adult/moderation.ts` `devModerationOff`. This unblocks building and
   testing the storyboard without eating Hive's 100/day.
 - **Real video alternative for prod — SPEC, not built.** The alternatives don't read video, so videos force Hive.
   A true alternative samples N frames from the finished MP4 and runs each through the VLM age/PG question. That needs

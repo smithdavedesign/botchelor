@@ -339,6 +339,8 @@ node scripts/eval/golden.mjs --suite after-dark --label ad-v1-v2 \
 #   the characters' sheets for the judge: add DATABASE_URL (read-only) or they're judged by name
 
 # Dates: production against a preview (CRON_SECRET_B and VERCEL_BYPASS_B if the preview differs)
+#   (2026-10-30: there are no preview deployments since the move to DigitalOcean, docs/hosting.md. Point --base-b at
+#   another running copy, e.g. a local `npm start`.)
 node scripts/eval/golden.mjs --suite dates --label prod-vs-pr580 \
   --base-a https://botchelor.com --base-b https://botchelor-git-<branch>.vercel.app --repeat 2 --gate
 

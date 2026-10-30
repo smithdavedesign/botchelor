@@ -4,7 +4,7 @@ Approved by David (2026-10-13), and gated so it **only runs on his approval**. T
 
 ## How it's gated
 
-Set in the environment (keychain → Vercel), never in code:
+Set in the environment (keychain → the app's settings on DigitalOcean since 2026-10-30, `docs/hosting.md`; Vercel before), never in code:
 
 | Variable | Purpose |
 |---|---|
@@ -23,7 +23,7 @@ The gate: `POST /api/admin/frontier` requires the `x-frontier-key` header to equ
 
 ## Keys
 
-From the keychain (`~/ai-stack/bin/secrets`) into Vercel env. Never pasted into files or commits. There is no frontier key in the repo, and the admin tool reads it only from the environment.
+From the keychain (`~/ai-stack/bin/secrets`) into the show app's environment on DigitalOcean (`docs/hosting.md`; it was Vercel env before 2026-10-30). Never pasted into files or commits. There is no frontier key in the repo, and the admin tool reads it only from the environment.
 
 ## Push past the free-tier ceiling: the paid model as the DEFAULT (2026-10-15)
 
@@ -47,13 +47,13 @@ agents never create a billable key or spend (portfolio rule). Steps:
    cap, prompts not used for training", paid `gemini-3.5-flash-lite` (~1–2.5¢/date). See `docs/upgrade-cost.md`.
 2. **Create the key WITH a hard monthly cap at the provider** — suggested **$30/mo** to start (inside the $300
    product budget), raise later. On Vercel AI Gateway, set the budget/spend limit on the key.
-3. **Store + set env** (keychain → Vercel, never in a file):
-   - `~/ai-stack/bin/secrets add botchelor FRONTIER_LLM_API_KEY --cap "$30/mo"` (then read into Vercel env)
+3. **Store + set env** (keychain → the app's environment, never in a file; since 2026-10-30 that's DigitalOcean, `docs/hosting.md`):
+   - `~/ai-stack/bin/secrets add botchelor FRONTIER_LLM_API_KEY --cap "$30/mo"` (then set it in the app's environment)
    - `FRONTIER_LLM_BASE_URL` = the AI Gateway base URL · `FRONTIER_LLM_MODEL` = the `provider/model` string
    - `FRONTIER_DEFAULT=1`
    - (optional, for the `gemini-3.5-flash` director on the paid key: `LLM_DIRECTOR_MODEL=gemini-3.5-flash`)
 4. **Redeploy.** Every new date now runs paid, degrading to free if the cap is hit. Watch `episode_generated`
-   (`cost_usd`, `model_calls`) in the logs for the real per-date spend, and the nightly key scan flags any
+   (`cost_usd`, `model_calls`) in the logs (the show app's Runtime Logs on DigitalOcean) for the real per-date spend, and the nightly key scan flags any
    billable key with no cap on record.
 
 To turn it back off: unset `FRONTIER_DEFAULT` (or set it to anything but `1`) and redeploy — instantly back to $0.

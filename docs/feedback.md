@@ -39,7 +39,7 @@ commented; a new full-screen view only needs adding there. On the gate the dock 
 | `rating`, `category`, `message`, `email` | what they typed | the feedback itself; the email only to reply |
 | `page` | the page's path (never its query or hash, which can carry tokens) | where it happened |
 | `viewport` | the window's size, e.g. `390x844` | phone or desktop layout |
-| `version` | `VERCEL_GIT_COMMIT_SHA` (first 12), added on the server | which deploy they saw |
+| `version` | `VERCEL_GIT_COMMIT_SHA` (first 12), added on the server; empty off Vercel (DigitalOcean since 2026-10-30) | which deploy they saw |
 | `user_agent` | the request (first 300 characters) | browser bugs |
 | `user_id`, `account` | the session (`bz_sess`/`bz_uid`): anonymous or an account's | to group a person's notes, export and delete them |
 | `flagged`, `flag_reason` | the content filter (`lib/safety.ts` `checkFields`) | see Safety |

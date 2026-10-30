@@ -1,5 +1,10 @@
 # After Dark: legal review, payments and hosting (2026-10-24)
 
+> **Update 2026-10-30: the hosting risk below is resolved.** Nothing runs on Vercel now: the show is on DigitalOcean
+> App Platform, and After Dark is live on its own DigitalOcean app (`ad.botchelor.com`) with its media on Bunny, whose
+> terms allow lawful adult content (`docs/hosting.md`, `docs/after-dark-hosting.md`). The processor applications'
+> hosting prerequisite is met. The rest of this review is as written on 2026-10-24.
+
 _Issue-spotting for David and for the lawyer he hires, not legal advice. Researched 2026-10-24 from current sources
 (law-firm alerts, regulators' pages, processors' own policies; secondary sources are marked). Two load-bearing claims were
 re-read at the source that day: the UK Online Safety Act's text-only exclusion (s.79(4)) and Vercel's acceptable use
@@ -137,7 +142,7 @@ Limassol CY". That's their own merchant accounts, a step for later.
 
 1. **An LLC and an EIN.** Segpay and most AI-adult banks expect company papers, and an LLC keeps the adult business's
    liability and bank account apart from David. This costs a filing fee; it's his call, with the lawyer.
-2. After Dark live on `ad.botchelor.com`, off Vercel.
+2. After Dark live on `ad.botchelor.com`, off Vercel. (Done 2026-10-30.)
 3. Site pages: terms, privacy, refunds and cancellation, a content policy naming the banned themes, a complaint and
    takedown page (7 business days; 48 hours for intimate images), the 2257 exemption statement, a support email, and
    the age gate. **Drafted 2026-10-24:** `/terms`, `/privacy`, `/content-policy`, `/report` (stored in
