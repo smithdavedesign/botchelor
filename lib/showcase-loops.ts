@@ -25,6 +25,7 @@ import { keepBytes } from "./object-store";
 import { checkPgPictureText } from "./safety";
 import { stricter } from "./content-rating";
 import { publish } from "./showcase";
+import { DELETED_OWNER } from "./rules";
 
 /** The show's own creator page, for what it publishes itself. A reserved handle: nobody else can take it. */
 export const SHOW_CREATOR = { user_id: "botchelor-show", handle: "botchelor", display_name: "Botchelor", bio: "The show itself: its cast and the characters made for it, brought to life." } as const;
@@ -66,7 +67,7 @@ export async function loopTargets(db: Db, owner: string, baseUrl: string, opts: 
       `select ch.id as character_id, a.id as asset_id from characters ch
          join lateral (select id from character_assets x where x.character_id = ch.id and x.kind = 'portrait' and x.review_status = 'approved'
                         and x.content_rating = 'pg' and x.url is not null order by x.created_at desc limit 1) a on true
-        where (ch.created_via = 'mcp' or ch.is_house) and ch.visibility = 'public'
+        where (ch.created_via = 'mcp' or ch.is_house) and ch.visibility = 'public' and ch.owner_id is distinct from '${DELETED_OWNER}'
           and not exists (select 1 from showcase_loops l where l.source = 'portrait' and l.source_id = a.id)
         order by ch.created_at desc`,
     )

@@ -18,6 +18,7 @@ import { checkRating } from "./adult/moderation";
 import { physicalLook, venicePicture } from "./adult/media";
 import { checkPgPictureText } from "./safety";
 import { portraitPrompt } from "./season-gen";
+import { DELETED_OWNER } from "./rules";
 
 export const PORTRAIT_BATCH = 8;
 const AT_ONCE = 4;
@@ -41,6 +42,8 @@ export async function portraitTargets(db: Db, limit = 1000): Promise<string[]> {
     await db.query<{ id: string }>(
       `select ch.id from characters ch
         where ch.created_via = 'mcp' and ch.visibility = 'public' and not ch.is_house
+          -- Never one taken off the show (lib/account.ts adminRemoveCharacters, or its owner's delete).
+          and ch.owner_id is distinct from '${DELETED_OWNER}'
           and not exists (select 1 from character_assets a where a.character_id = ch.id and a.kind = 'portrait')
           and not exists (select 1 from show_portrait_tries t where t.character_id = ch.id)
         order by ch.created_at desc limit $1`,
