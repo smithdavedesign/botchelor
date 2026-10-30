@@ -8,15 +8,18 @@ export const presenceUrl = (id: string) => `/api/admin/after-dark/presence/${enc
 
 /** While any part is on its way, asked again this often (a loop takes a few minutes at Venice). */
 const POLL_MS = 30_000;
+/** After asking, kept asking this long even before anything shows as on its way (the work starts after the response). */
+const AFTER_ASKING_MS = 2 * 60_000;
 
 /**
  * The pair's presence for this viewer (lib/adult/presence.ts): each one's expressions and living portrait, asked once
  * and again every POLL_MS while something is being made. `make` asks for whatever's missing of both ("✨ Bring them to
  * life"), and says why when it can't.
  */
-export function usePresence(a: string, b: string, enabled = true): { presence: Record<string, Presence>; make: () => Promise<string | null> } {
+export function usePresence(a: string, b: string, enabled = true): { presence: Record<string, Presence>; make: () => Promise<string | null>; asking: boolean } {
   const [presence, setPresence] = useState<Record<string, Presence>>({});
   const [tick, setTick] = useState(0);
+  const [askedAt, setAskedAt] = useState(0);
   useEffect(() => {
     if (!enabled) return;
     let live = true;
@@ -33,11 +36,13 @@ export function usePresence(a: string, b: string, enabled = true): { presence: R
     for (const p of Object.values(presence)) for (const id of Object.values(p.expressions)) if (id) new Image().src = presenceUrl(id);
   }, [presence]);
   const making = Object.values(presence).some((p) => p.making);
+  const [now, setNow] = useState(0);
+  const asking = askedAt > 0 && (making || now - askedAt < AFTER_ASKING_MS);
   useEffect(() => {
-    if (!enabled || !making) return;
-    const t = window.setTimeout(() => setTick((n) => n + 1), POLL_MS);
+    if (!enabled || !asking) return;
+    const t = window.setTimeout(() => (setNow(Date.now()), setTick((n) => n + 1)), askedAt && !making ? POLL_MS / 3 : POLL_MS);
     return () => window.clearTimeout(t);
-  }, [enabled, making, tick]);
+  }, [enabled, asking, making, askedAt, tick]);
   const make = useCallback(async (): Promise<string | null> => {
     const why: string[] = [];
     for (const id of [a, b]) {
@@ -46,8 +51,11 @@ export function usePresence(a: string, b: string, enabled = true): { presence: R
       const res = await fetch("/api/admin/after-dark/presence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ character_id: id }) }).catch(() => null);
       if (!res || !res.ok) why.push(((await res?.json().catch(() => null)) as { message?: string } | null)?.message ?? "It couldn't start just now.");
     }
+    const at = Date.now();
+    setAskedAt(at);
+    setNow(at);
     setTick((n) => n + 1);
     return why.length ? why.join(" ") : null;
   }, [a, b, presence]);
-  return { presence, make };
+  return { presence, make, asking };
 }

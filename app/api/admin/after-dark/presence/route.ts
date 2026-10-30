@@ -46,6 +46,11 @@ export const POST = handle(async (req: Request) => {
   const blocked = await presenceBlocked(db, viewer, input.character_id);
   if (blocked) return json({ error: blocked.error, message: blocked.message }, blocked.status);
   const base = requestBase(req);
-  inBackground(() => makePresence(db, viewer, input.character_id, base));
+  // What went wrong is kept on the rows for the theater to say (presenceOf's `failed`), and logged.
+  inBackground(async () => {
+    const made = await makePresence(db, viewer, input.character_id, base);
+    const wrong = made.ok ? made.failed : [made.message];
+    if (wrong.length) console.error(`[presence] ${input.character_id}: ${wrong.join("; ").slice(0, 400)}`);
+  });
   return json({ started: true }, 202);
 });
