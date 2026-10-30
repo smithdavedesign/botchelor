@@ -7,6 +7,10 @@
     {
       "path": "/api/jobs/lobby",
       "schedule": "20 * * * *"
+    },
+    {
+      "path": "/api/jobs/showcase-check",
+      "schedule": "40 * * * *"
     }
   ]
 }

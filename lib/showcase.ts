@@ -492,7 +492,17 @@ export async function bestOf(db: Db, owner: string): Promise<{ after_dark: strin
   const pg = (
     await db.query<{ id: string }>(`select id from studio_pg_pictures where owner_id = $1 and (content_rating = 'pg' or twin_of = any($2::text[])) order by created_at`, [owner, ad])
   ).rows.map((r) => r.id);
-  return { after_dark: [...ad, ...twins.filter((id) => !ad.includes(id))], pg };
+  // One that's safe itself with an SFW twin: the twin is its face on the showcase (lib/showcase-check.ts), never both.
+  const covered = new Set(
+    (
+      await db.query<{ id: string }>(
+        `select i.id from adult_images i where i.id = any($1::text[]) and i.content_rating in ('pg', 'suggestive')
+            and (exists (select 1 from adult_images t where t.twin_of = i.id and t.status = 'ready') or exists (select 1 from studio_pg_pictures g where g.twin_of = i.id))`,
+        [ad],
+      )
+    ).rows.map((r) => r.id),
+  );
+  return { after_dark: [...ad.filter((id) => !covered.has(id)), ...twins.filter((id) => !ad.includes(id))], pg };
 }
 
 /**

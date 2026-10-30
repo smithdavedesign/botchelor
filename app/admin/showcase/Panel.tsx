@@ -12,6 +12,8 @@ type Mine = {
   twins: number;
   /** Living portraits still to make (lib/showcase-loops.ts): their safe pictures, the agent-made characters' portraits. */
   loops?: { mine: number; agents: number; usd: number };
+  /** After Dark posts still rated explicit, for the PG check (lib/showcase-check.ts). */
+  checks?: number;
 };
 type TwinBatch = { made: { original: string; id: string }[]; failed: { original: string; message: string }[]; left: number };
 /** About what one SFW twin costs on Venice (the PG Studio's edit model, studio.pg.usd). */
@@ -94,6 +96,32 @@ export default function ShowcaseModeration() {
     setBusy(false);
     void load();
   }
+  // The PG check on After Dark posts still rated explicit (lib/showcase-check.ts), a few at a time until none are left.
+  async function sortSides() {
+    setBusy(true);
+    let safe = 0;
+    let twin = 0;
+    let explicit = 0;
+    for (;;) {
+      setNote(`Checking After Dark's posts… ${safe + twin} safe for work so far, ${explicit} explicit.`);
+      const res = await requestJson("/api/jobs/showcase-check", {}, "POST", { timeoutMs: 295_000 }).catch(() => null);
+      if (!res?.ok) {
+        setNote(`${res?.message ?? "That stopped."} Click again to carry on.`);
+        break;
+      }
+      const b = res.data as unknown as { results: { outcome: string }[]; left: number };
+      safe += b.results.filter((r) => r.outcome === "safe").length;
+      twin += b.results.filter((r) => r.outcome === "twin").length;
+      explicit += b.results.filter((r) => r.outcome === "explicit").length;
+      if (!b.left || !b.results.some((r) => r.outcome !== "skipped")) {
+        const skipped = b.left ? ` ${b.left} couldn't be checked now: the hourly job tries again.` : "";
+        setNote(`${safe} moved to the safe side, ${twin} already there as their SFW twin (the original's post taken down), ${explicit} explicit.${skipped}`);
+        break;
+      }
+    }
+    setBusy(false);
+    void load();
+  }
   const best = mine ? mine.best.after_dark + mine.best.pg : 0;
   const yours = mine && (
     <section className="card showcase-form">
@@ -119,6 +147,14 @@ export default function ShowcaseModeration() {
             Make my page
           </button>
         </>
+      )}
+      {Boolean(mine.checks) && (
+        <p className="small">
+          <button type="button" className="button-ghost small" disabled={busy} onClick={() => void sortSides()}>
+            🔎 Check After Dark&apos;s posts for dressed ones ({mine.checks})
+          </button>{" "}
+          <span className="muted">Each through the PG check: a dressed one goes to the safe side. The hourly job does this too.</span>
+        </p>
       )}
       {mine.loops && mine.loops.mine + mine.loops.agents > 0 && (
         <p className="small">
