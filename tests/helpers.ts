@@ -62,6 +62,7 @@ type Table =
   | "characters"
   | "media_teasers"
   | "showcase_thumbs"
+  | "show_portrait_tries"
   | "episodes"
   | "predictions"
   | "profiles"
@@ -174,6 +175,7 @@ export async function startTestDb() {
         "showcase_likes",
         "creator_follows",
         "showcase_thumbs",
+        "show_portrait_tries",
         "showcase_posts",
         "showcase_loops",
         "creator_profiles",

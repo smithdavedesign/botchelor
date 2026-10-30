@@ -67,7 +67,9 @@ Every filter is a link, so a filtered view can be shared, and the PG side can be
 | 10 | Reels: one post a screen, swiped; living photos; a date as the first ask; After Dark's count → the subscription | #958, live |
 | 11 | Living portraits: real clips of the safe pictures (David's) and the agent-made characters' safe portraits (@botchelor) | #959, #962, live |
 | 12 | Reels: "Safe for work" works from the tab and from After Dark's veil; After Dark's side only for whoever may see it | #968, live |
-| 13 | Dressed pictures off After Dark's side: the PG check on every After Dark post not asked to be nude, hourly | this PR |
+| 13 | Dressed pictures off After Dark's side: the PG check on every After Dark post not asked to be nude, hourly | #973, live |
+| 14 | Small tiles (WebP copies), mixed reels, stricter SFW twins, public/ out of server traces | #975 |
+| 15 | The show's own portraits for agent-made characters with none, and the house cast's living portraits | this PR |
 
 ## Open, for David or counsel
 
@@ -168,3 +170,20 @@ make sure assets are tagged correctly safe and nsfw and live".
   sorted within the hour. `/admin/showcase` has "🔎 Check After Dark's posts for dressed ones" to run it now.
 - **Cost:** one Venice vision call a picture, three a clip.
 - **Ships ffmpeg** with that route too (four routes now).
+
+## Portraits for agent-made characters, and the house cast's living portraits (2026-10-29)
+
+David: "do these" (68 public agent-made characters had no safe portrait, so no living portrait; the house cast had none
+either).
+
+- **The show's own portrait** (`lib/agent-portraits.ts`), for a public agent-made character with no portrait at all:
+  - **What it's drawn from:** their creator's written look if there is one. Otherwise their age, pronouns and bio
+    ("a man of 33, a pilot who flies rescue missions…"), never their name. On prod, 50 of the 68 had only a bio.
+  - **How it's kept:** Venice's safe mode, then the strict PG check with its age question (not Hive's capped
+    allowance). Only a PG picture is kept, approved in the asset ledger as the show's drawing, and the creator can
+    replace it any time.
+  - **One that fails** is noted (`show_portrait_tries`) and left for its creator; nothing is tried twice.
+  - **Where to run it:** `/admin/showcase` → "🖼 Draw portraits…", or `POST /api/admin/showcase/portraits` with the
+    admin password.
+- **Living portraits for the show's characters:** the 🎬 run for the agent-made characters now takes the house cast
+  too (17 on prod), all posted as @botchelor.

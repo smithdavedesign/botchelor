@@ -2665,6 +2665,13 @@ alter table showcase_posts add column if not exists show_prompt boolean not null
 -- When an After Dark post still rated explicit was put through the PG check (lib/showcase-check.ts): a dressed one goes
 -- to the safe side, and none is checked twice.
 alter table showcase_posts add column if not exists checked_at timestamptz;
+-- The show's own portrait for a public agent-made character with none (lib/agent-portraits.ts): one that couldn't be
+-- kept is noted here and never drawn again, left for the character's creator.
+create table if not exists show_portrait_tries (
+  character_id text primary key references characters (id) on delete cascade,
+  note text,
+  created_at timestamptz not null default now()
+);
 -- Smaller copies of a post's picture for the tiles and reels (lib/showcase-thumbs.ts), drawn once, gone with the post.
 create table if not exists showcase_thumbs (
   post_id text not null references showcase_posts (id) on delete cascade,
