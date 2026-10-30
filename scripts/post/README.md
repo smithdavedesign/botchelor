@@ -17,9 +17,13 @@ node scripts/post/bluesky.mjs --limit 3
 node scripts/post/x.mjs --limit 1
 ```
 
-Each script prints what it posted (or would have posted, with `--dry`), so a cron run is auditable from the Vercel log.
+Each script prints what it posted (or would have posted, with `--dry`), so a cron run is auditable from the app's Runtime Logs (DigitalOcean since 2026-10-30; the Vercel log before).
 
 ## Scheduling (Vercel)
+
+> 2026-10-30: botchelor is off Vercel, and `vercel.json` and Vercel Cron are gone. Scheduled jobs are the DigitalOcean
+> scheduled job in `.do/app.yaml` (`docs/hosting.md`); a posting job would be added there. The Vercel setup below is
+> kept for reference.
 
 The three paths `/api/jobs/post/discord`, `/api/jobs/post/bluesky`, `/api/jobs/post/x` call these scripts. Vercel cron config in `vercel.json`:
 

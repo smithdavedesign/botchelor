@@ -77,24 +77,36 @@ npm run typecheck
 **CI** (`.github/workflows/ci.yml`: typecheck and `npm test`) runs by hand only (`gh workflow run ci.yml --ref
 <branch>`), since 2026-10-21: the repo is private, so every run spends the account's free Actions minutes, which
 RepoHQ needs. PRs merge after `npx tsc --noEmit -p .` and the full `npx vitest run` pass locally on the branch merged
-with current main (say so on the PR); the checks left on a PR are Vercel's build and GitGuardian. The MCP Registry
+with current main (say so on the PR); the check left on a PR is GitGuardian. Since 2026-10-30 the red "Vercel" check
+is expected (Vercel's free plan can't build botchelor) and ignored. The MCP Registry
 publish is an Action too and still runs when `registry/server.json` changes on main (a few seconds); while the
 minutes are out, run `mcp-publisher publish registry/server.json` by hand ([docs/launch-kit.md](docs/launch-kit.md)).
 
 ## Deploy
 
-- **Host:** the Vercel project `botchelor` (Pro), linked to GitHub. A merge to `main` deploys to production. Check the
-  production commit after a merge: once, two merges seconds apart deployed only the first, so main was redeployed
-  from git.
-- **Cron jobs** (`vercel.json`): `/api/jobs/daily` (16:00 UTC: daily texts, digests, prunes; from the 20th, next
-  month's candidates, and the cast's After Dark baselines: [docs/seasons.md](docs/seasons.md)) and `/api/jobs/lobby`
-  (hourly: watch-party rooms, and agents' dates whose prediction window closed).
-- **Domain:** `botchelor.com`, with DNS on Wix ([docs/launch-readiness.md](docs/launch-readiness.md)). The Stripe
-  webhook stays on `botchelor.vercel.app`.
+Since 2026-10-30 botchelor runs on **DigitalOcean App Platform**, not Vercel. [docs/hosting.md](docs/hosting.md) is
+the source of truth.
+
+- **Host:** two DigitalOcean apps, both building `main` on every push: the show, `botchelor-show`
+  ([`.do/show.yaml`](.do/show.yaml), botchelor.com and www), and After Dark, `clownfish-app`
+  ([`.do/app.yaml`](.do/app.yaml), ad.botchelor.com, `AFTER_DARK_ONLY=1`). After a merge, watch the deployment become
+  `ACTIVE` (the dashboard's Activity, or `GET /v2/apps/<id>/deployments`), then check
+  `https://botchelor.com/api/health`. There are no preview deployments.
+- **Scheduled jobs:** one DigitalOcean scheduled job (`lobby`, on After Dark's app) calls `/api/jobs/lobby` hourly at
+  :20 UTC (watch-party rooms, and agents' dates whose prediction window closed), `/api/jobs/daily` at 16:20 UTC (daily
+  texts, digests, prunes; from the 20th, next month's candidates, and the cast's After Dark baselines:
+  [docs/seasons.md](docs/seasons.md)), and `/api/jobs/showcase-check` about 20 minutes after each lobby run, all on
+  botchelor.com with `Authorization: Bearer $CRON_SECRET`. `vercel.json` and Vercel Cron are gone.
+- **Logs:** each app's Runtime Logs in the DigitalOcean dashboard.
+- **Domain:** `botchelor.com`. Wix is the registrar only; DNS is moving to Cloudflare (from 2026-10-30, records edited
+  in Cloudflare's dashboard). Until that cutover, botchelor.com still serves the last Vercel build. The Stripe webhook
+  still points at `botchelor.vercel.app`: moving it to `https://botchelor.com/api/webhooks/stripe` in Stripe's
+  dashboard is David's, pending.
 
 ## Infrastructure and configuration
 
-Every value comes from an environment variable, set in Vercel and kept in the keychain (`vault/botchelor/*`). No test
+Every value comes from an environment variable, set in each DigitalOcean app's settings (`docs/hosting.md`) and kept in
+the keychain (`vault/botchelor/*`). No test
 needs a real one.
 
 | Area | Variables |

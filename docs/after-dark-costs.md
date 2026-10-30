@@ -17,7 +17,7 @@ Every provider is prepaid. Nothing recharges automatically, so the balance is th
 | Venice | Explicit pictures (and later, video) | $50 | Keychain `vault/botchelor/VENICE_API_KEY`; site ends …-6kY |
 | fal.ai | Sets (empty places) and non-explicit clips | Prepaid credit, valid 365 days, non-refundable | Site settings, ends …fa90 |
 | Hive | The output check on every picture, clip and set | $111, auto-recharge off | Keychain `vault/botchelor/HIVE_SECRET_KEY`; site ends …Hw== |
-| Replicate | The backup for After Dark's media (2026-10-22): pictures, keyframes, videos, voices | Prepaid credit (account smithdavedesign); keep auto-reload off, so the balance is the most it can spend | Keychain `vault/botchelor/REPLICATE_API_TOKEN`; Vercel production `REPLICATE_API_TOKEN` |
+| Replicate | The backup for After Dark's media (2026-10-22): pictures, keyframes, videos, voices | Prepaid credit (account smithdavedesign); keep auto-reload off, so the balance is the most it can spend | Keychain `vault/botchelor/REPLICATE_API_TOKEN`; production `REPLICATE_API_TOKEN` (Vercel until 2026-10-30, now the DigitalOcean apps' environment) |
 
 fal's acceptable use policy bans sexually explicit output, and its request checker refuses it, so fal only makes
 things with nobody undressed in them: empty sets, and clips from non-explicit pictures.
@@ -241,7 +241,8 @@ eat into it.
 Fixed costs not counted above:
 - age verification: Yoti, Persona or Veriff, typically per check;
 - the processor's monthly and setup fees;
-- moving explicit storage off Vercel later (`docs/after-dark.md`).
+- moving explicit storage off Vercel later (`docs/after-dark.md`). Done 2026-10-30: DigitalOcean + Bunny, about $16 a
+  month (`docs/after-dark-hosting.md`, `docs/costs.md`).
 
 ## How a video would be made
 

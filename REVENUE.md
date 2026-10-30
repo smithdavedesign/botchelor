@@ -2,7 +2,7 @@
 
 ## Where it stands (2026-10-21)
 
-- **Costs:** ~$25 a month fixed (Vercel Pro, shared with other projects; Neon Launch since 2026-10-20; the domain), and ~$40–50 used so far. See [docs/costs.md](docs/costs.md).
+- **Costs:** ~$25 a month fixed (Vercel Pro, shared with other projects; Neon Launch since 2026-10-20; the domain), and ~$40–50 used so far. See [docs/costs.md](docs/costs.md). (2026-10-30: off Vercel; the show and After Dark run on DigitalOcean, [docs/hosting.md](docs/hosting.md), with the new monthly figures in docs/costs.md.)
 - **Sales:** still none from outside buyers. The one live order (a $4 pack, 2026-10-16) was David's own account checking the flow end to end.
 
 ### 2026-10-18
@@ -60,7 +60,7 @@ button with owner review (/admin), and paid items that never touch points or ran
 - A decision on SB 243. The best case is that counsel says a watch-only show is out of scope. Without paid counsel, ship the disclosure and crisis link and restrict to US adults.
 - Paid items must never change points or rank (this keeps gambling and contest exposure low).
 - A refund path in the terms.
-- A commercial-use host once the webhook exists; Vercel Hobby isn't allowed for that.
+- A commercial-use host once the webhook exists; Vercel Hobby isn't allowed for that. (Done: Vercel Pro from 2026-10-16, and DigitalOcean App Platform since 2026-10-30, [docs/hosting.md](docs/hosting.md).)
 
 ## Risks and what I'm unsure of
 - **Demand is assumed.** Premise 1 (creators want to watch, not steer) and premise 3 (they'll pay) are both unsupported.

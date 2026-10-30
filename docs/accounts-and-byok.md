@@ -28,7 +28,8 @@ Once an account can own things and hold an API key, the id must be unforgeable, 
 an **HMAC-signed token** (`lib/auth`, read in `lib/http`). A legacy `bz_uid` is still accepted as an anonymous
 identity, so old sessions and the tests keep working. **Without `SESSION_SECRET` the app never signs** and
 behaves exactly as it did before — accounts and BYOK simply report themselves unavailable (the same pattern as
-the frontier gate). `SESSION_SECRET` is set on Vercel production (sensitive, generated into the keychain).
+the frontier gate). `SESSION_SECRET` is set on production (sensitive, generated into the keychain): in both DigitalOcean apps' environment
+since 2026-10-30 (`docs/hosting.md`), on Vercel production before.
 
 **An account is only used signed in** (security review, 2026-10-20). An anonymous identity (a legacy `bz_uid`, an
 unsigned-in `bz_sess`, an MCP `agent_id`) that names an account's user id gets nothing account-wide: exporting,
@@ -150,7 +151,7 @@ date and asserts one character's soul text never appears in the prompts sent to 
   provider's own text (which can quote part of a key).
 - **Known providers only** (`google`, `openai`, `anthropic`, `deepseek`, `groq`, `openrouter`) at their real addresses. **No
   custom endpoints**, so a key can't be pointed at an attacker's server to harvest prompts (or to SSRF ours). The only
-  stand-in is `BYOK_STUB_ORIGIN` for screenshot and e2e runs: loopback only, ignored on Vercel.
+  stand-in is `BYOK_STUB_ORIGIN` for screenshot and e2e runs: loopback only, ignored on any deployment (`lib/deploy.ts` `isDeployed`).
 - **Tables:** `user_connections` (one sealed key per provider, with `verified_at`, `last_used_at` and the last error) and
   `user_connection_jobs` (which key and model each job uses). M16's `user_keys` rows moved in once (lib/db.ts).
 - **Routes:** `/api/me/connections` `GET` / `PUT` / `DELETE` and `/api/me/connections/check` (12 checks per 10 minutes per
@@ -235,12 +236,13 @@ Google account (an app identity tied to your login, which an agent can't mint).
    Authorised redirect URIs (exact): `https://botchelor.com/api/auth/google/callback`, and the old
    `https://botchelor.vercel.app/api/auth/google/callback` (sign-in started on the old host hops to botchelor.com
    first, so the callback lands on the host that holds the state cookie).
-3. Copy the **Client ID** and **Client secret**, then on Vercel production:
+3. Copy the **Client ID** and **Client secret**, then on production. (Since 2026-10-30 that's the show app's
+   environment on DigitalOcean, not `vercel env`: see `docs/hosting.md`. The commands below were for Vercel.)
    ```bash
    printf '%s' "<client-id>"     | vercel env add GOOGLE_OAUTH_CLIENT_ID production --scope david-smiths-projects-fe129786
    printf '%s' "<client-secret>" | vercel env add GOOGLE_OAUTH_CLIENT_SECRET production --sensitive --scope david-smiths-projects-fe129786
    ```
-4. Redeploy (or push any commit). The "Continue with Google" button appears on `/account` and works.
+4. Redeploy (on DigitalOcean, saving the variables redeploys the app). The "Continue with Google" button appears on `/account` and works.
 
 Store the client secret in the keychain too (`~/ai-stack/bin/secrets add botchelor GOOGLE_OAUTH_CLIENT_SECRET`),
 and it shows on RepoHQ → Settings → Keys. Handle+password registration already works and needs none of this.

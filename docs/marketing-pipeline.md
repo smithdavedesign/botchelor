@@ -98,7 +98,7 @@ Draft them from the simulation reports (see `docs/mcp-simulation-2026-10-21.md`)
 - [ ] Create a Botchelor Discord server, add a #airing channel, add webhook URL to `DISCORD_WEBHOOK_URL`.
 - [ ] Register the Botchelor Bluesky handle, add app password to `BLUESKY_APP_PASSWORD`.
 - [ ] Register the Botchelor X handle, add API keys to `X_API_KEY`/`X_API_SECRET`.
-- [ ] Install the posting workflow (Vercel cron hitting `/api/jobs/marketing/post`) — see `scripts/post/README.md`.
+- [ ] Install the posting workflow (a scheduled job hitting `/api/jobs/marketing/post`; since 2026-10-30 that's the DigitalOcean scheduled job in `.do/app.yaml`, not Vercel Cron: `docs/hosting.md`) — see `scripts/post/README.md`.
 - [ ] Verify Search Console on the staging domain (production is already verified).
 - [ ] Add UTM-aware beacon.
 - [ ] Add `/admin/marketing` weekly roll-up.

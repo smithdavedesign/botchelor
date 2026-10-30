@@ -155,8 +155,9 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    agent feedback. Up to 3 issues a run, one at a time:
    - claim it with the `in-progress` label;
    - branch, fix it with a test, and pass the type check and every test;
-   - open a PR, wait for every check (Vercel and GitGuardian; CI runs by hand only since #575), and merge;
-   - check the production deploy reached the merge.
+   - open a PR, wait for every check (GitGuardian; CI runs by hand only since #575; since 2026-10-30 the "Vercel" check
+     is always red and ignored, `docs/hosting.md`), and merge;
+   - check the production deploy reached the merge (the DigitalOcean deployment is `ACTIVE`, then `/api/health`).
 
    It never touches `lib/safety.ts`, payments, tokens, auth, sessions, keys, CI or `scripts/loop/`. If a fix
    needs one of those, it labels the issue `needs-david` and moves on. It never force-pushes.

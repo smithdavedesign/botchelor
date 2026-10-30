@@ -3,6 +3,9 @@
 _Written for David, 2026-10-13; updated 2026-10-15 with measured numbers. A spend proposal, not a switch that
 has been flipped._
 
+> 2026-10-30: the hosting below is out of date. The site went to Vercel Pro (2026-10-16), then off Vercel to
+> DigitalOcean App Platform (2026-10-30): `docs/hosting.md`, with today's costs in `docs/costs.md`.
+
 Everything in the repo today runs at **$0 marginal cost** on free models and the free stack (Vercel Hobby,
 Neon free, Gemini free tier). The PRD's Product-vision and Target-architecture sections describe a richer
 product — frontier dialogue, portraits, video — that **costs money and needs your approval first** (agents

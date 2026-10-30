@@ -125,8 +125,8 @@ what it shows to a screen reader, follows the pointer or the arrow keys with a t
 
 ## Not tracked here
 
-- **Page views and visits**: not in the database. GA4 (`G-VHL1LZTPHL`), Vercel Web Analytics and RepoHQ's funnel beacon
-  have them (docs/seo-and-tracking.md). "First seen" starts at a first action.
+- **Page views and visits**: not in the database. GA4 (`G-VHL1LZTPHL`) and RepoHQ's funnel beacon
+  have them (Vercel Web Analytics too, until the 2026-10-30 move off Vercel) (docs/seo-and-tracking.md). "First seen" starts at a first action.
 - **Watch-room visits**: presence keeps only each viewer's latest heartbeat per room, and crawlers that run scripts
   leave heartbeats too.
 - **Revenue**: deliberately not shown.
