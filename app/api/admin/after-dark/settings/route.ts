@@ -52,6 +52,7 @@ const Input = z.object({
   presence_loop_model: z.string().trim().max(120).regex(/^$|^[a-z0-9][a-z0-9._-]*$/i).optional(),
   place_sounds: z.boolean().optional(),
   place_sound_model: z.string().trim().max(120).regex(/^$|^[a-z0-9][a-z0-9._-]*$/i).optional(),
+  talk_model: z.string().trim().max(120).regex(/^$|^[a-z0-9][a-z0-9._-]*$/i).optional(),
   replicate_video_lora: videoLora.optional(),
   auto_scene_pictures: z.boolean().optional(),
   beat_pictures: z.boolean().optional(),

@@ -38,7 +38,7 @@ What Venice, After Dark's provider, already offers (its model list and quotes, 2
 | 1 | **A living portrait** in place of the round icon | A few seconds of them, still and natural (breathing, blinking, a small smile), made once from their portrait (below); played over it, faded back into it at the end, so the loop never shows its seam | one clip per face, once | ✅ #960, from a portrait in the follow-up |
 | 2 | **Expressions**, SillyTavern's way | Seven edits of their portrait (smile, laugh, flirty, intense, tender, surprised, annoyed), made once; the writer gives each line a `face`, and the theater shows the speaker's | seven pictures per face, once; nothing per line | ✅ #960 |
 | 3 | **Voices that act** | A voice model for the night's lines: Kokoro, Inworld or Orpheus, with a stock voice each by their pronouns; on Orpheus, a laugh, sigh, gasp or groan in the line's action is heard | 0.04¢ to 0.6¢ a line | ✅ #960; pick by ear in settings |
-| 4 | **Talking moments** | "Hear it from them" on a line worth it: a 5 s clip of that face saying the voiced line (Wan, audio in). One face only: lip-sync on a shot of two moved the wrong mouth (#688) | ~$0.28 a clip: a token item | 🔜 |
+| 4 | **Talking moments** | "Hear it from them" on a line worth it: a 5 s clip of that face saying the voiced line (Wan, audio in). One face only: lip-sync on a shot of two moved the wrong mouth (#688) | ~$0.28 a clip: a token item (a clip's price) | ✅ #965 |
 | 5 | **Pictures that feel instant** | Show the closest picture they already have at once (scene-match) and swap the new one in when it lands; start drawing the next moment's picture while the lines before it play | the same pictures, sooner | 🔜 |
 | 6 | **The sound of the place** | A quiet bed per place (a jazz bar's murmur, waves, rain), made once per place and shared, under the voices while 🔈 is on | about 5¢ a place, once | ✅ #964 |
 | 7 | Living expressions | A loop per expression, not only the still one, so a laugh moves | seven clips per face | 🧭 after 1 and 2 are watched |
@@ -84,11 +84,24 @@ texts between nights, the reel storyboard.
   `/audio/queue` with ElevenLabs Sound Effects v2: 20 s, `loop: true` so it splices back with no seam, about 5¢. It's
   shared by every night there, since nobody's in it.
 - **When:** a theater with 🔈 on asks for its place's sound (`/api/admin/after-dark/place-sound?venue=`). There's none,
-  so it's queued, and it's collected on a later ask, polled every 20 s for up to 12 minutes. The test bed (a jazz bar,
-  2026-10-29) took about 9 minutes at Venice, so the first night at a new place is quiet for a while. Every call to
-  Venice gives up after 30 s. At most 20 new places a day. A
+  so it's queued, and it's collected on a later ask, polled every 20 s for up to 12 minutes. On prod the first bed (the
+  street, 2026-10-29) was ready 36 s after it was asked for; a test from here took far longer and its last call hung, so
+  every call to Venice gives up after 30 s. At most 20 new places a day. A
   failure keeps its reason and isn't asked again for 6 hours. The settings have an on/off switch and the model.
 - **On the stage:** `PlaceSound.tsx` loops it at a fifth of full volume under the voices, fades in, crossfades when they
   move, and pauses with ⏸.
 - **Other models Venice lists for it** (2026-10-29): Stable Audio 2.5 (19¢, 5 s to 3 min, no loop), MMAudio v2 (0.09¢ a
   second, no loop), Sonilo SFX (0.2¢ a second, no loop). Only ElevenLabs loops.
+
+## 4, as built
+
+- **What it is:** `lib/adult/talks.ts` and the `adult_talks` table. "🗣 Hear it from <name>" in the theater's ⋯ makes a
+  few seconds of the line on stage being said by its speaker. It starts from their presence portrait, so there's one
+  face and the lip-sync can't land on the wrong mouth (#688). The voice is the line's own: made or found by
+  `voiceLines`, and given to Wan 2.6 Flash as `audio_url`. The model is the `talk_model` setting.
+- **Price:** a clip on demand's (`clip_tokens`; admins don't pay), counted in the month's clips. Checked like any video
+  before it's kept. Refunded when Venice fails, the check refuses it, or it's given up after 20 minutes.
+- **Kept** per viewer, speaker and words: asking again plays the one already made, for nothing.
+- **On the stage:** it opens over the stage when it's ready (`TalkPlayer.tsx`), with sound, and the theater waits while
+  it plays. Once made, a "🗣 Hear <name> say it ▶" chip offers it whenever that line is on stage again. It needs their
+  portrait (✨ Bring them to life) and a line with words in it.

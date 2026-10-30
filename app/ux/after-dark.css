@@ -1792,3 +1792,33 @@ a.ad-scenes-make-link {
 .ad-living-loop.fading {
   opacity: 0;
 }
+
+/* A talking moment over the stage (TalkPlayer.tsx): one of them, saying the line. */
+.ad-talk-player {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  width: min(420px, 86vw);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.9);
+}
+.ad-talk-player video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.ad-talk-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+}
+.ad-talk-chip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--ad-action-bottom, 7rem) + 0.5rem);
+  transform: translateX(-50%);
+  z-index: 3;
+}
