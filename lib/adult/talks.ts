@@ -23,11 +23,19 @@ import { adultKeys, getAdultSettings } from "./settings";
 import { countUse, overCap } from "./usage";
 import { sayable, voiceLines } from "./voice-lines";
 
-/** The direction: this one person saying the line, to someone just off camera. */
+/**
+ * The direction: this one person speaking to someone just off camera, and a clean frame. The first one live (2026-10-29)
+ * burned garbled subtitles into most frames ("says the line" read as captions); asked for a frame with no text at all,
+ * both Wan 2.6 Flash and 2.7 came back clean.
+ */
 export const TALK_PROMPT =
-  "The person in the picture says the line to someone just off camera, their lips moving in time with the voice, " +
-  "a natural expression that fits the words, small natural head movements and a blink. The camera doesn't move. Only this one person.";
-const TALK_NEGATIVE = "child, teen, minor, young-looking, distorted face, morphing face, extra people, a second person, scene cut, camera movement, text, watermark, subtitles";
+  "The person in the picture speaks to someone just off camera, their lips moving in time with the voice, a natural expression, " +
+  "small head movements and a blink. The camera doesn't move. Only this one person. " +
+  "A clean frame: no on-screen text, captions, subtitles, letters or words anywhere.";
+const TALK_NEGATIVE =
+  "subtitles, captions, on-screen text, text overlay, words, letters, lower third, watermark, logo, child, teen, minor, young-looking, distorted face, morphing face, extra people, a second person, scene cut, camera movement";
+/** Talks made before the clean-frame direction (version 1) had subtitles burned in: never matched or played again. */
+export const TALK_VERSION = 2;
 /** Words that fit in a 5-second clip; more get 10. */
 const WORDS_5S = 12;
 /** One not back by then is given up, and its tokens go back. */
@@ -63,7 +71,7 @@ export async function makeTalk(db: Db, viewer: string, ask: TalkAsk, baseUrl: st
   const speaker = line.who === "a" ? pair[0] : pair[1];
   const key = keyOf(speaker, words);
   const price = await talkPrice(db, viewer);
-  const had = (await db.query<Talk>(`select id, who, text, status, error from adult_talks where owner_id = $1 and key = $2 and status <> 'failed'`, [viewer, key])).rows[0];
+  const had = (await db.query<Talk>(`select id, who, text, status, error from adult_talks where owner_id = $1 and key = $2 and status <> 'failed' and version = $3`, [viewer, key, TALK_VERSION])).rows[0];
   if (had) return { ok: true, talk: had, price };
   const portrait = (await presenceOf(db, viewer, [speaker]))[speaker]?.portrait;
   if (!portrait) return fail(409, "no_portrait", "✨ Bring them to life first (in ⋯): a talking moment starts from their portrait.");
@@ -91,10 +99,10 @@ export async function makeTalk(db: Db, viewer: string, ask: TalkAsk, baseUrl: st
       audio_url: `data:${audio.mime};base64,${audio.data.toString("base64")}`,
     });
     await db.query(
-      `insert into adult_talks (id, owner_id, character_id, key, who, text, status, model, queue_id, tokens) values ($1, $2, $3, $4, $5, $6, 'making', $7, $8, $9)
+      `insert into adult_talks (id, owner_id, character_id, key, who, text, status, model, queue_id, tokens, version) values ($1, $2, $3, $4, $5, $6, 'making', $7, $8, $9, $10)
        on conflict (owner_id, key) do update set id = excluded.id, status = 'making', model = excluded.model, queue_id = excluded.queue_id, tokens = excluded.tokens,
-         error = null, mime = null, data = null, object_key = null, created_at = now(), updated_at = now()`,
-      [id, viewer, speaker, key, line.who, line.text, model, queueId, price],
+         version = excluded.version, error = null, mime = null, data = null, object_key = null, created_at = now(), updated_at = now()`,
+      [id, viewer, speaker, key, line.who, line.text, model, queueId, price, TALK_VERSION],
     );
     return { ok: true, talk: { id, who: line.who, text: line.text, status: "making", error: null }, price };
   } catch (err) {
@@ -153,15 +161,21 @@ export async function collectTalks(db: Db, viewer: string): Promise<number> {
 /** The pair's talking moments for this viewer, newest first: the theater matches them to its lines by who and text. */
 export async function talksFor(db: Db, viewer: string, pair: [string, string]): Promise<Talk[]> {
   const { rows } = await db.query<Talk>(
-    `select id, who, text, status, error from adult_talks where owner_id = $1 and character_id = any($2::text[]) order by created_at desc limit 60`,
-    [viewer, pair],
+    `select id, who, text, status, error from adult_talks where owner_id = $1 and character_id = any($2::text[]) and version = $3 order by created_at desc limit 60`,
+    [viewer, pair, TALK_VERSION],
   );
   return rows;
 }
 
 /** A ready talking moment of this viewer's: its stored copy. */
 export async function talkFile(db: Db, viewer: string, id: string): Promise<{ mime: string; object_key: string | null; data: Buffer | null } | null> {
-  const r = (await db.query<{ mime: string | null; object_key: string | null; data: Buffer | null }>(`select mime, object_key, data from adult_talks where id = $1 and owner_id = $2 and status = 'ready'`, [id, viewer])).rows[0];
+  const r = (
+    await db.query<{ mime: string | null; object_key: string | null; data: Buffer | null }>(`select mime, object_key, data from adult_talks where id = $1 and owner_id = $2 and status = 'ready' and version = $3`, [
+      id,
+      viewer,
+      TALK_VERSION,
+    ])
+  ).rows[0];
   return r?.mime ? { mime: r.mime, object_key: r.object_key, data: r.data } : null;
 }
 export const talkBytes = (f: { object_key: string | null; data: Buffer | null }) => readBytes(f);
