@@ -4,7 +4,7 @@
  * Three sources, kept apart because they mean different things:
  * - **Cash** (money_entries): bills, prepaid top-ups and one-off payments an admin enters, plus income made outside the
  *   app. A month or year entry repeats from its start until its end. KNOWN_COSTS fills in the ones docs/costs.md records.
- * - **Income from records**: paid show orders, After Dark subscription payments (adult_billing_events, refunds and
+ * - **Income from records**: paid show orders (not Stripe test-mode ones), After Dark subscription payments (adult_billing_events, refunds and
  *   chargebacks taken off) and operator passes (operator_pass_events; Stripe's event carries no amount, so each one is
  *   counted at the pass's price).
  * - **Usage the providers report** (providerReadings): the balance and spend each provider's own API gives, where it has
@@ -27,6 +27,7 @@ type Fetch = typeof fetch;
 /**
  * The costs docs/costs.md and docs/after-dark-hosting.md record, to fill in with one button. A date the docs don't give
  * exactly is the start of the period they cover, said so in the note. The DigitalOcean apps are the sizes in .do/app.yaml.
+ * Venice isn't here: its three October receipts ($50, $25, $50) were entered from the email receipts themselves.
  */
 export const KNOWN_COSTS: ReadonlyArray<NewEntry & { seed_key: string }> = [
   { seed_key: "vercel-pro", kind: "cost", category: "infra", provider: "Vercel", label: "Vercel Pro (shared with the other products)", usd: 20, every: "month", starts_on: "2026-10-13", ends_on: "2026-10-30", note: "Hobby (free) since 2026-10-30, when the show moved to DigitalOcean" },
@@ -34,8 +35,6 @@ export const KNOWN_COSTS: ReadonlyArray<NewEntry & { seed_key: string }> = [
   { seed_key: "do-show", kind: "cost", category: "infra", provider: "DigitalOcean", label: "DigitalOcean app: the show", usd: 10, every: "month", starts_on: "2026-10-30", ends_on: null, note: "apps-s-1vcpu-1gb-fixed" },
   { seed_key: "do-after-dark", kind: "cost", category: "infra", provider: "DigitalOcean", label: "DigitalOcean app: After Dark", usd: 10, every: "month", starts_on: "2026-10-30", ends_on: null, note: "apps-s-1vcpu-1gb-fixed" },
   { seed_key: "bunny", kind: "cost", category: "infra", provider: "Bunny", label: "Bunny storage and CDN (media)", usd: 1, every: "month", starts_on: "2026-10-30", ends_on: null, note: "Bunny's $1 minimum until media grows" },
-  { seed_key: "venice-1", kind: "cost", category: "api", provider: "Venice", label: "Venice top-up", usd: 50, every: "once", starts_on: "2026-10-13", ends_on: null, note: "The first $50; date approximate (before 2026-10-22)" },
-  { seed_key: "venice-2", kind: "cost", category: "api", provider: "Venice", label: "Venice top-up", usd: 25, every: "once", starts_on: "2026-10-22", ends_on: null, note: "Auto-pay is on: add each $10 top-up as it comes" },
   { seed_key: "hive", kind: "cost", category: "api", provider: "Hive", label: "Hive top-up (moderation)", usd: 111, every: "once", starts_on: "2026-10-13", ends_on: null, note: "Date approximate (before 2026-10-22)" },
   { seed_key: "openrouter-1", kind: "cost", category: "api", provider: "OpenRouter", label: "OpenRouter top-up", usd: 50, every: "once", starts_on: "2026-10-21", ends_on: null, note: "Shared with OpenClaw and LiteLLM/RepoHQ keys" },
   { seed_key: "mcp-listings", kind: "cost", category: "other", provider: "mcp.so + Glama", label: "MCP directory listings", usd: 20, every: "once", starts_on: "2026-10-21", ends_on: null, note: null },
@@ -101,7 +100,8 @@ export async function recordedIncome(db: Db, month: Month, env: Env = process.en
 
   const orders = (
     await db.query<{ user_id: string; amount_cents: number }>(
-      `select user_id, amount_cents from orders where status = 'paid' and paid_at >= $1 and paid_at < $2`,
+      `select user_id, amount_cents from orders
+        where status = 'paid' and paid_at >= $1 and paid_at < $2 and coalesce(stripe_session_id, '') not like 'cs\\_test\\_%'`,
       [from, to],
     )
   ).rows;
