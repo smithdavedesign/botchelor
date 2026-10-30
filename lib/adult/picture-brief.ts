@@ -28,10 +28,13 @@ const BRIEF_REPLY_TOKENS = 450;
 /** The most of a chapter it reads, from its end (a chapter is at most 120 lines). */
 const BRIEF_LINES = 120;
 /** Each field's longest, so the picture's prompt keeps room for the moment itself (reels.ts fitPrompt). */
-const MAX = { place: 220, wearing: 300, kept_on: 160, happening: 300, mood: 140 } as const;
+const MAX = { place: 220, wearing: 300, kept_on: 160, happening: 300, mood: 140, act: 40 } as const;
 
-/** What the brief says: the form's four fields, and what's still on once they're undressed ("" for nothing). */
-export type Brief = { place: string; wearing: string; kept_on: string; happening: string; mood: string };
+/**
+ * What the brief says: the form's four fields, what's still on once they're undressed ("" for nothing), and, for a
+ * picture whose act was only a guess from the stage, the act the lines show (one of BriefInput.acts; "" when not asked).
+ */
+export type Brief = { place: string; wearing: string; kept_on: string; happening: string; mood: string; act: string };
 
 export type BriefInput = {
   owner: string;
@@ -52,12 +55,17 @@ export type BriefInput = {
   dressed: string;
   /** What the picture shows (beats.ts beatLabel): "Sex: on top", "Undressing", "This chapter". */
   shows: string;
+  /**
+   * For a picture taken at a line (Picture this, the chapter's own, one the lines asked for), whose act is only a guess
+   * from the stage: the acts it may be, for the brief to pick the one the lines show. Absent for a moment the lines named.
+   */
+  acts?: readonly { id: string; label: string }[];
 };
 
 const SYSTEM = [
   "You read a private, adults-only scene between two consenting adults and describe one moment of it for a photographer who will take a single photograph of it. You say what is true at that moment, plainly, as facts.",
-  "Only what the lines say or plainly imply. Add nothing: no new act, no one else in the picture, nothing more explicit than the lines are. Both of them are adults. Never write anything that makes either of them seem under 18.",
-  'Reply with JSON only, nothing else: {"place": "...", "wearing": "...", "kept_on": "...", "happening": "...", "mood": "..."}',
+  "Only what the lines say or plainly imply, and only what you're sure of: never \"likely\", \"maybe\" or \"probably\". Add nothing: no new act, no one else in the picture, nothing more explicit than the lines are. Both of them are adults. Never write anything that makes either of them seem under 18.",
+  'Reply with JSON only, nothing else: {"place": "...", "wearing": "...", "kept_on": "...", "happening": "...", "mood": "...", "act": "..."}',
 ].join("\n");
 
 /** The call's two messages: the rules, then the night as it stands and the chapter up to the moment. Pure. */
@@ -82,11 +90,14 @@ export function briefMessages(input: BriefInput): { role: "system" | "user"; con
         ...lines.map((l, i) => `${i + 1}. ${name(l.who)}: ${l.text}`),
         "",
         "Write each field about the moment, line " + last + ":",
-        "- place: where they are at that moment and what's around them that the photograph should show, in one sentence (where they've moved to, if they've moved), without their names (her flat, his kitchen).",
-        "- wearing: what each of them has on at that moment, by name, as the lines have it: a costume or outfit put on for a roleplay or a cosplay, exactly (its pieces, its colours), what has come off and what is still on. Their usual clothes only where the lines say nothing else.",
+        "- place: where they are at that moment and what's around them that the photograph should show, in one sentence (where they've moved to, if they've moved), without their names (her flat, his kitchen), and not what they're doing.",
+        "- wearing: what each of them has on at that moment, by name, as the lines have it: a costume or outfit put on for a roleplay or a cosplay, exactly (its pieces, its colours), what has come off and what is still on. Their usual clothes only where the lines say nothing else. Name the pieces (a black slip dress; a grey t-shirt and jeans), never \"usual clothes\" or \"as described\"; where neither the lines nor their usual clothes say, a simple outfit that fits where they are.",
         '- kept_on: once they are undressed, the pieces still on at that moment, by name (a costume piece, stockings, a necklace); "" when nothing is, or they aren\'t undressed.',
         "- happening: the moment itself, concrete and physical: where each of them is, their bodies and hands, what each is doing, in one or two sentences.",
         "- mood: a few words: the feeling between them, and the roles they're playing if it's a roleplay.",
+        input.acts?.length
+          ? `- act: of these, the one closest to how their bodies are at that moment, by its id: ${input.acts.map((a) => `${a.id} (${a.label.toLowerCase()})`).join(", ")}.`
+          : '- act: "".',
       ].join("\n"),
     },
   ];
@@ -97,7 +108,7 @@ export function parseBrief(raw: string): Brief | null {
   try {
     const o = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)) as Record<string, unknown>;
     const field = (k: keyof Brief) => (typeof o[k] === "string" ? (o[k] as string).trim().replace(/\s+/g, " ").slice(0, MAX[k]) : "");
-    const b: Brief = { place: field("place"), wearing: field("wearing"), kept_on: field("kept_on"), happening: field("happening"), mood: field("mood") };
+    const b: Brief = { place: field("place"), wearing: field("wearing"), kept_on: field("kept_on"), happening: field("happening"), mood: field("mood"), act: field("act").toLowerCase() };
     // "none", "nothing", "n/a": nothing kept on.
     if (/^(?:none|nothing|n\/?a|-|"")\.?$/i.test(b.kept_on)) b.kept_on = "";
     return b.wearing || b.happening ? b : null;
@@ -127,7 +138,7 @@ async function briefModel(db: Db): Promise<Model | null> {
 /** What a brief is kept by: everything it read, so the same moment reads the same, and changed lines read again. */
 const keyOf = (input: BriefInput) =>
   createHash("sha256")
-    .update(JSON.stringify([input.owner, input.scene, input.night, input.chapter, input.lines.slice(-BRIEF_LINES), input.usual, input.place, input.roleplay, input.dressed, input.shows]))
+    .update(JSON.stringify([input.owner, input.scene, input.night, input.chapter, input.lines.slice(-BRIEF_LINES), input.usual, input.place, input.roleplay, input.dressed, input.shows, input.acts?.map((a) => a.id) ?? null]))
     .digest("hex")
     .slice(0, 40);
 

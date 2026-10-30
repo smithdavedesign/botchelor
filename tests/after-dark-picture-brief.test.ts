@@ -100,6 +100,7 @@ const BRIEF = {
   kept_on: "",
   happening: "Lexi steps in close to Rafe, her cape swinging, her hand on his chest; he's grinning down at her",
   mood: "playful, a costume game",
+  act: "",
 };
 type Preview = { fields: { happening: string; wearing: string; place: string; mood: string }; prompt: string };
 const previewOf = async (cookie: string, line = 2) => {
@@ -182,6 +183,41 @@ describe("a scene picture's brief", () => {
   });
 });
 
+describe("the act a picture shows", () => {
+  const NAKED = [...COSPLAY, { who: "b" as const, text: "*sits back on the sofa, watching her stand there naked*", stage: 4 }];
+  it("a picture taken at a line is the act the brief picks, of those the night allows, not the stage's guess", async () => {
+    const { cookie } = await setup(NAKED, "Lexi's living room.");
+    const asked = scriptBrief({ ...BRIEF, place: `${BRIEF.place}.`, act: "close" });
+    const p = await previewOf(cookie, 3);
+    // The stage (sex) alone would have been on top; the lines are him watching her: close together, naked.
+    expect(p.prompt).toMatch(/stand close together, facing each other/);
+    expect(p.prompt).not.toMatch(/having sex/i);
+    expect(p.prompt).toMatch(/not their clothes: both completely naked/);
+    // No "..": the place's own full stop is the only one.
+    expect(p.prompt).toContain("The place: her living room, a sofa and a lamp, the coffee table pushed aside.");
+    const said = asked[0].map((m) => m.content).join("\n");
+    expect(said).toMatch(/- act: of these, the one closest to how their bodies are at that moment, by its id: close \(close together\), .*on_top \(on top\)/);
+    expect(said).toContain("never \"likely\"");
+    expect(said).toContain("Name the pieces");
+  });
+
+  it("one the brief can't pick is the guess; a moment the lines named keeps its act", async () => {
+    const { cookie, id, scene } = await setup(NAKED, "Lexi's living room");
+    scriptBrief({ ...BRIEF, act: "a-made-up-act" });
+    expect((await previewOf(cookie, 3)).prompt).toMatch(/having sex/i);
+    const [lo, hi] = [LEXI, RAFE].sort();
+    await t.db.query(
+      `insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place) values ('named-1', $1, $2, $3, $4, 1, 3, 'on_top', 'position', 4, 'Lexi''s living room')`,
+      [id, scene, lo, hi],
+    );
+    const asked = scriptBrief({ ...BRIEF, act: "close" });
+    const res = await post({ a: LEXI, b: RAFE, picture_preview: { beat: "named-1" } }, cookie);
+    const p = (await res.json()).preview as Preview;
+    expect(p.prompt).toMatch(/having sex/i);
+    expect(asked[0].map((m) => m.content).join("\n")).toContain('- act: "".');
+  });
+});
+
 describe("the brief's parts", () => {
   const input: BriefInput = {
     owner: "o",
@@ -212,10 +248,11 @@ describe("the brief's parts", () => {
       kept_on: "",
       happening: "a kiss",
       mood: "warm",
+      act: "",
     });
     expect(parseBrief(`{"place": "a bar"}`)).toBeNull();
     expect(parseBrief("no")).toBeNull();
-    expect(holdBrief({ place: "a bar", wearing: "a school uniform", kept_on: "", happening: "a kiss", mood: "" }, (w) => !/school/.test(w)).wearing).toBe("");
+    expect(holdBrief({ place: "a bar", wearing: "a school uniform", kept_on: "", happening: "a kiss", mood: "", act: "" }, (w) => !/school/.test(w)).wearing).toBe("");
   });
   it("dresses them by the stage", () => {
     expect(briefClothes({ wearing: "a red cape.", kept_on: "" }, 1)).toBe("a red cape, both still dressed");
