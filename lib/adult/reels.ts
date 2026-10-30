@@ -1043,9 +1043,14 @@ export async function drawKeyframe(key: string, prompt: string, images: string[]
 }
 
 /** A picture's video on Venice from its signed link (the Studio's Animate, lib/adult/studio.ts): queued, one shot. */
-export async function queueVideo(key: string, v: { model: string; seconds: 5 | 10; image_url: string; prompt: string; negative: string }): Promise<string> {
+export async function queueVideo(
+  key: string,
+  /** `audio_url`: a voice for a model that takes audio in to lip-sync to (a talking moment, lib/adult/talks.ts). */
+  v: { model: string; seconds: 5 | 10; image_url: string; prompt: string; negative: string; audio_url?: string },
+): Promise<string> {
   const body: Record<string, unknown> = { model: v.model, duration: `${v.seconds}s`, resolution: "720p", prompt: v.prompt, negative_prompt: v.negative, image_url: v.image_url };
-  if (!AUDIO_IN.test(v.model)) body.audio = true;
+  if (v.audio_url && AUDIO_IN.test(v.model)) body.audio_url = v.audio_url;
+  else if (!AUDIO_IN.test(v.model)) body.audio = true;
   if (/^wan-3/.test(v.model)) body.aspect_ratio = "adaptive";
   const res = await venice(key, "/video/queue", body);
   if (!res.ok) throw await providerError(res, (status, text) => `Venice ${status}: ${text.slice(0, 160)}`);

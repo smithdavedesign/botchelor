@@ -18,6 +18,8 @@ import CaptureMenu from "./CaptureMenu";
 import SceneBackdrop from "./SceneBackdrop";
 import { useSceneMedia } from "./useSceneMedia";
 import { presenceUrl, usePresence } from "./usePresence";
+import { talkUrl, useTalks } from "./useTalks";
+import TalkPlayer from "./TalkPlayer";
 import LivingFace from "../../LivingFace";
 import Avatar from "@/app/Avatar";
 import VideoChoice from "./VideoChoice";
@@ -234,11 +236,13 @@ export default function AfterDarkTheater({
   const [listening, setListening] = useState(false);
   // A moment worth a picture, reached: playback waits for the viewer's answer.
   const [beatHold, setBeatHold] = useState(false);
+  // A talking moment playing over the stage (TalkPlayer.tsx): the theater waits for it.
+  const [talking, setTalking] = useState<{ id: string; name: string } | null>(null);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(() => new Set());
   // Hitting 📸 opens a panel to agree on what the picture shows before it's drawn (David, 2026-10-24); its line.
   const [picturing, setPicturing] = useState<{ line: number } | null>(null);
   // A replay doesn't auto-play on open; the running scene still catches up and carries on.
-  const replay = useReplay(turns, live, { live, startAt, hold: listenHold || beatHold });
+  const replay = useReplay(turns, live, { live, startAt, hold: listenHold || beatHold || Boolean(talking) });
   const [convo, setConvo] = useState(false);
   // The backdrop's shape while one shows (SceneBackdrop.tsx): a phone sizes the stage to it instead of a thin strip.
   // "Full" gives a phone's whole stage to it, the lines as captions over it (David, 2026-10-25: "more immersive").
@@ -301,6 +305,37 @@ export default function AfterDarkTheater({
       />
     );
   };
+  // 🗣 The line on stage, said by its speaker (lib/adult/talks.ts): offered once they have a portrait; the one asked for
+  // opens over the stage when it's ready.
+  const talks = useTalks(a.id, b.id);
+  const onStage = shown.length - 1;
+  const stageLine = onStage >= 0 ? scene.lines[onStage] : undefined;
+  const stageSpeaker = stageLine ? (stageLine.who === "a" ? a : b) : null;
+  const stageTalk = stageLine ? talks.talks.find((t) => t.who === stageLine.who && t.text === stageLine.text) : undefined;
+  const speakerPortrait = stageSpeaker ? Boolean(presence[stageSpeaker.id]?.portrait) : false;
+  const sayable = Boolean(stageLine && shown[onStage]?.dialogue && shown[onStage].dialogue !== "…");
+  const [awaitingTalk, setAwaitingTalk] = useState<string | null>(null);
+  useEffect(() => {
+    if (!awaitingTalk) return;
+    const t = talks.talks.find((x) => x.id === awaitingTalk);
+    if (t?.status === "ready") {
+      setAwaitingTalk(null);
+      setTalking({ id: t.id, name: (t.who === "a" ? a : b).name });
+    } else if (t?.status === "failed") {
+      setAwaitingTalk(null);
+      setPresenceNote(`The talking moment couldn't be made (${t.error ?? "error"}). Any tokens are back.`);
+    }
+  }, [awaitingTalk, talks.talks, a, b]);
+  const hearIt = async () => {
+    if (!stageLine || !stageSpeaker) return;
+    setTools(false);
+    if (stageTalk?.status === "ready") return setTalking({ id: stageTalk.id, name: stageSpeaker.name });
+    const got = await talks.ask(onStage, stageLine.text, live ? null : (feedbackRef ?? null));
+    if ("message" in got) return setPresenceNote(got.message);
+    if (got.talk.status === "ready") return setTalking({ id: got.talk.id, name: stageSpeaker.name });
+    setAwaitingTalk(got.talk.id);
+    setPresenceNote(`🗣 ${stageSpeaker.name.split(/\s+/)[0]} is saying it: it opens here in a minute or two.`);
+  };
   // "✨ Bring them to life" is offered while either still lacks some of it and nothing's on its way.
   const canBringToLife = [a, b].some((c) => !presence[c.id] || (!presence[c.id].making && presence[c.id].missing > 0));
   const bringToLife = async () => {
@@ -356,6 +391,12 @@ export default function AfterDarkTheater({
       >
         <div className="theater-scene-area">
           {live && <SceneBackdrop backdrop={sceneMedia.backdrop} onShape={setMediaShape} />}
+          {talking && <TalkPlayer src={talkUrl(talking.id)} name={talking.name} onClose={() => setTalking(null)} />}
+          {!talking && stageTalk?.status === "ready" && stageSpeaker && (
+            <button type="button" className="button-ghost small ad-talk-chip" onClick={() => setTalking({ id: stageTalk.id, name: stageSpeaker.name })}>
+              🗣 Hear {stageSpeaker.name.split(/\s+/)[0]} say it ▶
+            </button>
+          )}
           {mediaShape && (
             // A phone only (CSS): the clip on the whole stage, or back to the thread under it.
             <button type="button" className="ad-media-full-toggle" onClick={() => setMediaFull((v) => !v)} aria-pressed={mediaFull} title={mediaFull ? "Back to the thread" : "Watch it full screen"}>
@@ -572,6 +613,24 @@ export default function AfterDarkTheater({
                   <button type="button" className="button-ghost small" disabled={busy || !steps.canReset} onClick={() => (setTools(false), steps.onReset())} title="File tonight under their nights and start a new one">
                     Start over
                   </button>
+                  {stageSpeaker && sayable && (
+                    <button
+                      type="button"
+                      className="button-ghost small"
+                      disabled={!speakerPortrait || stageTalk?.status === "making"}
+                      onClick={() => void hearIt()}
+                      title={
+                        !speakerPortrait
+                          ? `✨ Bring them to life first: a talking moment starts from ${firstName(stageSpeaker)}'s portrait`
+                          : stageTalk?.status === "making"
+                            ? "Being made: it opens here when it's ready"
+                            : `A few seconds of ${firstName(stageSpeaker)} saying the line on screen, in their voice`
+                      }
+                    >
+                      🗣 Hear it from {firstName(stageSpeaker)}
+                      {stageTalk?.status !== "ready" && talks.price > 0 ? ` · ${talks.price} token${talks.price === 1 ? "" : "s"}` : ""}
+                    </button>
+                  )}
                   {canBringToLife && (
                     <button type="button" className="button-ghost small" onClick={() => void bringToLife()} title="Their expressions as they speak, and a living portrait in place of the still face: made once, kept for every night">
                       ✨ Bring them to life

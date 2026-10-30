@@ -1571,6 +1571,28 @@ alter table adult_settings add column if not exists voice_model text;
 alter table adult_settings add column if not exists presence_loop_model text;
 alter table adult_settings add column if not exists place_sounds boolean;
 alter table adult_settings add column if not exists place_sound_model text;
+alter table adult_settings add column if not exists talk_model text;
+-- Talking moments (lib/adult/talks.ts; docs/PRDs/theater-immersion.md #4): a few seconds of one of them saying a line,
+-- lip-synced to its voice from their portrait. One per viewer, speaker and words (key); refunded when it can't be made.
+create table if not exists adult_talks (
+  id text primary key,
+  owner_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  key text not null,
+  who text not null check (who in ('a', 'b')),
+  text text not null,
+  status text not null default 'making' check (status in ('making', 'ready', 'failed')),
+  model text,
+  queue_id text,
+  tokens integer not null default 0,
+  mime text,
+  data bytea,
+  object_key text,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (owner_id, key)
+);
 -- The sound of a place (lib/adult/place-sounds.ts; docs/PRDs/theater-immersion.md #6): one quiet looping bed per place,
 -- made once and shared by every night there, like a drawn set. Nobody's in it, so it's nobody's.
 create table if not exists place_sounds (
