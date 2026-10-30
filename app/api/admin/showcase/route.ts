@@ -9,6 +9,7 @@ import { requestBase } from "@/lib/site";
 import { LOOP_USD, loopTargets } from "@/lib/showcase-loops";
 import { checkCount } from "@/lib/showcase-check";
 import { portraitTargets } from "@/lib/agent-portraits";
+import { retwinBatch, retwinTargets } from "@/lib/showcase-retwin";
 
 export const dynamic = "force-dynamic";
 // A batch of SFW twins (twinBest): a few edits of a minute or so each, drawn together.
@@ -30,7 +31,9 @@ export const GET = handle(async (req: Request) => {
   const checks = await checkCount(db);
   // Public agent-made characters with no portrait, for the show's own (lib/agent-portraits.ts).
   const portraits = (await portraitTargets(db)).length;
-  return json({ posts: await moderationQueue(db), mine: { profile: me ? await creatorProfile(db, me) : null, best: { after_dark: best.after_dark.length, pg: best.pg.length }, posted: live, twins, loops, checks, portraits } });
+  // Their twins still in the first prompt's pose (lib/showcase-retwin.ts).
+  const retwins = me ? (await retwinTargets(db, me)).length : 0;
+  return json({ posts: await moderationQueue(db), mine: { profile: me ? await creatorProfile(db, me) : null, best: { after_dark: best.after_dark.length, pg: best.pg.length }, posted: live, twins, loops, checks, portraits, retwins } });
 });
 
 const Decision = z.union([
@@ -42,6 +45,8 @@ const Decision = z.union([
   z.object({ action: z.literal("publish_best"), owner: z.string().min(1).max(64).optional() }),
   // The next few SFW twins of their best (twinBest).
   z.object({ action: z.literal("twin_best"), skip: z.array(z.string().min(1).max(64)).max(500).default([]), owner: z.string().min(1).max(64).optional() }),
+  // The next few older twins drawn again with today's prompt (lib/showcase-retwin.ts).
+  z.object({ action: z.literal("retwin"), owner: z.string().min(1).max(64).optional() }),
 ]);
 
 
@@ -54,6 +59,11 @@ export const POST = handle(async (req: Request) => {
     const db = await getDb();
     const owner = await adminOwnerOf(db, req, input.owner);
     if (!owner) return json({ error: "not_found", message: "Whose best work? An admin's own, or an admin's id with the admin password." }, 404);
+    if (input.action === "retwin") {
+      const refused = await mediaRefusal(db, owner);
+      if (refused) return refused;
+      return json(await retwinBatch(db, owner, requestBase(req)));
+    }
     if (input.action === "twin_best") {
       const refused = await mediaRefusal(db, owner);
       if (refused) return refused;
