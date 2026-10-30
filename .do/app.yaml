@@ -33,6 +33,9 @@ services:
       - key: AFTER_DARK_ONLY
         value: "1"
         scope: RUN_AND_BUILD_TIME
+      - key: DEPLOY_ENV
+        value: production
+        scope: RUN_AND_BUILD_TIME
       - key: AFTER_DARK_ORIGIN
         value: https://ad.botchelor.com
         scope: RUN_AND_BUILD_TIME
