@@ -520,6 +520,8 @@ export async function adminRemoveCharacters(db: Db, ids: string[]): Promise<Admi
     if (!row.owner_id) await db.query(`update characters set owner_id = $2 where id = $1 and owner_id is null`, [id, DELETED_OWNER]);
     const r = await deleteCharacter(db, owner, id);
     if (!r.deleted) await db.query(`update characters set open_to_dates = false where id = $1`, [id]);
+    // Off the showcase too, the show's own living portraits of them included (2026-10-30: five stayed in the reels).
+    await db.query(`update showcase_posts set status = 'removed' where (character_id = $1 or character_b = $1) and status <> 'removed'`, [id]);
     out.push({ id, name: row.name, outcome: r.deleted ? "deleted" : "anonymized" });
   }
   return out;
