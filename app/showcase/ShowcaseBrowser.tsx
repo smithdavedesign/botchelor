@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Db } from "@/lib/db";
-import { listShowcase, MEDIUM_LABEL, MEDIUMS, showcaseFacets, sideOf, type Filters, type ShowcaseViewer } from "@/lib/showcase";
+import { listShowcase, MEDIUM_LABEL, MEDIUMS, seenFilters, showcaseFacets, sideOf, type Filters, type ShowcaseViewer } from "@/lib/showcase";
 import { actLabel, placeLabel, shapeLabel } from "@/lib/showcase-labels";
 import ShowcaseGrid from "./ShowcaseGrid";
 
@@ -17,7 +17,8 @@ const FROM_LABEL: Record<string, string> = { date: "From dates", studio: "From t
  * with what it would find, then what's picked, each with its ×. A row shows only when it has more than one choice, or
  * one is picked.
  */
-export default async function ShowcaseBrowser({ db, viewer, base, filters, fixed = {} }: { db: Db; viewer: ShowcaseViewer; base: string; filters: Filters; fixed?: Filters }) {
+export default async function ShowcaseBrowser({ db, viewer, base, filters: asked, fixed = {} }: { db: Db; viewer: ShowcaseViewer; base: string; filters: Filters; fixed?: Filters }) {
+  const filters = seenFilters(viewer, asked);
   const f = { ...filters, ...fixed };
   const [{ posts, more }, facets] = await Promise.all([listShowcase(db, viewer, f), showcaseFacets(db, viewer, { ...f, page: undefined })]);
   const href = (patch: Partial<Record<Key | "page", string | number | boolean | undefined>>, keep: Filters = filters) => {
