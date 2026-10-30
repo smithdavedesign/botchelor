@@ -14,6 +14,8 @@ type Mine = {
   loops?: { mine: number; agents: number; usd: number };
   /** After Dark posts still rated explicit, for the PG check (lib/showcase-check.ts). */
   checks?: number;
+  /** Public agent-made characters with no portrait, for the show's own (lib/agent-portraits.ts). */
+  portraits?: number;
 };
 type TwinBatch = { made: { original: string; id: string }[]; failed: { original: string; message: string }[]; left: number };
 /** About what one SFW twin costs on Venice (the PG Studio's edit model, studio.pg.usd). */
@@ -122,6 +124,29 @@ export default function ShowcaseModeration() {
     setBusy(false);
     void load();
   }
+  // The show's own portraits (lib/agent-portraits.ts), a few at a time until none are left.
+  async function drawPortraits() {
+    setBusy(true);
+    let kept = 0;
+    let not = 0;
+    for (;;) {
+      setNote(`Drawing portraits… ${kept} kept${not ? `, ${not} not` : ""}.`);
+      const res = await requestJson("/api/admin/showcase/portraits", {}, "POST", { timeoutMs: 295_000 }).catch(() => null);
+      if (!res?.ok) {
+        setNote(`${res?.message ?? "That stopped."} ${kept} kept so far: click again to carry on.`);
+        break;
+      }
+      const b = res.data as unknown as { results: { ok: boolean; again?: boolean }[]; left: number };
+      kept += b.results.filter((r) => r.ok).length;
+      not += b.results.filter((r) => !r.ok && !r.again).length;
+      if (!b.left || !b.results.some((r) => r.ok || !r.again)) {
+        setNote(`${kept} portrait${kept === 1 ? "" : "s"} kept${not ? `; ${not} not (left for their creators)` : ""}. Now 🎬 can bring them to life.`);
+        break;
+      }
+    }
+    setBusy(false);
+    void load();
+  }
   const best = mine ? mine.best.after_dark + mine.best.pg : 0;
   const yours = mine && (
     <section className="card showcase-form">
@@ -156,6 +181,14 @@ export default function ShowcaseModeration() {
           <span className="muted">Each through the PG check: a dressed one goes to the safe side. The hourly job does this too.</span>
         </p>
       )}
+      {Boolean(mine.portraits) && (
+        <p className="small">
+          <button type="button" className="button-ghost small" disabled={busy} onClick={() => void drawPortraits()}>
+            🖼 Draw portraits for the agent-made characters with none ({mine.portraits})
+          </button>{" "}
+          <span className="muted">From their written look, or their age and bio; safe mode, then the PG check. Their creators can replace them.</span>
+        </p>
+      )}
       {mine.loops && mine.loops.mine + mine.loops.agents > 0 && (
         <p className="small">
           {mine.loops.mine > 0 && (
@@ -165,7 +198,7 @@ export default function ShowcaseModeration() {
           )}{" "}
           {mine.loops.agents > 0 && (
             <button type="button" className="button-ghost small" disabled={busy} onClick={() => void animate(true)}>
-              🎬 And the agent-made characters ({mine.loops.agents}, about ${(mine.loops.agents * mine.loops.usd).toFixed(2)})
+              🎬 And the show&apos;s characters: the house cast and the agent-made ({mine.loops.agents}, about ${(mine.loops.agents * mine.loops.usd).toFixed(2)})
             </button>
           )}{" "}
           <span className="muted">Short clips for the reels, each frame through the PG check. Agent-made characters post as @botchelor.</span>

@@ -3,10 +3,11 @@
  * reels' "a safe image of the person animated"): a safe picture brought to life as a short clip, for the reels.
  *
  * - **What's animated:** a creator's own live pg picture posts (theirs to publish), and, for an admin's run, every public
- *   agent-made character's approved pg portrait. The second go up under the show's own handle (@botchelor), never a
- *   person's: the show promoting a public character on Botchelor, as the terms' licence lets it ("host, store, copy,
- *   show, adapt… share and promote… on Botchelor"). A character with no safe portrait gets nothing: no look is ever
- *   made up for someone else's character. Each picture or portrait once (showcase_loops).
+ *   agent-made character's approved pg portrait, and the house cast's. Those go up under the show's own handle
+ *   (@botchelor), never a person's: the show promoting a public character on Botchelor, as the terms' licence lets it
+ *   ("host, store, copy, show, adapt… share and promote… on Botchelor"). A character with no safe portrait gets none
+ *   here; lib/agent-portraits.ts draws the show's own portrait for one first. Each picture or portrait once
+ *   (showcase_loops).
  * - **How:** Replicate's Wan image to video (settings' `replicate_video_model`), with its own safety checker on, and a
  *   prompt that only brings the picture to life: a breath, a blink, a smile, a breeze, the camera easing in; the same
  *   clothes, place and light.
@@ -46,8 +47,8 @@ export function loopPrompt(two: boolean): string {
 export type LoopTarget = { source: "post" | "portrait"; source_id: string; owner: string; character_id: string; character_b: string | null; image: string; aspect: string };
 
 /**
- * What there is still to animate: the owner's live pg pictures, and (`agents`) every public agent-made character's
- * newest approved pg portrait. Never one already tried, whatever came of it.
+ * What there is still to animate: the owner's live pg pictures, and (`agents`) the show's characters' newest approved
+ * pg portrait: every public agent-made character's, and the house cast's (David, 2026-10-29: "do these"). Never one already tried, whatever came of it.
  */
 export async function loopTargets(db: Db, owner: string, baseUrl: string, opts: { agents?: boolean } = {}): Promise<LoopTarget[]> {
   const posts = (
@@ -65,7 +66,7 @@ export async function loopTargets(db: Db, owner: string, baseUrl: string, opts: 
       `select ch.id as character_id, a.id as asset_id from characters ch
          join lateral (select id from character_assets x where x.character_id = ch.id and x.kind = 'portrait' and x.review_status = 'approved'
                         and x.content_rating = 'pg' and x.url is not null order by x.created_at desc limit 1) a on true
-        where ch.created_via = 'mcp' and ch.visibility = 'public' and not ch.is_house
+        where (ch.created_via = 'mcp' or ch.is_house) and ch.visibility = 'public'
           and not exists (select 1 from showcase_loops l where l.source = 'portrait' and l.source_id = a.id)
         order by ch.created_at desc`,
     )
