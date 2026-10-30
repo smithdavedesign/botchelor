@@ -1,9 +1,10 @@
 import { afterDarkOnly, afterDarkOrigin } from "./after-dark-host";
+import { isProductionDeploy } from "./deploy";
 
 /**
  * The site's public address, for absolute URLs (sitemap, robots.txt, og:image). On Vercel that is the
- * production domain Vercel sets in VERCEL_PROJECT_PRODUCTION_URL (a host name, no scheme); elsewhere
- * localhost, which is what `next start` serves.
+ * production domain Vercel sets in VERCEL_PROJECT_PRODUCTION_URL (a host name, no scheme); on any other host the
+ * deployment's SITE_URL (DigitalOcean: docs/hosting.md); else localhost, which is what `next start` serves.
  */
 export function siteUrl(env: Record<string, string | undefined> = process.env): string {
   const host = env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
@@ -35,6 +36,8 @@ export function requestBase(req: Request, env: Record<string, string | undefined
   if (env.VERCEL_PROJECT_PRODUCTION_URL?.trim()) return siteUrl(env);
   const afterDark = afterDarkOnly(env) ? afterDarkOrigin(env) : null;
   if (afterDark) return afterDark;
+  // The show's production deployment off Vercel: its own domain, not the address its platform's proxy forwards to.
+  if (isProductionDeploy(env) && env.SITE_URL?.trim()) return siteUrl(env);
   try {
     return new URL(req.url).origin;
   } catch {

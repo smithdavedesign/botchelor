@@ -32,7 +32,7 @@ const DEFAULT_BACKFILL = 2;
 const MAX_BACKFILL = 6;
 
 /**
- * The daily job (Vercel Cron, see vercel.json): keep the watch lobby alive with a fresh house-vs-house room
+ * The daily job (16:20 UTC, from the DigitalOcean scheduled job in .do/app.yaml): keep the watch lobby alive with a fresh house-vs-house room
  * that plays line by line, backfill the conversation for a few dates that lack one, and run the generation
  * backstop. All free model, $0. Same gate as the backstop route (404 unless authorized); a manual trigger
  * may pass ?backfill=N (capped) to catch up faster.
@@ -142,6 +142,6 @@ async function run(req: Request): Promise<Response> {
   return json({ lobby, backfill, jobs_ran: jobsRan, own_dates_cleared: ownDatesCleared, indexnow, texts, arcs_settled: arcsSettled, embeddings });
 }
 
-// Vercel Cron sends GET; POST is for a manual trigger.
+// The scheduled job sends GET; POST is for a manual trigger.
 export const GET = handle(run);
 export const POST = handle(run);

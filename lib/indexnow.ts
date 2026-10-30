@@ -10,6 +10,7 @@
 import type { Db } from "./db";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
 import { siteUrl } from "./site";
+import { isProductionDeploy } from "./deploy";
 
 export const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
 export const INDEXNOW_KEY_PATH = "/indexnow-key.txt";
@@ -44,7 +45,7 @@ export async function submitIndexNow(
 ): Promise<IndexNowResult> {
   const key = indexNowKey(env);
   if (!key) return { submitted: 0, status: null, skipped: "no_key" };
-  if (env.VERCEL_ENV !== "production") return { submitted: 0, status: null, skipped: "not_production" };
+  if (!isProductionDeploy(env)) return { submitted: 0, status: null, skipped: "not_production" };
   if (urls.length === 0) return { submitted: 0, status: null, skipped: "nothing_new" };
   const base = siteUrl(env);
   try {

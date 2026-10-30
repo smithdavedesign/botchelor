@@ -386,7 +386,7 @@ export function failureReason(err: unknown): string {
 }
 
 /**
- * Gate for the internal job routes: Vercel Cron's `Authorization: Bearer $CRON_SECRET`, or the internal admin
+ * Gate for the internal job routes: the scheduled job's `Authorization: Bearer $CRON_SECRET`, or the internal admin
  * token (x-jobs-token), both constant-time. Callers answer 404 when this is false, so they aren't public.
  */
 export function internalJobAuthorized(req: Request): boolean {
