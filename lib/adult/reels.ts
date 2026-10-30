@@ -754,7 +754,7 @@ export function keyframePrompt(
   const head = opts.reference
     ? `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together, posed, framed and placed like Picture 3.`
     : `Make one photograph of the ${a.noun} from Picture 1 and the ${b.noun} from Picture 2 together${withSet ? ", in the place from Picture 3" : ""}.`;
-  const where = place ? `The place: ${place}.` : "";
+  const where = place ? `The place: ${place.replace(/[.\s]+$/, "")}.` : "";
   // A chosen light (the Studio's shoots together, lib/adult/studio.ts) instead of the set's own.
   const light = opts.light ? `Light: ${opts.light}.` : "";
   // The owner's own words lead the picture (David, 2026-10-24: in the theater, guide the scene picture for the exact
@@ -792,7 +792,7 @@ export function povPrompt(
   const head = opts.continueFrom
     ? `Make one first-person photograph, seen through the eyes of ${viewer.tag}, of ${shown.tag} from Picture 1, ${opts.continueFrom === "same" ? "at the very moment in Picture 2" : "a few seconds after the moment in Picture 2"}: keep its place, its light, its camera angle and framing, and what each of them is wearing or not.`
     : `Make one first-person photograph, seen through the eyes of ${viewer.tag}, of ${shown.tag} from Picture 1${withSet ? ", in the place from Picture 2" : ""}.`;
-  const where = place ? `The place: ${place}.` : "";
+  const where = place ? `The place: ${place.replace(/[.\s]+$/, "")}.` : "";
   const light = opts.light ? `Light: ${opts.light}.` : "";
   const custom = opts.custom?.trim() ? `Most important, do exactly this: ${opts.custom.trim().replace(/[.\s]*$/, "")}. ` : "";
   const dialog = opts.dialog?.trim() ? ` A speech bubble near them reads: "${opts.dialog.trim().replace(/"/g, "'")}".` : "";

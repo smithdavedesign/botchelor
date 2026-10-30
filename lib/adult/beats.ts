@@ -21,7 +21,7 @@ import type { Db } from "../db";
 import { checkAdultText } from "../safety";
 import { inBackground } from "../sets";
 import { siteUrl } from "../site";
-import { actById, actFor, actRuledOut, crossesTaboo, FRAMING_WORDS, povFor, type Eyes, type MediaLimits } from "./acts";
+import { ACTS, actById, actFor, actLocked, actRuledOut, crossesTaboo, FRAMING_WORDS, povFor, type Eyes, type MediaLimits } from "./acts";
 import { chooseView, framingScores } from "./framing";
 import { mediaLimits } from "./clips";
 import { climaxIn } from "./craft";
@@ -417,6 +417,10 @@ export async function planBeat(
     place: withSituation(beat.place, situation),
     mood: [roleplay?.title, moment.at(-1)?.doing].filter(Boolean).join(" · "),
   };
+  // A picture taken at a line has an act guessed from the stage alone; the brief picks the one the lines show, of those
+  // the night, the place and the pair's limits allow (2026-10-29, live: "having sex" at the line he sat down to watch her).
+  const guessed = beat.kind === "chosen" || beat.kind === "chapter" || beat.kind === "asked";
+  const choices = guessed ? ACTS.filter((a) => !actLocked(a, { stage: beat.stage, publicPlace }) && !actRuledOut(a, cast, limits)) : [];
   // What the chapter says at the moment, read once (lib/adult/picture-brief.ts; David, 2026-10-29): where they are, what
   // each has on (a costume, what's come off), what's happening and the mood, over the guess from the last lines' actions
   // and their looks. A field it couldn't say within the lines and the pair's limits keeps the guess.
@@ -434,7 +438,8 @@ export async function planBeat(
       place: fields.place,
       roleplay: roleplay?.words ?? null,
       dressed: wearingAt(stage),
-      shows: beatLabel(beat.kind, beat.act),
+      shows: guessed ? "the moment at that line, as the lines have it" : beatLabel(beat.kind, beat.act),
+      ...(choices.length ? { acts: choices.map((a) => ({ id: a.id, label: a.label })) } : {}),
     },
     (w) => checkAdultText({ words: w }).ok && !crossesTaboo(w) && !limits.hit(w),
   );
@@ -444,14 +449,17 @@ export async function planBeat(
     if (brief.place) fields.place = brief.place;
     if (brief.mood) fields.mood = [roleplay?.title, brief.mood].filter(Boolean).join(" · ");
   }
+  const shown = (brief?.act ? choices.find((a) => a.id === brief.act) : undefined) ?? act;
+  const actId = shown?.id ?? beat.act;
   // The owner's changes, held to the lines and the pair's limits like everything drawn.
   const own = cleanEdit(edit);
   const words = own ? Object.values(own).join(" ") : "";
   if (words && !(guideSafe([words]) && !limits.hit(words))) return { ok: false, status: 422, message: "That crosses one of the lines After Dark never crosses, or one of your limits." };
   // Whose eyes it's seen through: kept once picked; else picked now, where the act has a view and it does clearly better
   // that way for this viewer (lib/adult/framing.ts), from their own character's eyes when that's one of the views.
-  const eyes = beat.eyes !== undefined && beat.eyes !== null ? beat.eyes : act ? await pickEyes(db, beat.owner_id, act, cast, [ca, cb]) : null;
-  const framed = beatFrame(beat, cast, moment, beat.place, limits, own?.happening ?? (brief?.happening || undefined), own?.mood ?? fields.mood, eyes);
+  const kept = beat.eyes !== undefined && beat.eyes !== null ? beat.eyes : null;
+  const eyes = kept && shown && povFor(shown, cast, kept) ? kept : !kept && shown ? await pickEyes(db, beat.owner_id, shown, cast, [ca, cb]) : null;
+  const framed = beatFrame({ kind: beat.kind, act: actId }, cast, moment, beat.place, limits, own?.happening ?? (brief?.happening || undefined), own?.mood ?? fields.mood, eyes);
   if (!framed) return { ok: false, status: 422, message: "That moment crosses one of the lines." };
   const place = own?.place ?? fields.place;
   const where = place ? placeWords(place, cast) : null;
@@ -464,7 +472,7 @@ export async function planBeat(
     const o = older ? { ...opts, older: OLDER_WORDS } : opts;
     return eyes ? povPrompt(cast, eyes, framed, where, stage, withSet, o) : keyframePrompt(cast, framed, where, stage, withSet, o);
   };
-  return { ok: true, fields, edit: own, prompt: promptFor(false), promptFor, characters: [ca, cb], stage, act: beat.act, eyes };
+  return { ok: true, fields, edit: own, prompt: promptFor(false), promptFor, characters: [ca, cb], stage, act: actId, eyes };
 }
 
 /**
