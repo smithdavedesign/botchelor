@@ -2662,6 +2662,9 @@ alter table showcase_posts add column if not exists held boolean not null defaul
 alter table showcase_posts add column if not exists remix jsonb;
 -- 2026-10-29: whether the post shows the prompt that made it (lib/showcase-made.ts; the creator's pick, on by default).
 alter table showcase_posts add column if not exists show_prompt boolean not null default true;
+-- When an After Dark post still rated explicit was put through the PG check (lib/showcase-check.ts): a dressed one goes
+-- to the safe side, and none is checked twice.
+alter table showcase_posts add column if not exists checked_at timestamptz;
 -- Living portraits (lib/showcase-loops.ts; David, 2026-10-29): a safe picture brought to life as a short clip, each
 -- picture or portrait once. owner_id is whose post it becomes: the creator's, or the show's own for a public
 -- character someone else made.

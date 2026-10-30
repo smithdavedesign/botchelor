@@ -7,6 +7,7 @@ import { mediaRefusal } from "@/lib/adult/place";
 import { bestOf, creatorProfile, publishBest, twinBest, twinCandidates } from "@/lib/showcase";
 import { requestBase } from "@/lib/site";
 import { LOOP_USD, loopTargets } from "@/lib/showcase-loops";
+import { checkCount } from "@/lib/showcase-check";
 
 export const dynamic = "force-dynamic";
 // A batch of SFW twins (twinBest): a few edits of a minute or so each, drawn together.
@@ -24,7 +25,9 @@ export const GET = handle(async (req: Request) => {
   // Living portraits still to make (lib/showcase-loops.ts): their safe pictures, and the agent-made characters'.
   const toLoop = me ? await loopTargets(db, me, requestBase(req), { agents: true }) : [];
   const loops = { mine: toLoop.filter((x) => x.source === "post").length, agents: toLoop.filter((x) => x.source === "portrait").length, usd: LOOP_USD };
-  return json({ posts: await moderationQueue(db), mine: { profile: me ? await creatorProfile(db, me) : null, best: { after_dark: best.after_dark.length, pg: best.pg.length }, posted: live, twins, loops } });
+  // After Dark posts still rated explicit, for the PG check (lib/showcase-check.ts): everyone's, as the hourly job.
+  const checks = await checkCount(db);
+  return json({ posts: await moderationQueue(db), mine: { profile: me ? await creatorProfile(db, me) : null, best: { after_dark: best.after_dark.length, pg: best.pg.length }, posted: live, twins, loops, checks } });
 });
 
 const Decision = z.union([

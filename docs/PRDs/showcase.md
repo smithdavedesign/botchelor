@@ -65,7 +65,9 @@ Every filter is a link, so a filtered view can be shared, and the PG side can be
 | 8 | Filters fixed: sides by rating (safe by default), From dates, counts without their own pick, the layout, an admin's re-rate | #956, live |
 | 9 | Clips play on hover (and in view on a phone) | #957 |
 | 10 | Reels: one post a screen, swiped; living photos; a date as the first ask; After Dark's count → the subscription | #958, live |
-| 11 | Living portraits: real clips of the safe pictures (David's) and the agent-made characters' safe portraits (@botchelor) | this PR |
+| 11 | Living portraits: real clips of the safe pictures (David's) and the agent-made characters' safe portraits (@botchelor) | #959, #962, live |
+| 12 | Reels: "Safe for work" works from the tab and from After Dark's veil; After Dark's side only for whoever may see it | #968, live |
+| 13 | Dressed pictures off After Dark's side: the PG check on every After Dark post not asked to be nude, hourly | this PR |
 
 ## Open, for David or counsel
 
@@ -144,3 +146,25 @@ the spend).
   - A private character's posts stay off the public showcase (their owner still sees them).
   - The reels' first ask is "💘 Date" only for a character who can be asked out by name (the house cast, or open to
     dates). Anyone else gets "Meet".
+
+## Dressed pictures off After Dark's side (2026-10-29)
+
+David: "in the gallery mode we added all the dressed images of the nsfw. They don't make sense in the NSFW gallery.
+make sure assets are tagged correctly safe and nsfw and live".
+
+- **Why they were there:** everything made in After Dark starts explicit (`lib/content-rating.ts`, fail closed), and
+  an admin's pictures skip the output check. So Publish my best work put dressed pictures on the explicit side.
+- **The check** (`lib/showcase-check.ts`): every live After Dark post still rated explicit goes through the PG check
+  once, fresh, with its age question. A picture is checked as it is; a clip by three frames (start, middle, end).
+  - **Never checked:** what was asked to be nude or more (its level, its shoot's, a stage tag of 2 or 3, a nude
+    baseline). That's explicit whatever a check says.
+  - **A pass:** the item's own rating comes down to the stricter of every frame and what it was asked for, and the
+    post moves to the safe side.
+  - **Its SFW twin already up** for as many people: the twin stays its one safe face, the original's post comes down
+    (as an owner's Unpublish), and Publish my best work leaves the original out from then on.
+  - **Nudity or sex** keeps it explicit. **An age doubt** also holds it out of sight for a look in /admin/showcase.
+  - **A check that couldn't run** changes nothing and is tried again.
+- **When:** hourly (`/api/jobs/showcase-check`, Vercel Cron at :40), a batch of 12, so new After Dark posts are
+  sorted within the hour. `/admin/showcase` has "🔎 Check After Dark's posts for dressed ones" to run it now.
+- **Cost:** one Venice vision call a picture, three a clip.
+- **Ships ffmpeg** with that route too (four routes now).

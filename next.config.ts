@@ -19,6 +19,8 @@ const nextConfig: NextConfig = {
     "/api/admin/after-dark/export": FFMPEG,
     // Living portraits (lib/showcase-loops.ts): three frames of each clip, cut for the PG check.
     "/api/admin/showcase/animate": FFMPEG,
+    // The PG check on After Dark posts still rated explicit (lib/showcase-check.ts): three frames of each clip.
+    "/api/jobs/showcase-check": FFMPEG,
   },
   // The house cast's portraits and the venue backdrops in public/cast were drawn by a model: they carry the XMP mark
   // (scripts/stamp-ai-marks.mjs) and go out with the same "AI-generated" headers as every other generated file
