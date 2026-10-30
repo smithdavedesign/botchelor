@@ -1573,6 +1573,15 @@ alter table adult_settings add column if not exists place_sounds boolean;
 alter table adult_settings add column if not exists place_sound_model text;
 alter table adult_settings add column if not exists talk_model text;
 alter table adult_settings add column if not exists draw_ahead boolean;
+alter table adult_settings add column if not exists draw_ahead_tokens integer;
+alter table adult_settings add column if not exists draw_ahead_pictures integer;
+-- Draw ahead, the viewer's choice for a pair's nights (lib/adult/draw-ahead.ts): on or off, the chapter it was last paid
+-- for, what that took and when, and how many of its moments were drawn ahead (none: the tokens go back).
+alter table adult_scenes add column if not exists draw_ahead boolean not null default false;
+alter table adult_scenes add column if not exists draw_ahead_chapter integer;
+alter table adult_scenes add column if not exists draw_ahead_paid integer not null default 0;
+alter table adult_scenes add column if not exists draw_ahead_at timestamptz;
+alter table adult_scenes add column if not exists draw_ahead_used integer not null default 0;
 -- Talking moments (lib/adult/talks.ts; docs/PRDs/theater-immersion.md #4): a few seconds of one of them saying a line,
 -- lip-synced to its voice from their portrait. One per viewer, speaker and words (key); refunded when it can't be made.
 create table if not exists adult_talks (
@@ -1596,6 +1605,16 @@ create table if not exists adult_talks (
 );
 -- Which direction made it (lib/adult/talks.ts TALK_VERSION): version 1's had subtitles burned in.
 alter table adult_talks add column if not exists version integer not null default 1;
+-- A scene picture's brief (lib/adult/picture-brief.ts): what the chapter says at the picture's moment (where they are,
+-- what each has on, what's happening, the mood), read once by the fast writer and kept by what it read.
+create table if not exists adult_picture_briefs (
+  key text primary key,
+  owner_id text not null,
+  brief jsonb not null,
+  cost double precision,
+  created_at timestamptz not null default now()
+);
+create index if not exists adult_picture_briefs_owner on adult_picture_briefs (owner_id, created_at);
 -- The sound of a place (lib/adult/place-sounds.ts; docs/PRDs/theater-immersion.md #6): one quiet looping bed per place,
 -- made once and shared by every night there, like a drawn set. Nobody's in it, so it's nobody's.
 create table if not exists place_sounds (
@@ -2285,6 +2304,8 @@ alter table adult_beats add column if not exists eyes text check (eyes in ('a', 
 alter table adult_beats add column if not exists paid integer not null default 0;
 -- Why a beat's picture didn't come (lib/adult/beats.ts drawBeat), for the page: an age check's refusal says who and what fixes it.
 alter table adult_beats add column if not exists fail_reason text;
+-- When it was drawn ahead (lib/adult/draw-ahead.ts), for a chapter paid for: one that was keeps the chapter's tokens.
+alter table adult_beats add column if not exists ahead_at timestamptz;
 
 -- The After Dark library (lib/adult/library.ts; David, 2026-10-24): which model drew a picture (null: from before it was
 -- kept, when only its provider was), and each viewer's 1–5 stars on a picture or a video (item_id: an adult_images or an

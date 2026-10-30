@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
+import { GET as drawAheadGet, POST as drawAheadPost } from "@/app/api/admin/after-dark/draw-ahead/route";
 import { NO_MEDIA_LIMITS } from "@/lib/adult/acts";
 import { BEATS_PER_CHAPTER, beatFrame, beatLabel, beatPictureFor, beatPicturesSettled, fileBeats, findBeats, poseHere, positionIn, rewindBeats } from "@/lib/adult/beats";
 import { rateMedia } from "@/lib/adult/steering";
@@ -205,20 +206,7 @@ describe("beats as the scene is written", () => {
     expect(await beatsOf(scene.id)).toEqual([]);
   });
 
-  it("are drawn as soon as they're written with draw-ahead on, from the chapter's own pictures only", async () => {
-    const { id, cookie } = await admin();
-    const scene = await ready(cookie, id, { draw_ahead: true, pictures_per_chapter: 1 });
-    fakeMedia();
-    scripted([`*straddles him* ${fresh()}`, "", "", `*bends her over the bed* ${fresh()}`, "", ""]);
-    await post({ a: RAFE, b: JUNIPER }, cookie);
-    await beatPicturesSettled();
-    // The chapter has one picture of its own: the first moment takes it and is drawn; the second is offered as before.
-    const beats = await beatsOf(scene.id);
-    expect(beats.map((b) => b.status)).toEqual(["drawn", "offered"]);
-    expect(beats[0].picture_id).toBeTruthy();
-  });
-
-  it("aren't drawn ahead unless it's switched on", async () => {
+  it("aren't drawn ahead unless the viewer turned it on", async () => {
     const { id, cookie } = await admin();
     const scene = await ready(cookie, id);
     fakeMedia();
@@ -327,5 +315,116 @@ describe("a video of the night", () => {
       [true, pic],
       [false, null],
     ]);
+  });
+});
+
+// David, 2026-10-29: "draw ahead is a good idea, but we would need to limit per chapter and pre charge people tokens if
+// they choose it" (lib/adult/draw-ahead.ts).
+describe("draw ahead", () => {
+  const turn = (on: boolean, cookie: string, at?: number) => post({ a: RAFE, b: JUNIPER, on, ...(at !== undefined ? { at } : {}) }, cookie, drawAheadPost, "/api/admin/after-dark/draw-ahead");
+  const view = async (cookie: string) =>
+    (await (await drawAheadGet(new Request(`${BASE_URL}/api/admin/after-dark/draw-ahead?a=${RAFE}&b=${JUNIPER}`, { headers: { cookie } }))).json()).draw_ahead as { offered: boolean; on: boolean; price: number; pictures: number; paid: boolean };
+  /** A subscriber with `tokens` bought tokens, their night with the pair at sex (After Dark set up by an admin). */
+  async function subscriber(tokens: number, settings: Record<string, unknown> = {}) {
+    const boss = await admin();
+    await post({ enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", auto_scene_pictures: false, ...settings }, boss.cookie, settingsPost, "/api/admin/after-dark/settings");
+    const id = userIdOf(newUserCookie());
+    await t.db.query(`insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())`, [id]);
+    if (tokens) await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, $3, 'test')`, [crypto.randomUUID(), id, tokens]);
+    const cookie = signedIn(id);
+    const scene = await ready(cookie, id);
+    const used = async () => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [id])).rows[0]?.used ?? 0;
+    return { id, cookie, scene, used };
+  }
+
+  it("draws each moment as it's written once the viewer turns it on: the chapter's own pictures and draw_ahead_pictures more", async () => {
+    const { id, cookie } = await admin();
+    const scene = await ready(cookie, id, { pictures_per_chapter: 1, draw_ahead_pictures: 1 });
+    expect(await view(cookie)).toEqual({ offered: true, on: false, price: 0, pictures: 1, paid: false });
+    expect((await turn(true, cookie)).status).toBe(200);
+    fakeMedia();
+    scripted([`*straddles him* ${fresh()}`, "", `*bends her over the bed* ${fresh()}`, "", `*pins her to the mattress* ${fresh()}`, ""]);
+    await post({ a: RAFE, b: JUNIPER }, cookie);
+    await beatPicturesSettled();
+    // Two drawn at once (one of the chapter's, one more); the third waits for "Picture this?" as before.
+    const beats = await beatsOf(scene.id);
+    expect(beats.map((b) => b.status)).toEqual(["drawn", "drawn", "offered"]);
+    expect(await view(cookie)).toMatchObject({ on: true, paid: true });
+  });
+
+  it("takes a subscriber's price before a chapter's first moment is drawn ahead, once a chapter, and keeps it when one was", async () => {
+    const sub = await subscriber(5);
+    expect((await view(sub.cookie)).price).toBe(1);
+    // Turned on with nothing waiting: nothing's taken yet.
+    expect((await (await turn(true, sub.cookie)).json()).note).toMatch(/Drawing ahead: .*1 token a chapter, taken before its first one and given back if none is drawn/);
+    expect(await sub.used()).toBe(0);
+    fakeMedia();
+    scripted([`*straddles him* ${fresh()}`, "", "", `*bends her over the bed* ${fresh()}`, "", ""]);
+    await post({ a: RAFE, b: JUNIPER }, sub.cookie);
+    await beatPicturesSettled();
+    expect((await beatsOf(sub.scene.id)).map((b) => b.status)).toEqual(["drawn", "drawn"]);
+    expect(await sub.used()).toBe(1);
+    // Off with something drawn ahead: the chapter keeps its price.
+    expect((await (await turn(false, sub.cookie)).json()).refunded).toBe(0);
+    expect(await sub.used()).toBe(1);
+  });
+
+  it("gives a chapter's price back when nothing was drawn ahead in it (each one failed), off or at its close", async () => {
+    const sub = await subscriber(5);
+    await turn(true, sub.cookie);
+    setCheckFetchForTests(async (input: RequestInfo | URL) => Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD));
+    setReelFetchForTests(async () => new Response("down", { status: 503 }));
+    scripted([`*straddles him* ${fresh()}`, "", "", "", "", ""]);
+    await post({ a: RAFE, b: JUNIPER }, sub.cookie);
+    await beatPicturesSettled();
+    expect((await beatsOf(sub.scene.id)).map((b) => b.status)).toEqual(["failed"]);
+    expect(await sub.used()).toBe(1);
+    const off = await (await turn(false, sub.cookie)).json();
+    expect(off).toMatchObject({ refunded: 1 });
+    expect(off.note).toMatch(/token is back: nothing was drawn ahead this chapter/);
+    expect(await sub.used()).toBe(0);
+    // Its close settles it too.
+    await turn(true, sub.cookie);
+    scripted([`*bends her over the bed* ${fresh()}`, "", "", "", "", ""]);
+    await post({ a: RAFE, b: JUNIPER }, sub.cookie);
+    await beatPicturesSettled();
+    expect(await sub.used()).toBe(1);
+    await fileBeats(t.db, sub.scene.id, 1, "night-x");
+    expect(await sub.used()).toBe(0);
+  });
+
+  it("turns itself off when a chapter can't be paid for, and the theater says why", async () => {
+    const sub = await subscriber(0);
+    await turn(true, sub.cookie);
+    fakeMedia();
+    scripted([`*straddles him* ${fresh()}`, "", "", "", "", ""]);
+    const r = await (await post({ a: RAFE, b: JUNIPER }, sub.cookie)).json();
+    expect((await beatsOf(sub.scene.id)).map((b) => b.status)).toEqual(["offered"]);
+    expect(await view(sub.cookie)).toMatchObject({ on: false });
+    const note = (await t.db.query<{ picture_note: string }>(`select picture_note from adult_scenes where id = $1`, [sub.scene.id])).rows[0].picture_note;
+    expect(note).toMatch(/Draw ahead is off: it takes 1 token a chapter/);
+    expect(r.scene).toBeTruthy();
+  });
+
+  it("turned on, draws the chapter's moments still waiting from the line on stage; never while the settings don't offer it", async () => {
+    const { id, cookie } = await admin();
+    const scene = await ready(cookie, id);
+    fakeMedia();
+    scripted([`*straddles him* ${fresh()}`, "", "", `*bends her over the bed* ${fresh()}`, "", ""]);
+    await post({ a: RAFE, b: JUNIPER }, cookie);
+    expect((await beatsOf(scene.id)).map((b) => [b.line, b.status])).toEqual([
+      [1, "offered"],
+      [4, "offered"],
+    ]);
+    expect((await (await turn(true, cookie, 2)).json()).drawing).toBe(1);
+    await beatPicturesSettled();
+    expect((await beatsOf(scene.id)).map((b) => [b.line, b.status])).toEqual([
+      [1, "offered"],
+      [4, "drawn"],
+    ]);
+    await post({ draw_ahead: false }, cookie, settingsPost, "/api/admin/after-dark/settings");
+    await turn(false, cookie);
+    expect((await turn(true, cookie)).status).toBe(409);
+    expect((await view(cookie)).offered).toBe(false);
   });
 });

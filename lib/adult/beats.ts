@@ -32,9 +32,11 @@ import { keyframePrompt, placeWords, povPrompt, reelCast, withoutNames, type Ree
 import { thumbsDown } from "./steering";
 import { adultKeys, getAdultSettings } from "./settings";
 import { claimChapterPicture } from "./chapter-pictures";
+import { aheadBudget, countAhead, settleDrawAhead } from "./draw-ahead";
 import { picturesBlocked } from "./readiness";
 import { refundBoughtTokens } from "../allowance";
-import { roleplayById } from "./roleplays";
+import { pictureBrief, type Brief } from "./picture-brief";
+import { roleplayById, rolesLine } from "./roleplays";
 import { venueSituation } from "./scene-catalog";
 import { ownPlaceSituation, ownRoleplay } from "../studio/library";
 import { isPublicPlace } from "./continuity";
@@ -85,6 +87,8 @@ type BeatRow = {
   paid: number;
   /** Why its picture didn't come, in the owner's words (drawBeat). */
   fail_reason?: string | null;
+  /** When it was drawn ahead (lib/adult/draw-ahead.ts), if it was. */
+  ahead_at?: Date | string | null;
 };
 
 /**
@@ -324,22 +328,41 @@ export async function recordBeats(db: Db, scene: BeatScene, cast?: [Character | 
       );
       added.push({ id, line: f.line });
     }
-    // Drawn ahead (the settings' draw_ahead, docs/PRDs/theater-immersion.md #5; off unless switched on): each new moment
-    // starts drawing now, while the lines before it play, so it's on the stage when its line comes. Only from the
-    // chapter's own unasked pictures (lib/adult/chapter-pictures.ts), the ones its close would draw anyway; it skips
-    // agreeing on the picture first (Redraw stays).
-    const settings = await getAdultSettings(db);
-    if (added.length && settings.draw_ahead) {
-      const fits: string[] = [];
-      for (const b of added.sort((x, y) => x.line - y.line)) {
-        if (!(await claimChapterPicture(db, scene.id, scene.chapter, `${scene.chapter}#beat:${b.id}`, settings.pictures_per_chapter))) break;
-        fits.push(b.id);
-      }
-      if (fits.length) drawLater(db, await claim(db, "id = any($1)", [fits]), siteUrl());
-    }
+    // Drawn ahead, when the viewer chose it for this pair (lib/adult/draw-ahead.ts): each new moment starts drawing now,
+    // while the lines before it play, so it's on the stage when its line comes.
+    if (added.length) await drawAheadNow(db, scene, added.map((b) => b.id), siteUrl());
   } catch (err) {
     console.warn(`[after-dark] the chapter's moments couldn't be read: ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
   }
+}
+
+/**
+ * Draw ahead (lib/adult/draw-ahead.ts): these moments of the running chapter start drawing now, earliest first, within
+ * the chapter's budget while it's drawn ahead (its price taken first, once a chapter). Never paid for when its pictures
+ * can't come: beat pictures off, the pair not set up, or the month's pictures had. How many started.
+ */
+export async function drawAheadNow(db: Db, scene: Pick<BeatScene, "id" | "owner" | "a" | "b" | "chapter">, ids: readonly string[], baseUrl: string): Promise<number> {
+  if (!ids.length || !(await beatPicturesReady(db))) return 0;
+  if ((await picturesBlocked(db, scene.owner, scene.a, scene.b)) || (await overCap(db, scene.owner, "pictures"))) return 0;
+  const budget = await aheadBudget(db, scene.id, scene.chapter);
+  if (budget === null) return 0;
+  const waiting = (await db.query<{ id: string }>(`select id from adult_beats where id = any($1) and night_id is null and status in ('offered', 'later') order by line`, [ids])).rows;
+  const fits: string[] = [];
+  for (const b of waiting) {
+    if (!(await claimChapterPicture(db, scene.id, scene.chapter, `${scene.chapter}#beat:${b.id}`, budget))) break;
+    fits.push(b.id);
+  }
+  if (!fits.length) return 0;
+  const { rows } = await db.query<BeatRow>(`update adult_beats set status = 'drawing', ahead_at = now() where id = any($1) and status in ('offered', 'later') returning *`, [fits]);
+  await countAhead(db, scene.id, rows.length);
+  drawLater(db, rows.sort((x, y) => x.line - y.line), baseUrl);
+  return rows.length;
+}
+
+/** The running chapter's moments still waiting from line `from` on (Draw ahead turned on: lib/adult/draw-ahead.ts). */
+export async function waitingBeats(db: Db, sceneId: string, chapter: number, from: number): Promise<string[]> {
+  const { rows } = await db.query<{ id: string }>(`select id from adult_beats where scene_id = $1 and chapter = $2 and night_id is null and line >= $3 and status in ('offered', 'later')`, [sceneId, chapter, from]);
+  return rows.map((r) => r.id);
 }
 
 /** The lines a beat was found in: the running scene's, or the saved night's its chapter was filed as. */
@@ -377,22 +400,50 @@ export async function planBeat(
   if (blocked) return { ok: false, status: 409, message: blocked };
   const cast = reelCast(ca, cb, beat.owner_id);
   const limits = await mediaLimits(db, beat.owner_id, beat.character_a, beat.character_b);
-  const lines = (await beatLines(db, beat as BeatRow)) as { text: string; doing?: string }[];
+  const lines = (await beatLines(db, beat as BeatRow)) as { who: "a" | "b"; text: string; doing?: string }[];
   const moment = lines.slice(Math.max(0, beat.line - MOMENT_LINES + 1), beat.line + 1);
   const act = actById(beat.act);
   const stage = Math.max(beat.stage, act?.dress ?? 0);
   // What the night says, field by field.
-  const roleplay = await chapterRoleplayTitle(db, beat);
+  const roleplay = await chapterRoleplay(db, beat, { a: ca.name, b: cb.name });
   // What each of them wears, from their own looks, until they undress (one context for every picture).
   const situation = await situationOf(db, beat.owner_id, beat.place);
   const publicPlace = isPublicPlace(beat.place) || Boolean(situation);
-  const outfits = stage >= UNDRESSING ? null : outfitsOf(cast, [ca, cb], beat.owner_id, stage, publicPlace);
+  const worn = wornOf([ca, cb], beat.owner_id, stage, publicPlace);
+  const outfits = stage >= UNDRESSING || !worn ? null : cast.map((who, i) => `${i === 0 ? who.tag.charAt(0).toUpperCase() + who.tag.slice(1) : who.tag} in ${worn[i] ?? "everyday clothes"}`).join("; ");
   const fields: PictureFields = {
     happening: recentActions([...moment], 3).join("; "),
     wearing: outfits ?? wearingAt(stage),
     place: withSituation(beat.place, situation),
-    mood: [roleplay, moment.at(-1)?.doing].filter(Boolean).join(" · "),
+    mood: [roleplay?.title, moment.at(-1)?.doing].filter(Boolean).join(" · "),
   };
+  // What the chapter says at the moment, read once (lib/adult/picture-brief.ts; David, 2026-10-29): where they are, what
+  // each has on (a costume, what's come off), what's happening and the mood, over the guess from the last lines' actions
+  // and their looks. A field it couldn't say within the lines and the pair's limits keeps the guess.
+  const brief = await pictureBrief(
+    db,
+    {
+      owner: beat.owner_id,
+      scene: beat.scene_id,
+      night: beat.night_id,
+      chapter: beat.chapter,
+      lines: lines.slice(0, beat.line + 1).map((l) => ({ who: l.who, text: l.text })),
+      names: { a: ca.name, b: cb.name },
+      pronouns: { a: ca.pronouns ?? null, b: cb.pronouns ?? null },
+      usual: worn ? `${ca.name}: ${worn[0] ?? "everyday clothes"}; ${cb.name}: ${worn[1] ?? "everyday clothes"}` : null,
+      place: fields.place,
+      roleplay: roleplay?.words ?? null,
+      dressed: wearingAt(stage),
+      shows: beatLabel(beat.kind, beat.act),
+    },
+    (w) => checkAdultText({ words: w }).ok && !crossesTaboo(w) && !limits.hit(w),
+  );
+  if (brief) {
+    if (brief.happening) fields.happening = brief.happening;
+    if (brief.wearing) fields.wearing = brief.wearing;
+    if (brief.place) fields.place = brief.place;
+    if (brief.mood) fields.mood = [roleplay?.title, brief.mood].filter(Boolean).join(" · ");
+  }
   // The owner's changes, held to the lines and the pair's limits like everything drawn.
   const own = cleanEdit(edit);
   const words = own ? Object.values(own).join(" ") : "";
@@ -400,12 +451,12 @@ export async function planBeat(
   // Whose eyes it's seen through: kept once picked; else picked now, where the act has a view and it does clearly better
   // that way for this viewer (lib/adult/framing.ts), from their own character's eyes when that's one of the views.
   const eyes = beat.eyes !== undefined && beat.eyes !== null ? beat.eyes : act ? await pickEyes(db, beat.owner_id, act, cast, [ca, cb]) : null;
-  const framed = beatFrame(beat, cast, moment, beat.place, limits, own?.happening, own?.mood ?? fields.mood, eyes);
+  const framed = beatFrame(beat, cast, moment, beat.place, limits, own?.happening ?? (brief?.happening || undefined), own?.mood ?? fields.mood, eyes);
   if (!framed) return { ok: false, status: 422, message: "That moment crosses one of the lines." };
-  const place = own?.place ?? withSituation(beat.place, situation);
+  const place = own?.place ?? fields.place;
   const where = place ? placeWords(place, cast) : null;
-  // Their own outfits, the night's guess unless the owner wrote their own (stage clothes words past it, clothesAt).
-  const clothes = own?.wearing ?? (outfits ? `${outfits}, both fully clothed` : undefined);
+  // What they wear: the owner's own words, else the brief's, else their own outfits (stage clothes words past them, clothesAt).
+  const clothes = own?.wearing ?? briefClothes(brief, stage) ?? (outfits ? `${outfits}, both fully clothed` : undefined);
   const custom = [own?.extra, beat.custom].filter(Boolean).join(". ") || undefined;
   const opts = { explicit: limits.explicit, custom, dialog: beat.dialog ?? undefined, ...(clothes ? { clothes: withoutNames(clothes, cast) } : {}) };
   // `older`: the second try after an age check read one of them as young (drawBeat).
@@ -444,26 +495,44 @@ function withSituation(place: string | null, situation: string | null): string {
 /**
  * What each of them wears, from their own looks (lib/looks.ts looksPictureWords), by common sense: what they wear out in
  * public or before it's gone past flirting, After Dark's outfit (the owner's own pick) somewhere private from kissing
- * on. "The woman with auburn hair in a fitted white t-shirt and blue jeans; the man in a navy suit". Null when neither
- * has an outfit picked (then the stage's words: wearingAt).
+ * on: "a fitted white t-shirt and blue jeans". Null when neither has an outfit picked (then the stage's words: wearingAt).
  */
-function outfitsOf(cast: readonly [ReelPerson, ReelPerson], people: readonly [Character, Character], owner: string, stage: number, publicPlace: boolean): string | null {
+function wornOf(people: readonly [Character, Character], owner: string, stage: number, publicPlace: boolean): [string | null, string | null] | null {
   const worn = people.map((c) => {
     const p = looksPictureWords(c.extras?.looks, c.ownerId === owner);
     return publicPlace || stage < 2 ? p.everyday : (p.outfit ?? p.everyday);
-  });
-  if (!worn.some(Boolean)) return null;
-  return cast.map((who, i) => `${i === 0 ? who.tag.charAt(0).toUpperCase() + who.tag.slice(1) : who.tag} in ${worn[i] ?? "everyday clothes"}`).join("; ");
+  }) as [string | null, string | null];
+  return worn.some(Boolean) ? worn : null;
 }
 
-/** The chapter's roleplay's title, for the mood (the running chapter's only: a filed night doesn't keep it). */
-async function chapterRoleplayTitle(db: Db, beat: Pick<BeatRow, "scene_id" | "owner_id" | "chapter" | "night_id">): Promise<string | null> {
+/**
+ * What the brief says they wear, as a picture's clothes words: dressed as it says before they undress (still dressed),
+ * as it says while they undress, and once they're naked only what it says is still on (else the stage's own words,
+ * which spell out that nothing from their pictures stays on: clothesAt).
+ */
+export function briefClothes(b: Pick<Brief, "wearing" | "kept_on"> | null, stage: number): string | undefined {
+  if (!b) return undefined;
+  if (stage >= SEX) return b.kept_on ? `both completely naked apart from ${b.kept_on.replace(/[.\s]+$/, "")}, none of the other clothes from their pictures` : undefined;
+  if (!b.wearing) return undefined;
+  return stage >= UNDRESSING ? b.wearing : `${b.wearing.replace(/[.\s]+$/, "")}, both still dressed`;
+}
+
+/**
+ * The chapter's roleplay: its title, for the mood, and its premise with who plays whom, for the brief (the running
+ * chapter's only: a filed night doesn't keep it).
+ */
+async function chapterRoleplay(db: Db, beat: Pick<BeatRow, "scene_id" | "owner_id" | "chapter" | "night_id">, names: { a: string; b: string }): Promise<{ title: string; words: string } | null> {
   if (beat.night_id) return null;
-  const row = (await db.query<{ roleplay: { id?: string; chapter?: number } | null; chapter: number }>(`select roleplay, chapter from adult_scenes where id = $1 and owner_id = $2`, [beat.scene_id, beat.owner_id])).rows[0];
+  const row = (await db.query<{ roleplay: { id?: string; chapter?: number; swap?: boolean } | null; chapter: number }>(`select roleplay, chapter from adult_scenes where id = $1 and owner_id = $2`, [beat.scene_id, beat.owner_id])).rows[0];
   const id = row?.roleplay?.id;
   if (!id || row.roleplay?.chapter !== beat.chapter) return null;
   const rp = roleplayById(id) ?? (await ownRoleplay(db, beat.owner_id, id).catch(() => null));
-  return rp?.title ?? null;
+  if (!rp) return null;
+  const first = (n: string) => n.split(/\s+/)[0];
+  const swap = Boolean(row.roleplay?.swap);
+  const [x, y] = (swap ? [names.b, names.a] : [names.a, names.b]).map(first);
+  const roles = rolesLine(rp, { a: first(names.a), b: first(names.b) }, swap);
+  return { title: rp.title, words: `${rp.title}. ${rp.premise.replaceAll("{a}", x).replaceAll("{b}", y)}${roles ? ` ${roles}.` : ""}` };
 }
 
 /** An age check's refusal: someone in the picture could be under 18, or it couldn't tell. */
@@ -508,6 +577,8 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<{ ok: t
   const fail = async (why: string) => {
     console.warn(`[after-dark] a beat picture didn't come (${beat.kind}, chapter ${beat.chapter}): ${why.slice(0, 160)}`);
     const refunded = beat.paid;
+    // One drawn ahead that didn't come doesn't count as drawn ahead: a chapter with none gives its tokens back.
+    if (beat.ahead_at) await countAhead(db, beat.scene_id, -1, beat.ahead_at).catch(() => {});
     if (beat.paid > 0) {
       await refundBoughtTokens(db, beat.owner_id, beat.paid).catch(() => {});
       await db.query(`update adult_beats set paid = 0 where id = $1`, [beat.id]);
@@ -775,10 +846,15 @@ export async function redrawPicture(
  */
 export async function fileBeats(db: Db, sceneId: string, chapter: number, nightId: string): Promise<void> {
   const filed = (await db.query<BeatRow>(`update adult_beats set night_id = $3 where scene_id = $1 and chapter = $2 and night_id is null returning *`, [sceneId, chapter, nightId])).rows;
+  // A chapter drawn ahead is settled (its tokens back when it drew nothing ahead); one that did keeps its extra pictures
+  // for what's left.
+  const ahead = (await db.query<{ draw_ahead_chapter: number | null }>(`select draw_ahead_chapter from adult_scenes where id = $1`, [sceneId])).rows[0]?.draw_ahead_chapter === chapter;
+  const refunded = await settleDrawAhead(db, sceneId, chapter, { closing: true }).catch(() => 0);
   if (!filed.length || !(await beatPicturesReady(db))) return;
   // Only what's left of the chapter's unasked pictures (lib/adult/chapter-pictures.ts), the earliest moments first; the
   // rest stay filed with the night, not drawn.
-  const budget = (await getAdultSettings(db)).pictures_per_chapter;
+  const settings = await getAdultSettings(db);
+  const budget = settings.pictures_per_chapter + (ahead && !refunded ? settings.draw_ahead_pictures : 0);
   const fits: string[] = [];
   for (const b of filed.filter((x) => x.status === "offered" || x.status === "later").sort((x, y) => x.line - y.line)) {
     if (!(await claimChapterPicture(db, sceneId, chapter, `${chapter}#beat:${b.id}`, budget))) break;
@@ -798,8 +874,10 @@ export async function rewindBeats(db: Db, sceneId: string, chapter: number, line
   await db.query(`delete from adult_beats where scene_id = $1 and chapter = $2 and night_id is null and line >= $3`, [sceneId, chapter, lineCount]);
 }
 
-/** Start over with nothing to file: the running chapter's beats go. */
+/** Start over with nothing to file: the running chapter's beats go (and its draw ahead is settled). */
 export async function clearBeats(db: Db, sceneId: string): Promise<void> {
+  const chapter = (await db.query<{ chapter: number }>(`select chapter from adult_scenes where id = $1`, [sceneId])).rows[0]?.chapter;
+  if (chapter !== undefined) await settleDrawAhead(db, sceneId, chapter, { closing: true }).catch(() => 0);
   await db.query(`delete from adult_beats where scene_id = $1 and night_id is null`, [sceneId]);
 }
 
