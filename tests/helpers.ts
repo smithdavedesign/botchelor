@@ -174,6 +174,9 @@ export async function startTestDb() {
         // Profile photos (lib/studio/profile-photos.ts).
         "profile_photos",
         "date_photos",
+        // The spend tracker (lib/spend.ts).
+        "money_entries",
+        "spend_snapshots",
         // The showcase (lib/showcase.ts).
         "showcase_consents",
         "showcase_likes",

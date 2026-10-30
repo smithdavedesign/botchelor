@@ -7,6 +7,13 @@ the project has spent so far. All amounts are in US dollars._
 The deeper write-ups are `docs/upgrade-cost.md` (a date's token cost, measured) and `docs/after-dark-costs.md`
 (After Dark's provider prices and token pricing). This page brings them together with the infrastructure.
 
+**The live tracker is `/admin/spend`** (lib/spend.ts, 2026-10-30): costs and income month by month, and each provider's
+balance read live. Its "fill in" button enters the costs this page records (`KNOWN_COSTS`); add each new bill or top-up
+there, so this page stays the explanation and the tracker holds the numbers. Two optional settings let it read more:
+`DO_BILLING_TOKEN` (a read-only DigitalOcean token: month-to-date usage) and `BUNNY_ACCOUNT_KEY` (Bunny's account key:
+balance and this month's charges). OpenRouter and Venice are read with After Dark's house keys; fal, Replicate and Hive
+have no billing API, so their top-ups are entered by hand.
+
 **How the numbers were found:**
 - Unit prices come from those two docs and the providers' pricing pages.
 - Volumes come from read-only counts on the production database (2026-10-21).

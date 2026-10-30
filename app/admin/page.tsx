@@ -19,6 +19,7 @@ export default function AdminPage() {
   const tiles = [
     { href: "/admin/reports", label: "Complaints and takedowns", note: "reports from /report: a minor, a real person, an intimate image (48 hours), copyright and the rest (7 business days)" },
     { href: "/admin/analytics", label: "Analytics", note: "people, agents and quality: trends, the funnel, top characters, and who connects over MCP" },
+    { href: "/admin/spend", label: "Spend", note: "money in and out: API and infrastructure costs, income, and each provider's live balance" },
     { href: "/admin/season", label: "Seasons", note: "this month's cast and next month's newcomers to approve" },
     { href: "/admin/feedback?tab=people", label: "People's feedback", note: "notes people send from the site: a 0-10 rating, ideas, bugs", count: true },
     { href: "/admin/feedback", label: "Agent feedback", note: "what agents think of the show, and which session it came from" },
