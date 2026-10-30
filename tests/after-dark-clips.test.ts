@@ -142,7 +142,7 @@ describe("the act menu", () => {
     const { cast, names } = await castOf();
     const ids = (limits: MediaLimits) => actMenu({ stage: 4, publicPlace: false }, cast, names, limits).map((a) => a.id);
     // Flirty goes as far as undressing: no sex acts on the menu at all, not even locked.
-    expect(ids({ ...NO_MEDIA_LIMITS, maxStage: 3 })).toEqual(["close", "dance", "cuddle", "kiss", "wall", "undress"]);
+    expect(ids({ ...NO_MEDIA_LIMITS, maxStage: 3 })).toEqual(["close", "sit", "dance", "cuddle", "kiss", "wall", "undress"]);
     expect(ids({ ...NO_MEDIA_LIMITS, maxStage: 2 })).not.toContain("undress");
     // A hard no by id, and one by its words (lib/adult/limits.ts's matcher: here, anything "against a wall").
     expect(ids({ ...NO_MEDIA_LIMITS, hardNos: ["oral"] })).not.toContain("oral");
@@ -310,7 +310,7 @@ describe("a clip from the menu", () => {
     fakeHive();
     await t.db.query(`update adult_scenes set intensity = 'flirty', hard_nos = $2::jsonb where id = $1`, [scene.id, JSON.stringify({ chips: ["oral"], own: ["against the wall"] })]);
     // Flirty goes as far as undressing; "against the wall" is theirs; oral is a hard no anyway.
-    expect((await menu(cookie)).acts.map((a) => a.id)).toEqual(["close", "dance", "cuddle", "kiss", "undress"]);
+    expect((await menu(cookie)).acts.map((a) => a.id)).toEqual(["close", "sit", "dance", "cuddle", "kiss", "undress"]);
     for (const act of ["on_top", "wall", "oral"]) {
       const res = await clip(cookie, { a: RAFE, b: JUNIPER, act });
       expect(res.status).toBe(422);

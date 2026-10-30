@@ -81,7 +81,7 @@ const SEX_WEAR = ["nude", "half"] as const;
 export const ACTS: readonly Act[] = [
   {
     id: "close",
-    label: "Close together",
+    label: "Standing close",
     minStage: 0,
     dress: 0,
     says: "{X} and {Y}, close and talking",
@@ -94,6 +94,23 @@ export const ACTS: readonly Act[] = [
     pov: {
       x: "Seen through {X's} eyes: {Y} stands close, facing the lens and smiling, {X's} hand resting on {Y's} arm at the edge of the frame.",
       y: "Seen through {Y's} eyes: {X} stands close, facing the lens and smiling, {Y's} hand resting on {X's} arm at the edge of the frame.",
+    },
+  },
+  {
+    id: "sit",
+    label: "Sitting together",
+    minStage: 0,
+    dress: 0,
+    says: "{X} and {Y}, sitting together",
+    pose: "{X} and {Y} sit side by side, turned toward each other, {X's} arm along the back of the seat behind {Y}, knees almost touching, both smiling, both faces visible.",
+    wear: "both fully clothed",
+    outfits: ANY_WEAR,
+    motion: "{Y} says something and laughs; {X} leans in a little closer to hear.",
+    next: "{Y} shifts closer, and {X's} hand settles on {Y's} shoulder.",
+    framing: "medium",
+    pov: {
+      x: "Seen through {X's} eyes: {Y} sits beside {Xo}, turned toward the lens and smiling, {X's} arm along the seat behind {Yo} at the edge of the frame.",
+      y: "Seen through {Y's} eyes: {X} sits beside {Yo}, turned toward the lens and smiling, {Y's} hand resting on {X's} knee at the edge of the frame.",
     },
   },
   {

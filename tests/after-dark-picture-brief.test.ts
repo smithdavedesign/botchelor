@@ -196,7 +196,7 @@ describe("the act a picture shows", () => {
     // No "..": the place's own full stop is the only one.
     expect(p.prompt).toContain("The place: her living room, a sofa and a lamp, the coffee table pushed aside.");
     const said = asked[0].map((m) => m.content).join("\n");
-    expect(said).toMatch(/- act: of these, the one closest to how their bodies are at that moment, by its id: close \(close together\), .*on_top \(on top\)/);
+    expect(said).toMatch(/- act: of these, the one closest to how their bodies are at that moment, by its id: close \(standing close\), sit \(sitting together\), .*on_top \(on top\)/);
     expect(said).toContain("never \"likely\"");
     expect(said).toContain("Name the pieces");
   });

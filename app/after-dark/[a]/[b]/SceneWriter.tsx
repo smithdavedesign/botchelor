@@ -318,7 +318,7 @@ export default function SceneWriter({
     const beat = res.data.beat as PublicBeat | undefined;
     if (beat?.status === "drawing") {
       lookForPictures(beat.id);
-      setNote({ text: `📸 ${"redraw" in body ? "Drawing it again" : `${beat.label}: drawing it now`}. It lands in the gallery below in a minute or so.` });
+      setNote({ text: `📸 ${"redraw" in body ? "Drawing it again" : `${beat.label}: drawing it now`}. It comes up on the stage in a minute or so, and in the gallery.` });
     }
   }
 

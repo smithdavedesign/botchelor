@@ -142,7 +142,7 @@ describe("framing scores", () => {
   it("give the director one short line", () => {
     const hint = directorHint(scoresFrom({}), ACTS.map((a) => ({ id: a.id, label: a.label, hasPov: Boolean(a.pov) })));
     expect(hint).toMatch(/^What comes out best: seen through one of their eyes for [^;]*going down/);
-    expect(hint).toContain("both in frame for close together");
+    expect(hint).toContain("both in frame for standing close");
     expect(hint.length).toBeLessThan(300);
   });
 });

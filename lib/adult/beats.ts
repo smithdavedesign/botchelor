@@ -26,7 +26,7 @@ import { chooseView, framingScores } from "./framing";
 import { mediaLimits } from "./clips";
 import { climaxIn } from "./craft";
 import { checkReady, mediaGate } from "./moderation";
-import { recentActions } from "./media";
+import { everydayOf, recentActions } from "./media";
 import { keepPictureOfBoth } from "./pictures-menu";
 import { keyframePrompt, placeWords, povPrompt, reelCast, withoutNames, type ReelPerson } from "./reels";
 import { thumbsDown } from "./steering";
@@ -410,7 +410,7 @@ export async function planBeat(
   const situation = await situationOf(db, beat.owner_id, beat.place);
   const publicPlace = isPublicPlace(beat.place) || Boolean(situation);
   const worn = wornOf([ca, cb], beat.owner_id, stage, publicPlace);
-  const outfits = stage >= UNDRESSING || !worn ? null : cast.map((who, i) => `${i === 0 ? who.tag.charAt(0).toUpperCase() + who.tag.slice(1) : who.tag} in ${worn[i] ?? "everyday clothes"}`).join("; ");
+  const outfits = stage >= UNDRESSING ? null : cast.map((who, i) => `${i === 0 ? who.tag.charAt(0).toUpperCase() + who.tag.slice(1) : who.tag} in ${worn[i]}`).join("; ");
   const fields: PictureFields = {
     happening: recentActions([...moment], 3).join("; "),
     wearing: outfits ?? wearingAt(stage),
@@ -434,7 +434,7 @@ export async function planBeat(
       lines: lines.slice(0, beat.line + 1).map((l) => ({ who: l.who, text: l.text })),
       names: { a: ca.name, b: cb.name },
       pronouns: { a: ca.pronouns ?? null, b: cb.pronouns ?? null },
-      usual: worn ? `${ca.name}: ${worn[0] ?? "everyday clothes"}; ${cb.name}: ${worn[1] ?? "everyday clothes"}` : null,
+      usual: `${ca.name}: ${worn[0]}; ${cb.name}: ${worn[1]}`,
       place: fields.place,
       roleplay: roleplay?.words ?? null,
       dressed: wearingAt(stage),
@@ -505,12 +505,11 @@ function withSituation(place: string | null, situation: string | null): string {
  * public or before it's gone past flirting, After Dark's outfit (the owner's own pick) somewhere private from kissing
  * on: "a fitted white t-shirt and blue jeans". Null when neither has an outfit picked (then the stage's words: wearingAt).
  */
-function wornOf(people: readonly [Character, Character], owner: string, stage: number, publicPlace: boolean): [string | null, string | null] | null {
-  const worn = people.map((c) => {
+function wornOf(people: readonly [Character, Character], owner: string, stage: number, publicPlace: boolean): [string, string] {
+  return people.map((c) => {
     const p = looksPictureWords(c.extras?.looks, c.ownerId === owner);
-    return publicPlace || stage < 2 ? p.everyday : (p.outfit ?? p.everyday);
-  }) as [string | null, string | null];
-  return worn.some(Boolean) ? worn : null;
+    return (publicPlace || stage < 2 ? p.everyday : (p.outfit ?? p.everyday)) ?? everydayOf(c);
+  }) as [string, string];
 }
 
 /**

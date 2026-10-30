@@ -17,7 +17,8 @@
 import type { Character } from "../character";
 import type { Db } from "../db";
 import { ALL_HOUSE_CHARACTERS } from "../house";
-import { IMAGE_MIN_AGE, looksPictureWords } from "../looks";
+import { IMAGE_MIN_AGE, LOOK_STEPS, looksPictureWords, optionPrompt, optionsFor, type Gender } from "../looks";
+import { crossesTaboo } from "./acts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { dataColumn, keepBytes, objectStore, readBytes } from "../object-store";
 import { checkAdultText } from "../safety";
@@ -241,8 +242,27 @@ export function lookWords(c: Character, undressed: boolean, viewer?: string | nu
   const picked = picks(c, viewer);
   if (!picked.body) return physicalLook(c, undressed);
   // `everyday`: what they wear out (pictureDress), not After Dark's outfit.
-  const worn = everyday ? picked.everyday : picked.outfit;
+  const worn = everyday ? (picked.everyday ?? everydayOf(c)) : picked.outfit;
   return [picked.body, !undressed && worn ? `wearing ${worn}` : "", undressed && !waistUp ? picked.undressed : ""].filter(Boolean).join(", ");
+}
+
+/** The outfit step's everyday picks a fallback is chosen from (lib/looks.ts). */
+const FALLBACK_OUTFITS = ["casual", "smart", "street"] as const;
+
+/**
+ * What someone with no outfit picked wears (2026-10-30: "everyday clothes" let every picture dress them differently):
+ * their own style words when they're clean, else one of the outfit step's everyday picks, the same one every time (by
+ * their id), so a night's pictures keep them in the same clothes.
+ */
+export function everydayOf(c: Pick<Character, "id" | "pronouns" | "extras">): string {
+  const style = c.extras?.style?.trim();
+  if (style && checkAdultText({ words: style }).ok && !crossesTaboo(style)) return style;
+  const gender: Gender | null = c.extras?.looks?.gender ?? (/^\s*she\b/i.test(c.pronouns ?? "") ? "woman" : /^\s*he\b/i.test(c.pronouns ?? "") ? "man" : null);
+  if (!gender) return "a plain t-shirt, a dark jacket and jeans";
+  const n = [...c.id].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const step = LOOK_STEPS.find((s) => s.id === "outfit")!;
+  const option = optionsFor(step, gender).find((o) => o.id === FALLBACK_OUTFITS[n % FALLBACK_OUTFITS.length])!;
+  return optionPrompt(option, gender);
 }
 
 const person = (c: Character, undressed: boolean, viewer?: string | null, waistUp = false, everyday = false) => {
