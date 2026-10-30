@@ -74,9 +74,8 @@ services:
         value: CHANGE_ME
         scope: RUN_AND_BUILD_TIME
       # Never set here: ADULT_MODE, NEXT_PUBLIC_GA_ID, NEXT_PUBLIC_GTM_ID, the site-verification tokens, MEDIA_S3_*.
-# The show's hourly jobs (app/api/jobs/lobby and app/api/jobs/showcase-check) are scheduled here, not on Vercel:
-# Vercel's free plan allows only daily cron jobs. One small container calls both on botchelor.com, so the work itself
-# still runs on Vercel. About $5 a month at most (billed while it runs).
+# The show's scheduled jobs (app/api/jobs/lobby, daily and showcase-check) run from here: one small container calls
+# them on botchelor.com, so the work itself runs on the show's own app (.do/show.yaml). About $5 a month at most.
 jobs:
   - name: lobby  # runs both hourly jobs; renaming a component needs a delete, so it keeps its first name
     kind: SCHEDULED
@@ -88,11 +87,11 @@ jobs:
       registry: library
       repository: alpine
       tag: "3.20"
-    # The lobby at :20 and the showcase check at :40, as the two Vercel schedules did.
+    # The lobby every hour at :20, the daily job at 16:20 UTC, and the showcase check about twenty minutes later.
     run_command: >-
       sh -c 'call() { wget -q -O - -T 290 -U "botchelor-cron/1.0 (DigitalOcean)"
       --header "Authorization: Bearer $CRON_SECRET" "https://botchelor.com/api/jobs/$1"; echo; };
-      call lobby; sleep 1200; call showcase-check'
+      call lobby; [ "$(date -u +%H)" = "16" ] && call daily; sleep 1200; call showcase-check'
     instance_size_slug: apps-s-1vcpu-0.5gb
     instance_count: 1
     envs:

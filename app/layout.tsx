@@ -11,6 +11,7 @@ import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { accessHere } from "@/lib/adult/place";
 import { touchOwner } from "@/lib/activity";
 import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
+import { placeFromEdge } from "@/lib/place";
 import { siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
@@ -112,7 +113,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     : false;
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
   const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
-  const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, (await headers()).get("x-vercel-ip-country"));
+  const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, placeFromEdge(await headers())?.country);
 
   return (
     <html lang="en">
@@ -174,7 +175,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <FeedbackDock />
         <InstallHint />
         {google && consent.ask && <ConsentBanner />}
-        <FunnelBeacon production={TRACKING.vercelAnalytics} consentDefault={consent.granted} />
+        <FunnelBeacon production={TRACKING.production} consentDefault={consent.granted} />
         {TRACKING.vercelAnalytics && <Analytics />}
         {TRACKING.vercelAnalytics && <SpeedInsights />}
       </body>

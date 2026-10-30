@@ -12,6 +12,7 @@
  */
 import type { Db } from "./db";
 import { isTestModeLink } from "./stripe";
+import { isProductionDeploy } from "./deploy";
 
 /** Reserved show-model dates a pass gives each month (docs/pricing-and-byok.md). */
 export const RESERVED_PER_MONTH = 100;
@@ -25,7 +26,7 @@ export function operatorPassLink(env: Env = process.env): URL | null {
   try {
     const url = new URL(raw);
     if (url.protocol !== "https:") return null;
-    if (env.VERCEL_ENV === "production" && isTestModeLink(url) && env.STRIPE_ALLOW_TEST_LINK !== "1") return null;
+    if (isProductionDeploy(env) && isTestModeLink(url) && env.STRIPE_ALLOW_TEST_LINK !== "1") return null;
     return url;
   } catch {
     return null;

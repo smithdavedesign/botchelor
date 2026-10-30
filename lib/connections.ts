@@ -50,6 +50,7 @@ import {
 import type { Usage } from "./model";
 import { notify } from "./notifications";
 import { needsReseal, openKey, reseal, sealKey, sealVersion, type Sealed, type SealVersion } from "./key-crypto";
+import { isDeployed } from "./deploy";
 
 type Env = Record<string, string | undefined>;
 
@@ -91,11 +92,11 @@ const API: Record<UserProvider, ProviderApi> = {
 
 /**
  * The loopback stub every provider points at in a screenshot run (scripts/connections-screenshots.mjs), or null.
- * Only http on 127.0.0.1 or localhost, and never on Vercel, so a production key can't be sent anywhere but its provider.
+ * Only http on 127.0.0.1 or localhost, and never on a deployment, so a production key can't be sent anywhere but its provider.
  */
 export function stubOrigin(env: Env = process.env): string | null {
   const raw = env.BYOK_STUB_ORIGIN?.trim();
-  if (!raw || env.VERCEL) return null;
+  if (!raw || isDeployed(env)) return null;
   try {
     const u = new URL(raw);
     return u.protocol === "http:" && (u.hostname === "127.0.0.1" || u.hostname === "localhost") ? u.origin : null;

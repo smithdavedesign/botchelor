@@ -45,7 +45,7 @@ describe("llms.txt — llmstxt.org shape, honest, measurable", () => {
 
 describe("tracking config — every tag is opt-in by env", () => {
   it("renders nothing without ids, and only production counts for Vercel analytics", () => {
-    expect(trackingConfig({})).toEqual({ gtmId: null, gaId: null, vercelAnalytics: false, verification: undefined });
+    expect(trackingConfig({})).toEqual({ gtmId: null, gaId: null, production: false, vercelAnalytics: false, verification: undefined });
     expect(trackingConfig({ VERCEL_ENV: "preview" }).vercelAnalytics).toBe(false);
     expect(trackingConfig({ VERCEL_ENV: "production" }).vercelAnalytics).toBe(true);
   });
