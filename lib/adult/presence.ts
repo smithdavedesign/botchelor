@@ -58,9 +58,18 @@ const LOOP_NEGATIVE = "child, teen, minor, young-looking, distorted face, morphi
 const LOOP_GIVE_UP_MS = 20 * 60 * 1000;
 
 /** One character's presence for the page: the face it's made from, their portrait, a picture per expression, and the loop. Ids only. */
-export type Presence = { face_id: string; portrait: string | null; expressions: Partial<Record<Expression, string>>; loop: string | null; making: boolean; missing: number };
+export type Presence = {
+  face_id: string;
+  portrait: string | null;
+  expressions: Partial<Record<Expression, string>>;
+  loop: string | null;
+  making: boolean;
+  missing: number;
+  /** Why a part couldn't be made last time (the portrait's first), for the theater to say. */
+  failed: string | null;
+};
 
-type Row = { id: string; character_id: string; face_id: string; part: "portrait" | "expression" | "loop"; expression: Expression | null; status: "making" | "ready" | "failed" };
+type Row = { id: string; character_id: string; face_id: string; part: "portrait" | "expression" | "loop"; expression: Expression | null; status: "making" | "ready" | "failed"; error: string | null };
 
 /** Every part of a presence: the portrait, the seven expressions and the loop. */
 const PARTS = Object.keys(EXPRESSIONS).length + 2;
@@ -72,11 +81,11 @@ const EXPRESSION_LOST_MS = 10 * 60 * 1000;
 /** Each part of a character's presence for this viewer and face; an expression lost mid-draw reads as failed. */
 async function rowsFor(db: Db, viewer: string, characterId: string, face: string): Promise<Row[]> {
   const { rows } = await db.query<Row & { updated_at: Date | string }>(
-    `select id, character_id, face_id, part, expression, status, updated_at from adult_presence where owner_id = $1 and character_id = $2 and face_id = $3`,
+    `select id, character_id, face_id, part, expression, status, error, updated_at from adult_presence where owner_id = $1 and character_id = $2 and face_id = $3`,
     [viewer, characterId, face],
   );
   return rows.map(({ updated_at, ...r }) =>
-    r.part === "expression" && r.status === "making" && Date.now() - new Date(updated_at).getTime() > EXPRESSION_LOST_MS ? { ...r, status: "failed" } : r,
+    r.part === "expression" && r.status === "making" && Date.now() - new Date(updated_at).getTime() > EXPRESSION_LOST_MS ? { ...r, status: "failed", error: "it was lost while being drawn" } : r,
   );
 }
 
@@ -88,7 +97,7 @@ export async function presenceOf(db: Db, viewer: string, characterIds: readonly 
     if (!face) continue;
     const rows = await rowsFor(db, viewer, id, face);
     if (!rows.length) continue;
-    const p: Presence = { face_id: face, portrait: null, expressions: {}, loop: null, making: false, missing: 0 };
+    const p: Presence = { face_id: face, portrait: null, expressions: {}, loop: null, making: false, missing: 0, failed: null };
     for (const r of rows) {
       if (r.status === "making") p.making = true;
       if (r.status !== "ready") continue;
@@ -98,6 +107,8 @@ export async function presenceOf(db: Db, viewer: string, characterIds: readonly 
     }
     // What "✨ Bring them to life" would still make: the parts neither ready nor on their way.
     p.missing = PARTS - rows.filter((r) => r.status !== "failed").length;
+    const failed = rows.filter((r) => r.status === "failed").sort((x, y) => Number(y.part === "portrait") - Number(x.part === "portrait"))[0];
+    p.failed = failed ? `${failed.part === "expression" ? `the ${failed.expression} look` : failed.part === "loop" ? "the living portrait" : "their portrait"}: ${failed.error ?? "it failed"}` : null;
     out[id] = p;
   }
   return out;
@@ -145,6 +156,7 @@ export async function makePresence(db: Db, viewer: string, characterId: string, 
       const verdict = await checkMedia(db, { base64: bytes.toString("base64"), mime }, "image", { owner: viewer });
       if (!verdict.ok) {
         await rejected(db, viewer, `presence portrait: ${verdict.reason}`);
+        await upsert(db, { owner: viewer, character: characterId, face, part: "portrait", expression: null, status: "failed", error: verdict.reason });
         return { ok: true, made: 0, queued: false, failed: [`their portrait: ${verdict.reason}`] };
       }
       await db.query(`delete from adult_presence where owner_id = $1 and character_id = $2 and face_id = $3`, [viewer, characterId, face]);
@@ -153,7 +165,9 @@ export async function makePresence(db: Db, viewer: string, characterId: string, 
       made++;
       have = [];
     } catch (err) {
-      return { ok: true, made: 0, queued: false, failed: [`their portrait: ${err instanceof Error ? err.message.slice(0, 160) : "error"}`] };
+      const why = err instanceof Error ? err.message.slice(0, 200) : "error";
+      await upsert(db, { owner: viewer, character: characterId, face, part: "portrait", expression: null, status: "failed", error: why });
+      return { ok: true, made: 0, queued: false, failed: [`their portrait: ${why}`] };
     }
   }
   const base = signedPresenceUrl(portrait, baseUrl);
@@ -170,7 +184,9 @@ export async function makePresence(db: Db, viewer: string, characterId: string, 
         await upsert(db, { owner: viewer, character: characterId, face, part: "loop", expression: null, status: "making", model, queue: queueId });
         queued = true;
       } catch (err) {
-        failed.push(`the living portrait: ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
+        const why = err instanceof Error ? err.message.slice(0, 200) : "error";
+        await upsert(db, { owner: viewer, character: characterId, face, part: "loop", expression: null, status: "failed", error: why });
+        failed.push(`the living portrait: ${why}`);
       }
     }
   }

@@ -192,7 +192,10 @@ describe("a character's presence", () => {
     expect(refused).toMatchObject({ ok: true, made: 0, queued: false });
     if (refused.ok) expect(refused.failed[0]).toMatch(/^their portrait: /);
     expect(seen.map((s) => s.path)).toEqual(["/image/multi-edit"]);
-    expect(await parts(id)).toEqual([]);
+    // Kept as a failed portrait, so the theater can say why.
+    expect((await parts(id)).map((r) => [r.part, r.status])).toEqual([["portrait", "failed"]]);
+    expect((await presenceOf(t.db, id, [JUNIPER]))[JUNIPER]).toMatchObject({ portrait: null, making: false, missing: 9 });
+    expect((await presenceOf(t.db, id, [JUNIPER]))[JUNIPER].failed).toMatch(/^their portrait: /);
     // Rows made from an older base (before portraits): a portrait made now replaces them all.
     await t.db.query(
       `insert into adult_presence (id, owner_id, character_id, face_id, part, expression, status, mime, data) values ('old-smile', $1, $2, 'face-juniper', 'expression', 'smile', 'ready', 'image/png', $3)`,
@@ -203,6 +206,17 @@ describe("a character's presence", () => {
     fakeVenice({ done: () => false });
     expect(await makePresence(t.db, id, JUNIPER, BASE_URL)).toMatchObject({ ok: true, made: 8, queued: true });
     expect((await t.db.query(`select 1 from adult_presence where id = 'old-smile'`)).rows).toHaveLength(0);
+    expect((await presenceOf(t.db, id, [JUNIPER]))[JUNIPER].failed).toBeNull();
+  });
+
+  it("keeps why their portrait couldn't be drawn when the provider fails", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    fakeHive();
+    fakeVenice({ edit: () => new Response("Insufficient USD or Diem balance", { status: 402 }) });
+    const made = await makePresence(t.db, id, RAFE, BASE_URL);
+    expect(made).toMatchObject({ ok: true, made: 0, queued: false });
+    expect((await presenceOf(t.db, id, [RAFE]))[RAFE].failed).toMatch(/^their portrait: Venice 402/);
   });
 
   it("says why it can't start: no face yet, or no output check", async () => {

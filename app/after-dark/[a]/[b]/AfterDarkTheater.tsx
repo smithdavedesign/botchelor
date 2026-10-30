@@ -259,8 +259,16 @@ export default function AfterDarkTheater({
   // Media the pair already has of the moment (a picture to offer, a clip to loop behind the scene), live scenes only.
   const sceneMedia = useSceneMedia(a.id, b.id, shown.length, live);
   // Their living faces (lib/adult/presence.ts): the speaker's expression, the listener's loop, else the face.
-  const { presence, make: makePresence } = usePresence(a.id, b.id);
+  const { presence, make: makePresence, asking: presenceAsking } = usePresence(a.id, b.id);
   const [presenceNote, setPresenceNote] = useState<string | null>(null);
+  // Once what was asked for has settled, what couldn't be made is said.
+  const [presenceAsked, setPresenceAsked] = useState(false);
+  useEffect(() => {
+    if (!presenceAsked || presenceAsking) return;
+    setPresenceAsked(false);
+    const wrong = [a, b].flatMap((c) => (presence[c.id]?.failed ? [`${c.name.split(/\s+/)[0]}: ${presence[c.id].failed}`] : []));
+    if (wrong.length) setPresenceNote(`Not all of it could be made. ${wrong.join(" ")}`);
+  }, [presenceAsked, presenceAsking, presence, a, b]);
   useEffect(() => {
     if (!presenceNote) return;
     const t = window.setTimeout(() => setPresenceNote(null), 12_000);
@@ -297,6 +305,7 @@ export default function AfterDarkTheater({
     setPresenceNote("Bringing them to life: their expressions and a living portrait, ready in a few minutes.");
     const why = await makePresence();
     if (why) setPresenceNote(why);
+    else setPresenceAsked(true);
   };
   const caughtUp = shown.length >= turns.length;
   const left = turns.length - shown.length;
