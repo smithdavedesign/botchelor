@@ -21,7 +21,7 @@ const SUBSCRIBE_LIMITS = { perHour: 10, perDay: 30 };
 const Input = z.object({
   adult: z.literal(true, "Confirm you're 18 or older."),
   renewal_terms: z.literal(true, "Confirm you understand it renews monthly until you cancel."),
-  processor: z.enum(["segpay", "verotel"]).optional(),
+  processor: z.enum(["ccbill", "segpay", "verotel"]).optional(),
 });
 
 /**

@@ -53,7 +53,9 @@ export async function runFfmpeg(run: FfmpegRun): Promise<FfmpegResult> {
     const bin = await binary();
     const args = ["-hide_banner", ...(run.quiet === false ? [] : ["-loglevel", "error"]), ...run.args];
     const stderr = await new Promise<string>((resolve, reject) => {
-      execFile(bin, args, { cwd: dir, timeout: run.timeoutMs ?? 60_000, maxBuffer: 8 * 1024 * 1024 }, (err, _out, errOut) => {
+      // turbopackIgnore: the tracer otherwise reads this call as touching any file and ships the whole project with the
+      // route (2026-10-30, DigitalOcean's build warned exactly that).
+      execFile(/* turbopackIgnore: true */ bin, args, { cwd: dir, timeout: run.timeoutMs ?? 60_000, maxBuffer: 8 * 1024 * 1024 }, (err, _out, errOut) => {
         if (err && !run.allowFail) {
           const said = String(errOut || err.message).trim();
           // The binary missing from a deployment is the one worth spotting in the runtime logs.

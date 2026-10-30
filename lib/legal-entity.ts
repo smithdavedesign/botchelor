@@ -34,6 +34,8 @@ export function contactEmail(env: Record<string, string | undefined> = process.e
  * support site (vtsup.com, the name on a Verotel statement) links "Cancel membership" to secure.verotel.com/cancellookup.
  */
 export const PROCESSORS = {
+  // CCBill's consumer support site (support.ccbill.com, checked 2026-10-30) looks up and cancels a subscription.
+  ccbill: { name: "CCBill", statement: "CCBILL.COM", cancelUrl: "https://support.ccbill.com/", supportUrl: "https://support.ccbill.com/" },
   segpay: { name: "Segpay", statement: "SEGPAY or SEGPAYCS.COM", cancelUrl: "https://cs.segpay.com/", supportUrl: "https://cs.segpay.com/" },
   verotel: {
     name: "Verotel",

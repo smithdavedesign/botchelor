@@ -1451,6 +1451,9 @@ create table if not exists adult_billing_orders (
   created_at timestamptz not null default now(),
   paid_at timestamptz
 );
+-- CCBill joined Segpay and Verotel (2026-10-30, lib/adult/billing-ccbill.ts).
+alter table adult_billing_orders drop constraint if exists adult_billing_orders_processor_check;
+alter table adult_billing_orders add constraint adult_billing_orders_processor_check check (processor in ('ccbill', 'segpay', 'verotel'));
 create index if not exists adult_billing_orders_user_idx on adult_billing_orders (user_id, created_at desc);
 create index if not exists adult_billing_orders_sale_idx on adult_billing_orders (processor, sale_id);
 -- Every postback received, verified or not applied. event_key is the processor's transaction id when it sends one (the

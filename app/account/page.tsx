@@ -93,7 +93,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
               {afterDark.sub.cancelUrl && (
                 <>
                   <a href={afterDark.sub.cancelUrl} rel="noopener noreferrer" target="_blank" data-cancel-processor>
-                    Cancel with {afterDark.sub.processor === "segpay" ? "Segpay" : "Verotel"}
+                    Cancel with {afterDark.sub.processor === "ccbill" ? "CCBill" : afterDark.sub.processor === "segpay" ? "Segpay" : "Verotel"}
                   </a>
                   {" · "}
                 </>
