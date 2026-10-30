@@ -1,11 +1,12 @@
 /**
- * A Node preload for the browser tests (scripts/e2e-studio.mjs): loaded with NODE_OPTIONS=--import into the app's own
- * process, it sends every call to an image provider or a picture check to E2E_PROVIDER_STUB (a local stub), keeping the
- * path and query. Nothing in the app changes, and the app's own checks still run: they just ask the stub. Without
- * E2E_PROVIDER_STUB it does nothing. Never loaded anywhere but a test run.
+ * A Node preload for the browser tests (scripts/e2e-studio.mjs, e2e-after-dark-theater.mjs): loaded with
+ * NODE_OPTIONS=--import into the app's own process, it sends every call to an image provider, a picture check or After
+ * Dark's text model (OpenRouter) to E2E_PROVIDER_STUB (a local stub), keeping the path and query. Nothing in the app
+ * changes, and the app's own checks still run: they just ask the stub. Without E2E_PROVIDER_STUB it does nothing. Never
+ * loaded anywhere but a test run.
  */
 const stub = process.env.E2E_PROVIDER_STUB;
-const HOSTS = new Set(["api.venice.ai", "api.thehive.ai", "api.replicate.com", "queue.fal.run", "fal.run", "api.sightengine.com"]);
+const HOSTS = new Set(["api.venice.ai", "api.thehive.ai", "api.replicate.com", "queue.fal.run", "fal.run", "api.sightengine.com", "openrouter.ai"]);
 
 if (stub) {
   const real = globalThis.fetch;
