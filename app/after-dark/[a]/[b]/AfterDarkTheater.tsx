@@ -13,6 +13,7 @@ import type { CharacterRef } from "@/lib/game";
 import { PLACE_LABEL_MAX, venueName, type PlaceId } from "@/lib/venues";
 import { useSteadySet } from "./useSteadySet";
 import { TheaterListen } from "./Listen";
+import PlaceSound from "./PlaceSound";
 import CaptureMenu from "./CaptureMenu";
 import SceneBackdrop from "./SceneBackdrop";
 import { useSceneMedia } from "./useSceneMedia";
@@ -229,6 +230,8 @@ export default function AfterDarkTheater({
   // replays it.
   const [startAt] = useState(() => (live ? Math.max(0, scene.lines.length - 6) : scene.lines.length));
   const [listenHold, setListenHold] = useState(false);
+  // 🔈 on: the voices, and the place's sound under them.
+  const [listening, setListening] = useState(false);
   // A moment worth a picture, reached: playback waits for the viewer's answer.
   const [beatHold, setBeatHold] = useState(false);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(() => new Set());
@@ -595,7 +598,8 @@ export default function AfterDarkTheater({
             <button type="button" className="theater-icon" onClick={replay.skip} aria-label="Catch up" title="Catch up">
               ⏭
             </button>
-            <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} />
+            <TheaterListen lines={scene.lines} shown={shown.length} playing={replay.playing} a={a.id} b={b.id} nightId={live ? null : feedbackRef} onHold={setListenHold} onListening={setListening} />
+            <PlaceSound venue={stage.venue} on={listening} playing={replay.playing} />
           </div>
           {live ? (
             <form className="ad-theater-bar" onSubmit={next}>

@@ -49,6 +49,7 @@ export function TheaterListen({
   b,
   nightId,
   onHold,
+  onListening,
 }: {
   lines: readonly SceneLine[];
   /** How many lines the stage has shown so far. */
@@ -59,6 +60,8 @@ export function TheaterListen({
   /** A saved night's id; null for the running scene. */
   nightId: string | null;
   onHold: (hold: boolean) => void;
+  /** Told when listening starts and stops (the place's sound plays under it, PlaceSound.tsx). */
+  onListening?: (on: boolean) => void;
 }) {
   const voiceOf = useVoices(a, b, nightId);
   const [on, setOn] = useState(false);
@@ -145,10 +148,12 @@ export function TheaterListen({
       audio.current?.pause();
       release();
       setOn(false);
+      onListening?.(false);
       return;
     }
     setNote(null);
     setOn(true);
+    onListening?.(true);
     onRef.current = true;
     // The line on stage now, so it's heard at once.
     if (shown > 0) void say(shown - 1);
