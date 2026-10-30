@@ -106,3 +106,43 @@ export async function sceneClip(db: Db, ownerId: string, x: string, y: string): 
   )[0];
   return best ? { media_id: best.id, act } : null;
 }
+
+/** A moment of the running chapter being pictured (lib/adult/beats.ts), for the stage: its picture, or a stand-in until it lands. */
+export type MomentPicture = { id: string; line: number; status: "drawing" | "drawn" | "failed"; picture_id: string | null; stand_in: string | null };
+
+/**
+ * Pictures that feel instant (docs/PRDs/theater-immersion.md #5): the running chapter's moments being drawn or drawn, so
+ * the theater shows each on the stage when its line comes, and, while one is still being drawn, the closest picture of
+ * the two of them the pair already has for that moment (its act, place and stage, scored as the backdrop is), swapped
+ * for the new one when it lands.
+ */
+export async function momentPictures(db: Db, ownerId: string, x: string, y: string): Promise<MomentPicture[]> {
+  const pair = await eligiblePair(db, ownerId, x, y);
+  if (!pair) return [];
+  const [a, b] = pair;
+  const scene = (await db.query<{ id: string; chapter: number }>(`select id, chapter from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`, [ownerId, a, b])).rows[0];
+  if (!scene) return [];
+  const { rows } = await db.query<{ id: string; line: number; status: MomentPicture["status"]; picture_id: string | null; act: string; place: string | null; stage: number }>(
+    `select id, line, status, picture_id, act, place, stage from adult_beats
+      where scene_id = $1 and chapter = $2 and night_id is null and status in ('drawing', 'drawn', 'failed') order by line`,
+    [scene.id, scene.chapter],
+  );
+  if (!rows.length) return [];
+  const drawing = rows.filter((r) => r.status === "drawing");
+  let list: Candidate[] = [];
+  if (drawing.length) {
+    const admin = await isAdmin(db, ownerId);
+    await ensureTagged(db, ownerId, [a, b], 200, { anyOwner: admin });
+    list = await candidates(db, ownerId, a, b, { admin });
+  }
+  return rows.map((r) => ({
+    id: r.id,
+    line: r.line,
+    status: r.status,
+    picture_id: r.status === "drawn" ? r.picture_id : null,
+    stand_in:
+      r.status === "drawing"
+        ? (rank(list, { act: r.act, places: placeKeys(r.place), stage: r.stage, placed: Boolean(r.place?.trim()) }, (c) => c.mime.startsWith("image/") && Boolean(c.character_b))[0]?.id ?? null)
+        : null,
+  }));
+}

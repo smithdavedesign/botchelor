@@ -176,6 +176,16 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
             <span className="muted small">(offered as the theater plays, drawn when the chapter closes if never asked for; at most 6 a chapter, about 5¢ each with its checks, one Hive check each)</span>
           </span>
         </label>
+        <label className="ad-check-row">
+          <input type="checkbox" id="ad-draw-ahead" checked={s.draw_ahead} disabled={busy} onChange={(e) => void save({ draw_ahead: e.target.checked })} />
+          <span>
+            Draw each moment as soon as it&apos;s written, so its picture is on the stage when its line comes{" "}
+            <span className="muted small">
+              (only the chapter&apos;s own pictures, the ones its close would draw anyway; skips agreeing on the picture first, Redraw stays; a rewind
+              past one wastes it)
+            </span>
+          </span>
+        </label>
       </details>
       <details className="ad-settings-section">
         <summary>

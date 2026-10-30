@@ -1572,6 +1572,7 @@ alter table adult_settings add column if not exists presence_loop_model text;
 alter table adult_settings add column if not exists place_sounds boolean;
 alter table adult_settings add column if not exists place_sound_model text;
 alter table adult_settings add column if not exists talk_model text;
+alter table adult_settings add column if not exists draw_ahead boolean;
 -- Talking moments (lib/adult/talks.ts; docs/PRDs/theater-immersion.md #4): a few seconds of one of them saying a line,
 -- lip-synced to its voice from their portrait. One per viewer, speaker and words (key); refunded when it can't be made.
 create table if not exists adult_talks (
