@@ -2692,6 +2692,15 @@ alter table showcase_posts add column if not exists show_prompt boolean not null
 alter table showcase_posts add column if not exists checked_at timestamptz;
 -- The show's own portrait for a public agent-made character with none (lib/agent-portraits.ts): one that couldn't be
 -- kept is noted here and never drawn again, left for the character's creator.
+-- The older SFW twins drawn again with today's prompt (lib/showcase-retwin.ts): each once, the new one's id when it
+-- was swapped in.
+create table if not exists showcase_retwins (
+  old_id text primary key,
+  new_id text,
+  status text not null check (status in ('done', 'failed')),
+  note text,
+  created_at timestamptz not null default now()
+);
 create table if not exists show_portrait_tries (
   character_id text primary key references characters (id) on delete cascade,
   note text,

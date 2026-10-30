@@ -6,7 +6,8 @@ import { setModerationFetchForTests } from "@/lib/adult/moderation";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
 import { pairKey } from "@/lib/relationships";
-import { bestOf, TWIN_BATCH, twinCandidates } from "@/lib/showcase";
+import { bestOf, publish, saveCreatorProfile, TWIN_BATCH, twinCandidates } from "@/lib/showcase";
+import { retwinBatch, retwinTargets } from "@/lib/showcase-retwin";
 import { setPgStudioFetchForTests } from "@/lib/studio/pg";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -171,5 +172,64 @@ describe("SFW twins of my best work", () => {
     expect((await twin({ skip: ["d"] }, { "x-frontier-key": "test-admin-password", cookie: signedInCookie(someone) })).status).toBe(404);
     expect((await twin({ owner: me }, { "x-frontier-key": "wrong" })).status).toBe(403);
     expect((await twin({}, { cookie: signedInCookie(someone) })).status).toBe(403);
+  });
+});
+
+describe("the older SFW twins, drawn again", () => {
+  it("swap in a twin in today's pose for each made with the first prompt, take the old one's living portrait down, and never come back", async () => {
+    const raw = newUserCookie();
+    const me = userIdOf(raw);
+    const mine = (await (await api.createCharacter(validCharacter({ name: "Mara Quill", pronouns: "she/her", age: 29 }), raw)).json()).id as string;
+    await claimAdmin(t.db, me);
+    await saveAdultSettings(t.db, { enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", image_provider: "venice", studio: { pg: { open_to: "everyone" } } });
+    await t.db.query(`insert into adult_switches (owner_id, character_id) values ($1, $2)`, [me, mine]);
+    await saveCreatorProfile(t.db, me, { handle: "mara", display_name: "Mara" });
+    // Her 👍 original, an old twin of it (first prompt) on the showcase with its living portrait, and a new-style twin.
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status) values ('orig', $1, $2, 'scene', 'p', 'image/png', $3, 'ready')`, [me, mine, PNG]);
+    await t.db.query(`insert into adult_media_thumbs (owner_id, media_id, rating) values ($1, 'orig', 1)`, [me]);
+    await t.db.query(
+      `insert into studio_pg_pictures (id, owner_id, character_id, prompt, mime, data, content_rating, twin_of) values ('old-twin', $1, $2, 'Make Picture 1 again as a safe-for-work photograph: …', 'image/png', $3, 'suggestive', 'orig'), ('new-style', $1, $2, 'Make a new safe-for-work photograph of …', 'image/png', $3, 'pg', 'orig')`,
+      [me, mine, PNG],
+    );
+    const old = await publish(t.db, me, { source: "pg", media_id: "old-twin", caption: "At the pier" });
+    const kept = await publish(t.db, me, { source: "pg", media_id: "new-style" });
+    if (!old.ok || !kept.ok) throw new Error("publish");
+    await t.db.query(`insert into showcase_posts (id, owner_id, source, media_id, character_id, rating, medium, status, published_at, tags) values ('old-loop', $1, 'after_dark', 'orig', $2, 'pg', 'clip', 'live', now(), '[]'::jsonb)`, [me, mine]);
+    await t.db.query(`insert into showcase_loops (id, owner_id, source, source_id, character_id, status, post_id) values ('l1', $1, 'post', $2, $3, 'ready', 'old-loop')`, [me, old.post_id, mine]);
+    expect((await retwinTargets(t.db, me)).map((x) => x.old_id)).toEqual(["old-twin"]);
+
+    stubTwins("CLOTHED");
+    const r = await retwinBatch(t.db, me, BASE_URL);
+    expect([r.results.map((x) => x.ok), r.left]).toEqual([[true], 0]);
+    const now = (await t.db.query<{ id: string; media_id: string; status: string; caption: string | null }>(`select id, media_id, status, caption from showcase_posts order by id`)).rows;
+    // The old twin's post is gone, its living portrait down; the new twin is up with its caption; the new-style one stays.
+    expect(now.find((p) => p.id === old.post_id)).toBeUndefined();
+    expect(now.find((p) => p.id === "old-loop")?.status).toBe("removed");
+    const fresh = now.find((p) => p.id === (r.results[0] as { new_post: string }).new_post);
+    expect(fresh).toMatchObject({ status: "live", caption: "At the pier" });
+    expect(now.find((p) => p.media_id === "new-style")?.status).toBe("live");
+    // Never again, and not their best any more (Publish my best work won't bring it back).
+    expect(await retwinTargets(t.db, me)).toEqual([]);
+    expect((await bestOf(t.db, me)).pg).not.toContain("old-twin");
+    expect((await bestOf(t.db, me)).pg).toContain(fresh!.media_id);
+  });
+
+  it("keep the old one up when the new one isn't PG", async () => {
+    const raw = newUserCookie();
+    const me = userIdOf(raw);
+    const mine = (await (await api.createCharacter(validCharacter({ name: "Mara Quill", pronouns: "she/her", age: 29 }), raw)).json()).id as string;
+    await claimAdmin(t.db, me);
+    await saveAdultSettings(t.db, { enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive", image_provider: "venice", studio: { pg: { open_to: "everyone" } } });
+    await t.db.query(`insert into adult_switches (owner_id, character_id) values ($1, $2)`, [me, mine]);
+    await saveCreatorProfile(t.db, me, { handle: "mara", display_name: "Mara" });
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status) values ('orig', $1, $2, 'scene', 'p', 'image/png', $3, 'ready')`, [me, mine, PNG]);
+    await t.db.query(`insert into studio_pg_pictures (id, owner_id, character_id, prompt, mime, data, content_rating, twin_of) values ('old-twin', $1, $2, 'An SFW twin', 'image/png', $3, 'pg', 'orig')`, [me, mine, PNG]);
+    const old = await publish(t.db, me, { source: "pg", media_id: "old-twin" });
+    if (!old.ok) throw new Error("publish");
+    stubTwins("REVEALING");
+    const r = await retwinBatch(t.db, me, BASE_URL);
+    expect(r.results[0]).toMatchObject({ ok: false });
+    expect((await t.db.query(`select status from showcase_posts where id = $1`, [old.post_id])).rows).toEqual([{ status: "live" }]);
+    expect(await retwinTargets(t.db, me)).toEqual([]);
   });
 });
