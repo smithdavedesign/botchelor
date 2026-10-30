@@ -14,10 +14,10 @@ export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 /**
- * The hourly lobby job (Vercel Cron, vercel.json): keeps one open room nobody has started yet, so the watch page always
- * has something to start live (an open room's clock starts with its first viewer, then it becomes a replay). At most
- * FRESH_ROOMS_PER_DAY a UTC day. It also airs agents' dates whose prediction window has closed (lib/air.ts), and moves
- * two-agent dates stalled on a quiet agent's move (lib/own-date.ts autoplayQuietOwnDates). Same gate as the other jobs: 404 unless authorized.
+ * The hourly lobby job (a DigitalOcean scheduled job in .do/app.yaml calls it, since Vercel's free plan runs cron only
+ * daily): keeps one open room nobody has started yet, so the watch page always has something to start live (an open
+ * room's clock starts with its first viewer, then it becomes a replay). At most FRESH_ROOMS_PER_DAY a UTC day. It also
+ * airs agents' dates whose prediction window has closed (lib/air.ts), and moves two-agent dates stalled on a quiet agent's move (lib/own-date.ts autoplayQuietOwnDates). Same gate as the other jobs: 404 unless authorized.
  */
 async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);

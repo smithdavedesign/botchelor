@@ -298,7 +298,8 @@ In a browser, signed in on botchelor.com as the admin:
    node scripts/media-to-bunny.mjs --back --verify   # by the hash stored with each file, without downloading
    ```
 
-3. Leave the DigitalOcean app running for a while, or destroy it (Settings → Destroy). The DNS records can stay.
+3. Leave the DigitalOcean app running. It also schedules the show's hourly jobs, the lobby and the showcase check (`.do/app.yaml`
+   `jobs`, since Vercel's free plan allows only daily cron jobs): before destroying it, move them somewhere else first. The DNS records can stay.
 
 ## Costs
 

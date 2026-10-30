@@ -2,7 +2,9 @@
  * Where a request comes from, for After Dark's regional rules (lib/jurisdiction.ts).
  *
  * On Vercel (the show) the edge sets x-vercel-ip-country and x-vercel-ip-country-region from the connection, and a
- * client can't override them, so those are read directly. Anywhere else (After Dark's own host on DigitalOcean,
+ * client can't override them, so those are read directly. The show off Vercel behind its own Cloudflare zone
+ * (GEO_HEADERS=cloudflare, docs/hosting.md) reads Cloudflare's cf-ipcountry and cf-region-code the same way, which
+ * Cloudflare sets from the connection. Anywhere else (After Dark's own host on DigitalOcean,
  * docs/after-dark-hosting.md) no header is trusted, since a client could send one: the place comes from `bz_place`, a
  * cookie the show signs on the way in (the sign-in hop, app/api/auth/carry) and the middleware renews by sending the
  * visitor through the hop again once it's an hour old. No place, or an unsigned or stale one, reads as unknown, and an
@@ -46,11 +48,17 @@ export function verifyPlace(token: string | null | undefined, env: Env = process
   return place(country === "-" ? null : country, region === "-" ? null : region);
 }
 
-/** Vercel's own location headers, read only on Vercel. */
-export function placeFromVercel(headers: Headers, env: Env = process.env): Place | null {
-  if (!env.VERCEL) return null;
-  const country = headers.get("x-vercel-ip-country");
-  return country ? place(country, headers.get("x-vercel-ip-country-region")) : null;
+/** The edge's own location headers: Vercel's on Vercel, Cloudflare's where GEO_HEADERS=cloudflare, else none. */
+export function placeFromEdge(headers: Headers, env: Env = process.env): Place | null {
+  const [countryHeader, regionHeader] = env.VERCEL
+    ? ["x-vercel-ip-country", "x-vercel-ip-country-region"]
+    : env.GEO_HEADERS === "cloudflare"
+      ? ["cf-ipcountry", "cf-region-code"]
+      : [null, null];
+  const country = countryHeader ? headers.get(countryHeader) : null;
+  // Cloudflare says XX for unknown and T1 for Tor: neither is a place.
+  if (!country || country === "XX" || country === "T1") return null;
+  return place(country, regionHeader ? headers.get(regionHeader) : null);
 }
 
 const cookieIn = (header: string | null, name: string): string | undefined =>
@@ -62,10 +70,10 @@ export function setPlaceForTests(where: Place | null): void {
   placeForTests = where;
 }
 
-/** Where this request comes from: Vercel's headers, else the signed cookie, else unknown. */
+/** Where this request comes from: the edge's headers, else the signed cookie, else unknown. */
 export function requestPlace(headers: Headers, env: Env = process.env, now = Date.now()): Place {
   if (placeForTests) return placeForTests;
-  return placeFromVercel(headers, env) ?? verifyPlace(cookieIn(headers.get("cookie"), PLACE_COOKIE), env, now) ?? { country: null, region: null };
+  return placeFromEdge(headers, env) ?? verifyPlace(cookieIn(headers.get("cookie"), PLACE_COOKIE), env, now) ?? { country: null, region: null };
 }
 
 /** The Set-Cookie for a signed place on the host that receives it (After Dark's own). */

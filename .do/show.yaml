@@ -1,0 +1,176 @@
+# The show (botchelor.com) on DigitalOcean App Platform, since 2026-10-30 (docs/hosting.md). After Dark has its own
+# app (.do/app.yaml). Secrets are CHANGE_ME here: fill them in the dashboard (Encrypt), the same values as before.
+# Never commit real values to this file. Billing: $12 a month for the instance below.
+name: botchelor-show
+region: nyc
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+domains:
+  - domain: botchelor.com
+    type: PRIMARY
+  - domain: www.botchelor.com
+    type: ALIAS
+services:
+  - name: web
+    github:
+      repo: smithdavedesign/botchelor
+      branch: main
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm run build
+    run_command: npm start
+    http_port: 8080
+    instance_size_slug: apps-s-1vcpu-1gb
+    instance_count: 1
+    health_check:
+      http_path: /api/health
+      initial_delay_seconds: 20
+      period_seconds: 10
+      timeout_seconds: 3
+      failure_threshold: 3
+    envs:
+      # DEPLOY_ENV=production is what VERCEL_ENV=production was on Vercel (lib/deploy.ts): real payments, analytics,
+      # IndexNow. SITE_URL is the show's address (lib/site.ts), read at build time as well.
+      - key: DEPLOY_ENV
+        value: "production"
+        scope: RUN_AND_BUILD_TIME
+      - key: SITE_URL
+        value: "https://botchelor.com"
+        scope: RUN_AND_BUILD_TIME
+      - key: OAUTH_REDIRECT_BASE
+        value: "https://botchelor.com"
+        scope: RUN_AND_BUILD_TIME
+      - key: AFTER_DARK_ORIGIN
+        value: "https://ad.botchelor.com"
+        scope: RUN_AND_BUILD_TIME
+      - key: MEDIA_S3_BUCKET
+        value: "botchelor-media"
+        scope: RUN_AND_BUILD_TIME
+      - key: MEDIA_S3_ENDPOINT
+        value: "https://br-winter-bird-b7gfzy20.storage.c-13.us-east-1.aws.neon.tech"
+        scope: RUN_AND_BUILD_TIME
+      - key: MEDIA_S3_REGION
+        value: "us-east-1"
+        scope: RUN_AND_BUILD_TIME
+      - key: NEXT_PUBLIC_GA_ID
+        value: "G-VHL1LZTPHL"
+        scope: RUN_AND_BUILD_TIME
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        value: "8798420854-7ptpgn2uttpm2pf3io3531qv4fi91bgl.apps.googleusercontent.com"
+        scope: RUN_AND_BUILD_TIME
+      - key: FRONTIER_DEFAULT
+        value: "1"
+        scope: RUN_AND_BUILD_TIME
+      - key: FRONTIER_LLM_BASE_URL
+        value: "https://ai-gateway.vercel.sh/v1"
+        scope: RUN_AND_BUILD_TIME
+      - key: FRONTIER_LLM_MODEL
+        value: "anthropic/claude-haiku-5.5"
+        scope: RUN_AND_BUILD_TIME
+      # Copied from the old Vercel project's values (not secret, but deployment-specific).
+      - key: CONTACT_EMAIL
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: NEXT_PUBLIC_STRIPE_PAYMENT_LINK
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: STRIPE_PAYMENT_LINK
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: STRIPE_PRICE_LABEL
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: OPERATOR_PASS_LINK
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: ORIGINALITY_CONCEPT
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      # Secrets, from the keychain (vault/botchelor/<NAME>) or the old Vercel project.
+      - key: DATABASE_URL
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: DATABASE_URL_UNPOOLED
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: SESSION_SECRET
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: KEY_ENCRYPTION_SECRET
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: CRON_SECRET
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: WATCH_ADMIN_TOKEN
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: FRONTIER_PASSWORD
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: FRONTIER_LLM_API_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: GOOGLE_API_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: EVAL_GOOGLE_API_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: EMBED_API_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: MEDIA_S3_ACCESS_KEY_ID
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: MEDIA_S3_SECRET_ACCESS_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: RESEND_API_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: VAPID_PUBLIC_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: VAPID_PRIVATE_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: INDEXNOW_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: REPLICATE_API_TOKEN
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: STRIPE_WEBHOOK_SECRET
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: OPERATOR_PASS_WEBHOOK_SECRET
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      # Not set here: ADULT_MODE, AFTER_DARK_ONLY, MEDIA_BUNNY_* (After Dark's host only), GEO_HEADERS (only behind
+      # our own Cloudflare zone: lib/place.ts).
