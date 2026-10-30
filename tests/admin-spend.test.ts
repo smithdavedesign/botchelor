@@ -53,18 +53,20 @@ describe("what an entry comes to in a month", () => {
 });
 
 describe("income from the app's records", () => {
-  it("counts paid orders, After Dark payments less refunds, and operator passes at their price", async () => {
+  it("counts paid orders (never Stripe test-mode ones), After Dark payments less refunds, and operator passes at their price", async () => {
     const buyer = userIdOf(newUserCookie());
     const own = userIdOf(newUserCookie());
     await claimAdmin(t.db, own);
-    const order = (user: string, cents: number, status: string, at: string) =>
-      t.db.query(`insert into orders (id, user_id, sku, kind, amount_cents, currency, status, paid_at) values ($1, $2, 'pack', 'episode_pack', $3, 'usd', $4, $5)`, [
-        crypto.randomUUID(), user, cents, status, at,
-      ]);
+    const order = (user: string, cents: number, status: string, at: string, session = `cs_live_${crypto.randomUUID()}`) =>
+      t.db.query(
+        `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, paid_at, stripe_session_id) values ($1, $2, 'pack', 'episode_pack', $3, 'usd', $4, $5, $6)`,
+        [crypto.randomUUID(), user, cents, status, at, session],
+      );
     await order(buyer, 400, "paid", "2026-10-20T12:00:00Z");
     await order(own, 400, "paid", "2026-10-21T12:00:00Z");
     await order(buyer, 400, "refunded", "2026-10-22T12:00:00Z");
     await order(buyer, 400, "paid", "2026-09-30T12:00:00Z");
+    await order(buyer, 400, "paid", "2026-10-13T12:00:00Z", "cs_test_a1b2");
     const ad = (kind: string, amount: string, outcome = "applied") =>
       t.db.query(
         `insert into adult_billing_events (id, processor, event_key, fingerprint, kind, raw_event, user_id, amount, currency, outcome, received_at)
