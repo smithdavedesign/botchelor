@@ -172,6 +172,7 @@ describe("the new policy pages", () => {
     vi.stubEnv("CONTACT_EMAIL", "help@botchelor.example");
     const html = render(CancelPage);
     expect(html).toContain(`href="${PROCESSORS.segpay.cancelUrl}"`);
+    expect(html).toContain(`href="${PROCESSORS.ccbill.cancelUrl}"`);
     expect(html).toContain(`href="${PROCESSORS.verotel.cancelUrl}"`);
     expect(html).toContain('href="mailto:help@botchelor.example"');
     expect(strip(html)).toMatch(/until the end of the period you've already paid for/);

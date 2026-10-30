@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * sites on 2026-10-24.
  */
 export default function CancelPage() {
-  const { segpay, verotel } = PROCESSORS;
+  const { ccbill, segpay, verotel } = PROCESSORS;
   return (
     <article className="legal-page">
       <h1>Cancel After Dark</h1>
@@ -32,6 +32,13 @@ export default function CancelPage() {
         email or card you paid with, then cancel.
       </p>
       <ul>
+        <li>
+          Statement says <strong>{ccbill.statement}</strong>: cancel at{" "}
+          <a href={ccbill.cancelUrl} rel="noopener">
+            {ccbill.name}&apos;s consumer support ({new URL(ccbill.cancelUrl).host})
+          </a>
+          .
+        </li>
         <li>
           Statement says <strong>{segpay.statement}</strong>: cancel at{" "}
           <a href={segpay.cancelUrl} rel="noopener">
