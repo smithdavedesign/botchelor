@@ -78,7 +78,7 @@ services:
 # Vercel's free plan allows only daily cron jobs. One small container calls both on botchelor.com, so the work itself
 # still runs on Vercel. About $5 a month at most (billed while it runs).
 jobs:
-  - name: hourly
+  - name: lobby  # runs both hourly jobs; renaming a component needs a delete, so it keeps its first name
     kind: SCHEDULED
     schedule:
       cron: "20 * * * *"
