@@ -41,7 +41,7 @@ import { partnerStyleOf } from "@/lib/partners";
 import { whileAwayOf } from "@/lib/activity";
 import LearnedPanel from "./LearnedPanel";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
-import AfterDarkPhotos from "./AfterDarkPhotos";
+import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
 import OriginBadge from "@/app/OriginBadge";
 import { originOf, originsOf } from "@/lib/origin";
 import { ctaMine, dateCta } from "@/lib/date-cta";
@@ -207,6 +207,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
   // Their profile photos: PG Studio pictures their owner pinned (lib/studio/profile-photos.ts).
   const photos = await profilePhotos(db, id);
+  // Their own After Dark pictures of them, as blurred teasers: the owner's page only.
+  const adPhotos = ratings.is_owner && viewerId && !c.house ? await afterDarkPhotosOf(c.id, viewerId).catch(() => null) : null;
   const plays = ratings.is_owner && !c.house ? (await loadCharacter(db, id))?.signals ?? null : null;
   const people = connections(memory);
   const relPage = pageSlice(relationships, parsePage(sp.rel), RELATIONSHIPS_PAGE);
@@ -500,7 +502,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
       {c.house && <AfterDarkTeaser character={c.id} />}
       {/* Their own After Dark pictures of them, blurred: the owner's page only. */}
-      {ratings.is_owner && viewerId && !c.house && <AfterDarkPhotos characterId={c.id} owner={viewerId} />}
+      {adPhotos && <AfterDarkPhotos characterId={c.id} data={adPhotos} />}
 
       {relationships.length > 0 && (
         <section className="card" id="relationships">

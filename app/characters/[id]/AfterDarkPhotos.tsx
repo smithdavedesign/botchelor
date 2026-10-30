@@ -15,7 +15,10 @@ const SHOWN = 4;
  * never carries the bytes. Signed in, never a bot, never where After Dark isn't offered; the owner's page only, which
  * is never indexed for them (the owner's view carries no public content beyond what everyone sees).
  */
-export default async function AfterDarkPhotos({ characterId, owner }: { characterId: string; owner: string }) {
+export type AfterDarkPhotosData = { ids: string[]; n: number; open: boolean };
+
+/** What the row shows, or null when it shows nothing (loaded by the page, so the row itself renders at once). */
+export async function afterDarkPhotosOf(characterId: string, owner: string): Promise<AfterDarkPhotosData | null> {
   const h = await headers();
   if (detectBot(h.get("user-agent"), h.get("signature-agent"))) return null;
   const db = await getDb();
@@ -28,18 +31,20 @@ export default async function AfterDarkPhotos({ characterId, owner }: { characte
     [owner, characterId],
   );
   if (!rows.length) return null;
-  const n = rows[0].n;
-  const open = here.entitled.ok;
+  return { ids: rows.map((r) => r.id), n: rows[0].n, open: here.entitled.ok };
+}
+
+export default function AfterDarkPhotos({ characterId, data: { ids, n, open } }: { characterId: string; data: AfterDarkPhotosData }) {
   return (
     <section className="card ad-photos" aria-label="After Dark photos">
       <h2>
         🌙 {n} After Dark photo{n === 1 ? "" : "s"}
       </h2>
       <ul className="profile-photos-grid">
-        {rows.map((r) => (
-          <li key={r.id}>
+        {ids.map((id) => (
+          <li key={id}>
             {/* eslint-disable-next-line @next/next/no-img-element -- a blurred teaser from its own route */}
-            <img src={`/api/teasers/${r.id}`} alt="A blurred After Dark picture" loading="lazy" />
+            <img src={`/api/teasers/${id}`} alt="A blurred After Dark picture" loading="lazy" />
           </li>
         ))}
       </ul>
