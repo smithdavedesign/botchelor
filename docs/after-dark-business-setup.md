@@ -1,13 +1,35 @@
-# After Dark: the business setup (LLC, EIN, bank, CCBill)
+# After Dark: the business setup (sole proprietor, EIN, bank, CCBill)
 
-David's picks (2026-10-30): **an LLC in his home state, California**, and **CCBill** as the first processor (Segpay and Verotel stay
+David's picks (2026-10-30): **start as a sole proprietor** (David Smith, trading as Botchelor) and form a California
+LLC later, once subscriptions pay for its $800 yearly tax; and **CCBill** as the first processor (Segpay and Verotel stay
 wired as backups). The code side is done (CCBill is built and off: `lib/adult/billing-ccbill.ts`, docs/after-dark.md
 "Billing"). Everything below is David's to do. Each step needs his identity, a signature or a payment, which agents
 never handle (no card, no SSN, no financial data).
 
-Order matters: the LLC first, then the EIN, then the bank account, then CCBill. Each one asks for the one before it.
+Order matters: the business name, then the EIN, then the bank account, then the processor. Each one asks for the one
+before it. If CCBill says it needs an LLC (question 4 of the inquiry, sent 2026-10-30), it's Verotel first instead
+(it takes individuals), or the LLC in section 1b.
 
-## 1. The LLC (California)
+## 1. The business name (a fictitious business name statement, your county)
+
+California requires one when you trade under a name that doesn't include your surname, and "Botchelor" doesn't. Banks
+ask for it before opening an account in the business name.
+- **Where:** your county clerk-recorder's office. Most counties file online; the form is the "Fictitious Business Name
+  Statement". About $25–$100.
+- **What to answer:**
+  - Business name: **Botchelor**.
+  - Registrant: you, David Smith, an **individual**.
+  - Business address: where you run it from.
+  - Date first used: the date Botchelor first took money, or "not yet".
+- **Within 30 days of filing:** publish it once a week for four weeks in a newspaper the county approves, often
+  $30–$100; many papers file the proof for you.
+- It's good for five years.
+- **Also check your city:** many cities want a business license for a home business. It's usually small; your city's
+  website says.
+
+## 1b. Later: the LLC (California)
+
+
 
 **What it costs, before deciding.** California charges every LLC an **$800 annual tax** (FTB Form 3522), whether it
 earns anything or not.
@@ -45,7 +67,7 @@ subscriptions pay for it.
 - **Then the terms:** set `OPERATOR` in `lib/legal-entity.ts` to "Botchelor LLC, a California limited liability
   company". `GOVERNING_STATE` is already California.
 
-## 2. The EIN (free, about 10 minutes, after the LLC is approved)
+## 2. The EIN (free, about 10 minutes)
 
 - **Where:** [IRS: Get an EIN](https://www.irs.gov/businesses/small-businesses-self-employed/get-an-employer-identification-number),
   only on irs.gov. It is free: never pay a site for one.
@@ -54,17 +76,18 @@ subscriptions pay for it.
   - Saturday, 6 a.m. to 9 p.m.
   - Sunday, 6 p.m. to midnight.
 - **What to answer:**
-  - Entity type: limited liability company, 1 member, in your state.
+  - Entity type: **sole proprietor** (later, an LLC gets its own new EIN).
   - Reason: started a new business.
   - Responsible party: you, with your SSN.
-  - Business: online subscription entertainment.
+  - Business: online subscription entertainment; trade name Botchelor.
+- **Why bother as a sole proprietor:** processors and banks get the EIN, not your SSN.
 - **Afterwards:** download the confirmation letter (CP 575) as soon as it's shown. Banks and CCBill ask for it, and it
   can't be downloaded again.
 
 ## 3. A business bank account
 
-- A business checking account in the LLC's name. It needs the Articles, the EIN letter, the operating agreement and
-  your ID.
+- A business checking account in your name "dba Botchelor". It needs the filed fictitious business name statement, the
+  EIN letter and your ID. Keep the business's money in it only: it's what keeps the books, and later the LLC, clean.
 - Ask the bank for a **bank letter** (or use a voided check). CCBill asks for it to pay out.
 - Ask the bank, before you open the account, whether it banks adult-entertainment merchants. Some banks close accounts
   that receive payouts from adult processors.
@@ -74,7 +97,7 @@ subscriptions pay for it.
 1. **Send the inquiry first** (below). It gets CCBill's answer on AI-made content in writing before you apply.
 2. **Apply:** CCBill's merchant sign-up at [ccbill.com](https://ccbill.com). Expect these questions (from
    docs/after-dark-legal-review.md "Payments"):
-   - The LLC and EIN, your ID, the bank letter.
+   - The fictitious business name statement (or the LLC's Articles, later), the EIN letter, your ID and the bank letter.
    - The site: `https://ad.botchelor.com`, with its terms, privacy, refunds and cancellation (`/cancel`), the content
      policy, complaints and takedowns, the 2257 exemption statement, a support email and the age gate.
    - A one-page moderation write-up (the output checks, the text filters, the logs and the monthly report) and a test
