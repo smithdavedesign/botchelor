@@ -94,13 +94,22 @@ describe("the show's own portraits", () => {
     expect((await loopTargets(t.db, owner, BASE_URL, { agents: true })).map((x) => x.character_id)).not.toContain(gone);
   });
 
-  it("keep nothing the PG check doesn't call PG, and leave that one for its creator", async () => {
-    const jax = await agent("Jax Holloway", { bio: "Pilot who flies rescue missions.", pronouns: "he/him" });
+  it("keep nothing the PG check doesn't call PG; give that one a second, stricter try, then leave it for its creator", async () => {
+    const jax = await agent("Jax Holloway", { bio: "Surf instructor on the north shore.", pronouns: "he/him" });
     fakes("REVEALING");
     const r = await portraitBatch(t.db);
     expect(r.results).toEqual([{ character_id: jax, ok: false, reason: "the PG check rated it suggestive", again: false }]);
     expect((await t.db.query(`select 1 from character_assets where character_id = $1`, [jax])).rows).toHaveLength(0);
+    // The second try: head and shoulders, covered up.
+    expect(await portraitTargets(t.db)).toEqual([jax]);
+    const asked = fakes("REVEALING");
+    await portraitBatch(t.db);
+    expect(asked[0]).toMatch(/^Head-and-shoulders portrait photograph of a man of .*, a surf instructor on the north shore\. .*covered up to the neck/);
     expect(await portraitTargets(t.db)).toEqual([]);
+    // Had the second passed, it would have been kept.
+    await t.db.query(`update show_portrait_tries set note = 'the PG check rated it suggestive' where character_id = $1`, [jax]);
+    fakes("CLOTHED");
+    expect((await portraitBatch(t.db)).results).toMatchObject([{ character_id: jax, ok: true }]);
   });
 
   it("never leave a character taken off the show on the showcase", async () => {
