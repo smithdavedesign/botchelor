@@ -72,6 +72,8 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
       menu_picture_tokens: s.menu_picture_tokens,
       chapter_tokens: s.chapter_tokens,
       pictures_per_chapter: s.pictures_per_chapter,
+      draw_ahead_tokens: s.draw_ahead_tokens,
+      draw_ahead_pictures: s.draw_ahead_pictures,
       media_provider: s.media_provider,
       replicate_picture_model: s.replicate_picture_model,
       replicate_keyframe_model: s.replicate_keyframe_model,
@@ -179,13 +181,18 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
         <label className="ad-check-row">
           <input type="checkbox" id="ad-draw-ahead" checked={s.draw_ahead} disabled={busy} onChange={(e) => void save({ draw_ahead: e.target.checked })} />
           <span>
-            Draw each moment as soon as it&apos;s written, so its picture is on the stage when its line comes{" "}
+            Offer Draw ahead in the theater&apos;s ⋯: a viewer who turns it on has each moment drawn as soon as it&apos;s written, so its picture is
+            on the stage when its line comes{" "}
             <span className="muted small">
-              (only the chapter&apos;s own pictures, the ones its close would draw anyway; skips agreeing on the picture first, Redraw stays; a rewind
-              past one wastes it)
+              (paid by the chapter, taken before its first moment is drawn ahead and given back if none is; skips agreeing on the picture first,
+              Redraw stays; a rewind past one wastes it)
             </span>
           </span>
         </label>
+        <label htmlFor="ad-draw-ahead-tokens">Draw ahead&apos;s price a chapter, in bought tokens (admins don&apos;t pay)</label>
+        <input id="ad-draw-ahead-tokens" type="number" min={0} max={20} value={s.draw_ahead_tokens} onChange={(e) => setS({ ...s, draw_ahead_tokens: Number(e.target.value) || 0 })} />
+        <label htmlFor="ad-draw-ahead-pictures">Pictures a chapter drawn ahead may draw on top of its own (at about 3¢ each)</label>
+        <input id="ad-draw-ahead-pictures" type="number" min={0} max={10} value={s.draw_ahead_pictures} onChange={(e) => setS({ ...s, draw_ahead_pictures: Number(e.target.value) || 0 })} />
       </details>
       <details className="ad-settings-section">
         <summary>

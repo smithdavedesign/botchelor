@@ -32,6 +32,7 @@ import { keyframePrompt, placeWords, povPrompt, reelCast, withoutNames, type Ree
 import { thumbsDown } from "./steering";
 import { adultKeys, getAdultSettings } from "./settings";
 import { claimChapterPicture } from "./chapter-pictures";
+import { aheadBudget, countAhead, settleDrawAhead } from "./draw-ahead";
 import { picturesBlocked } from "./readiness";
 import { refundBoughtTokens } from "../allowance";
 import { pictureBrief, type Brief } from "./picture-brief";
@@ -86,6 +87,8 @@ type BeatRow = {
   paid: number;
   /** Why its picture didn't come, in the owner's words (drawBeat). */
   fail_reason?: string | null;
+  /** When it was drawn ahead (lib/adult/draw-ahead.ts), if it was. */
+  ahead_at?: Date | string | null;
 };
 
 /**
@@ -325,22 +328,41 @@ export async function recordBeats(db: Db, scene: BeatScene, cast?: [Character | 
       );
       added.push({ id, line: f.line });
     }
-    // Drawn ahead (the settings' draw_ahead, docs/PRDs/theater-immersion.md #5; off unless switched on): each new moment
-    // starts drawing now, while the lines before it play, so it's on the stage when its line comes. Only from the
-    // chapter's own unasked pictures (lib/adult/chapter-pictures.ts), the ones its close would draw anyway; it skips
-    // agreeing on the picture first (Redraw stays).
-    const settings = await getAdultSettings(db);
-    if (added.length && settings.draw_ahead) {
-      const fits: string[] = [];
-      for (const b of added.sort((x, y) => x.line - y.line)) {
-        if (!(await claimChapterPicture(db, scene.id, scene.chapter, `${scene.chapter}#beat:${b.id}`, settings.pictures_per_chapter))) break;
-        fits.push(b.id);
-      }
-      if (fits.length) drawLater(db, await claim(db, "id = any($1)", [fits]), siteUrl());
-    }
+    // Drawn ahead, when the viewer chose it for this pair (lib/adult/draw-ahead.ts): each new moment starts drawing now,
+    // while the lines before it play, so it's on the stage when its line comes.
+    if (added.length) await drawAheadNow(db, scene, added.map((b) => b.id), siteUrl());
   } catch (err) {
     console.warn(`[after-dark] the chapter's moments couldn't be read: ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
   }
+}
+
+/**
+ * Draw ahead (lib/adult/draw-ahead.ts): these moments of the running chapter start drawing now, earliest first, within
+ * the chapter's budget while it's drawn ahead (its price taken first, once a chapter). Never paid for when its pictures
+ * can't come: beat pictures off, the pair not set up, or the month's pictures had. How many started.
+ */
+export async function drawAheadNow(db: Db, scene: Pick<BeatScene, "id" | "owner" | "a" | "b" | "chapter">, ids: readonly string[], baseUrl: string): Promise<number> {
+  if (!ids.length || !(await beatPicturesReady(db))) return 0;
+  if ((await picturesBlocked(db, scene.owner, scene.a, scene.b)) || (await overCap(db, scene.owner, "pictures"))) return 0;
+  const budget = await aheadBudget(db, scene.id, scene.chapter);
+  if (budget === null) return 0;
+  const waiting = (await db.query<{ id: string }>(`select id from adult_beats where id = any($1) and night_id is null and status in ('offered', 'later') order by line`, [ids])).rows;
+  const fits: string[] = [];
+  for (const b of waiting) {
+    if (!(await claimChapterPicture(db, scene.id, scene.chapter, `${scene.chapter}#beat:${b.id}`, budget))) break;
+    fits.push(b.id);
+  }
+  if (!fits.length) return 0;
+  const { rows } = await db.query<BeatRow>(`update adult_beats set status = 'drawing', ahead_at = now() where id = any($1) and status in ('offered', 'later') returning *`, [fits]);
+  await countAhead(db, scene.id, rows.length);
+  drawLater(db, rows.sort((x, y) => x.line - y.line), baseUrl);
+  return rows.length;
+}
+
+/** The running chapter's moments still waiting from line `from` on (Draw ahead turned on: lib/adult/draw-ahead.ts). */
+export async function waitingBeats(db: Db, sceneId: string, chapter: number, from: number): Promise<string[]> {
+  const { rows } = await db.query<{ id: string }>(`select id from adult_beats where scene_id = $1 and chapter = $2 and night_id is null and line >= $3 and status in ('offered', 'later')`, [sceneId, chapter, from]);
+  return rows.map((r) => r.id);
 }
 
 /** The lines a beat was found in: the running scene's, or the saved night's its chapter was filed as. */
@@ -555,6 +577,8 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<{ ok: t
   const fail = async (why: string) => {
     console.warn(`[after-dark] a beat picture didn't come (${beat.kind}, chapter ${beat.chapter}): ${why.slice(0, 160)}`);
     const refunded = beat.paid;
+    // One drawn ahead that didn't come doesn't count as drawn ahead: a chapter with none gives its tokens back.
+    if (beat.ahead_at) await countAhead(db, beat.scene_id, -1, beat.ahead_at).catch(() => {});
     if (beat.paid > 0) {
       await refundBoughtTokens(db, beat.owner_id, beat.paid).catch(() => {});
       await db.query(`update adult_beats set paid = 0 where id = $1`, [beat.id]);
@@ -822,10 +846,15 @@ export async function redrawPicture(
  */
 export async function fileBeats(db: Db, sceneId: string, chapter: number, nightId: string): Promise<void> {
   const filed = (await db.query<BeatRow>(`update adult_beats set night_id = $3 where scene_id = $1 and chapter = $2 and night_id is null returning *`, [sceneId, chapter, nightId])).rows;
+  // A chapter drawn ahead is settled (its tokens back when it drew nothing ahead); one that did keeps its extra pictures
+  // for what's left.
+  const ahead = (await db.query<{ draw_ahead_chapter: number | null }>(`select draw_ahead_chapter from adult_scenes where id = $1`, [sceneId])).rows[0]?.draw_ahead_chapter === chapter;
+  const refunded = await settleDrawAhead(db, sceneId, chapter, { closing: true }).catch(() => 0);
   if (!filed.length || !(await beatPicturesReady(db))) return;
   // Only what's left of the chapter's unasked pictures (lib/adult/chapter-pictures.ts), the earliest moments first; the
   // rest stay filed with the night, not drawn.
-  const budget = (await getAdultSettings(db)).pictures_per_chapter;
+  const settings = await getAdultSettings(db);
+  const budget = settings.pictures_per_chapter + (ahead && !refunded ? settings.draw_ahead_pictures : 0);
   const fits: string[] = [];
   for (const b of filed.filter((x) => x.status === "offered" || x.status === "later").sort((x, y) => x.line - y.line)) {
     if (!(await claimChapterPicture(db, sceneId, chapter, `${chapter}#beat:${b.id}`, budget))) break;
@@ -845,8 +874,10 @@ export async function rewindBeats(db: Db, sceneId: string, chapter: number, line
   await db.query(`delete from adult_beats where scene_id = $1 and chapter = $2 and night_id is null and line >= $3`, [sceneId, chapter, lineCount]);
 }
 
-/** Start over with nothing to file: the running chapter's beats go. */
+/** Start over with nothing to file: the running chapter's beats go (and its draw ahead is settled). */
 export async function clearBeats(db: Db, sceneId: string): Promise<void> {
+  const chapter = (await db.query<{ chapter: number }>(`select chapter from adult_scenes where id = $1`, [sceneId])).rows[0]?.chapter;
+  if (chapter !== undefined) await settleDrawAhead(db, sceneId, chapter, { closing: true }).catch(() => 0);
   await db.query(`delete from adult_beats where scene_id = $1 and night_id is null`, [sceneId]);
 }
 
