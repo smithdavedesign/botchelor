@@ -110,6 +110,7 @@ import { kindLabel } from "../kinds";
 import { FORGET_KINDS } from "../memory";
 import { HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal } from "../house-bots";
 import { siteUrl } from "../site";
+import { profilePhotos } from "../studio/profile-photos";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { PATCH as patchCharacter } from "@/app/api/characters/[id]/route";
 import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
@@ -4573,9 +4574,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const activity = await agentActivity(db, [id]);
       // 2.4.3 (#555): one partner or more, as its owner chose (or it settled), with what that means.
       const style = profile.made_by === "house" ? null : await partnerStyleOf(db, id).catch(() => null);
+      // Their profile photos (lib/studio/profile-photos.ts), as links anyone can open.
+      const photos = await profilePhotos(db, id);
       return {
         data: {
           character: labelRunBy(profile, activity.get(id)),
+          ...(photos.length ? { photo_urls: photos.map((p) => `${siteUrl()}${p.url}`) } : {}),
           ...(style ? partnerStyleEcho(style.choice, style.decided) : {}),
           stage: stageFor(memory?.dates ?? 0),
           this_week: thisWeek(id, week.rows[0]?.this_week),

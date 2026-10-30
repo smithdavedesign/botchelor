@@ -151,6 +151,23 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     setNote({ text: as === "portrait" ? `That's ${c.name.split(/\s+/)[0]}'s profile picture now.` : `That's ${c.name.split(/\s+/)[0]}'s After Dark face now.` });
   }
 
+  // 📌 On their profile, or off it (lib/studio/profile-photos.ts): pg pictures only.
+  async function pin(id: string, on: boolean) {
+    const res = await requestJson(`/api/characters/${c.id}/photos`, { action: on ? "pin" : "unpin", picture_id: id }).catch(() => null);
+    if (!res || !res.ok) return setNote({ text: res ? res.message : "That didn't reach the server.", error: true });
+    const mark = (p: PgPicture) => (p.id === id ? { ...p, pinned: on } : p);
+    setState((s) => ({ ...s, pictures: s.pictures.map(mark) }));
+    setFresh((f) => f.map(mark));
+    setNote({ text: on ? `It's on ${c.name.split(/\s+/)[0]}'s profile.` : "It's off their profile." });
+  }
+  // 💬 A photo in the texts with someone they've dated.
+  async function send(id: string, to: string) {
+    const res = await requestJson(`/api/characters/${c.id}/photos`, { action: "send", picture_id: id, to_character: to }).catch(() => null);
+    if (!res || !res.ok) return setNote({ text: res ? res.message : "That didn't reach the server.", error: true });
+    const name = state.partners.find((p) => p.character_id === to)?.name ?? "them";
+    setNote({ text: `📷 Sent to ${name}, in their texts.` });
+  }
+
   async function remove(id: string) {
     const res = await requestJson(`/api/characters/${c.id}/studio`, { action: "delete", picture_id: id }).catch(() => null);
     if (res?.ok) {
@@ -256,7 +273,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
               {note.text}
             </p>
           )}
-          {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} onUse={usePicture} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} />}
+          {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} onUse={usePicture} onPin={pin} onSend={send} partners={state.partners} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} />}
         </>
       ) : tab === "create" ? (
         <CreateLibrary scope="safe" onLibrary={onLibrary} />
@@ -296,7 +313,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
             </p>
           )}
           <PgFilterBar items={state.pictures} value={filter} onChange={setFilter} shown={shown.length} />
-          <Pictures items={shown} onDelete={remove} onUse={usePicture} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} />
+          <Pictures items={shown} onDelete={remove} onUse={usePicture} onPin={pin} onSend={send} partners={state.partners} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} />
           {sel.selecting && (
             <SelectBar count={sel.ids.length} total={shown.length} onAll={() => sel.set(shown.map((p) => p.id))} onExport={() => setExporting(sel.ids)} onDone={sel.done} />
           )}
@@ -317,8 +334,16 @@ function Pictures({
   sel,
   onCarousel,
   carouselPrice = "",
+  onPin,
+  onSend,
+  partners = [],
 }: {
   items: PgPicture[];
+  /** 📌 On their profile, or off it. */
+  onPin?: (id: string, on: boolean) => void;
+  /** 💬 As a photo in their texts with one of `partners`. */
+  onSend?: (id: string, to: string) => void;
+  partners?: { character_id: string; name: string }[];
   onDelete: (id: string) => void;
   onUse?: (id: string, as: "portrait" | "face") => void;
   afterDark?: boolean;
@@ -346,6 +371,28 @@ function Pictures({
               <button type="button" className="button-ghost small" onClick={() => onUse(p.id, "face")}>
                 🌙 After Dark face
               </button>
+            )}
+            {onPin && p.rating === "pg" && (
+              <button type="button" className="button-ghost small" aria-pressed={Boolean(p.pinned)} onClick={() => onPin(p.id, !p.pinned)} title="On their profile: what other people and agents see">
+                {p.pinned ? "📌 On profile ✓" : "📌 Profile"}
+              </button>
+            )}
+            {onSend && p.rating === "pg" && partners.length > 0 && (
+              <select
+                className="small"
+                aria-label="Send in texts"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) onSend(p.id, e.target.value);
+                }}
+              >
+                <option value="">💬 Send to…</option>
+                {partners.map((m) => (
+                  <option key={m.character_id} value={m.character_id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
             )}
             <button type="button" className="button-ghost small" disabled={!onCarousel} onClick={() => onCarousel?.(p.id)} title={`This very moment from six angles, a set to post together: ${carouselPrice}`}>
               🎠 Carousel

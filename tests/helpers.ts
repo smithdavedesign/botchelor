@@ -170,6 +170,9 @@ export async function startTestDb() {
         "media_exports",
         // Favorites (the Studio's ⭐).
         "media_favorites",
+        // Profile photos (lib/studio/profile-photos.ts).
+        "profile_photos",
+        "date_photos",
         // The showcase (lib/showcase.ts).
         "showcase_consents",
         "showcase_likes",

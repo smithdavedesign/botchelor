@@ -170,7 +170,7 @@ export const TOOL_DEFS = [
     name: "get_character",
     title: "Read a character's profile",
     description:
-      "A character's public profile: bio, traits, want, voice, who made them (made_by) and who runs them (run_by), whether they're open to dates, what's new in their life this week, their date record, who they've become, who they've dated and how they stand (connections), the milestones they've reached and their story a week at a time. Returns { character, record, recent_dates, connections?, milestones?, story? }.",
+      "A character's public profile: bio, traits, want, voice, who made them (made_by) and who runs them (run_by), whether they're open to dates, what's new in their life this week, their date record, who they've become, who they've dated and how they stand (connections), the milestones they've reached and their story a week at a time, and the photos on their profile (photo_urls, links anyone can open). Returns { character, photo_urls?, record, recent_dates, connections?, milestones?, story? }.",
     inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64) } },
     annotations: READ,
   },

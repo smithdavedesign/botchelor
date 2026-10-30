@@ -57,6 +57,8 @@ export function studioTileSpecs(): TileSpec[] {
       for (const o of g.options) {
         if (o.only && o.only !== gender) continue;
         if (g.id === "wardrobe" && o.id === "theirs") continue;
+        // The PG Studio's extras have no tile: the menu shows their names (nothing new to draw).
+        if (o.fromPg) continue;
         out.push({ id: studioTileId(gender, g.id, o.id), variant: "nsfw", gender, step: `studio_${g.id}`, option: o.id, seed: SEEDS[gender], prompt: tilePrompt(gender, g.id, o) });
       }
     }

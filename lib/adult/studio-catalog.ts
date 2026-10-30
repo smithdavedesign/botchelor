@@ -13,6 +13,7 @@
 import { cameraWords } from "./camera-moves";
 import { IMAGE_MIN_AGE } from "../looks";
 import { PICTURE_PRESETS } from "./rating-tags";
+import { PG_GROUPS } from "../studio/pg-catalog";
 
 export const LEVELS = ["dressed", "suggestive", "nude", "explicit"] as const;
 export type Level = 0 | 1 | 2 | 3;
@@ -37,6 +38,8 @@ export type StudioOption = {
   only?: "woman" | "man";
   /** Filthy's own (the "filthy" group): open only at the Filthy studio intensity, never at Explicit. */
   filthy?: true;
+  /** From the PG Studio's catalog (lib/studio/pg-catalog.ts): an everyday extra, with no preset tile of its own. */
+  fromPg?: true;
   /** A first-person act with the viewer: the viewer may show at the frame's edge (never their face). */
   withViewer?: true;
 };
@@ -50,7 +53,22 @@ const o = (id: string, label: string, words: string, level: Level = 0, more: Par
 /** A Filthy option: explicit, and open only at the Filthy studio intensity. */
 const f = (id: string, label: string, words: string, more: Partial<StudioOption> = {}): StudioOption => ({ id, label, words, level: 3, filthy: true, ...more });
 
-export const STUDIO_GROUPS: readonly StudioGroup[] = [
+/**
+ * The PG Studio's everyday extras, in After Dark's Studio too (the PG Studio plan, PR 5; 2026-10-30): its wearable
+ * accessories (this menu reads "Wearing …", so no props) and its places, at level 0, an id After Dark already has
+ * left as After Dark's. A place is public unless it's a home or a studio backdrop (nothing past suggestive in public).
+ */
+const PG_WEARABLE = new Set(["necklace", "rings", "bracelets", "beanie", "cap", "fedora", "beret", "scarf", "headphones"]);
+const PG_PRIVATE = new Set(["kitchen", "living_room", "studio_white", "studio_grey", "studio_colour"]);
+const pgExtras = (group: "accessories" | "place", have: readonly StudioOption[]): StudioOption[] =>
+  (PG_GROUPS.find((g) => g.id === group)?.options ?? [])
+    .filter((x) => !have.some((h) => h.id === x.id) && !("beach" in x && x.beach) && (group === "place" || PG_WEARABLE.has(x.id)))
+    .map((x) => {
+      const words = group === "place" ? x.words.replace(/^(in|on|at|by|outside|against)\s+/i, "") : x.words;
+      return o(x.id, x.label, words, 0, { fromPg: true, ...(group === "place" && !PG_PRIVATE.has(x.id) ? { public: true as const } : {}) });
+    });
+
+const BASE_GROUPS: readonly StudioGroup[] = [
   {
     // David, 2026-10-24: "a filthy section for explicit", after seduced.com's and candy.ai's menus. One act, in place of
     // the pose; locked until their studio intensity is Filthy.
@@ -283,6 +301,8 @@ export const STUDIO_GROUPS: readonly StudioGroup[] = [
     ],
   },
 ];
+
+export const STUDIO_GROUPS: readonly StudioGroup[] = BASE_GROUPS.map((g) => (g.id === "accessories" || g.id === "place" ? { ...g, options: [...g.options, ...pgExtras(g.id, g.options)] } : g));
 
 export const groupById = (id: GroupId): StudioGroup => STUDIO_GROUPS.find((g) => g.id === id)!;
 export const optionById = (group: GroupId, id: string): StudioOption | null => groupById(group).options.find((x) => x.id === id) ?? null;

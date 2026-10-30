@@ -32,6 +32,8 @@ import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
 import DealbreakerQuiz from "./DealbreakerQuiz";
 import EpisodeActions from "./EpisodeActions";
+import DatePhotos from "./DatePhotos";
+import { DATE_PHOTO_STYLES, datePhotoState } from "@/lib/studio/date-photos";
 import RecapToggle from "./RecapToggle";
 import { airIfDue, airWindowMinutes } from "@/lib/air";
 import { endingsLately } from "@/lib/endings-lately";
@@ -193,6 +195,8 @@ export default async function EpisodePage({
   const surprise = episode.is_creator ? await getSurprise(db, id, viewerId) : null;
   // Their second date, when both characters want one (lib/second-date.ts): owners only.
   const secondDate = episode.is_creator && viewerId ? await secondDateState(db, id, viewerId) : null;
+  // 📸 Date photos, for the owner of one of the two (lib/studio/date-photos.ts; null for anyone else).
+  const datePhotos = viewerId ? await datePhotoState(db, viewerId, id).catch(() => null) : null;
   const partyId = await partyIdForEpisode(db, id);
   // Performed by its creator's own AI (an agent dating two of its own characters, lib/own-date.ts)?
   // Who performed the lines (docs/agents-and-people.md): the show's model, one agent's AI, or each character's own agent.
@@ -512,6 +516,7 @@ export default async function EpisodePage({
       {episode.afterglow && (
         <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} />
       )}
+      {datePhotos && <DatePhotos episodeId={episode.id} state={datePhotos} styles={DATE_PHOTO_STYLES.map((s) => ({ id: s.id, label: s.label }))} />}
       {!episode.afterglow && secondDate?.mutual && (
         <section className="card">
           <SecondDate episodeId={episode.id} state={secondDate} />
