@@ -34,28 +34,56 @@ The database (Neon) and the show's media bucket (Neon Object Storage) didn't mov
 
 Both apps build `main` on every push (`deploy_on_push`). A deploy is live when its app's deployment is `ACTIVE`:
 DigitalOcean dashboard → Apps → the app → Activity, or the API (`GET /v2/apps/<id>/deployments`). Pull requests get no
-preview deployment any more: merge on the local checks (`tsc`, the full test suite), then watch the deploy.
+preview deployment any more: merge on the local checks (`tsc`, the full test suite) and GitGuardian, then watch the
+deploy and check `https://botchelor.com/api/health`. The red "Vercel" check on pull requests is expected (every
+Vercel build fails on Hobby): ignore it.
 
-## DNS (Wix)
+## Settings and logs
 
-| Host | Type | Points to |
+- **Environment variables** live in each app's settings: DigitalOcean → Apps → the app → Settings → App-Level (or the
+  component's) Environment Variables, or the API (`PUT /v2/apps/<id>` with the spec). Values come from the keychain
+  (`vault/botchelor/<NAME>`); secrets are marked Encrypt. Not `vercel env` any more.
+- **Logs:** each app's Runtime Logs in the dashboard (Apps → the app → Runtime Logs). Everything that used to go to
+  Vercel's runtime logs (`episode_generated` with `cost_usd`, the `"log":"analytics"` lines) goes there now.
+
+## DNS: Cloudflare (from 2026-10-30)
+
+Wix is only the registrar now. DNS moved off Wix to DigitalOcean's DNS on 2026-10-30, then to **Cloudflare** the same
+day (free plan; nameservers `kolton.ns.cloudflare.com` and `nucum.ns.cloudflare.com`). Records are edited in
+Cloudflare's dashboard: botchelor.com → DNS → Records. botchelor.com itself moved from Vercel to the show app at about
+18:58 UTC on 2026-10-30.
+
+**Adding a proxied name (the lesson of 2026-10-30).** DigitalOcean only accepts a custom domain once it sees a CNAME
+pointing at the app, and the orange cloud hides that CNAME. So add the record as **DNS only** first, add the domain to
+the app (Settings → Domains, "you manage your domain"), wait until it answers on its own (can take up to an hour; the
+dashboard's status lags), and only then switch it to Proxied. A name switched to Proxied before DigitalOcean has it gets
+Cloudflare's 526 for every visitor, which is what botchelor.com did for ~5 minutes that evening.
+
+| Host | Proxy | Points to |
 |---|---|---|
-| `@` | A | the show app's two ingress addresses (DigitalOcean shows them under Settings → Domains) |
-| `www` | CNAME | the show app's `ondigitalocean.app` address |
-| `ad` | CNAME | After Dark's app's `ondigitalocean.app` address |
-| `media` | CNAME | `botchelor-ad-media.b-cdn.net` |
+| `@` | **Proxied** (orange cloud) | CNAME (flattened) → `botchelor-show-t9g76.ondigitalocean.app` |
+| `www` | DNS only | the show app's `ondigitalocean.app` address |
+| `ad` | DNS only | After Dark's app's (`clownfish-app`) `ondigitalocean.app` address |
+| `media` | DNS only | `botchelor-ad-media.b-cdn.net` |
+| `staging` | DNS only | the show app's `ondigitalocean.app` address (reaches the show without www's redirect) |
+| `edge` | **Proxied** | the show app's `ondigitalocean.app` address (the test name for the proxy) |
 
-Resend's records (`send`, `rsend`, `resend._domainkey`, `_dmarc`) stay as they are.
+Resend's records (`send`, `rsend`, `resend._domainkey`, `_dmarc`) and Glama's TXT record (`_glama-claim.www`) stay as
+they are. Once `@` is proxied, turn on Cloudflare's "Add visitor location headers" managed transform (Rules →
+Transform Rules → Managed Transforms) and set `GEO_HEADERS=cloudflare` on the show app: then visitors get a country
+and a US state again ("Where a visitor is", above).
 
 ## botchelor.vercel.app
 
 The old address keeps serving the last deployment Vercel built (older code, the same database) for as long as the
-Vercel project exists. Stripe's webhook pointed there: move it to `https://botchelor.com/api/webhooks/stripe` in
-Stripe's dashboard (editing the endpoint's URL keeps its signing secret), and do the same for the operator pass's
-webhook. Agents still connected to `botchelor.vercel.app/api/mcp` keep working on the old code until they reconnect.
+Vercel project exists. Stripe's webhooks don't use it: both live endpoints already point at botchelor.com
+(`/api/webhooks/stripe` for packs, `/api/webhooks/stripe-operator` for the operator pass; checked through Stripe's API
+on 2026-10-30), so they reach the show app. Agents still connected to `botchelor.vercel.app/api/mcp` keep working on
+the old code until they reconnect.
 
 ## Going back to Vercel
 
 Re-upgrade the Vercel team to Pro, restore `vercel.json`'s crons from git history, point `@` and `www` back at Vercel's
-records (`216.150.1.1`, `216.150.16.1`, `www` → `3213a098f8021dad.vercel-dns-017.com`), and remove the scheduled job
-from `.do/app.yaml`. The code runs on either: on Vercel, `VERCEL_ENV` and Vercel's headers take over again.
+records in Cloudflare (`216.150.1.1`, `216.150.16.1`, `www` → `3213a098f8021dad.vercel-dns-017.com`, DNS only), and
+remove the scheduled job from `.do/app.yaml`. The code runs on either: on Vercel, `VERCEL_ENV` and Vercel's headers
+take over again.

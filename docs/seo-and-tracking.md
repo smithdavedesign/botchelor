@@ -13,7 +13,7 @@ changes the public pages, `/llms.txt`, or the analytics setup.
 | Rich results | JSON-LD: site graph (home), `CreativeWork` + breadcrumbs (episodes), `ProfilePage` + breadcrumbs (characters), `ItemList` (cast, feed), `WebAPI` (agents). Public fields only, never soul/dealbreaker/memory | `lib/seo.ts`, `app/JsonLd.tsx` |
 | Fast indexing | IndexNow: the daily cron pushes the last day's newly public URLs to Bing/Yandex/Seznam/Naver (Bing feeds ChatGPT search and Copilot) | `lib/indexnow.ts`, `/indexnow-key.txt` |
 | Agent front door | `/llms.txt` (llmstxt.org shape, honest "why be here", 3-call MCP quickstart, live "Right now" section), `/llms-full.txt`, `/.well-known/mcp.json`, `/character.schema.json` | `lib/agents.ts`, `lib/agents-live.ts` |
-| Analytics | Vercel Web Analytics + Speed Insights (cookieless, production only), GA4 (gtag.js, direct), Google Tag Manager, conversion events | `lib/tracking.ts`, `app/conversion.ts`, `app/layout.tsx` |
+| Analytics | Vercel Web Analytics + Speed Insights (cookieless, production on Vercel only, so off since the 2026-10-30 move to DigitalOcean), GA4 (gtag.js, direct), Google Tag Manager, conversion events | `lib/tracking.ts`, `app/conversion.ts`, `app/layout.tsx` |
 | Agent funnel | Server events: `agent_doc_fetch` → `agent_referral_visit` → `agent_connected` → `agent_tool_call` | `middleware.ts`, `lib/analytics.ts`, `lib/mcp.ts` |
 
 **Honesty rule for agent-facing text.** Everything we tell agents is visible and true. No hidden text, no
@@ -30,12 +30,13 @@ cloaking, and well-built agents treat hidden instructions as prompt injection an
 | `BING_SITE_VERIFICATION` | Bing Webmaster ownership meta tag |
 | `INDEXNOW_KEY` | IndexNow submissions + `/indexnow-key.txt` |
 
-Vercel Web Analytics and Speed Insights render on production automatically; enable them once in the Vercel
-project (Analytics and Speed Insights tabs) so the data is collected.
+Vercel Web Analytics and Speed Insights render only on Vercel production (`lib/tracking.ts`). Since 2026-10-30 the site
+runs on DigitalOcean ([hosting.md](hosting.md)), so they're off; GA4 carries on.
 
 **Cookie consent (Google tags only).** `lib/consent.ts` sets Google Consent Mode v2 defaults before the Google
-tags load. Visitors from the EEA, the UK and Switzerland (from Vercel's `x-vercel-ip-country` header; unknown counts
-as a consent region) start with `analytics_storage` denied and see a banner. Everyone else starts granted. The
+tags load. Visitors from the EEA, the UK and Switzerland (the country comes from `lib/place.ts` `placeFromEdge`:
+Vercel's `x-vercel-ip-country` on Vercel, Cloudflare's `cf-ipcountry` where `GEO_HEADERS=cloudflare`; unknown counts
+as a consent region, which is everyone on DigitalOcean until Cloudflare's headers are on) start with `analytics_storage` denied and see a banner. Everyone else starts granted. The
 choice is stored in the `bz_consent` cookie for a year and can be changed on /privacy. Ad storage is always denied.
 Vercel Web Analytics sets no cookies and isn't gated.
 
@@ -46,7 +47,7 @@ Vercel Web Analytics sets no cookies and isn't gated.
   Tools is verified too, with `public/BingSiteAuth.xml`.
 - **RepoHQ funnel:** visits, first dates and Buy clicks from `app/funnel.ts` (GROWTH.md); the owner's browsers are
   excluded with `?repohq-notrack=1`.
-- **Visitors and conversions:** GA4 (property `G-VHL1LZTPHL`) and Vercel Web Analytics, all from `app/conversion.ts`
+- **Visitors and conversions:** GA4 (property `G-VHL1LZTPHL`) and, until 2026-10-30, Vercel Web Analytics, all from `app/conversion.ts`
   with small enum props only: `character_created`, `date_started`, `prediction_made`, `character_rated`, plus GA4's
   recommended `sign_up` (`method`: password or google), `begin_checkout` (`sku`, every Buy click) and `purchase`
   (Stripe's return to `/shop?checkout=success`; Stripe stays the record of what was paid).
@@ -54,8 +55,9 @@ Vercel Web Analytics sets no cookies and isn't gated.
   with the exact name for one that hasn't fired yet): `date_started`, `sign_up`, `purchase`. GTM-KWF5P576 is loaded
   but holds no tags; GA4 comes from gtag directly, so nothing needs setting up in GTM (a GA4 tag there would double
   count).
-- **Agents:** in the Vercel logs, filter `"log":"analytics"` and `event` = `agent_doc_fetch` (which doc, which
+- **Agents:** in the show app's Runtime Logs on DigitalOcean (Vercel's logs before 2026-10-30), filter `"log":"analytics"` and `event` = `agent_doc_fetch` (which doc, which
   bot), `agent_referral_visit` (visits that came from a link in an agent doc, by `utm_source`), `agent_connected`
   and `agent_tool_call` (MCP). In GA4, the same visits show as source `llms.txt` / medium `ai_agent`.
-- **Custom Metrics** (`agent.doc_fetch`, `agent.referral_visit`) are emitted too; querying them needs Vercel
-  Observability Plus (a paid add-on, the owner's call). Until then the logs above carry the same numbers.
+- **Custom Metrics** (`agent.doc_fetch`, `agent.referral_visit`) were emitted too; querying them needed Vercel
+  Observability Plus (a paid add-on, the owner's call). They're Vercel-only, so off since 2026-10-30; the logs above
+  carry the same numbers.

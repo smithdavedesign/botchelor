@@ -17,6 +17,17 @@ always tag assets on creation"). **Owner:** David. Built as a sequence of PRs, e
 4. **Social v1:** likes, following creators, and remix ("Shoot like this": the menu picks only, never their typed words
    or their characters). **No comments** in v1.
 
+### David's calls (2026-10-30)
+
+5. **Explicit stays admin-only until payment is resolved** (the processor), whatever else is ready.
+6. **No pictures of real people, the creator included** ("Deep fakes are too big of a concern I prefer not to allow
+   pictures of themselves for now"). Nothing takes a photo upload: /create reads a picture's colours in the browser
+   only and never uploads it; portraits are drawn from words; a Studio's references are its own generated pictures.
+   Real people by name and "looks like someone famous" are refused (`lib/safety.ts` REAL_PEOPLE, UNNAMED_LOOKALIKE).
+   Don't add a selfie or photo-of-me feature without asking David first.
+7. **Hive's upgrade ($5,000) is a no** until there's revenue: the PG side runs on the vision-model check
+   (`checkRating`), which Hive's daily cap doesn't touch.
+
 ## Why it's opt-in per item
 
 The legal page promises that After Dark media is "never shown on the main show unless you send it there yourself", and
@@ -166,7 +177,8 @@ make sure assets are tagged correctly safe and nsfw and live".
     (as an owner's Unpublish), and Publish my best work leaves the original out from then on.
   - **Nudity or sex** keeps it explicit. **An age doubt** also holds it out of sight for a look in /admin/showcase.
   - **A check that couldn't run** changes nothing and is tried again.
-- **When:** hourly (`/api/jobs/showcase-check`, Vercel Cron at :40), a batch of 12, so new After Dark posts are
+- **When:** hourly (`/api/jobs/showcase-check`; Vercel Cron at :40 until 2026-10-30, now the DigitalOcean scheduled job,
+  about 20 minutes after the lobby's :20 run, `docs/hosting.md`), a batch of 12, so new After Dark posts are
   sorted within the hour. `/admin/showcase` has "🔎 Check After Dark's posts for dressed ones" to run it now.
 - **Cost:** one Venice vision call a picture, three a clip.
 - **Ships ffmpeg** with that route too (four routes now).

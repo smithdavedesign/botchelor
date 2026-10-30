@@ -1451,6 +1451,9 @@ create table if not exists adult_billing_orders (
   created_at timestamptz not null default now(),
   paid_at timestamptz
 );
+-- CCBill joined Segpay and Verotel (2026-10-30, lib/adult/billing-ccbill.ts).
+alter table adult_billing_orders drop constraint if exists adult_billing_orders_processor_check;
+alter table adult_billing_orders add constraint adult_billing_orders_processor_check check (processor in ('ccbill', 'segpay', 'verotel'));
 create index if not exists adult_billing_orders_user_idx on adult_billing_orders (user_id, created_at desc);
 create index if not exists adult_billing_orders_sale_idx on adult_billing_orders (processor, sale_id);
 -- Every postback received, verified or not applied. event_key is the processor's transaction id when it sends one (the
@@ -2689,6 +2692,15 @@ alter table showcase_posts add column if not exists show_prompt boolean not null
 alter table showcase_posts add column if not exists checked_at timestamptz;
 -- The show's own portrait for a public agent-made character with none (lib/agent-portraits.ts): one that couldn't be
 -- kept is noted here and never drawn again, left for the character's creator.
+-- The older SFW twins drawn again with today's prompt (lib/showcase-retwin.ts): each once, the new one's id when it
+-- was swapped in.
+create table if not exists showcase_retwins (
+  old_id text primary key,
+  new_id text,
+  status text not null check (status in ('done', 'failed')),
+  note text,
+  created_at timestamptz not null default now()
+);
 create table if not exists show_portrait_tries (
   character_id text primary key references characters (id) on delete cascade,
   note text,
@@ -2775,6 +2787,34 @@ create table if not exists identity_views (
   from_face text,
   created_at timestamptz not null default now(),
   primary key (owner_id, character_id, studio, view)
+);
+-- The spend tracker (lib/spend.ts, /admin/spend): money in and out that no table records on its own, entered by an
+-- admin (a bill, a prepaid top-up, a sale made elsewhere). A month or year entry repeats from starts_on until ends_on.
+-- seed_key marks one of the documented costs (KNOWN_COSTS), so filling them in twice adds nothing.
+create table if not exists money_entries (
+  id text primary key,
+  kind text not null check (kind in ('cost', 'income')),
+  category text not null check (category in ('api', 'infra', 'other')),
+  provider text not null,
+  label text not null,
+  usd numeric(12, 2) not null check (usd >= 0),
+  every text not null check (every in ('once', 'month', 'year')),
+  starts_on date not null,
+  ends_on date,
+  note text,
+  seed_key text unique,
+  created_by text,
+  created_at timestamptz not null default now()
+);
+-- What each provider said about its balance and usage, at most once a day (the latest reading of the day wins).
+create table if not exists spend_snapshots (
+  day date not null,
+  provider text not null,
+  balance_usd double precision,
+  used_total_usd double precision,
+  used_month_usd double precision,
+  read_at timestamptz not null default now(),
+  primary key (day, provider)
 );
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start

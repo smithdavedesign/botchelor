@@ -20,7 +20,7 @@ const PAYMENT_SDK = /from\s+["'](stripe|@stripe\/[^"']+|paypal[^"']*|@paypal\/[^
 const CASH_OUT_PATH = /cash|withdraw|payout|redeem|refund|transfer|exchange|convert/i;
 // M3 adds exactly these two money routes (buying a cosmetic or a premium house character), and no others.
 // 2026-10-24: After Dark's subscription (lib/adult/billing.ts) adds its own, on adult processors and never Stripe: the
-// checkout, the two processors' postbacks and the admin's review of a chargeback flag. Off until a processor is set up.
+// checkout, the processors' postbacks (CCBill's from 2026-10-30) and the admin's review of a chargeback flag. Off until a processor is set up.
 const PAYMENT_ROUTES = [
   "POST /api/checkout",
   "POST /api/webhooks/stripe",
@@ -29,6 +29,7 @@ const PAYMENT_ROUTES = [
   "GET /api/after-dark/billing/verotel",
   "GET /api/after-dark/billing/segpay",
   "POST /api/after-dark/billing/segpay",
+  "POST /api/after-dark/billing/ccbill",
   "POST /api/admin/after-dark/billing",
 ];
 // The owner's note (M4): the app pays through a Stripe Payment Link and holds no Stripe API key.

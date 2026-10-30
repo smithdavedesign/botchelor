@@ -15,10 +15,10 @@ and the go-live steps. Background and the processor comparison: `docs/after-dark
 | ✅ | Site pages | `/terms`, `/privacy`, `/content-policy`, `/report` (complaints and takedown: 7 business days, 48 hours for intimate images), `/cancel`, `/2257`, the 18+ gate; checked live 2026-10-25 |
 | ✅ | Monthly moderation report | `scripts/after-dark/moderation-report.sql` (read-only; below) |
 | ✅ | Setup in one command once the accounts exist | `scripts/after-dark/provision-billing.py` (below) |
-| ⬜ David | **A business support address** | The legal pages show `1426davejobs@gmail.com` (`CONTACT_EMAIL`). Processors expect a business address, and it's your personal one in front of every subscriber. `botchelor.com` has no MX record, so `support@botchelor.com` receives nothing today. $0 fix: a forwarding service (ImprovMX's free tier) with its MX and SPF records added in Wix DNS, forwarding to your Gmail; then `CONTACT_EMAIL=support@botchelor.com` in Vercel |
+| ⬜ David | **A business support address** | The legal pages show `1426davejobs@gmail.com` (`CONTACT_EMAIL`). Processors expect a business address, and it's your personal one in front of every subscriber. `botchelor.com` has no MX record, so `support@botchelor.com` receives nothing today. $0 fix: a forwarding service (ImprovMX's free tier) with its MX and SPF records added in Cloudflare's DNS (Wix until 2026-10-30, `docs/hosting.md`), forwarding to your Gmail; then `CONTACT_EMAIL=support@botchelor.com` in the show app's environment on DigitalOcean (`docs/hosting.md`) |
 | ⬜ David | **The governing state** | `lib/legal-entity.ts` `GOVERNING_STATE` is still the placeholder "Delaware" (five legal pages). Your state, or your LLC's |
 | ⬜ David | **An LLC and an EIN** | Segpay expects company papers; Verotel takes an individual. Your call, with the lawyer |
-| ⬜ David | **After Dark on its own host** | `ad.botchelor.com` doesn't resolve yet. Built and off until the first subscriber (`docs/after-dark-hosting.md`); a processor's reviewer will want the site they're approving, on its own address |
+| ✅ | **After Dark on its own host** | Live since 2026-10-30: `ad.botchelor.com` on DigitalOcean (`clownfish-app`), media on Bunny, off Vercel (`docs/after-dark-hosting.md`). A processor's reviewer sees the site they're approving on its own address. It stays admin-only until billing and age checks are on |
 | ⬜ David | **Government ID and a bank letter** | For both applications |
 | ⬜ David | **Send the two emails below** and keep the answers in writing | Before applying |
 | ⬜ David | **A lawyer's read of the terms** | `docs/after-dark-legal-review.md` "Questions for a licensed lawyer" |
@@ -134,8 +134,9 @@ decision against the deadlines, billing postbacks by kind and accounts flagged.
 
 1. `python3 -I scripts/after-dark/provision-billing.py segpay` (or `verotel`): it asks for the IDs and keys from the
    portal (hidden as you type), makes our postback secret, stores everything in the keychain, and puts the portal
-   settings (the postback URLs, which carry the secret) on your clipboard to paste. Add `--push-vercel` while After Dark
-   is still on Vercel (production only, never previews; it redeploys), or `--host` for another address.
+   settings (the postback URLs, which carry the secret) on your clipboard to paste. Don't use `--push-vercel`: since
+   2026-10-30 After Dark runs on its own DigitalOcean app, so put the settings (from the keychain) in that app's
+   environment (`docs/hosting.md`); `--host` names another address.
 2. Paste into the portal: Segpay Merchant Portal → My Websites → Manage Postbacks; Verotel Control Center → Setup
    Websites → FlexPay Options.
 3. `python3 -I scripts/after-dark/provision-billing.py check`: the settings in the keychain, and whether each

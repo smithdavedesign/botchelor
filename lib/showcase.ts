@@ -473,6 +473,9 @@ export async function postMedia(db: Db, v: ShowcaseViewer, postId: string): Prom
  * asked one post at a time, never in bulk on someone's behalf. The SFW twin of a picture in it (lib/adult/sfw-twin.ts,
  * rated pg or suggestive) is in it too: it's the same good picture, dressed, for the side everyone sees.
  */
+/** A twin drawn again with today's prompt (lib/showcase-retwin.ts) isn't their best any more: its new one is. */
+const NOT_REPLACED = `and not exists (select 1 from showcase_retwins r where r.old_id = id and r.status = 'done')`;
+
 export async function bestOf(db: Db, owner: string): Promise<{ after_dark: string[]; pg: string[] }> {
   const ad = (
     await db.query<{ id: string }>(
@@ -496,12 +499,12 @@ export async function bestOf(db: Db, owner: string): Promise<{ after_dark: strin
   ).rows.map((r) => r.id);
   const twins = (
     await db.query<{ id: string }>(
-      `select id from adult_images where owner_id = $1 and twin_of = any($2::text[]) and status = 'ready' and content_rating in ('pg', 'suggestive') order by created_at`,
+      `select id from adult_images where owner_id = $1 and twin_of = any($2::text[]) and status = 'ready' and content_rating in ('pg', 'suggestive') ${NOT_REPLACED} order by created_at`,
       [owner, ad],
     )
   ).rows.map((r) => r.id);
   const pg = (
-    await db.query<{ id: string }>(`select id from studio_pg_pictures where owner_id = $1 and (content_rating = 'pg' or twin_of = any($2::text[])) order by created_at`, [owner, ad])
+    await db.query<{ id: string }>(`select id from studio_pg_pictures where owner_id = $1 and (content_rating = 'pg' or twin_of = any($2::text[])) ${NOT_REPLACED} order by created_at`, [owner, ad])
   ).rows.map((r) => r.id);
   // One that's safe itself with an SFW twin: the twin is its face on the showcase (lib/showcase-check.ts), never both.
   const covered = new Set(

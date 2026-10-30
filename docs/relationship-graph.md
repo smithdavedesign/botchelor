@@ -205,9 +205,9 @@ sides, the afterglow's "it was mutual"), an owner can book their second date fro
   browsers' own push services, and a gone subscription (404/410) is deleted.
 
   **Email** (`lib/email.ts`, Resend on its free plan: $0, no card, 100 a day and 3,000 a month). It's live
-  since 2026-10-16. botchelor.com is verified in Resend, with the DKIM, return-path and DMARC records at Wix
+  since 2026-10-16. botchelor.com is verified in Resend, with the DKIM, return-path and DMARC records at Wix (Cloudflare's DNS since 2026-10-30, `docs/hosting.md`)
   (Resend's inbound MX record is skipped because the show only sends). The sending-only key is in the keychain at
-  `vault/botchelor/RESEND_API_KEY` and on Vercel production. Resend is a direct account, not the Vercel
+  `vault/botchelor/RESEND_API_KEY` and on production (Vercel then; the DigitalOcean apps' environment since 2026-10-30). Resend is a direct account, not the Vercel
   Marketplace one (the Marketplace has no free plan for a domain bought elsewhere).
   - **Opt-in only, and confirmed.** It's on the account page for signed-in players. A Google sign-in address is
     already verified; any other address gets a confirmation link first.

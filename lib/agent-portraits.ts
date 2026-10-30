@@ -8,8 +8,9 @@
  * - **Safe:** Venice's safe mode, then the strict PG check with its age question (lib/adult/moderation.ts checkRating,
  *   not Hive's capped allowance); only a PG picture is kept. Recorded and approved in the asset ledger as the show's
  *   own drawing, so their creator can replace it any time (their portrait route).
- * - **Once:** a character with any portrait, kept or pending, is never drawn again here; one that failed is recorded
- *   in show_portrait_tries and left for its creator.
+ * - **Twice at most:** a character with any portrait, kept or pending, is never drawn again here. One the check called
+ *   suggestive or nude gets one second, stricter try (strictPortraitPrompt); any other failure, or a second one, is
+ *   recorded in show_portrait_tries and left for its creator.
  */
 import type { Db } from "./db";
 import { recordAsset, reviewAsset } from "./assets";
@@ -18,6 +19,7 @@ import { checkRating } from "./adult/moderation";
 import { physicalLook, venicePicture } from "./adult/media";
 import { checkPgPictureText } from "./safety";
 import { portraitPrompt } from "./season-gen";
+import { DELETED_OWNER } from "./rules";
 
 export const PORTRAIT_BATCH = 8;
 const AT_ONCE = 4;
@@ -35,14 +37,27 @@ export function lookFor(c: Pick<Character, "age" | "bio" | "pronouns" | "look"> 
   return `${who} of ${c.age}, ${what}, in everyday clothes that suit it`;
 }
 
-/** The public agent-made characters with no portrait at all, and none tried yet. */
+/**
+ * The second try's prompt (David, 2026-10-30: "go for it. 17 agents", after the first try was rated suggestive or
+ * nude): head and shoulders, covered up, plain backdrop, whatever the bio suggests (a surfer, a dancer).
+ */
+export function strictPortraitPrompt(look: string, age: number): string {
+  return `Head-and-shoulders portrait photograph of ${look.replace(/, in everyday clothes that suit it$/, "").replace(/\.$/, "")}. Clearly ${age} years old, an adult. Wearing a buttoned shirt or a crew-neck sweater, covered up to the neck. Plain grey studio background, soft light, friendly expression, looking at the camera, photorealistic.`;
+}
+
+/** A first try the check didn't call PG (suggestive or nude): those get one stricter try. */
+const SECOND_TRY = `t.note ~ '(suggestive|nudity|sexual)' and t.note not like 'second try:%'`;
+
+/** The public agent-made characters with no portrait at all: none tried yet, or due their second, stricter try. */
 export async function portraitTargets(db: Db, limit = 1000): Promise<string[]> {
   return (
     await db.query<{ id: string }>(
       `select ch.id from characters ch
         where ch.created_via = 'mcp' and ch.visibility = 'public' and not ch.is_house
+          -- Never one taken off the show (lib/account.ts adminRemoveCharacters, or its owner's delete).
+          and ch.owner_id is distinct from '${DELETED_OWNER}'
           and not exists (select 1 from character_assets a where a.character_id = ch.id and a.kind = 'portrait')
-          and not exists (select 1 from show_portrait_tries t where t.character_id = ch.id)
+          and not exists (select 1 from show_portrait_tries t where t.character_id = ch.id and not (${SECOND_TRY}))
         order by ch.created_at desc limit $1`,
       [limit],
     )
@@ -53,15 +68,17 @@ export type PortraitTry = { character_id: string; ok: true; asset_id: string } |
 
 /** One character's portrait, drawn, checked, kept. Never throws. */
 export async function drawShowPortrait(db: Db, characterId: string): Promise<PortraitTry> {
+  const second = (await db.query(`select 1 from show_portrait_tries t where t.character_id = $1 and ${SECOND_TRY}`, [characterId])).rows.length > 0;
   const failed = async (reason: string, again = false): Promise<PortraitTry> => {
-    if (!again) await db.query(`insert into show_portrait_tries (character_id, note) values ($1, $2) on conflict (character_id) do nothing`, [characterId, reason.slice(0, 200)]);
+    const note = `${second ? "second try: " : ""}${reason}`.slice(0, 200);
+    if (!again) await db.query(`insert into show_portrait_tries (character_id, note) values ($1, $2) on conflict (character_id) do update set note = excluded.note`, [characterId, note]);
     return { character_id: characterId, ok: false, reason, again };
   };
   const c = await loadCharacter(db, characterId);
   if (!c) return failed("no such character");
   const look = lookFor(c);
   if (!look) return failed("nothing written about them to draw from");
-  const prompt = portraitPrompt(look, c.age);
+  const prompt = second ? strictPortraitPrompt(look, c.age) : portraitPrompt(look, c.age);
   if (!checkPgPictureText({ prompt }).ok) return failed("their words don't pass the show's PG word check");
   let pic: { bytes: Buffer; mime: string };
   try {

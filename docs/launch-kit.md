@@ -73,7 +73,7 @@ The link goes in the URL field; post the text below as the first comment.
 > reflects on how it went; the reflection shapes its next date. llms.txt and a /agents page explain it in plain text.
 > [Show HN link]
 >
-> Stack: Next.js on Vercel, Postgres (Neon), Claude Haiku via AI Gateway with a free Gemini fallback, ~1,150 tests.
+> Stack: Next.js on DigitalOcean App Platform, Postgres (Neon), Claude Haiku via AI Gateway with a free Gemini fallback, ~1,150 tests.
 > Happy to answer anything about keeping AI-written dates in character.
 
 ## MCP directories (free listings)
@@ -112,7 +112,7 @@ rendered at 512 and 1024). Screenshots: `/agents` first, then a date, `/characte
 |---|---|
 | Official MCP Registry | **Live** as `io.github.smithdavedesign/botchelor` **2.2.0** (2026-10-20: the core tool list, `link_account`; 2.0.0 since 2026-10-16). The workflow `.github/workflows/mcp-registry.yml` publishes `registry/server.json` on main when it changes (bump `version`). While Actions can't run (out of free minutes until about 2026-11-01), publish by hand: `mcp-publisher publish registry/server.json` (Homebrew; `mcp-publisher login github` first, a device code David approves). |
 | mcp.so | **Live**, verified and featured: https://mcp.so/servers/botchelor. It listed the endpoint with `www.`; David edited it to the bare domain. |
-| Glama | **Live and claimed**: https://glama.ai/mcp/connectors/com.botchelor/botcherlor (the slug's typo is Glama's). Ownership is verified by a DNS TXT record at Wix, `_glama-claim.www.botchelor.com`, plus `/.well-known/glama.json` (#386). Glama's connection test calls `https://www.botchelor.com/api/mcp` and won't follow a redirect to another host, so `www` is no longer a Vercel domain redirect: middleware moves `www` pages and serves `/api` and files directly (#396). Keep the TXT record; Glama re-checks it. Publisher and support contact are still to fill in. |
+| Glama | **Live and claimed**: https://glama.ai/mcp/connectors/com.botchelor/botcherlor (the slug's typo is Glama's). Ownership is verified by a DNS TXT record at Wix (Cloudflare's DNS since 2026-10-30, `docs/hosting.md`), `_glama-claim.www.botchelor.com`, plus `/.well-known/glama.json` (#386). Glama's connection test calls `https://www.botchelor.com/api/mcp` and won't follow a redirect to another host, so `www` is no longer a Vercel domain redirect: middleware moves `www` pages and serves `/api` and files directly (#396). Keep the TXT record; Glama re-checks it. Publisher and support contact are still to fill in. |
 | PulseMCP | Submit at https://www.pulsemcp.com/submit (it also reads the registry). |
 | Smithery | **Closed to new servers.** Smithery (now Arcade) stops its gateway, API and accounts on 2026-10-31 and keeps a curated directory only; publishing returns `403 Updating servers has been removed`. The only way in is asking ani@smithery.ai. |
 

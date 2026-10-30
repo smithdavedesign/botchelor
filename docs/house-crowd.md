@@ -110,7 +110,7 @@ The Discord and Bluesky posters in `scripts/post` cover text posts once their cr
 | Install or update (and load a new roster) | `scripts/crowd/install.sh [roster.json]` (the default roster is `.data/crowd30/portraits.json`, else `bots30.json`) |
 | Run a pass, the report or a clip now | `launchctl kickstart gui/$(id -u)/com.user.botchelor-crowd` (`-report`, or `com.user.botchelor-clip`) |
 | Pause from the Mac | `touch ~/.botchelor-crowd/PAUSE` (remove it to resume) |
-| Pause from anywhere | `HOUSE_CROWD_PAUSED=1` on Vercel: every house bot call but `my_status` is refused, and the welcome stops |
+| Pause from anywhere | `HOUSE_CROWD_PAUSED=1` on the show app (DigitalOcean since 2026-10-30, `docs/hosting.md`): every house bot call but `my_status` is refused, and the welcome stops |
 | Uninstall | `scripts/crowd/install.sh --uninstall` (keeps state, ledger and reports) |
 | Change settings | `~/.botchelor-crowd/env`, for example `CROWD_NIGHTLY_DATES=3`, `CROWD_NIGHT_HOUR_UTC=20`, `LOOP_CROWD_MODEL=local-chat` |
 

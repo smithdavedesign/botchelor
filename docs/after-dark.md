@@ -76,7 +76,7 @@ the keychain (`~/ai-stack/bin/secrets`, never in a file). Propose: start with on
 > **2026-10-24: built and off.** Segpay (primary) and Verotel (backup) are wired end to end; nothing runs until their
 > settings are in the environment. See "Billing" below. Still pending: David opens the merchant accounts.
 
-## Billing — Segpay first, Verotel as backup (2026-10-24)
+## Billing — CCBill first (2026-10-30), Segpay and Verotel as backups (2026-10-24)
 
 > **Applying (2026-10-25):** the readiness table, the application packet (business description, moderation write-up, the
 > two emails), the monthly report and the one-command setup are in `docs/after-dark-processor-application.md`.
@@ -133,9 +133,20 @@ choice.
 
 ### What David pastes into each merchant portal
 
-The host is `https://ad.botchelor.com` once After Dark runs on its own host (docs/after-dark-hosting.md), else
-`https://botchelor.com` while it's still on Vercel. Use After Dark's own host as soon as it exists: a processor may
-not follow the show's redirect.
+The host is `https://ad.botchelor.com`: After Dark runs on its own host since 2026-10-30 (docs/after-dark-hosting.md).
+Use it, not botchelor.com: a processor may not follow the show's redirect.
+
+**CCBill** (David's pick, 2026-10-30; `lib/adult/billing-ccbill.ts`). Settings, all needed or CCBill stays off:
+`CCBILL_ACCOUNT` and `CCBILL_SUBACCOUNT` (numbers), `CCBILL_FLEX_ID` (the FlexForms payment flow's id), `CCBILL_SALT`
+(the account's encryption key, from CCBill support), `CCBILL_WEBHOOK_KEY` (our own random secret, 24+ characters).
+In CCBill's Admin Portal:
+- FlexForms: one payment flow with dynamic pricing on; approval URL `https://ad.botchelor.com/after-dark/subscribe?done=1`,
+  denial URL `…/after-dark/subscribe?declined=1`. Each checkout sends a $12.99, 30-day recurring price with its
+  formDigest and our order as `X-orderId`.
+- Webhooks (Account Info → Sub Account Admin → Webhooks): URL
+  `https://ad.botchelor.com/api/after-dark/billing/ccbill?key=<CCBILL_WEBHOOK_KEY>`, format JSON, events NewSaleSuccess,
+  NewSaleFailure, RenewalSuccess, RenewalFailure, Cancellation, Expiration, Refund, Void, Chargeback. CCBill signs
+  nothing: the key, our account and subaccount, and (behind Cloudflare) CCBill's sending ranges are the check.
 
 **Verotel** (Control Center → Setup Websites → the website → FlexPay Options):
 - FlexPay postback URL: `https://ad.botchelor.com/api/after-dark/billing/verotel`
@@ -154,7 +165,7 @@ retries): one Transaction postback and three Member Management postbacks, each t
 ### The application checklist (docs/after-dark-legal-review.md "Payments")
 
 1. An LLC and an EIN (David's call, with the lawyer).
-2. After Dark live on `ad.botchelor.com`, off Vercel.
+2. After Dark live on `ad.botchelor.com`, off Vercel. **Done 2026-10-30** (DigitalOcean + Bunny, `docs/after-dark-hosting.md`).
 3. Site pages: terms, privacy, refunds and cancellation (`/cancel`), a content policy naming the banned themes, a
    complaint and takedown page (7 business days; 48 hours for intimate images), the 2257 exemption statement, a support
    email, and the age gate.
@@ -209,7 +220,8 @@ Track cost-per-subscriber; alert when a subscriber's generation cost exceeds a s
   Vercel moderator told a similar asker to email `registration@vercel.com`. **Assume explicit content — above all
   stored images — needs separate, adult-permissive infra** (an adult-OK object store, possibly a separate
   deployment/subdomain for the adult tier). Email Vercel to confirm before any user traffic; isolate storage
-  regardless.
+  regardless. **Resolved 2026-10-30:** nothing runs on Vercel now. After Dark is on DigitalOcean with its media on
+  Bunny, whose terms allow lawful adult content (`docs/hosting.md`, `docs/after-dark-hosting.md`).
 - **OpenRouter**: its terms defer to each model's provider terms. Pick a text model whose provider permits adult;
   don't assume a blanket allowance.
 - **fal.ai**: has its own NSFW policy (bans CSAM/NCII, runs OpenAI Omni moderation on inputs) but hosts
@@ -218,6 +230,11 @@ Track cost-per-subscriber; alert when a subscriber's generation cost exceeds a s
   model, and still add output moderation (#1) — fal's input moderation is not enough.
 - Set a **spend cap at every provider** when you create the key (`secrets add --cap`), and record it so the
   nightly scan sees it.
+
+**Live (2026-10-30):** After Dark runs on its own host, `ad.botchelor.com` (DigitalOcean app `clownfish-app`, media on
+Bunny at `media.botchelor.com`), and the show has `AFTER_DARK_ORIGIN` set, so After Dark's pages and APIs on
+botchelor.com redirect there. It's still admin-only until payments and age checks. DNS is moving from Wix to
+Cloudflare (`docs/hosting.md`). What follows is the 2026-10-22 note.
 
 **Built, and off (2026-10-22): After Dark can run on a host of its own.** David's call: the split goes live with payments
 and age checks, before the first subscriber; until then After Dark stays admin-only on Vercel. The same code deploys a
@@ -246,7 +263,8 @@ Three cheap fixes from the day's terms review:
   tab until the next full page load, because GA's next in-app page_view would carry the After Dark address as its
   page_referrer. Nothing sends a page title or address explicitly. In Chromium, against the real gtag.js (every hit
   answered locally): normal pages still counted, and no hit came from or after After Dark. Vercel Web Analytics and
-  Speed Insights still count these pages, by path and route only (no titles, no cookies). The After Dark layouts add
+  Speed Insights still count these pages, by path and route only (no titles, no cookies). (Since 2026-10-30 they're
+  off: they only run on Vercel.) The After Dark layouts add
   `<meta name="rating" content="adult">` and the RTA label (lib/adult/rating.ts).
 - **Hive's age check answers from three labels.** Hive's terms (1.5) count its VLM as generative, which (3.2) bars
   non-PG content without written permission, "solely when used for any purpose other than receiving a response
@@ -262,7 +280,7 @@ Three cheap fixes from the day's terms review:
 3. **Adult payment processor (#3)** — the dependency that makes #2's "subscription" real. David provisions.
 4. **Age verification (#4)** — in the subscribe flow; David provisions + counsel.
 5. **Margin guard (#5)** — caps / BYOK text.
-6. **Hosting + model ToS (#6)** — isolate explicit storage off Vercel; adult-permissive models; spend caps.
+6. **Hosting + model ToS (#6)** — isolate explicit storage off Vercel (done 2026-10-30: DigitalOcean + Bunny); adult-permissive models; spend caps.
 
 Nothing opens to a paying user until 1–4 are real. Keep the PG product the default and fully separate; After Dark
 is opt-in, age-verified, subscriber-only, and isolated.
@@ -1095,7 +1113,7 @@ with whom it went to and a × to forget it.
 - **It moves everything Venice made for After Dark:** the explicit pictures (when "Make pictures on" is Venice), each shot's keyframe, the videos, and now their voices.
 - **A reel's shots keep the provider they started on** (`provider` on the shot), so switching never strands a reel.
 - **Not moved:** the season's PG portraits (lib/season-gen.ts, Venice with safe mode on) and the looks builder's tiles (lib/looks-draw.ts).
-- **The key:** one saved in the settings, else the server's `REPLICATE_API_TOKEN`, set in Vercel production on 2026-10-22. The settings page says which, and never shows it.
+- **The key:** one saved in the settings, else the server's `REPLICATE_API_TOKEN`, set in Vercel production on 2026-10-22 (on DigitalOcean since 2026-10-30, `docs/hosting.md`). The settings page says which, and never shows it.
 
 **The models.** Each was read from its Replicate page and API schema on 2026-10-22; the main session ran each live the same day on the real key.
 
@@ -1148,7 +1166,7 @@ Notes on each:
 **What David does** (some of it done on 2026-10-22):
 1. **Sign up at replicate.com and prepay credit** at replicate.com/account/billing, with auto-reload off. Done: account smithdavedesign.
 2. **Set a spend limit.** Replicate retired its self-serve monthly limit (July 2025), so the prepaid balance with auto-reload off is the limit: at zero, Replicate starts no new work. Load only what you're willing to spend, and ask support@replicate.com if you want a hard monthly cap as well.
-3. **Store the token:** `~/ai-stack/bin/secrets add botchelor REPLICATE_API_TOKEN --cap "<the prepaid amount>, auto-reload off"`. Done: it's in the keychain at `vault/botchelor/REPLICATE_API_TOKEN`, and in Vercel production as `REPLICATE_API_TOKEN`.
+3. **Store the token:** `~/ai-stack/bin/secrets add botchelor REPLICATE_API_TOKEN --cap "<the prepaid amount>, auto-reload off"`. Done: it's in the keychain at `vault/botchelor/REPLICATE_API_TOKEN`, and in Vercel production as `REPLICATE_API_TOKEN` (since 2026-10-30, the DigitalOcean apps' environment; `docs/hosting.md`).
 4. **Save it in After Dark's settings,** or leave the field empty to use the server's token. The page says "from the server's environment" when it's that one.
 5. **Switch "Make pictures and videos on" to Replicate** (`media_provider`) on /admin/after-dark/settings.
 6. **Rerun the 4-shot bake-off** below before relying on it.
@@ -2284,7 +2302,7 @@ David: "disable it [Hive] when developing so we can be unblocked." With `MODERAT
 `checkMedia`/`mediaGate`/`checkReady` skip Hive entirely (`devModerationOff`): a ready alternative (the Venice vision
 model, no daily cap) still checks a picture and can still refuse it — never kept unchecked — and with no alternative set
 up, or for a video (which the alternatives can't read), it passes without a check. This keeps local and preview work off
-Hive's 100-a-day limit. It can **never** fire on production: `VERCEL_ENV === "production"` ignores the flag, whatever
+Hive's 100-a-day limit. It can **never** fire on production: production (`VERCEL_ENV` or, off Vercel, `DEPLOY_ENV` = `production`; `lib/deploy.ts`) ignores the flag, whatever
 it's set to, so prod always runs the configured mode. Tests don't set it, so it's inert there
 (tests/after-dark-moderation.test.ts "the dev switch skips Hive off production").
 

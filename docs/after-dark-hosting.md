@@ -1,12 +1,22 @@
 # After Dark on its own host: the runbook
 
-> **Status (2026-10-22): built, and off.** David's call: switch it on together with payments and age checks, before the
-> first subscriber. Until then After Dark stays admin-only on Vercel, exactly as it is today. Nothing here has been
-> signed up for, paid for or deployed: every step below is David's.
+> **Status (2026-10-30): live.** After Dark runs on its own host, `ad.botchelor.com`, and the show runs on DigitalOcean
+> too (`docs/hosting.md`). What was set up:
+> - **DigitalOcean:** the app `clownfish-app` from `.do/app.yaml`, $10 a month, `AFTER_DARK_ONLY=1`, serving
+>   `ad.botchelor.com`. It builds `main` on every push.
+> - **Bunny:** storage zone `botchelor-ad` (New York) and pull zone `botchelor-ad-media` with token authentication,
+>   a 12-hour browser cache, a 500 GB monthly cap, and the Asia, Africa and South America regions off. Its hostname is
+>   `media.botchelor.com`. 937 files were copied from the bucket on 2026-10-30.
+> - **The show** (`botchelor-show`, `.do/show.yaml`) has `AFTER_DARK_ORIGIN=https://ad.botchelor.com`, so After Dark's
+>   pages and APIs on botchelor.com redirect to ad.botchelor.com through the sign-in hop.
+>
+> After Dark is still admin-only: payments and age checks ("Before switching on" below) come before the first
+> subscriber. The steps below are kept as the record of how it was set up. (Before 2026-10-30 this said "built, and off":
+> After Dark stayed admin-only on Vercel.)
 
 ## Why
 
-- **Vercel's terms are the risk.** Its acceptable use policy bans "obscene" content. Customers not on Enterprise may not
+- **Vercel's terms were the risk** (resolved 2026-10-30: nothing runs on Vercel now). Its acceptable use policy bans "obscene" content. Customers not on Enterprise may not
   "use a service for an objectionable purpose", and Vercel may remove content or suspend a project "for any reason". That
   could take the whole PG show down along with After Dark.
 - **Neon is fine.** It points to the Databricks acceptable use policy, which bars only unlawful content. The database
@@ -20,7 +30,7 @@
 ```
                     ┌──────────────── Neon Postgres (one database, both deployments) ────────────────┐
                     │                                                                                 │
- botchelor.com  ── Vercel: the show ── After Dark's links and pages ──▶ ad.botchelor.com ── DigitalOcean: After Dark only
+ botchelor.com  ── DO: the show ────── After Dark's links and pages ──▶ ad.botchelor.com ── DigitalOcean: After Dark only
    (unchanged)        └ its media: the S3 bucket (Neon Object Storage), as today        └ its media: media.botchelor.com
                                                                                             (Bunny pull zone, token links)
                                                                                             ◀── Bunny Edge Storage
@@ -28,11 +38,11 @@
 
 The same code runs in both places. Two settings decide what each deployment does (`lib/after-dark-host.ts`):
 
-| Setting | On the show (Vercel) | On After Dark's host (DigitalOcean) |
+| Setting | On the show (`botchelor-show`) | On After Dark's host (`clownfish-app`) |
 |---|---|---|
 | `AFTER_DARK_ORIGIN` | `https://ad.botchelor.com` | `https://ad.botchelor.com` |
 | `AFTER_DARK_ONLY` | not set | `1` |
-| `SITE_URL` | not needed (Vercel names the domain) | `https://botchelor.com` |
+| `SITE_URL` | `https://botchelor.com` (Vercel named the domain itself; DigitalOcean doesn't) | `https://botchelor.com` |
 
 **On the show, with `AFTER_DARK_ORIGIN` set:**
 - Every After Dark link (the nav, Account, Admin, the episode page's 🌙 link, the teaser card) points at
@@ -76,13 +86,14 @@ show: it asks every time it's entered from botchelor.com, and takes the show's i
 Signing in, out, or as someone else on botchelor.com carries over on the next way in. Visiting ad.botchelor.com
 directly keeps the session it has (a year, like the show's).
 
-**Switched off (the default), nothing changes.** `tests/after-dark-host.test.ts` pins today's answers for every kind of
+**Switched off (no `AFTER_DARK_ORIGIN`), nothing changes.** `tests/after-dark-host.test.ts` pins today's answers for every kind of
 request this touches (After Dark's pages, the show's pages, the gate, bots, the old host, the carry route, and
 `next.config.ts` itself), and they're the same with the code in place.
 
 ## Before switching on
 
-These come first, and most of them need David to sign up, pay or decide:
+The host was switched on 2026-10-30, ahead of these, because the show had to leave Vercel anyway. After Dark stays
+admin-only until they're done; they now gate opening it to subscribers. These come first, and most of them need David to sign up, pay or decide:
 
 1. **Payments:** the adult processor (CCBill or Segpay, never Stripe) is live and writes `adult_entitlements`
    (`docs/after-dark.md` #3).
@@ -106,11 +117,11 @@ These come first, and most of them need David to sign up, pay or decide:
    page source on ad.botchelor.com.
 5. **No Google Analytics on After Dark's host.** Leave `NEXT_PUBLIC_GA_ID` and `NEXT_PUBLIC_GTM_ID` unset there ("3. DigitalOcean"):
    without them no Google tag is rendered at all, on any page of that host, the 18+ gate included. On the show, the
-   guard built in #695 (`lib/ga-guard.ts`) keeps GA off After Dark's paths. Vercel Web Analytics only runs on Vercel.
+   guard built in #695 (`lib/ga-guard.ts`) keeps GA off After Dark's paths. Vercel Web Analytics only ran on Vercel, so it's off everywhere since 2026-10-30.
    Check: no request to `google-analytics.com` or `googletagmanager.com` in the network tab on any ad.botchelor.com page.
 6. **Model terms in writing** (Venice), as `docs/after-dark.md` already lists.
 7. **The looks builder:** with the switch on, the After Dark tab of `/create` on botchelor.com still shows After Dark's
-   tiles to the people it's open to (their images now come from ad.botchelor.com and Bunny, never through Vercel). Keep
+   tiles to the people it's open to (their images now come from ad.botchelor.com and Bunny, never through the show). Keep
    it, or move that tab to After Dark's host: David's call.
 
 ## 1. Bunny: storage and the CDN
@@ -134,7 +145,7 @@ the account after four days negative (files are deleted after 60 days disabled).
    - Origin type: **Bunny Storage Zone** → `botchelor-ad`.
    - Pricing tier: **Standard**. Under Pricing & Routing, the Asia, South America, and Middle East and Africa regions
      cost 3 to 6 times more; switching them off is optional.
-4. **Its hostname:** General → Hostnames → add `media.botchelor.com` (once its record is in, "4. DNS at Wix"), then
+4. **Its hostname:** General → Hostnames → add `media.botchelor.com` (once its record is in, "4. DNS"), then
    **Enable** SSL → Add Free Let's Encrypt Certificate. Turn on Force SSL.
 5. **Token Authentication:** Security → **Token Authentication** on. Copy the **URL Token Authentication Key**. Leave
    **Token IP Validation off** (it turns the zone's IPv6 off and breaks links when a phone changes network; the app
@@ -162,7 +173,7 @@ counts against Neon's media project's network transfer (4.5 GB a month).
 ```sh
 cd ~/Documents/Repos/botchelor
 export DATABASE_URL="$(security find-generic-password -s vault/botchelor/DATABASE_URL -w)"
-export MEDIA_S3_ENDPOINT=…  MEDIA_S3_BUCKET=botchelor-media   # as on Vercel
+export MEDIA_S3_ENDPOINT=…  MEDIA_S3_BUCKET=botchelor-media   # as in .do/show.yaml
 export MEDIA_S3_ACCESS_KEY_ID="$(security find-generic-password -s vault/botchelor/MEDIA_S3_ACCESS_KEY_ID -w)"
 export MEDIA_S3_SECRET_ACCESS_KEY="$(security find-generic-password -s vault/botchelor/MEDIA_S3_SECRET_ACCESS_KEY -w)"
 export MEDIA_BUNNY_ZONE=botchelor-ad MEDIA_BUNNY_REGION=ny
@@ -187,7 +198,7 @@ Then replace each `CHANGE_ME` secret in the dashboard (Encrypt), and check the s
    - Run command: `npm start` (`next start`, which listens on the `PORT` App Platform sets).
    - HTTP port: `8080` (the default).
    - Node: the buildpack follows `package.json` `engines` (`>=20.9`). Check the build log names a version Next 16
-     supports (22 or 24, like Vercel's).
+     supports (22 or 24).
 3. **Health check:** HTTP, path `/api/health` (200 when the database answers, 503 when it doesn't). Initial delay 20 s,
    period 10 s, timeout 3 s, failure threshold 3.
 4. **Size:** `apps-s-1vcpu-1gb-fixed`, 1 GiB, shared vCPU, **$10 a month**. Or `apps-s-1vcpu-1gb`, **$12**, if you want
@@ -200,17 +211,19 @@ Then replace each `CHANGE_ME` secret in the dashboard (Encrypt), and check the s
    | `AFTER_DARK_ONLY` | `1` |
    | `AFTER_DARK_ORIGIN` | `https://ad.botchelor.com` |
    | `SITE_URL` | `https://botchelor.com` (the show; the build fails without it) |
-   | `DATABASE_URL` | the same as Vercel production's (encrypt) |
-   | `SESSION_SECRET` | the same as Vercel production's (encrypt). It signs sessions and the hop's tokens, and seals After Dark's provider keys stored in the database, so it must match. |
-   | `FRONTIER_PASSWORD` | the same as Vercel's (encrypt): the admin key, for the admin's own agents on `/api/mcp` |
-   | `CRON_SECRET` | the same as Vercel's (encrypt): the eval job and `/api/health`'s detail |
+   | `DATABASE_URL` | the same as the show's (encrypt; keychain `vault/botchelor/DATABASE_URL`) |
+   | `SESSION_SECRET` | the same as the show's (encrypt). It signs sessions and the hop's tokens, and seals After Dark's provider keys stored in the database, so it must match. |
+   | `FRONTIER_PASSWORD` | the same as the show's (encrypt): the admin key, for the admin's own agents on `/api/mcp` |
+   | `KEY_ENCRYPTION_SECRET` | the same as the show's (encrypt): it seals the provider keys saved in the database (v2 sealing), so After Dark can read them |
+   | `DEPLOY_ENV` | `production` (lib/deploy.ts: the production rules, as on the show) |
+   | `CRON_SECRET` | the same as the show's (encrypt): the eval job, the scheduled job and `/api/health`'s detail |
    | `MEDIA_BUNNY_ZONE` | `botchelor-ad` |
    | `MEDIA_BUNNY_REGION` | `ny` |
    | `MEDIA_BUNNY_CDN_HOST` | `media.botchelor.com` |
    | `MEDIA_BUNNY_KEY` | from the keychain (encrypt) |
    | `MEDIA_BUNNY_TOKEN_KEY` | from the keychain (encrypt) |
-   | `AD_EVAL_DAILY_USD`, `ADULT_TEXT_PROVIDERS` | only if they're set on Vercel (the eval's budget; the OpenRouter hosts After Dark may use) |
-   | `REPLICATE_API_TOKEN` | only if Vercel has it rather than After Dark's settings page (encrypt): the media backup's key |
+   | `AD_EVAL_DAILY_USD`, `ADULT_TEXT_PROVIDERS` | only if they're set on the show (the eval's budget; the OpenRouter hosts After Dark may use) |
+   | `REPLICATE_API_TOKEN` | only if the show has it rather than After Dark's settings page (encrypt): the media backup's key |
 
    After Dark's other provider keys (OpenRouter, Venice, fal, Hive, a saved Replicate key) live sealed in the database,
    so they come across by themselves with `DATABASE_URL` and `SESSION_SECRET`.
@@ -221,25 +234,27 @@ Then replace each `CHANGE_ME` secret in the dashboard (Encrypt), and check the s
    Email (`RESEND_API_KEY`) and push (`VAPID_*`) are optional; without them After Dark's notifications aren't emailed
    or pushed from this host.
 6. **Domain:** Settings → Domains → Add domain → `ad.botchelor.com` → "You manage your domain". Copy the CNAME alias it
-   shows (ending `ondigitalocean.app`) for "4. DNS at Wix".
+   shows (ending `ondigitalocean.app`) for "4. DNS".
 7. **Spend:** App Platform has no hard cap; the instance is a fixed price and includes 100 GiB of outbound traffic
    (150 GiB on the $12 size), then $0.02 a GiB. Set a billing alert: Billing → Billing alerts → $15.
 8. **Alerts (optional):** the app's Settings → Alerts → Deployment failed, and Restart count.
 
 No API token is needed: everything here is in the dashboard.
 
-## 4. DNS at Wix
+## 4. DNS
 
-botchelor.com's DNS is at Wix (nameservers `ns10`/`ns11.wixdns.net`). There are no CAA records, so DigitalOcean's and
-Bunny's certificates can issue. Wix → Domains → botchelor.com → **Manage DNS Records** → the **CNAME** section → Add
-record. The host box adds `.botchelor.com` itself, and the first CNAME save asks to confirm.
+**Cloudflare (from 2026-10-30).** Wix is only the registrar now: DNS moved to DigitalOcean's DNS on 2026-10-30 and is
+moving to Cloudflare (free plan), where records are edited in Cloudflare's dashboard (botchelor.com → DNS → Records).
+`ad` and `media` are **DNS only** (grey cloud), not proxied. The full table is in `docs/hosting.md`. There are no CAA
+records, so DigitalOcean's and Bunny's certificates can issue. (When this was written, DNS was at Wix: Wix → Domains →
+botchelor.com → Manage DNS Records.)
 
 | Host | Type | Points to |
 |---|---|---|
 | `ad` | CNAME | the alias DigitalOcean showed (`<app>.ondigitalocean.app`) |
 | `media` | CNAME | the pull zone's host, `botchelor-ad-media.b-cdn.net` |
 
-Leave every other record alone (the Vercel A records and `www`, Resend's `send`, `rsend`, `resend._domainkey` and
+Leave every other record alone (`@` and `www`, Resend's `send`, `rsend`, `resend._domainkey` and
 `_dmarc`). Then finish the domain in DigitalOcean (it issues a certificate once the CNAME resolves; propagation can take
 up to a few hours), and enable SSL on the pull zone's hostname in Bunny. Check from outside this Mac's resolver cache:
 `dig +short CNAME ad.botchelor.com @1.1.1.1`.
@@ -268,10 +283,12 @@ In a browser, signed in on botchelor.com as the admin:
 
 ## 6. Switch on
 
+Done 2026-10-30. The Vercel step that was here no longer applies: the show is on DigitalOcean, and
+`AFTER_DARK_ORIGIN=https://ad.botchelor.com` is set in `.do/show.yaml`, so every deploy of the show has it.
+
 1. Run the copy once more (step 2), then `--verify`.
-2. Vercel → botchelor → Settings → Environment Variables → `AFTER_DARK_ORIGIN` = `https://ad.botchelor.com`,
-   **Production only**. Redeploy production (a variable change takes effect on the next deployment), and confirm the
-   deployment is the latest `main`.
+2. The show app (`botchelor-show`) has `AFTER_DARK_ORIGIN` = `https://ad.botchelor.com` (`.do/show.yaml`). Confirm its
+   latest deployment is `ACTIVE` and on the latest `main`.
 3. Check:
 
    ```sh
@@ -289,7 +306,9 @@ In a browser, signed in on botchelor.com as the admin:
 
 ## 7. Switch back
 
-1. Vercel: remove `AFTER_DARK_ORIGIN` from Production and redeploy. Every redirect was a 307, so browsers haven't kept
+1. The show app: remove `AFTER_DARK_ORIGIN` from `botchelor-show`'s environment (DigitalOcean → Apps → botchelor-show
+   → Settings → Environment Variables, and from `.do/show.yaml` so the next spec update doesn't put it back); the app
+   redeploys. Every redirect was a 307, so browsers haven't kept
    any; After Dark is back on botchelor.com at once.
 2. Files made on After Dark's host while it was on are only in Bunny. Copy them back so the show's deployment finds them:
 
@@ -299,7 +318,8 @@ In a browser, signed in on botchelor.com as the admin:
    ```
 
 3. Leave the DigitalOcean app running. It also schedules the show's hourly jobs, the lobby and the showcase check (`.do/app.yaml`
-   `jobs`, since Vercel's free plan allows only daily cron jobs): before destroying it, move them somewhere else first. The DNS records can stay.
+   `jobs`; it calls the lobby, the daily job and the showcase check): before destroying it, move them somewhere else
+   first. The DNS records can stay.
 
 ## Costs
 
@@ -310,6 +330,9 @@ In a browser, signed in on botchelor.com as the admin:
 | | (Bunny's minimum is $1 a month) | **≈ $6 a month** |
 | DigitalOcean | one `apps-s-1vcpu-1gb-fixed` ($10) or `apps-s-1vcpu-1gb` ($12), 100–150 GiB out included | **$10–12 a month** |
 | | | **≈ $16–18 a month together** |
+
+As set up on 2026-10-30, `clownfish-app` is the $10 size; the show's own app is another $12 (`docs/hosting.md`,
+`docs/costs.md`).
 
 Today's media is about 0.12 GB, so Bunny is at its $1 minimum until subscribers arrive. Storage-to-CDN traffic and
 Bunny's storage API (the copy script's downloads) are free.

@@ -16,6 +16,8 @@ type Mine = {
   checks?: number;
   /** Public agent-made characters with no portrait, for the show's own (lib/agent-portraits.ts). */
   portraits?: number;
+  /** Their twins still in the first prompt's pose (lib/showcase-retwin.ts). */
+  retwins?: number;
 };
 type TwinBatch = { made: { original: string; id: string }[]; failed: { original: string; message: string }[]; left: number };
 /** About what one SFW twin costs on Venice (the PG Studio's edit model, studio.pg.usd). */
@@ -124,6 +126,29 @@ export default function ShowcaseModeration() {
     setBusy(false);
     void load();
   }
+  // The older twins drawn again (lib/showcase-retwin.ts), a few at a time until none are left.
+  async function retwinAll() {
+    setBusy(true);
+    let done = 0;
+    let not = 0;
+    for (;;) {
+      setNote(`Drawing the older twins again… ${done} swapped${not ? `, ${not} kept as they were` : ""}. About a minute for each three.`);
+      const res = await requestJson("/api/admin/showcase", { action: "retwin" }, "POST", { timeoutMs: 295_000 }).catch(() => null);
+      if (!res?.ok) {
+        setNote(`${res?.message ?? "That stopped."} ${done} swapped so far: click again to carry on.`);
+        break;
+      }
+      const b = res.data as unknown as { results: { ok: boolean }[]; left: number };
+      done += b.results.filter((r) => r.ok).length;
+      not += b.results.filter((r) => !r.ok).length;
+      if (!b.left || !b.results.length) {
+        setNote(`${done} twin${done === 1 ? "" : "s"} drawn again and swapped in${not ? `; ${not} kept as they were` : ""}. 🎬 brings the new ones to life.`);
+        break;
+      }
+    }
+    setBusy(false);
+    void load();
+  }
   // The show's own portraits (lib/agent-portraits.ts), a few at a time until none are left.
   async function drawPortraits() {
     setBusy(true);
@@ -179,6 +204,14 @@ export default function ShowcaseModeration() {
             🔎 Check After Dark&apos;s posts for dressed ones ({mine.checks})
           </button>{" "}
           <span className="muted">Each through the PG check: a dressed one goes to the safe side. The hourly job does this too.</span>
+        </p>
+      )}
+      {Boolean(mine.retwins) && (
+        <p className="small">
+          <button type="button" className="button-ghost small" disabled={busy} onClick={() => void retwinAll()}>
+            🫧 Draw my older SFW twins again ({mine.retwins}, about ${((mine.retwins ?? 0) * TWIN_USD).toFixed(2)})
+          </button>{" "}
+          <span className="muted">Today&apos;s prompt: a new everyday pose, PG only. Each swaps in for the old one.</span>
         </p>
       )}
       {Boolean(mine.portraits) && (

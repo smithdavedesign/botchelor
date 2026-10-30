@@ -63,6 +63,7 @@ type Table =
   | "media_teasers"
   | "showcase_thumbs"
   | "show_portrait_tries"
+  | "showcase_retwins"
   | "episodes"
   | "predictions"
   | "profiles"
@@ -173,12 +174,16 @@ export async function startTestDb() {
         // Profile photos (lib/studio/profile-photos.ts).
         "profile_photos",
         "date_photos",
+        // The spend tracker (lib/spend.ts).
+        "money_entries",
+        "spend_snapshots",
         // The showcase (lib/showcase.ts).
         "showcase_consents",
         "showcase_likes",
         "creator_follows",
         "showcase_thumbs",
         "show_portrait_tries",
+        "showcase_retwins",
         "showcase_posts",
         "showcase_loops",
         "creator_profiles",
