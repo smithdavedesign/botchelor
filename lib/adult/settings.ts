@@ -163,6 +163,8 @@ export type AdultSettings = {
   place_sounds: boolean;
   place_sound_model: string;
   talk_model: string;
+  /** Moments drawn as soon as they're written, from the chapter's own pictures (lib/adult/beats.ts recordBeats). */
+  draw_ahead: boolean;
   /** An optional LoRA for Wan: one .safetensors URL for both its transformers, or two (high noise, then low). */
   replicate_video_lora: string | null;
   replicate_last4: string | null;
@@ -238,6 +240,7 @@ type Row = {
   place_sounds: boolean | null;
   place_sound_model: string | null;
   talk_model: string | null;
+  draw_ahead: boolean | null;
   replicate_video_lora: string | null;
   replicate_ciphertext: string | null;
   replicate_nonce: string | null;
@@ -301,6 +304,7 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     place_sounds: r?.place_sounds ?? true,
     place_sound_model: r?.place_sound_model || DEFAULT_PLACE_SOUND_MODEL,
     talk_model: r?.talk_model || DEFAULT_TALK_MODEL,
+    draw_ahead: r?.draw_ahead ?? false,
     replicate_video_lora: r?.replicate_video_lora || null,
     replicate_last4: r?.replicate_last4 ?? null,
     replicate_from_env: !r?.replicate_last4 && envReplicate(env) !== null,
@@ -401,6 +405,7 @@ export type SettingsPatch = {
   place_sounds?: boolean;
   place_sound_model?: string;
   talk_model?: string;
+  draw_ahead?: boolean;
   auto_scene_pictures?: boolean;
   beat_pictures?: boolean;
   media_fallback?: boolean;
@@ -440,6 +445,7 @@ export const HISTORY_FIELDS = [
   "place_sounds",
   "place_sound_model",
   "talk_model",
+  "draw_ahead",
 ] as const satisfies readonly (keyof AdultSettings)[];
 export type HistoryField = (typeof HISTORY_FIELDS)[number];
 export type SettingsChange = { field: HistoryField; from_value: string | null; to_value: string | null; at: string; by: string | null };
@@ -475,6 +481,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
   if (patch.auto_scene_pictures !== undefined) put("auto_scene_pictures", patch.auto_scene_pictures);
   if (patch.beat_pictures !== undefined) put("beat_pictures", patch.beat_pictures);
   if (patch.place_sounds !== undefined) put("place_sounds", patch.place_sounds);
+  if (patch.draw_ahead !== undefined) put("draw_ahead", patch.draw_ahead);
   if (patch.media_fallback !== undefined) put("media_fallback", patch.media_fallback);
   if (patch.studio !== undefined) put("studio", JSON.stringify(mergeStudioConfig(before.studio, patch.studio)));
   if (patch.writer !== undefined) put("writer", JSON.stringify(mergeWriterConfig(before.writer, patch.writer)));

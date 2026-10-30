@@ -19,6 +19,7 @@ import SceneBackdrop from "./SceneBackdrop";
 import { useSceneMedia } from "./useSceneMedia";
 import { presenceUrl, usePresence } from "./usePresence";
 import { talkUrl, useTalks } from "./useTalks";
+import { stagePicture, useMomentPictures } from "./useMomentPictures";
 import TalkPlayer from "./TalkPlayer";
 import LivingFace from "../../LivingFace";
 import Avatar from "@/app/Avatar";
@@ -265,6 +266,11 @@ export default function AfterDarkTheater({
   const [a, b] = characters;
   // Media the pair already has of the moment (a picture to offer, a clip to loop behind the scene), live scenes only.
   const sceneMedia = useSceneMedia(a.id, b.id, shown.length, live);
+  // A moment being pictured is on the stage when its line comes (docs/PRDs/theater-immersion.md #5): its picture when
+  // it's drawn, the closest one they already have until then; otherwise the scene's own backdrop.
+  const moments = useMomentPictures(a.id, b.id, beats, live);
+  const momentOnStage = stagePicture(moments, shown.length - 1);
+  const backdrop = momentOnStage ? { kind: "image" as const, id: momentOnStage.id } : sceneMedia.backdrop;
   // Their living faces (lib/adult/presence.ts): the speaker's expression, the listener's loop, else the face.
   const { presence, make: makePresence, asking: presenceAsking } = usePresence(a.id, b.id);
   const [presenceNote, setPresenceNote] = useState<string | null>(null);
@@ -390,7 +396,12 @@ export default function AfterDarkTheater({
         style={mediaShape ? ({ "--ad-media-ar": String(mediaShape) } as CSSProperties) : undefined}
       >
         <div className="theater-scene-area">
-          {live && <SceneBackdrop backdrop={sceneMedia.backdrop} onShape={setMediaShape} />}
+          {live && <SceneBackdrop backdrop={backdrop} onShape={setMediaShape} />}
+          {live && momentOnStage?.drawing && (
+            <p className="ad-moment-drawing" role="status">
+              📸 Drawing this moment: the closest one they have, until it lands
+            </p>
+          )}
           {talking && <TalkPlayer src={talkUrl(talking.id)} name={talking.name} onClose={() => setTalking(null)} />}
           {!talking && stageTalk?.status === "ready" && stageSpeaker && (
             <button type="button" className="button-ghost small ad-talk-chip" onClick={() => setTalking({ id: stageTalk.id, name: stageSpeaker.name })}>

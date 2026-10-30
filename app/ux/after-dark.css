@@ -1822,3 +1822,19 @@ a.ad-scenes-make-link {
   transform: translateX(-50%);
   z-index: 3;
 }
+
+/* A moment's stand-in on the stage while its own picture is drawn (useMomentPictures.ts). */
+.ad-moment-drawing {
+  position: absolute;
+  top: 3.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  margin: 0;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(20, 12, 34, 0.72);
+  color: #f1e9ff;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}

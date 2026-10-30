@@ -205,6 +205,28 @@ describe("beats as the scene is written", () => {
     expect(await beatsOf(scene.id)).toEqual([]);
   });
 
+  it("are drawn as soon as they're written with draw-ahead on, from the chapter's own pictures only", async () => {
+    const { id, cookie } = await admin();
+    const scene = await ready(cookie, id, { draw_ahead: true, pictures_per_chapter: 1 });
+    fakeMedia();
+    scripted([`*straddles him* ${fresh()}`, "", "", `*bends her over the bed* ${fresh()}`, "", ""]);
+    await post({ a: RAFE, b: JUNIPER }, cookie);
+    await beatPicturesSettled();
+    // The chapter has one picture of its own: the first moment takes it and is drawn; the second is offered as before.
+    const beats = await beatsOf(scene.id);
+    expect(beats.map((b) => b.status)).toEqual(["drawn", "offered"]);
+    expect(beats[0].picture_id).toBeTruthy();
+  });
+
+  it("aren't drawn ahead unless it's switched on", async () => {
+    const { id, cookie } = await admin();
+    const scene = await ready(cookie, id);
+    fakeMedia();
+    scripted([`*straddles him* ${fresh()}`, "", "", "", "", ""]);
+    await post({ a: RAFE, b: JUNIPER }, cookie);
+    expect((await beatsOf(scene.id)).map((b) => b.status)).toEqual(["offered"]);
+  });
+
   it("draws one on yes, keeps not now for later, and Picture this draws the latest still waiting", async () => {
     const { id, cookie } = await admin();
     const scene = await ready(cookie, id);

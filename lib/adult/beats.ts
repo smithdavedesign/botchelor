@@ -314,12 +314,28 @@ export async function recordBeats(db: Db, scene: BeatScene, cast?: [Character | 
     const found = findBeats(scene.lines, scene.from, scene.before, rows, allowed);
     // Where each was: before a line that agreed to go somewhere, where they were; after it, where they are now.
     const movedAt = scene.lines.findIndex((l, i) => i >= scene.from && l.moved_to);
+    const added: { id: string; line: number }[] = [];
     for (const f of found) {
       const place = movedAt >= 0 && f.line > movedAt ? scene.placeNow : movedAt >= 0 ? scene.placeBefore : scene.placeNow;
+      const id = crypto.randomUUID();
       await db.query(
         `insert into adult_beats (id, owner_id, scene_id, character_a, character_b, chapter, line, act, kind, stage, place) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [crypto.randomUUID(), scene.owner, scene.id, scene.a, scene.b, scene.chapter, f.line, f.act, f.kind, f.stage, place],
+        [id, scene.owner, scene.id, scene.a, scene.b, scene.chapter, f.line, f.act, f.kind, f.stage, place],
       );
+      added.push({ id, line: f.line });
+    }
+    // Drawn ahead (the settings' draw_ahead, docs/PRDs/theater-immersion.md #5; off unless switched on): each new moment
+    // starts drawing now, while the lines before it play, so it's on the stage when its line comes. Only from the
+    // chapter's own unasked pictures (lib/adult/chapter-pictures.ts), the ones its close would draw anyway; it skips
+    // agreeing on the picture first (Redraw stays).
+    const settings = await getAdultSettings(db);
+    if (added.length && settings.draw_ahead) {
+      const fits: string[] = [];
+      for (const b of added.sort((x, y) => x.line - y.line)) {
+        if (!(await claimChapterPicture(db, scene.id, scene.chapter, `${scene.chapter}#beat:${b.id}`, settings.pictures_per_chapter))) break;
+        fits.push(b.id);
+      }
+      if (fits.length) drawLater(db, await claim(db, "id = any($1)", [fits]), siteUrl());
     }
   } catch (err) {
     console.warn(`[after-dark] the chapter's moments couldn't be read: ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
