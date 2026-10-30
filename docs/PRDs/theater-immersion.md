@@ -40,7 +40,7 @@ What Venice, After Dark's provider, already offers (its model list and quotes, 2
 | 3 | **Voices that act** | A voice model for the night's lines: Kokoro, Inworld or Orpheus, with a stock voice each by their pronouns; on Orpheus, a laugh, sigh, gasp or groan in the line's action is heard | 0.04¢ to 0.6¢ a line | ✅ #960; pick by ear in settings |
 | 4 | **Talking moments** | "Hear it from them" on a line worth it: a 5 s clip of that face saying the voiced line (Wan, audio in). One face only: lip-sync on a shot of two moved the wrong mouth (#688) | ~$0.28 a clip: a token item | 🔜 |
 | 5 | **Pictures that feel instant** | Show the closest picture they already have at once (scene-match) and swap the new one in when it lands; start drawing the next moment's picture while the lines before it play | the same pictures, sooner | 🔜 |
-| 6 | **The sound of the place** | A quiet bed per venue (a jazz bar's murmur, waves, rain), made once per place, under the voices | per place, once | 🔜 |
+| 6 | **The sound of the place** | A quiet bed per place (a jazz bar's murmur, waves, rain), made once per place and shared, under the voices while 🔈 is on | about 5¢ a place, once | ✅ #(this PR) |
 | 7 | Living expressions | A loop per expression, not only the still one, so a laugh moves | seven clips per face | 🧭 after 1 and 2 are watched |
 | 8 | The phone's stage | The living face in the phone's thread and header, not only on the desktop stage | — | 🧭 |
 | 9 | Talk back | Say a steer or whisper out loud (speech to text) | per steer | 🧭 |
@@ -76,3 +76,19 @@ texts between nights, the reel storyboard.
   Orpheus 297 s / 4.0 s, Chatterbox HD 24.6 s / 23.5 s. The theater waits 8 s for a line's voice, so Chatterbox can't
   keep up and isn't offered; Orpheus keeps up once warm, but a night's first lines after a quiet spell play silent.
   Inworld is the one to try first.
+
+## 6, as built
+
+- **What it is:** `lib/adult/place-sounds.ts` and the `place_sounds` table. There's one bed per place: a library venue
+  by its id, anywhere else by its words (`normalizeScene`), the same as a drawn set. It's made once on Venice's
+  `/audio/queue` with ElevenLabs Sound Effects v2: 20 s, `loop: true` so it splices back with no seam, about 5¢. It's
+  shared by every night there, since nobody's in it.
+- **When:** a theater with 🔈 on asks for its place's sound (`/api/admin/after-dark/place-sound?venue=`). There's none,
+  so it's queued, and it's collected on a later ask, polled every 20 s for up to 12 minutes. The test bed (a jazz bar,
+  2026-10-29) took about 9 minutes at Venice, so the first night at a new place is quiet for a while. Every call to
+  Venice gives up after 30 s. At most 20 new places a day. A
+  failure keeps its reason and isn't asked again for 6 hours. The settings have an on/off switch and the model.
+- **On the stage:** `PlaceSound.tsx` loops it at a fifth of full volume under the voices, fades in, crossfades when they
+  move, and pauses with ⏸.
+- **Other models Venice lists for it** (2026-10-29): Stable Audio 2.5 (19¢, 5 s to 3 min, no loop), MMAudio v2 (0.09¢ a
+  second, no loop), Sonilo SFX (0.2¢ a second, no loop). Only ElevenLabs loops.

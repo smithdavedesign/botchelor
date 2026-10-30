@@ -79,6 +79,7 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
       replicate_voice_model: s.replicate_voice_model,
       voice_model: s.voice_model,
       presence_loop_model: s.presence_loop_model,
+      place_sound_model: s.place_sound_model,
       replicate_video_lora: s.replicate_video_lora ?? "",
       ...(replicateKey.trim() ? { replicate_key: replicateKey.trim() } : {}),
     });
@@ -201,7 +202,7 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
       </details>
       <details className="ad-settings-section">
         <summary>
-          <h3>Voices and living faces: Venice</h3>
+          <h3>Voices, living faces and places&apos; sound: Venice</h3>
         </summary>
         <p className="muted small">
           The voice the theater speaks each line in, a stock one per character by their pronouns (docs/PRDs/theater-immersion.md). Orpheus
@@ -217,6 +218,15 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
         </select>
         <label htmlFor="ad-presence-loop-model">Living portrait model (a 5-second loop of each face, made once, from ✨ Bring them to life in the theater)</label>
         <input id="ad-presence-loop-model" value={s.presence_loop_model} onChange={(e) => setS({ ...s, presence_loop_model: e.target.value })} />
+        <label className="ad-check-row">
+          <input type="checkbox" id="ad-place-sounds" checked={s.place_sounds} disabled={busy} onChange={(e) => void save({ place_sounds: e.target.checked })} />
+          <span>
+            The sound of each place under the voices while 🔈 is on: a quiet loop made once per place and shared{" "}
+            <span className="muted small">(about 5¢ a new place, at most 20 new places a day)</span>
+          </span>
+        </label>
+        <label htmlFor="ad-place-sound-model">Place sound model (Venice&apos;s, one that loops)</label>
+        <input id="ad-place-sound-model" value={s.place_sound_model} onChange={(e) => setS({ ...s, place_sound_model: e.target.value })} />
       </details>
       <details className="ad-settings-section">
         <summary>

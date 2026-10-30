@@ -1569,6 +1569,24 @@ alter table adult_settings add column if not exists cap_voice_lines integer not 
 -- The theater, more alive (docs/PRDs/theater-immersion.md): who voices the lines, and the living portrait's model.
 alter table adult_settings add column if not exists voice_model text;
 alter table adult_settings add column if not exists presence_loop_model text;
+alter table adult_settings add column if not exists place_sounds boolean;
+alter table adult_settings add column if not exists place_sound_model text;
+-- The sound of a place (lib/adult/place-sounds.ts; docs/PRDs/theater-immersion.md #6): one quiet looping bed per place,
+-- made once and shared by every night there, like a drawn set. Nobody's in it, so it's nobody's.
+create table if not exists place_sounds (
+  id text primary key,
+  key text not null unique,
+  label text not null,
+  status text not null default 'making' check (status in ('making', 'ready', 'failed')),
+  model text,
+  queue_id text,
+  mime text,
+  data bytea,
+  object_key text,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 -- A character's presence for one viewer (lib/adult/presence.ts): their expressions and their living portrait, made once
 -- from the face they keep for them. Its own table, so no gallery, library or export ever lists it.
 create table if not exists adult_presence (

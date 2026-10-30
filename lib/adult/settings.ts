@@ -86,6 +86,8 @@ export const VOICE_MODELS = ["kokoro", "orpheus", "chatterbox", "inworld"] as co
 export type VoiceModel = (typeof VOICE_MODELS)[number];
 /** The living portrait's video model (lib/adult/presence.ts): an open model on Venice, a 5 s clip of one face. */
 export const DEFAULT_PRESENCE_LOOP_MODEL = "wan-2.6-flash-image-to-video";
+/** The sound of a place (lib/adult/place-sounds.ts): Venice's ElevenLabs sound effects, the one that loops without a seam. */
+export const DEFAULT_PLACE_SOUND_MODEL = "elevenlabs-sound-effects-v2";
 export type MediaProvider = (typeof MEDIA_PROVIDERS)[number];
 export const DEFAULT_REPLICATE_PICTURE_MODEL = "qwen/qwen-image";
 export const DEFAULT_REPLICATE_KEYFRAME_MODEL = "qwen/qwen-image-edit-2511";
@@ -155,6 +157,9 @@ export type AdultSettings = {
   /** Who voices a night's lines on Venice (VOICE_MODELS), and the living portrait's video model (lib/adult/presence.ts). */
   voice_model: VoiceModel;
   presence_loop_model: string;
+  /** A quiet bed of sound per place under the voices (docs/PRDs/theater-immersion.md #6), and its model. */
+  place_sounds: boolean;
+  place_sound_model: string;
   /** An optional LoRA for Wan: one .safetensors URL for both its transformers, or two (high noise, then low). */
   replicate_video_lora: string | null;
   replicate_last4: string | null;
@@ -227,6 +232,8 @@ type Row = {
   replicate_voice_model: string | null;
   voice_model: string | null;
   presence_loop_model: string | null;
+  place_sounds: boolean | null;
+  place_sound_model: string | null;
   replicate_video_lora: string | null;
   replicate_ciphertext: string | null;
   replicate_nonce: string | null;
@@ -287,6 +294,8 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     replicate_voice_model: r?.replicate_voice_model || DEFAULT_REPLICATE_VOICE_MODEL,
     voice_model: (VOICE_MODELS as readonly string[]).includes(r?.voice_model ?? "") ? (r!.voice_model as VoiceModel) : "kokoro",
     presence_loop_model: r?.presence_loop_model || DEFAULT_PRESENCE_LOOP_MODEL,
+    place_sounds: r?.place_sounds ?? true,
+    place_sound_model: r?.place_sound_model || DEFAULT_PLACE_SOUND_MODEL,
     replicate_video_lora: r?.replicate_video_lora || null,
     replicate_last4: r?.replicate_last4 ?? null,
     replicate_from_env: !r?.replicate_last4 && envReplicate(env) !== null,
@@ -384,6 +393,8 @@ export type SettingsPatch = {
   voice_model?: VoiceModel;
   /** A Venice video model id, or "" for the default. */
   presence_loop_model?: string;
+  place_sounds?: boolean;
+  place_sound_model?: string;
   auto_scene_pictures?: boolean;
   beat_pictures?: boolean;
   media_fallback?: boolean;
@@ -420,6 +431,8 @@ export const HISTORY_FIELDS = [
   "replicate_voice_model",
   "voice_model",
   "presence_loop_model",
+  "place_sounds",
+  "place_sound_model",
 ] as const satisfies readonly (keyof AdultSettings)[];
 export type HistoryField = (typeof HISTORY_FIELDS)[number];
 export type SettingsChange = { field: HistoryField; from_value: string | null; to_value: string | null; at: string; by: string | null };
@@ -454,6 +467,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
   if (patch.media_provider !== undefined) put("media_provider", patch.media_provider);
   if (patch.auto_scene_pictures !== undefined) put("auto_scene_pictures", patch.auto_scene_pictures);
   if (patch.beat_pictures !== undefined) put("beat_pictures", patch.beat_pictures);
+  if (patch.place_sounds !== undefined) put("place_sounds", patch.place_sounds);
   if (patch.media_fallback !== undefined) put("media_fallback", patch.media_fallback);
   if (patch.studio !== undefined) put("studio", JSON.stringify(mergeStudioConfig(before.studio, patch.studio)));
   if (patch.writer !== undefined) put("writer", JSON.stringify(mergeWriterConfig(before.writer, patch.writer)));
@@ -465,7 +479,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
   for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens", "chapter_tokens", "pictures_per_chapter"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
-  for (const k of ["replicate_picture_model", "replicate_keyframe_model", "replicate_video_model", "replicate_voice_model", "replicate_video_lora", "presence_loop_model"] as const) {
+  for (const k of ["replicate_picture_model", "replicate_keyframe_model", "replicate_video_model", "replicate_voice_model", "replicate_video_lora", "presence_loop_model", "place_sound_model"] as const) {
     if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
   }
   if (patch.voice_model !== undefined) put("voice_model", (VOICE_MODELS as readonly string[]).includes(patch.voice_model) ? patch.voice_model : "kokoro");
