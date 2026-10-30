@@ -267,9 +267,10 @@ export function TermsSections() {
       </p>
       <ul>
         <li>
-          <strong>Billed by an adult card processor, not Stripe.</strong> {PROCESSORS.segpay.name} or{" "}
-          {PROCESSORS.verotel.name} takes the payment, and your card statement shows their name (for example &ldquo;
-          {PROCESSORS.segpay.statement}&rdquo; or &ldquo;{PROCESSORS.verotel.statement}&rdquo;), not ours. Their own terms
+          <strong>Billed by an adult card processor, not Stripe.</strong> {PROCESSORS.ccbill.name},{" "}
+          {PROCESSORS.segpay.name} or {PROCESSORS.verotel.name} takes the payment, and your card statement shows their
+          name (for example &ldquo;{PROCESSORS.ccbill.statement}&rdquo;, &ldquo;{PROCESSORS.segpay.statement}&rdquo; or
+          &ldquo;{PROCESSORS.verotel.statement}&rdquo;). Their own terms
           apply to the payment.
         </li>
         <li>
@@ -585,7 +586,7 @@ export function PrivacySections() {
         </li>
         <li>
           Your subscription&apos;s status: active or not, when the paid period ends, and which processor. The processor (
-          {PROCESSORS.segpay.name} or {PROCESSORS.verotel.name}) holds your card and billing details under its own privacy
+          {PROCESSORS.ccbill.name}, {PROCESSORS.segpay.name} or {PROCESSORS.verotel.name}) holds your card and billing details under its own privacy
           policy and sends us only the subscription&apos;s status, never your card number.
         </li>
       </ul>
@@ -680,7 +681,7 @@ export function PrivacySections() {
           Dark runs on its own host, DigitalOcean hosts it and Bunny (bunny.net) stores and serves its media.
         </li>
         <li>
-          <strong>Payments:</strong> Stripe for token packs; {PROCESSORS.segpay.name} or {PROCESSORS.verotel.name} for the
+          <strong>Payments:</strong> Stripe for token packs; {PROCESSORS.ccbill.name}, {PROCESSORS.segpay.name} or {PROCESSORS.verotel.name} for the
           After Dark subscription. Each under its own privacy policy.
         </li>
         <li>
