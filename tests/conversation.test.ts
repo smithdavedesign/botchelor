@@ -132,6 +132,25 @@ describe("buildTurnMessages — privacy and steering", () => {
     expect(bTurn).not.toContain("hates surprises"); // …or her dealbreaker
   });
 
+  it("hands the speaker the other's last line to answer, with who offered what (#982)", () => {
+    const said: Turn[] = [
+      { side: "a", dialogue: "Hi, I'm Mira.", action: "", emotion: "nervous", interest: 0.5, act: 0 },
+      { side: "b", dialogue: "Rafe. Lovely to meet you.", action: "", emotion: "warm", interest: 0.5, act: 0 },
+      { side: "a", dialogue: "Sit, sit. Tea is on me tonight.", action: "pours", emotion: "playful", interest: 0.6, act: 0 },
+    ];
+    const dataOf = (t: Turn[], i: number) => JSON.parse(content(buildTurnMessages(INPUT, OUTCOME, CHARS, PRODUCER, VENUE, t, i).messages).replace(/^[^\n]*\n/, ""));
+    const data = dataOf(said, 3);
+    expect(data.they_just_said).toMatchObject({ who: "Mira", said: "Sit, sit. Tea is on me tonight.", did: "pours" });
+    expect(data.they_just_said.note).toMatch(/answers this first/);
+    // It comes after the whole conversation, the last thing the speaker reads before replying.
+    const keys = Object.keys(data);
+    expect(keys.indexOf("they_just_said")).toBeGreaterThan(keys.indexOf("conversation_so_far"));
+    // Mira answers Rafe; nothing to answer on the first line, or when the last line is the speaker's own.
+    expect(dataOf([], 0).they_just_said).toBeUndefined();
+    expect(dataOf(said.slice(0, 2), 2).they_just_said).toMatchObject({ who: "Rafe" });
+    expect(dataOf([...said, { ...said[2], side: "b" }], 3).they_just_said).toBeUndefined();
+  });
+
   it("a director plan's private beats reach only their own side", () => {
     const plan: DatePlan = {
       source: "director",
