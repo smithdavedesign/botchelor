@@ -4,16 +4,22 @@ vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
 }));
+// The page's viewer: someone signed out, on a browser.
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined }),
+  headers: async () => new Headers({ "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15" }),
+}));
 
-import { createElement } from "react";
+import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { GET as reelsGet } from "@/app/api/showcase/reels/route";
 import ReelFeed from "@/app/showcase/reels/ReelFeed";
+import ReelsPage from "@/app/showcase/reels/page";
 import { CARD_EVERY, feedOf, motionOf, REEL_PAGE, reelsQuery } from "@/app/showcase/reels/reel-shared";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { pairKey } from "@/lib/relationships";
-import { afterDarkCounts, listShowcase, publish, saveCreatorProfile, type Post, type ShowcaseViewer } from "@/lib/showcase";
+import { afterDarkCounts, listShowcase, publish, saveCreatorProfile, seenFilters, type Post, type ShowcaseViewer } from "@/lib/showcase";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, BASE_URL, newUserCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
@@ -98,8 +104,10 @@ describe("the reels' posts", () => {
     const two = await get("?page=2");
     expect([two.posts.length, two.more]).toEqual([2, false]);
     expect(new Set([...one.posts, ...two.posts].map((p: Post) => p.id)).size).toBe(REEL_PAGE + 2);
-    // Nobody but an admin (for now) gets After Dark's side; anyone else gets nothing there.
-    expect((await get("?side=after_dark")).posts).toEqual([]);
+    // Nobody but an admin (for now) gets After Dark's side; anyone else asking for it gets the safe side.
+    const asked = await get("?side=after_dark");
+    expect([asked.posts.length, asked.posts.every((p: Post) => p.rating === "pg")]).toEqual([REEL_PAGE, true]);
+    expect(seenFilters(ADMIN, { side: "after_dark" })).toEqual({ side: "after_dark" });
     expect((await listShowcase(t.db, ADMIN, { side: "after_dark" }, { pageSize: REEL_PAGE })).posts.map((p) => p.media_id).sort()).toEqual(["ad-1", "ad-2"]);
   });
 
@@ -150,5 +158,19 @@ describe("the reels' page", () => {
     expect(ad).toContain("Show them");
     expect(ad).toContain("Safe for work instead");
     expect(ad).not.toContain("Make your own character</a><button");
+  });
+
+  it("starts a new feed for each set of filters, and opens the safe side for anyone After Dark isn't open to", async () => {
+    // David, 2026-10-29: "on the reels the safe for work when you come in doesn't do anything". The feed's posts and
+    // veil are its own state, and Next keeps it across a change of the query alone: only a new key starts it again.
+    await world(2);
+    const page = async (sp: Record<string, string>) => (await ReelsPage({ searchParams: Promise.resolve(sp) })) as ReactElement<Parameters<typeof ReelFeed>[0]>;
+    const safe = await page({});
+    const asked = await page({ side: "after_dark", medium: "picture", start: "a-post" });
+    expect([safe.key, asked.key]).toEqual(["", "medium=picture"]);
+    // A shared After Dark reel, signed out: the safe side, no veil, and no After Dark in the next pages' query.
+    expect([asked.props.side, asked.props.query, asked.props.initial.length]).toEqual(["pg", "medium=picture", 2]);
+    expect(asked.props.initial.every((p) => p.rating === "pg")).toBe(true);
+    expect(renderToStaticMarkup(asked)).not.toContain("Show them");
   });
 });

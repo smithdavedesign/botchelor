@@ -3,7 +3,8 @@
  * desktop and phone, into docs/screenshots/: the showcase with its filters, a filtered view, a post open in the viewer,
  * a creator's page, and the reels (app/showcase/reels). It checks the filters narrow the grid, a clip plays on hover and
  * stops after, the viewer says how a post was made (its model and prompt, lib/showcase-made.ts), the reels move a
- * still, swipe to the next, load more as they go and play a clip on screen, and nothing scrolls sideways on a phone.
+ * still, swipe to the next, load more as they go and play a clip on screen, an admin's taps between the sides change
+ * the feed, and nothing scrolls sideways on a phone.
  *
  * It builds the app and runs it on a throwaway local database. Nothing is drawn and nothing explicit is shown: the posts
  * are PG stand-ins made here from the repo's own cast portraits (public/cast) with ffmpeg, seeded straight in.
@@ -118,6 +119,9 @@ async function main() {
   if (!process.env.SKIP_BUILD) build();
   const showrunner = await startShowrunner();
   const env = appEnv(showrunner.address().port, DB_DIR);
+  // An admin, for whom After Dark's side of the reels is open.
+  const ADMIN_PASSWORD = ["shots", "admin", Math.random().toString(36).slice(2)].join("-");
+  Object.assign(env, { FRONTIER_PASSWORD: ADMIN_PASSWORD, ADULT_MODE: "1" });
   const port = await freePort();
   // Once to make the schema and the house cast, then the posts seeded straight in.
   let app = await startApp(port, env);
@@ -245,6 +249,40 @@ async function main() {
       console.log("  ✓ the reels play a clip while it's on screen");
       await ctx.close();
     }
+    // An admin taps between the sides (the page stays, only its query changes): each tap is that side's feed, and the
+    // tabs work while After Dark is still blurred (David, 2026-10-29: "the safe for work when you come in doesn't do
+    // anything").
+    const ctx = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
+    });
+    await ctx.addCookies([{ name: "bz_adult", value: "1", url: app.base }]);
+    const reg = await ctx.request.post(`${app.base}/api/auth/register`, { data: { handle: `shots${Date.now() % 1e6}`, password: ["shots", "account", "pass"].join("-"), attest: true } });
+    assert(reg.ok(), `registering an admin: ${reg.status()}`);
+    assert((await ctx.request.post(`${app.base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } })).ok(), "claiming admin");
+    const page = await ctx.newPage();
+    const veil = page.getByRole("dialog", { name: "After Dark" });
+    // The first post on screen, by its media (a label is only who's in it and who made it: both sides can share one).
+    const FIRST = '[role="feed"] section[data-i="0"] :is(img:not([aria-hidden]), video)';
+    const firstPost = () => page.locator(FIRST).getAttribute("src");
+    await page.goto(`${app.base}/showcase/reels`);
+    await page.locator(FIRST).waitFor();
+    const safe = await firstPost();
+    for (const back of ["tab", "veil"]) {
+      await page.getByRole("link", { name: "🌙 After Dark" }).tap();
+      await veil.waitFor({ timeout: 10_000 });
+      await page.waitForFunction(([sel, was]) => document.querySelector(sel)?.getAttribute("src") !== was, [FIRST, safe], { timeout: 10_000 });
+      assert((await page.locator('[role="feed"] section[data-i]').count()) === 2, "After Dark's reels aren't its one post (and the end)");
+      if (back === "tab") await page.getByRole("group", { name: "Which side" }).getByRole("link", { name: "Safe for work" }).tap();
+      else await page.getByRole("link", { name: "Safe for work instead" }).tap();
+      await veil.waitFor({ state: "detached", timeout: 10_000 });
+      await page.waitForFunction(([sel, was]) => document.querySelector(sel)?.getAttribute("src") === was, [FIRST, safe], { timeout: 10_000 });
+      assert(new URL(page.url()).search === "", `back on the safe side at ${page.url()}`);
+    }
+    console.log("  ✓ an admin's taps between the sides change the reels: the tab, and \"Safe for work instead\"");
+    await ctx.close();
   } finally {
     await browser.close();
     await stopApp(app);

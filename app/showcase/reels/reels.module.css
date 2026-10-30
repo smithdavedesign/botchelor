@@ -221,12 +221,13 @@
 .rail :global(.showcase-like .small) {
   font-size: 0.7rem;
 }
+/* Above After Dark's veil: the way back and the safe side stay a tap away while it's blurred. */
 .top {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 61;
+  z-index: 62;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -300,6 +301,7 @@
   justify-items: center;
 }
 .veil {
+  z-index: 61;
   inset: 0;
   place-content: center;
   padding: 24px;

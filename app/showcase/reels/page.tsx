@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getDb } from "@/lib/db";
-import { afterDarkCounts, listShowcase, parseFilters, sideOf } from "@/lib/showcase";
+import { afterDarkCounts, listShowcase, parseFilters, seenFilters, sideOf } from "@/lib/showcase";
 import { pageViewer } from "../viewer";
 import ReelFeed from "./ReelFeed";
 import { REEL_PAGE, reelsQuery } from "./reel-shared";
@@ -22,14 +22,18 @@ export default async function ReelsPage({ searchParams }: Props) {
   const db = await getDb();
   const viewer = await pageViewer(db);
   const sp = await searchParams;
-  const f = parseFilters(sp);
+  const f = seenFilters(viewer, parseFilters(sp));
   const first = await listShowcase(db, viewer, { ...f, sort: f.sort ?? "trending", page: 1 }, { pageSize: REEL_PAGE });
   const locked = await afterDarkCounts(db, viewer, first.posts.flatMap((p) => [p.character.id, ...(p.partner ? [p.partner.id] : [])]));
-  // The filters as asked (never the page or where to start), for the next pages and the way back.
-  const query = reelsQuery(sp).slice(1);
+  // The filters as asked (never the page or where to start), for the next pages and the way back; After Dark's side
+  // only when it's theirs to see.
+  const query = reelsQuery(f.side ? sp : { ...sp, side: undefined }).slice(1);
   const start = typeof sp.start === "string" ? sp.start.slice(0, 64) : null;
   return (
+    // Each set of filters is a new feed: Next keeps a page's client component when only its query changes, and the
+    // feed's posts and veil are its own state, so the side tabs and "Safe for work instead" would change nothing.
     <ReelFeed
+      key={query}
       initial={first.posts}
       more={first.more}
       locked={locked}

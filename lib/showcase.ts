@@ -293,6 +293,12 @@ export function parseFilters(q: URLSearchParams | Record<string, string | string
 export const sideOf = (f: Filters): "pg" | "after_dark" => (f.side === "after_dark" ? "after_dark" : "pg");
 
 /**
+ * The filters as this viewer may use them: After Dark's side only for whoever may see it. Anyone else asking for it (a
+ * shared After Dark reel, say) gets the safe side, never an empty page behind a veil.
+ */
+export const seenFilters = (v: ShowcaseViewer, f: Filters): Filters => (f.side === "after_dark" && !v.ratings.includes("nsfw") ? { ...f, side: undefined } : f);
+
+/**
  * The filters as SQL against showcase_posts `p` (with the viewer's ratings as $1), and their values. `anySide`: both
  * sides (to count each).
  */

@@ -100,6 +100,9 @@ research a bit and decide what makes sense to get user to buy in."
     It leads to After Dark's subscription page, which is the waitlist until the processor and age checks exist. So
     it doubles as a $0 demand test for After Dark.
 - **A card every 6 posts:** make your own character, or After Dark (for someone who can't see it).
+- **Sides:** safe for work is the default. After Dark's side is only for whoever may see it; anyone else who asks for
+  it (a shared After Dark reel, say) gets the safe side. A tap on either side starts that side's feed afresh, and the
+  tabs stay above After Dark's veil (fixed after David's "the safe for work when you come in doesn't do anything").
 - **The living photo is David's "safe image of the person animated"**, at $0: each still moves slowly, a different
   camera move each time.
 - **Measured:** `reel_cta` conversions with `cta` = date / see_all / after_dark / create, in Vercel Analytics and GA4.
