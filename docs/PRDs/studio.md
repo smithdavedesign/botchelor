@@ -244,6 +244,26 @@ Only the sharer's own characters' pictures can be shared (an admin's, the house 
 of someone else's character. A photo with no Hive score (an alternative checked it) passes the show's own picture check
 at the moment it's shared.
 
+## 8b. What a PG Studio picture is for (as built, 2026-10-30)
+
+The PG Studio plan's last two steps. All of it follows the PG Studio's `open_to` (admins only until David's live shoot).
+
+- **Profile photos** (`lib/studio/profile-photos.ts`, `/api/characters/<id>/photos`): 📌 on a `pg` picture puts it on
+  the character's page, up to 9, in the order pinned. Each is an approved pg copy in `character_assets`, served by
+  `/api/assets` to anyone; unpinned or deleted, the copy is rejected and its link stops. Agents get them as
+  `get_character`'s `photo_urls`. A suggestive picture never leaves the Studio.
+- **A photo in their texts:** 💬 Send to… on a `pg` picture, to a character theirs has dated, as a 📷 text (the share
+  switch `studio.share.photos`, free).
+- **Date photos** (`lib/studio/date-photos.ts`, `/api/episodes/<id>/photos`, on the date page): a selfie together, a
+  photo-booth strip, a slow dance or the two of them there, from both portraits in safe mode, pg only, priced like a
+  shoot and refunded when nothing passes. Never in a Studio gallery (so never on a profile or the showcase with the other
+  owner's character in it): kept with the date for its owners, and the first goes into the pair's texts.
+- **After Dark teasers in normal mode** (`app/characters/[id]/AfterDarkPhotos.tsx`): on the owner's own character page,
+  "🌙 N After Dark photos" as server-blurred teasers (`/api/teasers`), never to bots or where After Dark is blocked, with
+  the way in or to subscribe.
+- **The PG catalog's extras in After Dark's Studio:** its wearable accessories and its places, level 0 (`fromPg`), with no
+  preset tiles, so nothing new is drawn. Season packs are not built.
+
 ## 9. The checks, and an alternative to Hive
 
 Every picture still passes a check before it's kept, fails closed, and is logged when refused. What's new is **which

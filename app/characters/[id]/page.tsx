@@ -41,6 +41,7 @@ import { partnerStyleOf } from "@/lib/partners";
 import { whileAwayOf } from "@/lib/activity";
 import LearnedPanel from "./LearnedPanel";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
+import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
 import OriginBadge from "@/app/OriginBadge";
 import { originOf, originsOf } from "@/lib/origin";
 import { ctaMine, dateCta } from "@/lib/date-cta";
@@ -51,6 +52,7 @@ import { accessHere } from "@/lib/adult/place";
 import { adultAvailable } from "@/lib/adult/mode";
 import { studioAccess } from "@/lib/adult/studio";
 import { pgAccess } from "@/lib/studio/pg";
+import { profilePhotos } from "@/lib/studio/profile-photos";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { afterDarkHref } from "@/lib/after-dark-host";
 
@@ -203,6 +205,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         ]).then(([t, key]) => ({ level: isTalkLevel(t.rows[0]?.talk) ? t.rows[0].talk as TalkLevel : "standard" as TalkLevel, hasTextKey: key }))
       : null;
   // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
+  // Their profile photos: PG Studio pictures their owner pinned (lib/studio/profile-photos.ts).
+  const photos = await profilePhotos(db, id);
+  // Their own After Dark pictures of them, as blurred teasers: the owner's page only.
+  const adPhotos = ratings.is_owner && viewerId && !c.house ? await afterDarkPhotosOf(c.id, viewerId).catch(() => null) : null;
   const plays = ratings.is_owner && !c.house ? (await loadCharacter(db, id))?.signals ?? null : null;
   const people = connections(memory);
   const relPage = pageSlice(relationships, parsePage(sp.rel), RELATIONSHIPS_PAGE);
@@ -434,6 +440,21 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
       {hasExtras(shownExtras) && <ProfileDetails extras={shownExtras} owner={ratings.is_owner} />}
 
+      {photos.length > 0 && (
+        <section className="card profile-photos" aria-label="Photos">
+          <h2>Photos</h2>
+          <ul>
+            {photos.map((p) => (
+              <li key={p.asset_id}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- a pg asset from its own route */}
+                <img src={p.url} alt={`A photo of ${c.name}`} loading="lazy" />
+              </li>
+            ))}
+          </ul>
+          <AiTag />
+        </section>
+      )}
+
       <section className="card">
         <h2>Audience rating</h2>
         <p className="muted">How the crowd reads this contestant. It&apos;s just for fun — it never changes a date, the odds or your points on a prediction.</p>
@@ -480,6 +501,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
 
       {c.house && <AfterDarkTeaser character={c.id} />}
+      {/* Their own After Dark pictures of them, blurred: the owner's page only. */}
+      {adPhotos && <AfterDarkPhotos characterId={c.id} data={adPhotos} />}
 
       {relationships.length > 0 && (
         <section className="card" id="relationships">

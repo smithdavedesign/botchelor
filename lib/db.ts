@@ -1606,6 +1606,27 @@ create table if not exists adult_talks (
 );
 -- Which direction made it (lib/adult/talks.ts TALK_VERSION): version 1's had subtitles burned in.
 alter table adult_talks add column if not exists version integer not null default 1;
+-- A character's profile photos (lib/studio/profile-photos.ts): up to nine of their owner's PG Studio pictures, pinned,
+-- each served from its approved pg copy in character_assets.
+create table if not exists profile_photos (
+  character_id text not null references characters (id) on delete cascade,
+  picture_id text not null,
+  asset_id text not null,
+  owner_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (character_id, picture_id)
+);
+create index if not exists profile_photos_owner on profile_photos (owner_id, picture_id);
+-- Date photos (lib/studio/date-photos.ts): a PG picture of the two of them from a finished date, kept with the date (never
+-- in a Studio gallery), each served from its approved pg copy in character_assets.
+create table if not exists date_photos (
+  asset_id text primary key,
+  episode_id text not null references episodes (id) on delete cascade,
+  owner_id text not null,
+  style text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists date_photos_episode on date_photos (episode_id, created_at);
 -- A scene picture's brief (lib/adult/picture-brief.ts): what the chapter says at the picture's moment (where they are,
 -- what each has on, what's happening, the mood), read once by the fast writer and kept by what it read.
 create table if not exists adult_picture_briefs (

@@ -11656,3 +11656,35 @@ button.pg-group-head:hover {
     text-align: center;
   }
 }
+
+/* A character's profile photos (lib/studio/profile-photos.ts): three across, two on a small phone. */
+.profile-photos ul,
+.profile-photos-grid {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.profile-photos img,
+.profile-photos-grid img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--radius, 8px);
+  display: block;
+}
+@media (max-width: 420px) {
+  .profile-photos ul,
+  .profile-photos-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.date-photo-styles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+}

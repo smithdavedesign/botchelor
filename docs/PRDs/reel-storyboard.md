@@ -137,4 +137,4 @@ Within the rules already set (#765 "never train a model"; the data plan's readin
 1. Prod video alternative: re-add a frame extractor (infra cost) for a VLM video check, or keep videos on Hive with
    the checked-keyframe invariant? (Prod stays on Hive until you choose.)
 2. Redraw allowance + pricing above.
-3. Force the storyboard for everyone, or keep one-tap `makeReel` as a "just film it" path? (I propose keeping both.)
+3. ~~Force the storyboard for everyone, or keep one-tap `makeReel` as a "just film it" path?~~ **Decided (David, 2026-10-30): keep both.** The storyboard for control, one-tap `makeReel` to just film it.

@@ -38,6 +38,7 @@ import { readBytes } from "../object-store";
 import { askRatio, ratioOf, ratiosFor, sizeFor, type FormatId } from "./formats";
 import { getLibrary, type MyPlace, type MyPrompt } from "./library";
 import { identityPackOf, keepIdentityView, type IdentityPack } from "./identity-pack";
+import { photoPartners, pinnedOf, unpinPhoto } from "./profile-photos";
 import { IDENTITY_VIEW_IDS, identityPrice, identityViewPrompt, type IdentityViewId } from "./identity-views";
 
 export type PgFail = { ok: false; status: number; error: string; message: string };
@@ -144,6 +145,8 @@ export type PgPicture = {
   post?: { id: string; status: string } | null;
   /** What made it and where (the gallery's filters, lib/media-filter.ts). */
   tags?: PgTag[];
+  /** On the character's profile (lib/studio/profile-photos.ts). */
+  pinned?: boolean;
 };
 export type PgShoot = { id: string; status: string; asked: number; made: number; tokens: number; free: boolean; error: string | null; created_at: string };
 export type PgState = {
@@ -165,6 +168,8 @@ export type PgState = {
   identity_price: number;
   /** A carousel's price (one picture's moment from six angles). */
   carousel_price: number;
+  /** Who a photo can be sent to in their texts: the characters this one has dated, of other people's. */
+  partners: { character_id: string; name: string }[];
 };
 
 /**
@@ -223,13 +228,17 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
     getLibrary(db, viewer!, { safeOnly: true }).catch(() => ({ places: [], prompts: [], roleplays: [] })),
   ]);
   // Which are on the showcase (lib/showcase.ts), for each tile's 📣.
-  const posts = await postsOf(db, viewer!, "pg", pictures.rows.map((p) => p.id));
+  const [posts, pinned, partners] = await Promise.all([
+    postsOf(db, viewer!, "pg", pictures.rows.map((p) => p.id)),
+    pinnedOf(db, viewer!, pictures.rows.map((p) => p.id)),
+    photoPartners(db, viewer!, c.id).catch(() => []),
+  ]);
   return {
     ok: true,
     state: {
       character: { id: c.id, name: c.name, house: c.house, face: Boolean(face) },
       groups: PG_GROUPS,
-      pictures: pictures.rows.map((p) => ({ id: p.id, rating: p.content_rating, created_at: new Date(p.created_at).toISOString(), shoot_id: p.shoot_id, aspect: p.aspect, post: posts[p.id] ?? null, tags: (Array.isArray(p.tags) ? p.tags : []).filter((t) => t.kind === "made" || t.kind === "place") })),
+      pictures: pictures.rows.map((p) => ({ id: p.id, rating: p.content_rating, created_at: new Date(p.created_at).toISOString(), shoot_id: p.shoot_id, aspect: p.aspect, post: posts[p.id] ?? null, pinned: pinned.has(p.id), tags: (Array.isArray(p.tags) ? p.tags : []).filter((t) => t.kind === "made" || t.kind === "place") })),
       shoots: shoots.rows.map((s) => ({ ...s, created_at: new Date(s.created_at).toISOString() })),
       price: config.price,
       free: admin || free,
@@ -241,6 +250,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
       identity_pack: await identityPackOf(db, viewer!, c.id, "pg", face ? faceKey(face) : null),
       identity_price: config.identity_price,
       carousel_price: config.carousel_price,
+      partners,
     },
   };
 }
@@ -516,6 +526,8 @@ export async function pgCarousel(db: Db, viewer: string | null, characterId: str
 export async function deletePgPicture(db: Db, viewer: string | null, pictureId: string): Promise<boolean> {
   if (!viewer) return false;
   const r = await db.query<{ id: string }>(`delete from studio_pg_pictures where id = $1 and owner_id = $2 returning id`, [pictureId, viewer]);
+  // Off their profile too: its copy's link stops working (lib/studio/profile-photos.ts).
+  if (r.rows.length) await unpinPhoto(db, viewer, pictureId);
   return r.rows.length > 0;
 }
 
