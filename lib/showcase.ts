@@ -336,14 +336,25 @@ const FROM = `from showcase_posts p
   left join characters cb on cb.id = p.character_b`;
 
 /** One page of the showcase for this viewer and these filters, newest first. `pageSize`: the reels' smaller pages. */
-export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, opts: { pageSize?: number } = {}): Promise<{ posts: Post[]; more: boolean }> {
+export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, opts: { pageSize?: number; mix?: boolean } = {}): Promise<{ posts: Post[]; more: boolean }> {
   const w = where(v, f);
   const page = Math.max(1, Math.floor(f.page ?? 1));
   const size = opts.pageSize ?? PAGE_SIZE;
   w.args.push(size + 1, (page - 1) * size, v.id ?? "");
   const n = w.args.length;
   // Trending: the most liked this week, then the newest.
-  const order = f.sort === "trending" ? "(select count(*) from showcase_likes l where l.post_id = p.id and l.created_at > now() - interval '7 days') desc, p.published_at desc nulls last, p.id" : "p.published_at desc nulls last, p.id";
+  const score = f.sort === "trending" ? "(select count(*) from showcase_likes l where l.post_id = p.id and l.created_at > now() - interval '7 days')" : "0";
+  let order = `${f.sort === "trending" ? `${score} desc, ` : ""}p.published_at desc nulls last, p.id`;
+  let mixed = "";
+  if (opts.mix) {
+    // The reels (David, 2026-10-29: they opened on 30 screens of one creator's clips): in rounds, one post from each
+    // creator a round, and from each creator every character before any one again; the best first within each.
+    mixed = `join (select id, row_number() over (partition by owner_id order by cr, s desc, at desc nulls last, id) as round
+                    from (select p.id, p.owner_id, ${score} as s, p.published_at as at,
+                                 row_number() over (partition by p.owner_id, p.character_id order by ${f.sort === "trending" ? `${score} desc, ` : ""}p.published_at desc nulls last, p.id) as cr
+                            ${FROM} where ${w.sql}) c) mix on mix.id = p.id`;
+    order = `mix.round, ${order}`;
+  }
   const { rows } = await db.query<Omit<Post, "creator" | "character" | "partner" | "published_at" | "mine" | "mime"> & {
     handle: string; display_name: string; character_id: string; character_name: string; character_b: string | null; partner_name: string | null; published_at: Date; owner_id: string; mime: string | null;
     likes: number; liked: boolean; remixable: boolean; dateable: boolean;
@@ -354,7 +365,7 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
                      (select g.mime from studio_pg_pictures g where p.source = 'pg' and g.id = p.media_id)) as mime,
             (select count(*)::int from showcase_likes l where l.post_id = p.id) as likes,
             exists (select 1 from showcase_likes l where l.post_id = p.id and l.user_id = $${n}) as liked
-       ${FROM}
+       ${FROM} ${mixed}
       where ${w.sql}
       order by ${order}
       limit $${n - 2} offset $${n - 1}`,

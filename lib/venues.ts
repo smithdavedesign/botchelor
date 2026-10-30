@@ -1,9 +1,10 @@
 /**
  * The reusable library of date locations (the competitor report's "reuse a library of date settings").
  * Thirty-three venues, dealt to a date by seed exactly like the producer's situation, so every episode happens
- * somewhere specific and recognisable without a location ever being generated per date. The first eight have a
- * reviewed backdrop photo (lib/portraits.ts); the rest paint their two-hue gradient until theirs are made and
- * reviewed (David, 2026-10-18: "more extreme date scenarios… and 20 more funny ones").
+ * somewhere specific and recognisable without a location ever being generated per date. Every one has a reviewed
+ * backdrop photo (lib/portraits.ts VENUES_WITH_BACKDROPS, all of them since 2026-10-18); one added later paints its
+ * two-hue gradient until its own is made and reviewed (David, 2026-10-18: "more extreme date scenarios… and 20 more
+ * funny ones").
  *
  * Each venue carries a two-hue backdrop, so the episode page can paint the place behind the matchup —
  * a composited scene at $0, with no image to host or moderate. Pure and client-safe.

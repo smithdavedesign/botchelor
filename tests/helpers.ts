@@ -61,6 +61,7 @@ export const BASE_URL = "http://localhost:3000";
 type Table =
   | "characters"
   | "media_teasers"
+  | "showcase_thumbs"
   | "episodes"
   | "predictions"
   | "profiles"
@@ -172,6 +173,7 @@ export async function startTestDb() {
         "showcase_consents",
         "showcase_likes",
         "creator_follows",
+        "showcase_thumbs",
         "showcase_posts",
         "showcase_loops",
         "creator_profiles",

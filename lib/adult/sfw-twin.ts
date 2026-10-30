@@ -29,8 +29,29 @@ export type TwinResult =
   | { ok: false; status: number; error: string; message: string };
 const fail = (status: number, error: string, message: string): TwinResult => ({ ok: false, status, error, message });
 
-/** The twin's prompt: Picture 1 again, the same people, place, light and framing, everyone dressed, an everyday pose. */
+/**
+ * The twin's prompt: the same people in the same place and light, everyone dressed, in a new everyday pose. Only who
+ * they are and where come from Picture 1, never its pose or framing (David, 2026-10-29: twins kept the original's
+ * suggestive pose when they were "framed the same way").
+ */
 export function twinPrompt(tags: readonly string[]): string {
+  const who = tags.length === 2 ? `the same two people, ${tags[0]} and ${tags[1]}` : `the same person, ${tags[0]}`;
+  const faces = tags.length === 2 ? "the very same faces, hair and skin tones" : "the very same face, hair and skin tone";
+  const pose =
+    tags.length === 2
+      ? "standing or sitting upright side by side, facing the camera, smiling, like friends in a holiday photo"
+      : "standing or sitting upright, facing the camera, smiling, hands relaxed or holding something everyday like a cup or a book";
+  return [
+    `Make a new safe-for-work photograph of ${who}, ${faces}, in the same place and light as Picture 1.`,
+    "Take only who they are and where from Picture 1: a new pose and a new framing, a medium shot from the waist up.",
+    `Everyone in tasteful everyday clothes that suit the place, ${pose}.`,
+    tags.length === 2 ? "Two people only." : "One person only.",
+    PG_TAIL,
+  ].join(" ");
+}
+
+/** The prompt twins were made with until 2026-10-29: what a placeholder twin's "How it was made" rebuilds (lib/showcase-made.ts). */
+export function firstTwinPrompt(tags: readonly string[]): string {
   const who = tags.length === 2 ? `the same two people, ${tags[0]} and ${tags[1]}` : `the same person, ${tags[0]}`;
   const faces = tags.length === 2 ? "the very same faces, hair and skin tones" : "the very same face, hair and skin tone";
   const pose = tags.length === 2 ? "a warm, everyday pose together, side by side or an arm around each other" : "a relaxed, natural, everyday pose";
@@ -84,6 +105,8 @@ export async function sfwTwin(db: Db, viewer: string, mediaId: string, baseUrl: 
   const checkable = { base64: file.bytes.toString("base64"), mime: file.mime };
   const v = await checkRating(db, checkable);
   if (!v.ok) return back(422, "not_pg", `The PG check didn't pass it (${v.reason}), so it wasn't kept.`);
+  // A twin is the picture everyone may see: suggestive (revealing, swimwear) isn't what it's for.
+  if (v.rating !== "pg") return back(422, "not_pg", "The PG check rated it suggestive, not PG, so it wasn't kept.");
   if (toPg) {
     const id = crypto.randomUUID();
     const kept = await keepBytes("studio-pg", id, file.bytes, file.mime);

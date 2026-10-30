@@ -11,6 +11,8 @@ import type { Post } from "@/lib/showcase";
 import { actLabel, placeLabel } from "@/lib/showcase-labels";
 
 const src = (p: Post) => `/api/showcase/${p.id}/media`;
+/** A tile's picture: a smaller copy (lib/showcase-thumbs.ts); the viewer gets the original. */
+const tileSrc = (p: Post) => `${src(p)}?size=tile`;
 
 /**
  * The showcase's grid and its viewer (lib/showcase.ts): a masonry of pictures and clips in their own shapes (clips play
@@ -74,7 +76,7 @@ export default function ShowcaseGrid({ posts, admin = false }: { posts: Post[]; 
       />
     ) : (
       // eslint-disable-next-line @next/next/no-img-element -- served by the showcase's own gate, not next/image
-      <img src={src(p)} alt={describe(p)} loading="lazy" />
+      <img src={big ? src(p) : tileSrc(p)} alt={describe(p)} loading="lazy" />
     );
   const p = open === null ? null : posts[open];
   return (

@@ -25,6 +25,8 @@ type Props = {
 };
 
 const src = (p: Post) => `/api/showcase/${p.id}/media`;
+/** A still at a phone screen's size (lib/showcase-thumbs.ts); its blurred backdrop needs no more than a tile's. */
+const still = (p: Post, size: "tile" | "screen") => `${src(p)}?size=${size}`;
 const cta = (name: "date" | "see_all" | "after_dark" | "create") => () => trackConversion("reel_cta", { cta: name });
 
 /**
@@ -290,13 +292,13 @@ function Slide({
   return (
     <section className={styles.slide} data-i={i} aria-label={who} aria-current={active ? "true" : undefined}>
       {/* The same picture, blurred, filling a wide screen's sides. */}
-      {!video && near && <img className={styles.backdrop} src={src(p)} alt="" aria-hidden="true" />}
+      {!video && near && <img className={styles.backdrop} src={still(p, "tile")} alt="" aria-hidden="true" />}
       <div className={`${styles.frame}${veiled ? ` ${styles.veiled}` : ""}`}>
         {video ? (
           <video data-v={i} src={near ? src(p) : undefined} muted={muted} loop playsInline preload={near ? "auto" : "none"} aria-label={who} />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element -- served by the showcase's own gate, not next/image
-          <img src={src(p)} alt={who} loading={near ? "eager" : "lazy"} className={moving ? styles[motionOf(i)] : undefined} />
+          <img src={still(p, "screen")} alt={who} loading={near ? "eager" : "lazy"} className={moving ? styles[motionOf(i)] : undefined} />
         )}
         <div className={styles.shade} aria-hidden="true" />
         <div className={styles.info}>

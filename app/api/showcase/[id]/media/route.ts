@@ -3,11 +3,13 @@ import { PUBLIC_CACHE, PRIVATE_CACHE } from "@/lib/asset-gate";
 import { getDb } from "@/lib/db";
 import { objectStore, readBytes } from "@/lib/object-store";
 import { postMedia, showcaseViewer } from "@/lib/showcase";
+import { thumbFor, thumbSizeOf } from "@/lib/showcase-thumbs";
 
 /**
  * A showcase post's picture or clip (lib/showcase.ts): only a live post (or its creator's, or an admin's look), only of a
  * rating this viewer may see. A pg one is cached publicly; anything else privately, never by a CDN. One in the bucket is
- * a redirect to a short-lived presigned link.
+ * a redirect to a short-lived presigned link. `?size=tile|screen`: a smaller copy of a picture (lib/showcase-thumbs.ts),
+ * for the grid and the reels; the same viewer's rules decide first.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const db = await getDb();
@@ -22,6 +24,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   ).rows[0];
   if (!row) return new Response("Not found", { status: 404 });
   const cache = m.rating === "pg" ? PUBLIC_CACHE : PRIVATE_CACHE;
+  const size = thumbSizeOf(new URL(req.url).searchParams.get("size"));
+  if (size && row.mime.startsWith("image/")) {
+    const thumb = await thumbFor(db, id, size, async () => {
+      const data = await readBytes(row);
+      return data ? { data, mime: row.mime } : null;
+    });
+    if (thumb) return new Response(new Uint8Array(thumb), { headers: { "content-type": "image/webp", "cache-control": cache, "x-robots-tag": "noindex", ...AI_HEADERS } });
+  }
   const store = row.object_key ? objectStore() : null;
   if (store && row.object_key) {
     const link = await store.presign(row.object_key);

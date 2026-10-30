@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
   // moments, the frame a clip keeps going from) and After Dark's exports (lib/media-tools/export.ts re-encodes clips).
   // lib/media-tools/ffmpeg.ts loads the package by a name made at run time, so the file tracer doesn't follow it into
   // every route (2026-10-26: it was in 236, and production's deploy ran out of disk).
+  // public/ is served by the CDN, never read by a function; lib/media-tools/ffmpeg.ts's temp-folder reads made the
+  // tracer copy all of it (about 3 MB) into every route that can reach ffmpeg (19, about 60 MB a deploy).
+  outputFileTracingExcludes: { "/**": ["./public/**/*"] },
   outputFileTracingIncludes: {
     "/api/admin/after-dark/moments": FFMPEG,
     "/api/admin/after-dark/export": FFMPEG,
