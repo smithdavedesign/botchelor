@@ -21,10 +21,11 @@ import type { Db } from "../db";
 import { sendAccountEmail } from "../email";
 import { siteUrl } from "../site";
 import { PROCESSORS } from "../legal-entity";
+import { ccbillConfig, ccbillPayUrl } from "./billing-ccbill";
 import { segpayConfig, segpayPayPageUrl } from "./billing-segpay";
 import { verotelCancelUrl, verotelConfig, verotelStartOrderUrl, type ParsedPostback } from "./billing-verotel";
 
-export type Processor = "segpay" | "verotel";
+export type Processor = "ccbill" | "segpay" | "verotel";
 type Env = Record<string, string | undefined>;
 
 export const DEFAULT_PRICE_USD = 12.99;
@@ -44,15 +45,16 @@ export function subscriptionName(env: Env = process.env): string {
 /** "$12.99". */
 export const priceLabel = (usd: number): string => `$${usd.toFixed(2)}`;
 
-/** The processors set up here, in the order they're offered: Segpay first. */
+/** The processors set up here, in the order they're offered: CCBill first (David's pick, 2026-10-30), then Segpay. */
 export function configuredProcessors(env: Env = process.env): Processor[] {
-  return [...(segpayConfig(env) ? (["segpay"] as const) : []), ...(verotelConfig(env) ? (["verotel"] as const) : [])];
+  return [...(ccbillConfig(env) ? (["ccbill"] as const) : []), ...(segpayConfig(env) ? (["segpay"] as const) : []), ...(verotelConfig(env) ? (["verotel"] as const) : [])];
 }
 
 export const billingOn = (env: Env = process.env): boolean => configuredProcessors(env).length > 0;
 
 /** Each processor's name for people, how it shows on a card statement and where a subscriber cancels (lib/legal-entity.ts, shared with /cancel and the terms). */
 export const PROCESSOR_INFO: Record<Processor, { label: string; statement: string; cancelUrl: string }> = {
+  ccbill: { label: PROCESSORS.ccbill.name, statement: PROCESSORS.ccbill.statement, cancelUrl: PROCESSORS.ccbill.cancelUrl },
   segpay: { label: PROCESSORS.segpay.name, statement: PROCESSORS.segpay.statement, cancelUrl: PROCESSORS.segpay.cancelUrl },
   verotel: { label: PROCESSORS.verotel.name, statement: PROCESSORS.verotel.statement, cancelUrl: PROCESSORS.verotel.cancelUrl },
 };
@@ -77,7 +79,8 @@ export async function startCheckout(db: Db, userId: string, opts: { processor?: 
   const successUrl = `${base}/after-dark/subscribe?done=1`;
   const declineUrl = `${base}/after-dark/subscribe?declined=1`;
   let url: string;
-  if (processor === "segpay") url = segpayPayPageUrl(segpayConfig(env)!, { referenceId: orderId, successUrl, declineUrl });
+  if (processor === "ccbill") url = ccbillPayUrl(ccbillConfig(env)!, { referenceId: orderId, priceUsd: price });
+  else if (processor === "segpay") url = segpayPayPageUrl(segpayConfig(env)!, { referenceId: orderId, successUrl, declineUrl });
   else url = verotelStartOrderUrl(verotelConfig(env)!, { referenceId: orderId, priceUsd: price, name: subscriptionName(env), successUrl, declineUrl });
   await db.query(`insert into adult_billing_orders (id, user_id, processor, price_usd) values ($1, $2, $3, $4)`, [orderId, userId, processor, price]);
   return { url, processor, orderId };
@@ -271,14 +274,15 @@ export async function subscriptionState(db: Db, userId: string, now: Date = new 
     )
   ).rows[0];
   const flagged = await billingFlagged(db, userId);
-  const processor = e?.provider === "segpay" || e?.provider === "verotel" ? e.provider : null;
+  const processor = e?.provider === "ccbill" || e?.provider === "segpay" || e?.provider === "verotel" ? e.provider : null;
   if (!e || !processor || e.subscription_status === "none") return { status: "none", periodEnd: null, processor: null, cancelUrl: null, flagged };
   const end = e.period_end ? new Date(e.period_end) : null;
   let status = e.subscription_status as SubscriptionState["status"];
   if ((status === "active" || status === "cancelled") && end && end <= now) status = "lapsed";
   let cancelUrl: string | null = null;
   if (status === "active") {
-    if (processor === "segpay") cancelUrl = PROCESSOR_INFO.segpay.cancelUrl;
+    if (processor === "ccbill") cancelUrl = PROCESSOR_INFO.ccbill.cancelUrl;
+    else if (processor === "segpay") cancelUrl = PROCESSOR_INFO.segpay.cancelUrl;
     else {
       const config = verotelConfig(env);
       const sale = (
@@ -361,7 +365,7 @@ export async function sendRenewalReminders(db: Db, now: Date = new Date(), env: 
   const due = (
     await db.query<{ user_id: string; provider: string; subscribed_at: Date | string; renewal_reminded_at: Date | string | null }>(
       `select user_id, provider, subscribed_at, renewal_reminded_at from adult_entitlements
-        where subscription_status = 'active' and provider in ('segpay', 'verotel') and subscribed_at <= $1
+        where subscription_status = 'active' and provider in ('ccbill', 'segpay', 'verotel') and subscribed_at <= $1
           and (period_end is null or period_end > $2)
         limit 200`,
       [yearAgo.toISOString(), now.toISOString()],
@@ -404,7 +408,7 @@ export async function billingOverview(db: Db): Promise<{ subscriptions: AdminSub
   const subs = await db.query<Omit<AdminSubscription, "period_end" | "subscribed_at"> & { period_end: Date | string | null; subscribed_at: Date | string | null }>(
     `select e.user_id, e.subscription_status as status, e.period_end, e.provider, e.subscribed_at, e.age_method, e.age_country, f.reason as flagged
        from adult_entitlements e left join adult_billing_flags f on f.user_id = e.user_id and f.reviewed_at is null
-      where e.provider in ('segpay', 'verotel') or e.subscription_status <> 'none'
+      where e.provider in ('ccbill', 'segpay', 'verotel') or e.subscription_status <> 'none'
       order by (e.subscription_status = 'active') desc, e.updated_at desc limit 100`,
   );
   const events = await db.query<Omit<AdminBillingEvent, "received_at"> & { received_at: Date | string }>(
@@ -429,7 +433,19 @@ export async function postbackParams(req: Request): Promise<Record<string, strin
   if (req.method === "POST") {
     const type = req.headers.get("content-type") ?? "";
     const body = (await req.text()).slice(0, 20_000);
-    if (!type || /application\/x-www-form-urlencoded|text\/plain/i.test(type)) for (const [k, v] of new URLSearchParams(body)) out[k] = v;
+    // CCBill's guide names its form posts "application/x-www-form-encoded"; its other choice is JSON.
+    if (!type || /application\/x-www-form-(?:url)?encoded|text\/plain/i.test(type)) for (const [k, v] of new URLSearchParams(body)) out[k] = v;
+    else if (/application\/json/i.test(type)) {
+      const parsed: unknown = (() => {
+        try {
+          return JSON.parse(body);
+        } catch {
+          return null;
+        }
+      })();
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+        for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) if (["string", "number", "boolean"].includes(typeof v) && !(k in out)) out[k] = String(v);
+    }
   }
   return out;
 }

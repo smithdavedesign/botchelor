@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
 
-type Option = { id: "segpay" | "verotel"; label: string; statement: string };
+type Option = { id: "ccbill" | "segpay" | "verotel"; label: string; statement: string };
 
 /**
  * The subscribe step (app/api/after-dark/subscribe): two boxes the person ticks themselves (18 or older; it renews

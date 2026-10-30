@@ -76,7 +76,7 @@ the keychain (`~/ai-stack/bin/secrets`, never in a file). Propose: start with on
 > **2026-10-24: built and off.** Segpay (primary) and Verotel (backup) are wired end to end; nothing runs until their
 > settings are in the environment. See "Billing" below. Still pending: David opens the merchant accounts.
 
-## Billing — Segpay first, Verotel as backup (2026-10-24)
+## Billing — CCBill first (2026-10-30), Segpay and Verotel as backups (2026-10-24)
 
 > **Applying (2026-10-25):** the readiness table, the application packet (business description, moderation write-up, the
 > two emails), the monthly report and the one-command setup are in `docs/after-dark-processor-application.md`.
@@ -135,6 +135,18 @@ choice.
 
 The host is `https://ad.botchelor.com`: After Dark runs on its own host since 2026-10-30 (docs/after-dark-hosting.md).
 Use it, not botchelor.com: a processor may not follow the show's redirect.
+
+**CCBill** (David's pick, 2026-10-30; `lib/adult/billing-ccbill.ts`). Settings, all needed or CCBill stays off:
+`CCBILL_ACCOUNT` and `CCBILL_SUBACCOUNT` (numbers), `CCBILL_FLEX_ID` (the FlexForms payment flow's id), `CCBILL_SALT`
+(the account's encryption key, from CCBill support), `CCBILL_WEBHOOK_KEY` (our own random secret, 24+ characters).
+In CCBill's Admin Portal:
+- FlexForms: one payment flow with dynamic pricing on; approval URL `https://ad.botchelor.com/after-dark/subscribe?done=1`,
+  denial URL `…/after-dark/subscribe?declined=1`. Each checkout sends a $12.99, 30-day recurring price with its
+  formDigest and our order as `X-orderId`.
+- Webhooks (Account Info → Sub Account Admin → Webhooks): URL
+  `https://ad.botchelor.com/api/after-dark/billing/ccbill?key=<CCBILL_WEBHOOK_KEY>`, format JSON, events NewSaleSuccess,
+  NewSaleFailure, RenewalSuccess, RenewalFailure, Cancellation, Expiration, Refund, Void, Chargeback. CCBill signs
+  nothing: the key, our account and subaccount, and (behind Cloudflare) CCBill's sending ranges are the check.
 
 **Verotel** (Control Center → Setup Websites → the website → FlexPay Options):
 - FlexPay postback URL: `https://ad.botchelor.com/api/after-dark/billing/verotel`
