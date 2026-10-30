@@ -48,10 +48,16 @@ Vercel build fails on Hobby): ignore it.
 
 ## DNS: Cloudflare (from 2026-10-30)
 
-Wix is only the registrar now. DNS moved off Wix to DigitalOcean's DNS on 2026-10-30, and is moving to **Cloudflare**
-(free plan; nameservers `kolton.ns.cloudflare.com` and `nucum.ns.cloudflare.com`, switched at Wix on 2026-10-30). Records
-are edited in Cloudflare's dashboard: botchelor.com → DNS → Records. Until the cutover finishes, botchelor.com itself
-still serves the last Vercel build; the DigitalOcean apps answer on their own addresses.
+Wix is only the registrar now. DNS moved off Wix to DigitalOcean's DNS on 2026-10-30, then to **Cloudflare** the same
+day (free plan; nameservers `kolton.ns.cloudflare.com` and `nucum.ns.cloudflare.com`). Records are edited in
+Cloudflare's dashboard: botchelor.com → DNS → Records. botchelor.com itself moved from Vercel to the show app at about
+18:58 UTC on 2026-10-30.
+
+**Adding a proxied name (the lesson of 2026-10-30).** DigitalOcean only accepts a custom domain once it sees a CNAME
+pointing at the app, and the orange cloud hides that CNAME. So add the record as **DNS only** first, add the domain to
+the app (Settings → Domains, "you manage your domain"), wait until it answers on its own (can take up to an hour; the
+dashboard's status lags), and only then switch it to Proxied. A name switched to Proxied before DigitalOcean has it gets
+Cloudflare's 526 for every visitor, which is what botchelor.com did for ~5 minutes that evening.
 
 | Host | Proxy | Points to |
 |---|---|---|
@@ -70,11 +76,10 @@ and a US state again ("Where a visitor is", above).
 ## botchelor.vercel.app
 
 The old address keeps serving the last deployment Vercel built (older code, the same database) for as long as the
-Vercel project exists. Stripe's webhook pointed there: move it to `https://botchelor.com/api/webhooks/stripe` in
-Stripe's dashboard (editing the endpoint's URL keeps its signing secret), and do the same for the operator pass's
-webhook. **Pending (David, 2026-10-30):** the webhook still points at
-`https://botchelor.vercel.app/api/webhooks/stripe`. Agents still connected to `botchelor.vercel.app/api/mcp` keep
-working on the old code until they reconnect.
+Vercel project exists. Stripe's webhooks don't use it: both live endpoints already point at botchelor.com
+(`/api/webhooks/stripe` for packs, `/api/webhooks/stripe-operator` for the operator pass; checked through Stripe's API
+on 2026-10-30), so they reach the show app. Agents still connected to `botchelor.vercel.app/api/mcp` keep working on
+the old code until they reconnect.
 
 ## Going back to Vercel
 

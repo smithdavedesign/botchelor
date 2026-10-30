@@ -98,10 +98,10 @@ the source of truth.
   [docs/seasons.md](docs/seasons.md)), and `/api/jobs/showcase-check` about 20 minutes after each lobby run, all on
   botchelor.com with `Authorization: Bearer $CRON_SECRET`. `vercel.json` and Vercel Cron are gone.
 - **Logs:** each app's Runtime Logs in the DigitalOcean dashboard.
-- **Domain:** `botchelor.com`. Wix is the registrar only; DNS is moving to Cloudflare (from 2026-10-30, records edited
-  in Cloudflare's dashboard). Until that cutover, botchelor.com still serves the last Vercel build. The Stripe webhook
-  still points at `botchelor.vercel.app`: moving it to `https://botchelor.com/api/webhooks/stripe` in Stripe's
-  dashboard is David's, pending.
+- **Domain:** `botchelor.com`. Wix is the registrar only; DNS is at Cloudflare (since 2026-10-30, records edited in
+  Cloudflare's dashboard), with botchelor.com proxied to the show app (cut over 2026-10-30 ~18:58 UTC). Stripe's two
+  live webhooks already point at botchelor.com (`/api/webhooks/stripe` and `/api/webhooks/stripe-operator`), so they
+  reach the show app.
 
 ## Infrastructure and configuration
 
