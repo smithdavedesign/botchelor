@@ -85,6 +85,12 @@ async function ensureShowCreator(db: Db): Promise<void> {
 
 export type LoopResult = { ok: true; post_id: string; media_id: string } | { ok: false; error: string };
 
+/**
+ * A provider's passing trouble (2026-10-29: Replicate answered "Model not found" for its own Wan deployment, 7 times in
+ * 97): the claim goes, so the next run tries it again. A safety refusal, or a frame that didn't pass, stays failed.
+ */
+export const RETRYABLE = /model not found|took longer|timed? ?out|too many requests|\b(429|5\d\d)\b|temporar|unavailable|econnreset|fetch failed/i;
+
 /** One living portrait: claimed, drawn, checked frame by frame, kept, published. A failure is kept as one, never tried again. */
 export async function makeLoop(db: Db, t: LoopTarget): Promise<LoopResult> {
   const id = crypto.randomUUID();
@@ -97,7 +103,8 @@ export async function makeLoop(db: Db, t: LoopTarget): Promise<LoopResult> {
   ]);
   if (!claimed.rows.length) return { ok: false, error: "already tried" };
   const fail = async (error: string): Promise<LoopResult> => {
-    await db.query(`update showcase_loops set status = 'failed', error = $2 where id = $1`, [id, error.slice(0, 300)]);
+    if (RETRYABLE.test(error)) await db.query(`delete from showcase_loops where id = $1`, [id]);
+    else await db.query(`update showcase_loops set status = 'failed', error = $2 where id = $1`, [id, error.slice(0, 300)]);
     return { ok: false, error };
   };
   try {

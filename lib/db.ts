@@ -2614,6 +2614,9 @@ create table if not exists showcase_loops (
   created_at timestamptz not null default now(),
   unique (source, source_id)
 );
+-- 2026-10-29: the first run's provider trouble (Replicate's "Model not found") was kept as failed: tried again now
+-- (lib/showcase-loops.ts RETRYABLE lets such a claim go from then on).
+delete from showcase_loops where status = 'failed' and error like 'Replicate: Model not found%';
 -- A portrait, an SFW twin or one cut from a Studio item isn't from a date (the showcase's "From dates"; lib/showcase.ts
 -- FROM_DATE decides it for new posts).
 update showcase_posts p set from_date = false
