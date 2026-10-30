@@ -78,7 +78,7 @@ function scripted() {
 
 describe("after_dark_write and after_dark_scene take the pair's intensity and hard nos", () => {
   it("documents them with the enums the Limits panel uses, and keeps the tool count", () => {
-    expect(ADULT_TOOLS).toHaveLength(7);
+    expect(ADULT_TOOLS).toHaveLength(9);
     for (const name of ["after_dark_write", "after_dark_scene"]) {
       const props = (ADULT_TOOLS.find((x) => x.name === name)!.inputSchema as Any).properties;
       expect(props.intensity).toMatchObject({ type: "string", enum: [...INTENSITIES] });
