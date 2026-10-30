@@ -1596,6 +1596,16 @@ create table if not exists adult_talks (
 );
 -- Which direction made it (lib/adult/talks.ts TALK_VERSION): version 1's had subtitles burned in.
 alter table adult_talks add column if not exists version integer not null default 1;
+-- A scene picture's brief (lib/adult/picture-brief.ts): what the chapter says at the picture's moment (where they are,
+-- what each has on, what's happening, the mood), read once by the fast writer and kept by what it read.
+create table if not exists adult_picture_briefs (
+  key text primary key,
+  owner_id text not null,
+  brief jsonb not null,
+  cost double precision,
+  created_at timestamptz not null default now()
+);
+create index if not exists adult_picture_briefs_owner on adult_picture_briefs (owner_id, created_at);
 -- The sound of a place (lib/adult/place-sounds.ts; docs/PRDs/theater-immersion.md #6): one quiet looping bed per place,
 -- made once and shared by every night there, like a drawn set. Nobody's in it, so it's nobody's.
 create table if not exists place_sounds (

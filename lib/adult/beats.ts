@@ -34,7 +34,8 @@ import { adultKeys, getAdultSettings } from "./settings";
 import { claimChapterPicture } from "./chapter-pictures";
 import { picturesBlocked } from "./readiness";
 import { refundBoughtTokens } from "../allowance";
-import { roleplayById } from "./roleplays";
+import { pictureBrief, type Brief } from "./picture-brief";
+import { roleplayById, rolesLine } from "./roleplays";
 import { venueSituation } from "./scene-catalog";
 import { ownPlaceSituation, ownRoleplay } from "../studio/library";
 import { isPublicPlace } from "./continuity";
@@ -377,22 +378,50 @@ export async function planBeat(
   if (blocked) return { ok: false, status: 409, message: blocked };
   const cast = reelCast(ca, cb, beat.owner_id);
   const limits = await mediaLimits(db, beat.owner_id, beat.character_a, beat.character_b);
-  const lines = (await beatLines(db, beat as BeatRow)) as { text: string; doing?: string }[];
+  const lines = (await beatLines(db, beat as BeatRow)) as { who: "a" | "b"; text: string; doing?: string }[];
   const moment = lines.slice(Math.max(0, beat.line - MOMENT_LINES + 1), beat.line + 1);
   const act = actById(beat.act);
   const stage = Math.max(beat.stage, act?.dress ?? 0);
   // What the night says, field by field.
-  const roleplay = await chapterRoleplayTitle(db, beat);
+  const roleplay = await chapterRoleplay(db, beat, { a: ca.name, b: cb.name });
   // What each of them wears, from their own looks, until they undress (one context for every picture).
   const situation = await situationOf(db, beat.owner_id, beat.place);
   const publicPlace = isPublicPlace(beat.place) || Boolean(situation);
-  const outfits = stage >= UNDRESSING ? null : outfitsOf(cast, [ca, cb], beat.owner_id, stage, publicPlace);
+  const worn = wornOf([ca, cb], beat.owner_id, stage, publicPlace);
+  const outfits = stage >= UNDRESSING || !worn ? null : cast.map((who, i) => `${i === 0 ? who.tag.charAt(0).toUpperCase() + who.tag.slice(1) : who.tag} in ${worn[i] ?? "everyday clothes"}`).join("; ");
   const fields: PictureFields = {
     happening: recentActions([...moment], 3).join("; "),
     wearing: outfits ?? wearingAt(stage),
     place: withSituation(beat.place, situation),
-    mood: [roleplay, moment.at(-1)?.doing].filter(Boolean).join(" · "),
+    mood: [roleplay?.title, moment.at(-1)?.doing].filter(Boolean).join(" · "),
   };
+  // What the chapter says at the moment, read once (lib/adult/picture-brief.ts; David, 2026-10-29): where they are, what
+  // each has on (a costume, what's come off), what's happening and the mood, over the guess from the last lines' actions
+  // and their looks. A field it couldn't say within the lines and the pair's limits keeps the guess.
+  const brief = await pictureBrief(
+    db,
+    {
+      owner: beat.owner_id,
+      scene: beat.scene_id,
+      night: beat.night_id,
+      chapter: beat.chapter,
+      lines: lines.slice(0, beat.line + 1).map((l) => ({ who: l.who, text: l.text })),
+      names: { a: ca.name, b: cb.name },
+      pronouns: { a: ca.pronouns ?? null, b: cb.pronouns ?? null },
+      usual: worn ? `${ca.name}: ${worn[0] ?? "everyday clothes"}; ${cb.name}: ${worn[1] ?? "everyday clothes"}` : null,
+      place: fields.place,
+      roleplay: roleplay?.words ?? null,
+      dressed: wearingAt(stage),
+      shows: beatLabel(beat.kind, beat.act),
+    },
+    (w) => checkAdultText({ words: w }).ok && !crossesTaboo(w) && !limits.hit(w),
+  );
+  if (brief) {
+    if (brief.happening) fields.happening = brief.happening;
+    if (brief.wearing) fields.wearing = brief.wearing;
+    if (brief.place) fields.place = brief.place;
+    if (brief.mood) fields.mood = [roleplay?.title, brief.mood].filter(Boolean).join(" · ");
+  }
   // The owner's changes, held to the lines and the pair's limits like everything drawn.
   const own = cleanEdit(edit);
   const words = own ? Object.values(own).join(" ") : "";
@@ -400,12 +429,12 @@ export async function planBeat(
   // Whose eyes it's seen through: kept once picked; else picked now, where the act has a view and it does clearly better
   // that way for this viewer (lib/adult/framing.ts), from their own character's eyes when that's one of the views.
   const eyes = beat.eyes !== undefined && beat.eyes !== null ? beat.eyes : act ? await pickEyes(db, beat.owner_id, act, cast, [ca, cb]) : null;
-  const framed = beatFrame(beat, cast, moment, beat.place, limits, own?.happening, own?.mood ?? fields.mood, eyes);
+  const framed = beatFrame(beat, cast, moment, beat.place, limits, own?.happening ?? (brief?.happening || undefined), own?.mood ?? fields.mood, eyes);
   if (!framed) return { ok: false, status: 422, message: "That moment crosses one of the lines." };
-  const place = own?.place ?? withSituation(beat.place, situation);
+  const place = own?.place ?? fields.place;
   const where = place ? placeWords(place, cast) : null;
-  // Their own outfits, the night's guess unless the owner wrote their own (stage clothes words past it, clothesAt).
-  const clothes = own?.wearing ?? (outfits ? `${outfits}, both fully clothed` : undefined);
+  // What they wear: the owner's own words, else the brief's, else their own outfits (stage clothes words past them, clothesAt).
+  const clothes = own?.wearing ?? briefClothes(brief, stage) ?? (outfits ? `${outfits}, both fully clothed` : undefined);
   const custom = [own?.extra, beat.custom].filter(Boolean).join(". ") || undefined;
   const opts = { explicit: limits.explicit, custom, dialog: beat.dialog ?? undefined, ...(clothes ? { clothes: withoutNames(clothes, cast) } : {}) };
   // `older`: the second try after an age check read one of them as young (drawBeat).
@@ -444,26 +473,44 @@ function withSituation(place: string | null, situation: string | null): string {
 /**
  * What each of them wears, from their own looks (lib/looks.ts looksPictureWords), by common sense: what they wear out in
  * public or before it's gone past flirting, After Dark's outfit (the owner's own pick) somewhere private from kissing
- * on. "The woman with auburn hair in a fitted white t-shirt and blue jeans; the man in a navy suit". Null when neither
- * has an outfit picked (then the stage's words: wearingAt).
+ * on: "a fitted white t-shirt and blue jeans". Null when neither has an outfit picked (then the stage's words: wearingAt).
  */
-function outfitsOf(cast: readonly [ReelPerson, ReelPerson], people: readonly [Character, Character], owner: string, stage: number, publicPlace: boolean): string | null {
+function wornOf(people: readonly [Character, Character], owner: string, stage: number, publicPlace: boolean): [string | null, string | null] | null {
   const worn = people.map((c) => {
     const p = looksPictureWords(c.extras?.looks, c.ownerId === owner);
     return publicPlace || stage < 2 ? p.everyday : (p.outfit ?? p.everyday);
-  });
-  if (!worn.some(Boolean)) return null;
-  return cast.map((who, i) => `${i === 0 ? who.tag.charAt(0).toUpperCase() + who.tag.slice(1) : who.tag} in ${worn[i] ?? "everyday clothes"}`).join("; ");
+  }) as [string | null, string | null];
+  return worn.some(Boolean) ? worn : null;
 }
 
-/** The chapter's roleplay's title, for the mood (the running chapter's only: a filed night doesn't keep it). */
-async function chapterRoleplayTitle(db: Db, beat: Pick<BeatRow, "scene_id" | "owner_id" | "chapter" | "night_id">): Promise<string | null> {
+/**
+ * What the brief says they wear, as a picture's clothes words: dressed as it says before they undress (still dressed),
+ * as it says while they undress, and once they're naked only what it says is still on (else the stage's own words,
+ * which spell out that nothing from their pictures stays on: clothesAt).
+ */
+export function briefClothes(b: Pick<Brief, "wearing" | "kept_on"> | null, stage: number): string | undefined {
+  if (!b) return undefined;
+  if (stage >= SEX) return b.kept_on ? `both completely naked apart from ${b.kept_on.replace(/[.\s]+$/, "")}, none of the other clothes from their pictures` : undefined;
+  if (!b.wearing) return undefined;
+  return stage >= UNDRESSING ? b.wearing : `${b.wearing.replace(/[.\s]+$/, "")}, both still dressed`;
+}
+
+/**
+ * The chapter's roleplay: its title, for the mood, and its premise with who plays whom, for the brief (the running
+ * chapter's only: a filed night doesn't keep it).
+ */
+async function chapterRoleplay(db: Db, beat: Pick<BeatRow, "scene_id" | "owner_id" | "chapter" | "night_id">, names: { a: string; b: string }): Promise<{ title: string; words: string } | null> {
   if (beat.night_id) return null;
-  const row = (await db.query<{ roleplay: { id?: string; chapter?: number } | null; chapter: number }>(`select roleplay, chapter from adult_scenes where id = $1 and owner_id = $2`, [beat.scene_id, beat.owner_id])).rows[0];
+  const row = (await db.query<{ roleplay: { id?: string; chapter?: number; swap?: boolean } | null; chapter: number }>(`select roleplay, chapter from adult_scenes where id = $1 and owner_id = $2`, [beat.scene_id, beat.owner_id])).rows[0];
   const id = row?.roleplay?.id;
   if (!id || row.roleplay?.chapter !== beat.chapter) return null;
   const rp = roleplayById(id) ?? (await ownRoleplay(db, beat.owner_id, id).catch(() => null));
-  return rp?.title ?? null;
+  if (!rp) return null;
+  const first = (n: string) => n.split(/\s+/)[0];
+  const swap = Boolean(row.roleplay?.swap);
+  const [x, y] = (swap ? [names.b, names.a] : [names.a, names.b]).map(first);
+  const roles = rolesLine(rp, { a: first(names.a), b: first(names.b) }, swap);
+  return { title: rp.title, words: `${rp.title}. ${rp.premise.replaceAll("{a}", x).replaceAll("{b}", y)}${roles ? ` ${roles}.` : ""}` };
 }
 
 /** An age check's refusal: someone in the picture could be under 18, or it couldn't tell. */
