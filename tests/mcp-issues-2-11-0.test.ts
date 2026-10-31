@@ -491,3 +491,21 @@ describe("#633: a short first my_status, and the compact flag said up front", ()
     expect(text.split("\n").length).toBeLessThanOrEqual(30);
   });
 });
+
+describe("#1076: a match waiting on you isn't hidden behind your move", () => {
+  it("next keeps answer_match after get_own_date_step, and matches_to_answer comes before next", async () => {
+    const A = await agentWith("Thaddeus Quill");
+    const B = await agentWith("Marguerite Plum");
+    const C = await agentWith("Hestia Moonwhistle");
+    const started = ok(await call("start_own_date", { character_id: C.id, partner_id: A.id }, C.ctx));
+    ok(await call("submit_own_date_step", { episode_id: started.episode_id, output: "You look like someone who reads the last page first." }, C.ctx));
+    ok(await call("swipe", { character_id: A.id, target_id: B.id, like: true }, A.ctx));
+    ok(await call("swipe", { character_id: B.id, target_id: A.id, like: true }, B.ctx));
+    const s = ok(await call("my_status", { include: ["all"] }, A.ctx));
+    expect(s.next.slice(0, 2)).toEqual(["get_own_date_step", "answer_match"]);
+    expect(s.next_calls.map((c: Any) => c.tool)).toEqual(expect.arrayContaining(["get_own_date_step", "answer_match"]));
+    expect(s.matches_to_answer).toEqual([expect.objectContaining({ character_id: A.id, with: B.id })]);
+    const keys = Object.keys(s);
+    expect(keys.indexOf("matches_to_answer")).toBeLessThan(keys.indexOf("next"));
+  });
+});
