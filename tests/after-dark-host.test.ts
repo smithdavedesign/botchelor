@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET as carry } from "@/app/api/auth/carry/route";
@@ -224,6 +224,11 @@ describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
     expect(page(`${AD}/characters?tab=people`, { cookie: `bz_adult=1; bz_uid=${UID}` })).toBe(`307 ${SHOW}/characters?tab=people - -`);
     expect(page(`${AD}/after-darkness`)).toBe(`307 ${SHOW}/after-darkness - -`);
     for (const doc of ["/llms.txt", "/sitemap.xml", "/.well-known/mcp.json"]) expect(page(`${AD}${doc}`)).toBe(`307 ${SHOW}${doc} - -`);
+    // A Nav link's client-side fetch (its prefetch, or the click) gets no redirect to the other host, which the browser
+    // blocks (CORS, David's console 2026-10-31): a plain answer here, so Next loads the page in full and that redirects.
+    const rsc = middleware(new NextRequest(`${AD}/shop?_rsc=abc`, { headers: { "user-agent": CHROME, cookie: "bz_adult=1", rsc: "1", "next-router-prefetch": "1" } }));
+    expect([rsc.status, rsc.headers.get("location"), rsc.headers.get("content-type"), rsc.headers.get("cache-control")]).toEqual([200, null, "text/html; charset=utf-8", "private, no-store"]);
+    expect(page(`${AD}/shop`, { cookie: "bz_adult=1" })).toBe(`307 ${SHOW}/shop - -`);
   });
 
   it("tells every crawler to stay out", async () => {
@@ -257,27 +262,46 @@ describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
       "/api/feedback/prompt",
       "/api/waitlist",
       "/api/mcp",
+      "/api/me",
+      "/api/line-feedback?kind=after_dark&ref=x",
+      "/api/library",
     ];
     for (const path of kept) expect(`${path} ${await go(path)}`).toBe(`${path} 200 -`);
-    const sent = ["/api/episodes/e1/reveal?x=1", "/api/auth/login", "/api/auth/google/start", "/api/auth/carry2", "/api/admin/after-darkness", "/api/webhooks/stripe", "/api/jobs/daily", "/api/me"];
+    const sent = ["/api/episodes/e1/reveal?x=1", "/api/auth/login", "/api/auth/google/start", "/api/auth/carry2", "/api/admin/after-darkness", "/api/webhooks/stripe", "/api/jobs/daily", "/api/me/keys"];
     for (const path of sent) expect(`${path} ${await go(path)}`).toBe(`${path} 307 ${SHOW}${path}`);
   });
 
   it("keeps every API After Dark's pages call (a new one fails here until it's kept, lib/after-dark-host.ts)", async () => {
     asAfterDark();
     const config = afterDarkNextConfig(process.env, SHOW);
-    // After Dark's pages, and what they render or call from elsewhere: the gate, the feedback dock, the waitlist, the sets.
-    const files = [
+    // After Dark's pages, what every page has (the Nav, the gate, the feedback dock), the sets, and every app/ file they
+    // import (2026-10-31: the theater's line votes, app/useLineVotes.ts, were missed and failed on After Dark's host).
+    const start = [
       ...[join(ROOT, "app/after-dark"), join(ROOT, "app/admin/after-dark")].flatMap((d) => readdirSync(d, { recursive: true, encoding: "utf8" }).map((f) => join(d, f))),
-      ...["app/AgeGate.tsx", "app/FeedbackDock.tsx", "app/WaitlistForm.tsx", "lib/venues.ts"].map((f) => join(ROOT, f)),
+      ...["app/Nav.tsx", "app/AgeGate.tsx", "app/FeedbackDock.tsx", "app/WaitlistForm.tsx", "lib/venues.ts"].map((f) => join(ROOT, f)),
     ].filter((f) => /\.tsx?$/.test(f));
-    const called = new Set(files.flatMap((f) => [...readFileSync(f, "utf8").matchAll(/["'`](\/api\/[A-Za-z0-9/_-]+)/g)].map((m) => m[1])));
+    const files = new Set<string>();
+    const visit = (f: string) => {
+      if (files.has(f)) return;
+      files.add(f);
+      for (const [, spec] of readFileSync(f, "utf8").matchAll(/from ["'](@\/app\/[^"']+|\.{1,2}\/[^"']+)["']/g)) {
+        const base = spec.startsWith("@/") ? join(ROOT, spec.slice(2)) : join(dirname(f), spec);
+        const found = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"].map((x) => base + x).find((x) => /\.tsx?$/.test(x) && existsSync(x));
+        if (found?.startsWith(join(ROOT, "app/")) && !found.includes("/api/")) visit(found);
+      }
+    };
+    start.forEach(visit);
+    expect([...files].some((f) => f.endsWith("useLineVotes.ts"))).toBe(true);
+    const called = new Set([...files].flatMap((f) => [...readFileSync(f, "utf8").matchAll(/["'`](\/api\/[A-Za-z0-9/_-]+)/g)].map((m) => m[1])));
     expect(called.size).toBeGreaterThan(8);
+    // The PG Studio's, next to After Dark's own in a file both import (app/studio/selection.ts PG_API): never called there.
+    for (const pg of ["/api/studio/export", "/api/studio/captions"]) called.delete(pg);
+    const sent: string[] = [];
     for (const api of called) {
       const path = api.endsWith("/") ? `${api}x` : api;
-      const res = await viaNextConfig({ url: `${AD}${path}`, nextConfig: config });
-      expect(`${path} ${res.status}`).toBe(`${path} 200`);
+      if ((await viaNextConfig({ url: `${AD}${path}`, nextConfig: config })).status !== 200) sent.push(path);
     }
+    expect(sent).toEqual([]);
   });
 
   it("refuses to build without the show's address to send things to", () => {
