@@ -5,7 +5,7 @@
  * steered ("they go back to hers"). Every line is held to the two lines that never move (no minors, no real people,
  * lib/safety.ts checkAdultText); anything else between the two fictional adults is allowed.
  */
-import { loadCharacter, type Character } from "../character";
+import { loadCharacter, speaks, type Character } from "../character";
 import type { Db } from "../db";
 import { moveLineFeedback } from "../line-feedback";
 import type { ChatMessage, Model, ModelOptions, Usage } from "../model";
@@ -1054,8 +1054,9 @@ export function sceneMessages(
     ` {"of": "a", "b" or "both", "description": "what the picture shows, in one sentence: the pose, what they're wearing or not, the expression, the framing"}; otherwise null.` +
     (v2 ? suggestionRule : "");
   return [
-    // English-only until After Dark's checks are proven in other languages (David, 2026-10-31; lib/safety.ts checkAdultText).
-    { role: "system", content: `${system} Write everything in English, whatever language their sheets are in.` },
+    // English-only until After Dark's checks are proven in other languages (David, 2026-10-31; lib/safety.ts checkAdultText):
+    // said only when a sheet isn't in English, so every other scene's prompt stays word for word what it was.
+    { role: "system", content: [a, b].some((c) => c && speaks(c) !== "en") ? `${system} Write everything in English, whatever language their sheets are in.` : system },
     { role: "user", content: user },
   ];
 }

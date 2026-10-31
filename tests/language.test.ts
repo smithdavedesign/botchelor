@@ -30,6 +30,11 @@ describe("detectLanguage", () => {
     expect(detectLanguage(text)).toBe(lang);
   });
 
+  it("doesn't read a foreign name in an English sentence as that language", () => {
+    expect(detectLanguage("A portrait of a woman, art by Greg Rutkowski and Zdzisław Beksiński")).toBe("en");
+    expect(detectLanguage("We had coffee at Café Señorita and talked about Łódź for an hour.")).toBe("en");
+  });
+
   it("says nothing for text too short or a link", () => {
     expect(detectLanguage("ok")).toBeNull();
     expect(detectLanguage("jaja")).toBeNull();
