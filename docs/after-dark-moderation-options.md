@@ -28,7 +28,7 @@ ban would also lose the $111 prepaid. Sightengine's terms ban getting around cap
    instead of $0.003. It changes a safety check, so it's David's call. We'd build it.
 2. **Pause until the daily reset on a cap 429,** instead of probing every 5 to 60 minutes. We don't know when Hive's
    day resets: midnight UTC, 24 hours after the first call, or rolling (docs/after-dark.md). Ask Hive.
-3. **Email Hive Sales.** It's the only approved way to raise the cap. The questions are below; we draft, David sends.
+3. **Email Hive Sales.** It's the only approved way to raise the cap. Done: see "Hive Sales answered" below.
 
 **The best medium-term setup:**
 - **Hive Enterprise,** which brings higher limits plus two things already on the launch checklist: Hive's CSAM
@@ -42,6 +42,15 @@ ban would also lose the $111 prepaid. Sightengine's terms ban getting around cap
 - We can't lawfully obtain the data to build or test a CSAM classifier.
 - Open age models misjudge many minors near 18.
 - Hive's terms (§3.2) ban using its outputs to build a competing model.
+
+## Hive Sales answered (2026-10-30)
+
+- **Visual Moderation beyond the 100 a day:** $1,500 a month minimum on a 12-month commitment, so $18,000 a year. Usage counts toward the minimum at $3 per 1,000 frames.
+- **The vision-language model:** pay as you go, at $0.50 per million input tokens and $2.50 per million output tokens. Hive says it "should be able to accommodate your volume as you scale".
+- **Our reply** (sent 2026-10-30): we decline the commitment while we're pre-launch and stay on the Playground for Visual Moderation. We asked whether the VLM has a self-serve cap and when the 100-a-day limit resets.
+- **What follows:**
+  - Move the regular show's picture checks (sets, look tiles, portraits, season portraits) to VLM label questions. That leaves all 100 for After Dark. The PG Studio plan already uses the VLM.
+  - Revisit Enterprise once subscriptions bring in about $1,500 a month. It also adds the Thorn CSAM classifier and Demographics.
 
 ## The options
 

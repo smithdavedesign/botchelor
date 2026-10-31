@@ -10,6 +10,30 @@ Order matters: the business name, then the EIN, then the bank account, then the 
 before it. If CCBill says it needs an LLC (question 4 of the inquiry, sent 2026-10-30), it's Verotel first instead
 (it takes individuals), or the LLC in section 1b.
 
+## Where it stands (2026-10-30)
+
+| Step | Status |
+|---|---|
+| EIN (sole proprietor, dba Botchelor) | Done. The letter is in David's "business" folder |
+| Marin County fictitious business name | Signed. Mailed with a $42 check and a stamped return envelope |
+| Newspaper notice | Next, within 45 days of filing (Marin IJ or a paper on the county's approved list) |
+| Business bank account | After the filed statement comes back. Ask the bank whether it banks adult merchants |
+| CCBill inquiry | Sent. Mili (MiliT@ccbill.com) answered the same day |
+| CCBill follow-up answers | Sent. Country and entity, owner, ID, $12.99 a month, how content is made, the controls, the service |
+| CCBill reviewer login | Sent. Account `ccbill_review`, with a reviewer pass until 2026-11-29 (docs/after-dark.md "Reviewer pass", #994) |
+| CCBill AI Guidelines (PDF) | Not read: the Gmail connector can't download attachments. Our reply maps our controls to the card-network rules and asks Mili to flag any gap |
+| CCBill application | After the bank account. Then FlexForms, the webhook, the `CCBILL_*` settings and one test purchase |
+
+**What CCBill said** (2026-10-30):
+- A sole trader may apply. The LLC and the owner must both be in the US.
+- They need a US business bank account and the owner's US ID (ccbill.com/doc/acceptable-identification-for-accounts).
+- The card statement can show the site name, "Botchelor", but David's name then goes on the Contact Us page and the payment form.
+- AI-generated content is reviewed case by case.
+
+**Open:**
+- **The support address.** The legal pages show David's Gmail (`CONTACT_EMAIL`). A support@botchelor.com address needs the Cloudflare nameserver switch first, for free email routing.
+- **David's name on the contact page.** CCBill requires it for a sole trader. Add it to the contact details when the application goes in.
+
 ## 1. The business name (a fictitious business name statement, your county)
 
 California requires one when you trade under a name that doesn't include your surname, and "Botchelor" doesn't. Banks
@@ -108,7 +132,7 @@ subscriptions pay for it.
      DigitalOcean app.
    - Run one test purchase and watch `/admin/after-dark/providers` → Subscriptions.
 
-### The inquiry email (draft: David sends it)
+### The inquiry email (sent 2026-10-30)
 
 > **To:** CCBill merchant sales (the contact form on ccbill.com)
 > **Subject:** New merchant: AI-generated adult fiction subscription, policy question before applying
