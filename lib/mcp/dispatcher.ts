@@ -4874,8 +4874,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           .catch(() => []),
         ids.length
           ? db
-              .query<{ id: string; a: string; b: string; date_number: number | null }>(
-                `select e.id, ca.name as a, cb.name as b,
+              .query<{ id: string; a: string; b: string; a_id: string; b_id: string; house: boolean; date_number: number | null }>(
+                `select e.id, ca.name as a, cb.name as b, ca.id as a_id, cb.id as b_id, (ca.is_house or cb.is_house) as house,
                         ${dateNumberSql("e")} as date_number
                    from episodes e
                    join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
@@ -4986,7 +4986,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // #417: which of them a show script plays (likes back and replies automatically), said outright.
       const bots = await houseBots(db, [...matchRows.map((m) => m.other), ...waitingOnThem.map((w) => w.with)]);
       const tag = <T extends { with: string }>(m: T) => (bots.has(m.with) ? { ...m, house_bot: true, run_by: "house_bot" } : { ...m, house_bot: false });
-      const routine = rematch && !ownOpen.some((d) => d.your_move) && !toAnswer.length ? ["plan_second_date", "go_on_date", "swipe_deck"] : !mine.length
+      // #1097 (the 2026-10-31-1329 run: "next_calls keep pushing go_on_date even when a free start_own_date is agreed"): with
+      // another agent's character (or two of yours), the free own date comes first; the house cast only the show plays.
+      const rematchOwn = rematch && !rematch.house ? (ids.includes(rematch.a_id) ? { mine: rematch.a_id, other: rematch.b_id } : { mine: rematch.b_id, other: rematch.a_id }) : null;
+      const routine = rematch && !ownOpen.some((d) => d.your_move) && !toAnswer.length ? [...(rematchOwn ? ["start_own_date"] : []), "plan_second_date", "go_on_date", "swipe_deck"] : !mine.length
         ? ["create_character"]
         : ownOpen.some((d) => d.your_move)
           ? // #1076 (the 2026-10-31-0610 run: "Hesper's like-back arrived at 13:23 … I found the match only by checking
@@ -4997,7 +5000,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           : toAnswer.length
             ? ["answer_match"]
             : toBook.length
-              ? ["go_on_date"]
+              ? toBookHouse
+                ? ["go_on_date"]
+                : ["start_own_date", "go_on_date"]
               : unreadTexts
                 ? ["read_texts"]
                 : unread
@@ -5028,6 +5033,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               ? nextCall("go_on_date", { character_id: toBook[0].character_id, partner_id: toBook[0].with, preview: true }, `Both said yes: preview the date with ${toBook[0].name} (the cost, what's left); without preview it books. go_on_date spends one of today's shared show dates${toBookHouse ? " (the show plays the house cast: start_own_date can't)." : "; start_own_date is free: you perform it."}`)
               : first && houseCast[0]
                 ? nextCall("go_on_date", { character_id: first.id, partner_id: houseCast[0].id, preview: true }, `A date with ${houseCast[0].name}, of this season's house cast, no match needed: preview first; without preview it books.`)
+                : null;
+          case "start_own_date":
+            return toBook[0] && !toBookHouse
+              ? nextCall("start_own_date", { character_id: toBook[0].character_id, partner_id: toBook[0].with, preview: true }, `Both said yes: a date with ${toBook[0].name} you perform yourselves, free and unlimited (their agent plays their side). preview first; without preview it starts. go_on_date (next) has the show play it, for one of today's shared dates.`)
+              : rematchOwn && rematch
+                ? nextCall("start_own_date", { character_id: rematchOwn.mine, partner_id: rematchOwn.other, preview: true }, `${rematch.a} × ${rematch.b} want another date: performed yourselves it's free and unlimited (preview first). plan_second_date (next) has the show play it, for one of today's shared dates.`)
                 : null;
           case "plan_second_date":
             return rematch ? nextCall("plan_second_date", { episode_id: rematch.id, preview: true }, `${rematch.a} × ${rematch.b} ended in ${endingLabel("second_date", rematch.date_number).toLowerCase()}: whether it can be booked and the cost; without preview it books.`) : null;

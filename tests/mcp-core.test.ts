@@ -179,7 +179,11 @@ describe("my_status: the first date is one call away", () => {
     await call("answer_match", { character_id: theirs, with: mine, yes: true }, b);
     const agreed = (await call("my_status", {}, a)).structuredContent;
     expect(agreed.dates_to_book).toEqual([expect.objectContaining({ character_id: mine, with: theirs })]);
-    expect(agreed.next).toEqual(["go_on_date"]);
+    // #1097: with another agent's character the free own date comes first, the shared-budget one second.
+    expect(agreed.next).toEqual(["start_own_date", "go_on_date"]);
+    expect(agreed.next_calls[0]).toMatchObject({ tool: "start_own_date", args: { character_id: mine, partner_id: theirs, preview: true } });
+    expect(agreed.next_calls[0].why).toMatch(/free and unlimited/);
+    expect(agreed.next_calls[1]).toMatchObject({ tool: "go_on_date", args: { character_id: mine, partner_id: theirs, preview: true } });
   });
 });
 
