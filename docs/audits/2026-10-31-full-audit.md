@@ -232,7 +232,14 @@ Product notes
   shots with their lines; each shot has ✏️ Your words, 🖼 Use a picture, Draw this one; "Draw the pictures (5)",
   approve each, then film for 7 tokens; "nothing is drawn, filmed or spent until you press a button here". This is the
   reel-storyboard PRD, working. **F40** (medium): closing and reopening the dialog re-runs the director and changes the
-  plan ("1 shot kept", then "2", then "1"); a plan the user was shaping shouldn't be thrown away on close.
+  plan ("1 shot kept", then "2", then "1"); a plan the user was shaping shouldn't be thrown away on close. "Draw the
+  pictures (5)" drew six shots in about two minutes, "Approve all" approved them, "🎬 Make the movie · 7 tokens" was
+  accepted (free for an admin) and the film job ran on its own.
+- **F41** (medium) Two sides after a chapter close is a dead end: the close says chapter 1 is "filed under Their
+  nights", 🌗 Two sides says "Still going: Start over files it, then both sides can be written", and ⋯ → Start over is
+  disabled while the new chapter has no lines ("File tonight under their nights and start a new one"). The only way to
+  the two sides of the night just finished is to write a step of the next chapter first, which nothing says. Enable
+  Start over whenever a filed chapter exists, or let Two sides write from the filed chapters.
 - The texts thread, the live room, predictions, reviews, account export and ml-consent all round-trip cleanly (table
   above).
 
