@@ -183,8 +183,14 @@ Product notes
 ### Show findings
 
 High
-- **F30** "Suggestive" on the SFW showcase: tighten the definition (no fluids, no sexual act context), re-check the 23 live
-  posts, and keep anything the VLM can't call PG with confidence on the After Dark side only.
+- **F30** "Suggestive" on the SFW showcase. Confirmed on two "reel" posts by @darood, Chud × Dorian Sol:
+  `90d0b883-2b2c-482f-93e1-caf446bcc7e1` and `b32c5cf7-8037-4f08-91ef-32aee64081cf` (published 2026-10-29 20:42):
+  lingerie in a lift, then a sex act against the wall with fluids on her face, 10 s each, rated *suggestive* and live
+  on the safe side for every signed-in person. Three other suggestive clips sampled at random were genuinely mild, so
+  this is specific posts slipping through, most likely a reel rated by its mildest shot rather than its strongest.
+  **David: the showcase's admin side has "🌙 to After Dark" on each post; the session's permission rules stopped me
+  using it, so those two need your click.** Then: rate a reel by the strongest shot, tighten "suggestive" (no fluids,
+  no act in progress), and re-check the other 21.
 - **F36** The outage (above).
 
 Medium
