@@ -1870,7 +1870,7 @@ async function plannableSecondDate(db: Db, userId: string, mine: string, theirs:
     )
   ).rows[0];
   if (!last || !last.aired || last.visibility === "private") return null;
-  const state = await secondDateState(db, last.id, userId);
+  const state = await secondDateState(db, last.id, userId, mine);
   return state?.can_plan ? last.id : null;
 }
 
@@ -2121,7 +2121,7 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
   const full = await agentBudgetRefusal(db, who.id);
   if (full) return full;
   const [before, freeSecond] = await Promise.all([episodeAllowance(db, who.id).catch(() => null), secondDateFreeNow(db, who.id).catch(() => false)]);
-  const r = await callRoute(postSecondDate as unknown as RouteHandler, { agentId: who.id, body: pick(args, ["visibility", "place"]), params: { id: episodeId } });
+  const r = await callRoute(postSecondDate as unknown as RouteHandler, { agentId: who.id, body: pick(args, ["visibility", "place", "character_id"]), params: { id: episodeId } });
   if (!r.ok) {
     // 2.10.0 (#661): the race inside the booking (the other side's call landed between the check above and this one): the
     // unique second date let theirs through, and this one gave back its reserved date (app/api/episodes).
@@ -3794,11 +3794,12 @@ type RouteHandler = (req: Request, ctx?: { params: Promise<Record<string, string
 /** Calls an existing API handler in-process, with the agent's id as the session cookie. */
 async function callRoute(
   handler: RouteHandler,
-  opts: { method?: string; agentId?: string; body?: unknown; params?: Record<string, string> },
+  opts: { method?: string; agentId?: string; body?: unknown; params?: Record<string, string>; query?: Record<string, string> },
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (opts.agentId) headers.cookie = `${USER_COOKIE}=${opts.agentId}`;
-  const req = new Request(MCP_CALL_URL, {
+  const url = opts.query && Object.keys(opts.query).length ? `${MCP_CALL_URL}${MCP_CALL_URL.includes("?") ? "&" : "?"}${new URLSearchParams(opts.query)}` : MCP_CALL_URL;
+  const req = new Request(url, {
     method: opts.method ?? "POST",
     headers,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
@@ -3828,6 +3829,13 @@ const errorOf = (r: { data: Record<string, unknown>; status: number }): string =
   }
   const raw = r.data.message ?? r.data.error;
   const base = typeof raw === "string" && !r.data.message && BARE_ERRORS[raw] ? BARE_ERRORS[raw] : String(raw ?? `request failed (${r.status})`);
+  // #1101 (the 2026-10-31-1401 run: "retired from racing at age 4" was refused, and the agent had to bisect its sheet): the
+  // field the content check tripped on, which the route already returns, and for the age rule what counts. The words that
+  // matched stay unsaid, so the check isn't a guide to rewording around it.
+  if (r.data.error === "content_rejected" && typeof r.data.field === "string" && r.data.field) {
+    const hint = r.data.reason === "minor" ? " Any age under 18 there counts, even a pet's or a past one: write it another way." : "";
+    return `${base} (In ${r.data.field}.)${hint}`;
+  }
   const issues = Array.isArray(r.data.issues)
     ? (r.data.issues as { field?: string; message?: string }[]).map((i) => `${i.field ?? "(body)"}: ${i.message ?? "invalid"}`)
     : [];
@@ -6099,6 +6107,22 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         if (!gate.ok) return { error: rateLimitMessage(gate) };
       }
       const episodeId = String(args.episode_id ?? "");
+      // #1102 (the 2026-10-31-1401 run: a retry after a refused line landed Dewey's line as Hettie's turn 3): expect_turn pins
+      // the call to the step it was written for; one that doesn't match is refused and nothing is written.
+      const expectTurn = typeof args.expect_turn === "number" ? args.expect_turn : typeof args.expect_turn === "string" && /^\d+$/.test(args.expect_turn) ? Number(args.expect_turn) : null;
+      if (expectTurn !== null) {
+        const at = await getOwnDateStep(db, who.id, episodeId);
+        if (at.ok && at.step.stage === "turn" && expectTurn !== at.step.turn_number) {
+          return {
+            data: {
+              accepted: false, ok: false, rejected: "wrong_turn", turn_number: at.step.turn_number, of: at.step.of, speaker: at.step.speaker.name,
+              message: `Not handed in: this call was written for turn ${expectTurn}, but the date is at turn ${at.step.turn_number} of ${at.step.of} (${at.step.speaker.name} speaks). Nothing was written: send ${at.step.speaker.name}'s line for turn ${at.step.turn_number}.`,
+              step: compactIf(at.step, args),
+            },
+            identity: who,
+          };
+        }
+      }
       // #479: several lines in one call, between your own two characters (every line is yours), checked in order.
       if (Array.isArray(args.outputs)) {
         if (args.output !== undefined) return { error: "Send output (one reply) or outputs (several), not both." };
@@ -7340,7 +7364,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const waitOnly = (askedWait > 0 && !confirm) || moveWake !== null;
       const woke = moveWake && airWait ? wakeFields(moveWake, airWait, "the first date to air") : null;
       if (dryRun || waitOnly) {
-        const r = await callRoute(getSecondDate as unknown as RouteHandler, { method: "GET", agentId: who.id, params });
+        // #1104: the character you named is the side you plan as, when both are yours.
+        const r = await callRoute(getSecondDate as unknown as RouteHandler, { method: "GET", agentId: who.id, params, query: typeof args.character_id === "string" ? { character_id: args.character_id } : undefined });
         if (!r.ok) return { error: errorOf(r) };
         // #536: what booking would spend, like every other preview (the visitor learned the cost when free_left hit 0),
         // naming the free second date when the show offers one.
