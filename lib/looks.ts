@@ -446,9 +446,9 @@ export function looksAppearance(l: Looks | undefined): string {
 /**
  * The ethnicity as a picture reads it: the tile's own words (skin and features) rather than its label (the audit,
  * 2026-10-31: "Black" alone gave three light-skinned men on the default face model; "deep brown skin and African
- * features" is what a model follows), the name first so it still reads as one pick.
+ * features" is what a model follows), its label first so the tags that tell two people apart still read "the Latina woman".
  */
-const ethnicityLook = (o: LookOption, g: Gender): string => optionPrompt(o, g).replace(/\s*\{who\}\s*/, ", ");
+const ethnicityLook = (o: LookOption, g: Gender): string => `${optionLabel(o, g).replace(" / Afro", "")}, ${optionPrompt(o, g).replace(/^.*\{who\}\s*/, "")}`;
 
 export function looksPictureWords(l: Looks | undefined, own: boolean): { body: string; outfit: string | null; everyday: string | null; undressed: string | null } {
   if (!l?.gender) return { body: "", outfit: null, everyday: null, undressed: null };

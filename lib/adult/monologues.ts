@@ -16,6 +16,7 @@
  *  - What they remember is what they remembered then: the facts and the PG note from up to the night's end, never a later
  *    night's. The prompt never carries a line's private notes (its why, memory or facts).
  */
+import { approvedPortraitId } from "../assets";
 import type { Character } from "../character";
 import type { Db } from "../db";
 import type { ChatMessage, Usage } from "../model";
@@ -215,11 +216,11 @@ async function cached(db: Db, nightId: string): Promise<CacheRow | null> {
 }
 
 async function asSides(db: Db, r: CacheRow): Promise<TwoSides> {
-  const people = (
-    await db.query<{ id: string; name: string; pronouns: string | null; portrait_asset_id: string | null }>(`select id, name, pronouns, portrait_asset_id from characters where id = any($1)`, [[r.character_a, r.character_b]])
-  ).rows;
+  const people = (await db.query<{ id: string; name: string; pronouns: string | null }>(`select id, name, pronouns from characters where id = any($1)`, [[r.character_a, r.character_b]])).rows;
   const who = (id: string) => people.find((p) => p.id === id);
-  const portrait = (id: string) => (who(id)?.portrait_asset_id ? `/api/assets/${who(id)!.portrait_asset_id}` : null);
+  // Their show portraits (lib/assets.ts), for the header beside each page.
+  const portraits = new Map(await Promise.all([r.character_a, r.character_b].map(async (id) => [id, await approvedPortraitId(db, id)] as const)));
+  const portrait = (id: string) => (portraits.get(id) ? `/api/assets/${portraits.get(id)}` : null);
   return {
     night_id: r.night_id,
     a: { id: r.character_a, name: who(r.character_a)?.name ?? r.character_a, label: sideLabel(who(r.character_a)?.pronouns), portrait: portrait(r.character_a), page: r.a_page, text: r.a_text },

@@ -316,6 +316,9 @@ export function feature(look: string): string {
     return [...before, m[0]].join(" ");
   };
   for (const p of parts) if (HAIR.test(p)) return words(p, HAIR);
+  // Where they're from ("Latina", "East Asian") before the skin words that spell it out (2026-10-31).
+  const from = parts.find((p) => /^\p{Lu}[\p{L}-]*( \p{Lu}[\p{L}-]*)?$/u.test(p));
+  if (from) return from;
   for (const p of parts) if (/\bskin\b/i.test(p)) return words(p, /\bskin\b/i);
   return parts[0]?.split(/\s+/).slice(0, 6).join(" ") ?? "";
 }
@@ -345,7 +348,10 @@ export function tellApart(looks: readonly [string, string], noun: ReelPerson["no
     const styled = style?.index !== undefined ? [...hairPart.slice(0, style.index).split(/\b(?:with|and|in)\b/i).pop()!.trim().split(/\s+/).filter(Boolean).slice(-3), style[0]].join(" ") : "";
     // A short capitalised part ("Latina", "East Asian") reads as "the Latina woman".
     const adjective = (t: string) => parts.includes(t) && /^\p{Lu}[\p{L}-]*( \p{Lu}[\p{L}-]*)?$/u.test(t);
-    const candidates = [feature(look), styled, ...parts.filter((p) => p !== hairPart).map((p) => p.split(/\s+/).slice(0, 7).join(" "))]
+    // Where they're from before the words that spell it out (2026-10-31: "Latina" comes with "warm tan skin and Latin
+    // features" now, which would otherwise be "the woman with warm tan skin").
+    const rest = parts.filter((p) => p !== hairPart).map((p) => p.split(/\s+/).slice(0, 7).join(" "));
+    const candidates = [feature(look), styled, ...rest.filter(adjective), ...rest.filter((p) => !adjective(p))]
       .filter(Boolean)
       .map((text) => ({ text, adjective: adjective(text) }));
     // The most visible first (hair, its style, where they're from, then the rest), eyes last: a feature at least half its
