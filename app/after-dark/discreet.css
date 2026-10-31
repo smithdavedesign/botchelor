@@ -19,6 +19,16 @@
   clip-path: inset(0 round 0.8rem);
   cursor: pointer;
 }
+/* #1029 (the 2026-10-30 ad visitor: "the avatars next to their names are empty dark circles", the faces "blurred colored
+   squares"): a portrait keeps its circle, and a small one a lighter blur, so it reads as a blurred face, not a hole.
+   Still nothing to make out at 18 to 30px; a tap shows it as before. */
+[data-ad-discreet="blur"] img.avatar[src*="/after-dark/"]:not([data-ad-shown]) {
+  filter: blur(10px) saturate(0.7) brightness(0.9);
+  clip-path: circle(50%);
+}
+[data-ad-discreet="blur"] :is(.chat-row, .char-name) img.avatar[src*="/after-dark/"]:not([data-ad-shown]) {
+  filter: blur(3px) saturate(0.7) brightness(0.9);
+}
 @media (prefers-reduced-motion: no-preference) {
   [data-ad-discreet] :is(img, video, image) {
     transition: filter 0.2s ease;
