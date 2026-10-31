@@ -77,8 +77,8 @@ npm run typecheck
 **CI** (`.github/workflows/ci.yml`: typecheck and `npm test`) runs by hand only (`gh workflow run ci.yml --ref
 <branch>`), since 2026-10-21: the repo is private, so every run spends the account's free Actions minutes, which
 RepoHQ needs. PRs merge after `npx tsc --noEmit -p .` and the full `npx vitest run` pass locally on the branch merged
-with current main (say so on the PR); the check left on a PR is GitGuardian. Since 2026-10-30 the red "Vercel" check
-is expected (Vercel's free plan can't build botchelor) and ignored. The MCP Registry
+with current main (say so on the PR); the check left on a PR is GitGuardian. Botchelor runs on DigitalOcean since
+2026-10-30, and the Vercel project skips every build since 2026-10-31; a "Vercel" check, if one shows, is ignored. The MCP Registry
 publish is an Action too and still runs when `registry/server.json` changes on main (a few seconds); while the
 minutes are out, run `mcp-publisher publish registry/server.json` by hand ([docs/launch-kit.md](docs/launch-kit.md)).
 

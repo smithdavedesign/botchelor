@@ -22,9 +22,10 @@ The database (Neon) and the show's media bucket (Neon Object Storage) didn't mov
 - **Vercel Web Analytics and Speed Insights** only render on Vercel, so they're off. Google Analytics is unchanged.
 - **Where a visitor is** (`lib/place.ts`): Vercel's location headers are gone. Without them a visitor's country is
   unknown, which is safe on both sides: the EU consent banner shows to everyone who hasn't chosen, and After Dark
-  stays closed to everyone but admins. Before After Dark opens to subscribers, put botchelor.com behind our own
-  Cloudflare zone (free) with the "Add visitor location headers" managed transform on, and set `GEO_HEADERS=cloudflare`
-  on the show: then `cf-ipcountry` and `cf-region-code` give the country and the US state.
+  stays closed to everyone but admins. So botchelor.com sits behind our own Cloudflare zone (free) with the "Add visitor
+  location headers" managed transform on, and the show has `GEO_HEADERS=cloudflare`: `cf-ipcountry` and
+  `cf-region-code` give the country and the US state (both on since 2026-10-30; checked: a signed-out After Dark hop
+  carries `place.v1.US.CA`).
 - **Scheduled jobs** call `https://botchelor.com/api/jobs/<name>` with `Authorization: Bearer $CRON_SECRET`, as Vercel
   Cron did.
 - **Long requests:** App Platform has no `maxDuration`. Its edge (Cloudflare) ends a response that sends nothing for
@@ -35,8 +36,9 @@ The database (Neon) and the show's media bucket (Neon Object Storage) didn't mov
 Both apps build `main` on every push (`deploy_on_push`). A deploy is live when its app's deployment is `ACTIVE`:
 DigitalOcean dashboard → Apps → the app → Activity, or the API (`GET /v2/apps/<id>/deployments`). Pull requests get no
 preview deployment any more: merge on the local checks (`tsc`, the full test suite) and GitGuardian, then watch the
-deploy and check `https://botchelor.com/api/health`. The red "Vercel" check on pull requests is expected (every
-Vercel build fails on Hobby): ignore it.
+deploy and check `https://botchelor.com/api/health`. Since 2026-10-31 the Vercel project skips every build (Settings →
+Git → Ignored Build Step is `exit 0`), so it no longer fails on Hobby; if a "Vercel" check still shows on a pull request,
+ignore it.
 
 ## Settings and logs
 
@@ -66,12 +68,14 @@ Cloudflare's 526 for every visitor, which is what botchelor.com did for ~5 minut
 | `ad` | DNS only | After Dark's app's (`clownfish-app`) `ondigitalocean.app` address |
 | `media` | DNS only | `botchelor-ad-media.b-cdn.net` |
 | `staging` | DNS only | the show app's `ondigitalocean.app` address (reaches the show without www's redirect) |
-| `edge` | **Proxied** | the show app's `ondigitalocean.app` address (the test name for the proxy) |
 
 Resend's records (`send`, `rsend`, `resend._domainkey`, `_dmarc`) and Glama's TXT record (`_glama-claim.www`) stay as
-they are. Once `@` is proxied, turn on Cloudflare's "Add visitor location headers" managed transform (Rules →
-Transform Rules → Managed Transforms) and set `GEO_HEADERS=cloudflare` on the show app: then visitors get a country
-and a US state again ("Where a visitor is", above).
+they are. Cloudflare's "Add visitor location headers" managed transform is on (Rules → Settings) and the show app has
+`GEO_HEADERS=cloudflare` ("Where a visitor is", above).
+
+At DigitalOcean the show app lists `botchelor.com` (primary), `www.botchelor.com` and `staging.botchelor.com`, all as
+"you manage your domain" (no zone): DigitalOcean's own DNS zone for botchelor.com is no longer used. The `edge` test name
+was removed from the app on 2026-10-31.
 
 ## botchelor.vercel.app
 

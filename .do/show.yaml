@@ -11,6 +11,8 @@ domains:
     type: PRIMARY
   - domain: www.botchelor.com
     type: ALIAS
+  - domain: staging.botchelor.com
+    type: ALIAS
 services:
   - name: web
     github:
