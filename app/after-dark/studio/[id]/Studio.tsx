@@ -222,7 +222,9 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     if (k.tab && TABS.some((t) => t.id === k.tab)) setTab(k.tab);
     // Scene & roleplay's "Make your own" links here with ?tab=create.
     if (new URLSearchParams(window.location.search).get("tab") === "create") setTab("create");
-    setChoices(keptChoices(k.choices, initial));
+    // Under anything already picked: on a heavy page this effect can land seconds after the first taps, and it wiped
+    // them (the audit, 2026-10-31: a shoot sent none of its pose, wardrobe, place and light picks).
+    setChoices((x) => ({ ...keptChoices(k.choices, initial), ...x }));
     if (k.moved) {
       const known = (g: string, id: string) => initial.restyle.some((x) => x.id === g && x.options.some((o) => o.id === id));
       setChanges((x) => ({ ...x, ...Object.fromEntries(Object.entries(k.moved!).filter(([g, id]) => typeof id === "string" && known(g, id))) }));
