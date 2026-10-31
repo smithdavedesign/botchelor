@@ -4010,6 +4010,16 @@ button.rating-chip:hover {
 .chat-dark .chat-meta {
   color: rgba(255, 255, 255, 0.5);
 }
+/* #1040: a line that's only a stage direction (After Dark's *action* lines), as one rather than a bubble of words. */
+.chat-row .chat-bubble.chat-direction {
+  background: transparent;
+  color: var(--muted);
+  padding: 0.2rem 0.5rem;
+}
+.chat-dark .chat-row .chat-bubble.chat-direction {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+}
 /* The typing bubble: three dots for whoever speaks next. */
 .chat-typing {
   display: inline-flex;

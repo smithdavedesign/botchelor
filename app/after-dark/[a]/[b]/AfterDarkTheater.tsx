@@ -41,10 +41,31 @@ import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 /** A saved chapter the 📖 menu can play again (lib/adult/scenes.ts AdultNight, trimmed). */
 export type ChapterEntry = { id: string; chapter: number | null; lines: number; created_at: string; place: string | null };
 
-/** A scene line as a date turn: the leading *action* apart from what they say. */
+/**
+ * A scene line as a date turn: its *actions* apart from what they say. #1040 (the 2026-10-30 ad visitor: "stage
+ * directions under the wrong speaker, or as bare '…' lines"): every *…* run counts, leading, in the middle, trailing or
+ * several, joined in order; what's left is the speech, with no stray asterisk and no quotes left wrapping nothing. A line
+ * that's only actions says "…" (the thread shows it as that line's stage direction).
+ */
 export function lineToTurn(l: SceneLine): Turn {
-  const m = l.text.match(/^\*([^*]+)\*\s*([\s\S]*)$/);
-  return { side: l.who, act: 0, dialogue: (m ? m[2] : l.text).trim() || "…", action: m ? m[1].trim() : "", emotion: "", interest: 0 };
+  const actions: string[] = [];
+  const spoken = l.text
+    .replace(/\*+([^*]*?)\*+/g, (_, act: string) => {
+      if (act.trim()) actions.push(act.trim());
+      return " ";
+    })
+    // An unclosed * (the writer cut off mid-direction): the rest of the line is that direction.
+    .replace(/\*([^*]*)$/, (_, act: string) => {
+      if (act.trim()) actions.push(act.trim());
+      return " ";
+    })
+    // Quotes that wrapped a direction and nothing else ("'*clears throat*'").
+    .replace(/(["'“‘])\s*(["'”’])/g, " ")
+    .replace(/\s+([,.!?;:…])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  const dialogue = /^["'“”‘’\s]*$/.test(spoken) ? "" : spoken;
+  return { side: l.who, act: 0, dialogue: dialogue || "…", action: actions.join(" · "), emotion: "", interest: 0 };
 }
 
 /**
@@ -191,6 +212,7 @@ export default function AfterDarkTheater({
   beats = [],
   onBeat,
   onPictureNow,
+  picture = null,
   onExit,
   crisis = null,
   whisperTo = null,
@@ -263,6 +285,11 @@ export default function AfterDarkTheater({
   beats?: readonly PublicBeat[];
   onBeat?: (id: string, answer: "now" | "later", guide?: { custom?: string; edit?: PictureEdit }) => Promise<void>;
   onPictureNow?: (line: number, guide?: { custom?: string; edit?: PictureEdit }) => Promise<void>;
+  /**
+   * #1039 (the 2026-10-30 ad visitor: "after pressing 'Create picture' there was no visible progress"): a picture the
+   * viewer asked for is being drawn (said at once, from the press), or has just landed (said for a few seconds).
+   */
+  picture?: "drawing" | "landed" | null;
   onExit: () => void;
   /** The steer goes to one of them only, as a whisper (lib/adult/director.ts); null: to the scene. Shared with the page. */
   whisperTo?: "a" | "b" | null;
@@ -480,10 +507,21 @@ export default function AfterDarkTheater({
       >
         <div className="theater-scene-area">
           {live && <SceneBackdrop backdrop={backdrop} onShape={setMediaShape} />}
-          {live && momentOnStage?.drawing && (
+          {picture === "drawing" ? (
             <p className="ad-moment-drawing" role="status">
-              📸 Drawing this moment: the closest one they have, until it lands
+              📸 Drawing your picture… about half a minute
             </p>
+          ) : picture === "landed" ? (
+            <p className="ad-moment-drawing is-landed" role="status">
+              📸 Your picture is here: on the stage, and first in the gallery
+            </p>
+          ) : (
+            live &&
+            momentOnStage?.drawing && (
+              <p className="ad-moment-drawing" role="status">
+                📸 Drawing this moment: the closest one they have, until it lands
+              </p>
+            )
           )}
           {talking && <TalkPlayer src={talkUrl(talking.id)} name={talking.name} onClose={() => setTalking(null)} />}
           {!talking && stageTalk?.status === "ready" && stageSpeaker && (
@@ -606,7 +644,8 @@ export default function AfterDarkTheater({
           )}
         </div>
         <div className="theater-convo">
-          <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow empty="The scene appears here, line by line." feedback={feedback} dividers={dividers} />
+          {/* #1040: meta shows each line's actions beside that line, and an action-only line as a stage direction. */}
+          <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow meta empty="The scene appears here, line by line." feedback={feedback} dividers={dividers} />
         </div>
 
         <header className="theater-hud">

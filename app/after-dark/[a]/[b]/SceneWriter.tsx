@@ -55,6 +55,9 @@ const PAGE_TAB_KEY = "ad-page-tab";
 /** A saved night's day, in the viewer's own clock (LocalTime.tsx: never on the server). */
 const NIGHT_DAY = { month: "short", day: "numeric" } as const;
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
+/** #1039: an asked-for picture's gallery asked again this often (it lands in 25–35 s), for at most this long. */
+const PICTURE_POLL_MS = 5_000;
+const PICTURE_WAIT_MS = 2 * 60_000;
 
 /**
  * The pair's night: the theater (AfterDarkTheater.tsx), open from the start and the only place the scene is watched and
@@ -209,6 +212,53 @@ export default function SceneWriter({
   const isThisPair = (r: BusyReel) => new Set([r.a, r.b, scene.a.id, scene.b.id]).size === 2;
   const nameOf = (who: "a" | "b") => (who === "a" ? scene.a.name : scene.b.name).split(/\s+/)[0];
 
+  // #1039 (the 2026-10-30 ad visitor: "after pressing 'Create picture' there was no visible progress, and the gallery
+  // count only changed after about 20 seconds"): a picture the viewer asked for is said from the press until it lands,
+  // and what landed is marked in the gallery for a little while.
+  const [picture, setPicture] = useState<"drawing" | "landed" | null>(null);
+  const [freshPictures, setFreshPictures] = useState<ReadonlySet<string>>(() => new Set());
+  const galleryIds = useRef(new Set<string>());
+  useEffect(() => {
+    galleryIds.current = new Set(gallery.map((m) => m.id));
+  }, [gallery]);
+  useEffect(() => {
+    if (picture !== "landed") return;
+    const t = setTimeout(() => setPicture(null), 8_000);
+    return () => clearTimeout(t);
+  }, [picture]);
+  useEffect(() => {
+    if (!freshPictures.size) return;
+    const t = setTimeout(() => setFreshPictures(new Set()), 60_000);
+    return () => clearTimeout(t);
+  }, [freshPictures]);
+
+  /**
+   * #1039: one asked-for picture (its beat): the gallery asked again every PICTURE_POLL_MS until the beat's drawn or
+   * failed, so it shows within seconds of landing (it takes 25–35 s), for at most PICTURE_WAIT_MS.
+   */
+  function waitForPicture(beatId: string, started = Date.now()) {
+    setTimeout(async () => {
+      const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      const landed = ((r?.gallery as Media[] | undefined) ?? []).filter((m) => !galleryIds.current.has(m.id));
+      if (landed.length) setGallery((g) => [...landed.filter((m) => !g.some((x) => x.id === m.id)), ...g]);
+      const now = r?.scene as AdultScene | undefined;
+      if (now) setScene((s) => ({ ...s, picture_note: now.picture_note, beats: now.beats }));
+      const beat = now?.beats?.find((b) => b.id === beatId);
+      if (beat?.status === "failed") {
+        setPicture(null);
+        return setNote({ text: `📸 ${beat.reason ?? `${beat.label}: the picture didn't come. Try Redraw.`}`, error: true });
+      }
+      if (landed.length || (beat && beat.status !== "drawing")) {
+        if (landed.length) setFreshPictures(new Set(landed.map((m) => m.id)));
+        setPicture("landed");
+        return setNote({ text: "📸 Your picture is here: on the stage, and first in the gallery." });
+      }
+      if (Date.now() - started < PICTURE_WAIT_MS) return waitForPicture(beatId, started);
+      setPicture(null);
+      setNote({ text: "📸 It's taking longer than usual. It'll be in the gallery when it lands." });
+    }, PICTURE_POLL_MS);
+  }
+
   /** Fetches the gallery again a little later (twice: a picture and its checks take a while), adding what's new. */
   function lookForPictures(beatId?: string) {
     for (const ms of [20_000, 60_000, 120_000]) {
@@ -309,17 +359,21 @@ export default function SceneWriter({
       | { picture_now: { line: number; custom?: string; edit?: PictureEdit } }
       | { redraw: { picture_id: string; edit?: PictureEdit } },
   ) {
+    // #1039: said from the press, not when the request comes back.
+    const asked = !("beat" in body) || body.beat.answer === "now";
+    if (asked) setPicture("drawing");
     const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
     if (!res || !res.ok) {
+      if (asked) setPicture(null);
       setNote({ text: res ? res.message : "Network error. Try again.", error: true });
       return;
     }
     setScene(res.data.scene as AdultScene);
     const beat = res.data.beat as PublicBeat | undefined;
     if (beat?.status === "drawing") {
-      lookForPictures(beat.id);
-      setNote({ text: `📸 ${"redraw" in body ? "Drawing it again" : `${beat.label}: drawing it now`}. It comes up on the stage in a minute or so, and in the gallery.` });
-    }
+      waitForPicture(beat.id);
+      setNote({ text: `📸 ${"redraw" in body ? "Drawing it again" : `${beat.label}: drawing it now`}: about half a minute. It comes up on the stage, and first in the gallery.` });
+    } else if (asked) setPicture(null);
   }
 
 
@@ -438,6 +492,7 @@ export default function SceneWriter({
             beats={textOnly ? [] : (scene.beats ?? [])}
             onBeat={textOnly ? undefined : (id, answer, guide) => beatAction({ beat: { id, answer, ...(guide?.custom ? { custom: guide.custom } : {}), ...(guide?.edit ? { edit: guide.edit } : {}) } })}
             onPictureNow={(line, guide) => beatAction({ picture_now: { line, ...(guide?.custom ? { custom: guide.custom } : {}), ...(guide?.edit ? { edit: guide.edit } : {}) } })}
+            picture={textOnly ? null : picture}
             onMakeVideo={(scope) => planVideo(scope)}
             onPlanVideo={(scope) => planVideo(scope)}
             writer={writer}
@@ -563,6 +618,8 @@ export default function SceneWriter({
           ) : mediaTab === "pictures" ? (
             <Gallery
               items={gallery}
+              drawing={picture === "drawing"}
+              fresh={freshPictures}
               problem={scene.picture_note}
               onAdd={(m) => setGallery((g) => [m, ...g])}
               paused={mediaPaused}
@@ -620,6 +677,8 @@ const SECTIONS: [string, (m: Media) => boolean][] = [
 
 function Gallery({
   items,
+  drawing = false,
+  fresh,
   problem,
   onAdd,
   paused = null,
@@ -629,6 +688,9 @@ function Gallery({
   onRedraw,
 }: {
   items: Media[];
+  /** #1039: a picture the viewer asked for is on its way (a card at the top says so), and the ones that just landed. */
+  drawing?: boolean;
+  fresh?: ReadonlySet<string>;
   problem: string | null;
   onAdd: (m: Media) => void;
   paused?: string | null;
@@ -680,11 +742,20 @@ function Gallery({
     onAdd(res.data.clip as Media);
   }
 
-  const problemNote = problem ? (
-    <p className="error" role="status">
-      The last picture didn&apos;t come through: {problem}
-    </p>
-  ) : null;
+  const problemNote = (
+    <>
+      {drawing && (
+        <p className="ad-picture-pending" role="status">
+          📸 Drawing your picture… about half a minute. It comes in here, first.
+        </p>
+      )}
+      {problem && (
+        <p className="error" role="status">
+          The last picture didn&apos;t come through: {problem}
+        </p>
+      )}
+    </>
+  );
   if (!items.length) {
     return (
       <>
@@ -699,7 +770,7 @@ function Gallery({
   const item = (m: Media) => {
           const status = pending[m.id] ?? m.status;
           return (
-            <li key={m.id} className={sel.has(m.id) ? "picked" : undefined}>
+            <li key={m.id} className={[sel.has(m.id) ? "picked" : "", fresh?.has(m.id) ? "is-new" : ""].filter(Boolean).join(" ") || undefined}>
               {m.kind === "video" ? (
                 status === "ready" ? (
                   // Plays its trim, and ✂️ trims it (lib/adult/trim.ts).
@@ -711,6 +782,7 @@ function Gallery({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={mediaUrl(m.id)} alt={m.kind === "baseline" ? "Baseline picture" : "Scene picture"} loading="lazy" style={{ aspectRatio: tileRatio(m.aspect) }} />
               )}
+              {fresh?.has(m.id) && <span className="badge ad-new-badge">✨ New</span>}
               <MediaRequest id={m.id} className="badge">
                 {m.nude ? `${m.kind} · undressed` : m.kind}
               </MediaRequest>
