@@ -20,7 +20,7 @@ import type { ChatMessage, Model } from "./model";
 import { notifyAll } from "./notifications";
 import { loadRelationship, pairContext, pairKey, PUBLIC_ONLY, refreshRelationship, textMakesPlan, type End } from "./relationships";
 import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
-import { checkFields } from "./safety";
+import { checkFieldsAnyLanguage, UNREAD_MESSAGE } from "./language-check";
 import { loadChain, promptTexts, PUBLIC_VIEWER, type ChainItem } from "./text-chain";
 import { critiqueText, planAlreadyMade, writeCritiquedText } from "./text-critic";
 
@@ -67,7 +67,12 @@ export type NudgeResult = { ok: true; note: string } | { ok: false; status: numb
 export async function setNudge(db: Db, userId: string, characterId: string, otherId: string, note: string): Promise<NudgeResult> {
   const text = note.trim().replace(/\s+/g, " ");
   if (!text || text.length > NUDGE_MAX) return { ok: false, status: 422, error: "invalid_note", message: `A nudge is 1 to ${NUDGE_MAX} characters.` };
-  if (!checkFields({ note: text }).ok) return { ok: false, status: 422, error: "content_rejected", message: "Keep it clean: no real people, minors or sexual content." };
+  const verdict = await checkFieldsAnyLanguage({ note: text });
+  if (!verdict.ok) {
+    return verdict.reason === "unread"
+      ? { ok: false, status: 503, error: "unread", message: UNREAD_MESSAGE }
+      : { ok: false, status: 422, error: "content_rejected", message: "Keep it clean: no real people, minors or sexual content." };
+  }
   const owns = (await db.query(`select 1 from characters where id = $1 and owner_id = $2`, [characterId, userId])).rows.length > 0;
   if (!owns) return { ok: false, status: 403, error: "not_your_character", message: "You can only nudge your own character." };
   if (!(await loadRelationship(db, characterId, otherId))) {

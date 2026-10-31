@@ -9,7 +9,7 @@ import type { ImageSignals } from "./avatar";
 import type { Db } from "./db";
 import type { SoulProfile } from "./engine";
 import { ApiError } from "./http";
-import { checkFields } from "./safety";
+import { checkFieldsAnyLanguage } from "./language-check";
 import { REJECTION_MESSAGES } from "./people";
 
 export const SOUL_FIELDS = ["values", "insecurities", "humor", "boundaries", "romantic", "communication"] as const;
@@ -49,8 +49,9 @@ export function normaliseSoul(input: SoulInputType): SoulProfile {
 export const isEmptySoul = (s: SoulProfile): boolean => SOUL_FIELDS.every((f) => s[f] === "");
 
 /** Runs the soul through the character-sheet content filter; throws a 422 naming the field on a reject. */
-export function assertSafeSoul(soul: SoulProfile): void {
-  const verdict = checkFields(soul);
+export async function assertSafeSoul(soul: SoulProfile): Promise<void> {
+  // In any language (lib/language-check.ts): a soul in Spanish is read in English too.
+  const verdict = await checkFieldsAnyLanguage(soul);
   if (!verdict.ok) {
     throw new ApiError(422, {
       error: "content_rejected",

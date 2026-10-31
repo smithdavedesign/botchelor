@@ -6,10 +6,16 @@
  * It is a first line of defence, not a moderation system.
  */
 
-export type RejectReason = "minor" | "sexual" | "real_person" | "innuendo";
+import { isNotEnglish } from "./language";
+
+/**
+ * `unread`: text in another language the show's model couldn't translate for the check just now (lib/language-check.ts;
+ * try again). `language`: After Dark is English-only until its checks are proven in other languages (David, 2026-10-31).
+ */
+export type RejectReason = "minor" | "sexual" | "real_person" | "innuendo" | "unread" | "language";
 /** After Dark's themes that never happen (checkAdultText): family and step-family, teacher and student, school, age-play. */
 export type ExcludedTheme = "family" | "teacher_student" | "school" | "age_play" | "non_consent" | "bestiality" | "sexual_violence";
-export type SafetyResult = { ok: true } | { ok: false; reason: RejectReason; field: string; theme?: ExcludedTheme };
+export type SafetyResult = { ok: true } | { ok: false; reason: RejectReason; field: string; theme?: ExcludedTheme; /** `unread`: the language it's in. */ language?: string };
 
 /** What a refused character sheet is told: /create's save (POST /api/characters) and the OC chemistry test say the same. */
 export const CHARACTER_REJECTION_MESSAGES: Record<RejectReason, string> = {
@@ -17,6 +23,8 @@ export const CHARACTER_REJECTION_MESSAGES: Record<RejectReason, string> = {
   sexual: "Keep the character sheet free of sexual content.",
   real_person: "Characters must be original: no real people.",
   innuendo: "Keep the character sheet free of innuendo.",
+  unread: "We couldn't check a sheet in that language just now. Try again in a minute.",
+  language: "After Dark is English-only for now.",
 };
 
 const SEXUAL_TERMS = [
@@ -308,6 +316,8 @@ export function checkAdultText(fields: Record<string, string | readonly string[]
       const deleeted = spaced(folded.replace(/[013457@$!]/g, (c) => LEET[c]));
       const variants = [plain, deleeted, joinSpelledOut(plain), joinSpelledOut(deleeted)];
       if (REAL_PEOPLE_PATTERNS.some((re) => variants.some((v) => re.test(v)))) return { ok: false, reason: "real_person", field };
+      // These lists read English: until they're proven in other languages, After Dark is English-only (David, 2026-10-31).
+      if (isNotEnglish(text)) return { ok: false, reason: "language", field };
     }
   }
   return { ok: true };

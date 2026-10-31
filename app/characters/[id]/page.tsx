@@ -1,3 +1,4 @@
+import { languageName } from "@/lib/language";
 import { shortName } from "@/lib/names";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -397,6 +398,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               ["🎭 Type", e.archetype ? archetypeLabel(e.archetype) : undefined],
               ["✨ Sign", e.star_sign],
               ["💬 Love language", e.love_language],
+              ["🗣️ Speaks", languageName(e.language) ?? undefined],
               ["🎨 Into", e.hobbies?.length ? e.hobbies.join(", ") : undefined],
             ] as [string, string | undefined][]
           ).filter((r): r is [string, string] => Boolean(r[1]));

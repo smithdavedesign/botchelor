@@ -20,6 +20,7 @@ import { looksAppearance } from "@/lib/looks";
 import FactsStep from "./FactsStep";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
+import { languageName } from "@/lib/language";
 import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, sampleLineLabel, tellLabel, TEXT_DETAILS, type CharacterExtras, profileComplete } from "@/lib/extras";
 import { archetypeLabel, goalLabel, kindLabel, kindName } from "@/lib/kinds";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
@@ -1171,6 +1172,7 @@ function reviewExtras(extras: CharacterExtras): Record<"voice" | "look" | "profi
   }
   if (e.star_sign) out.profile.push(["Star sign", e.star_sign]);
   if (e.love_language && (LOVE_LANGUAGES as readonly string[]).includes(e.love_language)) out.profile.push(["Love language", e.love_language]);
+  if (e.language && languageName(e.language)) out.profile.push(["Speaks", languageName(e.language)!]);
   if (e.hobbies?.length) out.profile.push(["Hobbies", e.hobbies.join(", ")]);
   for (const p of e.prompts ?? []) out.profile.push([promptLabel(p.id), p.answer]);
   for (const [id, line] of Object.entries(e.lines ?? {})) out.voice.push([sampleLineLabel(id), `“${line}”`]);

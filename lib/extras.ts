@@ -12,6 +12,7 @@
  * ends. Pure data + zod, no server imports: the builder (a client component) and the API share this file.
  */
 import { z } from "zod";
+import { LANGUAGE_CODES, type LanguageCode } from "./language";
 import {
   ARCHETYPE_IDS,
   archetypeLabel,
@@ -139,6 +140,8 @@ export const ExtrasInput = z
     ...(Object.fromEntries(TEXT_DETAIL_KEYS.map((k) => [k, opt(TEXT_DETAILS[k].max)])) as Record<TextDetail, ReturnType<typeof opt>>),
     star_sign: z.enum(STAR_SIGNS).optional(),
     love_language: z.enum(LOVE_LANGUAGES).optional(),
+    /** The language they speak on dates and in texts (lib/language.ts; David, 2026-10-31). Unset: their sheet's, else English. */
+    language: z.enum(LANGUAGE_CODES).optional(),
     /** Who they are (lib/kinds.ts): what they are, the type they play, what they're here for, the kinds they're drawn to. */
     kind: z.enum(KIND_IDS).optional(),
     kind_label: z.string().trim().max(KIND_LABEL_MAX, `At most ${KIND_LABEL_MAX} characters.`).optional(),
@@ -175,6 +178,8 @@ export type ExtrasInputType = z.infer<typeof ExtrasInput>;
 export type CharacterExtras = Partial<Record<TextDetail, string>> & {
   star_sign?: (typeof STAR_SIGNS)[number];
   love_language?: (typeof LOVE_LANGUAGES)[number];
+  /** The language they speak on dates and in texts (lib/character.ts speaks). */
+  language?: LanguageCode;
   /** What they are (lib/kinds.ts); `kind_label` names an "other" in the owner's words. */
   kind?: KindId;
   kind_label?: string;
@@ -215,6 +220,7 @@ export function normaliseExtras(input: ExtrasInputType | null | undefined): Char
   }
   if (input.star_sign) out.star_sign = input.star_sign;
   if (input.love_language) out.love_language = input.love_language;
+  if (input.language) out.language = input.language;
   if (input.kind) out.kind = input.kind;
   // A label only names an "other": with any listed kind it would just contradict it.
   const kindLabelText = input.kind_label?.trim();
@@ -402,6 +408,11 @@ export function extrasJsonSchema(): Record<string, unknown> {
       ...Object.fromEntries(TEXT_DETAIL_KEYS.map((k) => [k, { type: "string", maxLength: TEXT_DETAILS[k].max, description: TEXT_DETAILS[k].label }])),
       star_sign: { type: "string", enum: [...STAR_SIGNS] },
       love_language: { type: "string", enum: [...LOVE_LANGUAGES] },
+      language: {
+        type: "string",
+        enum: [...LANGUAGE_CODES],
+        description: "The language they speak on dates and in texts (es Spanish, fr French, ja Japanese…). Unset: the language their sheet is written in, else English. After Dark is English-only for now.",
+      },
       kind: { type: "string", enum: [...KIND_IDS], description: "What they are. Use other with kind_label for anything not listed." },
       kind_label: { type: "string", maxLength: KIND_LABEL_MAX, description: "What an other is, in your words (only with kind: other)." },
       archetype: { type: "string", enum: [...ARCHETYPE_IDS], description: "The type they play: the show's house archetypes." },

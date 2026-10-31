@@ -26,6 +26,7 @@ import { extrasForPrompt, extrasVisible, hasExtras, voiceExamples, type Characte
 import { thisWeek, type StoredThisWeek } from "./life";
 import { baseSignals, sheetSignals } from "./temperament";
 import type { PromptTexts } from "./text-chain";
+import { detectLanguage, languageName, type LanguageCode } from "./language";
 
 const ZERO_RECORD: CharacterRecord = { dates: 0, second_dates: 0, friends: 0, disasters: 0 };
 
@@ -207,6 +208,26 @@ function memoryView(memory: CharacterMemory | null): Record<string, unknown> | n
 }
 
 /**
+ * The language a character speaks on dates and in texts (David, 2026-10-31): the one its creator picked
+ * (extras.language), else the one its sheet is written in, else English. After Dark doesn't read it: it stays English.
+ */
+export function speaks(c: Pick<Character, "bio" | "persona" | "dealbreaker" | "extras">): LanguageCode {
+  if (c.extras?.language) return c.extras.language;
+  const sheet = detectLanguage([c.bio, c.persona.want, c.dealbreaker].join("\n"));
+  return sheet ?? "en";
+}
+
+/** Whether a date or a thread between these two runs in anything but English (so its lines carry an English gloss). */
+export const speaksOtherThanEnglish = (...cs: Pick<Character, "bio" | "persona" | "dealbreaker" | "extras">[]): boolean => cs.some((c) => speaks(c) !== "en");
+
+/** What a character is told about its own language: nothing for English (every prompt was written for it). */
+function languageNote(c: Character): Record<string, string> {
+  const lang = speaks(c);
+  if (lang === "en") return {};
+  return { you_speak: `${languageName(lang)}: everything you say and text is in ${languageName(lang)}, the way a native speaker talks.` };
+}
+
+/**
  * The speaking agent's own private view: full sheet plus its private inner life — the soul (omitted when
  * local_only) and the learned memory. `privateExtra` carries this date's context (agenda, note, autonomy,
  * strategy), which the builders own. This is the payload that keeps each character unique in live chat.
@@ -232,6 +253,7 @@ export function characterSelfView(c: Character, privateExtra: Record<string, unk
     // Their own details: things they know about themselves and may bring up (never the other's).
     ...(Object.keys(details).length ? { details } : {}),
     ...(c.thisWeek ? { whats_new_this_week: c.thisWeek } : {}),
+    ...languageNote(c),
     private: {
       soul: soul ?? "(none — play from your public sheet)",
       ...(memory ? { memory } : {}),
@@ -276,6 +298,8 @@ export function characterBlindView(c: Character): Record<string, unknown> {
     pronouns: c.pronouns ?? "not given — use their name, or they/them",
     // Only what shows at a glance: their look, their style and signature item — never their job, hobbies or answers.
     what_you_can_see: [c.look.appearance, `looks ${apparentAge(c.age)}`, ...extrasVisible(c.extras ?? {})].filter(Boolean),
+    // What they speak, when it isn't English: the two understand each other whatever each one speaks.
+    ...(speaks(c) !== "en" ? { they_speak: `${languageName(speaks(c))} (you understand each other)` } : {}),
   };
 }
 

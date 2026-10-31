@@ -16,6 +16,7 @@ import { ModelError } from "./model";
 import { shortName } from "./names";
 import { lineIssues } from "./quality";
 import { textMakesPlan } from "./relationships";
+import { checkFieldsAnyLanguage, needsTranslation } from "./language-check";
 
 /** One text in a thread, by the sender's full name (lib/between-dates.ts threadFor). */
 export type ThreadText = { from: string; text: string };
@@ -91,16 +92,25 @@ export async function writeCritiquedText(
     return { text: null, error };
   }
   const note = critique(draft.text);
-  if (!note) return { text: draft.text, error: null };
-  try {
-    const revised = parse(
-      await model.complete(
-        [...messages, { role: "assistant", content: draft.raw }, { role: "user", content: `Revise that text: ${note}. Reply with the JSON again.` }],
-        { temperature: 0.9 },
-      ),
-    );
-    return { text: revised ?? draft.text, error: null };
-  } catch {
-    return { text: draft.text, error: null };
+  let text = draft.text;
+  if (note) {
+    try {
+      const revised = parse(
+        await model.complete(
+          [...messages, { role: "assistant", content: draft.raw }, { role: "user", content: `Revise that text: ${note}. Reply with the JSON again.` }],
+          { temperature: 0.9 },
+        ),
+      );
+      text = revised ?? draft.text;
+    } catch {
+      /* the first draft stands */
+    }
   }
+  // A text in another language (lib/character.ts speaks): the parser's content filter reads English, so it's read again
+  // in English (lib/language-check.ts). One the check can't clear isn't sent.
+  if (needsTranslation(text) && !(await checkFieldsAnyLanguage({ text }, { model })).ok) {
+    console.warn(`[${where}] a text in another language didn't pass the check in English`);
+    return { text: null, error: null };
+  }
+  return { text, error: null };
 }

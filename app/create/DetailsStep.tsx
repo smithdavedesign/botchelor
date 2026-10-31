@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { LANGUAGE_CODES, LANGUAGE_NAMES } from "@/lib/language";
 import {
   LOVE_LANGUAGES,
   MAX_HOBBIES,
@@ -241,7 +242,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
         </fieldset>
       </Group>
 
-      <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "star_sign", "love_language"])} open>
+      <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "star_sign", "love_language", "language"])} open>
         <DetailField k="occupation" extras={extras} setExtras={setExtras} />
         <DetailField k="hometown" extras={extras} setExtras={setExtras} />
         <div className="detail-pair">
@@ -272,6 +273,22 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
             </select>
           </label>
         </div>
+        <label>
+          Speaks
+          <select
+            name="extra_language"
+            value={extras.language ?? ""}
+            onChange={(e) => setExtras((p) => ({ ...p, language: (e.target.value || undefined) as CharacterExtras["language"] }))}
+          >
+            <option value="">The language you write their sheet in</option>
+            {LANGUAGE_CODES.map((code) => (
+              <option key={code} value={code}>
+                {LANGUAGE_NAMES[code]}
+              </option>
+            ))}
+          </select>
+          <span className="muted small">Their dates and texts are in this language. After Dark stays in English for now.</span>
+        </label>
       </Group>
 
       <Group title="Interests & loves" filled={filledOf(extras, ["hobbies", "go_to_order", "walk_on_music"])} open>

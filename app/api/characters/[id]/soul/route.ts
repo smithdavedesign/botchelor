@@ -26,7 +26,7 @@ export const PUT = handle(async (req: Request, ctx: Ctx) => {
     await deleteSoul(db, id);
     return json({ character_id: id, has_soul: false }, 200, sess);
   }
-  assertSafeSoul(soul);
+  await assertSafeSoul(soul);
   await saveSoul(db, id, soul, input.local_only ?? false);
   return json({ character_id: id, has_soul: true, local_only: input.local_only ?? false }, 200, sess);
 });
