@@ -22,7 +22,7 @@ export function TwoSidesView({ sides }: { sides: TwoSides }) {
             <h3>
               {s.label}{" "}
               <span className="muted small">
-                · <CharacterName character={{ id: s.id, name: s.name }} label={first(s.name)} link={false} size={20} />
+                · <CharacterName character={{ id: s.id, name: s.name, portrait: s.portrait ?? null }} label={first(s.name)} link={false} size={20} />
               </span>
             </h3>
             {s.page

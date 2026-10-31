@@ -32,7 +32,17 @@ const CANDIDATES = `
    left join adult_studio_shoots sh on sh.id = i.shoot_id
   where p.source = 'after_dark' and p.status = 'live' and not p.held and p.rating = 'nsfw' and p.checked_at is null
     and i.status = 'ready' and coalesce(i.attire, '') <> 'nude' and coalesce(i.level, 0) <= 1 and coalesce(${SHOOT_LEVEL}, 0) <= 1
-    and not exists (select 1 from adult_media_tags t where t.media_id = i.id and t.kind = 'stage' and not t.removed and t.value in ('2', '3'))`;
+    and not exists (select 1 from adult_media_tags t where t.media_id = i.id and t.kind = 'stage' and not t.removed and t.value in ('2', '3'))
+    and not exists (select 1 from adult_reels r where r.shots @> jsonb_build_array(jsonb_build_object('media_id', i.id)))`;
+/** A reel's shot (lib/adult/reels.ts): filmed from an After Dark night, it stays on the After Dark side unless an admin moves it by hand. */
+const FROM_A_REEL = `exists (select 1 from adult_reels r where r.shots @> jsonb_build_array(jsonb_build_object('media_id', i.id)))`;
+const LEVEL = `greatest(i.level, ${SHOOT_LEVEL},
+                       (select max(t.value::int) from adult_media_tags t where t.media_id = i.id and t.kind = 'stage' and not t.removed and t.value ~ '^[0-3]$'))`;
+/** A live After Dark post on the safe side, never looked at again: the 2026-10-31 audit found two explicit reels there. */
+const RECHECK = `
+   from showcase_posts p join adult_images i on i.id = p.media_id
+   left join adult_studio_shoots sh on sh.id = i.shoot_id
+  where p.source = 'after_dark' and p.status = 'live' and not p.held and p.rating in ('pg', 'suggestive') and p.rechecked_at is null and i.status = 'ready'`;
 
 /** A post to check, and the highest level it was asked for (null: nothing says). */
 export type CheckTarget = { post_id: string; media_id: string; level: number | null };
@@ -69,7 +79,8 @@ export async function checkPost(db: Db, t: CheckTarget): Promise<CheckResult> {
   try {
     if (row.mime.startsWith("video/")) {
       const seconds = await videoDuration(bytes);
-      for (const at of [0.1, seconds / 2, "end" as const]) frames.push({ base64: (await frameAt(bytes, at)).png.toString("base64"), mime: "image/png" });
+      // Five frames of a clip (three until the 2026-10-31 audit, which found two explicit reels rated suggestive).
+      for (const at of [0.1, seconds / 4, seconds / 2, (seconds * 3) / 4, "end" as const]) frames.push({ base64: (await frameAt(bytes, at)).png.toString("base64"), mime: "image/png" });
     } else frames.push({ base64: bytes.toString("base64"), mime: row.mime });
   } catch (err) {
     return { post_id: t.post_id, outcome: "skipped", reason: `its frames couldn't be cut (${err instanceof Error ? err.message.slice(0, 120) : "error"})` };
@@ -113,4 +124,32 @@ export async function checkBatch(db: Db, size = CHECK_BATCH): Promise<{ ok: true
   const results: CheckResult[] = [];
   for (let i = 0; i < todo.length; i += AT_ONCE) results.push(...(await Promise.all(todo.slice(i, i + AT_ONCE).map((t) => checkPost(db, t)))));
   return { ok: true, results, left: await checkCount(db) };
+}
+
+/**
+ * The safe side looked at again (the job with ?recheck=1, an admin's call): each live After Dark post rated pg or
+ * suggestive, once. A reel's shot goes back to After Dark without a look; anything else goes through the check again
+ * with its five frames and the stricter question, and goes back to After Dark if it fails. A check that couldn't run
+ * is left for the next batch.
+ */
+export async function recheckBatch(db: Db, size = CHECK_BATCH): Promise<{ ok: true; results: CheckResult[]; left: number }> {
+  const todo = (
+    await db.query<CheckTarget & { reel: boolean }>(`select p.id as post_id, p.media_id, ${LEVEL} as level, ${FROM_A_REEL} as reel ${RECHECK} order by p.published_at desc nulls last, p.id limit $1`, [size])
+  ).rows;
+  const { reratePost } = await import("./showcase-moderation");
+  const results: CheckResult[] = [];
+  for (const t of todo) {
+    let r: CheckResult;
+    if (t.reel) {
+      await reratePost(db, t.post_id, "after_dark");
+      r = { post_id: t.post_id, outcome: "explicit", held: false, reason: "a shot of an After Dark reel: back on the After Dark side" };
+    } else {
+      r = await checkPost(db, t);
+      if (r.outcome === "explicit") await reratePost(db, t.post_id, "after_dark");
+    }
+    if (r.outcome !== "skipped") await db.query(`update showcase_posts set rechecked_at = now() where id = $1`, [t.post_id]);
+    results.push(r);
+  }
+  const left = (await db.query<{ n: number }>(`select count(*)::int as n ${RECHECK}`)).rows[0].n;
+  return { ok: true, results, left };
 }

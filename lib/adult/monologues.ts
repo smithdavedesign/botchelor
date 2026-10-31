@@ -44,8 +44,8 @@ const MEMORY_GRACE_MS = 10 * 60 * 1000;
 export type Side = { page: string; text: string };
 export type TwoSides = {
   night_id: string;
-  a: Side & { id: string; name: string; label: string };
-  b: Side & { id: string; name: string; label: string };
+  a: Side & { id: string; name: string; label: string; portrait?: string | null };
+  b: Side & { id: string; name: string; label: string; portrait?: string | null };
   created_at: string;
 };
 
@@ -215,12 +215,15 @@ async function cached(db: Db, nightId: string): Promise<CacheRow | null> {
 }
 
 async function asSides(db: Db, r: CacheRow): Promise<TwoSides> {
-  const people = (await db.query<{ id: string; name: string; pronouns: string | null }>(`select id, name, pronouns from characters where id = any($1)`, [[r.character_a, r.character_b]])).rows;
+  const people = (
+    await db.query<{ id: string; name: string; pronouns: string | null; portrait_asset_id: string | null }>(`select id, name, pronouns, portrait_asset_id from characters where id = any($1)`, [[r.character_a, r.character_b]])
+  ).rows;
   const who = (id: string) => people.find((p) => p.id === id);
+  const portrait = (id: string) => (who(id)?.portrait_asset_id ? `/api/assets/${who(id)!.portrait_asset_id}` : null);
   return {
     night_id: r.night_id,
-    a: { id: r.character_a, name: who(r.character_a)?.name ?? r.character_a, label: sideLabel(who(r.character_a)?.pronouns), page: r.a_page, text: r.a_text },
-    b: { id: r.character_b, name: who(r.character_b)?.name ?? r.character_b, label: sideLabel(who(r.character_b)?.pronouns), page: r.b_page, text: r.b_text },
+    a: { id: r.character_a, name: who(r.character_a)?.name ?? r.character_a, label: sideLabel(who(r.character_a)?.pronouns), portrait: portrait(r.character_a), page: r.a_page, text: r.a_text },
+    b: { id: r.character_b, name: who(r.character_b)?.name ?? r.character_b, label: sideLabel(who(r.character_b)?.pronouns), portrait: portrait(r.character_b), page: r.b_page, text: r.b_text },
     created_at: new Date(r.created_at).toISOString(),
   };
 }

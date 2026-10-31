@@ -2690,6 +2690,8 @@ alter table showcase_posts add column if not exists show_prompt boolean not null
 -- When an After Dark post still rated explicit was put through the PG check (lib/showcase-check.ts): a dressed one goes
 -- to the safe side, and none is checked twice.
 alter table showcase_posts add column if not exists checked_at timestamptz;
+-- Looked at again by the safe side's recheck (lib/showcase-check.ts recheckBatch), once.
+alter table showcase_posts add column if not exists rechecked_at timestamptz;
 -- The show's own portrait for a public agent-made character with none (lib/agent-portraits.ts): one that couldn't be
 -- kept is noted here and never drawn again, left for the character's creator.
 -- The older SFW twins drawn again with today's prompt (lib/showcase-retwin.ts): each once, the new one's id when it

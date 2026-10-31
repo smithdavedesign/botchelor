@@ -443,11 +443,18 @@ export function looksAppearance(l: Looks | undefined): string {
  * `own` says whether the picture is the owner's; the After Dark outfit wins over the show's. Realistic only: After
  * Dark never draws anime.
  */
+/**
+ * The ethnicity as a picture reads it: the tile's own words (skin and features) rather than its label (the audit,
+ * 2026-10-31: "Black" alone gave three light-skinned men on the default face model; "deep brown skin and African
+ * features" is what a model follows), the name first so it still reads as one pick.
+ */
+const ethnicityLook = (o: LookOption, g: Gender): string => optionPrompt(o, g).replace(/\s*\{who\}\s*/, ", ");
+
 export function looksPictureWords(l: Looks | undefined, own: boolean): { body: string; outfit: string | null; everyday: string | null; undressed: string | null } {
   if (!l?.gender) return { body: "", outfit: null, everyday: null, undressed: null };
   const g = l.gender;
   const body = [
-    l.ethnicity ? optionLabel(pick("ethnicity", g, l.ethnicity)!, g).replace(" / Afro", "") : "",
+    l.ethnicity ? ethnicityLook(pick("ethnicity", g, l.ethnicity)!, g) : "",
     detailWords("skin_tone", l.skin_tone),
     hairWords(g, l.hair_style, l.hair_color),
     pick("eyes", g, l.eyes)?.prompt,

@@ -1425,7 +1425,7 @@ export async function stopReel(db: Db, ownerId: string, id: string, reason = "st
 /** How many lines before a shot's own the storyboard shows with it. */
 export const SHOT_CONTEXT = 5;
 
-type ReelOpts = { shots?: number; where?: ReelWhere; night?: Pick<ReelNight, "scope" | "chapters" | "places" | "stages" | "chapterOf"> };
+type ReelOpts = { shots?: number; where?: ReelWhere; night?: Pick<ReelNight, "scope" | "chapters" | "places" | "stages" | "chapterOf">; again?: boolean };
 type Settings = Awaited<ReturnType<typeof getAdultSettings>>;
 type Loaded = NonNullable<Awaited<ReturnType<typeof loadCharacter>>>;
 type ReelBuild = { ca: Loaded; cb: Loaded; cast: [ReelPerson, ReelPerson]; places: (string | null)[]; stages: number[]; shots: ReelShot[]; scope: ReelScope; chapters: ReelChapter[] | null };
@@ -1589,6 +1589,18 @@ export async function planReel(db: Db, ownerId: string, x: string, y: string, li
     return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
   }
   if (lines.length < 6) return { ok: false, status: 409, error: "too_short", message: "Let the night run a little longer first: a video needs at least six lines." };
+  // The same night's draft from the last twelve hours is handed back as it is (the audit, 2026-10-31: closing and
+  // reopening the dialog re-ran the director and threw the plan away), unless asked again.
+  if (!opts.again && opts.night) {
+    const kept = (
+      await db.query<{ id: string }>(
+        `select id from adult_reels where owner_id = $1 and character_a = $2 and character_b = $3 and status = 'draft' and coalesce(scope, '') = $4
+            and coalesce(chapters, 'null'::jsonb) = coalesce($5::jsonb, 'null'::jsonb) and created_at > now() - interval '12 hours' order by created_at desc limit 1`,
+        [ownerId, a, b, opts.night.scope ?? "", opts.night.chapters ? JSON.stringify(opts.night.chapters) : null],
+      )
+    ).rows[0];
+    if (kept) return { ok: true, reel: (await getReel(db, kept.id))! };
+  }
   const id = crypto.randomUUID();
   try {
     const built = await assembleShots(db, ownerId, a, b, lines, opts, settings);
