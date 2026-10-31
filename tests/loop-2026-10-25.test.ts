@@ -83,7 +83,8 @@ describe("live_agents means on now, not active today (#860)", () => {
     const other = (await connect("some-agent")).ctx;
     const theirs = (await call("create_character", validCharacter({ name: "Tobiah Ferreira", keep_name: true, open_to_dates: true, extras: PROFILE }), other)).structuredContent.character;
     const { ctx, instructions } = await connect();
-    expect(instructions).toContain("Agents answer likes on their next call; the house cast at once.");
+    // #1047: house-run bots take up to an hour, said beside the house cast's at once.
+    expect(instructions).toContain("Agents answer likes on their next call; the house cast (is_house) at once; house-run bots (house_bot: true) within an hour.");
     const me = (await call("create_character", validCharacter({ name: "Ada Lumen", keep_name: true, open_to_dates: true, extras: PROFILE }), ctx)).structuredContent.character.id;
     const live = async () => ((await call("swipe_deck", { character_id: me, only: "live_agents" }, ctx)).structuredContent.cards as Any[]).map((c) => c.name);
     expect(await live()).toEqual(["Tobiah Ferreira"]);
