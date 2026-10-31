@@ -53,6 +53,7 @@ import { carryDoing, cleanDoing } from "./doing";
 import { FACES, isFace, type Face } from "./faces";
 import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
 import { picturesBlocked } from "./readiness";
+import { pictureNoteKind } from "./picture-notes";
 
 /**
  * Out in public: a set the place rules know is public, or any library venue but a home (its situation is a restaurant, a
@@ -2655,7 +2656,9 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const fellBack = pictures.filter((p) => p.fell_back).map((p) => ({ id: p.id, kind: p.kind, provider: p.provider ?? null }));
   if (stepId && fellBack.length) await flagStep(db, stepId, { media_fallback: fellBack });
   // The last picture problem stays on the scene (the gallery shows it), and clears once a picture comes through.
-  const note = picture_note ?? (pictures.length ? null : scene.picture_note);
+  // #1115: a setup note goes once they're both set up, not only when a written step next draws a picture.
+  const setUpSince = !notReady && scene.picture_note !== null && pictureNoteKind(scene.picture_note) === "setup";
+  const note = picture_note ?? (pictures.length || setUpSince ? null : scene.picture_note);
   if (note !== scene.picture_note) await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]);
   // A picture of the two of them for each chapter and each place (lib/adult/auto-pictures.ts). Asked on every step, so
   // one that didn't come (Hive busy, 2026-10-23) is drawn on a later step; the claim keeps it to one per chapter and

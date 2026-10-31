@@ -14,6 +14,7 @@ import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import PictureContext from "./PictureContext";
 import type { PictureEdit } from "@/lib/adult/beats";
+import { pictureNoteKind } from "@/lib/adult/picture-notes";
 import type { Readiness } from "@/lib/adult/readiness";
 import AfterDarkTheater, { steerEcho } from "./AfterDarkTheater";
 import type { CatalogScene } from "@/lib/adult/scene-catalog";
@@ -416,10 +417,11 @@ export default function SceneWriter({
     : "Nothing to redo yet";
   const whispers = (["a", "b"] as const).filter((who) => scene.whispers?.[who]);
   // The face each keeps for this viewer (Faces.tsx), as their avatar: a realistic headshot, like the videos (David,
-  // 2026-10-25). With none yet, their latest picture alone; else the drawn portrait.
+  // 2026-10-25). With none yet, their latest picture alone; else the drawn portrait. Never an undressed one (#1116): a
+  // kept face that's nude gives way to a dressed picture of them, else the drawn portrait.
   const photoOf = (id: string) => {
     const kept = faces[id]?.image_id;
-    if (kept) return mediaUrl(kept);
+    if (kept && !faces[id]?.face_nude) return mediaUrl(kept);
     const own = gallery.find((m) => m.character_id === id && !m.character_b && m.kind === "baseline" && !m.nude && m.status === "ready");
     return own ? mediaUrl(own.id) : null;
   };
@@ -662,8 +664,12 @@ export default function SceneWriter({
               items={gallery}
               drawing={picture === "drawing"}
               fresh={freshPictures}
-              problem={scene.picture_note}
-              onAdd={(m) => setGallery((g) => [m, ...g])}
+              // #1115: a setup note their live readiness has made stale is dropped, and a picture that lands clears the note.
+              problem={scene.picture_note && pictureNoteKind(scene.picture_note) === "setup" && readiness.length > 0 && readiness.every((r) => r.ready) ? null : scene.picture_note}
+              onAdd={(m) => {
+                setGallery((g) => [m, ...g]);
+                setScene((s) => (s.picture_note ? { ...s, picture_note: null } : s));
+              }}
               paused={mediaPaused}
               faces={faces}
               onFace={pickFace}
@@ -791,11 +797,16 @@ function Gallery({
           📸 Drawing your picture… about half a minute. It comes in here, first.
         </p>
       )}
-      {problem && (
-        <p className="error" role="status">
-          The last picture didn&apos;t come through: {problem}
-        </p>
-      )}
+      {problem &&
+        (pictureNoteKind(problem) === "failure" ? (
+          <p className="error" role="status">
+            The last picture didn&apos;t come through: {problem}
+          </p>
+        ) : (
+          <p className="muted small" role="status">
+            {problem}
+          </p>
+        ))}
     </>
   );
   if (!items.length) {

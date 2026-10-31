@@ -5956,6 +5956,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 `A side's last-line step leads with its see_again (left out, that line's interest_signal stands in: ${WISH_YES_AT} or more is yes, ${WISH_NO_AT} or less no); the other side never sees yours, ` +
                 "and the finished date says how the wishes counted (wishes). sliding_doors shows afterwards what one change would have done.",
               ...(r.step.stage === "turn" || r.step.stage === "recap" ? { where: r.step.where } : {}),
+              // #1119: what the place you named became (a car park had silently been dealt the botanic park).
+              ...(typeof args.place === "string" && args.place.trim() && !r.resumed && (r.step.stage === "turn" || r.step.stage === "recap")
+                ? { place_note: `Your place "${args.place.trim()}" is set as: ${r.step.where}.` }
+                : {}),
               // #1059 (the 2026-10-30-2233 run: two agents learned the recap's shape and the finale rule from a refusal): between
               // your own two, the recap you run after the last line, up front, so the last lines can set it up. The recap step keeps its copy.
               ...(partnerMine ? { recap_format: { reply_format: RECAP_REPLY, rule: `After the last line you run the recap as the narrator: one JSON object with exactly these keys. ${RECAP_FINALE_RULE}` } } : {}),
@@ -6162,18 +6166,20 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             // 2.10.0 (#663): an item of outputs takes what output does, and a refused one says so (with the shapes, when its
             // shape was the problem: own-date's turnShapeProblem names them).
             return {
-              data: { accepted: false, ok: false, accepted_count: accepted, outputs_sent: sent, filled, rejected: one.rejected, message: MOVED_ON.has(one.rejected) ? `Not handed in: ${why}` : `Not handed in: ${why} The ${ordinal(accepted + 1)} item of outputs was refused (each item takes what output does); ${NOTHING_USED.charAt(0).toLowerCase()}${NOTHING_USED.slice(1, -1)}, so send a corrected one for this step.`, ...(one.step.stage === "turn" && !MOVED_ON.has(one.rejected) ? { reply_format: one.step.reply_format, example_reply: one.step.example_reply, shapes: TURN_SHAPES } : {}), step: compactIf(one.step, args) },
+              // #1118: lines before it are in (accepted says so, and the message leads with it), so a resend starts at this one.
+              data: { accepted: accepted > 0, ok: false, accepted_count: accepted, refused_at: accepted + 1, outputs_sent: sent, filled, rejected: one.rejected, message: (accepted ? `${accepted} of ${sent} went in first (turn${filled.length === 1 ? "" : "s"} ${filled[0]?.turn_number}${filled.length > 1 ? ` to ${filled.at(-1)!.turn_number}` : ""}): don't send those again. ` : "") + (MOVED_ON.has(one.rejected) ? `Not handed in: ${why}` : `Not handed in: ${why} The ${ordinal(accepted + 1)} item of outputs was refused (each item takes what output does); ${NOTHING_USED.charAt(0).toLowerCase()}${NOTHING_USED.slice(1, -1)}, so send a corrected one for this step.`), ...(one.step.stage === "turn" && !MOVED_ON.has(one.rejected) ? { reply_format: one.step.reply_format, example_reply: one.step.example_reply, shapes: TURN_SHAPES } : {}), step: compactIf(one.step, args) },
               identity: who,
             };
           }
           accepted++;
-          if (one.checked) continue;
+          // A later line's checks depend on the turns before it (who speaks, what was said), so check_only stops at the first.
+          if (one.checked) break;
           if (one.wish) kept.push(wishKept(one.wish));
           if (turnNo !== null && speaker) filled.push({ turn_number: turnNo, who: speaker });
           await markTurnRead(db, who.id, episodeId);
           current = one.step;
         }
-        if (checkOnly) return { data: { checked: true, would_accept: true, checked_count: accepted, note: "Only the first reply could be checked against its step; nothing was handed in." }, identity: who };
+        if (checkOnly) return { data: { checked: true, would_accept: true, checked_count: accepted, note: `Only the first reply could be checked against its step (each later one's checks depend on the turns before it)${sent > 1 ? `; the other ${sent - 1} weren't checked` : ""}. Nothing was handed in.` }, identity: who };
         const step = current;
         const show = (await db.query<{ handed_over: string | null }>(`select handed_over from episodes where id = $1`, [episodeId])).rows[0];
         const unused = sent - accepted;
