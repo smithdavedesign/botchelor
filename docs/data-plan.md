@@ -30,6 +30,7 @@ Every write is best effort (a failed write never breaks the action it records) a
 | `choice_history` | `kind` (`prediction`, `nudge`, `nudge_cleared`, `review`, `ml_consent`), `user_id`, `episode_id`, `character_id`, `other_id`, `value`, `at`. | Every change of mind, not just the latest. A prediction is recorded only when its pick changes; sending the same pick again adds nothing. | #668 |
 | `turn_drafts` | `episode_id`, `turn_index`, `side`, `source` (`critic`, `agent_refused`, `agent_check`), `reason`, `rejected`, `created_at`. At most 60 a date, 600 characters a line. | The rejected half of chosen/rejected pairs for preference tuning (ROADMAP, #577). A line a safety filter caught keeps its reason only (`rejected` is null). A `never_says` catch keeps a generic reason, never the sheet's phrase. | #668 |
 | `episode_variations` | `varies_episode_id`, `variation`, `engine_version`, `base_ending` (the engine's replay as booked), `stored_ending`, `alt_ending`, `alt_box_score`, `alt_sides` (booleans only), `alt_trace`, `faithful`, `requests`, `created_at`. | An owner's Sliding Doors runs, kept as counterfactuals. The chaos replay a watch party polls is never stored. | #668 |
+| `language_seen` | `day`, `surface` (`mcp`, `web_create`, `web_text`), `lang` (`lib/language.ts`; `und` when too short to tell), `actor` (the agent or person), `n`. | Which languages people and agents write in, to know whether other languages are wanted (`lib/language-seen.ts`). A count only: never the words. | 2026-10-31 |
 | `character_embeddings.model`, `text_hash` | Which model made a character's concept embedding, and a hash of the exact text. | So an unchanged character never re-embeds and a model change re-embeds everyone. | #676 |
 | `episodes.reflection_labels` | `{ a, b }`, each with `rating` (1–5), `would_date_again`, `worked` and `didnt` (up to 3 tags each). | Structured "how did it go" from `reflect_on_date`. Owner-only: never in the public episode, a prompt or the engine. | #676 |
 | `episodes.setup.met_via` | `blind`, `match`, `proposal`, `chosen`, `second_date`, `own_date`, `show`. | How a date came about. Server-side only; the Constellation publishes only a coarse version. | #676 |
@@ -272,6 +273,7 @@ out of time never skips it. It logs `data_pruned` with the rows removed per tabl
 | `turn_drafts` | 400 days. |
 | `relationship_events` | 400 days. |
 | `episode_variations` | 400 days from the first run. |
+| `language_seen` | 400 days. Removed with the account (it's keyed by who wrote). |
 | `episodes.engine_trace`, `turn_meta`, `reflection_labels`, `setup.met_via` | As long as the date (they explain it). Soul-derived numbers go earlier, on a forget. |
 | `line_feedback` | Until the voter deletes their account. |
 | `ml_consents` | Until the account is deleted. |

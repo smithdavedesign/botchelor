@@ -4,6 +4,7 @@ import { crisisAware, str } from "@/lib/crisis";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { jobUsability } from "@/lib/connections";
+import { recordLanguage } from "@/lib/language-seen";
 import { providerLabel } from "@/lib/connections-shared";
 import { userTextModel } from "@/lib/keys";
 import { ModelError, type Model } from "@/lib/model";
@@ -58,6 +59,8 @@ export const POST = crisisAware("text_hint", (body) => [str(body.hint)], handle(
     return json({ error: "not_in_couple", message: "That character isn't one of this couple." }, 422, sess);
   }
   const db = await getDb();
+  // Which language they steer their character's texts in (lib/language-seen.ts): counted, never kept.
+  await recordLanguage(db, sess.userId, "web_text", [input.hint]);
   // Someone who chose to pause (Connections M3) waits at the cap, or while their key can't be used, and hears why. With
   // the fallback (the default), the show's free model stands in for a few texts a day (lib/texting.ts standInText).
   const usable = await jobUsability(db, sess.userId, "text");

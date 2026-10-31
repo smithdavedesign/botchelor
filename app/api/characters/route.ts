@@ -5,6 +5,7 @@ import { handle, isMcpCall, json, parseBody, readJson, session } from "@/lib/htt
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { ExtrasInput, extrasFields, normaliseExtras } from "@/lib/extras";
 import { scheduleWelcome } from "@/lib/welcome";
+import { recordLanguage } from "@/lib/language-seen";
 import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
@@ -88,6 +89,10 @@ export const POST = handle(async (req) => {
     : parseBody(CharacterInput, raw, "invalid_character");
   const db = await getDb();
   const extras = await gateAfterDarkLooks(db, sess, normaliseExtras(input.extras));
+  // Which language a person writes their character in (lib/language-seen.ts; an agent's call is counted as MCP).
+  if (!isMcpCall(req)) {
+    await recordLanguage(db, sess.userId, "web_create", [input.bio, input.want, input.dealbreaker, input.voice, input.this_week, ...(input.traits ?? [])]);
+  }
 
   const verdict = checkFields({
     name: input.name,

@@ -8,6 +8,7 @@ import type { RealUse as RealUseData } from "@/lib/real-metrics";
 import { ENDING_LABELS } from "@/lib/rules";
 import { CountChart } from "./CountChart";
 import { ENDING_COLORS } from "./OverviewTab";
+import Languages from "./Languages";
 import RealUse from "./RealUse";
 import SortableTable, { type Column } from "./SortableTable";
 import CharacterName from "@/app/CharacterName";
@@ -46,6 +47,8 @@ export default function ProductTab({ data, interval, adminFetch }: { data: Insig
       <RetentionTable rows={data.retention.rows} weeks={data.retention.weeks} minN={data.min_n} />
 
       <RealUseSection adminFetch={adminFetch} />
+
+      <Languages adminFetch={adminFetch} />
     </>
   );
 }

@@ -158,6 +158,7 @@ export async function startTestDb() {
         "choice_history",
         "turn_drafts",
         "episode_variations",
+        "language_seen",
         "adult_monologues",
         "adult_short_calls",
         "adult_short_views",
