@@ -206,6 +206,25 @@ the reference client https://github.com/verotel/flexpay-php-client; Segpay,
 https://gethelp.segpay.com/docs/Content/DeveloperDocs/ProcessingAPI/06-Postbacks.htm,
 …/07-PostbackParameters.htm, …/Postbacks-TransactionMatrix.htm and …/02-Parameters-PopulateFields.htm.
 
+### Invite-only beta (2026-10-31)
+
+David: *"Make it invite only, email me and I approve. Free for starters, I'll foot the bill, but not video generation,
+that's on them. Include that in the welcome email."* (`lib/adult/invites.ts`)
+
+- **Asking:** while no processor is configured, the subscribe page asks a signed-in person for an invite: 18+ and the
+  beta terms ticked, an optional note. One request a person (`adult_invites`). Refused in blocked places, without an
+  account email, or for someone already in. The 18+ declaration is recorded with the country.
+- **Approving:** the request emails `CONTACT_EMAIL` and every admin with a confirmed address a signed link (30 days) to
+  `/invites/review`, which shows the request with Approve and Decline buttons (opening the link decides nothing).
+- **The pass:** Approve writes `adult_entitlements` provider `beta`, active for 30 days, and sends the welcome ("Your
+  Botchelor invite": free until the date, chapters and pictures on us, video on them, the clip and video prices, links
+  to start and to the shop). Decline sends nothing.
+- **What it includes:** what a subscription includes (chapters, menu pictures, Draw ahead, within the month's caps), but
+  never the included clips (`clipsIncluded`): every clip and the video of the night cost tokens. It follows the place
+  rules like any subscriber.
+- **Both apps need email:** the request is made on the After Dark host, so its app needs `RESEND_API_KEY` and
+  `CONTACT_EMAIL` as the show's does.
+
 ### Reviewer pass (2026-10-30)
 
 A processor's compliance team asks for a premium login to review the subscriber experience. CCBill asked on 2026-10-30.

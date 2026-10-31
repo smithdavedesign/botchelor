@@ -1432,6 +1432,17 @@ create table if not exists adult_entitlements (
 -- check (lib/jurisdiction.ts) it's the person's own 18+ declaration ('self_declared'); a provider's check names itself.
 alter table adult_entitlements add column if not exists age_method text;
 alter table adult_entitlements add column if not exists age_country text;
+-- The invite-only beta (lib/adult/invites.ts; David, 2026-10-31: "invite only, email me and I approve"): one request a
+-- person, answered from the approval email. Approving writes a 'beta' pass to adult_entitlements.
+create table if not exists adult_invites (
+  user_id text primary key,
+  email text not null,
+  note text,
+  country text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'declined')),
+  requested_at timestamptz not null default now(),
+  decided_at timestamptz
+);
 -- The mode After Dark last had for someone, from where they last connected (lib/adult/place.ts): background work that
 -- has no request (a chapter's picture, a video of the night) asks here, so text-only or blocked places get no media.
 -- A country and a US state, never an address or an IP; kept only while the account is.

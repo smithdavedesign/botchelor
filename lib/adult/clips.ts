@@ -63,7 +63,7 @@ import {
   type ReelShot,
   type ReelWhere,
 } from "./reels";
-import { clipPrice, hasSubscription } from "./pricing";
+import { clipPrice, clipsIncluded } from "./pricing";
 import { eligiblePair, type SceneLine } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
 import { stageShown } from "./stage-floor";
@@ -495,7 +495,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   const pays = !(await isAdmin(db, ownerId));
   // One of a subscriber's included clips this month first (#1005; David, 2026-10-30), then clip_tokens. Nothing included
   // is ever charged; it's given back to the month if the clip doesn't come through.
-  const included = pays && (await hasSubscription(db, ownerId)) ? await takeIncludedClip(db, ownerId, settings.included_clips) : null;
+  const included = pays && (await clipsIncluded(db, ownerId)) ? await takeIncludedClip(db, ownerId, settings.included_clips) : null;
   if (included) plan.meta = { ...plan.meta, included };
   const price = pays && !included ? settings.clip_tokens : 0;
   if (price > 0 && !(await spendBoughtTokens(db, ownerId, price))) {
