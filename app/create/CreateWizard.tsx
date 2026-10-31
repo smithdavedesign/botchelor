@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Avatar from "../Avatar";
 import CrisisNotice, { crisisFrom } from "../CrisisNotice";
 import { requestJson } from "../request";
+import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "../RoleplayPicker";
 import type { CrisisResources } from "@/lib/crisis";
 import DetailsStep, { DetailField } from "./DetailsStep";
 import OriginalityPanel from "./OriginalityPanel";
@@ -1235,6 +1236,10 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
   const [agenda, setAgenda] = useState("");
   const [note, setNote] = useState("");
   const [selfPick, setSelfPick] = useState("");
+  // A roleplay (lib/date-roleplays.ts): it plays at once with a house character; with anyone else's, the two creators
+  // agree one on their couple page first, so it only goes with a house date.
+  const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
+  const [roleplayOpen, setRoleplayOpen] = useState(false); // the picker mounts once opened, not in the page's HTML
   // The self-harm notice (lib/crisis.ts), and the date it held back from opening.
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const [datePath, setDatePath] = useState<string | null>(null);
@@ -1268,7 +1273,8 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
     else setPortrait(message ?? "Couldn't generate a portrait.");
   }
 
-  async function sendOnDate(partnerId: string | null) {
+  async function sendOnDate(partnerId: string | null, house = false) {
+    if (house && roleplay && !choiceReady(roleplay)) return setError("Finish your roleplay first (a title and a premise of a sentence or more), or take it off.");
     setBusy("episode");
     setError(null);
     const dateFields = {
@@ -1279,6 +1285,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
       ...(agenda ? { agenda } : {}),
       ...(note.trim() ? { note: note.trim() } : {}),
       ...(selfPick ? { self_pick: selfPick as Ending } : {}),
+      ...(house ? roleplayFields(roleplay) : {}),
     };
     try {
       const { status, data, message } = await requestJson("/api/episodes", {
@@ -1344,7 +1351,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         aria-label={`Send on a date with ${p.premium ? p.name : shortName(p.name)}`}
         disabled={busy !== null || closed(p.id)}
         title={closed(p.id) ? closedWhy : undefined}
-        onClick={() => sendOnDate(p.id)}
+        onClick={() => sendOnDate(p.id, true)}
       >
         Date
       </button>
@@ -1509,6 +1516,12 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
             A note in the pocket <span className="muted">(one sentence; your AI may or may not take it)</span>
             <input type="text" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
+          <details className="send-settings-wide send-roleplay" onToggle={(e) => setRoleplayOpen(e.currentTarget.open)}>
+            <summary>
+              🎭 A roleplay{roleplay ? " (chosen)" : ""} <span className="muted small">(with a house character: it plays on that date)</span>
+            </summary>
+            {roleplayOpen && <RoleplayPicker me={character.name} them={null} value={roleplay} onChange={setRoleplay} />}
+          </details>
         </div>
       </details>
       {crisis && <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} />}

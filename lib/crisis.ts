@@ -35,7 +35,7 @@ export const CRISIS_RESOURCES: CrisisResources = {
 };
 
 /** Where the words were typed: the counter event's only property. */
-export type CrisisSurface = "text_hint" | "nudge_note" | "date_note" | "after_dark_steer" | "after_dark_whisper" | "mcp_send_text" | "mcp_after_dark";
+export type CrisisSurface = "text_hint" | "nudge_note" | "date_note" | "roleplay_note" | "after_dark_steer" | "after_dark_whisper" | "mcp_send_text" | "mcp_after_dark";
 
 /**
  * The phrases, each a clear first-person statement of intent or an unambiguous term. Matched on words, case and

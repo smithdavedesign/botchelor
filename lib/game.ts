@@ -33,6 +33,7 @@ import {
   type Strategy,
 } from "./rules";
 import type { AgreedPlan } from "./plans";
+import { fillPremise, rolesLine, type DateRoleplay } from "./roleplays";
 import type { PlaceId } from "./venues";
 import type { Turn } from "./conversation";
 import type { AfterglowLine, AfterglowVerdict } from "./afterglow";
@@ -163,6 +164,12 @@ export type DateSetup = {
   /** Each owner's standing nudge about the other, as booked (lib/between-dates.ts). Private, flavour only. */
   nudge_a?: string;
   nudge_b?: string;
+  /**
+   * The roleplay the date plays (lib/roleplays.ts), as agreed before it was booked: by both owners, or at once by the
+   * show's own side or a booker's own two. Snapshotted, so a rebuild (the worker, an agent's next step) plays the same
+   * one, and a used agreement is the one a date's snapshot names (lib/date-roleplays.ts). Framing only, never the engine.
+   */
+  roleplay?: DateRoleplay;
 };
 
 export type BoxScore = Record<DateVariable, VariableArc>;
@@ -217,6 +224,8 @@ export type EpisodeJson = {
   venue?: PlaceId;
   /** The show format (lib/formats.ts). Not a secret: it is the episode's billing, shown from the start. Classic omitted. */
   format?: FormatId;
+  /** The roleplay both sides agreed to (lib/date-roleplays.ts), in their names: billing too, shown from the start. */
+  roleplay?: { id: string; title: string; icon: string; premise: string; roles: string | null };
   /** A second date: the first date it follows (lib/second-date.ts). Shown as a badge; not a spoiler. */
   followup_of?: string;
   /**
@@ -324,6 +333,8 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
   // The format is the episode's billing (shown from the start), not a spoiler. Classic is the default, so
   // it needs no badge; only a chosen non-classic format is surfaced.
   if (ep.setup?.format && !isDefaultFormat(ep.setup.format)) json.format = ep.setup.format;
+  const rp = ep.setup?.roleplay;
+  if (rp) json.roleplay = { id: rp.id, title: rp.title, icon: rp.icon, premise: fillPremise(rp, ep.characters), roles: rolesLine(rp, ep.characters) };
   if (ep.setup?.followup_of) {
     json.followup_of = ep.setup.followup_of;
     json.date_number = ep.setup.date_number ?? 2;

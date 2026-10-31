@@ -18,7 +18,7 @@ import { generationPaused } from "./compute";
 import { ConversationError, isConversationEnabled, simulateConversation, type Turn } from "./conversation";
 import type { Db } from "./db";
 import type { CharacterSheet, Outcome, SideOutcome, VariableArc } from "./engine";
-import { DEFAULT_FORMAT } from "./formats";
+import { DEFAULT_FORMAT, formatContextOf } from "./formats";
 import type { DateSetup } from "./game";
 import { failureReason } from "./jobs";
 import { claimPaidDate } from "./limits";
@@ -105,13 +105,14 @@ async function conversationFor(db: Db, r: Row, actor: Model, director: Model): P
   const forDate = (p: "a" | "b"): CharacterForDate => ({ id: r[`${p}_id`], sheet: sheet(r, p) });
   const snapshot = r.setup?.signals_a && r.setup?.signals_b ? { a: r.setup.signals_a, b: r.setup.signals_b } : undefined;
   // An old date re-decides on the history it ran on: its snapshot, or (before snapshots) dates and last ending only.
-  const built = await buildDate(db, r.id, forDate("a"), forDate("b"), req, seed, snapshot, { historyOverride: r.setup?.history, legacyHistory: true, dateNumber: dateNumberOf(r.setup), nudges: { a: r.setup?.nudge_a ?? null, b: r.setup?.nudge_b ?? null }, avoidVenues: r.setup?.avoid_venues ?? [], venueOverride: r.setup?.venue, agreedPlan: r.setup?.agreed_plan ?? null, table: r.setup?.table ?? null });
+  const built = await buildDate(db, r.id, forDate("a"), forDate("b"), req, seed, snapshot, { historyOverride: r.setup?.history, legacyHistory: true, dateNumber: dateNumberOf(r.setup), nudges: { a: r.setup?.nudge_a ?? null, b: r.setup?.nudge_b ?? null }, avoidVenues: r.setup?.avoid_venues ?? [], venueOverride: r.setup?.venue, agreedPlan: r.setup?.agreed_plan ?? null, table: r.setup?.table ?? null, roleplay: r.setup?.roleplay ?? null });
   // An old date's characters speak as they were then: no memory of dates that came after it.
   const characters = built.characters.map((c) => ({ ...c, memory: null })) as [Character, Character];
   const outcome = storedOutcome(r, built.seed);
   const producer = r.setup?.producer ?? built.setup.producer;
   const venueId = r.setup?.venue ?? built.setup.venue;
-  const formatCtx = { chaperone: r.setup?.chaperone, ex: r.setup?.ex };
+  // The chaperone and ex as stored (the graph may name a different ex today); the roleplay as snapshotted.
+  const formatCtx = { ...formatContextOf(built), chaperone: r.setup?.chaperone, ex: r.setup?.ex };
   // Played from a beat sheet of the STORED outcome, like a fresh date (lib/beats.ts).
   const plan = await planDate(director, built.input, outcome, characters, producer, venueId, format, formatCtx);
   return simulateConversation(actor, built.input, outcome, characters, producer, venueId, format, undefined, formatCtx, plan);

@@ -80,6 +80,11 @@ export type Character = {
   /** Set only on a double date's characters: the other couple at the table, as one line (lib/group-dates.ts). */
   table?: string;
   /**
+   * Set only on a date that plays a roleplay (lib/roleplays.ts): what both agreed to before it, from this side (its title,
+   * the premise in their names, who plays whom). Both sides carry it; its words are things both already know.
+   */
+  roleplay?: Record<string, string>;
+  /**
    * Set only on a date's characters: the plan the two agreed to by text, which tonight is (lib/plans.ts), from this
    * side ("You: “…”", "They: “…”"). Its own field, not `pair`: a first date they planned in a match chat is still a first date.
    */

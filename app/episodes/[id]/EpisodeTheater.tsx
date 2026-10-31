@@ -22,6 +22,8 @@ type Props = {
   autoOpen?: boolean;
   /** Lines the creator already watched live while it was filmed (`?from=`): playback carries on from there. */
   startAt?: number;
+  /** The roleplay the two played (lib/date-roleplays.ts): a chip in the header, so the lines read as their roles'. */
+  roleplay?: { icon: string; title: string } | null;
 };
 
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
@@ -57,7 +59,7 @@ export default function EpisodeTheater(props: Props) {
   );
 }
 
-function Playback({ episodeId, characters, venue, transcript, endingLabel, autoOpen, startAt, onExit }: Props & { onExit: () => void }) {
+function Playback({ episodeId, characters, venue, transcript, endingLabel, autoOpen, startAt, roleplay, onExit }: Props & { onExit: () => void }) {
   const replay = useReplay(transcript, true, { startAt });
   const [convo, setConvo] = useState(true);
   const shown = replay.shown;
@@ -87,6 +89,11 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, autoO
               <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
             <span className="chip">{autoOpen ? "Just filmed" : "Replay"}</span>
+            {roleplay && (
+              <span className="chip" title="A roleplay both sides agreed to: the lines are their roles'">
+                {roleplay.icon} {roleplay.title}
+              </span>
+            )}
           </div>
           <div className="theater-tools">
             <button type="button" className="theater-icon" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>

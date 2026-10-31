@@ -39,6 +39,8 @@ import { seasonCastIds } from "@/lib/season-cast";
 import { weekAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
 import { acceptableProposal, markAccepted } from "@/lib/date-proposals";
+import { bookingAsk, roleplayForBooking } from "@/lib/date-roleplays";
+import { ROLEPLAY_PREMISE_MAX, ROLEPLAY_ROLE_MAX, ROLEPLAY_TITLE_MAX, type DateRoleplay } from "@/lib/roleplays";
 import { datedSql, MATCH_FIRST, swipeGateOn } from "@/lib/swipe-gate";
 import { agreedMatchSql } from "@/lib/swipes";
 import { movePlace, placeRefusedWhy } from "@/lib/places";
@@ -86,6 +88,21 @@ const EpisodeInput = z
     // A double date (lib/group-dates.ts): this booking is one table of that night. The night sets the venue and the
     // table line; the caller must be this couple's booker and the night accepted. Never with `place`.
     group_night: id.optional(),
+    // David, 2026-10-31: a roleplay for the date (lib/date-roleplays.ts): one of the show's by id (lib/roleplays.ts),
+    // one written for it ({ title, premise, roles? }), or "none" to leave the pair's agreed one for another date. Left
+    // out, a roleplay the two agreed on plays. With a house character (or two of your own) a named one plays at once;
+    // with someone else's character it has to be the one their owner agreed to. `my_role`: which role yours plays.
+    roleplay: z
+      .union([
+        z.string().trim().min(1).max(40),
+        z.object({
+          title: z.string().trim().max(ROLEPLAY_TITLE_MAX * 2),
+          premise: z.string().trim().max(ROLEPLAY_PREMISE_MAX * 2),
+          roles: z.array(z.string().trim().max(ROLEPLAY_ROLE_MAX * 2)).length(2).optional(),
+        }),
+      ])
+      .optional(),
+    my_role: z.union([z.string().trim().max(ROLEPLAY_ROLE_MAX * 2), z.number().int().min(0).max(1)]).optional(),
   })
   .refine((v) => (v.partner_id === undefined) !== (v.blind === undefined), {
     message:
@@ -95,6 +112,7 @@ const EpisodeInput = z
 
 type CharacterRow = {
   id: string;
+  owner_id: string | null;
   name: string;
   age: number;
   bio: string;
@@ -110,7 +128,7 @@ type CharacterRow = {
   voice: string | null;
 };
 
-const CHARACTER_COLUMNS = `c.id, c.name, c.age, c.bio, c.traits, c.want, c.dealbreaker, c.is_house, c.premium_sku, c.appearance, c.avatar_hue,
+const CHARACTER_COLUMNS = `c.id, c.owner_id, c.name, c.age, c.bio, c.traits, c.want, c.dealbreaker, c.is_house, c.premium_sku, c.appearance, c.avatar_hue,
   ${portraitPathSql("c")} as portrait, c.pronouns, c.voice`;
 
 const toSheet = (c: CharacterRow): CharacterSheet => ({
@@ -349,6 +367,23 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
     }
   }
 
+  // The roleplay (lib/date-roleplays.ts), checked before the date is reserved so a refusal costs nothing. A group
+  // night's table plays the night, and a blind date can't name one (nobody knows who they'll meet yet); a pair's agreed
+  // roleplay still plays on a blind date that draws them.
+  let roleplay: DateRoleplay | null = null;
+  if (input.roleplay !== undefined && (input.blind || group)) {
+    return json(
+      { error: "roleplay_not_here", field: "roleplay", message: input.blind ? "A blind date can't name a roleplay: you don't know who you'll meet yet. Book them by name for one." : "A group night's tables play the night itself, without a roleplay." },
+      422,
+      sess,
+    );
+  }
+  if (!group) {
+    const r = await roleplayForBooking(db, sess.userId, own, partner, bookingAsk(input.roleplay, input.my_role));
+    if (!r.ok) return json({ error: r.error, field: "roleplay", message: r.message }, r.status, sess);
+    roleplay = r.roleplay;
+  }
+
   // A premium format pack: checked before the date is reserved, so it costs nothing. All formats are free
   // today (premiumSku null), so this is a no-op; the seam lets a pack be switched on without more plumbing.
   const fmt = showFormat(input.format ?? DEFAULT_FORMAT);
@@ -406,7 +441,7 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
   }
   const outcome = { saved: false };
   try {
-    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome, secondDate, passDate, group);
+    return await writeAndSave(db, sess, useFrontier, reservation, own, partner, input, outcome, secondDate, passDate, group, roleplay);
   } finally {
     if (!outcome.saved) {
       const giveBack = passDate ? releaseOperatorDate(db, sess.userId) : reservation ? releaseEpisode(db, sess.userId, reservation) : Promise.resolve();
@@ -438,6 +473,7 @@ async function writeAndSave(
   secondDate: { followupOf: string; visibility: "public" | "private" | "unlisted"; dateNumber: number } | null = null,
   operatorReserved = false,
   group: GroupBooking | null = null,
+  roleplay: DateRoleplay | null = null,
 ): Promise<Response> {
   const episodeId = crypto.randomUUID();
   const dateRequest: DateRequest = {
@@ -460,6 +496,7 @@ async function writeAndSave(
     chosenPlace: group ? null : chosenPlace,
     // A double date (lib/group-dates.ts): both tables share the night's venue, and each knows who else is there.
     ...(group ? { venueOverride: group.venue, table: group.table } : {}),
+    roleplay,
   });
   // Which date this is for the couple (lib/rules dateLabel): the badge says "Third date", not always "Second".
   if (secondDate) built.setup.date_number = secondDate.dateNumber;

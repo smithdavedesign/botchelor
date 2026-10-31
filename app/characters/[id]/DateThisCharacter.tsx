@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { requestJson } from "@/app/request";
+import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import type { DateCta } from "@/lib/date-cta";
 import { shortName } from "@/lib/names";
 import { takenNote } from "@/lib/partners-shared";
@@ -11,9 +12,10 @@ import { takenNote } from "@/lib/partners-shared";
 /**
  * "Date this character", right under the contestant header (lib/date-cta.ts says which version shows). Sending one of
  * yours books it like any date (POST /api/episodes, 1 token) and opens it as it's filmed; one that has to match first
- * goes to the swipe deck instead.
+ * goes to the swipe deck instead. `roleplays`: a house character, so a roleplay can be added and plays at once
+ * (lib/date-roleplays.ts); with anyone else's, the two creators agree one on the couple page first.
  */
-export default function DateThisCharacter({ cta, targetId, first }: { cta: DateCta; targetId: string; first: string }) {
+export default function DateThisCharacter({ cta, targetId, first, roleplays = false }: { cta: DateCta; targetId: string; first: string; roleplays?: boolean }) {
   const router = useRouter();
   const mine = cta.kind === "send" ? cta.mine : [];
   // One that's free to go first (a taken one, with someone else and wanting only them, is listed but can't go).
@@ -22,6 +24,9 @@ export default function DateThisCharacter({ cta, targetId, first }: { cta: DateC
   const [message, setMessage] = useState<{ text: string; shop?: boolean } | null>(null);
   // David, 2026-10-23: the booker may say where the date happens (else a texted plan, else the show picks).
   const [place, setPlace] = useState("");
+  const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
+  // The picker mounts once it's opened, not in every character page's HTML.
+  const [roleplayOpen, setRoleplayOpen] = useState(false);
 
   if (cta.kind === "none") return null;
   if (cta.kind === "closed") {
@@ -45,7 +50,7 @@ export default function DateThisCharacter({ cta, targetId, first }: { cta: DateC
   async function book() {
     setBusy(true);
     setMessage(null);
-    const res = await requestJson("/api/episodes", { character_id: chosen.id, partner_id: targetId, ...(place.trim() ? { place: place.trim() } : {}) }).catch(() => null);
+    const res = await requestJson("/api/episodes", { character_id: chosen.id, partner_id: targetId, ...(place.trim() ? { place: place.trim() } : {}), ...roleplayFields(roleplay) }).catch(() => null);
     setBusy(false);
     if (!res) return setMessage({ text: "Network error. Try again." });
     if (res.ok && typeof res.data.id === "string") return router.push(`/episodes/${res.data.id}?play=1`);
@@ -80,8 +85,16 @@ export default function DateThisCharacter({ cta, targetId, first }: { cta: DateC
           <input type="text" name="place" maxLength={80} value={place} placeholder="the night market, my place…" onChange={(e) => setPlace(e.target.value)} />
         </label>
       )}
+      {roleplays && chosen.mode === "book" && !chosen.taken && (
+        <details className="date-cta-roleplay" onToggle={(e) => setRoleplayOpen(e.currentTarget.open)}>
+          <summary>
+            🎭 Add a roleplay <span className="muted small">(optional)</span>
+          </summary>
+          {roleplayOpen && <RoleplayPicker me={chosen.name} them={first} value={roleplay} onChange={setRoleplay} />}
+        </details>
+      )}
       {chosen.taken ? null : chosen.mode === "book" ? (
-        <button type="button" className="primary" onClick={() => void book()} disabled={busy}>
+        <button type="button" className="primary" onClick={() => void book()} disabled={busy || (roleplay !== null && !choiceReady(roleplay))}>
           {busy ? "Booking…" : `💌 ${cta.label}`}
         </button>
       ) : (

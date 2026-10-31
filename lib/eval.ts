@@ -12,7 +12,7 @@ import type { Character } from "./character";
 import { continuity, type Continuity, type Recall } from "./continuity";
 import type { Turn } from "./conversation";
 import { deterministicEngine, type CharacterSheet, type Outcome } from "./engine";
-import type { FormatId } from "./formats";
+import { formatContextOf, type FormatId } from "./formats";
 import { ALL_HOUSE_CHARACTERS } from "./house";
 import { judgeDate, judgeMean, type JudgeScores } from "./judge";
 import { computeMemory, metBefore, type CharacterMemory, type MemoryEpisode } from "./memory";
@@ -153,7 +153,7 @@ export async function runEvalCase(c: EvalCase, models: DateModels, judge: Model 
   const t0 = Date.now();
   const gen = await generateDate(models, built, outcome, {
     formatId: c.format,
-    formatCtx: { chaperone: built.setup.chaperone, ex: built.setup.ex },
+    formatCtx: formatContextOf(built),
     conversation: true,
     afterglow: false,
     reflection: false,
@@ -325,7 +325,7 @@ export async function runSagaStep(saga: EvalSaga, k: number, prior: Turn[][], mo
   const t0 = Date.now();
   const gen = await generateDate(models, built, outcome, {
     formatId: step.format,
-    formatCtx: { chaperone: built.setup.chaperone, ex: built.setup.ex },
+    formatCtx: formatContextOf(built),
     conversation: true,
     afterglow: false,
     reflection: false,
