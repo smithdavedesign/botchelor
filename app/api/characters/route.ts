@@ -9,7 +9,8 @@ import { recordLanguage } from "@/lib/language-seen";
 import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
-import { CHARACTER_REJECTION_MESSAGES, checkFields } from "@/lib/safety";
+import { CHARACTER_REJECTION_MESSAGES } from "@/lib/safety";
+import { checkFieldsAnyLanguage } from "@/lib/language-check";
 import { nameCheck } from "@/lib/name-check";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
 import { WHILE_AWAY_MODES } from "@/lib/activity";
@@ -94,7 +95,8 @@ export const POST = handle(async (req) => {
     await recordLanguage(db, sess.userId, "web_create", [input.bio, input.want, input.dealbreaker, input.voice, input.this_week, ...(input.traits ?? [])]);
   }
 
-  const verdict = checkFields({
+  // In any language (lib/language-check.ts): a sheet in Spanish is read in English too.
+  const verdict = await checkFieldsAnyLanguage({
     name: input.name,
     bio: input.bio,
     traits: input.traits,
@@ -115,7 +117,7 @@ export const POST = handle(async (req) => {
 
   // Validate and filter the soul before writing anything, so a rejected soul stores no character.
   const soul = input.soul ? normaliseSoul(input.soul) : null;
-  if (soul && !isEmptySoul(soul)) assertSafeSoul(soul);
+  if (soul && !isEmptySoul(soul)) await assertSafeSoul(soul);
 
   // 2026-10-23 (a visitor: "check_only never says whether a sheet passes the content rules"): it does, by the time it's here.
   if (checkOnly) return json({ checked: true, saved: false, content_ok: true, content_note: "Passes the show's content rules (fictional adults, no real people, nothing sexual)." }, 200, sess);

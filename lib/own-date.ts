@@ -32,6 +32,8 @@ import { track, trackDateQuality } from "./analytics";
 import { recordCrossSpecies } from "./agent-funnel";
 import { logTurnDraft } from "./turn-drafts";
 import { buildTurnMessages, parseTurnResult, TURN_TEMPERATURE, type Turn } from "./conversation";
+import { checkFieldsAnyLanguage, needsTranslation, UNREAD_MESSAGE } from "./language-check";
+import { speaksOtherThanEnglish } from "./character";
 import type { Db } from "./db";
 import { decideTraced, getEngine, type CharacterSheet, type Outcome } from "./engine";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "./formats";
@@ -1412,7 +1414,7 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
   }
   // The show's model has this side (the other agent went quiet): it performs the turn now, then it's someone else's.
   if (step.stage === "turn" && performersOf(row)[step.side] === SHOW) {
-    const done = await showTurn(db, row, step.side, step.act_index, step.messages, transcript, shapeFor(built, formatId, transcript), namesFor(built, step.side), decided.ending);
+    const done = await showTurn(db, row, step.side, step.act_index, step.messages, transcript, shapeFor(built, formatId, transcript), namesFor(built, step.side), decided.ending, speaksOtherThanEnglish(...built.characters));
     if (done) return getOwnDateStep(db, userId, episodeId);
   }
   if (twoAgent && step.stage === "turn") {
@@ -1545,6 +1547,8 @@ async function showTurn(
   shape: DateShape,
   names: { self: string; other: string },
   ending?: Ending,
+  /** The date is in another language (lib/conversation.ts languageBlock): the show's line carries its English. */
+  english = false,
 ): Promise<boolean> {
   const model = getModel();
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -1554,7 +1558,7 @@ async function showTurn(
     } catch {
       continue;
     }
-    const parsed = parseTurnResult(raw, side, act);
+    const parsed = parseTurnResult(raw, side, act, { english });
     if (!("turn" in parsed)) continue;
     // 2.7.0 (#645): a line that calls its own speaker by name is the other side's line on this turn: once more, with a note
     // (the last try is kept, as the show's critic keeps a draft).
@@ -1778,6 +1782,13 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
       const why = parsed.rejected === "schema" ? turnShapeProblem(raw) : parsed.rejected === "filtered" ? filteredRefusal(parsed.reason) : TURN_REJECTIONS[parsed.rejected];
       await draft("agent_refused", parsed.rejected, null);
       return refuse(why);
+    }
+    // An agent's line in another language is read in English by the show's own translation, never the agent's (the
+    // content filter reads English: lib/language-check.ts).
+    const read = needsTranslation(parsed.turn.dialogue) ? await checkFieldsAnyLanguage({ dialogue: parsed.turn.dialogue }) : null;
+    if (read && !read.ok) {
+      await draft("agent_refused", read.reason === "unread" ? "unread" : "filtered", null);
+      return refuse(read.reason === "unread" ? UNREAD_MESSAGE : filteredRefusal(read.reason));
     }
     const speaker = built.characters[current.side === "a" ? 0 : 1];
     const problem = ownTurnCheck(raw, parsed.turn, speaker.extras?.never_says, transcript);
@@ -2145,6 +2156,7 @@ const TURN_REJECTIONS: Record<string, string> = {
   json: "That wasn't a JSON object. Reply with exactly the JSON in reply_format.",
   schema: 'The reply needs dialogue (words); action, emotion and interest_signal (a number from 0 to 1) are optional and get defaults, but must be the right type when sent.',
   filtered: "That line broke the show's content rules (no minors, no sexual content or innuendo, no real people). Run the turn again.",
+  no_english: 'This date is in another language: put the line\'s English translation in "english" too (the show\'s checks read it). Run the turn again.',
 };
 
 /** What each content rule is, for a filtered line (#474: say which one it broke). */
@@ -2153,6 +2165,8 @@ const FILTER_WHY: Record<RejectReason, string> = {
   sexual: "it has sexual content",
   innuendo: "it's innuendo (no sexual content, nudity or innuendo: at most a hug or a kiss on the cheek)",
   real_person: "it names a real person",
+  unread: "it's in a language the show couldn't check just now (run the turn again in a minute)",
+  language: "it isn't in English",
 };
 /**
  * The filtered refusal, with the rule it broke (#474): an agent's own lines pass the same deterministic check as the

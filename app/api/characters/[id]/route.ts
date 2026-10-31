@@ -8,7 +8,8 @@ import { getDb } from "@/lib/db";
 import { invalidateGraph } from "@/lib/graph-cache";
 import { handle, isMcpCall, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
-import { checkFields, type RejectReason } from "@/lib/safety";
+import type { RejectReason } from "@/lib/safety";
+import { checkFieldsAnyLanguage } from "@/lib/language-check";
 import { scheduleWelcome } from "@/lib/welcome";
 import type { ImageSignals } from "@/lib/avatar";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
@@ -90,6 +91,8 @@ const REJECTION_MESSAGES: Record<RejectReason, string> = {
   sexual: "Keep the character sheet free of sexual content.",
   real_person: "Characters must be original: no real people.",
   innuendo: "Keep the character sheet free of innuendo.",
+  unread: "We couldn't check a sheet in that language just now. Try again in a minute.",
+  language: "After Dark is English-only for now.",
 };
 
 /** The columns a PATCH may set, in the order they appear on the body. `null` clears an optional column. */
@@ -124,7 +127,8 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
 
   const input = parseBody(CharacterPatch, await readJson(req), "invalid_character") as Record<string, unknown>;
   if (input.extras) input.extras = await gateAfterDarkLooks(db, sess, normaliseExtras(input.extras as ExtrasInputType));
-  const verdict = checkFields({
+  // In any language (lib/language-check.ts): an edit in Spanish is read in English too.
+  const verdict = await checkFieldsAnyLanguage({
     name: input.name as string | undefined,
     bio: input.bio as string | undefined,
     traits: input.traits as string[] | undefined,
@@ -192,7 +196,7 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
       if (hasSignals) await saveSoul(db, id, soul, false);
       else await db.query("delete from souls where character_id = $1", [id]);
     } else {
-      assertSafeSoul(soul);
+      await assertSafeSoul(soul);
       await saveSoul(db, id, soul, (input.soul as { local_only?: boolean }).local_only ?? false);
     }
   }

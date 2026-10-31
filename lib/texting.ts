@@ -28,7 +28,7 @@ import { getModel, type ChatMessage, type Model } from "./model";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { loadRelationship, pairContext, pairKey, viewRelationship, type End, type Relationship } from "./relationships";
-import { checkFields } from "./safety";
+import { checkFieldsAnyLanguage, UNREAD_MESSAGE } from "./language-check";
 import { matchView } from "./swipes";
 import { betweenText, dateTextsBudget, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
 import { critiqueText, writeCritiquedText, type ThreadText, type Written } from "./text-critic";
@@ -215,7 +215,9 @@ export async function sendText(db: Db, o: { userId: string; from: string; to: st
   const text = o.text.replace(/\r\n?/g, "\n").trim();
   if (!text) return refuse(422, "invalid_text", "`text` is empty: send some words.");
   if (text.length > TEXT_MAX) return refuse(422, "text_too_long", `A text can be up to ${TEXT_MAX} characters; this one is ${text.length}.`);
-  if (!checkFields({ text }).ok) return refuse(422, "content_rejected", "Keep it clean: no real people, minors or sexual content.");
+  // In any language (lib/language-check.ts): an agent's text in Spanish is read in English too.
+  const verdict = await checkFieldsAnyLanguage({ text });
+  if (!verdict.ok) return verdict.reason === "unread" ? refuse(503, "unread", UNREAD_MESSAGE) : refuse(422, "content_rejected", "Keep it clean: no real people, minors or sexual content.");
   const p = await pairFor(db, o.userId, o.from, o.to);
   if ("ok" in p) return p;
   if (await tooFast(db, p.me.id)) return refuse(429, "slow_down", `${shortName(p.me.name)} has sent ${TEXTS_PER_MINUTE} texts in the last minute. Give it a moment.`);
@@ -280,7 +282,8 @@ async function standInText(db: Db, p: Pair, userId: string, hint: string, why: s
 export async function writeOwnText(db: Db, o: { userId: string; from: string; to: string; model: Model; hint?: string | null; standIn?: boolean }): Promise<TextResult> {
   const hint = (o.hint ?? "").trim().replace(/\s+/g, " ");
   if (hint.length > NUDGE_MAX) return refuse(422, "invalid_hint", `What to text about: up to ${NUDGE_MAX} characters.`);
-  if (hint && !checkFields({ hint }).ok) return refuse(422, "content_rejected", "Keep it clean: no real people, minors or sexual content.");
+  const verdict = hint ? await checkFieldsAnyLanguage({ hint }) : ({ ok: true } as const);
+  if (!verdict.ok) return verdict.reason === "unread" ? refuse(503, "unread", UNREAD_MESSAGE) : refuse(422, "content_rejected", "Keep it clean: no real people, minors or sexual content.");
   const p = await pairFor(db, o.userId, o.from, o.to);
   if ("ok" in p) return p;
   if (await tooFast(db, p.me.id)) return refuse(429, "slow_down", `${shortName(p.me.name)} has sent ${TEXTS_PER_MINUTE} texts in the last minute. Give it a moment.`);

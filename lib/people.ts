@@ -11,6 +11,8 @@ export const REJECTION_MESSAGES: Record<RejectReason, string> = {
   sexual: "Keep it free of sexual content.",
   real_person: "No real people's names.",
   innuendo: "Keep it free of innuendo.",
+  unread: "We couldn't check that language just now. Try again in a minute.",
+  language: "That has to be in English for now.",
 };
 
 export const nameText = (max: number) =>

@@ -1054,7 +1054,8 @@ export function sceneMessages(
     ` {"of": "a", "b" or "both", "description": "what the picture shows, in one sentence: the pose, what they're wearing or not, the expression, the framing"}; otherwise null.` +
     (v2 ? suggestionRule : "");
   return [
-    { role: "system", content: system },
+    // English-only until After Dark's checks are proven in other languages (David, 2026-10-31; lib/safety.ts checkAdultText).
+    { role: "system", content: `${system} Write everything in English, whatever language their sheets are in.` },
     { role: "user", content: user },
   ];
 }

@@ -31,6 +31,8 @@ export const LANGUAGE_NAMES = {
   zh: "Chinese",
 } as const;
 export type LanguageCode = keyof typeof LANGUAGE_NAMES;
+/** Every code, in the order above (the builder's list, the character schema's enum). */
+export const LANGUAGE_CODES = Object.keys(LANGUAGE_NAMES) as [LanguageCode, ...LanguageCode[]];
 
 /** Fewer letters than this and the text is too short to say (a name, "ok", "jaja"). */
 const MIN_LETTERS = 12;
@@ -56,8 +58,8 @@ const words = (s: string) => new Set(s.split(/\s+/));
  */
 const EVERYDAY: Partial<Record<LanguageCode, Set<string>>> = {
   en: words("the a an and is are you that this with have for was not what but they my me i it's i'm your of to in it be just so do like don't we who on at or from can will all there their when about would been has had were if up out only someone people"),
-  es: words("el los las que y es en un una por para con no mi tu su sus le pero como más muy yo qué está eso esta también porque hola gracias soy me te se lo del al estoy ella él hay fue usted"),
-  fr: words("le les des est et je tu vous nous une pas qui pour avec dans sur ce cette mais très c'est j'ai suis mon ma oui bonjour merci du au il elle ne"),
+  es: words("el la los las de que y es en un una por para con no mi tu su sus le pero como más muy yo qué está eso esta también porque hola gracias soy me te se lo del al estoy ella él hay fue usted"),
+  fr: words("le la les de des est et je tu vous nous une pas qui pour avec dans sur ce cette mais très c'est j'ai suis mon ma oui bonjour merci du au il elle ne"),
   de: words("der die das und ist ich du nicht ein eine mit auf für zu den dem sie es wir aber auch sehr mein dass wie was hallo danke bin hast ja nein noch"),
   pt: words("o os as que de e é em um uma não para com por mas eu você muito meu minha isso está também obrigado obrigada olá sou tem do da no na ao então"),
   it: words("il lo gli la che di e è un una non per con ma io tu sono sei mi ti molto questo questa anche perché ciao grazie della del nel cosa come"),
@@ -70,7 +72,8 @@ const EVERYDAY: Partial<Record<LanguageCode, Set<string>>> = {
 
 /** Letters only one or two of them use, each worth a few everyday words. */
 const MARKS: readonly [LanguageCode, RegExp, number][] = [
-  ["es", /[ñ¿¡]/gu, 2],
+  ["es", /[ñ¿¡]|ción\b|dad\b/gu, 2],
+  ["fr", /[êèëîïôûœ]|eau|qu'/gu, 1],
   ["pt", /[ãõ]/gu, 2],
   ["de", /ß/gu, 2],
   ["tr", /[ğşı]/gu, 3],
