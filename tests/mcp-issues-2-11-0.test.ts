@@ -230,7 +230,7 @@ describe("#656: a date you perform shows where it's heading from its first step"
     const ep = ok(await call("go_on_date", { character_id: A.id, partner_id: HOUSE.id }, A.ctx)).episode.id;
     const r = ok(await call("reflect_on_date", { episode_id: ep, character_id: A.id, reflection: "I talked too much about maps. She laughed anyway." }, A.ctx));
     expect(r.numbers_hint).toBe(numbersHint("disaster", DISASTER.variables, "genuine_chemistry"));
-    expect(r.numbers_hint).toMatch(/^How the numbers map to your lines: the ending \(a disaster\) came from the two characters' numbers, set at booking \(box_score\), never from the lines, which play it\. This time it was trust \(how safe they felt opening up\), working against them: in a line, that's guarded answers and a question dodged\./);
+    expect(r.numbers_hint).toMatch(/^How the numbers map to your lines: the ending \(a disaster\) came from the two characters' numbers, set at booking \(box_score\), never from the lines, which play it\. This time it was trust \(very low: how safe they felt opening up\), working against them: in a line, that's guarded answers and a question dodged\./);
     expect(r.numbers_hint).toMatch(/send see_again on your character's last line, the one lever\.$/);
   });
 });

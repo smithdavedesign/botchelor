@@ -242,14 +242,21 @@ export function weakSpotLine(box: Box | null | undefined, strategy: Strategy | n
  * map to your lines' hint"): what set the ending, the number that mattered most this time and how it reads in a line, and
  * what to do with that on the next date. `dateNumber`: which date it was for the couple (lib/rules dateNumberOf).
  */
+/** A pull this small (a few points off an ordinary start, as weighed) is a nudge, not what decided the night. */
+const SMALL_PULL = 2;
+
 export function numbersHint(ending: Ending | null | undefined, box: Box | null | undefined, strategy: Strategy | null | undefined, dateNumber?: number | null, version?: number | null): string {
   const ranked = pulls(box, strategy, version);
   const key = !ranked.length ? null : ending === "disaster" || ending === "friends" ? ranked.at(-1)! : ranked[0];
+  // How hard it pulled, so the hint agrees with the box score (#1111: awkwardness 41, "mild" there, was "working against them").
+  const small = key && Math.abs(key.pull) < SMALL_PULL;
+  const verdict = !key ? "" : key.pull < 0 ? (small ? "only a small drag on them" : "working against them") : small ? "only a small lift" : "carrying it";
   const which = key
-    ? ` This time it was ${key.v} (${PLAIN[key.v].past}), ${key.pull < 0 ? "working against them" : "carrying it"}: in a line, that's ${key.pull < 0 ? IN_LINES[key.v].against : IN_LINES[key.v].for}.`
+    ? ` This time it was ${key.v} (${level(key.v, key.final)}: ${PLAIN[key.v].past}), ${verdict}: in a line, that's ${key.pull < 0 ? IN_LINES[key.v].against : IN_LINES[key.v].for}.`
     : "";
   return (
     `How the numbers map to your lines: the ending${ending ? ` (${endingLabel(ending, dateNumber).toLowerCase()})` : ""} came from the two characters' numbers, set at booking (box_score), never from the lines, which play it.${which} ` +
+    "It's worked out for each date from its format and numbers, so the same two can head somewhere else another time. " +
     "A date you perform names its heading from the first step (heading): write toward it, and send see_again on your character's last line, the one lever."
   );
 }
