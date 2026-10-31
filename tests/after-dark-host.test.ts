@@ -220,7 +220,7 @@ describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
     expect(page(`${AD}/after-dark`)).toBe(`307 ${AD}/gate?from=%2Fafter-dark - -`); // the gate, here, as on the show
     expect(page(`${AD}/gate?from=/after-dark`)).toBe("200 - next -");
     expect(page(`${AD}/admin/after-dark/graph`, { cookie: "bz_adult=1" })).toBe("200 - next -");
-    expect(page(`${AD}/`, { cookie: "bz_adult=1" })).toBe(`307 ${SHOW}/ - -`);
+    expect(page(`${AD}/`, { cookie: "bz_adult=1" })).toBe(`307 ${SHOW}/after-dark - -`); // #1034: its own address opens it
     expect(page(`${AD}/characters?tab=people`, { cookie: `bz_adult=1; bz_uid=${UID}` })).toBe(`307 ${SHOW}/characters?tab=people - -`);
     expect(page(`${AD}/after-darkness`)).toBe(`307 ${SHOW}/after-darkness - -`);
     for (const doc of ["/llms.txt", "/sitemap.xml", "/.well-known/mcp.json"]) expect(page(`${AD}${doc}`)).toBe(`307 ${SHOW}${doc} - -`);
@@ -401,5 +401,16 @@ describe("signing in across to After Dark's host (app/api/auth/carry)", () => {
     expect(start.headers.get("location")).toBe(`${SHOW}/api/auth/carry?from=botchelor.vercel.app&to=%2Ffeed`);
     const minted = await at(`https://botchelor.vercel.app/api/auth/carry?n=abcdefghijklmnopqrstuv&to=/feed`, `bz_uid=${UID}`);
     expect(new URL(minted.headers.get("location")!).origin).toBe(SHOW);
+  });
+});
+
+import { afterDarkPageMove } from "@/lib/after-dark-host";
+
+describe("After Dark's own address (#1034)", () => {
+  it("opens After Dark by way of the show's link, which brings who they are; other show pages still go to the show", () => {
+    const env = { AFTER_DARK_ORIGIN: AD, AFTER_DARK_ONLY: "1" };
+    expect(afterDarkPageMove("/", "", { identity: true, bot: false, show: SHOW }, env)).toEqual({ redirect: `${SHOW}/after-dark` });
+    expect(afterDarkPageMove("/watch", "", { identity: true, bot: false, show: SHOW }, env)).toEqual({ redirect: `${SHOW}/watch` });
+    expect(afterDarkPageMove("/after-dark", "", { identity: true, bot: false, show: SHOW }, env)).toBeNull();
   });
 });
