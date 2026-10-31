@@ -26,13 +26,19 @@ const REASONS: Record<string, string> = {
 export const GET = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const sess = session(req);
-  const state = await secondDateState(await getDb(), id, sess.userId);
+  // #1104: both characters yours, ?character_id= says which one you're planning as.
+  const state = await secondDateState(await getDb(), id, sess.userId, new URL(req.url).searchParams.get("character_id"));
   if (!state) return json({ error: "not_your_date", message: "Only an owner of one of the two characters can see this." }, 403, sess);
   return json({ episode_id: id, ...state }, 200, sess);
 });
 
 // place (David, 2026-10-23): where the second date happens, as on any booking; left out, their texted plan, else the show's.
-const Input = z.object({ visibility: z.enum(DATE_VISIBILITIES).optional(), place: z.string().trim().min(2).max(80).optional() });
+const Input = z.object({
+  visibility: z.enum(DATE_VISIBILITIES).optional(),
+  place: z.string().trim().min(2).max(80).optional(),
+  /** #1104: both characters yours, the one you're planning as (side A otherwise). */
+  character_id: z.string().trim().max(64).optional(),
+});
 
 /**
  * An owner says yes to their characters' second date. When the other owner has already agreed (or doesn't need
@@ -45,7 +51,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const input = parseBody(Input, await readJson(req).catch(() => ({})), "invalid_request");
   const db = await getDb();
 
-  const state = await secondDateState(db, id, sess.userId);
+  const state = await secondDateState(db, id, sess.userId, input.character_id);
   if (!state) return json({ error: "not_your_date", message: "Only an owner of one of the two characters can plan their second date." }, 403, sess);
   if (!state.can_plan) {
     const r = state.reason ?? "unavailable";

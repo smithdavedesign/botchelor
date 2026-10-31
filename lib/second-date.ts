@@ -87,10 +87,12 @@ export type SecondDateState = {
 };
 
 /** The second-date state of a date, as one of its owners sees it. */
-export async function secondDateState(db: Db, episodeId: string, userId: string): Promise<SecondDateState | null> {
+export async function secondDateState(db: Db, episodeId: string, userId: string, asCharacter?: string | null): Promise<SecondDateState | null> {
   const d = await loadDate(db, episodeId);
   if (!d) return null;
-  const mine = d.a_owner === userId ? "a" : d.b_owner === userId ? "b" : null;
+  // #1104 (the 2026-10-31-1401 run: plan_second_date with Hettie's character_id answered as Dewey): both characters yours,
+  // the one you name is yours here; otherwise side A, as before.
+  const mine = asCharacter && d.b_id === asCharacter && d.b_owner === userId ? "b" : d.a_owner === userId ? "a" : d.b_owner === userId ? "b" : null;
   if (!mine) return null;
   const theirs = mine === "a" ? "b" : "a";
   const partnerOwner = d[`${theirs}_owner`];
