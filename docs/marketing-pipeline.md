@@ -74,14 +74,19 @@ Nothing on this list requires writing from a human:
 
 ## What to track
 
-The funnel beacon already covers `visit` → `activate` → `checkout` on the web. For marketing attribution, add:
+The funnel beacon covers `visit` → `activate` → `checkout` on the web for RepoHQ. Attribution is done (2026-10-31,
+the engagement log, docs/analytics.md "Engagement"):
 
-- **Referrer buckets** on the beacon (`google` / `bluesky` / `discord` / `reddit` / `twitter` / `direct` / `other`).
-- **UTM parameters** on every outbound link we post, standardised in `lib/marketing.ts`:
-  - `?utm_source=<channel>&utm_medium=<kind>&utm_campaign=<episode|weekly|digest|launch>`
+- **Referrer buckets:** each visit's source is the referring site's name (`google`, `bing`, `reddit`, `x`, `bluesky`,
+  `discord`, `chatgpt`, `perplexity`, `hacker_news`, … `other`, `direct`; `sourceOf` in `lib/engagement.ts`).
+- **UTM parameters:** `utm_source` (it names the source when present), `utm_medium`, `utm_campaign` and `utm_content`
+  are kept per visit, also through the 18+ gate. Tag every link we post:
+  - `?utm_source=<channel>&utm_medium=<kind>&utm_campaign=<episode|weekly|digest|launch>&utm_content=<the exact place>`
 - **Agent funnel** (new, see `lib/analytics.ts`): `agent_initialize` → `agent_first_character` → `agent_first_date` → `agent_day_7_return`.
 
-A weekly README-style page at `/admin/marketing` renders these four counts per channel so you can see what's working without logging into a dashboard.
+Per channel, `/admin/analytics` → Engagement → "Where they came from" shows visits, visitors, who clicked, made a
+character and signed up, and the tagged links table splits by campaign and content. A separate `/admin/marketing`
+page isn't needed for now.
 
 ## The three posts to write first
 
@@ -100,6 +105,6 @@ Draft them from the simulation reports (see `docs/mcp-simulation-2026-10-21.md`)
 - [ ] Register the Botchelor X handle, add API keys to `X_API_KEY`/`X_API_SECRET`.
 - [ ] Install the posting workflow (a scheduled job hitting `/api/jobs/marketing/post`; since 2026-10-30 that's the DigitalOcean scheduled job in `.do/app.yaml`, not Vercel Cron: `docs/hosting.md`) — see `scripts/post/README.md`.
 - [ ] Verify Search Console on the staging domain (production is already verified).
-- [ ] Add UTM-aware beacon.
-- [ ] Add `/admin/marketing` weekly roll-up.
+- [x] Add UTM-aware beacon (2026-10-31: the engagement log).
+- [x] Per-channel roll-up: the Engagement tab's sources and tagged links (instead of `/admin/marketing`).
 - [ ] Draft the three stories above.

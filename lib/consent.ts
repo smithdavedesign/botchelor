@@ -1,5 +1,6 @@
 /**
- * Cookie consent for Google Analytics (Google Consent Mode v2). Vercel Web Analytics sets no cookies and needs none.
+ * Cookie consent for Google Analytics (Google Consent Mode v2). Our own engagement log (app/engagement.ts) follows the
+ * same choice: nothing is sent when analytics cookies are turned off.
  *
  * Visitors in the EEA, the UK and Switzerland start with analytics cookies off and see a banner; everyone else starts
  * with them on. Either way the choice lives in the CONSENT_COOKIE, which the privacy page can change at any time.

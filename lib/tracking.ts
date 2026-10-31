@@ -2,8 +2,8 @@
  * Performance tracking: which analytics/verification tags the site renders, all switched on by environment
  * variables so nothing ships until an ID exists and every tag can be turned off without a deploy of code.
  *
- *  - Vercel Web Analytics + Speed Insights: always on in production. Cookieless, no personal data, $0 on the
- *    plan, and the page-view / Core Web Vitals numbers land in the Vercel dashboard.
+ *  - Our own engagement log (app/engagement.ts → /api/e → lib/engagement.ts): every page, click and conversion, in
+ *    our database, read on /admin/analytics' Engagement tab. Needs no ID. (Vercel Web Analytics went with the move.)
  *  - Google Tag Manager (NEXT_PUBLIC_GTM_ID, "GTM-XXXX"): the container for any later marketing tags.
  *  - Google Analytics 4 (NEXT_PUBLIC_GA_ID, "G-XXXX"): loaded directly with gtag.js, not through GTM, so a GA4 tag
  *    must NOT also be added inside the GTM container (every hit would count twice).

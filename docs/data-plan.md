@@ -274,6 +274,7 @@ out of time never skips it. It logs `data_pruned` with the rows removed per tabl
 | `relationship_events` | 400 days. |
 | `episode_variations` | 400 days from the first run. |
 | `language_seen` | 400 days. Removed with the account (it's keyed by who wrote). |
+| `web_events` | 400 days. A signed-in visitor's rows go with the account; a browser's anonymous id isn't tied to anyone. |
 | `episodes.engine_trace`, `turn_meta`, `reflection_labels`, `setup.met_via` | As long as the date (they explain it). Soul-derived numbers go earlier, on a forget. |
 | `line_feedback` | Until the voter deletes their account. |
 | `ml_consents` | Until the account is deleted. |

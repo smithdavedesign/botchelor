@@ -69,6 +69,7 @@ browser keep finished files. Moving the bytes to object storage is in progress (
 | Resend (email) | Free | $0 | 3,000 emails a month, 100 a day. |
 | Google Analytics 4, Search Console, Bing Webmaster | Free | $0 | |
 | Vercel Web Analytics | Off since the move (it only runs on Vercel) | $0 | Google Analytics carries on. |
+| Our engagement log (`web_events`, 2026-10-31) | In the Neon database | ~$0 now | About 30 rows a visit, ~400 bytes each with indexes: 1,000 visitors a day is ~12 MB a day, ~4.4 GB at the 400-day limit, ~$1.50 a month of Neon storage. Inserts are one statement per batch of up to 25 events. |
 | GitHub | Free | $0 | Actions minutes ran out on 2026-10-19 (reset around Nov 1). Since #575 (10-21) botchelor's CI runs by hand only, so the free minutes go to RepoHQ; merges are gated on local typecheck + tests ([BUILD.md](../BUILD.md)). |
 | Claude (all agent work) | David's subscription | Not per project | Never API credit. |
 

@@ -11,8 +11,7 @@
  *  - and once up, it stays up until the next full page load: gtag's next page_view in the app would carry the After
  *    Dark address as its page_referrer, so a tab that has shown After Dark sends GA nothing more.
  * The site's own events (app/conversion.ts) check the same switch, and nothing here sends a page title or address
- * explicitly. Vercel Web Analytics and Speed Insights still count these pages, by path and route only (no titles, no
- * cookies).
+ * explicitly. Our own engagement log (app/engagement.ts) still counts these pages, by path only, without button labels.
  */
 
 /** After Dark's pages: /after-dark and /admin/after-dark, and everything under them. */
