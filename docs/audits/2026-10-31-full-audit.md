@@ -26,23 +26,25 @@ Six things are not fine, in order:
    DO's own health said "HEALTHY"). It came back on its own at 08:06, as the merge of #1067 started a deploy. Nothing
    paged anyone. Probable cause found (56 avatars from /graph, each a full-size resize on a 1-vCPU replica) and fixed
    in #1068, verified live. See *Outage* below.
-2. **The default face model changes a character's ethnicity.** Teo's look says Black; the show portrait (fal) is a
-   Black man; "Draw 3" on the default After Dark face model (Lustify) gave three light-skinned Mediterranean men, 0/3.
-   Qwen Image 3 got 3/3 right. A new user never finds out why their character looks like someone else.
+2. **The default face model changed a character's ethnicity.** Teo's look says Black; the show portrait (fal) is a
+   Black man; "Draw 3" on the default After Dark face model (Lustify) gave three light-skinned Mediterranean men, 0/3,
+   because pictures were given the tile's label ("Black") and not its words. *Fixed in #1072 and verified live: 3/3.*
 3. **A Studio shoot sent none of its picks** (pose, wardrobe, place, light) because a late "remembered picks" restore
-   wiped them; every shoot came back as copies of the body reference. *Fixed in #1067.* Separately, even with the picks
-   in the prompt, the default shoot model only swaps the background (see F24).
+   wiped them; every shoot came back as copies of the body reference. *Fixed in #1067.* Separately, the default shoot
+   model copied the body reference's pose and clothes and only swapped the background. *Fixed in #1072 (F24).*
 4. **The "Safe for work" showcase serves a post rated Suggestive that reads as explicit** (lingerie, visible fluids) to
-   every signed-in person. 23 live posts carry that rating. The rating line needs tightening and a re-check.
+   every signed-in person. 23 live posts carry that rating. *The line is tightened and reel shots can no longer be
+   moved to the safe side by the check (#1072); the re-check of the 23 is one command, yours (Still open).*
 5. **Explicit moment pictures at stage 4 fall apart** (one character drawn twice, the other missing) while the PG and
    undressing pictures are excellent. Hive passes them because everyone is an adult; nobody checks composition.
 6. **A movie made from the theater stalls.** Its shots are collected only while the 🎞 Videos list is on screen, and
    "Make the movie" puts the user back in the theater; Replicate drops uncollected shots after 30 minutes, with the
-   7 tokens. Tonight's six shots sat finished for 20 minutes. *Fixed in #1070* for an open page; collection without
-   one is still open (F42).
+   7 tokens. Tonight's six shots sat finished for 20 minutes. *Fixed in #1070* for an open page and *in #1072* for a
+   closed one: the host now collects by itself (F42).
 
-Everything else is polish, listed below with severity. Nine of the smaller ones are already fixed in #1067, two more
-in #1070.
+Everything else is polish, listed below with severity. Nine of the smaller ones are fixed in #1067, two in #1070 and
+eight more in #1072 (see *Round two*). What is left for David is money, a production write, or needs a second
+subscriber or a real phone.
 
 ## Outage (critical)
 
@@ -276,6 +278,76 @@ Product notes
   theater's ⋯ menu sits under it and a real click on it never lands (Playwright waited on every HUD button until the
   replay's Exit was pressed). People only see the top layer; nothing to fix.
 
+## Round two: the fixes that were code, and the rest of the features (10:00–11:40 UTC)
+
+The first report handed several things back as "David's calls". This round fixed everything that was code and tested
+everything that was left untested and testable from here.
+
+**Fixed in #1072 (merged 10:43 UTC, live on both apps at 10:49):**
+
+- **F42, the server half.** After Dark's host asks after every video still being made once a minute
+  (`lib/adult/reel-collector.ts`, started from `instrumentation.ts` on After Dark's deployment only, unit-tested). A
+  movie no longer needs an open page, and Replicate's 30-minute cancel can't reach a finished shot first.
+- **F30.** The PG question now names what counts as SEXUAL (fluids, arousal, a toy, a hand or mouth at someone's parts,
+  even clothed) and says NUDITY and SEXUAL beat REVEALING; a clip is checked by five frames instead of three; a reel's
+  shot is never moved to the safe side by the automatic check; and the job takes `?recheck=1` to look at the safe side
+  again, twelve posts a batch (`showcase_posts.rechecked_at`), sending what fails back to After Dark. Tested on the same
+  world as the check's own test. The recheck rewrites live posts, so running it is David's (one command, under *Still
+  open*).
+- **F17.** A picture gets the ethnicity tile's own words ("Black, with deep brown skin and African features") instead of
+  its label. **Verified live after the deploy: a new Draw 3 for Teo on the default face model (Lustify) gave three Black
+  men, 3/3** (it was 0/3 at 02:00; the show's tell-apart tags still read "the Latina woman", with a test).
+- **F24.** On the edit model, a shoot with a pose, an act, clothes or the owner's own words picked leaves the body
+  reference out, so the picks can happen; the body stays in the words and the face in Picture 1 and the identity view.
+  **Verified live after the deploy: a shoot for Vesper with Lying back + Evening picked came back 4/4 lying back on a bed in a satin evening dress, the same face and hair** (before, every shoot was the body reference with a new background).
+- **F39.** Autoplay means play: ticking it starts playback, pausing by hand switches it off. Verified live: with the player paused, ticking Autoplay flipped it to playing; pressing pause by hand switched Autoplay off.
+- **F40.** A storyboard planned in the last twelve hours is handed back on reopen instead of re-planned (`again: true`
+  re-plans). Verified live by API: planning the storyboard of the saved chapter twice returned the same draft id.
+- **F41.** Start over is enabled as soon as a chapter is filed, so Two sides is reachable right after a chapter close.
+  Code-reviewed and covered by the sides tests; a chapter close takes 120 lines, so it wasn't re-run live.
+- **F44.** The two sides' header shows each character's portrait (verified live: both portraits come back from the sides
+  API). The first cut read a `characters.portrait_asset_id` column that doesn't exist and 500'd; the sides tests caught
+  it before merge, and the portraits now come from `lib/assets.ts` like everywhere else.
+
+**Tested in this round, all working (Vesper's Studio, the pair page, the hub, by hand and by API):**
+
+- Studio, per picture: ⭐ favorite (POST 200) (stored: `media_favorites` has the row; the filter's count only catches up on the next refresh, F45), 🏷 Tags (place, how far, who, POV, "use on dates"), 👎 Not right,
+  2× Upscale (free, 17 s), "4 more like this one" (39 s, four new), Animate (a 5 s clip, "it takes a few minutes": ready
+  in 2 min), 🩹 Fix faces (13 s), 👕 SFW twin (15 s), 🎠 Carousel (six angles, 62 s), ✍️ Captions (3 s: three captions
+  in Vesper's voice, hashtags and a "safe for anywhere" one; "Found this one guarding a thermos of chowder. The
+  lighthouse was nice too."), ⬇ Download. Toolbar: 🃏 Rate deck (35 to go, swipe right/left/up), Pick to export →
+  Export (sizes, JPG/PNG, captions.txt, contact sheet, AI badge) → "Pack 2 files" → a 185 KB zip from
+  media.botchelor.com with two JPGs and about.txt. Identity tab: Restyle (hair to blonde: "Restyled: pick one" in 28 s),
+  Older-looking faces (28 s).
+- ✨ Create: an own venue, prompt and roleplay saved and counted (the kind is the Venues/Prompts/Roleplays buttons; the
+  radios are the safe/After Dark scope, which reads as the kind at first glance: a label nit).
+- The discreet PIN: Set a PIN → "PIN on"; a device without the unlock cookie (`bz_ad_unlock`) is redirected (307) before
+  anything opens; Turn off needs the current PIN → "PIN off". The device that set it is unlocked for 12 hours, so it
+  never sees the gate itself, which is right but surprised me.
+- A second, non-admin account (`nightaudit2`): registration needs the 18+ attestation (422 without it), /after-dark lands
+  on the subscribe gate ("a month; tokens pay for the extras"), and a Studio call answers 404, not a hint that the
+  feature exists. Email: opt-in with an address → "Confirm your email for Botchelor" arrived in 1 s → the link → status
+  "on". Stripe: `POST /api/checkout {sku: pack_5}` → a Payment Link → a live Stripe Checkout page (200), no purchase.
+- The show: prompts search ("painting": 479 matches; "ferry": none, honestly), /leagues/[id] ("Friends' league"),
+  the MCP write path (a fresh agent's `initialize` → `create_character` with three traits and a want → a character,
+  id 4ed39099-b912-4d5b-800e-eeee0f68b549, "Audit Harbor"; the error for a missing field names every argument, which
+  is the best error text in the product), and the mixers: a group night ran at 08:41 UTC today, five this week, so the
+  cron is alive.
+- Shorts and Call it: a 30-line house night (Rafe × Juniper, the Quick DeepSeek writer, about 10 s a step) filed with Start over; the 📺 Shorts panel (under the Two sides tab, house pairs only, admin): title and cover → "Publish as a Short" (201, "📺 Published · 0 watched") → the Short's page (its title, "🎬 Watch in theater") → the theater replays the night over Rafe's place with its lines. Call it shows only to a subscriber who hasn't pressed play, never to the night's writer, so it was exercised by API: a bad body gets a field-by-field 422, and the writer's own call gets 403 "You wrote this night: you already know how it goes." Both right.
+
+**Still not testable from here:** the Shared-with-you consent flow (two subscribed owners), a subscriber's 402 when
+out of tokens (an admin is uncapped and buying tokens is a real purchase; unit-tested), own-key After Dark (a key that
+spends), Google sign-in and push (headless), and jurisdiction text_only/blocked live: the direct DigitalOcean hostname
+redirects to the canonical host (right), Cloudflare sets the country, and `jurisdiction.test.ts` covers the rules.
+
+**Not a bug, but a trap for automation (again):** After Dark hides its sides and Short pages from anything whose user
+agent reads as a bot (`detectBot`), and a restarted headless browser falls back to the stock HeadlessChrome agent. For
+twenty minutes every `sides` request from the page was a 404 while the same URL with the same cookies answered 200 from
+curl. Right behaviour; worth knowing before the next audit.
+
+**New findings:** **F45** (low) the ⭐ Favorites filter count doesn't update when a picture is favorited until the next refresh (the favorite itself is stored). **F46** (medium) the media route serves a Studio picture as its full PNG: the three new
+faces were 3.3, 2.5 and 3.1 MB each (F15's weight problem again, now measured on the route).
+
 ## Coverage
 
 Tested tonight, end to end, as a new admin account in a real browser (desktop 1280 px and phone 375 px): the 18+ gate,
@@ -355,14 +427,22 @@ the fix for the outages above, verified live (first ask 1.1–1.5 s, second 0.1 
 And in #1070: a video being made is collected from the pair's page while it is open, whatever is showing (F42), and the
 Two sides panel lists a night as soon as Start over files it (F43).
 
+And in #1072 (merged 10:43 UTC): the host collects videos by itself (F42, done), the safe side's line and recheck
+(F30), the ethnicity words (F17, verified 3/3), pose and wardrobe shoots on the edit model (F24), Autoplay plays (F39),
+storyboards survive a reopen (F40), Start over after a filed chapter (F41), portraits on the two sides (F44). See
+*Round two*.
+
 ## Still open for David (decisions or money)
 
-- F42's other half: collecting a movie's shots without an open page (a server-side pass over `making` reels, or a job),
-  before Replicate's 30-minute cancel; and what happens to the tokens of a shot Replicate dropped.
-- F17 default face model → Qwen Image 3 (settings page; cost per face on Venice to compare).
-- F24 which model handles pose/wardrobe shoots.
-- F30 re-rating the 23 suggestive posts (a script can re-run the VLM; the line itself is a product call).
+- **Run the safe-side recheck** (a prod write, so yours): `curl -H "Authorization: Bearer $CRON_SECRET"
+  "https://ad.botchelor.com/api/jobs/showcase-check?recheck=1"` until `left` is 0 (twelve posts a call). It sends the
+  two explicit reels back to After Dark without a look and re-checks the other 21 with the stricter question.
 - Outage follow-ups: alerting that reaches a phone, a Cloudflare cache rule for `/api/assets/*` (the thumbs are
   `public, immutable` already; the edge just needs telling), a second replica ($12/month), and the DO health-check
-  question. Until #1068 is live, nobody should open /graph in a browser.
-- A faststart backfill for the ~200 existing clips (a bucket rewrite, from #1036's notes).
+  question.
+- A faststart backfill for the ~200 existing clips (a bucket rewrite, from #1036's notes), and F46's picture weight
+  (serve Studio pictures as JPG or WebP at the route, as the thumbs now are).
+- Test data to keep or remove: the accounts `nightaudit` (admin) and `nightaudit2`, Vesper and Teo and their nights,
+  pictures and the movie, the house night Rafe × Juniper of this round, and the agent-made character "Audit Harbor".
+- Not fixable from here: Google sign-in and push need a real device; the Shared-with-you consent flow needs a second
+  subscriber.
