@@ -7804,8 +7804,12 @@ export function dropSentNotes(key: string, data: Record<string, unknown>): Recor
         }
         if (seen!.size < 2000) seen!.add(id);
         out[k] = v;
-      } else if (depth === 0 && k === "step" && v && typeof v === "object" && !Array.isArray(v)) {
+      } else if (depth === 0 && (k === "step" || k === "cost") && v && typeof v === "object" && !Array.isArray(v)) {
         out[k] = sift(v as Record<string, unknown>, `${k}.`, 1);
+      } else if (path === "cost." && k === "left" && v && typeof v === "object" && !Array.isArray(v)) {
+        // #1077 (the 2026-10-31-0610 run: "notes, next_calls and the cost block repeat"): the cost block's own notes
+        // (using_note, left.note) are the same on every booking, so they're left out once sent too.
+        out[k] = sift(v as Record<string, unknown>, `${path}${k}.`, 2);
       } else out[k] = v;
     }
     return out;
