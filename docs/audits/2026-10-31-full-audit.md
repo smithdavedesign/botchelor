@@ -187,7 +187,10 @@ High
   `90d0b883-2b2c-482f-93e1-caf446bcc7e1` and `b32c5cf7-8037-4f08-91ef-32aee64081cf` (published 2026-10-29 20:42):
   lingerie in a lift, then a sex act against the wall with fluids on her face, 10 s each, rated *suggestive* and live
   on the safe side for every signed-in person. Three other suggestive clips sampled at random were genuinely mild, so
-  this is specific posts slipping through, most likely a reel rated by its mildest shot rather than its strongest.
+  this is specific posts slipping through. Both were published in one batch at 20:42:03–04 alongside two nsfw and
+  one pg reel of the same pair, so the publish-time tag (or the hourly three-frame PG check, lib/showcase-check.ts)
+  called a lift sex act "suggestive": the VLM's line between suggestive and explicit is the weak link, not the
+  sampling.
   **David: the showcase's admin side has "🌙 to After Dark" on each post; the session's permission rules stopped me
   using it, so those two need your click.** Then: rate a reel by the strongest shot, tighten "suggestive" (no fluids,
   no act in progress), and re-check the other 21.
