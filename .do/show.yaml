@@ -65,7 +65,7 @@ services:
         value: "1"
         scope: RUN_AND_BUILD_TIME
       - key: FRONTIER_LLM_BASE_URL
-        value: "https://ai-gateway.vercel.sh/v1"
+        value: "https://openrouter.ai/api/v1"  # OPENROUTER_SHOW_KEY, $50 cap (2026-10-31; was Vercel AI Gateway)
         scope: RUN_AND_BUILD_TIME
       - key: FRONTIER_LLM_MODEL
         value: "anthropic/claude-haiku-5.5"
