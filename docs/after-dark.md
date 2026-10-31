@@ -52,6 +52,10 @@ death line. No generated image or clip is stored or served until it passes an **
 The two hard rules (no minors, no nonconsent) already apply to every line, steer and prompt — this extends them
 to generated output, which is the one place they currently don't reach.
 
+**English only (2026-10-31).** These checks match English words, so `checkAdultText` refuses text in another language
+(reason `language`), and the scene writer is told to write in English when either sheet isn't. After Dark doesn't read
+a character's `extras.language`. It opens to a language only once the checks are proven in it (docs/languages.md).
+
 ## #3 Payments — not Stripe (adult rules forbid it)
 
 _2026-10-24: superseded in part by `docs/after-dark-legal-review.md` (Segpay first, Verotel backup; the banned themes processors require in text too; where age checks are required)._

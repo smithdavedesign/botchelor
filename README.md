@@ -2,6 +2,16 @@
 
 ## Screenshots
 
+Characters can speak another language (2026-10-31, live). "Speaks" on /create's Dating profile step (or
+`extras.language` over MCP) puts a character's dates and texts in that language; unset, it's the language their sheet
+is written in, else English. The content filter and the critics read every line through an English translation the
+actor writes alongside it, and anything typed in another language is translated before it's checked; text that can't be
+read is refused with a try-again. After Dark stays English-only. /admin/analytics → Product → Languages counts which
+languages people and agents write in. Design and the Spanish sim: [docs/languages.md](docs/languages.md).
+
+![The Dating profile step on desktop: The basics, with Speaks set to Spanish and "Their dates and texts are in this language. After Dark stays in English for now."](docs/screenshots/create-speaks-desktop.png)
+<img src="docs/screenshots/create-speaks-phone.png" width="240" alt="The same Speaks picker on a phone, set to Spanish">
+
 After Dark's invite-only beta (2026-10-31), proven on the live site with a test account. A signed-in person asks on
 `/after-dark/subscribe`. David gets an email with a link to Approve or Decline. Approving gives a 30-day beta pass
 (chapters and pictures free, video paid in tokens) and sends the welcome email. Code:
@@ -468,7 +478,7 @@ The **live** room in theater mode keeps the scene clean — the noise lives in s
 The builder is a stepped wizard at `/create` (Identity → Voice → Look → Details → Soul & autonomy → Review) with a live avatar preview and per-step validation — your character is its own AI agent. An optional **private soul** (values, humour, communication style) shapes how the AI behaves on the date without ever being shown to the audience, and a signed-in creator with their own OpenAI key can generate a **Pro** portrait from the sheet.
 
 ![The optional Details step: occupation, hometown, hobbies, quirks and profile prompts, with dice for ideas, desktop](docs/screenshots/builder-details-desktop.png)
-**Details (all optional):** the dating-profile layer — occupation, hometown, star sign, love language, style and a signature item, hobbies, a go-to order and walk-on music, quirks (catchphrase, hidden talent, pet peeve, guilty pleasure), what a good first date looks like, green and red flags, and up to three Hinge-style profile prompts. 🎲 draws an idea into any field; "Surprise me" fills only the blanks. They show on the contestant card and reach each character's own prompt on a date (the other side only sees the look, style and signature item), so dates get specific — but the engine never reads them, so no detail changes how a date ends.
+**Details (all optional):** the dating-profile layer — occupation, hometown, star sign, love language, the language they speak (docs/languages.md), style and a signature item, hobbies, a go-to order and walk-on music, quirks (catchphrase, hidden talent, pet peeve, guilty pleasure), what a good first date looks like, green and red flags, and up to three Hinge-style profile prompts. 🎲 draws an idea into any field; "Surprise me" fills only the blanks. They show on the contestant card and reach each character's own prompt on a date (the other side only sees the look, style and signature item), so dates get specific — but the engine never reads them, so no detail changes how a date ends.
 
 **Edit everything, keep the memories:** the owner's card has an **Edit** button that opens the same wizard at `/characters/<id>/edit`, prefilled with every field — the secret dealbreaker and private soul included — and every step open, with "Save changes" on each. What the character has learned from its dates (`character_memory`) and past episodes are never touched; edits shape the dates to come. Clearing the soul's words keeps any instincts trained from an image.
 

@@ -2,19 +2,24 @@
 
 David, 2026-10-31: count which languages people and agents write in before building for them, and let a character
 speak another language on the safe side, with After Dark English-only until its checks are proven in other languages.
+Shipped in #1088 (counting), #1090 (the language field and the checks) and #1092 (the detector's fix and After Dark's
+English line), live 2026-10-31.
 
 ## Counting (lib/language-seen.ts)
 
 What people type on the site (a /create sheet, a hint for their character's next text) and the prose arguments of every
 MCP tool call go through `lib/language.ts detectLanguage`, with no model and no dependency: the writing system first
 (kana is Japanese, Hangul Korean, Cyrillic Russian or Ukrainian…), then, for the Latin alphabet, which language's
-everyday words and letters the text uses most. Short or mixed text says nothing. Each one is a count in `language_seen`
+everyday words the text uses most. A language's special letters (ñ, ß, ã…) add to its score only when its everyday
+words are there too, so an English sentence that names Zdzisław Beksiński stays English (#1092). Short or mixed text
+says nothing. Each one is a count in `language_seen`
 (day, surface, language, who): never the words. /admin/analytics → Product → Languages shows the last 7 and 30 days,
 our own traffic left out (docs/analytics.md).
 
 ## A character's language (lib/character.ts speaks)
 
-`extras.language` (the "Speaks" picker on /create; `language` in the MCP character schema) is the language a character
+`extras.language` (the "Speaks" picker in The basics on /create's Dating profile step, the "🗣️ Speaks" row on a
+character's page; `language` in the MCP character schema, 21 languages in `lib/language.ts LANGUAGE_NAMES`) is the language a character
 speaks on dates and in texts. Unset, it's the language its sheet is written in (bio, want and dealbreaker), else
 English. The house cast and every English sheet are unchanged: nothing about language goes into their prompts.
 
@@ -45,8 +50,9 @@ English costs nothing extra, and so does short plain-ASCII text.
 
 ## After Dark stays English-only
 
-`checkAdultText` refuses text in another language (`language`), and the scene writer is told to write in English
-whatever language the sheets use. After Dark doesn't read `extras.language`. It opens to other languages only once
+`checkAdultText` refuses text in another language (`language`). When either sheet isn't English, the scene writer is
+told to write in English whatever language the sheets use (`lib/adult/scenes.ts sceneMessages`); an English pair's
+prompt is unchanged (#1092). After Dark doesn't read `extras.language`. It opens to other languages only once
 its checks (age, consent, the excluded themes) are proven in each one.
 
 ## What the sim said (2026-10-31)
@@ -69,3 +75,7 @@ circled word). Three couples is a small sample: the numbers say Spanish dates ho
 
 **Open:** stage directions come back in a mix of languages ("ajustarse la bufanda roja", then "adjusting headphones")
 although the prompt asks for English, and a repeated action in two languages isn't caught as a repeat.
+
+**Checked live (2026-10-31):** on botchelor.com/create the picker lists all 21 languages and keeps Spanish when picked,
+on desktop and on a phone (`docs/screenshots/create-speaks-desktop.png`, `create-speaks-phone.png`, at the top of the
+README).
