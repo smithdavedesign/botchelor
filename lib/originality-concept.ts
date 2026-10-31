@@ -398,7 +398,7 @@ export async function conceptLookalikes(
  * The originality check (lib/originality.ts) with twins by meaning weighed in when concept checks are on: what every
  * server caller runs (the route, MCP create_character and check_originality). Server-only, like this whole module.
  */
-export function originalityWithConcepts(db: Db, sheet: SheetDraft, excludeId: string | null = null): Promise<OriginalityReport> {
+export function originalityWithConcepts(db: Db, sheet: SheetDraft, excludeId: string | null = null, by: string | null = null): Promise<OriginalityReport> {
   const twins = conceptLookalikes(db, sheet, excludeId).then((list) => list.map((c): Lookalike => ({ id: c.id, name: c.name, kind: "concept", why: c.why })));
-  return originality(db, sheet, excludeId, twins);
+  return originality(db, sheet, excludeId, twins, by);
 }

@@ -341,26 +341,62 @@ const JOB_IDEAS = [
   "a hot-air balloon pilot", "a museum night guard", "a puppet repairer", "a seed librarian", "a court stenographer", "a glassblower",
   "a mountain-hut cook", "a canal lock keeper", "a weather balloon launcher", "a subtitle translator", "an organ builder", "a falconer",
   "a crossword setter", "a theatre prop maker", "a tide-table printer", "a skate sharpener", "a perfume tester",
+  // #1016: a bigger pool, so agents dealt different jobs rarely meet on the same one.
+  "a map engraver", "a violin varnisher", "a kite maker", "a clock-tower winder", "a sign painter", "a rope maker", "a mushroom forager",
+  "a stained-glass mender", "a radio-play foley artist", "a lift inspector", "a tea blender", "a fountain pen repairer", "a ski patroller",
+  "a cooper", "a botanical illustrator", "a snow-plough driver", "a hat blocker", "a lido lifeguard", "a bookbinder", "a ship-in-a-bottle maker",
+  "a vineyard frost watcher", "a model railway builder", "a taxidermy restorer", "an archive mould specialist",
 ];
 
 /** Spare first names, for "pick a different name" (none of them is offered if the show already has it). */
 const NAME_IDEAS = ["Wren", "Tamsin", "Ottoline", "Bastien", "Leocadia", "Hollis", "Ysolde", "Casimir", "Peregrine", "Delphine", "Ambrose", "Sabine", "Lucan", "Mireille", "Thaddeus", "Ingrid"];
 
-/** Jobs to offer instead (a spread of them, rotated by the sheet's name): none shares a word with what these others do or say. */
-export function freshJobs(sheet: SheetDraft, others: SheetDraft[], n = 3): string[] {
-  const seed = [...(sheet.name ?? "x")].reduce((k, ch) => k + ch.charCodeAt(0), 0);
-  const used = new Set(others.flatMap((r) => [...workWords(r), ...bioWords(r)]));
-  return JOB_IDEAS.map((_, i) => JOB_IDEAS[(seed + i) % JOB_IDEAS.length]).filter((j) => !contentWords(j, 4).some((w) => used.has(w) || used.has(stem(w)))).slice(0, n);
+/** How long one caller keeps the same job suggestions (#1016): long enough for check_only then create, short enough to move on. */
+export const JOB_DEAL_MINUTES = 15;
+
+/** A seeded shuffle of `xs` (FNV-1a for the seed, then mulberry32): the same key always deals the same order. Pure. */
+function dealt<T>(xs: T[], key: string): T[] {
+  let h = 0x811c9dc5;
+  for (const ch of key) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193);
+  const next = () => {
+    h = (h + 0x6d2b79f5) | 0;
+    let t = Math.imul(h ^ (h >>> 15), 1 | h);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [...xs];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
+/**
+ * Jobs to offer instead: none shares a word with what these others do or say. #1016 (the 2026-10-30-1924 run: two agents
+ * on one model got the same "a lock restorer", and the second save was a twin): the order is dealt per caller (`by`, the
+ * agent or account; the sheet's name without one) and per JOB_DEAL_MINUTES window, so two agents rarely get the same
+ * list, and one agent keeps its list between check_only and create. Pure, given `now`.
+ */
+export function freshJobs(sheet: SheetDraft, others: SheetDraft[], n = 3, by: string | null = null, now = Date.now()): string[] {
+  const window = Math.floor(now / (JOB_DEAL_MINUTES * 60_000));
+  const used = new Set(others.flatMap((r) => [...workWords(r), ...bioWords(r)]));
+  return dealt(JOB_IDEAS, `${by ?? ""}|${(sheet.name ?? "x").trim().toLowerCase()}|${window}`)
+    .filter((j) => !contentWords(j, 4).some((w) => used.has(w) || used.has(stem(w))))
+    .slice(0, n);
+}
+
+/** Every character's job alone (no bio), to keep suggestions off jobs the show already has (#1016). */
+const jobsOnly = (rows: SheetDraft[]): SheetDraft[] => rows.map((r) => ({ extras: { occupation: r.extras?.occupation ?? "" } }));
+
 /** #852: jobs no character on the show has yet (by occupation), for a check that found look-alikes but no recent twin. */
-export async function unusedJobs(db: Db, sheet: SheetDraft, n = 3): Promise<string[]> {
+export async function unusedJobs(db: Db, sheet: SheetDraft, n = 3, by: string | null = null): Promise<string[]> {
   const { rows } = await db.query<{ occupation: string | null }>(`select extras->>'occupation' as occupation from characters where coalesce(extras->>'occupation', '') <> ''`);
-  return freshJobs(sheet, rows.map((r) => ({ extras: { occupation: r.occupation ?? "" } })), n);
+  return freshJobs(sheet, rows.map((r) => ({ extras: { occupation: r.occupation ?? "" } })), n, by);
 }
 
 /** The concrete suggestion: free names (keeping nothing that's close to the twin's) and jobs nobody recent has. */
-async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], recent: Compared[]): Promise<RenameSuggestion> {
+async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], recent: Compared[], rows: Compared[], by: string | null): Promise<RenameSuggestion> {
   const seed = [...(sheet.name ?? "x")].reduce((n, ch) => n + ch.charCodeAt(0), 0);
   const rotate = <T,>(xs: T[]) => xs.map((_, i) => xs[(seed + i) % xs.length]);
   const surnameOf = surname(sheet.name);
@@ -373,7 +409,7 @@ async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], re
     ? new Set((await db.query<{ name: string }>(`select lower(trim(name)) as name from characters where lower(trim(name)) = any($1)`, [candidates.map((n) => n.toLowerCase())])).rows.map((r) => r.name))
     : new Set<string>();
   const names = candidates.filter((n) => !taken.has(n.toLowerCase())).slice(0, 3);
-  const jobs = freshJobs(sheet, [...recent, ...twins]);
+  const jobs = freshJobs(sheet, [...recent, ...twins, ...jobsOnly(rows)], 3, by);
   const who = twins.map((t) => t.name).join(", ");
   return {
     names,
@@ -493,15 +529,16 @@ export type RecentTwin = { id: string; name: string; why: string; shared: string
  * Agent-made characters made in the last `hours` that read like `sheet` (concept twins, not just a shared first name),
  * closest first; `archetype` is the concept the most of them share with it, and `sharing` how many do (2.9.0, #655: one is
  * enough, as the sheet makes two: the morning's two lighthouse characters never heard the idea named). `jobs`: lines of work
- * none of them (nor anyone recent) has. Public sheets only, as every look-alike check.
+ * none of them (nor anyone recent, nor any public character's job) has, dealt for `by` (#1016). Public sheets only, as every look-alike check.
  */
 export async function recentAgentTwins(
   db: Db,
   sheet: SheetDraft,
   excludeId: string | null = null,
   hours = TWIN_WARN_HOURS,
+  by: string | null = null,
 ): Promise<{ twins: RecentTwin[]; archetype: string | null; sharing: number; jobs: string[] }> {
-  const { all, recent } = await lookalikesWithRecent(db, sheet, excludeId, 3);
+  const { all, recent, rows } = await lookalikesWithRecent(db, sheet, excludeId, 3);
   const since = Date.now() - hours * 3_600_000;
   const twins = all
     .filter((x) => x.kind === "concept" && x.row.agent && Date.parse(x.row.made_at) >= since)
@@ -511,7 +548,7 @@ export async function recentAgentTwins(
   for (const t of twins) for (const term of new Set(t.shared)) counts.set(term, (counts.get(term) ?? 0) + 1);
   const best = [...counts].sort((x, y) => y[1] - x[1] || y[0].split(" ").length - x[0].split(" ").length || y[0].length - x[0].length)[0];
   const archetype = best && best[1] >= 1 ? best[0] : null;
-  return { twins, archetype, sharing: archetype ? best[1] : 0, jobs: twins.length ? freshJobs(sheet, [...recent, ...all.map((x) => x.row)]) : [] };
+  return { twins, archetype, sharing: archetype ? best[1] : 0, jobs: twins.length ? freshJobs(sheet, [...recent, ...all.map((x) => x.row), ...jobsOnly(rows)], 3, by) : [] };
 }
 
 const words = (s: string | undefined) => (s ?? "").trim().split(/\s+/).filter(Boolean).length;
@@ -577,6 +614,7 @@ export async function originality(
   sheet: SheetDraft,
   excludeId: string | null = null,
   also: Lookalike[] | Promise<Lookalike[]> = [],
+  by: string | null = null,
 ): Promise<OriginalityReport> {
   const [words, more] = await Promise.all([lookalikesWithRecent(db, sheet, excludeId, 3), Promise.resolve(also).catch(() => [])]);
   const { recent, rows } = words;
@@ -584,6 +622,6 @@ export async function originality(
   const report = scoreSheet(sheet, findCliches(sheet), found);
   const close = found.filter((f) => f.name_and_job).flatMap((f) => rows.filter((r) => r.id === f.id));
   if (!close.length) return report;
-  const suggestion = await renameSuggestion(db, sheet, close, recent);
+  const suggestion = await renameSuggestion(db, sheet, close, recent, rows, by);
   return { ...report, suggestion, tips: [suggestion.text, ...report.tips.filter((t) => t !== suggestion.text)].slice(0, 5) };
 }

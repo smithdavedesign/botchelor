@@ -970,7 +970,7 @@ type RecentTwins = { twins: Record<string, unknown>[]; ids: string[]; archetype:
  * characters aren't other agents': they're left out.
  */
 async function recentTwinNotice(db: Db, sheet: SheetDraft, agentId: string | null, excludeId: string | null): Promise<RecentTwins | null> {
-  const found = await recentAgentTwins(db, sheet, excludeId).catch(() => null);
+  const found = await recentAgentTwins(db, sheet, excludeId, TWIN_WARN_HOURS, agentId).catch(() => null);
   if (!found?.twins.length) return null;
   const mine = agentId
     ? new Set((await db.query<{ id: string }>(`select id from characters where id = any($1) and owner_id = $2`, [found.twins.map((t) => t.id), agentId])).rows.map((r) => r.id))
@@ -1003,7 +1003,7 @@ const lookAlikeFields = (n: RecentTwins): Record<string, unknown> => ({
   ...(n.jobs.length ? { try_instead: n.jobs } : {}),
   look_alikes_note:
     "look_alikes: other agents' characters made in the last day that read like this one (run_by and agent_active say whether their agent is on now: they're in the same decks). " +
-    "shared_archetype: the idea several share. try_instead: jobs nobody recent has.",
+    "shared_archetype: the idea several share. try_instead: jobs nobody recent has, dealt to you (other agents get other ones), but the show changes fast: run check_only on the one you pick.",
 });
 
 /**
@@ -5308,7 +5308,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         // first name included, comes with names whose first name nobody has, and jobs nobody does when no recent twin gave some.
         const flagged = similar.length > 0 || recentTwins !== null;
         const tryNames = flagged && wanted && !twin ? await freeNames() : [];
-        const tryJobs = flagged && !recentTwins?.jobs.length ? await unusedJobs(db, draft).catch(() => []) : [];
+        const tryJobs = flagged && !recentTwins?.jobs.length ? await unusedJobs(db, draft, 3, who?.id ?? null).catch(() => []) : [];
         const twinText = await twinWarningText(similar, recentTwins, false, { db, agentId: who?.id ?? null });
         const nameText = similar.some((x) => x.kind === "name") && !twinText ? `Nothing is saved yet. ${similar.find((x) => x.kind === "name")!.why}` : twinText;
         const checkWarning = nameText
@@ -5323,7 +5323,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             ...(recentTwins ? lookAlikeFields(recentTwins) : {}),
             ...(tryNames.length ? { try_names: tryNames } : {}),
             ...(tryJobs.length ? { try_instead: tryJobs } : {}),
-            ...(tryNames.length || tryJobs.length ? { try_note: "try_names: names whose first name nobody on the show has. try_instead: jobs nobody has yet. Either keeps it apart from its look-alikes." } : {}),
+            ...(tryNames.length || tryJobs.length ? { try_note: "try_names: names whose first name nobody on the show has. try_instead: jobs nobody has yet, dealt to you (other agents get other ones). Either keeps it apart from its look-alikes; the show changes fast, so run check_only again on your pick." } : {}),
             originality: r.data,
             originality_note: "The same check the save runs, against the show as it is right now: another agent can add a look-alike before you create.",
             ...(twin ? { name_taken: { id: twin.id, name: twin.name, free_names: await freeNames(), note: "That name is taken: pick another (free_names are open), or pass keep_name: true." } } : {}),
@@ -5357,6 +5357,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         db,
         { name: String(sheet.name ?? ""), bio: String(sheet.bio ?? ""), traits: (sheet.traits as string[]) ?? [], want: String(sheet.want ?? ""), dealbreaker: String(sheet.dealbreaker ?? ""), voice: (sheet.voice as string) ?? null, extras: (sheet.extras as CharacterExtras) ?? null },
         String(sheet.id),
+        who.id,
       );
       const warnings = pronounWarnings({ pronouns: sheet.pronouns as string | null, voice: sheet.voice as string | null, bio: sheet.bio as string | null, extras: sheet.extras as CharacterExtras | null });
       // #265: a near-twin on the show leads the reply (it used to sit in the originality block, easy to miss). 2.6.0 (the
