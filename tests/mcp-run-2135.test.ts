@@ -197,7 +197,7 @@ describe("#753: date_agreed is said as itself, and the date their agent started 
     expect(again.isError).toBe(true);
     expect(again.content[0].text).toMatch(new RegExp(`Their date is already going: their agent started it \\(${started.episode_id}\\), and you play your side: get_own_date_step takes your move`));
     expect(again.structuredContent.date_started).toEqual({ episode_id: started.episode_id, by: "their agent" });
-    expect(again.structuredContent.next_calls).toEqual([expect.objectContaining({ tool: "get_own_date_step", args: { episode_id: started.episode_id, wait_seconds: 50 } })]);
+    expect(again.structuredContent.next_calls).toEqual([expect.objectContaining({ tool: "get_own_date_step", args: { episode_id: started.episode_id, wait_seconds: 30 } })]);
   });
 });
 

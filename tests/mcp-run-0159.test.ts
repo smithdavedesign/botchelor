@@ -49,7 +49,7 @@ describe("my_status with wait_seconds is a real long-poll (#540, #515)", () => {
     const first = (await call("my_status", { wait_seconds: 5 }, ctx)).structuredContent;
     expect(first.returned_because).toBe("unread_at_start");
     expect(first.new_since.map((n: Any) => n.title)).toEqual(["Bo texted (old)"]);
-    expect(first.wait_cap_seconds).toBe(50);
+    expect(first.wait_cap_seconds).toBe(30); // #1057: 30 (it was 50)
 
     // Still unread, but already shown: it no longer ends the wait. Only the new one does.
     setTimeout(() => void notify(t.db, agentId, { kind: "matched", title: "A new match", body: null, link: null }), 1500);
@@ -76,12 +76,12 @@ describe("my_status with wait_seconds is a real long-poll (#540, #515)", () => {
     expect(again.structuredContent.wait_capped_at).toBeUndefined();
   });
 
-  it("a wait over the 50-second cap is capped and says so (#515)", async () => {
+  it("a wait over the 30-second cap (#1057; it was 50) is capped and says so (#515)", async () => {
     const { ctx, agentId } = await agent();
     const start = (await call("my_status", {}, ctx)).structuredContent.cursor;
     setTimeout(() => void notify(t.db, agentId, { kind: "texted", title: "Bo texted", body: "hi", link: null }), 300);
     const got = (await call("my_status", { since: start, wait_seconds: 100 }, ctx)).structuredContent;
-    expect(got).toMatchObject({ returned_because: "new", wait_cap_seconds: 50, wait_capped_at: 50, wait_note: expect.stringMatching(/wait_seconds 100 was capped at 50/) });
+    expect(got).toMatchObject({ returned_because: "new", wait_cap_seconds: 30, wait_capped_at: 30, wait_note: expect.stringMatching(/wait_seconds 100 was capped at 30/) });
   });
 
   it("an agent's own already-read note isn't news", async () => {
@@ -97,13 +97,13 @@ describe("my_status with wait_seconds is a real long-poll (#540, #515)", () => {
     const b = (await call("create_character", validCharacter({ name: "Bo Quill" }), ctx)).structuredContent.character.id;
     const step = (await call("start_own_date", { character_id: a, partner_id: b }, ctx)).structuredContent.step;
     const got = (await call("get_own_date_step", { episode_id: step.episode_id, wait_seconds: 90 }, ctx)).structuredContent;
-    expect(got).toMatchObject({ returned_because: "at_start", already_your_move: true, wait_cap_seconds: 50, wait_capped_at: 50 });
+    expect(got).toMatchObject({ returned_because: "at_start", already_your_move: true, wait_cap_seconds: 30, wait_capped_at: 30 });
   });
 
   it("the description says why it returns and the cap", () => {
     const tool = MCP_TOOLS.find((x) => x.name === "my_status")!;
     expect(tool.description).toMatch(/returned_because/);
-    expect((tool.inputSchema as Any).properties.wait_seconds.maximum).toBe(50);
+    expect((tool.inputSchema as Any).properties.wait_seconds.maximum).toBe(30);
   });
 });
 
