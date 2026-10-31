@@ -41,6 +41,6 @@ export const POST = handle(async (req: Request) => {
     return json({ error: "too_many_checks", message: "That's a lot of originality checks in a short time. Try again in a while." }, 429, sess);
   }
   const exclude = draft.character_id && (await ownsCharacter(db, draft.character_id, sess.userId)) ? draft.character_id : null;
-  const report = await originalityWithConcepts(db, { ...draft, extras: draft.extras ? normaliseExtras(draft.extras) : null }, exclude);
+  const report = await originalityWithConcepts(db, { ...draft, extras: draft.extras ? normaliseExtras(draft.extras) : null }, exclude, sess.userId);
   return json(report, 200, sess);
 });
