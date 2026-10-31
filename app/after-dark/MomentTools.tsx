@@ -108,7 +108,7 @@ export default function MomentTools({
               <video className="ad-moments-thumb" src={mediaUrl(done.media.id)} muted loop autoPlay playsInline aria-hidden />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img className="ad-moments-thumb" src={mediaUrl(done.media.id)} alt="" />
+              <img className="ad-moments-thumb" src={mediaUrl(done.media.id)} alt="The picture just made of this moment" />
             ))}
           {done.text}
         </p>
