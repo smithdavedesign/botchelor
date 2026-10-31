@@ -4,7 +4,7 @@ import MediaFilterBar from "../../MediaFilterBar";
 import { DEFAULT_FILTER, filterMedia, type MediaFilter } from "@/lib/media-filter";
 import PublishButton from "@/app/showcase/PublishButton";
 import SfwTwin from "../../SfwTwin";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
@@ -162,6 +162,21 @@ export default function SceneWriter({
     // Done, either way: the "it's being made" note would contradict the video below (a failure says why there).
     if (r.status !== "making") setReelNote((n) => (n && !n.error && !n.busy ? null : n));
   }, []);
+  // A video being made comes in only when asked after (GET ?id= collects its shots, lib/adult/reels.ts), and Replicate
+  // drops a shot nobody collected in half an hour. Asked from here while the page is open, whatever shows (the theater,
+  // another tab): until the 2026-10-31 audit only the 🎞 Videos list asked, so leaving it for the theater stalled the
+  // video (six finished shots sat 20 minutes; in 90 seconds once asked).
+  const making = reelList.filter((r) => r.status === "making").map((r) => r.id).join(",");
+  useEffect(() => {
+    if (!making) return;
+    const timer = setInterval(async () => {
+      for (const id of making.split(",")) {
+        const res = await fetch(`/api/admin/after-dark/reel?id=${encodeURIComponent(id)}`).then((r) => r.json()).catch(() => null);
+        if (res?.reel) putReel(res.reel as Reel);
+      }
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [making, putReel]);
   /** A video of one chapter (a saved one by `nightId`, else the one being written), or of the whole night (lib/adult/reels.ts). */
   /**
    * Every video goes through the storyboard (David, 2026-10-24): it opens at once, while the director picks the moments
@@ -615,7 +630,8 @@ export default function SceneWriter({
               )}
             </div>
           )}
-          {pageTab === "sides" && twoSides}
+          {/* Keyed on the nights: Start over files one, and the panel (loaded once, as it shows) lists it fresh. */}
+          {pageTab === "sides" && <Fragment key={nightList.length}>{twoSides}</Fragment>}
           {pageTab === "gallery" && (
         <div className="ad-media-tabs">
           <div className="ad-studio-tabs" role="tablist" aria-label="Their pictures, videos and nights">
