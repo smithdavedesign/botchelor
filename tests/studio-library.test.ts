@@ -41,6 +41,21 @@ describe("the checks", () => {
     }
   });
 
+  it("hold a safe roleplay to the show's rules (a date plays it) and After Dark's never-list (so does After Dark)", () => {
+    const ok = { title: "Rival food trucks", premise: "{a} and {b} run food trucks parked side by side, and tonight they call a truce.", roles: ["the taco truck owner", "the ramen truck owner"] as [string, string] };
+    expect(checkRoleplay(ok, "safe")).toBeNull();
+    // The show's check: PG, so a steamy one is After Dark's, and its never-list (nobody with a say over the other's job).
+    expect(checkRoleplay({ title: "Steamy", premise: "{a} and {b} spend a steamy night in bed together", roles: null }, "safe")).toMatch(/can't be saved: the show is PG/);
+    expect(checkRoleplay({ title: "The office", premise: "{a} is {b}'s boss at the firm", roles: null }, "safe")).toMatch(/can't be saved/);
+    // After Dark's never-list too: nobody paid, though the show's own list doesn't name it.
+    expect(checkRoleplay({ title: "Hired", premise: "{a} pays {b} to keep them company at a gala", roles: null }, "safe")).toMatch(/nobody paid, drunk or trapped/);
+    // What After Dark takes isn't automatically safe.
+    expect(checkRoleplay({ title: "Silk", premise: "{a} and {b} undress each other slowly by candlelight", roles: null })).toBeNull();
+    expect(checkRoleplay({ title: "Silk", premise: "{a} and {b} undress each other slowly by candlelight", roles: null }, "safe")).not.toBeNull();
+    // The PG Create tab still has ideas to start from.
+    expect(ROLEPLAY_IDEAS.filter((x) => checkRoleplay(x, "safe") === null).length).toBeGreaterThan(2);
+  });
+
   it("pass every idea the Create tab suggests, each against its own check", () => {
     for (const x of PROMPT_IDEAS.safe) expect(checkFor("safe", { text: x }, "prompt"), x).toBeNull();
     for (const x of PROMPT_IDEAS.after_dark) expect(checkFor("after_dark", { text: x }, "prompt"), x).toBeNull();
@@ -105,6 +120,21 @@ describe("the library's API", () => {
     // Theirs only: someone else can't delete it.
     expect((await lib({ action: "delete", kind: "prompt", id: got.library.prompts[0].id }, person().cookie)).status).toBe(404);
     expect((await lib({ action: "delete", kind: "prompt", id: got.library.prompts[0].id }, me.cookie)).status).toBe(200);
+  });
+
+  it("a safe roleplay is anyone's to keep (it plays on show dates), checked by the show's rules, once per title", async () => {
+    const me = person();
+    const truce = { action: "save_roleplay", title: "Rival food trucks", premise: "{a} and {b} run food trucks side by side, and tonight they call a truce.", roles: ["the taco truck owner", "the ramen truck owner"], mode: "safe" };
+    const saved = await lib(truce, me.cookie);
+    expect(saved.status).toBe(200);
+    expect((await saved.json()).item).toMatchObject({ title: "Rival food trucks", mode: "safe", roles: ["the taco truck owner", "the ramen truck owner"] });
+    expect((await lib({ ...truce, title: "rival food trucks" }, me.cookie)).status).toBe(409);
+    const steamy = await lib({ action: "save_roleplay", title: "Steamy", premise: "{a} and {b} spend a steamy night in bed together", mode: "safe" }, me.cookie);
+    expect(steamy.status).toBe(422);
+    expect((await steamy.json()).message).toMatch(/the show is PG/);
+    // Without a mode it's After Dark's, as After Dark's Studio has always sent: still After Dark members only.
+    expect((await lib({ action: "save_roleplay", title: "Rivals", premise: "{a} and {b} compete" }, me.cookie)).status).toBe(403);
+    expect(await (await libGet(me.cookie)).json()).toMatchObject({ after_dark: false, library: { roleplays: [{ title: "Rival food trucks", mode: "safe" }] } });
   });
 });
 

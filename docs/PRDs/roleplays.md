@@ -24,6 +24,16 @@ A roleplay someone writes is checked like everything the show airs (`checkShowTe
 innuendo, no real people), plus a never-list (`DATE_ROLEPLAY_NEVER`): no family or step-family, no school, teacher or
 babysitter, no boss or intern, and nobody drunk, asleep, trapped or kept from saying no.
 
+**Your own, kept (PR 2).** A signed-in owner can keep the roleplays they write in their Create library
+(`creator_roleplays`, lib/studio/library.ts) with `mode: "safe"`:
+- from the picker ("Keep it in your library"), or from the Create tab in either Studio;
+- a safe one passes the show's check above, plus After Dark's never-list (nobody paid), because a safe one plays in
+  After Dark too;
+- the picker lists them under **✨ Yours**. Picking one sends it as written terms, checked again like any other.
+
+After Dark's own roleplays (`mode: "after_dark"`, the default when no mode is sent, as its Studio always saved them)
+never reach the show.
+
 ## Who has to agree
 
 | The other character | Agreed |
@@ -85,8 +95,8 @@ Blocks always win. Nobody can be sent proposals out of the blue: only pairs who 
 
 - **Surprise me**: the show picks a roleplay that fits the pair (their traits, what they've done before, their stage).
   It could also suggest one in the morning-after texts.
-- **Roleplays in the Create library**: the same `creator_roleplays` that After Dark uses, with a `mode` (safe or
-  after_dark), so an owner's own roleplays sit in the picker as "✨ Yours". This is PR 2.
+- **Your venues on show dates**: a safe venue from the Create library as the date's place, its description going to the
+  writer as tonight's situation (a booking's `place` takes words today; the picker could offer ✨ Yours there too).
 - **A murder-mystery double date**: four characters, one roleplay, and the group dates' table memory.
 - **House × house showcase roleplays** for the Watch feed, and a "roleplay night" in the monthly season.
 - **Roleplay badges in the feed and on character pages** ("played 3 roleplays: spies twice"). Possibly a roleplay

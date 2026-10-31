@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 import { SCENE_CATEGORIES } from "@/lib/adult/scene-catalog";
 import {
+  checkRoleplay,
   PLACE_DESCRIPTION_MAX,
   PLACE_NAME_MAX,
   PROMPT_MAX,
@@ -22,9 +23,9 @@ type Section = "prompts" | "places" | "roleplays";
 
 /**
  * The Create tab (lib/studio/library.ts): the viewer's own prompts, venues and roleplays, in either Studio. `scope`:
- * the PG Studio's is `safe` (safe prompts and venues only, no roleplays: those are After Dark's); After Dark's Studio is
- * `after_dark` (all three, and a prompt or venue can be safe, usable everywhere, or After Dark only). Each list has its
- * form and a row of ideas to start from.
+ * the PG Studio's is `safe` (safe ones only; a safe roleplay plays on show dates); After Dark's Studio is `after_dark`
+ * (each can be safe, usable everywhere, or After Dark only; its roleplays start on After Dark only, as they always
+ * have). Each list has its form and a row of ideas to start from.
  */
 export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode; onLibrary?: (lib: Library) => void }) {
   const [lib, setLib] = useState<Library | null>(null);
@@ -36,6 +37,7 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
   const [prompt, setPrompt] = useState({ text: "", title: "" });
   const [place, setPlace] = useState({ name: "", description: "" });
   const [rp, setRp] = useState<{ title: string; premise: string; roleA: string; roleB: string; category: string }>({ title: "", premise: "", roleA: "", roleB: "", category: "romance" });
+  const [rpMode, setRpMode] = useState<LibraryMode>("after_dark");
   const ad = scope === "after_dark" && afterDark;
 
   useEffect(() => {
@@ -74,26 +76,31 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
   const sections: [Section, string][] = [
     ["places", `📍 Venues (${lib.places.length})`],
     ["prompts", `✍️ Prompts (${lib.prompts.length})`],
-    ...(ad ? ([["roleplays", `🎭 Roleplays (${lib.roleplays.length})`]] as [Section, string][]) : []),
+    ["roleplays", `🎭 Roleplays (${lib.roleplays.length})`],
   ];
-  const modePick = ad && (
-    <span className="create-mode" role="radiogroup" aria-label="Where it can be used">
-      <label>
-        <input type="radio" name="create-mode" checked={mode === "safe"} onChange={() => setMode("safe")} /> 🛡 Safe: both Studios and After Dark
-      </label>
-      <label>
-        <input type="radio" name="create-mode" checked={mode === "after_dark"} onChange={() => setMode("after_dark")} /> 🌙 After Dark only
-      </label>
-    </span>
-  );
+  const pickFor = (value: LibraryMode, set: (m: LibraryMode) => void, name: string, safeLabel: string) =>
+    ad && (
+      <span className="create-mode" role="radiogroup" aria-label="Where it can be used">
+        <label>
+          <input type="radio" name={name} checked={value === "safe"} onChange={() => set("safe")} /> 🛡 {safeLabel}
+        </label>
+        <label>
+          <input type="radio" name={name} checked={value === "after_dark"} onChange={() => set("after_dark")} /> 🌙 After Dark only
+        </label>
+      </span>
+    );
+  const modePick = pickFor(mode, setMode, "create-mode", "Safe: both Studios and After Dark");
+  // A roleplay's own: safe ones play on show dates too, and After Dark's Studio starts on its own kind, as it always has.
+  const roleplayMode: LibraryMode = ad ? rpMode : "safe";
+  const roleplayIdeas = ROLEPLAY_IDEAS.filter((x) => roleplayMode === "after_dark" || checkRoleplay(x, "safe") === null);
   const modeBadge = (m: LibraryMode) => <span className={`badge create-badge is-${m}`}>{m === "safe" ? "🛡 Safe" : "🌙 After Dark"}</span>;
 
   return (
     <section className="create-library">
       <p className="muted small">
         {scope === "safe"
-          ? "Your own venues and prompts, for shoots here. Everything is held to the Studio's safe rules. Roleplays live in After Dark's Studio."
-          : "Your own venues, prompts and roleplays. Venues and roleplays show up under ✨ Yours in a night's Scene & roleplay; prompts and venues in your shoots. Only you see them."}
+          ? "Your own venues, prompts and roleplays. Everything is held to the safe rules: venues and prompts are for shoots here, and a roleplay shows up under ✨ Yours when you pick one for a date on the show."
+          : "Your own venues, prompts and roleplays. Venues and roleplays show up under ✨ Yours in a night's Scene & roleplay; prompts and venues in your shoots; safe roleplays on show dates too. Only you see them."}
       </p>
       <div className="create-tabs" role="tablist" aria-label="Your library">
         {sections.map(([id, label]) => (
@@ -192,14 +199,15 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
         </div>
       )}
 
-      {section === "roleplays" && ad && (
+      {section === "roleplays" && (
         <div className="create-section">
           <form
             className="create-form"
             onSubmit={(e) => {
               e.preventDefault();
               const roles = rp.roleA.trim() && rp.roleB.trim() ? [rp.roleA, rp.roleB] : null;
-              void send({ action: "save_roleplay", title: rp.title, premise: rp.premise, roles, category: rp.category }, `Saved "${rp.title}": it's under ✨ Yours in Scene & roleplay.`, () =>
+              const where = roleplayMode === "safe" ? (ad ? "it's under ✨ Yours on show dates and in Scene & roleplay" : "it's under ✨ Yours when you pick a roleplay for a date") : "it's under ✨ Yours in Scene & roleplay";
+              void send({ action: "save_roleplay", title: rp.title, premise: rp.premise, roles, category: rp.category, mode: roleplayMode }, `Saved "${rp.title}": ${where}.`, () =>
                 setRp({ title: "", premise: "", roleA: "", roleB: "", category: "romance" }),
               );
             }}
@@ -219,20 +227,27 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
                 {"{b}"} plays <input value={rp.roleB} maxLength={ROLE_MAX} placeholder="the ramen truck owner" onChange={(e) => setRp((x) => ({ ...x, roleB: e.target.value }))} />
               </label>
             </span>
-            <label>
-              Category{" "}
-              <select value={rp.category} onChange={(e) => setRp((x) => ({ ...x, category: e.target.value }))}>
-                {ROLEPLAY_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {CATEGORY_LABEL[c]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="muted small">Two adults who both want to be there: no family or step-family, babysitter, teacher or school, and nobody paid, drunk or trapped.</p>
+            {ad && (
+              <label>
+                Category{" "}
+                <select value={rp.category} onChange={(e) => setRp((x) => ({ ...x, category: e.target.value }))}>
+                  {ROLEPLAY_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {CATEGORY_LABEL[c]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {pickFor(rpMode, setRpMode, "create-rp-mode", "Safe: show dates, both Studios and After Dark")}
+            <p className="muted small">
+              {roleplayMode === "safe"
+                ? "PG, and two adults who both want to be there: no family, school or babysitter, nobody with a say over the other's job, and nobody paid, drunk or trapped."
+                : "Two adults who both want to be there: no family or step-family, babysitter, teacher or school, and nobody paid, drunk or trapped."}
+            </p>
             <p className="create-ideas">
               <span className="muted small">Ideas:</span>
-              {ROLEPLAY_IDEAS.map((x) => (
+              {roleplayIdeas.map((x) => (
                 <button key={x.title} type="button" className="chip" onClick={() => setRp({ title: x.title, premise: x.premise, roleA: x.roles?.[0] ?? "", roleB: x.roles?.[1] ?? "", category: x.category })}>
                   {x.title}
                 </button>
@@ -245,7 +260,7 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
           <ul className="create-list">
             {lib.roleplays.map((x) => (
               <li key={x.id} className="card">
-                <strong>✨ {x.title}</strong> <span className="badge">{CATEGORY_LABEL[x.category] ?? x.category}</span>
+                <strong>✨ {x.title}</strong> {ad && <span className="badge">{CATEGORY_LABEL[x.category] ?? x.category}</span>} {modeBadge(x.mode)}
                 <span className="muted small">{x.premise}</span>
                 {x.roles && <span className="small">{`{a} plays ${x.roles[0]}, {b} ${x.roles[1]}`}</span>}
                 <button type="button" className="linklike" disabled={busy} onClick={() => void remove("roleplay", x.id)}>

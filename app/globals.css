@@ -11800,6 +11800,17 @@ button.pg-group-head:hover {
 .rp-tile[aria-pressed="true"] .rp-tile-premise {
   color: var(--ink);
 }
+/* One from their Create library (lib/studio/library.ts): set apart by a dashed edge until it's picked. */
+.rp-tile-yours:not([aria-pressed="true"]) {
+  border-style: dashed;
+}
+.rp-tile-yours .badge {
+  font-size: var(--text-2xs, 0.7rem);
+  vertical-align: middle;
+}
+.rp-keep {
+  margin: 0;
+}
 .rp-own,
 .rp-roles {
   display: grid;

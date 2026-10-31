@@ -9,7 +9,7 @@ import { handleMcpMessage, MCP_TOOLS, type McpContext } from "@/lib/mcp";
 import { computeRelationship, pairContext, type RelEpisode } from "@/lib/relationships";
 import { dateShape } from "@/lib/moves";
 import { listNotifications } from "@/lib/notifications";
-import { DATE_ROLEPLAY_NEVER, DATE_ROLEPLAYS, dateRoleplayById, fillPremise, roleIndex, roleplayForActor, rolesLine, sameTerms, termsFor } from "@/lib/roleplays";
+import { DATE_ROLEPLAY_NEVER, DATE_ROLEPLAYS, dateRoleplayById, fillPremise, roleIndex, roleplayForActor, rolesLine, sameTerms, suggestiveIn, termsFor } from "@/lib/roleplays";
 import { checkShowText } from "@/lib/safety";
 import { createMatch } from "@/lib/swipes";
 import { pickVenue } from "@/lib/venues";
@@ -33,6 +33,17 @@ describe("the show's roleplays (lib/roleplays.ts)", () => {
       expect(DATE_ROLEPLAY_NEVER.test(bad) || checkCustomRoleplay({ title: "x", premise: `${bad} at the fair, an evening together`, roles: null }) !== null, bad).toBe(true);
     }
     for (const fine of ["the steps of the old library", "a stepping stone", "two rival chefs"]) expect(DATE_ROLEPLAY_NEVER.test(fine), fine).toBe(false);
+  });
+
+  it("refuses a set-up that steers the date to the bedroom, which the show's check lets through, and says which words", () => {
+    for (const bad of ["a steamy night in bed together", "strip poker at a ski lodge", "the inn has only one bed", "{a} seduces {b} over dessert", "truth or dare in their underwear", "a risqué cabaret"]) {
+      expect(checkShowText({ premise: bad }).ok, bad).toBe(true); // why the roleplay check needs its own list
+      expect(checkCustomRoleplay({ title: "x", premise: `${bad}, with {a} and {b}`, roles: null }), bad).toMatch(/the show is PG/);
+    }
+    expect(checkCustomRoleplay({ title: "Après-ski", premise: "{a} and {b} play strip poker by the fire", roles: null })).toMatch(/\("strip poker"\)\.$/);
+    for (const fine of ["Santa's naughty list", "a steamy kitchen at the night market", "two hours to make out the code", "rival spies hooking up a wiretap", "a lustrous pearl", "the first kiss story"]) {
+      expect(suggestiveIn(fine), fine).toBeNull();
+    }
   });
 
   it("fills the premise and the roles in their names, with whoever plays the first role as {a}", () => {
@@ -238,6 +249,8 @@ describe("agreeing on a roleplay (lib/date-roleplays.ts)", () => {
     expect(await answerRoleplay(t.db, themId, { character_id: otto.id, with: cass.id, answer: "counter" })).toMatchObject({ ok: false, error: "counter_needs_terms" });
     const swapped = await answerRoleplay(t.db, themId, { character_id: otto.id, with: cass.id, answer: "counter", roleplay_id: "rival-chefs", note: "Otto should win" });
     expect(swapped).toMatchObject({ ok: false, error: "same_terms" }); // rival chefs has no roles to swap: it's the same roleplay
+    const winking = await answerRoleplay(t.db, themId, { character_id: otto.id, with: cass.id, answer: "counter", roleplay_id: "castaways", note: "Only one bed on the island ;)" });
+    expect(winking).toMatchObject({ ok: false, error: "note_not_allowed" });
     const counter = await answerRoleplay(t.db, themId, { character_id: otto.id, with: cass.id, answer: "counter", roleplay_id: "time-traveller", my_role: 0, note: "Otto as the time traveller?" });
     expect(counter).toMatchObject({ ok: true, roleplay: { status: "pending", round: 2, from_you: true, terms: { id: "time-traveller", first: otto.id } } });
     const mineNow = await pairRoleplay(t.db, meId, cass.id, otto.id);
