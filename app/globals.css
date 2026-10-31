@@ -3856,6 +3856,23 @@ button.rating-chip:hover {
 .theater-icon:hover {
   background: rgba(0, 0, 0, 0.55);
 }
+/* #1099: an icon with its word beside it ("📜 Story") is a pill, not a circle. */
+.theater-icon:has(.theater-icon-word) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: auto;
+  padding: 0 0.75rem;
+}
+.theater-icon-word {
+  font-size: 0.8rem;
+}
+/* #1099: why a tool is greyed out, said under it. */
+.ad-tools-why {
+  display: block;
+  max-width: 16rem;
+  line-height: 1.3;
+}
 @media (pointer: coarse) {
   .theater-icon,
   .theater-tools .button,

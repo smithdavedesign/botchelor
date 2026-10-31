@@ -576,6 +576,34 @@ export function openingRepeatOf(text: string, earlier: readonly string[]): strin
   return earlier.some((e) => wordsSaid(e).slice(0, OPENING_WORDS).join(" ") === opening) ? opening : null;
 }
 
+/** How many of a speaker's own last lines an opening's shape is checked against (#1103). */
+export const SHAPE_WINDOW = 3;
+
+/**
+ * The shape a line opens with, past any *action*: a trailing-off "…", or a quote of a few words ("'Very warm' is…"); null
+ * for anything else. #1103 (the 2026-10-31-1401 visitor: "Nell opens almost every line with '…'. Rafe quotes her back in
+ * single quotes and then riffs… three in a row reads as a tic"). Pure.
+ */
+export function openingShape(text: string): "ellipsis" | "quote" | null {
+  const said = text.replace(/^\s*\*[^*]*\*\s*/, "").trimStart();
+  if (/^(?:\.{3}|…)/.test(said)) return "ellipsis";
+  if (/^['"‘“][^'"‘’“”\n]{2,60}['"’”]/.test(said)) return "quote";
+  return null;
+}
+
+/** The shape this line opens with when the same speaker opened one of their last SHAPE_WINDOW lines that way too; or null. */
+export function shapeRepeatOf(text: string, mineBefore: readonly string[]): "ellipsis" | "quote" | null {
+  const shape = openingShape(text);
+  return shape && mineBefore.slice(-SHAPE_WINDOW).some((t) => openingShape(t) === shape) ? shape : null;
+}
+
+/** The line without its opening "…" (its *action* kept, the next word capitalised). Pure. */
+export function withoutLeadingEllipsis(text: string): string {
+  const action = /^\s*\*[^*]*\*\s*/.exec(text)?.[0] ?? "";
+  const rest = text.slice(action.length).replace(/^\s*(?:\.{3}|…)\s*/, "");
+  return `${action}${rest.charAt(0).toUpperCase()}${rest.slice(1)}`.trim();
+}
+
 /**
  * Saying the climax is near, out loud: once it's the build-up, again soon after it's a loop (v2.2: "almost there" three
  * times before Lexi × Dex's climax). Not "so close to you", which is only where someone is.

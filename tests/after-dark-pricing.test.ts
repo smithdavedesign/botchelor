@@ -50,6 +50,8 @@ describe("After Dark's prices (#1005)", () => {
     expect(render([], { chapterTokens: 1 })).toContain("▶ Start the night · 1 token");
     // An admin: nothing to say.
     expect(render(line, {})).toMatch(/>Next</);
+    // #1099: the scene's 📜 toggle says what it is on screen.
+    expect(render(line, {})).toContain("📜 <span class=\"theater-icon-word\">Story</span>");
     expect(drawAheadNote({ price: 0, pictures: 4, included: true })).toContain("up to 4 more pictures a chapter, included with your subscription");
     expect(drawAheadNote({ price: 1, pictures: 4 })).toContain("1 token a chapter");
   });

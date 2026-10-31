@@ -102,6 +102,8 @@ import {
   hooksOf,
   OPENING_WINDOW,
   openingRepeatOf,
+  shapeRepeatOf,
+  withoutLeadingEllipsis,
   phraseNames,
   phrasesIn,
   questionHabit,
@@ -1446,6 +1448,18 @@ export function dropRepeats(
           drop(l, `opens like a line just said ("${opening}")`);
           continue;
         }
+      }
+      // #1103: the same opening shape from one speaker (a trailing "…", or quoting the other back): the "…" goes, a quote's
+      // sentence goes (the line goes if that was all of it).
+      const shape = shapeRepeatOf(text, before.filter((x) => x.who === l.who).map((x) => x.text));
+      if (shape) {
+        cuts.openings++;
+        const cut = shape === "ellipsis" ? withoutLeadingEllipsis(text) : withoutOpening(text, 1);
+        if (!cut) {
+          drop(l, `opens the same way again (${shape === "quote" ? "quoting them back" : "a trailing \u2026"})`);
+          continue;
+        }
+        text = cut;
       }
     }
     // v2.1: a phrase this speaker has already said in WORN_AT lines tonight ("let's see" in 23 of 59) loses its sentence;
