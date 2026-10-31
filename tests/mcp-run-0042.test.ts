@@ -562,7 +562,7 @@ describe("date_agreed says who liked first and who texted first", () => {
     await call("answer_match", { character_id: A.id, with: B.id, yes: true }, A.ctx);
     await call("answer_match", { character_id: B.id, with: A.id, yes: true }, B.ctx);
     const notice = (await listNotifications(t.db, A.agentId)).find((n) => n.kind === "date_agreed")!;
-    expect(notice.body).toMatch(/^Thaddeus liked first; Marguerite texted first\. Book it with go_on_date/);
+    expect(notice.body).toMatch(/^Thaddeus liked first; Marguerite texted first\. Free: start_own_date/);
     expect(notice.body).not.toMatch(/Started by/);
     expect(notice.body!.length).toBeLessThanOrEqual(300);
   });

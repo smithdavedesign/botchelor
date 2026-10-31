@@ -524,6 +524,10 @@ const REPLIES = [
   "I like the way you think.",
   "Stop, I'm laughing on my own in public.",
 ];
+/** The crowd's last resort in a thread, once its scripted lines are used up (#1022). */
+const LAST_RESORT = ["Ha, fair. Go on.", "Sorry, slow day here. What were you saying?", "I'm still here. Tell me more."];
+/** Rounds a crowd character tries to answer one text before letting it go (#1022). */
+export const MAX_TEXT_TRIES = 3;
 const INVITES = ["So. Are we doing this properly? I'd like to take you out.", "I think we should go on a date. Proper one. What do you say?"];
 
 /**
@@ -1165,6 +1169,8 @@ async function connect(transport, def, { brain, log, crowd }) {
     memory: new Map(),
     seen: new Map(),
     replied: new Map(),
+    /** Failed tries at the newest text, by thread: { id, n } (#1022). */
+    tries: new Map(),
     brain,
     log,
     /** Everything each of its characters has sent this run (the repeat guard). */
@@ -1474,11 +1480,20 @@ async function socialise(agent, ctx, log) {
               (e) => (log(`send_text: ${e.message}`), { ok: false, why: e.message }),
             );
           },
-          fallback: (_attempt, said) => scriptedText(me.entry, { them: m.with.name, thread, said }),
+          // Out of scripted lines, a short plain answer rather than silence (#1022).
+          fallback: (attempt, said) => scriptedText(me.entry, { them: m.with.name, thread, said }) ?? LAST_RESORT[attempt % LAST_RESORT.length],
           log,
         });
-        if (sent) ctx.stats.texts++;
-        agent.replied.set(key, last?.id ?? "opened");
+        // Answered only once something went out: a failed or stale send leaves it owed, so the next round tries again
+        // (#1022: a bot marked a text answered after a dropped send and never replied). A few tries per text, then it
+        // lets that one go, so one broken thread can't loop for the whole run.
+        const tried = agent.tries.get(key);
+        const tries = tried?.id === (last?.id ?? "opened") ? tried.n + 1 : 1;
+        if (sent) {
+          ctx.stats.texts++;
+          agent.tries.delete(key);
+        } else agent.tries.set(key, { id: last?.id ?? "opened", n: tries });
+        if (sent || tries >= MAX_TEXT_TRIES) agent.replied.set(key, last?.id ?? "opened");
       } else if (last && last.from === "them" && !agent.seen.get(`${key}:${last.id}`)) {
         agent.seen.set(`${key}:${last.id}`, Date.now());
       }

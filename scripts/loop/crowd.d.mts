@@ -31,6 +31,8 @@ export function scriptedText(
 
 export const DEFAULT_CROWD_MODEL: string;
 export const REPLY_HISTORY: number;
+/** Rounds a crowd character tries to answer one text before letting it go (#1022). */
+export const MAX_TEXT_TRIES: number;
 /** The profile prompts' questions by id, as lib/extras.ts PROFILE_PROMPTS words them. */
 export const PROMPT_LABELS: Record<string, string>;
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
