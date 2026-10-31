@@ -140,6 +140,30 @@ export async function listApprovedAssets(
 }
 
 /** One approved asset by id (for the serving route), or null if it's missing or not approved. */
+/**
+ * An approved asset's gate columns and where its file is, without the file itself: `url` is a base64 data URL for a
+ * drawn portrait (megabytes of text), and a small copy (app/api/assets/[id] ?w=) is usually in the cache already.
+ */
+export type AssetHead = { id: string; character_id: string | null; content_rating: ContentRating; path: string | null; is_data: boolean };
+export async function getApprovedAssetHead(db: Db, id: string): Promise<AssetHead | null> {
+  const { rows } = await db.query<AssetHead>(
+    `select id, character_id, content_rating, case when url like 'data:%' then null else url end as path, (url like 'data:image/%') as is_data
+       from character_assets where id = $1 and review_status = 'approved'`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+/** The small copy of an asset at `width`, resized before and kept (character_asset_thumbs), or null. */
+export async function getAssetThumb(db: Db, id: string, width: number): Promise<Buffer | null> {
+  const { rows } = await db.query<{ data: Buffer }>(`select data from character_asset_thumbs where asset_id = $1 and width = $2`, [id, width]);
+  return rows[0] ? Buffer.from(rows[0].data) : null;
+}
+
+export async function keepAssetThumb(db: Db, id: string, width: number, data: Buffer): Promise<void> {
+  await db.query(`insert into character_asset_thumbs (asset_id, width, data) values ($1, $2, $3) on conflict (asset_id, width) do nothing`, [id, width, data]);
+}
+
 export async function getApprovedAsset(db: Db, id: string): Promise<CharacterAsset | null> {
   const { rows } = await db.query<CharacterAsset>(
     `select ${COLUMNS} from character_assets where id = $1 and review_status = 'approved'`,
