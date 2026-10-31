@@ -17,7 +17,7 @@ const HOST = new URL(SITE).hostname
 const OUT = process.argv[2] || 'docs/screenshots'
 fs.mkdirSync(OUT, { recursive: true })
 const args = process.env.RESOLVE ? [`--host-resolver-rules=MAP ${HOST} ${process.env.RESOLVE},MAP www.${HOST} ${process.env.RESOLVE}`] : []
-const ANALYTICS = /google-analytics\.com|googletagmanager\.com|repohq\.vercel\.app\/api\/ideas\/signal/
+const ANALYTICS = /google-analytics\.com|googletagmanager\.com|idea-factory\.1426davejobs\.workers\.dev\/api\/ideas\/signal/
 // A person's browser: headless Chromium says "HeadlessChrome", which lib/bots.ts lets past the gate as a bot.
 const CHROME = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
 const ok = (status) => status >= 200 && status < 300

@@ -10,7 +10,7 @@
 import { safeFrom } from "@/lib/age";
 import { SHARE_REF } from "@/lib/episode-share";
 
-export const SIGNAL_URL = "https://repohq.vercel.app/api/ideas/signal";
+export const SIGNAL_URL = "https://idea-factory.1426davejobs.workers.dev/api/ideas/signal";
 export const SLUG = "botchelor";
 export type FunnelKind = "visit" | "activate" | "checkout";
 
