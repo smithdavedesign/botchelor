@@ -70,6 +70,20 @@ export function lineToTurn(l: SceneLine): Turn {
 }
 
 /**
+ * #1017 (the 2026-10-30 ad visitors: "I only found out the steer was queued by seeing the lines change", "nothing on
+ * screen showed the steer was queued or used"): the steer said back under the bar, while its lines are written and once
+ * they're in, with what the mode does, so a nudge that's only worked toward doesn't look ignored.
+ */
+export function steerEcho(direction: string, mode: "nudge" | "direct", done: boolean): string {
+  const words = direction.trim().replace(/\s+/g, " ");
+  const quoted = `"${words.length > 80 ? `${words.slice(0, 79).trimEnd()}…` : words}"`;
+  if (!done) return `🎬 Steering (${mode}): ${quoted}. Writing the next lines…`;
+  return mode === "direct"
+    ? `🎬 Steered (direct): ${quoted}. These lines act on it now.`
+    : `🎬 Steered (nudge): ${quoted}. They work toward it at the scene's own pace, over this step and the next few.`;
+}
+
+/**
  * The set to stand them in: the date's own venue while they're still there, else a named stage for wherever the scene
  * has gone ("elsewhere@his apartment"), which the scene draws as a generic set with the place's name.
  */
