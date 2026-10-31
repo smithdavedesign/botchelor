@@ -223,6 +223,16 @@ Product notes
   say "Paused: press ▶ to keep going". Related: a background tab pauses playback, so a night left in another tab stalls
   by design; a one-line "paused while you're away" would explain it.
 - The identity pack: 8 views in 30 s, the same person throughout ("profile left" is a ¾ turn rather than a profile).
+- **The chapter close** (08:49 UTC, 124 lines): "Chapter 1 is done and filed under Their nights. Autoplay has stopped:
+  switch it on again for the next chapter." Chapter 2 opens with a recap and the last lines carried over; the 📖 menu
+  lists "▶ Chapter 2 · now" and "↺ Chapter 1 · 124 lines" and the replay plays all 124 lines back to "That's the night.
+  Watch again". Nights (1) appears in the gallery. 🌗 Two sides says plainly "Still going: Start over files it, then
+  both sides can be written."
+- **The storyboard** (🎬 Video of the night, free for an admin): the director reads the whole night in ~10 s and keeps
+  shots with their lines; each shot has ✏️ Your words, 🖼 Use a picture, Draw this one; "Draw the pictures (5)",
+  approve each, then film for 7 tokens; "nothing is drawn, filmed or spent until you press a button here". This is the
+  reel-storyboard PRD, working. **F40** (medium): closing and reopening the dialog re-runs the director and changes the
+  plan ("1 shot kept", then "2", then "1"); a plan the user was shaping shouldn't be thrown away on close.
 - The texts thread, the live room, predictions, reviews, account export and ml-consent all round-trip cleanly (table
   above).
 
