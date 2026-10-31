@@ -3300,6 +3300,9 @@ html.phone-open body {
   min-height: 0;
   overflow-y: auto;
   padding: 0.6rem 1.1rem 1.1rem;
+  /* A scroll container starts its own touch-action: without this, the card's pan-y stops here, so on a phone a sideways
+     drag on the profile (most of the card) was the browser's pan, cancelled, and never a swipe. */
+  touch-action: pan-y;
 }
 .swipe-name {
   margin: 0;
