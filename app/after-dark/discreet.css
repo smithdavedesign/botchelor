@@ -11,7 +11,7 @@
 /* Blurred until tapped: every picture and video (and SVG image), except the show's own PG portraits (.avatar) unless one
    is After Dark's own file. The same selectors as BLURRED_MEDIA in lib/adult/discreet.ts (tests/discreet.test.ts).
    A tap sets data-ad-shown (app/after-dark/DiscreetMedia.tsx); leaving the page or the tab takes it off again. */
-[data-ad-discreet="blur"] :is(img, video, image):not(.avatar):not([data-ad-shown]),
+[data-ad-discreet="blur"] :is(img, video, image):not(.avatar):not([data-ad-shown]):not([src^="/api/looks/"]):not([src^="/cast/"]),
 [data-ad-discreet="blur"] :is(img, video)[src*="/after-dark/"]:not([data-ad-shown]),
 [data-ad-discreet="blur"] image[href*="/after-dark/"]:not([data-ad-shown]) {
   filter: blur(28px) saturate(0.5) brightness(0.8);

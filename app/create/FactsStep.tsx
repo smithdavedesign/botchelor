@@ -21,7 +21,8 @@ export default function FactsStep({ extras, setExtras, name }: { extras: Charact
         return merged;
       }),
     );
-  const add = (label = "") => facts.length < MAX_FACTS && set([...facts, { label, value: "" }]);
+  // A secret is private by nature (the audit, 2026-10-31: "+ A secret" left 🔒 unchecked, so it went on the card).
+  const add = (label = "") => facts.length < MAX_FACTS && set([...facts, { label, value: "", private: label === "A secret" || undefined }]);
   const remove = (i: number) => set(facts.filter((_, j) => j !== i));
   const used = new Set(facts.map((f) => f.label.trim().toLowerCase()));
 

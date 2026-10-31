@@ -125,6 +125,11 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   const [fresh, setFresh] = useState<{ title: string; pictures: Media[]; kind: Shoot["kind"] } | null>(null);
+  // The pictures just made render below the menus, off-screen after a draw (the audit, 2026-10-31): bring them up.
+  const freshRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (fresh && fresh.pictures.length > 0) freshRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [fresh]);
   const [choices, setChoices] = useState<ShootChoices>({});
   // Their own key (Connections, After Dark pictures): its provider's models only, and its price.
   const ownKeyReady = Boolean(s.own_key.provider && s.own_key.allowed);
@@ -1201,7 +1206,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media
                 <img src={media(s.identity.face)} alt={`${c.name}'s face`} />
               ) : (
-                <div className="ad-studio-empty">No face yet: the first shoot makes one.</div>
+                <div className="ad-studio-empty">No face yet: Draw 3 under Recast below, then “Use this face”. (A shoot makes one too.)</div>
               )}
               <figcaption className="small">The face every picture keeps</figcaption>
             </figure>
@@ -1518,7 +1523,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
       </div>
       {/* The pictures just made; on full screen, beside the menus (their latest when nothing's new). */}
       {fresh && fresh.pictures.length > 0 ? (
-        <section className="ad-studio-fresh">
+        <section className="ad-studio-fresh" ref={freshRef}>
           <h2>{fresh.title}</h2>
           {gallery(fresh.pictures, { rivals: fresh.kind === "restyle" || fresh.kind === "recast" ? fresh.pictures.map((p) => p.id) : [], pair: fresh.kind === "pair" })}
         </section>

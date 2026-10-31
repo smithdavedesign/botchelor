@@ -110,6 +110,14 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
     if (advance.current) window.clearTimeout(advance.current);
   }, []);
 
+  // A dot, Previous, Next or Change look: the pick's own auto-advance (below) is dropped, or a tap within its 280 ms
+  // landed one step further than asked (the audit, 2026-10-31).
+  const go = (to: number | ((n: number) => number)) => {
+    if (advance.current) window.clearTimeout(advance.current);
+    advance.current = null;
+    setI(to);
+  };
+
   // The age strip runs 18 and up, sideways: bring the age they already have into view, so it reads as theirs (a 34
   // used to sit off-screen with 18–22 showing, and a tap quietly changed the Identity step's age).
   const ages = useRef<HTMLDivElement>(null);
@@ -164,7 +172,7 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
               className={n === at ? "current" : n < at ? "done" : ""}
               aria-label={s?.title ?? "Your look"}
               aria-current={n === at ? "step" : undefined}
-              onClick={() => setI(n)}
+              onClick={() => go(n)}
             />
           </li>
         ))}
@@ -248,7 +256,7 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
                   const o = optionsFor(s, gender, adTab).find((x) => x.id === v);
                   return (
                     <li key={s.id}>
-                      <button type="button" className="chip" onClick={() => setI(steps.indexOf(s))}>
+                      <button type="button" className="chip" onClick={() => go(steps.indexOf(s))}>
                         {s.id === "gender" ? (v === "man" ? "Man" : "Woman") : s.id === "age" ? `${v} years` : o ? optionLabel(o, gender) : v}
                       </button>
                     </li>
@@ -288,7 +296,7 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
               This becomes their appearance line, and their portrait is drawn from it when you create them. Tap a pick to change it.
             </p>
             {looks.gender && (
-              <button type="button" className="secondary small looks-change" onClick={() => setI(0)}>
+              <button type="button" className="secondary small looks-change" onClick={() => go(0)}>
                 Change look
               </button>
             )}
@@ -310,11 +318,11 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
 
       <div className="looks-nav">
         {/* Small text links, so they don't compete with the wizard's own Back and Next below. */}
-        <button type="button" className="link-button" onClick={() => setI((n) => Math.max(0, n - 1))} disabled={at === 0}>
+        <button type="button" className="link-button" onClick={() => go((n) => Math.max(0, n - 1))} disabled={at === 0}>
           ← Previous
         </button>
         {step && (
-          <button type="button" className="link-button" onClick={() => setI((n) => Math.min(n + 1, steps.length))}>
+          <button type="button" className="link-button" onClick={() => go((n) => Math.min(n + 1, steps.length))}>
             {current(looks, step, adTab) ? "Next →" : "Skip →"}
           </button>
         )}

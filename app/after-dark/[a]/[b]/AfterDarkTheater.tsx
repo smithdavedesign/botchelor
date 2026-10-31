@@ -353,8 +353,14 @@ export default function AfterDarkTheater({
     const close = (e: PointerEvent) => {
       if (!(e.target instanceof Element && e.target.closest(".ad-tools-more"))) setTools(false);
     };
+    // Escape too, like the 📷 menu (CaptureMenu.tsx).
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setTools(false);
     document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [tools]);
   const [direction, setDirection] = useState("");
   // The scene picker (SetSceneModal.tsx) and the 📖 chapter menu.
