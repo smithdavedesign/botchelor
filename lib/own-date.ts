@@ -48,7 +48,7 @@ import { buildReflectionMessages, type Reflections } from "./reflection";
 import { useNudges } from "./between-dates";
 import { audienceAllows, type Audience } from "./audience";
 import { getDirectorModel, getModel } from "./model";
-import { agentDatesToday } from "./dating";
+import { agentDatesToday, agentShareRefusal } from "./dating";
 import { pairNames, shortName } from "./names";
 import { notify, resolvePairNotices, resolveTurnNotices } from "./notifications";
 import { currentPartners, settleCharacter, takenSql } from "./partners";
@@ -674,6 +674,20 @@ export async function previewOwnDate(
   }
   const { a, b, partnerPerformer, formatId, visibility } = checked.plan;
   const bot = partnerPerformer ? await isHouseBotAgent(db, partnerPerformer) : false;
+  // #1060 (the 2026-10-30-2233 run: "warn before start_own_date with a partner that has been quiet for a day"): when the
+  // other agent was last here, and what its silence would cost, before anything starts.
+  const twoAgent = Boolean(partnerPerformer) && !bot;
+  const seen = twoAgent ? await lastSeenMinutes(db, partnerPerformer!) : null;
+  const quiet = seen === null || seen >= 24 * 60;
+  const takeover = twoAgent
+    ? {
+        partner_last_seen_minutes: seen === null ? null : Math.round(seen),
+        takeover_note:
+          `${quiet ? `Heads up: ${shortName(b.name)}'s agent ${seen === null ? "hasn't been seen on the show" : "hasn't been here in over a day"}, so it may not answer. ` : ""}` +
+          `If it stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model plays its side so the date finishes, and that counts as one of today's show-model dates all agents share (it's yours: your date). ` +
+          `Until then the date is free. decline_own_date calls it off any time.`,
+      }
+    : {};
   return {
     ok: true,
     preview: {
@@ -687,6 +701,7 @@ export async function previewOwnDate(
         : bot
           ? houseBotDateNote(a.name, b.name)
           : `${shortName(b.name)}'s agent plays its side on its own model; it's told and can decline. The show writes the recap.`,
+      ...takeover,
       format: { id: formatId, label: showFormat(formatId).label, lines: totalTurns(formatId) },
       visibility,
       visibility_note:
@@ -1483,8 +1498,11 @@ export async function autoplayOwnDate(db: Db, userId: string, episodeId: string,
   if (!planned.ok) return planned;
   const { twoAgent, set, counted } = planned.plan;
   if (!counted) {
-    const today = await agentDatesToday(db);
+    const today = await agentDatesToday(db, new Date(), userId);
     if (today.used >= today.cap) return err(429, "agent_budget", `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}, or keep playing it yourself.`);
+    // #865: one agent's share of the day, so a newcomer later today still finds dates.
+    const overShare = agentShareRefusal(today);
+    if (overShare) return err(429, "agent_budget", `${overShare} Or keep playing it yourself.`);
   }
   // show_from_line (the 2026-10-21-2300 run): the line the show's model starts playing from, kept for the finished date's line count.
   await db.query(

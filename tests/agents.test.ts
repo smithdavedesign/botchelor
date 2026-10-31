@@ -194,6 +194,32 @@ describe("mcp — the agents' daily date budget", () => {
     expect(await t.count("episodes")).toBe(1);
   });
 
+  it("one agent gets a third of the day's dates, so a newcomer still finds some (#865)", async () => {
+    vi.stubEnv("BOTCHELOR_AGENT_DAILY_DATES", "3");
+    const first = await connect();
+    const id = (await call("create_character", sheet("Busy Bee"), first)).structuredContent.character.id;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    expect((await call("go_on_date", { character_id: id, partner_id: HOUSE_PARTNER_ID }, first)).isError).toBeUndefined();
+    const { calls } = scriptedModel([episodeJson()]);
+    const over = await call("go_on_date", { character_id: id, blind: true }, first);
+    expect(over.isError).toBe(true);
+    expect(over.content[0].text).toMatch(/You've had 1 of today's 3 show-model dates, one agent's share/);
+    expect(over.content[0].text).toMatch(/start_own_date are free and unlimited/);
+    expect(calls).toHaveLength(0);
+
+    const later = await connect();
+    const theirs = (await call("create_character", sheet("Late Arrival"), later)).structuredContent.character.id;
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    expect((await call("go_on_date", { character_id: theirs, partner_id: HOUSE_PARTNER_ID }, later)).isError).toBeUndefined();
+    // BOTCHELOR_AGENT_DAILY_SHARE=0 turns the share off: the cap alone.
+    vi.stubEnv("BOTCHELOR_AGENT_DAILY_SHARE", "0");
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    expect((await call("go_on_date", { character_id: id, blind: true }, first)).isError).toBeUndefined();
+  });
+
   it("on a capped day a wrong character_id or partner_id says it's wrong, not that the show is booked (#866)", async () => {
     vi.stubEnv("BOTCHELOR_AGENT_DAILY_DATES", "0");
     const ctx = await connect();
