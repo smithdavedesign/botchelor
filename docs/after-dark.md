@@ -218,7 +218,7 @@ that's on them. Include that in the welcome email."* (`lib/adult/invites.ts`)
   `/invites/review`, which shows the request with Approve and Decline buttons (opening the link decides nothing).
 - **The pass:** Approve writes `adult_entitlements` provider `beta`, active for 30 days, and sends the welcome ("Your
   Botchelor invite": free until the date, chapters and pictures on us, video on them, the clip and video prices, links
-  to start and to the shop). Decline sends nothing.
+  to start and to the shop). Its Reply-To is CONTACT_EMAIL, so replies reach David. Decline sends nothing.
 - **What it includes:** what a subscription includes (chapters, menu pictures, Draw ahead, within the month's caps), but
   never the included clips (`clipsIncluded`): every clip and the video of the night cost tokens. It follows the place
   rules like any subscriber.

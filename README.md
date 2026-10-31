@@ -2,6 +2,16 @@
 
 ## Screenshots
 
+After Dark's invite-only beta (2026-10-31), proven on the live site with a test account. A signed-in person asks on
+`/after-dark/subscribe`. David gets an email with a link to Approve or Decline. Approving gives a 30-day beta pass
+(chapters and pictures free, video paid in tokens) and sends the welcome email. Code:
+[`lib/adult/invites.ts`](lib/adult/invites.ts); docs/after-dark.md, "Invite-only beta".
+
+![Ask for an invite on desktop: free for 30 days, video costs tokens, an optional note and the two boxes](docs/screenshots/after-dark-invite-form-desktop.png)
+![The review page on desktop after Approve: the request, and "Approved: they have 30 days of After Dark"](docs/screenshots/after-dark-invite-approved-desktop.png)
+![The same review page on a phone](docs/screenshots/after-dark-invite-approved-phone.png)
+![The approved test account in the After Dark hub on a phone: pick a pair from the cast](docs/screenshots/after-dark-invite-in-phone.png)
+
 The creator showcase (2026-10-29): `/showcase` and each creator's page.
 - **What's on it:** work its creators chose to publish, one item at a time under an opt-in handle.
 - **Filters:** medium, pose, place, character, shape, first person, and from a date or the Studio. Each filter is a

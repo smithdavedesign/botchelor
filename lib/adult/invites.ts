@@ -13,6 +13,7 @@ import { reportRecipients } from "../content-reports";
 import type { Db } from "../db";
 import { sendAccountEmail } from "../email";
 import { safeEqual } from "../http";
+import { contactEmail } from "../legal-entity";
 import { siteUrl } from "../site";
 import { BETA_PROVIDER } from "./entitlement";
 import { getAdultSettings } from "./settings";
@@ -111,7 +112,8 @@ export async function decideInvite(
     );
     const settings = await getAdultSettings(db).catch(() => null);
     const message = welcomeEmail({ base: siteUrl(env), until: end, clipTokens: settings?.clip_tokens ?? 1, reelTokens: settings?.reel_tokens ?? 7 });
-    welcomed = (await sendAccountEmail(db, userId, "ad_invite_welcome", invite.email, message, env)) === "sent";
+    // The welcome asks for replies: send them to the operator, not the no-reply sender.
+    welcomed = (await sendAccountEmail(db, userId, "ad_invite_welcome", invite.email, { ...message, replyTo: contactEmail(env) }, env)) === "sent";
   }
   return { ok: true, invite: (await getInvite(db, userId))!, welcomed };
 }
