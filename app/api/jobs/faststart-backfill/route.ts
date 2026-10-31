@@ -1,5 +1,5 @@
 import { adminAuthorized } from "@/lib/admin-auth";
-import { backfillClips } from "@/lib/adult/faststart-backfill";
+import { backfillClips, rekeyClips } from "@/lib/adult/faststart-backfill";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
@@ -18,8 +18,12 @@ async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req) && !(await adminAuthorized(req))) return json({ error: "not_found" }, 404);
   const store = objectStore();
   if (!store) return json({ error: "no_store", message: "No object store is configured on this host." }, 503);
-  const asked = Number(new URL(req.url).searchParams.get("batch"));
+  const url = new URL(req.url);
+  const asked = Number(url.searchParams.get("batch"));
   const batch = Number.isFinite(asked) && asked > 0 ? Math.min(asked, 40) : 20;
+  // ?mode=rekey: write each clip under a fresh content-hash key and repoint it, so the CDN serves the backfilled bytes
+  // without a purge (lib/adult/faststart-backfill.ts rekeyClips).
+  if (url.searchParams.get("mode") === "rekey") return json(await rekeyClips(await getDb(), store, batch));
   return json(await backfillClips(await getDb(), store, batch));
 }
 

@@ -1,7 +1,7 @@
 import { markAiVideo, readMp4Xmp } from "@/lib/ai-mark";
 import type { Db } from "@/lib/db";
 import { faststart, isFaststart } from "@/lib/mp4-faststart";
-import type { ObjectStore } from "@/lib/object-store";
+import { mediaKey, type ObjectStore } from "@/lib/object-store";
 
 /**
  * Brings the clips already in the bucket up to what a clip written today gets: its index moved to the front so it plays
@@ -44,4 +44,59 @@ export async function backfillClips(db: Db, store: ObjectStore, limit = 20): Pro
     )
   ).rows[0].n;
   return { checked: rows.length, fixed, missing, left };
+}
+
+
+/**
+ * Serves the backfilled clips to viewers without a CDN purge. The in-place backfill above overwrote each clip at its
+ * existing key, but Bunny caches by path, so the edge kept serving the old copy (the audit, 2026-10-31: the 18:02 UTC
+ * edge check still showed the pre-backfill bytes). This writes each clip under a fresh content-hash key (mediaKey, from
+ * the faststarted + marked bytes) and repoints `object_key`, so a read hits a path the CDN has never seen: an immediate
+ * cache miss that pulls the new bytes from storage. Self-correcting (it re-applies faststart + mark from whatever is in
+ * storage, so it's right whether or not the in-place pass landed) and idempotent (a clip already on its content-hash key
+ * is left alone). `rekeyed_at` marks a row done.
+ */
+export async function rekeyClips(db: Db, store: ObjectStore, limit = 20): Promise<{ checked: number; rekeyed: number; same: number; missing: number; left: number }> {
+  const { rows } = await db.query<{ id: string; object_key: string }>(
+    `select id, object_key from adult_images
+      where mime = 'video/mp4' and object_key is not null and rekeyed_at is null
+      order by created_at limit $1`,
+    [limit],
+  );
+  let rekeyed = 0;
+  let same = 0;
+  let missing = 0;
+  for (const r of rows) {
+    try {
+      const bytes = await store.get(r.object_key);
+      if (!bytes) missing++;
+      else {
+        const fixed = markAiVideo(faststart(bytes));
+        const newKey = mediaKey("after-dark", r.id, fixed, "video/mp4");
+        if (newKey === r.object_key) same++;
+        else {
+          // New object first (store.put throws unless Bunny confirmed its checksum), then repoint, then drop the old one.
+          await store.put(newKey, fixed, "video/mp4");
+          await db.query(`update adult_images set object_key = $2 where id = $1`, [r.id, newKey]);
+          try {
+            await store.remove(r.object_key);
+          } catch {
+            // An orphaned old object is harmless; nothing references it once object_key is repointed.
+          }
+          rekeyed++;
+        }
+      }
+    } catch (err) {
+      // Leave rekeyed_at null so the row is tried again next pass; don't let one object stop the batch.
+      console.warn(`faststart rekey: ${r.id}: ${err instanceof Error ? err.message : String(err)}`);
+      continue;
+    }
+    await db.query(`update adult_images set rekeyed_at = now() where id = $1`, [r.id]);
+  }
+  const left = (
+    await db.query<{ n: number }>(
+      `select count(*)::int n from adult_images where mime = 'video/mp4' and object_key is not null and rekeyed_at is null`,
+    )
+  ).rows[0].n;
+  return { checked: rows.length, rekeyed, same, missing, left };
 }
