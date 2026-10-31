@@ -174,7 +174,11 @@ Product notes
 | Swipe → match → date | Liked Hesper Moonfall (house-run bot), Rafe (cast), Star Dust; Rafe matched with four in-character texts; "Book their date" → filmed in 16 s ("A tiny old cinema", ending disaster, box score). The Book button shows no busy state for the ~3 s before it navigates (F32). |
 | PG Studio | With every group at "any", Shoot 4 gave four near-copies of the free portrait (F35); 1.7–1.8 MB PNGs. |
 | Showcase reels (shipped earlier tonight, #1036) | Phone top bar on one line, no sound buttons, posters, seen-last order confirmed via the API. **F30**: the Safe-for-work side serves a Suggestive-rated clip that reads explicit to any signed-in person; 23 live posts carry that rating. |
-| Page sweep | /watch, /characters, /swipe, /matches, /notifications, /shop, /account: no errors. Bare /messages is a 404 by design. The second sweep (/graph, /leagues, /reunion, /prompts, /about, /agents, /legal, /report, /2257) coincided with the outage and needs a rerun. |
+| Page sweep | /watch, /characters, /swipe, /matches, /notifications, /shop, /account, /reunion, /prompts, /about, /agents, /legal, /report, /2257, a character's /relationships: no errors. Bare /messages and /leagues are 404s by design (threads at /messages/[a]/[b], leagues at /leagues/[id]); nothing links to the bare paths. |
+| Live room | /watch "Start it" opens an open room ("1 watching · Pre-show · Starts in 0:29"), the date streams line by line, Vote / Chat, and "How does it end?" predictions (POST /api/predictions 201, "Locked in… you can change it until the decision"). |
+| Reviews | "✍️ Write a review of Juniper" → 1–5 stars + a line → "4.0 ★ from 8 reviews", marked "· you", editable. |
+| Account | ml-consent toggle round-trips; "Download your data" is a 28 KB JSON with 20+ sections; connections at /account/keys list the four jobs with "Connect". "Put Vesper in" the mixer with 0 dates left re-shows the explainer without saying you're out of dates (copy). |
+| /graph (the Constellation) | The server answers in 1.1 s, but opening it in a real browser hung the headless Chromium twice and preceded both outages (F36/F38). Do not treat it as a casual page until the thumbnail cache is live. |
 
 ### Show findings
 
