@@ -61,7 +61,7 @@ import { refreshAndAnnounce } from "./relationship-events";
 import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
 import { updateCharacterMemory } from "./memory";
 import { notifyNightAired, siblingCharacters } from "./group-dates";
-import { notifyPredictors } from "./air";
+import { notifyOwnersAired, notifyPredictors } from "./air";
 import { ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, type Turn } from "./conversation";
 import { generationPaused, PAUSED_MESSAGE } from "./compute";
@@ -599,8 +599,10 @@ export async function syncRoom(
       for (const across of await siblingCharacters(db, exists.episode_id).catch(() => [])) await updateCharacterMemory(db, across).catch(() => {});
       // The night's last date aired: ask its people who they liked (once a night).
       await notifyNightAired(db, exists.episode_id).catch(() => 0);
-      await refreshAndAnnounce(db, aired.character_a, aired.character_b, { episodeId: exists.episode_id }).catch(() => {});
+      const toldStage = await refreshAndAnnounce(db, aired.character_a, aired.character_b, { episodeId: exists.episode_id }).catch(() => new Set<string>());
       await notifyPredictors(db, exists.episode_id).catch(() => {});
+      // #1032: its host and owners hear it premiered (not the viewer whose arrival aired it: they're watching it).
+      await notifyOwnersAired(db, exists.episode_id, [viewerId, ...toldStage]).catch(() => {});
     }
   }
   return getRoomState(db, partyId, viewerId, now);

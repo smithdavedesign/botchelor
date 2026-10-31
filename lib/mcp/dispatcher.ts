@@ -6350,22 +6350,25 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const id = String(args.character_id ?? "");
       const withId = typeof args.with === "string" && args.with ? args.with : null;
       const ids = withId ? [id, withId] : [id];
-      const owner = (await db.query(`select 1 from characters where id = any($1) and owner_id = $2`, [ids, who.id])).rows.length > 0;
       const edges = withId ? [await loadRelationship(db, id, withId)].filter((r): r is Relationship => r !== null) : await relationshipsOf(db, id);
       const others = edges.map((r) => (r.lo === id ? r.hi : r.lo));
-      const names = new Map(
-        others.length ? (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [others])).rows.map((r) => [r.id, r.name]) : [],
-      );
-      const views = edges.map((rel) => ({ rel, view: viewRelationship(rel, { userId: who.id, owner }) }));
+      const charRows = (await db.query<{ id: string; name: string; owner_id: string | null }>(`select id, name, owner_id from characters where id = any($1)`, [[...new Set([...ids, ...others])]])).rows;
+      const names = new Map(charRows.map((r) => [r.id, r.name]));
+      const mineIds = new Set(charRows.filter((r) => r.owner_id === who.id).map((r) => r.id));
+      // #1033 (the 2026-10-30-2046 run: one pair read "disaster" from one side and "second_date" from the other): an owner of
+      // EITHER character sees the owners' layer (lib/relationships.ts visibleTo), as the couple page does, so asking from
+      // the other side's character_id no longer drops to the public layer. Per edge, so the same pair reads the same both ways.
+      const ownsEdge = (rel: Relationship) => mineIds.has(rel.lo) || mineIds.has(rel.hi);
+      const views = edges.map((rel) => ({ rel, owner: ownsEdge(rel), view: viewRelationship(rel, { userId: who.id, owner: ownsEdge(rel) }) }));
       // 2.9.0: when each unaired date airs, for the stage note below.
-      const unairedIds = owner ? views.flatMap(({ view }) => (view ? view.timeline.filter((x) => !x.aired).map((x) => x.episode_id) : [])) : [];
+      const unairedIds = views.flatMap(({ view, owner }) => (owner && view ? view.timeline.filter((x) => !x.aired).map((x) => x.episode_id) : []));
       const [airAt, privateDates] = await Promise.all([
         airTimings(db, unairedIds).catch(() => new Map<string, AirTiming>()),
         unairedIds.length
           ? db.query<{ id: string }>(`select id from episodes where id = any($1) and visibility = 'private'`, [unairedIds]).then((q) => new Set(q.rows.map((r) => r.id))).catch(() => new Set<string>())
           : Promise.resolve(new Set<string>()),
       ]);
-      const relationships = views.flatMap(({ rel, view }) => {
+      const relationships = views.flatMap(({ rel, view, owner }) => {
         if (!view) return [];
         const other = rel.lo === id ? rel.hi : rel.lo;
         const told = { by_them: view.told[other] ?? [], by_this_character: view.told[id] ?? [] };
@@ -6398,6 +6401,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               ...stageNote,
             }
           : {};
+        // #1033: a stage_up notice names the public stage (aired, public dates). An owner's stage here counts more (unlisted
+        // dates, their private ones), so whenever the two differ, say which is which, unaired dates or not.
+        const publicNote =
+          owner && !unaired && view.stage !== rel.public.stage
+            ? {
+                public_stage: rel.public.stage ? STAGE_LABELS[rel.public.stage] : null,
+                public_stage_note:
+                  "stage counts every date you can see as an owner (unlisted and your private ones too); public_stage counts aired, public dates alone, " +
+                  "which is what everyone else sees and what a stage_up notice names.",
+              }
+            : {};
         // #520: second_dates counted endings, so one first date plus its second date read as 2. Both numbers, named.
         const { second_dates: earned, second_dates_had: had, ...rest } = view;
         return [{
@@ -6409,14 +6423,16 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           second_dates_note: "second_dates_earned: dates that ended in a second date. second_dates_had: the follow-up dates that took place.",
           told,
           ...unairedNote,
+          ...publicNote,
         }];
       });
       // Everyone sees the couple's open arc question (lib/arcs.ts).
       for (const r of relationships) Object.assign(r, { arc: await arcQuestion(db, who.id, id, r.with.id) });
       // Owners also read the couple's texts (lib/text-chain.ts): the morning after each date, then their texts between dates.
-      if (owner) {
+      {
         for (const r of relationships) {
-          const texts = (await loadChain(db, id, r.with.id, { userId: who.id, owner })).filter(isText).slice(-20);
+          if (!mineIds.has(id) && !mineIds.has(r.with.id)) continue;
+          const texts = (await loadChain(db, id, r.with.id, { userId: who.id, owner: true })).filter(isText).slice(-20);
           const self = id < r.with.id ? "lo" : "hi";
           Object.assign(r, { texts: texts.map((t) => agentText(t, self)) });
         }
@@ -7428,7 +7444,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "air_date": {
       const who = resolveIdentity(args, session, true)!;
       const episodeId = String(args.episode_id ?? "");
-      const due = (await airDueDates(db, who.id).catch(() => [])).find((d) => d.id === episodeId);
+      // #1032: airedBy, so the agent that aired it in this call gets no "aired" notice about it.
+      const due = (await airDueDates(db, who.id, 50, { by: who.id, episodeId }).catch(() => [])).find((d) => d.id === episodeId);
       if (due) return { data: { status: "aired", aired: true, episode_id: episodeId, ending: due.ending, predictions: due.predictions }, identity: who };
       // The prediction window (lib/air.ts): a public date booked moments ago is scheduled, so others can call it first.
       const mine = (
