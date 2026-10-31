@@ -8,12 +8,13 @@
  *
  * Held like a clip (lib/adult/clips.ts): nothing the night hasn't reached, nothing past kissing (or out of their
  * clothes) somewhere public, nothing past the pair's limits, David's lines on every word. It counts against the month's
- * pictures (lib/adult/usage.ts) and costs menu_picture_tokens bought tokens (1 by default), admins free; a picture the
+ * pictures (lib/adult/usage.ts); it's included with a subscription (#1005, David 2026-10-30), admins free, and anyone else
+ * pays menu_picture_tokens bought tokens (1 by default); a picture the
  * check refuses, or a provider failure, gives the token back and isn't counted. While Hive is over its daily limit
  * (lib/adult/hive-limit.ts) nothing is drawn or spent.
  */
 import { picturesBlocked } from "./readiness";
-import { isAdmin } from "../admins";
+import { includedPrice } from "./pricing";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
@@ -88,6 +89,8 @@ export type MenuOutfit = { id: string; label: string; minStage: number; private:
 /** The menu for a pair's picture (the API's GET): the price, what's left this month, and the four choices. */
 export type PictureMenu = {
   price: number;
+  /** Covered by the viewer's subscription (#1005): `price` is then 0 and the label says "included". */
+  included: boolean;
   /** Pictures left this month; null for an admin (never capped). */
   left: number | null;
   /** The acts their limits allow, each with the outfits it can have. */
@@ -110,9 +113,10 @@ export async function pictureMenu(db: Db, ownerId: string, x: string, y: string)
   const cast = reelCast(ca, cb, ownerId);
   const limits = await mediaLimits(db, ownerId, ...pair);
   const stands = nightStands(night.where);
-  const price = (await isAdmin(db, ownerId)) ? 0 : (await getAdultSettings(db)).menu_picture_tokens;
+  const price = await includedPrice(db, ownerId, (await getAdultSettings(db)).menu_picture_tokens);
   return {
-    price,
+    price: price.tokens,
+    included: price.included,
     left: await usageLeft(db, ownerId, "pictures"),
     // Each act as the night stands; a place picked on the menu can still lock one (somewhere public).
     // With how well each framing does for them (lib/adult/framing.ts): badges, and what works first.
@@ -237,8 +241,9 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   }
   const capped = await overCap(db, ownerId, "pictures");
   if (capped) return { ok: false, status: 429, error: "over_cap", message: capped };
-  const pays = !(await isAdmin(db, ownerId));
-  const price = settings.menu_picture_tokens;
+  // Free for an admin, included with a subscription (#1005; David, 2026-10-30), else menu_picture_tokens.
+  const price = (await includedPrice(db, ownerId, settings.menu_picture_tokens)).tokens;
+  const pays = price > 0;
   if (pays && price > 0 && !(await spendBoughtTokens(db, ownerId, price))) {
     return { ok: false, status: 402, error: "needs_tokens", message: `A picture from the menu costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.` };
   }

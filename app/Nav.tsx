@@ -108,7 +108,7 @@ export default function Nav({
     <nav className="nav" aria-label="Primary">
       {/* #539: the count is free dates this week plus topped-up tokens, so it says "dates left", not "tokens". */}
       {personal && meter === "tokens" ? (
-        <Link href="/shop" className={`token-pill${tone}`} title="Tokens left. After Dark spends tokens: a chapter is one, its pictures are included. The show's free weekly dates aren't spent here.">
+        <Link href="/shop" className={`token-pill${tone}`} title="Tokens left. The subscription includes the chapters, their pictures and a few clips a month; tokens pay for the extras (more clips, the video of the night). The show's free weekly dates aren't spent here.">
           <span className="token-pip" aria-hidden="true">◈</span>
           <span className="token-count">{tokens}</span>
           <span className="token-word">{tokens === 1 ? "token" : "tokens"}</span>

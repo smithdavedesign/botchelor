@@ -69,6 +69,7 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
       reel_shots: s.reel_shots,
       reel_tokens: s.reel_tokens,
       clip_tokens: s.clip_tokens,
+      included_clips: s.included_clips,
       menu_picture_tokens: s.menu_picture_tokens,
       chapter_tokens: s.chapter_tokens,
       pictures_per_chapter: s.pictures_per_chapter,
@@ -209,12 +210,14 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
         <input id="ad-reel-shots" type="number" min={2} max={12} value={s.reel_shots} onChange={(e) => setS({ ...s, reel_shots: Number(e.target.value) || 6 })} />
         <label htmlFor="ad-reel-tokens">Price in bought tokens (admins don&apos;t pay)</label>
         <input id="ad-reel-tokens" type="number" min={0} max={500} value={s.reel_tokens} onChange={(e) => setS({ ...s, reel_tokens: Number(e.target.value) || 0 })} />
-        <label htmlFor="ad-chapter-tokens">A chapter of a night (up to 120 lines), in bought tokens, taken when it starts</label>
+        <label htmlFor="ad-chapter-tokens">A chapter of a night (up to 120 lines), in bought tokens, taken when it starts (a subscriber&apos;s are included, #1005)</label>
         <input id="ad-chapter-tokens" type="number" min={0} max={100} value={s.chapter_tokens} onChange={(e) => setS({ ...s, chapter_tokens: Number(e.target.value) || 0 })} />
         <label htmlFor="ad-pictures-per-chapter">Pictures a chapter draws without being asked (its own, a new place&apos;s, ones its lines ask for, its moments at the close)</label>
         <input id="ad-pictures-per-chapter" type="number" min={0} max={10} value={s.pictures_per_chapter} onChange={(e) => setS({ ...s, pictures_per_chapter: Number(e.target.value) || 0 })} />
         <label htmlFor="ad-clip-tokens">A clip on demand (one shot, from the act menu or the latest moment), in bought tokens</label>
         <input id="ad-clip-tokens" type="number" min={0} max={100} value={s.clip_tokens} onChange={(e) => setS({ ...s, clip_tokens: Number(e.target.value) || 0 })} />
+        <label htmlFor="ad-included-clips">Clips a subscriber gets each month at no tokens (each after that costs the price above)</label>
+        <input id="ad-included-clips" type="number" min={0} max={50} value={s.included_clips} onChange={(e) => setS({ ...s, included_clips: Number(e.target.value) || 0 })} />
         <label htmlFor="ad-menu-picture-tokens">A picture from the shot menu (the two of them, as composed), in bought tokens; it counts against the month&apos;s pictures too</label>
         <input id="ad-menu-picture-tokens" type="number" min={0} max={100} value={s.menu_picture_tokens} onChange={(e) => setS({ ...s, menu_picture_tokens: Number(e.target.value) || 0 })} />
       </details>

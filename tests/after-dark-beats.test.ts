@@ -6,6 +6,7 @@ import { NO_MEDIA_LIMITS } from "@/lib/adult/acts";
 import { BEATS_PER_CHAPTER, beatFrame, beatLabel, beatPictureFor, beatPicturesSettled, fileBeats, findBeats, poseHere, positionIn, rewindBeats } from "@/lib/adult/beats";
 import { rateMedia } from "@/lib/adult/steering";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
+import { aheadBudget, settleDrawAhead } from "@/lib/adult/draw-ahead";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { reelCast, reuseBeatPictures, setReelFetchForTests, setReelPausesForTests, type ReelShot } from "@/lib/adult/reels";
 import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
@@ -340,7 +341,7 @@ describe("draw ahead", () => {
   it("draws each moment as it's written once the viewer turns it on: the chapter's own pictures and draw_ahead_pictures more", async () => {
     const { id, cookie } = await admin();
     const scene = await ready(cookie, id, { pictures_per_chapter: 1, draw_ahead_pictures: 1 });
-    expect(await view(cookie)).toEqual({ offered: true, on: false, price: 0, pictures: 1, paid: false });
+    expect(await view(cookie)).toEqual({ offered: true, on: false, price: 0, included: false, pictures: 1, paid: false });
     expect((await turn(true, cookie)).status).toBe(200);
     fakeMedia();
     scripted([`*straddles him* ${fresh()}`, "", `*bends her over the bed* ${fresh()}`, "", `*pins her to the mattress* ${fresh()}`, ""]);
@@ -352,58 +353,39 @@ describe("draw ahead", () => {
     expect(await view(cookie)).toMatchObject({ on: true, paid: true });
   });
 
-  it("takes a subscriber's price before a chapter's first moment is drawn ahead, once a chapter, and keeps it when one was", async () => {
-    const sub = await subscriber(5);
-    expect((await view(sub.cookie)).price).toBe(1);
-    // Turned on with nothing waiting: nothing's taken yet.
-    expect((await (await turn(true, sub.cookie)).json()).note).toMatch(/Drawing ahead: .*1 token a chapter, taken before its first one and given back if none is drawn/);
-    expect(await sub.used()).toBe(0);
+  // #1005 (David, 2026-10-30: "a subscription that includes an allowance, tokens for extras"): Draw ahead is included
+  // with a subscription, bounded by the month's pictures; draw_ahead_tokens is left for a viewer with none.
+  it("is included for a subscriber: nothing taken, even with no tokens, and it never turns itself off for want of one", async () => {
+    const sub = await subscriber(0);
+    expect(await view(sub.cookie)).toMatchObject({ price: 0, included: true });
+    expect((await (await turn(true, sub.cookie)).json()).note).toMatch(/Drawing ahead: .*a chapter, included with your subscription\)\.$/);
     fakeMedia();
     scripted([`*straddles him* ${fresh()}`, "", "", `*bends her over the bed* ${fresh()}`, "", ""]);
     await post({ a: RAFE, b: JUNIPER }, sub.cookie);
     await beatPicturesSettled();
     expect((await beatsOf(sub.scene.id)).map((b) => b.status)).toEqual(["drawn", "drawn"]);
-    expect(await sub.used()).toBe(1);
-    // Off with something drawn ahead: the chapter keeps its price.
+    expect(await view(sub.cookie)).toMatchObject({ on: true, paid: true });
+    expect(await sub.used()).toBe(0);
     expect((await (await turn(false, sub.cookie)).json()).refunded).toBe(0);
-    expect(await sub.used()).toBe(1);
+    expect(await sub.used()).toBe(0);
   });
 
-  it("gives a chapter's price back when nothing was drawn ahead in it (each one failed), off or at its close", async () => {
+  it("a viewer without a subscription pays draw_ahead_tokens a chapter, given back when nothing was drawn, and is turned off without one", async () => {
+    // A subscriber whose subscription lapses mid-chapter: the step's own path (aheadBudget) charges them from then on.
     const sub = await subscriber(5);
     await turn(true, sub.cookie);
-    setCheckFetchForTests(async (input: RequestInfo | URL) => Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD));
-    setReelFetchForTests(async () => new Response("down", { status: 503 }));
-    scripted([`*straddles him* ${fresh()}`, "", "", "", "", ""]);
-    await post({ a: RAFE, b: JUNIPER }, sub.cookie);
-    await beatPicturesSettled();
-    expect((await beatsOf(sub.scene.id)).map((b) => b.status)).toEqual(["failed"]);
+    await t.db.query(`update adult_entitlements set subscription_status = 'lapsed' where user_id = $1`, [sub.id]);
+    expect(await aheadBudget(t.db, sub.scene.id, 1)).not.toBeNull();
     expect(await sub.used()).toBe(1);
-    const off = await (await turn(false, sub.cookie)).json();
-    expect(off).toMatchObject({ refunded: 1 });
-    expect(off.note).toMatch(/token is back: nothing was drawn ahead this chapter/);
+    expect(await settleDrawAhead(t.db, sub.scene.id, 1)).toBe(1);
     expect(await sub.used()).toBe(0);
-    // Its close settles it too.
-    await turn(true, sub.cookie);
-    scripted([`*bends her over the bed* ${fresh()}`, "", "", "", "", ""]);
-    await post({ a: RAFE, b: JUNIPER }, sub.cookie);
-    await beatPicturesSettled();
-    expect(await sub.used()).toBe(1);
-    await fileBeats(t.db, sub.scene.id, 1, "night-x");
-    expect(await sub.used()).toBe(0);
-  });
-
-  it("turns itself off when a chapter can't be paid for, and the theater says why", async () => {
-    const sub = await subscriber(0);
-    await turn(true, sub.cookie);
-    fakeMedia();
-    scripted([`*straddles him* ${fresh()}`, "", "", "", "", ""]);
-    const r = await (await post({ a: RAFE, b: JUNIPER }, sub.cookie)).json();
-    expect((await beatsOf(sub.scene.id)).map((b) => b.status)).toEqual(["offered"]);
-    expect(await view(sub.cookie)).toMatchObject({ on: false });
-    const note = (await t.db.query<{ picture_note: string }>(`select picture_note from adult_scenes where id = $1`, [sub.scene.id])).rows[0].picture_note;
-    expect(note).toMatch(/Draw ahead is off: it takes 1 token a chapter/);
-    expect(r.scene).toBeTruthy();
+    const broke = await subscriber(0);
+    await turn(true, broke.cookie);
+    await t.db.query(`update adult_entitlements set subscription_status = 'lapsed' where user_id = $1`, [broke.id]);
+    expect(await aheadBudget(t.db, broke.scene.id, 1)).toBeNull();
+    const note = (await t.db.query<{ picture_note: string; draw_ahead: boolean }>(`select picture_note, draw_ahead from adult_scenes where id = $1`, [broke.scene.id])).rows[0];
+    expect(note).toMatchObject({ draw_ahead: false });
+    expect(note.picture_note).toMatch(/Draw ahead is off: it takes 1 token a chapter/);
   });
 
   it("turned on, draws the chapter's moments still waiting from the line on stage; never while the settings don't offer it", async () => {

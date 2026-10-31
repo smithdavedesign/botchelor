@@ -247,6 +247,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         reel_shots: { type: "integer", minimum: 2, maximum: 12 },
         reel_tokens: { type: "integer", minimum: 0, maximum: 500, description: "What a person pays in bought tokens (admins never pay); so are the other *_tokens." },
         clip_tokens: { type: "integer", minimum: 0, maximum: 100 },
+        included_clips: { type: "integer", minimum: 0, maximum: 50, description: "A subscriber's clips each month at no tokens (#1005); each after that costs clip_tokens." },
         menu_picture_tokens: { type: "integer", minimum: 0, maximum: 100 },
         chapter_tokens: { type: "integer", minimum: 0, maximum: 100 },
         pictures_per_chapter: { type: "integer", minimum: 0, maximum: 10 },

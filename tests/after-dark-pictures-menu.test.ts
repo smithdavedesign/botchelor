@@ -235,7 +235,8 @@ describe("a picture of both of them", () => {
     expect((await picture(cookie, { act: "kiss", outfit: "tonight", place: "restaurant" })).status).toBe(200);
   });
 
-  it("costs a subscriber menu_picture_tokens (1), counts against the month's pictures, and gives the token back when it isn't kept", async () => {
+  // #1005 (David, 2026-10-30): a subscriber's menu pictures are included, bounded by the month's pictures.
+  it("is included for a subscriber (no tokens), counts against the month's pictures, and isn't counted when it isn't kept", async () => {
     const { id: adminId, cookie: adminCookie } = await admin();
     await ready(adminCookie, adminId, { stage: 2 });
     expect((await getAdultSettings(t.db)).menu_picture_tokens).toBe(1);
@@ -245,16 +246,15 @@ describe("a picture of both of them", () => {
     await ready(cookie, sub, { stage: 2 });
     await t.db.query(`update adult_settings set cap_pictures = 2`);
     const used = async () => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [sub])).rows[0]?.used ?? 0;
-    expect(await menu(cookie)).toMatchObject({ price: 1, left: 2 });
+    expect(await menu(cookie)).toMatchObject({ price: 0, included: true, left: 2 });
+    expect(await menu(adminCookie)).toMatchObject({ price: 0, included: false, left: null });
     fakeVenice();
     fakeHive();
-    expect((await picture(cookie, { act: "kiss", outfit: "tonight" })).status).toBe(402);
-    await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 10, 'test')`, [crypto.randomUUID(), sub]);
-    // The age check refuses it: discarded, never stored, logged, the token back, not counted.
+    // The age check refuses it: discarded, never stored, logged, not counted (and nothing was charged).
     fakeHive((vlm) => (vlm ? MINOR : CLEAN_MOD));
     const discarded = await picture(cookie, { act: "kiss", outfit: "tonight" });
     expect(discarded.status).toBe(422);
-    expect((await discarded.json()).message).toMatch(/^The safety check discarded that picture \(age check: MINOR\)\. Your token is back\.$/);
+    expect((await discarded.json()).message).toMatch(/^The safety check discarded that picture \(age check: MINOR\)\.$/);
     expect((await t.db.query<{ reason: string }>(`select reason from adult_rejections`)).rows.map((r) => r.reason)).toEqual(["menu picture: age check: MINOR"]);
     // Hive not answering (429 after its retries): not kept, the token back. Once is a blip; the second in a row opens
     // the breaker, and pictures pause (lib/adult/hive-limit.ts).
@@ -262,10 +262,10 @@ describe("a picture of both of them", () => {
     fakeHive(() => new Response("slow down", { status: 429 }));
     const blip = await picture(cookie, { act: "kiss", outfit: "tonight" });
     expect(blip.status).toBe(503);
-    expect((await blip.json()).message).toBe("The safety check couldn't look at it just now, so it wasn't kept. Try again in a few minutes. Your token is back.");
+    expect((await blip.json()).message).toBe("The safety check couldn't look at it just now, so it wasn't kept. Try again in a few minutes.");
     const out = await picture(cookie, { act: "kiss", outfit: "tonight" });
     expect(out.status).toBe(503);
-    expect((await out.json()).message).toMatch(/^Hive \(the safety check\) has hit its limit, so this one couldn't be checked and wasn't kept, and nothing more is drawn until it answers again \(about 5 minutes\)\. Your token is back\.$/);
+    expect((await out.json()).message).toMatch(/^Hive \(the safety check\) has hit its limit, so this one couldn't be checked and wasn't kept, and nothing more is drawn until it answers again \(about 5 minutes\)\.$/);
     // While it lasts, the next one is refused before anything is drawn or spent.
     const drawn = fakeVenice();
     const seen = fakeHive();
@@ -284,16 +284,16 @@ describe("a picture of both of them", () => {
     expect(await used()).toBe(0);
     expect(await pictures(sub)).toBe(0);
     expect((await t.db.query(`select 1 from adult_images where kind = 'scene'`)).rows).toHaveLength(0);
-    // Two that come through: paid for and counted; the third is over the month's cap, refused before anything's spent.
+    // Two that come through: counted, no tokens; the third is over the month's cap, refused before anything's drawn.
     fakeVenice();
     expect((await picture(cookie, { act: "kiss", outfit: "tonight" })).status).toBe(200);
     expect((await picture(cookie, { act: "cuddle", outfit: "casual", framing: "wide" })).status).toBe(200);
-    expect(await used()).toBe(2);
+    expect(await used()).toBe(0);
     expect(await pictures(sub)).toBe(2);
     const capped = await picture(cookie, { act: "kiss", outfit: "tonight" });
     expect(capped.status).toBe(429);
     expect((await capped.json()).message).toMatch(/this month's 2 pictures/);
-    expect(await used()).toBe(2);
+    expect(await used()).toBe(0);
   });
 
   it("is drawn on Replicate's Qwen-Image-Edit when that's the media provider", async () => {

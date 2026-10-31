@@ -22,6 +22,7 @@ import { presenceUrl, usePresence } from "./usePresence";
 import { talkUrl, useTalks } from "./useTalks";
 import { stagePicture, useMomentPictures } from "./useMomentPictures";
 import { useDrawAhead } from "./useDrawAhead";
+import { tokensWord } from "@/lib/adult/price-words";
 import TalkPlayer from "./TalkPlayer";
 import LivingFace from "../../LivingFace";
 import Avatar from "@/app/Avatar";
@@ -201,8 +202,9 @@ export default function AfterDarkTheater({
   onPlanVideo,
   writer = null,
   videoChapters = [],
-  videoTokens = 15,
+  videoTokens = 7,
   chapterTokens = 0,
+  chapterIncluded = false,
   readiness = [],
   videoNote = null,
   mediaPaused = null,
@@ -270,6 +272,8 @@ export default function AfterDarkTheater({
   videoTokens?: number;
   /** A chapter's price for this viewer (0: free, an admin): Start and the Next that opens a chapter say it. */
   chapterTokens?: number;
+  /** Chapters are included with the viewer's subscription (#1005; David, 2026-10-30): Start and Next say "included". */
+  chapterIncluded?: boolean;
   /** Whether each of them is set up for pictures (lib/adult/readiness.ts): the start card's checklist. */
   readiness?: readonly Readiness[];
   videoNote?: string | null;
@@ -613,7 +617,7 @@ export default function AfterDarkTheater({
                   </button>
                 )}
                 <button type="button" className="primary" disabled={busy} onClick={() => void onWrite?.(direction.trim()).then((ok) => ok !== false && setDirection(""))}>
-                  {busy ? "Starting…" : `▶ Start the night${chapterTokens ? ` · ${chapterTokens} token${chapterTokens === 1 ? "" : "s"}` : ""}`}
+                  {busy ? "Starting…" : `▶ Start the night${chapterTokens ? ` · ${tokensWord(chapterTokens)}` : chapterIncluded ? " · included" : ""}`}
                 </button>
               </div>
             </div>
@@ -804,7 +808,7 @@ export default function AfterDarkTheater({
                           : `Each moment drawn as soon as it's written, so it's on the stage when its line plays: up to ${drawAhead.view.pictures} more pictures a chapter, without agreeing on each first (Redraw stays)`
                       }
                     >
-                      {drawAhead.view.on ? "⚡ Drawing ahead ✓" : `⚡ Draw ahead${drawAhead.view.price > 0 ? ` · ${drawAhead.view.price} token${drawAhead.view.price === 1 ? "" : "s"} a chapter` : ""}`}
+                      {drawAhead.view.on ? "⚡ Drawing ahead ✓" : `⚡ Draw ahead${drawAhead.view.price > 0 ? ` · ${tokensWord(drawAhead.view.price)} a chapter` : drawAhead.view.included ? " · included" : ""}`}
                     </button>
                   )}
                 </div>
@@ -855,7 +859,8 @@ export default function AfterDarkTheater({
                         ? "Steer"
                         : // The Next that opens a chapter pays for it (lib/adult/settings.ts chapter_tokens).
                           // #1005: after that, Next says it's already paid for, so no step looks free or unexplained.
-                          `Next${chapterTokens ? (scene.lines.length ? " · included" : ` · ${chapterTokens} token${chapterTokens === 1 ? "" : "s"}`) : ""}`}
+                          // A subscriber's chapters are included (#1005, David 2026-10-30): every Next says so.
+                          `Next${chapterTokens ? (scene.lines.length ? " · included" : ` · ${tokensWord(chapterTokens)}`) : chapterIncluded ? " · included" : ""}`}
                 </button>
               </div>
               <div className="ad-theater-options">

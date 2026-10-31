@@ -35,17 +35,21 @@ export const DEFAULT_VENICE_IMAGE_MODEL = "lustify-v8";
 /**
  * The full-night video: Wan 3.0 speaks each line itself, quoted in its prompt (David, 2026-10-19, after watching both
  * tests: the model's own voice felt more real than a stock voice lip-synced by Wan 2.6). Six shots, about 30 seconds;
- * 15 bought tokens (docs/after-dark-costs.md: about $4 to $5 to make, $10.50 in after fees).
+ * 7 bought tokens, about what it costs us (#1005; David, 2026-10-30: "just break even overall is the goal until adoption
+ * is higher"): $4.25 to $5.50 to make, about $4.75 in after fees (docs/after-dark-costs.md). It was 15.
  */
 export const DEFAULT_REEL_MODEL = "wan-3-0-image-to-video";
 export const DEFAULT_REEL_SHOTS = 6;
-export const DEFAULT_REEL_TOKENS = 15;
+export const DEFAULT_REEL_TOKENS = 7;
 /**
  * A clip on demand (lib/adult/clips.ts): one shot of the two of them, from the act menu or the scene's latest moment, or
  * kept going from the last one. About $0.70 to make on Venice (a keyframe and 5 s of Wan 3.0), about $0.15 on
- * Replicate; 3 bought tokens take in about $2 after fees (docs/after-dark-costs.md).
+ * Replicate. 1 bought token, about cost (#1005; David, 2026-10-30, break even): a subscriber's first `included_clips` a
+ * month cost nothing (lib/adult/pricing.ts), and each one after that this. It was 3.
  */
-export const DEFAULT_CLIP_TOKENS = 3;
+export const DEFAULT_CLIP_TOKENS = 1;
+/** A subscriber's clips each calendar month that cost no tokens (#1005, David 2026-10-30: the subscription's allowance). */
+export const DEFAULT_INCLUDED_CLIPS = 3;
 /**
  * A picture from the shot menu (lib/adult/pictures-menu.ts): one keyframe of the two of them, as the viewer composes it.
  * About $0.05 to make on Venice ($0.04 and the check), $0.04 on Replicate; it also counts against the month's pictures.
@@ -55,7 +59,9 @@ export const DEFAULT_MENU_PICTURE_TOKENS = 1;
 /**
  * A chapter of a night (up to 120 lines) costs this many bought tokens, taken when its first lines are written; admins
  * don't pay (David, 2026-10-25). One token is about $0.68 after an adult processor's fee; a chapter costs us about $0.05
- * of text plus its pictures (about $0.03 each on Replicate, $0.015 on Venice).
+ * of text plus its pictures (about $0.03 each on Replicate, $0.015 on Venice). Included with a subscription (#1005; David,
+ * 2026-10-30), bounded by the month's caps, so in practice only a viewer with no subscription would pay it
+ * (lib/adult/pricing.ts); the menu's pictures and Draw ahead the same.
  */
 export const DEFAULT_CHAPTER_TOKENS = 1;
 /**
@@ -150,6 +156,8 @@ export type AdultSettings = {
   reel_tokens: number;
   /** A clip on demand's price in bought tokens (lib/adult/clips.ts). */
   clip_tokens: number;
+  /** A subscriber's clips a month at no tokens (DEFAULT_INCLUDED_CLIPS, lib/adult/pricing.ts). */
+  included_clips: number;
   /** A picture from the shot menu's price in bought tokens (lib/adult/pictures-menu.ts). */
   menu_picture_tokens: number;
   /** A chapter's price in bought tokens, and the pictures it draws unasked (DEFAULT_CHAPTER_TOKENS, DEFAULT_PICTURES_PER_CHAPTER). */
@@ -231,6 +239,7 @@ type Row = {
   reel_shots: number | null;
   reel_tokens: number | null;
   clip_tokens: number | null;
+  included_clips: number | null;
   menu_picture_tokens: number | null;
   chapter_tokens: number | null;
   pictures_per_chapter: number | null;
@@ -303,6 +312,7 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     reel_shots: r?.reel_shots ?? DEFAULT_REEL_SHOTS,
     reel_tokens: r?.reel_tokens ?? DEFAULT_REEL_TOKENS,
     clip_tokens: r?.clip_tokens ?? DEFAULT_CLIP_TOKENS,
+    included_clips: r?.included_clips ?? DEFAULT_INCLUDED_CLIPS,
     menu_picture_tokens: r?.menu_picture_tokens ?? DEFAULT_MENU_PICTURE_TOKENS,
     chapter_tokens: r?.chapter_tokens ?? DEFAULT_CHAPTER_TOKENS,
     pictures_per_chapter: r?.pictures_per_chapter ?? DEFAULT_PICTURES_PER_CHAPTER,
@@ -399,6 +409,7 @@ export type SettingsPatch = {
   reel_shots?: number;
   reel_tokens?: number;
   clip_tokens?: number;
+  included_clips?: number;
   menu_picture_tokens?: number;
   chapter_tokens?: number;
   pictures_per_chapter?: number;
@@ -509,7 +520,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
     const v = patch.caps?.[k];
     if (v !== undefined) put(`cap_${k}`, Math.max(0, Math.floor(v)));
   }
-  for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "menu_picture_tokens", "chapter_tokens", "pictures_per_chapter", "draw_ahead_tokens", "draw_ahead_pictures"] as const) if (patch[k] !== undefined) put(k, patch[k]);
+  for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "included_clips", "menu_picture_tokens", "chapter_tokens", "pictures_per_chapter", "draw_ahead_tokens", "draw_ahead_pictures"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
   for (const k of ["replicate_picture_model", "replicate_keyframe_model", "replicate_video_model", "replicate_voice_model", "replicate_video_lora", "presence_loop_model", "place_sound_model", "talk_model"] as const) {

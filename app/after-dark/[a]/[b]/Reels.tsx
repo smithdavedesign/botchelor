@@ -5,6 +5,8 @@ import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import { archivedClip, clipChains, keepGoingFrom, playable } from "@/lib/adult/clip-chains";
 import type { BusyReel, Reel, ReelShot } from "@/lib/adult/reels";
+import type { ClipOffer } from "@/lib/adult/clips";
+import { includedClipsWords, priceWords } from "@/lib/adult/price-words";
 import { chaptersLabel } from "@/lib/adult/nights";
 import { pausedUntil, reelFailureNote } from "@/lib/adult/reel-failure";
 import { REEL_STALLED_MS } from "@/lib/adult/reel-timing";
@@ -35,7 +37,7 @@ const drop = (url: string) => url.startsWith("blob:") && URL.revokeObjectURL(url
  */
 export default function Reels({ reels, onChange, onMedia }: { reels: Reel[]; onChange: (r: Reel) => void; onMedia?: (m: Media) => void }) {
   const making = reels.filter((r) => r.status === "making").map((r) => r.id).join(",");
-  const price = useClipPrice(reels.find((r) => r.a && r.b));
+  const price = useClipPrice(reels.find((r) => r.a && r.b), reels.filter((r) => r.kind === "clip").length);
   useEffect(() => {
     if (!making) return;
     const timer = setInterval(async () => {
@@ -201,24 +203,32 @@ function ArchivedShot({ shot, onChange }: { shot: PlayShot & { from: string }; o
  * Their clips (lib/adult/clips.ts), each with the ones kept going from it as one film, newest first. "Keep going" carries
  * the last one on: its keyframe is the picture the next shot starts from. The price is the pair's clip menu's.
  */
-/** A clip's price for this pair (the clip menu's), for Keep going: null until it's known. */
-function useClipPrice(pair: Reel | undefined): number | null {
-  const [price, setPrice] = useState<number | null>(null);
+/**
+ * A clip's price for this pair (the clip menu's), for Keep going, in words: "included" while a subscriber's clips this
+ * month last (#1005), then the tokens ("free" for an admin). Null until it's known.
+ */
+function useClipPrice(pair: Reel | undefined, clipCount: number): string | null {
+  const [price, setPrice] = useState<string | null>(null);
   useEffect(() => {
     if (!pair?.a || !pair.b) return;
     let gone = false;
     fetch(`/api/admin/after-dark/clips?a=${encodeURIComponent(pair.a)}&b=${encodeURIComponent(pair.b)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((offer: { price?: number } | null) => !gone && typeof offer?.price === "number" && setPrice(offer.price))
+      .then((offer: Partial<ClipOffer> | null) => {
+        if (gone || typeof offer?.price !== "number") return;
+        const left = includedClipsWords(offer.included_left, offer.included_of ?? 0);
+        setPrice(`${priceWords(offer.price, offer.included)}${left ? ` (${left})` : ""}`);
+      })
       .catch(() => {});
     return () => {
       gone = true;
     };
-  }, [pair?.a, pair?.b]);
+    // Read again as clips are made: the included ones left move on.
+  }, [pair?.a, pair?.b, clipCount]);
   return price;
 }
 
-function Clips({ clips, onChange, price, onMedia }: { clips: Reel[]; onChange: (r: Reel) => void; price: number | null; onMedia?: (m: Media) => void }) {
+function Clips({ clips, onChange, price, onMedia }: { clips: Reel[]; onChange: (r: Reel) => void; price: string | null; onMedia?: (m: Media) => void }) {
   // A chain whose every clip went to the Archive is listed there, not here.
   const chains = clipChains(clips).filter((chain) => !chain.every(archivedClip));
   const making = clips.some((c) => c.status === "making");
@@ -240,14 +250,14 @@ function Clips({ clips, onChange, price, onMedia }: { clips: Reel[]; onChange: (
 }
 
 /** One clip and the ones kept going from it: played as one, the last one's state, and Keep going. */
-function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[]; price: number | null; making: boolean; onChange: (r: Reel) => void; onMedia?: (m: Media) => void }) {
+function ClipChain({ chain, price, making, onChange, onMedia }: { chain: Reel[]; price: string | null; making: boolean; onChange: (r: Reel) => void; onMedia?: (m: Media) => void }) {
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState<{ text: string; busy?: BusyReel } | null>(null);
   const shots = chain.flatMap((c) => readyShots(c));
   const last = chain[chain.length - 1];
   const from = keepGoingFrom(chain);
   const label = chain[0].clip?.label ?? "A clip";
-  const cost = price === null ? "" : price === 0 ? " · free" : ` · ${price} token${price === 1 ? "" : "s"}`;
+  const cost = price === null ? "" : ` · ${price}`;
   async function keepGoing() {
     if (!from) return;
     setAsking(true);
@@ -304,7 +314,7 @@ export async function stopReel(id: string): Promise<Reel | null> {
   return (res?.reel as Reel | undefined) ?? null;
 }
 
-function ReelPlayer({ reel, onChange, what = "video", price = null, onMedia }: { reel: Reel; onChange: (r: Reel) => void; what?: "video" | "clip"; price?: number | null; onMedia?: (m: Media) => void }) {
+function ReelPlayer({ reel, onChange, what = "video", price = null, onMedia }: { reel: Reel; onChange: (r: Reel) => void; what?: "video" | "clip"; price?: string | null; onMedia?: (m: Media) => void }) {
   const shots = readyShots(reel);
   const done = reel.shots.filter((s) => s.status !== "queued").length;
   const [stopping, setStopping] = useState(false);
@@ -389,7 +399,7 @@ function ReelPlayer({ reel, onChange, what = "video", price = null, onMedia }: {
  * Under it, the shot on screen: 👍/👎 (lib/adult/steering.ts), and with `onChange`, Remove this shot, which takes it out
  * of its video into the Archive (nothing is deleted). The shots already fetched are kept for the shots that are left.
  */
-function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: PlayShot[]; onChange?: (r: Reel) => void; price?: number | null; onMedia?: (m: Media) => void }) {
+function SeamlessPlayer({ shots, onChange, price = null, onMedia }: { shots: PlayShot[]; onChange?: (r: Reel) => void; price?: string | null; onMedia?: (m: Media) => void }) {
   const key = shots.map((s) => `${s.media_id}${s.audio_id ? `+${s.audio_id}` : ""}`).join(",");
   const admin = useContext(MediaAdmin);
   const [urls, setUrls] = useState<string[] | null>(null);

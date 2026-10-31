@@ -2824,6 +2824,13 @@ create table if not exists spend_snapshots (
   primary key (day, provider)
 );
 
+-- After Dark's pricing (#1005; David, 2026-10-30: "a subscription that includes an allowance, tokens for extras ... just
+-- break even overall"): a subscriber's first included_clips clips each month cost nothing (lib/adult/pricing.ts), counted
+-- here; null: DEFAULT_INCLUDED_CLIPS. The pictures cap's default goes to 60 (an existing row keeps what it says).
+alter table adult_settings add column if not exists included_clips integer;
+alter table adult_usage add column if not exists included_clips integer not null default 0;
+alter table adult_settings alter column cap_pictures set default 60;
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

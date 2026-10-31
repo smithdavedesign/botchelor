@@ -69,6 +69,7 @@ import { STAGES } from "./stages";
 import { faceReferenceId, NO_STEERING, ratingsFor, steeringFor } from "./steering";
 import { logRequest, requestJson, withRequestLog, type LoggedRequest } from "./request-log";
 import { candidates, ensureTagged, placeKeys, rank, tagNow } from "./media-tags";
+import { giveBackIncludedClip } from "./usage";
 
 export const VENICE = "https://api.venice.ai/api/v1";
 /** Shots in a reel, and how many words a shot can carry (people say about 2.5 words a second). */
@@ -231,6 +232,8 @@ export type ClipMeta = {
   cut?: { video: string; at: number; seamless: boolean };
   /** Seen through one of their eyes (an act's first-person view): whose. */
   eyes?: "a" | "b";
+  /** One of a subscriber's included clips (#1005): the month it was taken from, given back there if it fails. */
+  included?: string;
 };
 /** A video: a night's reel (`kind` "night", the default) or a clip; `a` and `b` are the pair's ids, lower first. */
 export type Reel = {
@@ -1907,7 +1910,7 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
 
 /** Once no shot is still being made: ready if any came through, and the share of tokens for the ones that didn't, back. */
 export async function settleIfDone(db: Db, id: string): Promise<Reel> {
-  const r = (await db.query<{ owner_id: string; status: string; tokens: number; shots: ReelShot[] }>(`select owner_id, status, tokens, shots from adult_reels where id = $1`, [id])).rows[0];
+  const r = (await db.query<{ owner_id: string; status: string; tokens: number; shots: ReelShot[]; kind: string | null; clip: ClipMeta | null }>(`select owner_id, status, tokens, shots, kind, clip from adult_reels where id = $1`, [id])).rows[0];
   if (r.status === "making" && !r.shots.some((s) => s.status === "queued")) {
     const good = r.shots.filter((s) => s.status === "ready").length;
     const status = good ? "ready" : "failed";
@@ -1923,6 +1926,8 @@ export async function settleIfDone(db: Db, id: string): Promise<Reel> {
       refilmed.length ? [id, status, JSON.stringify(r.shots)] : [id, status],
     );
     if (done.rows.length && refund > 0) await refundBoughtTokens(db, r.owner_id, refund);
+    // An included clip (#1005) that didn't come through: its place in the month's allowance back (a refilm's isn't one).
+    if (done.rows.length && status === "failed" && !refilmed.length && r.kind === "clip" && r.clip?.included) await giveBackIncludedClip(db, r.owner_id, r.clip.included);
   }
   return (await getReel(db, id))!;
 }
@@ -2236,7 +2241,7 @@ export async function useShotVideo(db: Db, ownerId: string, reelId: string, shot
  * Only once the reel is done (ready or failed), one reel at a time as ever.
  */
 export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaId: string, baseUrl: string): Promise<MakeReelResult> {
-  const r = (await db.query<{ owner_id: string; status: string; character_a: string; character_b: string; shots: ReelShot[] }>(`select owner_id, status, character_a, character_b, shots from adult_reels where id = $1`, [reelId])).rows[0];
+  const r = (await db.query<{ owner_id: string; status: string; character_a: string; character_b: string; shots: ReelShot[]; kind: string | null }>(`select owner_id, status, character_a, character_b, shots, kind from adult_reels where id = $1`, [reelId])).rows[0];
   if (!r || r.owner_id !== ownerId) return { ok: false, status: 404, error: "not_found", message: "That video isn't here." };
   if (r.status !== "ready" && r.status !== "failed") return { ok: false, status: 409, error: "not_done", message: "Wait for this video to finish first." };
   const shot = r.shots.find((s) => s.media_id === mediaId && s.frame_id && !s.archived_at && (s.status === "ready" || s.status === "failed" || s.status === "discarded"));
@@ -2250,7 +2255,8 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
   const busy = await busyReel(db, ownerId);
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
   const pays = !(await isAdmin(db, ownerId));
-  const price = pays ? Math.max(1, Math.ceil(settings.reel_tokens / Math.max(1, r.shots.length))) : 0;
+  // A clip filmed again costs what a clip past the allowance does (#1005: extras at about cost); a night's shot, its share.
+  const price = !pays ? 0 : r.kind === "clip" ? settings.clip_tokens : Math.max(1, Math.ceil(settings.reel_tokens / Math.max(1, r.shots.length)));
   if (price && !(await spendBoughtTokens(db, ownerId, price))) {
     return { ok: false, status: 402, error: "needs_tokens", message: `Filming a shot again costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.` };
   }
