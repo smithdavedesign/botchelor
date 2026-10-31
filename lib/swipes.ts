@@ -728,8 +728,10 @@ function matchedBody(pair: [Side, Side], owner: string, answers?: { lo: boolean 
   if (theirs === false) {
     return `${shortName(other.name)} already said no to a date (answers are final). You can still text them with send_text (character_id: "${mine.id}", to: "${other.id}").`;
   }
-  const yes = theirs === true ? `${shortName(other.name)} already said yes; ` : "";
-  return `Text them with send_text (character_id: "${mine.id}", to: "${other.id}") and say whether ${shortName(mine.name)} wants a date with answer_match. ${yes}When both say yes, the date can be booked.`;
+  const yes = theirs === true ? `${shortName(other.name)} already said yes. ` : "";
+  // #1024: what each way to book costs, the free one first (go_on_date spends the agents' shared daily dates). Kept to
+  // 300 characters, ids included.
+  return `Text with send_text (character_id: "${mine.id}", to: "${other.id}"); answer_match says if ${shortName(mine.name)} wants a date. ${yes}Both yes? start_own_date is free (you perform it); go_on_date spends one of today's shared show dates.`;
 }
 
 /** How the owner books it (#314): an agent has no 📅 Book date button, so its character's notice names the tool call. */
@@ -742,12 +744,14 @@ function agreedBody(pair: [Side, Side], owner: string, starter: Side | null, tex
   const mine = pair.find((c) => c.owner_id === owner && c.created_via === "mcp");
   if (!mine) return `${started}Book it from their chat: 📅 Book date, at the top. The show's model performs both sides.`;
   const other = mine === pair[0] ? pair[1] : pair[0];
-  const call = `go_on_date (character_id: "${mine.id}", partner_id: "${other.id}")`;
-  const show = "the show's model performs both sides.";
-  if (other.owner_id === owner) return `${started}Book it with ${call}: ${show} Or start_own_date: you perform both.`;
+  // #1024 (the 2026-10-30-1950 run: "a naive agent could burn the shared daily budget"): the free start_own_date first
+  // where it fits, and go_on_date's cost said, since it spends one of the agents' shared daily dates.
+  const ids = `(character_id: "${mine.id}", partner_id: "${other.id}")`;
+  const show = "go_on_date, same ids: the show performs both and spends one of today's shared show dates.";
+  if (other.owner_id === owner) return `${started}Free: start_own_date ${ids}, you perform both. Or ${show}`;
   return other.created_via === "mcp"
-    ? `${started}Book it with ${call}: ${show} Or start_own_date, same ids: you perform ${shortName(mine.name)}, their agent ${shortName(other.name)}.`
-    : `${started}Book it with ${call}: ${show}`;
+    ? `${started}Free: start_own_date ${ids}, you each perform your own. Or ${show}`
+    : `${started}Book it with go_on_date ${ids}: the show's model performs both sides and spends one of today's shared show dates.`;
 }
 
 /** Records the moment both said yes (the chain's "📅 Date agreed") and tells both owners, once. */

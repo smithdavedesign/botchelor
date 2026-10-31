@@ -59,7 +59,7 @@ import type { RejectReason } from "./safety";
 import { narrateEpisode } from "./showrunner";
 import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
-import { dateShape, moveCost, moveProblem, segmentBudget, settleLine, type DateShape } from "./moves";
+import { dateShape, moveCost, moveProblem, placesOf, segmentBudget, settleLine, type DateShape } from "./moves";
 import { venueName, venuePhrase, type PlaceId } from "./venues";
 import { applyWishes, resolveWishes, settledWishes, type StoredWishes, wishReport, wishRule } from "./wishes";
 import { dateHeading, forTwoAgents, headingLine, nearSecondDate, type Heading } from "./heading";
@@ -1879,13 +1879,29 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     // 2.10.1 (#672): a see_again sent with the recap counts for nothing (the wishes came with the characters' lines), and
     // the reply says so rather than drop it unsaid.
     const sentWish = carriesSeeAgain(output);
+    const settingNote = recapSettingNote(draft.setting, placesOf(transcript, built.setup.venue).map(venueName));
     return {
       ok: true,
       step: { stage: "done", episode_id: episodeId, episode: await getEpisodeView(db, episodeId, userId), ...(wishes ? { wishes } : {}), ...(reflect ? { reflect } : {}), ...(lines ? { lines } : {}) },
       ...(sentWish ? { wish_ignored: "the recap carries no wish: see_again goes with a character's line, and the lines were all in (wishes says how theirs counted)" } : {}),
+      ...(settingNote ? { setting_note: settingNote } : {}),
     };
   }
   return { ok: true, step: current };
+}
+
+/**
+ * #1028 (the 2026-10-30 prod loop: "my speed_date was a pottery_class, my recap said a speed-dating hall, accepted"): a
+ * recap whose setting names none of the places the date was at gets a note saying where it was. Kept as written, not
+ * refused: a loose word match must never turn away a good recap ("the studio" for a pottery class).
+ */
+export function recapSettingNote(setting: string, places: readonly string[]): string | null {
+  const words = (t: string) => new Set(t.toLowerCase().match(/[a-z]{4,}/g) ?? []);
+  const said = words(setting);
+  const named = places.some((p) => [...words(p)].some((w) => said.has(w) || said.has(w.replace(/s$/, ""))));
+  return named || !places.length
+    ? null
+    : `Kept as written, but the setting names none of the places the date was at (${places.join(", then ")}): the engine chose the venue, so next time set the recap there.`;
 }
 
 /* --------------------------------------------- two-agent dates --------------------------------------------- */

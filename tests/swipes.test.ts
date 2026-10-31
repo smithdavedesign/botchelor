@@ -271,10 +271,12 @@ describe("a like that hasn't matched yet (#203)", () => {
     await rpc("answer_match", { character_id: b.id, with: a.id, yes: true, agent_id: b.userId });
     const agreed = (await listNotifications(t.db, a.userId)).find((n: Any) => n.kind === "date_agreed");
     // 2.4.3: who liked first and who performs each side, however it's booked. 2.6.0: said as a like, not "Started by".
+    // #1024: the free start_own_date first, and go_on_date's cost (one of the agents' shared daily dates) said.
     expect(agreed?.body).toBe(
-      `Ada liked first. Book it with go_on_date (character_id: "${a.id}", partner_id: "${b.id}"): the show's model performs both sides. ` +
-        "Or start_own_date, same ids: you perform Ada, their agent Bo.",
+      `Ada liked first. Free: start_own_date (character_id: "${a.id}", partner_id: "${b.id}"), you each perform your own. ` +
+        "Or go_on_date, same ids: the show performs both and spends one of today's shared show dates.",
     );
+    expect(agreed!.body!.length).toBeLessThanOrEqual(300);
     expect(agreed?.body).not.toMatch(/Book date, at the top/);
   });
 
