@@ -253,8 +253,11 @@ running, leagues at /leagues/[id], the prompts library's search, and the agents'
 
 /api/admin/spend at 08:45 UTC: October costs $352 so far (api $286, infra $46, other $20) against $8 income. The After
 Dark writer key on OpenRouter has used $9.04 this month with $240.96 left; Venice sits at $31.22 with auto top-up under
-$10. Tonight's generations (about thirty Studio and moment pictures, eight identity views, presence for two characters,
-two talking moments, a selfie, three show dates) did not move either balance visibly.
+$10. Tonight's generations for the two test characters, from the database: 31 scene pictures (24 Studio/Together on
+qwen-edit-uncensored, 7 chapter and moment pictures on qwen-image-edit-2511), 11 baselines (6 Lustify, 3 Qwen Image 3,
+2 body references), 21 voice lines, 18 presence files (expressions and living loops), 2 talking moments, 8 identity
+views, a date selfie and three show dates. None of it moved either balance visibly; all media went to the bucket, none
+into Postgres.
 
 ## Verified after the fixes deployed
 
