@@ -11696,3 +11696,9 @@ button.pg-group-head:hover {
   gap: 0.4rem;
   margin: 0.5rem 0;
 }
+
+/* /about: the stack, one card per thing. */
+.about-stack-toc { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; padding: 0; list-style: none; }
+.about-stack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.75rem; padding: 0; list-style: none; }
+.about-stack-grid li { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: 10px; }
+.about-stack-grid li span { font-size: 0.92em; opacity: 0.85; }
