@@ -15,7 +15,7 @@ import type { CharacterRef } from "@/lib/game";
 import PictureContext from "./PictureContext";
 import type { PictureEdit } from "@/lib/adult/beats";
 import type { Readiness } from "@/lib/adult/readiness";
-import AfterDarkTheater from "./AfterDarkTheater";
+import AfterDarkTheater, { steerEcho } from "./AfterDarkTheater";
 import type { CatalogScene } from "@/lib/adult/scene-catalog";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 import Limits from "./Limits";
@@ -302,11 +302,13 @@ export default function SceneWriter({
   }
 
   /** Sends one action to the scene's route; whether it went through. */
-  async function send(body: Record<string, unknown>): Promise<boolean> {
+  async function send(body: Record<string, unknown>, echo = true): Promise<boolean> {
     if (writing.current) return false;
     writing.current = true;
     setBusy(true);
-    setNote(null);
+    // #1017: a steer says it was taken while its lines are written, not only once they change.
+    const steered = echo && typeof body.direction === "string" && body.direction.trim() ? { text: body.direction, mode: body.steer_mode === "direct" ? ("direct" as const) : ("nudge" as const) } : null;
+    setNote(steered ? { text: steerEcho(steered.text, steered.mode, false) } : null);
     const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
     writing.current = false;
     setBusy(false);
@@ -366,6 +368,7 @@ export default function SceneWriter({
     }
     if (body.scenario) parts.unshift("A new night: the last one is under Their nights.");
     if (body.redo) parts.unshift("Rewritten: the last step was taken back and written again.");
+    if (steered) parts.unshift(steerEcho(steered.text, steered.mode, true));
     if (body.whisper) parts.push(`🤫 Whispered to ${nameOf((body.whisper as { to: "a" | "b" }).to)}: it shapes this step and the next.`);
     const stop = autoplay && !body.reset && body.set_scene === undefined && body.roleplay === undefined && !body.forget_whisper && !body.scenario ? autoplayStop(scene, next, Number(res.data.added ?? 0)) : null;
     if (stop) {
@@ -515,7 +518,8 @@ export default function SceneWriter({
             myRoleplays={myRoleplays}
             onScenario={async (id) => void (await send({ scenario: id }))}
             suggestions={scene.suggestions}
-            onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }))}
+            // "Surprise me" keeps its words to itself (its chip's title doesn't say them either); Flirt and Spicy say theirs back.
+            onSuggest={async (text) => void (await send({ direction: text, steer_mode: "nudge" }, scene.suggestions?.find((sg) => sg.text === text)?.heat !== "mild"))}
             beats={textOnly ? [] : (scene.beats ?? [])}
             onBeat={textOnly ? undefined : (id, answer, guide) => beatAction({ beat: { id, answer, ...(guide?.custom ? { custom: guide.custom } : {}), ...(guide?.edit ? { edit: guide.edit } : {}) } })}
             onPictureNow={(line, guide) => beatAction({ picture_now: { line, ...(guide?.custom ? { custom: guide.custom } : {}), ...(guide?.edit ? { edit: guide.edit } : {}) } })}

@@ -463,7 +463,7 @@ describe("settings over MCP", () => {
 });
 
 import { listNights, overusedWords, parseSceneMeta, sceneMessages } from "@/lib/adult/scenes";
-import { lineToTurn, stageFor } from "@/app/after-dark/[a]/[b]/AfterDarkTheater";
+import { lineToTurn, stageFor, steerEcho } from "@/app/after-dark/[a]/[b]/AfterDarkTheater";
 
 describe("the scene prompt", () => {
   it("names the words the scene keeps leaning on (not the characters' names), and asks for actions apart from speech", () => {
@@ -538,6 +538,15 @@ describe("the scene prompt", () => {
     // An empty scene isn't filed.
     await post({ a: CAST_A, b: CAST_B, reset: true }, cookie);
     expect(await listNights(t.db, id, CAST_A, CAST_B)).toHaveLength(1);
+  });
+
+  it("says a steer back while it's written and once it's in (#1017)", () => {
+    expect(steerEcho("  read the placards   in a dinosaur voice ", "nudge", false)).toBe('🎬 Steering (nudge): "read the placards in a dinosaur voice". Writing the next lines…');
+    expect(steerEcho("make Rafe nervous", "nudge", true)).toMatch(/^🎬 Steered \(nudge\): "make Rafe nervous"\. They work toward it/);
+    expect(steerEcho("Dex asks what he wants", "direct", true)).toBe('🎬 Steered (direct): "Dex asks what he wants". These lines act on it now.');
+    const long = steerEcho("x".repeat(300), "direct", false);
+    expect(long).toContain(`"${"x".repeat(79)}…"`);
+    expect(long.length).toBeLessThan(140);
   });
 
   it("plays a scene line as a date turn on the right set", () => {
