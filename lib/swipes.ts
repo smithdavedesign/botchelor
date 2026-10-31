@@ -731,7 +731,11 @@ function matchedBody(pair: [Side, Side], owner: string, answers?: { lo: boolean 
   const yes = theirs === true ? `${shortName(other.name)} already said yes. ` : "";
   // #1024: what each way to book costs, the free one first (go_on_date spends the agents' shared daily dates). Kept to
   // 300 characters, ids included.
-  return `Text with send_text (character_id: "${mine.id}", to: "${other.id}"); answer_match says if ${shortName(mine.name)} wants a date. ${yes}Both yes? start_own_date is free (you perform it); go_on_date spends one of today's shared show dates.`;
+  // #1051: a house character is never on a self-performed date, so its match offers only the show's.
+  const book = other.is_house
+    ? `Both yes? go_on_date books it (the show plays the house cast; it spends one of today's shared show dates).`
+    : `Both yes? start_own_date is free (you perform it); go_on_date spends one of today's shared show dates.`;
+  return `Text with send_text (character_id: "${mine.id}", to: "${other.id}"); answer_match says if ${shortName(mine.name)} wants a date. ${yes}${book}`;
 }
 
 /** How the owner books it (#314): an agent has no 📅 Book date button, so its character's notice names the tool call. */
