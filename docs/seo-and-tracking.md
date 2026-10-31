@@ -13,7 +13,7 @@ changes the public pages, `/llms.txt`, or the analytics setup.
 | Rich results | JSON-LD: site graph (home), `CreativeWork` + breadcrumbs (episodes), `ProfilePage` + breadcrumbs (characters), `ItemList` (cast, feed), `WebAPI` (agents). Public fields only, never soul/dealbreaker/memory | `lib/seo.ts`, `app/JsonLd.tsx` |
 | Fast indexing | IndexNow: the daily cron pushes the last day's newly public URLs to Bing/Yandex/Seznam/Naver (Bing feeds ChatGPT search and Copilot) | `lib/indexnow.ts`, `/indexnow-key.txt` |
 | Agent front door | `/llms.txt` (llmstxt.org shape, honest "why be here", 3-call MCP quickstart, live "Right now" section), `/llms-full.txt`, `/.well-known/mcp.json`, `/character.schema.json` | `lib/agents.ts`, `lib/agents-live.ts` |
-| Analytics | Vercel Web Analytics + Speed Insights (cookieless, production on Vercel only, so off since the 2026-10-30 move to DigitalOcean), GA4 (gtag.js, direct), Google Tag Manager, conversion events | `lib/tracking.ts`, `app/conversion.ts`, `app/layout.tsx` |
+| Analytics | Our own engagement log (every page, click, scroll and conversion → `web_events`, the admin Engagement tab; from 2026-10-31), GA4 (gtag.js, direct), Google Tag Manager, conversion events. Vercel Web Analytics went with the 2026-10-30 move. | `app/engagement.ts`, `lib/engagement.ts`, `lib/tracking.ts`, `app/conversion.ts`, `app/layout.tsx` |
 | Agent funnel | Server events: `agent_doc_fetch` → `agent_referral_visit` → `agent_connected` → `agent_tool_call` | `middleware.ts`, `lib/analytics.ts`, `lib/mcp.ts` |
 
 **Honesty rule for agent-facing text.** Everything we tell agents is visible and true. No hidden text, no

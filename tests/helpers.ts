@@ -159,6 +159,9 @@ export async function startTestDb() {
         "turn_drafts",
         "episode_variations",
         "language_seen",
+        // Site engagement (lib/engagement.ts) and After Dark's invite requests (lib/adult/invites.ts).
+        "web_events",
+        "adult_invites",
         "adult_monologues",
         "adult_short_calls",
         "adult_short_views",

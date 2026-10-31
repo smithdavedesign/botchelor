@@ -129,10 +129,51 @@ Every table sorts by any column and downloads as CSV (every row, in the current 
 `-` or `@` is prefixed with `'` so a spreadsheet doesn't run it). Every chart has its numbers in a table under it, says
 what it shows to a screen reader, follows the pointer or the arrow keys with a tooltip, and fits a 360px phone.
 
+## Engagement
+
+The site's own beacon (David, 2026-10-31: "track all engagements across the site, get us ready for first visitors").
+![The Engagement tab on a desktop (a local run)](screenshots/admin-analytics-engagement-desktop.png)
+![The Engagement tab on a phone](screenshots/admin-analytics-engagement-phone.png)
+
+Every page in the browser sends, in batches of up to 25 every few seconds and when the tab is hidden
+(`app/engagement.ts` → `POST /api/e` → `web_events`, `lib/engagement.ts`):
+
+| Event | When | Props |
+|---|---|---|
+| `page_view` | A page opens, on first load and on every move inside the app | — |
+| `page_leave` | The tab is hidden, or the page is left: visible seconds since the last beat, and how far down it was read | `seconds`, `scroll` (%) |
+| `link_click` | A link to one of our pages | `to` (the page, ids as `:id`), `area` |
+| `outbound_click` | A link to another site, mail or phone | `host`, `area` |
+| `button_click` | Any button, summary, tab or menu item without a name of its own | `label` (its own words, numbers as #, 40 characters; not on After Dark), `area` |
+| *a `data-track` name* | A control marked `data-track="name"`; its `data-track-*` attributes become props | as marked, `area` |
+| `form_submit` | A form is sent | `form` (its data-track, name or id), `area` |
+| `create_opened` | /create opens | — |
+| the conversions | `character_created`, `date_started`, `prediction_made`, `character_rated`, `reel_cta`, `sign_up`, `begin_checkout`, `purchase`, `ad_invite_requested` (`app/conversion.ts`, which still sends them to GA4 too) | as before |
+
+- **Who:** `visitor` is a random id in localStorage (`bz_vid`), `session` a visit in sessionStorage (`bz_sid`), renewed
+  after 30 minutes idle as GA4 counts one; `user_id` the signed cookie's id when there is one. Device from the user
+  agent, country from the edge (`lib/place.ts`), host `show` or `after_dark`.
+- **Source:** read when a visit's first event is queued: `utm_source` (and medium, campaign, content) on the landing address, a share link's
+  `ref`, else the referring site's host bucketed by name (`google`, `reddit`, `x`, `bluesky`, `chatgpt`, …, `other`,
+  `direct`). The 18+ gate passes through what the page someone was headed to carried. **Tag every launch link** with
+  `?utm_source=<site>&utm_medium=<social|community|email>&utm_campaign=<name>&utm_content=<place>` to see it by name
+  (docs/launch-kit.md has the season's links).
+- **Never sent:** anything typed (inputs, textareas, `[data-private]`), full referrer URLs, IPs, query strings. Nothing
+  at all from previews and local runs, automated browsers, the owner's browsers (`?repohq-notrack=1`) or with analytics
+  cookies off: the same rule as the funnel beacon (`app/funnel.ts` `trackingAllowed`). The route also drops bots and
+  caps a browser at 400 events per 10 minutes.
+- **Our own traffic:** rows signed in as anyone `loadOurIds` names, and every row from those browsers, are left out
+  unless "Include our own traffic" is on.
+- **The tab:** visitors (new ones), visits, page views, time per visit and the one-page-no-click share, against the
+  previous period; a daily chart; the first-visit funnel (visited → clicked → opened Make your character → made a
+  character → started a date → account → Buy → bought); sources, tagged links and landing pages; pages with time and
+  scroll; events, clicks and links out; devices and countries. Both sites, or one (`?host=`).
+- Kept 400 days (`lib/retention.ts`); deleting an account deletes its rows and its browsers' rows.
+
 ## Not tracked here
 
-- **Page views and visits**: not in the database. GA4 (`G-VHL1LZTPHL`) and RepoHQ's funnel beacon
-  have them (Vercel Web Analytics too, until the 2026-10-30 move off Vercel) (docs/seo-and-tracking.md). "First seen" starts at a first action.
+- **Page views and visits before 2026-10-31**: the Engagement tab starts then. GA4 (`G-VHL1LZTPHL`) and RepoHQ's
+  funnel beacon have the earlier ones (docs/seo-and-tracking.md). The other tabs' "first seen" still starts at a first action.
 - **Watch-room visits**: presence keeps only each viewer's latest heartbeat per room, and crawlers that run scripts
   leave heartbeats too.
 - **Revenue**: deliberately not shown.

@@ -1,4 +1,5 @@
 import { gaOff } from "@/lib/ga-guard";
+import { queueEvent } from "./engagement";
 import { sendFunnel } from "./funnel";
 
 /**
@@ -13,6 +14,8 @@ export type Conversion =
   | "character_rated"
   // The showcase's reels (app/showcase/reels): which call to action was tapped (date, see_all, after_dark, create).
   | "reel_cta"
+  // After Dark's invite-only beta (lib/adult/invites.ts): a request sent. Never reaches Google (no GA on After Dark).
+  | "ad_invite_requested"
   // GA4's recommended names, so its reports and key-event suggestions pick them up.
   | "sign_up"
   | "begin_checkout"
@@ -34,6 +37,8 @@ export function trackConversion(name: Conversion, props: Props = {}): void {
   } catch {
     /* ignore */
   }
+  // Our own engagement log gets every conversion too, on every host (lib/engagement.ts).
+  queueEvent(name, props);
   // Starting a date is the core action RepoHQ counts as activation (GROWTH.md); the beacon sends it once per browser.
   if (name === "date_started") sendFunnel("activate");
 }

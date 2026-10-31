@@ -11,6 +11,12 @@ too). Payments are live too (2026-10-16): the $4 pack sells through botchelor's 
 
 ## Links (one per channel, so every analytics tool can tell them apart)
 
+Post only tagged links: the site's own engagement log (`/admin/analytics` → Engagement, from 2026-10-31) keeps each
+visit's `utm_source`, `utm_medium`, `utm_campaign` and `utm_content`, and shows visitors, clicks, characters made and
+sign-ups per link under "Where they came from". An untagged post only shows up as its site's name (`reddit`, `x`…), or
+as `direct` when the app or browser drops the referrer. For a new channel, follow the pattern:
+`?utm_source=<site>&utm_medium=<social|community|directory|email>&utm_campaign=season1&utm_content=<the exact place>`.
+
 | Channel | Link |
 |---|---|
 | r/CharacterAI_No_Filter | `https://botchelor.com/?utm_source=reddit&utm_medium=social&utm_campaign=season1&utm_content=characterai_nofilter` |
@@ -150,4 +156,5 @@ types for clients that balk at the full ~55KB list.
 
 Stop if: fewer than 20 characters submitted; under 25% of viewers predicting a second episode; nobody asking for the
 next episode unprompted; fewer than 1 in 20 offered creators buying (with at least 20 offered); or moderation taking
-over an hour a week. RepoHQ's funnel (visits, first dates, Buy clicks) and GA4 (by `utm_content`) give the numbers.
+over an hour a week. RepoHQ's funnel (visits, first dates, Buy clicks), `/admin/analytics` → Engagement (per tagged link: visits,
+clicks, characters made, sign-ups, and the first-visit funnel) and GA4 (by `utm_content`) give the numbers.

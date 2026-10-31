@@ -20,7 +20,8 @@ review; the money, legal and posting steps that only the owner can do are tracke
   free show launches first and Buy appears once a live Payment Link is set.
 - **Growth focus:** botchelor joined `policy.growth.focus` in idea-factory (after tiebreak), so RepoHQ's daily growth
   loop picks a mission for it from its funnel (GROWTH.md).
-- **The owner's own visits** don't count: `?repohq-notrack=1` sets a `repohq_notrack` cookie (middleware.ts).
+- **The owner's own visits** don't count: `?repohq-notrack=1` sets a `repohq_notrack` cookie (middleware.ts). That
+  covers the engagement log too, and signed-in admins' browsers are left out of it by default.
 
 ## Spend and abuse guards (`lib/limits.ts`)
 
@@ -68,6 +69,14 @@ card). On a live link (the normal state now) the purchase step is skipped, never
 The owner's insights dashboard: key numbers against the previous period with honest verdicts, trends, the people
 funnel, retention, top characters and venues, every MCP connection, and quality over time. What each chart means,
 where its numbers come from and what isn't tracked: docs/analytics.md.
+
+**Ready for first visitors (2026-10-31).** The **Engagement** tab is the site's own beacon (`app/engagement.ts` →
+`/api/e` → `web_events`). It shows every page view, click, scroll, time on page and conversion, with each visit's
+source and utm tags. So the first strangers can be followed from the link that brought them to the date they started.
+Before posting anywhere:
+1. Open `https://botchelor.com/?repohq-notrack=1` once on each of your own browsers and phones.
+2. Use only the tagged links (docs/launch-kit.md).
+3. The next day, check Engagement → "Where they came from" and "The first visit, step by step".
 
 ## Monitoring (`GET /api/health`)
 

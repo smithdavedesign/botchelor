@@ -12,6 +12,12 @@ funnel beacon in `app/funnel.ts`:
 Not sent from previews or local runs, automated browsers, browsers marked as the owner's (open any page once with
 `?repohq-notrack=1`), or visitors who declined analytics cookies. The privacy page names all three.
 
+**The detail lives in our own database (2026-10-31).** The same browsers, under the same rule (`trackingAllowed` in
+`app/funnel.ts`), also send every page view, click, scroll and conversion to `/api/e` (`app/engagement.ts` →
+`web_events`). Each visit keeps its source (utm tags, a share link's `ref`, or the referring site's name). RepoHQ's
+three counts say *whether* the funnel moves; `/admin/analytics` → **Engagement** says *where*: by source and tagged
+link, page, click and funnel step (docs/analytics.md, "Engagement").
+
 ## 2026-10-20: a free OC ship name generator
 
 **Mission.** Build a free OC ship name generator. "Ship name generator" is a search with live demand (one

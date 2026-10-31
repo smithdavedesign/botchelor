@@ -689,7 +689,7 @@ export function PrivacySections() {
           emails; your browser&apos;s push service delivers notifications you turned on.
         </li>
         <li>
-          <strong>Analytics:</strong> Vercel Web Analytics and Speed Insights, and Google Analytics (see below).
+          <strong>Analytics:</strong> Google Analytics (see below). Our own engagement log stays in our database.
         </li>
       </ul>
 
@@ -717,8 +717,13 @@ export function PrivacySections() {
       <h2 id="analytics">Analytics</h2>
       <ul>
         <li>
-          Vercel Web Analytics and Speed Insights count page views and measure how fast pages load. They use no
-          cookies and collect no personal information.
+          Our own engagement log counts how the site is used, in our database only: each page opened (with any ids in its
+          address left out), how long it was on screen and how far down it was read, what was clicked (a link&apos;s page,
+          a button&apos;s label, or the site a link leads to) and where a visit came from (the referring site&apos;s name
+          and a link&apos;s utm tags, never the full address). It keeps a random id in your browser&apos;s storage, and your
+          account&apos;s id when you&apos;re signed in. Never anything you type, never your IP address. Nothing is sent
+          if you turned analytics cookies off, and on After Dark&apos;s pages a button&apos;s label isn&apos;t sent. We keep
+          it 400 days, and deleting your account deletes it.
         </li>
         <li>
           Google Analytics measures how people find and use the site (which pages, which links brought them, which
