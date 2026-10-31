@@ -115,9 +115,11 @@ export function detectLanguage(text: string | null | undefined): LanguageCode | 
     for (const t of tokens) if (set.has(t)) n++;
     if (n) scores.set(code, n);
   }
+  // A language's letters count only alongside its everyday words: a name ("Zdzisław Beksiński") in an English sentence
+  // doesn't make it Polish.
   for (const [code, re, weight] of MARKS) {
     const n = count(clean, re);
-    if (n) scores.set(code, (scores.get(code) ?? 0) + Math.min(n, 3) * weight);
+    if (n && scores.has(code)) scores.set(code, scores.get(code)! + Math.min(n, 3) * weight);
   }
   const ranked = [...scores.entries()].sort((x, y) => y[1] - x[1]);
   const [top, second] = ranked;
