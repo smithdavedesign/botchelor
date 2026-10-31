@@ -55,6 +55,17 @@ export type ShapeOptions = {
 /** The lines a move gives them in the new place: a fresh budget, at most the date's own length. */
 export const segmentBudget = (base: number): number => Math.min(base, MOVE_SEGMENT_LINES);
 
+/**
+ * What saying yes to a pending move costs, in numbers (#1002, the 2026-10-30 prod loop: "accepting a venue move silently
+ * extends the date from 12 to 23 to 31 turns"): the lines it adds, the new total, and the moves left after it.
+ */
+export function moveCost(shape: DateShape): string {
+  const added = segmentBudget(shape.segments[0]?.budget ?? MOVE_SEGMENT_LINES);
+  const left = Math.max(0, MAX_MOVES - shape.segments.length);
+  const after = left ? `${left} more move${left === 1 ? "" : "s"} possible after it` : "no more moves after it";
+  return `Yes adds ${added} lines there (the date goes from ${shape.total} to ${shape.total + added}; ${after}); false keeps it at ${shape.total}.`;
+}
+
 /** Where the date stands before its next line, from the transcript so far. */
 export function dateShape(transcript: readonly Turn[], start: PlaceId, base: number, opts: ShapeOptions = { moves: false }): DateShape {
   const segments: Segment[] = [{ start: 0, place: start, budget: base }];
@@ -121,7 +132,7 @@ export function moveProblem(
 ): string | null {
   if (!shape.enabled) return null;
   if (shape.pending && reply.accept === undefined) {
-    return `${they} suggested taking the date to ${venuePhrase(shape.pending.to)}: answer it in your line, and set "accept_move" to true to go or false to stay`;
+    return `${they} suggested taking the date to ${venuePhrase(shape.pending.to)}: answer it in your line, and set "accept_move" to true to go or false to stay. ${moveCost(shape)}`;
   }
   if (shape.pending && reply.accept === true && saysNo(dialogue)) return 'your line says no but "accept_move" is true: make them agree';
   if (shape.pending && reply.accept === true && !saidYes(dialogue, shape.pending, names)) {

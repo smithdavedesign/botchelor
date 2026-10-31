@@ -59,7 +59,7 @@ import type { RejectReason } from "./safety";
 import { narrateEpisode } from "./showrunner";
 import { logSceneRequests, trackMoves } from "./scenes";
 import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
-import { dateShape, moveProblem, segmentBudget, settleLine, type DateShape } from "./moves";
+import { dateShape, moveCost, moveProblem, segmentBudget, settleLine, type DateShape } from "./moves";
 import { venueName, venuePhrase, type PlaceId } from "./venues";
 import { applyWishes, resolveWishes, settledWishes, type StoredWishes, wishReport, wishRule } from "./wishes";
 import { dateHeading, forTwoAgents, headingLine, nearSecondDate, type Heading } from "./heading";
@@ -1076,7 +1076,7 @@ function stepFor(
       where: venueName(shape.place),
       // 2.8.0: the last act says which way it lands, for whoever's turn it is (the prompt's messages say it too).
       ...(act === DATE_ACTS.length - 1 ? { act_note: actNote(decided.ending, built.input.date_number, liftOf(built, decided)) } : {}),
-      ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay).` } : {}),
+      ...(shape.pending ? { answer_their_suggestion: `${other.name} suggested taking the date to ${venuePhrase(shape.pending.to)}: this reply needs "accept_move" (true to go, false to stay). ${moveCost(shape)}` } : {}),
       instructions:
         // 2.10.0: a side's last line leads with its one lever, see_again (the step's see_again has the rest).
         (lastLine ? `${lastLineLead(speaker.name, other.name)} ` : "") +
