@@ -3,6 +3,25 @@
 import { FACT_IDEAS, FACT_LABEL_MAX, FACT_VALUE_MAX, MAX_FACTS, type CharacterExtras, type CharacterFact } from "@/lib/extras";
 import type { SetExtras } from "./DetailsStep";
 
+// A value's example that fits the row's label (#1109: every row's hint was about an allergy, whichever chip made it).
+const FACT_EXAMPLES: Record<string, string> = {
+  "a fear": "deep water, though they swim daily",
+  "a guilty pleasure": "reality shows about auctions",
+  "their worst habit": "finishing other people's sentences",
+  "a secret": "they failed their driving test four times",
+  collects: "hotel keycards from places they never stayed",
+  "can't cook": "anything but eggs",
+  "always carries": "a folding ruler",
+  "allergic to": "coriander, which they'll deny",
+  "best memory": "a power cut at their tenth birthday",
+  "biggest regret": "not writing back to an old friend",
+  "would never": "lend a book",
+  "lucky number": "eleven",
+  "childhood nickname": "Bean",
+  "hates the sound of": "a spoon on a cup",
+  "dream job": "lighthouse keeper",
+};
+
 /**
  * "More about them": up to MAX_FACTS facts of the creator's own, each a label and a value, public (on the card) or
  * private (only the character itself, on its dates). A date brings out a few per act (lib/extras.ts factsForAct),
@@ -55,7 +74,7 @@ export default function FactsStep({ extras, setExtras, name }: { extras: Charact
                 type="text"
                 name={`fact_label_${i}`}
                 maxLength={FACT_LABEL_MAX}
-                placeholder="Allergic to"
+                placeholder="e.g. Allergic to"
                 value={f.label}
                 onChange={(e) => update(i, { label: e.target.value })}
               />
@@ -66,7 +85,7 @@ export default function FactsStep({ extras, setExtras, name }: { extras: Charact
                 type="text"
                 name={`fact_value_${i}`}
                 maxLength={FACT_VALUE_MAX}
-                placeholder="coriander, which they'll deny"
+                placeholder={f.label.trim() ? (FACT_EXAMPLES[f.label.trim().toLowerCase()] ?? "") : "e.g. coriander, which they'll deny"}
                 value={f.value}
                 onChange={(e) => update(i, { value: e.target.value })}
               />
