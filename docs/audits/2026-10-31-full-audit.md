@@ -50,12 +50,30 @@ Everything else is polish, listed below with severity. Nine of the smaller ones 
   notification went out, Remote Control was off so nothing reached a phone.
 - Last requests before it died: my read-only sweep, ending on /graph (the Constellation), which timed out at 15 s.
   `cachedConstellation` runs `communities()` and `triangles()` over every public pair; on a 1-vCPU / 1 GB instance that
-  is the kind of request that can pin the event loop. Not proven.
+  is the kind of request that can pin the event loop. Not proven: after the recovery, /graph signed in took 1.1 s cold
+  and 0.8 s warm with health at 0.3 s right after, so if it was the trigger it needed something else alongside (the two
+  episode jobs that finished at 07:57 and 07:59 with 276k and 97k input tokens, or the deploy's memory profile).
 
-What to do: (a) an uptime alert that reaches David's phone (the RepoHQ probe already hits botchelor.com; make its failure
-page him), (b) ask DO why the health check stayed green while the gateway returned 504 (a pod-local check cannot see a
-broken route), (c) measure /graph under load and move its heavy parts to the hourly job if they aren't cached, (d) a
-second replica for the show app ($12 → $24) so one stuck replica is a blip, not an outage.
+**It happened again at 08:16**, right after the fresh deploy (ready 08:09:38) and right after a real browser opened
+/graph; it recovered at 08:18:47. The sequence was the same both times: a browser opens /graph, the browser hangs, the
+site fast-fails for minutes, DO's health stays green.
+
+**Probable cause.** /graph's HTML carries 63 `<img>`s, 56 unique `/api/assets/<id>?w=40`. Each one was answered by
+loading the full portrait as a base64 data URL from `character_assets.url` (megabytes of text) and resizing it with
+sharp on the request; Cloudflare marks them `DYNAMIC` (no extension, so no edge cache despite `public, immutable`).
+Sequentially (curl) they take 0.1 s each, which is why curl never reproduced it. A browser over HTTP/2 fires all 56 at
+once at a 1-vCPU / 1 GB replica; the decodes thrash, requests stall, and the gateway's outlier detection ejects the only
+upstream and fast-fails everything for its cooldown while the pod-local health check (a light in-process endpoint)
+keeps passing.
+
+**Fix shipped (this branch):** a `character_asset_thumbs` cache: each small copy is made once and kept, later asks are
+a 2 KB row read with no decode; resizes run three at a time. The gate check now reads only the asset's head columns, so
+a cached avatar never loads the data URL at all.
+
+What to do besides: (a) an uptime alert that reaches David's phone (the RepoHQ probe already hits botchelor.com; make its
+failure page him), (b) a Cloudflare cache rule for `/api/assets/*` so the edge serves the immutable copies (David's
+dashboard), (c) a second replica for the show app ($12 → $24) so one stuck replica is a blip, (d) ask DO why its health
+stayed green while its gateway returned 504.
 
 ## After Dark: what was tested and how it went
 
