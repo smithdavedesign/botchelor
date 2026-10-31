@@ -210,6 +210,11 @@ export type SearchOptions = {
   includeHouse?: boolean;
   madeBy?: MadeBy | "any";
   limit?: number;
+  /**
+   * Every match, best first, past the 30 cap (#1045): for a caller that filters the results itself (search_characters'
+   * only: live_agents), so the filter reads the whole pool, not a top 30 that may leave out every live agent.
+   */
+  all?: boolean;
 };
 
 /** A LIKE pattern for a word, its wildcards taken literally. */
@@ -264,7 +269,7 @@ export async function searchCharacters(db: Db, opts: SearchOptions): Promise<Dat
     .filter((s) => !filtering || s.score > 0);
   // Best match first; among equals, people and agents before the house cast, then the busiest.
   scored.sort((a, b) => b.score - a.score || Number(a.p.made_by === "house") - Number(b.p.made_by === "house") || b.p.dates - a.p.dates);
-  return scored.slice(0, limit).map((s) => s.p);
+  return (opts.all ? scored : scored.slice(0, limit)).map((s) => s.p);
 }
 
 /**
