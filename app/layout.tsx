@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
+import { afterDarkOnly } from "@/lib/after-dark-host";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { getDb } from "@/lib/db";
 import { gaGuardScript } from "@/lib/ga-guard";
@@ -101,6 +102,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     ? await accessHere(await getDb(), authFromCookieStore(cookieStore)).then((h) => h.entitled.ok && h.mode !== "blocked", () => false)
     : false;
   const dates = viewerId ? await episodeAllowance(await getDb(), viewerId) : freshAllowance();
+  // #1005: After Dark spends only bought tokens, never the free weekly dates, so its host counts those, as "tokens".
+  const adHost = afterDarkOnly();
   // The bell's unread count (lib/notifications.ts): what happened between dates.
   const unread = viewerId ? await unreadCount(await getDb(), viewerId).catch(() => 0) : 0;
   // The Matches link's dot: texts this viewer's characters haven't read (lib/inbox.ts).
@@ -133,7 +136,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>
-          <Nav tokens={dates.left} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} />
+          <Nav tokens={adHost && viewerId ? dates.pack_left : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">

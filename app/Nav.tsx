@@ -39,7 +39,8 @@ const NEWCOMER_LINKS = [
  * action, or an agent reading the page, whose dates live on its MCP identity) it's the weekly allowance, said as such.
  */
 export default function Nav({
-  tokens,
+  tokens: initialTokens,
+  meter = "dates",
   personal = true,
   unread = 0,
   texts = 0,
@@ -47,6 +48,8 @@ export default function Nav({
   hasCharacter = true,
 }: {
   tokens: number;
+  /** "tokens" on After Dark's host: bought tokens only, which is all After Dark spends (#1005). */
+  meter?: "dates" | "tokens";
   personal?: boolean;
   /** The viewer owns a character: the owner's nav. Without one, the newcomer's, with the create button. */
   hasCharacter?: boolean;
@@ -56,6 +59,32 @@ export default function Nav({
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  // #1005 (2026-10-30 prod loop: "the shop said 40 tokens, the header still said 43"): the count is read again when the
+  // page comes back into view and every half minute on a page that spends, so a spend shows without a reload.
+  const [tokens, setTokens] = useState(initialTokens);
+  useEffect(() => setTokens(initialTokens), [initialTokens]);
+  useEffect(() => {
+    if (!personal) return;
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      fetch("/api/me", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((me) => {
+          const n = me?.[meter === "tokens" ? "tokens_left" : "dates_left"];
+          if (typeof n === "number") setTokens(n);
+        })
+        .catch(() => {});
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    const spends = meter === "tokens" || pathname.startsWith("/after-dark");
+    const timer = spends ? window.setInterval(refresh, 30_000) : undefined;
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+      if (timer) window.clearInterval(timer);
+    };
+  }, [personal, meter, pathname]);
 
   // Close the mobile menu whenever the route changes (a link was followed).
   useEffect(() => setOpen(false), [pathname]);
@@ -78,7 +107,13 @@ export default function Nav({
   return (
     <nav className="nav" aria-label="Primary">
       {/* #539: the count is free dates this week plus topped-up tokens, so it says "dates left", not "tokens". */}
-      {personal ? (
+      {personal && meter === "tokens" ? (
+        <Link href="/shop" className={`token-pill${tone}`} title="Tokens left. After Dark spends tokens: a chapter is one, its pictures are included. The show's free weekly dates aren't spent here.">
+          <span className="token-pip" aria-hidden="true">◈</span>
+          <span className="token-count">{tokens}</span>
+          <span className="token-word">{tokens === 1 ? "token" : "tokens"}</span>
+        </Link>
+      ) : personal ? (
         <Link href="/shop" className={`token-pill${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
           <span className="token-pip" aria-hidden="true">◈</span>
           <span className="token-count">{tokens}</span>

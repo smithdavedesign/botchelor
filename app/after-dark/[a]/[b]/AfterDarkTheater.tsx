@@ -723,7 +723,8 @@ export default function AfterDarkTheater({
                       ? "Whisper"
                       : caughtUp || (autoplay && direction.trim())
                         ? // The Next that opens a chapter pays for it (lib/adult/settings.ts chapter_tokens).
-                          `Next${chapterTokens && !scene.lines.length ? ` · ${chapterTokens} token${chapterTokens === 1 ? "" : "s"}` : ""}`
+                          // #1005: after that, Next says it's already paid for, so no step looks free or unexplained.
+                          `Next${chapterTokens ? (scene.lines.length ? " · included" : ` · ${chapterTokens} token${chapterTokens === 1 ? "" : "s"}`) : ""}`
                         : "Playing…"}
                 </button>
               </div>

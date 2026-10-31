@@ -3,6 +3,7 @@ import { accountForUser, googleConfigured, needsSignIn, sessionsSignable } from 
 import { getDb } from "@/lib/db";
 import { invalidateGraph } from "@/lib/graph-cache";
 import { getPoints } from "@/lib/game";
+import { episodeAllowance } from "@/lib/allowance";
 import { authFromRequest, handle, json, readJson } from "@/lib/http";
 
 /**
@@ -15,8 +16,12 @@ export const GET = handle(async (req) => {
   if (!auth) return json({ points: 0, authenticated: false, account: null, accounts_available: accountsAvailable, google_available: googleConfigured() });
   const db = await getDb();
   const account = auth.authenticated ? await accountForUser(db, auth.userId) : null;
+  // The nav meter's numbers (#1005: it refreshes after a spend instead of waiting for the next page load).
+  const allowance = await episodeAllowance(db, auth.userId);
   return json({
     points: await getPoints(db, auth.userId),
+    dates_left: allowance.left,
+    tokens_left: allowance.pack_left,
     authenticated: auth.authenticated,
     account: account
       ? { handle: account.handle_display, has_password: Boolean(account.password_hash), has_google: Boolean(account.google_sub) }
