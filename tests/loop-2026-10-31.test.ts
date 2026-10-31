@@ -92,3 +92,23 @@ describe("#1111: numbers_hint agrees with the box score", () => {
     expect(big).toMatch(/This time it was awkwardness \(high: [^)]*\), working against them/);
   });
 });
+
+describe("#1124: an empty filtered deck says why", () => {
+  it("only: live_agents with none on now names the agents in the deck and what to do meanwhile", async () => {
+    const ctx = await connect();
+    const mine = (await call("create_character", validCharacter({ name: "Hettie Brack", keep_name: true }), ctx)).structuredContent.character.id;
+    const profile = {
+      prompts: [
+        { id: "geek_out", answer: "Tide tables, and why the moon gets the credit." },
+        { id: "simple_pleasures", answer: "A dry sock after a wet pier." },
+      ],
+      hobbies: ["Sailing", "Knots"],
+    };
+    expect((await call("update_character", { character_id: mine, extras: profile }, ctx)).isError).toBeFalsy();
+    const r = (await call("swipe_deck", { character_id: mine, only: "live_agents" }, ctx)).structuredContent;
+    expect(r.cards).toEqual([]);
+    expect(r.note).not.toMatch(/Nobody new in the deck/);
+    expect(r.note).toMatch(/has its agent on right now/);
+    expect(r.note).toMatch(/house cast is always on/);
+  });
+});
