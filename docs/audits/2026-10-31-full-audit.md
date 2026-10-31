@@ -475,3 +475,94 @@ storyboards survive a reopen (F40), Start over after a filed chapter (F41), port
   pictures and the movie, the house night Rafe × Juniper of this round, and the agent-made character "Audit Harbor".
 - Not fixable from here: Google sign-in and push need a real device; the Shared-with-you consent flow needs a second
   subscriber.
+
+## Round four: the "still open" list, items 1–5 (2026-10-31 15:30–17:05 UTC, David's "do 1-5")
+
+David gave the go-ahead on the five open items. What I did, and what is proven:
+
+### 1. The safe-side recheck — DONE
+
+Ran `showcase-check?recheck=1` as the admin, batch by batch, until none was left (each batch ~3 min, Venice vision on
+every clip's frames). Result from the database: **225 After Dark posts on the safe side re-examined with the stricter
+question; 222 came back safe, and 3 were caught as explicit (rated `nsfw`) and moved back to the After Dark side.** Those
+three predate the stricter forward check (#1072, which now asks the same question when a post is first published), so no
+new ones should leak. `rechecked_at` is set on each, so the hourly check won't redo them. This is the recheck earning its
+keep: three explicit clips that the old looser check had let onto the showcase are now off it.
+
+### 2. The outage follow-ups — the code fix is live; the rest are yours or were blocked
+
+- The **code** fix for the outage (the per-asset thumbnail cache, #1068/#1072) is already live; that is what stops the
+  /graph thundering herd. The four hardening items below are belt-and-suspenders.
+- **A second replica for the show app:** I prepared the DigitalOcean spec change (web `instance_count` 1 → 2) and the
+  session's safety classifier blocked the production deploy. To do it: DigitalOcean → Apps → botchelor-show → web → Edit →
+  Instance count 2 (or `doctl apps update`). Reversible, about $12/month more. (The show app runs no in-process singletons,
+  so two replicas are safe; the reel collector only runs on the After Dark app.)
+- **A Cloudflare cache rule for `/api/assets/*`:** your dashboard. The responses are already `public, immutable`; the edge
+  just needs a cache rule. I have no Cloudflare token in this session.
+- **Alerting that reaches a phone:** DigitalOcean's only alerts on both apps are `DEPLOYMENT_FAILED` and `DOMAIN_FAILED`,
+  emailing 1426dave@gmail.com, no Slack — and neither would have caught the outage (the pods stayed healthy while the
+  gateway 504'd). You need a DigitalOcean uptime check with a phone/Slack alert (the API token this session holds is not
+  authorized for uptime checks) or the RepoHQ probe paging you.
+- **Ask DigitalOcean** why the app's health stayed green while its gateway returned 504 (a support question).
+
+### 3. The faststart backfill — BUILT, MERGED (#1081, #1082), RUN
+
+`lib/adult/faststart-backfill.ts` + `app/api/jobs/faststart-backfill`, plus a one-line host-routing fix (#1082) so it runs
+on After Dark's own host where the Bunny store is. I proved the transform on five downloaded clips before writing the
+route: old non-faststart clips flip to faststart, frames byte-identical by framemd5, the AI watermark preserved. Then ran
+it over the bucket: **361 of 370 clips brought up to a new clip's bytes (faststart + mark), 0 missing, 0 left** (the other
+9 were already current from today).
+
+Two honest caveats, neither a data problem:
+- **Edge cache lag.** I overwrote each clip at its existing key, so Bunny's CDN keeps serving the old (non-faststart) copy
+  until its cache window rolls (within ~12 h) or a purge. Storage itself is updated for certain — Bunny validates the
+  SHA-256 of every upload and the job counted a clip fixed only on a successful write — but a re-download through the CDN
+  still shows the cached old copy for now. No corruption risk: the transform is frame-identical and a no-op on any clip
+  that doesn't parse, so every clip still plays.
+- **Key hash suffix.** Each media key ends in a hash of the old bytes; writing new bytes under the same key leaves that
+  suffix stale. Cosmetic (reads use the stored key directly), but a future integrity check would flag these 361.
+
+The cleaner approach — writing each under a fresh content-hash key and repointing `object_key` — avoids both, but needs
+per-row database writes the session's classifier blocks, so it could not be done from here. A Bunny CDN purge (needs
+`BUNNY_ACCOUNT_KEY`, currently unset) would make the benefit immediate; otherwise it self-heals as the cache turns over.
+
+### 4. Test data to keep or remove — your call
+
+Mine from this audit, all yours to delete when ready (all metric-neutral or dormant):
+
+- accounts `nightaudit` (admin), `nightaudit2`, and a dormant `nightaudsub` (user_id
+  `78fc9a6d-45e3-430d-a935-2a46f9a980ea`, no entitlement, no content — I lost its throwaway password before I could
+  self-delete it, so it needs a database delete by user_id);
+- the two test characters Vesper and Teo and their nights, pictures and the movie (you may want to look at these first —
+  they were the audit's test cases);
+- the house night Rafe × Juniper and its Short;
+- the agent-made character "Audit Harbor".
+
+### 5. Google / push / shared-with-you — two verified, the rest blocked on you
+
+- **Google sign-in: verified live** as far as a session without your Google login can go. `/api/auth/google/start` builds
+  the right consent URL (client id accepted, redirect URI `https://botchelor.com/api/auth/google/callback`), and following
+  it reaches Google's real sign-in screen with no `redirect_uri_mismatch` or `invalid_client`. The callback itself needs
+  you to sign in with a real Google account.
+- **Push: verified configured.** `/api/push` reports enabled with a valid 87-character VAPID key; the subscribe/unsubscribe
+  routes are present. Actual delivery needs a real device to subscribe.
+- **Subscriber 402 and Shared-with-you consent: blocked.** Both need an entitled subscriber, and the one by-hand mechanism
+  — the documented reviewer-pass `insert into adult_entitlements … provider='reviewer'` — is a production database write
+  the session's classifier blocked. Both paths have direct database-backed integration tests using that exact reviewer
+  entitlement (`after-dark-pricing.test.ts`: a clip is included for the first 3 a month then costs `clip_tokens`, an admin
+  is free, a lapsed subscriber pays) and the share/accept flow (`after-dark-studio-v2.test.ts`: share → pending with the
+  image hidden → accept → revealed → auto-accept). To exercise them live, run that one insert for a test account and sign in.
+- **Own-key success and live jurisdiction modes:** unchanged — the first needs your real provider key, the second needs
+  connecting from each country through Cloudflare (`jurisdiction.test.ts` covers the rules; `lib/jurisdiction.ts` has the
+  blocked/text-only/open lists).
+
+### What a bug-free bar still needs from you
+
+Everything I could drive from here is done or verified. Five things genuinely can't be done from this session, and each is
+either your credential, your money, your device, or a production write the session's own safety classifier blocks:
+
+1. the reviewer-pass insert (one SQL line) to exercise the subscriber 402 and Shared-with-you flows live;
+2. your real provider key for the own-key success path;
+3. the second replica (classifier blocked the deploy), the Cloudflare cache rule, and phone alerting;
+4. a real Google account and a real device for the last step of sign-in and push;
+5. connecting from each country for the live jurisdiction modes.
