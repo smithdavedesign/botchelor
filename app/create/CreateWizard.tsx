@@ -1216,6 +1216,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
   // A roleplay (lib/date-roleplays.ts): it plays at once with a house character; with anyone else's, the two creators
   // agree one on their couple page first, so it only goes with a house date.
   const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
+  const [roleplayOpen, setRoleplayOpen] = useState(false); // the picker mounts once opened, not in the page's HTML
   // The self-harm notice (lib/crisis.ts), and the date it held back from opening.
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const [datePath, setDatePath] = useState<string | null>(null);
@@ -1492,11 +1493,11 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
             A note in the pocket <span className="muted">(one sentence; your AI may or may not take it)</span>
             <input type="text" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
-          <details className="send-settings-wide send-roleplay">
+          <details className="send-settings-wide send-roleplay" onToggle={(e) => setRoleplayOpen(e.currentTarget.open)}>
             <summary>
               🎭 A roleplay{roleplay ? " (chosen)" : ""} <span className="muted small">(with a house character: it plays on that date)</span>
             </summary>
-            <RoleplayPicker me={character.name} them={null} value={roleplay} onChange={setRoleplay} />
+            {roleplayOpen && <RoleplayPicker me={character.name} them={null} value={roleplay} onChange={setRoleplay} />}
           </details>
         </div>
       </details>

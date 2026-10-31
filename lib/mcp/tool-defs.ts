@@ -9,6 +9,7 @@ import { AGENDA_IDS, AUTONOMY_LEVELS, OWN_DATE_HANDOVER_MINUTES, WRITE_TIME, DAT
 import { PARTNER_STYLES } from "../partners-shared";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat } from "../formats";
 import { AUDIENCES } from "../audience";
+import { ROLEPLAY_ANSWERS } from "../roleplays";
 import { TALK_LEVELS } from "../talk";
 import { REFLECTION_TAGS } from "../reflection-labels";
 import { FORGET_KINDS } from "../memory";
@@ -28,10 +29,10 @@ import { WHILE_AWAY_MODES } from "../activity";
  * A roleplay for a date (lib/date-roleplays.ts), on go_on_date and start_own_date: terse, both are core tools with a byte
  * budget. propose_roleplay's description says the rest.
  */
-const ROLEPLAY = { type: ["string", "object"], description: 'A roleplay id (my_roleplays), {title, premise, roles}, or "none".' };
+const ROLEPLAY = { type: ["string", "object"], description: 'Roleplay id (roleplay tools: ?tools=all), {title, premise, roles}, or "none".' };
 const MY_ROLE = { type: ["string", "integer"], description: "Your side's role: 0, 1 or its words." };
 const ROLEPLAY_TERMS = {
-  roleplay_id: str(40, "One of the show's roleplays (my_roleplays with catalog: true lists them)."),
+  roleplay_id: str(40, "One of the show's roleplays, by its id: catalog: true on the roleplay list shows them."),
   custom: {
     type: "object",
     description: "One you write: { title, premise (who the two are to each other tonight; {a} and {b} stand for their names), roles: [first, second] (optional) }.",
@@ -773,7 +774,7 @@ export const TOOL_DEFS = [
       properties: {
         character_id: str(64),
         with: str(64),
-        answer: { type: "string", enum: ["agree", "decline", "counter", "withdraw"] },
+        answer: { type: "string", enum: [...ROLEPLAY_ANSWERS] },
         ...ROLEPLAY_TERMS,
         proposal_id: str(64, "Optional: the proposal you mean (roleplay.id); refused if it's since been countered or answered."),
         agent_id: AGENT_ID,

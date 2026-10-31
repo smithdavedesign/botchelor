@@ -348,7 +348,7 @@ describe("agreeing on a roleplay (lib/date-roleplays.ts)", () => {
       expect(sent.note).toMatch(/^Sent/);
 
       const status = (await call("my_status", {}, B.ctx)).structuredContent;
-      expect(status.waiting_for_you).toMatchObject({ date_roleplay: 1, hint: expect.stringMatching(/date_roleplay → my_roleplays, then answer_roleplay/) });
+      expect(status.waiting_for_you).toMatchObject({ date_roleplay: 1, hint: expect.stringMatching(/date_roleplay → the roleplay tools \(tools\/list at \?tools=all\): read the proposal, then agree, counter or decline/) });
       const mine = (await call("my_roleplays", {}, B.ctx)).structuredContent;
       expect(mine.to_answer).toHaveLength(1);
       expect(mine.to_answer[0]).toMatchObject({ note: "Ada's never seen a sandwich", your_move: true });

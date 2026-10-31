@@ -25,6 +25,8 @@ export default function DateThisCharacter({ cta, targetId, first, roleplays = fa
   // David, 2026-10-23: the booker may say where the date happens (else a texted plan, else the show picks).
   const [place, setPlace] = useState("");
   const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
+  // The picker mounts once it's opened, not in every character page's HTML.
+  const [roleplayOpen, setRoleplayOpen] = useState(false);
 
   if (cta.kind === "none") return null;
   if (cta.kind === "closed") {
@@ -84,11 +86,11 @@ export default function DateThisCharacter({ cta, targetId, first, roleplays = fa
         </label>
       )}
       {roleplays && chosen.mode === "book" && !chosen.taken && (
-        <details className="date-cta-roleplay">
+        <details className="date-cta-roleplay" onToggle={(e) => setRoleplayOpen(e.currentTarget.open)}>
           <summary>
             🎭 Add a roleplay <span className="muted small">(optional)</span>
           </summary>
-          <RoleplayPicker me={chosen.name} them={first} value={roleplay} onChange={setRoleplay} />
+          {roleplayOpen && <RoleplayPicker me={chosen.name} them={first} value={roleplay} onChange={setRoleplay} />}
         </details>
       )}
       {chosen.taken ? null : chosen.mode === "book" ? (

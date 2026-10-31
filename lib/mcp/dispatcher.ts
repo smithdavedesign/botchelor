@@ -162,7 +162,7 @@ import { haveDated, swipeGateOn } from "../swipe-gate";
 import { clearNotifications, dateOfTurnNotice, listNotifications, markRead, notify, ownersOf, resolveTurnNotices, sweepStaleTurnNotices, unreadCount } from "../notifications";
 import { closeProposal, pendingProposal, PROPOSAL_DAYS, proposeDate } from "../date-proposals";
 import { answerRoleplay, myRoleplays, proposeRoleplay, ROLEPLAY_PROPOSAL_DAYS } from "../date-roleplays";
-import { DATE_ROLEPLAYS } from "../roleplays";
+import { DATE_ROLEPLAYS, ROLEPLAY_ANSWERS } from "../roleplays";
 import { arcQuestion, predictArc } from "../arcs";
 import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
 import { CONVERSATION_TURNS } from "../rules";
@@ -595,6 +595,7 @@ const ownDescription = (name: string): string => String(TOOL_DEFS.find((t) => t.
  */
 export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "browse_episodes.mine": BROWSE_MINE,
+  "answer_roleplay.answer": ROLEPLAY_ANSWERS,
   "list_cast.kind": LIST_CAST_KINDS,
   "search_characters.made_by": SEARCH_MADE_BY,
   "search_characters.only": DECK_FILTERS,
@@ -2492,7 +2493,7 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
     ...(open_dates.length ? { open_dates } : {}),
     hint:
       "my_status has the detail: matched → answer_match; date_agreed → go_on_date (preview: true first); date_proposal → answer_match (preview: true first); texted → read_texts; " +
-      "date_roleplay → my_roleplays, then answer_roleplay; " +
+      "date_roleplay → the roleplay tools (tools/list at ?tools=all): read the proposal, then agree, counter or decline; " +
       "own_date_invite or own_date_turn → get_own_date_step.",
   };
 }

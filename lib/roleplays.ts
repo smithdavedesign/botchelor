@@ -62,7 +62,7 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   { id: "vampire-dinner", title: "Dinner with a vampire", icon: "🦇", tag: "fantasy", roles: ["the vampire host", "the curious guest"], premise: "{a} is a polite, centuries-old vampire who has invited {b} to dinner and isn't eating any of it. {b} came out of curiosity and has a great many questions about the last four centuries." },
   { id: "old-film", title: "Leads in an old film", icon: "🎬", tag: "period", roles: null, premise: "{a} and {b} are the leads in a black-and-white romantic comedy. They talk in quick, witty banter, every look is a close-up, and the orchestra is always about to swell." },
   { id: "regency-ball", title: "The regency ball", icon: "🕯️", tag: "period", roles: null, premise: "It's 1815, and {a} and {b} have just been introduced at a ball. Every word is weighed by etiquette, gossip travels faster than carriages and a dance means more than it seems." },
-  { id: "wedding-plus-one", title: "Fake dating for a wedding", icon: "💍", tag: "funny", roles: ["the one who needs a date", "the stand-in"], premise: "{a} needs a date for a friend's wedding next week, and {b} agreed to pretend. Tonight they rehearse how they met, their in-jokes and the story of their first kiss. It has to be convincing." },
+  { id: "wedding-plus-one", title: "Fake dating for a wedding", icon: "💐", tag: "funny", roles: ["the one who needs a date", "the stand-in"], premise: "{a} needs a date for a friend's wedding next week, and {b} agreed to pretend. Tonight they rehearse how they met, their in-jokes and the story of their first kiss. It has to be convincing." },
   { id: "quiz-partners", title: "Game show partners", icon: "🏆", tag: "funny", roles: null, premise: "{a} and {b} have been paired as a team on a quiz show that films tomorrow, and every question is about each other. Tonight is cram night: they have to learn everything, fast." },
   { id: "rival-chefs", title: "Rival chefs", icon: "🍳", tag: "funny", roles: null, premise: "{a} and {b} run rival food stalls on the same street, and tonight each tries the other's signature dish and gives an honest verdict. Professional pride is on the line." },
   { id: "hero-villain", title: "Hero and villain, off duty", icon: "🦸", tag: "funny", roles: ["the superhero", "the supervillain"], premise: "{a} is a superhero and {b} their oldest nemesis. Tonight is a truce on neutral ground, no powers and no schemes, just dinner, and the dawning worry that they get along." },
@@ -79,6 +79,8 @@ export const ROLEPLAY_PREMISE_MAX = 300;
 export const ROLEPLAY_ROLE_MAX = 60;
 /** The short note that can ride along with a proposal or a counter ("I'd love to be the pilot"). */
 export const ROLEPLAY_NOTE_MAX = 200;
+/** How the other side answers a proposal (lib/date-roleplays.ts answerRoleplay, MCP answer_roleplay). */
+export const ROLEPLAY_ANSWERS = ["agree", "decline", "counter", "withdraw"] as const;
 
 /**
  * The words a roleplay of the show's can never be about, on top of the show's own check (lib/safety.ts checkShowText):

@@ -29,6 +29,7 @@ import {
   DATE_ROLEPLAY_NEVER,
   dateRoleplayById,
   fillPremise,
+  ROLEPLAY_ANSWERS,
   ROLEPLAY_NOTE_MAX,
   ROLEPLAY_PREMISE_MAX,
   ROLEPLAY_ROLE_MAX,
@@ -359,7 +360,7 @@ async function insert(
 
 /* ---------------------------------------------------- answering ---------------------------------------------------- */
 
-export const ROLEPLAY_ANSWERS = ["agree", "decline", "counter", "withdraw"] as const;
+export { ROLEPLAY_ANSWERS };
 export type RoleplayAnswer = (typeof ROLEPLAY_ANSWERS)[number];
 
 /** Marks the answering owner's "suggests a roleplay" notices for the pair read (answered, countered or gone). */
