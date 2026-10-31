@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 /** Analytics and the portfolio beacon: a recording is ours, not a visit (scripts/e2e-live.mjs blocks the same). */
-const ANALYTICS = /google-analytics\.com|googletagmanager\.com|repohq\.vercel\.app\/api\/ideas\/signal|\/_vercel\/(insights|speed-insights)\//;
+const ANALYTICS = /google-analytics\.com|googletagmanager\.com|idea-factory\.1426davejobs\.workers\.dev\/api\/ideas\/signal|\/_vercel\/(insights|speed-insights)\//;
 /** How far down the feed (newest first) today's clip may come from, and the shortest transcript worth a clip. */
 const NEWEST = 15;
 const MIN_LINES = 8;
