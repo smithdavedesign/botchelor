@@ -137,6 +137,9 @@ export function afterDarkPageMove(pathname: string, search: string, opts: { iden
   }
   if (pathname === "/robots.txt") return { robots: AFTER_DARK_ROBOTS };
   if (isAfterDarkPage(pathname) || (AFTER_DARK_HOST_PAGES as readonly string[]).includes(pathname)) return null;
+  // #1034 (the 2026-10-30 prod loop: "typed ad.botchelor.com and was bounced to the show"): its own address opens After
+  // Dark, by way of the show's link to it, so the sign-in hop brings who they are (the show's /after-dark does that).
+  if (pathname === "/") return { redirect: `${opts.show.replace(/\/+$/, "")}/after-dark${search}` };
   return { redirect: `${opts.show.replace(/\/+$/, "")}${pathname}${search}` };
 }
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { trackConversion } from "../conversion";
 import { requestJson } from "../request";
 import EmailNotifications from "./EmailNotifications";
@@ -28,6 +29,7 @@ type ConnectionLine = { job: string; title: string; status: string; state: "unse
  * Your characters and dates show either way — they belong to this browser's session.
  */
 export default function AccountPanel({ next = null, emailConfirmed = null }: { next?: string | null; emailConfirmed?: "confirmed" | "invalid" | null }) {
+  const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [connections, setConnections] = useState<ConnectionLine[]>([]);
@@ -66,8 +68,12 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
     setBusy(false);
     if (ok && mode === "register") trackConversion("sign_up", { method: "password" });
     if (ok && next) window.location.assign(next); // back where they were going (the shop, to buy)
-    else if (ok) await load();
-    else setError(message);
+    else if (ok) {
+      await load();
+      // #1034 (the 2026-10-30 prod loop: "After Dark was missing from the nav on /account right after sign-in"): the nav and
+      // its meter are drawn on the server for who was signed in before, so they're drawn again.
+      router.refresh();
+    } else setError(message);
   }
 
   async function signOut() {
@@ -75,6 +81,7 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
     await requestJson("/api/auth/logout").catch(() => {});
     setBusy(false);
     await load();
+    router.refresh();
   }
 
   // Holds the panel's room while it loads, so the page doesn't jump by ~1,000px when it arrives (a layout shift of 0.61).
