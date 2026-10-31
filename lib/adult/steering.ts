@@ -202,6 +202,8 @@ export async function faceReferenceId(db: Db, viewerId: string, characterId: str
 export type FaceInfo = {
   image_id: string | null;
   picked: boolean;
+  /** #1116: the face above is an undressed picture, so it's never shown as their avatar (the stage keeps a dressed one). */
+  face_nude?: true;
   /** `from_face`: the nude one was made from the face above (an edit of it), so it's the same person. */
   nude: { image_id: string | null; picked: boolean; from_face: boolean } | null;
 };
@@ -225,9 +227,11 @@ export async function facesFor(db: Db, viewerId: string, characterIds: string[])
     const face = await faceReferenceId(db, viewerId, id);
     const nudeId = dressed ? await faceReferenceId(db, viewerId, id, { nude: true }) : null;
     const fromFace = nudeId && face ? (await db.query(`select 1 from adult_images where id = $1 and source_image = $2`, [nudeId, face])).rows.length > 0 : false;
+    const faceNude = face ? (await db.query<{ nude: boolean }>(`select ${nudeSql("i")} as nude from adult_images i where i.id = $1`, [face])).rows[0]?.nude === true : false;
     out[id] = {
       image_id: face,
       picked: picked.has(id),
+      ...(faceNude ? { face_nude: true as const } : {}),
       nude: dressed ? { image_id: nudeId, picked: pickedNude.has(id), from_face: fromFace } : null,
     };
   }

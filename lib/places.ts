@@ -69,7 +69,8 @@ const KINDS: [RegExp, VenueId, "near"?][] = [
   [/\b(karaoke)\b/i, "karaoke_booth"],
   [/\b(arcade|pinball)\b/i, "retro_arcade"],
   [/\b(beach|ocean|shore)\b/i, "night_beach"],
-  [/\b(park|garden|botanic|greenhouse|picnic)\b/i, "botanic_park"],
+  // Not a car park (#1119: "the top floor of a car park" was dealt the botanic park), which keeps their own words.
+  [/(?<!\bcar[\s-]?)\bpark\b|\b(garden|botanic|greenhouse|picnic)\b/i, "botanic_park"],
   // "night market" and "diner" moved to SPECIFIC (2026-10-25): they're venues of their own now.
   [/\b(food truck|street food|chill?i|tacos?|noodles?|ramen|dumplings?|stall|burgers?|pizza|fries|sandwich(?:es)?|brunch|breakfast|bagels?)\b/i, "corner_cafe", "near"],
   [/\b(rooftop|cocktails?)\b/i, "rooftop_bar"],
@@ -155,7 +156,7 @@ const NAMED = /\b(?:at|to|by|in|inside|outside|near|on|under|up|from|over|along|
 /** The show stays PG: none of these is a date venue, whatever the texts say. */
 // Not date venues on this PG show: a bedroom etc., and a car/van (a 2026-10-18 move put two of them in a car, where one
 // said "come sit on my lap" over a revving engine). A move or plan naming one of these is dropped.
-const NOT_A_VENUE = /\b(bed|beds|bedroom|bathroom|bath|shower|hotel room|motel|my room|your room|cars?|van|vehicle|back ?seat|backseat)\b/i;
+const NOT_A_VENUE = /\b(bed|beds|bedroom|bathroom|bath|shower|hotel room|motel|my room|your room|cars?(?![\s-]?parks?\b)|van|vehicle|back ?seat|backseat)\b/i;
 const LINKISH = /https?:|www\.|@\w|\.\w{2,4}\/|\d{3,}/i;
 
 /** A named place the text points at ("the observatory"), or null when nothing in it reads like one. */

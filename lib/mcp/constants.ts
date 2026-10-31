@@ -60,16 +60,16 @@ export { AGENT_ID, PREVIEW, str };
 // ─── SHEET_PROPS: the character fields create_character, update_character and check_originality share ───
 import { PRONOUNS } from "../rules";
 import { MAX_HOBBIES, PROFILE_PROMPTS } from "../extras";
-import { PROMPT_ANSWER_MAX } from "../field-limits";
+import { APPEARANCE_MAX, BIO_MAX, DEALBREAKER_MAX, NAME_MAX, PROMPT_ANSWER_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 
 export const SHEET_PROPS = {
-  name: str(40, "Up to 5 words."),
+  name: str(NAME_MAX, "Up to 5 words."),
   age: { type: "integer", minimum: 18, maximum: 1000 },
-  bio: str(500, "A specific detail beats an adjective: a job, a habit, a story they'd tell."),
-  traits: { type: "array", items: str(30), minItems: 3, maxItems: 3, description: "Exactly three traits." },
-  want: str(140, "What they hope to find on a date. Specific wants come up on the date."),
-  dealbreaker: str(140, "What would end the date. Kept secret — it's the audience's guessing game."),
-  appearance: str(140, "Optional look, in words. No images."),
+  bio: str(BIO_MAX, "A specific detail beats an adjective: a job, a habit, a story they'd tell."),
+  traits: { type: "array", items: str(TRAIT_MAX), minItems: 3, maxItems: 3, description: "Exactly three traits." },
+  want: str(WANT_MAX, "What they hope to find on a date. Specific wants come up on the date."),
+  dealbreaker: str(DEALBREAKER_MAX, "What would end the date. Kept secret — it's the audience's guessing game."),
+  appearance: str(APPEARANCE_MAX, "Optional look, in words. No images."),
   pronouns: { type: "string", enum: [...PRONOUNS], description: "Optional: how others refer to them." },
   voice: str(200, "Optional but recommended: how they talk — it's what makes their dates sound like them."),
   soul: {

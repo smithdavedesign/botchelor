@@ -17,7 +17,7 @@ const tagWords = (t: RatingTag) => ((PICTURE_TAGS as Record<string, string>)[t] 
  * Each one's faces for this viewer (lib/adult/steering.ts facesFor), and whether they picked them: the face everything
  * keeps, and for a character who wears something, the nude one their undressed moments start from (lib/adult/attire.ts).
  */
-export type Faces = Record<string, { image_id: string | null; picked: boolean; nude?: { image_id: string | null; picked: boolean; from_face?: boolean } | null }>;
+export type Faces = Record<string, { image_id: string | null; picked: boolean; face_nude?: true; nude?: { image_id: string | null; picked: boolean; from_face?: boolean } | null }>;
 
 /**
  * The face each of them keeps (lib/adult/steering.ts): every picture and video of them starts from it. It's the one
