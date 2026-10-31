@@ -60,13 +60,13 @@ export default function CaptureMenu({
               role="menuitem"
               className="ad-capture-item"
               disabled={!canPicture || Boolean(paused)}
-              title={paused ?? "A picture of the two of them, from the line on screen"}
+              title={paused ?? "A picture of the two of them, from the line on screen. No tokens: it counts toward this month's pictures."}
               onClick={() => {
                 onPicture();
                 setOpen(false);
               }}
             >
-              <span aria-hidden>📸</span> Picture this moment
+              <span aria-hidden>📸</span> Picture this moment <span className="muted small">· included</span>
             </button>
           )}
           {/* The clip and the match keep their own behaviour; the row label sits beside each. */}
