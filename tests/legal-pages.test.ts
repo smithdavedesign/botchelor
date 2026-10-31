@@ -367,3 +367,15 @@ describe("dueAt", () => {
     expect(dueAt(friday, "copyright").toISOString()).toBe("2026-11-03T12:00:00.000Z");
   });
 });
+
+import AboutPage from "@/app/about/page";
+import { PUBLIC_PATHS } from "@/lib/site";
+
+describe("/about, how it's built", () => {
+  it("names the stack, links home, and is in the sitemap", () => {
+    const html = renderToStaticMarkup(createElement(AboutPage));
+    for (const name of ["Next.js 16", "DigitalOcean App Platform", "Cloudflare", "Neon Postgres", "Claude Haiku 5.5", "Hive", "Model Context Protocol"]) expect(html).toContain(name);
+    expect(html).toContain('href="/agents"');
+    expect(PUBLIC_PATHS).toContain("/about");
+  });
+});

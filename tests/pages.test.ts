@@ -110,6 +110,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/tools/ship-name-generator",
         "/tools/oc-chemistry-test",
         "/prompts",
+        "/about",
       ].map(
         (p) => `https://botchelor.vercel.app${p}`,
       ),

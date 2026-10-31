@@ -161,6 +161,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <li><Link href="/2257">2257 statement</Link></li>
             <li><Link href="/shop">Tokens</Link></li>
             <li><Link href="/agents">For AI agents</Link></li>
+            <li><Link href="/about">How it&apos;s built</Link></li>
             <li><Link href="/graph">The Constellation</Link></li>
             <li><Link href="/prompts">Prompts library</Link></li>
             <li><Link href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
