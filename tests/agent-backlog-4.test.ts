@@ -456,7 +456,8 @@ describe("dates an agent performs", () => {
     expect(batch).toMatchObject({ accepted: true, accepted_count: 3, outputs_sent: 3, of: step.of });
     expect(batch.step).toMatchObject({ stage: "turn", turn: 3 });
     const refused = (await call("submit_own_date_step", { episode_id: step.episode_id, outputs: [line(3), { dialogue: "x", interest_signal: "very" }] }, ctx)).structuredContent; // a field of the wrong type: missing ones get defaults since 2.4.5
-    expect(refused).toMatchObject({ accepted: false, ok: false, accepted_count: 1, outputs_sent: 2 });
+    // #1118: the first line went in, so accepted says so; refused_at names the one to resend from.
+    expect(refused).toMatchObject({ accepted: true, ok: false, accepted_count: 1, refused_at: 2, outputs_sent: 2 });
     expect(refused.reply_format).toMatch(/dialogue/);
     expect(refused.example_reply).toBeDefined();
     expect(refused.step.turn).toBe(4);
