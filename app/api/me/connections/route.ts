@@ -80,7 +80,7 @@ export const PUT = handle(async (req) => {
   const jobs: Job[] = [...new Set([...(input.job ? [input.job] : []), ...(input.also ?? [])])];
   for (const job of jobs) {
     if (!providersFor(job).includes(provider)) {
-      return json({ error: "wrong_provider", message: `A ${PROVIDER_INFO[provider].label} key can't do ${JOB_INFO[job].title}.` }, 422);
+      return json({ error: "wrong_provider", message: `${/^[aeiou]/i.test(PROVIDER_INFO[provider].label) ? "An" : "A"} ${PROVIDER_INFO[provider].label} key can't do ${JOB_INFO[job].title}.` }, 422);
     }
   }
   const db = await getDb();

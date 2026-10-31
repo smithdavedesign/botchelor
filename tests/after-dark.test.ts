@@ -299,6 +299,14 @@ describe("on the site, from the settings panel", () => {
     // Kept by the admin's browser (the bytes never change), never by a shared cache.
     expect(shown.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
     expect((await media()).status).toBe(404);
+    // A grid's size (?w=): a WebP copy, kept for the next ask (the audit, 2026-10-31, F46); without sharp, the full picture.
+    const small = await mediaGet(new Request(`${BASE_URL}/api/admin/after-dark/media/${pic}?w=300`, { headers: { cookie } }), { params: Promise.resolve({ id: pic }) });
+    expect(small.status).toBe(200);
+    expect(small.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
+    if (small.headers.get("content-type") === "image/webp") {
+      const kept = await t.db.query<{ width: number }>(`select width from adult_media_small where media_id = $1`, [pic]);
+      expect(kept.rows.map((r) => r.width)).toEqual([320]);
+    }
     // A clip from that picture: started on fal's queue, then stored once it's done.
     const clip = await (await call(clipPost, "/api/admin/after-dark/clip", { image_id: pic, motion: "a slow turn" }, cookie)).json();
     expect(clip.clip.status).toBe("pending");

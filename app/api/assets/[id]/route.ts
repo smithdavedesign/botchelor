@@ -1,3 +1,4 @@
+import { resizedWebp } from "@/lib/thumbs";
 import { AI_HEADERS, markAiImage } from "@/lib/ai-mark";
 import { assetServe, PUBLIC_CACHE } from "@/lib/asset-gate";
 import { getApprovedAsset, getApprovedAssetHead, getAssetThumb, keepAssetThumb } from "@/lib/assets";
@@ -71,29 +72,5 @@ export function widthFor(w: string | null): number | null {
 }
 
 /** How many resizes run at once on this replica: the rest wait their turn rather than all decoding together. */
-const RESIZES_AT_ONCE = 3;
-let resizing = 0;
-const waiting: (() => void)[] = [];
-async function withResizeSlot<T>(fn: () => Promise<T>): Promise<T> {
-  if (resizing >= RESIZES_AT_ONCE) await new Promise<void>((resolve) => waiting.push(resolve));
-  resizing++;
-  try {
-    return await fn();
-  } finally {
-    resizing--;
-    waiting.shift()?.();
-  }
-}
-
-/**
- * A WebP copy at `width`, or null for the original: sharp (installed with Next) unavailable or failing. A failure never
- * breaks the picture, it just sends the full one.
- */
-async function resized(bytes: Buffer, width: number): Promise<Buffer | null> {
-  try {
-    const { default: sharp } = await import("sharp");
-    return await withResizeSlot(() => sharp(bytes).resize({ width, height: width, fit: "cover", withoutEnlargement: true }).webp({ quality: 80 }).toBuffer());
-  } catch {
-    return null;
-  }
-}
+/** A square WebP copy at `width` (lib/thumbs.ts), or null for the original. */
+const resized = (bytes: Buffer, width: number) => resizedWebp(bytes, width, { square: true });

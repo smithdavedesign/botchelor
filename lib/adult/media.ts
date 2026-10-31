@@ -893,6 +893,16 @@ export async function mediaLink(key: string, now = Date.now()): Promise<{ url: s
   return store ? store.presign(key, now) : null;
 }
 
+/** A picture's small copy at `width`, resized before and kept (adult_media_small), or null. */
+export async function getMediaThumb(db: Db, id: string, width: number): Promise<Buffer | null> {
+  const { rows } = await db.query<{ data: Buffer }>(`select data from adult_media_small where media_id = $1 and width = $2`, [id, width]);
+  return rows[0] ? Buffer.from(rows[0].data) : null;
+}
+
+export async function keepMediaThumb(db: Db, id: string, width: number, data: Buffer): Promise<void> {
+  await db.query(`insert into adult_media_small (media_id, width, data) values ($1, $2, $3) on conflict (media_id, width) do nothing`, [id, width, data]);
+}
+
 export async function mediaBytes(db: Db, id: string, viewerId: string | null): Promise<{ data: Buffer; mime: string } | null> {
   const { where, params } = readyFor(id, viewerId);
   const r = (
