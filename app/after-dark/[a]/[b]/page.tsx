@@ -63,7 +63,13 @@ export default async function AfterDarkScenePage({ params }: Props) {
         <CharacterName character={characters[0]} link={false} size={34} /> × <CharacterName character={characters[1]} link={false} size={34} />
       </h1>
       <p className="muted">
-        {scene.date ? `Picking up from their latest date: ${scene.date.setting ?? "a date"}.` : "They haven't been on a date yet: this is how they meet."}
+        {/* #1048 (the 2026-10-30 prod loop: "says Picking up from … an ice rink while the scene is Now: a museum"): once the
+            night has moved on, where it started is said as where it started. */}
+        {scene.date
+          ? scene.place && scene.place.toLowerCase() !== (scene.date.setting ?? "").toLowerCase()
+            ? `Now: ${scene.place}. It started from their latest date: ${scene.date.setting ?? "a date"}.`
+            : `Picking up from their latest date: ${scene.date.setting ?? "a date"}.`
+          : "They haven't been on a date yet: this is how they meet."}
       </p>
       {/* The Studio (lib/adult/studio.ts) for whichever of the two it's the viewer's to use on. */}
       {await (async () => {

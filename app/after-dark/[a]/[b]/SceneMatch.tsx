@@ -21,7 +21,7 @@ export default function SceneMatch({ match }: { match: { image_id: string } | nu
       </button>
       {open && (
         <span className="ad-scene-match-pop" role="dialog" aria-label="A picture you have of this moment">
-          <img src={mediaUrl(match.image_id)} alt="" />
+          <img src={mediaUrl(match.image_id)} alt="Your picture of this moment" />
           <span className="ad-scene-match-note small">You already have this — no need to draw it again.</span>
           <button type="button" className="button-ghost small" onClick={() => setOpen(false)}>
             Close
