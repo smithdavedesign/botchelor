@@ -258,6 +258,21 @@ describe("the relationship graph — who sees what", () => {
     expect(view.timeline.map((t) => t.ending)).toEqual(["second_date", "second_date", "second_date"]);
   });
 
+  it("an owner's timeline names a date as its recap did, by the public count, not by unlisted and private dates (#1098)", () => {
+    const chain = computeRelationship(LO, HI, [
+      ep("u1", 1, { visibility: "unlisted", ending: "friends" }),
+      ep("p2", 2, { visibility: "private", revealed_at: null, ending: "second_date" }),
+      ep("s3", 3, { ending: "second_date", date_number: 2 }),
+    ]);
+    const view = viewRelationship(chain, { userId: "user-1", owner: true })!;
+    // p2's recap counted no public dates before it, so it was written as a first date: "A second date", not "A third".
+    expect(view.timeline.map((t) => [t.episode_id, t.ending_label, t.date_number])).toEqual([
+      ["u1", "Just friends", null],
+      ["p2", "A second date", null],
+      ["s3", "A third date", 2],
+    ]);
+  });
+
   it("a character brings into a date only the public record and the dates of whoever set this one up", () => {
     const ctx = pairContext(rel, LO, "user-2", null)!;
     expect(ctx.times_together).toBe(2); // pub + user-2's private date
