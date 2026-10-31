@@ -5,7 +5,7 @@ import { AFTER_DARK_HOST_APIS } from "@/lib/after-dark-host";
 
 describe("After Dark's jobs on its own host (#1009)", () => {
   it("serves them there, and the scheduled job calls them there", () => {
-    expect(AFTER_DARK_HOST_APIS).toEqual(expect.arrayContaining(["/api/jobs/after-dark-daily", "/api/jobs/showcase-check"]));
+    expect(AFTER_DARK_HOST_APIS).toEqual(expect.arrayContaining(["/api/jobs/after-dark-daily", "/api/jobs/showcase-check", "/api/jobs/faststart-backfill"]));
     const spec = readFileSync(".do/app.yaml", "utf8");
     expect(spec).toContain("call ad.botchelor.com after-dark-daily");
     expect(spec).toContain("call ad.botchelor.com showcase-check");

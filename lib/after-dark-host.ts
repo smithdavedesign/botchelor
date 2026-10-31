@@ -98,6 +98,7 @@ export const AFTER_DARK_HOST_APIS = [
   // wrote to the show's bucket, which After Dark can't read, and read clips they couldn't find. The cron calls them here.
   "/api/jobs/after-dark-daily", // the house cast's baselines
   "/api/jobs/showcase-check", // the explicit posts' PG check reads their clips' frames
+  "/api/jobs/faststart-backfill", // the one-time backfill of clips already in the bucket (admin-run; lib/adult/faststart-backfill.ts)
 ] as const;
 
 export const isAfterDarkPage = (pathname: string): boolean => AFTER_DARK_PAGES.some((r) => covers(r, pathname));
