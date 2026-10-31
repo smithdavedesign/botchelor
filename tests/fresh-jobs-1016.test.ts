@@ -42,4 +42,12 @@ describe("freshJobs (#1016)", () => {
     for (const l of lists) expect(new Set(l.map((j) => j.split(" ").slice(1, -1).join(" "))).size).toBe(3);
     expect(freshJobs(sheet, [...taken, { extras: { occupation: "jukebox repair" } }], 40, "agent-a", NOW).some((j) => /jukebox/.test(j))).toBe(false);
   });
+
+  it("knows two names for one job: an elevator inspector on the show keeps 'a lift inspector' out of the deal (#1110)", () => {
+    // Every other hand-picked job taken, so the one hand-picked slot can only be the lift inspector.
+    const rest: SheetDraft[] = JOB_IDEAS.filter((j) => j !== "a lift inspector").map((job) => ({ extras: { occupation: job } }));
+    expect(freshJobs(sheet, rest, 3, "agent-a", NOW)[0]).toBe("a lift inspector");
+    expect(freshJobs(sheet, [...rest, { extras: { occupation: "Elevator inspector" } }], 3, "agent-a", NOW)).not.toContain("a lift inspector");
+    expect(freshJobs(sheet, [{ extras: { occupation: "a truck driver" } }], 200, "agent-a", NOW).some((j) => /lorry/.test(j))).toBe(false);
+  });
 });
