@@ -339,6 +339,9 @@ const FROM = `from showcase_posts p
   join characters c on c.id = p.character_id
   left join characters cb on cb.id = p.character_b`;
 
+/** How many of one character's posts the reels show together before the next creator's (listShowcase mix). */
+export const MIX_RUN = 3;
+
 /**
  * One page of the showcase for this viewer and these filters, newest first. `pageSize`: the reels' smaller pages.
  * `seenBefore`: the reels' visitor's posts seen before then go last, longest-ago seen first (David, 2026-10-30: "if they
@@ -356,13 +359,17 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
   let order = `${f.sort === "trending" ? `${score} desc, ` : ""}p.published_at desc nulls last, p.id`;
   let mixed = "";
   if (opts.mix) {
-    // The reels (David, 2026-10-29: they opened on 30 screens of one creator's clips): in rounds, one post from each
-    // creator a round, and from each creator every character before any one again; the best first within each.
-    mixed = `join (select id, row_number() over (partition by owner_id order by cr, s desc, at desc nulls last, id) as round
-                    from (select p.id, p.owner_id, ${score} as s, p.published_at as at,
-                                 row_number() over (partition by p.owner_id, p.character_id order by ${f.sort === "trending" ? `${score} desc, ` : ""}p.published_at desc nulls last, p.id) as cr
-                            ${FROM} where ${w.sql}) c) mix on mix.id = p.id`;
-    order = `mix.round, ${order}`;
+    // The reels in runs (David, 2026-10-29: they opened on 30 screens of one creator's clips; 2026-10-30: "sort them by
+    // creator and by character so it's not jumping around"): a few of one character together, then the next creator's
+    // run; each creator's characters a run each before any one of them again; the best first throughout.
+    const best = `${f.sort === "trending" ? "s desc, " : ""}at desc nulls last`;
+    mixed = `join (select id, cr, max(s) over (partition by owner_id) as os, max(at) over (partition by owner_id) as oat, owner_id,
+                         dense_rank() over (partition by owner_id order by (cr - 1) / ${MIX_RUN}, cs desc, cat desc nulls last, character_id) as run
+                    from (select id, owner_id, character_id, s, at,
+                                 row_number() over (partition by owner_id, character_id order by ${best}, id) as cr,
+                                 max(s) over (partition by owner_id, character_id) as cs, max(at) over (partition by owner_id, character_id) as cat
+                            from (select p.id, p.owner_id, p.character_id, ${score} as s, p.published_at as at ${FROM} where ${w.sql}) b) c) mix on mix.id = p.id`;
+    order = `mix.run, mix.os desc, mix.oat desc nulls last, mix.owner_id, mix.cr`;
   }
   let seen = "";
   if (opts.seenBefore && v.visitor) {

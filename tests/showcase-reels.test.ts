@@ -20,7 +20,7 @@ import { CARD_EVERY, feedOf, motionOf, REEL_PAGE, reelsQuery } from "@/app/showc
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { pairKey } from "@/lib/relationships";
-import { afterDarkCounts, listShowcase, publish, saveCreatorProfile, seenFilters, type Post, type ShowcaseViewer } from "@/lib/showcase";
+import { afterDarkCounts, listShowcase, MIX_RUN, publish, saveCreatorProfile, seenFilters, type Post, type ShowcaseViewer } from "@/lib/showcase";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, BASE_URL, newUserCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
@@ -112,8 +112,9 @@ describe("the reels' posts", () => {
     expect((await listShowcase(t.db, ADMIN, { side: "after_dark" }, { pageSize: REEL_PAGE })).posts.map((p) => p.media_id).sort()).toEqual(["ad-1", "ad-2"]);
   });
 
-  it("mix creators from the first screen, and a creator's characters before any one of them again", async () => {
-    // Mara posts four of herself, then a second creator three of three characters, all newer: still taking turns.
+  it("come in runs: a few of one character together, then the next creator's, each creator's characters before any one again", async () => {
+    // David, 2026-10-29: not 30 screens of one creator; 2026-10-30: "sort them by creator and by character so it's not
+    // jumping around". Mara posts four of herself, then Sam two each of three characters, all newer.
     const w = await world(4);
     const raw = newUserCookie();
     const sam = userIdOf(raw);
@@ -132,12 +133,14 @@ describe("the reels' posts", () => {
     const all = [...(await get("")), ...(await get("?page=2"))];
     expect(all).toHaveLength(10);
     expect(new Set(all.map((p) => p.id)).size).toBe(10);
-    // Turns: Sam, Mara, Sam, Mara… (Sam's are newer), and Sam's three characters before any of them twice.
-    expect(all.slice(0, 8).map((p) => p.creator.handle)).toEqual(["sam", "mara", "sam", "mara", "sam", "mara", "sam", "mara"]);
-    expect(new Set(all.filter((p) => p.creator.handle === "sam").slice(0, 3).map((p) => p.character.id))).toEqual(new Set(chars));
+    // Sam's newest character's two, Mara's first three (MIX_RUN), Sam's next character's two, Mara's last, Sam's last two.
+    expect(MIX_RUN).toBe(3);
+    expect(all.map((p) => p.creator.handle)).toEqual(["sam", "sam", "mara", "mara", "mara", "sam", "sam", "mara", "sam", "sam"]);
+    const sams = all.filter((p) => p.creator.handle === "sam").map((p) => p.character.id);
+    expect(sams).toEqual([chars[2], chars[2], chars[1], chars[1], chars[0], chars[0]]);
+    expect(all.filter((p) => p.creator.handle === "mara").every((p) => p.character.id === w.mara)).toBe(true);
     // The grid keeps plain newest first.
     expect((await listShowcase(t.db, ANYONE, {})).posts.slice(0, 6).every((p) => p.creator.handle === "sam")).toBe(true);
-    expect(w.mara).toBeTruthy();
   });
 
   it("put what this browser has seen last, longest-ago seen first, and keep a feed's pages as of when it began", async () => {

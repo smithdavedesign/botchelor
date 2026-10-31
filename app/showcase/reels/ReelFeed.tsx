@@ -29,6 +29,7 @@ type Props = {
 const src = (p: Post) => `/api/showcase/${p.id}/media`;
 /** A still at a phone screen's size (lib/showcase-thumbs.ts); its blurred backdrop needs no more than a tile's. */
 const still = (p: Post, size: "tile" | "screen") => `${src(p)}?size=${size}`;
+const isClip = (x: ReturnType<typeof feedOf<Post>>[number] | undefined) => x?.kind === "post" && x.post.mime.startsWith("video/");
 const cta = (name: "date" | "see_all" | "after_dark" | "create") => () => trackConversion("reel_cta", { cta: name });
 
 /**
@@ -42,6 +43,8 @@ const cta = (name: "date" | "see_all" | "after_dark" | "create") => () => trackC
  *   opens). Every few posts a card: make your own character (the first dates free), or After Dark. No countdowns, no
  *   streaks, nothing locked that's on the showcase already.
  * - After Dark's side (whoever may see it): blurred until a tap says to show it.
+ * - Loading: the clip on screen first, the next one only once it can play through (with a poster meanwhile), the one
+ *   before kept; a still loads eagerly near the screen, lazily further off.
  * - A post on screen a moment is seen: this browser's next feed has it at the back (lib/showcase.ts markSeen).
  */
 export default function ReelFeed(props: Props) {
@@ -56,6 +59,8 @@ export default function ReelFeed(props: Props) {
   const [info, setInfo] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [reduced, setReduced] = useState(false);
+  // The screen whose clip can play through: only then does the next one start loading, so the one watched comes first.
+  const [ready, setReady] = useState(-1);
   const scroller = useRef<HTMLDivElement>(null);
   const feed = useMemo(() => feedOf(posts, { afterDarkCard: !props.explicit && props.side === "pg" }), [posts, props.explicit, props.side]);
   const total = feed.length + (more ? 0 : 1);
@@ -130,6 +135,8 @@ export default function ReelFeed(props: Props) {
   // The clip on screen plays; the rest wait at their start.
   useEffect(() => {
     scroller.current?.querySelectorAll<HTMLVideoElement>("video[data-v]").forEach((v) => {
+      // Loaded already (it was the next one, or came back to): ready now, since it won't say so again.
+      if (Number(v.dataset.v) === active && v.readyState >= 4) setReady(active);
       if (Number(v.dataset.v) === active && shown && !reduced) void v.play().catch(() => {});
       else {
         v.pause();
@@ -218,12 +225,13 @@ export default function ReelFeed(props: Props) {
               i={i}
               post={x.post}
               active={i === active}
-              near={Math.abs(i - active) <= 1}
+              near={i === active || i === active - 1 || (i === active + 1 && (ready === active || !isClip(feed[active])))}
               moving={i === active && shown && !reduced}
               veiled={!shown}
               locked={props.explicit ? 0 : (locked[x.post.character.id] ?? 0)}
               onShare={() => void share(x.post)}
               onInfo={() => setInfo(x.post.id)}
+              onReady={() => setReady(i)}
             />
           ),
         )}
@@ -280,6 +288,7 @@ function Slide({
   locked,
   onShare,
   onInfo,
+  onReady,
 }: {
   i: number;
   post: Post;
@@ -290,6 +299,7 @@ function Slide({
   locked: number;
   onShare: () => void;
   onInfo: () => void;
+  onReady: () => void;
 }) {
   const video = p.mime.startsWith("video/");
   const first = shortName(p.character.name);
@@ -300,7 +310,18 @@ function Slide({
       {!video && near && <img className={styles.backdrop} src={still(p, "tile")} alt="" aria-hidden="true" />}
       <div className={`${styles.frame}${veiled ? ` ${styles.veiled}` : ""}`}>
         {video ? (
-          <video data-v={i} src={near ? src(p) : undefined} muted loop playsInline preload={near ? "auto" : "none"} aria-label={who} />
+          // Its first frame shows while it loads (the picture it was filmed from, when there is one).
+          <video
+            data-v={i}
+            src={near ? src(p) : undefined}
+            poster={near ? still(p, "screen") : undefined}
+            muted
+            loop
+            playsInline
+            preload={active ? "auto" : near ? "metadata" : "none"}
+            onCanPlayThrough={active ? onReady : undefined}
+            aria-label={who}
+          />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element -- served by the showcase's own gate, not next/image
           <img src={still(p, "screen")} alt={who} loading={near ? "eager" : "lazy"} className={moving ? styles[motionOf(i)] : undefined} />

@@ -67,6 +67,26 @@ describe("the showcase's smaller pictures", () => {
     expect(Buffer.from(await (await get(p.safe, "?size=huge")).arrayBuffer()).length).toBe(original.length);
   });
 
+  it("gives a clip the picture it was filmed from as its poster, and never the clip in its place", async () => {
+    // The reels show it while the clip loads (2026-10-30: "the videos and assets are heavy").
+    const raw = newUserCookie();
+    const me = userIdOf(raw);
+    const mara = (await (await api.createCharacter(validCharacter({ name: "Mara Quill" }), raw)).json()).id as string;
+    await saveCreatorProfile(t.db, me, { handle: "mara", display_name: "Mara" });
+    const CLIP = Buffer.from("not really an mp4");
+    await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status, content_rating) values ('frame-1', $1, $2, 'frame', 'p', 'image/png', $3, 'ready', 'pg')`, [me, mara, BIG]);
+    for (const [id, from] of [["clip-1", "frame-1"], ["clip-2", null]] as const) {
+      await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status, content_rating, source_image) values ($1, $2, $3, 'video', 'p', 'video/mp4', $4, 'ready', 'pg', $5)`, [id, me, mara, CLIP, from]);
+    }
+    const [one, two] = await Promise.all(["clip-1", "clip-2"].map((media_id) => publish(t.db, me, { source: "after_dark", media_id })));
+    if (!one.ok || !two.ok) throw new Error("publish");
+    const poster = await get(one.post_id, "?size=screen");
+    expect([poster.status, poster.headers.get("content-type")]).toEqual([200, "image/webp"]);
+    expect((await sharp(Buffer.from(await poster.arrayBuffer())).metadata()).width).toBe(1080);
+    expect((await get(two.post_id, "?size=screen")).status).toBe(404);
+    expect(Buffer.from(await (await get(two.post_id)).arrayBuffer()).equals(CLIP)).toBe(true);
+  });
+
   it("asks who may see the post first, whatever the size", async () => {
     const p = await posts();
     expect((await get(p.dark, "?size=tile")).status).toBe(404);
