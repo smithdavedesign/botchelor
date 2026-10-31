@@ -475,7 +475,7 @@ export default function AfterDarkTheater({
   };
   const bringToLife = async () => {
     setTools(false);
-    setPresenceNote("Bringing them to life: their expressions and a living portrait, ready in a few minutes.");
+    setPresenceNote("Bringing them to life: their expressions and a living portrait, ready in a few minutes (no tokens; it counts toward this month's pictures). They change here when it's done.");
     const why = await makePresence();
     if (why) setPresenceNote(why);
     else setPresenceAsked(true);
@@ -764,7 +764,8 @@ export default function AfterDarkTheater({
               aria-label="The scene so far"
               title="The scene so far"
             >
-              📜
+              {/* #1099 (the 2026-10-31-1329 visitor: "the small 📜 icon. Its meaning is unlabeled"): a word beside it. */}
+              📜 <span className="theater-icon-word">Story</span>
             </button>
             {/* Who writes the lines (David, 2026-10-25: "the writer drop down as a logo in the theatre mode"). */}
             {live && writer && <WriterPicker initial={writer} icon />}
@@ -818,9 +819,14 @@ export default function AfterDarkTheater({
                       {stageTalk?.status !== "ready" && talks.price > 0 ? ` · ${talks.price} token${talks.price === 1 ? "" : "s"}` : ""}
                     </button>
                   )}
+                  {/* #1099: why it's greyed out, on screen (a title never shows on a phone or to a keyboard). */}
+                  {stageSpeaker && sayable && !speakerPortrait && (
+                    <span className="muted small ad-tools-why">Bring them to life first: a talking moment starts from {firstName(stageSpeaker)}&apos;s portrait.</span>
+                  )}
                   {canBringToLife && (
-                    <button type="button" className="button-ghost small" onClick={() => void bringToLife()} title="Their expressions as they speak, and a living portrait in place of the still face: made once, kept for every night">
-                      ✨ Bring them to life
+                    <button type="button" className="button-ghost small" onClick={() => void bringToLife()} title="Their expressions as they speak, and a living portrait in place of the still face: made once, kept for every night. No tokens: it counts toward this month's pictures, and takes a few minutes">
+                      {/* #1099: what it costs and how long, before it starts. */}
+                      ✨ Bring them to life · no tokens, a few minutes
                     </button>
                   )}
                   {drawAhead.view?.offered && (

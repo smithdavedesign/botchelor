@@ -8,7 +8,7 @@ import { possessiveNames } from "@/lib/adult/craft";
 import { citeMemory, usesFact, type AdultFact, type ShownFact } from "@/lib/adult/facts";
 import { rememberAfterDark } from "@/lib/adult/memory";
 import { setAdultModelForTests } from "@/lib/adult/mode";
-import { actionRepeatOf, buildUpIn, flaggedHooks, hookAllowance, hooksOf, openingRepeatOf, sceneQuality, showsTell, sideOfCharacter, touchesHook, whyIsGeneric } from "@/lib/adult/quality";
+import { actionRepeatOf, buildUpIn, flaggedHooks, hookAllowance, hooksOf, openingRepeatOf, openingShape, sceneQuality, showsTell, sideOfCharacter, touchesHook, whyIsGeneric } from "@/lib/adult/quality";
 import { dropRepeats, emptyScene, recapFallback, recapFrom, sceneMessages, writeRecap, writeSceneStep, type SceneLine, type SceneState, type StepInput } from "@/lib/adult/scenes";
 import type { Db } from "@/lib/db";
 import type { CharacterRef } from "@/lib/game";
@@ -273,6 +273,24 @@ describe("(3) repeated actions and openings (lines 36 and 38: the same action; 3
     expect(r.kept.map((l) => l.text)).toEqual(["Look at me.", "Harder, Dex, harder.", "*holds her hips*"]);
     expect(r.dropped.map((d) => d.reason)).toEqual([`opens like a line just said ("oh god don't stop")`]);
     expect(r.cuts.openings).toBe(2);
+  });
+
+  it("#1103: one speaker opening the same way again (a trailing \u2026, quoting them back) loses it", () => {
+    expect(openingShape("\u2026 the sign-out protocol.")).toBe("ellipsis");
+    expect(openingShape("*leans in* ...maybe.")).toBe("ellipsis");
+    expect(openingShape("'Very warm' is an understatement. Come here.")).toBe("quote");
+    expect(openingShape("Very warm, she said.")).toBeNull();
+    const r = cut(
+      lines(
+        ["b", "'Misleading placards' are just an opportunity. Read it to me."],
+        ["a", "\u2026 You'd like that."],
+        ["b", "'Very warm' is an understatement. Come here."],
+        ["a", "\u2026 maybe I would."],
+        ["b", "'Without a rope' is my favourite grade."],
+      ),
+    );
+    expect(r.kept.map((l) => l.text)).toEqual(["'Misleading placards' are just an opportunity. Read it to me.", "\u2026 You'd like that.", "Come here.", "Maybe I would."]);
+    expect(r.dropped.map((d) => d.reason)).toEqual(["opens the same way again (quoting them back)"]);
   });
 
   it("v1 (no craft guards) keeps them all", () => {
