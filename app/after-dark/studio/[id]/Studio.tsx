@@ -486,7 +486,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 <TrimmableClip id={p.id} src={media(p.id)} trim={p.trim ?? null} canTrim label={`${c.name}, a clip`} onMoment={() => void refresh()} />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media; not for next/image
-                <img src={media(p.id)} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" style={{ aspectRatio: tileRatio(p.aspect) }} />
+                <img src={`${media(p.id)}?w=640`} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" style={{ aspectRatio: tileRatio(p.aspect) }} />
               )}
               {/* Full screen, whole (Lightbox.tsx): a tap opens it centered and uncropped, portrait or landscape. */}
               <button type="button" className="ad-studio-expand" onClick={() => setZoom({ id: p.id, video })} aria-label="View full screen" title="Full screen">

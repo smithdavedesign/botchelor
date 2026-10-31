@@ -100,6 +100,31 @@ export default function ShowcaseModeration() {
     setBusy(false);
     void load();
   }
+  // The safe side looked at again with the stricter line (lib/showcase-check.ts recheckBatch; the audit, 2026-10-31: two
+  // explicit reels rated suggestive): a reel's shot goes back without a look, the rest through the check again.
+  async function recheckSides() {
+    setBusy(true);
+    let back = 0;
+    let kept = 0;
+    for (;;) {
+      setNote(`Rechecking the safe side… ${back} sent back to After Dark so far, ${kept} kept.`);
+      const res = await requestJson("/api/jobs/showcase-check?recheck=1", {}, "POST", { timeoutMs: 295_000 }).catch(() => null);
+      if (!res?.ok) {
+        setNote(`${res?.message ?? "That stopped."} Click again to carry on.`);
+        break;
+      }
+      const b = res.data as unknown as { results: { outcome: string }[]; left: number };
+      back += b.results.filter((r) => r.outcome === "explicit").length;
+      kept += b.results.filter((r) => r.outcome === "safe" || r.outcome === "twin").length;
+      if (!b.left || !b.results.some((r) => r.outcome !== "skipped")) {
+        const skipped = b.left ? ` ${b.left} couldn't be checked now: click again later.` : "";
+        setNote(`Done: ${back} sent back to After Dark, ${kept} kept on the safe side.${skipped}`);
+        break;
+      }
+    }
+    setBusy(false);
+    void load();
+  }
   // The PG check on After Dark posts still rated explicit (lib/showcase-check.ts), a few at a time until none are left.
   async function sortSides() {
     setBusy(true);
@@ -204,6 +229,14 @@ export default function ShowcaseModeration() {
             🔎 Check After Dark&apos;s posts for dressed ones ({mine.checks})
           </button>{" "}
           <span className="muted">Each through the PG check: a dressed one goes to the safe side. The hourly job does this too.</span>
+        </p>
+      )}
+      {Boolean(mine.profile) && (
+        <p className="small">
+          <button type="button" className="button-ghost small" disabled={busy} onClick={() => void recheckSides()}>
+            🔎 Recheck the safe side
+          </button>{" "}
+          <span className="muted">Every After Dark post on the safe side through the stricter check again, once: a reel&apos;s shot goes back, anything that fails goes back.</span>
         </p>
       )}
       {Boolean(mine.retwins) && (

@@ -2767,6 +2767,15 @@ create table if not exists showcase_likes (
 -- A portrait's small copies (app/api/assets/[id] ?w=), resized once and kept: a browser opening /graph asked for 56
 -- of them at once, each decoded from a multi-MB PNG on the request, and the show's one replica stalled for minutes
 -- (the audit, 2026-10-31).
+-- After Dark's pictures at a grid's size (app/api/admin/after-dark/media/[id] ?w=), resized once and kept: the Studio's
+-- grids showed 3 MB PNGs by the dozen (the audit, 2026-10-31, F15/F46).
+create table if not exists adult_media_small (
+  media_id text not null references adult_images (id) on delete cascade,
+  width integer not null,
+  data bytea not null,
+  created_at timestamptz not null default now(),
+  primary key (media_id, width)
+);
 create table if not exists character_asset_thumbs (
   asset_id text not null references character_assets (id) on delete cascade,
   width integer not null,

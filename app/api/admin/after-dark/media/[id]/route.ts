@@ -1,6 +1,7 @@
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
-import { mediaBytes, mediaLink, mediaLinkValid, mediaRef } from "@/lib/adult/media";
+import { getMediaThumb, keepMediaThumb, mediaBytes, mediaLink, mediaLinkValid, mediaRef } from "@/lib/adult/media";
+import { resizedWebp, thumbWidth } from "@/lib/thumbs";
 import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
 import { getDb } from "@/lib/db";
 
@@ -29,6 +30,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const viewer = admin ?? null;
   const ref = admin || linked ? await mediaRef(db, id, viewer) : null;
   if (!ref || (linked && ref.mime.startsWith("video/"))) return new Response("Not found", { status: 404 });
+  // A grid's size (?w=, lib/thumbs.ts): a WebP copy resized once and kept, so a Studio grid stops showing 3 MB PNGs by
+  // the dozen (the audit, 2026-10-31, F46). The full picture stays the default (the lightbox, a provider's start frame).
+  const width = admin && ref.mime.startsWith("image/") ? thumbWidth(q.get("w")) : null;
+  if (width) {
+    const kept = await getMediaThumb(db, id, width);
+    const small = kept ?? (await (async () => {
+      const full = await mediaBytes(db, id, viewer);
+      const made = full ? await resizedWebp(full.data, width) : null;
+      if (made) await keepMediaThumb(db, id, width, made);
+      return made;
+    })());
+    if (small) return new Response(new Uint8Array(small), { headers: { "content-type": "image/webp", "cache-control": KEEP, "x-robots-tag": "noindex", ...AI_HEADERS } });
+  }
   const link = admin && ref.key ? await mediaLink(ref.key) : null;
   if (link) {
     // Kept by the admin's browser only until the link's window ends (it then gets the next window's link).
