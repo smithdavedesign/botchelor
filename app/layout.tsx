@@ -15,8 +15,6 @@ import { placeFromEdge } from "@/lib/place";
 import { siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import ConsentBanner from "./ConsentBanner";
 import FeedbackDock, { FeedbackLink } from "./FeedbackDock";
 import FunnelBeacon from "./FunnelBeacon";
@@ -176,8 +174,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <InstallHint />
         {google && consent.ask && <ConsentBanner />}
         <FunnelBeacon production={TRACKING.production} consentDefault={consent.granted} />
-        {TRACKING.vercelAnalytics && <Analytics />}
-        {TRACKING.vercelAnalytics && <SpeedInsights />}
       </body>
     </html>
   );
