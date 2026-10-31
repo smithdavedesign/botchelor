@@ -20,7 +20,9 @@ export default function TwoSidesPanel({ a, b, flat = false }: { a: { id: string 
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const res = await fetch(`/api/admin/after-dark/sides?a=${encodeURIComponent(a.id)}&b=${encodeURIComponent(b.id)}`).catch(() => null);
+    setError(null);
+    // #1017 (the 2026-10-30 prod loop: "sat on Loading… and I never saw it finish"): a slow answer gives up and offers Retry.
+    const res = await fetch(`/api/admin/after-dark/sides?a=${encodeURIComponent(a.id)}&b=${encodeURIComponent(b.id)}`, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
     const data = res?.ok ? ((await res.json()) as { panel: { nights: SidesNight[]; left: number | null } }) : null;
     if (!data) return setError("Their nights didn't load. Try again.");
     setError(null);
@@ -48,7 +50,12 @@ export default function TwoSidesPanel({ a, b, flat = false }: { a: { id: string 
       <summary>🌗 Two sides of the night</summary>
       {error && (
         <p className="error" role="alert">
-          {error}
+          {error}{" "}
+          {!panel && (
+            <button type="button" className="button-ghost small" onClick={() => void load()}>
+              Retry
+            </button>
+          )}
         </p>
       )}
       {!panel ? (

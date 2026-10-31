@@ -88,8 +88,10 @@ export default function SceneBackdrop({ backdrop, onShape }: { backdrop: Backdro
           type="button"
           className="ad-scene-backdrop-reveal"
           onClick={(e) => {
-            const area = e.currentTarget.parentElement;
-            for (const el of area?.querySelectorAll(".ad-scene-backdrop, .ad-scene-backdrop-fill") ?? []) el.setAttribute(SHOWN_ATTR, "");
+            // #1017 (the 2026-10-30 prod loop: "the theater portraits stayed blurred squares the whole time"): Show shows the
+            // stage, the two of them included, not only the backdrop. Leaving the page blurs it all again.
+            const area = e.currentTarget.closest(".theater-stage") ?? e.currentTarget.parentElement;
+            for (const el of area?.querySelectorAll(".ad-scene-backdrop, .ad-scene-backdrop-fill, img, video") ?? []) el.setAttribute(SHOWN_ATTR, "");
             setRevealed(true);
           }}
         >
