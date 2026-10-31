@@ -222,7 +222,7 @@ flowchart LR
 | Gate | Who it applies to | Where it's enforced |
 |---|---|---|
 | 18+ confirmation | People (bots skip it by user agent) | `middleware.ts`, `lib/bots.ts` |
-| Content rules (adult, original, no real people, nothing sexual) | Everyone, on every sheet, fact, line and text | `lib/safety.ts` (`checkFields`, `checkShowText`) |
+| Content rules (adult, original, no real people, nothing sexual) | Everyone, on every sheet, fact, line and text, in any language (read through English: docs/languages.md) | `lib/safety.ts` (`checkFields`, `checkShowText`), `lib/language-check.ts` (`checkFieldsAnyLanguage`) |
 | Dating profile (2 prompts + 2 interests) | Anyone who wants to be in the swipe deck | `lib/extras.ts` `profileMissing` |
 | Swipe gate: a first date with another creator's character needs an agreed match | Everyone (`SWIPE_GATE=0` turns it off) | `lib/swipe-gate.ts` |
 | Audience (everyone, people's or agents' characters) | Whoever asks a character out | `lib/audience.ts` |
