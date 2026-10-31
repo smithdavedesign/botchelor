@@ -9,12 +9,16 @@
  * compliance reviewer looking at the subscriber experience. It's an ordinary subscription with an end date, except that
  * it's open in every place like an admin (CCBill reviews from Arizona, which After Dark blocks) and counts as ours. It
  * carries no admin powers.
+ *
+ * A beta pass (provider 'beta', lib/adult/invites.ts) is an invited person's free month while billing isn't live (David,
+ * 2026-10-31): the subscription's scenes and pictures on the house, video on them (lib/adult/pricing.ts clipPrice). It
+ * follows the place rules like any subscriber.
  */
 import { isAdmin } from "../admins";
 import type { Db } from "../db";
 
 export type Entitlement =
-  | { ok: true; why: "admin" | "subscribed" | "reviewer" }
+  | { ok: true; why: "admin" | "subscribed" | "reviewer" | "beta" }
   | { ok: false; why: "signed_out" | "needs_subscription" | "needs_age_check" };
 
 export async function canAfterDark(db: Db, auth: { userId: string; authenticated: boolean } | null, now: Date = new Date()): Promise<Entitlement> {
@@ -34,11 +38,14 @@ export async function canAfterDark(db: Db, auth: { userId: string; authenticated
     (e?.subscription_status === "cancelled" && end !== null && end > now.getTime());
   if (!active) return { ok: false, why: "needs_subscription" };
   if (!e?.age_verified_at) return { ok: false, why: "needs_age_check" };
-  return { ok: true, why: e.provider === REVIEWER_PROVIDER ? "reviewer" : "subscribed" };
+  return { ok: true, why: e.provider === REVIEWER_PROVIDER ? "reviewer" : e.provider === BETA_PROVIDER ? "beta" : "subscribed" };
 }
 
 /** The provider a reviewer pass is written with. */
 export const REVIEWER_PROVIDER = "reviewer";
+
+/** The provider an invited beta pass is written with. */
+export const BETA_PROVIDER = "beta";
 
 /** Whether this entitlement is open in every place: an admin, or a processor's reviewer. */
 export const openEverywhere = (e: Entitlement): boolean => e.ok && (e.why === "admin" || e.why === "reviewer");

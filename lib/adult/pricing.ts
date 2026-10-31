@@ -20,8 +20,14 @@ import { DEFAULT_CAPS, includedClipsUsed } from "./usage";
 /** A price for one viewer: its bought tokens, and whether it's covered by their subscription. */
 export type Price = { tokens: number; included: boolean };
 
-/** Whether a viewer has a subscription that includes the allowance: an active one, or a reviewer pass. */
+/** Whether a viewer has a subscription that includes the allowance: an active one, a reviewer pass or a beta pass. */
 export async function hasSubscription(db: Db, viewer: string, now: Date = new Date()): Promise<boolean> {
+  const e = await canAfterDark(db, { userId: viewer, authenticated: true }, now);
+  return e.ok && (e.why === "subscribed" || e.why === "reviewer" || e.why === "beta");
+}
+
+/** Whether the viewer's included clips apply: a subscription or reviewer pass, never a beta pass (video is on them). */
+export async function clipsIncluded(db: Db, viewer: string, now: Date = new Date()): Promise<boolean> {
   const e = await canAfterDark(db, { userId: viewer, authenticated: true }, now);
   return e.ok && (e.why === "subscribed" || e.why === "reviewer");
 }
@@ -44,7 +50,7 @@ export async function clipPrice(db: Db, viewer: string, settings?: AdultSettings
   const s = settings ?? (await getAdultSettings(db));
   const of = Math.max(0, s.included_clips);
   if (await isAdmin(db, viewer)) return { tokens: 0, included: false, included_left: null, included_of: of };
-  if (of > 0 && (await hasSubscription(db, viewer, now))) {
+  if (of > 0 && (await clipsIncluded(db, viewer, now))) {
     const left = Math.max(0, of - (await includedClipsUsed(db, viewer, now)));
     return left > 0 ? { tokens: 0, included: true, included_left: left, included_of: of } : { tokens: s.clip_tokens, included: false, included_left: 0, included_of: of };
   }

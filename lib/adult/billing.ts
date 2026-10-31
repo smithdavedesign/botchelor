@@ -301,7 +301,8 @@ export async function subscriptionState(db: Db, userId: string, now: Date = new 
 /* ----------------------------------------------- California's notices ----------------------------------------------- */
 
 /** Where a subscriber's confirmed email is: their Google account's, else the address they confirmed for notifications. */
-async function accountEmail(db: Db, userId: string): Promise<string | null> {
+/** The account's address to write to: its Google address, else a confirmed email. */
+export async function accountEmail(db: Db, userId: string): Promise<string | null> {
   const a = (await db.query<{ email: string | null; google_sub: string | null }>(`select email, google_sub from accounts where user_id = $1`, [userId])).rows[0];
   if (a?.google_sub && a.email) return a.email;
   const p = (await db.query<{ email: string }>(`select email from email_prefs where user_id = $1 and confirmed_at is not null`, [userId])).rows[0];

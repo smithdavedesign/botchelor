@@ -60,6 +60,14 @@ services:
         type: SECRET
         value: CHANGE_ME
         scope: RUN_AND_BUILD_TIME
+      # The invite-only beta's request email is sent from this host (lib/adult/invites.ts): same as the show's.
+      - key: CONTACT_EMAIL
+        value: CHANGE_ME
+        scope: RUN_AND_BUILD_TIME
+      - key: RESEND_API_KEY
+        type: SECRET
+        value: CHANGE_ME
+        scope: RUN_AND_BUILD_TIME
       - key: FRONTIER_PASSWORD
         type: SECRET
         value: CHANGE_ME
