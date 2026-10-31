@@ -82,7 +82,9 @@ export default function YourDates() {
       {!data ? (
         <p className="muted" aria-busy="true">Loading…</p>
       ) : data.episodes.length === 0 ? (
-        <p className="muted">{all === 0 ? "No dates yet." : `No ${filter} dates.`}</p>
+        // #1042 (the 2026-10-30 prod loop: "says No dates yet, although After Dark had six scenes"): these are the show's
+        // dates; After Dark's scenes are kept apart, and never named here.
+        <p className="muted">{all === 0 ? "No dates on the show yet." : `No ${filter} dates.`}</p>
       ) : (
         <ul className="account-dates">
           {data.episodes.map((e) => (
