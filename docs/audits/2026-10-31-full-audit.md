@@ -242,5 +242,7 @@ the free-portrait framing (F8), then the outage follow-ups (alerting, replicas).
 - F17 default face model → Qwen Image 3 (settings page; cost per face on Venice to compare).
 - F24 which model handles pose/wardrobe shoots.
 - F30 re-rating the 23 suggestive posts (a script can re-run the VLM; the line itself is a product call).
-- Outage follow-ups: alerting that reaches a phone, a second replica ($12/month), the DO health-check question.
+- Outage follow-ups: alerting that reaches a phone, a Cloudflare cache rule for `/api/assets/*` (the thumbs are
+  `public, immutable` already; the edge just needs telling), a second replica ($12/month), and the DO health-check
+  question. Until #1068 is live, nobody should open /graph in a browser.
 - A faststart backfill for the ~200 existing clips (a bucket rewrite, from #1036's notes).
