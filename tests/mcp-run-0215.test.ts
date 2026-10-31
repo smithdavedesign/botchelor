@@ -622,7 +622,7 @@ describe("cursors (#619's comment): any ISO-8601 time, and a wait wakes only for
     expect(titles).toContain("Old 24");
     expect(titles).not.toContain("Old 0");
     expect(first.unread_at_start_note).toMatch(/pass cursor as since \(next_calls has the call\): then only something newer wakes it/);
-    expect(first.next_calls).toContainEqual({ tool: "my_status", args: { since: first.cursor, wait_seconds: 50 }, why: expect.any(String) });
+    expect(first.next_calls).toContainEqual({ tool: "my_status", args: { since: first.cursor, wait_seconds: 30 }, why: expect.any(String) });
     // The next call without since waits: its cursor passed every older unread notice, not only the first twenty.
     const [second, ms] = await timed(call("my_status", { wait_seconds: 2 }, A.ctx));
     expect(ms).toBeGreaterThanOrEqual(1900);

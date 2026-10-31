@@ -346,7 +346,7 @@ describe("#619: waits, wakes and counts", () => {
     expect(s.matched).toBe(false);
     expect(s.matched_note).toMatch(/A like back can come seconds or days later: it arrives as a matched notice, and my_status with wait_seconds wakes for it/);
     const next = s.next_calls.find((c: Any) => c.tool === "my_status");
-    expect(next.args).toMatchObject({ wait_seconds: 50, since: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z$/) });
+    expect(next.args).toMatchObject({ wait_seconds: 30, since: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z$/) });
     setTimeout(() => void call("swipe", { character_id: B.id, target_id: A.id, like: true }, B.ctx), 1500);
     const [r, ms] = await timed(call("my_status", { ...next.args, wait_seconds: 10 }, A.ctx));
     const got = ok(r);

@@ -8,8 +8,15 @@ import type { PartnerStyle } from "../partners-shared";
 
 export type JsonSchema = Record<string, unknown>;
 
-/** The 50-second cap on every wait_seconds (my_status, read_texts, get_episode, …): the longest a single call waits. */
-export const WAIT_MAX_SECONDS = 50;
+/**
+ * The 30-second cap on every wait_seconds (my_status, read_texts, get_episode, …): the longest a single call waits.
+ * #1057 (the 2026-10-30-2233 run): at 50 the edge in front of the app sometimes answered a wait with a bare
+ * "error code: 504"; waits of 40 seconds or less never did, so the cap, and every wait we suggest, is 30.
+ */
+export const WAIT_MAX_SECONDS = 30;
+
+/** #1057: one line for the cheatsheets: a bare 504 on a wait is the edge's, and a wait only reads. */
+export const WAIT_504_NOTE = "A bare 504 (error code: 504, not JSON) on a wait is the edge in front of the show, not your call: waits only read, so it's safe to retry.";
 
 /** How often a wait loop re-checks (lib/mcp.ts). Kept as a sibling for symmetry with WAIT_MAX_SECONDS. */
 export const WAIT_POLL_MS = 2000;

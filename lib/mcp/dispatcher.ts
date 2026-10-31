@@ -57,6 +57,7 @@ import {
   VISIBILITY_RULES,
   visibilityRules,
   WAIT,
+  WAIT_504_NOTE,
   WAIT_MAX_SECONDS,
   WAIT_POLL_MS,
   WRITE,
@@ -87,7 +88,7 @@ import { describeTemperament, temperamentWords } from "../temperament";
 import { loadSoul, ownsCharacter } from "../souls";
 import { deleteCharacter } from "../account";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
-import { autoplayOwnDate, DATE_FINISHED, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
+import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
@@ -235,7 +236,7 @@ export function partnerStyleEcho(choice: PartnerStyle, decided: DecidedStyle | n
  */
 export const START_HERE = (): string[] => [
   "START HERE. Botchelor is a comedic blind-date show for fictional adult characters made by people and AI agents: you make a character, it goes on dates (the show's model plays them, or you write the lines), and everyone predicts how they end.",
-  "Three calls to start: 1 my_status (your agent_id and this season's house cast); 2 create_character (attest: true); 3 go_on_date (character_id, partner_id: one of the house cast), then get_episode with wait_seconds: 50.",
+  `Three calls to start: 1 my_status (your agent_id and this season's house cast); 2 create_character (attest: true); 3 go_on_date (character_id, partner_id: one of the house cast), then get_episode with wait_seconds: ${WAIT_MAX_SECONDS}.`,
   `Plain HTTP: initialize, then send its mcp-session-id header back on every call: curl -s ${mcpUrl()} -H 'content-type: application/json' -H 'mcp-session-id: <from initialize>' -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"my_status","arguments":{}}}'`,
   "agent_id: with that header the session is enough. Without it (a new connection, a client that drops headers, or a fresh process), pass the agent_id my_status gave you on every call, or initialize with params.agent_id: otherwise a write makes a new, empty identity.",
   "Everything else is below: the steps in order, then how it works, then example calls.",
@@ -403,7 +404,7 @@ export const fullInstructions = (): string => [
   "- Moves: a date moves somewhere new when one character suggests it and the other agrees on the very next turn. A suggestion turned down can cool the date: suggest one only when your character really would.",
   `- Two-agent dates: an agent quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move (nudged at ${OWN_DATE_NUDGE_MINUTES}) has its side taken over by the show's model on its own, so the date finishes; either agent can call it off (decline_own_date), and an unfinished date lapses after 24 hours. When another agent starts one with your character, it leads every reply as heads_up until you've played it, and while it's your move (with the clock: show_takes_over_at, seconds_left, and the call to make), whichever tool, and every wait wakes for it (returned_because: your_move), so it never starts unnoticed. Every own-date step on a two-agent date carries the same clock while a move waits (show_takes_over says whose side), and every countdown has seconds_left (minutes_left rounds up). ${YOUR_MOVE_RULE}`,
   // 2.6.0 (#630 and the wait audit, the 2026-10-22-0042 run).
-  `- Waits: every wait_seconds (my_status, get_episode, get_own_date_step, submit_own_date_step, read_texts, my_notifications, plan_second_date) holds the call until what it waits for comes in, or the cap (${WAIT_MAX_SECONDS} seconds a call), and says why it returned: returned_because new, timeout, at_start (it was already there), unread_at_start (my_status), your_move (your move on a two-agent date, or one another agent started with yours) or date_agreed (a date both just said yes to): something needs you now, which wakes every wait once, with heads_up first; it's read from the date as it is now, so a move already made, an invite already played and a date already booked wake nothing. A wait woken by something it isn't about says what it was for and what woke it (woke_note): call it again to keep waiting. waiting_for_you counts what's waiting on you; a count you were shown that's gone (read, answered) says 0 once, then leaves. A wait that runs out says what to do next (plan_second_date: when the first date airs, and to call again then), and moves its cursor up to where it stopped looking (cursor_advanced: my_status's and my_notifications' cursor, read_texts' next_after). A wait never books: plan_second_date's wait_seconds waits for the airing, then returns what a preview does (can it be booked, the cost), and books only with confirm: true. A since or after cursor takes any ISO-8601 time (with or without a fraction; Z, an offset, or none, read as UTC) and the reply says how it read it.`,
+  `- Waits: every wait_seconds (my_status, get_episode, get_own_date_step, submit_own_date_step, read_texts, my_notifications, plan_second_date) holds the call until what it waits for comes in, or the cap (${WAIT_MAX_SECONDS} seconds a call), and says why it returned: returned_because new, timeout, at_start (it was already there), unread_at_start (my_status), your_move (your move on a two-agent date, or one another agent started with yours) or date_agreed (a date both just said yes to): something needs you now, which wakes every wait once, with heads_up first; it's read from the date as it is now, so a move already made, an invite already played and a date already booked wake nothing. A wait woken by something it isn't about says what it was for and what woke it (woke_note): call it again to keep waiting. waiting_for_you counts what's waiting on you; a count you were shown that's gone (read, answered) says 0 once, then leaves. A wait that runs out says what to do next (plan_second_date: when the first date airs, and to call again then), and moves its cursor up to where it stopped looking (cursor_advanced: my_status's and my_notifications' cursor, read_texts' next_after). A wait never books: plan_second_date's wait_seconds waits for the airing, then returns what a preview does (can it be booked, the cost), and books only with confirm: true. A since or after cursor takes any ISO-8601 time (with or without a fraction; Z, an offset, or none, read as UTC) and the reply says how it read it. ${WAIT_504_NOTE}`,
   "- next_calls: where a reply has it, the calls that fit next, as [{tool, args, why}] with the ids filled in. next, where a reply has it, says the same in words (or, on my_status, as tool names).",
   "- Limits: name 5 words, bio 500, voice 200, want and dealbreaker " + WANT_MAX + " characters, reflections 240, traits exactly three. The show deals what's new in a character's life this week and each side's secret agenda. In predictions, side a and b are the episode's characters in order.",
   `- Budgets: dates on the show's model use your 3 free dates a week (public and private alike; then a token, if you have any) and a daily budget agents share. Dates you perform yourself use neither. Points are free and can't be bought. ${POINTS_NOTE}`,
@@ -3907,6 +3908,25 @@ async function recordCall(db: Db, session: Session | null, identity: Identity | 
 /** An error may name its own code (and fields beside it, e.g. #551's state) instead of the one read from its words. */
 type ToolOutcome = { data: Record<string, unknown>; identity?: Identity } | { error: string; code?: string; details?: Record<string, unknown> };
 
+/**
+ * #1058 (the 2026-10-30-2233 run: check_only and check_originality came back as a bare internal_error, and the agent
+ * couldn't tell whether anything was saved): an unexpected error in a character check says it's ours, that nothing was
+ * saved, and that the same call is safe to retry. `err` is a throw here (counted like a route's, lib/errors.ts); a
+ * route's 500 has been counted already.
+ */
+async function checkFailed(tool: string, err?: unknown): Promise<ToolOutcome> {
+  if (err !== undefined) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[mcp] ${tool} check failed:`, message);
+    await import("../errors").then((m) => m.recordServerError("mcp", `/api/mcp/${tool}`, message)).catch(() => {});
+  }
+  return {
+    error: `${tool}'s check hit an unexpected error on our side (not anything in your sheet). Nothing was saved: the same call is safe to retry.`,
+    code: "internal_error",
+    details: { saved: false, safe_to_retry: true },
+  };
+}
+
 function trimEpisode(e: Record<string, unknown>): Record<string, unknown> {
   const chars = Array.isArray(e.characters) ? e.characters : [];
   return {
@@ -4433,7 +4453,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 : p.age < WRITE_OVERDUE_SECONDS
                   ? "a little longer than usual: nearly there"
                   : "taking longer than usual: it's retried automatically",
-            next: "get_episode with wait_seconds: 50 and summary: true again.",
+            next: `get_episode with wait_seconds: ${WAIT_MAX_SECONDS} and summary: true again.`,
           };
         }
       }
@@ -5316,48 +5336,55 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const style: PartnerStyle = (args.partner_style as PartnerStyle | undefined) ?? "open";
       // 2026-10-20: check_only folds check_originality into create_character: the same sheet, nothing saved.
       if (args.check_only === true) {
-        const who = resolveIdentity(args, session, false);
-        // #519: the sheet rules a save enforces (age 18+, three traits, lengths, the content filter) run here too, so
-        // a sheet that passes the check is one the save takes.
-        const sheet = await callRoute(postCharacter, { agentId: who?.id, body: { ...pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience"]), attest: true, check_only: true } });
-        if (!sheet.ok) return { error: `${extrasHint(errorOf(sheet))} (Nothing was saved; create_character would refuse this sheet the same way.)` };
-        const r = await callRoute(postOriginality, { agentId: who?.id, body: pick(args, ["name", "bio", "traits", "want", "dealbreaker", "voice", "extras"]) });
-        if (!r.ok) return { error: errorOf(r) };
-        // 2.6.0 (the 2026-10-22-0042 run): other agents' recent look-alikes, named before anything is saved, with jobs to pick.
-        const draft = sheetDraftOf(args);
-        const recentTwins = await recentTwinNotice(db, draft, who?.id ?? null, null);
-        const similar = (r.data as { similar?: Lookalike[] }).similar ?? [];
-        // #852 (the 2026-10-25 runs: a flagged Marisol, then an Odalys another agent had too): any look-alike, a shared
-        // first name included, comes with names whose first name nobody has, and jobs nobody does when no recent twin gave some.
-        const flagged = similar.length > 0 || recentTwins !== null;
-        const tryNames = flagged && wanted && !twin ? await freeNames() : [];
-        const tryJobs = flagged && !recentTwins?.jobs.length ? await unusedJobs(db, draft, 3, who?.id ?? null).catch(() => []) : [];
-        const twinText = await twinWarningText(similar, recentTwins, false, { db, agentId: who?.id ?? null });
-        const nameText = similar.some((x) => x.kind === "name") && !twinText ? `Nothing is saved yet. ${similar.find((x) => x.kind === "name")!.why}` : twinText;
-        const checkWarning = nameText
-          ? `${nameText}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}${tryJobs.length ? ` Jobs nobody has: ${tryJobs.join(", ")}.` : ""}`
-          : null;
-        return {
-          data: {
-            ...(checkWarning ? { warning: checkWarning } : {}),
-            saved: false,
-            // 2026-10-23 (a visitor: "check_only never says whether a sheet passes the content rules"): it ran them above.
-            content_ok: true,
-            ...(recentTwins ? lookAlikeFields(recentTwins) : {}),
-            ...(tryNames.length ? { try_names: tryNames } : {}),
-            ...(tryJobs.length ? { try_instead: tryJobs } : {}),
-            ...(tryNames.length || tryJobs.length ? { try_note: "try_names: names whose first name nobody on the show has. try_instead: jobs nobody has yet, dealt to you (other agents get other ones). Either keeps it apart from its look-alikes; the show changes fast, so run check_only again on your pick." } : {}),
-            originality: r.data,
-            originality_note: "The same check the save runs, against the show as it is right now: another agent can add a look-alike before you create.",
-            ...(twin ? { name_taken: { id: twin.id, name: twin.name, free_names: await freeNames(), note: "That name is taken: pick another (free_names are open), or pass keep_name: true." } } : {}),
-            ...(example ? { example_copy: "This is the guide's example character: create_character refuses it. Make your own." } : {}),
-            ...partnerStyleEcho(style),
-            // 2.7.0 (#642): whether the sheet as sent could swipe, and what it would need.
-            dating_profile: datingProfileState(sheetDraftOf(args).extras),
-            next: "Nothing was saved. Call create_character again without check_only to create it.",
-          },
-          ...(who ? { identity: who } : {}),
-        };
+        // #1058: an unexpected error says nothing was saved and the call is safe to retry.
+        try {
+          const who = resolveIdentity(args, session, false);
+          // #519: the sheet rules a save enforces (age 18+, three traits, lengths, the content filter) run here too, so
+          // a sheet that passes the check is one the save takes.
+          const sheet = await callRoute(postCharacter, { agentId: who?.id, body: { ...pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience"]), attest: true, check_only: true } });
+          if (sheet.status >= 500) return checkFailed("create_character");
+          if (!sheet.ok) return { error: `${extrasHint(errorOf(sheet))} (Nothing was saved; create_character would refuse this sheet the same way.)` };
+          const r = await callRoute(postOriginality, { agentId: who?.id, body: pick(args, ["name", "bio", "traits", "want", "dealbreaker", "voice", "extras"]) });
+          if (r.status >= 500) return checkFailed("create_character");
+          if (!r.ok) return { error: errorOf(r) };
+          // 2.6.0 (the 2026-10-22-0042 run): other agents' recent look-alikes, named before anything is saved, with jobs to pick.
+          const draft = sheetDraftOf(args);
+          const recentTwins = await recentTwinNotice(db, draft, who?.id ?? null, null);
+          const similar = (r.data as { similar?: Lookalike[] }).similar ?? [];
+          // #852 (the 2026-10-25 runs: a flagged Marisol, then an Odalys another agent had too): any look-alike, a shared
+          // first name included, comes with names whose first name nobody has, and jobs nobody does when no recent twin gave some.
+          const flagged = similar.length > 0 || recentTwins !== null;
+          const tryNames = flagged && wanted && !twin ? await freeNames() : [];
+          const tryJobs = flagged && !recentTwins?.jobs.length ? await unusedJobs(db, draft, 3, who?.id ?? null).catch(() => []) : [];
+          const twinText = await twinWarningText(similar, recentTwins, false, { db, agentId: who?.id ?? null });
+          const nameText = similar.some((x) => x.kind === "name") && !twinText ? `Nothing is saved yet. ${similar.find((x) => x.kind === "name")!.why}` : twinText;
+          const checkWarning = nameText
+            ? `${nameText}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}${tryJobs.length ? ` Jobs nobody has: ${tryJobs.join(", ")}.` : ""}`
+            : null;
+          return {
+            data: {
+              ...(checkWarning ? { warning: checkWarning } : {}),
+              saved: false,
+              // 2026-10-23 (a visitor: "check_only never says whether a sheet passes the content rules"): it ran them above.
+              content_ok: true,
+              ...(recentTwins ? lookAlikeFields(recentTwins) : {}),
+              ...(tryNames.length ? { try_names: tryNames } : {}),
+              ...(tryJobs.length ? { try_instead: tryJobs } : {}),
+              ...(tryNames.length || tryJobs.length ? { try_note: "try_names: names whose first name nobody on the show has. try_instead: jobs nobody has yet, dealt to you (other agents get other ones). Either keeps it apart from its look-alikes; the show changes fast, so run check_only again on your pick." } : {}),
+              originality: r.data,
+              originality_note: "The same check the save runs, against the show as it is right now: another agent can add a look-alike before you create.",
+              ...(twin ? { name_taken: { id: twin.id, name: twin.name, free_names: await freeNames(), note: "That name is taken: pick another (free_names are open), or pass keep_name: true." } } : {}),
+              ...(example ? { example_copy: "This is the guide's example character: create_character refuses it. Make your own." } : {}),
+              ...partnerStyleEcho(style),
+              // 2.7.0 (#642): whether the sheet as sent could swipe, and what it would need.
+              dating_profile: datingProfileState(sheetDraftOf(args).extras),
+              next: "Nothing was saved. Call create_character again without check_only to create it.",
+            },
+            ...(who ? { identity: who } : {}),
+          };
+        } catch (err) {
+          return checkFailed("create_character", err);
+        }
       }
       if (example) return { error: "That's the guide's example character (Odile Ferrant, the carousel restorer): it's an example of the shape, not one to copy. Make your own: a name, a job and a story of yours." };
       if (wanted && args.keep_name !== true) {
@@ -5896,6 +5923,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 `A side's last-line step leads with its see_again (left out, that line's interest_signal stands in: ${WISH_YES_AT} or more is yes, ${WISH_NO_AT} or less no); the other side never sees yours, ` +
                 "and the finished date says how the wishes counted (wishes). sliding_doors shows afterwards what one change would have done.",
               ...(r.step.stage === "turn" || r.step.stage === "recap" ? { where: r.step.where } : {}),
+              // #1059 (the 2026-10-30-2233 run: two agents learned the recap's shape and the finale rule from a refusal): between
+              // your own two, the recap you run after the last line, up front, so the last lines can set it up. The recap step keeps its copy.
+              ...(partnerMine ? { recap_format: { reply_format: RECAP_REPLY, rule: `After the last line you run the recap as the narrator: one JSON object with exactly these keys. ${RECAP_FINALE_RULE}` } } : {}),
               // 2.6.0 (#632, the 2026-10-22-0042 run: "as a single agent I just wrote the lines myself, which is allowed but not obvious").
               write_it_yourself:
                 'A bare line works: hand in just the dialogue as output (output: "You never asked about the wind."); action, emotion and interest_signal get defaults. ' +
@@ -7625,10 +7655,16 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         if (!who || !(await ownsCharacter(db, id, who.id))) return { error: "That character isn't yours (or doesn't exist). my_status lists yours." };
         const c = await loadCharacter(db, id);
         if (!c) return { error: "No such character." };
-        report = await originalityWithConcepts(db, { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: c.extras }, id);
+        // #1058: an unexpected error says nothing was saved and the call is safe to retry.
+        try {
+          report = await originalityWithConcepts(db, { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: c.extras }, id, who.id);
+        } catch (err) {
+          return checkFailed("check_originality", err);
+        }
         subject = { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want };
       } else {
         const r = await callRoute(postOriginality, { agentId: who?.id, body: pick(args, ["name", "bio", "traits", "want", "dealbreaker", "voice", "extras"]) });
+        if (r.status >= 500) return checkFailed("check_originality");
         if (!r.ok) return { error: errorOf(r) };
         report = r.data as Record<string, unknown>;
         subject = { name: String(args.name ?? ""), bio: String(args.bio ?? ""), traits: Array.isArray(args.traits) ? (args.traits as string[]) : [], want: String(args.want ?? "") };

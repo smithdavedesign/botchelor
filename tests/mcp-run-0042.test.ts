@@ -121,20 +121,20 @@ describe("#630 and the wait audit: every wait blocks until something new or the 
     const r = await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 1 }, A.ctx);
     expect(Date.now() - t0).toBeGreaterThanOrEqual(900);
     expect(r.isError).toBeUndefined();
-    expect(r.structuredContent).toMatchObject({ preview: true, booked: false, returned_because: "timeout", wait_cap_seconds: 50, second_date: { can_plan: false, reason: "not_aired", airs: "scheduled" } });
+    expect(r.structuredContent).toMatchObject({ preview: true, booked: false, returned_because: "timeout", wait_cap_seconds: 30, second_date: { can_plan: false, reason: "not_aired", airs: "scheduled" } });
     expect(Date.parse(r.structuredContent.second_date.airs_at)).toBeGreaterThan(Date.now());
     // 2.10.0 (#619's comment, the 2026-10-22-0800 run): that it didn't wait the whole time leads, with why and when to call again.
     expect(r.structuredContent.wait_note).toMatch(/^This call waited 1 s, not the whole time: .* A wait never books/);
-    expect(r.structuredContent.next_calls).toEqual([{ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 50, preview: true }, why: expect.any(String) }]);
+    expect(r.structuredContent.next_calls).toEqual([{ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 30, preview: true }, why: expect.any(String) }]);
     // With confirm: true it would have booked, so running out is the not_aired refusal, with the wait's report.
     const confirmed = await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 1, confirm: true }, A.ctx);
     expect(confirmed.isError).toBe(true);
-    expect(confirmed.content[0].text).toMatch(/hasn't yet, so nothing was booked or spent\. This call waited 1 s, not the whole time: the first date airs in about \d+ min \(at \S+\), past this call's 1 s\. Call again from \S+, when one 50-second wait covers it/);
-    expect(confirmed.structuredContent).toMatchObject({ code: "not_aired", returned_because: "timeout", wait_cap_seconds: 50, airs: "scheduled" });
+    expect(confirmed.content[0].text).toMatch(/hasn't yet, so nothing was booked or spent\. This call waited 1 s, not the whole time: the first date airs in about \d+ min \(at \S+\), past this call's 1 s\. Call again from \S+, when one 30-second wait covers it/);
+    expect(confirmed.structuredContent).toMatchObject({ code: "not_aired", returned_because: "timeout", wait_cap_seconds: 30, airs: "scheduled" });
     expect(confirmed.structuredContent.wait_note).toMatch(/^This call waited 1 s, not the whole time: .*It airs on its own at /);
     expect(confirmed.structuredContent.seconds_left).toBeGreaterThan(60);
     expect(Date.parse(confirmed.structuredContent.airs_at)).toBeGreaterThan(Date.now());
-    expect(confirmed.structuredContent.next_calls).toEqual([{ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 50, preview: true }, why: expect.any(String) }]);
+    expect(confirmed.structuredContent.next_calls).toEqual([{ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 30, preview: true }, why: expect.any(String) }]);
     // Without a wait, the same note, and no wait report.
     const now = (await call("plan_second_date", { episode_id: booked.episode.id }, A.ctx)).structuredContent;
     expect(now.returned_because).toBeUndefined();
@@ -221,7 +221,7 @@ describe("#632: own dates carry the conversation so far, and a bare line works",
     await call("submit_own_date_step", { episode_id: id, output: "Do you always arrive early?" }, A.ctx);
     const theirs = (await call("get_own_date_step", { episode_id: id }, B.ctx)).structuredContent;
     expect(theirs.transcript).toEqual([{ who: "Thaddeus Quill", said: "Do you always arrive early?" }]);
-    expect(theirs.next_calls[0]).toMatchObject({ tool: "submit_own_date_step", args: { episode_id: id, wait_seconds: 50 } });
+    expect(theirs.next_calls[0]).toMatchObject({ tool: "submit_own_date_step", args: { episode_id: id, wait_seconds: 30 } });
   });
 
   it("a batch says which turns it filled, keeps of as the date's length, and a turn_number that doesn't match is refused (a retry can't land twice)", async () => {
@@ -402,7 +402,7 @@ describe("two-agent dates never start unnoticed: heads_up first", () => {
       character_id: B.id,
       started_by: "Thaddeus Quill's agent",
       your_move: false,
-      take_your_move: { tool: "get_own_date_step", arguments: { episode_id: id, wait_seconds: 50 } },
+      take_your_move: { tool: "get_own_date_step", arguments: { episode_id: id, wait_seconds: 30 } },
       decline: { tool: "decline_own_date", arguments: { episode_id: id } },
     });
     expect(next.heads_up[0].what).toMatch(/^Thaddeus Quill's agent started a two-agent date with your Marguerite Plum \(free: you perform Marguerite, their agent performs Thaddeus/);
@@ -423,7 +423,7 @@ describe("two-agent dates never start unnoticed: heads_up first", () => {
     expect(move.heads_up[0].what).toMatch(/It's your move: quiet 3 minutes on it and the show's model takes over Marguerite's side/);
     expect(move.invites[0]).toMatchObject({ kind: "own_date", episode_id: id });
     expect(Object.keys(move).indexOf("invites")).toBeLessThan(Object.keys(move).indexOf("next"));
-    expect(move.next_calls[0]).toEqual({ tool: "get_own_date_step", args: { episode_id: id, wait_seconds: 50 }, why: expect.stringMatching(/Your move on the date with Thaddeus Quill/) });
+    expect(move.next_calls[0]).toEqual({ tool: "get_own_date_step", args: { episode_id: id, wait_seconds: 30 }, why: expect.stringMatching(/Your move on the date with Thaddeus Quill/) });
   });
 });
 
@@ -617,7 +617,7 @@ describe("next_calls: the calls that fit next, ids filled in", () => {
     const status = (await call("my_status", {}, A.ctx)).structuredContent;
     expect(status.next_calls[0]).toMatchObject({ tool: expect.any(String), args: expect.any(Object), why: expect.any(String) });
     const booked = await houseDate(A.ctx, A.id, "friends");
-    expect(booked.next_calls).toEqual([{ tool: "get_episode", args: { episode_id: booked.episode.id, wait_seconds: 50, summary: true }, why: expect.any(String) }]);
+    expect(booked.next_calls).toEqual([{ tool: "get_episode", args: { episode_id: booked.episode.id, wait_seconds: 30, summary: true }, why: expect.any(String) }]);
     const B = await agentWith("Bo Quill");
     await call("swipe", { character_id: B.id, target_id: A.id, like: true }, B.ctx);
     const matched = (await call("swipe", { character_id: A.id, target_id: B.id, like: true }, A.ctx)).structuredContent;

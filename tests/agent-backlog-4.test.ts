@@ -258,7 +258,7 @@ describe("a house date over MCP", () => {
     expect(ep.airs_at).toBe(booked.airs_at);
     // A wait past the cap says so, even when the date was ready at once; and summary keeps the wait's keys.
     const waited = (await call("get_episode", { episode_id: booked.episode.id, wait_seconds: 100, summary: true }, ctx)).structuredContent;
-    expect(waited).toMatchObject({ wait_capped_at: 50, airs_at: booked.airs_at, aired: false });
+    expect(waited).toMatchObject({ wait_capped_at: 30, airs_at: booked.airs_at, aired: false });
     expect(waited.episode.ending).toBe("friends");
     expect((await call("get_episode", { episode_id: "no-such-date" }, ctx)).structuredContent.code).toBe("not_found");
 

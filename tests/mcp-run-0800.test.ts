@@ -246,7 +246,7 @@ describe("2. #661: both agents book the same second date", () => {
       booked_by: "Ottoline's agent",
       booked_ago: expect.stringMatching(/^\d+ seconds?$/),
       cost: { spent: "nothing" },
-      next_calls: [{ tool: "get_episode", args: { episode_id: second, wait_seconds: 50, summary: true }, why: expect.any(String) }],
+      next_calls: [{ tool: "get_episode", args: { episode_id: second, wait_seconds: 30, summary: true }, why: expect.any(String) }],
     });
     expect(raced.structuredContent.note).toMatch(/^Already booked: Ottoline's agent booked this second date \d+ seconds? ago \(.+\), so this call booked nothing and nothing was charged to you\./);
     expect(raced.structuredContent.spent_note).toBe("Nothing was spent: Ottoline's agent booked it, and it was charged to them.");
@@ -258,7 +258,7 @@ describe("2. #661: both agents book the same second date", () => {
     const preview = (await call("plan_second_date", { episode_id: first, preview: true }, B.ctx)).structuredContent;
     expect(preview).toMatchObject({ preview: true, booked: false, already_booked: { episode_id: second, booked_by: "Ottoline's agent" }, second_date: { reason: "planned" } });
     expect(preview.already_booked.note).toMatch(/^Ottoline's agent booked this second date .* there's nothing left to book, and nothing was charged to you\.$/);
-    expect(preview.next_calls).toEqual([{ tool: "get_episode", args: { episode_id: second, wait_seconds: 50, summary: true }, why: expect.any(String) }]);
+    expect(preview.next_calls).toEqual([{ tool: "get_episode", args: { episode_id: second, wait_seconds: 30, summary: true }, why: expect.any(String) }]);
     // Nothing was booked or spent by any of B's calls; A's own retry says it was A's.
     expect(await freeLeft(B)).toBe(before);
     expect(await t.count("episodes")).toBe(episodes);
@@ -488,9 +488,9 @@ describe("5. waits that say why (#619's comment)", () => {
     const booked = (await call("go_on_date", { character_id: A.id, partner_id: HOUSE.id }, A.ctx)).structuredContent;
     const r = (await call("plan_second_date", { episode_id: booked.episode.id, wait_seconds: 1 }, A.ctx)).structuredContent;
     expect(Object.keys(r).slice(0, 2)).toEqual(["wait_note", "call_again_at"]);
-    expect(r.wait_note).toMatch(/^This call waited 1 s, not the whole time: the first date airs in about \d+ min \(at (\S+)\), past this call's 1 s\. Call again from (\S+), when one 50-second wait covers it \(next_calls has the call\)\./);
-    expect(Date.parse(r.call_again_at)).toBe(Date.parse(r.second_date.airs_at) - 50_000);
-    expect(r.next_calls[0]).toMatchObject({ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 50, preview: true } });
+    expect(r.wait_note).toMatch(/^This call waited 1 s, not the whole time: the first date airs in about \d+ min \(at (\S+)\), past this call's 1 s\. Call again from (\S+), when one 30-second wait covers it \(next_calls has the call\)\./);
+    expect(Date.parse(r.call_again_at)).toBe(Date.parse(r.second_date.airs_at) - 30_000); // #1057: one 30-second wait (it was 50)
+    expect(r.next_calls[0]).toMatchObject({ tool: "plan_second_date", args: { episode_id: booked.episode.id, wait_seconds: 30, preview: true } });
     expect(r.next_calls[0].why).toContain(r.call_again_at);
   });
 

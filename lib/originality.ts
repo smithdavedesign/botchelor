@@ -170,6 +170,12 @@ const SAME_AS: Record<string, string> = {
   tide: "tide", tidal: "tide",
   barometer: "barometer", barometric: "barometer",
 };
+/**
+ * A SAME_AS lookup that only reads its own keys. #1058 (run 2026-10-30-2233): a bio's "crossword constructor" read
+ * SAME_AS["constructor"], which is Object's constructor function, so the term set held a function and the look-alike
+ * check threw "split is not a function" on every check_only and check_originality against a show with another one.
+ */
+const sameAs = (w: string): string | undefined => (Object.hasOwn(SAME_AS, w) ? SAME_AS[w] : undefined);
 
 
 /**
@@ -186,7 +192,7 @@ export function conceptTerms(sheet: SheetDraft): Set<string> {
     let prev: string | null = null;
     for (const raw of part.replace(/[-–—/]/g, " ").split(/[^a-z']+/)) {
       const word = raw.replace(/'s$/, "");
-      const mapped = SAME_AS[word] ?? SAME_AS[stem(word)];
+      const mapped = sameAs(word) ?? sameAs(stem(word));
       if (!mapped && (word.length < 4 || EVERYDAY_WORDS.has(word) || EVERYDAY_WORDS.has(stem(word)) || !contentWords(word, 4).length)) {
         prev = null;
         continue;
@@ -215,7 +221,7 @@ function asWritten(term: string, sheet: SheetDraft): string {
   const words = conceptText(sheet).toLowerCase().replace(/[-–—/]/g, " ").split(/[^a-z']+/).map((w) => w.replace(/'s$/, ""));
   return term
     .split(" ")
-    .map((part) => words.find((w) => w && (SAME_AS[w] ?? SAME_AS[stem(w)] ?? stem(w)) === part) ?? part)
+    .map((part) => words.find((w) => w && (sameAs(w) ?? sameAs(stem(w)) ?? stem(w)) === part) ?? part)
     .join(" ");
 }
 

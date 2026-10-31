@@ -31,6 +31,8 @@ The database (Neon) and the show's media bucket (Neon Object Storage) didn't mov
   Cron did.
 - **Long requests:** App Platform has no `maxDuration`. Its edge (Cloudflare) ends a response that sends nothing for
   100 seconds, so streams keep sending, and slow work runs in `after()` once the response is out, as before.
+  MCP waits (`wait_seconds`) still sometimes got a bare `error code: 504` from it at 50 seconds, though 40 or less never
+  did (#1057), so a wait is capped at 30 (`WAIT_MAX_SECONDS`), and the cheatsheets say a bare 504 on a wait is safe to retry.
 
 ## Deploys
 

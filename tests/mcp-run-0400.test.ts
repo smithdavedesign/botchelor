@@ -145,7 +145,7 @@ describe("#649: a wait never sleeps through your move on a two-agent date", () =
     await started;
     // An invite is an own_date_turn in woke_for, as my_status has always said it; heads_up's kind tells it apart.
     expect(r).toMatchObject({ returned_because: "your_move", woke_for: ["own_date_turn"] });
-    expect(r.heads_up[0]).toMatchObject({ kind: "own_date_started", episode_id: id, your_move: false, take_your_move: { tool: "get_own_date_step", arguments: { episode_id: id, wait_seconds: 50 } } });
+    expect(r.heads_up[0]).toMatchObject({ kind: "own_date_started", episode_id: id, your_move: false, take_your_move: { tool: "get_own_date_step", arguments: { episode_id: id, wait_seconds: 30 } } });
     expect(r.heads_up[0].seconds_left).toBeUndefined();
     // The same invite doesn't wake the next wait: it runs out, still led by the heads_up.
     const again = (await call("read_texts", { character_id: B.id, with: A.id, wait_seconds: 2 }, B.ctx)).structuredContent;

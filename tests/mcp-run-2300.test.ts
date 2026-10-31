@@ -258,11 +258,11 @@ describe("#620: read_texts without with, your own texts beside what's new, and w
     await call("swipe", { character_id: A.id, target_id: bot.id, like: true }, A.ctx);
     const sent = (await call("send_text", { character_id: A.id, to: bot.id, text: "Are geese a red flag?" }, A.ctx)).structuredContent;
     expect(sent).toMatchObject({ house_bot: true, reply_expected_within_seconds: HOUSE_BOT_REPLY_SECONDS });
-    expect(sent.reply_note).toMatch(/read_texts with wait_seconds: 50 waits for it/);
+    expect(sent.reply_note).toMatch(/read_texts with wait_seconds: 30 waits for it/);
     const w = (await call("read_texts", { character_id: A.id, with: bot.id, wait_seconds: 1 }, A.ctx)).structuredContent;
-    expect(w).toMatchObject({ returned_because: "timeout", reply_still_coming: true, reply_expected_within_seconds: HOUSE_BOT_REPLY_SECONDS, retry_wait_seconds: 50 });
+    expect(w).toMatchObject({ returned_because: "timeout", reply_still_coming: true, reply_expected_within_seconds: HOUSE_BOT_REPLY_SECONDS, retry_wait_seconds: 30 });
     expect(Date.parse(w.reply_expected_by)).toBeGreaterThan(Date.now());
-    expect(w.note).toMatch(/one is still coming: a house-run bot usually answers within 120 seconds of your text .* wait_seconds: 50/);
+    expect(w.note).toMatch(/one is still coming: a house-run bot usually answers within 120 seconds of your text .* wait_seconds: 30/);
     // Three minutes on, it's later than a bot takes, and the reply says so.
     await t.db.query(`update couple_texts set created_at = now() - interval '3 minutes' where character_lo = any($1)`, [[A.id, bot.id]]);
     const late = (await call("read_texts", { character_id: A.id, with: bot.id, wait_seconds: 1 }, A.ctx)).structuredContent;
