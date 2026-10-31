@@ -20,4 +20,14 @@ describe("#1077: shorter replies", () => {
     expect(again.notes_left_out).toEqual(["cost.using_note", "cost.left.note"]);
   });
 
+  it("leaves the same next_calls out once sent, and sends different ones", () => {
+    const key = `conn-${Math.random()}`;
+    const calls = [{ tool: "create_character", args: { name: "<name>", attest: true }, why: "Check a sheet first." }];
+    expect(dropSentNotes(key, { ok: true, next_calls: calls }).next_calls).toEqual(calls);
+    const again = dropSentNotes(key, { ok: true, next_calls: calls });
+    expect(again.next_calls).toBeUndefined();
+    expect(again.notes_left_out).toEqual(["next_calls"]);
+    const other = [{ tool: "go_on_date", args: { character_id: "c1" }, why: "Your first date." }];
+    expect(dropSentNotes(key, { ok: true, next_calls: other }).next_calls).toEqual(other);
+  });
 });

@@ -40,6 +40,11 @@ const VISITOR_NUDGES = Number(env("LOOP_VISITOR_NUDGES", "3"));
 // Visitors arrive a few minutes apart, as agents do on the live show. Side by side, three on one model invented the same
 // "retired lighthouse inspector" within minutes (2026-10-22-0042), and one docked the show for seeding clones.
 const VISITOR_STAGGER_MINUTES = Number(env("LOOP_VISITOR_STAGGER_MINUTES", "4"));
+// David, 2026-10-31 ("use existing characters or create new ones, if new ones make them super unique"): an optional line
+// added to each visitor's brief, "|"-separated, one per visitor in turn (an empty one adds nothing). LOOP_AD_ROLE is the
+// After Dark visitor's. Unset, the briefs are as they were.
+const VISITOR_ROLES = env("LOOP_VISITOR_ROLES", "").split("|").map((s) => s.trim());
+const AD_ROLE = env("LOOP_AD_ROLE", "").trim();
 const MAX_ISSUES = Number(env("LOOP_MAX_ISSUES", "5"));
 const MAX_FIXES = Number(env("LOOP_MAX_FIXES", "3"));
 const FIX = env("LOOP_FIX", "1") !== "0";
@@ -308,7 +313,8 @@ async function main() {
           .replaceAll("{{MINUTES}}", String(VISITOR_MINUTES))
           .replaceAll("{{MIN_MINUTES}}", String(VISITOR_MIN_MINUTES))
           .replaceAll("{{NOT_BEFORE}}", clock(notBefore))
-          .replaceAll("{{UNTIL}}", clock(started + VISITOR_MINUTES * 60_000)) + shareNote;
+          .replaceAll("{{UNTIL}}", clock(started + VISITOR_MINUTES * 60_000)) + shareNote +
+          (VISITOR_ROLES[i % VISITOR_ROLES.length] ? `\n\n${VISITOR_ROLES[i % VISITOR_ROLES.length]}` : "");
         const opts = {
           cwd: dir,
           model: VISITOR_MODEL,
@@ -345,7 +351,7 @@ async function main() {
           .replaceAll("{{MINUTES}}", String(VISITOR_MINUTES))
           .replaceAll("{{MIN_MINUTES}}", String(VISITOR_MIN_MINUTES))
           .replaceAll("{{NOT_BEFORE}}", clock(notBefore))
-          .replaceAll("{{UNTIL}}", clock(started + VISITOR_MINUTES * 60_000));
+          .replaceAll("{{UNTIL}}", clock(started + VISITOR_MINUTES * 60_000)) + (AD_ROLE ? `\n\n${AD_ROLE}` : "");
         const opts = { cwd: dir, model: VISITOR_MODEL, tools: ["Read", "Write", "Edit", "Bash(node:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(sleep:*)", "Bash(mkdir:*)", "Bash(date:*)"] };
         let r = await claude(prompt, { ...opts, timeoutMin: VISITOR_MINUTES + 20 });
         if (r.code === 0 && Date.now() < notBefore - 60_000 && Date.now() < DEADLINE - 30 * 60_000) {
