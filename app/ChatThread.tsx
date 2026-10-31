@@ -31,6 +31,11 @@ type Props = {
    * ref's first line (a replay's growing prefix is fine).
    */
   feedback?: LineFeedbackRef | null;
+  /**
+   * Centred notes before line `at` (one at turns.length closes the thread): After Dark's "Now: <place>" where a paid scene
+   * change starts (#1030), with a hint under it while nothing has been said there yet. Only those playback has reached.
+   */
+  dividers?: readonly { at: number; text: string; hint?: string | null }[];
 };
 
 const NEAR_BOTTOM_PX = 80;
@@ -65,7 +70,7 @@ export function LineVoteButtons({ index, vote, name, onVote }: { index: number; 
  * replay, the episode replay and the episode page's record of the date. With `feedback`, each line gets a quiet 👍/👎
  * (David, 2026-10-21: real-user signals) beside its caption.
  */
-export default function ChatThread({ characters, turns, typing = null, challenge, tone = "light", follow = false, meta = true, empty, feedback = null }: Props) {
+export default function ChatThread({ characters, turns, typing = null, challenge, tone = "light", follow = false, meta = true, empty, feedback = null, dividers = [] }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const lineVotes = useLineVotes(feedback);
@@ -84,14 +89,23 @@ export default function ChatThread({ characters, turns, typing = null, challenge
   useLayoutEffect(() => {
     const el = box.current;
     if (el && follow && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [follow, turns.length, typing]);
+  }, [follow, turns.length, typing, dividers.length]);
 
   const [a, b] = characters;
   const who = (side: "a" | "b") => (side === "a" ? a : b);
+  const dividerAt = (i: number) =>
+    dividers
+      .filter((d) => d.at === i)
+      .map((d) => (
+        <div key={`d${i}:${d.text}`} className="chat-divider" role="note">
+          <p className="chat-note chat-move">📍 {d.text}</p>
+          {d.hint && <p className="chat-divider-hint">{d.hint}</p>}
+        </div>
+      ));
 
   return (
     <div ref={box} className={`chat-thread chat-${tone}${follow ? " chat-follow" : ""}`} role="log" aria-live="polite" aria-label="The date, line by line">
-      {turns.length === 0 && !typing && empty && <p className="chat-empty">{empty}</p>}
+      {turns.length === 0 && !typing && empty && !dividers.some((d) => d.at === 0) && <p className="chat-empty">{empty}</p>}
       {turns.map((t, i) => {
         const prev = turns[i - 1];
         const newAct = !prev || prev.act !== t.act;
@@ -101,6 +115,7 @@ export default function ChatThread({ characters, turns, typing = null, challenge
         const caption = meta ? [t.action, t.emotion].filter(Boolean).join(" · ") : "";
         return (
           <div key={i} className="chat-item">
+            {dividerAt(i)}
             {newAct && <p className="chat-act">{DATE_ACTS[t.act] ?? `Act ${t.act + 1}`}</p>}
             {newAct && t.act === 1 && challenge && <p className="chat-note">🎬 {challenge}</p>}
             <div className={`chat-row chat-row-${t.side}`}>
@@ -124,6 +139,7 @@ export default function ChatThread({ characters, turns, typing = null, challenge
           </div>
         );
       })}
+      {dividerAt(turns.length)}
       {typing && (
         <div className={`chat-row chat-row-${typing} chat-typing-row`} aria-label={`${who(typing).name} is typing`}>
           <Avatar seed={who(typing).id} name={who(typing).name} hue={who(typing).hue} house={who(typing).house} portraitSrc={who(typing).portrait} photoSrc={who(typing).photo} size={30} />

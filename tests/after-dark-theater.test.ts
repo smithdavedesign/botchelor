@@ -1,7 +1,8 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import AfterDarkTheater, { stageLabel } from "@/app/after-dark/[a]/[b]/AfterDarkTheater";
+import AfterDarkTheater, { sceneCuts, stageLabel } from "@/app/after-dark/[a]/[b]/AfterDarkTheater";
+import type { MoveLog } from "@/lib/adult/continuity";
 import type { CharacterRef } from "@/lib/game";
 
 const chars: [CharacterRef, CharacterRef] = [
@@ -49,5 +50,59 @@ describe("the label over the stage: the roleplay and what they're doing, in the 
     expect(stageLabel({ lines: doing, stage: 1, roleplay: rp }, 2)).toBe("🙈 Blind date · sizing up the smug couple");
     expect(stageLabel({ lines: doing, stage: 1, roleplay: rp }, 3)).toBe("🙈 Blind date · escaping out the back");
     expect(stageLabel({ lines: doing, stage: 1 }, 3)).toBe("escaping out the back");
+  });
+});
+
+describe("#1030: a paid scene change starts a new place, not more of the old one", () => {
+  const cutTo = (at: number, to: string, chapter = 1): MoveLog => ({ chapter, at, from: "the diner", to, taken: true, reason: "set_scene" });
+  const old = [
+    { who: "a" as const, text: "\"Accurate.\" That's high praise." },
+    { who: "b" as const, text: "From me? The highest." },
+  ];
+
+  it("finds this chapter's cuts, the last pick at a line winning, and drops the rest", () => {
+    const moves: MoveLog[] = [
+      cutTo(1, "the old pier", 0),
+      { chapter: 1, at: 1, from: null, to: "her place", taken: true, reason: "agreed" },
+      { chapter: 1, at: 2, from: null, to: "a rooftop", taken: false, reason: "cap" },
+      cutTo(2, "a hotel bar"),
+      cutTo(2, "the hotel corridor"),
+      cutTo(5, "past a rewind"),
+    ];
+    expect(sceneCuts({ lines: old, chapter: 1, moves })).toEqual([{ at: 2, place: "the hotel corridor" }]);
+    expect(sceneCuts({ lines: old })).toEqual([]);
+  });
+
+  it("the thread says where the new scene starts, and the stage drops the old place's bubbles", () => {
+    const html = render({ scene: { ...scene, lines: old, chapter: 1, moves: [cutTo(2, "the hotel corridor")] } });
+    expect(html).toContain('class="chat-divider"');
+    expect(html).toContain("📍 Now: the hotel corridor");
+    expect(html).toContain('class="ad-scene-cut"');
+    expect(html).not.toContain('<p class="scene-bubble">');
+    // The thread still has the diner, above the divider.
+    expect(html.indexOf("From me? The highest.")).toBeLessThan(html.indexOf('class="chat-divider"'));
+  });
+
+  it("live, the divider carries the Next hint until their first line there", () => {
+    const html = render({ onWrite: async () => {}, scene: { ...scene, lines: [], chapter: 2, moves: [cutTo(0, "the hotel corridor", 2)] } });
+    expect(html).toContain("Press Next to see them arrive.");
+    expect(html).toContain("📍 Now: the hotel corridor");
+  });
+
+  it("lines after the cut are on the stage, with no arrival card", () => {
+    const lines = [...old, { who: "a" as const, text: "*steps out of the lift* Room 412." }];
+    const html = render({ scene: { ...scene, lines, chapter: 1, moves: [cutTo(2, "the hotel corridor")] } });
+    expect(html).toContain('<p class="scene-bubble">Room 412.</p>');
+    // Only Ada's new line: Bo's diner line isn't left standing beside it.
+    expect(html.match(/<p class="scene-bubble">/g)).toHaveLength(1);
+    expect(html).not.toContain('class="ad-scene-cut"');
+  });
+});
+
+describe("#1029: discreet mode says why the pictures are blurred", () => {
+  it("renders the hint hidden (it shows once, client-side, only while blur is on), pointing at Privacy", () => {
+    const html = render({});
+    expect(html).toMatch(/<p class="ad-blur-hint" role="status" hidden="">/);
+    expect(html).toContain('href="/after-dark#privacy"');
   });
 });

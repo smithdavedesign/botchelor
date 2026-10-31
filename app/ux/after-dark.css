@@ -1434,12 +1434,19 @@ button.ad-roleplay-chip {
     order: -1;
     background: #120c1c;
   }
-  /* With a clip or photo, the stage takes its shape (up to most of the screen) instead of a thin strip. */
+  /* With a clip or photo, the stage takes its shape instead of a thin strip, but gives way to the thread: #1029 (the
+     2026-10-30 ad visitor at 390x844: "the scene art fills the view and the dialogue is cut off") — a tall photo took
+     58vh and left the thread 0px between it and the steer bar. "⛶ Full" still gives the clip the whole stage. */
   .theater-after-dark .theater-stage.has-media .theater-scene-area {
+    flex: 0 1 auto;
     height: auto;
     aspect-ratio: var(--ad-media-ar, 1.78);
-    max-height: 58vh;
-    min-height: 180px;
+    max-height: 38vh;
+    min-height: 150px;
+  }
+  /* #1029: the thread always keeps room for the last few lines on a phone. */
+  .theater-after-dark .theater-stage:not(.media-full) .theater-convo {
+    flex: 1 0 9.5rem;
   }
   /* Full: the whole stage is the clip, the lines as captions over it, the steer bar still under it. */
   .theater-after-dark .theater-stage.media-full .theater-scene-area {
@@ -1852,5 +1859,107 @@ a.ad-scenes-make-link {
   .theater-after-dark:has(.ad-roleplay-chip) .ad-scene-backdrop-off,
   .theater-after-dark:has(.ad-roleplay-chip) .ad-scene-backdrop-reveal {
     top: 6.8rem;
+  }
+}
+
+/* #1030: where a paid scene change (Set the scene) starts. In the thread, a divider across it with the Next hint under it;
+   on the stage, the same card in place of the old place's bubbles until their first line there. */
+.chat-divider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: var(--space-3) 0 var(--space-2);
+}
+.chat-divider .chat-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  font-size: var(--text-sm);
+  font-style: normal;
+  font-weight: 700;
+  color: #f1e9ff;
+}
+.chat-divider .chat-note::before,
+.chat-divider .chat-note::after {
+  content: "";
+  flex: 1 1 0;
+  border-top: 1px solid rgba(199, 146, 255, 0.45);
+}
+.chat-divider-hint {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.7);
+}
+.chat-light .chat-divider .chat-note {
+  color: var(--text);
+}
+.chat-light .chat-divider-hint {
+  color: var(--muted);
+}
+.theater-after-dark .ad-scene-cut {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  max-width: min(26rem, calc(100% - 2 * var(--space-4)));
+  margin: 0;
+  padding: 0.6rem 1rem;
+  border-radius: 0.8rem;
+  background: rgba(10, 6, 18, 0.72);
+  color: #f1e9ff;
+  text-align: center;
+}
+.theater-after-dark .ad-scene-cut span {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* #1029: discreet mode's one-time hint in the theater (AfterDarkTheater.tsx BlurHint), under the backdrop's buttons. */
+.theater-after-dark .ad-blur-hint {
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  top: calc(var(--space-3) + 2.6rem);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 30rem;
+  margin: 0 auto;
+  padding: 0.45rem 0.5rem 0.45rem 0.8rem;
+  border-radius: 0.7rem;
+  background: rgba(10, 6, 18, 0.8);
+  color: #f1e9ff;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.theater-after-dark .ad-blur-hint[hidden] {
+  display: none;
+}
+.theater-after-dark .ad-blur-hint a {
+  color: #d8b8ff;
+}
+.ad-blur-hint-close {
+  flex: 0 0 auto;
+  margin: 0 0 0 auto;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+@media (min-width: 761px) {
+  .theater-after-dark .ad-blur-hint {
+    top: 7.4rem;
   }
 }

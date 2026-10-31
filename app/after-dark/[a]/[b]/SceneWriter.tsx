@@ -416,6 +416,7 @@ export default function SceneWriter({
               chapter: scene.chapter,
               roleplay: scene.roleplay ?? null,
               planned: scene.planned ?? null,
+              moves: scene.moves,
             }}
             characters={cast}
             busy={busy}

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { AUTOPLAY_THEATER_AHEAD } from "@/lib/adult/autoplay";
 import type { PublicBeat } from "@/lib/adult/beats";
+import type { MoveLog } from "@/lib/adult/continuity";
 import type { Suggestion } from "@/lib/adult/director";
 import type { SceneLine } from "@/lib/adult/scenes";
 import type { Turn } from "@/lib/conversation";
@@ -89,6 +90,56 @@ export function stageLabel(
  */
 export const awaitingStart = (scene: { lines: readonly unknown[]; chapter?: number }): boolean => !scene.lines.length && (scene.chapter ?? 1) === 1;
 
+/**
+ * #1030 (the 2026-10-30 ad visitor: "after switching to the hotel corridor, the first line was still the old diner
+ * conversation"): where this chapter's paid cuts (Set the scene, lib/adult/scenes.ts setSceneTo) start, so the thread
+ * can draw a "Now: <place>" divider there and the stage can leave the old place's bubbles behind. The last cut at a line
+ * wins (a second pick before Next replaces the first); a cut past the lines there are (a rewind) is dropped.
+ */
+export function sceneCuts(scene: { lines: readonly unknown[]; chapter?: number; moves?: readonly MoveLog[] | null }): { at: number; place: string }[] {
+  const byLine = new Map<number, string>();
+  for (const m of scene.moves ?? []) {
+    if (m.taken && m.reason === "set_scene" && m.chapter === (scene.chapter ?? 1) && m.at <= scene.lines.length) byLine.set(m.at, m.to);
+  }
+  return [...byLine].sort(([x], [y]) => x - y).map(([at, place]) => ({ at, place }));
+}
+
+/** #1029: discreet mode's one-time hint in the theater, remembered per browser (a convenience: without storage it shows again next time). */
+const BLUR_HINT_KEY = "bz_ad_blur_hint_seen";
+
+/**
+ * #1029 (the 2026-10-30 ad visitor: "Dex and Nell are blurred colored squares … nothing on screen says which"): while
+ * discreet mode blurs pictures (app/after-dark/discreet.css), the theater says so once, the first time it opens in this
+ * browser, and how to see them. It goes after 20 seconds or on ✕.
+ */
+function BlurHint() {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    // Only when blur is on here: the layouts' wrapper says so (lib/adult/discreet.ts DISCREET_ATTR).
+    if (!ref.current?.closest('[data-ad-discreet="blur"]')) return;
+    try {
+      if (window.localStorage.getItem(BLUR_HINT_KEY)) return;
+      window.localStorage.setItem(BLUR_HINT_KEY, "1");
+    } catch {
+      // No storage (a private window): show it this time all the same.
+    }
+    setShow(true);
+    const t = window.setTimeout(() => setShow(false), 20_000);
+    return () => window.clearTimeout(t);
+  }, []);
+  return (
+    <p ref={ref} className="ad-blur-hint" role="status" hidden={!show}>
+      <span>
+        🔒 Pictures are blurred for privacy: tap one to show it, or turn blur off in <a href="/after-dark#privacy">🔒&nbsp;Privacy</a>.
+      </span>
+      <button type="button" className="ad-blur-hint-close" aria-label="Dismiss" onClick={() => setShow(false)}>
+        ✕
+      </button>
+    </p>
+  );
+}
+
 /** The heats' labels on the suggestion chips (the page's are the same). */
 // "mild" is the wildcard now (lib/adult/director.ts): the key stays so stored scenes still read.
 const HEAT_WORD: Record<Suggestion["heat"], string> = { mild: "Surprise me", flirty: "Flirt", spicy: "Spicy" };
@@ -164,6 +215,8 @@ export default function AfterDarkTheater({
     dateSetting?: string | null;
     /** Where they agreed by text to go (lib/adult/scenes.ts textedPlan): the night starts there, and the place is locked. */
     planned?: { place: string } | null;
+    /** This chapter's moves (lib/adult/continuity.ts MoveLog): a paid cut draws its "Now: <place>" divider (#1030). */
+    moves?: readonly MoveLog[] | null;
   };
   characters: [CharacterRef, CharacterRef];
   busy?: boolean;
@@ -382,8 +435,17 @@ export default function AfterDarkTheater({
     setAnswered((s) => new Set([...s, id]));
     await onBeat?.(id, a, a === "now" && edit ? { edit } : undefined);
   }
-  const latestAction = shown.length ? shown[shown.length - 1].action : "";
-  const label = stageLabel(scene, shown.length, myRoleplays);
+  // #1030: the last cut playback has reached. The stage shows only the lines since it (never the old place's bubbles), and
+  // until the first of them, "Now: <place>" with the Next hint; the thread draws the same divider where the cut is.
+  const cuts = useMemo(() => sceneCuts(scene), [scene]);
+  const cut = [...cuts].reverse().find((c) => c.at <= shown.length) ?? null;
+  const onStageNow = cut ? shown.slice(cut.at) : shown;
+  const arriving = Boolean(cut && !onStageNow.length);
+  const arriveHint = live ? "Press Next to see them arrive." : null;
+  const dividers = useMemo(() => cuts.map((c) => ({ at: c.at, text: `Now: ${c.place}`, hint: c.at === scene.lines.length ? arriveHint : null })), [cuts, scene.lines.length, arriveHint]);
+  const latestAction = onStageNow.length ? onStageNow[onStageNow.length - 1].action : "";
+  // Arriving, the label is the roleplay alone: the line before the cut said what they were doing at the old place.
+  const label = arriving ? stageLabel({ ...scene, lines: [], chapter: 1 }, 0, myRoleplays) : stageLabel(scene, shown.length, myRoleplays);
   // A roleplay by id: the show's, or one of the owner's own.
   const rpOf = (id: string | null | undefined): Roleplay | null => (id ? (roleplayById(id) ?? myRoleplays.find((r) => r.id === id) ?? null) : null);
   // The set: preloaded, so the last ready one stays up until the next has loaded (never the placeholder in between).
@@ -445,13 +507,20 @@ export default function AfterDarkTheater({
             characters={characters}
             venue={stage.venue}
             setUrl={stage.setUrl}
-            lineA={lastOf(shown, "a")}
-            lineB={lastOf(shown, "b")}
+            lineA={lastOf(onStageNow, "a")}
+            lineB={lastOf(onStageNow, "b")}
             faceA={faceOf("a")}
             faceB={faceOf("b")}
             actLabel={label}
-            placeholder={waiting ? "" : scene.lines.length ? "…" : "Press Next to begin."}
+            placeholder={waiting || arriving ? "" : scene.lines.length ? "…" : "Press Next to begin."}
           />
+          {arriving && cut && !waiting && (
+            <p className="ad-scene-cut" role="status">
+              <strong>📍 Now: {cut.place}</strong>
+              {cut.at === scene.lines.length && arriveHint && <span>{arriveHint}</span>}
+            </p>
+          )}
+          <BlurHint />
           {waiting && (
             <div className="ad-start-card" role="group" aria-label="Before the night starts">
               <p className="kicker">Tonight</p>
@@ -537,7 +606,7 @@ export default function AfterDarkTheater({
           )}
         </div>
         <div className="theater-convo">
-          <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow empty="The scene appears here, line by line." feedback={feedback} />
+          <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow empty="The scene appears here, line by line." feedback={feedback} dividers={dividers} />
         </div>
 
         <header className="theater-hud">
