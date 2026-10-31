@@ -458,7 +458,9 @@ describe("4. #663: one turn shape for output and outputs", () => {
     scriptOutcome({ ending: "friends" });
     const id = (await call("start_own_date", { character_id: a, partner_id: b, format: "speed_date" }, ctx)).structuredContent.step.episode_id;
     const r = (await call("submit_own_date_step", { episode_id: id, outputs: ["Line one, about the harbour lights.", { text: "Hello there, said wrong." }] }, ctx)).structuredContent;
-    expect(r).toMatchObject({ accepted: false, ok: false, accepted_count: 1, outputs_sent: 2, shapes: TURN_SHAPES });
+    // #1118: the first line is in, and the reply says so before anything else.
+    expect(r).toMatchObject({ accepted: true, ok: false, accepted_count: 1, refused_at: 2, outputs_sent: 2, shapes: TURN_SHAPES });
+    expect(r.message).toMatch(/^1 of 2 went in first \(turn 1\): don't send those again\. Not handed in:/);
     expect(r.rejected).toContain(`A turn takes ${TURN_SHAPES}`);
     expect(r.rejected).toMatch(/This one came with "text"\.$/);
     expect(r.message).toMatch(/The 2nd item of outputs was refused \(each item takes what output does\); nothing was used up: this turn is still yours, so send a corrected one for this step\.$/);

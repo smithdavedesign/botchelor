@@ -10,6 +10,7 @@
  * reads.
  */
 import type { Db } from "../db";
+import { SETUP_NOTE_PREFIX } from "./picture-notes";
 import { faceReferenceId } from "./steering";
 
 export type Readiness = {
@@ -59,7 +60,7 @@ export function missingNote(rs: readonly Readiness[]): string | null {
       const needs = [!r.face ? "a face" : "", !r.body ? "a body" : ""].filter(Boolean).join(" and ");
       return `${first} needs ${needs} set in the Studio`;
     });
-  return out.length ? `No pictures until they're set up: ${out.join("; ")}.` : null;
+  return out.length ? `${SETUP_NOTE_PREFIX} ${out.join("; ")}.` : null;
 }
 
 /** The pair's refusal for any picture or video of their night, or null when both are ready. */
