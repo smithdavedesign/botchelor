@@ -36,18 +36,8 @@ const drop = (url: string) => url.startsWith("blob:") && URL.revokeObjectURL(url
  *  - "watch the video in theater mode too": a full-screen stage with the line as a caption.
  */
 export default function Reels({ reels, onChange, onMedia }: { reels: Reel[]; onChange: (r: Reel) => void; onMedia?: (m: Media) => void }) {
-  const making = reels.filter((r) => r.status === "making").map((r) => r.id).join(",");
   const price = useClipPrice(reels.find((r) => r.a && r.b), reels.filter((r) => r.kind === "clip").length);
-  useEffect(() => {
-    if (!making) return;
-    const timer = setInterval(async () => {
-      for (const id of making.split(",")) {
-        const res = await fetch(`/api/admin/after-dark/reel?id=${encodeURIComponent(id)}`).then((r) => r.json()).catch(() => null);
-        if (res?.reel) onChange(res.reel as Reel);
-      }
-    }, 15000);
-    return () => clearInterval(timer);
-  }, [making, onChange]);
+  // A video being made is asked after from the page (SceneWriter), not here: this list isn't shown while the theater is.
 
   if (!reels.length) return null;
   // Videos of the night, and clips (lib/adult/clips.ts) apart: a clip is a moment, not part of the night's film. A video
