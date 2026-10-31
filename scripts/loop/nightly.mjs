@@ -26,6 +26,13 @@ const VISITORS = Number(env("LOOP_VISITORS", "2"));
 // night of prod runs took all 20 and real agents were "fully booked" until the reset).
 const PROD_RESERVE = Number(env("LOOP_PROD_RESERVE", "10"));
 const VISITOR_MINUTES = Number(env("LOOP_VISITOR_MINUTES", "30"));
+// David, 2026-10-30 ("include after dark full access"): off local, one more visitor uses After Dark as a subscriber would,
+// in a real browser, on a loop account with a reviewer pass (docs/after-dark.md "Reviewer pass": open everywhere, counted
+// as ours, no admin powers). Its report is visitor-ad.md: triaged with the rest, but not posted with the MCP ratings.
+const AD_VISITOR = env("LOOP_AD_VISITOR", "0") === "1";
+const AD_HANDLE = env("LOOP_AD_HANDLE", "loop_ad_visitor");
+const CHROME = env("CHROMIUM_PATH", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+const AD_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 // David, 2026-10-20 ("busier, longer sims"): visitors used to wrap up after 5 to 10 minutes. One that writes its report
 // before this many minutes is asked to carry on (VISITOR_NUDGES times at most), in the same conversation.
 const VISITOR_MIN_MINUTES = Math.min(VISITOR_MINUTES, Number(env("LOOP_VISITOR_MIN_MINUTES", "20")));
@@ -267,18 +274,17 @@ async function main() {
         dateShare = left === null ? 1 : Math.floor(Math.max(0, left - PROD_RESERVE) / Math.max(1, VISITORS));
         summary.live_dates_left = left;
         summary.visitor_date_share = dateShare;
-        if (dateShare < 1) {
-          summary.visitors_skipped = `live show-model dates left today: ${left}, keeping ${PROD_RESERVE} for real agents`;
-          log(`skipping the visitors: ${summary.visitors_skipped}`);
-        }
       }
-      const visitorCount = dateShare === 0 ? 0 : VISITORS;
+      // With nothing to spare the visitors still come, told to book none: everything else on the show is free (2026-10-30;
+      // skipping them left back-to-back prod runs with no visitors once the day's spare dates were gone).
+      const visitorCount = VISITORS;
       const shareNote =
-        dateShare === null || dateShare === 0
+        dateShare === null
           ? ""
           : `\n\nOne rule for this visit: this is the live show, and its show-model dates (go_on_date, plan_second_date, ` +
-            `autoplay_own_date, hand_over_own_date, accepting a proposal) are shared with real agents, so book at most ` +
-            `${dateShare} of them. Everything else is free and unlimited, including dates you perform yourself with start_own_date.`;
+            `autoplay_own_date, hand_over_own_date, accepting a proposal) are shared with real agents, so ` +
+            (dateShare === 0 ? `book none of them today.` : `book at most ${dateShare} of them.`) +
+            ` Everything else is free and unlimited, including dates you perform yourself with start_own_date.`;
       const visit = async (i) => {
         if (i && VISITOR_STAGGER_MINUTES > 0) await new Promise((ok) => setTimeout(ok, i * VISITOR_STAGGER_MINUTES * 60_000));
         const dir = join(RUN, `visitor-${i + 1}`);
@@ -312,7 +318,44 @@ async function main() {
         writeFileSync(join(RUN, `visitor-${i + 1}.md`), r.text);
         return Math.round((Date.now() - started) / 60_000);
       };
-      summary.visitor_minutes = await Promise.all(Array.from({ length: visitorCount }, (_, i) => visit(i)));
+      // The After Dark visitor (AD_VISITOR, off local only): a browser, a subscriber's account, its own brief and report.
+      const visitAfterDark = async () => {
+        const dir = join(RUN, "visitor-ad");
+        mkdirSync(dir, { recursive: true });
+        const started = Date.now();
+        const notBefore = started + VISITOR_MIN_MINUTES * 60_000;
+        const prompt = readFileSync(join(HERE, "ad-visitor-brief.md"), "utf8")
+          .replaceAll("{{HANDLE}}", AD_HANDLE)
+          .replaceAll("{{PASSWORD}}", keychain("vault/botchelor/LOOP_AD_PASSWORD"))
+          .replaceAll("{{PLAYWRIGHT}}", join(REPO, "node_modules", "playwright-core", "index.mjs"))
+          .replaceAll("{{CHROME}}", CHROME)
+          .replaceAll("{{UA}}", AD_UA)
+          .replaceAll("{{DIR}}", dir)
+          .replaceAll("{{MINUTES}}", String(VISITOR_MINUTES))
+          .replaceAll("{{MIN_MINUTES}}", String(VISITOR_MIN_MINUTES))
+          .replaceAll("{{NOT_BEFORE}}", clock(notBefore))
+          .replaceAll("{{UNTIL}}", clock(started + VISITOR_MINUTES * 60_000));
+        const opts = { cwd: dir, model: VISITOR_MODEL, tools: ["Read", "Write", "Edit", "Bash(node:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(sleep:*)", "Bash(mkdir:*)", "Bash(date:*)"] };
+        let r = await claude(prompt, { ...opts, timeoutMin: VISITOR_MINUTES + 20 });
+        if (r.code === 0 && Date.now() < notBefore - 60_000 && Date.now() < DEADLINE - 30 * 60_000) {
+          writeFileSync(join(RUN, "visitor-ad-early.md"), r.text);
+          const left = Math.ceil((notBefore - Date.now()) / 60_000);
+          r = await claude(
+            `You have until ${clock(notBefore)} at least (${left} more minutes). Go back to After Dark and try what you haven't yet, ` +
+              `then write your whole report again (every section; it replaces the one above).`,
+            { ...opts, resume: true, timeoutMin: left + 20 },
+          );
+        }
+        writeFileSync(join(RUN, "visitor-ad.md"), r.text);
+        return Math.round((Date.now() - started) / 60_000);
+      };
+      const withAfterDark = AD_VISITOR && REMOTE_BASE !== null;
+      const minutes = await Promise.all([
+        ...Array.from({ length: visitorCount }, (_, i) => visit(i)),
+        ...(withAfterDark ? [visitAfterDark()] : []),
+      ]);
+      summary.visitor_minutes = minutes.slice(0, visitorCount);
+      if (withAfterDark) summary.ad_visitor_minutes = minutes[visitorCount];
       summary.visitors = visitorCount;
       // On a remote server the visitors' feedback is that server's live feedback, read with the rest below.
       const local = REMOTE_BASE ? [] : await feedbackFrom(base, arenaPassword, null);
@@ -337,7 +380,7 @@ async function main() {
       writeFileSync(join(RUN, "feedback-live.json"), JSON.stringify(live, null, 2));
       summary.feedback_live = live.length;
       const newest = live.map((f) => f.created_at).sort().at(-1);
-      const reports = Array.from({ length: VISITORS }, (_, i) => join(RUN, `visitor-${i + 1}.md`)).filter(existsSync);
+      const reports = [...Array.from({ length: VISITORS }, (_, i) => join(RUN, `visitor-${i + 1}.md`)), join(RUN, "visitor-ad.md")].filter(existsSync);
       if (summary.feedback_local || live.length || reports.length) {
         const triage = readFileSync(join(HERE, "triage-prompt.md"), "utf8")
           .replaceAll("{{FEEDBACK}}", `${join(RUN, "feedback-local.json")} and ${join(RUN, "feedback-live.json")}`)
