@@ -214,6 +214,54 @@ Product notes
 - **O5** Align the ending label with the afterglow ("friends, for now").
 - **O6** One portrait style for cast and people's characters.
 
+### Added after the first draft
+
+- **F38** /graph's client app hung the headless Chromium twice (and preceded both outages through the avatar storm
+  above). On a phone it will be the slowest page by far; measure the client work and cap or defer it.
+- **F39** Autoplay with a paused player (▶ showing) silently stops the night: the writer never runs and nothing says
+  why (the night sat at 94 lines for ten minutes with Autoplay ticked). Autoplay should imply play, or the bar should
+  say "Paused: press ▶ to keep going". Related: a background tab pauses playback, so a night left in another tab stalls
+  by design; a one-line "paused while you're away" would explain it.
+- The identity pack: 8 views in 30 s, the same person throughout ("profile left" is a ¾ turn rather than a profile).
+- The texts thread, the live room, predictions, reviews, account export and ml-consent all round-trip cleanly (table
+  above).
+
+## Coverage
+
+Tested tonight, end to end, as a new admin account in a real browser (desktop 1280 px and phone 375 px): the 18+ gate,
+registration, admin claim, the whole /create wizard twice, the looks builder, free portraits, character pages, the After
+Dark hop, who's in, the scene picker, a 120-line After Dark night with every steer kind (nudge, suggestion chips, whisper,
+Direct), Rewind/Redo, chapter and moment pictures, Draw ahead, Autoplay, Bring them to life, Listen, a talking moment,
+the Studio's Identity (Draw 3 on two models, body references, identity pack) and Shoot tabs, Together, Setups, Publish to
+the showcase with a new creator handle, the showcase and reels (both sides), the admin settings/library/providers pages,
+After Dark MCP (initialize, tools/list, after_dark_pairs), three show dates (house cast, a second date, a match → date),
+the episode page, the theater, date photos, texts threads, swipes and matches, a live room with a prediction, a review,
+the PG Studio, account export, ml-consent, connections, the Constellation, reunion, prompts, about, agents docs, legal,
+report, 2257, the free tools, and the show MCP (initialize, tools/list, list_cast).
+
+Not tested tonight, After Dark: Shorts publishing and "Call it" (they need a house × house night), the discreet PIN
+(set, prompt, reset), subscriber caps and the 402 paths (an admin is uncapped), jurisdiction text_only/blocked, billing
+(processors stay off until their env is set), the Studio's Restyle, Older faces, Fix faces, SFW twin, Animate, Carousel,
+Upscale, More like this, Export, Captions, Rate deck, Favorites and Archive, the reel storyboard, own-key After Dark, the
+Create tab's own prompts/venues/roleplays, and the Shared-with-you consent flow between two owners.
+
+Not tested, the show: Stripe checkout (no purchases were made), email confirmation (it sends mail), push notifications
+(headless browser), account deletion (the test characters stay for David to look at), Google sign-in, a mixer actually
+running, leagues at /leagues/[id], the prompts library's search, and the agents' MCP write paths beyond list/read calls.
+
+## Money
+
+/api/admin/spend at 08:45 UTC: October costs $352 so far (api $286, infra $46, other $20) against $8 income. The After
+Dark writer key on OpenRouter has used $9.04 this month with $240.96 left; Venice sits at $31.22 with auto top-up under
+$10. Tonight's generations (about thirty Studio and moment pictures, eight identity views, presence for two characters,
+two talking moments, a selfie, three show dates) did not move either balance visibly.
+
+## Verified after the fixes deployed
+
+- `/api/assets/<id>?w=40`: first ask 1.1–1.5 s (decode, resize, keep), second ask 0.10–0.12 s from
+  `character_asset_thumbs`. /graph now costs the replica 56 row reads, not 56 decodes.
+- Both apps healthy after the #1068 deploy (08:35 UTC); #1069 (report follow-ups) merged.
+
 ## Opinion
 
 The core is strong and specific: characters that stay themselves across a date, their texts, a second date and an
@@ -245,6 +293,10 @@ the free-portrait framing (F8), then the outage follow-ups (alerting, replicas).
 - Studio scrolls to the new pictures after a draw (F16); the Identity copy says Draw 3 first (F14).
 - Theater: set labels cut at a word (F21, with a unit test); ⋯ closes on Escape (F22).
 - Tests: `after-dark-talks` reads the clip price from the settings (it failed on main since #1065).
+
+And in #1068 (merged 08:33 UTC): a portrait's small copies are resized once and kept (`character_asset_thumbs`),
+resizes run three at a time, and the assets route reads only an asset's head columns until it needs the file. This is
+the fix for the outages above, verified live (first ask 1.1–1.5 s, second 0.1 s).
 
 ## Still open for David (decisions or money)
 
