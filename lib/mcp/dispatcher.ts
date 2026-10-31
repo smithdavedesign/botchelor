@@ -1506,7 +1506,7 @@ async function aboutItems(db: Db, agentId: string, items: StatusItem[]): Promise
       const state = matchStatus(you, them);
       const call =
         state.status === "agreed"
-          ? `go_on_date (character_id: "${me}", partner_id: "${other}", preview: true), then without preview to book it`
+          ? `go_on_date (character_id: "${me}", partner_id: "${other}", preview: true), then without preview to book it: it spends one of today's shared show dates; start_own_date (same ids) is free: you perform it`
           : you === null
             ? `answer_match (character_id: "${me}", with: "${other}", yes: true or false)`
             : undefined;
@@ -4975,7 +4975,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           // 2.7.0 (#641): a call that books is suggested with preview: true; its preview's reply carries the booking call.
           case "go_on_date":
             return toBook[0]
-              ? nextCall("go_on_date", { character_id: toBook[0].character_id, partner_id: toBook[0].with, preview: true }, `Both said yes: preview the date with ${toBook[0].name} (the cost, what's left); without preview it books.`)
+              ? nextCall("go_on_date", { character_id: toBook[0].character_id, partner_id: toBook[0].with, preview: true }, `Both said yes: preview the date with ${toBook[0].name} (the cost, what's left); without preview it books. go_on_date spends one of today's shared show dates; start_own_date is free: you perform it.`)
               : first && houseCast[0]
                 ? nextCall("go_on_date", { character_id: first.id, partner_id: houseCast[0].id, preview: true }, `A date with ${houseCast[0].name}, of this season's house cast, no match needed: preview first; without preview it books.`)
                 : null;
@@ -6909,11 +6909,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 return {
                   next: house
                     ? "Date agreed: book it with go_on_date (the show plays house characters; uses one of your free dates; preview: true first shows the cost). start_own_date needs another agent's character or two of your own."
-                    : "Date agreed: either of you can book it now. go_on_date: the show's model plays both sides (uses one of your free dates, ready in minutes; preview: true first shows the cost). " +
-                      "start_own_date: you play your character and their agent plays theirs (free, turn by turn, can take a while). If their agent starts it first, you'll get a heads_up and get_own_date_step.",
+                    : "Date agreed: either of you can book it now. start_own_date: you play your character and their agent plays theirs (free, turn by turn, can take a while). " +
+                      "go_on_date: the show's model plays both sides (uses one of your free dates and one of today's shared show dates, ready in minutes; preview: true first shows the cost). If their agent starts it first, you'll get a heads_up and get_own_date_step.",
+                  // #1024: the free way first; go_on_date says it spends one of the agents' shared daily dates.
                   next_calls: [
-                    nextCall("go_on_date", { ...ids, preview: true }, "The show's model plays both sides (one of your free dates, ready in minutes): preview first; without preview it books."),
                     ...(house ? [] : [nextCall("start_own_date", ids, "You play your character, their agent plays theirs: free, turn by turn.")]),
+                    nextCall("go_on_date", { ...ids, preview: true }, "The show's model plays both sides (one of your free dates and one of today's shared show dates, ready in minutes): preview first; without preview it books."),
                   ],
                 };
               })()

@@ -26,6 +26,7 @@ import {
   seedCrowd,
   speak,
   CROWD,
+  MAX_TEXT_TRIES,
   type CrowdAgent,
   type CrowdBrain,
   type Transport,
@@ -373,6 +374,42 @@ describe("the crowd's brain", () => {
       "Old lighthouse keys, oddly enough. Forty-one of them.",
     ]);
     expect(brain.summary()).toMatchObject({ stale_replies: 1, fallback_replies: 0 });
+  }, 120_000);
+
+  // #1022: a send that failed (or was dropped as stale) used to mark the text answered anyway, so the bot never replied.
+  it("only marks a text answered once a reply went out: a failed send is retried the next round, then it lets go", async () => {
+    reply = (body, n) => (lastSaid(body).includes("lighthouse") ? { content: "A lighthouse? Now I need the whole story." } : { content: smallTalk(n) });
+    const brain = await brainOn();
+    const { v, mine, them, agents, texts } = await matched(brain);
+    const owner = agents.find((a) => a.chars.some((c) => c.id === them.id))!;
+    const tool = owner.tool.bind(owner);
+    let down = true;
+    let failed = 0;
+    owner.tool = async (name, args = {}) => {
+      if (name === "send_text" && args.to === mine && down) {
+        failed++;
+        throw new Error("send_text: the server is having a moment");
+      }
+      return tool(name, args);
+    };
+    await call("send_text", { character_id: mine, to: them.id, text: "I slept in a lighthouse last night." }, v);
+    await crowdRound(agents);
+    await crowdRound(agents);
+    expect(failed).toBeGreaterThan(0);
+    expect((await texts()).at(-1)!.text).toBe("I slept in a lighthouse last night.");
+    down = false;
+    await crowdRound(agents);
+    expect((await texts()).slice(-2).map((i) => i.text)).toEqual(["I slept in a lighthouse last night.", "A lighthouse? Now I need the whole story."]);
+
+    // And a text it can never answer is let go after MAX_TEXT_TRIES rounds, not retried for the whole run.
+    down = true;
+    await call("send_text", { character_id: mine, to: them.id, text: "Do you ever sleep?" }, v);
+    failed = 0;
+    for (let round = 0; round < MAX_TEXT_TRIES + 3; round++) await crowdRound(agents);
+    const rounds = failed;
+    await crowdRound(agents);
+    expect(failed).toBe(rounds); // nothing more tried
+    expect(failed).toBeGreaterThan(0);
   }, 120_000);
 
   it("never quotes the partner's profile prompts back (their profile isn't even in the prompt)", async () => {
