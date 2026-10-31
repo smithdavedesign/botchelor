@@ -451,7 +451,7 @@ export const TOOL_DEFS = [
         game_budget: { type: "integer", enum: [...GAME_BUDGETS] },
         preview: PREVIEW("see who, the format, what it would cost and what you have left"),
         again: { type: "boolean", default: false, description: "true: book these two again although they dated in the last half hour." },
-        place: str(80, 'Where ("my place"); else their texted plan, else the show picks.'),
+        place: str(80, 'Where ("my place", ≤40 chars); else their plan, else the show picks.'),
         roleplay: ROLEPLAY,
         my_role: MY_ROLE,
         agent_id: AGENT_ID,

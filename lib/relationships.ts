@@ -388,7 +388,8 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
       creator: e.creator_id,
       ...(e.partner_performer ? { performer: e.partner_performer } : {}),
       followup_of: e.followup_of,
-      ...(e.followup_of ? { date_number: e.date_number ?? 2 } : {}),
+      // #1098: the number the date was written with, any date's (the timeline names it by that); none when unstored.
+      ...(e.date_number != null ? { date_number: e.date_number } : {}),
       ...(e.met_via ? { met_via: e.met_via } : {}),
       ...(e.roleplay ? { roleplay: e.roleplay } : {}),
     };
@@ -661,30 +662,40 @@ export function viewRelationship(rel: Relationship, v: Viewer, now = new Date())
   const told: Record<string, string[]> = { [rel.lo]: [], [rel.hi]: [] };
   for (const f of rel.facts.filter((f) => ids.has(f.episode_id))) told[idOf(f.about)].push(f.text);
   const ledOn = new Set(seen.flatMap((h) => (h.followup_of && ids.has(h.followup_of) ? [h.followup_of] : [])));
+  const numbers = new Map<string, number>();
   return {
     stage: s.stage,
     stage_label: s.stage ? STAGE_LABELS[s.stage] : null,
     dates: s.dates,
     second_dates: s.second_dates,
-    second_dates_had: seen.filter((h) => (h.followup_of && ids.has(h.followup_of)) || (h.date_number ?? 1) > 1).length,
+    second_dates_had: seen.filter((h) => h.followup_of && (ids.has(h.followup_of) || (h.date_number ?? 2) > 1)).length,
     first_at: s.first_at,
     last_at: s.last_at,
     tie: tieNow(s, now, publicOnly),
     chemistry: s.chemistry,
     trust: s.trust,
-    // The couple page lists these as "Date 1", "Date 2"...: a happy ending on Date 3 reads "A fourth date".
-    timeline: seen.map((h, i) => ({
-      episode_id: h.episode_id,
-      at: h.aired_at ?? h.at,
-      ending: h.ending,
-      ending_label: timelineLabel(h, ledOn.has(h.episode_id), Boolean(h.followup_of && ids.has(h.followup_of)), i + 1),
-      venue: venueOf(h.venue).name,
-      aired: h.aired_at !== null,
-      second_date_of: h.followup_of && ids.has(h.followup_of) ? h.followup_of : null,
-      date_number: h.followup_of && ids.has(h.followup_of) ? (h.date_number ?? 2) : null,
-      // The roleplay it played (its title): billing, like the venue, on the date's own page from the start.
-      roleplay: h.roleplay ?? null,
-    })),
+    // The couple page lists these as "Date 1", "Date 2"...: a happy ending on Date 3 reads "A fourth date". #1098 (the
+    // 2026-10-31-1329 run: the recap said "A second date", get_relationships "A third date"): an owner sees unlisted and
+    // private dates too, so their position isn't the number the date was written with (lib/date-number.ts counts public
+    // dates). The date's own stored number names it wherever it's read.
+    timeline: seen.map((h, i) => {
+      // Without a stored one (older dates), counted as lib/date-number.ts does: a follow-up is its date's plus one, any
+      // other 1 + the earlier public dates.
+      const n = h.date_number ?? (h.followup_of && numbers.has(h.followup_of) ? numbers.get(h.followup_of)! + 1 : 1 + seen.slice(0, i).filter((x) => x.public).length);
+      numbers.set(h.episode_id, n);
+      return {
+        episode_id: h.episode_id,
+        at: h.aired_at ?? h.at,
+        ending: h.ending,
+        ending_label: timelineLabel(h, ledOn.has(h.episode_id), Boolean(h.followup_of && ids.has(h.followup_of)), n),
+        venue: venueOf(h.venue).name,
+        aired: h.aired_at !== null,
+        second_date_of: h.followup_of && ids.has(h.followup_of) ? h.followup_of : null,
+        date_number: n > 1 ? n : null,
+        // The roleplay it played (its title): billing, like the venue, on the date's own page from the start.
+        roleplay: h.roleplay ?? null,
+      };
+    }),
     jokes: rel.jokes.filter((j) => j.episode_ids.some((id) => ids.has(id))).map((j) => j.phrase),
     told,
     ...(v.owner

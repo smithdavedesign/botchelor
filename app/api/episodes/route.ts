@@ -43,7 +43,7 @@ import { bookingAsk, roleplayForBooking } from "@/lib/date-roleplays";
 import { ROLEPLAY_PREMISE_MAX, ROLEPLAY_ROLE_MAX, ROLEPLAY_TITLE_MAX, type DateRoleplay } from "@/lib/roleplays";
 import { datedSql, MATCH_FIRST, swipeGateOn } from "@/lib/swipe-gate";
 import { agreedMatchSql } from "@/lib/swipes";
-import { movePlace } from "@/lib/places";
+import { movePlace, placeRefusedWhy } from "@/lib/places";
 import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
 import { notify, notifyDateBooked, resolvePairNotices } from "@/lib/notifications";
@@ -487,7 +487,7 @@ async function writeAndSave(
   // A place named at booking (lib/places.ts movePlace): one of their homes, a venue we have, or their own words for it.
   const chosenPlace = input.place ? movePlace(input.place, own.name, partner.name) : null;
   if (input.place && !chosenPlace) {
-    return json({ error: "place_not_allowed", field: "place", message: "That place can't host a date on the show: keep it short, PG and public (no bedrooms, cars or links)." }, 422, sess);
+    return json({ error: "place_not_allowed", field: "place", message: `That place can't host a date on the show. ${placeRefusedWhy(input.place)}` }, 422, sess);
   }
   const built = await buildDate(db, episodeId, forDate(own), forDate(partner), dateRequest, undefined, undefined, {
     creatorId: sess.userId,

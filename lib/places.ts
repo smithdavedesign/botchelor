@@ -223,6 +223,18 @@ export function movePlace(say: string, from: string, to: string): PlaceId | null
 }
 
 /**
+ * Why movePlace turned these words down, in a sentence for the booker (#1108: one sentence for every cause, so a
+ * 47-character place looked like a content refusal). It names the limit, never the content rules themselves.
+ */
+export function placeRefusedWhy(say: string): string {
+  const label = say.trim().replace(/\s+/g, " ").replace(/[.!?]+$/, "").replace(/^(?:to|at|into|over to)\s+/i, "");
+  if (label.length > PLACE_LABEL_MAX) return `It's too long: ${PLACE_LABEL_MAX} characters at most, and yours is ${label.length}. Name the place; the details can come up on the date.`;
+  if (LINKISH.test(label)) return "It looks like a link, a handle or a long number: name the place in words.";
+  if (NOT_A_VENUE.test(label)) return "It names a bed, bathroom, hotel room or car: dates are filmed in public places or at one of their homes.";
+  return "Its words didn't pass the show's content check: keep it PG.";
+}
+
+/**
  * Where a couple's morning-after plan points, for a second date with no agreed plan (lib/simulation.ts): a library venue
  * when the texts name one (as lib/relationships.ts venueForPlan reads them, so a plan that set a venue before still does),
  * else one of their homes or a place the library has no set for yet, the placeholder (2.7.0, #643: "the foundry" was

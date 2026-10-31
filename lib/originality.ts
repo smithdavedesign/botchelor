@@ -401,7 +401,7 @@ function dealt<T>(xs: T[], key: string): T[] {
  */
 export function freshJobs(sheet: SheetDraft, others: SheetDraft[], n = 3, by: string | null = null, now = Date.now()): string[] {
   const window = Math.floor(now / (JOB_DEAL_MINUTES * 60_000));
-  const used = new Set(others.flatMap((r) => [...workWords(r), ...bioWords(r)]));
+  const used = withSynonyms(new Set(others.flatMap((r) => [...workWords(r), ...bioWords(r)])));
   const free = (s: string) => !contentWords(s, 4).some((w) => used.has(w) || used.has(stem(w)));
   const key = `${by ?? ""}|${(sheet.name ?? "x").trim().toLowerCase()}|${window}`;
   // One hand-picked idea while any is free (when few are, everyone would be dealt the same ones), then the combinations,
@@ -415,6 +415,24 @@ export function freshJobs(sheet: SheetDraft, others: SheetDraft[], n = 3, by: st
     picked.push(c.job);
   }
   return picked;
+}
+
+/**
+ * Two names for one job (#1110, the 2026-10-31-1427 run: "a lift inspector" was dealt while two elevator inspectors were on
+ * the show). Words of four letters or more, as contentWords keeps them.
+ */
+const JOB_SYNONYMS: string[][] = [
+  ["lift", "elevator"], ["lorry", "truck"], ["chemist", "pharmacist"], ["tram", "streetcar", "trolley"], ["cinema", "movie", "film"],
+  ["flat", "apartment"], ["postman", "postal", "mail", "letter"], ["rubbish", "garbage", "trash", "refuse", "bin"], ["taxi", "cabbie"],
+  ["shop", "store"], ["pavement", "sidewalk"], ["petrol", "gasoline", "fuel"], ["luggage", "baggage"], ["queue", "line"],
+  ["cobbler", "shoemaker", "shoe"], ["tailor", "dressmaker", "seamstress"], ["kite", "glider"], ["lido", "pool", "swimming"],
+  ["typeface", "font", "type"], ["subtitle", "caption"], ["skate", "skating", "rink"], ["snow", "plough", "plow"],
+];
+const SYNONYM_OF = new Map(JOB_SYNONYMS.flatMap((group) => group.map((w) => [w, group] as const)));
+function withSynonyms(words: Set<string>): Set<string> {
+  const out = new Set(words);
+  for (const w of words) for (const s of SYNONYM_OF.get(w) ?? SYNONYM_OF.get(stem(w)) ?? []) out.add(s);
+  return out;
 }
 
 /** Every character's job alone (no bio), to keep suggestions off jobs the show already has (#1016). */

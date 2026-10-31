@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
+import { numbersHint } from "@/lib/heading";
 import { secondDateState } from "@/lib/second-date";
 import { startTestDb, validCharacter } from "./helpers";
 
@@ -77,5 +78,17 @@ describe("#1104: plan_second_date as the character you name", () => {
     expect(await secondDateState(t.db, "ep-own-pair", agent, hettie)).toMatchObject({ my_character_name: "Hettie Brack", partner_name: "Dewey Lamarque" });
     const preview = (await call("plan_second_date", { episode_id: "ep-own-pair", character_id: hettie, preview: true }, ctx)).structuredContent;
     expect(JSON.stringify(preview)).toMatch(/"my_character_name":"Hettie Brack"/);
+  });
+});
+
+describe("#1111: numbers_hint agrees with the box score", () => {
+  const f = (n: number) => ({ final: n });
+  it("a weak spot barely off an ordinary start is a small drag, named at its level; a big one still works against them", () => {
+    const mild = numbersHint("friends", { chemistry: f(56), attraction: f(52), trust: f(50), awkwardness: f(41) }, "genuine_chemistry");
+    expect(mild).toMatch(/This time it was awkwardness \(mild: [^)]*\), only a small drag on them/);
+    expect(mild).not.toMatch(/working against them/);
+    expect(mild).toMatch(/worked out for each date from its format and numbers, so the same two can head somewhere else another time/);
+    const big = numbersHint("disaster", { chemistry: f(50), attraction: f(48), trust: f(45), awkwardness: f(66) }, "genuine_chemistry");
+    expect(big).toMatch(/This time it was awkwardness \(high: [^)]*\), working against them/);
   });
 });
