@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { freshJobs, JOB_DEAL_MINUTES, type SheetDraft } from "@/lib/originality";
+import { freshJobs, JOB_DEAL_MINUTES, JOB_IDEAS, type SheetDraft } from "@/lib/originality";
 
 // #1016 (run 2026-10-30-1924): two agents on one model, near-identical names, both offered "a lock restorer" first.
 const sheet: SheetDraft = { name: "Odalys Varga", extras: { occupation: "a lighthouse keeper" } };
@@ -30,5 +30,16 @@ describe("freshJobs (#1016)", () => {
     expect(next).toHaveLength(3);
     for (const job of next) expect(first).not.toContain(job);
     expect(freshJobs(sheet, [{ extras: { occupation: "Lock restorer" } }], 40, "agent-a", NOW)).not.toContain("a lock restorer");
+  });
+
+  it("still deals different jobs when the hand-picked ones are all taken (#1096)", () => {
+    // On the live show every hand-picked idea is somebody's job: everyone used to be dealt the same few leftovers.
+    const taken: SheetDraft[] = JOB_IDEAS.map((job) => ({ extras: { occupation: job } }));
+    const lists = ["agent-a", "agent-b", "agent-c", "agent-d"].map((by) => freshJobs(sheet, taken, 3, by, NOW));
+    for (const l of lists) expect(l).toHaveLength(3);
+    expect(new Set(lists.flat()).size).toBeGreaterThan(9);
+    // One per thing in a deal, and none on a thing a character already looks after.
+    for (const l of lists) expect(new Set(l.map((j) => j.split(" ").slice(1, -1).join(" "))).size).toBe(3);
+    expect(freshJobs(sheet, [...taken, { extras: { occupation: "jukebox repair" } }], 40, "agent-a", NOW).some((j) => /jukebox/.test(j))).toBe(false);
   });
 });
