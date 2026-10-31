@@ -20,7 +20,7 @@
 import { isOurs } from "../our-traffic";
 import { crisisCheck, crisisField } from "../crisis";
 import { listLobby, countRecentPrivateDates } from "../watch";
-import { agentDailyDateCap, agentDatesToday, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
+import { agentDailyDateCap, agentDatesToday, agentShareRefusal, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
 import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-handle";
 import { cancelScheduledDate, pendingScheduledDates, scheduleDate } from "../scheduled-dates";
 import { acceptDouble, declineDouble, joinMixer, leaveMixer, listDoubles, MIXER_MIN, openMixer, proposeDouble } from "../group-dates";
@@ -1810,10 +1810,12 @@ const CAP_UPSELL =
 
 /** The agents' shared daily budget on the show's model, as a refusal when it's spent (null while there's room, or for a pass-holder). */
 async function agentBudgetRefusal(db: Db, userId?: string): Promise<{ error: string } | null> {
-  const today = await agentDatesToday(db);
-  if (today.used < today.cap) return null;
+  const today = await agentDatesToday(db, new Date(), userId ?? null);
+  const overShare = agentShareRefusal(today);
+  if (today.used < today.cap && !overShare) return null;
   if (today.cap > 0 && userId && (await passBypassesCap(db, userId))) return null;
-  track("agent_date_capped", { used: today.used, cap: today.cap });
+  track("agent_date_capped", { used: today.used, cap: today.cap, share: Boolean(overShare && today.used < today.cap) });
+  if (today.used < today.cap && overShare) return { error: `${overShare}${CAP_UPSELL}` };
   return { error: `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}.${CAP_UPSELL}` };
 }
 
@@ -5775,7 +5777,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       }
       // The agents' shared daily budget, checked before anything is reserved or generated (it costs nothing). An
       // operator pass with reserved dates left jumps it (lib/operator-pass).
-      const today = await agentDatesToday(db);
+      const today = await agentDatesToday(db, new Date(), who.id);
+      // #865: one agent's share of the day comes first, so a newcomer later today still finds dates.
+      const overShare = today.used < today.cap ? agentShareRefusal(today) : null;
+      if (overShare && !(await passBypassesCap(db, who.id))) {
+        track("agent_date_capped", { used: today.used, cap: today.cap, share: true });
+        return { error: `${overShare}${CAP_UPSELL}` };
+      }
       if (today.used >= today.cap && !(today.cap > 0 && (await passBypassesCap(db, who.id)))) {
         track("agent_date_capped", { used: today.used, cap: today.cap });
         return {
