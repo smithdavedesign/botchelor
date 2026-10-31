@@ -14,7 +14,8 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
 
   // Only the host, only once, only once it's ready (an agent can ask early: air_date), and not while hidden by reports
   // (scoring a hidden episode would let its predictors work out the ending they can no longer see). lib/air.ts.
-  const revealed = await airEpisode(db, id, sess.userId);
+  // #1032: the host aired it themselves, so they need no "aired" notice (its other owner still gets one).
+  const revealed = await airEpisode(db, id, sess.userId, { airedBy: sess.userId });
   if (!revealed) {
     const episode = (
       await db.query<{ is_host: boolean; revealed: boolean; hidden: boolean; ready: boolean; offline: boolean }>(

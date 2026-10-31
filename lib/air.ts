@@ -17,7 +17,7 @@ import { notifyNightAired, siblingCharacters } from "./group-dates";
 import { refreshAndAnnounce } from "./relationship-events";
 import { markResourceUpdated } from "./mcp-subscriptions";
 import { pairNames } from "./names";
-import { notify } from "./notifications";
+import { notify, notifyAll } from "./notifications";
 import { ENDING_LABELS, predictionPoints, REPORT_HIDE_THRESHOLD, WRITE_TIME } from "./rules";
 
 export const AIR_WINDOW_MINUTES_DEFAULT = 10;
@@ -39,7 +39,7 @@ export const airsWhen = (env: Record<string, string | undefined> = process.env):
  * Airs one ready date for its host, once. Null when it can't (not the host's, not ready, aired, private, or hidden by
  * reports). A private date is offline (David, 2026-10-18): it never airs; making it public or unlisted puts it on.
  */
-export async function airEpisode(db: Db, id: string, hostId: string): Promise<Aired | null> {
+export async function airEpisode(db: Db, id: string, hostId: string, opts: { airedBy?: string | null } = {}): Promise<Aired | null> {
   const revealed = (
     await db.query<{ ending: Ending; character_a: string; character_b: string }>(
       `update episodes e set revealed_at = now(), air_after = null
@@ -58,10 +58,12 @@ export async function airEpisode(db: Db, id: string, hostId: string): Promise<Ai
   // The night's last date aired: ask its people who they liked (once a night).
   await notifyNightAired(db, id).catch(() => 0);
   // ...and into the pair's edge: an aired public date joins the public layer of the relationship graph.
-  await refreshAndAnnounce(db, revealed.character_a, revealed.character_b, { episodeId: id }).catch(() => {});
+  const toldStage = await refreshAndAnnounce(db, revealed.character_a, revealed.character_b, { episodeId: id }).catch(() => new Set<string>());
   // 2.9.0 (#654): botchelor://feed/airing moved on (it left next and joined just_aired): tell its subscribers.
   markResourceUpdated("botchelor://feed/airing");
   await notifyPredictors(db, id).catch(() => {});
+  // #1032: its host and both characters' owners hear it aired (unless they aired it in this very call, or just heard of a step up).
+  await notifyOwnersAired(db, id, [opts.airedBy, ...toldStage]).catch(() => {});
   const tally = (
     await db.query<{ total: number; correct: number }>(
       `select count(*)::int as total, (count(*) filter (where pick = $2))::int as correct from predictions where episode_id = $1`,
@@ -95,6 +97,39 @@ export async function notifyPredictors(db: Db, id: string): Promise<void> {
       link: `/episodes/${id}`,
     });
   }
+}
+
+/**
+ * #1032 (the 2026-10-30-2046 run: "my first date aired at 03:57Z but no notification arrived"): a date that airs on
+ * its own, once its window closes (the hourly job, a wait, anyone opening it), told its own people nothing; only its
+ * predictors heard. Now its host and both characters' owners get one `date_aired` notice, so it's in my_status's
+ * new_since, my_notifications and the bell, and wakes a wait. Once per airing (airEpisode's update airs a date once)
+ * and once per person (an owner of both, or the host who owns one, hears it once). Never to `skip`: whoever aired it in
+ * this call (air_date, the reveal route, a watch party's viewer) or was just told of a step up. House characters have no
+ * owner, so nobody hears it for them. It doesn't give the ending away: an owner may want to watch it.
+ */
+export async function notifyOwnersAired(db: Db, id: string, skip: (string | null | undefined)[] = []): Promise<void> {
+  const r = (
+    await db.query<{ creator_id: string | null; visibility: string; a: string; b: string; owner_a: string | null; owner_b: string | null }>(
+      `select e.creator_id, e.visibility, ca.name as a, cb.name as b, ca.owner_id as owner_a, cb.owner_id as owner_b
+         from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+        where e.id = $1 and e.revealed_at is not null`,
+      [id],
+    )
+  ).rows[0];
+  if (!r) return;
+  const skipped = new Set(skip.filter(Boolean));
+  const to = [r.creator_id, r.owner_a, r.owner_b].filter((u): u is string => Boolean(u) && !skipped.has(u!));
+  if (!to.length) return;
+  const [x, y] = pairNames(r.a, r.b);
+  await notifyAll(db, to, {
+    kind: "date_aired",
+    title: `📺 ${x} × ${y}: your date aired`,
+    body:
+      `Their date is on the air: predictions on it are closed, and it now counts in both characters' memory and their relationship.` +
+      `${r.visibility === "public" ? "" : " It's unlisted, so only people with the link can watch it."} Watch it to see how it ended. Episode ${id}.`,
+    link: `/episodes/${id}`,
+  });
 }
 
 /** When this date may air (its booking plus the window), or null when it may air now. */
@@ -200,8 +235,12 @@ export async function airIfDue(db: Db, id: string, env: Record<string, string | 
   return r ? airEpisode(db, id, r.creator_id) : null;
 }
 
-/** Airs every date that's due (the hourly job), or just one host's. Returns what aired. */
-export async function airDueDates(db: Db, hostId: string | null = null, limit = 50): Promise<(Aired & { id: string })[]> {
+/**
+ * Airs every date that's due (the hourly job), or just one host's. Returns what aired.
+ * `asked` (#1032): the date a host asked to air in this call (air_date), so that one tells them nothing; the rest of
+ * their due dates that air along with it still do, as the call reports only the one asked for.
+ */
+export async function airDueDates(db: Db, hostId: string | null = null, limit = 50, asked: { by: string; episodeId: string } | null = null): Promise<(Aired & { id: string })[]> {
   const { rows } = await db.query<{ id: string; creator_id: string }>(
     `select e.id, e.creator_id from episodes e
       where ${DUE} and ($2::text is null or e.creator_id = $2)
@@ -210,7 +249,7 @@ export async function airDueDates(db: Db, hostId: string | null = null, limit = 
   );
   const aired: (Aired & { id: string })[] = [];
   for (const r of rows) {
-    const done = await airEpisode(db, r.id, r.creator_id).catch(() => null);
+    const done = await airEpisode(db, r.id, r.creator_id, { airedBy: asked && asked.episodeId === r.id ? asked.by : null }).catch(() => null);
     if (done) aired.push({ id: r.id, ...done });
   }
   return aired;
