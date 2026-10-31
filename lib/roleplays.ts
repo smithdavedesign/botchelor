@@ -13,6 +13,7 @@
  *
  * Pure and client-safe: the picker and the server share it.
  */
+import { checkShowText, excludedTheme } from "./safety";
 
 export type RoleplayTag = "strangers" | "mystery" | "adventure" | "scifi" | "fantasy" | "period" | "funny" | "couples";
 
@@ -89,6 +90,43 @@ export const ROLEPLAY_ANSWERS = ["agree", "decline", "counter", "withdraw"] as c
  */
 export const DATE_ROLEPLAY_NEVER =
   /\b(sister|brother|sibling|mother|father|mom|mum|mommy|mummy|dad|daddy|daughter|son|step[- ]?(?:mother|father|mom|mum|dad|sister|brother|son|daughter|parent|sibling|family)\w*|aunt|uncle|cousin|niece|nephew|babysit\w*|nanny|au pair|teacher|student|pupil|tutor|classroom|school|campus|dorm|teen\w*|underage|girl|boy|kid|kids|child|children|boss|employee|intern|drunk|tipsy|wasted|asleep|unconscious|sedated|drugged|forced|kidnap\w*|captive|hostage|tied up|against (?:her|his|their) will|blackmail\w*)\b/i;
+
+/**
+ * A set-up that steers a date to the bedroom without an explicit word, which the show's check (written for what the
+ * performers say) lets through: "a steamy night in bed together", "strip poker", "only one bed". A roleplay frames a
+ * whole PG date, so its words, and the note that comes with it, are held to this too. Literal uses that come up in
+ * premises are left alone ("a steamy kitchen", "the naughty list", "make out the code", "hook up the radio").
+ */
+export const DATE_ROLEPLAY_SUGGESTIVE =
+  /\b(steamy(?! (?:jungle|kitchen|swamp|rainforest|greenhouse|bathhouse|cup|mug|bowl|soup|ramen|noodles|dumplings))|sensual\w*|sultry|seduc\w*|lust(?:s|ful|fully|ing|ed|y)?|frisky|racy|risque|naughty(?! (?:or nice|list))|foreplay|in bed|into bed|to bed|bed together|bedrooms?|(?:share|shares|sharing|shared|only one|just one) (?:a |the )?bed|undress\w*|strip (?:poker|off|down)|strips (?:off|down)|stripped (?:off|down)|striptease|topless|lingerie|underwear|skinny[- ]dip\w*|(?:make|makes|made|making) out with|make-?out|hook(?:s|ed|ing)? up with|hook-?up|(?:shower|showering|bath|bathe|bathing) together|(?:spend|spends|spending|spent) (?:a|the) night (?:together|with))\b/i;
+
+/** The words that make a roleplay's set-up suggestive (DATE_ROLEPLAY_SUGGESTIVE), accents aside ("risqué"), or null. */
+export function suggestiveIn(text: string): string | null {
+  return DATE_ROLEPLAY_SUGGESTIVE.exec(text.normalize("NFKD").replace(/\p{M}/gu, ""))?.[1] ?? null;
+}
+
+/**
+ * A roleplay written for a date (or saved safe in the Create library, lib/studio/library.ts): PG, adults, no real people,
+ * nothing suggestive and none of the never-list. Null when it's fine.
+ */
+export function checkCustomRoleplay(t: { title: string; premise: string; roles: [string, string] | null }): string | null {
+  const fields = { title: t.title, premise: t.premise, ...(t.roles ? { role_a: t.roles[0], role_b: t.roles[1] } : {}) };
+  const r = checkShowText(fields);
+  if (!r.ok) {
+    return r.reason === "minor"
+      ? "That roleplay can't be used: everyone in it is an adult, with nothing suggesting otherwise."
+      : r.reason === "real_person"
+        ? "That roleplay can't be used: no real or famous people (made-up ones are fine)."
+        : "That roleplay can't be used: the show is PG, so nothing sexual and no innuendo.";
+  }
+  const all = Object.values(fields).join(" ");
+  const suggestive = suggestiveIn(all);
+  if (suggestive) return `That roleplay can't be used: the show is PG, so nothing sexual and no innuendo ("${suggestive}").`;
+  if (excludedTheme(all) || DATE_ROLEPLAY_NEVER.test(all)) {
+    return "That roleplay can't be used: two adults who both want to be there, never family, school or a babysitter, nobody with a say over the other's job, and nobody drunk, trapped or kept from saying no.";
+  }
+  return null;
+}
 
 /**
  * The terms one owner proposes and the other agrees to: a roleplay (the show's, or written for this date) and who plays

@@ -2627,6 +2627,9 @@ create table if not exists creator_roleplays (
   created_at timestamptz not null default now()
 );
 create index if not exists creator_roleplays_owner_idx on creator_roleplays (owner_id, created_at desc);
+-- Safe roleplays (docs/PRDs/roleplays.md, 2026-10-31): held to the show's rules, so they play on show dates and in both
+-- Studios; the ones from before stay After Dark's.
+alter table creator_roleplays add column if not exists mode text not null default 'after_dark' check (mode in ('safe', 'after_dark'));
 
 -- A clip's moments (lib/adult/moments.ts; David, 2026-10-26: "save a image or offering a boomerang for a clip …
 -- continue where it left off"): a video made from a clip's own frames (derived: a boomerang or a loop, source_image the

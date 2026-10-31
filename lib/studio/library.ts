@@ -7,16 +7,22 @@
  *  - **Venues:** a place with what it's like ("a lighthouse lantern room, wind rattling the glass"): a place in the
  *    Studio's menus, and a card in After Dark's Scene & roleplay, whose description reaches the writer as tonight's
  *    situation.
- *  - **Roleplays:** who the two of them are to each other for a chapter, After Dark only (lib/adult/roleplays.ts has the
- *    show's own; theirs sit beside them as "u:<id>").
+ *  - **Roleplays:** who the two of them are to each other: for a chapter in After Dark (lib/adult/roleplays.ts has the
+ *    show's own; theirs sit beside them as "u:<id>"), and, when safe, for a date on the show (the picker's ✨ Yours,
+ *    lib/roleplays.ts).
  *
- * Each prompt and venue is `safe` (PG: the show's check plus the PG picture words, usable in the PG Studio and in After
- * Dark) or `after_dark` (After Dark's lines only, usable only there, and only by someone After Dark is open to).
- * Roleplays are always After Dark's and are held to its lines plus the roleplays' own never-list (no family or
- * step-family, babysitter, teacher, school, age-play, anyone paid, drunk or trapped). Private to their owner.
+ * Each item is `safe` or `after_dark`:
+ *  - safe prompts and venues: PG (the show's check plus the PG picture words), usable in the PG Studio and in After Dark;
+ *  - safe roleplays: the show's roleplay check (lib/roleplays.ts checkCustomRoleplay) and After Dark's never-list too,
+ *    since they play on show dates and in After Dark alike;
+ *  - after_dark: After Dark's lines only, usable only there, and only by someone After Dark is open to. Roleplays are
+ *    held to its lines plus the roleplays' own never-list (no family or step-family, babysitter, teacher, school,
+ *    age-play, anyone paid, drunk or trapped).
+ * Private to their owner.
  */
 import type { Db } from "../db";
 import { crossesTaboo } from "../adult/acts";
+import { checkCustomRoleplay } from "../roleplays";
 import { checkAdultText, checkPgPictureText, excludedTheme, type SafetyResult } from "../safety";
 import { normalizeScene } from "../venues";
 import type { SceneCategory } from "../adult/scene-catalog";
@@ -36,7 +42,7 @@ export const ROLEPLAY_CATEGORIES = ["romance", "strangers", "second", "afterhour
 
 export type MyPrompt = { id: string; text: string; title: string | null; mode: LibraryMode; created_at: string };
 export type MyPlace = { id: string; name: string; description: string | null; mode: LibraryMode; created_at: string };
-export type MyRoleplay = { id: string; title: string; premise: string; roles: [string, string] | null; category: SceneCategory; created_at: string };
+export type MyRoleplay = { id: string; title: string; premise: string; roles: [string, string] | null; category: SceneCategory; mode: LibraryMode; created_at: string };
 export type Library = { prompts: MyPrompt[]; places: MyPlace[]; roleplays: MyRoleplay[] };
 
 /** A roleplay's never-list on top of After Dark's lines (the show's own are held to the same: tests/after-dark-roleplays.test.ts). */
@@ -71,37 +77,53 @@ export function checkFor(mode: LibraryMode, fields: Record<string, string>, kind
   return null;
 }
 
-/** A roleplay's check: After Dark's lines, its themes and the never-list. */
-export function checkRoleplay(r: { title: string; premise: string; roles: [string, string] | null }): string | null {
+const ROLEPLAY_NEVER_SAID =
+  "That roleplay can't be saved: two adults who both want to be there, never family or step-family, a babysitter or nanny, a teacher or school, and nobody paid, drunk or trapped.";
+
+/**
+ * A roleplay's check. After Dark's: its lines, its themes and the never-list. Safe: the show's roleplay check (a date
+ * plays it), plus After Dark's never-list and themes, since a safe one plays there too.
+ */
+export function checkRoleplay(r: { title: string; premise: string; roles: [string, string] | null }, mode: LibraryMode = "after_dark"): string | null {
   const fields = { title: r.title, premise: r.premise, ...(r.roles ? { role_a: r.roles[0], role_b: r.roles[1] } : {}) };
+  const all = Object.values(fields).join(" ");
+  if (mode === "safe") {
+    const wrong = checkCustomRoleplay(r);
+    if (wrong) return wrong.replace("can't be used", "can't be saved");
+    return crossesTaboo(all) || ROLEPLAY_NEVER.test(all) ? ROLEPLAY_NEVER_SAID : null;
+  }
   const res = checkAdultText(fields);
   if (!res.ok) return refusal(res, "roleplay");
-  const all = Object.values(fields).join(" ");
-  if (excludedTheme(all) || crossesTaboo(all) || ROLEPLAY_NEVER.test(all)) {
-    return "That roleplay can't be saved: two adults who both want to be there, never family or step-family, a babysitter or nanny, a teacher or school, and nobody paid, drunk or trapped.";
-  }
+  if (excludedTheme(all) || crossesTaboo(all) || ROLEPLAY_NEVER.test(all)) return ROLEPLAY_NEVER_SAID;
   return null;
 }
 
 const iso = (d: Date | string) => new Date(d).toISOString();
 
-/** Everything of theirs (`safeOnly`: only safe prompts and venues, and no roleplays: the PG Studio's view). */
+type RoleplayRow = { id: string; title: string; premise: string; role_a: string | null; role_b: string | null; category: SceneCategory; mode: LibraryMode; created_at: Date };
+const ROLEPLAY_COLUMNS = "id, title, premise, role_a, role_b, category, mode, created_at";
+const roleplayOf = (r: RoleplayRow): MyRoleplay => ({
+  id: r.id,
+  title: r.title,
+  premise: r.premise,
+  roles: r.role_a && r.role_b ? [r.role_a, r.role_b] : null,
+  category: r.category,
+  mode: r.mode,
+  created_at: iso(r.created_at),
+});
+
+/** Everything of theirs (`safeOnly`: only the safe ones, the view of someone After Dark isn't open to). */
 export async function getLibrary(db: Db, owner: string, opts: { safeOnly?: boolean } = {}): Promise<Library> {
   const mode = opts.safeOnly ? `and mode = 'safe'` : "";
   const [prompts, places, roleplays] = await Promise.all([
     db.query<{ id: string; text: string; title: string | null; mode: LibraryMode; created_at: Date }>(`select id, text, title, mode, created_at from creator_prompts where owner_id = $1 ${mode} order by created_at desc limit ${LIBRARY_MAX}`, [owner]),
     db.query<{ id: string; name: string; description: string | null; mode: LibraryMode; created_at: Date }>(`select id, name, description, mode, created_at from creator_places where owner_id = $1 ${mode} order by created_at desc limit ${LIBRARY_MAX}`, [owner]),
-    opts.safeOnly
-      ? Promise.resolve({ rows: [] as { id: string; title: string; premise: string; role_a: string | null; role_b: string | null; category: SceneCategory; created_at: Date }[] })
-      : db.query<{ id: string; title: string; premise: string; role_a: string | null; role_b: string | null; category: SceneCategory; created_at: Date }>(
-          `select id, title, premise, role_a, role_b, category, created_at from creator_roleplays where owner_id = $1 order by created_at desc limit ${LIBRARY_MAX}`,
-          [owner],
-        ),
+    db.query<RoleplayRow>(`select ${ROLEPLAY_COLUMNS} from creator_roleplays where owner_id = $1 ${mode} order by created_at desc limit ${LIBRARY_MAX}`, [owner]),
   ]);
   return {
     prompts: prompts.rows.map((r) => ({ ...r, created_at: iso(r.created_at) })),
     places: places.rows.map((r) => ({ ...r, created_at: iso(r.created_at) })),
-    roleplays: roleplays.rows.map((r) => ({ id: r.id, title: r.title, premise: r.premise, roles: r.role_a && r.role_b ? [r.role_a, r.role_b] : null, category: r.category, created_at: iso(r.created_at) })),
+    roleplays: roleplays.rows.map(roleplayOf),
   };
 }
 
@@ -142,27 +164,31 @@ export async function savePlace(db: Db, owner: string, input: { name: string; de
   return { ok: true, item: { id, name, description, mode: input.mode, created_at: iso(r.created_at) } };
 }
 
+/** A roleplay of theirs. Left out, the mode is After Dark's (its Studio's form, from before safe ones). */
 export async function saveRoleplay(
   db: Db,
   owner: string,
-  input: { title: string; premise: string; roles?: [string, string] | null; category?: string | null },
+  input: { title: string; premise: string; roles?: [string, string] | null; category?: string | null; mode?: LibraryMode },
 ): Promise<SaveResult<MyRoleplay>> {
+  const mode = input.mode ?? "after_dark";
   const title = input.title.trim().replace(/\s+/g, " ").slice(0, ROLEPLAY_TITLE_MAX);
   const premise = input.premise.trim().replace(/\s+/g, " ").slice(0, ROLEPLAY_PREMISE_MAX);
   const roles = input.roles && input.roles[0]?.trim() && input.roles[1]?.trim() ? ([input.roles[0].trim().slice(0, ROLE_MAX), input.roles[1].trim().slice(0, ROLE_MAX)] as [string, string]) : null;
   const category = (ROLEPLAY_CATEGORIES as readonly string[]).includes(input.category ?? "") ? (input.category as SceneCategory) : "romance";
   if (!title || !premise) return { ok: false, status: 422, message: "Give it a title and say what the situation is." };
-  const wrong = checkRoleplay({ title, premise, roles });
+  const wrong = checkRoleplay({ title, premise, roles }, mode);
   if (wrong) return { ok: false, status: 422, message: wrong };
-  if (full(await count(db, "creator_roleplays", owner))) return { ok: false, status: 429, message: `That's ${LIBRARY_MAX} roleplays: delete one to save another.` };
+  const mine = await db.query<{ title: string }>(`select title from creator_roleplays where owner_id = $1`, [owner]);
+  if (mine.rows.some((r) => r.title.toLowerCase() === title.toLowerCase())) return { ok: false, status: 409, message: `You already have "${title}".` };
+  if (full(mine.rows.length)) return { ok: false, status: 429, message: `That's ${LIBRARY_MAX} roleplays: delete one to save another.` };
   const id = crypto.randomUUID();
   const r = (
     await db.query<{ created_at: Date }>(
-      `insert into creator_roleplays (id, owner_id, title, premise, role_a, role_b, category) values ($1, $2, $3, $4, $5, $6, $7) returning created_at`,
-      [id, owner, title, premise, roles?.[0] ?? null, roles?.[1] ?? null, category],
+      `insert into creator_roleplays (id, owner_id, title, premise, role_a, role_b, category, mode) values ($1, $2, $3, $4, $5, $6, $7, $8) returning created_at`,
+      [id, owner, title, premise, roles?.[0] ?? null, roles?.[1] ?? null, category, mode],
     )
   ).rows[0];
-  return { ok: true, item: { id, title, premise, roles, category, created_at: iso(r.created_at) } };
+  return { ok: true, item: { id, title, premise, roles, category, mode, created_at: iso(r.created_at) } };
 }
 
 export async function deleteItem(db: Db, owner: string, kind: "prompt" | "place" | "roleplay", id: string): Promise<boolean> {
@@ -181,13 +207,8 @@ export function asRoleplay(r: MyRoleplay): { id: string; title: string; icon: st
 /** One of their roleplays by its "u:" id, only theirs. */
 export async function ownRoleplay(db: Db, owner: string, uid: string): Promise<ReturnType<typeof asRoleplay> | null> {
   if (!USER_ROLEPLAY.test(uid)) return null;
-  const r = (
-    await db.query<{ id: string; title: string; premise: string; role_a: string | null; role_b: string | null; category: SceneCategory; created_at: Date }>(
-      `select id, title, premise, role_a, role_b, category, created_at from creator_roleplays where id = $1 and owner_id = $2`,
-      [uid.slice(2), owner],
-    )
-  ).rows[0];
-  return r ? asRoleplay({ id: r.id, title: r.title, premise: r.premise, roles: r.role_a && r.role_b ? [r.role_a, r.role_b] : null, category: r.category, created_at: iso(r.created_at) }) : null;
+  const r = (await db.query<RoleplayRow>(`select ${ROLEPLAY_COLUMNS} from creator_roleplays where id = $1 and owner_id = $2`, [uid.slice(2), owner])).rows[0];
+  return r ? asRoleplay(roleplayOf(r)) : null;
 }
 
 /** What one of their venues is like, when the scene is at it (its name, however it's written): tonight's situation. */
