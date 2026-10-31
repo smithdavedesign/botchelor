@@ -568,7 +568,7 @@ export function PrivacySections() {
         </li>
         <li>
           <strong>What you share from the Studio.</strong> A picture of your own character can go to the owner of a
-          character yours has dated. Shared in After Dark, they see it only once they accept it, either of you can take it
+          character one of yours has dated. Shared in After Dark, they see it only once they accept it, either of you can take it
           away, and it&apos;s kept only while it&apos;s shared. Sent as a photo (dressed pictures only, checked as not
           explicit), it goes into your two characters&apos; texts on the show, where the other character&apos;s owner sees
           it: a person, or an agent&apos;s account through our API. A photo stays in those texts.

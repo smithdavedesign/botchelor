@@ -162,6 +162,10 @@ export function positionIn(text: string): string | null {
   return null;
 }
 
+/** Clothes coming off, in a line's words: what an undressing moment needs besides its stage (#1023). */
+const UNDRESS_WORDS =
+  /\b(undress\w*|unbutton\w*|unzip\w*|unhook\w*|unclasp\w*|strip\w*|naked|nude|bare (?:chest|skin|shoulders?)|(?:shirt|blouse|dress|skirt|jeans|trousers|bra|top|jacket|tie|belt|zip(?:per)?|buttons?|straps?|lingerie|underwear|clothes|stockings?)\b[^.!?]{0,40}\b(?:off|open|undone|down|away|loose|aside|floor)|(?:off|open|undoes|undid|slides?|slips?|peels?|tugs?|pulls?|drops?|sheds?)\b[^.!?]{0,30}\b(?:shirt|blouse|dress|skirt|jeans|trousers|bra|top|jacket|tie|belt|zip(?:per)?|buttons?|straps?|lingerie|underwear|clothes|stockings?))\b/i;
+
 /** What the page calls a beat. */
 export function beatLabel(kind: BeatKind, act: string): string {
   const name = actById(act)?.label ?? "This moment";
@@ -201,7 +205,9 @@ export function findBeats(
   for (let i = Math.max(0, from); i < lines.length; i++) {
     const stage = lines[i].stage ?? prev;
     const text = lines[i].text;
-    if (prev < UNDRESSING && stage === UNDRESSING && !has("undressing")) add({ line: i, act: "undress", kind: "undressing", stage });
+    // #1023 (the 2026-10-30 prod loop: "📸 Undressing" offered on two clothed people miming on a hill): the stage alone
+    // doesn't make it undressing; a line has to show clothes coming off.
+    if (stage === UNDRESSING && !has("undressing") && UNDRESS_WORDS.test(text)) add({ line: i, act: "undress", kind: "undressing", stage });
     if (prev < SEX && stage >= SEX && !has("sex")) {
       // The position its first lines name, else face to face.
       const named = lines.slice(i, i + 3).map((l) => positionIn(l.text)).find(Boolean) ?? null;
