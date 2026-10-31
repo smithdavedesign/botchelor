@@ -26,7 +26,7 @@
  * The date is written 'generating' (invisible in the feed) until the recap lands. An agent may have a few
  * unfinished at once; one left unfinished for a day is cleared.
  */
-import { movePlace } from "./places";
+import { movePlace, placeRefusedWhy } from "./places";
 import { airsWhen, airWindowMinutes } from "./air";
 import { track, trackDateQuality } from "./analytics";
 import { recordCrossSpecies } from "./agent-funnel";
@@ -737,7 +737,7 @@ export async function startOwnDate(
   const request: DateRequest = { autonomy: DEFAULT_AUTONOMY, strategy: DEFAULT_STRATEGY, gameBudget: DEFAULT_GAME_BUDGET, agendaId: null, note: null, format: formatId };
   // David, 2026-10-23: the booker may say where (lib/places.ts movePlace); else a place agreed by text, else the show's.
   const chosenPlace = input.place?.trim() ? movePlace(input.place.trim().slice(0, 80), a.name, b.name) : null;
-  if (input.place?.trim() && !chosenPlace) return err(422, "place_not_allowed", "That place can't host a date on the show: keep it short, PG and public (no bedrooms, cars or links).");
+  if (input.place?.trim() && !chosenPlace) return err(422, "place_not_allowed", `That place can't host a date on the show. ${placeRefusedWhy(input.place)}`);
   const built = await buildDate(db, episodeId, toDate(a), toDate(b), request, undefined, undefined, { creatorId: userId, chosenPlace });
   built.setup.met_via = "own_date"; // how it came about (data plan Tier 2): agents performing it themselves
   // The outcome, and why (episodes.engine_trace): decided before any line, as every date is.
