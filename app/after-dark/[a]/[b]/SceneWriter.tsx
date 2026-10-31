@@ -58,6 +58,8 @@ const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 /** #1039: an asked-for picture's gallery asked again this often (it lands in 25–35 s), for at most this long. */
 const PICTURE_POLL_MS = 5_000;
 const PICTURE_WAIT_MS = 2 * 60_000;
+/** What's said when an asked-for picture lands, for as long as the stage says so. */
+const PICTURE_LANDED = "📸 Your picture is here: on the stage, and first in the gallery.";
 
 /**
  * The pair's night: the theater (AfterDarkTheater.tsx), open from the start and the only place the scene is watched and
@@ -223,7 +225,12 @@ export default function SceneWriter({
   }, [gallery]);
   useEffect(() => {
     if (picture !== "landed") return;
-    const t = setTimeout(() => setPicture(null), 8_000);
+    // The note goes with it: left up, it held the theater's one note line, so what Draw ahead or Bring them to life said
+    // next never showed (#1061's e2e: "timed out waiting for its note").
+    const t = setTimeout(() => {
+      setPicture(null);
+      setNote((n) => (n?.text === PICTURE_LANDED ? null : n));
+    }, 8_000);
     return () => clearTimeout(t);
   }, [picture]);
   useEffect(() => {
@@ -251,7 +258,7 @@ export default function SceneWriter({
       if (landed.length || (beat && beat.status !== "drawing")) {
         if (landed.length) setFreshPictures(new Set(landed.map((m) => m.id)));
         setPicture("landed");
-        return setNote({ text: "📸 Your picture is here: on the stage, and first in the gallery." });
+        return setNote({ text: PICTURE_LANDED });
       }
       if (Date.now() - started < PICTURE_WAIT_MS) return waitForPicture(beatId, started);
       setPicture(null);
@@ -519,6 +526,13 @@ export default function SceneWriter({
             chapters={chapterList}
             onReplayChapter={(id) => setWatching(nightList.find((n) => n.id === id) ?? null)}
             onExit={() => setTheater(false)}
+            pageTabs={PAGE_TABS.filter((t) => !(t === "make" && textOnly)).map((t) => ({ id: t, label: PAGE_TAB_LABEL[t] }))}
+            onPageTab={(t) => {
+              // #1061: out of the theater, on that tab, scrolled to it.
+              setPageTab(t as PageTab);
+              setTheater(false);
+              requestAnimationFrame(() => document.querySelector(".ad-page-tabs")?.scrollIntoView({ block: "start" }));
+            }}
             crisis={crisisNotice}
           />
         )}
@@ -875,6 +889,11 @@ function Gallery({
     <section>
       <h2>Gallery</h2>
       {problemNote}
+      {/* #1061 (the 2026-10-30 ad visitor: "gallery pictures stay blurred when clicked with no clear tap to reveal"): shown
+          only while discreet mode blurs them (app/after-dark/discreet.css), and each blurred tile says it too. */}
+      <p className="muted small ad-gallery-blur-note">
+        🔒 Blurred for privacy: tap a picture to show it, or turn blur off in <a href="/after-dark#privacy">🔒&nbsp;Privacy</a>.
+      </p>
       {ready.length > 0 && !sel.selecting && (
         <p className="studio-gallery-head">
           <button type="button" className="button-ghost small" onClick={sel.start} title="Pick pictures and clips to download together: sizes for stories and feeds, captions, a contact sheet">

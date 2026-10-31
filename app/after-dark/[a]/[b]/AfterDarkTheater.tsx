@@ -214,6 +214,8 @@ export default function AfterDarkTheater({
   onPictureNow,
   picture = null,
   onExit,
+  pageTabs,
+  onPageTab,
   crisis = null,
   whisperTo = null,
   onWhisperTo,
@@ -291,6 +293,12 @@ export default function AfterDarkTheater({
    */
   picture?: "drawing" | "landed" | null;
   onExit: () => void;
+  /**
+   * #1061 (the 2026-10-30 ad visitor: "the Gallery / Make / Set up / Two sides tabs are hidden under the full-screen
+   * theater"): the page's tabs, in the ⋯ menu: one leaves the theater on that tab.
+   */
+  pageTabs?: readonly { id: string; label: string }[];
+  onPageTab?: (id: string) => void;
   /** The steer goes to one of them only, as a whisper (lib/adult/director.ts); null: to the scene. Shared with the page. */
   whisperTo?: "a" | "b" | null;
   onWhisperTo?: (who: "a" | "b" | null) => void;
@@ -490,8 +498,9 @@ export default function AfterDarkTheater({
     if (whisperTo && !direction.trim()) return;
     // The 2026-10-30 prod loop (run 4: "the Playing… lock was the biggest obstacle"): Next during playback jumps to the end
     // and carries on, rather than waiting out a replay of the last lines on every visit.
-    // A steer leaves playback running: its lines come after what's playing.
-    if (!caughtUp && !direction.trim()) replay.skip();
+    // A steer leaves playback running: its lines come after what's playing. Carrying on means playing on: skip() also
+    // paused it, so the step's own lines never came on stage and their "Picture this?" never asked (#1061's e2e).
+    if (!caughtUp && !direction.trim()) replay.catchUp();
     if ((await onWrite?.(direction.trim())) !== false) setDirection("");
   }
 
@@ -753,6 +762,13 @@ export default function AfterDarkTheater({
                   <button type="button" className="button-ghost small" disabled={busy || !steps.canReset} onClick={() => (setTools(false), steps.onReset())} title="File tonight under their nights and start a new one">
                     Start over
                   </button>
+                  {/* #1061: the tabs under the theater, reachable from it (the theater covers the page). */}
+                  {onPageTab &&
+                    pageTabs?.map((t) => (
+                      <button key={t.id} type="button" className="button-ghost small ad-tools-page-tab" onClick={() => (setTools(false), onPageTab(t.id))} title="Leave the theater for this tab below it">
+                        {t.label}
+                      </button>
+                    ))}
                   {stageSpeaker && sayable && (
                     <button
                       type="button"

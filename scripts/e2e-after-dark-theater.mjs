@@ -11,7 +11,8 @@
  *   has no names, the picture is drawn and goes on the stage → Next: a moment is offered ("Picture this?"), Not now →
  *   ⚡ Draw ahead: the next moment is drawn without asking → ✨ Bring them to life: portraits, expressions, loops →
  *   🗣 Hear it from them: a talking moment plays → 🔈 Listen: their voices, and the place's sound → ↻ Redraw from the
- *   gallery → 🎬 Video of the night: the storyboard → a subscriber: Draw ahead's price, and no tokens says so → the phone.
+ *   gallery → 🎬 Video of the night: the storyboard → a subscriber: Draw ahead's price, and no tokens says so → ✍️ the
+ *   writers → ⋯ reaches the tabs under the theater, and the gallery says how to show a blurred picture → the phone.
  *
  * The rest of After Dark has its own: e2e:after-dark (the gate, writing, autoplay, rewind, start over), e2e:after-dark-
  * scene (Scene & roleplay, the first lines, the picture's context) and e2e:studio (every Studio tab). e2e:after-dark-all
@@ -493,6 +494,27 @@ async function main() {
       await next.click();
       await until("Writing… on Next", async () => (await next.isVisible()) && (await next.innerText()).includes("Writing…"), 2_000, 100);
       await until("Next back", async () => (await next.isVisible()) && !(await next.innerText()).includes("Writing…"), 90_000);
+      await subPage.close();
+    });
+
+    // #1061 (the 2026-10-30 ad visitor: the tabs "hidden under the full-screen theater", "<div class="scene-cast"> …
+    // intercepts pointer events", and blurred gallery pictures with "no clear tap to reveal"): a subscriber, blur on.
+    await step("a subscriber: ⋯ reaches the tabs under the theater, the cast takes no clicks, and the gallery says how to show a blurred picture", async () => {
+      const subPage = await sub.newPage();
+      await subPage.setViewportSize({ width: 1280, height: 860 });
+      watch(subPage);
+      await subPage.goto(`${app.base}${PAGE}`, { waitUntil: "domcontentloaded" });
+      await subPage.waitForSelector(".theater-after-dark", { timeout: 30_000 });
+      const cast = await subPage.locator(".theater-after-dark .scene-cast").evaluate((el) => getComputedStyle(el).pointerEvents);
+      assert(cast === "none", `the cast row takes clicks (${cast})`);
+      await subPage.click(".ad-tools-toggle");
+      await subPage.locator(".ad-tools-steps button", { hasText: "Two sides" }).click({ timeout: 5_000 });
+      await subPage.waitForSelector(".theater-after-dark", { state: "detached", timeout: 10_000 });
+      await until("the Two sides tab", async () => (await subPage.locator('.ad-page-tabbar [role="tab"][aria-selected="true"]').innerText()).includes("Two sides"), 10_000);
+      await subPage.locator('.ad-page-tabbar [role="tab"]', { hasText: "Gallery" }).click({ timeout: 5_000 });
+      const blurNote = subPage.locator(".ad-gallery-blur-note");
+      await blurNote.waitFor({ timeout: 10_000 });
+      assert((await blurNote.innerText()).includes("tap a picture to show it"), "the gallery says how to show one");
       await subPage.close();
     });
 

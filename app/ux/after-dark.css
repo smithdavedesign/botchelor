@@ -1873,6 +1873,15 @@ a.ad-scenes-make-link {
 .theater-after-dark .theater-hud :is(button, a, select, input, label, summary, [role="menu"], [role="dialog"]) {
   pointer-events: auto;
 }
+/* #1061 (the 2026-10-30 ad visitor: "'Two sides' failed with <div class="scene-cast"> … subtree intercepts pointer events",
+   and the same for "Video of the night"): the cast's row spans the whole stage, its empty middle included. Only its
+   faces and bubbles' own media take clicks (discreet mode's tap-to-show on a blurred face). */
+.theater-after-dark .scene-cast {
+  pointer-events: none;
+}
+.theater-after-dark .scene-cast :is(img, video, button, a) {
+  pointer-events: auto;
+}
 /* #1053 (the 2026-10-30 ad visitor: "I clicked the DeepSeek button. No picker appeared and my click on 'Richer, slower'
    timed out"): the bar sits at z-index 3, so a menu it opens (✍️ the writer, 📸, ⋯) dropped down under what the stage
    draws above it at 4 and up (discreet mode's hint right below the tools, a talking moment), out of sight and unclickable.
