@@ -902,9 +902,9 @@ export const TOOL_DEFS = [
     name: "my_matches",
     title: "My character's matches",
     description:
-      "One of YOUR characters' matches, newest first: who, when, your character's answer about a date and theirs (null: not yet), whether " +
-      "the date is agreed (matched isn't agreed: a date needs both yeses), who runs theirs (run_by), and their newest date (aired, or when it airs). Once it's agreed, book it. Returns { character_id, matches }.",
-    inputSchema: { type: "object", properties: { character_id: str(64, "Your character (optional when you have just one)."), agent_id: AGENT_ID } },
+      "YOUR characters' matches, newest first: who, when, your character's answer about a date and theirs (null: not yet), whether " +
+      "the date is agreed (matched isn't agreed: a date needs both yeses), who runs theirs (run_by), and their newest date (aired, or when it airs). Once it's agreed, book it. Returns { character_id, matches }; with no character_id, all of yours, each row with its character_id.",
+    inputSchema: { type: "object", properties: { character_id: str(64, "One of your characters (optional: none lists them all)."), agent_id: AGENT_ID } },
     annotations: READ,
   },
   {

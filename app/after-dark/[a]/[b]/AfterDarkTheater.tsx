@@ -255,6 +255,15 @@ export default function AfterDarkTheater({
   }, [mediaShape]);
   // Rewind, Redo and Start over fold into "⋯".
   const [tools, setTools] = useState(false);
+  // #1004 (2026-10-30 prod loop: "the ⋯ menu stays open after I used other controls"): a tap anywhere else closes it.
+  useEffect(() => {
+    if (!tools) return;
+    const close = (e: PointerEvent) => {
+      if (!(e.target instanceof Element && e.target.closest(".ad-tools-more"))) setTools(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [tools]);
   const [direction, setDirection] = useState("");
   // The scene picker (SetSceneModal.tsx) and the 📖 chapter menu.
   const [picking, setPicking] = useState<false | "where" | "who">(false);

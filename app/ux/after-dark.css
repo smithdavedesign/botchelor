@@ -1838,3 +1838,19 @@ a.ad-scenes-make-link {
   font-size: var(--text-sm);
   white-space: nowrap;
 }
+
+/* #1004 (2026-10-30 prod loop): the top bar is a see-through gradient across the whole stage, and it took the clicks meant
+   for what lies under it (the backdrop's Photo and Show buttons). Only its own controls take clicks. With a roleplay chip
+   the bar runs to a second line, so the backdrop's buttons move down below it instead of sitting under the chip. */
+.theater-after-dark .theater-hud {
+  pointer-events: none;
+}
+.theater-after-dark .theater-hud :is(button, a, select, input, label, summary, [role="menu"], [role="dialog"]) {
+  pointer-events: auto;
+}
+@media (min-width: 761px) {
+  .theater-after-dark:has(.ad-roleplay-chip) .ad-scene-backdrop-off,
+  .theater-after-dark:has(.ad-roleplay-chip) .ad-scene-backdrop-reveal {
+    top: 6.8rem;
+  }
+}

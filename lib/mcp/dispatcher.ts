@@ -6766,37 +6766,54 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "my_matches": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
-      // 2026-10-20 visitor: "required character_id though I had exactly one character". With one, it's that one.
-      let characterId = String(args.character_id ?? "");
-      if (!characterId) {
-        const mine = (await db.query<{ id: string }>(`select id from characters where owner_id = $1 and not is_house limit 2`, [who.id])).rows;
-        if (mine.length === 1) characterId = mine[0].id;
-        else return { error: "character_id is required: which of your characters? (my_status lists them)." };
+      // 2026-10-20 visitor: "required character_id though I had exactly one character". With one, it's that one. #1001:
+      // with several and none named, every one of them, each row carrying its character_id (it used to be an error).
+      const named = String(args.character_id ?? "");
+      const ids = named
+        ? [named]
+        : (await db.query<{ id: string }>(`select id from characters where owner_id = $1 and not is_house order by created_at limit 20`, [who.id])).rows.map((r) => r.id);
+      if (!ids.length) return { error: "You have no characters yet: create_character makes one." };
+      const all: Record<string, unknown>[] = [];
+      for (const characterId of ids) {
+        const matches = await myMatches(db, who.id, characterId);
+        if (!matches) {
+          if (named) return { error: "my_matches lists one of your own characters' matches." };
+          continue;
+        }
+        // #349: each agent-made match says how recently its agent was around. #448: and whether they've read your newest text.
+        const seen = await agentActivity(db, matches.map((m) => m.with.id));
+        const owners = await ownersOf(db, matches.map((m) => m.with.id));
+        const dates = await latestDatesWith(db, who.id, characterId, matches.map((m) => m.with.id));
+        const rows = await Promise.all(
+          matches.map(async (m) => {
+            const a = seen.get(m.with.id);
+            const read = m.with.house ? null : await lastTextRead(db, owners.get(m.with.id) ?? null, characterId, m.with.id);
+            const run_by = runByOf(m.with.made_by, a);
+            const withLabelled = run_by === "house_bot" ? { ...m.with, made_by: "house_bot" } : m.with;
+            // #618: agreed or not, by name; 2.5.0 (the 2026-10-21-2300 run): their newest date, aired or when it airs.
+            const date = dates.get(m.with.id);
+            return {
+              ...(ids.length > 1 ? { character_id: characterId } : {}),
+              ...m,
+              date_agreed: m.agreed,
+              with: withLabelled,
+              ...(a ? activityFields(a, "their_agent") : {}),
+              run_by,
+              house_bot: run_by === "house_bot",
+              last_text_read: read,
+              ...(date ? { latest_date: date.date, can_follow: date.public_dates > 0 } : {}),
+            };
+          }),
+        );
+        all.push(...rows);
       }
-      args.character_id = characterId;
-      const matches = await myMatches(db, who.id, characterId);
-      if (!matches) return { error: "my_matches lists one of your own characters' matches." };
-      // #349: each agent-made match says how recently its agent was around. #448: and whether they've read your newest text.
-      const seen = await agentActivity(db, matches.map((m) => m.with.id));
-      const owners = await ownersOf(db, matches.map((m) => m.with.id));
-      const dates = await latestDatesWith(db, who.id, characterId, matches.map((m) => m.with.id));
-      const rows = await Promise.all(
-        matches.map(async (m) => {
-          const a = seen.get(m.with.id);
-          const read = m.with.house ? null : await lastTextRead(db, owners.get(m.with.id) ?? null, characterId, m.with.id);
-          const run_by = runByOf(m.with.made_by, a);
-          const withLabelled = run_by === "house_bot" ? { ...m.with, made_by: "house_bot" } : m.with;
-          // #618: agreed or not, by name; 2.5.0 (the 2026-10-21-2300 run): their newest date, aired or when it airs.
-          const date = dates.get(m.with.id);
-          return { ...m, date_agreed: m.agreed, with: withLabelled, ...(a ? activityFields(a, "their_agent") : {}), run_by, house_bot: run_by === "house_bot", last_text_read: read, ...(date ? { latest_date: date.date, can_follow: date.public_dates > 0 } : {}) };
-        }),
-      );
+      if (ids.length === 1) args.character_id = ids[0];
       return {
         data: {
-          character_id: args.character_id,
-          matches: rows,
-          ...(rows.length ? { last_text_read_note: "last_text_read: whether their owner has read your character's newest text (null: nothing sent yet, or the house)." } : {}),
-          ...(rows.some((r) => "latest_date" in r)
+          ...(ids.length === 1 ? { character_id: ids[0] } : { character_ids: ids, note: "Every one of your characters' matches: each row's character_id says whose. Pass character_id for one." }),
+          matches: all,
+          ...(all.length ? { last_text_read_note: "last_text_read: whether their owner has read your character's newest text (null: nothing sent yet, or the house)." } : {}),
+          ...(all.some((r) => "latest_date" in r)
             ? { latest_date_note: "latest_date: the pair's newest date; aired: false says when it airs (airs_at). The couple can be followed once one of their public dates has aired (can_follow)." }
             : {}),
         },
