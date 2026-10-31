@@ -88,11 +88,11 @@ export function verifyEmailToken(token: string | null | undefined, purpose: Purp
 
 /* ------------------------------------------------------ sending ------------------------------------------------------ */
 
-export type EmailMessage = { from: string; to: string; subject: string; html: string; text: string; headers: Record<string, string> };
+export type EmailMessage = { from: string; to: string; subject: string; html: string; text: string; headers: Record<string, string>; replyTo?: string };
 type Sender = (msg: EmailMessage, config: EmailConfig) => Promise<void>;
 
 const resendSender: Sender = async (msg, config) => {
-  const { error } = await new Resend(config.apiKey).emails.send({ from: msg.from, to: [msg.to], subject: msg.subject, html: msg.html, text: msg.text, headers: msg.headers });
+  const { error } = await new Resend(config.apiKey).emails.send({ from: msg.from, to: [msg.to], subject: msg.subject, html: msg.html, text: msg.text, headers: msg.headers, ...(msg.replyTo ? { replyTo: msg.replyTo } : {}) });
   if (error) throw new Error(`resend: ${error.name ?? "error"}`);
 };
 let sender: Sender = resendSender;
@@ -314,7 +314,7 @@ export async function sendAccountEmail(
   userId: string,
   kind: string,
   to: string,
-  message: { subject: string; text: string; html: string },
+  message: { subject: string; text: string; html: string; replyTo?: string | null },
   env: Env = process.env,
 ): Promise<AccountEmailResult> {
   const config = emailConfig(env);
@@ -322,7 +322,7 @@ export async function sendAccountEmail(
   const today = (await db.query<{ n: number }>(`select count(*)::int as n from email_sends where created_at > now() - interval '1 day'`)).rows[0]?.n ?? 0;
   if (today >= emailDailyCap(env)) return "capped";
   try {
-    await sender({ from: config.from, to, subject: message.subject, html: message.html, text: message.text, headers: {} }, config);
+    await sender({ from: config.from, to, subject: message.subject, html: message.html, text: message.text, headers: {}, ...(message.replyTo ? { replyTo: message.replyTo } : {}) }, config);
   } catch (err) {
     console.error(`[email] ${kind} send failed:`, err instanceof Error ? err.message : "unknown");
     return "failed";

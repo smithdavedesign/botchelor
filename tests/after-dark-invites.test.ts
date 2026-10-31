@@ -122,6 +122,8 @@ describe("reviewing from the email", () => {
     expect(Math.round((new Date(end).getTime() - Date.now()) / 86_400_000)).toBe(BETA_DAYS);
     const welcome = sent.find((m) => m.to === "ada@example.com")!;
     expect(welcome.subject).toBe("Your Botchelor invite");
+    // Replies go to the operator.
+    expect(welcome.replyTo).toBe(OPERATOR);
     expect(welcome.text).toContain("Video isn't included: that one's on you");
     expect(welcome.text).toContain("Each clip costs 1 token and the video of the night 7 tokens");
     expect(welcome.text).toContain("https://botchelor.com/after-dark");
