@@ -1,6 +1,6 @@
 import { AI_HEADERS, markAiImage } from "@/lib/ai-mark";
 import { assetServe, PUBLIC_CACHE } from "@/lib/asset-gate";
-import { getApprovedAsset } from "@/lib/assets";
+import { getApprovedAsset, getApprovedAssetHead, getAssetThumb, keepAssetThumb } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 
@@ -14,13 +14,19 @@ const STATIC_CAST = /^\/cast\/[\w.-]+\.(webp|png|jpe?g)$/;
  * ledger, so they're streamed here with a long immutable cache instead of sitting inline in every page. Only
  * approved assets are served (the ledger never returns a pending or rejected one), and only to whom its content tag
  * lets them (lib/asset-gate.ts): an nsfw one is a redirect to its blurred teaser for anyone it isn't open to.
+ *
+ * ?w= asks for a small copy (app/Avatar.tsx): a 1024px PNG of ~1.4 MB was drawn at 38–96px, 40 times on /watch. Each
+ * small copy is made once and kept (character_asset_thumbs): on 2026-10-31 a browser opening /graph asked for 56 of
+ * them at once, every one decoded from its full PNG on the request, and the show's single replica stalled until the
+ * gateway gave up on it for minutes. The cache answers without reading the file; the few resizes that still happen
+ * run a handful at a time.
  */
 export const GET = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const db = await getDb();
-  const asset = await getApprovedAsset(db, id);
-  if (!asset) return json({ error: "asset_not_found" }, 404);
-  const gate = await assetServe(db, req, asset.content_rating, asset.character_id);
+  const head = await getApprovedAssetHead(db, id);
+  if (!head) return json({ error: "asset_not_found" }, 404);
+  const gate = await assetServe(db, req, head.content_rating, head.character_id);
   // The answer depends on who's asking, so neither of these may be cached for everyone (json() is no-store).
   if (gate.serve === "none") return json({ error: "asset_not_found" }, 404);
   if (gate.serve === "teaser") {
@@ -28,35 +34,65 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   }
   // The house cast's reviewed portraits are files in public/cast, recorded in the ledger by their path: send the
   // browser there (only that exact shape of same-site path, so this can never redirect anywhere else).
-  if (asset.url && STATIC_CAST.test(asset.url)) {
-    return new Response(null, { status: 307, headers: { location: new URL(asset.url, req.url).toString(), "cache-control": gate.cache === PUBLIC_CACHE ? "public, max-age=86400" : gate.cache } });
+  if (head.path && STATIC_CAST.test(head.path)) {
+    return new Response(null, { status: 307, headers: { location: new URL(head.path, req.url).toString(), "cache-control": gate.cache === PUBLIC_CACHE ? "public, max-age=86400" : gate.cache } });
   }
-  if (!asset.url || !DATA_PNG.test(asset.url)) return json({ error: "asset_not_found" }, 404);
-  const [, type] = DATA_PNG.exec(asset.url)!;
-  const bytes = Buffer.from(asset.url.slice(asset.url.indexOf(",") + 1), "base64");
+  if (!head.is_data) return json({ error: "asset_not_found" }, 404);
   // Every picture here was made by a model: it goes out with the "AI-generated" mark in its XMP and its headers
   // (lib/ai-mark.ts). A no-op for one stored with it; an older one is marked as it's sent.
   const headers = { "cache-control": gate.cache, ...AI_HEADERS };
-  // ?w= asks for a small copy (app/Avatar.tsx): a 1024px PNG of ~1.4 MB was drawn at 38–96px, 40 times on /watch.
-  const small = await resized(bytes, new URL(req.url).searchParams.get("w"));
-  if (small) return new Response(new Uint8Array(markAiImage(small)), { status: 200, headers: { ...headers, "content-type": "image/webp" } });
+  const width = widthFor(new URL(req.url).searchParams.get("w"));
+  if (width) {
+    const kept = await getAssetThumb(db, id, width);
+    if (kept) return new Response(new Uint8Array(markAiImage(kept)), { status: 200, headers: { ...headers, "content-type": "image/webp" } });
+  }
+  const asset = await getApprovedAsset(db, id);
+  if (!asset?.url || !DATA_PNG.test(asset.url)) return json({ error: "asset_not_found" }, 404);
+  const [, type] = DATA_PNG.exec(asset.url)!;
+  const bytes = Buffer.from(asset.url.slice(asset.url.indexOf(",") + 1), "base64");
+  if (width) {
+    const small = await resized(bytes, width);
+    if (small) {
+      await keepAssetThumb(db, id, width, small).catch(() => {});
+      return new Response(new Uint8Array(markAiImage(small)), { status: 200, headers: { ...headers, "content-type": "image/webp" } });
+    }
+  }
   return new Response(new Uint8Array(markAiImage(bytes)), { status: 200, headers: { ...headers, "content-type": `image/${type}` } });
 });
 
 /** The widths a small copy comes in (each one cached by the CDN for a year), so ?w= can't mint endless variants. */
 const ASSET_WIDTHS = [64, 128, 256, 384] as const;
 
-/**
- * A WebP copy at the nearest allowed width at or above `w`, or null for the original: no or a bad `w`, or sharp
- * (installed with Next) unavailable or failing. A failure never breaks the picture, it just sends the full one.
- */
-async function resized(bytes: Buffer, w: string | null): Promise<Buffer | null> {
+/** The nearest allowed width at or above `w`, or null for the original: no or a bad `w`. */
+export function widthFor(w: string | null): number | null {
   const want = Number(w);
   if (!w || !Number.isFinite(want) || want <= 0) return null;
-  const width = ASSET_WIDTHS.find((x) => x >= want) ?? ASSET_WIDTHS[ASSET_WIDTHS.length - 1];
+  return ASSET_WIDTHS.find((x) => x >= want) ?? ASSET_WIDTHS[ASSET_WIDTHS.length - 1];
+}
+
+/** How many resizes run at once on this replica: the rest wait their turn rather than all decoding together. */
+const RESIZES_AT_ONCE = 3;
+let resizing = 0;
+const waiting: (() => void)[] = [];
+async function withResizeSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (resizing >= RESIZES_AT_ONCE) await new Promise<void>((resolve) => waiting.push(resolve));
+  resizing++;
+  try {
+    return await fn();
+  } finally {
+    resizing--;
+    waiting.shift()?.();
+  }
+}
+
+/**
+ * A WebP copy at `width`, or null for the original: sharp (installed with Next) unavailable or failing. A failure never
+ * breaks the picture, it just sends the full one.
+ */
+async function resized(bytes: Buffer, width: number): Promise<Buffer | null> {
   try {
     const { default: sharp } = await import("sharp");
-    return await sharp(bytes).resize({ width, height: width, fit: "cover", withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
+    return await withResizeSlot(() => sharp(bytes).resize({ width, height: width, fit: "cover", withoutEnlargement: true }).webp({ quality: 80 }).toBuffer());
   } catch {
     return null;
   }

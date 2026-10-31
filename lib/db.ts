@@ -2762,6 +2762,16 @@ create table if not exists showcase_likes (
   created_at timestamptz not null default now(),
   primary key (post_id, user_id)
 );
+-- A portrait's small copies (app/api/assets/[id] ?w=), resized once and kept: a browser opening /graph asked for 56
+-- of them at once, each decoded from a multi-MB PNG on the request, and the show's one replica stalled for minutes
+-- (the audit, 2026-10-31).
+create table if not exists character_asset_thumbs (
+  asset_id text not null references character_assets (id) on delete cascade,
+  width integer not null,
+  data bytea not null,
+  created_at timestamptz not null default now(),
+  primary key (asset_id, width)
+);
 -- What each browser has seen on the reels (lib/showcase.ts markSeen): seen posts go to the back of their feed.
 create table if not exists showcase_views (
   viewer_id text not null,

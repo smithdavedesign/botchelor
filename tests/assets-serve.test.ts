@@ -57,6 +57,14 @@ describe("serving an approved asset", () => {
     const meta = await sharp(Buffer.from(await small.arrayBuffer())).metadata();
     expect(meta.width).toBe(128); // the next allowed width up from 96
     expect(small.headers.get("cache-control")).toContain("immutable");
+    // Made once and kept (the audit, 2026-10-31: 56 of these at once stalled the show's replica): the second ask is
+    // answered from the cache, the same bytes, without touching the picture.
+    expect((await t.db.query(`select width, length(data)::int as n from character_asset_thumbs where asset_id = $1`, [id])).rows).toEqual([{ width: 128, n: expect.any(Number) }]);
+    await t.db.query(`update character_assets set url = 'data:image/png;base64,bm90IGEgcG5n' where id = $1`, [id]);
+    const again = await serve(id, "?w=96");
+    expect(again.headers.get("content-type")).toBe("image/webp");
+    expect((await sharp(Buffer.from(await again.arrayBuffer())).metadata()).width).toBe(128);
+    await t.db.query(`update character_assets set url = $2 where id = $1`, [id, "data:image/png;base64," + big.toString("base64")]);
     const odd = await serve(await approved("data:image/png;base64," + Buffer.from("not really a png").toString("base64"), 2), "?w=96");
     expect(odd.status).toBe(200);
     expect(odd.headers.get("content-type")).toBe("image/png");
