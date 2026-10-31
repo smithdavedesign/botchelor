@@ -109,12 +109,23 @@ function startProcess(script, args, extraEnv, onLine) {
   return child;
 }
 
+/** What's left on the OpenRouter key (or minus its usage when it has no limit), so before − after = tonight's spend. */
 async function credits(key) {
   try {
-    const r = await fetch("https://ai-gateway.vercel.sh/v1/credits", { headers: { authorization: `Bearer ${key}` } });
-    return Number((await r.json()).balance);
+    const r = await fetch("https://openrouter.ai/api/v1/key", { headers: { authorization: `Bearer ${key}` } });
+    const d = (await r.json()).data;
+    return Number(d.limit_remaining ?? -d.usage);
   } catch {
     return NaN;
+  }
+}
+
+/** The loop's own capped OpenRouter key when there is one, else the show's (both are show-model spend). */
+function loopKey() {
+  try {
+    return keychain("vault/botchelor/OPENROUTER_LOOP_KEY");
+  } catch {
+    return keychain("vault/botchelor/OPENROUTER_SHOW_KEY");
   }
 }
 
@@ -234,7 +245,7 @@ async function main() {
       state.built_sha = sha;
     }
 
-    const gatewayKey = keychain("vault/botchelor/FRONTIER_LLM_API_KEY");
+    const gatewayKey = loopKey();
     const before = await credits(gatewayKey);
     const arenaPassword = randomBytes(18).toString("hex");
 

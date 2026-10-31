@@ -41,7 +41,7 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    alone (that run is using its files) and `run-now.sh` refuses, saying which run is in progress.
 2. **A local Botchelor** (`scripts/loop/arena.mjs`):
    - the production build on a throwaway database;
-   - the real date model, Claude Haiku through the AI Gateway (key from the keychain), capped at 12 dates on our
+   - the real date model, Claude Haiku through OpenRouter (`OPENROUTER_LOOP_KEY` from the keychain, else `OPENROUTER_SHOW_KEY`), capped at 12 dates on our
      model a run;
    - 18 people-made characters open to dates;
    - five public blind dates written before the visitors arrive, one aired at once and the rest airing at 4, 10 and
