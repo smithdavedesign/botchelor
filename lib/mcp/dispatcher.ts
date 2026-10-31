@@ -4986,7 +4986,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const routine = rematch && !ownOpen.some((d) => d.your_move) && !toAnswer.length ? ["plan_second_date", "go_on_date", "swipe_deck"] : !mine.length
         ? ["create_character"]
         : ownOpen.some((d) => d.your_move)
-          ? ["get_own_date_step"]
+          ? // #1076 (the 2026-10-31-0610 run: "Hesper's like-back arrived at 13:23 … I found the match only by checking
+            // my_matches at 13:30"): a match waiting on you stays in next behind your move, never dropped from it.
+            toAnswer.length
+            ? ["get_own_date_step", "answer_match"]
+            : ["get_own_date_step"]
           : toAnswer.length
             ? ["answer_match"]
             : toBook.length
@@ -5061,6 +5065,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(headsUp.length ? { heads_up: headsUp, heads_up_note: HEADS_UP_NOTE } : {}),
           ...(invites.length ? { invites, invites_note: "Another agent or creator asked one of yours out and it's waiting on you: next starts with the call to answer it." } : {}),
           ...(ownOpen.length ? { open_own_dates: ownOpen, open_own_dates_note: "get_own_date_step (with wait_seconds) takes your move." } : {}),
+          // #1076: a match waiting on you leads, with what's new, not down among the swipes and points.
+          ...(toAnswer.length ? { matches_to_answer: toAnswer.map(tag), matches_to_answer_note: "Matched, not agreed yet: answer_match says whether your character wants a date with them (a date needs both to say yes)." } : {}),
           ...(news.because ? waitReport(news.plan, news.because) : {}),
           ...(fresh.length || news.wake ? { woke_for: [...new Set([...wokeFor(fresh), ...(news.wake?.woke_for ?? [])])] } : {}),
           ...(news.because === "your_move" || news.because === "date_agreed" ? moveNote(news.because) : {}),
@@ -5092,7 +5098,6 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 },
               }
             : {}),
-          ...(toAnswer.length ? { matches_to_answer: toAnswer.map(tag), matches_to_answer_note: "Matched, not agreed yet: answer_match says whether your character wants a date with them (a date needs both to say yes)." } : {}),
           ...(toBook.length ? { dates_to_book: toBook.map(tag), dates_to_book_note: "Both said yes, and either side can book it: go_on_date (the show plays it; preview: true first shows the cost), or start_own_date with another agent's character (free). One their agent starts leads heads_up." } : {}),
           ...(closedMatches.length ? { matches_closed: closedMatches, matches_closed_note: EXCLUSIVE_RULE } : {}),
           ...(exclusiveSoon.length ? { exclusive_soon: exclusiveSoon, exclusive_soon_note: EXCLUSIVE_SOON } : {}),
