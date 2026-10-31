@@ -345,8 +345,37 @@ agent reads as a bot (`detectBot`), and a restarted headless browser falls back 
 twenty minutes every `sides` request from the page was a 404 while the same URL with the same cookies answered 200 from
 curl. Right behaviour; worth knowing before the next audit.
 
-**New findings:** **F45** (low) the ⭐ Favorites filter count doesn't update when a picture is favorited until the next refresh (the favorite itself is stored). **F46** (medium) the media route serves a Studio picture as its full PNG: the three new
+**New findings:** **F45** (low) the ⭐ Favorites filter count didn't seem to update when a picture was favorited (the favorite itself is stored); looked at again in round three. **F46** (medium) the media route serves a Studio picture as its full PNG: the three new
 faces were 3.3, 2.5 and 3.1 MB each (F15's weight problem again, now measured on the route).
+
+## Round three: what the second report still listed as open (11:10–11:45 UTC)
+
+The second round's own report still said "bug-free" with F45 and F46 open, F41 unverified live, the recheck left as a
+command, and own-key After Dark untested. This round closed those that are code or testable.
+
+- **F46 fixed (#1074):** `/api/admin/after-dark/media/[id]?w=` answers an admin with a WebP copy at a grid width
+  (320/640/960), resized once under the same three-at-a-time slot as the show's portraits (`lib/thumbs.ts`, shared
+  with #1068's assets route) and kept in `adult_media_small`. The Studio's grid asks at 640. Tested in the media route's
+  test. **Verified live after the deploy: the same picture is 1,538,313 bytes as a PNG and 37,846 bytes at `?w=640` as WebP (2.5 %, 640×853); the first ask took 2.2 s, the second 0.9 s from the kept copy. The Studio grid now asks every picture at 640 (46 with ?w=640: 46).**
+- **The recheck is now a button (#1074):** /admin/showcase has "🔎 Recheck the safe side", which runs the stricter check
+  over every After Dark post on the safe side, batch by batch, until none is left. No cron secret needed; one click,
+  David's, because it rewrites live posts.
+- **F41 verified live:** a fresh Rafe × Juniper night on the Quick writer with Autoplay ran from the first line to the
+  chapter close in about eight minutes by itself (F39 at work); with chapter 2 still empty, ⋯ → Start over was enabled
+  ("File tonight under their nights and start a new one"), where it had been disabled before #1072.
+- **F45 withdrawn:** the ⭐ Favorites count does follow the toggle; it updates when the Studio's state refetch lands,
+  about two seconds later, and I had read it before that. Star on → (2), star off → (1), both within six seconds.
+- **Own-key After Dark, the failure path (no spend):** a bogus OpenRouter key pointed at After Dark's pictures job is
+  refused with "An OpenRouter key can't do After Dark pictures" (it read "A OpenRouter…": fixed in #1074), and the same
+  key pointed at dates fails the live check with "OpenRouter didn't accept this key" plus a link to make a new one;
+  nothing is stored. The success path needs a key that spends, so it stays untested here.
+- **Mixers:** a group night ran at 08:41 UTC today and five this week (`group_nights`), so the hourly job is alive.
+
+What is genuinely outside this audit's reach, and why, is unchanged: the Shared-with-you consent flow and a
+subscriber's 402 need a second paying subscriber (there is no admin grant of After Dark access, by design); Google
+sign-in and push need a real device; jurisdiction modes can't be simulated past Cloudflare (the rules are unit-tested).
+The money and infrastructure items (a Cloudflare cache rule, a second replica, alerting to a phone) are David's by his
+own rules.
 
 ## Coverage
 
@@ -434,14 +463,14 @@ storyboards survive a reopen (F40), Start over after a filed chapter (F41), port
 
 ## Still open for David (decisions or money)
 
-- **Run the safe-side recheck** (a prod write, so yours): `curl -H "Authorization: Bearer $CRON_SECRET"
-  "https://ad.botchelor.com/api/jobs/showcase-check?recheck=1"` until `left` is 0 (twelve posts a call). It sends the
-  two explicit reels back to After Dark without a look and re-checks the other 21 with the stricter question.
+- **Run the safe-side recheck** (a prod write, so yours): the "🔎 Recheck the safe side" button on /admin/showcase
+  (#1074), or `curl -H "Authorization: Bearer $CRON_SECRET" "https://ad.botchelor.com/api/jobs/showcase-check?recheck=1"`
+  until `left` is 0. It sends the two explicit reels back to After Dark without a look and re-checks the other 21 with
+  the stricter question.
 - Outage follow-ups: alerting that reaches a phone, a Cloudflare cache rule for `/api/assets/*` (the thumbs are
   `public, immutable` already; the edge just needs telling), a second replica ($12/month), and the DO health-check
   question.
-- A faststart backfill for the ~200 existing clips (a bucket rewrite, from #1036's notes), and F46's picture weight
-  (serve Studio pictures as JPG or WebP at the route, as the thumbs now are).
+- A faststart backfill for the ~200 existing clips (a bucket rewrite, from #1036's notes).
 - Test data to keep or remove: the accounts `nightaudit` (admin) and `nightaudit2`, Vesper and Teo and their nights,
   pictures and the movie, the house night Rafe × Juniper of this round, and the agent-made character "Audit Harbor".
 - Not fixable from here: Google sign-in and push need a real device; the Shared-with-you consent flow needs a second
