@@ -76,6 +76,28 @@ the keychain (`~/ai-stack/bin/secrets`, never in a file). Propose: start with on
 > **2026-10-24: built and off.** Segpay (primary) and Verotel (backup) are wired end to end; nothing runs until their
 > settings are in the environment. See "Billing" below. Still pending: David opens the merchant accounts.
 
+## Pricing: an allowance in the subscription, tokens for extras (#1005, 2026-10-30)
+
+David, 2026-10-30: "follow a similar payment methodology [to competitors: a subscription that includes an allowance,
+tokens for extras], but since we're brand new just break even overall is the goal until adoption is higher".
+`lib/adult/pricing.ts` decides; the costs are in `docs/after-dark-costs.md` ("The subscription's allowance").
+
+- **Included with an active subscription or a reviewer pass** (`canAfterDark` why `subscribed` or `reviewer`): every
+  chapter, pictures from the shot menu and Redraw, and Draw ahead cost no tokens. The month's caps bound them:
+  `cap_writes` (300 scene steps: unlimited chapters, fair use) and `cap_pictures` (60; the column's default since #1005).
+- **Included clips:** a subscriber's first `included_clips` (3) clips on demand each calendar month cost nothing,
+  counted in `adult_usage.included_clips` (apart from `clips`, which also counts presence loops, talking moments and
+  Studio clips). One taken is recorded on the clip (`clip.included`: its month) and given back when it doesn't come
+  through. Each clip after that costs `clip_tokens`.
+- **Extras at about cost:** `clip_tokens` 1 (was 3), `reel_tokens` 7 (was 15); a clip filmed again costs a clip's price.
+  Set the scene (1) and talking moments (`clip_tokens`) are extras too. Bought tokens come in packs from the shop.
+- **Admins** pay nothing, as before. The chapter, menu picture and Draw ahead prices stay in the settings for a viewer
+  with no subscription, who can't open After Dark anyway.
+- **Shown everywhere:** Start and Next say "· included", the Make tab, the theater's 🎞 Clip, Keep going and Draw ahead
+  say "included" or the tokens, and clips offered say "N of 3 clips left this month". The subscribe page says what
+  $12.99 includes, from the settings.
+- **Refunds** (`refundBoughtTokens`) only ever give back what was charged; nothing included is charged.
+
 ## Billing — CCBill first (2026-10-30), Segpay and Verotel as backups (2026-10-24)
 
 > **Applying (2026-10-25):** the readiness table, the application packet (business description, moderation write-up, the
@@ -194,7 +216,8 @@ an end date, with three differences:
 - it counts as ours (`loadOurIds`), so it never shows as a real subscriber or income;
 - it carries no admin powers.
 
-It's written by hand on prod for a handle+password account made for the reviewer, plus bought tokens for chapters:
+It's written by hand on prod for a handle+password account made for the reviewer (chapters are included since #1005;
+bought tokens only for extras such as a clip past the month's 3 or the video of the night):
 
 ```sql
 insert into adult_entitlements (user_id, subscription_status, period_end, age_verified_at, age_method, provider, updated_at)
@@ -1389,7 +1412,8 @@ videos list (`Reels.tsx`).
 
 **How one is made**: a clip is a reel of one shot (`adult_reels.kind = 'clip'`, with `clip`: its act, who leads, the clip
 it keeps going from, its stage and place, and its label). The plan (act, director, or keep going) is settled before
-anything is spent, so a refusal costs nothing. Then `clip_tokens` bought tokens are spent (3 by default, admins free,
+anything is spent, so a refusal costs nothing. Then one of a subscriber's included clips this month is taken
+(`included_clips`, 3; #1005) or, once they're used, `clip_tokens` bought tokens are spent (1 by default, admins free,
 `clip_tokens` in the settings), each one's baseline is made if missing, and the shot runs the reel's own path
 (`startShots`): the keyframe on Venice (`qwen-edit-uncensored`) or Replicate (`qwen/qwen-image-edit-2511`) from both
 baselines and the place's drawn set (or the clip before's keyframe), Hive on the keyframe before it's kept as a `frame`
@@ -1447,8 +1471,8 @@ sensual, never graphic); David's lines on every word the choices put in front of
 `crossesTaboo`). Not the prompt's own fixed words: "Make one photograph" reads to the age check as "make [her] one", and
 the age check is right to be that strict. A refusal is decided before anything is spent.
 
-**Price and cap**: `menu_picture_tokens` bought tokens (1 by default, a new setting), admins free, and it counts against
-the month's pictures (`cap_pictures`, 30; `lib/adult/usage.ts`, which now also says how many are left). Over the cap it's
+**Price and cap**: included with a subscription (#1005; `menu_picture_tokens` bought tokens, 1 by default, for a viewer
+without one), admins free, and it counts against the month's pictures (`cap_pictures`, 60 by default; `lib/adult/usage.ts`, which now also says how many are left). Over the cap it's
 refused (429) before anything is spent. A picture the check refuses (logged, never stored), one it couldn't check (503),
 or a provider failure gives the token back and isn't counted.
 

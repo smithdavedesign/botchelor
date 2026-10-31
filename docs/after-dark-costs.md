@@ -111,6 +111,23 @@ against $0.11).
 Hive on a video is about $0.05 for 15 seconds and $0.09 for 30, if it samples about one frame a second. Confirm how
 Hive counts video frames before relying on this.
 
+## The subscription's allowance (#1005, 2026-10-30)
+
+David, 2026-10-30: "follow a similar payment methodology [to competitors: a subscription that includes an allowance,
+tokens for extras], but since we're brand new just break even overall is the goal until adoption is higher". So the
+$12.99 a month (`AD_SUBSCRIPTION_PRICE_USD`; about $11.40 after an adult processor's 10 to 15%) includes:
+
+| Included | Bound | Costs us at the most |
+|---|---|---|
+| Every chapter (`chapter_tokens` not taken from a subscriber), with its unasked pictures | `cap_writes`: 300 scene steps a month (fair use) | 300 × ~0.5¢ = about $1.50 of text, plus the chapters' pictures (counted in the 60 below) |
+| Pictures from the shot menu, Redraw, Draw ahead (`menu_picture_tokens`, `draw_ahead_tokens` not taken) | `cap_pictures`: 60 a month | 60 × ~1.5¢ to 4.5¢ = about $0.90 to $2.70 |
+| 3 short clips a month (`included_clips`, counted in `adult_usage.included_clips`, given back when one fails) | then `clip_tokens` each | 3 × about $0.70 on Venice = about $2.10 ($0.50 on Replicate) |
+
+So a subscriber who uses every bit of it costs us about $4.50 to $6.30 against about $11.40 in: the rest pays hosting
+and the free trials until adoption is higher. Extras are at about cost: a clip past the 3 is **1 token** (about $0.68 in
+against $0.16 to $0.70), the video of the night **7 tokens** (about $4.75 in against $4.25 to $5.50). Code:
+`lib/adult/pricing.ts`; labels say "included" (`lib/adult/price-words.ts`).
+
 ## Tokens: what we charge
 
 A token sells for $0.80 (the 5-pack is $4). After Stripe's fee that's about $0.72 a token. An adult card processor
@@ -120,13 +137,13 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 
 | Extra | Tokens | We take in (after fees) | Costs us | We keep |
 |---|---|---|---|---|
-| A chapter of a night (`chapter_tokens`, 2026-10-25): up to 120 lines, with up to `pictures_per_chapter` (3) pictures drawn unasked | 1, taken when its first lines are written, given back if none come | about $0.72 (about $0.68 on an adult processor) | about $0.05 of text (about 10 steps on GLM-4.6) plus up to 3 pictures: up to about $0.09 on Replicate, $0.045 on Venice | about $0.54 to $0.62 |
+| A chapter of a night (`chapter_tokens`, 2026-10-25): up to 120 lines, with up to `pictures_per_chapter` (3) pictures drawn unasked | included with a subscription since #1005; 1 for a viewer without one, taken when its first lines are written, given back if none come | about $0.72 (about $0.68 on an adult processor) | about $0.05 of text (about 10 steps on GLM-4.6) plus up to 3 pictures: up to about $0.09 on Replicate, $0.045 on Venice | about $0.54 to $0.62 |
 | Set the scene | 1 | about $0.70 | $0 to $0.005 | about $0.70 |
 | A 15 s video, standard | 2 | about $1.40 | about $0.30 to $0.80 | about $0.60 to $1.10 |
 | A 15 s video, best | 5 | about $3.50 | about $2.00 | about $1.50 |
 | A 30 s video, best | 10 | about $7.00 | about $4.00 | about $3.00 |
-| A clip on demand, or Keep going (`clip_tokens`) | 3 | about $2.15 (about $2.05 on an adult processor) | about $0.70 on Venice, $0.16 on Replicate | about $1.35 to $1.45 on Venice, about $1.90 to $2.00 on Replicate |
-| A picture from the shot menu (`menu_picture_tokens`; it also counts against the month's 30 pictures) | 1 | about $0.72 (about $0.68 on an adult processor) | about $0.045 on Venice, $0.035 on Replicate | about $0.64 to $0.68 |
+| A clip on demand, or Keep going (`clip_tokens`), past the subscription's 3 a month | 1 (3 before #1005) | about $0.72 (about $0.68 on an adult processor) | about $0.70 on Venice, $0.16 on Replicate | about $0 on Venice, about $0.50 on Replicate |
+| A picture from the shot menu (`menu_picture_tokens`; it also counts against the month's 60 pictures) | included with a subscription since #1005; 1 without | about $0.72 (about $0.68 on an adult processor) | about $0.045 on Venice, $0.035 on Replicate | about $0.64 to $0.68 |
 
 - **A chapter's pictures** (lib/adult/chapter-pictures.ts): the chapter's own, each new place's, one its lines ask for, and its moments drawn at the close all come out of the same `pictures_per_chapter` (3), earliest first; the moments that don't fit stay filed, not drawn. A picture the viewer asks for (📸 Picture this, the shot menu) isn't counted. Hive is the tighter limit: 3 pictures a chapter is about 30 chapters a day on the self-serve 100.
 - **Refunds:** Set the scene is refunded if the place is refused or, on a date, if they don't go. A video should be refunded if Hive discards it or the provider fails.
@@ -148,7 +165,7 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 - Hive checks every shot before it's kept. A discarded shot gives back its share of the tokens.
 - The shots play in order, with each line as a caption.
 
-**Settings:** the model, the number of shots and the price (`reel_model`, `reel_shots`, `reel_tokens`). The defaults are Wan 3.0, 6 shots (about 30 s) and 15 tokens.
+**Settings:** the model, the number of shots and the price (`reel_model`, `reel_shots`, `reel_tokens`). The defaults are Wan 3.0, 6 shots (about 30 s) and 7 tokens (15 before #1005, 2026-10-30).
 
 | Default video (6 shots, Wan 3.0, about 30 s) | Cost |
 |---|---|
@@ -158,7 +175,7 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 | Hive moderation on each shot, and the age check on each keyframe (since 2026-10-23 a keyframe has no moderation of its own: 6 fewer requests, about $0.02) | about $0.08 to $0.23 |
 | **Total** | **about $4.25 to $5.50** |
 
-At **15 tokens** we take in about $10.80 after Stripe's fee (about $10.20 with an adult processor), so we keep about **$5.30 to $6.50** a video. Test B's route (Wan 2.6 with our own voices) would cost about $3.50, but it lip-syncs the wrong face in a two-person shot.
+At **7 tokens** (since #1005, 2026-10-30: break even) we take in about $5.05 after Stripe's fee (about $4.75 with an adult processor), so a video about breaks even (from about $0.50 kept to about $0.75 lost on a long one). At the old 15 we kept about $5.30 to $6.50. Test B's route (Wan 2.6 with our own voices) would cost about $3.50, but it lip-syncs the wrong face in a two-person shot.
 
 **Hive's limit:** self-serve allows 100 visual-moderation requests a day, and the only way to raise it is to contact Hive Sales. That's needed before real volume. A video asks for one per shot: **6 for a 6-shot video** (and a clip 1). Until 2026-10-23 it was 12, because each keyframe had its own as well. Now a keyframe gets the age check only, and its moderation is its shot's: Hive's video moderation samples the shot's frames, the first of them the keyframe, and a keyframe is never shown on its own until its shot has passed (docs/after-dark.md, "Hive's daily limit"). So the 100 a day are about 16 six-shot videos, not 8. A picture shown as a still (a baseline, a scene or menu picture) still asks for one moderation request and one age check. The vision-language model (the age check) has no listed limit and costs $0.50 per million input tokens and $2.50 per million output, about $0.001 a check.
 

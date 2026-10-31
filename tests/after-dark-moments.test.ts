@@ -296,8 +296,11 @@ describe("the moments' buttons", () => {
     expect(bare).toContain("↔ Boomerang");
     expect(bare).toContain("∞ Loop");
     expect(bare).not.toContain("Keep going");
-    const shot = renderToStaticMarkup(createElement(MomentTools, { mediaId: "v1", now: () => 0, keepGoing: { reelId: "r1", price: 3, onReel: () => {} } }));
-    expect(shot).toContain("▶▶ Keep going from here · 3 tokens");
+    const shot = renderToStaticMarkup(createElement(MomentTools, { mediaId: "v1", now: () => 0, keepGoing: { reelId: "r1", price: "1 token", onReel: () => {} } }));
+    expect(shot).toContain("▶▶ Keep going from here · 1 token");
+    // A subscriber's included clip (#1005): the price in words, as Reels.tsx useClipPrice gives it.
+    const included = renderToStaticMarkup(createElement(MomentTools, { mediaId: "v1", now: () => 0, keepGoing: { reelId: "r1", price: "included (2 of 3 clips left this month)", onReel: () => {} } }));
+    expect(included).toContain("▶▶ Keep going from here · included (2 of 3 clips left this month)");
     expect(shot).toContain('aria-pressed="true"');
     expect(shot).toMatch(/Seamless[\s\S]*Fresh faces/);
   });

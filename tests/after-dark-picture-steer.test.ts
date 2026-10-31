@@ -189,7 +189,8 @@ describe("Redraw", () => {
     expect((await post({ a: RAFE, b: JUNIPER, redraw: { picture_id: first } }, other.cookie)).status).toBe(404);
   });
 
-  it("costs a subscriber a token, given back when the picture doesn't come", async () => {
+  // #1005 (David, 2026-10-30): a Redraw is a menu picture's price, included with a subscription (the month's pictures cap it).
+  it("is included for a subscriber: no token taken, even with none bought, whether the picture comes or not", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id, KISSING);
     fakeMedia();
@@ -197,7 +198,6 @@ describe("Redraw", () => {
     // The picture moves to a subscriber's own scene of the pair, so it's theirs to redraw.
     const sub = userIdOf(newUserCookie());
     await t.db.query(`insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())`, [sub]);
-    await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 1, 'test')`, [crypto.randomUUID(), sub]);
     await t.db.query(`update adult_settings set cap_pictures = 30, cap_writes = 300`);
     const subScene = await ready(signedIn(sub), sub, KISSING);
     await t.db.query(`update adult_images set owner_id = $1 where id = $2`, [sub, first]);
@@ -205,8 +205,9 @@ describe("Redraw", () => {
     fakeMedia(true);
     const r = await post({ a: RAFE, b: JUNIPER, redraw: { picture_id: first } }, signedIn(sub));
     expect(r.status).toBe(200);
-    expect((await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [sub])).rows[0].used).toBe(1);
+    const used = async () => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [sub])).rows[0]?.used ?? 0;
+    expect(await used()).toBe(0);
     await beatPicturesSettled();
-    expect((await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [sub])).rows[0].used).toBe(0);
+    expect(await used()).toBe(0);
   });
 });

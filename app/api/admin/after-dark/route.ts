@@ -27,6 +27,7 @@ import {
 import { ROLEPLAY_IDS } from "@/lib/adult/roleplays";
 import { USER_ROLEPLAY } from "@/lib/studio/library";
 import { isAdmin } from "@/lib/admins";
+import { includedPrice } from "@/lib/adult/pricing";
 import { getAdultSettings } from "@/lib/adult/settings";
 import type { Db } from "@/lib/db";
 import { refundBoughtTokens, SET_SCENE_TOKEN_COST, spendBoughtTokens } from "@/lib/allowance";
@@ -129,11 +130,12 @@ const surface = (b: Record<string, unknown>): CrisisSurface => (b.whisper ? "aft
 /**
  * A chapter's price (lib/adult/settings.ts chapter_tokens, David 2026-10-25: "each chapter cost 1 token"), taken when a
  * step starts one: the night's first lines, or the first after a chapter closes (`always`: a scenario, which starts a
- * night). Admins don't pay. The tokens taken, or the refusal; the caller gives them back if no lines come.
+ * night). Admins don't pay, and a subscriber's chapters are included (#1005; David, 2026-10-30; lib/adult/pricing.ts),
+ * bounded by the month's scene steps. The tokens taken, or the refusal; the caller gives them back if no lines come.
  */
 async function payChapter(db: Db, viewer: string, a: string, b: string, opts: { always?: boolean } = {}): Promise<{ paid: number } | Response> {
-  const price = (await getAdultSettings(db)).chapter_tokens;
-  if (price <= 0 || (await isAdmin(db, viewer))) return { paid: 0 };
+  const price = (await includedPrice(db, viewer, (await getAdultSettings(db)).chapter_tokens)).tokens;
+  if (price <= 0) return { paid: 0 };
   if (!opts.always) {
     const scene = await openScene(db, viewer, a, b);
     if (!scene || scene.lines.length) return { paid: 0 };
@@ -222,8 +224,9 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
   if (input.redraw) {
     const scene = await openScene(db, admin, input.a, input.b);
     if (!scene) return hidden();
-    // Free for an admin; anyone else pays what a picture from the shot menu costs, given back if it doesn't come.
-    const price = (await isAdmin(db, admin)) ? 0 : (await getAdultSettings(db)).menu_picture_tokens;
+    // What a picture from the shot menu costs, given back if it doesn't come: free for an admin, included with a
+    // subscription (#1005, David 2026-10-30), bounded by the month's pictures.
+    const price = (await includedPrice(db, admin, (await getAdultSettings(db)).menu_picture_tokens)).tokens;
     if (price > 0 && !(await spendBoughtTokens(db, admin, price))) {
       return json({ error: "needs_tokens", message: `Redrawing a picture costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.` }, 402);
     }

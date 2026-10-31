@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { POST } from "@/app/api/admin/after-dark/route";
 import { claimChapterPicture, releaseChapterPicture } from "@/lib/adult/chapter-pictures";
 import { setAdultModelForTests } from "@/lib/adult/mode";
+import { includedPrice } from "@/lib/adult/pricing";
 import { DEFAULT_CHAPTER_TOKENS, DEFAULT_PICTURES_PER_CHAPTER, getAdultSettings, saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -75,25 +76,28 @@ describe("a chapter's price", () => {
     expect(await getAdultSettings(t.db)).toMatchObject({ chapter_tokens: 1, pictures_per_chapter: 3 });
   });
 
-  it("is taken when a step starts a chapter, and only then", async () => {
+  // #1005 (David, 2026-10-30: "a subscription that includes an allowance, tokens for extras ... just break even"): a
+  // subscriber's chapters are included, bounded by the month's steps; chapter_tokens is left for a viewer with none.
+  it("is included for a subscriber: no token taken at a chapter's start or after it, even with none bought", async () => {
     const sub = await subscriber(2);
     writes();
     expect((await post({}, sub.cookie)).status).toBe(200);
-    expect(await used(sub.id)).toBe(1);
     expect((await post({}, sub.cookie)).status).toBe(200);
-    expect(await used(sub.id)).toBe(1);
+    expect(await used(sub.id)).toBe(0);
+    const broke = await subscriber(0);
+    expect((await post({}, broke.cookie)).status).toBe(200);
+    expect(await used(broke.id)).toBe(0);
   });
 
-  it("is refused without a token, and given back when no lines come", async () => {
-    const broke = await subscriber(0);
+  it("can't be reached by a signed-in viewer with no subscription, who would otherwise pay chapter_tokens", async () => {
+    const id = userIdOf(newUserCookie());
+    await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 3, 'test')`, [crypto.randomUUID(), id]);
     writes();
-    const res = await post({}, broke.cookie);
-    expect(res.status).toBe(402);
-    expect((await res.json()).message).toMatch(/Each chapter costs 1 token/);
-    const sub = await subscriber(1);
-    writes(true);
-    expect((await post({}, sub.cookie)).status).not.toBe(200);
-    expect(await used(sub.id)).toBe(0);
+    expect((await post({}, signedIn(id))).status).not.toBe(200);
+    expect(await used(id)).toBe(0);
+    expect(await includedPrice(t.db, id, 1)).toEqual({ tokens: 1, included: false });
+    const sub = await subscriber(0);
+    expect(await includedPrice(t.db, sub.id, 1)).toEqual({ tokens: 0, included: true });
   });
 
   it("isn't taken from an admin, or at 0", async () => {
@@ -102,6 +106,7 @@ describe("a chapter's price", () => {
     writes();
     expect((await post({}, signedIn(id))).status).toBe(200);
     expect(await used(id)).toBe(0);
+    expect(await includedPrice(t.db, id, 1)).toEqual({ tokens: 0, included: false });
     await saveAdultSettings(t.db, { chapter_tokens: 0 });
     const sub = await subscriber(0);
     expect((await post({}, sub.cookie)).status).toBe(200);

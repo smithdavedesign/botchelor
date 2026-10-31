@@ -11,6 +11,7 @@ import { listReels } from "@/lib/adult/reels";
 import { hiveNotice } from "@/lib/adult/hive-limit";
 import { listNights, openScene } from "@/lib/adult/scenes";
 import { pairReadiness } from "@/lib/adult/readiness";
+import { includedPrice } from "@/lib/adult/pricing";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { mineScenes, sceneCatalog } from "@/lib/adult/scene-catalog";
 import { asRoleplay, getLibrary } from "@/lib/studio/library";
@@ -95,7 +96,9 @@ export default async function AfterDarkScenePage({ params }: Props) {
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}
         reelTokens={(await getAdultSettings(db)).reel_tokens}
         readiness={textOnlyHere ? [] : await pairReadiness(db, admin, scene.a.id, scene.b.id)}
-        chapterTokens={(await isAdmin(db, admin)) ? 0 : (await getAdultSettings(db)).chapter_tokens}
+        // A chapter's price for this viewer: free for an admin, included with a subscription (#1005, lib/adult/pricing.ts).
+        chapterTokens={(await includedPrice(db, admin, (await getAdultSettings(db)).chapter_tokens)).tokens}
+        chapterIncluded={(await includedPrice(db, admin, (await getAdultSettings(db)).chapter_tokens)).included}
         hive={await hiveNotice(db)}
         faces={await facesFor(db, admin, [scene.a.id, scene.b.id])}
         steer={await steerSummary(db, admin, [scene.a.id, scene.b.id])}

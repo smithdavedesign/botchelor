@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import WaitlistForm from "@/app/WaitlistForm";
 import { configuredProcessors, priceLabel, PROCESSOR_INFO, subscriptionPrice } from "@/lib/adult/billing";
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { tokensWord } from "@/lib/adult/price-words";
+import { includedPlan } from "@/lib/adult/pricing";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
@@ -53,8 +55,11 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
   const price = priceLabel(subscriptionPrice());
   const here = await currentHere();
   const textOnly = here.mode === "text_only";
+  const settings = await getAdultSettings(db).catch(() => null);
   // The Studio (lib/adult/studio.ts) is in the subscription once it's opened past admins (its open_to setting).
-  const studioOpen = (await getAdultSettings(db).catch(() => null))?.studio.open_to === "entitled";
+  const studioOpen = settings?.studio.open_to === "entitled";
+  // What the subscription includes, from the settings (#1005; David, 2026-10-30: an allowance, tokens for extras).
+  const plan = includedPlan(settings);
   return (
     <div className="after-dark-mode">
       <article className="after-dark" data-subscribe>
@@ -77,13 +82,22 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
           </h2>
           <ul>
             <li>Private scenes with this season&apos;s cast and your own characters, picked up where you left off.</li>
+            <li data-included-chapters>
+              Unlimited chapters, no tokens (fair use: {plan.steps} scene steps a month).
+            </li>
             {textOnly ? (
               <li data-text-only>
                 Here After Dark is the scenes only: pictures, video and voice aren&apos;t available where you&apos;re connecting from.
               </li>
             ) : (
               <>
-                <li>Pictures, short videos and voiced lines of your scenes.</li>
+                <li data-included-media>
+                  {plan.pictures} pictures a month and {plan.clips} short clip{plan.clips === 1 ? "" : "s"} a month, included, with voiced lines.
+                </li>
+                <li data-extras>
+                  Extras: each clip past those {tokensWord(plan.clipTokens)}, the video of the night {tokensWord(plan.reelTokens)}. Tokens come in
+                  packs from the <Link href="/shop">shop</Link>.
+                </li>
                 {studioOpen && <li data-studio>The Studio: private photo shoots of your own characters (each shoot uses tokens).</li>}
               </>
             )}

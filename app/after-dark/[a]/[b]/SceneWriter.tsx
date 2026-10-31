@@ -70,8 +70,9 @@ export default function SceneWriter({
   characters,
   nights = [],
   reels = [],
-  reelTokens = 15,
+  reelTokens = 7,
   chapterTokens = 0,
+  chapterIncluded = false,
   readiness = [],
   hive = null,
   faces: firstFaces = {},
@@ -94,6 +95,8 @@ export default function SceneWriter({
   reelTokens?: number;
   /** A chapter's price for this viewer (0 for an admin): shown on Start and on the Next that starts a chapter. */
   chapterTokens?: number;
+  /** A chapter is included with the viewer's subscription (#1005): Start and Next say "included". */
+  chapterIncluded?: boolean;
   /** Whether each of them is set up for pictures (lib/adult/readiness.ts): the start card says what's missing. */
   readiness?: readonly Readiness[];
   /** Hive's breaker, while it's paused (lib/adult/hive-limit.ts): pictures and videos can't be made until it's over. */
@@ -504,6 +507,7 @@ export default function SceneWriter({
             )}
             videoTokens={reelTokens}
             chapterTokens={chapterTokens}
+            chapterIncluded={chapterIncluded}
             readiness={readiness}
             videoNote={reelNote?.text ?? null}
             mediaPaused={mediaPaused}

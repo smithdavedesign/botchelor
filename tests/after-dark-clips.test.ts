@@ -11,6 +11,7 @@ import { setAdultModelForTests } from "@/lib/adult/mode";
 import { continuePrompt, listReels, reelCast, setReelFetchForTests, setReelPausesForTests, shotPrompt, type Reel } from "@/lib/adult/reels";
 import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { getAdultSettings } from "@/lib/adult/settings";
+import { giveBackIncludedClip, includedClipsUsed, takeIncludedClip } from "@/lib/adult/usage";
 import { claimAdmin } from "@/lib/admins";
 import { loadCharacter } from "@/lib/character";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -116,6 +117,9 @@ async function ready(cookie: string, ownerId: string, opts: { lines?: unknown[];
 const clip = (cookie: string, body: Record<string, unknown>) => call(clipsPost, "/api/admin/after-dark/clips", body, cookie);
 const menu = async (cookie: string) => (await (await clipsGet(new Request(`${BASE_URL}/api/admin/after-dark/clips?a=${RAFE}&b=${JUNIPER}`, { headers: { cookie } }))).json()) as {
   price: number;
+  included: boolean;
+  included_left: number | null;
+  included_of: number;
   here: { available: boolean; why: string | null };
   acts: { id: string; available: boolean; why: string | null; says: string }[];
 };
@@ -252,55 +256,93 @@ describe("a clip from the menu", () => {
     expect((await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).status).toBe(200);
   });
 
-  it("costs a subscriber clip_tokens (3 by default), and gives them back when the check discards it or a provider fails", async () => {
+  // #1005 (David, 2026-10-30: "a subscription that includes an allowance, tokens for extras ... just break even"): a
+  // subscriber's first included_clips (3) a month are included; each after that costs clip_tokens (1).
+  it("includes a subscriber's first 3 clips a month, then costs clip_tokens (1), and gives back either when it doesn't come through", async () => {
     const { id: adminId, cookie: adminCookie } = await admin();
     await ready(adminCookie, adminId, { stage: 2 });
-    expect((await getAdultSettings(t.db)).clip_tokens).toBe(3);
+    expect(await getAdultSettings(t.db)).toMatchObject({ clip_tokens: 1, included_clips: 3 });
     const sub = userIdOf(newUserCookie());
     await t.db.query(`insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())`, [sub]);
     const cookie = signedIn(sub);
     const scene = (await (await GET(new Request(`${BASE_URL}/api/admin/after-dark?a=${RAFE}&b=${JUNIPER}`, { headers: { cookie } }))).json()).scene;
     await t.db.query(`update adult_scenes set lines = $2::jsonb, stage = 2 where id = $1`, [scene.id, JSON.stringify(night(8, 2))]);
     const used = async () => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [sub])).rows[0]?.used ?? 0;
-    expect((await menu(cookie)).price).toBe(3);
-    expect((await menu(adminCookie)).price).toBe(0);
+    const includedUsed = async () => (await t.db.query<{ n: number }>(`select included_clips as n from adult_usage where owner_id = $1`, [sub])).rows[0]?.n ?? 0;
+    expect(await menu(cookie)).toMatchObject({ price: 0, included: true, included_left: 3, included_of: 3 });
+    expect(await menu(adminCookie)).toMatchObject({ price: 0, included: false, included_left: null });
     fakeVenice();
-    fakeHive();
-    expect((await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).status).toBe(402);
-    await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 20, 'test')`, [crypto.randomUUID(), sub]);
 
-    // The keyframe's age question doesn't say ADULTS: discarded, never stored, logged, and the tokens back.
+    // The keyframe's age question doesn't say ADULTS: discarded, never stored, logged, and the included clip back.
     fakeHive((n, vlm) => (vlm ? { choices: [{ message: { role: "assistant", content: '{"answer": "MINOR"}' } }] } : null));
     const refused = (await (await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).json()).reel as Reel;
-    expect(refused).toMatchObject({ status: "failed", tokens: 3 });
+    expect(refused).toMatchObject({ status: "failed", tokens: 0 });
     expect(refused.shots[0]).toMatchObject({ status: "discarded" });
-    expect(await used()).toBe(0);
+    expect(await includedUsed()).toBe(0);
     expect((await t.db.query(`select 1 from adult_images where kind = 'frame'`)).rows).toHaveLength(0);
     expect((await t.db.query<{ reason: string }>(`select reason from adult_rejections`)).rows[0].reason).toMatch(/^keyframe: age check: MINOR/);
 
-    // Venice out of credit: nothing made, the tokens back.
+    // Venice out of credit: nothing made, the included clip back.
     fakeHive();
     fakeVenice({ keyframe: () => new Response(JSON.stringify({ error: "Insufficient USD or Diem balance" }), { status: 402 }) });
     const broke = (await (await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).json()).reel as Reel;
     expect(broke.status).toBe("failed");
     expect(broke.shots[0].reason).toMatch(/^Venice 402/);
-    expect(await used()).toBe(0);
+    expect(await includedUsed()).toBe(0);
 
-    // A video the check discards when it's collected: the tokens back then.
+    // A video the check discards when it's collected: the included clip back then.
     fakeVenice();
     const made = (await (await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).json()).reel as Reel;
-    expect(made.status).toBe("making");
-    expect(await used()).toBe(3);
+    expect(made).toMatchObject({ status: "making", tokens: 0 });
+    expect(made.clip?.included).toMatch(/^\d{4}-\d{2}$/);
+    expect(await includedUsed()).toBe(1);
     fakeHive(() => CHILD_MOD);
     const settled = await advance(made.id, cookie);
     expect(settled).toMatchObject({ status: "failed" });
     expect(settled.shots[0].status).toBe("discarded");
-    expect(await used()).toBe(0);
-    // One that comes through is paid for.
+    expect(await includedUsed()).toBe(0);
+
+    // Three that come through use up the month's included clips, and no tokens.
     fakeHive();
-    const kept = (await (await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).json()).reel as Reel;
-    expect((await advance(kept.id, cookie)).status).toBe("ready");
-    expect(await used()).toBe(3);
+    for (const left of [2, 1, 0]) {
+      const kept = (await (await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).json()).reel as Reel;
+      expect((await advance(kept.id, cookie)).status).toBe("ready");
+      expect((await menu(cookie)).included_left).toBe(left);
+    }
+    expect(await used()).toBe(0);
+    expect(await menu(cookie)).toMatchObject({ price: 1, included: false, included_left: 0 });
+
+    // The fourth costs clip_tokens: refused without one, then paid, and given back when it fails.
+    const none = await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" });
+    expect(none.status).toBe(402);
+    expect((await none.json()).message).toMatch(/A clip costs 1 token\./);
+    await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 20, 'test')`, [crypto.randomUUID(), sub]);
+    const paid = (await (await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).json()).reel as Reel;
+    expect(paid).toMatchObject({ status: "making", tokens: 1 });
+    expect(paid.clip?.included).toBeUndefined();
+    expect(await used()).toBe(1);
+    fakeHive(() => CHILD_MOD);
+    expect((await advance(paid.id, cookie)).status).toBe("failed");
+    expect(await used()).toBe(0);
+    expect(await includedUsed()).toBe(3);
+    fakeHive();
+    const extra = (await (await clip(cookie, { a: RAFE, b: JUNIPER, act: "kiss" })).json()).reel as Reel;
+    expect((await advance(extra.id, cookie)).status).toBe("ready");
+    expect(await used()).toBe(1);
+  });
+
+  it("starts each calendar month's included clips afresh, and two at once can't both take the last one", async () => {
+    const id = "allowance-owner";
+    const oct = new Date("2026-10-30T12:00:00Z");
+    expect(await takeIncludedClip(t.db, id, 2, oct)).toBe("2026-10");
+    const [x, y] = await Promise.all([takeIncludedClip(t.db, id, 2, oct), takeIncludedClip(t.db, id, 2, oct)]);
+    expect([x, y].filter(Boolean)).toHaveLength(1);
+    expect(await takeIncludedClip(t.db, id, 2, oct)).toBeNull();
+    expect(await includedClipsUsed(t.db, id, oct)).toBe(2);
+    expect(await takeIncludedClip(t.db, id, 2, new Date("2026-11-01T00:00:00Z"))).toBe("2026-11");
+    await giveBackIncludedClip(t.db, id, "2026-10");
+    expect(await includedClipsUsed(t.db, id, oct)).toBe(1);
+    expect(await takeIncludedClip(t.db, id, 0, oct)).toBeNull();
   });
 
   it("holds to the limits the viewer set for the pair (lib/adult/limits.ts): the intensity's ceiling, a hard no, and their own", async () => {

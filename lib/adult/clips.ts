@@ -15,9 +15,11 @@
  *
  * Each is a reel of one shot (lib/adult/reels.ts, kind 'clip'): the same keyframe, the same Hive check before anything is
  * kept, the same video models, the same poll that collects it, one video at a time, and a shot that doesn't come through
- * gives its tokens back. What a clip may show: no further than the night has gone (its stage), nothing past kissing
- * somewhere public, and nothing the pair's limits rule out (mediaLimits). Price: clip_tokens bought tokens (3 by
- * default), admins free. While Hive is over its daily limit (lib/adult/hive-limit.ts) none starts, and nothing is spent.
+ * gives its tokens back (an included clip, its place in the month's allowance). What a clip may show: no further than
+ * the night has gone (its stage), nothing past kissing somewhere public, and nothing the pair's limits rule out
+ * (mediaLimits). Price (#1005; David, 2026-10-30): a subscriber's first included_clips each month (3 by default) are
+ * included, each after that clip_tokens bought tokens (1 by default); admins free (lib/adult/pricing.ts). While Hive is
+ * over its daily limit (lib/adult/hive-limit.ts) none starts, and nothing is spent.
  */
 import type { CameraMoveId } from "./camera-moves";
 import { isAdmin } from "../admins";
@@ -61,10 +63,12 @@ import {
   type ReelShot,
   type ReelWhere,
 } from "./reels";
+import { clipPrice, hasSubscription } from "./pricing";
 import { eligiblePair, type SceneLine } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
 import { stageShown } from "./stage-floor";
 import { STAGES } from "./stages";
+import { giveBackIncludedClip, takeIncludedClip } from "./usage";
 
 const KISSING = STAGES.indexOf("kissing");
 const LAST = STAGES.length - 1;
@@ -241,8 +245,18 @@ export async function directNext(db: Db, cast: [ReelPerson, ReelPerson], before:
   }
 }
 
-/** The menu for a pair's night (the API's GET): the price, whether "Clip from here" can run, and the acts. */
-export type ClipOffer = { price: number; here: { available: boolean; why: string | null }; acts: MenuAct[] };
+/**
+ * The menu for a pair's night (the API's GET): the price (in tokens; `included` when it's one of the subscriber's clips
+ * this month, with how many of them are left), whether "Clip from here" can run, and the acts.
+ */
+export type ClipOffer = {
+  price: number;
+  included: boolean;
+  included_left: number | null;
+  included_of: number;
+  here: { available: boolean; why: string | null };
+  acts: MenuAct[];
+};
 
 export async function clipOffer(db: Db, ownerId: string, x: string, y: string): Promise<ClipOffer | null> {
   const night = await reelNight(db, ownerId, x, y);
@@ -252,10 +266,10 @@ export async function clipOffer(db: Db, ownerId: string, x: string, y: string): 
   if (!ca || !cb) return null;
   const cast = reelCast(ca, cb, ownerId);
   const limits = await mediaLimits(db, ownerId, ...pair);
-  const price = (await isAdmin(db, ownerId)) ? 0 : (await getAdultSettings(db)).clip_tokens;
+  const p = await clipPrice(db, ownerId);
   const here = night.lines.length >= 2 ? { available: true, why: null } : { available: false, why: "Write a few lines first" };
   // With how well each framing does for them (lib/adult/framing.ts): badges, first-person views, what works first.
-  return { price, here, acts: actMenu(nightStands(night.where), cast, [ca.name, cb.name], limits, await framingScores(db, ownerId)) };
+  return { price: p.tokens, included: p.included, included_left: p.included_left, included_of: p.included_of, here, acts: actMenu(nightStands(night.where), cast, [ca.name, cb.name], limits, await framingScores(db, ownerId)) };
 }
 
 /**
@@ -382,7 +396,8 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     // From a moment: seamless unless asked for fresh faces, or the chain has run seamless SEAMLESS_RUN_MAX links already.
     const run = cont.frame_id && isClip ? await seamlessRun(db, ownerId, parent.clip) : 0;
     const seamless = Boolean(cont.frame_id) && cont.mode !== "fresh" && run < SEAMLESS_RUN_MAX;
-    const { cut: _old, ...kept } = meta;
+    // The clip before's cut, and whether it was an included one (this one's own is decided when it's paid for), left behind.
+    const { cut: _old, included: _wasIncluded, ...kept } = meta;
     // Seen through one of their eyes, it carries on that way (the shot's own, or the clip's).
     const eyes = before.eyes ?? meta.eyes ?? undefined;
     plan = {
@@ -478,8 +493,12 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   }
   const seamless = Boolean(cutFrame && plan.cut?.seamless);
   const pays = !(await isAdmin(db, ownerId));
-  const price = settings.clip_tokens;
-  if (pays && price > 0 && !(await spendBoughtTokens(db, ownerId, price))) {
+  // One of a subscriber's included clips this month first (#1005; David, 2026-10-30), then clip_tokens. Nothing included
+  // is ever charged; it's given back to the month if the clip doesn't come through.
+  const included = pays && (await hasSubscription(db, ownerId)) ? await takeIncludedClip(db, ownerId, settings.included_clips) : null;
+  if (included) plan.meta = { ...plan.meta, included };
+  const price = pays && !included ? settings.clip_tokens : 0;
+  if (price > 0 && !(await spendBoughtTokens(db, ownerId, price))) {
     return refuse(402, "needs_tokens", `A clip costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.`);
   }
   const id = crypto.randomUUID();
@@ -501,7 +520,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
       ownerId,
       a,
       b,
-      pays ? price : 0,
+      price,
       JSON.stringify(shots),
       JSON.stringify(plan.meta),
     ]);
@@ -534,11 +553,12 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     const note = plan.cut?.forcedFresh ? `This one starts from a fresh picture of their faces (every third link does, so they keep looking like themselves).` : undefined;
     return { ok: true, reel: await settleIfDone(db, id), ...(note ? { note } : {}) };
   } catch (err) {
-    if (pays && price > 0) await refundBoughtTokens(db, ownerId, price);
+    if (price > 0) await refundBoughtTokens(db, ownerId, price);
+    if (included) await giveBackIncludedClip(db, ownerId, included);
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
 
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
-    if (err instanceof HivePausedError) return refuse(503, "hive_paused", hivePausedErrorMessage(err, pays && price > 0));
+    if (err instanceof HivePausedError) return refuse(503, "hive_paused", hivePausedErrorMessage(err, price > 0));
     return refuse(502, "not_started", `The clip couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.`);
   }
 }

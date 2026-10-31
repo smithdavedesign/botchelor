@@ -4,19 +4,24 @@
  * theater's ⋯ menu: each moment worth a picture (lib/adult/beats.ts) starts drawing as soon as its step is written, so
  * it's on the stage when its line plays, without "Picture this?" first (Redraw stays).
  *
- * Paid by the chapter: `draw_ahead_tokens` are taken before a chapter's first moment is drawn ahead (admins don't pay),
+ * Paid by the chapter: `draw_ahead_tokens` are taken before a chapter's first moment is drawn ahead (admins don't pay,
+ * and it's included with a subscription: #1005, David 2026-10-30, lib/adult/pricing.ts),
  * and the chapter may then draw its own pictures (`pictures_per_chapter`) and up to `draw_ahead_pictures` more. A chapter
  * that drew nothing ahead (no moment came, or each one drawn ahead failed) gives its tokens back when it closes, starts
  * over, or it's turned off. A viewer who can't pay for the next chapter has it turned off, and the theater says why
  * (picture_note). Offered while the settings' `draw_ahead` is on.
  */
-import { isAdmin } from "../admins";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import type { Db } from "../db";
+import { tokensWord } from "./price-words";
+import { includedPrice } from "./pricing";
 import { getAdultSettings } from "./settings";
 
-/** What the theater shows: offered at all, on for this pair, its price a chapter for this viewer, how many more pictures. */
-export type DrawAhead = { offered: boolean; on: boolean; price: number; pictures: number; paid: boolean };
+/**
+ * What the theater shows: offered at all, on for this pair, its price a chapter for this viewer (`included` with their
+ * subscription), how many more pictures.
+ */
+export type DrawAhead = { offered: boolean; on: boolean; price: number; included: boolean; pictures: number; paid: boolean };
 
 type Row = { id: string; owner_id: string; chapter: number; draw_ahead: boolean; draw_ahead_chapter: number | null; draw_ahead_paid: number; draw_ahead_used: number };
 
@@ -24,16 +29,17 @@ async function rowOf(db: Db, sceneId: string): Promise<Row | null> {
   return (await db.query<Row>(`select id, owner_id, chapter, draw_ahead, draw_ahead_chapter, draw_ahead_paid, draw_ahead_used from adult_scenes where id = $1`, [sceneId])).rows[0] ?? null;
 }
 
-const priceFor = async (db: Db, viewer: string, tokens: number) => ((await isAdmin(db, viewer)) ? 0 : tokens);
-const tokensWord = (n: number) => `${n} token${n === 1 ? "" : "s"}`;
+const priceFor = async (db: Db, viewer: string, tokens: number) => (await includedPrice(db, viewer, tokens)).tokens;
 
 export async function drawAheadView(db: Db, viewer: string, sceneId: string): Promise<DrawAhead> {
   const s = await getAdultSettings(db);
   const r = await rowOf(db, sceneId);
+  const price = await includedPrice(db, viewer, s.draw_ahead_tokens);
   return {
     offered: s.draw_ahead,
     on: Boolean(s.draw_ahead && r?.draw_ahead),
-    price: await priceFor(db, viewer, s.draw_ahead_tokens),
+    price: price.tokens,
+    included: price.included,
     pictures: s.draw_ahead_pictures,
     paid: Boolean(r && r.draw_ahead_chapter === r.chapter),
   };
@@ -106,5 +112,5 @@ export async function settleDrawAhead(db: Db, sceneId: string, chapter: number, 
 }
 
 /** What the theater says when it's turned on. */
-export const drawAheadNote = (v: Pick<DrawAhead, "price" | "pictures">): string =>
-  `⚡ Drawing ahead: each moment is drawn as soon as it's written, so it's on the stage when its line plays (up to ${v.pictures} more pictures a chapter${v.price > 0 ? `, ${tokensWord(v.price)} a chapter, taken before its first one and given back if none is drawn` : ""}).`;
+export const drawAheadNote = (v: Pick<DrawAhead, "price" | "pictures"> & { included?: boolean }): string =>
+  `⚡ Drawing ahead: each moment is drawn as soon as it's written, so it's on the stage when its line plays (up to ${v.pictures} more pictures a chapter${v.price > 0 ? `, ${tokensWord(v.price)} a chapter, taken before its first one and given back if none is drawn` : v.included ? ", included with your subscription" : ""}).`;

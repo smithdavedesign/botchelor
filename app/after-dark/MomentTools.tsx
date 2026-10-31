@@ -39,7 +39,8 @@ export default function MomentTools({
   now: () => number;
   pause?: () => void;
   onMedia?: (m: Media) => void;
-  keepGoing?: { reelId: string; price: number | null; onReel: (r: Reel) => void };
+  /** `price`: the clip's price in words (Reels.tsx useClipPrice: "included", "free" or the tokens). */
+  keepGoing?: { reelId: string; price: string | null; onReel: (r: Reel) => void };
 }) {
   const [busy, setBusy] = useState<"save" | "boomerang" | "loop" | "keep" | null>(null);
   const [done, setDone] = useState<Done | null>(null);
@@ -74,7 +75,7 @@ export default function MomentTools({
   }
 
   const price = keepGoing?.price;
-  const cost = price === null || price === undefined ? "" : price === 0 ? " · free" : ` · ${price} token${price === 1 ? "" : "s"}`;
+  const cost = price === null || price === undefined ? "" : ` · ${price}`;
   return (
     <div className="ad-moments" role="group" aria-label="This moment">
       <button type="button" className="button-ghost small" disabled={busy !== null} onClick={() => void moment("save")} title="Keep the frame on screen as a picture in the gallery. Free.">

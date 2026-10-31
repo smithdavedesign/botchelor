@@ -35,6 +35,7 @@ export const AdultSettingsInput = z.object({
   reel_shots: z.number().int().min(2).max(12).optional(),
   reel_tokens: z.number().int().min(0).max(500).optional(),
   clip_tokens: z.number().int().min(0).max(100).optional(),
+  included_clips: z.number().int().min(0).max(50).optional(),
   menu_picture_tokens: z.number().int().min(0).max(100).optional(),
   chapter_tokens: z.number().int().min(0).max(100).optional(),
   pictures_per_chapter: z.number().int().min(0).max(10).optional(),
