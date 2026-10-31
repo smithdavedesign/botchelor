@@ -2901,6 +2901,11 @@ alter table adult_settings add column if not exists included_clips integer;
 alter table adult_usage add column if not exists included_clips integer not null default 0;
 alter table adult_settings alter column cap_pictures set default 60;
 
+-- #1122 (the 2026-10-31-1549 visitor reloaded mid-write and saw no lines and no Start): when the scene's next lines started
+-- being written (lib/adult/scenes.ts continueScene), cleared when that ends either way. Older than WRITING_STALE_MS reads
+-- as not writing (a crashed request).
+alter table adult_scenes add column if not exists writing_since timestamptz;
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

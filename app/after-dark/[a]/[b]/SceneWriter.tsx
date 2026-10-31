@@ -222,18 +222,44 @@ export default function SceneWriter({
     if (now) setFaces((f) => ({ ...f, [characterId]: now }));
     return null;
   }
-  const [busy, setBusy] = useState(false);
+  // #1122: a page opened while its lines are still being written (a reload mid-write) is busy until they land.
+  const [busy, setBusy] = useState(initial.writing_for != null);
+  const resumed = useRef(initial.writing_for ?? 0);
+  const [midWrite, setMidWrite] = useState(initial.writing_for != null);
   // #1122 (the 2026-10-31-1549 visitor: "a minute with no progress"): seconds since the lines were asked for, while writing.
   const [waited, setWaited] = useState(0);
   useEffect(() => {
     if (!busy) return setWaited(0);
-    const since = Date.now();
+    const since = Date.now() - resumed.current * 1000;
+    resumed.current = 0;
     const tick = setInterval(() => setWaited(Math.floor((Date.now() - since) / 1000)), 1000);
     return () => clearInterval(tick);
   }, [busy]);
+  // That page asks again every few seconds and shows the lines once the write is done.
+  useEffect(() => {
+    if (initial.writing_for == null) return;
+    let stop = false;
+    const look = async () => {
+      if (stop) return;
+      const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(initial.a.id)}&b=${encodeURIComponent(initial.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      const now = r?.scene as AdultScene | undefined;
+      if (now && now.writing_for == null) {
+        setScene(now);
+        setMidWrite(false);
+        if (!writing.current) setBusy(false);
+        return;
+      }
+      setTimeout(look, 5_000);
+    };
+    const first = setTimeout(look, 5_000);
+    return () => {
+      stop = true;
+      clearTimeout(first);
+    };
+  }, [initial]);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   // The steer's echo stays ahead of it (#1017).
-  const writingNote = busy && waited >= 10 ? `${note && !note.error ? `${note.text} ` : ""}Still writing, ${waited} s so far: the richer writer can take up to a minute.` : null;
+  const writingNote = busy && (waited >= 10 || midWrite) ? `${note && !note.error ? `${note.text} ` : ""}Still writing, ${waited} s so far: the richer writer can take up to a minute.` : null;
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const crisisNotice = crisis ? <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} /> : null;
   // Autoplay (lib/adult/autoplay.ts): the theater paces it by what's left to play.

@@ -112,3 +112,22 @@ describe("#1124: an empty filtered deck says why", () => {
     expect(r.note).toMatch(/house cast is always on/);
   });
 });
+
+describe("#1128: a rename is checked like a new name", () => {
+  it("update_character refuses a taken name (keep_name keeps it); check_originality checks the name sent with character_id", async () => {
+    const ctx = await connect();
+    await call("create_character", validCharacter({ name: "Hettie Brack", keep_name: true }), ctx);
+    const dewey = (await call("create_character", validCharacter({ name: "Dewey Lamarque", keep_name: true }), ctx)).structuredContent.character.id;
+    const checked = (await call("check_originality", { character_id: dewey, name: "Hettie Brack" }, ctx)).structuredContent;
+    expect(checked.checked_with).toEqual(["name"]);
+    expect(checked.name_taken).toMatchObject({ name: "Hettie Brack" });
+    expect(checked.name_taken.free_names.length).toBeGreaterThan(0);
+    const refused = await call("update_character", { character_id: dewey, name: "hettie brack" }, ctx);
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0].text).toMatch(/There's already a Hettie Brack on the show.*keep_name: true/);
+    expect((await t.db.query(`select name from characters where id = $1`, [dewey])).rows[0].name).toBe("Dewey Lamarque");
+    // Its own name again is no clash, and keep_name lets a taken one through.
+    expect((await call("update_character", { character_id: dewey, name: "Dewey Lamarque", bio: "Repairs harbour clocks for the council, badly." }, ctx)).isError).toBeFalsy();
+    expect((await call("update_character", { character_id: dewey, name: "Hettie Brack", keep_name: true }, ctx)).isError).toBeFalsy();
+  });
+});

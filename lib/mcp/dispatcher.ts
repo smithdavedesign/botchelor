@@ -5574,7 +5574,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "update_character": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
-      const body = pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience", "partner_style", "talk", "while_away"]);
+      const body = pick(args, [...SHEET_KEYS, "keep_name", "open_to_dates", "open_audience", "partner_style", "talk", "while_away"]);
       // #372: extras merge into what's saved (a key set to null removes it), so a partial update keeps the dating profile.
       if (body.extras && typeof body.extras === "object" && args.replace_extras !== true) {
         const had = (await db.query<{ extras: Record<string, unknown> | null }>(`select extras from characters where id = $1 and owner_id = $2`, [String(args.character_id ?? ""), who.id])).rows[0]?.extras ?? {};
@@ -7783,17 +7783,33 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const id = typeof args.character_id === "string" ? args.character_id : "";
       let report: Awaited<ReturnType<typeof originalityWithConcepts>> | Record<string, unknown> | null = null;
       let subject: { name: string; bio: string; traits: readonly string[]; want: string } | null = null;
+      let checkedWith: string[] | null = null;
+      let nameTaken: Record<string, unknown> | null = null;
       if (id) {
         if (!who || !(await ownsCharacter(db, id, who.id))) return { error: "That character isn't yours (or doesn't exist). my_status lists yours." };
         const c = await loadCharacter(db, id);
         if (!c) return { error: "No such character." };
+        // #1128: fields sent beside character_id are checked in place of the saved ones (an edit tried before saving it).
+        const saved = { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: c.extras };
+        const given = (["name", "bio", "traits", "want", "dealbreaker", "voice", "extras"] as const).filter((k) => args[k] !== undefined && args[k] !== null);
+        const sheet = {
+          ...saved,
+          ...Object.fromEntries(given.filter((k) => k !== "extras").map((k) => [k, args[k]])),
+          ...(given.includes("extras") && typeof args.extras === "object" ? { extras: { ...(saved.extras ?? {}), ...(args.extras as object) } } : {}),
+        } as typeof saved;
         // #1058: an unexpected error says nothing was saved and the call is safe to retry.
         try {
-          report = await originalityWithConcepts(db, { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: c.extras }, id, who.id);
+          report = await originalityWithConcepts(db, sheet, id, who.id);
         } catch (err) {
           return checkFailed("check_originality", err);
         }
-        subject = { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want };
+        if (given.length) checkedWith = [...given];
+        // A new name is checked as create checks one: taken by another character, it says so (and what's free).
+        if (given.includes("name") && typeof args.name === "string") {
+          const { twin, freeNames } = await nameCheck(db, args.name, id);
+          if (twin) nameTaken = { id: twin.id, name: twin.name, free_names: await freeNames(), note: "That name is taken: pick another (free_names are open), or rename with keep_name: true." };
+        }
+        subject = { name: sheet.name, bio: sheet.bio, traits: sheet.traits, want: sheet.want };
       } else {
         const r = await callRoute(postOriginality, { agentId: who?.id, body: pick(args, ["name", "bio", "traits", "want", "dealbreaker", "voice", "extras"]) });
         if (r.status >= 500) return checkFailed("check_originality");
@@ -7801,7 +7817,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         report = r.data as Record<string, unknown>;
         subject = { name: String(args.name ?? ""), bio: String(args.bio ?? ""), traits: Array.isArray(args.traits) ? (args.traits as string[]) : [], want: String(args.want ?? "") };
       }
-      const out: Record<string, unknown> = id ? { character_id: id, originality: report } : { originality: report };
+      const out: Record<string, unknown> = id
+        ? { character_id: id, ...(checkedWith ? { checked_with: checkedWith } : {}), ...(nameTaken ? { name_taken: nameTaken } : {}), originality: report }
+        : { originality: report };
       // Sampling (spec: sampling/createMessage): if the client offered the capability and the originality score
       // is low (plenty of stock phrases, or a close twin on the show), ask the client's LLM for a stronger
       // bio rewrite. Spec-compliant; the client decides whether to answer and which model to use.

@@ -38,20 +38,22 @@ export default function LivingFace({ face, expression, loop, name, size, fallbac
       }, FADE_S * 1000);
     }
   };
-  const shown = expression ?? face;
+  // #1130: a picture that won't load (a 404, an expired link) gives way to the next one, and at last to the Avatar.
+  const [broken, setBroken] = useState<ReadonlySet<string>>(new Set());
+  const shown = [expression, face].find((u): u is string => Boolean(u) && !broken.has(u!)) ?? null;
   if (!shown) return <>{fallback}</>;
   const playing = Boolean(loop && !expression && !still);
   return (
     // The Avatar's shape (app/Avatar.tsx), so a face coming to life doesn't change shape.
     <span className="ad-living-face" style={{ width: size, height: size, borderRadius: size * 0.28 }} aria-label={name} role="img">
       {/* eslint-disable-next-line @next/next/no-img-element -- private, presigned media */}
-      <img src={shown} alt="" className="ad-living-still" draggable={false} />
+      <img src={shown} alt="" className="ad-living-still" draggable={false} onError={() => setBroken((b) => new Set([...b, shown]))} />
       {playing && (
         <video
           ref={video}
           className={`ad-living-loop${fading ? " fading" : ""}`}
           src={loop!}
-          poster={face ?? undefined}
+          poster={face && !broken.has(face) ? face : undefined}
           muted
           playsInline
           autoPlay

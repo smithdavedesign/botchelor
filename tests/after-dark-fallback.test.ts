@@ -373,3 +373,26 @@ describe("videos when a provider is limited", () => {
     expect(await cooldowns()).toEqual([{ provider: "venice", ms: CREDIT_COOLDOWN_MS, status: 402 }]);
   });
 });
+
+describe("#1122: a write in flight is on the scene", () => {
+  it("the scene says how long its lines have been writing while they are, and not once they're in (or the mark is stale)", async () => {
+    const { id, cookie } = await admin();
+    await settings({ enabled: true, openrouter_key: "placeholder-text-ABCD" }, cookie);
+    const { openScene, WRITING_STALE_MS } = await import("@/lib/adult/scenes");
+    let during: number | undefined | null = null;
+    setAdultModelForTests({
+      complete: async () => {
+        during = (await openScene(t.db, id, RAFE, JUNIPER))?.writing_for;
+        return JSON.stringify({ lines: [{ who: "a", text: "Come here." }], explicit: false, picture: null });
+      },
+    });
+    // The very first Start: no scene row yet, and the mark still lands.
+    const r = await (await call(POST, "/api/admin/after-dark", { a: RAFE, b: JUNIPER }, cookie)).json();
+    expect(r.scene?.lines?.length ?? 0).toBeGreaterThan(0);
+    expect(typeof during).toBe("number");
+    expect((await openScene(t.db, id, RAFE, JUNIPER))?.writing_for).toBeUndefined();
+    // A mark left by a request that died long ago doesn't hold the page.
+    await t.db.query(`update adult_scenes set writing_since = now() - make_interval(secs => $1) where owner_id = $2`, [WRITING_STALE_MS / 1000 + 60, id]);
+    expect((await openScene(t.db, id, RAFE, JUNIPER))?.writing_for).toBeUndefined();
+  });
+});

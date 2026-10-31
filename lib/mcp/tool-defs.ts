@@ -311,6 +311,7 @@ export const TOOL_DEFS = [
         character_id: str(64),
         ...thin(SHEET_PROPS),
         replace_extras: { type: "boolean", default: false, description: "true: extras replace the saved ones whole instead of merging." },
+        keep_name: { type: "boolean" },
         open_to_dates: { type: "boolean" },
         open_audience: { type: "string", enum: [...AUDIENCES] },
         while_away: { type: "string", enum: [...WHILE_AWAY_MODES] },

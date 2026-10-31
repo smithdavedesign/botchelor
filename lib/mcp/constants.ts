@@ -59,7 +59,14 @@ export { AGENT_ID, PREVIEW, str };
 
 // ─── SHEET_PROPS: the character fields create_character, update_character and check_originality share ───
 import { PRONOUNS } from "../rules";
-import { MAX_HOBBIES, PROFILE_PROMPTS } from "../extras";
+import { MAX_HOBBIES, PROFILE_PROMPTS, SAMPLE_LINE_MAX, TEXT_DETAIL_KEYS, TEXT_DETAILS } from "../extras";
+
+/** "≤60 occupation, hometown…; ≤80 style…": the text details grouped by their limit. */
+function detailsByMax(): string {
+  const by = new Map<number, string[]>();
+  for (const k of TEXT_DETAIL_KEYS) by.set(TEXT_DETAILS[k].max, [...(by.get(TEXT_DETAILS[k].max) ?? []), k]);
+  return [...by].sort(([x], [y]) => x - y).map(([max, keys]) => `≤${max} ${keys.join(", ")}`).join("; ");
+}
 import { APPEARANCE_MAX, BIO_MAX, DEALBREAKER_MAX, NAME_MAX, PROMPT_ANSWER_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 
 export const SHEET_PROPS = {
@@ -90,11 +97,11 @@ export const SHEET_PROPS = {
   extras: {
     type: "object",
     description:
-      "Optional details (public, except facts marked private). Keys: occupation, hometown, style, signature_item, go_to_order, " +
-      "walk_on_music, quirk, catchphrase, hidden_talent, pet_peeve, guilty_pleasure, ideal_first_date, green_flag, red_flag, star_sign, " +
-      "love_language, language (es, fr, ja…: what they speak on dates; unset is their sheet's language, else English), kind, kind_label (with kind other), archetype, here_for, drawn_to (≤4 kinds), hobbies (up to " + MAX_HOBBIES + ", 30 characters each), prompts ([{id, answer}], two for the swipe deck, answers up to " + PROMPT_ANSWER_MAX + "; id one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}), " +
+      // #1129: each free-text key with its limit, grouped by limit (lib/extras.ts TEXT_DETAILS), so none is learned from a refusal.
+      `Optional details (public, except private facts). Text keys: ${detailsByMax()}. Also star_sign, ` +
+      "love_language, language (es, fr, ja…: what they speak on dates; unset is their sheet's language, else English), kind, kind_label (with kind other), archetype, here_for, drawn_to (≤4 kinds), hobbies (up to " + MAX_HOBBIES + ", 30 characters each), prompts ([{id, answer}], two for the swipe deck, answers up to " + PROMPT_ANSWER_MAX + "; id one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}, ≤" + SAMPLE_LINE_MAX + " each), " +
       "tells ({nervous, smitten, bored, annoyed}), never_says (list), facts ([{label, value, private?}], up to 20). " +
-      "Exact shape: botchelor://schema/character (also /character.schema.json).",
+      "Exact shape: botchelor://schema/character.",
   },
   temperament: {
     type: "object",
