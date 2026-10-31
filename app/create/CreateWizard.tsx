@@ -410,6 +410,8 @@ export default function CreateWizard({
   // A new character needs its dating profile to be created (the swipe deck shows it); an edit can save without one.
   const profileOk = edit ? true : profileComplete(normaliseExtras(extras));
   const canAdvance = step === S.identity ? identityOk : step === S.details ? profileOk : true;
+  // Why Create is greyed out (#1109: an unticked box near the bottom, and nothing pointed to it).
+  const createWhy = !identityOk ? "identity" : !profileOk ? "profile" : !attest ? "attest" : null;
 
   function next() {
     if (!canAdvance) return;
@@ -978,7 +980,7 @@ export default function CreateWizard({
             ) : (
               <>
                 <label className="check wizard-attest">
-                  <input type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
+                  <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
                   <span>
                     <span aria-hidden>✍️ </span>This is my own original character: a fictional adult, not a real person.
                   </span>
@@ -1036,6 +1038,27 @@ export default function CreateWizard({
               </button>
             )}
           </div>
+        )}
+        {!edit && step === last && busy === null && createWhy && (
+          <p className="muted small" role="status">
+            {createWhy === "attest" ? (
+              <>
+                To create them, tick{" "}
+                <button type="button" className="link-button" onClick={() => document.getElementById("wizard-attest")?.focus()}>
+                  &ldquo;This is my own original character&rdquo;
+                </button>{" "}
+                above.
+              </>
+            ) : (
+              <>
+                To create them, finish{" "}
+                <button type="button" className="link-button" onClick={() => jump(createWhy === "identity" ? S.identity : S.details)}>
+                  {createWhy === "identity" ? "the Identity step" : "the Dating profile"}
+                </button>
+                .
+              </>
+            )}
+          </p>
         )}
         {edit && !identityOk && <p className="error">Fill in the Identity step (a name nobody on the show has, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
         {error && <p className="error">{error}</p>}

@@ -4,7 +4,7 @@ import { fixedEngine } from "@/lib/engine";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import type { ChatMessage, Model } from "@/lib/model";
 import { dateShape, moveProblem, placesPhrase, settleLine, whereItHappened, type DateShape } from "@/lib/moves";
-import { movePlace } from "@/lib/places";
+import { movePlace, placeRefusedWhy } from "@/lib/places";
 import { actForTurn, MAX_MOVES } from "@/lib/rules";
 import { scenePlaces } from "@/lib/scenes";
 import { buildMessages } from "@/lib/showrunner";
@@ -184,6 +184,15 @@ describe("the reply fields", () => {
     expect(movePlace("the back seat", CHUD.self, CHUD.other)).toBeNull();
     expect(movePlace("my bedroom", CHUD.self, CHUD.other)).toBe("home@Chud's place");
     expect(movePlace("www.example.com", CHUD.self, CHUD.other)).toBeNull();
+  });
+
+  it("#1108: a refused place says why, and the 33-character window display is fine", () => {
+    expect(movePlace("A department-store window display", CHUD.self, CHUD.other)).toBe("elsewhere@A department-store window display");
+    // What the 2026-10-31-1427 visitor actually sent: 47 characters, over the 40-character label.
+    expect(movePlace("A department-store window display after closing", CHUD.self, CHUD.other)).toBeNull();
+    expect(placeRefusedWhy("A department-store window display after closing")).toMatch(/too long: 40 characters at most, and yours is 47/);
+    expect(placeRefusedWhy("www.example.com")).toMatch(/looks like a link/);
+    expect(placeRefusedWhy("the back seat")).toMatch(/bed, bathroom, hotel room or car/);
   });
 });
 
