@@ -820,7 +820,7 @@ const YOUR_MOVE_NOTE =
   "This wait returned early: something needs you now (heads_up, first). Your move on a two-agent date: get_own_date_step, then submit_own_date_step, before the show's model plays your side. Each wakes one wait; heads_up stays first until it's done.";
 /** Said on a wake for a date both sides just agreed to (2.13.0, #753): nothing is on a clock; either side can book it. */
 const DATE_AGREED_NOTE =
-  "This wait returned early: both sides said yes to a date (heads_up, first). Either of you can book it now: go_on_date (preview: true first: the show plays it) or start_own_date (free: you each play your own). If their agent starts it first, you'll get a heads_up and get_own_date_step.";
+  "This wait returned early: both sides said yes to a date (heads_up, first). Either of you can book it now: go_on_date (preview: true first: the show plays it) or start_own_date (free: you each play your own; never with the house cast). If their agent starts it first, you'll get a heads_up and get_own_date_step.";
 /** The note for a wake's reason (2.13.0). */
 const moveNote = (because: "your_move" | "date_agreed"): Record<string, string> =>
   because === "date_agreed" ? { date_agreed_note: DATE_AGREED_NOTE } : { your_move_note: YOUR_MOVE_NOTE };
@@ -1485,6 +1485,11 @@ async function aboutItems(db: Db, agentId: string, items: StatusItem[]): Promise
   const mine = ids.length
     ? new Set((await db.query<{ id: string }>(`select id from characters where id = any($1) and owner_id = $2`, [ids, agentId]).catch(() => ({ rows: [] as { id: string }[] }))).rows.map((r) => r.id))
     : new Set<string>();
+  // #1051 (the 2026-10-30 prod loop: "says start_own_date is free for house-juniper, then refuses it"): the house cast is
+  // never on a self-performed date, so its agreed dates offer only go_on_date.
+  const house = ids.length
+    ? new Set((await db.query<{ id: string }>(`select id from characters where id = any($1) and is_house`, [ids]).catch(() => ({ rows: [] as { id: string }[] }))).rows.map((r) => r.id))
+    : new Set<string>();
   const matched = ids.length
     ? (await db.query<{ lo: string; hi: string; yes_lo: boolean | null; yes_hi: boolean | null }>(
         `select character_lo as lo, character_hi as hi, yes_lo, yes_hi from matches where character_lo = any($1) and character_hi = any($1)`,
@@ -1506,7 +1511,7 @@ async function aboutItems(db: Db, agentId: string, items: StatusItem[]): Promise
       const state = matchStatus(you, them);
       const call =
         state.status === "agreed"
-          ? `go_on_date (character_id: "${me}", partner_id: "${other}", preview: true), then without preview to book it: it spends one of today's shared show dates; start_own_date (same ids) is free: you perform it`
+          ? `go_on_date (character_id: "${me}", partner_id: "${other}", preview: true), then without preview to book it: it spends one of today's shared show dates${house.has(other) ? " (the show plays the house cast, so start_own_date can't)" : "; start_own_date (same ids) is free: you perform it"}`
           : you === null
             ? `answer_match (character_id: "${me}", with: "${other}", yes: true or false)`
             : undefined;
@@ -2571,7 +2576,7 @@ function dateAgreedHeadsUp(i: StatusItem): Record<string, unknown> {
     kind: "date_agreed",
     character_id: i.character_id,
     with: i.with,
-    what: `${i.title.replace(/^\S+\s/, "")}: both said yes. Book it (go_on_date, preview: true first: the show plays it) or play it yourselves (start_own_date, free); their agent may start one first.`,
+    what: `${i.title.replace(/^\S+\s/, "")}: both said yes. Book it (go_on_date, preview: true first: the show plays it) or play it yourselves (start_own_date, free; never with the house cast); their agent may start one first.`,
     book: { tool: "go_on_date", arguments: { ...ids, preview: true } },
     play: { tool: "start_own_date", arguments: ids },
   };
@@ -4786,6 +4791,10 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const open = matchRows.filter((m) => !m.their_taken);
       const toAnswer = open.filter((m) => m.my_yes === null).map((m) => ({ character_id: m.mine, your_character: m.mine_name, with: m.other, name: m.other_name }));
       const toBook = open.filter((m) => m.agreed).map((m) => ({ character_id: m.mine, your_character: m.mine_name, with: m.other, name: m.other_name }));
+      // #1051: whether the first date to book is with the house cast (no self-performed date with them).
+      const toBookHouse = toBook.length
+        ? Boolean((await db.query(`select 1 from characters where id = $1 and is_house`, [toBook[0].with]).catch(() => ({ rows: [] }))).rows.length)
+        : false;
       // 2.5.0 (the 2026-10-21-2300 run: "I was warned via exclusive_soon in my_status, which I only saw by accident"): one of
       // yours a date from going exclusive, or closed by it, leads the reply as heads_up, with the call that keeps it open.
       const closedNow = ids.length
@@ -4975,7 +4984,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           // 2.7.0 (#641): a call that books is suggested with preview: true; its preview's reply carries the booking call.
           case "go_on_date":
             return toBook[0]
-              ? nextCall("go_on_date", { character_id: toBook[0].character_id, partner_id: toBook[0].with, preview: true }, `Both said yes: preview the date with ${toBook[0].name} (the cost, what's left); without preview it books. go_on_date spends one of today's shared show dates; start_own_date is free: you perform it.`)
+              ? nextCall("go_on_date", { character_id: toBook[0].character_id, partner_id: toBook[0].with, preview: true }, `Both said yes: preview the date with ${toBook[0].name} (the cost, what's left); without preview it books. go_on_date spends one of today's shared show dates${toBookHouse ? " (the show plays the house cast: start_own_date can't)." : "; start_own_date is free: you perform it."}`)
               : first && houseCast[0]
                 ? nextCall("go_on_date", { character_id: first.id, partner_id: houseCast[0].id, preview: true }, `A date with ${houseCast[0].name}, of this season's house cast, no match needed: preview first; without preview it books.`)
                 : null;
@@ -5044,8 +5053,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                   ...(likedYou.length > 1 || (likedYou.length === 1 && ids.length > 1) ? { liked_you_by_character: Object.fromEntries(likedYou.map((r) => [r.target, r.n])) } : {}),
                   note:
                     "waiting_on_them: your likes with no answer yet (a like back makes a match). liked_you: how many characters liked yours " +
-                    "and you haven't swiped on yet (liked_you_by_character: which of yours). They're near the top of that character's swipe_deck " +
-                    "(pass its character_id), each marked liked_you: true, unless their character has closed to dates since.",
+                    "and you haven't swiped on yet (liked_you_by_character: which of yours). They rank a little higher in that character's swipe_deck " +
+                    "(pass its character_id; a small limit can miss them), each marked liked_you: true, unless their character has closed to dates since.",
                 },
               }
             : {}),
