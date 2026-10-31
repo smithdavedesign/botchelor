@@ -18,6 +18,7 @@ import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import ConsentBanner from "./ConsentBanner";
 import FeedbackDock, { FeedbackLink } from "./FeedbackDock";
+import EngagementBeacon from "./EngagementBeacon";
 import FunnelBeacon from "./FunnelBeacon";
 import InstallHint from "./InstallHint";
 import Nav from "./Nav";
@@ -178,6 +179,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <InstallHint />
         {google && consent.ask && <ConsentBanner />}
         <FunnelBeacon production={TRACKING.production} consentDefault={consent.granted} />
+        <EngagementBeacon afterDarkHost={adHost} />
       </body>
     </html>
   );

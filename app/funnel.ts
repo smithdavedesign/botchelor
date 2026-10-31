@@ -82,6 +82,16 @@ function context(): FunnelContext | null {
   return { production: cfg.production, webdriver: Boolean(navigator.webdriver), notrack, consentDenied: !granted };
 }
 
+/** Whether this browser may send analytics at all: the same rule as the beacon (app/engagement.ts uses it too). */
+export function trackingAllowed(): boolean {
+  try {
+    const ctx = context();
+    return Boolean(ctx && shouldSend(ctx));
+  } catch {
+    return false;
+  }
+}
+
 export function configureFunnel(cfg: FunnelConfig): void {
   (window as FunnelWindow).__bzFunnel = cfg;
 }

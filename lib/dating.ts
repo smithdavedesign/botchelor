@@ -466,6 +466,25 @@ export function agentDailyDateCap(env: Record<string, string | undefined> = proc
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 20;
 }
 
+/**
+ * #865 (two visitors, 2026-10-25 and 2026-10-31: "one visitor can eat the whole show's quota"): how many of the shared
+ * daily dates one agent may book, so one that arrives later still finds some. A third of the cap (at least 1), no extra
+ * spend. BOTCHELOR_AGENT_DAILY_SHARE overrides it; 0 turns the share off (the cap alone).
+ */
+export function agentDailyDateShare(cap: number = agentDailyDateCap(), env: Record<string, string | undefined> = process.env): number {
+  const raw = env.BOTCHELOR_AGENT_DAILY_SHARE?.trim();
+  const n = raw ? Number(raw) : NaN;
+  if (Number.isFinite(n) && n >= 0) return n === 0 ? cap : Math.min(cap, Math.floor(n));
+  return cap === 0 ? 0 : Math.max(1, Math.ceil(cap / 3));
+}
+
+/** The refusal for an agent that has had its share of today's dates (null while it hasn't, or when yours wasn't counted). */
+export function agentShareRefusal(today: { used: number; cap: number; resets_at: string; yours?: number }): string | null {
+  const share = agentDailyDateShare(today.cap);
+  if (today.yours === undefined || today.cap === 0 || today.yours < share) return null;
+  return `You've had ${today.yours} of today's ${today.cap} show-model dates, one agent's share, so agents arriving later still get some (${Math.max(0, today.cap - today.used)} left for them). Yours come back after ${today.resets_at}; dates you perform yourself with start_own_date are free and unlimited.`;
+}
+
 const utcMidnight = (now: Date): Date => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
 export async function agentDatesToday(db: Db, now: Date = new Date(), you?: string | null): Promise<{ used: number; cap: number; resets_at: string; yours?: number }> {

@@ -420,6 +420,9 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from date_proposals where from_user = $1 or to_user = $1", [userId]);
   await run("delete from user_feedback where user_id = $1", [userId]);
   await run("delete from language_seen where actor = $1", [userId]);
+  // Site engagement rows logged while signed in (lib/engagement.ts), and every other row from the same browsers.
+  await run("delete from web_events where visitor in (select visitor from web_events where user_id = $1)", [userId]);
+  await run("delete from web_events where user_id = $1", [userId]);
   // A complaint or takedown request stays as the record of what was reported and what we did; who sent it doesn't.
   await run("update content_reports set reporter_id = null, contact_email = null where reporter_id = $1", [userId]);
   await run("delete from profiles where user_id = $1", [userId]);

@@ -99,7 +99,10 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
     const theirs = await date(creator, character.id, "2026-10-12T19:00:00Z", [{ side: "a", text: "Someone else's private morning." }]);
     await t.db.query(`update episodes set visibility = 'private', creator_id = 'someone-else' where id = $1`, [theirs.id]);
 
-    expect(texts(await loadChain(t.db, character.id, HOUSE_PARTNER_ID, { userId, owner: true }))).toEqual(["Public morning.", "Not aired yet."]);
+    // #981: a date that hasn't aired keeps its morning after back, even from its owner, so the texts don't give the ending away.
+    expect(texts(await loadChain(t.db, character.id, HOUSE_PARTNER_ID, { userId, owner: true }))).toEqual(["Public morning."]);
+    // The show's own read (what the characters remember) still has it.
+    expect(texts(await loadChain(t.db, character.id, HOUSE_PARTNER_ID, { usableBy: userId }))).toContain("Not aired yet.");
     // The public layer, which the texts between dates write from: aired public dates only.
     expect(texts(await loadChain(t.db, character.id, HOUSE_PARTNER_ID, PUBLIC_VIEWER))).toEqual(["Public morning."]);
     // Reported enough to be hidden: out of the public layer, morning after and all.
@@ -191,7 +194,6 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
     expect(texts(await loadChain(t.db, character.id, HOUSE_PARTNER_ID, { userId, owner: true }))).toEqual([
       "Last night was fun.",
       "Ask me properly and find out.",
-      "Not aired yet.",
       "Okay, properly: dinner Friday?",
       "Yes.",
     ]);

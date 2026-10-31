@@ -5,12 +5,14 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Keyboard
 import { addDays, dayDiff, isDay, isoDay, shortDay, type Interval } from "@/lib/chart";
 import type { Insights, Segment } from "@/lib/insights";
 import AgentsTab from "./AgentsTab";
+import EngagementTab from "./EngagementTab";
 import OverviewTab from "./OverviewTab";
 import ProductTab from "./ProductTab";
 import QualityTab from "./QualityTab";
 
 const TABS = [
   { key: "overview", label: "Overview" },
+  { key: "engagement", label: "Engagement" },
   { key: "product", label: "Product" },
   { key: "agents", label: "Agents" },
   { key: "quality", label: "Quality" },
@@ -77,7 +79,7 @@ const adminFetch = (path: string) => {
 };
 
 /**
- * The analytics page (owner-only): one row of filters that scopes every tab, kept in the address, and four tabs. It
+ * The analytics page (owner-only): one row of filters that scopes every tab, kept in the address, and five tabs. It
  * signs in like the other admin panels (the saved admin password, a signed-in admin account, or a box to enter it).
  */
 export default function InsightsDashboard() {
@@ -95,7 +97,7 @@ export default function InsightsDashboard() {
     if (window.matchMedia("(max-width: 640px)").matches) setFiltersOpen(false);
   }, []);
   const request = useRef(0);
-  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ overview: null, product: null, agents: null, quality: null });
+  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ overview: null, engagement: null, product: null, agents: null, quality: null });
 
   const { from, to, segment, ours } = filters;
   const days = dayDiff(from, to) + 1;
@@ -300,7 +302,9 @@ export default function InsightsDashboard() {
         ))}
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} aria-busy={loading} className={`insights-body${loading && data ? " is-loading" : ""}`}>
-        {tab === "agents" ? (
+        {tab === "engagement" ? (
+          <EngagementTab from={from} to={to} includeOurs={ours} interval={interval} adminFetch={adminFetch} />
+        ) : tab === "agents" ? (
           <AgentsTab insights={data} to={to} days={days} includeOurs={ours} interval={interval} adminFetch={adminFetch} />
         ) : !data ? (
           <p className="muted">{loading ? "Loading…" : "Nothing loaded yet."}</p>

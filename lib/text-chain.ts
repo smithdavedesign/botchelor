@@ -112,6 +112,10 @@ export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer)
       aired: e.revealed_at !== null,
     });
     // The morning after, right behind its date. Side "a" is the episode's character_a, which may be either end.
+    // #981 (two visitors: "a house character's text gave away the ending before the date aired"): held until the date
+    // airs. A private one never airs, so its texts come at once. Only as shown: the show's own reads (usableBy: what the
+    // characters remember, the plans they texted) still have them.
+    if (!("usableBy" in layer) && e.revealed_at === null && e.visibility !== "private") return;
     (e.afterglow ?? []).forEach((line, n) => {
       const who: End = (line.side === "a") === (e.character_a === lo) ? "lo" : "hi";
       items.push({ kind: "text", id: chainId(at, n + 1, `a:${e.id}`), at, day, who, text: line.text, source: "afterglow", episode_id: e.id });

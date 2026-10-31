@@ -2906,6 +2906,32 @@ create table if not exists language_seen (
   n integer not null default 1,
   primary key (day, surface, lang, actor)
 );
+
+-- Site engagement (lib/engagement.ts; David, 2026-10-31: "track all engagements across the site"): one row per page
+-- view, click, scroll or conversion from the browser beacon (app/engagement.ts). visitor is a random id kept in the
+-- browser, session one per tab visit; user_id the signed cookie's id when there is one. path has its ids replaced, and
+-- props are small enums and counts: never anything typed. Kept 400 days (lib/retention.ts).
+create table if not exists web_events (
+  id bigserial primary key,
+  at timestamptz not null default now(),
+  visitor text not null,
+  session text not null,
+  user_id text,
+  event text not null,
+  path text not null,
+  props jsonb not null default '{}'::jsonb,
+  source text,
+  utm_source text,
+  utm_medium text,
+  utm_campaign text,
+  utm_content text,
+  country text,
+  device text,
+  host text not null default 'show'
+);
+create index if not exists web_events_at_idx on web_events (at);
+create index if not exists web_events_event_idx on web_events (event, at);
+create index if not exists web_events_visitor_idx on web_events (visitor);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

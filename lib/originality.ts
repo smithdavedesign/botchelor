@@ -342,7 +342,7 @@ export function nameAndJobClose(sheet: SheetDraft, other: Compared): string[] | 
 }
 
 /** Lines of work to offer instead, a spread of them: one that no recent character shares a word with is suggested. */
-const JOB_IDEAS = [
+export const JOB_IDEAS = [
   "a piano tuner", "a lock restorer", "a beekeeper", "a ferry engineer", "a typeface designer", "a cheese cave keeper", "a bell founder",
   "a hot-air balloon pilot", "a museum night guard", "a puppet repairer", "a seed librarian", "a court stenographer", "a glassblower",
   "a mountain-hut cook", "a canal lock keeper", "a weather balloon launcher", "a subtitle translator", "an organ builder", "a falconer",
@@ -353,6 +353,21 @@ const JOB_IDEAS = [
   "a cooper", "a botanical illustrator", "a snow-plough driver", "a hat blocker", "a lido lifeguard", "a bookbinder", "a ship-in-a-bottle maker",
   "a vineyard frost watcher", "a model railway builder", "a taxidermy restorer", "an archive mould specialist",
 ];
+
+/**
+ * Loop run 2026-10-31-1329 (three visitors, one complaint): on the live show most of JOB_IDEAS is taken, so everyone was
+ * dealt the same few leftovers and saved twins. These make a few hundred more: an odd thing someone looks after, and
+ * the kind of work. Only the thing's words are checked against the show's (every second job is "a restorer").
+ */
+const JOB_THINGS = [
+  "carousel horse", "fairground organ", "diving helmet", "weather vane", "neon sign", "jukebox", "snow globe", "shop mannequin",
+  "tram bell", "sundial", "barometer", "rocking horse", "marionette", "stage curtain", "abacus", "telescope", "music box",
+  "pinball machine", "typewriter", "cuckoo clock", "accordion", "harpsichord", "lantern slide", "zoetrope", "pipe organ",
+  "ship figurehead", "lighthouse lamp", "theatre trapdoor", "vending machine", "tapestry", "parade float", "hurdy-gurdy",
+  "phonograph", "gas lamp", "funicular", "taxidermy owl", "stained window", "rope bridge", "fountain", "planetarium dome",
+];
+const JOB_KINDS = ["restorer", "tuner", "mender", "appraiser", "keeper", "carver", "inspector", "cataloguer", "painter", "rebuilder"];
+const JOB_COMBOS = JOB_THINGS.flatMap((thing) => JOB_KINDS.map((kind) => ({ job: `a ${thing} ${kind}`, thing })));
 
 /** Spare first names, for "pick a different name" (none of them is offered if the show already has it). */
 const NAME_IDEAS = ["Wren", "Tamsin", "Ottoline", "Bastien", "Leocadia", "Hollis", "Ysolde", "Casimir", "Peregrine", "Delphine", "Ambrose", "Sabine", "Lucan", "Mireille", "Thaddeus", "Ingrid"];
@@ -387,9 +402,19 @@ function dealt<T>(xs: T[], key: string): T[] {
 export function freshJobs(sheet: SheetDraft, others: SheetDraft[], n = 3, by: string | null = null, now = Date.now()): string[] {
   const window = Math.floor(now / (JOB_DEAL_MINUTES * 60_000));
   const used = new Set(others.flatMap((r) => [...workWords(r), ...bioWords(r)]));
-  return dealt(JOB_IDEAS, `${by ?? ""}|${(sheet.name ?? "x").trim().toLowerCase()}|${window}`)
-    .filter((j) => !contentWords(j, 4).some((w) => used.has(w) || used.has(stem(w))))
-    .slice(0, n);
+  const free = (s: string) => !contentWords(s, 4).some((w) => used.has(w) || used.has(stem(w)));
+  const key = `${by ?? ""}|${(sheet.name ?? "x").trim().toLowerCase()}|${window}`;
+  // One hand-picked idea while any is free (when few are, everyone would be dealt the same ones), then the combinations,
+  // at most one per thing in a deal.
+  const picked = dealt(JOB_IDEAS, key).filter(free).slice(0, Math.min(1, n));
+  const things = new Set<string>();
+  for (const c of dealt(JOB_COMBOS, key)) {
+    if (picked.length >= n) break;
+    if (things.has(c.thing) || !free(c.thing)) continue;
+    things.add(c.thing);
+    picked.push(c.job);
+  }
+  return picked;
 }
 
 /** Every character's job alone (no bio), to keep suggestions off jobs the show already has (#1016). */

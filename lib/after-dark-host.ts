@@ -91,6 +91,7 @@ export const AFTER_DARK_HOST_APIS = [
   "/api/line-feedback", // the theater's 👍/👎 on a line (app/useLineVotes.ts)
   "/api/library", // the Create library in the Studio and the scene writer (app/studio/CreateLibrary.tsx)
   "/api/waitlist", // the subscribe page's waitlist
+  "/api/e", // the engagement beacon on every page (app/engagement.ts)
   "/api/mcp", // the admin's own agents, for After Dark's tools (lib/adult/mcp.ts)
   "/api/showcase/", // the Studio's 📣 Publish and Shoot like this (lib/showcase.ts)
   "/api/creator-profile", // the creator handle 📣 Publish asks for the first time

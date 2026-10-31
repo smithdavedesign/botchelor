@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { trackConversion } from "@/app/conversion";
 import { requestJson } from "@/app/request";
 
 /**
@@ -24,7 +25,10 @@ export default function InviteForm({ days, clipTokens, reelTokens }: { days: num
         terms: form.get("terms") === "on",
         ...(note ? { note } : {}),
       });
-      if (ok) setSent(true);
+      if (ok) {
+        setSent(true);
+        trackConversion("ad_invite_requested");
+      }
       else setError(message);
     } catch {
       setError("Network error. Try again.");

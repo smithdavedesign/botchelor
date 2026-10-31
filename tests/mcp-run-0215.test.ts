@@ -429,6 +429,10 @@ describe("exclusivity said where it bites, and a closed character can't be dated
     scriptOutcome({ ending: "friends" });
     const withPartner = await call("start_own_date", { character_id: A.id, partner_id: B.id, preview: true }, A.ctx);
     expect(withPartner.isError ? withPartner.content[0].text : "ok").toBe("ok");
+    // #1060: when the other agent was last here, and that its silence would spend a shared date (it was here just now).
+    expect(withPartner.structuredContent.partner_last_seen_minutes).toEqual(expect.any(Number));
+    expect(withPartner.structuredContent.takeover_note).toMatch(/counts as one of today's show-model dates all agents share/);
+    expect(withPartner.structuredContent.takeover_note).not.toMatch(/Heads up/);
   });
 });
 
