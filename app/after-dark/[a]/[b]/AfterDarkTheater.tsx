@@ -716,12 +716,16 @@ export default function AfterDarkTheater({
                   disabled={busy}
                 />
                 {/* Autoplay is always writing ahead, so a steer goes as soon as it's typed. */}
-                <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim()) || (!caughtUp && !(autoplay && direction.trim()))}>
+                {/* #1017 (the 2026-10-30 prod loop: "pressing Enter in the steer box did nothing"): a typed steer goes while the
+                    last lines still play, as with autoplay; a browser won't submit a form whose button is disabled. */}
+                <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim()) || (!caughtUp && !direction.trim())}>
                   {busy
                     ? "Writing…"
                     : whisperTo
                       ? "Whisper"
-                      : caughtUp || (autoplay && direction.trim())
+                      : !caughtUp && direction.trim()
+                        ? "Steer"
+                        : caughtUp || (autoplay && direction.trim())
                         ? // The Next that opens a chapter pays for it (lib/adult/settings.ts chapter_tokens).
                           // #1005: after that, Next says it's already paid for, so no step looks free or unexplained.
                           `Next${chapterTokens ? (scene.lines.length ? " · included" : ` · ${chapterTokens} token${chapterTokens === 1 ? "" : "s"}`) : ""}`
