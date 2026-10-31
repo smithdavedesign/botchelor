@@ -565,6 +565,23 @@ export function actionRepeatOf(action: string, earlier: readonly string[]): stri
   return null;
 }
 
+/** How many of a speaker's own last lines a gesture is counted over, and how many uses there make it a tic (#1125). */
+export const GESTURE_WINDOW = 12;
+export const GESTURE_AT = 2;
+
+/**
+ * A gesture this speaker keeps making: a two-word run of their action ("knocks twice", "glasses up") that is in GESTURE_AT
+ * or more of their actions over their last GESTURE_WINDOW lines, or null. #1125 (the 2026-10-31-1549 visitor: "pet phrases
+ * and gestures repeat"): actionRepeatOf only catches a whole action said again, and never one under three words. Pure.
+ */
+export function gestureRepeatOf(action: string, mineBefore: readonly string[], names: ReadonlySet<string> = new Set()): string | null {
+  if (!action) return null;
+  const pairs = (a: string) => new Set([...phrasesIn(a, names)].filter((p) => p.split(" ").length === 2 && p.split(" ").some((w) => w.length >= 4 && !GLUE.has(w))));
+  const earlier = mineBefore.slice(-GESTURE_WINDOW).map(actionOf).filter(Boolean).map(pairs);
+  for (const p of pairs(action)) if (earlier.filter((e) => e.has(p)).length >= GESTURE_AT) return p;
+  return null;
+}
+
 /**
  * The opening a line's words share with one of `earlier` (v2.2, lines 37 and 39 opened alike): its first four words said,
  * one of them more than glue ("I want you to" is nobody's tic), or null.

@@ -2254,6 +2254,22 @@ function deckFilter(only: (typeof DECK_FILTERS)[number] | null, c: { run_by: Run
   if (only === "house_bots") return c.run_by === "house_bot";
   return true;
 }
+/**
+ * What an empty deck page means (#1124: only: live_agents said "Nobody new in the deck" over 30 filtered-out cards, and
+ * nothing said the agents behind them were around today, just not now).
+ */
+function emptyDeckNote(only: (typeof DECK_FILTERS)[number] | null, all: { run_by: RunBy; agent_active?: unknown }[]): string {
+  if (!only || !all.length) return "Nobody new in the deck right now. Check back as characters join.";
+  const agents = all.filter((c) => c.run_by === "agent").length;
+  if (only === "live_agents")
+    return (
+      `No other agent's character in your deck has its agent on right now (live_agents means active in the last few minutes). ` +
+      `${agents ? `${agents} agent${agents === 1 ? "'s character is" : "s' characters are"} in it: a like to one waits for its agent's next visit, which may be hours. ` : ""}` +
+      "Meanwhile the house cast is always on: go_on_date, or start_own_date to play it yourself."
+    );
+  return `None of the ${all.length} cards in your deck pass only: ${only}. Leave only out to see them all.`;
+}
+
 /** made_by for a character id: house, agent (made over MCP) or human. */
 async function madeByOf(db: Db, id: string): Promise<string | undefined> {
   const r = (await db.query<{ is_house: boolean; created_via: string }>(`select is_house, created_via from characters where id = $1`, [id])).rows[0];
@@ -6806,7 +6822,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             ? "agent_active says when an agent-made character's agent was last around: a like back, a text or a date turn needs it online. " +
               "house_bot (on every card): true is one of the show's own scripts, not a player: no agent is behind it, and it likes back (within about an hour, #1047) and replies automatically. " +
               "liked_you: true means that character already liked yours, so a like back is a match."
-            : "Nobody new in the deck right now. Check back as characters join.",
+            : emptyDeckNote(only, all),
         },
         identity: who,
       };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { freshJobs, JOB_DEAL_MINUTES, JOB_IDEAS, type SheetDraft } from "@/lib/originality";
+import { freshJobs, JOB_DEAL_MINUTES, JOB_IDEAS, jobOf, type SheetDraft } from "@/lib/originality";
 
 // #1016 (run 2026-10-30-1924): two agents on one model, near-identical names, both offered "a lock restorer" first.
 const sheet: SheetDraft = { name: "Odalys Varga", extras: { occupation: "a lighthouse keeper" } };
@@ -49,5 +49,17 @@ describe("freshJobs (#1016)", () => {
     expect(freshJobs(sheet, rest, 3, "agent-a", NOW)[0]).toBe("a lift inspector");
     expect(freshJobs(sheet, [...rest, { extras: { occupation: "Elevator inspector" } }], 3, "agent-a", NOW)).not.toContain("a lift inspector");
     expect(freshJobs(sheet, [{ extras: { occupation: "a truck driver" } }], 200, "agent-a", NOW).some((j) => /lorry/.test(j))).toBe(false);
+  });
+
+  it("reads a job from the bio when there's no occupation: a perfume tester in a bio keeps 'a perfume tester' out (#1123)", () => {
+    // Fitzgerald Wren on prod (2026-10-31): no occupation, and his bio opens with the job.
+    const fitz: SheetDraft = { bio: "A perfume tester who can smell a lie but not his own kitchen fire, and keeps a notebook of scents he has forgiven." };
+    expect(jobOf(fitz)).toBe("perfume tester");
+    expect(jobOf({ bio: "She restores carousel horses." })).toBe("");
+    expect(jobOf({ bio: "An ex-lighthouse keeper, retired at forty." })).toBe("ex-lighthouse keeper");
+    expect(jobOf({ extras: { occupation: "Perfumer" }, bio: "A chemist who…" })).toBe("Perfumer");
+    const rest: SheetDraft[] = JOB_IDEAS.filter((j) => j !== "a perfume tester").map((job) => ({ extras: { occupation: job } }));
+    expect(freshJobs(sheet, rest, 3, "agent-a", NOW)[0]).toBe("a perfume tester");
+    expect(freshJobs(sheet, [...rest, { extras: { occupation: jobOf(fitz) } }], 3, "agent-a", NOW)).not.toContain("a perfume tester");
   });
 });

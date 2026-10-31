@@ -8,7 +8,7 @@ import { possessiveNames } from "@/lib/adult/craft";
 import { citeMemory, usesFact, type AdultFact, type ShownFact } from "@/lib/adult/facts";
 import { rememberAfterDark } from "@/lib/adult/memory";
 import { setAdultModelForTests } from "@/lib/adult/mode";
-import { actionRepeatOf, buildUpIn, flaggedHooks, hookAllowance, hooksOf, openingRepeatOf, openingShape, sceneQuality, showsTell, sideOfCharacter, touchesHook, whyIsGeneric } from "@/lib/adult/quality";
+import { actionRepeatOf, buildUpIn, gestureRepeatOf, flaggedHooks, hookAllowance, hooksOf, openingRepeatOf, openingShape, sceneQuality, showsTell, sideOfCharacter, touchesHook, whyIsGeneric } from "@/lib/adult/quality";
 import { dropRepeats, emptyScene, recapFallback, recapFrom, sceneMessages, writeRecap, writeSceneStep, type SceneLine, type SceneState, type StepInput } from "@/lib/adult/scenes";
 import type { Db } from "@/lib/db";
 import type { CharacterRef } from "@/lib/game";
@@ -291,6 +291,31 @@ describe("(3) repeated actions and openings (lines 36 and 38: the same action; 3
     );
     expect(r.kept.map((l) => l.text)).toEqual(["'Misleading placards' are just an opportunity. Read it to me.", "\u2026 You'd like that.", "Come here.", "Maybe I would."]);
     expect(r.dropped.map((d) => d.reason)).toEqual(["opens the same way again (quoting them back)"]);
+  });
+
+  it("#1125: a gesture one speaker keeps making (short ones too) loses its action at the third use; what they say stays", () => {
+    expect(gestureRepeatOf("knocks twice on the bar", ["*knocks twice* Hello.", "*grins and knocks twice* Again."])).toBe("knocks twice");
+    expect(gestureRepeatOf("knocks twice on the bar", ["*knocks twice* Hello."])).toBeNull();
+    expect(gestureRepeatOf("pours the wine", ["*knocks twice* Hello.", "*grins* Again."])).toBeNull();
+    const r = cut(
+      lines(
+        ["a", "*knocks twice* Come in."],
+        ["b", "*knocks twice* Me too."],
+        ["a", "*grins, knocks twice* Again, then."],
+        ["b", "*laughs* You and that knock."],
+        ["a", "*knocks twice on the headboard* Last time, I promise."],
+        ["b", "*knocks twice*"],
+      ),
+    );
+    expect(r.kept.map((l) => l.text)).toEqual([
+      "*knocks twice* Come in.",
+      "*knocks twice* Me too.",
+      "*grins, knocks twice* Again, then.",
+      "*laughs* You and that knock.",
+      "Last time, I promise.",
+      "*knocks twice*", // b's second: theirs are counted apart from a's
+    ]);
+    expect(r.dropped.map((d) => d.reason)).toEqual([]);
   });
 
   it("v1 (no craft guards) keeps them all", () => {

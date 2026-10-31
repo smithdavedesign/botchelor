@@ -104,6 +104,7 @@ import {
   OPENING_WINDOW,
   openingRepeatOf,
   shapeRepeatOf,
+  gestureRepeatOf,
   withoutLeadingEllipsis,
   phraseNames,
   phrasesIn,
@@ -1412,6 +1413,16 @@ export function dropRepeats(
         text = text.replace(/^\s*\*[^*]+\*\s*/, "");
         if (!text.trim()) {
           drop(l, `the same action again ("${again.slice(0, 80)}")`);
+          continue;
+        }
+      }
+      // #1125: a gesture they keep making (in two of their own last GESTURE_WINDOW actions already): the action goes.
+      const tic = !again && act ? gestureRepeatOf(act, before.filter((x) => x.who === l.who).map((x) => x.text), named) : null;
+      if (tic) {
+        cuts.actions++;
+        text = text.replace(/^\s*\*[^*]+\*\s*/, "");
+        if (!text.trim()) {
+          drop(l, `the same gesture again ("${tic}")`);
           continue;
         }
       }
