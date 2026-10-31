@@ -8,7 +8,7 @@ Set in the environment (keychain → the app's settings on DigitalOcean since 20
 
 | Variable | Purpose |
 |---|---|
-| `FRONTIER_LLM_BASE_URL` / `FRONTIER_LLM_API_KEY` / `FRONTIER_LLM_MODEL` | An OpenAI-compatible frontier model (e.g. a Claude or GPT model via Vercel AI Gateway) |
+| `FRONTIER_LLM_BASE_URL` / `FRONTIER_LLM_API_KEY` / `FRONTIER_LLM_MODEL` | An OpenAI-compatible frontier model (since 2026-10-31: `anthropic/claude-haiku-5.5` via OpenRouter, `https://openrouter.ai/api/v1`; Vercel AI Gateway before) |
 | `FRONTIER_PASSWORD` | The gate secret |
 
 With those set, go to **`/admin`**, enter the password (kept in your browser only), and run **free vs frontier** on a handful of examples to compare dialogue quality. Each run makes one free call and one frontier call.
@@ -22,6 +22,10 @@ The gate: `POST /api/admin/frontier` requires the `x-frontier-key` header to equ
 `/admin` remains the side-by-side compare tool for eval; the live flow is for running real episodes on the frontier model once you're happy with it.
 
 ## Keys
+
+**Live (2026-10-31):** the show's key is `vault/botchelor/OPENROUTER_SHOW_KEY` (OpenRouter, $50 limit set at the
+provider), set as `FRONTIER_LLM_API_KEY` on the show app. After Dark has its own key (`OPENROUTER_AFTER_DARK_KEY`).
+The local nightly loop (`scripts/loop/`) still uses the old Vercel AI Gateway key `vault/botchelor/FRONTIER_LLM_API_KEY`.
 
 From the keychain (`~/ai-stack/bin/secrets`) into the show app's environment on DigitalOcean (`docs/hosting.md`; it was Vercel env before 2026-10-30). Never pasted into files or commits. There is no frontier key in the repo, and the admin tool reads it only from the environment.
 
