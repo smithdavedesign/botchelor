@@ -32,6 +32,11 @@ export type Replay = {
   restart: () => void;
   /** Jump straight to the end (the whole conversation + the ending). */
   skip: () => void;
+  /**
+   * Jump to the newest line and keep playing: a live transcript's next lines then play as they arrive (After Dark's
+   * Next during playback, #1061's e2e: skip() paused it, so the step Next asked for never reached the stage).
+   */
+  catchUp: () => void;
 };
 
 /**
@@ -100,6 +105,10 @@ export function useReplay(
     skip: () => {
       setPos(transcript.length);
       setPlaying(false);
+    },
+    catchUp: () => {
+      setPos(transcript.length);
+      setPlaying(true);
     },
   };
 }
