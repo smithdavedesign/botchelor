@@ -393,7 +393,7 @@ async function textedPlan(
     const homeOf = placeParts(plan.place).id === "home" ? place.toLowerCase() : "";
     const home = homeOf.startsWith(`${first(a.name)}'`) ? "a" : homeOf.startsWith(`${first(b.name)}'`) ? "b" : null;
     const side = (who: "lo" | "hi"): "a" | "b" => ((who === "lo") === (a.id === lo) ? "a" : "b");
-    return { place, set: place.slice(0, 40), home, texts: plan.texts.map((t) => ({ who: side(t.who), text: t.text })) };
+    return { place, set: cutSetLabel(place), home, texts: plan.texts.map((t) => ({ who: side(t.who), text: t.text })) };
   } catch {
     return null;
   }
@@ -1271,7 +1271,7 @@ export function parseSceneMeta(raw: string): SceneMeta {
     // check, 2026-10-23). Anything else is no claim, and the scene keeps its stage.
     const n = typeof j.stage === "number" ? j.stage : typeof j.stage === "string" && /^\s*\d+(?:\.\d+)?\s*$/.test(j.stage) ? Number(j.stage) : NaN;
     const stage = Number.isFinite(n) && Math.round(n) >= 1 ? Math.min(STAGES.length - 1, Math.round(n) - 1) : null;
-    const set = typeof j.set === "string" && j.set.trim() ? j.set.trim().replace(/[.!]+$/, "").slice(0, 40) : null;
+    const set = typeof j.set === "string" && j.set.trim() ? cutSetLabel(j.set.trim().replace(/[.!]+$/, "")) : null;
     return { explicit: j.explicit === true, picture: of && description ? { of, description } : null, place, stage, set, suggestions: suggestionsIn(j) };
   } catch {
     return { explicit: false, picture: null, place: null, stage: null, set: null, suggestions: {} };
@@ -2204,7 +2204,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   let kept = out.kept.map((l, i) => (flags.citations[i].facts.length ? { ...l, fact_ids: flags.citations[i].facts } : l));
 
   const meta = parseSceneMeta(raw);
-  const resolve = async (label: string) => (input.resolveSet ? await input.resolveSet(label) : drawLabel(label).slice(0, 40));
+  const resolve = async (label: string) => (input.resolveSet ? await input.resolveSet(label) : cutSetLabel(drawLabel(label)));
   // v2.2 (Lexi × Dex on prod, 2026-10-22: "Lexis bedroom", typed into set the scene without its apostrophe): a name that
   // lost its apostrophe gets it back, where they are and in what the model claims, so the set they're on is put right too.
   const named = (label: string | null) => possessiveNames(label, names);
@@ -3237,4 +3237,14 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
             suggestions = '[]'::jsonb, whispers = '{}'::jsonb, undo = '[]'::jsonb, scenario = null, roleplay = null, auto_pictures = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
     [adminId, ...pair],
   );
+}
+
+/**
+ * A set's label is at most 40 characters (lib/sets.ts), cut at a word, never mid-word: the theater showed "📍 The pier,
+ * deciding to leave for the ferr" (the audit, 2026-10-31).
+ */
+export function cutSetLabel(text: string): string {
+  if (text.length <= 40) return text;
+  const cut = text.slice(0, 40);
+  return cut.replace(/\s+\S*$/, "") || cut;
 }
