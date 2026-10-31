@@ -31,6 +31,7 @@
 import { createHash, createHmac } from "node:crypto";
 import { AwsClient } from "aws4fetch";
 import { markAiImage, markAiVideo } from "./ai-mark";
+import { faststart } from "./mp4-faststart";
 
 export type ObjectStore = {
   put(key: string, bytes: Buffer, mime: string): Promise<void>;
@@ -263,7 +264,8 @@ export async function keepBytes(area: MediaArea, id: string, original: Buffer, m
   // Everything kept here was made by a model (After Dark's pictures, keyframes, clips and voices; the looks tiles): a
   // picture, and an MP4, gets the machine-readable "AI-generated" mark before it's stored anywhere (lib/ai-mark.ts, EU AI
   // Act Art. 50). Audio is marked by its routes' headers instead.
-  const bytes = mime.startsWith("image/") ? markAiImage(original) : mime === "video/mp4" ? markAiVideo(original) : original;
+  // A clip goes in faststart, so it plays from its first bytes (lib/mp4-faststart.ts); the mark is appended after.
+  const bytes = mime.startsWith("image/") ? markAiImage(original) : mime === "video/mp4" ? markAiVideo(faststart(original)) : original;
   let store: ObjectStore | null;
   try {
     store = objectStore();

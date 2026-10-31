@@ -161,3 +161,5 @@ subscriptions pay for it.
   This is docs/after-dark.md "#4".
 - **The terms:** `GOVERNING_STATE` is California since 2026-10-30. The operator becomes the LLC once it's formed.
 - **A lawyer's flat-fee review** of the terms (the six questions in docs/after-dark-legal-review.md).
+
+**Processor comparison (2026-10-31):** `docs/after-dark-processor-research.md`. CCBill primary, Segpay backup, Verotel last resort; ask CCBill whether the Visa/Mastercard registration fees are paid up front.

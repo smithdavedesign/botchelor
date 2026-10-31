@@ -2762,6 +2762,13 @@ create table if not exists showcase_likes (
   created_at timestamptz not null default now(),
   primary key (post_id, user_id)
 );
+-- What each browser has seen on the reels (lib/showcase.ts markSeen): seen posts go to the back of their feed.
+create table if not exists showcase_views (
+  viewer_id text not null,
+  post_id text not null references showcase_posts (id) on delete cascade,
+  seen_at timestamptz not null default now(),
+  primary key (viewer_id, post_id)
+);
 create table if not exists creator_follows (
   follower_id text not null,
   creator_id text not null,

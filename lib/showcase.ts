@@ -63,7 +63,11 @@ export async function saveCreatorProfile(db: Db, userId: string, input: { handle
 
 /* -------------------------------------------------- who sees what -------------------------------------------------- */
 
-export type ShowcaseViewer = { id: string | null; admin: boolean; ratings: ContentRating[]; adult?: boolean; bot?: boolean };
+export type ShowcaseViewer = {
+  id: string | null; admin: boolean; ratings: ContentRating[]; adult?: boolean; bot?: boolean;
+  /** This browser, signed in or not (never a bot): whose reels' seen posts go to the back (markSeen). */
+  visitor?: string | null;
+};
 
 /** Whether explicit posts are open beyond admins (David's call: off until counsel and age checks). */
 export async function explicitOpen(db: Db): Promise<boolean> {
@@ -82,7 +86,7 @@ export async function showcaseViewer(db: Db, req: Request): Promise<ShowcaseView
   const adultId = id && !bot ? await adultViewer(db, req) : null;
   const adult = Boolean(adultId && (admin || (await mediaAllowedFor(db, adultId))));
   if (adult && (admin || (await explicitOpen(db)))) ratings.push("nsfw");
-  return { id, admin, ratings, adult, bot };
+  return { id, admin, ratings, adult, bot, visitor: bot ? null : (auth?.userId ?? null) };
 }
 
 /* -------------------------------------------------- publishing -------------------------------------------------- */
@@ -335,8 +339,16 @@ const FROM = `from showcase_posts p
   join characters c on c.id = p.character_id
   left join characters cb on cb.id = p.character_b`;
 
-/** One page of the showcase for this viewer and these filters, newest first. `pageSize`: the reels' smaller pages. */
-export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, opts: { pageSize?: number; mix?: boolean } = {}): Promise<{ posts: Post[]; more: boolean }> {
+/** How many of one character's posts the reels show together before the next creator's (listShowcase mix). */
+export const MIX_RUN = 3;
+
+/**
+ * One page of the showcase for this viewer and these filters, newest first. `pageSize`: the reels' smaller pages.
+ * `seenBefore`: the reels' visitor's posts seen before then go last, longest-ago seen first (David, 2026-10-30: "if they
+ * reload or come back it isn't the same assets from the start"); fixed for a feed's every page, so a post seen while
+ * it's watched doesn't move between its pages.
+ */
+export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, opts: { pageSize?: number; mix?: boolean; seenBefore?: Date } = {}): Promise<{ posts: Post[]; more: boolean }> {
   const w = where(v, f);
   const page = Math.max(1, Math.floor(f.page ?? 1));
   const size = opts.pageSize ?? PAGE_SIZE;
@@ -347,13 +359,23 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
   let order = `${f.sort === "trending" ? `${score} desc, ` : ""}p.published_at desc nulls last, p.id`;
   let mixed = "";
   if (opts.mix) {
-    // The reels (David, 2026-10-29: they opened on 30 screens of one creator's clips): in rounds, one post from each
-    // creator a round, and from each creator every character before any one again; the best first within each.
-    mixed = `join (select id, row_number() over (partition by owner_id order by cr, s desc, at desc nulls last, id) as round
-                    from (select p.id, p.owner_id, ${score} as s, p.published_at as at,
-                                 row_number() over (partition by p.owner_id, p.character_id order by ${f.sort === "trending" ? `${score} desc, ` : ""}p.published_at desc nulls last, p.id) as cr
-                            ${FROM} where ${w.sql}) c) mix on mix.id = p.id`;
-    order = `mix.round, ${order}`;
+    // The reels in runs (David, 2026-10-29: they opened on 30 screens of one creator's clips; 2026-10-30: "sort them by
+    // creator and by character so it's not jumping around"): a few of one character together, then the next creator's
+    // run; each creator's characters a run each before any one of them again; the best first throughout.
+    const best = `${f.sort === "trending" ? "s desc, " : ""}at desc nulls last`;
+    mixed = `join (select id, cr, max(s) over (partition by owner_id) as os, max(at) over (partition by owner_id) as oat, owner_id,
+                         dense_rank() over (partition by owner_id order by (cr - 1) / ${MIX_RUN}, cs desc, cat desc nulls last, character_id) as run
+                    from (select id, owner_id, character_id, s, at,
+                                 row_number() over (partition by owner_id, character_id order by ${best}, id) as cr,
+                                 max(s) over (partition by owner_id, character_id) as cs, max(at) over (partition by owner_id, character_id) as cat
+                            from (select p.id, p.owner_id, p.character_id, ${score} as s, p.published_at as at ${FROM} where ${w.sql}) b) c) mix on mix.id = p.id`;
+    order = `mix.run, mix.os desc, mix.oat desc nulls last, mix.owner_id, mix.cr`;
+  }
+  let seen = "";
+  if (opts.seenBefore && v.visitor) {
+    w.args.push(v.visitor, opts.seenBefore);
+    seen = `left join showcase_views sv on sv.post_id = p.id and sv.viewer_id = $${w.args.length - 1} and sv.seen_at < $${w.args.length}`;
+    order = `sv.seen_at asc nulls first, ${order}`;
   }
   const { rows } = await db.query<Omit<Post, "creator" | "character" | "partner" | "published_at" | "mine" | "mime"> & {
     handle: string; display_name: string; character_id: string; character_name: string; character_b: string | null; partner_name: string | null; published_at: Date; owner_id: string; mime: string | null;
@@ -365,7 +387,7 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
                      (select g.mime from studio_pg_pictures g where p.source = 'pg' and g.id = p.media_id)) as mime,
             (select count(*)::int from showcase_likes l where l.post_id = p.id) as likes,
             exists (select 1 from showcase_likes l where l.post_id = p.id and l.user_id = $${n}) as liked
-       ${FROM} ${mixed}
+       ${FROM} ${mixed} ${seen}
       where ${w.sql}
       order by ${order}
       limit $${n - 2} offset $${n - 1}`,
@@ -381,6 +403,15 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
       likes: r.likes, liked: r.liked, remixable: r.remixable, dateable: r.dateable,
     }));
   return { posts: posts.slice(0, size), more: rows.length > size };
+}
+
+/** A post this browser had on screen in the reels (listShowcase seenBefore), last seen now; nothing for a post that's gone. */
+export async function markSeen(db: Db, visitor: string, postId: string): Promise<void> {
+  await db.query(
+    `insert into showcase_views (viewer_id, post_id) select $1, id from showcase_posts where id = $2
+     on conflict (viewer_id, post_id) do update set seen_at = now()`,
+    [visitor, postId],
+  );
 }
 
 /**
