@@ -16,6 +16,7 @@
  *  - What they remember is what they remembered then: the facts and the PG note from up to the night's end, never a later
  *    night's. The prompt never carries a line's private notes (its why, memory or facts).
  */
+import { approvedPortraitId } from "../assets";
 import type { Character } from "../character";
 import type { Db } from "../db";
 import type { ChatMessage, Usage } from "../model";
@@ -44,8 +45,8 @@ const MEMORY_GRACE_MS = 10 * 60 * 1000;
 export type Side = { page: string; text: string };
 export type TwoSides = {
   night_id: string;
-  a: Side & { id: string; name: string; label: string };
-  b: Side & { id: string; name: string; label: string };
+  a: Side & { id: string; name: string; label: string; portrait?: string | null };
+  b: Side & { id: string; name: string; label: string; portrait?: string | null };
   created_at: string;
 };
 
@@ -217,10 +218,13 @@ async function cached(db: Db, nightId: string): Promise<CacheRow | null> {
 async function asSides(db: Db, r: CacheRow): Promise<TwoSides> {
   const people = (await db.query<{ id: string; name: string; pronouns: string | null }>(`select id, name, pronouns from characters where id = any($1)`, [[r.character_a, r.character_b]])).rows;
   const who = (id: string) => people.find((p) => p.id === id);
+  // Their show portraits (lib/assets.ts), for the header beside each page.
+  const portraits = new Map(await Promise.all([r.character_a, r.character_b].map(async (id) => [id, await approvedPortraitId(db, id)] as const)));
+  const portrait = (id: string) => (portraits.get(id) ? `/api/assets/${portraits.get(id)}` : null);
   return {
     night_id: r.night_id,
-    a: { id: r.character_a, name: who(r.character_a)?.name ?? r.character_a, label: sideLabel(who(r.character_a)?.pronouns), page: r.a_page, text: r.a_text },
-    b: { id: r.character_b, name: who(r.character_b)?.name ?? r.character_b, label: sideLabel(who(r.character_b)?.pronouns), page: r.b_page, text: r.b_text },
+    a: { id: r.character_a, name: who(r.character_a)?.name ?? r.character_a, label: sideLabel(who(r.character_a)?.pronouns), portrait: portrait(r.character_a), page: r.a_page, text: r.a_text },
+    b: { id: r.character_b, name: who(r.character_b)?.name ?? r.character_b, label: sideLabel(who(r.character_b)?.pronouns), portrait: portrait(r.character_b), page: r.b_page, text: r.b_text },
     created_at: new Date(r.created_at).toISOString(),
   };
 }

@@ -12,7 +12,7 @@ export const maxDuration = 300;
 const id = z.string().min(1).max(64);
 // scope: one chapter, or the whole night (every chapter since it began; the default, the same as one when there is one).
 // action: make it all at once (the default), or plan it as a storyboard (docs/PRDs/reel-storyboard.md).
-const Input = z.object({ a: id, b: id, night_id: id.optional(), scope: z.enum(REEL_SCOPES).optional(), action: z.enum(["make", "plan"]).optional() });
+const Input = z.object({ a: id, b: id, night_id: id.optional(), scope: z.enum(REEL_SCOPES).optional(), action: z.enum(["make", "plan"]).optional(), again: z.boolean().optional() });
 // A stage of a draft storyboard (`id` is the reel): draw its keyframes, or film it.
 const StageInput = z.object({ action: z.enum(["draw", "film"]), id });
 // Reviewing a draft storyboard's shots: approve a shot's picture (media_id null = all), or redraw one to the owner's words.
@@ -83,7 +83,7 @@ export const POST = handle(async (req: Request) => {
   if (!night) return hidden();
   const r =
     input.action === "plan"
-      ? await planReel(db, viewer, input.a, input.b, night.lines, { where: night.where, night })
+      ? await planReel(db, viewer, input.a, input.b, night.lines, { where: night.where, night, again: input.again })
       : await makeReel(db, viewer, input.a, input.b, night.lines, requestBase(req), { where: night.where, night });
   return r.ok ? json({ reel: r.reel }) : fail(r);
 });

@@ -6,7 +6,7 @@ import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { runFfmpeg } from "@/lib/media-tools/ffmpeg";
 import { bestOf, listShowcase, publish, saveCreatorProfile, type ShowcaseViewer } from "@/lib/showcase";
-import { checkBatch, checkCount, checkTargets } from "@/lib/showcase-check";
+import { checkBatch, checkCount, checkTargets, recheckBatch } from "@/lib/showcase-check";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
@@ -97,8 +97,8 @@ describe("the PG check on After Dark's posts", () => {
     const asked = verdict("CLOTHED");
     const r = await checkBatch(t.db);
     expect([r.results.every((x) => x.outcome === "safe"), r.left]).toEqual([true, 0]);
-    // A picture once, a clip by three frames.
-    expect(asked.n).toBe(3 + 3);
+    // A picture once, a clip by five frames (three until the 2026-10-31 audit found two explicit reels rated suggestive).
+    expect(asked.n).toBe(3 + 5);
     for (const id of ["dressed", "unknown", "clip", "baseline"] as const) {
       expect(await side(w.ids[id])).toBe("pg");
       expect(await asset(id)).toBe("pg");
@@ -162,5 +162,31 @@ describe("the PG check on After Dark's posts", () => {
     await claimAdmin(t.db, w.me);
     const res = await checkPost(new Request(`${BASE_URL}/api/jobs/showcase-check`, { method: "POST", headers: { cookie: signedInCookie(w.me) } }));
     expect(await res.json()).toMatchObject({ ok: true, results: [], left: 0 });
+  });
+});
+
+// The 2026-10-31 audit found two explicit reels rated suggestive on the safe side: a reel's shot is never moved there
+// by the check, and the safe side can be looked at again (the job with ?recheck=1), once.
+describe("the safe side looked at again", () => {
+  it("leaves a reel's shot on After Dark's side, sends one put on the safe side by hand back unseen, and rechecks the rest", async () => {
+    const w = await world();
+    const [a, b] = [w.mara, HOUSE_CHARACTERS[0].id].sort();
+    await t.db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots) values ('reel-1', $1, $2, $3, 'ready', 0, $4::jsonb)`, [
+      w.me,
+      a,
+      b,
+      JSON.stringify([{ status: "ready", media_id: "clip" }]),
+    ]);
+    expect((await checkTargets(t.db)).map((x) => x.post_id).sort()).toEqual([w.ids.dressed, w.ids.unknown, w.ids.baseline].sort());
+    const asked = verdict("CLOTHED");
+    await checkBatch(t.db);
+    expect([await side(w.ids.clip), asked.n]).toEqual(["nsfw", 3]);
+    await t.db.query(`update showcase_posts set rating = 'suggestive' where id = $1`, [w.ids.clip]);
+    const askedAgain = verdict("SEXUAL");
+    const r = await recheckBatch(t.db);
+    expect(r.results.map((x) => x.outcome)).toEqual(["explicit", "explicit", "explicit", "explicit"]);
+    expect([r.left, askedAgain.n]).toEqual([0, 3]);
+    for (const id of ["dressed", "unknown", "clip", "baseline"] as const) expect([await side(w.ids[id]), await asset(id)]).toEqual(["nsfw", "nsfw"]);
+    expect((await recheckBatch(t.db)).results).toEqual([]);
   });
 });

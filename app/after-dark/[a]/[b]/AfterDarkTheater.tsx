@@ -474,6 +474,13 @@ export default function AfterDarkTheater({
   useEffect(() => {
     if (live && autoplay && !busy && !waiting && left <= AUTOPLAY_THEATER_AHEAD) void onWrite?.("");
   }, [live, autoplay, busy, waiting, left, onWrite]);
+  // Autoplay means play (the audit, 2026-10-31: a paused player under Autoplay sat at 94 lines for ten minutes and
+  // nothing said why): switching it on starts playback, and the viewer's own pause (below) switches it off.
+  useEffect(() => {
+    if (live && autoplay && !replay.playing) replay.toggle();
+    // Only as Autoplay is switched on (or the night goes live), never on every play/pause.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, autoplay]);
   const offer = live && onBeat ? (beats.find((x) => x.status === "offered" && !answered.has(x.id) && x.line < shown.length) ?? null) : null;
   useEffect(() => setBeatHold(Boolean(offer)), [offer]);
   async function answer(id: string, a: "now" | "later", edit?: PictureEdit) {
@@ -832,7 +839,7 @@ export default function AfterDarkTheater({
             <button type="button" className="theater-icon" onClick={replay.restart} aria-label="From the top" title="From the top">
               ⏮
             </button>
-            <button type="button" className="theater-icon ad-player-main" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>
+            <button type="button" className="theater-icon ad-player-main" onClick={() => (replay.playing && autoplay && onAutoplay?.(false), replay.toggle())} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>
               {replay.playing ? "⏸" : "▶"}
             </button>
             <button type="button" className="theater-icon" onClick={replay.skip} aria-label="Catch up" title="Catch up">

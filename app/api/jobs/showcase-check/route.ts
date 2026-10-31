@@ -2,7 +2,7 @@ import { adminAuthorized } from "@/lib/admin-auth";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
-import { checkBatch } from "@/lib/showcase-check";
+import { checkBatch, recheckBatch } from "@/lib/showcase-check";
 
 export const dynamic = "force-dynamic";
 // A batch of checks (lib/showcase-check.ts): a clip's frames cut and each through Venice's vision model.
@@ -15,7 +15,9 @@ export const maxDuration = 300;
  */
 async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req) && !(await adminAuthorized(req))) return json({ error: "not_found" }, 404);
-  return json(await checkBatch(await getDb()));
+  // ?recheck=1: the safe side looked at again, a batch at a time (lib/showcase-check.ts recheckBatch).
+  const recheck = new URL(req.url).searchParams.get("recheck") === "1";
+  return json(recheck ? await recheckBatch(await getDb()) : await checkBatch(await getDb()));
 }
 
 export const GET = handle(run);

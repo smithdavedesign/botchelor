@@ -796,7 +796,11 @@ async function shootSpec(db: Db, viewer: string, characterId: string, input: Sho
   // Picture 2 their body reference (when they have one, the model takes it, and the face isn't held loosely), then the set.
   const images = [crop ? signedMediaUrl(crop, baseUrl) : face];
   const refs = { body: false, set: false };
-  if (identity.body && identity.strength !== "loose" && model.max_images >= 2) {
+  // Not when a pose, what's happening, what they wear or their own words are picked and the model edits its pictures
+  // (the audit, 2026-10-31: qwen-edit kept the reference's pose and clothes and changed only the background): the picks
+  // happen, their body stays in the words (subject.look) and their face in Picture 1 and the identity view.
+  const posed = model.job === "edit" && (Boolean(plan.custom) || plan.parts.some((p) => p.group === "pose" || p.group === "filthy" || p.group === "wardrobe"));
+  if (identity.body && identity.strength !== "loose" && model.max_images >= 2 && !posed) {
     images.push(signedMediaUrl(identity.body, baseUrl));
     refs.body = true;
   }

@@ -537,7 +537,9 @@ export default function SceneWriter({
             steps={{
               canRewind: Boolean(scene.rewind?.depth),
               redoTitle,
-              canReset: scene.lines.length > 0,
+              // Or a chapter is filed already (the audit, 2026-10-31: after a chapter close, Two sides waited on Start over,
+              // and Start over waited on a line of the new chapter).
+              canReset: scene.lines.length > 0 || (scene.chapter ?? 1) > 1,
               onRewind: () => void send({ rewind: true }),
               onRedo: () => void send({ redo: true }),
               onReset: () => void send({ reset: true }),

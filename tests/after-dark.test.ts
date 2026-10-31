@@ -745,7 +745,7 @@ describe("what a picture's prompt knows", () => {
 
   it("draws a looks-builder character from every pick, and her baseline in the outfit she picked", () => {
     const p = baselinePrompt(star(picked), "owner-1");
-    expect(p).toMatch(/^Uncensored adult photograph, a 25-year-old adult woman, Latina, .*blonde.*, .*green eyes, a curvy hourglass figure with full hips, a large full bust\. Wearing a one-piece swimsuit, alone, waist-up/);
+    expect(p).toMatch(/^Uncensored adult photograph, a 25-year-old adult woman, Latina, with warm tan skin and Latin features, .*blonde.*, .*green eyes, a curvy hourglass figure with full hips, a large full bust\. Wearing a one-piece swimsuit, alone, waist-up/);
     expect(p).not.toMatch(/Nude|Star/);
     // The After Dark outfit wins over the show's, and Nude (or no outfit) is a nude baseline.
     expect(baselinePrompt(star({ ...picked, after_dark: { outfit: "bikini", butt: "large" } }), "owner-1")).toMatch(/a large full round butt\. Wearing a tiny string bikini/);
@@ -756,7 +756,7 @@ describe("what a picture's prompt knows", () => {
   it("draws the finer details in every picture, and the private grooming pick only undressed, in the owner's, below a waist-up frame", () => {
     const s = star({ ...picked, outfit: undefined, skin_tone: "deeper", marks: "freckles", glasses: "wire", tattoos: "sleeve", after_dark: { grooming: "trimmed" } });
     const base = baselinePrompt(s, "owner-1");
-    expect(base).toMatch(/Latina, a deeper skin tone, .*a large full bust, a light dusting of freckles across the nose and cheeks, thin round wire-framed glasses, a full sleeve tattoo covering one arm\. Nude, alone, waist-up/);
+    expect(base).toMatch(/Latina, with warm tan skin and Latin features, a deeper skin tone, .*a large full bust, a light dusting of freckles across the nose and cheeks, thin round wire-framed glasses, a full sleeve tattoo covering one arm\. Nude, alone, waist-up/);
     // The baseline's frame stops at the waist: nothing below it is named.
     expect(base).not.toMatch(/pubic/);
     const inBed = { place: "his flat", stage: 4, explicit: true, recent: [] };
