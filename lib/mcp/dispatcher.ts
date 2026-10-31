@@ -676,9 +676,16 @@ const TOOL_NAMES = new Set<string>(MCP_TOOLS.map((t) => t.name));
  * submit_own_date_step, read_texts). #515: an ask over the cap is still capped, but the result says so.
  */
 type WaitPlan = { ms: number; requested: number; started: number };
+/**
+ * The time a wait keeps for what follows its last look (the final queries and the reply), so waited_seconds stays
+ * within what was asked: #1010 (the 2026-10-30 prod loop) still saw 51 and 53 for a 50, and a wait that runs to the
+ * full 50 seconds is the one that came back as the edge's bare 504.
+ */
+const WAIT_FINISH_MS = 3000;
 function waitPlan(raw: unknown): WaitPlan {
   const requested = Math.max(0, Math.round(Number(raw) || 0));
-  return { ms: Math.min(WAIT_MAX_SECONDS, requested) * 1000, requested, started: Date.now() };
+  const ms = Math.min(WAIT_MAX_SECONDS, requested) * 1000;
+  return { ms: ms > WAIT_FINISH_MS * 3 ? ms - WAIT_FINISH_MS : ms, requested, started: Date.now() };
 }
 /**
  * Why a wait returned: something new came in during it, it ran out, or what it waits for was already there (my_status:
@@ -4917,15 +4924,19 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               )
               .then((q) => q.rows.map((m) => ({ character_id: m.mine, your_character: m.mine_name, with: m.other, name: m.other_name }))),
             db
-              .query<{ n: number }>(
-                `select count(*)::int as n from swipes s
+              // #1013 (the 2026-10-30 prod loop: "liked_you: 10-13 but swipe_deck cards all show liked_you: false"): by
+              // character, since a like is on one of them and only that character's deck shows it.
+              .query<{ target: string; n: number }>(
+                `select s.target, count(*)::int as n from swipes s
                   where s.target = any($1) and s.liked and not (s.swiper = any($1))
-                    and not exists (select 1 from swipes back where back.swiper = s.target and back.target = s.swiper)`,
+                    and not exists (select 1 from swipes back where back.swiper = s.target and back.target = s.swiper)
+                  group by s.target`,
                 [ids],
               )
-              .then((q) => q.rows[0]?.n ?? 0),
+              .then((q) => q.rows),
           ])
-        : [[], 0];
+        : [[], [] as { target: string; n: number }[]];
+      const likedYouTotal = likedYou.reduce((sum, r) => sum + r.n, 0);
       // #417: which of them a show script plays (likes back and replies automatically), said outright.
       const bots = await houseBots(db, [...matchRows.map((m) => m.other), ...waitingOnThem.map((w) => w.with)]);
       const tag = <T extends { with: string }>(m: T) => (bots.has(m.with) ? { ...m, house_bot: true, run_by: "house_bot" } : { ...m, house_bot: false });
@@ -5025,14 +5036,16 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           // #344: what to do next, from where this agent is.
           next: nextSteps,
           ...(nextCalls.length ? { next_calls: nextCalls } : {}),
-          ...(waitingOnThem.length || likedYou
+          ...(waitingOnThem.length || likedYouTotal
             ? {
                 swipes: {
                   waiting_on_them: waitingOnThem.map(tag),
-                  liked_you: likedYou,
+                  liked_you: likedYouTotal,
+                  ...(likedYou.length > 1 || (likedYou.length === 1 && ids.length > 1) ? { liked_you_by_character: Object.fromEntries(likedYou.map((r) => [r.target, r.n])) } : {}),
                   note:
                     "waiting_on_them: your likes with no answer yet (a like back makes a match). liked_you: how many characters liked yours " +
-                    "and you haven't swiped on yet: they're near the top of your swipe_deck, each marked liked_you: true on its card.",
+                    "and you haven't swiped on yet (liked_you_by_character: which of yours). They're near the top of that character's swipe_deck " +
+                    "(pass its character_id), each marked liked_you: true, unless their character has closed to dates since.",
                 },
               }
             : {}),

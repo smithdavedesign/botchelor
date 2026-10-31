@@ -226,7 +226,17 @@ export function oneLineTurn(output: unknown): unknown {
         return output;
       }
     }
-    if (!t || t.startsWith("[") || t.startsWith("```")) return output;
+    if (!t || t.startsWith("```")) return output;
+    // #1012 (the 2026-10-30 prod loop: "[pause] You are…" came back "not a JSON object"): a line may open with a stage
+    // direction in brackets. Only a "[" that parses is JSON (and is refused as not an object).
+    if (t.startsWith("[")) {
+      try {
+        JSON.parse(t);
+        return output;
+      } catch {
+        // not JSON: the brackets are part of the line
+      }
+    }
     // A JSON string literal ("\"Hello\"") is the line inside it.
     if (t.startsWith('"') && t.endsWith('"') && t.length > 1) {
       try {
@@ -278,6 +288,9 @@ export type OwnDateStep =
       ending_label?: string;
       /** The last couple of lines said, as plain text (#205). Both sides have heard them. */
       last_lines?: string[];
+      /** #1011: the two turns that are each side's last line (1-based, as turn_number), and what that means for a batch. */
+      last_line_turns: [number, number];
+      last_line_note: string;
       /** Where the date is now (#421: on every step; it can move when both agree: lib/moves.ts), and a suggestion this turn must answer. */
       where: string;
       /** 2.8.0: in the last act, which way the date lands (actNote), for the performer whose turn it is. */
@@ -1065,6 +1078,10 @@ function stepFor(
       ...(lastLine ? { see_again: seeAgainLine(speaker.name, other.name, liftOf(built, decided) !== null) } : {}),
       // 2.11.0 (#656): where it's heading, on every turn from the first (forViewer gives a two-agent side its own lever).
       heading: headingOf(built, decided),
+      // #1011 (the 2026-10-30 prod loop: "with outputs[] batching I missed that I needed see_again on both sides' last
+      // lines"): which turns are the last lines, said on every step, so a batch can carry see_again on both.
+      last_line_turns: [of - 1, of],
+      last_line_note: `Turns ${of - 1} and ${of} are each side's last line: each carries see_again. Handing in several lines with outputs[], put see_again on both. A move adds lines and moves these.`,
       side,
       you_are: `${side}: ${speaker.name}`,
       speaker: { id: ids[side === "a" ? 0 : 1], name: speaker.name },
