@@ -320,6 +320,8 @@ export default function CreateWizard({
       if (d.soul) setSoul({ ...EMPTY_SOUL, ...d.soul });
       if (d.extras && typeof d.extras === "object") setExtrasState(d.extras);
       if (typeof d.autonomy === "string") setAutonomy(d.autonomy);
+      // The steps already reached stay open (the audit, 2026-10-31: a reload restored every field but locked steps 2–7).
+      if (typeof d.maxStep === "number") setMaxStep((m) => Math.max(m, Math.min(last, Math.floor(d.maxStep))));
     } catch {
       /* a blocked or private store just means no draft; the builder still works */
     }
@@ -330,11 +332,11 @@ export default function CreateWizard({
   useEffect(() => {
     if (created || edit) return;
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras }));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras, maxStep }));
     } catch {
       /* ignore */
     }
-  }, [sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras, created, edit]);
+  }, [sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras, maxStep, created, edit]);
 
   async function applySample() {
     const t = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];

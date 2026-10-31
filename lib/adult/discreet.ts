@@ -38,7 +38,9 @@ export const DEFAULT_PRIVACY: Privacy = { blur: true, neutral_title: true, pin: 
  * of those is After Dark's own file. app/after-dark/discreet.css holds the same selectors (tests/discreet.test.ts).
  */
 export const BLURRED_MEDIA_SELECTORS = [
-  `:is(img, video, image):not(.avatar):not([${SHOWN_ATTR}])`,
+  // The show's own stock pictures (the look tiles, the cast's portraits) are nobody's secret: the Studio's Restyle
+  // options were unreadable under the blur (the audit, 2026-10-31).
+  `:is(img, video, image):not(.avatar):not([${SHOWN_ATTR}]):not([src^="/api/looks/"]):not([src^="/cast/"])`,
   `:is(img, video)[src*="/after-dark/"]:not([${SHOWN_ATTR}])`,
   `image[href*="/after-dark/"]:not([${SHOWN_ATTR}])`,
 ] as const;
