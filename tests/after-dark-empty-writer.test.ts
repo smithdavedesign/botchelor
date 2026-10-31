@@ -62,17 +62,23 @@ const lastFlags = async () => (await t.db.query<{ flags: Record<string, unknown>
 describe("a writer that sends back nothing", () => {
   it("is asked once more", async () => {
     writer(1);
-    expect((await step()).status).toBe(200);
+    const res = await step();
+    expect(res.status).toBe(200);
     expect(await lastFlags()).toMatchObject({ empty_text_retry: true });
     expect((await lastFlags()).fell_back_to).toBeUndefined();
+    // Their own writer wrote it: nothing to say (#1053).
+    expect((await res.json()).writer_note).toBeUndefined();
   });
 
   it("twice: the fallback writes the step instead of it failing", async () => {
     writer(2);
     const res = await step();
     expect(res.status).toBe(200);
-    expect((await res.json()).scene.lines).toHaveLength(2);
+    const body = await res.json();
+    expect(body.scene.lines).toHaveLength(2);
     expect(await lastFlags()).toMatchObject({ empty_text_retry: true, fell_back_to: FALLBACK_WRITER });
+    // #1053: and the theater says so, rather than leaving the viewer to guess who wrote it.
+    expect(body.writer_note).toBe("✍️ GLM-4.6 sent nothing back: DeepSeek V3.1 wrote this one.");
   });
 
   it("three times: the step fails, saying why", async () => {

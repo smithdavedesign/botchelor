@@ -7,7 +7,7 @@ import { setAdultModelForTests } from "@/lib/adult/mode";
 import { SCENE_REPLY_TOKENS } from "@/lib/adult/scenes";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { setWriter, writerChoice, writerFor, writerOptions } from "@/lib/adult/writer";
-import { DEFAULT_WRITER_CONFIG, mergeWriterConfig, writerConfigOf } from "@/lib/adult/writer-config";
+import { DEFAULT_WRITER_CONFIG, mergeWriterConfig, writerConfigOf, writerNote } from "@/lib/adult/writer-config";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -26,6 +26,15 @@ describe("the writers' settings", () => {
     expect(mergeWriterConfig(DEFAULT_WRITER_CONFIG, { default: "deepseek/deepseek-chat-v3.1:nitro" }).default).toBe("deepseek/deepseek-chat-v3.1:nitro");
     expect(() => mergeWriterConfig(DEFAULT_WRITER_CONFIG, { default: "not/on-the-list" })).toThrow(/default/);
     expect(() => mergeWriterConfig(DEFAULT_WRITER_CONFIG, { models: [DEFAULT_WRITER_CONFIG.models[0], DEFAULT_WRITER_CONFIG.models[0]] })).toThrow(/once/);
+  });
+
+  it("say when a step wasn't their own writer's: the fallback, or the fast one's opening (#1053)", () => {
+    const m = DEFAULT_WRITER_CONFIG.models;
+    const [glm, ds] = ["z-ai/glm-4.6", "deepseek/deepseek-chat-v3.1:nitro"];
+    expect(writerNote(m, { asked: glm, wrote: ds, theirs: glm })).toBe("✍️ GLM-4.6 sent nothing back: DeepSeek V3.1 wrote this one.");
+    expect(writerNote(m, { asked: ds, wrote: ds, theirs: glm })).toBe("✍️ DeepSeek V3.1 wrote the opening so it starts quickly; GLM-4.6 writes from the next step.");
+    expect(writerNote(m, { asked: glm, wrote: glm, theirs: glm })).toBeNull();
+    expect(writerNote(m, { asked: ds, wrote: ds, theirs: ds })).toBeNull();
   });
 });
 
@@ -67,7 +76,7 @@ describe("each person's writer", () => {
 
   it("a night's first lines are the fast writer's, unless they picked one themselves (the audit, 2026-10-29)", async () => {
     const me = userIdOf(newUserCookie());
-    expect(await writerChoice(t.db, me, { opening: true })).toEqual({ id: "deepseek/deepseek-chat-v3.1:nitro", think_tokens: 0 });
+    expect(await writerChoice(t.db, me, { opening: true })).toMatchObject({ id: "deepseek/deepseek-chat-v3.1:nitro", think_tokens: 0, theirs: "z-ai/glm-4.6" });
     expect((await writerChoice(t.db, me)).id).toBe("z-ai/glm-4.6");
     await setWriter(t.db, me, "z-ai/glm-4.6");
     expect((await writerChoice(t.db, me, { opening: true })).id).toBe("z-ai/glm-4.6");
@@ -114,10 +123,15 @@ describe("a writer that thinks first", () => {
     const step = () =>
       scenePost(new Request(`${BASE_URL}/api/admin/after-dark`, { method: "POST", headers: { "content-type": "application/json", cookie: signedIn(me) }, body: JSON.stringify({ a: HOUSE_CHARACTERS[0].id, b: HOUSE_CHARACTERS[1].id }) }));
     // The night's first lines are the fast writer's (writerChoice opening); the next step is the default's, with its room.
-    expect((await step()).status).toBe(200);
+    // #1053: the opening says the fast one wrote it; the default's own step says nothing.
+    const opening = await step();
+    expect(opening.status).toBe(200);
+    expect((await opening.json()).writer_note).toMatch(/^✍️ DeepSeek V3\.1 wrote the opening/);
     expect(sent[0]).toMatchObject({ model: "deepseek/deepseek-chat-v3.1:nitro", max_tokens: SCENE_REPLY_TOKENS });
     const before = sent.length;
-    expect((await step()).status).toBe(200);
+    const second = await step();
+    expect(second.status).toBe(200);
+    expect((await second.json()).writer_note).toBeUndefined();
     expect(sent[before]).toMatchObject({ model: "z-ai/glm-4.6", max_tokens: SCENE_REPLY_TOKENS + 1200 });
     await setWriter(t.db, me, "deepseek/deepseek-chat-v3.1:nitro");
     expect((await step()).status).toBe(200);

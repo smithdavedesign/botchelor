@@ -27,10 +27,15 @@ export async function writerFor(db: Db, userId: string): Promise<string> {
  * the first press sat a minute or more with nothing on screen). Unless they picked a writer themselves, the fast one
  * writes those, and their own takes over from the next step.
  */
-export async function writerChoice(db: Db, userId: string, opts: { opening?: boolean } = {}): Promise<{ id: string; think_tokens: number }> {
+export async function writerChoice(
+  db: Db,
+  userId: string,
+  opts: { opening?: boolean } = {},
+): Promise<{ id: string; think_tokens: number; theirs: string; models: WriterModel[] }> {
   const o = await writerOptions(db, userId);
   const id = opts.opening && !o.picked && o.models.some((m) => m.id === FALLBACK_WRITER) ? FALLBACK_WRITER : o.chosen;
-  return { id, think_tokens: o.models.find((m) => m.id === id)?.think_tokens ?? 0 };
+  // `theirs` and `models`: so a step can say when it wasn't their own writer's (#1053, writer-config.ts writerNote).
+  return { id, think_tokens: o.models.find((m) => m.id === id)?.think_tokens ?? 0, theirs: o.chosen, models: o.models };
 }
 
 /** Picks a writer (null: back to the default). False when it isn't one of the writers on offer. */
