@@ -20,11 +20,12 @@ a whisper and a direct instruction, with chapter and moment pictures that kept b
 talking moment and a published showcase post along the way. The writing is in character and remembers the sheets.
 That part of the product is real.
 
-Five things are not fine, in order:
+Six things are not fine, in order:
 
 1. **botchelor.com went down for ~5 minutes at 08:01 UTC** (Cloudflare and the DigitalOcean ingress both answered 504,
    DO's own health said "HEALTHY"). It came back on its own at 08:06, as the merge of #1067 started a deploy. Nothing
-   paged anyone. Cause not proven; the last thing loaded before it was /graph. See *Outage* below.
+   paged anyone. Probable cause found (56 avatars from /graph, each a full-size resize on a 1-vCPU replica) and fixed
+   in #1068, verified live. See *Outage* below.
 2. **The default face model changes a character's ethnicity.** Teo's look says Black; the show portrait (fal) is a
    Black man; "Draw 3" on the default After Dark face model (Lustify) gave three light-skinned Mediterranean men, 0/3.
    Qwen Image 3 got 3/3 right. A new user never finds out why their character looks like someone else.
@@ -35,8 +36,13 @@ Five things are not fine, in order:
    every signed-in person. 23 live posts carry that rating. The rating line needs tightening and a re-check.
 5. **Explicit moment pictures at stage 4 fall apart** (one character drawn twice, the other missing) while the PG and
    undressing pictures are excellent. Hive passes them because everyone is an adult; nobody checks composition.
+6. **A movie made from the theater stalls.** Its shots are collected only while the 🎞 Videos list is on screen, and
+   "Make the movie" puts the user back in the theater; Replicate drops uncollected shots after 30 minutes, with the
+   7 tokens. Tonight's six shots sat finished for 20 minutes. *Fixed in #1070* for an open page; collection without
+   one is still open (F42).
 
-Everything else is polish, listed below with severity. Nine of the smaller ones are already fixed in #1067.
+Everything else is polish, listed below with severity. Nine of the smaller ones are already fixed in #1067, two more
+in #1070.
 
 ## Outage (critical)
 
@@ -214,6 +220,102 @@ Product notes
 - **O5** Align the ending label with the afterglow ("friends, for now").
 - **O6** One portrait style for cast and people's characters.
 
+### Added after the first draft
+
+- **F38** /graph's client app hung the headless Chromium twice (and preceded both outages through the avatar storm
+  above). On a phone it will be the slowest page by far; measure the client work and cap or defer it.
+- **F39** Autoplay with a paused player (▶ showing) silently stops the night: the writer never runs and nothing says
+  why (the night sat at 94 lines for ten minutes with Autoplay ticked). Autoplay should imply play, or the bar should
+  say "Paused: press ▶ to keep going". Related: a background tab pauses playback, so a night left in another tab stalls
+  by design; a one-line "paused while you're away" would explain it.
+- The identity pack: 8 views in 30 s, the same person throughout ("profile left" is a ¾ turn rather than a profile).
+- **The chapter close** (08:49 UTC, 124 lines): "Chapter 1 is done and filed under Their nights. Autoplay has stopped:
+  switch it on again for the next chapter." Chapter 2 opens with a recap and the last lines carried over; the 📖 menu
+  lists "▶ Chapter 2 · now" and "↺ Chapter 1 · 124 lines" and the replay plays all 124 lines back to "That's the night.
+  Watch again". Nights (1) appears in the gallery. 🌗 Two sides says plainly "Still going: Start over files it, then
+  both sides can be written."
+- **The storyboard** (🎬 Video of the night, free for an admin): the director reads the whole night in ~10 s and keeps
+  shots with their lines; each shot has ✏️ Your words, 🖼 Use a picture, Draw this one; "Draw the pictures (5)",
+  approve each, then film for 7 tokens; "nothing is drawn, filmed or spent until you press a button here". This is the
+  reel-storyboard PRD, working. **F40** (medium): closing and reopening the dialog re-runs the director and changes the
+  plan ("1 shot kept", then "2", then "1"); a plan the user was shaping shouldn't be thrown away on close. "Draw the
+  pictures (5)" drew six shots in about two minutes, "Approve all" approved them, "🎬 Make the movie · 7 tokens" was
+  accepted (free for an admin) and the film job ran on its own.
+- **F41** (medium) Two sides after a chapter close is a dead end: the close says chapter 1 is "filed under Their
+  nights", 🌗 Two sides says "Still going: Start over files it, then both sides can be written", and ⋯ → Start over is
+  disabled while the new chapter has no lines ("File tonight under their nights and start a new one"). The only way to
+  the two sides of the night just finished is to write a step of the next chapter first, which nothing says. Enable
+  Start over whenever a filed chapter exists, or let Two sides write from the filed chapters.
+- The texts thread, the live room, predictions, reviews, account export and ml-consent all round-trip cleanly (table
+  above).
+- **The movie, filmed** (storyboard → six shots): "🎬 Make the movie · 7 tokens" queued six shots on Replicate
+  (`wan-video/wan-2.2-i2v-fast`) in 4 s. They were done within minutes, and then sat there: nothing asked for them for
+  20 minutes, because only the 🎞 Videos list asks (`GET /reel?id=` every 15 s while it is on screen) and after "Make
+  the movie" the user is back in the theater, which covers the page (F42). Asked by hand, 2 → 4 → 6 shots came in
+  within 90 s; the movie plays shot by shot under Videos (two 5 s shots loaded at a time, faces kept).
+- **Start over → 🌗 Two sides**: after one step of chapter 2, Start over filed the night in 5.8 s (two `adult_nights`
+  rows: chapter 1 with the 124 lines from the close, chapter 2 with 5) and opened the TONIGHT card for a new night. No
+  confirmation step (O7). The Two sides panel kept saying "Still going: Start over files it" until a page reload (F43);
+  after it: "Oct 31 · 2 chapters · 129 lines · Write both sides". The write took 75 s and both pages are good: in voice
+  (his ferry metaphors, her facts over stories), faithful to the night (the locked door, the chair, "Ma'am"), and the
+  morning-after texts leave the relationship where the night left it ("Jokes aren't given on command. I'll find you
+  when I have one. Don't wait up.").
+- **F42** (high) A movie only progresses while the Videos list is on screen. `Reels` polled `reel?id=` while mounted,
+  and `SceneWriter` mounts it only on the 🎞 Make tab's Videos list. Leaving for the theater (which is what "Make the
+  movie" does), another tab or a locked phone stalls collection, and Replicate cancels a prediction nobody collected in
+  30 minutes (`cancelAfter: "30m"`): the movie and its 7 tokens are gone. Fixed in #1070 (the page asks while it is
+  open). Still open: a tab closed within the half hour loses the shots; collection should not need an open page (a pass
+  over `making` reels from the pair GET the theater already polls, or a job).
+- **F43** (low) Two sides doesn't notice Start over: the panel loads its nights once, when it first shows. Fixed in
+  #1070 (keyed on the night count, so a filed night mounts it fresh; a remount refetches, verified).
+- **F44** (nit) The Two sides header reads "His side ·" with nothing after the dot, and shows initials (TA, VL) where
+  the theater shows headshots.
+- **O7** Start over has no confirmation. It files the night rather than deleting it and the replay brings it back, so
+  I'd leave it; a one-line "Filed under their nights" toast would say what just happened.
+- Not a bug, but a trap for automation: a chapter replay is a second theater layered over the live one, so the live
+  theater's ⋯ menu sits under it and a real click on it never lands (Playwright waited on every HUD button until the
+  replay's Exit was pressed). People only see the top layer; nothing to fix.
+
+## Coverage
+
+Tested tonight, end to end, as a new admin account in a real browser (desktop 1280 px and phone 375 px): the 18+ gate,
+registration, admin claim, the whole /create wizard twice, the looks builder, free portraits, character pages, the After
+Dark hop, who's in, the scene picker, a 120-line After Dark night with every steer kind (nudge, suggestion chips, whisper,
+Direct), Rewind/Redo, chapter and moment pictures, Draw ahead, Autoplay, Bring them to life, Listen, a talking moment,
+the Studio's Identity (Draw 3 on two models, body references, identity pack) and Shoot tabs, Together, Setups, Publish to
+the showcase with a new creator handle, the showcase and reels (both sides), the admin settings/library/providers pages,
+After Dark MCP (initialize, tools/list, after_dark_pairs), three show dates (house cast, a second date, a match → date),
+the episode page, the theater, date photos, texts threads, swipes and matches, a live room with a prediction, a review,
+the PG Studio, account export, ml-consent, connections, the Constellation, reunion, prompts, about, agents docs, legal,
+report, 2257, the free tools, and the show MCP (initialize, tools/list, list_cast).
+
+Not tested tonight, After Dark: Shorts publishing and "Call it" (they need a house × house night), the discreet PIN
+(set, prompt, reset), subscriber caps and the 402 paths (an admin is uncapped), jurisdiction text_only/blocked, billing
+(processors stay off until their env is set), the Studio's Restyle, Older faces, Fix faces, SFW twin, Animate, Carousel,
+Upscale, More like this, Export, Captions, Rate deck, Favorites and Archive, own-key After Dark, the Create tab's own
+prompts/venues/roleplays, and the Shared-with-you consent flow between two owners. (The reel storyboard, Start over and
+🌗 Two sides were tested after the first draft: above.)
+
+Not tested, the show: Stripe checkout (no purchases were made), email confirmation (it sends mail), push notifications
+(headless browser), account deletion (the test characters stay for David to look at), Google sign-in, a mixer actually
+running, leagues at /leagues/[id], the prompts library's search, and the agents' MCP write paths beyond list/read calls.
+
+## Money
+
+/api/admin/spend at 08:45 UTC: October costs $352 so far (api $286, infra $46, other $20) against $8 income. The After
+Dark writer key on OpenRouter has used $9.04 this month with $240.96 left; Venice sits at $31.22 with auto top-up under
+$10. Tonight's generations for the two test characters, from the database: 31 scene pictures (24 Studio/Together on
+qwen-edit-uncensored, 7 chapter and moment pictures on qwen-image-edit-2511), 11 baselines (6 Lustify, 3 Qwen Image 3,
+2 body references), 21 voice lines, 18 presence files (expressions and living loops), 2 talking moments, 8 identity
+views, a date selfie and three show dates. None of it moved either balance visibly; all media went to the bucket, none
+into Postgres.
+
+## Verified after the fixes deployed
+
+- `/api/assets/<id>?w=40`: first ask 1.1–1.5 s (decode, resize, keep), second ask 0.10–0.12 s from
+  `character_asset_thumbs`. /graph now costs the replica 56 row reads, not 56 decodes.
+- Both apps healthy after the #1068 deploy (08:35 UTC); #1069 (report follow-ups) merged.
+
 ## Opinion
 
 The core is strong and specific: characters that stay themselves across a date, their texts, a second date and an
@@ -246,8 +348,17 @@ the free-portrait framing (F8), then the outage follow-ups (alerting, replicas).
 - Theater: set labels cut at a word (F21, with a unit test); ⋯ closes on Escape (F22).
 - Tests: `after-dark-talks` reads the clip price from the settings (it failed on main since #1065).
 
+And in #1068 (merged 08:33 UTC): a portrait's small copies are resized once and kept (`character_asset_thumbs`),
+resizes run three at a time, and the assets route reads only an asset's head columns until it needs the file. This is
+the fix for the outages above, verified live (first ask 1.1–1.5 s, second 0.1 s).
+
+And in #1070: a video being made is collected from the pair's page while it is open, whatever is showing (F42), and the
+Two sides panel lists a night as soon as Start over files it (F43).
+
 ## Still open for David (decisions or money)
 
+- F42's other half: collecting a movie's shots without an open page (a server-side pass over `making` reels, or a job),
+  before Replicate's 30-minute cancel; and what happens to the tokens of a shot Replicate dropped.
 - F17 default face model → Qwen Image 3 (settings page; cost per face on Venice to compare).
 - F24 which model handles pose/wardrobe shoots.
 - F30 re-rating the 23 suggestive posts (a script can re-run the VLM; the line itself is a product call).
