@@ -16,6 +16,7 @@ import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURE
 import { countUse, overCap } from "./usage";
 import { adultModel, adultModelId } from "./mode";
 import { writerChoice } from "./writer";
+import { limitOf } from "./fallback";
 import { FALLBACK_WRITER, writerNote } from "./writer-config";
 import { drawLabel, ensureSet, inBackground, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
@@ -1633,6 +1634,8 @@ export type StepFlags = {
   /** The writer sent nothing back and was asked again; and, sent nothing again, who wrote the step instead. */
   empty_text_retry?: boolean;
   fell_back_to?: string;
+  /** The writer fell back to the fast one because it was rate-limited, out of credit or didn't answer (not just empty): the limit kind (lib/adult/fallback.ts). */
+  fell_back_limit?: string;
   /** All the safe lines of the first reply were dropped, so it was asked once more. */
   retried: boolean;
   /** Lines that crossed one of the two lines (withheld from every response). */
@@ -2069,24 +2072,45 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   let model = input.model;
   let modelOptions = options;
   const emptyText = (err: unknown) => err instanceof Error && /returned no text/.test(err.message);
-  /** The step's first reply: an empty one is asked once more, then goes to the fallback, instead of failing the step. */
+  // input.fallback is set only when the picked writer isn't the fast one (see where this is called), so it's always a
+  // different model; one fallback per step and it returns straight away, so there's no risk of looping on it.
+  const canFallBack = () => Boolean(input.fallback);
+  /** Hand the step to the fast writer instead of failing it (no thinking to make room for on it). */
+  const toFallback = async (): Promise<string> => {
+    flags.fell_back_to = input.fallback!.id;
+    flags.calls++;
+    model = input.fallback!.model;
+    modelOptions = { ...options, maxTokens: SCENE_REPLY_TOKENS };
+    return model.complete(messages, modelOptions);
+  };
+  /**
+   * The step's first reply. An empty one is asked once more, then goes to the fallback. A rate-limit (429), out of
+   * credit (402), a 5xx or no answer at all (timeout/network) goes straight to the fallback rather than failing the
+   * step (the audit, 2026-10-31: GLM-4.6 hit an OpenRouter 429 and the step died 502 with no fallback). lib/adult/fallback.ts
+   * limitOf classifies it; the model client has already retried a retryable status before it throws.
+   */
   const firstReply = async (): Promise<string> => {
     try {
       return await model.complete(messages, modelOptions);
     } catch (err) {
+      const limit = limitOf(err);
+      if (limit && canFallBack()) {
+        flags.fell_back_limit = limit.kind;
+        return toFallback();
+      }
       if (!emptyText(err)) throw err;
       flags.empty_text_retry = true;
       flags.calls++;
       try {
         return await model.complete(messages, modelOptions);
       } catch (again) {
-        if (!emptyText(again) || !input.fallback) throw again;
-        flags.fell_back_to = input.fallback.id;
-        flags.calls++;
-        model = input.fallback.model;
-        // No thinking to make room for on the fallback.
-        modelOptions = { ...options, maxTokens: SCENE_REPLY_TOKENS };
-        return await model.complete(messages, modelOptions);
+        const limit2 = limitOf(again);
+        if (limit2 && canFallBack()) {
+          flags.fell_back_limit = limit2.kind;
+          return toFallback();
+        }
+        if (!emptyText(again) || !canFallBack()) throw again;
+        return toFallback();
       }
     }
   };
