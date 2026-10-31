@@ -1341,6 +1341,8 @@ create index if not exists adult_images_character_idx on adult_images (character
 -- Where a file's bytes are when they're in the private bucket (lib/object-store.ts), not in data: a new file has
 -- only this; one moved by scripts/media-to-object-store.mjs has both until its data is freed. Same for look_tiles.
 alter table adult_images add column if not exists object_key text;
+-- When a clip already in the bucket was brought up to a new clip's bytes (faststart + mark; lib/adult/faststart-backfill.ts).
+alter table adult_images add column if not exists faststart_at timestamptz;
 -- Every step of an After Dark scene, for the admin's /why view (lib/adult/steps.ts, 2026-10-22): the steer or place
 -- asked for, what came of it (the lines added, the ones dropped and why) or the error. night_id once its chapter is filed.
 create table if not exists adult_steps (
