@@ -30,7 +30,7 @@ export default function SharedWithYou({ initial, textOnly = null }: { initial: S
   return (
     <section className="card" id="shared">
       <h2>Shared with you</h2>
-      {s.shares.length === 0 && <p className="muted small">Nothing yet. When a character yours has dated shares a picture, it waits here for you to accept.</p>}
+      {s.shares.length === 0 && <p className="muted small">Nothing yet. When the owner of a character one of yours has dated shares a picture, it waits here for you to accept.</p>}
       {waiting.length > 0 && (
         <ul className="ad-shared-list">
           {waiting.map((x) => (

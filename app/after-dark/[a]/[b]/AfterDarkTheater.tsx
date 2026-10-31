@@ -399,6 +399,10 @@ export default function AfterDarkTheater({
     e.preventDefault();
     // A whisper needs its words; a refused steer or whisper stays in the box, to be reworded.
     if (whisperTo && !direction.trim()) return;
+    // The 2026-10-30 prod loop (run 4: "the Playing… lock was the biggest obstacle"): Next during playback jumps to the end
+    // and carries on, rather than waiting out a replay of the last lines on every visit.
+    // A steer leaves playback running: its lines come after what's playing.
+    if (!caughtUp && !direction.trim()) replay.skip();
     if ((await onWrite?.(direction.trim())) !== false) setDirection("");
   }
 
@@ -718,18 +722,16 @@ export default function AfterDarkTheater({
                 {/* Autoplay is always writing ahead, so a steer goes as soon as it's typed. */}
                 {/* #1017 (the 2026-10-30 prod loop: "pressing Enter in the steer box did nothing"): a typed steer goes while the
                     last lines still play, as with autoplay; a browser won't submit a form whose button is disabled. */}
-                <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim()) || (!caughtUp && !direction.trim())}>
+                <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim())} title={caughtUp ? undefined : "Skips to the end of what's playing and carries on"}>
                   {busy
                     ? "Writing…"
                     : whisperTo
                       ? "Whisper"
                       : !caughtUp && direction.trim()
                         ? "Steer"
-                        : caughtUp || (autoplay && direction.trim())
-                        ? // The Next that opens a chapter pays for it (lib/adult/settings.ts chapter_tokens).
+                        : // The Next that opens a chapter pays for it (lib/adult/settings.ts chapter_tokens).
                           // #1005: after that, Next says it's already paid for, so no step looks free or unexplained.
-                          `Next${chapterTokens ? (scene.lines.length ? " · included" : ` · ${chapterTokens} token${chapterTokens === 1 ? "" : "s"}`) : ""}`
-                        : "Playing…"}
+                          `Next${chapterTokens ? (scene.lines.length ? " · included" : ` · ${chapterTokens} token${chapterTokens === 1 ? "" : "s"}`) : ""}`}
                 </button>
               </div>
               <div className="ad-theater-options">

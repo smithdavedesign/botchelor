@@ -144,8 +144,9 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
           {mode === "register" ? (
             <>
               Already have one?{" "}
+              {/* #1025: not a second "Sign in" beside the form's own button. */}
               <button type="button" className="link-button" onClick={() => setMode("login")}>
-                Sign in
+                Switch to signing in
               </button>
             </>
           ) : (
