@@ -535,6 +535,18 @@ describe("the scene prompt", () => {
   it("plays a scene line as a date turn on the right set", () => {
     expect(lineToTurn({ who: "a", text: "*leans in* Hi there." })).toMatchObject({ side: "a", action: "leans in", dialogue: "Hi there." });
     expect(lineToTurn({ who: "b", text: "Plain." })).toMatchObject({ action: "", dialogue: "Plain." });
+    // #1040: actions anywhere in the line, several, and never a stray asterisk.
+    expect(lineToTurn({ who: "a", text: "*leans in*" })).toMatchObject({ action: "leans in", dialogue: "…" });
+    expect(lineToTurn({ who: "a", text: "You came. *smiles*" })).toMatchObject({ action: "smiles", dialogue: "You came." });
+    expect(lineToTurn({ who: "b", text: "I— *swallows* I didn't mean it." })).toMatchObject({ action: "swallows", dialogue: "I— I didn't mean it." });
+    expect(lineToTurn({ who: "a", text: "*sits* Well. *pours two glasses* Drink?" })).toMatchObject({ action: "sits · pours two glasses", dialogue: "Well. Drink?" });
+    expect(lineToTurn({ who: "a", text: "Wait *gasps*!" })).toMatchObject({ action: "gasps", dialogue: "Wait!" });
+    expect(lineToTurn({ who: "b", text: "'*Clears throat dramatically*'" })).toMatchObject({ action: "Clears throat dramatically", dialogue: "…" });
+    expect(lineToTurn({ who: "b", text: '"Hi," *grins* "stranger."' })).toMatchObject({ action: "grins", dialogue: '"Hi, stranger."' });
+    expect(lineToTurn({ who: "a", text: "**leans closer** Tell me." })).toMatchObject({ action: "leans closer", dialogue: "Tell me." });
+    expect(lineToTurn({ who: "a", text: "Stay. *reaches for" })).toMatchObject({ action: "reaches for", dialogue: "Stay." });
+    expect(lineToTurn({ who: "a", text: "…" })).toMatchObject({ action: "", dialogue: "…" });
+    for (const text of ["*a* b *c* d", "x *y", "**", "* *", "*one**two*"]) expect(lineToTurn({ who: "a", text }).dialogue).not.toContain("*");
     expect(stageFor(null, "bowling_alley")).toBe("bowling_alley");
     expect(stageFor("bowling alley, lane twelve", "bowling_alley")).toBe("bowling_alley");
     expect(stageFor("his apartment", "bowling_alley")).toBe("elsewhere@his apartment");

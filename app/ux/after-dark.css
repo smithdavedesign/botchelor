@@ -1845,6 +1845,22 @@ a.ad-scenes-make-link {
   font-size: var(--text-sm);
   white-space: nowrap;
 }
+/* #1039: the viewer's own picture landing, said for a few seconds. */
+.ad-moment-drawing.is-landed {
+  background: rgba(60, 24, 92, 0.86);
+  box-shadow: 0 0 0 1px rgba(241, 233, 255, 0.4);
+}
+/* #1039: a picture just drawn for the viewer, marked in the gallery until they've had a moment to see it. */
+.after-dark-gallery li.is-new {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.after-dark-gallery .ad-new-badge {
+  font-weight: 600;
+}
+.ad-picture-pending {
+  margin: 0 0 var(--space-3);
+}
 
 /* #1004 (2026-10-30 prod loop): the top bar is a see-through gradient across the whole stage, and it took the clicks meant
    for what lies under it (the backdrop's Photo and Show buttons). Only its own controls take clicks. With a roleplay chip

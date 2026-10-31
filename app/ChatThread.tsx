@@ -112,7 +112,9 @@ export default function ChatThread({ characters, turns, typing = null, challenge
         // Name the speaker the first time each side talks in an act; after that the side + avatar say who it is.
         const named = newAct || !turns.slice(0, i).some((x) => x.act === t.act && x.side === t.side);
         const c = who(t.side);
-        const caption = meta ? [t.action, t.emotion].filter(Boolean).join(" · ") : "";
+        // #1040: a line that's only a stage direction shows as one, in italics under the speaker, not as "…".
+        const direction = meta && t.dialogue === "…" && Boolean(t.action);
+        const caption = meta ? [direction ? "" : t.action, t.emotion].filter(Boolean).join(" · ") : "";
         return (
           <div key={i} className="chat-item">
             {dividerAt(i)}
@@ -122,7 +124,13 @@ export default function ChatThread({ characters, turns, typing = null, challenge
               <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} photoSrc={c.photo} size={30} />
               <div className="chat-col">
                 {named && <span className="chat-name">{c.name}</span>}
-                <p className="chat-bubble">{t.dialogue}</p>
+                {direction ? (
+                  <p className="chat-bubble chat-direction">
+                    <em>{t.action}</em>
+                  </p>
+                ) : (
+                  <p className="chat-bubble">{t.dialogue}</p>
+                )}
                 {lineVotes.enabled ? (
                   // The caption and the thumbs share one row under the bubble, so rating adds little height.
                   <div className="chat-foot">

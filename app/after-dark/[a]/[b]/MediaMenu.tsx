@@ -81,6 +81,10 @@ export default function MediaMenu({
   const [place, setPlace] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  // #1039 (the 2026-10-30 ad visitor: "the Make tab sat on 'Reading what tonight allows…'"): a slow or failed read gives
+  // up after 15 s and offers Retry, as TwoSidesPanel does (#1017); `reads` counts the tries, so Retry reads again.
+  const [menuError, setMenuError] = useState(false);
+  const [reads, setReads] = useState(0);
 
   // A clip made in the theater joins the videos list too.
   useEffect(() => {
@@ -95,18 +99,21 @@ export default function MediaMenu({
     if (!open) return;
     let gone = false;
     const q = `a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`;
-    const read = (path: string) => fetch(`/api/admin/after-dark/${path}?${q}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const signal = AbortSignal.timeout(15_000);
+    const read = (path: string) => fetch(`/api/admin/after-dark/${path}?${q}`, { signal }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    setMenuError(false);
     void Promise.all([read("clips"), read("pictures")]).then(([c, p]) => {
       if (gone) return;
       setClips(c as ClipOffer | null);
       setPictures(p as PictureMenu | null);
+      setMenuError(!c || !p);
     });
     return () => {
       gone = true;
     };
     // `moved` stands for the scene's fields that change the menus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, moved]);
+  }, [open, moved, reads]);
 
   async function make(path: "clips" | "pictures", body: Record<string, unknown>) {
     setBusy(true);
@@ -178,7 +185,18 @@ export default function MediaMenu({
         </button>
       </div>
       {!clips || !pictures ? (
-        <p className="muted small">Reading what tonight allows…</p>
+        menuError ? (
+          <p className="error small" role="alert">
+            What tonight allows didn&apos;t load.{" "}
+            <button type="button" className="button-ghost small" onClick={() => setReads((n) => n + 1)}>
+              Retry
+            </button>
+          </p>
+        ) : (
+          <p className="muted small" role="status">
+            Reading what tonight allows…
+          </p>
+        )
       ) : tab === "clip" ? (
         <>
           <fieldset>
