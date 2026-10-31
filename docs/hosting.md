@@ -19,7 +19,8 @@ The database (Neon) and the show's media bucket (Neon Object Storage) didn't mov
   live Stripe links only, test events never grant, IndexNow pings, the funnel beacon, Hive always on.
 - **The site's address is `SITE_URL`** (`lib/site.ts`): links in guides, the MCP discovery file and sitemaps name
   botchelor.com, never the server's internal address.
-- **Vercel Web Analytics and Speed Insights** only render on Vercel, so they're off. Google Analytics is unchanged.
+- **Vercel Web Analytics and Speed Insights** are gone, packages and all (2026-10-31), with `@vercel/functions`'
+  metrics. Google Analytics and the `track()` analytics log lines are unchanged.
 - **Where a visitor is** (`lib/place.ts`): Vercel's location headers are gone. Without them a visitor's country is
   unknown, which is safe on both sides: the EU consent banner shows to everyone who hasn't chosen, and After Dark
   stays closed to everyone but admins. So botchelor.com sits behind our own Cloudflare zone (free) with the "Add visitor

@@ -1,9 +1,8 @@
-import { track } from "@vercel/analytics";
 import { gaOff } from "@/lib/ga-guard";
 import { sendFunnel } from "./funnel";
 
 /**
- * The show's conversions, sent from the browser to Vercel Web Analytics (custom events), to GA4 as gtag events
+ * The show's conversions, sent from the browser to GA4 as gtag events
  * when GA is loaded (mark them as key events in GA4), and to the GTM dataLayer when the container is loaded.
  * Props are small enums and booleans only — never a name, id, bio or anything a person typed.
  */
@@ -23,11 +22,6 @@ type Props = Record<string, string | number | boolean>;
 type DataLayerWindow = Window & { dataLayer?: Record<string, unknown>[]; gtag?: (...args: unknown[]) => void };
 
 export function trackConversion(name: Conversion, props: Props = {}): void {
-  try {
-    track(name, props);
-  } catch {
-    /* analytics must never break the page */
-  }
   try {
     const w = window as DataLayerWindow;
     // Nothing for Google from a tab that has shown After Dark (lib/ga-guard.ts; gtag.js would drop it anyway).

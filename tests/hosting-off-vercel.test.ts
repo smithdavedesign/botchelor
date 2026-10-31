@@ -29,8 +29,8 @@ describe("running off Vercel (lib/deploy.ts)", () => {
   });
 
   it("counts the funnel in production anywhere, and renders Vercel's analytics only on Vercel", () => {
-    expect(trackingConfig(DO)).toMatchObject({ production: true, vercelAnalytics: false });
-    expect(trackingConfig({ VERCEL_ENV: "production" })).toMatchObject({ production: true, vercelAnalytics: true });
+    expect(trackingConfig(DO)).toMatchObject({ production: true });
+    expect(trackingConfig({ VERCEL_ENV: "production" })).toMatchObject({ production: true });
   });
 
   it("names botchelor.com in links, not the address the platform's proxy forwards to", () => {

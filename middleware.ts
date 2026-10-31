@@ -6,7 +6,6 @@ import { track } from "@/lib/analytics";
 import { detectBot } from "@/lib/bots";
 import { OLD_HOSTS, siteUrl } from "@/lib/site";
 import { NOTRACK_COOKIE } from "@/lib/tracking";
-import { metric } from "@vercel/functions";
 
 /*
  * The site's other addresses (lib/site OLD_HOSTS: the old one and www). Their pages move permanently to the canonical
@@ -73,8 +72,6 @@ const AGENT_DOCS: Record<string, string> = {
 const DOC_SOURCES = new Set(["llms.txt", "llms-full.txt", "mcp.json", "agents"]);
 /** The policy pages: no adult content, and a person reporting or cancelling shouldn't have to pass the 18+ gate first. */
 const UNGATED_PAGES: ReadonlySet<string> = new Set(["/terms", "/privacy", "/legal", "/content-policy", "/2257", "/report", "/cancel"]);
-/** A bounded page family for metric tags ("/characters/abc" → "/characters"): never a raw path or id. */
-const section = (path: string) => `/${path.split("/")[1] ?? ""}`;
 
 /**
  * Botchelor is a fictional 18+ show, so the first thing a visitor meets is an age lock: every page redirects
@@ -124,7 +121,6 @@ function route(req: NextRequest): NextResponse {
     const bot = detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"));
     const kind = bot?.kind ?? "unclassified";
     track("agent_doc_fetch", { doc, bot: bot?.name ?? null, kind });
-    metric("agent.doc_fetch", 1, { doc, kind });
     return NextResponse.next();
   }
 
@@ -134,7 +130,6 @@ function route(req: NextRequest): NextResponse {
     const raw = req.nextUrl.searchParams.get("utm_source") ?? "";
     const source = DOC_SOURCES.has(raw) ? raw : "other";
     track("agent_referral_visit", { source, path: pathname });
-    metric("agent.referral_visit", 1, { source, section: section(pathname) });
   }
 
   // The gate itself, unsubscribing from email (lib/email.ts), and the policy pages (terms, privacy, reporting, cancelling):

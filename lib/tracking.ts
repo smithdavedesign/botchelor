@@ -21,7 +21,6 @@ export type TrackingConfig = {
   gaId: string | null;
   /** The live site, on any host: the funnel beacon counts only this. */
   production: boolean;
-  vercelAnalytics: boolean;
   verification: { google?: string | string[]; other?: Record<string, string> } | undefined;
 };
 
@@ -42,9 +41,8 @@ export function trackingConfig(env: Record<string, string | undefined> = process
     // Only a well-formed container id renders a tag: a typo'd env var can't inject arbitrary script.
     gtmId: gtm && GTM_ID.test(gtm) ? gtm : null,
     gaId: ga && GA_ID.test(ga) ? ga : null,
-    // Analytics only count real production traffic, not previews or local runs; Vercel's own only run on Vercel.
+    // Analytics only count real production traffic, not previews or local runs.
     production: isProductionDeploy(env),
-    vercelAnalytics: env.VERCEL_ENV === "production",
     verification,
   };
 }
