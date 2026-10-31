@@ -15,7 +15,7 @@
  *      as transcript-X/Y.txt with the model behind each letter in key.json, for a blind read.
  *
  * Keys come from the environment only, never files: AD_OPENROUTER_KEY (After Dark's OpenRouter key) and, for the paid
- * date model, SIM_LLM_API_KEY (the AI Gateway key); the caller reads them from the keychain.
+ * date model, SIM_LLM_API_KEY (an OpenRouter key); the caller reads them from the keychain.
  * Options: --models a,b (OpenRouter ids, default Dolphin-Mistral 24B and DeepSeek V3.1)  --partner house-sable
  *          --steps 26  --date-model paid|stub  --out .data/sim-after-dark  --no-build  --score-only (re-score a run)
  *          --character file.json  the character to create instead of Teodor Vance (NEW_CHARACTER's shape, extras too)
@@ -47,7 +47,7 @@ const OUT = opt("out", join(ROOT, ".data", "sim-after-dark"));
 const ADMIN_PASSWORD = randomBytes(18).toString("hex");
 // One signing secret for every app this run starts: the owner's signed-in cookie from the dates has to open each copy.
 const SESSION_SECRET = ["sim", "after", "dark", randomBytes(16).toString("hex")].join("-");
-const GATEWAY = "https://ai-gateway.vercel.sh/v1";
+const GATEWAY = "https://openrouter.ai/api/v1";
 
 /** The new character: made for this test, so nothing of it is already on the show. */
 export const NEW_CHARACTER = {
@@ -410,7 +410,7 @@ async function main() {
     const models = parseArms(opt("models", "cognitivecomputations/dolphin-mistral-24b-venice-edition,deepseek/deepseek-chat-v3.1"), process.env.ADULT_TEXT_PROVIDERS);
     if (models.length > LETTERS.length) throw new Error(`--models: at most ${LETTERS.length} for the blind read`);
     if (models.some((m) => !m.local) && !process.env.AD_OPENROUTER_KEY) throw new Error("AD_OPENROUTER_KEY needed: After Dark's OpenRouter key, read from the keychain by the caller");
-    if (DATE_MODEL === "paid" && !process.env.SIM_LLM_API_KEY) throw new Error("--date-model paid needs SIM_LLM_API_KEY (the AI Gateway key)");
+    if (DATE_MODEL === "paid" && !process.env.SIM_LLM_API_KEY) throw new Error("--date-model paid needs SIM_LLM_API_KEY (an OpenRouter key)");
     const newCharacter = characterFile ? parseCharacter(JSON.parse(readFileSync(characterFile, "utf8"))) : NEW_CHARACTER;
     const penalties = parsePenalties(opt("penalties", ""), models.length);
     const arms = models.map((arm, i) => ({ ...arm, penalty: penalties[i] }));

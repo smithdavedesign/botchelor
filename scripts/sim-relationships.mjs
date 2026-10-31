@@ -13,8 +13,8 @@
  *
  * Models:
  *   --model stub   (default) the local stub showrunner: free, fast, the same line every turn. Tests the plumbing.
- *   --model paid   the real model through an OpenAI-compatible endpoint: SIM_LLM_BASE_URL (default the Vercel AI
- *                  Gateway), SIM_LLM_API_KEY (required, read from the environment only), SIM_MODEL (default
+ *   --model paid   the real model through an OpenAI-compatible endpoint: SIM_LLM_BASE_URL (default
+ *                  OpenRouter), SIM_LLM_API_KEY (required, read from the environment only), SIM_MODEL (default
  *                  anthropic/claude-haiku-5.5, what production runs). Costs about 1¢ a date.
  * Options: --pairs 1,4,10 (default all)  --dates 5  --out .data/sim  --no-build  --no-screens
  *
@@ -38,7 +38,7 @@ const DATES = Number(opt("dates", "5"));
 const OUT = opt("out", join(ROOT, ".data", "sim"));
 const PICK = opt("pairs", "all");
 const ADMIN_PASSWORD = randomBytes(18).toString("hex");
-const GATEWAY = "https://ai-gateway.vercel.sh/v1";
+const GATEWAY = "https://openrouter.ai/api/v1";
 
 if (!["stub", "paid"].includes(MODEL)) throw new Error("--model is stub or paid");
 if (MODEL === "paid" && !process.env.SIM_LLM_API_KEY) throw new Error("--model paid needs SIM_LLM_API_KEY in the environment");
@@ -75,9 +75,10 @@ async function relationship(base, who, a, b) {
 
 async function gatewayBalance() {
   if (MODEL !== "paid") return null;
-  const res = await fetch(`${process.env.SIM_LLM_BASE_URL || GATEWAY}/credits`, { headers: { authorization: `Bearer ${process.env.SIM_LLM_API_KEY}` } }).catch(() => null);
-  const data = res?.ok ? await res.json().catch(() => null) : null;
-  return data?.balance !== undefined ? Number(data.balance) : null;
+  // OpenRouter's key endpoint: what's left (or minus the usage when the key has no limit), so before − after = spend.
+  const res = await fetch(`${process.env.SIM_LLM_BASE_URL || GATEWAY}/key`, { headers: { authorization: `Bearer ${process.env.SIM_LLM_API_KEY}` } }).catch(() => null);
+  const data = res?.ok ? (await res.json().catch(() => null))?.data : null;
+  return data ? Number(data.limit_remaining ?? -data.usage) : null;
 }
 
 function envFor(showrunnerPort, dataDir) {

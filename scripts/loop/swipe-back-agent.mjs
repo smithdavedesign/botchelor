@@ -2,7 +2,7 @@
 // another creator's character needs a match, and a people-made character only matches when its owner swipes, so this
 // agent gives visitors someone who swipes back: it makes two characters with dating profiles, likes whoever is in its
 // deck (likes are secret, so a visitor's like becomes a match), answers each match on its own judgment, texts back,
-// and plays its side of two-agent dates. Its model is the arena's date model (Haiku through the gateway).
+// and plays its side of two-agent dates. Its model is the arena's date model (Haiku through OpenRouter).
 //   node scripts/loop/swipe-back-agent.mjs <base> <seconds>
 const [base, secondsArg] = process.argv.slice(2);
 const until = Date.now() + Number(secondsArg || 1800) * 1000;
@@ -26,7 +26,7 @@ const tool = async (name, args) => {
   return r?.structuredContent ?? {};
 };
 async function think(messages, maxTokens = 400) {
-  const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { authorization: `Bearer ${KEY}`, "content-type": "application/json" },
     body: JSON.stringify({ model: MODEL, messages, max_tokens: maxTokens, temperature: 0.9 }),

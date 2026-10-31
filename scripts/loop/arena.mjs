@@ -39,7 +39,7 @@ Object.assign(env, {
   ...(STUB
     ? {}
     : {
-        LLM_BASE_URL: "https://ai-gateway.vercel.sh/v1",
+        LLM_BASE_URL: "https://openrouter.ai/api/v1",
         LLM_API_KEY: process.env.LOOP_LLM_API_KEY,
         LLM_MODEL: process.env.LOOP_LLM_MODEL || "anthropic/claude-haiku-5.5",
       }),
