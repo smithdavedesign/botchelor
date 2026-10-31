@@ -7811,6 +7811,17 @@ export function dropSentNotes(key: string, data: Record<string, unknown>): Recor
         // #1077 (the 2026-10-31-0610 run: "notes, next_calls and the cost block repeat"): the cost block's own notes
         // (using_note, left.note) are the same on every booking, so they're left out once sent too.
         out[k] = sift(v as Record<string, unknown>, `${path}${k}.`, 2);
+      } else if (depth === 0 && k === "next_calls" && Array.isArray(v) && /"<[^"]*>"/.test(JSON.stringify(v)) && !/_id"\s*:/.test(JSON.stringify(v))) {
+        // #1077: a template (args with <placeholders>, naming no id) repeated word for word on every my_status (a
+        // 573-byte create_character one, measured on botchelor.com 2026-10-31) is left out once sent, like a note. Calls
+        // that name an id (a preview's "book it", a finished date's reflections) are what to do next, so they always go.
+        const id = `next_calls\u0000${JSON.stringify(v)}`;
+        if (seen!.has(id)) {
+          left.push(k);
+          continue;
+        }
+        if (seen!.size < 2000) seen!.add(id);
+        out[k] = v;
       } else out[k] = v;
     }
     return out;

@@ -211,6 +211,8 @@ Settings go in `~/.botchelor-loop/env`, one `KEY=value` a line, never keys:
 | `LOOP_VISITOR_MIN_MINUTES` | 20 | a visitor that reports before this is asked to carry on |
 | `LOOP_VISITOR_NUDGES` | 3 | how many times |
 | `LOOP_VISITOR_STAGGER_MINUTES` | 4 | minutes between one visitor's arrival and the next (0: all at once) |
+| `LOOP_VISITOR_ROLES` | unset | a line added to each visitor's brief, `\|`-separated, one per visitor in turn (an empty one adds nothing) |
+| `LOOP_AD_ROLE` | unset | a line added to the After Dark visitor's brief |
 | `LOOP_CROWD_AGENTS` | 6 | background agents in the arena (0 turns the crowd off) |
 | `LOOP_CROWD_BOOKS` | 0 (3 with `LOOP_STUB=1`) | dates the crowd may ask visitors on: each puts one recap on the date model |
 | `LOOP_CROWD_MODEL` | `local-chat` | the LiteLLM alias the crowd writes with: refused unless it's local Ollama with no fallbacks |
