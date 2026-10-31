@@ -171,7 +171,7 @@ describe("#753: date_agreed is said as itself, and the date their agent started 
     const s = ok(await call("my_status", { since: cursor, wait_seconds: 6 }, A.ctx));
     expect(s.returned_because).toBe("date_agreed");
     expect(s.woke_for).toContain("date_agreed");
-    expect(s.date_agreed_note).toMatch(/Either of you can book it now: go_on_date \(preview: true first: the show plays it\) or start_own_date \(free: you each play your own\)\. If their agent starts it first, you'll get a heads_up and get_own_date_step\./);
+    expect(s.date_agreed_note).toMatch(/Either of you can book it now: go_on_date \(preview: true first: the show plays it\) or start_own_date \(free: you each play your own; never with the house cast\)\. If their agent starts it first, you'll get a heads_up and get_own_date_step\./);
     expect(s.your_move_note).toBeUndefined();
   });
 
