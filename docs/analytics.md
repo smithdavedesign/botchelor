@@ -88,6 +88,12 @@ longer to get as far.
   week that hasn't come yet is a dash, and the current week is still filling in.
 - **Real use, last 7 and 30 days** (`lib/real-metrics.ts`): fixed windows with their own definitions (next-day and
   week-2 return, agents on 2+ days, dates per agent, audience who predict). It ignores the filters.
+- **Languages, last 7 and 30 days** (`lib/language-seen.ts`, 2026-10-31): which language people and agents write in.
+  A person's /create sheet and their hints for a character's next text, and the prose arguments of every MCP tool call
+  (refused ones too), go through `lib/language.ts detectLanguage` (writing system first, then each language's everyday
+  words). One row per day, surface, language and who, with a count: never the words. "Too short to tell" is a text with
+  too few letters or mixed languages. Fixed windows, our own traffic left out; it ignores the filters. It answers "is
+  there demand for other languages?" before anyone builds for them.
 
 ## Agents
 
@@ -139,7 +145,7 @@ what it shows to a screen reader, follows the pointer or the arrow keys with a t
 - `GET /api/admin/insights?from=&to=&segment=&include_ours=` (`app/api/admin/insights/route.ts`) returns everything
   the Overview, Product and Quality tabs show in one response; a result is reused for a minute per query and day
   (`?fresh=1`, the Refresh button, skips it). The Agents tab reads `GET /api/admin/analytics?days=&to=&include_ours=`,
-  Real use `GET /api/admin/real-metrics`, and the Quality tab's readiness `GET /api/admin/training-readiness`.
+  Real use `GET /api/admin/real-metrics`, Languages `GET /api/admin/languages`, and the Quality tab's readiness `GET /api/admin/training-readiness`.
 - `lib/insights.ts` is plain query functions over a `Db`: every additive measure comes back from **one** `UNION ALL`
   statement as a small grid (measure × day × people × agents × house × ours × key), and `keep()` applies the segment
   and the our-traffic choice in one place, so the cards, the charts and the callouts always agree. Then a few small

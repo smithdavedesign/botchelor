@@ -133,6 +133,7 @@ describe("retention (lib/retention.ts)", () => {
       await t.db.query(`insert into swipe_impressions (viewer, card, serve_id, rank, served_via, at) values ($1, $2, 's', 1, 'web', $3)`, [d.character, d.partner, when]);
       await t.db.query(`insert into turn_drafts (episode_id, turn_index, side, source, reason, rejected, created_at) values ($1, 0, 'a', 'critic', 'r', 'x', $2)`, [d.episode, when]);
       await t.db.query(`insert into relationship_events (character_a, character_b, layer, to_stage, at) values ($1, $2, 'all', 'met', $3)`, [lo, hi, when]);
+      await t.db.query(`insert into language_seen (day, surface, lang, actor) values ($1::timestamptz::date, 'web_text', 'es', 'fan')`, [when]);
     }
     const variation = (name: string, when: string) =>
       t.db.query(
@@ -145,7 +146,7 @@ describe("retention (lib/retention.ts)", () => {
     // A consent decision is the record of what someone agreed to: it stays while the account does.
     await t.db.query(`insert into choice_history (kind, user_id, value, at) values ('ml_consent', 'fan', '{"granted":true}'::jsonb, $1)`, [old]);
 
-    expect(await pruneKeptData(t.db, now)).toEqual({ choice_history: 1, swipe_impressions: 1, turn_drafts: 1, relationship_events: 1, episode_variations: 1 });
+    expect(await pruneKeptData(t.db, now)).toEqual({ choice_history: 1, swipe_impressions: 1, turn_drafts: 1, relationship_events: 1, episode_variations: 1, language_seen: 1 });
     expect((await t.db.query(`select kind from choice_history where user_id = 'fan' order by kind`)).rows).toEqual([{ kind: "ml_consent" }, { kind: "prediction" }]);
     expect(await count(`select 1 from swipe_impressions where at < $1`, [recent])).toBe(0);
     expect(await count(`select 1 from turn_drafts where created_at < $1`, [recent])).toBe(0);

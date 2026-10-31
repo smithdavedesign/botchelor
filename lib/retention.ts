@@ -20,6 +20,7 @@ export const RETENTION_DAYS = {
   turn_drafts: 400,
   relationship_events: 400,
   episode_variations: 400,
+  language_seen: 400,
 } as const;
 export type PrunedTable = keyof typeof RETENTION_DAYS;
 
@@ -31,6 +32,7 @@ const PRUNE_SQL: Record<PrunedTable, string> = {
   turn_drafts: `delete from turn_drafts where created_at < $1`,
   relationship_events: `delete from relationship_events where at < $1`,
   episode_variations: `delete from episode_variations where created_at < $1`,
+  language_seen: `delete from language_seen where day < $1::date`,
 };
 
 /** Deletes what's past its time, table by table (one failing never stops the rest). Returns how many rows each lost. */

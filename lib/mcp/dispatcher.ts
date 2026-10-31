@@ -30,6 +30,7 @@ import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, l
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
 import { track } from "../analytics";
 import { recordAgentEvent } from "../agent-funnel";
+import { proseArguments, recordLanguage } from "../language-seen";
 import { byokAvailable, isTextProvider, listUserKeys, pingKey, saveUserKey, TEXT_PROVIDER_IDS, TEXT_PROVIDERS } from "../keys";
 import { hasJobKey, removeConnection } from "../connections";
 import { checkRateLimit, rateLimitInfo, rateLimitMessage, type RateLimitBucket } from "../rate-limit";
@@ -8077,6 +8078,13 @@ async function logCall(msg: RpcMessage, ctx: McpContext, out: Record<string, unk
              coalesce((select client_name from mcp_sessions where id = $1), $7), $8)`,
     [sessionId, clip(msg.params?.arguments && (msg.params.arguments as Record<string, unknown>).agent_id, 64), method, tool, !failed, error, detectBot(ctx.userAgent)?.name ?? null, clip(ctx.userAgent, 200)],
   );
+  // Which language the agent wrote in (lib/language-seen.ts), refused calls too: the call's prose arguments, never the words.
+  const prose = tool ? proseArguments(msg.params?.arguments) : [];
+  if (prose.length) {
+    const given = clip((msg.params?.arguments as Record<string, unknown>).agent_id, 64);
+    const actor = given ?? (await db.query<{ agent_id: string | null }>(`select agent_id from mcp_sessions where id = $1`, [sessionId])).rows[0]?.agent_id;
+    await recordLanguage(db, actor, "mcp", prose);
+  }
 }
 
 async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Record<string, unknown> | null> {

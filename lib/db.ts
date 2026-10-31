@@ -2863,6 +2863,17 @@ create table if not exists schema_meta (
   version text not null,
   applied_at timestamptz not null default now()
 );
+
+-- Which languages people and agents write in (lib/language-seen.ts; David, 2026-10-31): a count per day, surface
+-- (mcp, web_create, web_text), language (lib/language.ts, 'und' when too short to tell) and who. Never the words.
+create table if not exists language_seen (
+  day date not null,
+  surface text not null,
+  lang text not null,
+  actor text not null,
+  n integer not null default 1,
+  primary key (day, surface, lang, actor)
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
