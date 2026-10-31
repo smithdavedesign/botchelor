@@ -106,7 +106,8 @@ describe("matches (#258, #259, #264)", () => {
     if (lo === b.id) await t.db.query(`update matches set yes_lo = true, yes_hi = null where character_lo = $1`, [lo]);
     await t.db.query(`insert into notifications (id, user_id, kind, title, link) values (gen_random_uuid()::text, $1, 'matched', 'Match', $2)`, [a.agentId, `/messages/${lo}/${hi}`]);
     const r = (await call("answer_match", { character_id: a.id, with: b.id, yes: true }, a.ctx)).structuredContent;
-    expect(r.next).toMatch(/go_on_date: the show's model plays both sides.*start_own_date: you play your character/s);
+    // #1024: the free start_own_date first, and go_on_date says it spends one of today's shared show dates.
+    expect(r.next).toMatch(/start_own_date: you play your character.*free.*go_on_date: the show's model plays both sides.*one of today's shared show dates/s);
     expect((await t.db.query<Any>(`select read_at from notifications where user_id = $1 and kind = 'matched'`, [a.agentId])).rows[0].read_at).not.toBeNull();
   });
 
