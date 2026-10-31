@@ -20,7 +20,7 @@ import { getModel } from "@/lib/model";
 import { relationshipMetrics } from "@/lib/relationship-metrics";
 import { clearStaleOwnDates } from "@/lib/own-date";
 import { refreshLobby } from "@/lib/watch";
-import { ensureCastBaselines, seasonGenerationDue } from "@/lib/season-gen";
+import { seasonGenerationDue } from "@/lib/season-gen";
 import { backfillEmbeddings } from "@/lib/originality-concept";
 
 // A fresh template date (~10 model calls) plus a few backfilled conversations (~8 calls each).
@@ -78,9 +78,9 @@ async function run(req: Request): Promise<Response> {
   const indexnow = await recentPublicUrls(db, new Date(Date.now() - 26 * 60 * 60 * 1000))
     .then((urls) => submitIndexNow(urls))
     .catch(() => ({ submitted: 0, status: null }));
-  // Monthly seasons (lib/season-gen.ts): from the 20th, next month's candidates; and the cast's After Dark baselines.
+  // Monthly seasons (lib/season-gen.ts): from the 20th, next month's candidates. The cast's After Dark baselines are made
+  // on After Dark's own host, where its media is (app/api/jobs/after-dark-daily, #1009).
   const candidates = await seasonGenerationDue(db).catch((e: unknown) => ({ season: "", made: [], errors: [e instanceof Error ? e.message : "error"] }));
-  const baselines = await ensureCastBaselines(db).catch(() => ({ made: 0, errors: ["error"] }));
   // Concept embeddings (lib/originality-concept.ts): characters that have none from the current model yet. Off unless enabled.
   // It runs last, so it gets a deadline from the job's start: it stops in time to leave the report below (track, the
   // relationship metrics, the response) inside maxDuration, and on the first 429 or timeout. 270 s: maxDuration less 30 s.
@@ -94,7 +94,6 @@ async function run(req: Request): Promise<Response> {
   track("daily_job", {
     season_candidates_made: candidates?.made.length ?? 0,
     season_candidate_errors: candidates?.errors.length ?? 0,
-    cast_baselines_made: baselines.made,
     likes_nudged: likesNudged,
     embeddings_made: embeddings.made,
     embeddings_failed: embeddings.failed,

@@ -77,8 +77,9 @@ services:
         value: CHANGE_ME
         scope: RUN_AND_BUILD_TIME
       # Never set here: ADULT_MODE, NEXT_PUBLIC_GA_ID, NEXT_PUBLIC_GTM_ID, the site-verification tokens, MEDIA_S3_*.
-# The show's scheduled jobs (app/api/jobs/lobby, daily and showcase-check) run from here: one small container calls
-# them on botchelor.com, so the work itself runs on the show's own app (.do/show.yaml). About $5 a month at most.
+# The scheduled jobs run from here: one small container calls the show's (lobby, daily) on botchelor.com, so that work
+# runs on the show's own app (.do/show.yaml), and After Dark's (after-dark-daily, showcase-check) on ad.botchelor.com,
+# where After Dark's media is (#1009). About $5 a month at most.
 jobs:
   - name: lobby  # runs both hourly jobs; renaming a component needs a delete, so it keeps its first name
     kind: SCHEDULED
@@ -93,8 +94,9 @@ jobs:
     # The lobby every hour at :20, the daily job at 16:20 UTC, and the showcase check about twenty minutes later.
     run_command: >-
       sh -c 'call() { wget -q -O - -T 290 -U "botchelor-cron/1.0 (DigitalOcean)"
-      --header "Authorization: Bearer $CRON_SECRET" "https://botchelor.com/api/jobs/$1"; echo; };
-      call lobby; [ "$(date -u +%H)" = "16" ] && call daily; sleep 1200; call showcase-check'
+      --header "Authorization: Bearer $CRON_SECRET" "https://$1/api/jobs/$2"; echo; };
+      call botchelor.com lobby; if [ "$(date -u +%H)" = "16" ]; then call botchelor.com daily; call ad.botchelor.com after-dark-daily; fi;
+      sleep 1200; call ad.botchelor.com showcase-check'
     instance_size_slug: apps-s-1vcpu-0.5gb
     instance_count: 1
     envs:
