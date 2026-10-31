@@ -575,3 +575,34 @@ either your credential, your money, your device, or a production write the sessi
 3. the second replica (classifier blocked the deploy), the Cloudflare cache rule, and phone alerting;
 4. a real Google account and a real device for the last step of sign-in and push;
 5. connecting from each country for the live jurisdiction modes.
+
+## Round five: items driven with David, and two bugs fixed (2026-10-31 17:00-19:40 UTC)
+
+David joined to help with the blocked items. What that unblocked, and what it surfaced:
+
+- **Subscriber 402 — verified live.** With a reviewer-pass test account (David ran the one-line `adult_entitlements` insert
+  my classifier blocks), After Dark opened for the non-admin subscriber (200; an anon visitor got 404), the metered
+  allowance showed where an admin is exempt, and the video-of-the-night returned exactly
+  `402 {"error":"needs_tokens","message":"A video of the night costs 7 tokens. Get more on the shop page."}`.
+- **Own-key — verified live.** A real OpenRouter key (David's, to be revoked) was live-checked, sealed and stored for the
+  text job, then removed. The complement to the earlier bogus-key 422.
+- **Google sign-in and push — verified live.** David's admin account is Google-linked (`google_sub` set, the OAuth callback's
+  only writer) and he signed in; two push subscriptions registered for it.
+- **Bug found + fixed (#1085): the scene writer died on a provider 429.** Driving the 402, GLM-4.6 hit an OpenRouter 429
+  mid-scene and the step returned 502 — the fallback to the fast writer covered only an empty reply. `firstReply` now routes
+  a 429/402/5xx/timeout (`limitOf`) to the fast DeepSeek writer too. Tested, full suite green, deployed.
+- **Bug found + fixed (#1086): the faststart backfill never reached the edge.** Bunny caches by path, so overwriting clips
+  in place left the CDN serving the old copies (re-verified at 18:02 UTC), and a purge needs an unset account key. `rekeyClips`
+  (route `?mode=rekey`) rewrites each clip under a fresh content-hash key and repoints `object_key`, so a read is an immediate
+  CDN cache miss from storage — no purge. Self-correcting and idempotent. Tested, deployed. **Running it is a bucket write the
+  classifier blocks, so it's handed to David** (`/private/tmp/claude-501/audit/run-rekey.sh`, loops `?mode=rekey` with
+  `CRON_SECRET` until `left` is 0); the faststart benefit goes live when he runs it, and that run also confirms the storage write.
+- **Flagged, not fixed: the slow-GLM gateway timeout.** Separate from #1085: GLM-4.6's ~90-120s steps can exceed the DO ingress
+  timeout on the synchronous scene-send even when they answer (the line commits late server-side). The scene-writer send is a
+  plain POST, not streamed. The fix is architectural — stream the send, make it async, or raise the ingress timeout — and is
+  left for David's call rather than changing the GLM-4.6 quality choice blind.
+
+Still open for David after this round: run the rekey (above); the second replica, Cloudflare `/api/assets/*` cache rule, and a
+phone-reaching uptime check (all his dashboard, the deploy classifier-blocked for the session); revoke the OpenRouter key.
+Covered by tests but not driven live: Shared-with-you consent (needs a built-out character, picture and date on the slow writer
+path) and jurisdiction modes (need a VPN from each country).
