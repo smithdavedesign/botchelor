@@ -188,11 +188,13 @@ describe("a talking moment", () => {
     fakeHive();
     let state: "making" | "failed" = "making";
     fakeVenice(() => state);
-    expect((await list(cookie)).price).toBe(3);
+    // A clip's price is the settings' (#1065 moved it from 3 to about cost): the test reads it rather than naming it.
+    const price = (await list(cookie)).price;
+    expect(price).toBeGreaterThan(0);
     expect((await post({ a: RAFE, b: JUNIPER, i: 0, text: LINES[0].text }, cookie)).status).toBe(402);
     await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 20, 'test')`, [crypto.randomUUID(), sub]);
     expect((await post({ a: RAFE, b: JUNIPER, i: 0, text: LINES[0].text }, cookie)).status).toBe(202);
-    expect(await used()).toBe(3);
+    expect(await used()).toBe(price);
     state = "failed";
     const failed = (await list(cookie)).talks[0];
     expect(failed).toMatchObject({ status: "failed" });
