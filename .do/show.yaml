@@ -58,6 +58,10 @@ services:
       - key: NEXT_PUBLIC_GA_ID
         value: "G-VHL1LZTPHL"
         scope: RUN_AND_BUILD_TIME
+      # Search Console HTML-tag token (backup to public/google12d185eff6366504.html; the old tokens were Vercel-only and lost).
+      - key: GOOGLE_SITE_VERIFICATION
+        value: "lGbVj_m5QXyUaTRceMwGq6qW2n28ebTGkZTtoZpeA1k"
+        scope: RUN_AND_BUILD_TIME
       - key: GOOGLE_OAUTH_CLIENT_ID
         value: "8798420854-7ptpgn2uttpm2pf3io3531qv4fi91bgl.apps.googleusercontent.com"
         scope: RUN_AND_BUILD_TIME
