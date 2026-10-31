@@ -264,7 +264,7 @@ export async function leanedOnWords(db: Db, characterId: string, dates = 6): Pro
   const { rows } = await db.query<{ transcript: Turn[] | null; is_a: boolean }>(
     `select e.transcript, (e.character_a = $1) as is_a
        from episodes e
-      where ${MEMORY_EPISODES_WHERE} and e.transcript is not null
+      where ${MEMORY_EPISODES_WHERE} and e.transcript is not null and not coalesce(e.setup ? 'roleplay', false)
       order by e.revealed_at desc
       limit $2`,
     [characterId, dates],
@@ -307,6 +307,8 @@ export type MemoryEpisode = {
   other_id: string;
   other_name: string;
   other_house: boolean;
+  /** The date played a roleplay (setup.roleplay; lib/date-roleplays.ts): its lines were a role's, not the character's own. */
+  roleplay?: boolean | null;
 };
 
 /** The episodes a character has learned from: its AIRED dates (same aired-only rule as the public record). */
@@ -452,18 +454,19 @@ export function computeMemory(
     // Run 3: the sheet's own want / dealbreaker as a fallback read as an echo ("warms to" = its own want) and pinned a
     // clash on a date where nobody did it, so a date with no real moment teaches nothing rather than something false.
     if (mine?.want_met && meaningful(mine.want_met)) likeCues.push({ cue: mine.want_met, from });
-    else if (went && mine?.wants_another) {
+    else if (went && mine?.wants_another && !r.roleplay) {
       const moment = momentCue(r.transcript, meSide0, 1);
       if (moment) likeCues.push({ cue: `when they said “${moment}”`, from });
     }
     if (mine?.dealbreaker_hit && meaningful(mine.dealbreaker_hit)) turnoffCues.push({ cue: mine.dealbreaker_hit, from });
-    else if (r.ending === "disaster") {
+    else if (r.ending === "disaster" && !r.roleplay) {
       const moment = momentCue(r.transcript, meSide0, -1);
       if (moment) turnoffCues.push({ cue: `when they said “${moment}”`, from });
     }
 
     const meSide = r.is_a ? "a" : "b";
-    for (const t of r.transcript ?? []) {
+    // A roleplay's lines were its role's (a spy's, a knight's): not lines it said as itself.
+    for (const t of r.roleplay ? [] : (r.transcript ?? [])) {
       if (t.side === meSide && t.dialogue) myLines.push({ dialogue: t.dialogue, interest: t.interest ?? 0, order, from });
     }
     const myReflection = r.reflections?.[meSide];
@@ -634,7 +637,7 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
     db.query<MemoryEpisode>(
       `select e.id, e.ending, e.sides, e.transcript, e.reflections, (e.character_a = $1) as is_a,
               e.revealed_at, e.drama_question, e.drama_answer, e.setup->>'venue' as venue,
-              o.id as other_id, o.name as other_name, o.is_house as other_house
+              o.id as other_id, o.name as other_name, o.is_house as other_house, e.setup ? 'roleplay' as roleplay
          from episodes e
          join characters o on o.id = case when e.character_a = $1 then e.character_b else e.character_a end
         where ${MEMORY_EPISODES_WHERE}

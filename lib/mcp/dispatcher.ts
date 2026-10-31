@@ -161,6 +161,8 @@ import { answerMatch, dateNotAgreed, DECK_PAGE, DECK_THEMES, deckFor, logImpress
 import { haveDated, swipeGateOn } from "../swipe-gate";
 import { clearNotifications, dateOfTurnNotice, listNotifications, markRead, notify, ownersOf, resolveTurnNotices, sweepStaleTurnNotices, unreadCount } from "../notifications";
 import { closeProposal, pendingProposal, PROPOSAL_DAYS, proposeDate } from "../date-proposals";
+import { answerRoleplay, myRoleplays, proposeRoleplay, ROLEPLAY_PROPOSAL_DAYS } from "../date-roleplays";
+import { DATE_ROLEPLAYS } from "../roleplays";
 import { arcQuestion, predictArc } from "../arcs";
 import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
 import { CONVERSATION_TURNS } from "../rules";
@@ -210,7 +212,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // by default: the deliberate changes; compact: false has it all), made_by: agent without house-run bots and a house_bot
 // value, returned_because: date_agreed, the date their agent started said where it's agreed, this_week said when the show
 // dealt it, plays_as explained, and agents_on_now in the first my_status: new fields and values otherwise.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.15.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.16.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -491,6 +493,9 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   plan_second_date: `Costs ${ONE_DATE} (a free second date instead, when the show offers one); check: true or preview: true spend nothing.`,
   propose_date: "Free: if their creator accepts, the date is theirs to pay.",
   answer_date_proposal: `accept: true costs ${ONE_DATE}; accept: false and preview: true are free.`,
+  propose_roleplay: "Free: it only agrees what their next date plays (booking that date costs what a date costs).",
+  answer_roleplay: FREE,
+  my_roleplays: FREE,
   air_date: FREE,
   open_afterglow: FREE,
   reflect_on_date: FREE,
@@ -546,7 +551,7 @@ const toolCategory = (name: ToolName): string => {
   if (/_text$|^read_texts$|^send_text$|^leave_nudge$/.test(name)) return "texting";
   if (/^(create|update|delete|set_|rate_|review_|follow_|forget_|check_originality)/.test(name)) return "characters";
   if (/own_date|dates$|hand_over|autoplay|decline/.test(name)) return "own-dates";
-  if (/^(go_on_date|plan_second_date|air_date|open_afterglow|reflect_on_date|propose_date|answer_date_proposal|wait_for_episode|sliding_doors)/.test(name)) return "show-dates";
+  if (/^(go_on_date|plan_second_date|air_date|open_afterglow|reflect_on_date|propose_date|answer_date_proposal|propose_roleplay|answer_roleplay|wait_for_episode|sliding_doors)/.test(name)) return "show-dates";
   if (/^(predict|guess_dealbreaker|predict_arc)/.test(name)) return "predictions";
   if (/feedback/.test(name)) return "feedback";
   return "other";
@@ -2448,11 +2453,16 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
   await sweepAnsweredTexts(db, agentId);
   const { rows } =await db.query<{ kind: string; n: number }>(
     `select kind, count(*)::int as n from notifications
-      where user_id = $1 and read_at is null and kind in ('own_date_invite', 'own_date_turn', 'texted', 'date_proposal', 'own_date_ready', 'matched', 'date_agreed')
+      where user_id = $1 and read_at is null and kind in ('own_date_invite', 'own_date_turn', 'texted', 'date_proposal', 'date_roleplay', 'own_date_ready', 'matched', 'date_agreed')
         -- #178: a turn notice counts only while its date is still being performed.
         and not (kind = 'own_date_turn' and not exists (select 1 from episodes e where e.status = 'generating' and notifications.body like '%' || e.id || '%'))
         -- #198: an invite only until the date is played or gone (declined dates are deleted).
         and not (kind = 'own_date_invite' and not exists (select 1 from episodes e where e.status = 'generating' and e.partner_performer = $1 and notifications.body like '%' || e.id || '%'))
+        -- A roleplay only while one still waits on this agent (not once it's answered, countered, taken back or lapsed).
+        and not (kind = 'date_roleplay' and not exists (
+          select 1 from date_roleplays r
+           where r.status = 'pending' and r.answerer_user = $1 and r.created_at > now() - interval '${ROLEPLAY_PROPOSAL_DAYS} days'
+             and notifications.link like '/couples/' || r.character_lo || '/' || r.character_hi || '%'))
         -- …and "it's done" only until the date airs (sim run 6: it still counted after air_date).
         and not (kind = 'own_date_ready' and exists (select 1 from episodes e where notifications.link = '/episodes/' || e.id and e.revealed_at is not null))
         -- #434: a match counts until this agent has acted on it (answered, or texted them); a date agreed, until a date exists.
@@ -2480,6 +2490,7 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
     ...(open_dates.length ? { open_dates } : {}),
     hint:
       "my_status has the detail: matched → answer_match; date_agreed → go_on_date (preview: true first); date_proposal → answer_match (preview: true first); texted → read_texts; " +
+      "date_roleplay → my_roleplays, then answer_roleplay; " +
       "own_date_invite or own_date_turn → get_own_date_step.",
   };
 }
@@ -5796,7 +5807,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const second = await plannableSecondDate(db, who.id, mineId, partnerId).catch(() => null);
         if (second) return bookSecondDate(db, who, second, args);
       }
-      const body = pick(args, ["character_id", "partner_id", "blind", "format", "visibility", "autonomy", "strategy", "game_budget", "agenda", "note", "self_pick", "place"]);
+      const body = pick(args, ["character_id", "partner_id", "blind", "format", "visibility", "autonomy", "strategy", "game_budget", "agenda", "note", "self_pick", "place", "roleplay", "my_role"]);
       const before = await episodeAllowance(db, who.id).catch(() => null);
       const r = await callRoute(postEpisode, { agentId: who.id, body });
       // A proposal is for a couple that has dated (whether or not the match-first rule is on): never a stranger.
@@ -5889,6 +5900,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         format: typeof args.format === "string" ? args.format : undefined,
         visibility: typeof args.visibility === "string" ? args.visibility : undefined,
         place: typeof args.place === "string" ? args.place : undefined,
+        roleplay: args.roleplay,
+        my_role: args.my_role,
       };
       // #490: preview runs every check and starts nothing (it used to start a public date for real, with "Ignored: preview").
       if (args.preview === true) {
@@ -7468,6 +7481,52 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       return r.ok
         ? { data: { proposal: { id: r.proposal.id, status: "pending", created_at: r.proposal.created_at }, cost: await costReport(db, who.id, { yours: "nothing", shared: false }) }, identity: who }
         : { error: r.message };
+    }
+    case "propose_roleplay":
+    case "answer_roleplay": {
+      // David, 2026-10-31: "agent to agent add to the mcp and let them deliberate" (lib/date-roleplays.ts).
+      const who = resolveIdentity(args, session, true)!;
+      const terms = {
+        character_id: String(args.character_id ?? ""),
+        with: String(args.with ?? ""),
+        roleplay_id: typeof args.roleplay_id === "string" ? args.roleplay_id : null,
+        custom: args.custom && typeof args.custom === "object" ? (args.custom as { title?: unknown; premise?: unknown; roles?: unknown }) : null,
+        my_role: args.my_role,
+        note: args.note,
+      };
+      const r =
+        name === "propose_roleplay"
+          ? await proposeRoleplay(db, who.id, terms)
+          : await answerRoleplay(db, who.id, { ...terms, answer: String(args.answer ?? ""), roleplay_proposal_id: typeof args.proposal_id === "string" ? args.proposal_id : null });
+      if (!r.ok) return { error: r.message, code: r.error };
+      const rp = r.roleplay;
+      return {
+        data: {
+          roleplay: rp,
+          ...("status" in r && !rp ? { status: r.status } : {}),
+          note: !rp
+            ? "No roleplay now: their next date plays without one, unless one of you proposes another (propose_roleplay)."
+            : rp.status === "agreed"
+              ? `Agreed${rp.auto ? " at once (no one else has a say)" : ""}: ${shortName(rp.proposed_by.name)} and the other character's next date plays "${rp.terms.title}", however it's booked (go_on_date or start_own_date with them). The engine still decides the ending. withdraw (answer_roleplay) calls it off.`
+              : `Sent: their creator agrees, declines or counters (round ${rp.round} of ${rp.round + rp.rounds_left}). You'll hear (my_notifications); unanswered it lapses ${rp.lapses_at}.`,
+          cost: await costReport(db, who.id, { yours: "nothing", shared: false }),
+        },
+        identity: who,
+      };
+    }
+    case "my_roleplays": {
+      const who = resolveIdentity(args, session, true)!;
+      const mine = await myRoleplays(db, who.id, typeof args.character_id === "string" ? args.character_id : null);
+      return {
+        data: {
+          ...mine,
+          ...(args.catalog === true
+            ? { catalog: DATE_ROLEPLAYS.map((r) => ({ id: r.id, title: r.title, tag: r.tag, premise: r.premise, roles: r.roles })), catalog_note: "{a} is whoever plays roles[0] (my_role 0), {b} the other." }
+            : {}),
+          next: mine.to_answer.length ? "answer_roleplay answers what waits on you: agree, decline, or counter with what you'd rather." : "propose_roleplay suggests one for a pair's next date (catalog: true lists the show's).",
+        },
+        identity: who,
+      };
     }
     case "answer_date_proposal": {
       const who = resolveIdentity(args, session, true)!;

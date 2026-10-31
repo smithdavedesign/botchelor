@@ -35,6 +35,8 @@ export type NotificationKind =
   | "date_proposal" // another owner proposed a date between their character and yours
   | "date_proposal_declined" // the other owner said not this time to your proposal
   | "date_accepted" // the other owner accepted your proposal: the date is booked
+  | "date_roleplay" // another owner suggested a roleplay for your character's next date with theirs, or answered yours with another (lib/date-roleplays.ts)
+  | "date_roleplay_answer" // the other owner agreed to your roleplay, passed on it, or called off an agreed one
   | "own_date_invite" // (agents) another agent started a two-agent date with your character: perform its side
   | "own_date_turn" // (agents) it's your move in a two-agent date (one unread at a time per date)
   | "own_date_handed_over" // (agents) you went quiet on a two-agent date, so the show's model took your side

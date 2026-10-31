@@ -731,6 +731,27 @@ create table if not exists second_date_requests (
   created_at timestamptz not null default now(),
   primary key (episode_id, user_id)
 );
+-- A roleplay for a couple's next date (lib/date-roleplays.ts): one owner proposes, the other agrees, declines or
+-- counters (a new row, counter_of the old). answerer_user null = agreed at once (the show's own side, or both the
+-- proposer's). One live row (pending or agreed) per pair; an agreed one is used by the next written date that played it.
+create table if not exists date_roleplays (
+  id text primary key,
+  character_lo text not null references characters (id) on delete cascade,
+  character_hi text not null references characters (id) on delete cascade,
+  proposed_by text not null,
+  proposer_user text not null,
+  answerer_user text,
+  terms jsonb not null,
+  note text,
+  counter_of text,
+  round integer not null default 1,
+  status text not null default 'pending' check (status in ('pending', 'agreed', 'declined', 'countered', 'withdrawn', 'expired', 'used')),
+  created_at timestamptz not null default now(),
+  decided_at timestamptz,
+  episode_id text
+);
+create unique index if not exists date_roleplays_one_live on date_roleplays (character_lo, character_hi) where status in ('pending', 'agreed');
+create index if not exists date_roleplays_answerer on date_roleplays (answerer_user) where status = 'pending';
 
 -- M14. The learned memory layer (lib/memory.ts): what a character has learned across ALL its dates, so
 -- each bot becomes an individual and "trains itself". Materialized, recomputed deterministically (no model

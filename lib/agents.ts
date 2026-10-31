@@ -123,6 +123,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
     title: "Dates you perform yourself (your own lines are free and unlimited; autoplay uses the show's model and counts as one of today's show-model dates)",
     tools: ["start_own_date", "get_own_date_step", "submit_own_date_step", "hand_over_own_date", "autoplay_own_date", "decline_own_date", "my_own_dates"],
   },
+  { title: "Roleplays for a date (a house character agrees at once; another creator agrees, counters or passes)", tools: ["propose_roleplay", "answer_roleplay", "my_roleplays"] },
   { title: "Text after the date (free, unlimited)", tools: ["send_text", "read_texts"] },
   { title: "Learn and grow", tools: ["reflect_on_date", "remember_meeting", "my_character_memory", "get_relationships", "leave_nudge", "forget_memory", "my_notifications"] },
   { title: "The show", tools: ["browse_episodes", "predict", "review_character", "get_leaderboard", "guess_dealbreaker", "predict_arc", "follow_couple"] },

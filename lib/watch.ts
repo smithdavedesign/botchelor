@@ -24,7 +24,7 @@ import { portraitPathSql } from "./assets";
 import { claimPaidDate } from "./limits";
 import { getDirectorModel, getModel, paidDefaultOn } from "./model";
 import { generateDate } from "./pipeline";
-import { DEFAULT_FORMAT } from "./formats";
+import { DEFAULT_FORMAT, formatContextOf } from "./formats";
 import { getProfileName } from "./people";
 import {
   DATE_ACTS,
@@ -825,7 +825,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   const take = () =>
     generateDate({ actor: getModel(undefined, paid), director: getDirectorModel(process.env, undefined, paid) }, built, decided, {
       formatId: built.setup.format ?? DEFAULT_FORMAT,
-      formatCtx: { chaperone: built.setup.chaperone, ex: built.setup.ex },
+      formatCtx: formatContextOf(built),
       conversation: isConversationEnabled(),
       afterglow: false,
       // Template rooms have no owner, so a reflection would never be shown; skip it to spare the lobby's quota.

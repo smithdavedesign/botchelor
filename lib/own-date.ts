@@ -36,7 +36,7 @@ import { checkFieldsAnyLanguage, needsTranslation, UNREAD_MESSAGE } from "./lang
 import { speaksOtherThanEnglish } from "./character";
 import type { Db } from "./db";
 import { decideTraced, getEngine, type CharacterSheet, type Outcome } from "./engine";
-import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "./formats";
+import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, formatContextOf, type FormatId } from "./formats";
 import { getEpisodeView, type DateSetup, type EpisodeView } from "./game";
 import type { ChatMessage } from "./model";
 import { PROMPT_VERSION, qualityContext } from "./pipeline";
@@ -57,6 +57,8 @@ import { haveDated, swipeGateOn } from "./swipe-gate";
 import { agreedMatch, dateNotAgreed } from "./swipes";
 import { DATE_VISIBILITIES, DELETED_OWNER } from "./rules";
 import { houseBotSql, isHouseBotAgent } from "./house-bots";
+import { bookingAsk, roleplayForBooking, type BookingRoleplay } from "./date-roleplays";
+import { fillPremise, rolesLine } from "./roleplays";
 import type { RejectReason } from "./safety";
 import { narrateEpisode } from "./showrunner";
 import { logSceneRequests, trackMoves } from "./scenes";
@@ -656,6 +658,25 @@ export const houseBotDateNote = (mine: string, bot: string): string =>
   `${shortName(bot)} is a house-run bot's character (one of the show's own scripts, not another agent): it plays its side on its own, so its replies come from the show's script, not another agent. ` +
   `You write only ${shortName(mine)}'s lines, and there's no recap step for you: the show writes the recap once the last line is in. autoplay_own_date can have the show's model play both sides.`;
 
+type OwnDateInput = {
+  character_id: string;
+  partner_id: string;
+  format?: string;
+  visibility?: string;
+  place?: string;
+  /** A roleplay (lib/date-roleplays.ts): one of the show's ids, { title, premise, roles? }, or "none" to skip an agreed one. */
+  roleplay?: unknown;
+  my_role?: unknown;
+};
+
+/**
+ * The roleplay a self-performed date plays: with your own two, or a house-run bot's character, any you name; with
+ * another agent's character, the one the two of you agreed (propose_roleplay / answer_roleplay). Left out, an agreed one.
+ */
+function ownDateRoleplay(db: Db, userId: string, a: OwnCharacter, b: OwnCharacter & { owner_id: string | null }, input: OwnDateInput): Promise<BookingRoleplay> {
+  return roleplayForBooking(db, userId, a, { id: b.id, name: b.name, owner_id: b.owner_id, is_house: false }, bookingAsk(input.roleplay, input.my_role));
+}
+
 /**
  * start_own_date with preview: true (#490): every check a start makes, and what the date would be, with nothing
  * written: who the partner is and who plays it (you, another agent, or a house-run bot), its length, who'd see it,
@@ -664,7 +685,7 @@ export const houseBotDateNote = (mine: string, bot: string): string =>
 export async function previewOwnDate(
   db: Db,
   userId: string,
-  input: { character_id: string; partner_id: string; format?: string; visibility?: string; place?: string },
+  input: OwnDateInput,
   now: Date = new Date(),
 ): Promise<{ ok: true; preview: Record<string, unknown> } | OwnDateRefusal> {
   const checked = await checkOwnDate(db, userId, input, now, false);
@@ -674,6 +695,9 @@ export async function previewOwnDate(
   }
   const { a, b, partnerPerformer, formatId, visibility } = checked.plan;
   const bot = partnerPerformer ? await isHouseBotAgent(db, partnerPerformer) : false;
+  const rp = await ownDateRoleplay(db, userId, a, b, input);
+  if (!rp.ok) return err(rp.status, rp.error, rp.message);
+  const two = [{ id: a.id, name: a.name }, { id: b.id, name: b.name }];
   return {
     ok: true,
     preview: {
@@ -688,6 +712,7 @@ export async function previewOwnDate(
           ? houseBotDateNote(a.name, b.name)
           : `${shortName(b.name)}'s agent plays its side on its own model; it's told and can decline. The show writes the recap.`,
       format: { id: formatId, label: showFormat(formatId).label, lines: totalTurns(formatId) },
+      roleplay: rp.roleplay ? { title: rp.roleplay.title, premise: fillPremise(rp.roleplay, two), roles: rolesLine(rp.roleplay, two), agreed: rp.roleplay.agreed } : null,
       visibility,
       visibility_note:
         visibility === "private"
@@ -701,7 +726,7 @@ export async function previewOwnDate(
 export async function startOwnDate(
   db: Db,
   userId: string,
-  input: { character_id: string; partner_id: string; format?: string; visibility?: string; place?: string },
+  input: OwnDateInput,
   now: Date = new Date(),
 ): Promise<OwnDateResult> {
   const checked = await checkOwnDate(db, userId, input, now, true);
@@ -723,7 +748,9 @@ export async function startOwnDate(
   // David, 2026-10-23: the booker may say where (lib/places.ts movePlace); else a place agreed by text, else the show's.
   const chosenPlace = input.place?.trim() ? movePlace(input.place.trim().slice(0, 80), a.name, b.name) : null;
   if (input.place?.trim() && !chosenPlace) return err(422, "place_not_allowed", "That place can't host a date on the show: keep it short, PG and public (no bedrooms, cars or links).");
-  const built = await buildDate(db, episodeId, toDate(a), toDate(b), request, undefined, undefined, { creatorId: userId, chosenPlace });
+  const rp = await ownDateRoleplay(db, userId, a, b, input);
+  if (!rp.ok) return err(rp.status, rp.error, rp.message);
+  const built = await buildDate(db, episodeId, toDate(a), toDate(b), request, undefined, undefined, { creatorId: userId, chosenPlace, roleplay: rp.roleplay });
   built.setup.met_via = "own_date"; // how it came about (data plan Tier 2): agents performing it themselves
   // The outcome, and why (episodes.engine_trace): decided before any line, as every date is.
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
@@ -834,6 +861,7 @@ async function rebuild(db: Db, row: Row) {
     avoidVenues: row.setup?.avoid_venues ?? [],
     venueOverride: row.setup?.venue,
     agreedPlan: row.setup?.agreed_plan ?? null,
+    roleplay: row.setup?.roleplay ?? null,
   });
   // Moves as booked: a date already being played when they shipped (no flag) keeps its length and its prompts.
   built.setup.moves = row.setup?.moves === true;
@@ -1060,7 +1088,7 @@ function stepFor(
   transcript: Turn[],
   ids: [string, string],
 ): OwnDateStep {
-  const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
+  const fmtCtx = formatContextOf(built);
   const shape = shapeFor(built, formatId, transcript);
   const of = shape.total;
   if (transcript.length < of) {
@@ -1151,7 +1179,7 @@ function reflectStep(
   done: Reflections | null,
   sides: readonly ("a" | "b")[] = ["a", "b"],
 ): ReflectStep | undefined {
-  const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
+  const fmtCtx = formatContextOf(built);
   const prompts = sides
     .filter((side) => !done?.[side])
     .map((side) => ({

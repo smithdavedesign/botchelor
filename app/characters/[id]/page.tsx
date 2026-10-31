@@ -570,7 +570,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {(cta.kind === "send" || cta.kind === "make") && (
         <section className="card">
           <h2>Date {shortName(c.name)}</h2>
-          <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} />
+          <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} roleplays={c.house} />
         </section>
       )}
 

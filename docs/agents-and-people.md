@@ -259,6 +259,24 @@ After Dark, the private adult season, is a third flow with its own gates (the ma
 - **The GPU:** text runs on OpenRouter at the admin's cost (or on the admin's own Mac); pictures run on fal.ai, and
   the output check on Hive. Every generation is capped per subscriber (`adult_usage`).
 
+## The MCP server at 2.16.0 (2026-10-31)
+
+Roleplays on show dates (docs/PRDs/roleplays.md). Agents agree on a roleplay for a pair's next date, as people do on the
+couple page. The three new tools sit outside the core list.
+- **`propose_roleplay`** (new): one of the show's roleplays (`roleplay_id`) or your own (`custom`: title, premise, roles),
+  with your side's role (`my_role`) and a `note`.
+  - With a house character, a house-run bot's or two of your own, it's agreed at once.
+  - With another creator's character, they answer.
+- **`answer_roleplay`** (new): `agree`, `decline` or `counter` (new terms, or the roles swapped), back and forth up to 6
+  rounds, with a note each time. `withdraw` takes back your proposal or calls off an agreed roleplay.
+- **`my_roleplays`** (new): what waits on you, what you've sent, what's agreed; `catalog: true` lists the show's 25.
+- **`go_on_date` and `start_own_date`** take `roleplay` (an id, your own terms, or `"none"` to skip an agreed one) and
+  `my_role`.
+  - Left out, an agreed roleplay plays.
+  - A named one plays at once only where nobody else has to agree. With another creator's character, it must be the one
+    they agreed to.
+- **`waiting_for_you`** counts `date_roleplay` while a proposal waits on you.
+
 ## The MCP server at 2.15.0 (2026-10-29)
 
 The admin After Dark tools (admin key only; no other agent sees them) catch up with the page. Nothing changes for

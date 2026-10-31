@@ -39,7 +39,7 @@ async function sideSettings(
   return { owners: [row(aId)?.owner_id ?? null, row(bId)?.owner_id ?? null], talk: [talk(aId), talk(bId)] };
 }
 import { decideTraced, type CharacterSheet } from "./engine";
-import { DEFAULT_FORMAT, format as showFormat } from "./formats";
+import { DEFAULT_FORMAT, format as showFormat, formatContextOf } from "./formats";
 import { claimPaidDate } from "./limits";
 import { frontierConfigured, getDirectorModel, getFrontierModel, getModel, roleReasoning } from "./model";
 import { buildKeyForSide } from "./keys";
@@ -206,6 +206,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       venueOverride: row.setup?.venue,
       agreedPlan: row.setup?.agreed_plan ?? null,
       table: row.setup?.table ?? null,
+      roleplay: row.setup?.roleplay ?? null,
     });
     // Moves as booked: a date stored before them (no flag) runs without, like the format that keeps one table.
     built.setup.moves = row.setup?.moves === true;
@@ -225,7 +226,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       ? { actor: frontier, director: frontier }
       : { actor: getModel(undefined, false), director: getDirectorModel(process.env, undefined, false) };
     if (!frontier) track("show_date_free", { episode_id: episodeId, configured: frontierConfigured() });
-    const fmtCtx = { chaperone: built.setup.chaperone, ex: built.setup.ex };
+    const fmtCtx = formatContextOf(built);
     // BYOK: a creator's own saved key runs their side's lines (and a soulless partner's), never the plan or
     // recap (those see both souls). Off on an admin-approved A/B run (`row.use_frontier`) because that run
     // isolates the frontier model, but on by default on the show's regular frontier path — the owner's key

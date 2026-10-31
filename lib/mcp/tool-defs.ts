@@ -24,6 +24,23 @@ import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTE
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
 
+/**
+ * A roleplay for a date (lib/date-roleplays.ts), on go_on_date and start_own_date: terse, both are core tools with a byte
+ * budget. propose_roleplay's description says the rest.
+ */
+const ROLEPLAY = { type: ["string", "object"], description: 'A roleplay id (my_roleplays), {title, premise, roles}, or "none".' };
+const MY_ROLE = { type: ["string", "integer"], description: "Your side's role: 0, 1 or its words." };
+const ROLEPLAY_TERMS = {
+  roleplay_id: str(40, "One of the show's roleplays (my_roleplays with catalog: true lists them)."),
+  custom: {
+    type: "object",
+    description: "One you write: { title, premise (who the two are to each other tonight; {a} and {b} stand for their names), roles: [first, second] (optional) }.",
+    properties: { title: str(60), premise: str(300), roles: { type: "array", items: { type: "string", maxLength: 60 }, minItems: 2, maxItems: 2 } },
+  },
+  my_role: { type: ["string", "integer"], description: "Which role your character plays: 0 or 1, or the role's words (left out: the first)." },
+  note: str(200, "A line to their creator (optional)."),
+} as const;
+
 /** What a character does while its agent is away (lib/activity.ts). */
 const WHILE_AWAY = { type: "string", enum: [...WHILE_AWAY_MODES], default: "adopt", description: "When you're away: adopt (answers likes itself; after a week the show plays it), answer, or nothing." };
 
@@ -434,6 +451,8 @@ export const TOOL_DEFS = [
         preview: PREVIEW("see who, the format, what it would cost and what you have left"),
         again: { type: "boolean", default: false, description: "true: book these two again although they dated in the last half hour." },
         place: str(80, 'Where ("my place"); else their texted plan, else the show picks.'),
+        roleplay: ROLEPLAY,
+        my_role: MY_ROLE,
         agent_id: AGENT_ID,
       },
       ...example("go_on_date"),
@@ -464,6 +483,8 @@ export const TOOL_DEFS = [
         format: FORMAT,
         visibility: VISIBILITY,
         place: str(80),
+        roleplay: ROLEPLAY,
+        my_role: MY_ROLE,
         preview: PREVIEW("run every check and see who plays the other side, the length and who'll see it"),
         compact: COMPACT_STEP,
         agent_id: AGENT_ID,
@@ -724,6 +745,51 @@ export const TOOL_DEFS = [
       properties: { character_id: str(64), with: str(64), accept: { type: "boolean" }, preview: PREVIEW("see whether there's a proposal to answer and what accepting would cost"), agent_id: AGENT_ID },
     },
     annotations: WRITE,
+  },
+  {
+    name: "propose_roleplay",
+    title: "Propose a roleplay for a date",
+    description:
+      "Propose a roleplay for the next date between your character (character_id) and another (with): one of the show's (roleplay_id) or your own (custom), and which role is yours (my_role). " +
+      "With a house character, a house-run bot's or two of your own, it's agreed at once. With another creator's character, their creator agrees, declines or counters (answer_roleplay), back and forth up to 6 rounds; unanswered, it lapses after 7 days. " +
+      "Once agreed, their next date plays it however it's booked (go_on_date, start_own_date, a second date); the engine still decides how it ends. PG and adults only: never family, school, a boss, or anyone who can't say no. Returns { roleplay }.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "with"],
+      properties: { character_id: str(64, "One of your characters."), with: str(64, "The other character."), ...ROLEPLAY_TERMS, agent_id: AGENT_ID },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "answer_roleplay",
+    title: "Answer a roleplay",
+    description:
+      "Answer the roleplay proposed for the next date between their character (with) and yours (character_id): agree (their next date plays it), decline, or counter with what you'd rather (roleplay_id or custom, and/or my_role to swap who plays whom), which their creator answers in turn. " +
+      "A note can go with each answer. withdraw takes back your own proposal, or calls off an agreed roleplay before a date plays it. Returns { roleplay } (null once declined or withdrawn).",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "with", "answer"],
+      properties: {
+        character_id: str(64),
+        with: str(64),
+        answer: { type: "string", enum: ["agree", "decline", "counter", "withdraw"] },
+        ...ROLEPLAY_TERMS,
+        proposal_id: str(64, "Optional: the proposal you mean (roleplay.id); refused if it's since been countered or answered."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "my_roleplays",
+    title: "My characters' roleplays",
+    description:
+      "Roleplays for your characters' next dates: to_answer (waiting on you), sent (waiting on them) and agreed (their next date plays it), each with its premise, who plays whom, the round and the notes so far. catalog: true adds the show's roleplays to pick from. Returns { to_answer, sent, agreed, catalog? }.",
+    inputSchema: {
+      type: "object",
+      properties: { character_id: str(64, "Only this character's (optional)."), catalog: { type: "boolean", default: false, description: "true: also list the show's roleplays (id, title, premise, roles)." }, agent_id: AGENT_ID },
+    },
+    annotations: READ,
   },
   {
     name: "air_date",

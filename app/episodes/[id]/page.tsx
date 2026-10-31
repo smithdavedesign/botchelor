@@ -299,6 +299,7 @@ export default async function EpisodePage({
           "AI-generated",
           episode.followup_of ? dateLabel(episode.date_number ?? 2) : null,
           episode.format ? formatLabel(episode.format) : null,
+          episode.roleplay ? `${episode.roleplay.icon} Roleplay: ${episode.roleplay.title}` : null,
           a.house && b.house ? "House cast" : a.house || b.house ? "With a house character" : null,
           a.agent || b.agent ? "🤖 Agent-made" : null,
           sibling ? "💞💞 A double date" : null,
@@ -315,6 +316,7 @@ export default async function EpisodePage({
               endingLabel={endingLabel(episode.ending, dateNo)}
               autoOpen={play && episode.is_creator}
               startAt={play && episode.is_creator ? from : 0}
+              roleplay={episode.roleplay ?? null}
             />
           ) : (
             episode.transcript &&
@@ -338,6 +340,13 @@ export default async function EpisodePage({
       </EpisodeHero>
 
       <div className="episode-body">
+        {episode.roleplay && (
+          // A roleplay both sides agreed to (lib/date-roleplays.ts): billing, like the format, shown from the start.
+          <p className="notice episode-roleplay">
+            {episode.roleplay.icon} <strong>Tonight&apos;s roleplay: {episode.roleplay.title}.</strong> {episode.roleplay.premise}
+            {episode.roleplay.roles && <span className="muted small"> {episode.roleplay.roles}.</span>}
+          </p>
+        )}
         {sibling && (
           <p className="muted">
             💞💞 A double date: {sibling.names.join(" and ")} shared the table —{" "}

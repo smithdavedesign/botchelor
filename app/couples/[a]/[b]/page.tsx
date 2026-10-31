@@ -20,9 +20,12 @@ import NudgeForm from "./NudgeForm";
 import ThreadPreview from "./ThreadPreview";
 import { ArcCard, CopyLink, FollowButton } from "./CoupleActions";
 import NextDate from "./NextDate";
+import RoleplayCard from "./RoleplayCard";
 import MatchHeader from "./MatchHeader";
 import { loadThread } from "@/lib/inbox";
 import { nextDate } from "@/lib/date-proposals";
+import { agreesAtOnce, pairRoleplay } from "@/lib/date-roleplays";
+import type { Db } from "@/lib/db";
 import { arcQuestion } from "@/lib/arcs";
 import { followState } from "@/lib/follows";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
@@ -42,7 +45,7 @@ async function load(a: string, b: string) {
   const [ca, cb] = await Promise.all([getPublicCharacter(db, a), getPublicCharacter(db, b)]);
   if (!ca || !cb) return null;
   const viewerId = userIdFromCookieStore(await cookies());
-  const owners = (await db.query<{ id: string; owner_id: string | null }>(`select id, owner_id from characters where id = any($1)`, [[a, b]])).rows;
+  const owners = (await db.query<{ id: string; owner_id: string | null; is_house: boolean }>(`select id, owner_id, is_house from characters where id = any($1)`, [[a, b]])).rows;
   const owner = viewerId !== null && owners.some((o) => o.owner_id === viewerId);
   const rel = await loadRelationship(db, a, b);
   const view = rel ? viewRelationship(rel, { userId: viewerId, owner }) : null;
@@ -70,14 +73,32 @@ async function load(a: string, b: string) {
       ? (view.plans ?? []).filter((p) => p.episode_id === last.episode_id).map((p) => p.text)
       : [];
   const next = owner ? await nextDate(db, viewerId, a, b, last?.episode_id ?? null, plan, agreed ? venueName(agreed.place) : null) : null;
-  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, texted, nudges, follow, arc, next };
+  // Owners: a roleplay for their next date (lib/date-roleplays.ts), unless they can't have one (taken, a block); one already
+  // proposed or agreed always shows, so it can be answered or called off.
+  const roleplay = owner ? await roleplayCard(db, viewerId!, owners, next?.option.kind === "unavailable") : null;
+  return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, texted, nudges, follow, arc, next, roleplay };
+}
+
+/** What the roleplay card needs: the viewer's side (the first of theirs) and the other, whether a choice is agreed at once, and the live one. */
+async function roleplayCard(db: Db, viewerId: string, owners: { id: string; owner_id: string | null; is_house: boolean }[], unavailable: boolean) {
+  const me = owners.find((o) => o.owner_id === viewerId && !o.is_house);
+  const them = owners.find((o) => o !== me);
+  if (!me || !them) return null;
+  const initial = await pairRoleplay(db, viewerId, me.id, them.id).catch(() => null);
+  if (unavailable && !initial) return null;
+  return { me: me.id, them: them.id, auto: await agreesAtOnce(db, viewerId, them).catch(() => false), initial };
 }
 
 /** A swipe-deck match that hasn't dated yet (lib/swipes.ts): only its owners see it, with their chat and the yes or no. */
 async function loadMatch(a: string, b: string) {
-  const t = await loadThread(await getDb(), userIdFromCookieStore(await cookies()), a, b);
+  const db = await getDb();
+  const viewerId = userIdFromCookieStore(await cookies());
+  const t = await loadThread(db, viewerId, a, b);
   if (!t?.match) return null;
-  return { ca: t.ca, cb: t.cb, mine: t.mine, match: t.match, chain: t.chain };
+  // A roleplay for their first date (lib/date-roleplays.ts): matched is enough to talk one over.
+  const owners = (await db.query<{ id: string; owner_id: string | null; is_house: boolean }>(`select id, owner_id, is_house from characters where id = any($1)`, [[a, b]])).rows;
+  const roleplay = viewerId ? await roleplayCard(db, viewerId, owners, false) : null;
+  return { ca: t.ca, cb: t.cb, mine: t.mine, match: t.match, chain: t.chain, roleplay };
 }
 
 const refOf = (c: PublicCharacter): CharacterRef => ({
@@ -119,7 +140,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
     if (!match) notFound();
     return <MatchPage {...match} />;
   }
-  const { ca, cb, view, owner, mine, seeing, chain, texted, nudges, follow, arc, next } = data;
+  const { ca, cb, view, owner, mine, seeing, chain, texted, nudges, follow, arc, next, roleplay } = data;
   const followedUp = view.timeline.filter((t) => t.second_date_of).length;
   const latest = [...view.timeline].reverse().find((t) => t.aired) ?? view.timeline.at(-1) ?? null;
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
@@ -187,6 +208,16 @@ export default async function CouplePage({ params, searchParams }: Props) {
 
       {next && <NextDate pair={[ca.id, cb.id]} next={next} hasNudge={nudges.length > 0} />}
 
+      {roleplay && (
+        <RoleplayCard
+          pair={[ca.id, cb.id]}
+          me={{ id: roleplay.me, name: nameOf(roleplay.me) }}
+          them={{ id: roleplay.them, name: nameOf(roleplay.them) }}
+          auto={roleplay.auto}
+          initial={roleplay.initial}
+        />
+      )}
+
       {/* An owner can't call their own couple's arc: the card only told them so. */}
       {arc && !owner && <ArcCard pair={[ca.id, cb.id]} names={`${first(ca)} and ${first(cb)}`} q={arc} />}
 
@@ -247,6 +278,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
               <Link href={`/episodes/${t.episode_id}`}>Date {t.n}</Link> <span className="muted">· {t.venue}</span>{" "}
               <span className="muted small">· {date(t.at)}</span> → <strong>{t.ending_label}</strong>
               {t.second_date_of && <span className="badge">planned together</span>}
+              {t.roleplay && <span className="badge">🎭 {t.roleplay}</span>}
               {!t.aired && <span className="badge">not aired yet</span>}
             </li>
           ))}
@@ -329,7 +361,7 @@ function Meter({ label, value, word }: { label: string; value: number; word: str
 }
 
 /** A match before its first date: who matched, where the yes stands (and the booking once both want it), and their chat. */
-function MatchPage({ ca, cb, mine, match, chain }: NonNullable<Awaited<ReturnType<typeof loadMatch>>>) {
+function MatchPage({ ca, cb, mine, match, chain, roleplay }: NonNullable<Awaited<ReturnType<typeof loadMatch>>>) {
   const mineLo = mine.includes(ca.id);
   const me = mineLo ? ca : cb;
   const them = mineLo ? cb : ca;
@@ -355,6 +387,15 @@ function MatchPage({ ca, cb, mine, match, chain }: NonNullable<Awaited<ReturnTyp
         />
         <p className="muted small">They matched in the swipe deck. Only the characters&apos; owners see this until one of their dates airs.</p>
       </section>
+      {roleplay && (
+        <RoleplayCard
+          pair={[ca.id, cb.id]}
+          me={{ id: roleplay.me, name: roleplay.me === ca.id ? ca.name : cb.name }}
+          them={{ id: roleplay.them, name: roleplay.them === ca.id ? ca.name : cb.name }}
+          auto={roleplay.auto}
+          initial={roleplay.initial}
+        />
+      )}
       <ThreadPreview
         items={chain.items}
         characters={{ lo: refOf(ca), hi: refOf(cb) }}

@@ -10,6 +10,7 @@
  * Client-safe: pure constants and helpers, no server imports, so the builder form and the server share one
  * source of truth and nothing here needs a model call.
  */
+import { roleplayNote, type RoleplayTerms } from "./roleplays";
 
 export type FormatId = "classic" | "speed_date" | "meet_the_parents" | "ex_returns";
 
@@ -84,8 +85,12 @@ export const FORMATS: readonly ShowFormat[] = [
   },
 ] as const;
 
-/** Names pulled from real data to fill a format's note (lib/simulation.ts computes them per date), and whether the two have dated before (a rematch isn't "two strangers"). */
-export type FormatContext = { chaperone?: string; ex?: string; metBefore?: boolean };
+/**
+ * Names pulled from real data to fill a format's note (lib/simulation.ts computes them per date), whether the two have
+ * dated before (a rematch isn't "two strangers"), and the roleplay the date plays, as one sentence (lib/roleplays.ts
+ * roleplayNote), so the director, the narrator, the morning after and the reflections all know it.
+ */
+export type FormatContext = { chaperone?: string; ex?: string; metBefore?: boolean; roleplay?: string };
 
 /**
  * A format's note with any real names filled in — a named house regular as the meet-the-parents chaperone,
@@ -93,10 +98,23 @@ export type FormatContext = { chaperone?: string; ex?: string; metBefore?: boole
  * and speed dates have no placeholders, so the note is returned unchanged.
  */
 export function formatNote(id: FormatId | null | undefined, ctx: FormatContext = {}): string {
-  return format(id).note
+  const note = format(id).note
     .replace("two strangers meeting for the first time", ctx.metBefore ? "two people who have dated before, meeting again" : "two strangers meeting for the first time")
     .replace("{chaperone}", ctx.chaperone ? `A protective house regular, ${ctx.chaperone},` : "A protective older house regular")
     .replace("{ex}", ctx.ex ? `${ctx.ex}, an ex of one of the characters,` : "an ex of one of the characters");
+  return ctx.roleplay ? `${note} ${ctx.roleplay}` : note;
+}
+
+/**
+ * A built date's FormatContext, from its setup: the format's cast, and the roleplay it plays as one sentence. Every
+ * prompt that frames a whole date takes it (the plan, the conversation, the recap, the morning after, the reflections).
+ */
+export function formatContextOf(built: {
+  setup: { chaperone?: string; ex?: string; roleplay?: RoleplayTerms };
+  characters: readonly { id: string; name: string }[];
+}): FormatContext {
+  const roleplay = roleplayNote(built.setup.roleplay, built.characters);
+  return { chaperone: built.setup.chaperone, ex: built.setup.ex, ...(roleplay ? { roleplay } : {}) };
 }
 
 export const DEFAULT_FORMAT: FormatId = "classic";

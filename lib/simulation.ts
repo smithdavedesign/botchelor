@@ -54,6 +54,7 @@ import {
 } from "./rules";
 import { pickVenueAvoiding, type PlaceId } from "./venues";
 import { DEFAULT_FORMAT, format as showFormat, type FormatId } from "./formats";
+import { fillPremise, roleplayForActor, rolesLine, type DateRoleplay } from "./roleplays";
 import { HOUSE_CHARACTERS } from "./house";
 
 export type CharacterForDate = { id: string; sheet: CharacterSheet };
@@ -170,6 +171,8 @@ export type DateParts = {
   agreedPlan?: AgreedPlan | null;
   /** A double date (lib/group-dates.ts): the other couple at the table, one line both actors see. */
   table?: string | null;
+  /** The roleplay both sides agreed to (lib/roleplays.ts): each actor plays its role, and the setup keeps the terms. */
+  roleplay?: DateRoleplay | null;
 };
 
 /**
@@ -216,6 +219,15 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (p.nudges?.b) charB.nudge = p.nudges.b;
   // A double date: both actors know who else shares the table (lib/group-dates.ts tableLine). Flavour, never the engine.
   if (p.table) charA.table = charB.table = p.table;
+  // A roleplay both agreed to (lib/roleplays.ts): each side knows its role and theirs. Its words are both of theirs to say,
+  // never "profile reading". Framing, never the engine.
+  if (p.roleplay) {
+    const cast = [{ id: a.id, name: a.sheet.name }, { id: b.id, name: b.sheet.name }];
+    charA.roleplay = roleplayForActor(p.roleplay, a.id, cast);
+    charB.roleplay = roleplayForActor(p.roleplay, b.id, cast);
+    const words = [p.roleplay.title, fillPremise(p.roleplay, cast), rolesLine(p.roleplay, cast) ?? ""].join(" ");
+    charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${words}`.trim();
+  }
   if (p.alsoSeeing?.a.length) charA.alsoSeeing = p.alsoSeeing.a;
   if (p.alsoSeeing?.b.length) charB.alsoSeeing = p.alsoSeeing.b;
   // Without one, a second date happens where its morning after planned it, when the plan names a kind of place we have,
@@ -270,6 +282,7 @@ export function assembleDate(p: DateParts): BuiltDate {
     ...(p.nudges?.a ? { nudge_a: p.nudges.a } : {}),
     ...(p.nudges?.b ? { nudge_b: p.nudges.b } : {}),
     ...(p.table ? { table: p.table } : {}),
+    ...(p.roleplay ? { roleplay: p.roleplay } : {}),
     // Which date this is for the couple (lib/date-number.ts): stored, so its happy ending names the date after it.
     ...(p.dateNumber && p.dateNumber > 1 ? { date_number: p.dateNumber } : {}),
   };
@@ -352,6 +365,8 @@ export async function buildDate(
     agreedPlan?: AgreedPlan | null;
     /** A double date's table line (lib/group-dates.ts); a rebuild passes the setup's snapshot (setup.table). */
     table?: string | null;
+    /** The roleplay the date plays (lib/date-roleplays.ts roleplayForBooking); a rebuild passes the setup's snapshot. */
+    roleplay?: DateRoleplay | null;
   } = {},
 ): Promise<BuiltDate> {
   const [soulA, soulB, memoryA, memoryB, relationship, ex, extras, nudges, seeingA, seeingB] = await Promise.all([
@@ -408,7 +423,7 @@ export async function buildDate(
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : await nextDateNumber(db, a.id, b.id, episodeId),
-    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, table: opts.table ?? null,
+    nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     overusedA, overusedB,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),

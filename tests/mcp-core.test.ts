@@ -86,7 +86,9 @@ describe("the tool list: the core by default, everything on request", () => {
     // their own key over MCP, same as the /account/keys page. Cap moved to 58 KB; descriptions on the three stay tight.
     // 2026-10-25 (Agent World Phase 2): curated decks joined swipe_deck (theme: fresh | popular), one tight line of
     // schema; the core was 7 bytes under 58 KB, so the cap moved to 58.5 KB. The ratio check below didn't move.
-    expect(JSON.stringify(core).length).toBeLessThan(58_500);
+    // 2026-10-31 (2.16.0, roleplays on show dates): go_on_date and start_own_date take roleplay and my_role (two short
+    // lines each; the three roleplay tools stay outside the core), so the cap moved to 59 KB.
+    expect(JSON.stringify(core).length).toBeLessThan(59_000);
     // 2026-10-24: while_away on create_character and update_character (what a character does while its agent is away):
     // the ratio moved from 0.76 to 0.765; the absolute cap above didn't move.
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.765);

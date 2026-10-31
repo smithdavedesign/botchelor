@@ -62,6 +62,8 @@ export type HistoryItem = {
    * Server-side: viewRelationship never shows it (a "match" or "proposal" is its owners' business).
    */
   met_via?: MetVia;
+  /** The roleplay they played that night (its title; lib/date-roleplays.ts): its lines were in character, never facts. */
+  roleplay?: string;
 };
 
 /** Something one of them said about themselves on a date. `about` is the end that said it. */
@@ -135,6 +137,8 @@ export type RelEpisode = {
   followup_of: string | null;
   date_number?: number | null;
   met_via?: MetVia | null;
+  /** The title of the roleplay the date played (setup.roleplay), or null. */
+  roleplay?: string | null;
 };
 
 const iso = (d: string | Date | null): string | null => (d === null ? null : new Date(d).toISOString());
@@ -386,16 +390,19 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
       followup_of: e.followup_of,
       ...(e.followup_of ? { date_number: e.date_number ?? 2 } : {}),
       ...(e.met_via ? { met_via: e.met_via } : {}),
+      ...(e.roleplay ? { roleplay: e.roleplay } : {}),
     };
   });
   const endOf = (e: RelEpisode) => (side: "a" | "b"): End => ((side === "a") === (e.character_a === lo) ? "lo" : "hi");
   const dates = sorted.map((e) => ({ id: e.id, transcript: e.transcript ?? [], afterglow: e.afterglow ?? [], venue: e.venue }));
 
-  const facts = sorted.flatMap((e) => factsFrom(e.transcript ?? [], endOf(e), e.id));
+  // A roleplay's lines are their roles talking (a spy's cover story isn't a thing they told each other), so it gives no facts.
+  const facts = sorted.filter((e) => !e.roleplay).flatMap((e) => factsFrom(e.transcript ?? [], endOf(e), e.id));
   // Newest first, at most FACTS_KEPT about each of them.
   const keptFacts = (["lo", "hi"] as const).flatMap((about) => facts.filter((f) => f.about === about).reverse().slice(0, FACTS_KEPT));
   // A date with no afterglow (a self-performed one has none) still makes plans out loud: its closing lines count.
-  const closing = (e: RelEpisode): AfterglowLine[] => (e.transcript ?? []).slice(-CLOSING_LINES).map((t) => ({ side: t.side, text: t.dialogue }));
+  // Not a roleplay's: its closing lines are still in character (a morning after's texts are their own again).
+  const closing = (e: RelEpisode): AfterglowLine[] => (e.roleplay ? [] : (e.transcript ?? []).slice(-CLOSING_LINES).map((t) => ({ side: t.side, text: t.dialogue })));
   // What they texted after each date and before the next one (texts before their first date, a match's chat, aren't after any).
   const ms = (at: string | Date) => new Date(at).getTime();
   const byTime = [...texts].sort((x, y) => ms(x.at) - ms(y.at));
@@ -421,7 +428,7 @@ export function computeRelationship(lo: string, hi: string, eps: RelEpisode[], n
 const REL_EPISODES = `
   select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.partner_performer, e.character_a, e.character_b, e.ending,
          e.sides, e.box_score, e.transcript, e.afterglow, e.setup->>'venue' as venue, e.followup_of,
-         (e.setup->>'date_number')::int as date_number, e.setup->>'met_via' as met_via,
+         (e.setup->>'date_number')::int as date_number, e.setup->>'met_via' as met_via, e.setup->'roleplay'->>'title' as roleplay,
          (select count(*)::int from reports r where r.episode_id = e.id) >= $3 as hidden
     from episodes e
    where e.status = 'ready' and e.varies_episode_id is null
@@ -620,7 +627,7 @@ export type RelationshipView = {
   tie: number;
   chemistry: number | null;
   trust: number | null;
-  timeline: { episode_id: string; at: string; ending: Ending; ending_label: string; venue: string; aired: boolean; second_date_of: string | null; date_number: number | null }[];
+  timeline: { episode_id: string; at: string; ending: Ending; ending_label: string; venue: string; aired: boolean; second_date_of: string | null; date_number: number | null; roleplay: string | null }[];
   jokes: string[];
   /** What each has told the other, by character id. */
   told: Record<string, string[]>;
@@ -675,6 +682,8 @@ export function viewRelationship(rel: Relationship, v: Viewer, now = new Date())
       aired: h.aired_at !== null,
       second_date_of: h.followup_of && ids.has(h.followup_of) ? h.followup_of : null,
       date_number: h.followup_of && ids.has(h.followup_of) ? (h.date_number ?? 2) : null,
+      // The roleplay it played (its title): billing, like the venue, on the date's own page from the start.
+      roleplay: h.roleplay ?? null,
     })),
     jokes: rel.jokes.filter((j) => j.episode_ids.some((id) => ids.has(id))).map((j) => j.phrase),
     told,
@@ -718,6 +727,7 @@ export function pairContext(rel: Relationship | null, selfId: string, creatorId:
   const jokes = rel.jokes.filter((j) => j.episode_ids.some((id) => ids.has(id))).map((j) => j.phrase);
   const plan = followupOf && ids.has(followupOf) ? rel.plans.filter((p) => p.episode_id === followupOf) : [];
   const feeling = FEELING(s.chemistry);
+  const played = [...new Set(usable.flatMap((h) => (h.roleplay ? [h.roleplay] : [])))].slice(-4);
   return {
     ...(s.stage ? { where_you_stand_now: STAGE_LABELS[s.stage].replace(/^\S+\s/, "") } : {}),
     times_together: s.dates,
@@ -725,6 +735,8 @@ export function pairContext(rel: Relationship | null, selfId: string, creatorId:
     ...(told.length ? { things_they_have_told_you: told } : {}),
     ...(jokes.length ? { your_inside_jokes: jokes } : {}),
     ...(plan.length ? { tonight_is_the_plan_you_made: plan.map((p) => `${p.by === me ? "You" : "They"}: “${p.text}”`) } : {}),
+    // Games they played together, remembered as games: a nod to one is fine, but who they really are is the rest of this.
+    ...(played.length ? { roleplays_you_have_played: played } : {}),
   };
 }
 
