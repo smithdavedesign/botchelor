@@ -62,9 +62,11 @@ export default function WriterPicker({ initial, compact = false, icon = false }:
   if (icon) {
     // The writer's short name ("GLM-4.6", "DeepSeek") is the logo; the list says what to expect from each.
     const short = (chosen?.label ?? "Writer").split(/\s+/)[0];
+    // #1053: the chip says whose choice it is, as the hub's card does.
+    const whose = chosen ? (w.picked ? `${chosen.label}, your pick` : `${chosen.label}, the default`) : "the default";
     return (
       <div className={`ad-writer-logo${open ? " open" : ""}`} ref={box}>
-        <button type="button" className="ad-writer-logo-button" aria-haspopup="menu" aria-expanded={open} disabled={busy} onClick={() => setOpen((v) => !v)} title={`Who writes the lines: ${chosen?.label ?? "the default"}`}>
+        <button type="button" className="ad-writer-logo-button" aria-haspopup="menu" aria-expanded={open} disabled={busy} onClick={() => setOpen((v) => !v)} title={`Who writes the lines: ${whose}. Tap to switch`}>
           <span aria-hidden="true">✍️</span> <span className="ad-writer-logo-name">{busy ? "…" : short}</span>
         </button>
         {open && (
@@ -82,11 +84,17 @@ export default function WriterPicker({ initial, compact = false, icon = false }:
                   if (m.id !== w.chosen) void pick(m.id);
                 }}
               >
+                {/* #1053: the same choice, in the same words, as the hub's settings ("Richer, slower (GLM-4.6)"). */}
                 <strong>
                   {m.id === w.chosen ? "✓ " : ""}
-                  {m.label}
+                  {plainName(m) === m.label ? m.label : `${plainName(m)} (${m.label})`}
                 </strong>
-                {m.note && <span className="small muted">{m.note}</span>}
+                {(m.note || m.id === w.default) && (
+                  <span className="small muted">
+                    {m.note}
+                    {m.id === w.default ? `${m.note ? " · " : ""}the default` : ""}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -112,8 +120,10 @@ export default function WriterPicker({ initial, compact = false, icon = false }:
     <section className="card ad-writer" id="writer">
       <h2>✍️ The writer</h2>
       <p className="muted small">
-        The model that writes your scenes and the two sides of a night. {chosen?.label ?? "It"} writes them now; switch any time, and the next
-        lines are the new one&apos;s.
+        The model that writes your scenes and the two sides of a night. {chosen?.label ?? "It"} writes them now
+        {/* #1053: whose choice that is, so "DeepSeek writes them now" never reads as contradicting "(the default)" below. */}
+        {chosen && (w.picked && chosen.id !== w.default ? ` (your pick; the default is ${w.models.find((m) => m.id === w.default)?.label ?? "another"})` : " (the default)")}; switch any
+        time, and the next lines are the new one&apos;s. If it ever sends nothing back, the fast one writes that step, and the theater says so.
       </p>
       <label htmlFor="ad-writer">Writer</label>
       {select}

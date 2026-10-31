@@ -16,7 +16,7 @@ import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURE
 import { countUse, overCap } from "./usage";
 import { adultModel, adultModelId } from "./mode";
 import { writerChoice } from "./writer";
-import { FALLBACK_WRITER } from "./writer-config";
+import { FALLBACK_WRITER, writerNote } from "./writer-config";
 import { drawLabel, ensureSet, inBackground, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
@@ -1535,7 +1535,7 @@ export function dropRepeats(
 }
 
 export type ContinueResult =
-  | { ok: true; scene: AdultScene; added: number; held: number; repeats: number; dropped: number; pictures: Media[]; picture_note?: string; auto_picture?: boolean }
+  | { ok: true; scene: AdultScene; added: number; held: number; repeats: number; dropped: number; pictures: Media[]; picture_note?: string; auto_picture?: boolean; writer_note?: string }
   | { ok: false; status: number; message: string };
 
 /**
@@ -2478,7 +2478,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
   const ctx = await stepContext(db, adminId, scene.a.id, scene.b.id);
   const { a, b } = ctx;
   // Their own writer (lib/adult/writer.ts): the one they picked, else the default, with room for its thinking.
-  const { id: writer, think_tokens } = await writerChoice(db, adminId, { opening: scene.lines.length === 0 && scene.chapter === 1 });
+  const { id: writer, think_tokens, theirs, models: writers } = await writerChoice(db, adminId, { opening: scene.lines.length === 0 && scene.chapter === 1 });
   const profile = await sceneProfile(db, scene, adminId);
   const fast = writer === FALLBACK_WRITER ? null : await adultModel(db, process.env, { model: FALLBACK_WRITER });
   const step = await writeSceneStep({
@@ -2631,6 +2631,8 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     await db.query(`update adult_scenes set undo = $2::jsonb where id = $1`, [scene.id, JSON.stringify(stack)]);
     after = { ...closed.scene, undo: stack };
   }
+  // #1053: a step their own writer didn't write says who did, and why (lib/adult/writer-config.ts writerNote).
+  const writer_note = writerNote(writers, { asked: writer, wrote: step.flags.fell_back_to ?? writer, theirs });
   return {
     ok: true,
     scene: publicScene(after),
@@ -2641,6 +2643,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
     pictures,
     ...(picture_note ? { picture_note } : {}),
     ...(autoPicture || askedBoth ? { auto_picture: true } : {}),
+    ...(writer_note ? { writer_note } : {}),
   };
 }
 

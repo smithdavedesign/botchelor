@@ -266,6 +266,8 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     ...(r.picture_note ? { picture_note: r.picture_note } : {}),
     // A picture of the chapter or the new place is being drawn (lib/adult/auto-pictures.ts): the page looks for it shortly.
     ...(r.auto_picture ? { auto_picture: true } : {}),
+    // #1053: who wrote the step, when it wasn't their own writer (the fallback, or the fast one's opening).
+    ...(r.writer_note ? { writer_note: r.writer_note } : {}),
     // A redo can take back a chapter's close, so its night list may have changed.
     ...(input.redo ? { nights: await listNights(db, admin, input.a, input.b) } : {}),
   });

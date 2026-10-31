@@ -330,6 +330,8 @@ export default function SceneWriter({
       dropped ? `${dropped} line${dropped === 1 ? "" : "s"} that named someone else, broke the turn-taking or stepped out of the scene ${dropped === 1 ? "was" : "were"} dropped.` : "",
       pictures.length ? `${pictures.length} new picture${pictures.length === 1 ? "" : "s"} below.` : "",
       typeof res.data.picture_note === "string" ? `Picture: ${res.data.picture_note}` : "",
+      // #1053: "GLM-4.6 sent nothing back: DeepSeek V3.1 wrote this one", so which writer wrote the lines is never a guess.
+      typeof res.data.writer_note === "string" ? res.data.writer_note : "",
     ].filter(Boolean);
     if (body.set_scene) parts.push(next.lines.length ? "They're there now. Press Next to see them arrive." : "They're there now. Press ▶ Start the night when you're ready.");
     if (body.roleplay !== undefined) {

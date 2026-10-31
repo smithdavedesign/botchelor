@@ -702,6 +702,8 @@ label.ad-check-row {
 .ad-writer-logo .ad-writer-menu button {
   display: grid;
   gap: 0.1rem;
+  /* Its two lines, not the tool row's one-height buttons (#1053). */
+  height: auto;
   margin: 0;
   padding: 0.45rem 0.7rem;
   border: 0;
@@ -1870,6 +1872,13 @@ a.ad-scenes-make-link {
 }
 .theater-after-dark .theater-hud :is(button, a, select, input, label, summary, [role="menu"], [role="dialog"]) {
   pointer-events: auto;
+}
+/* #1053 (the 2026-10-30 ad visitor: "I clicked the DeepSeek button. No picker appeared and my click on 'Richer, slower'
+   timed out"): the bar sits at z-index 3, so a menu it opens (✍️ the writer, 📸, ⋯) dropped down under what the stage
+   draws above it at 4 and up (discreet mode's hint right below the tools, a talking moment), out of sight and unclickable.
+   While one is open the bar comes over the stage. */
+.theater-after-dark .theater-hud:has([aria-expanded="true"]) {
+  z-index: 9;
 }
 @media (min-width: 761px) {
   .theater-after-dark:has(.ad-roleplay-chip) .ad-scene-backdrop-off,

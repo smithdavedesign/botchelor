@@ -47,6 +47,20 @@ export const plainName = (m: Pick<WriterModel, "id" | "label">): string => PLAIN
  */
 export const FALLBACK_WRITER = "deepseek/deepseek-chat-v3.1:nitro";
 
+/**
+ * #1053 (the 2026-10-30 ad visitor: "the settings say the default is GLM-4.6, but the theater showed DeepSeek. Which one
+ * is actually writing is unclear"): what the theater says when a step wasn't written by the viewer's own writer. `asked`:
+ * who was asked to write it; `wrote`: who did; `theirs`: their writer (picked or the default). Null when it was theirs.
+ * Two ways it isn't: the asked one twice sent nothing back (FALLBACK_WRITER wrote it), or it's the night's opening, which
+ * the fast one writes for someone who hasn't picked (lib/adult/writer.ts writerChoice).
+ */
+export function writerNote(models: readonly Pick<WriterModel, "id" | "label">[], o: { asked: string; wrote: string; theirs: string }): string | null {
+  const name = (id: string) => models.find((m) => m.id === id)?.label ?? id;
+  if (o.wrote !== o.asked) return `✍️ ${name(o.asked)} sent nothing back: ${name(o.wrote)} wrote this one.`;
+  if (o.wrote !== o.theirs) return `✍️ ${name(o.wrote)} wrote the opening so it starts quickly; ${name(o.theirs)} writes from the next step.`;
+  return null;
+}
+
 export const WriterConfig = z.object({
   /** The writer of everyone who hasn't picked one. */
   default: z.string().trim().min(1).max(120).default(DEFAULT_WRITER),

@@ -462,6 +462,40 @@ async function main() {
       await subPage.close();
     });
 
+    // #1053 (the 2026-10-30 ad visitor: "I clicked the DeepSeek button. No picker appeared"): a subscriber, discreet mode on.
+    await step("a subscriber: ✍️ opens the writers over the stage, a pick sticks, and Next says Writing… while it writes", async () => {
+      const subPage = await sub.newPage();
+      await subPage.setViewportSize({ width: 1280, height: 860 });
+      watch(subPage);
+      await subPage.goto(`${app.base}${PAGE}`, { waitUntil: "domcontentloaded" });
+      await subPage.waitForSelector(".theater-after-dark", { timeout: 30_000 });
+      await subPage.click(".ad-writer-logo-button");
+      const quick = subPage.locator('.ad-writer-menu [role="menuitemradio"]', { hasText: "Quick (DeepSeek V3.1)" });
+      await quick.waitFor({ timeout: 10_000 });
+      assert((await subPage.locator(".ad-writer-menu").innerText()).includes("Richer, slower (GLM-4.6)"), "the same words as the hub's settings");
+      // Nothing of the stage's over it: the item itself is what's under its middle.
+      const onTop = await quick.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return Boolean(hit && el.contains(hit));
+      });
+      assert(onTop, "something on the stage covers the writers' list");
+      await quick.click({ timeout: 5_000 });
+      await until("the chip to say DeepSeek", async () => (await subPage.locator(".ad-writer-logo-button").innerText()).includes("DeepSeek"), 10_000);
+      const mine = (await (await api(sub, "/api/admin/after-dark/writer")).json());
+      assert(mine.chosen === "deepseek/deepseek-chat-v3.1:nitro" && mine.picked, "the pick was saved");
+      // A step held for a moment: Next stays on screen and says Writing… until the lines come.
+      await subPage.route("**/api/admin/after-dark", async (route) => {
+        if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 2_500));
+        await route.continue();
+      });
+      const next = subPage.locator(".ad-theater-bar button[type=submit]");
+      await next.click();
+      await until("Writing… on Next", async () => (await next.isVisible()) && (await next.innerText()).includes("Writing…"), 2_000, 100);
+      await until("Next back", async () => (await next.isVisible()) && !(await next.innerText()).includes("Writing…"), 90_000);
+      await subPage.close();
+    });
+
     await step("the phone: the theater and its ⋯ menu fit, nothing broken", async () => {
       const phone = await owner.newPage();
       await phone.setViewportSize({ width: 390, height: 844 });
