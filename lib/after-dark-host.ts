@@ -87,6 +87,9 @@ export const AFTER_DARK_HOST_APIS = [
   "/api/sets/", // the theater's drawn sets
   "/api/looks/", // the looks tiles (the show's builder loads After Dark's from here)
   "/api/feedback/", // the feedback dock on every page
+  "/api/me", // the Nav's who's signed in and their tokens, on every page (app/Nav.tsx); not the /api/me/ under it
+  "/api/line-feedback", // the theater's 👍/👎 on a line (app/useLineVotes.ts)
+  "/api/library", // the Create library in the Studio and the scene writer (app/studio/CreateLibrary.tsx)
   "/api/waitlist", // the subscribe page's waitlist
   "/api/mcp", // the admin's own agents, for After Dark's tools (lib/adult/mcp.ts)
   "/api/showcase/", // the Studio's 📣 Publish and Shoot like this (lib/showcase.ts)
