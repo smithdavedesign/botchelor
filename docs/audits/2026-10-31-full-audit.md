@@ -513,18 +513,27 @@ route: old non-faststart clips flip to faststart, frames byte-identical by frame
 it over the bucket: **361 of 370 clips brought up to a new clip's bytes (faststart + mark), 0 missing, 0 left** (the other
 9 were already current from today).
 
-Two honest caveats, neither a data problem:
-- **Edge cache lag.** I overwrote each clip at its existing key, so Bunny's CDN keeps serving the old (non-faststart) copy
-  until its cache window rolls (within ~12 h) or a purge. Storage itself is updated for certain — Bunny validates the
-  SHA-256 of every upload and the job counted a clip fixed only on a successful write — but a re-download through the CDN
-  still shows the cached old copy for now. No corruption risk: the transform is frame-identical and a no-op on any clip
-  that doesn't parse, so every clip still plays.
+Two caveats, and a correction to an earlier claim:
+- **The benefit is not live at the edge, and this does not self-heal on its own.** I overwrote each clip at its existing
+  key. Bunny's CDN caches **by path**, not by the signed query, so a new presigned URL still resolves to the same cached
+  object. Re-verified live at 18:02 UTC after the 6-hour presign window rolled: both sampled clips still served the old,
+  non-faststart bytes (my earlier "self-heals within ~12 h as the window rolls" was wrong — the window rolling changes
+  nothing). The cached copies refresh only when Bunny's own edge TTL expires (long for this media) or on a **purge**.
+- **Storage is written but not independently confirmed.** The job counted only checksum-validated uploads (Bunny
+  validates the SHA-256 of every PUT), so storage should hold the new bytes — but because the CDN masks reads with the
+  cached copies, and this session has no Bunny storage credentials (they live only in the DO app env) and no purge key,
+  I could **not confirm it from the serving side**. A purge is the definitive test: after it, faststart clips mean
+  storage is good and viewers now benefit; old bytes mean the write didn't take.
 - **Key hash suffix.** Each media key ends in a hash of the old bytes; writing new bytes under the same key leaves that
   suffix stale. Cosmetic (reads use the stored key directly), but a future integrity check would flag these 361.
+- No corruption risk either way: the transform is frame-identical and a no-op on any clip that doesn't parse, so every
+  clip still plays (the old cached copies play fine, just not faststart).
 
-The cleaner approach — writing each under a fresh content-hash key and repointing `object_key` — avoids both, but needs
-per-row database writes the session's classifier blocks, so it could not be done from here. A Bunny CDN purge (needs
-`BUNNY_ACCOUNT_KEY`, currently unset) would make the benefit immediate; otherwise it self-heals as the cache turns over.
+The cleaner approach — writing each under a fresh content-hash key and repointing `object_key` — would have served the
+new bytes immediately (a new path is a CDN cache miss) and is the right pattern precisely because the CDN caches by
+path. It needs the per-row database writes the session's classifier blocks, so it could not be done from here. **What's
+needed:** a Bunny cache purge for the `media.botchelor.com` pull zone (David's dashboard, or a Bunny account API key),
+which both delivers the benefit and confirms the storage write.
 
 ### 4. Test data to keep or remove — your call
 
