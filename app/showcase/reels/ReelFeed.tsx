@@ -21,6 +21,8 @@ type Props = {
   /** Whether this viewer may see After Dark (the side tabs). */
   explicit: boolean;
   start: string | null;
+  /** When the feed began: its every page orders what was seen before then last (lib/showcase.ts seenBefore). */
+  asOf: string;
   back: string;
 };
 
@@ -33,13 +35,14 @@ const cta = (name: "date" | "see_all" | "after_dark" | "create") => () => trackC
  * The showcase as reels (David, 2026-10-29: "an infinite reel / video, scroll-swipe, like candy.ai, Instagram, TikTok"):
  * one post a screen, swiped or scrolled (↑ ↓, j k), the next page loading while the last few are watched.
  *
- * - A clip plays while it's on screen (muted until 🔊). A still moves slowly, a different way each time (a "living
- *   photo"): the safe picture of someone, animated, at no cost. Reduced motion: nothing moves or plays by itself.
+ * - A clip plays, muted, while it's on screen (David, 2026-10-30: no sound buttons). A still moves slowly, a different
+ *   way each time (a "living photo"): the safe picture of someone, animated, at no cost. Reduced motion: nothing moves or plays by itself.
  * - Each post asks one thing first: 💘 date them (their page, where a date is booked), then see all of them, and, for
  *   someone After Dark isn't open to, how many more of them are after dark (the subscription; its waitlist until it
  *   opens). Every few posts a card: make your own character (the first dates free), or After Dark. No countdowns, no
  *   streaks, nothing locked that's on the showcase already.
  * - After Dark's side (whoever may see it): blurred until a tap says to show it.
+ * - A post on screen a moment is seen: this browser's next feed has it at the back (lib/showcase.ts markSeen).
  */
 export default function ReelFeed(props: Props) {
   const router = useRouter();
@@ -49,7 +52,6 @@ export default function ReelFeed(props: Props) {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(0);
-  const [muted, setMuted] = useState(true);
   const [shown, setShown] = useState(props.side !== "after_dark");
   const [info, setInfo] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -92,11 +94,24 @@ export default function ReelFeed(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // On screen a moment: seen (once a feed), so a reload or a return starts on what's new to them.
+  const seen = useRef(new Set<string>());
+  useEffect(() => {
+    const x = feed[active];
+    if (x?.kind !== "post" || seen.current.has(x.post.id)) return;
+    const id = x.post.id;
+    const t = window.setTimeout(() => {
+      seen.current.add(id);
+      void fetch("/api/showcase/reels/seen", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ post_id: id }), keepalive: true }).catch(() => {});
+    }, 1200);
+    return () => window.clearTimeout(t);
+  }, [active, feed]);
+
   // The next page, while the last few are watched.
   useEffect(() => {
     if (!more || loading || active < feed.length - 3) return;
     setLoading(true);
-    fetch(`/api/showcase/reels?${props.query}${props.query ? "&" : ""}page=${page + 1}`)
+    fetch(`/api/showcase/reels?${props.query}${props.query ? "&" : ""}page=${page + 1}&as_of=${encodeURIComponent(props.asOf)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { posts: Post[]; more: boolean; locked: Record<string, number> } | null) => {
         if (!d) return setMore(false);
@@ -115,14 +130,13 @@ export default function ReelFeed(props: Props) {
   // The clip on screen plays; the rest wait at their start.
   useEffect(() => {
     scroller.current?.querySelectorAll<HTMLVideoElement>("video[data-v]").forEach((v) => {
-      v.muted = muted;
       if (Number(v.dataset.v) === active && shown && !reduced) void v.play().catch(() => {});
       else {
         v.pause();
         if (Number(v.dataset.v) !== active) v.currentTime = 0;
       }
     });
-  }, [active, muted, shown, reduced, total]);
+  }, [active, shown, reduced, total]);
 
   const go = (to: number) => scroller.current?.querySelector(`[data-i="${Math.max(0, Math.min(total - 1, to))}"]`)?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
   useEffect(() => {
@@ -134,8 +148,7 @@ export default function ReelFeed(props: Props) {
       } else if (["ArrowUp", "PageUp", "k"].includes(e.key)) {
         e.preventDefault();
         go(active - 1);
-      } else if (e.key === "m") setMuted((m) => !m);
-      else if (e.key === "Escape") {
+      } else if (e.key === "Escape") {
         if (info) setInfo(null);
         else router.push(props.back);
       }
@@ -175,16 +188,14 @@ export default function ReelFeed(props: Props) {
         {props.explicit && (
           <span className={styles.sides} role="group" aria-label="Which side">
             <Link href={sideHref("pg")} className={props.side === "pg" ? styles.sideOn : undefined} aria-current={props.side === "pg" ? "true" : undefined}>
-              Safe for work
+              <span className={styles.long}>Safe for work</span>
+              <span className={styles.short}>SFW</span>
             </Link>
             <Link href={sideHref("after_dark")} className={props.side === "after_dark" ? styles.sideOn : undefined} aria-current={props.side === "after_dark" ? "true" : undefined}>
               🌙 After Dark
             </Link>
           </span>
         )}
-        <button type="button" className={styles.topLink} onClick={() => setMuted((m) => !m)} aria-pressed={!muted} aria-label={muted ? "Sound on" : "Sound off"}>
-          {muted ? "🔇" : "🔊"}
-        </button>
       </div>
       <div className={styles.feed} ref={scroller} role="feed" aria-busy={loading} aria-label="Reels">
         {feed.length === 0 && (
@@ -210,11 +221,9 @@ export default function ReelFeed(props: Props) {
               near={Math.abs(i - active) <= 1}
               moving={i === active && shown && !reduced}
               veiled={!shown}
-              muted={muted}
               locked={props.explicit ? 0 : (locked[x.post.character.id] ?? 0)}
               onShare={() => void share(x.post)}
               onInfo={() => setInfo(x.post.id)}
-              onMute={() => setMuted((m) => !m)}
             />
           ),
         )}
@@ -268,11 +277,9 @@ function Slide({
   near,
   moving,
   veiled,
-  muted,
   locked,
   onShare,
   onInfo,
-  onMute,
 }: {
   i: number;
   post: Post;
@@ -280,11 +287,9 @@ function Slide({
   near: boolean;
   moving: boolean;
   veiled: boolean;
-  muted: boolean;
   locked: number;
   onShare: () => void;
   onInfo: () => void;
-  onMute: () => void;
 }) {
   const video = p.mime.startsWith("video/");
   const first = shortName(p.character.name);
@@ -295,7 +300,7 @@ function Slide({
       {!video && near && <img className={styles.backdrop} src={still(p, "tile")} alt="" aria-hidden="true" />}
       <div className={`${styles.frame}${veiled ? ` ${styles.veiled}` : ""}`}>
         {video ? (
-          <video data-v={i} src={near ? src(p) : undefined} muted={muted} loop playsInline preload={near ? "auto" : "none"} aria-label={who} />
+          <video data-v={i} src={near ? src(p) : undefined} muted loop playsInline preload={near ? "auto" : "none"} aria-label={who} />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element -- served by the showcase's own gate, not next/image
           <img src={still(p, "screen")} alt={who} loading={near ? "eager" : "lazy"} className={moving ? styles[motionOf(i)] : undefined} />
@@ -339,11 +344,6 @@ function Slide({
           <button type="button" onClick={onInfo} aria-label="How it was made">
             ⓘ<span>Made with</span>
           </button>
-          {video && (
-            <button type="button" onClick={onMute} aria-label={muted ? "Sound on" : "Sound off"}>
-              {muted ? "🔇" : "🔊"}
-            </button>
-          )}
         </div>
       </div>
     </section>

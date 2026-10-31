@@ -250,6 +250,7 @@
   font-size: 0.9rem;
   font-weight: 600;
   text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
 }
 .sides {
@@ -265,6 +266,22 @@
   padding: 5px 12px;
   border-radius: 999px;
   text-decoration: none;
+  white-space: nowrap;
+}
+/* One line on a phone: "Safe for work" says SFW there. */
+.short {
+  display: none;
+}
+@media (max-width: 420px) {
+  .long {
+    display: none;
+  }
+  .short {
+    display: inline;
+  }
+  .sides a {
+    padding: 5px 10px;
+  }
 }
 .sides .sideOn {
   background: #fff;

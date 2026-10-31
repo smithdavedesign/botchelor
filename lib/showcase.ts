@@ -63,7 +63,11 @@ export async function saveCreatorProfile(db: Db, userId: string, input: { handle
 
 /* -------------------------------------------------- who sees what -------------------------------------------------- */
 
-export type ShowcaseViewer = { id: string | null; admin: boolean; ratings: ContentRating[]; adult?: boolean; bot?: boolean };
+export type ShowcaseViewer = {
+  id: string | null; admin: boolean; ratings: ContentRating[]; adult?: boolean; bot?: boolean;
+  /** This browser, signed in or not (never a bot): whose reels' seen posts go to the back (markSeen). */
+  visitor?: string | null;
+};
 
 /** Whether explicit posts are open beyond admins (David's call: off until counsel and age checks). */
 export async function explicitOpen(db: Db): Promise<boolean> {
@@ -82,7 +86,7 @@ export async function showcaseViewer(db: Db, req: Request): Promise<ShowcaseView
   const adultId = id && !bot ? await adultViewer(db, req) : null;
   const adult = Boolean(adultId && (admin || (await mediaAllowedFor(db, adultId))));
   if (adult && (admin || (await explicitOpen(db)))) ratings.push("nsfw");
-  return { id, admin, ratings, adult, bot };
+  return { id, admin, ratings, adult, bot, visitor: bot ? null : (auth?.userId ?? null) };
 }
 
 /* -------------------------------------------------- publishing -------------------------------------------------- */
@@ -335,8 +339,13 @@ const FROM = `from showcase_posts p
   join characters c on c.id = p.character_id
   left join characters cb on cb.id = p.character_b`;
 
-/** One page of the showcase for this viewer and these filters, newest first. `pageSize`: the reels' smaller pages. */
-export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, opts: { pageSize?: number; mix?: boolean } = {}): Promise<{ posts: Post[]; more: boolean }> {
+/**
+ * One page of the showcase for this viewer and these filters, newest first. `pageSize`: the reels' smaller pages.
+ * `seenBefore`: the reels' visitor's posts seen before then go last, longest-ago seen first (David, 2026-10-30: "if they
+ * reload or come back it isn't the same assets from the start"); fixed for a feed's every page, so a post seen while
+ * it's watched doesn't move between its pages.
+ */
+export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, opts: { pageSize?: number; mix?: boolean; seenBefore?: Date } = {}): Promise<{ posts: Post[]; more: boolean }> {
   const w = where(v, f);
   const page = Math.max(1, Math.floor(f.page ?? 1));
   const size = opts.pageSize ?? PAGE_SIZE;
@@ -355,6 +364,12 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
                             ${FROM} where ${w.sql}) c) mix on mix.id = p.id`;
     order = `mix.round, ${order}`;
   }
+  let seen = "";
+  if (opts.seenBefore && v.visitor) {
+    w.args.push(v.visitor, opts.seenBefore);
+    seen = `left join showcase_views sv on sv.post_id = p.id and sv.viewer_id = $${w.args.length - 1} and sv.seen_at < $${w.args.length}`;
+    order = `sv.seen_at asc nulls first, ${order}`;
+  }
   const { rows } = await db.query<Omit<Post, "creator" | "character" | "partner" | "published_at" | "mine" | "mime"> & {
     handle: string; display_name: string; character_id: string; character_name: string; character_b: string | null; partner_name: string | null; published_at: Date; owner_id: string; mime: string | null;
     likes: number; liked: boolean; remixable: boolean; dateable: boolean;
@@ -365,7 +380,7 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
                      (select g.mime from studio_pg_pictures g where p.source = 'pg' and g.id = p.media_id)) as mime,
             (select count(*)::int from showcase_likes l where l.post_id = p.id) as likes,
             exists (select 1 from showcase_likes l where l.post_id = p.id and l.user_id = $${n}) as liked
-       ${FROM} ${mixed}
+       ${FROM} ${mixed} ${seen}
       where ${w.sql}
       order by ${order}
       limit $${n - 2} offset $${n - 1}`,
@@ -381,6 +396,15 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
       likes: r.likes, liked: r.liked, remixable: r.remixable, dateable: r.dateable,
     }));
   return { posts: posts.slice(0, size), more: rows.length > size };
+}
+
+/** A post this browser had on screen in the reels (listShowcase seenBefore), last seen now; nothing for a post that's gone. */
+export async function markSeen(db: Db, visitor: string, postId: string): Promise<void> {
+  await db.query(
+    `insert into showcase_views (viewer_id, post_id) select $1, id from showcase_posts where id = $2
+     on conflict (viewer_id, post_id) do update set seen_at = now()`,
+    [visitor, postId],
+  );
 }
 
 /**

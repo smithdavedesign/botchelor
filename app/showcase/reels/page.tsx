@@ -17,13 +17,15 @@ export const metadata: Metadata = {
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-/** The showcase as reels (ReelFeed.tsx): the same posts and filters as /showcase, most liked this week first. */
+/** The showcase as reels (ReelFeed.tsx): the same posts and filters as /showcase, most liked this week first, what they've seen last. */
 export default async function ReelsPage({ searchParams }: Props) {
   const db = await getDb();
   const viewer = await pageViewer(db);
   const sp = await searchParams;
   const f = seenFilters(viewer, parseFilters(sp));
-  const first = await listShowcase(db, viewer, { ...f, sort: f.sort ?? "trending", page: 1 }, { pageSize: REEL_PAGE, mix: true });
+  // What this browser has seen goes last: a reload or a return starts on what's new to them, its pages as of now.
+  const asOf = new Date();
+  const first = await listShowcase(db, viewer, { ...f, sort: f.sort ?? "trending", page: 1 }, { pageSize: REEL_PAGE, mix: true, seenBefore: asOf });
   const locked = await afterDarkCounts(db, viewer, first.posts.flatMap((p) => [p.character.id, ...(p.partner ? [p.partner.id] : [])]));
   // The filters as asked (never the page or where to start), for the next pages and the way back; After Dark's side
   // only when it's theirs to see.
@@ -41,6 +43,7 @@ export default async function ReelsPage({ searchParams }: Props) {
       side={sideOf(f)}
       explicit={viewer.ratings.includes("nsfw")}
       start={start}
+      asOf={asOf.toISOString()}
       back={query ? `/showcase?${query}` : "/showcase"}
     />
   );
