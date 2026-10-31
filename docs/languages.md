@@ -55,4 +55,17 @@ Three couples, each in English and in Spanish, same seeds, through `generateDate
 default) with the eval key, judged by lib/judge.ts. Before this change, Spanish sheets already gave Spanish dates (24 of
 27 lines; the other 3 too short to name): the model follows the sheet. What didn't work was the checking: the
 misgendering check and the content filter read nothing; repeated actions and profile reading still fired, since the
-sheet and the lines share words. Judge means (out of 5): English 2.71 / 3.86 / 4.14, Spanish 2.71 / 4.00 / 2.57.
+sheet and the lines share words. Judge means (out of 5, three couples):
+
+| Run | Couple 1 | Couple 2 | Couple 3 | Mean |
+|---|---|---|---|---|
+| English sheets | 2.71 | 3.86 | 4.14 | 3.57 |
+| Spanish sheets, before this change | 2.71 | 4.00 | 2.57 | 3.09 |
+| Spanish sheets, `language: es`, with this change | 3.57 | 3.86 | 3.43 | 3.62 |
+
+With the change every line was Spanish, every line carried its English (no date lost a line to `no_english`; 14–15
+model calls a date, as before), and the critic read the translations (repeated actions, a name said every line, a
+circled word). Three couples is a small sample: the numbers say Spanish dates hold up, not that they're better.
+
+**Open:** stage directions come back in a mix of languages ("ajustarse la bufanda roja", then "adjusting headphones")
+although the prompt asks for English, and a repeated action in two languages isn't caught as a repeat.
