@@ -1343,6 +1343,8 @@ create index if not exists adult_images_character_idx on adult_images (character
 alter table adult_images add column if not exists object_key text;
 -- When a clip already in the bucket was brought up to a new clip's bytes (faststart + mark; lib/adult/faststart-backfill.ts).
 alter table adult_images add column if not exists faststart_at timestamptz;
+-- When a clip was rewritten under a fresh content-hash key so the CDN serves it (lib/adult/faststart-backfill.ts rekeyClips).
+alter table adult_images add column if not exists rekeyed_at timestamptz;
 -- Every step of an After Dark scene, for the admin's /why view (lib/adult/steps.ts, 2026-10-22): the steer or place
 -- asked for, what came of it (the lines added, the ones dropped and why) or the error. night_id once its chapter is filed.
 create table if not exists adult_steps (
