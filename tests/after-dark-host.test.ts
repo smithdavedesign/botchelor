@@ -228,6 +228,10 @@ describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
     // blocks (CORS, David's console 2026-10-31): a plain answer here, so Next loads the page in full and that redirects.
     const rsc = middleware(new NextRequest(`${AD}/shop?_rsc=abc`, { headers: { "user-agent": CHROME, cookie: "bz_adult=1", rsc: "1", "next-router-prefetch": "1" } }));
     expect([rsc.status, rsc.headers.get("location"), rsc.headers.get("content-type"), rsc.headers.get("cache-control")]).toEqual([200, null, "text/html; charset=utf-8", "private, no-store"]);
+    // As it arrives in production: Next has taken `rsc` off and `_rsc` out, and only the browser's own header says fetch.
+    const fetched = middleware(new NextRequest(`${AD}/watch`, { headers: { "user-agent": CHROME, cookie: "bz_adult=1", "sec-fetch-dest": "empty", "sec-fetch-mode": "cors" } }));
+    expect([fetched.status, fetched.headers.get("location")]).toEqual([200, null]);
+    expect(page(`${AD}/shop`, { cookie: "bz_adult=1", "sec-fetch-dest": "document", "sec-fetch-mode": "navigate" })).toBe(`307 ${SHOW}/shop - -`);
     expect(page(`${AD}/shop`, { cookie: "bz_adult=1" })).toBe(`307 ${SHOW}/shop - -`);
   });
 

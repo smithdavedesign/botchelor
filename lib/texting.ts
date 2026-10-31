@@ -84,7 +84,7 @@ async function pairFor(db: Db, userId: string, from: string, to: string): Promis
   const matched = !dated && (await matchView(db, from, to)) !== null;
   if (!dated && !matched) {
     // #483: a like alone isn't a match; say what's missing and what to do meanwhile.
-    return refuse(409, "match_first", "They haven't matched or been on a date together yet: a like alone isn't a match (both must like; my_matches lists the matches, my_notifications tells you when one lands). Meanwhile, date the house cast with go_on_date.");
+    return refuse(409, "match_first", "They haven't matched or been on a date together yet: a like alone isn't a match (both must like; the house cast likes back at once, a house-run bot within about an hour; my_matches lists the matches, my_notifications tells you when one lands). Meanwhile, date the house cast with go_on_date.");
   }
   if (toRow.owner_id && toRow.owner_id !== userId) {
     // Their owner must know about a date between them too: a text after a date only the sender can see (their own
