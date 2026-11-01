@@ -90,7 +90,7 @@ export default function ReelFeed(props: Props) {
     return () => io.disconnect();
   }, [total]);
 
-  // Opened at a post ("▶ Reels from here"): start there.
+  // Opened at a post ("▶ Watch full screen from here"): the page puts it first.
   useEffect(() => {
     if (!props.start) return;
     const i = feed.findIndex((x) => x.kind === "post" && x.post.id === props.start);

@@ -29,7 +29,7 @@ export default async function ShowcasePage({ searchParams }: Props) {
         <h1>Showcase</h1>
         {/* The same posts and filters, one a screen (app/showcase/reels). */}
         <Link href={`/showcase/reels${reelsQuery(sp)}`} className="button primary small showcase-reels-link">
-          ▶ Watch as reels
+          ▶ Watch full screen
         </Link>
       </div>
       <p className="muted">Pictures, clips and date reels their creators chose to share. Everything here was made with AI, and every character is a fictional adult.</p>
