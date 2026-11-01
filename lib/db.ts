@@ -2906,6 +2906,11 @@ alter table adult_settings alter column cap_pictures set default 60;
 -- as not writing (a crashed request).
 alter table adult_scenes add column if not exists writing_since timestamptz;
 
+-- #1207 (David, 2026-11-01: "Set up for pictures", each character's first setup included): when this character's one
+-- free setup was taken (lib/adult/studio.ts setUpForPictures). Kept on the identity row, not on the face or body, so
+-- taking the face or body away and setting up again costs tokens like any redraw. Null: not taken yet.
+alter table adult_identity add column if not exists free_setup_at timestamptz;
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

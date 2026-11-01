@@ -23,6 +23,7 @@ import {
   saveRestyleLooks,
   setBodyReference,
   setStrength,
+  setUpForPictures,
   setStudioLimits,
   shoot,
   studioState,
@@ -88,6 +89,8 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("save_looks"), character_id: id, changes: Changes }),
   z.object({ action: z.literal("recast"), character_id: id, model, own_key, older: z.boolean().optional() }),
   z.object({ action: z.literal("body"), character_id: id, nude: z.boolean().optional(), model, own_key }),
+  // "Set up for pictures" (#1207): a face and a body drawn and picked in one go, the character's first one included.
+  z.object({ action: z.literal("setup"), character_id: id }),
   z.object({ action: z.literal("face"), character_id: id, model, own_key }),
   // The identity pack's views (lib/studio/identity-views.ts): all eight, or the ones asked for.
   z.object({ action: z.literal("identity_pack"), character_id: id, views: z.array(z.enum(IDENTITY_VIEW_IDS as [IdentityViewId, ...IdentityViewId[]])).max(8).optional(), model, own_key }),
@@ -193,6 +196,10 @@ export const POST = handle(async (req: Request) => {
         return job(input.character_id, await recast(db, viewer, input.character_id, { model: input.model, own_key: input.own_key, older: input.older }));
       case "body":
         return job(input.character_id, await bodyShoot(db, viewer, input.character_id, { nude: input.nude, model: input.model, own_key: input.own_key }, base));
+      case "setup": {
+        const r = await setUpForPictures(db, viewer, input.character_id, base);
+        return r.ok ? after(input.character_id, { pictures: r.pictures, message: r.message, setup: { ready: r.ready, free: r.free, tokens: r.tokens } }) : failed(r);
+      }
       case "face":
         return job(input.character_id, await faceAnchorShoot(db, viewer, input.character_id, { model: input.model, own_key: input.own_key }, base));
       case "identity_pack":

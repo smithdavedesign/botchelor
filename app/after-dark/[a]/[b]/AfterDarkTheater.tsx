@@ -36,6 +36,7 @@ import { libraryVenueFor, type CatalogScene } from "@/lib/adult/scene-catalog";
 import SetSceneModal, { preloadScenes, type RoleplayPick } from "./SetSceneModal";
 import PictureContext from "./PictureContext";
 import type { Readiness } from "@/lib/adult/readiness";
+import SetupForPictures from "../../SetupForPictures";
 import type { PictureEdit } from "@/lib/adult/beats";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 
@@ -676,11 +677,8 @@ export default function AfterDarkTheater({
                       ) : (
                         <>
                           {`${r.face ? "✓" : "○"} face · ${r.body ? "✓" : "○"} body`}{" "}
-                          {r.own && (
-                            <a href={r.studio} className="ad-start-setup">
-                              Set up in the Studio →
-                            </a>
-                          )}
+                          {/* #1207: one tap that sets both up (the first one included), or the Studio step for what's missing. */}
+                          {r.own && <SetupForPictures r={r} />}
                         </>
                       )}
                     </li>
