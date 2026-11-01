@@ -70,4 +70,14 @@ describe("serving an approved asset", () => {
     expect(odd.headers.get("content-type")).toBe("image/png");
     expect((await serve(id, "?w=nope")).headers.get("content-type")).toBe("image/png");
   });
+
+  it("/api/assets/<id>.webp is the same small copy, public, so the CDN keeps it (2026-11-01 audit, R3)", async () => {
+    const { default: sharp } = await import("sharp");
+    const big = await sharp({ create: { width: 512, height: 512, channels: 3, background: "#36c" } }).png().toBuffer();
+    const id = await approved("data:image/png;base64," + big.toString("base64"));
+    const res = await getAsset(new Request(`http://localhost:3000/api/assets/${id}.webp?w=96`), { params: Promise.resolve({ id: `${id}.webp` }) });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/webp");
+    expect(res.headers.get("cache-control")).toContain("public");
+  });
 });

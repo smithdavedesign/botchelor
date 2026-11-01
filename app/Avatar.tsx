@@ -90,8 +90,14 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
   );
 }
 
-/** A generated portrait (/api/assets/<id>) at about twice its drawn size, for sharp screens, instead of the 1024px original. */
+/**
+ * A generated portrait (/api/assets/<id>) at about twice its drawn size, for sharp screens, instead of the 1024px original.
+ * The small copy's address ends in .webp so Cloudflare keeps it at the edge: it caches by file extension, and with no
+ * extension every thumbnail for every visitor reached the one replica (2026-11-01 audit, R3). A gated picture still
+ * answers private, so it's never kept for everyone.
+ */
 export function sized(src: string | null, size: number): string | null {
-  if (!src || !src.startsWith("/api/assets/") || src.includes("?")) return src;
-  return `${src}?w=${Math.ceil(size * 2)}`;
+  if (!src || !ASSET_PATH.test(src)) return src;
+  return `${src}.webp?w=${Math.ceil(size * 2)}`;
 }
+const ASSET_PATH = /^\/api\/assets\/[^/?.]+$/;

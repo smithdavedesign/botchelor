@@ -115,7 +115,7 @@ describe("app/CharacterName.tsx: a face by the name, and the name goes to the ch
     expect(out).toMatch(/^<a class="char-name has-face char-name-link" href="\/characters\/dex-1">/);
     expect(out).toContain('alt=""');
     expect(out).toContain('loading="lazy"');
-    expect(out).toContain('src="/api/assets/abc?w=44"');
+    expect(out).toContain('src="/api/assets/abc.webp?w=44"');
     expect(out).toContain('width="22" height="22"');
     expect(out).toContain(">Dex Calloway</span>");
     expect(anchors(out)).toBe(1);

@@ -23,7 +23,8 @@ const STATIC_CAST = /^\/cast\/[\w.-]+\.(webp|png|jpe?g)$/;
  * run a handful at a time.
  */
 export const GET = handle(async (req: Request, ctx: Ctx) => {
-  const { id } = await ctx.params;
+  // /api/assets/<id>.webp is the same picture: the extension is only there so the CDN caches it (app/Avatar.tsx sized).
+  const id = (await ctx.params).id.replace(/\.webp$/, "");
   const db = await getDb();
   const head = await getApprovedAssetHead(db, id);
   if (!head) return json({ error: "asset_not_found" }, 404);
