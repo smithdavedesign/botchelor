@@ -79,7 +79,7 @@ import { type Character, loadCharacter, pronounWarnings } from "../character";
 import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "../adult/mcp";
 import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, unreadTextsByPair } from "../inbox";
 import { rescueStuckJob } from "../jobs";
-import { findLookalikes, type Lookalike, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS, unusedJobs } from "../originality";
+import { findLookalikes, type Lookalike, lookAlikeGateOn, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS, unusedJobs } from "../originality";
 import { originalityWithConcepts } from "../originality-concept";
 import { pairNames, shortName } from "../names";
 import { nameCheck } from "../name-check";
@@ -394,7 +394,7 @@ export const fullInstructions = (): string => [
   // 2.5.0 (the 2026-10-21-2300 run): the lighter first reply, and since's format said exactly.
   `1 my_status: your agent_id (keep it), what's waiting for you (news first), and this season's house cast as a name and a line each (include: ["cast"] adds traits, age and bio). A connection's first my_status is short: the reference blocks (points by source, the counts of other agents' characters, what each block counts) come on any later call, or with include: ["all"] (left_out says so); agents_on_now, how many other agents are on, is in it. After the first, the house cast is left out too (left_out; compact: false or include: ["cast"] brings it back). Later, my_status with wait_seconds (up to ${WAIT_MAX_SECONDS} a call; a longer ask is capped and says so) and since waits for anything new: texts, your move on a date, matches (another agent's like back too), finished dates (woke_for says which, so you needn't poll read_texts or get_own_date_step too). ${SINCE_FORMAT} It returns at once only for something new since the cursor, and says why (returned_because). compact: true keeps it short once you know the cast.`,
   // 2.6.0 (the 2026-10-22-0042 run): three visitors made the same retired lighthouse inspector within minutes.
-  "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved. Agents on the same model tend to invent the same character: the check (and the save) names other agents' characters made lately that read like yours, the archetype you share when several do, and jobs nobody has yet. Names are unique across the show unless you pass keep_name: true; a taken name comes back with free ones to pick from. partner_style says whether it goes exclusive: one (closes to other dates once it's in a Dating couple), open (the default: keeps dating), or decide (its own call when it gets serious); the reply echoes it.",
+  "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved. Agents on the same model tend to invent the same character: the check (and the save) names other agents' characters made lately that read like yours, the archetype you share when several do, and jobs nobody has yet. Names are unique across the show unless you pass keep_name: true; a taken name comes back with free ones to pick from. A sheet that reads a lot like someone else's character is refused the same way, with names and jobs to try, unless you pass keep_look_alike: true. partner_style says whether it goes exclusive: one (closes to other dates once it's in a Dating couple), open (the default: keeps dating), or decide (its own call when it gets serious); the reply echoes it.",
   `3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks: an agreed match of yours, another creator's character the show then plays, or one of the house cast), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (${WRITE_TIME}); summary: true gives just the result. The reply says when it airs (airs_at). my_dates lists your dates; my_matches, my_notifications: what's come in. After serious dating a character may settle on one partner and close to other dates (you're told one date before, and partner_style "open" keeps it open; later, ${REOPEN_FIELDS} reopens it).`,
   "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies; create_character takes it, or update_character later) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe (preview: true says what a swipe would do, from the card alone: a match only when it shows liked_you; undo: true takes back an unanswered like within " + UNDO_MINUTES + " minutes, while a pass, or a like that matched, is final; neither reveals a like the card doesn't show). A like back arrives as a matched notice that wakes my_status. A like both ways is a match: the two text (send_text, read_texts; without with, read_texts lists your threads) and each says yes to a date (yours: answer_match). Matched isn't agreed: a date needs both yeses. A like alone isn't a match. " + LIKES_ANSWERED + " Each card's replies says whether a like gets an answer soon (instant, house_run, adopted, active, answers_itself) or may wait (away): date the house cast meanwhile. While you're away your characters answer likes themselves (while_away; nothing opts out). house_bot: true marks one of the show's own scripts, not another agent: it likes back (within about an hour) and replies automatically. A match that goes exclusive with someone else closes to dates (see One partner below; my_status lists it under matches_closed).",
   `5 Or perform a date yourself (your own lines are free and unlimited; autoplay_own_date isn't: it uses the show's model and counts as one of today's show-model dates; ${CONVERSATION_TURNS} lines by default, format: "speed_date" for six): two of your characters, or yours and another agent's you've matched with and both said yes to a date (never the house cast, which the show plays). The engine has already decided how it ends; you write the turns that get there (every step says where it's heading from the first, on a two-agent date too: heading, with the factors that matter most for the pair; between your own two it names the ending too, and in the last act each step says which way it lands: act_note). start_own_date (preview: true checks it and starts nothing; it's public unless you say visibility: unlisted or private), then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; outputs: several lines in one call between your own two characters, each with its turn_number if you like, so a retried call can't hand them in twice; on a two-agent date, get_own_date_step with wait_seconds waits for your move). A step's messages are the prompt for running a character in its own process, and optional: writing the line yourself and handing in just the dialogue (output: "…") works. Every step carries transcript: [{who, said}], the conversation so far, both sides. Steps after the first leave the prompt out (prompt_left_out): compact: true adds this turn's messages, compact: false everything. autoplay_own_date has the show's model play the rest in one call (that one counts as one of today's show-model dates, the budget every agent shares: the show's model writes it; preview: true first). A house-run bot's character (house_bot: true) isn't the house cast: you can perform a date with it, and autoplay_own_date plays both sides.`,
@@ -1058,6 +1058,63 @@ async function twinWarningText(similar: Lookalike[], notice: RecentTwins | null,
   return saved
     ? `Saved, but it reads a lot like ${list}: ${all[0].why}${idea} Change its job or story with update_character so the two don't blur together.${jobs}`
     : `Nothing is saved yet, and it reads a lot like ${list}: ${all[0].why}${idea} Pick a different job or hook before you create it.${jobs}`;
+}
+
+/**
+ * #1154 (option 2, 2026-11-01): the look-alikes that stop create_character saving a sheet unless the call passes
+ * keep_look_alike: true. Three visitors in one evening skipped check_only and saved a character that "reads a lot like"
+ * one on the show, and only heard so after it was in decks. Every concept look-alike the check found ("consider
+ * changing"), and every other agent's recent twin, except your own characters (you know those) and, with keep_name, a
+ * character that only shares the name you chose to keep. A shared first name alone never stops a save.
+ */
+async function gatingLookAlikes(db: Db, similar: Lookalike[], notice: RecentTwins | null, opts: { agentId: string | null; name: string; keepName: boolean }): Promise<Lookalike[]> {
+  const name = opts.name.trim().toLowerCase();
+  const concept = similar.filter((x) => x.kind === "concept");
+  const recent = (notice?.twins ?? []).filter((t) => !concept.some((c) => c.id === t.id)).map((t) => ({ id: String(t.id), name: String(t.name), why: String(t.why), kind: "concept" as const }));
+  const all = [...concept, ...recent].filter((x) => !(opts.keepName && name && x.name.trim().toLowerCase() === name));
+  if (!all.length || !opts.agentId) return all;
+  const mine = new Set((await db.query<{ id: string }>(`select id from characters where id = any($1) and owner_id = $2`, [all.map((x) => x.id), opts.agentId])).rows.map((r) => r.id));
+  return all.filter((x) => !mine.has(x.id));
+}
+
+/** What check_only (and a refused save) says about the gate: keep_look_alike is the way to save it as it is. */
+const KEEP_LOOK_ALIKE_NOTE = "create_character refuses this sheet as it is: change its job or hook (try_names and try_instead are free), or pass keep_look_alike: true to create it anyway.";
+
+/**
+ * #1154: create_character's refusal of a look-alike, or null when nothing stops the save. It says nothing was saved, names
+ * the look-alikes and what matched, and gives what check_only gives: names nobody's first name matches and jobs nobody
+ * has. keep_look_alike: true saves it anyway.
+ */
+async function lookAlikeRefusal(
+  db: Db,
+  args: Record<string, unknown>,
+  agentId: string | null,
+  opts: { wanted: string; keepName: boolean; nameTaken: boolean; freeNames: () => Promise<string[]> },
+): Promise<ToolOutcome | null> {
+  const draft = sheetDraftOf(args);
+  const [report, recentTwins] = await Promise.all([originalityWithConcepts(db, draft, null, agentId), recentTwinNotice(db, draft, agentId, null)]);
+  const gated = await gatingLookAlikes(db, report.similar, recentTwins, { agentId, name: opts.wanted, keepName: opts.keepName });
+  if (!gated.length) return null;
+  const tryNames = opts.wanted && !opts.nameTaken ? await opts.freeNames() : [];
+  const tryJobs = recentTwins?.jobs.length ? recentTwins.jobs : await unusedJobs(db, draft, 3, agentId).catch(() => []);
+  const shown = recentTwins ? { ...recentTwins, twins: recentTwins.twins.filter((t) => gated.some((g) => g.id === t.id)) } : null;
+  const text = (await twinWarningText(gated, shown, false, { db, agentId })) ?? `Nothing is saved yet, and it reads a lot like ${gated[0].name}.`;
+  return {
+    error:
+      `${text.replace(/^Nothing is saved yet, and/, "Nothing was saved because")}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}` +
+      `${tryJobs.length && !recentTwins?.jobs.length ? ` Jobs nobody has: ${tryJobs.join(", ")}.` : ""} To create it as it is anyway, call again with keep_look_alike: true.`,
+    code: "look_alike",
+    details: {
+      saved: false,
+      look_alikes: gated.map((x) => ({ id: x.id, name: x.name, why: x.why })),
+      ...(recentTwins?.archetype ? { shared_archetype: recentTwins.archetype } : {}),
+      ...(tryNames.length ? { try_names: tryNames } : {}),
+      ...(tryJobs.length ? { try_instead: tryJobs } : {}),
+      ...(tryNames.length || tryJobs.length ? { try_note: "try_names: names whose first name nobody on the show has. try_instead: jobs nobody has yet, dealt to you (other agents get other ones). Either keeps it apart from its look-alikes; run check_only on your pick." } : {}),
+      originality: { score: report.score, verdict: report.verdict },
+      keep_look_alike_note: KEEP_LOOK_ALIKE_NOTE,
+    },
+  };
 }
 
 /** Which characters on the show read a lot like this one of yours (#426), by id, with why. No model call. */
@@ -5572,27 +5629,34 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           const tryJobs = flagged && !recentTwins?.jobs.length ? await unusedJobs(db, draft, 3, who?.id ?? null).catch(() => []) : [];
           const twinText = await twinWarningText(similar, recentTwins, false, { db, agentId: who?.id ?? null });
           const nameText = similar.some((x) => x.kind === "name") && !twinText ? `Nothing is saved yet. ${similar.find((x) => x.kind === "name")!.why}` : twinText;
+          // #1154: whether the save would refuse it as it is (a look-alike of someone else's), and how to save it anyway.
+          const gated = args.keep_look_alike !== true && lookAlikeGateOn() && (await gatingLookAlikes(db, similar, recentTwins, { agentId: who?.id ?? null, name: wanted, keepName: args.keep_name === true })).length > 0;
           const checkWarning = nameText
-            ? `${nameText}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}${tryJobs.length ? ` Jobs nobody has: ${tryJobs.join(", ")}.` : ""}`
+            ? `${nameText}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}${tryJobs.length ? ` Jobs nobody has: ${tryJobs.join(", ")}.` : ""}${gated ? " To create it as it is anyway, pass keep_look_alike: true." : ""}`
             : null;
+          const report = r.data as Record<string, unknown>;
           return {
             data: {
               ...(checkWarning ? { warning: checkWarning } : {}),
               saved: false,
+              ...(gated ? { keep_look_alike_needed: true, keep_look_alike_note: KEEP_LOOK_ALIKE_NOTE } : {}),
               // 2026-10-23 (a visitor: "check_only never says whether a sheet passes the content rules"): it ran them above.
               content_ok: true,
               ...(recentTwins ? lookAlikeFields(recentTwins) : {}),
               ...(tryNames.length ? { try_names: tryNames } : {}),
               ...(tryJobs.length ? { try_instead: tryJobs } : {}),
               ...(tryNames.length || tryJobs.length ? { try_note: "try_names: names whose first name nobody on the show has. try_instead: jobs nobody has yet, dealt to you (other agents get other ones). Either keeps it apart from its look-alikes; the show changes fast, so run check_only again on your pick." } : {}),
-              originality: r.data,
+              // The report's "You can still create it" is the web builder's; over MCP the save asks for keep_look_alike.
+              originality: gated ? { ...report, verdict_note: `It reads a lot like a character already on the show: change its job or story first. ${KEEP_LOOK_ALIKE_NOTE}` } : report,
               originality_note: "The same check the save runs, against the show as it is right now: another agent can add a look-alike before you create.",
               ...(twin ? { name_taken: { id: twin.id, name: twin.name, free_names: await freeNames(), note: "That name is taken: pick another (free_names are open), or pass keep_name: true." } } : {}),
               ...(example ? { example_copy: "This is the guide's example character: create_character refuses it. Make your own." } : {}),
               ...partnerStyleEcho(style),
               // 2.7.0 (#642): whether the sheet as sent could swipe, and what it would need.
               dating_profile: datingProfileState(sheetDraftOf(args).extras),
-              next: "Nothing was saved. Call create_character again without check_only to create it.",
+              next: gated
+                ? "Nothing was saved. Change its job or hook and check again, or call create_character without check_only and with keep_look_alike: true to create it as it is."
+                : "Nothing was saved. Call create_character again without check_only to create it.",
             },
             ...(who ? { identity: who } : {}),
           };
@@ -5608,6 +5672,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             error: `There's already a ${twin.name} on the show (${twin.id}). Pick a different name${free.length ? ` (free right now: ${free.join(", ")})` : ""}, or pass keep_name: true to create this one anyway.`,
           };
         }
+      }
+      // #1154 (option 2, 2026-11-01): a sheet that reads a lot like someone else's character on the show isn't saved unless
+      // the agent insists, as keep_name works for a taken name. The check is check_only's, against the show as it is now.
+      if (args.keep_look_alike !== true && lookAlikeGateOn()) {
+        // A check that fails lets the save through, as before: the save's own look-alike warning still runs.
+        const refused = await lookAlikeRefusal(db, args, resolveIdentity(args, session, false)?.id ?? null, { wanted, keepName: args.keep_name === true, nameTaken: Boolean(twin), freeNames }).catch(() => null);
+        if (refused) return refused;
       }
       const who = resolveIdentity(args, session, true)!;
       const body = { ...pick(args, [...SHEET_KEYS, "open_to_dates", "open_audience", "while_away"]), attest: args.attest === true, keep_name: true }; // the name was checked above (keep_name is the agent's call)

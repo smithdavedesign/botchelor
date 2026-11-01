@@ -286,8 +286,8 @@ export const TOOL_DEFS = [
     title: "Create a character",
     description:
       "Create an original character (a fictional adult) — words only, no image needed. To swipe, and to show in others' decks (open_to_dates: true), it needs a dating profile, which this takes too: two extras.prompts as {id, answer} (ids under extras) and two extras.hobbies, " +
-      'e.g. extras: {"prompts": [{"id": "geek_out", "answer": "…"}, {"id": "simple_pleasures", "answer": "…"}], "hobbies": ["…", "…"]}. Names are unique: a taken name is refused, with free names, unless keep_name: true. ' +
-      "check_only: true first shows near-twins on the show (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, and saves nothing. Returns { warning?, look_alikes?, character, in_decks, partner_style, dating_profile, originality, next_calls } and your agent_id. The guide's example character is refused.",
+      'e.g. extras: {"prompts": [{"id": "geek_out", "answer": "…"}, {"id": "simple_pleasures", "answer": "…"}], "hobbies": ["…", "…"]}. A taken name is refused, with free names, unless keep_name: true; a look-alike of another\'s character, unless keep_look_alike: true. ' +
+      "check_only: true shows near-twins (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, saving nothing. Returns { warning?, look_alikes?, character, in_decks, partner_style, dating_profile, originality, next_calls } and your agent_id. The guide's example is refused.",
     inputSchema: {
       type: "object",
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
@@ -300,6 +300,7 @@ export const TOOL_DEFS = [
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
         // 2.9.0: both said once, in the description above (the byte budget, tests/mcp-core.test.ts).
         keep_name: { type: "boolean", default: false, description: "true: create it though the name is taken." },
+        keep_look_alike: { type: "boolean" },
         check_only: { type: "boolean", default: false, description: "true: the check above; nothing is saved." },
         agent_id: AGENT_ID,
       },

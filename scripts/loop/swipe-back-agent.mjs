@@ -57,7 +57,8 @@ const SHEETS = [
 await rpc("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: "botchelor-loop-swipe-back", version: "1.0" } });
 const mine = [];
 for (const s of SHEETS) {
-  const r = await tool("create_character", { ...s, open_to_dates: true, open_audience: "agents", attest: true, keep_name: true });
+  // keep_look_alike: made again each run, beside the last run's copies (#1154).
+  const r = await tool("create_character", { ...s, open_to_dates: true, open_audience: "agents", attest: true, keep_name: true, keep_look_alike: true });
   agentId ??= r.agent_id;
   mine.push(r.character);
 }

@@ -7,6 +7,9 @@
  *
  * The score is a friendly 0..100 "how distinct is this character" read, not a rating anyone else sees, and it
  * never touches the engine, matchmaking or anything public.
+ *
+ * One exception to "never a gate" (#1154, 2026-11-01): an agent's create_character refuses a sheet that reads a lot like
+ * someone else's character unless it passes keep_look_alike: true (lib/mcp/dispatcher.ts). The web builder isn't gated.
  */
 import type { Db } from "./db";
 import { publicExtras, type CharacterExtras } from "./extras";
@@ -44,6 +47,18 @@ export type OriginalityReport = {
   /** 2.4.3: a close name doing the same job as a character made in the last RECENT_HOURS: pick a different job or name. */
   suggestion?: RenameSuggestion;
 };
+
+let lookAlikeGateForTests: boolean | null = null;
+
+/** Tests choose the look-alike gate (the shared harness turns it off, so suites that reuse one sheet keep their tests). */
+export function setLookAlikeGateForTests(on: boolean | null): void {
+  lookAlikeGateForTests = on;
+}
+
+/** Whether create_character refuses a look-alike without keep_look_alike (#1154). LOOK_ALIKE_GATE=0 turns it off. */
+export function lookAlikeGateOn(env: Record<string, string | undefined> = process.env): boolean {
+  return lookAlikeGateForTests ?? env.LOOK_ALIKE_GATE?.trim() !== "0";
+}
 
 /** The score a sheet is "fine to create" from, and "stands out" from (#505). A nudge, never a gate. */
 export const ORIGINALITY_FINE_FROM = 55;
@@ -306,6 +321,102 @@ export function surnamesClose(a: string | undefined, b: string | undefined): boo
 
 type Compared = { id: string; name: string } & SheetDraft;
 
+/* --------------------------------------------- hook twins (#1177) --------------------------------------------- */
+/*
+ * The 2026-10-31-2052 run: Bevan, who writes postcards to strangers and never signs them, scored 95 with no look-alikes
+ * beside Teodor Abalos-Ferreira, "a ferry captain who writes one postcard to a stranger every crossing and has never once
+ * signed his name". Different jobs, different bios, one hook: over two whole sheets the shared words are too few for the
+ * scores above. So each sentence of who a character is (bio, quirk, details, hobbies, profile answers, tells) is held
+ * against each of the other's, with word forms folded ("signed", "signs" → sign), and two sentences that share
+ * HOOK_TERMS rare words are one hook. Words only: it works with the embedding pass off, capped or timed out.
+ */
+
+/** A firmer stem than `stem`, for one sentence against another: "signed", "signing" and "signs" meet, as "writes" and "writing" do. */
+function hookStem(w: string): string {
+  let s = stem(w);
+  if (s.length > 6 && s.endsWith("ing")) s = s.slice(0, -3);
+  else if (s.length > 5 && s.endsWith("ed")) s = s.slice(0, -2);
+  if (s.length > 4 && s.endsWith("e")) s = s.slice(0, -1);
+  if (/([b-df-hj-np-tv-z])\1$/.test(s) && !/(ss|ll)$/.test(s)) s = s.slice(0, -1);
+  return s;
+}
+
+/** The sentences a hook is read from: who the character is and what they do, the voice kit's tells too (a habit is often one). */
+function hookText(sheet: SheetDraft): string[] {
+  const e = sheet.extras ?? {};
+  return [
+    sheet.bio, e.quirk, e.signature_item, e.hidden_talent, e.pet_peeve, e.guilty_pleasure, ...(e.facts ?? []).map((f) => f.value),
+    ...(e.hobbies ?? []), ...(e.prompts ?? []).map((p) => p.answer), ...Object.values(e.tells ?? {}),
+  ]
+    .filter((s): s is string => typeof s === "string" && Boolean(s.trim()))
+    .flatMap((s) => s.split(/[.!?;:()"“”\n]+/))
+    .filter((s) => s.trim());
+}
+
+/** A sentence's words as hook terms (term → the word as written), dropping everyday ones. */
+function hookWords(sentence: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const raw of sentence.toLowerCase().replace(/[-–—/]/g, " ").split(/[^a-z']+/)) {
+    const word = raw.replace(/'s$/, "");
+    const mapped = sameAs(word) ?? sameAs(stem(word));
+    if (!mapped && (word.length < 4 || EVERYDAY_WORDS.has(word) || EVERYDAY_WORDS.has(stem(word)) || !contentWords(word, 4).length)) continue;
+    const term = mapped ?? hookStem(word);
+    if (!out.has(term)) out.set(term, word);
+  }
+  return out;
+}
+
+/** A sheet's sentences, each as its set of hook terms: what `sharedHook` compares. */
+export function hookSentences(sheet: SheetDraft): Set<string>[] {
+  return hookText(sheet).map((s) => new Set(hookWords(s).keys())).filter((s) => s.size >= HOOK_TERMS);
+}
+
+/** How rare each hook term is among the sheets compared (each sheet's sentences together). */
+export const hookWeights = (sheets: Set<string>[][]): ((term: string) => number) => termWeights(sheets.map((s) => new Set(s.flatMap((x) => [...x]))));
+
+/**
+ * Two sentences share a hook when they have this many terms in common, each one uncommon on the show (weighted at least
+ * HOOK_RARE of the rarest a term can be) and one of them rare (HOOK_RAREST: "postcard", not "write"), and those terms
+ * are at least HOOK_COVER of the shorter sentence's weight. Calibrated so no two house characters share one
+ * (tests/originality-twins.test.ts).
+ */
+export const HOOK_TERMS = 3;
+const HOOK_RARE = 0.35;
+const HOOK_RAREST = 0.6;
+const HOOK_COVER = 0.4;
+
+/** The hook two sheets share (the closest pair of sentences, by index into each one's hookSentences), or null. Pure. */
+export function sharedHook(mine: Set<string>[], theirs: Set<string>[], weight: (term: string) => number): { score: number; terms: string[]; mine: number; theirs: number } | null {
+  // The rarest a term can be, one sheet's alone: termWeights counts a term no sheet has as one sheet's ("" is never a term).
+  const rarest = weight("");
+  if (!rarest) return null;
+  const sum = (ts: Iterable<string>) => [...ts].reduce((n, t) => n + weight(t), 0);
+  let best: { score: number; terms: string[]; mine: number; theirs: number } | null = null;
+  for (let i = 0; i < mine.length; i++) {
+    for (let j = 0; j < theirs.length; j++) {
+      const terms = [...mine[i]].filter((t) => theirs[j].has(t) && weight(t) >= HOOK_RARE * rarest);
+      if (terms.length < HOOK_TERMS || !terms.some((t) => weight(t) >= HOOK_RAREST * rarest)) continue;
+      const cover = sum(terms) / Math.min(sum(mine[i]), sum(theirs[j]));
+      if (cover >= HOOK_COVER && (!best || cover > best.score)) best = { score: cover, terms, mine: i, theirs: j };
+    }
+  }
+  return best;
+}
+
+/**
+ * A hook in the words one sheet wrote it: the stretch of its sentence from the first shared word to the last ("writes
+ * postcards to strangers, never signs"), or just the shared words when that stretch is long.
+ */
+function hookAsWritten(sheet: SheetDraft, sentenceIndex: number, terms: string[]): string {
+  const sentence = hookText(sheet).filter((s) => hookWords(s).size >= HOOK_TERMS)[sentenceIndex]?.trim() ?? "";
+  const words = sentence.split(/\s+/);
+  const termOf = (w: string) => [...hookWords(w).keys()][0];
+  const at = words.map((w, i) => (terms.includes(termOf(w) ?? "") ? i : -1)).filter((i) => i >= 0);
+  if (at.length && at[at.length - 1] - at[0] < 15) return words.slice(at[0], at[at.length - 1] + 1).join(" ").replace(/[,–—-]+$/, "");
+  const written = hookWords(sentence);
+  return terms.map((t) => written.get(t) ?? t).join(", ");
+}
+
 /* ------------------------------------------ recent characters (2.4.3) ------------------------------------------ */
 /*
  * The 2026-10-21-0419 run: two agents a few minutes apart made near-namesakes in the same line of work, and the check
@@ -483,8 +594,14 @@ async function renameSuggestion(db: Db, sheet: SheetDraft, twins: Compared[], re
   };
 }
 
-/** Why `sheet` reads like `other`, from every signal, with a score for ordering; or null. Pure, given the term weights. */
-export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, otherTerms: Set<string>, weight: (term: string) => number): (Lookalike & { score: number }) | null {
+/** Both sheets' hookSentences and the hook terms' weights, for twinWhy's hook signal (#1177). */
+export type HookPair = { mine: Set<string>[]; theirs: Set<string>[]; weight: (term: string) => number };
+
+/**
+ * Why `sheet` reads like `other`, from every signal, with a score for ordering; or null. Pure, given the term weights.
+ * `hooks`: both sheets' sentences and their weights, for a shared hook (#1177); left out, that signal isn't read.
+ */
+export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, otherTerms: Set<string>, weight: (term: string) => number, hooks?: HookPair): (Lookalike & { score: number }) | null {
   const base = { id: other.id, name: other.name };
   const concept = conceptSimilarity(terms, otherTerms, weight);
   const both = concept.shared.length ? ` (both: ${concept.shared.map((t) => asWritten(t, sheet)).join(", ")})` : "";
@@ -493,6 +610,12 @@ export function twinWhy(sheet: SheetDraft, other: Compared, terms: Set<string>, 
   }
   const alike = lookalikeWhy(sheet, other, other.name);
   if (alike) return { ...base, kind: "concept", why: alike.why, score: 1 + alike.score };
+  const hook = hooks ? sharedHook(hooks.mine, hooks.theirs, hooks.weight) : null;
+  if (hook) {
+    const yours = hookAsWritten(sheet, hook.mine, hook.terms);
+    const theirs = hookAsWritten(other, hook.theirs, hook.terms);
+    return { ...base, kind: "concept", why: `${other.name} has the same hook as this one (yours: "${yours}"; theirs: "${theirs}").`, score: 0.9 + hook.score / 10 };
+  }
   const traits = sharedTraits(sheet, other);
   if (traits.length >= SAME_TEMPERAMENT_TRAITS && concept.count >= SAME_TEMPERAMENT_TERMS) {
     return { ...base, kind: "concept", why: `${other.name} has the same temperament (${traits.join(", ")}) and a similar story${both}.`, score: 0.8 + concept.score };
@@ -551,6 +674,10 @@ async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string
   for (const r of rows) r.extras = publicExtras(r.extras);
   const rowTerms = rows.map((r) => conceptTerms(r));
   const weight = termWeights([terms, ...rowTerms]);
+  // #1177: one hook in common (a habit, the same few rare words in one sentence each), whatever else differs.
+  const hooks = hookSentences(sheet);
+  const rowHooks = rows.map((r) => hookSentences(r));
+  const hookWeight = hookWeights([hooks, ...rowHooks]);
   const found: Found[] = [];
   rows.forEach((r, i) => {
     // The concepts the two share (the rarest first), kept for the archetype a recent-twin warning names (2.6.0).
@@ -565,7 +692,7 @@ async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string
       found.push({ id: r.id, name: r.name, kind: "concept", recent: true, name_and_job: true, why: `${r.name}, made in the last ${RECENT_HOURS} hours, has a close name and the same job (${job.slice(0, 2).join(", ")}).`, score: 2.5, shared: shared(), row: r });
       return;
     }
-    const twin = twinWhy(sheet, r, terms, rowTerms[i], weight);
+    const twin = twinWhy(sheet, r, terms, rowTerms[i], weight, { mine: hooks, theirs: rowHooks[i], weight: hookWeight });
     if (twin) found.push({ ...twin, shared: shared(), row: r });
   });
   const sorted = found.sort((x, y) => y.score - x.score);
