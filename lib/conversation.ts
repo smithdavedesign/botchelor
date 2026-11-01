@@ -64,7 +64,11 @@ export type Turn = {
 
 export class ConversationError extends Error {
   override name = "ConversationError";
-  constructor(readonly reasons: string[]) {
+  constructor(
+    readonly reasons: string[],
+    /** The lines said before the turn that failed (J1: kept, and the date picks up after them; opts.from). */
+    readonly partial: Turn[] = [],
+  ) {
     super(`conversation failed: ${reasons.join(", ")}`);
   }
 }
@@ -503,6 +507,8 @@ export type ConversationOptions = {
    * and where. With the kept line at the same index, a chosen/rejected pair. Not called when the draft stood.
    */
   onDraft?: (d: { turn_index: number; side: "a" | "b"; reason: string; rejected: string }) => void;
+  /** Lines already said (a date whose conversation failed partway, J1): kept as they are, and the date picks up after them. */
+  from?: Turn[];
 };
 
 /** The producer's note to the next speaker when the creator has set the scene. */
@@ -534,7 +540,7 @@ export async function simulateConversation(
   onTurn?: (transcript: Turn[]) => void | Promise<void>,
   opts: ConversationOptions = {},
 ): Promise<Turn[]> {
-  const transcript: Turn[] = [];
+  const transcript: Turn[] = [...(opts.from ?? [])];
   const reasons: string[] = [];
   // A date in another language: each line's English (languageBlock), so the critic reads what it can (never stored).
   const english = speaksOtherThanEnglish(...characters);
@@ -603,7 +609,7 @@ export async function simulateConversation(
       }
     }
     line ??= draft;
-    if (!line) throw new ConversationError(reasons);
+    if (!line) throw new ConversationError(reasons, [...transcript]);
     const turn = settleLine(line.turn, line.reply, shape, names);
     // The suggested place, proposed: it goes where the creator set it, whatever words the line used for it.
     if (suggestion && line.reply.move?.trim()) {

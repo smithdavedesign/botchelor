@@ -1,7 +1,8 @@
 /**
  * Backfill the line-by-line conversation for dates that don't have one: dates made before the turn-by-turn
  * conversation existed (M9), or whose best-effort conversation failed at generation time. Without it a date
- * can't play line by line in a watch room or replay — only its act summaries show.
+ * can't play line by line in a watch room or replay — only its act summaries show. A date whose conversation failed
+ * partway keeps the lines already said (generated_with.transcript_partial, J1), and is finished from them.
  *
  * Fairness is the point of the design: the conversation is steered onto the date's STORED outcome (the ending,
  * the box score and each side's private verdict already on the episode), never a re-decided one. So a
@@ -41,6 +42,9 @@ import { buildDate, type CharacterForDate, type DateRequest } from "./simulation
 
 export const BACKFILL_MAX_ATTEMPTS = 3;
 
+/** A date kept only the start of its lines (lib/jobs.ts, J1). */
+const partialSql = (alias = "") => `coalesce((${alias}generated_with->>'transcript_partial')::boolean, false)`;
+
 type Row = {
   id: string;
   seed: string | null;
@@ -51,6 +55,10 @@ type Row = {
   drama_answer: DramaAnswer | null;
   box_score: Record<DateVariable, VariableArc> | null;
   sides: [SideOutcome, SideOutcome] | null;
+  transcript: Turn[];
+  turn_meta: { at: string; by: string }[] | null;
+  /** Lines were kept from a conversation that failed partway (J1): the backfill picks up after them. */
+  partial: boolean;
   a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_house: boolean; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
   b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_house: boolean; b_appearance: string | null; b_pronouns: string | null; b_voice: string | null;
 };
@@ -90,7 +98,7 @@ export function storedOutcome(r: Row, seed: number): Outcome {
   };
 }
 
-/** Produce the missing conversation for one stored date, steered to its stored outcome. Throws on failure. */
+/** Produce the missing conversation (or its missing end) for one stored date, steered to its stored outcome. Throws on failure. */
 async function conversationFor(db: Db, r: Row, actor: Model, director: Model): Promise<Turn[]> {
   const seed = r.seed === null ? undefined : Number(r.seed);
   const format = r.setup?.format ?? DEFAULT_FORMAT;
@@ -115,7 +123,9 @@ async function conversationFor(db: Db, r: Row, actor: Model, director: Model): P
   const formatCtx = { ...formatContextOf(built), chaperone: r.setup?.chaperone, ex: r.setup?.ex };
   // Played from a beat sheet of the STORED outcome, like a fresh date (lib/beats.ts).
   const plan = await planDate(director, built.input, outcome, characters, producer, venueId, format, formatCtx);
-  return simulateConversation(actor, built.input, outcome, characters, producer, venueId, format, undefined, formatCtx, plan);
+  return simulateConversation(actor, built.input, outcome, characters, producer, venueId, format, undefined, formatCtx, plan, undefined, undefined, {
+    from: r.partial ? r.transcript : undefined,
+  });
 }
 
 /** The free tier said "slow down" (a 429 that outlasted the model client's own short backoff). */
@@ -126,8 +136,8 @@ export function isRateLimited(err: unknown): boolean {
 export type BackfillResult = { filled: string[]; failed: string[]; rate_limited?: boolean };
 
 /**
- * Backfill up to `limit` dates that have no conversation, newest first. Only the transcript is written, and
- * only while it is still empty, so a concurrent fill or a re-run is a no-op. A rate limit is not the date's
+ * Backfill up to `limit` dates that have no conversation (or only its start), newest first. Only the transcript is
+ * written, and only while it is still missing, so a concurrent fill or a re-run is a no-op. A rate limit is not the date's
  * fault: it costs the date no try and ends this batch (pushing on would only hit the same quota), so the
  * next run picks up where this one stopped.
  */
@@ -138,6 +148,7 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
 
   const { rows } = await db.query<Row>(
     `select e.id, e.seed::text as seed, e.setup, e.note, e.ending, e.drama_question, e.drama_answer, e.box_score, e.sides,
+            e.transcript, e.turn_meta, ${partialSql("e.")} as partial,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want,
             a.dealbreaker a_dealbreaker, a.is_house a_house, a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
             b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want,
@@ -145,7 +156,7 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
-      where e.status = 'ready' and jsonb_array_length(e.transcript) = 0 and e.backfill_failures < $1
+      where e.status = 'ready' and (jsonb_array_length(e.transcript) = 0 or ${partialSql("e.")}) and e.backfill_failures < $1
       order by e.created_at desc, e.id
       limit $2`,
     [BACKFILL_MAX_ATTEMPTS, limit],
@@ -161,13 +172,16 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
       const transcript = await conversationFor(db, r, actor.model, director.model);
       // The transcript was written later, by these models: recorded beside whatever wrote the rest (lib/pipeline.ts).
       const backfilledWith = { actor: actor.served(), director: director.served(), prompts: PROMPT_VERSION };
-      // turn_meta stays line for line with the transcript (episodes.turn_meta): every backfilled line is the show's, now.
+      // turn_meta stays line for line with the transcript (episodes.turn_meta): kept lines keep theirs, every
+      // backfilled line is the show's, now.
       const at = new Date().toISOString();
+      const kept = r.partial ? r.transcript.length : 0;
+      const meta = [...(r.turn_meta ?? []).slice(0, kept), ...transcript.slice(kept).map(() => ({ at, by: "show" }))];
       await db.query(
         `update episodes set transcript = $2::jsonb, turn_meta = $4::jsonb,
-                generated_with = coalesce(generated_with, '{}'::jsonb) || jsonb_build_object('transcript_backfill', $3::jsonb)
-          where id = $1 and jsonb_array_length(transcript) = 0`,
-        [r.id, JSON.stringify(transcript), JSON.stringify(backfilledWith), JSON.stringify(transcript.map(() => ({ at, by: "show" })))],
+                generated_with = (coalesce(generated_with, '{}'::jsonb) - 'transcript_partial') || jsonb_build_object('transcript_backfill', $3::jsonb)
+          where id = $1 and (jsonb_array_length(transcript) = 0 or ${partialSql()})`,
+        [r.id, JSON.stringify(transcript), JSON.stringify(backfilledWith), JSON.stringify(meta)],
       );
       filled.push(r.id);
       const calls = actor.calls() + director.calls();
