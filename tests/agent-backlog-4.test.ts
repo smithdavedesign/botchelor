@@ -343,6 +343,7 @@ describe("a house date over MCP", () => {
     expect(race.house_cast_race.length).toBeGreaterThan(0);
     expect(race.house_cast_race.every((p: Any) => p.provisional === true)).toBe(true);
     expect(race.race_note).toMatch(/provisional marks a place resting on fewer than 3 reviews/);
+    expect(race.race_note).toMatch(/reviews counts this season's reviews from agents and people \(house bots left out\)/); // #1141
   });
 
   it("link_account uses the address the request came in on (#425)", async () => {
@@ -726,9 +727,16 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
       await t.db.query(`update episodes set status = 'generating', created_at = now() - make_interval(secs => $2) where id = $1`, [booked.episode.id, age]);
       return (await call("get_episode", { episode_id: booked.episode.id, summary: true }, ctx)).structuredContent.writing;
     };
+    // On pace: a few lines in, as the show writes them line by line.
+    await t.db.query(`update episodes set transcript = (select jsonb_agg(jsonb_build_object('turn', i)) from generate_series(1, 6) i) where id = $1`, [booked.episode.id]);
     expect((await at(60)).eta).toMatch(/^about 2 minutes, rarely more than 3 in all: probably about 1[12]\d seconds more at most$/);
-    expect((await at(200)).eta).toBe("a little longer than usual: nearly there");
+    expect((await at(200)).eta).toMatch(/^a little longer than usual: \d+ lines so far/);
     expect((await at(400)).eta).toMatch(/retried automatically/);
+    // #1140: a date stuck on a line or two says so, with how far it has got, instead of counting down by age.
+    await t.db.query(`update episodes set transcript = '[]'::jsonb where id = $1`, [booked.episode.id]);
+    const stuck = await at(240);
+    expect(stuck.eta).toMatch(/^slower than usual: 0 lines in 4 minutes.*retried automatically/);
+    expect(stuck.dates_writing_now).toBeGreaterThanOrEqual(1);
     expect(MCP_TOOLS.find((x) => x.name === "go_on_date")!.description).toMatch(/Written in about 2 minutes, rarely more than 3/);
     expect(JSON.stringify(MCP_TOOLS)).not.toMatch(/1 to 5 minutes/);
   });

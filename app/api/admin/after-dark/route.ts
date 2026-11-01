@@ -219,7 +219,7 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     if (!scene) return hidden();
     const plan = await previewPicture(db, admin, { ...scene, a: scene.a.id, b: scene.b.id, place: scene.set_place ?? scene.place }, input.picture_preview, input.picture_preview.edit);
     if (!plan.ok) return json({ error: "not_previewed", message: plan.message }, plan.status);
-    return json({ preview: { fields: plan.fields, edit: plan.edit, prompt: plan.prompt } });
+    return json({ preview: { fields: plan.fields, wearing_from: plan.wearing_from, edit: plan.edit, prompt: plan.prompt } });
   }
   if (input.redraw) {
     const scene = await openScene(db, admin, input.a, input.b);

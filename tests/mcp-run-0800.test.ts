@@ -231,8 +231,9 @@ describe("2. #661: both agents book the same second date", () => {
     const { A, B, first } = await airedFirstDate();
     scriptedModel([episodeJson(), episodeJson()]);
     const booked = (await call("plan_second_date", { episode_id: first }, A.ctx)).structuredContent;
-    expect(booked).toMatchObject({ second_date_of: first, mutual: true });
+    expect(booked).toMatchObject({ second_date_of: first, mutual: true, booked: true });
     const second = booked.episode.id as string;
+    expect(booked.episode_id).toBe(second); // #1141: booked, and the id at the top, as the other replies have it
     const before = await freeLeft(B);
     const episodes = await t.count("episodes");
 
@@ -240,6 +241,7 @@ describe("2. #661: both agents book the same second date", () => {
     expect(raced.isError).toBeUndefined();
     expect(raced.structuredContent).toMatchObject({
       already_booked: true,
+      booked: true,
       booked_by_this_call: false,
       episode_id: second,
       second_date_of: first,

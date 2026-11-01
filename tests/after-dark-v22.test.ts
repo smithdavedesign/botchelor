@@ -8,7 +8,7 @@ import { possessiveNames } from "@/lib/adult/craft";
 import { citeMemory, usesFact, type AdultFact, type ShownFact } from "@/lib/adult/facts";
 import { rememberAfterDark } from "@/lib/adult/memory";
 import { setAdultModelForTests } from "@/lib/adult/mode";
-import { actionRepeatOf, buildUpIn, gestureRepeatOf, flaggedHooks, hookAllowance, hooksOf, openingRepeatOf, openingShape, sceneQuality, showsTell, sideOfCharacter, touchesHook, whyIsGeneric } from "@/lib/adult/quality";
+import { actionRepeatOf, buildUpIn, gestureRepeatOf, withoutDanglingCue, flaggedHooks, hookAllowance, hooksOf, openingRepeatOf, openingShape, sceneQuality, showsTell, sideOfCharacter, touchesHook, whyIsGeneric } from "@/lib/adult/quality";
 import { dropRepeats, emptyScene, recapFallback, recapFrom, sceneMessages, writeRecap, writeSceneStep, type SceneLine, type SceneState, type StepInput } from "@/lib/adult/scenes";
 import type { Db } from "@/lib/db";
 import type { CharacterRef } from "@/lib/game";
@@ -477,5 +477,23 @@ describe("(6) possessive set labels ('Lexis bedroom')", () => {
     );
     expect(html).toContain("Lexi&#x27;s bedroom");
     expect(html).not.toContain("Lexis bedroom");
+  });
+});
+
+describe("#1142: a spoken line promised and never given", () => {
+  it("the cue's sentence goes; quoted or said words with a cue stay", () => {
+    expect(withoutDanglingCue("Come here. *She pulls him closer, and then she whispers.*")).toBe("Come here.");
+    expect(withoutDanglingCue("*leans in and murmurs*")).toBe("");
+    expect(withoutDanglingCue("I missed this. And then she whispers.")).toBe("I missed this.");
+    expect(withoutDanglingCue('"Come closer," she whispers.')).toBeNull();
+    expect(withoutDanglingCue("Come closer, she whispers.")).toBeNull();
+    expect(withoutDanglingCue("*She whispers* Stay.")).toBeNull();
+    expect(withoutDanglingCue("You never ask.")).toBeNull();
+  });
+
+  it("dropRepeats trims the cue, and drops a line that was nothing else", () => {
+    const r = dropRepeats(lines(["a", "Stay. *pulls her close, and then he whispers*"], ["b", "*leans in and murmurs*"], ["a", "You never ask."]), [], [], dex(), lexi());
+    expect(r.kept.map((l) => l.text)).toEqual(["Stay.", "You never ask."]);
+    expect(r.dropped).toEqual([expect.objectContaining({ who: "b", reason: "promises a line and says nothing" })]);
   });
 });

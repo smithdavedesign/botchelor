@@ -386,8 +386,11 @@ export async function beatPicturesSettled(): Promise<void> {
 }
 
 /** A scene picture planned: the fields the owner sees, and the prompt they make (with the place's set as Picture 3, or not). */
+/** Where "what they're wearing" came from (#1142): the chapter's own words, their looks, the stage, or a plain guess. */
+export type WearingFrom = "story" | "looks" | "stage" | "guess";
+
 export type PicturePlan =
-  | { ok: true; fields: PictureFields; edit: PictureEdit | null; prompt: string; promptFor: (withSet: boolean, older?: boolean) => string; characters: [Character, Character]; stage: number; act: string; eyes: Eyes | null }
+  | { ok: true; fields: PictureFields; wearing_from: WearingFrom; edit: PictureEdit | null; prompt: string; promptFor: (withSet: boolean, older?: boolean) => string; characters: [Character, Character]; stage: number; act: string; eyes: Eyes | null }
   | { ok: false; status: number; message: string };
 
 /**
@@ -478,7 +481,8 @@ export async function planBeat(
     const o = older ? { ...opts, older: OLDER_WORDS } : opts;
     return eyes ? povPrompt(cast, eyes, framed, where, stage, withSet, o) : keyframePrompt(cast, framed, where, stage, withSet, o);
   };
-  return { ok: true, fields, edit: own, prompt: promptFor(false), promptFor, characters: [ca, cb], stage, act: actId, eyes };
+  const wearing_from: WearingFrom = brief?.wearing ? "story" : stage >= UNDRESSING ? "stage" : wornGuessed([ca, cb], beat.owner_id, stage, publicPlace) ? "guess" : "looks";
+  return { ok: true, fields, wearing_from, edit: own, prompt: promptFor(false), promptFor, characters: [ca, cb], stage, act: actId, eyes };
 }
 
 /**
@@ -516,6 +520,14 @@ function wornOf(people: readonly [Character, Character], owner: string, stage: n
     const p = looksPictureWords(c.extras?.looks, c.ownerId === owner);
     return (publicPlace || stage < 2 ? p.everyday : (p.outfit ?? p.everyday)) ?? everydayOf(c);
   }) as [string, string];
+}
+
+/** Either of them has no outfit of their own (no looks for it, no style): wornOf fell back on a stock outfit (#1142). */
+function wornGuessed(people: readonly [Character, Character], owner: string, stage: number, publicPlace: boolean): boolean {
+  return people.some((c) => {
+    const p = looksPictureWords(c.extras?.looks, c.ownerId === owner);
+    return !((publicPlace || stage < 2 ? p.everyday : (p.outfit ?? p.everyday)) ?? c.extras?.style?.trim());
+  });
 }
 
 /**

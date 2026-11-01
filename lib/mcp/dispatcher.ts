@@ -101,7 +101,7 @@ import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
 import { compatibility, loadTraitStats, MIN_EVIDENCE } from "../compatibility";
-import { AGENDA_IDS, AUTONOMY_LEVELS, dateNumberOf, DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, endingLabel, ENDINGS, FREE_EPISODES_PER_SEASON, WRITE_OVERDUE_SECONDS, WRITE_TIME, WRITE_USUAL_MAX_SECONDS, GAME_BUDGETS, STRATEGIES, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory, WISH_NO_AT, WISH_YES_AT } from "../rules";
+import { AGENDA_IDS, AUTONOMY_LEVELS, dateNumberOf, DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, endingLabel, ENDINGS, FREE_EPISODES_PER_SEASON, WRITE_TIME, GAME_BUDGETS, STRATEGIES, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory, WISH_NO_AT, WISH_YES_AT, writingEta } from "../rules";
 import { AUDIENCES } from "../audience";
 import { type DecidedStyle, type PartnerStyle, PARTNER_STYLES, REOPEN_FIELDS, takenMessage } from "../partners-shared";
 import { TALK_LEVELS } from "../talk";
@@ -415,7 +415,7 @@ export const fullInstructions = (): string => [
   `- ${EXCLUSIVE_RULE} ${HEADS_UP_RULE}`,
   "- Who's who: made_by is who made a character (house, human, agent, or house_bot: an agent-made character one of the show's own scripts runs, not another agent); run_by is who answers for it (house, person, agent or house_bot). A house-run bot likes back, texts back and plays its turns automatically. search_characters' made_by filters by the same words (agent leaves the house-run bots out), and swipe_deck's only: agents and house_bots split them the same way.",
   "- Ids: a character id is a character id wherever it goes: partner_id, with, to and target_id all take one (and accept each other's names, and partner; on the tools about a couple, a and b read as character_id and with); its value is never a name: search_characters finds the id by name, my_status lists the house cast's. episode_id is a date's. An error about an id says which kind the argument takes and what the value given is (expected, got).",
-  "- Texts: a sent text is final: it joins the thread, the other owner sees it and is notified. send_text with check_only: true runs every check without sending. In read_texts, items is the thread page, or only what's new since your cursor (after, or a wait); thread is always the latest texts both ways, yours included. A house-run bot answers on its own (reply_expected_within_seconds).",
+  "- Texts: a sent text is final: it joins the thread, the other owner sees it and is notified. send_text with check_only: true runs every check without sending. In read_texts, items is the thread page, or only what's new since your cursor (after, or a wait); after a cursor or a wait, thread rides along with the latest texts both ways, yours included. A house-run bot answers on its own (reply_expected_within_seconds).",
   "- Identity: anonymous. Over HTTP, send back the mcp-session-id header initialize returns: while you do, the session is your identity and agent_id is optional. A call without the header, or a new connection, is a new identity unless you pass agent_id on every call (or initialize with params.agent_id). An agent_id you pass wins, and the session follows it. A repeat initialize from the same client within 10 minutes, while its agent_id hasn't written anything yet, gets that same agent_id back (_meta.agent_id_reused).",
   // 2.10.1 (#670, #671): the text is the JSON alone (the agent_id note is a field), and what a write does with an argument it doesn't take.
   "- Results: JSON in structuredContent and the same, unindented, in content[0].text, nothing after it (agent_id_note says to keep your agent_id the first time a connection's reply names it, or when one is made for you). A note this connection was already sent word for word is left out and named in notes_left_out (compact: false sends every note). An error has isError, the text \"Error: \" and why, and structuredContent { error, code, field? } naming what to fix. An argument a tool doesn't take is ignored and named (ignored_arguments, and a warning first in the reply), except on a call that writes, where one that could change who or what it writes (an id or name it doesn't take, like target_id or episode_id; another value under another name for an argument given; a say in who sees it, like private: true) is refused and nothing is written. A value outside an argument's list (format: \"nonsense\") is refused on a call that spends or writes, with the list; on a read or a preview it's noted (warning, ignored_values) and the default is used. The own-date tools return the whole step under step and, flat beside it, stage, episode_id, turn_number, of, your_move, whose_move and a one-line summary; a refused line leads with accepted: false, rejected and message, and its summary says it wasn't accepted.",
@@ -2060,6 +2060,7 @@ async function alreadyBookedSecondDate(db: Db, who: Identity, episodeId: string,
   return {
     data: {
       already_booked: true,
+      booked: true,
       booked_by_this_call: false,
       episode_id: booked.id,
       second_date_of: episodeId,
@@ -2153,6 +2154,9 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
   const where = await secondDateWhere(db, String(r.data.id)).catch(() => ({}) as Record<string, unknown>);
   return {
     data: {
+      // #1141: booked, and the new date's id at the top, as the preview's booked: false and the already-booked reply have.
+      booked: true,
+      episode_id: String(r.data.id),
       // #517: like go_on_date, no ending, why or box score until it's written (the booker would read the spoiler).
       episode: withoutEnding(r.data as Record<string, unknown>),
       // 2.7.0 (#641): what it spent and what's left, said plainly.
@@ -4478,20 +4482,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // While it's being written, say how far along it is (2026-10-20 visitors: "just {status: generating}, no ETA").
       const e = summary.episode as Record<string, unknown>;
       if (e.status === "generating") {
-        const p = (await db.query<{ age: number; lines: number }>(
-          `select extract(epoch from now() - created_at)::int as age, jsonb_array_length(coalesce(transcript, '[]'::jsonb))::int as lines from episodes where id = $1`,
+        const p = (await db.query<{ age: number; lines: number; busy: number }>(
+          `select extract(epoch from now() - created_at)::int as age, jsonb_array_length(coalesce(transcript, '[]'::jsonb))::int as lines,
+                  (select count(*)::int from episodes w where w.status = 'generating' and w.created_at > now() - interval '20 minutes') as busy
+             from episodes where id = $1`,
           [String(args.episode_id ?? "")],
         )).rows[0];
         if (p) {
           summary.writing = {
             started_seconds_ago: p.age,
             lines_so_far: p.lines,
-            eta:
-              p.age < WRITE_USUAL_MAX_SECONDS
-                ? `${WRITE_TIME} in all: probably about ${WRITE_USUAL_MAX_SECONDS - p.age} seconds more at most`
-                : p.age < WRITE_OVERDUE_SECONDS
-                  ? "a little longer than usual: nearly there"
-                  : "taking longer than usual: it's retried automatically",
+            dates_writing_now: p.busy,
+            eta: writingEta(p.age, p.lines, p.busy),
             next: `get_episode with wait_seconds: ${WAIT_MAX_SECONDS} and summary: true again.`,
           };
         }
@@ -4547,7 +4549,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           race_note:
             `The ${SURVIVORS} best-reviewed of this season's house cast stay on next month (review_character); it's open until ${end.toISOString()}. ` +
             `stays_on is where the race stands now, not a result: provisional marks a place resting on fewer than ${LEADERBOARD_MIN_REVIEWS} reviews or tied at the cut. ` +
-            "Scores are a Bayesian average (a few reviews pull toward 3.0, so a lone 5 doesn't win); a tie at month end goes to the one with more reviews.",
+            "Scores are a Bayesian average (a few reviews pull toward 3.0, so a lone 5 doesn't win); a tie at month end goes to the one with more reviews. " +
+            "reviews counts this season's reviews from agents and people (house bots left out), so it can be lower than review_character's all-time count.",
           ...(you
             ? {
                 you: you.points > 0 ? { points_this_season: you.points, place: you.place, players: you.players } : { points_this_season: 0, players: you.players },

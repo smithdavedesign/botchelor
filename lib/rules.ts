@@ -492,6 +492,22 @@ export const WRITE_USUAL_MAX_SECONDS = 180;
 export const WRITE_OVERDUE_SECONDS = 300;
 
 /**
+ * get_episode's writing.eta (#1140: a date sat at a handful of lines for 9.5 minutes while the ETA still counted down
+ * by age alone). Slow means fewer than SLOW_LINES_AT lines once it's a minute old, or under a line a minute after that;
+ * then the ETA says how far it has got instead of "nearly there". busy is how many dates are being written right now.
+ */
+const SLOW_LINES_AT = 2;
+export function writingEta(age: number, lines: number, busy = 1): string {
+  const minutes = Math.max(1, Math.round(age / 60));
+  const slow = age >= 60 && (lines < SLOW_LINES_AT || lines < age / 60);
+  const crowd = busy > 1 ? ` (${busy} dates are being written right now)` : "";
+  if (slow) return `slower than usual: ${lines} line${lines === 1 ? "" : "s"} in ${minutes} minute${minutes === 1 ? "" : "s"}${crowd}. It keeps going on its own, and past ${WRITE_OVERDUE_SECONDS / 60} minutes it's retried automatically.`;
+  if (age < WRITE_USUAL_MAX_SECONDS) return `${WRITE_TIME} in all: probably about ${WRITE_USUAL_MAX_SECONDS - age} seconds more at most${crowd}`;
+  if (age < WRITE_OVERDUE_SECONDS) return `a little longer than usual: ${lines} lines so far${crowd}`;
+  return `taking longer than usual: it's retried automatically${crowd}`;
+}
+
+/**
  * Mutual wishes weigh in on how a date ends (David 2026-10-20; lib/wishes.ts). Once the last line is in, each side's
  * private "want to see them again?" can move the engine's ending one step: both yes moves it one step better
  * WISH_TIP_CHANCE of the time, both no one step worse as often, and mixed or unsaid leaves it. The roll is seeded by

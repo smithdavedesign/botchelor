@@ -105,6 +105,7 @@ import {
   openingRepeatOf,
   shapeRepeatOf,
   gestureRepeatOf,
+  withoutDanglingCue,
   withoutLeadingEllipsis,
   phraseNames,
   phrasesIn,
@@ -1564,6 +1565,16 @@ export function dropRepeats(
         }
         text = tic.text;
       }
+    }
+    // #1142: "…and then she whispers." with nothing whispered: the cue's sentence goes, and the line if that was all.
+    const uncued = withoutDanglingCue(text);
+    if (uncued !== null) {
+      cuts.openings++;
+      if (!uncued) {
+        drop(l, "promises a line and says nothing");
+        continue;
+      }
+      text = uncued;
     }
     // #1136: speech that is only punctuation ("…") draws an empty bubble: the line keeps its action, or goes.
     if (!wordsSpoken(text) && text.replace(/\*[^*]*\*/g, "").trim()) {
