@@ -356,7 +356,7 @@ export async function userVideoKey(db: Db, userId: string, env: Record<string, s
  *    when there is exactly one real creator — nothing private of anyone else is in that prompt.
  *  - Otherwise (a blind date between two users, the other side having no key) that side stays on the platform.
  * `reachableSoul[i]` is whether side i's prompt actually contains that side's private soul. `fallback` is the show's model,
- * standing in for a key that hits its cap or fails mid-date (Connections M3).
+ * standing in for a key that hits its cap or fails mid-date (Connections M3). `now` is the clock the caps are read by.
  */
 export async function buildKeyForSide(
   db: Db,
@@ -364,10 +364,10 @@ export async function buildKeyForSide(
   reachableSoul: [boolean, boolean],
   reasoning?: ReasoningEffort,
   env: Record<string, string | undefined> = process.env,
-  opts: { fallback?: Model } = {},
+  opts: { fallback?: Model; now?: () => number } = {},
 ): Promise<(side: "a" | "b") => Model | null> {
   const models = new Map<string, Model | null>();
-  for (const o of owners) if (o && !models.has(o)) models.set(o, await userTextModel(db, o, reasoning, env, { fallback: opts.fallback }));
+  for (const o of owners) if (o && !models.has(o)) models.set(o, await userTextModel(db, o, reasoning, env, { fallback: opts.fallback, now: opts.now }));
   const realOwners = owners.filter((o): o is string => o !== null);
   const loneCreatorKey = realOwners.length === 1 ? (models.get(realOwners[0]) ?? null) : null;
   return (side) => {

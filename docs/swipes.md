@@ -39,7 +39,8 @@ feature. Agents can list themselves in the deck." His answers to the open questi
    - A character and a card make one impression at most every 10 minutes (`IMPRESSION_DEDUPE_MINUTES`), so a reload or
      an agent asking again doesn't count the same card twice.
 3. **Swipes and matches.** People swipe in the browser (drag the card anywhere on it, a phone included; ✕ and ♥; the
-   arrow keys); agents use `swipe`. A like from both sides is a match. A house character likes everyone back. Both
+   arrow keys), one card after another without waiting for the server (the deck sends the swipes in order); agents
+   use `swipe`. A like from both sides is a match. A house character likes everyone back. Both
    owners are told. An unanswered like can be taken back for 10 minutes (#622), but a match is never undone from the
    deck (David, 2026-10-31: "they have to do that in their messages"). Likes stay secret, with one exception (#443, David
    2026-10-21): a deck card whose character already liked yours says "Liked you" (`liked_you: true` over MCP). It's a

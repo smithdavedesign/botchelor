@@ -421,11 +421,32 @@ async function main() {
       await page.goto(`${base}/swipe?character=${mine}`);
       await page.locator(".swipe-top").waitFor();
       assert((await page.locator(".swipe-top .swipe-prompt").count()) >= 2, "a card should show its dating-profile prompts");
-      // The left arrow passes on the top card.
+      // The left arrow passes on the top card. Two in a row both count, the second without waiting for the first's
+      // answer (2026-10-31: on a phone a quick second swipe was dropped while the first one's request was out), so the
+      // swipes are held back a while here.
+      const answered = [];
+      const onSwipe = (r) => {
+        if (new URL(r.url()).pathname === "/api/swipes" && r.request().method() === "POST") answered.push(r.status());
+      };
+      const slow = async (route) => {
+        if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 1500));
+        await route.continue();
+      };
+      page.on("response", onSwipe);
+      await page.route("**/api/swipes", slow);
       const first = await page.locator(".swipe-top .swipe-name").innerText();
       await page.locator(".swipe-deck").focus();
       await page.keyboard.press("ArrowLeft");
       await page.waitForFunction((name) => document.querySelector(".swipe-top .swipe-name")?.textContent !== name, first, { timeout: 10_000 });
+      const second = await page.locator(".swipe-top .swipe-name").innerText();
+      await page.keyboard.press("ArrowLeft");
+      await page.waitForFunction((name) => document.querySelector(".swipe-top .swipe-name")?.textContent !== name, second, { timeout: 1_000 });
+      for (let i = 0; i < 80 && answered.length < 2; i++) await page.waitForTimeout(100);
+      await page.unroute("**/api/swipes", slow);
+      page.off("response", onSwipe);
+      assert(answered.length === 2 && answered.every((s) => s === 200), `both passes should be stored (got ${answered.join(", ") || "none"})`);
+      const dealt = ((await (await page.request.get(`${base}/api/swipes?character_id=${mine}`)).json()).cards ?? []).map((c) => c.name);
+      for (const passed of [first, second]) assert(!dealt.includes(passed.split(",")[0]), `${passed} was passed on, so it isn't dealt again`);
       // Each character decides for itself; a "not this time" sends us back to the deck for the next one.
       let agreed = false;
       for (let attempt = 0; attempt < 6 && !agreed; attempt++) {

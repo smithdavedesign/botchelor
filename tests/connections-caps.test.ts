@@ -178,7 +178,7 @@ describe("a person's key on dates: spend, cap and fallback", () => {
     expect((await currentUsage(t.db, U, NOW)).text?.cost_usd).toBeCloseTo(0.017, 10);
     // The next date starts over the cap: no key model at all, so the side is the show's from the start.
     expect(await userTextModel(t.db, U, undefined, env, { fallback: show.model, now: () => NOW })).toBeNull();
-    const sides = await buildKeyForSide(t.db, [U, null], [true, false], undefined, env, { fallback: show.model });
+    const sides = await buildKeyForSide(t.db, [U, null], [true, false], undefined, env, { fallback: show.model, now: () => NOW });
     expect(sides("a")).toBeNull();
     expect((await notices()).filter((n) => n.kind === "key_capped")).toHaveLength(1); // told once
   });
