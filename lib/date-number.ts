@@ -4,9 +4,9 @@
  * earlier dates that aired publicly and weren't hidden or a replay, the dates the couple timeline numbers "Date N"
  * (lib/graph.ts). A private or unlisted date never shows through as a higher number.
  *
- * A follow-up keeps the number its booking stored (setup.date_number: its parent's plus one). Every other booking for
- * a pair that has dated before stores one too (lib/simulation.ts buildDate). A date stored before that reads it here,
- * computed the same way in SQL, so a page or a list stays one query.
+ * A follow-up keeps the number its booking stored (setup.date_number: its parent's plus one). Every other booking
+ * stores one too, 1 for a first date (lib/simulation.ts buildDate), so the number a date was written with is the one it
+ * keeps. A date stored before that reads it here, computed the same way in SQL, so a page or a list stays one query.
  */
 import type { Db } from "./db";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
@@ -21,14 +21,17 @@ const samePair = (p: string, e: string) =>
 
 /**
  * The date number of episodes row `e`, as a SQL expression: the stored one, 2 for an older follow-up without one, else
- * 1 + the pair's earlier public dates, or null when there are none (a first date).
+ * 1 + the pair's earlier public dates, or null when there are none (a first date). A stored 1 is a first date (null)
+ * and is never counted again (#1190: a date booked before an earlier one aired read "A third date" once it had, while
+ * everything written at booking said "A second date").
  */
 export const dateNumberSql = (e: string) =>
-  `coalesce((${e}.setup->>'date_number')::int,
+  `case when (${e}.setup->>'date_number') is not null then nullif((${e}.setup->>'date_number')::int, 1)
+   else coalesce(
      case when ${e}.followup_of is not null then 2 end,
      (select nullif(count(*)::int, 0) + 1 from episodes pd
        where ${samePair("pd", e)} and pd.id <> ${e}.id and (pd.created_at, pd.id) < (${e}.created_at, ${e}.id)
-         and ${publicDateSql("pd")}))`;
+         and ${publicDateSql("pd")})) end`;
 
 /** The number a new date between these two gets at booking: 1 + their public dates so far, or null for a first date. */
 export async function nextDateNumber(db: Db, x: string, y: string, excludeId?: string): Promise<number | null> {

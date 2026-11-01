@@ -283,8 +283,9 @@ export function assembleDate(p: DateParts): BuiltDate {
     ...(p.nudges?.b ? { nudge_b: p.nudges.b } : {}),
     ...(p.table ? { table: p.table } : {}),
     ...(p.roleplay ? { roleplay: p.roleplay } : {}),
-    // Which date this is for the couple (lib/date-number.ts): stored, so its happy ending names the date after it.
-    ...(p.dateNumber && p.dateNumber > 1 ? { date_number: p.dateNumber } : {}),
+    // Which date this is for the couple (lib/date-number.ts): stored, so its happy ending names the date after it. #1190: a
+    // first date's 1 too, so a later read can't count it again (an earlier date that airs after this booking made it "2").
+    ...(p.dateNumber ? { date_number: p.dateNumber } : {}),
   };
   // Fill the format's cast from real data (flavour only, never the engine): a named house regular as the
   // meet-the-parents chaperone, and a real past partner as the returning ex when the graph has one.
@@ -341,7 +342,8 @@ export async function buildDate(
     followupOf?: string | null;
     /**
      * Which date this is for the couple (setup.date_number). A follow-up passes its own; a rebuild passes the stored one
-     * (null for none). Left out, as on a fresh booking, it's 1 + the pair's public dates so far (lib/date-number.ts).
+     * (null for none). Left out, as on a fresh booking, it's 1 + the pair's public dates so far (lib/date-number.ts), 1
+     * for a first date, so it's stored either way.
      */
     dateNumber?: number | null;
     historyOverride?: DateHistory | null;
@@ -422,7 +424,7 @@ export async function buildDate(
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride, chosenPlace: opts.chosenPlace ?? null, agreedPlan: agreed,
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
-    dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : await nextDateNumber(db, a.id, b.id, episodeId),
+    dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : ((await nextDateNumber(db, a.id, b.id, episodeId)) ?? 1),
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     overusedA, overusedB,

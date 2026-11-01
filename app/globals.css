@@ -1597,6 +1597,21 @@ details.settings[open] > summary {
   padding-left: 1.1rem;
 }
 
+/* The episode's ending pick (D2): the quiz's tap-to-save buttons, one to a row. */
+.pick-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+.pick-choices button {
+  text-align: left;
+  margin-top: 0;
+}
+.pick-bonus-q {
+  margin: var(--space-3) 0 var(--space-2);
+  font-weight: 600;
+}
 .quiz .choices {
   display: flex;
   flex-direction: column;
@@ -3287,6 +3302,23 @@ html.phone-open body {
 @media (max-width: 34rem) {
   .phone-card {
     padding-inline: 0.75rem;
+  }
+  /* The relationship board on a phone: its inbox in a plain card, not a drawn phone inside the real one (C11). */
+  .board-phone .phone {
+    height: auto;
+    padding: 0;
+    border-radius: var(--radius);
+    background: none;
+    box-shadow: none;
+  }
+  .board-phone .phone .phone-screen {
+    height: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .board-phone .phone-status,
+  .board-phone .phone-home {
+    display: none;
   }
   .phone:not(.phone-bare) {
     padding: 0.45rem;
@@ -5775,6 +5807,11 @@ button.sheet-x:hover:not(:disabled) {
   color: var(--bad-text);
   font-size: var(--text-sm);
 }
+/* A sheet with a picker of pictures in it (the looks builder): wider on a desktop, the whole screen on a phone. */
+.sheet-dialog.is-wide {
+  width: min(46rem, calc(100% - 2 * var(--gutter)));
+  max-height: min(52rem, calc(100dvh - 2 * var(--space-4)));
+}
 @media (max-width: 640px) {
   .sheet-dialog {
     width: 100%;
@@ -5785,6 +5822,12 @@ button.sheet-x:hover:not(:disabled) {
   }
   .sheet-body {
     padding: var(--space-2) var(--gutter) max(var(--space-4), env(safe-area-inset-bottom));
+  }
+  .sheet-dialog.is-wide {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
   }
   .sheet-body::before {
     content: "";
@@ -6270,8 +6313,7 @@ main:has(> .admin-wide) {
   line-height: 1.15;
 }
 .kpi-delta,
-.kpi-sub,
-.kpi-note {
+.kpi-sub {
   font-size: var(--text-xs);
   line-height: 1.35;
 }
@@ -6282,8 +6324,7 @@ main:has(> .admin-wide) {
   color: var(--bad-text);
 }
 .kpi-delta.is-quiet,
-.kpi-sub,
-.kpi-note {
+.kpi-sub {
   color: var(--muted);
 }
 .kpi .sparkline {
@@ -9366,6 +9407,7 @@ html.ad-studio-locked {
 }
 .ad-settings-grid label {
   display: grid;
+  align-content: start; /* a field beside a longer one keeps its own height */
   gap: 0.2rem;
   font-size: var(--text-sm);
 }
@@ -9768,8 +9810,28 @@ html.ad-studio-locked {
   .chem-form {
     grid-template-columns: 1fr;
   }
+  /* No box inside the card on a phone (2026-10-31 UX audit, D15): the two sides are headed sections with a rule
+     between, and the button spans the width under the thumb. */
   .chem-side {
-    padding-inline: var(--space-3);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .chem-side + .chem-side {
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+  }
+  .chem-side legend {
+    float: left;
+    width: 100%;
+    padding: 0;
+    font-size: var(--text-md);
+  }
+  .chem-side legend + label {
+    clear: both;
+  }
+  .chem-form button {
+    justify-self: stretch;
   }
 }
 
@@ -10805,15 +10867,44 @@ html.constellation-locked body {
 .constellation-singles {
   line-height: 1.9;
 }
+.constellation-hud button.constellation-filters-btn {
+  display: none;
+}
 @media (max-width: 640px) {
+  /* The sky fits the screen under the header and the toolbar's one row (D7), instead of a fixed share of it. */
   .constellation-sky {
-    height: clamp(380px, 62vh, 560px);
+    height: clamp(320px, calc(100svh - 11rem), 560px);
+  }
+  .constellation-hud button.constellation-filters-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    margin: 0;
+    padding: 0 0.9rem;
+    flex-shrink: 0;
+    border: 1px solid var(--constellation-line);
+    border-radius: 0.6rem;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--constellation-label);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    box-shadow: none;
+  }
+  .constellation-hud button.constellation-filters-btn[aria-expanded="true"] {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .constellation-filters:not(.is-open) {
+    display: none;
+  }
+  .constellation-filters.is-open {
+    flex-basis: 100%;
   }
   .constellation-hud {
     padding: var(--space-2) var(--gutter);
   }
   .constellation-search {
-    flex-basis: 100%;
+    flex: 1 1 0;
+    min-width: 0;
     max-width: none;
   }
   .constellation-key {

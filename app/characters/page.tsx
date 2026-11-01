@@ -183,23 +183,35 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
         </ul>
       </section>
 
-      <section id="next-season">
-        <h2>Next season&apos;s candidates: {seasonLabel(nextId)}</h2>
-        {upcoming.length ? (
+      {/* Shown once there are candidates (2026-10-31 UX audit, A4: for most of the month it only said "check back"). */}
+      {upcoming.length > 0 && (
+        <section id="next-season">
+          <h2>Next season&apos;s candidates: {seasonLabel(nextId)}</h2>
           <ul className="gallery">
             {upcoming.map((e) => (
               <Entry key={e.id} e={e} origin={false} badge={statusOf.get(e.id) === "approved" ? "Joining next season" : "Candidate"} />
             ))}
           </ul>
-        ) : (
-          <p className="muted">The newcomers are written from the 20th. Check back then.</p>
-        )}
-      </section>
+        </section>
+      )}
 
       {leaderboards.length > 0 && (
-        <section>
-          <h2>Audience leaderboard</h2>
-          <p className="muted">How the crowd rates everyone. Just for fun: ratings never change a date, the odds or prediction points.</p>
+        // One row of each board's leader, the full boards folded (A4: the boards were ~520px of the cast tab).
+        <section className="top-rated">
+          <h2>Top rated</h2>
+          <ul className="top-rated-strip">
+            {leaderboards.map(({ category, top }) => (
+              <li key={category.id} className="top-rated-item">
+                <span className="muted small">
+                  {category.emoji} {category.board}
+                </span>
+                {hidden.has(top[0].id) ? <PrivateName name={top[0].name} /> : <CharacterName character={top[0]} size={28} />}
+              </li>
+            ))}
+          </ul>
+          <details className="ux-fold top-rated-more">
+            <summary>The full audience leaderboard</summary>
+            <p className="muted small">Just for fun: ratings never change a date, the odds or prediction points.</p>
           <div className="boards">
             {leaderboards.map(({ category, top }) => (
               <div key={category.id} className="card board">
@@ -224,6 +236,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
               </div>
             ))}
           </div>
+          </details>
         </section>
       )}
 

@@ -10,26 +10,17 @@ import type { NextStep } from "@/lib/inbox";
  * not this time. Nothing while they're still deciding: the stage under the name says where they are. On a phone it
  * says just its verb (📅 Book, 💘 Swipe, 🎬 Watch), so the name keeps its room.
  */
-export default function ThreadNext({ next, mineId, themId }: { next: NextStep | null; mineId: string; themId: string }) {
-  const { book, busy, message } = useBookDate(mineId, themId);
+export default function ThreadNext({ next, mine, them }: { next: NextStep | null; mine: { id: string; name: string }; them: { id: string; name: string } }) {
+  const { ask, busy, sheet } = useBookDate(mine, them);
+  const mineId = mine.id;
   if (!next) return null;
   if (next.kind === "book") {
     return (
       <span className="thread-action">
-        <button type="button" className="primary small" onClick={() => void book()} disabled={busy}>
-          {busy ? (
-            "Booking…"
-          ) : (
-            <>
-              📅 Book<span className="thread-wide-word"> date</span>
-            </>
-          )}
+        <button type="button" className="primary small" onClick={ask} disabled={busy}>
+          📅 Book<span className="thread-wide-word"> date</span>
         </button>
-        {message && (
-          <span className="thread-action-error" role="alert">
-            {message.text} {message.shop && <Link href="/shop">Get tokens</Link>}
-          </span>
-        )}
+        {sheet}
       </span>
     );
   }

@@ -16,13 +16,18 @@ describe("Watch stays short", () => {
     expect(page).toContain("replays.slice(0, REPLAYS_SHOWN)");
   });
 
+  it("folds the replays behind one line, and leaves them out when there are none (2026-10-31 UX audit, D6)", () => {
+    expect(page).toMatch(/replays\.length > 0 && \(\s*<details className="watch-section watch-replays ux-fold">/);
+    expect(page).not.toContain("No replays yet.");
+  });
+
   it("says 'Nothing live right now' in one line instead of a heading over nothing", () => {
     expect(page).toContain("Nothing live right now.");
   });
 
   it("keeps the latest episodes paged and crawlable, and folds the league form away", () => {
     expect(page).toContain("<Pager page={page} pages={latest.pages} label=\"Latest episodes pages\" href={(n) => `${pagePath(n)}#latest`}");
-    expect(page).toMatch(/<details className="watch-league-details[^"]*">\s*<summary>Start a league with friends<\/summary>/);
+    expect(page).toMatch(/<details className="watch-league-details[^"]*">\s*<summary>🏆 Start a league with friends<\/summary>/);
   });
 });
 

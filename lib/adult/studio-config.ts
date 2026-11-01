@@ -85,6 +85,13 @@ export const StudioConfig = z.object({
   pov: z.boolean().default(true),
   /** One free redo for a shoot the viewer 👎'd whole (docs/PRDs/studio.md principle 5). */
   free_redo: z.boolean().default(true),
+  /**
+   * "Set up for pictures" (#1207; David, 2026-11-01): each character's first setup, a face and a body drawn and picked in
+   * one go, is included (we pay its 2–4 pictures); later ones cost the Recast and Body reference prices as before. Off
+   * charges every setup; the site's free setups a day are capped like the PG Studio's free first shoots.
+   */
+  free_setup: z.boolean().default(true),
+  free_setups_per_day: z.number().int().min(0).max(10_000).default(100),
   /** Keyframes in nights, clips, the menu and beat pictures send each one's body reference too (off until tested). */
   reference_set_everywhere: z.boolean().default(false),
   /** A shoot sends their face from the angle it needs too, from their identity pack, when the model has room (off until tested). */

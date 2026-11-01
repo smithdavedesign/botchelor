@@ -113,7 +113,8 @@ async function main() {
     // 1. A house character: the roleplay is agreed as it's picked, on "Date this character".
     const A = await browserFor(browser, app.base, ana);
     await A.page.goto(`${app.base}/characters/house-nell`);
-    const cta = A.page.locator(".date-cta-roleplay");
+    await A.page.locator(".date-cta button.primary").click(); // the confirm sheet holds the roleplay (B5)
+    const cta = A.page.locator("dialog.sheet-dialog[open] .date-cta-roleplay");
     await cta.locator("summary").click();
     await cta.locator(".rp-tag", { hasText: "Fantasy" }).click();
     await cta.locator(".rp-tile", { hasText: "The knight and the dragon" }).click();

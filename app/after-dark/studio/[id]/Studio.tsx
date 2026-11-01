@@ -32,6 +32,7 @@ import ShootReveal from "@/app/studio/ShootReveal";
 import { shootPrice } from "@/lib/adult/studio-config";
 import { FORMATS, type FormatId } from "@/lib/studio/formats";
 import { actMark, FramingMark, openingView, ViewChips } from "../../FramingChips";
+import { setupPrice, setupWords } from "../../SetupForPictures";
 import ExportDialog from "@/app/studio/ExportDialog";
 import TileTools, { SelectBar } from "@/app/studio/TileTools";
 import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
@@ -173,6 +174,11 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   // Rate your pictures (app/after-dark/RateDeck.tsx): open, with the ones not rated yet.
   const [rating, setRating] = useState(false);
   const [filter, setFilter] = useState<MediaFilter>(DEFAULT_FILTER);
+  /** A step on Identity (#1207: the readiness notes link to Recast and Body reference): its tab, then the section in view. */
+  const jumpTo = (id: string) => {
+    setTab("identity");
+    setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
+  };
   // Their dates' media tagged as two of them, with whoever's picked on the Together tab (everyone, before anyone is).
   /** After Shoot like this (far down the page): the picture it'll shoot like, next to the Shoot button, in view. */
   const showReference = () => setTimeout(() => document.querySelector(".ad-studio-reference")?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
@@ -222,6 +228,9 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     if (k.tab && TABS.some((t) => t.id === k.tab)) setTab(k.tab);
     // Scene & roleplay's "Make your own" links here with ?tab=create.
     if (new URLSearchParams(window.location.search).get("tab") === "create") setTab("create");
+    // A night's note links to the step that's missing (lib/adult/picture-notes.ts setupStep): #recast, #body-reference.
+    const step = window.location.hash.slice(1);
+    if (step === "recast" || step === "body-reference") jumpTo(step);
     // Under anything already picked: on a heavy page this effect can land seconds after the first taps, and it wiped
     // them (the audit, 2026-10-31: a shoot sent none of its pose, wardrobe, place and light picks).
     setChoices((x) => ({ ...keptChoices(k.choices, initial), ...x }));
@@ -1181,24 +1190,65 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   {s.ready.face ? "✓" : "○"} A face you picked
                   {!s.ready.face &&
                     (s.identity.face ? (
-                      <>
-                        {" "}
+                      // #1207: "Use the one shown below" didn't say what it did; the face is shown with its button.
+                      <span className="ad-ready-face">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- private, presigned media */}
+                        <img className="ad-setup-thumb" src={`${media(s.identity.face)}?w=160`} alt={`${c.name}'s face, drawn already`} />
                         <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void useFace(s.identity.face!)}>
-                          Use the one shown below
+                          Use this face
                         </button>{" "}
-                        <span className="muted small">or draw new faces, then “Use this face”.</span>
-                      </>
+                        <span className="muted small">
+                          or{" "}
+                          <a href="#recast" onClick={() => jumpTo("recast")}>
+                            draw new faces
+                          </a>
+                          , then “Use this face” on one.
+                        </span>
+                      </span>
                     ) : (
-                      <span className="muted small"> — draw new faces below, then “Use this face”.</span>
+                      <span className="muted small">
+                        {" "}
+                        —{" "}
+                        <a href="#recast" onClick={() => jumpTo("recast")}>
+                          draw new faces under Recast
+                        </a>
+                        , then “Use this face” on one.
+                      </span>
                     ))}
                 </li>
                 {s.ready.own && (
                   <li>
                     {s.ready.body ? "✓" : "○"} A body reference
-                    {!s.ready.body && <span className="muted small"> — “Make” under Body reference below, then “Use as body” on the one that&apos;s them.</span>}
+                    {!s.ready.body && (
+                      <span className="muted small">
+                        {" "}
+                        —{" "}
+                        <a href="#body-reference" onClick={() => jumpTo("body-reference")}>
+                          Make under Body reference
+                        </a>
+                        , then “Use as body” on the one that&apos;s them.
+                      </span>
+                    )}
                   </li>
                 )}
               </ul>
+              {s.ready.setup && (
+                // One tap for both (#1207; David, 2026-11-01): each character's first setup included, later ones at the
+                // Recast and Body reference prices (lib/adult/studio.ts setUpForPictures).
+                <div className="ad-setup-offer">
+                  <p className="ad-setup-offer-row">
+                    <button
+                      type="button"
+                      className="primary"
+                      disabled={Boolean(busy) || s.ready.setup.drawing}
+                      onClick={() => void act("setup", { action: "setup", character_id: c.id })}
+                    >
+                      {busy === "setup" || s.ready.setup.drawing ? `Setting up… ${busy === "setup" ? elapsed() : ""}`.trim() : `✨ Set up for pictures · ${setupPrice(s.ready.setup)}`}
+                    </button>
+                  </p>
+                  <p className="muted small">{setupWords(s.ready, s.ready.setup)}</p>
+                </div>
+              )}
               {!s.ready.ready && <p className="muted small">Until then, no picture or video of a night with {first} is drawn: nothing is guessed from words.</p>}
             </div>
           )}
@@ -1208,7 +1258,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media
                 <img src={media(s.identity.face)} alt={`${c.name}'s face`} />
               ) : (
-                <div className="ad-studio-empty">No face yet: Draw 3 under Recast below, then “Use this face”. (A shoot makes one too.)</div>
+                <div className="ad-studio-empty">No face yet: Set up for pictures above, or Draw {s.sizes.recast} under Recast below, then “Use this face”.</div>
               )}
               <figcaption className="small">The face every picture keeps</figcaption>
             </figure>
@@ -1335,7 +1385,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             )}
           </div>
 
-          <h2>Recast</h2>
+          <h2 id="recast">Recast</h2>
           <p className="muted small">A new face drawn from their look: {s.sizes.recast} to pick from, for {tokens(price(s.prices.recast))}.</p>
           <div className="ad-studio-go">
             {modelSelect(newModels, pickedNew?.id ?? "", setNewModel, "Model for a new face")}
@@ -1358,8 +1408,15 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               Older-looking faces
             </button>
           </div>
+          {s.drawn.faces.length > 0 && (
+            // #1207: the faces drawn here lately stay to pick from after a reload, not only under Gallery.
+            <>
+              <h3 className="ad-drawn-head">Faces you drew</h3>
+              {gallery(s.drawn.faces, { rivals: s.drawn.faces.map((p) => p.id) })}
+            </>
+          )}
 
-          <h2>Body reference</h2>
+          <h2 id="body-reference">Body reference</h2>
           <p className="muted small">Head to toe, from their face: shoots add it after the face, so their body stays theirs. {s.sizes.body} to pick from.</p>
           <div className="ad-studio-go">
             <label className="ad-check-row">
@@ -1374,6 +1431,13 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
               {busy === "body" ? "Drawing…" : `Make ${s.sizes.body} · ${tokens(price(s.prices.body))}`}
             </button>
           </div>
+          {s.drawn.bodies.length > 0 && (
+            // #1207: drawn body references vanished on a reload (the visitor found them under Gallery, and nearly paid twice).
+            <>
+              <h3 className="ad-drawn-head">Body references you drew</h3>
+              {gallery(s.drawn.bodies)}
+            </>
+          )}
 
           <h2>Their studio limits</h2>
           <fieldset className="ad-studio-group">

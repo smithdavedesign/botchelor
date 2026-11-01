@@ -27,8 +27,13 @@ On a phone the $4 pack and its Buy button fill the screen; the footer's links ar
 ## What's new before launch (2026-10-23 to 10-31)
 
 A UX audit of the whole site on phone and desktop (2026-10-31). Each page was checked for crowding: what was crowded is
-grouped, and what was a whole form in the page opens in a modal (a bottom sheet on phones). Six PRs: #1150, #1157,
-#1161, #1163, #1166 and #1167.
+grouped, and what was a whole form in the page opens in a modal (a bottom sheet on phones). PRs #1150, #1157, #1161,
+#1163, #1166 and #1167, then #1178–#1183 for the rest.
+- **Every date asks first:** each Date, Ask out and Book opens a sheet that says who meets whom and what it uses
+  ("Uses 1 of your 3 dates left"), with the settings folded. Nothing is spent on one tap.
+- **Shorter pages:** home's How it works is three rows. The Constellation's filters sit behind one button on a phone.
+  A character page has jump links and one Dates card.
+- **The shop:** the price is always a Buy button; signed out, it opens a sign-in sheet.
 - **Crowded pages grouped:**
   - /characters is two to a row on a phone, with the matchmaker form in a modal and the pairings folded.
   - The footer's fifteen links are three groups.
@@ -49,6 +54,11 @@ dates and deleted afterwards. Every finding and where it stands:
 <img src="docs/screenshots/ux-create-next-phone.png" width="240" alt="The create wizard on a phone: Next on an empty first step says what's still needed">
 <img src="docs/screenshots/ux-account-phone.png" width="240" alt="The account page on a phone, signed out: Sign in and Create account as two tabs">
 <img src="docs/screenshots/ux-footer-phone.png" width="240" alt="The footer on a phone: three folded groups, with Help and legal open">
+<img src="docs/screenshots/ux-date-confirm-phone.png" width="240" alt="A character page on a phone with the date confirm sheet open: who meets whom, an optional place, Uses 1 of your 3 dates left, Not yet and Send">
+<img src="docs/screenshots/ux-home-how-phone.png" width="240" alt="Home on a phone: How it works as three rows with icons">
+<img src="docs/screenshots/ux-constellation-phone.png" width="240" alt="The Constellation on a phone: search, one Filters button, and the sky filling the screen">
+<img src="docs/screenshots/ux-character-jumps-phone.png" width="240" alt="A character page on a phone with jump links: Profile, Audience, Story, Dates">
+<img src="docs/screenshots/ux-shop-phone.png" width="240" alt="The shop on a phone, signed out: the price is a Buy button, and How paying works is folded">
 
 ![The swipe deck at 1280×800: the intro on the left and the card on the right, with Pass and Like in view](docs/screenshots/ux-swipe-desktop.png)
 

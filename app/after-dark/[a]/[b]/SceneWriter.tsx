@@ -4,7 +4,7 @@ import MediaFilterBar from "../../MediaFilterBar";
 import { DEFAULT_FILTER, filterMedia, type MediaFilter } from "@/lib/media-filter";
 import PublishButton from "@/app/showcase/PublishButton";
 import SfwTwin from "../../SfwTwin";
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
@@ -16,6 +16,7 @@ import PictureContext from "./PictureContext";
 import type { PictureEdit } from "@/lib/adult/beats";
 import { pictureNoteKind } from "@/lib/adult/picture-notes";
 import type { Readiness } from "@/lib/adult/readiness";
+import SetupForPictures from "../../SetupForPictures";
 import AfterDarkTheater, { steerEcho } from "./AfterDarkTheater";
 import type { CatalogScene } from "@/lib/adult/scene-catalog";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
@@ -27,13 +28,13 @@ import Reels, { stopReel } from "./Reels";
 import Storyboard from "./Storyboard";
 import MediaMenu from "./MediaMenu";
 import type { BusyReel, Reel, ReelScope } from "@/lib/adult/reels";
-import { runningNight } from "@/lib/adult/nights";
+import { byFiling, groupNights, runningNight } from "@/lib/adult/nights";
 import { autoplayStop } from "@/lib/adult/autoplay";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 import { hiveNoticeText, type HiveNotice } from "@/lib/adult/hive-notice";
 import CharacterName from "@/app/CharacterName";
-import FacesPanel, { type Faces } from "./Faces";
+import FacesPanel, { pickedFace, type Faces } from "./Faces";
 import type { SteerSummary } from "@/lib/adult/steering";
 import RateMedia from "./RateMedia";
 import type { WriterOptions } from "@/lib/adult/writer";
@@ -218,6 +219,16 @@ export default function SceneWriter({
   }
   // The theater is where the night is watched: open from the start (`play` stays for old ?play=1 links).
   const [theater, setTheater] = useState(true);
+  // A tab picked in the theater opens over it as a sheet (the After Dark review, 2026-11-01: Exit and scroll lost the
+  // scene), and Back goes straight back to it. Out of the theater the tabs sit on the page as before.
+  const [sheet, setSheet] = useState(false);
+  const sheetOpen = theater && sheet;
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSheet(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sheetOpen]);
   // A steer is a nudge by default (worked toward at the scene's own pace); direct does it now.
   const [steerMode, setSteerMode] = useState<"nudge" | "direct">("nudge");
   // Or the words go to one of them only, as a whisper (lib/adult/director.ts): their secret, not the other's.
@@ -527,6 +538,15 @@ export default function SceneWriter({
         ))}
       </p>
     ) : null;
+  // The saved chapters as whole nights, newest first (lib/adult/nights.ts: chapter 1 starts one, n+1 carries it on; the
+  // latest is still running while the scene is on its next chapter). David, 2026-11-01: "once the night is over you can't
+  // go back and make a video of the night … where are the previous 3 chapter nights stored?": each night is one entry
+  // with its own video, its chapters inside it.
+  const nightGroups = useMemo(() => groupNights(byFiling(nightList), { chapter: scene.chapter ?? 1 }).reverse(), [nightList, scene.chapter]);
+  const nightLines = (g: (typeof nightGroups)[number]) => g.rows.reduce((t, n) => t + n.lines.length, 0);
+  const nightVideo = (g: (typeof nightGroups)[number]) => void planVideo(g.rows.length > 1 ? "night" : "chapter", g.rows[0].id);
+  // The night that just ended, while the new one hasn't started: the start card says where it went.
+  const lastEnded = !scene.lines.length && (scene.chapter ?? 1) === 1 && nightGroups[0]?.complete ? nightGroups[0] : null;
   const chapterList = nightList.map((n) => ({ id: n.id, chapter: n.chapter, lines: n.lines.length, created_at: n.created_at, place: n.place }));
 
   return (
@@ -562,7 +582,7 @@ export default function SceneWriter({
           <span className="muted small">
             {scene.chapter > 1 ? `Chapter ${scene.chapter}. ` : ""}
             {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[scene.stage] ?? STAGES[0]}.
-            {scene.chapter > SOFT_CHAPTERS ? ` This night has run ${scene.chapter - 1} chapters: Start over (in the theater's ⋯) files it, and the next night begins fresh.` : ""}
+            {scene.chapter > SOFT_CHAPTERS ? ` This night has run ${scene.chapter - 1} chapters: 🌙 End the night (in the theater's ⋯) files it under Gallery → Nights, and the next night begins fresh.` : ""}
           </span>
         </div>
         {writingNote && !theater ? (
@@ -641,13 +661,25 @@ export default function SceneWriter({
             }}
             chapters={chapterList}
             onReplayChapter={(id) => setWatching(nightList.find((n) => n.id === id) ?? null)}
-            onExit={() => setTheater(false)}
-            pageTabs={PAGE_TABS.filter((t) => !(t === "make" && textOnly)).map((t) => ({ id: t, label: PAGE_TAB_LABEL[t] }))}
-            onPageTab={(t) => {
-              // #1061: out of the theater, on that tab, scrolled to it.
-              setPageTab(t as PageTab);
+            lastNight={
+              lastEnded
+                ? {
+                    label: lastEnded.rows.length > 1 ? `${lastEnded.rows.length} chapters` : `${nightLines(lastEnded)} lines`,
+                    videoTokens: reelTokens,
+                    canVideo: !mediaPaused && nightLines(lastEnded) >= 6,
+                    onWatch: () => setWatching(lastEnded.rows[0]),
+                    onVideo: () => nightVideo(lastEnded),
+                  }
+                : null
+            }
+            onExit={() => {
+              setSheet(false);
               setTheater(false);
-              requestAnimationFrame(() => document.querySelector(".ad-page-tabs")?.scrollIntoView({ block: "start" }));
+            }}
+            pageTabs={PAGE_TABS.filter((t) => !(t === "make" && textOnly)).map((t) => ({ id: t, label: t === "gallery" ? `${PAGE_TAB_LABEL[t]} (${gallery.length + reelList.length})` : PAGE_TAB_LABEL[t] }))}
+            onPageTab={(t) => {
+              setPageTab(t as PageTab);
+              setSheet(true);
             }}
             crisis={crisisNotice}
           />
@@ -695,7 +727,14 @@ export default function SceneWriter({
             {mediaPaused}
           </p>
         )}
-        <section className="ad-page-tabs">
+        <section className={sheetOpen ? "ad-page-tabs ad-tab-sheet" : "ad-page-tabs"} {...(sheetOpen ? { role: "dialog", "aria-modal": true, "aria-label": "Their night" } : {})}>
+          {sheetOpen && (
+            <p className="ad-tab-sheet-back">
+              <button type="button" className="primary" onClick={() => setSheet(false)} autoFocus>
+                🎬 Back to the scene
+              </button>
+            </p>
+          )}
           <div className="ad-studio-tabs ad-page-tabbar" role="tablist" aria-label="Their night">
             {PAGE_TABS.filter((t) => !(t === "make" && textOnly)).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={pageTab === t} className={pageTab === t ? "on" : ""} onClick={() => setPageTab(t)}>
@@ -763,32 +802,69 @@ export default function SceneWriter({
               faces={faces}
               onFace={pickFace}
               pair={textOnly ? undefined : { a: scene.a.id, b: scene.b.id }}
+              setup={readiness.filter((r) => r.own && !r.ready)}
               onRedraw={(id, edit) => beatAction({ redraw: { picture_id: id, ...(edit ? { edit } : {}) } })}
             />
           ) : mediaTab === "videos" ? (
             reelList.length ? (
               <Reels reels={reelList} onChange={putReel} onMedia={(m) => setGallery((g) => [m, ...g.filter((x) => x.id !== m.id)])} />
             ) : (
-              <p className="muted small">No videos yet: 🎬 Video in the theater&apos;s ⋯ makes one, from a storyboard you check first.</p>
+              <p className="muted small">No videos yet: 🎬 Video in the theater&apos;s top bar makes one of tonight, and each night under Nights has its own, from a storyboard you check first.</p>
             )
-          ) : nightList.length ? (
+          ) : nightGroups.length ? (
               <ul className="after-dark-nights">
-                {nightList.map((n) => (
-                  <li key={n.id}>
-                    <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
-                      ▶ Play
-                    </button>{" "}
-                    <button type="button" className="button-ghost" onClick={() => void planVideo("chapter", n.id)} disabled={Boolean(mediaPaused)} title={mediaPaused ?? `A short film of this chapter: check each shot's picture, then film (${reelTokens} tokens)`}>
-                      🎬 Video · {reelTokens} tokens
-                    </button>{" "}
-                    <LocalTime iso={n.created_at} format={NIGHT_DAY} />
-                    {n.chapter ? ` · Chapter ${n.chapter}` : ""} · {n.lines.length} lines
-                    {n.place ? ` · ended ${n.place}` : ""}
-                  </li>
-                ))}
+                {nightGroups.map((g) => {
+                  const many = g.rows.length > 1;
+                  const lines = nightLines(g);
+                  const last = g.rows.at(-1)!;
+                  return (
+                    <li key={g.id} className="ad-night" data-night={g.id}>
+                      <p className="ad-night-head">
+                        <strong>{g.complete ? <LocalTime iso={g.rows[0].created_at} format={NIGHT_DAY} /> : "Tonight, so far"}</strong>
+                        {" · "}
+                        {many ? `${g.rows.length} chapters` : g.rows[0].chapter ? `Chapter ${g.rows[0].chapter}` : "1 chapter"} · {lines} lines
+                        {g.complete && last.place ? ` · ended ${last.place}` : ""}
+                      </p>
+                      <p className="ad-night-actions">
+                        <button type="button" className="button-ghost" onClick={() => setWatching(g.rows[0])}>
+                          ▶ Watch{many ? " from chapter 1" : ""}
+                        </button>{" "}
+                        <button
+                          type="button"
+                          className="button-ghost"
+                          onClick={() => nightVideo(g)}
+                          disabled={Boolean(mediaPaused) || lines < 6}
+                          title={mediaPaused ?? (lines < 6 ? "Too short for a video yet" : `A short film of ${many ? "the whole night, every chapter" : "this night"}: check each shot's picture, then film (${reelTokens} tokens)`)}
+                        >
+                          🎬 {many ? "Video of the night" : "Video"} · {reelTokens} tokens
+                        </button>
+                      </p>
+                      {many && (
+                        <details className="ad-night-chapters">
+                          <summary>Its chapters, one at a time</summary>
+                          <ul>
+                            {g.rows.map((n) => (
+                              <li key={n.id}>
+                                <button type="button" className="button-ghost small" onClick={() => setWatching(n)}>
+                                  ▶ Chapter {n.chapter ?? "?"}
+                                </button>{" "}
+                                <button type="button" className="button-ghost small" onClick={() => void planVideo("chapter", n.id)} disabled={Boolean(mediaPaused) || n.lines.length < 6} title={mediaPaused ?? `A short film of this chapter alone (${reelTokens} tokens)`}>
+                                  🎬 This chapter · {reelTokens} tokens
+                                </button>{" "}
+                                <span className="muted small">
+                                  {n.lines.length} lines{n.place ? ` · ${n.place}` : ""}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
           ) : (
-            <p className="muted small">No saved nights yet: Start over files the night that ran, and it plays back here.</p>
+            <p className="muted small">No saved nights yet: each chapter is kept here as it closes, and 🌙 End the night (in the theater&apos;s ⋯) files the rest. Each night plays back here, with its video.</p>
           )}
         </div>
           )}
@@ -823,6 +899,7 @@ function Gallery({
   onFace,
   pair,
   onRedraw,
+  setup = [],
 }: {
   items: Media[];
   /** #1039: a picture the viewer asked for is on its way (a card at the top says so), and the ones that just landed. */
@@ -836,6 +913,8 @@ function Gallery({
   /** The pair, for a scene picture's Redraw (its context form asks the scene's route). */
   pair?: { a: string; b: string };
   onRedraw?: (pictureId: string, edit: PictureEdit | undefined) => Promise<void>;
+  /** Their own characters not set up for pictures yet (#1207): under a setup note, the one-tap setup and the Studio step. */
+  setup?: readonly Readiness[];
 }) {
   // Redraw (David, 2026-10-25: "regenerate an image for a scene in case it's wrong"): the picture whose context is open.
   const [redrawing, setRedrawing] = useState<string | null>(null);
@@ -892,9 +971,10 @@ function Gallery({
             The last picture didn&apos;t come through: {problem}
           </p>
         ) : (
-          <p className="muted small" role="status">
-            {problem}
-          </p>
+          <div role="status">
+            <p className="muted small">{problem}</p>
+            {pictureNoteKind(problem) === "setup" && setup.map((r) => <SetupForPictures key={r.id} r={r} />)}
+          </div>
         ))}
     </>
   );
@@ -942,7 +1022,7 @@ function Gallery({
               {status === "ready" && (
                 <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))} />
               )}
-              {status === "ready" && m.character_id && !m.character_b && (faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id) && (
+              {status === "ready" && m.character_id && !m.character_b && pickedFace(faces[m.character_id], m.id) && (
                 <span className="badge ad-face-badge">✓ Their face</span>
               )}
               {/* Picking pictures to export: the tick stays on the tile. */}
@@ -997,7 +1077,7 @@ function Gallery({
                       m.character_id &&
                       !m.character_b &&
                       onFace &&
-                      !(faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id) && (
+                      !pickedFace(faces[m.character_id], m.id) && (
                         // One of them alone: it can be the face every picture and video of them keeps.
                         <button type="button" className="button-ghost small" disabled={facing === m.id} onClick={() => void keepFace(m)}>
                           {facing === m.id ? "Keeping it…" : "Use this face"}

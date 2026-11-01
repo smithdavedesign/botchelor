@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import Avatar from "@/app/Avatar";
+import Avatar, { sized } from "@/app/Avatar";
 import Pager from "@/app/Pager";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { pageOf } from "@/lib/paging";
@@ -62,7 +62,7 @@ function Tile({ node }: { node: GraphNode }) {
   const p = avatarPalette(node.id, node.hue);
   return node.portrait && !node.private ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img className="constellation-tile" src={node.portrait} alt="" width={56} height={56} />
+    <img className="constellation-tile" src={sized(node.portrait, 56) ?? undefined} alt="" width={56} height={56} />
   ) : (
     <span className="constellation-tile" style={{ background: avatarGradientCss(p) }} aria-hidden>
       {node.private ? "🔒" : initials(node.name)}

@@ -11,7 +11,7 @@ import { ROLEPLAY_IDS } from "./roleplays";
 import { SCENARIOS } from "./scenarios";
 import { AdultSettingsInput, SETTINGS_KEY_FIELDS } from "./settings-input";
 import type { Db } from "../db";
-import { eligibleIds, listSwitchable, setAdultSwitch } from "./characters";
+import { listSwitchable, playableIds, setAdultSwitch } from "./characters";
 import { hiveState, mediaPauses } from "./hive-limit";
 import { baselinePrompt, listMedia, makePicture } from "./media";
 import { loadCharacter } from "../character";
@@ -95,7 +95,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
   {
     name: "after_dark_pairs",
     title: "After dark: the pairs",
-    description: "Admin only. Who can be in after dark (this season's cast and the switched-on characters), every pair, and how long each scene is.",
+    description: "Admin only. Who can be in after dark (this season's cast and the switched-on characters), every pair, and how long each scene is. A pair with someone who has left the cast is listed only if you already have nights of it, with `earlier` (\"From October's cast\"), and plays as before.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true },
   },
@@ -476,7 +476,8 @@ export async function runAdultTool(db: Db, name: string, args: Record<string, un
     }
     case "after_dark_baseline": {
       const id = String(args.character_id ?? "");
-      if (!(await eligibleIds(db, owner)).has(id)) return { error: "Pick a character who is in after dark (after_dark_pairs lists them)." };
+      // In their After Dark, or someone who left the cast that they keep a pair with (#1132), as on the site.
+      if (!(await playableIds(db, owner)).has(id)) return { error: "Pick a character who is in after dark (after_dark_pairs lists them)." };
       const c = await loadCharacter(db, id);
       if (!c) return { error: "No such character." };
       try {

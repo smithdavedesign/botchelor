@@ -217,7 +217,14 @@ export default async function CouplePage({ params, searchParams }: Props) {
           {" · "}
           <CopyLink path={`/couples/${ca.id < cb.id ? ca.id : cb.id}/${ca.id < cb.id ? cb.id : ca.id}`} title={`${ca.name} × ${cb.name} on Botchelor`} />
         </p>
-        {owner && <p className="muted small">You own one of them, so you also see your own private dates, their plans and their texts.</p>}
+        {owner && (
+          <p className="couple-private">
+            <span className="badge" title="You own one of them, so you also see your own private dates, their plans and their texts.">
+              🔒 You see their private side
+            </span>{" "}
+            <span className="muted small">private dates, plans and texts</span>
+          </p>
+        )}
       </section>
 
       {next && <NextDate pair={[ca.id, cb.id]} next={next} hasNudge={nudges.length > 0} />}
@@ -276,12 +283,16 @@ export default async function CouplePage({ params, searchParams }: Props) {
           const me = n.id === ca.id ? ca : cb;
           const them = n.id === ca.id ? cb : ca;
           return (
-            <section key={n.id} className="card" id={i === 0 ? "nudge" : undefined}>
-              <h2>
-                Nudge <CharacterName character={refOf(me)} label={first(me)} size={26} />
-              </h2>
+            // Folded like the roleplay (2026-10-31 UX audit, C2): a line with where it stands, the form inside.
+            <details key={n.id} className="card ux-fold" id={i === 0 ? "nudge" : undefined}>
+              <summary>
+                <h2>
+                  💬 Nudge <CharacterName character={refOf(me)} label={first(me)} size={26} />
+                </h2>
+                <span className="muted small fold-status">{n.note ? `“${n.note}”` : "No note"}</span>
+              </summary>
               <NudgeForm pair={[ca.id, cb.id]} characterId={me.id} name={me.name} other={them.name} current={n.note} />
-            </section>
+            </details>
           );
         })}
 

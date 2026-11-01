@@ -24,6 +24,22 @@ export type Readiness = {
   ready: boolean;
   /** Where to set them up. */
   studio: string;
+  /** "Set up for pictures" (#1207): what one tap would do for them, when the Studio is theirs to use (studio.ts setupOffer). */
+  setup?: SetupOffer;
+};
+
+/** What "Set up for pictures" would do for a character not ready yet (lib/adult/studio.ts setupOffer), for its button. */
+export type SetupOffer = {
+  /** This character's first setup: included, on us (David, 2026-11-01). */
+  free: boolean;
+  /** What it costs them otherwise: the Recast and Body reference prices, for the parts it draws (0 for an admin). */
+  tokens: number;
+  /** The model pictures it draws: faces when there's none to use, then body references. */
+  pictures: number;
+  /** A face already drawn for them and not picked: the setup uses it, and "Use this face" picks it without drawing. */
+  baseline: string | null;
+  /** A setup of theirs started a moment ago is still drawing. */
+  drawing: boolean;
 };
 
 export async function readinessOf(db: Db, viewer: string, characterId: string): Promise<Readiness | null> {
@@ -51,14 +67,18 @@ export async function pairReadiness(db: Db, viewer: string, a: string, b: string
   return (await Promise.all([readinessOf(db, viewer, a), readinessOf(db, viewer, b)])).filter((r): r is Readiness => Boolean(r));
 }
 
-/** What's missing, as the owner reads it: "Sweet thang needs a face and a body in the Studio", or null when both are ready. */
+/**
+ * What's missing, as the owner reads it, each part named for the step that sets it (#1207: a visitor couldn't tell
+ * whether a character was ready, or what to do): "Sweet needs a face picked in the Studio", "… a body reference set in
+ * the Studio", or both; null when everyone is ready. The page links each to its step (picture-notes.ts setupStep).
+ */
 export function missingNote(rs: readonly Readiness[]): string | null {
   const out = rs
     .filter((r) => !r.ready)
     .map((r) => {
       const first = r.name.split(/\s+/)[0];
-      const needs = [!r.face ? "a face" : "", !r.body ? "a body" : ""].filter(Boolean).join(" and ");
-      return `${first} needs ${needs} set in the Studio`;
+      if (!r.face && !r.body) return `${first} needs a face and a body reference set in the Studio`;
+      return !r.face ? `${first} needs a face picked in the Studio` : `${first} needs a body reference set in the Studio`;
     });
   return out.length ? `${SETUP_NOTE_PREFIX} ${out.join("; ")}.` : null;
 }

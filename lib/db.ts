@@ -2906,6 +2906,11 @@ alter table adult_settings alter column cap_pictures set default 60;
 -- as not writing (a crashed request).
 alter table adult_scenes add column if not exists writing_since timestamptz;
 
+-- #1207 (David, 2026-11-01: "Set up for pictures", each character's first setup included): when this character's one
+-- free setup was taken (lib/adult/studio.ts setUpForPictures). Kept on the identity row, not on the face or body, so
+-- taking the face or body away and setting up again costs tokens like any redraw. Null: not taken yet.
+alter table adult_identity add column if not exists free_setup_at timestamptz;
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (
@@ -3017,7 +3022,15 @@ export async function ensureSchemaCurrent(db: Db): Promise<void> {
 
 // PGLITE_DIR lets a throwaway run (scripts/screenshots.mjs) keep its sample data apart from yours.
 const DEFAULT_LOCAL_DATA_DIR = ".data/pglite";
-const POOL_SIZE = 3;
+/**
+ * Connections per process. Three suited a Vercel function; on one long-lived server every request shares them, and on
+ * 2026-11-01 a page asking for 140 pictures queued the whole site (and its health check) behind them until
+ * DigitalOcean gave up on the replica (audit R1). Ten each for the show and After Dark is well inside even the smallest
+ * Neon compute's ~100 connections. DB_POOL_SIZE overrides it.
+ */
+const POOL_SIZE = Math.max(1, Number(process.env.DB_POOL_SIZE) || 10);
+/** How long a request waits for a free connection before failing, rather than queueing forever (pg's default). */
+const CONNECT_WAIT_MS = 10_000;
 
 /**
  * node-postgres already treats sslmode=require/prefer/verify-ca as verify-full (certificate and hostname checked),
@@ -3036,9 +3049,32 @@ export function withVerifyFullSsl(url: string): string {
  */
 export async function createPool(url: string) {
   const { Pool } = await import("pg");
-  const pool = new Pool({ connectionString: withVerifyFullSsl(url), max: POOL_SIZE });
+  const pool = new Pool({ connectionString: withVerifyFullSsl(url), max: POOL_SIZE, connectionTimeoutMillis: CONNECT_WAIT_MS });
   pool.on("error", (err) => console.error(`[db] idle connection closed: ${err.message}`));
   return pool;
+}
+
+const healthCache = globalThis as typeof globalThis & { __botchelorHealthPool?: Promise<import("pg").Pool> };
+
+/**
+ * The health check's `select 1`, on a connection of its own: through the shared pool it waited behind every busy
+ * request, so a slow page made DigitalOcean take the only replica out of service (2026-11-01 audit, R1). This says
+ * whether the database can be reached, not whether the pool is free. Tests and local runs use the usual database.
+ */
+export async function pingDb(): Promise<void> {
+  const url = process.env.DATABASE_URL;
+  if (testDb || !url) {
+    await (await getDb()).query("select 1");
+    return;
+  }
+  if (!healthCache.__botchelorHealthPool) {
+    healthCache.__botchelorHealthPool = import("pg").then(({ Pool }) => {
+      const pool = new Pool({ connectionString: withVerifyFullSsl(url), max: 1, connectionTimeoutMillis: 2_500 });
+      pool.on("error", (err) => console.error(`[db] health connection closed: ${err.message}`));
+      return pool;
+    });
+  }
+  await (await healthCache.__botchelorHealthPool).query("select 1");
 }
 
 async function openDb(): Promise<Db> {

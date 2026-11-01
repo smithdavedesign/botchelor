@@ -10,8 +10,10 @@ import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
 import { pageMetadata } from "@/lib/seo";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
-import { afterDarkOnly } from "@/lib/after-dark-host";
+import { afterDarkHref, afterDarkOnly } from "@/lib/after-dark-host";
+import { canAfterDark } from "@/lib/adult/entitlement";
 import BuyButton from "./BuyButton";
+import SignInToBuy from "./SignInToBuy";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({
@@ -49,6 +51,9 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   // One word for one thing (2026-10-31 UX audit: the nav said "dates left", this page "tokens", the pack "Episode pack"):
   // the show counts dates. After Dark's host spends only bought tokens (#1005), so there it says tokens.
   const unit = afterDarkOnly() ? "token" : "date";
+  // #1173: someone After Dark is open to hears, here only, that a date bought here is a token there (nobody else is told
+  // After Dark exists: the show never shows it).
+  const afterDarkToo = db && viewer?.authenticated ? (await canAfterDark(db, viewer).catch(() => ({ ok: false }))).ok : false;
   const units = `${unit}s`;
 
   return (
@@ -64,6 +69,12 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         {dates.free_per_season} free this week
         {dates.pack_left > 0 && `, plus ${dates.pack_left} topped up`}. Free {units} come back Monday 00:00 UTC.
       </p>
+      {afterDarkToo && unit === "date" && (
+        <p className="muted small" data-ad-tokens-note>
+          In After Dark, each date you buy here is one token (the free weekly ones stay with the show).{" "}
+          <a href={afterDarkHref("/after-dark/tokens")}>What a token buys there</a>.
+        </p>
+      )}
       {checkout === "success" && (
         <p className="notice">
           Thanks! Your {units} are added as soon as Stripe confirms the payment, usually within a few seconds. Refresh if
@@ -83,12 +94,15 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
             {item.kind !== "episode_pack" && <span className="badge">{KIND_LABELS[item.kind]}</span>}
             <p>{item.description}</p>
             {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
-            {/* No Buy button at all until there's a Payment Link (STRIPE_PAYMENT_LINK): the notice above says so. */}
             {signInToBuy ? (
-              <SignInToBuy google={googleConfigured()} />
-            ) : open ? (
-              <BuyButton sku={item.sku} label={priceLabelFromEnv(process.env, `Buy ${item.name} for ${formatPrice(item.price_cents)}`)} />
-            ) : null}
+              <SignInToBuy sku={item.sku} label={`Buy ${item.name} · ${formatPrice(item.price_cents)}`} google={googleConfigured()} />
+            ) : (
+              <BuyButton
+                sku={item.sku}
+                label={priceLabelFromEnv(process.env, `Buy ${item.name} for ${formatPrice(item.price_cents)}`)}
+                disabled={!open}
+              />
+            )}
           </li>
         ))}
         {ownedOffSale.map((item) => (
@@ -100,46 +114,21 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         ))}
       </ul>
 
-      <p>
-        <strong>Nothing here changes points, picks, badges or rank, and points can&apos;t be bought.</strong>
-      </p>
-      <p className="muted">
-        Topped-up tokens also make a 4-second intro clip for a character of yours: one token each, plus about $0.20 on
-        your own Google key (Veo). A clip Google can&apos;t make gives the token back.
-      </p>
-      <p className="muted">
-        You pay on Stripe&apos;s own page (a Stripe Payment Link); we never see your card. Purchases belong to your
-        account, so your tokens follow you to any device you sign in on. Keep your Stripe receipt. Refunds within 14
-        days, see the <Link href="/terms">terms</Link>.
-      </p>
-    </>
-  );
-}
-
-/**
- * In place of Buy for a visitor who isn't signed in. Signing up keeps everything they already have (the account
- * adopts their anonymous id), and both ways back land on the shop again.
- */
-function SignInToBuy({ google }: { google: boolean }) {
-  return (
-    <>
-      <p className="shop-signin-note">
-        Sign in to buy, so your tokens follow you to any device. Your characters and dates come with you.
-      </p>
-      {google ? (
-        <>
-          <a className="button-google" href="/api/auth/google/start?next=%2Fshop">
-            Continue with Google
-          </a>
-          <p className="muted small or-divider">
-            or <Link href="/account?next=%2Fshop">use a handle</Link>
-          </p>
-        </>
-      ) : (
-        <Link className="button" href="/account?next=%2Fshop">
-          Sign in or create an account
-        </Link>
-      )}
+      {signInToBuy && <p className="muted small">Buying needs an account, so what you buy follows you to any device.</p>}
+      <p className="muted small">Nothing here changes points, picks, badges or rank, and points can&apos;t be bought.</p>
+      {/* The small print, folded (2026-10-31 UX audit, A9). */}
+      <details className="ux-fold shop-small-print">
+        <summary>How paying works</summary>
+        <p className="muted">
+          You pay on Stripe&apos;s own page (a Stripe Payment Link); we never see your card. Purchases belong to your
+          account, so your {units} follow you to any device you sign in on. Keep your Stripe receipt. Refunds within 14
+          days, see the <Link href="/terms">terms</Link>.
+        </p>
+        <p className="muted">
+          Topped-up {units} also make a 4-second intro clip for a character of yours: one {unit} each, plus about $0.20 on
+          your own Google key (Veo). A clip Google can&apos;t make gives the {unit} back.
+        </p>
+      </details>
     </>
   );
 }

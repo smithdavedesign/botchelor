@@ -22,6 +22,16 @@
 
 /* ---------------- home (app/page.tsx) ---------------- */
 /* The feature cards: icon beside the words. On a phone they're compact rows, not six tall cards (~1,300px). */
+/* How it works (A2): three numbered rows, the icon beside the words, on every width. */
+ol.home-features {
+  grid-template-columns: 1fr;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.home-sky-line {
+  margin-top: var(--space-1);
+}
 .home-features .feature {
   display: flex;
   align-items: flex-start;
@@ -487,6 +497,9 @@ details.recap-toggle[open] .recap-toggle-hide {
   align-items: center;
   gap: var(--space-1) var(--space-2);
 }
+.couple-private {
+  margin: var(--space-2) 0 0;
+}
 .couple-name-unit {
   display: inline-flex;
   align-items: center;
@@ -710,4 +723,173 @@ details.recap-toggle[open] .recap-toggle-hide {
 }
 .graph-pairs > .list {
   margin-top: var(--space-2);
+}
+
+/* One Share button with a popover (app/ShareButton.tsx, D3). */
+.share-button {
+  position: relative;
+  display: inline-block;
+}
+.share-button > button {
+  margin: 0;
+}
+.share-pop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: min(18rem, 80vw);
+  margin: 0;
+  padding: var(--space-3);
+  box-shadow: var(--shadow);
+}
+.share-pop > :is(a, button) {
+  margin: 0;
+  justify-self: stretch;
+  text-align: center;
+}
+.share-pop[hidden] {
+  display: none;
+}
+.share-pop > input {
+  width: 100%;
+  margin: 0;
+}
+.share-pop-note {
+  white-space: normal;
+}
+
+/* /characters' cast tab: each board's leader in one row, the full boards folded (2026-10-31 UX audit, A4). */
+.top-rated-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.top-rated-item {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+.top-rated-more {
+  margin-top: var(--space-2);
+}
+
+/* An ⓘ that opens a line of small print under it, by tap as well as by mouse (A10). */
+.info-tip {
+  display: inline-block;
+  position: relative;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  vertical-align: middle;
+}
+.info-tip > summary {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin-block: -12px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+.info-tip > summary::-webkit-details-marker {
+  display: none;
+}
+.info-tip-body {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(18rem, 70vw);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+/* Closed, the small print takes no room: laid out off to the right, it widened a phone's page to 426px. */
+.info-tip:not([open]) > .info-tip-body {
+  display: none;
+}
+/* The audience card's ⓘ opens across the card, so a phone's narrow screen never cuts it off. */
+.audience-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.audience-head .info-tip {
+  position: static;
+}
+.audience-head .info-tip-body {
+  left: 0;
+  right: 0;
+  width: auto;
+}
+.audience-head h2 {
+  margin: 0;
+}
+
+/* A long page's parts in one row of links (the character page, C4): chips that scroll sideways on a phone. */
+.page-jumps {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  margin: var(--space-3) 0;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.page-jumps a {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+@media (pointer: coarse) {
+  .page-jumps a {
+    min-height: 44px;
+  }
+}
+:is(#profile, #audience, #story, #date-record) {
+  scroll-margin-top: 5rem;
+}
+
+/* Just aired: six are fetched for the wide screen's two rows of three; narrower, four (two rows of two, or a list). */
+@media (max-width: 1023px) {
+  .home .watch-latest-list > li:nth-child(n + 5) {
+    display: none;
+  }
+}
+/* Home on a wide screen (UX audit 2026-10-31, A2): a wider column, so Just aired, How it works, the cast and the reviews
+   go three across instead of stacking down a 46rem column. The questions keep a reading width. */
+@media (min-width: 1024px) {
+  main:has(> .home) {
+    max-width: 72rem;
+  }
+  .home .watch-latest-list,
+  .home ol.home-features,
+  .home .home-cast,
+  .home .bot-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .home .faq {
+    max-width: 46rem;
+  }
 }

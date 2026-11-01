@@ -151,6 +151,8 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
             ? `Everyone ${first} has dated or matched, latest first, with their newest text. Open one to read their whole thread.`
             : `Everyone ${first} has dated, and where they stand. Their texts are private to the characters' owners.`}
       </p>
+      {/* On a phone the board drops the drawn device (2026-10-31 UX audit, C11: a phone inside the phone). */}
+      <div className="board-phone">
       <PhoneFrame>
         <div className="phone-inbox-head">
           <h2 className="phone-title">Messages</h2>
@@ -187,6 +189,7 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
           <p className="phone-inbox-empty">No one yet. After {first}&apos;s first date, the people they&apos;ve met show up here.</p>
         )}
       </PhoneFrame>
+      </div>
       <Pager page={shown.page} pages={shown.pages} label="Relationship board pages" href={(n) => pageHref(`/characters/${c.id}/relationships`, {}, "page", n)} prev="Newer" next="Older" />
       {met.length > 0 && (
         <section className="met-at-nights" aria-labelledby="met-title">

@@ -52,7 +52,7 @@ export default function ShortsPanel({ a, b }: { a: { id: string; name: string };
               ))}
             </ul>
           ) : (
-            <p className="muted small">No saved nights yet: Start over files the night that ran.</p>
+            <p className="muted small">No saved nights yet: 🌙 End the night (in the theater&apos;s ⋯) files the night that ran.</p>
           )}
         </>
       )}
@@ -91,7 +91,7 @@ function Night({ night, panel, a, b, onShort }: { night: NightOption; panel: Pan
     return (
       <li className={styles.night}>
         <strong>{label}</strong>
-        <p className="muted small">Still going: Start over files it as a whole night, then it can be a Short.</p>
+        <p className="muted small">Still going: 🌙 End the night files it as a whole night, then it can be a Short.</p>
       </li>
     );
   }

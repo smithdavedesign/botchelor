@@ -79,9 +79,12 @@ describe("/account/keys: Connections", () => {
     signIn();
     const html = await page();
     for (const title of ["Dates &amp; texts", "Portraits &amp; pictures", "Intro clips"]) expect(html).toContain(title);
-    expect(html).toContain("Using: Botchelor&#x27;s free model");
-    expect(html).toContain("Not set up: portraits need your own OpenAI key.");
-    expect(html).toContain("Not set up: clips need your own Google key, with billing on.");
+    // The pill says where each stands; the line under it doesn't say it again (D9).
+    expect(html).toContain(">Free model<");
+    expect(html).not.toContain("Using: Botchelor&#x27;s free model");
+    expect(html).toContain("Portraits need your own OpenAI key.");
+    expect(html).toContain("Clips need your own Google key, with billing on.");
+    expect(html).not.toContain("Not set up: portraits");
     expect(html.match(/>Connect</g)).toHaveLength(3);
     expect(html).not.toContain('id="your-keys"');
     expect(html).not.toMatch(/after dark/i);
@@ -93,7 +96,7 @@ describe("/account/keys: Connections", () => {
     await saveConnection(t.db, U, "openrouter", key, { verifiedAt: new Date(Date.now() - 120_000).toISOString() });
     await assignJob(t.db, U, "text", "openrouter", "deepseek/deepseek-chat-v3.1");
     const html = await page();
-    expect(html).toContain("Your OpenRouter key ✓ · deepseek/deepseek-chat-v3.1 · Lively");
+    expect(html).toContain("Your OpenRouter key · deepseek/deepseek-chat-v3.1 · Lively");
     expect(html).toContain("•••• 2468 · checked 2 min ago · not used yet");
     expect(html).toContain("✓ Connected");
     expect(html).toContain('id="your-keys"');

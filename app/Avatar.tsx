@@ -32,7 +32,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
   const r = round ? "50%" : size * 0.28;
   // A house character's reviewed file first: its ledger row (when it has one) only redirects to that same file.
   // Then an OC's BYOK-generated portrait (the owner's own, provider-moderated).
-  const portrait = photoSrc ?? characterPortrait(seed) ?? sized(portraitSrc, size);
+  const portrait = sized(photoSrc, size) ?? characterPortrait(seed) ?? sized(portraitSrc, size);
   if (portrait) {
     // The tile's own gradient under the picture, so a face still loading (they're lazy) reads as theirs, not a blank box.
     const p = avatarPalette(seed, hue);
@@ -91,7 +91,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
 }
 
 /** A generated portrait (/api/assets/<id>) at about twice its drawn size, for sharp screens, instead of the 1024px original. */
-function sized(src: string | null, size: number): string | null {
+export function sized(src: string | null, size: number): string | null {
   if (!src || !src.startsWith("/api/assets/") || src.includes("?")) return src;
   return `${src}?w=${Math.ceil(size * 2)}`;
 }

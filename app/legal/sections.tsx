@@ -97,14 +97,41 @@ export function OnThisPage({ headings }: { headings: readonly { id: string; titl
   return (
     <nav className="legal-toc" aria-label="On this page">
       <p className="legal-toc-title">On this page</p>
-      <ul>
-        {headings.map((h) => (
-          <li key={h.id}>
-            <a href={`#${h.id}`}>{h.title}</a>
-          </li>
-        ))}
-      </ul>
+      <TocList headings={headings} />
     </nav>
+  );
+}
+
+/**
+ * /legal's contents, folded by policy (2026-10-31 UX audit, D14: 37 links in one flat list): each group's sections
+ * behind its name, and the rest (Contact) as plain links.
+ */
+export function OnThisPageGrouped({ groups, rest }: { groups: { title: string; headings: readonly { id: string; title: string }[] }[]; rest: readonly { id: string; title: string }[] }) {
+  return (
+    <nav className="legal-toc" aria-label="On this page">
+      <p className="legal-toc-title">On this page</p>
+      {groups.map((g) => (
+        <details className="ux-fold legal-toc-group" key={g.title}>
+          <summary>
+            {g.title} <span className="muted small">{g.headings.length} sections</span>
+          </summary>
+          <TocList headings={g.headings} />
+        </details>
+      ))}
+      <TocList headings={rest} />
+    </nav>
+  );
+}
+
+function TocList({ headings }: { headings: readonly { id: string; title: string }[] }) {
+  return (
+    <ul>
+      {headings.map((h) => (
+        <li key={h.id}>
+          <a href={`#${h.id}`}>{h.title}</a>
+        </li>
+      ))}
+    </ul>
   );
 }
 

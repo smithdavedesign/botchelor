@@ -73,6 +73,10 @@ export default function ConstellationApp({ data, initialFocus = null }: { data: 
   const [kind, setKind] = useState<KindFilter>("all");
   // "Show what happened": endings, turn-downs, who left first and the chevrons. Off, like the episode page's recap.
   const [showOutcomes, setShowOutcomes] = useState(false);
+  // On a phone the filters sit behind one button (2026-10-31 UX audit, D7: the first screen was all filters); a
+  // desktop's toolbar has room for them in its row, so there the button isn't shown.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const active = [origin !== "all", colorBy !== "character", kind !== "all", minDates >= 2, !showSingles].filter(Boolean).length;
   // The kinds anyone on the sky has said, in the vocabulary's order, for the filter and the legend.
   const kindsPresent = useMemo(() => KINDS.filter((k) => data.nodes.some((n) => n.kind === k.id)), [data.nodes]);
   // The clusters on the sky, biggest first (the server numbers them by size): the first CLUSTER_COLORS.length get a
@@ -144,7 +148,16 @@ export default function ConstellationApp({ data, initialFocus = null }: { data: 
             </ul>
           )}
         </div>
-        <div className="constellation-filters">
+        <button
+          type="button"
+          className="constellation-filters-btn"
+          aria-expanded={filtersOpen}
+          aria-controls="constellation-filters"
+          onClick={() => setFiltersOpen((v) => !v)}
+        >
+          Filters{active > 0 && <span className="constellation-filters-count"> · {active}</span>}
+        </button>
+        <div className={`constellation-filters${filtersOpen ? " is-open" : ""}`} id="constellation-filters">
           <div className="segmented constellation-segmented" role="group" aria-label="Who made them">
             {ORIGIN_FILTERS.map((f) => (
               <button

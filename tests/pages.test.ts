@@ -178,12 +178,16 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
 
 describe("the shop's Buy button (Stripe Payment Link)", () => {
   it("shows the owner's price label, and asks for the 18+ and terms checkbox", () => {
-    const html = renderToStaticMarkup(createElement(BuyButton, { sku: "pack_5", label: "5 more dates · $4" }));
+    const html = renderToStaticMarkup(createElement(BuyButton, { sku: "pack_5", label: "5 more dates · $4", disabled: false }));
     expect(html).toContain("5 more dates · $4");
     expect(html).toMatch(/name="attest"/);
     expect(html).toMatch(/18 or older/);
     expect(html).toContain('href="/terms"');
     expect(html).not.toMatch(/disabled=""/);
   });
-  // Hidden, not disabled, while purchases aren't open: tests/launch-ready.test.ts renders the shop both ways.
+
+  it("is disabled while purchases aren't open", () => {
+    const html = renderToStaticMarkup(createElement(BuyButton, { sku: "pack_5", label: "Buy for $4", disabled: true }));
+    expect(html).toMatch(/<button[^>]*disabled=""/);
+  });
 });

@@ -12,3 +12,13 @@ export function pictureNoteKind(note: string): PictureNoteKind {
   if (note.startsWith(SETUP_NOTE_PREFIX)) return "setup";
   return STATUS_PREFIXES.some((p) => note.startsWith(p)) ? "status" : "failure";
 }
+
+/**
+ * The Studio step for what a character still needs (#1207: the note named what was missing but not where to do it): the
+ * Recast section for a face, Body reference for a body. The Studio opens its Identity tab on these anchors.
+ */
+export function setupStep(r: { face: boolean; body: boolean; studio: string }): { href: string; label: string } | null {
+  if (!r.face) return { href: `${r.studio}#recast`, label: "Pick a face" };
+  if (!r.body) return { href: `${r.studio}#body-reference`, label: "Set a body reference" };
+  return null;
+}

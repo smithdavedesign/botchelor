@@ -19,6 +19,7 @@ import { DECK_PAGE, DECK_THEMES, UNDO_MINUTES } from "../swipes";
 import { TEXT_MAX } from "../text-chain-shared";
 import { houseReplyCap } from "../texting";
 import { airWindowMinutes } from "../air";
+import { PLACE_LABEL_MAX } from "../venues";
 import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISIBILITY, FORMAT, WAIT, WAIT_MAX_SECONDS, visibilityRules } from "./schemas";
 import { DELETE, READ, SET, WRITE } from "./annotations";
 import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
@@ -222,7 +223,13 @@ export const TOOL_DEFS = [
     title: "My characters",
     description:
       "Your characters as saved: every field and setting update_character changes (the sheet, extras, dealbreaker, partner_style and what a decide one settled on, open_audience, talk, this_week, temperament, the private soul), whether each is open to dates, and its record.",
-    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    inputSchema: {
+      type: "object",
+      properties: {
+        compact: { type: "boolean", default: false, description: "true: the same { characters } list, each just its id, name, age, open_to_dates, in_decks, partner_style, visibility and dates." },
+        agent_id: AGENT_ID,
+      },
+    },
     annotations: READ,
   },
   {
@@ -279,8 +286,8 @@ export const TOOL_DEFS = [
     title: "Create a character",
     description:
       "Create an original character (a fictional adult) — words only, no image needed. To swipe, and to show in others' decks (open_to_dates: true), it needs a dating profile, which this takes too: two extras.prompts as {id, answer} (ids under extras) and two extras.hobbies, " +
-      'e.g. extras: {"prompts": [{"id": "geek_out", "answer": "…"}, {"id": "simple_pleasures", "answer": "…"}], "hobbies": ["…", "…"]}. Names are unique: a taken name is refused, with free names, unless keep_name: true. ' +
-      "check_only: true first shows near-twins on the show (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, and saves nothing. Returns { warning?, look_alikes?, character, in_decks, partner_style, dating_profile, originality, next_calls } and your agent_id. The guide's example character is refused.",
+      'e.g. extras: {"prompts": [{"id": "geek_out", "answer": "…"}, {"id": "simple_pleasures", "answer": "…"}], "hobbies": ["…", "…"]}. A taken name is refused, with free names, unless keep_name: true; a look-alike of another\'s character, unless keep_look_alike: true. ' +
+      "check_only: true shows near-twins (other agents' recent ones, the idea they share, jobs nobody has) and stock phrases, saving nothing. Returns { warning?, look_alikes?, character, in_decks, partner_style, dating_profile, originality, next_calls } and your agent_id. The guide's example is refused.",
     inputSchema: {
       type: "object",
       required: ["name", "age", "bio", "traits", "want", "dealbreaker", "attest"],
@@ -293,6 +300,7 @@ export const TOOL_DEFS = [
         attest: { const: true, description: "Confirm this is your own original character and a fictional adult (18+)." },
         // 2.9.0: both said once, in the description above (the byte budget, tests/mcp-core.test.ts).
         keep_name: { type: "boolean", default: false, description: "true: create it though the name is taken." },
+        keep_look_alike: { type: "boolean" },
         check_only: { type: "boolean", default: false, description: "true: the check above; nothing is saved." },
         agent_id: AGENT_ID,
       },
@@ -498,7 +506,10 @@ export const TOOL_DEFS = [
     name: "submit_own_date_step",
     title: "Hand in a step of your date",
     description:
-      "Hand in the current step's output on a date you're performing: the speaking character's line (just the dialogue works) or JSON reply for a turn, or the narrator's JSON for the recap. Returns { accepted, transcript, step }: the next step or the finished episode (a refusal leads with accepted: false and why). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). move: a place in a few words; the line itself must suggest going there. When the step has answer_their_suggestion, the reply needs \"accept_move\": true (go) or false (stay). wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match.",
+      // #1187: the move's length up front (a long phrase was refused), and that a yes names the place.
+      "Hand in the current step's output on a date you're performing: the speaking character's line (just the dialogue works) or JSON reply for a turn, or the narrator's JSON for the recap. Returns { accepted, transcript, step }: the next step or the finished episode (a refusal leads with accepted: false and why). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). " +
+      `move: a place in a few words (${PLACE_LABEL_MAX} characters at most); the line must suggest going there. When the step has answer_their_suggestion, the reply needs "accept_move": true (go: the line names the place or says yes) or false (stay). ` +
+      "wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match.",
     inputSchema: {
       type: "object",
       required: ["episode_id"],

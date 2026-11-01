@@ -188,13 +188,12 @@ describe("the shop's Buy button", () => {
     }
   };
 
-  it("is hidden while STRIPE_PAYMENT_LINK is unset: no button, no checkbox, just the notice", async () => {
+  it("is shown but disabled while STRIPE_PAYMENT_LINK is unset, under the notice", async () => {
     noPaymentEnv();
     const html = await renderShop();
     expect(html).toContain("Purchases open soon");
-    expect(html).not.toMatch(/<button[^>]*type="submit"/);
-    expect(html).not.toContain('name="attest"');
-    expect(html).not.toMatch(/Buy 5 more dates/);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*disabled=""/);
+    expect(html).toMatch(/<input(?=[^>]*name="attest")[^>]*disabled=""/);
   });
 
   it("shows once the link is set, with the price, and never puts the link itself in the page", async () => {

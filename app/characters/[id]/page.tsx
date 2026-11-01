@@ -397,6 +397,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </p>
       )}
 
+      {/* Where each part of a long page is, in one row (2026-10-31 UX audit, C4: ~5 phone screens of cards). */}
+      <nav className="page-jumps" aria-label="On this page">
+        <a href="#profile">Profile</a>
+        <a href="#audience">Audience</a>
+        {memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && <a href="#story">Story</a>}
+        <a href="#date-record">Dates</a>
+      </nav>
+
       {c.clip_asset_id && (
         <section className="card">
           {c.clip_is_video ? (
@@ -405,8 +413,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               className="character-clip"
               controls
               playsInline
-              preload="metadata"
-              poster={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : undefined}
+              // Nothing loads until it's played, and the poster is a thumbnail: the full portrait (1.4 MB) and three range
+              // requests that each read the whole clip from the database came with every visit (2026-11-01 audit, R2).
+              preload="none"
+              poster={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}?w=384` : undefined}
               aria-label={`${c.name}'s intro clip`}
             >
               <source src={`/api/assets/${c.clip_asset_id}/video`} type="video/mp4" />
@@ -420,7 +430,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      <section className="card">
+      <section className="card" id="profile">
         <p>{c.bio}</p>
         {/* The basics at a glance (David, 2026-10-25): from the profile, only what's filled in. */}
         {(() => {
@@ -491,9 +501,16 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
 
       {/* The crowd's read of them and its reviews, one card (2026-10-31 UX audit: two cards for one thing). */}
-      <section className="card character-audience" aria-labelledby="audience-title">
-        <h2 id="audience-title">Audience</h2>
-        <p className="muted small">How the crowd reads them: just for fun, it never changes a date, the odds or anyone&apos;s points.</p>
+      <section className="card character-audience" id="audience" aria-labelledby="audience-title">
+        {/* The "never changes points" line behind an ⓘ (2026-10-31 UX audit, A10: one of seven copies of it on the way
+            here; the shop's and the footer's stay in full). */}
+        <div className="audience-head">
+          <h2 id="audience-title">Audience</h2>
+          <details className="info-tip">
+            <summary aria-label="About audience ratings">ⓘ</summary>
+            <span className="info-tip-body muted small">How the crowd reads them: just for fun, it never changes a date, the odds or anyone&apos;s points.</span>
+          </details>
+        </div>
         <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} />
         <h3>Reviews</h3>
         <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} open={!c.house || (await reviewableNow(c.id))} />
@@ -502,7 +519,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {/* Who they've become and their story, one card (2026-10-31 UX audit: the same dates were told in four cards); what
           they've learned, the owner's alone, folded inside it. */}
       {memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && (
-        <section className="card character-story">
+        <section className="card character-story" id="story">
           <h2>Their story so far</h2>
           {memory.arc && <p>{memory.arc}</p>}
           {(memory.milestones?.length ?? 0) > 0 && (
@@ -536,50 +553,50 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {/* Their own After Dark pictures of them, blurred: the owner's page only. */}
       {adPhotos && <AfterDarkPhotos characterId={c.id} data={adPhotos} />}
 
-      {relationships.length > 0 && (
-        <section className="card" id="relationships">
-          <div className="section-head">
-            <h2>Relationships</h2>
-            <span>
-              <Link href={`/characters/${c.id}/relationships`}>📱 Open their relationship board</Link> ·{" "}
-              <Link href={`/graph?focus=${encodeURIComponent(c.id)}`}>✨ See {shortName(c.name)} in the Constellation</Link>
-            </span>
-          </div>
-          <ul className="list connections">
-            {relPage.items.map((r) => (
-              <li key={r.otherId} className="row-2line">
-                {/* Two lines on purpose: who and where they stand, then the numbers and the links (they wrapped raggedly). */}
-                <span className="row-2line-head">
-                  <CharacterName character={r.other} /> {r.view.stage_label && <span className="badge">{r.view.stage_label}</span>}
-                </span>
-                <span className="muted row-2line-meta">
-                  {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
-                  {ratings.is_owner && (
-                    <>
-                      {" "}
-                      · <Link href={`${r.path.replace("/couples/", "/messages/")}?as=${encodeURIComponent(c.id)}`}>💬 their texts</Link>
-                    </>
-                  )}
-                </span>
-                <span className="meter-track tie" role="img" aria-label={`How close: ${Math.round(r.view.tie * 100)}%`}>
-                  <span className="meter-fill" style={{ width: `${Math.round(r.view.tie * 100)}%` }} />
-                </span>
-              </li>
-            ))}
-          </ul>
-          <Pager page={relPage.page} pages={relPage.pages} label="Relationships pages" href={here("rel", "relationships")} scroll={false} />
-        </section>
-      )}
-
+      {/* One card for their dates (2026-10-31 UX audit, A6: "Relationships" and "Date record" told the same dates
+          twice): the totals, one row per person, and every date folded under them. */}
       <section className="card" id="date-record">
-        <h2>Date record</h2>
+        <div className="section-head">
+          <h2>Dates</h2>
+          {relationships.length > 0 && <Link href={`/characters/${c.id}/relationships`}>📱 See their board →</Link>}
+        </div>
+        {record.dates > 0 && (
+          <p className="muted">
+            <strong>{record.dates}</strong> {record.dates === 1 ? "aired date" : "aired dates"} · {record.second_dates} second{" "}
+            {record.second_dates === 1 ? "date" : "dates"} · {record.friends} just friends · {record.disasters}{" "}
+            {record.disasters === 1 ? "disaster" : "disasters"}
+          </p>
+        )}
+        {relationships.length > 0 && (
+          <div id="relationships">
+            <ul className="list connections">
+              {relPage.items.map((r) => (
+                <li key={r.otherId} className="row-2line">
+                  {/* Two lines on purpose: who and where they stand, then the numbers and the links (they wrapped raggedly). */}
+                  <span className="row-2line-head">
+                    <CharacterName character={r.other} /> {r.view.stage_label && <span className="badge">{r.view.stage_label}</span>}
+                  </span>
+                  <span className="muted row-2line-meta">
+                    {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
+                    {ratings.is_owner && (
+                      <>
+                        {" "}
+                        · <Link href={`${r.path.replace("/couples/", "/messages/")}?as=${encodeURIComponent(c.id)}`}>💬 their texts</Link>
+                      </>
+                    )}
+                  </span>
+                  <span className="meter-track tie" role="img" aria-label={`How close: ${Math.round(r.view.tie * 100)}%`}>
+                    <span className="meter-fill" style={{ width: `${Math.round(r.view.tie * 100)}%` }} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <Pager page={relPage.page} pages={relPage.pages} label="Relationships pages" href={here("rel", "relationships")} scroll={false} />
+          </div>
+        )}
         {record.dates > 0 ? (
-          <>
-            <p>
-              <strong>{record.dates}</strong> {record.dates === 1 ? "aired date" : "aired dates"} ·{" "}
-              {record.second_dates} second {record.second_dates === 1 ? "date" : "dates"} · {record.friends} just
-              friends · {record.disasters} {record.disasters === 1 ? "disaster" : "disasters"}
-            </p>
+          <details className="ux-fold character-dates-all" open={datesPage > 1 || undefined}>
+            <summary>Every aired date ({record.dates})</summary>
             <ul className="list">
               {episodes.map((e) => (
                 <li key={e.episode_id} className="row-split">
@@ -591,9 +608,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               ))}
             </ul>
             <Pager page={datesPage} pages={datesPages} label="Date record pages" href={here("dates", "date-record")} prev="Newer" next="Older" scroll={false} />
-          </>
+          </details>
         ) : (
-          <p className="muted">No aired dates yet.</p>
+          relationships.length === 0 && <p className="muted">No aired dates yet.</p>
+        )}
+        {relationships.length > 0 && (
+          <p className="small">
+            <Link href={`/graph?focus=${encodeURIComponent(c.id)}`}>✨ See {shortName(c.name)} in the Constellation</Link>
+          </p>
         )}
       </section>
 

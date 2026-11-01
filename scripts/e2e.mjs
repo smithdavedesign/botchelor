@@ -178,7 +178,7 @@ async function main() {
       await page.locator('input[name="fact_value_1"]').fill("hotel soap");
       await page.locator('input[name="fact_private_1"]').check();
       await page.getByText("2 of 20").waitFor();
-      await page.getByRole("button", { name: "Next: Soul & autonomy" }).click();
+      await page.getByRole("button", { name: "Next: Inner life" }).click();
       await page.getByText("The inner life (optional)").waitFor();
       await page.locator('input[name="soul_values"]').fill("Steady, inventive, allergic to goodbyes.");
       await page.getByRole("button", { name: "Next: Review" }).click();
@@ -198,10 +198,15 @@ async function main() {
       assert((await page.getByRole("button", { name: /Send on a date with/ }).count()) > 0, "this season's house cast should still book straight away");
     });
 
-    await step("sets date settings (incl. a show format) and sends the character on a date", async () => {
-      await page.getByText("Date settings (optional)").click();
-      await page.getByLabel("Show format").selectOption("meet_the_parents");
+    await step("a Date button asks first: the sheet holds the settings (incl. a show format) and sends the character", async () => {
       await page.getByRole("button", { name: /Send on a date with/ }).first().click();
+      // B5 (2026-10-31 UX audit): nothing is spent until the sheet's one Send.
+      const sheet = page.locator("dialog.sheet-dialog[open]");
+      await sheet.waitFor();
+      assert(page.url().includes("/create"), "a Date button shouldn't send on its own");
+      await sheet.getByText("Date settings").click();
+      await sheet.getByLabel("Show format").selectOption("meet_the_parents");
+      await sheet.getByRole("button", { name: /^Send .* on the date$/ }).click();
       // Sending opens the date straight into the theater (?play=1); keep the plain episode URL for later steps.
       await page.waitForURL(/\/episodes\/[0-9a-f-]{36}(\?.*)?$/);
       const sent = new URL(page.url());
@@ -277,8 +282,8 @@ async function main() {
     await step("a spectator sees a teaser, predicts the ending and guesses the dealbreaker", async () => {
       await spage.goto(episodeUrl);
       assert((await spage.locator(".boxscore").count()) === 0, "box score should be hidden before the finale airs");
-      await spage.locator('input[name="pick"][value="friends"]').check();
-      await spage.getByRole("button", { name: /Lock in my pick|Change my pick/ }).click();
+      // One tap saves the pick (D2).
+      await spage.locator(".pick-choices").first().getByRole("button", { name: "Just friends" }).click();
       await spage.getByText(/Your pick:/).waitFor();
       // Guess the dealbreaker.
       await spage.locator(".quiz .choices button").first().click();
@@ -415,7 +420,7 @@ async function main() {
 
     await step("each character has a relationship board, linked from its page", async () => {
       await page.goto(`${base}/characters/${mine}`);
-      await page.getByRole("link", { name: "📱 Open their relationship board" }).click();
+      await page.getByRole("link", { name: "📱 See their board →" }).click();
       await page.waitForURL(/\/characters\/[^/]+\/relationships$/);
       assert((await page.locator(".phone-row").count()) >= 1, "the board should list their date");
       assert((await page.locator(".phone-row-preview").count()) >= 1, "an owner should see the newest text");
@@ -487,6 +492,7 @@ async function main() {
       await page.keyboard.press("Escape");
       assert(await menu.isHidden(), "Esc should close ⋯");
       await page.locator(".phone-header").getByRole("button", { name: "📅 Book date" }).click();
+      await page.locator("dialog.sheet-dialog[open]").getByRole("button", { name: "📅 Book the date" }).click();
       await page.waitForURL(/\/episodes\/[0-9a-f-]{36}/, { timeout: 30_000 });
       await page.locator(".theater").waitFor({ timeout: 10_000 });
     });
@@ -562,10 +568,12 @@ async function main() {
       await page.getByRole("button", { name: "Use a sample character" }).click();
       await page.getByRole("button", { name: "Next: Voice" }).click();
       await page.getByRole("button", { name: "Next: Look" }).click();
+      // B4: one card on the step; the picker opens in its own sheet.
+      await page.getByRole("button", { name: "Pick their look" }).click();
       await page.getByRole("button", { name: "Woman", exact: true }).click();
       await page.getByRole("button", { name: "Realistic" }).click();
       await page.getByRole("button", { name: /Latina/ }).click();
-      await page.getByText("How old do they look?").waitFor();
+      await page.getByText("Choose an eye colour").waitFor(); // no age row: Identity's age is theirs
       await page.locator(".looks-more").evaluate((d) => (d.open = true));
       await page.waitForFunction(() => (document.querySelector('input[name="appearance"]')?.value || "").startsWith("Latina"), { timeout: 6000 });
       await page.getByRole("tab", { name: /After Dark/ }).click();
@@ -631,7 +639,7 @@ async function main() {
       await dates.getByRole("button", { name: "Test" }).click();
       await dates.getByText("Google accepted it").waitFor({ timeout: 10_000 });
       await dates.getByRole("button", { name: "Save" }).click();
-      await dates.getByText("Your Google key ✓").waitFor({ timeout: 10_000 });
+      await dates.getByText(/^Your Google key(?! ✓)/).waitFor({ timeout: 10_000 }); // the pill says connected; the line under it names the key
       await page.getByText("•••• L4st").first().waitFor();
       const shown = await page.content();
       assert(!shown.includes(apiKey), "the full API key must never be shown back");

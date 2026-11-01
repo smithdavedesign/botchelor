@@ -30,8 +30,18 @@
 :is(.agents-group, .agents-fair, .footer-about, .ux-fold)[open] > summary::after {
   transform: rotate(180deg);
 }
-:is(.agents-group, .agents-fair) > summary :is(h2, h3) {
+:is(.agents-group, .agents-fair, .ux-fold) > summary :is(h2, h3) {
   margin: 0;
+}
+/* A folded card's one line of where it stands (the couple page's roleplay and nudges), beside its title. */
+.ux-fold > summary .fold-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card.ux-fold[open] > summary {
+  margin-bottom: var(--space-2);
 }
 
 /* ---------------- /agents ---------------- */
@@ -249,6 +259,15 @@
   padding: 0;
   list-style: none;
 }
+.legal-toc-group {
+  border-bottom: 1px solid var(--line);
+}
+.legal-toc-group > summary {
+  font-weight: 600;
+}
+.legal-toc-group[open] > ul {
+  padding-bottom: var(--space-2);
+}
 .legal-toc a {
   display: inline-flex;
   align-items: center;
@@ -375,11 +394,31 @@
 .insights-filters .segmented-tab {
   white-space: nowrap;
 }
-/* The launch-day caveat, once above the cards instead of on fourteen of them. */
-.kpi-shared-note {
-  margin: var(--space-3) 0 0;
+/* What People, Agents and House mean, on its own line at the end of the filters (E11). */
+.insights-filters .filter-help {
+  flex: 1 1 100%;
+  margin: 0;
+  max-width: 60rem;
 }
-/* Wide screens: the summary line is hidden and the filters always show. Phones: one "Filters · 30 days · All" line. */
+/* The launch-day caveat, once in "What each number means" instead of on fourteen cards. */
+.kpi-shared-note {
+  margin: var(--space-2) 0 0;
+}
+/* A card's caveat behind an ⓘ by its label (E12): the small print opens inside the card, never past the screen's edge. */
+.kpi {
+  position: relative;
+}
+.kpi .info-tip {
+  position: static;
+}
+.kpi .info-tip-body {
+  top: 2.5rem;
+  left: 0.5rem;
+  right: 0.5rem;
+  width: auto;
+}
+/* Wide screens: the summary line is hidden and the filters always show. Phones: one "Filters · 30 days · All" line,
+   folded like every other fold (.ux-fold). */
 .insights-filters-fold > summary {
   display: none;
 }
@@ -392,14 +431,7 @@
   }
   .insights-filters-fold > summary {
     display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-height: 44px;
-    cursor: pointer;
-    list-style: none;
-  }
-  .insights-filters-fold > summary::-webkit-details-marker {
-    display: none;
+    flex-wrap: nowrap;
   }
   .insights-filters-fold > summary > .small {
     flex: 1 1 auto;
@@ -408,17 +440,31 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .insights-filters-fold > summary::after {
-    content: "⌄";
-    color: var(--muted);
-    transition: transform 0.15s ease;
-  }
-  .insights-filters-fold[open] > summary::after {
-    transform: rotate(180deg);
-  }
   .insights-filters-fold[open] > .insights-filters {
     padding-bottom: var(--space-3);
   }
+}
+
+/* ---------------- admin pages: one sentence, then "How this works" (E11) ---------------- */
+.admin-how {
+  margin: 0 0 var(--space-3);
+}
+.admin-how > p {
+  margin-top: 0;
+}
+/* /admin/feedback People: the sort at the end of the action row, as on the Agents tab. */
+.pf-actions {
+  align-items: center;
+}
+.pf-actions label {
+  margin: 0 0 0 auto;
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+.pf-actions select {
+  width: auto;
+  max-width: 100%;
+  margin: 0;
 }
 
 /* ---------------- /account ---------------- */

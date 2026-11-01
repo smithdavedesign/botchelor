@@ -124,7 +124,7 @@ const toppedUp = async (page) => Number((/plus (\d+) topped up/.exec(await page.
   await step('Stripe test purchase: pay with the test card, the webhook adds 5 dates', async () => {
     await page.goto(SITE + '/shop')
     // Buying needs an account (since 2026-10-15): the test visitor makes a throwaway one, deleted with it at the end.
-    if (await page.getByText('Sign in to buy').count()) {
+    if (await page.getByText('Buying needs an account').count()) {
       const handle = `e2e${randomBytes(4).toString('hex')}`
       const reg = await api(page, 'POST', '/api/auth/register', { handle, password: ['e2e', 'live', randomBytes(6).toString('hex')].join('-'), attest: true })
       must(ok(reg.status), `register ${reg.status} ${JSON.stringify(reg.data)?.slice(0, 160)}`)

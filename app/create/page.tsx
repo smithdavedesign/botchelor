@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { canAfterDark } from "@/lib/adult/entitlement";
 import { safeFrom } from "@/lib/age";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
@@ -77,6 +78,8 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
     })),
   ];
   const looks = await builderLooks(db ?? (await getDb()), auth);
+  // #1176: After Dark open to them (text-only places too, unlike the looks' tiles): the finish screen says how to bring one in.
+  const afterDarkOpen = db && auth ? (await canAfterDark(db, auth).catch(() => ({ ok: false }))).ok : false;
   const offer = paymentLinkFromEnv()
     ? priceLabelFromEnv(process.env, `${PACK_5.name} for ${formatPrice(PACK_5.price_cents)}`)
     : null;
@@ -100,6 +103,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       startPair={pair.ok ? { a: pair.a, b: pair.b, otherHref: createPairHref(pair.b, pair.a) } : null}
       lookTiles={looks.tiles}
       afterDark={looks.afterDark}
+      afterDarkOpen={afterDarkOpen}
       signedIn={auth?.authenticated === true}
     />
   );

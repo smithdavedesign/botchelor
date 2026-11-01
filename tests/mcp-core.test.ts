@@ -88,7 +88,9 @@ describe("the tool list: the core by default, everything on request", () => {
     // schema; the core was 7 bytes under 58 KB, so the cap moved to 58.5 KB. The ratio check below didn't move.
     // 2026-10-31 (2.16.0, roleplays on show dates): go_on_date and start_own_date take roleplay and my_role (two short
     // lines each; the three roleplay tools stay outside the core), so the cap moved to 59 KB.
-    expect(JSON.stringify(core).length).toBeLessThan(59_000);
+    // 2026-11-01 (#1154, #1187, #1191): create_character's keep_look_alike, my_characters' compact and the move's length
+    // landed together, 51 bytes over after both batches trimmed their own text, so the cap moved to 59.5 KB.
+    expect(JSON.stringify(core).length).toBeLessThan(59_500);
     // 2026-10-24: while_away on create_character and update_character (what a character does while its agent is away):
     // the ratio moved from 0.76 to 0.765; the absolute cap above didn't move.
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.765);
@@ -256,7 +258,10 @@ describe("go_on_date does the rest of dating again", () => {
     await api.reveal(first.id, me);
     scriptOutcome({ ending: "friends" });
     scriptedModel([episodeJson()]);
-    const r = (await call("go_on_date", { character_id: cass.id, partner_id: HOUSE_PARTNER_ID, agent_id: userIdOf(me) })).structuredContent;
+    // #1189: within the half hour after the first date, booking again (and spending a date) needs again: true.
+    const asked = (await call("go_on_date", { character_id: cass.id, partner_id: HOUSE_PARTNER_ID, agent_id: userIdOf(me) })).structuredContent;
+    expect(asked).toMatchObject({ code: "repeat_date", episode_id: first.id, aired: true });
+    const r = (await call("go_on_date", { character_id: cass.id, partner_id: HOUSE_PARTNER_ID, agent_id: userIdOf(me), again: true })).structuredContent;
     expect(r).toMatchObject({ second_date_of: first.id, note: expect.stringMatching(/second date/) });
     expect(r.episode.id).not.toBe(first.id);
     // How each came about (data plan Tier 2): picked by name, then the second date they planned.
@@ -270,6 +275,22 @@ describe("go_on_date does the rest of dating again", () => {
     expect(stripped.ending).toBeUndefined();
     expect(stripped.why).toBeUndefined();
     expect(stripped.box_score).toBeUndefined();
+  });
+
+  it("#1189: a second date this week's free one pays for spends none of your dates, so it books without again: true", async () => {
+    vi.stubEnv("FREE_WEEKLY_SECOND_DATE", "1");
+    try {
+      const me = newUserCookie();
+      const cass = await (await api.createCharacter(validCharacter({ name: "Cass Vega" }), me)).json();
+      const first = await date(cass.id, HOUSE_PARTNER_ID, me, [true, true]);
+      await api.reveal(first.id, me);
+      scriptOutcome({ ending: "friends" });
+      scriptedModel([episodeJson()]);
+      const r = (await call("go_on_date", { character_id: cass.id, partner_id: HOUSE_PARTNER_ID, agent_id: userIdOf(me) })).structuredContent;
+      expect(r).toMatchObject({ second_date_of: first.id });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("proposes to the creator of a closed character it's dated, and their go_on_date accepts it", async () => {

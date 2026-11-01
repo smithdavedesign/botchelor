@@ -2,7 +2,7 @@ import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
 import { collectPresence, makePresence, presenceBlocked, presenceOf } from "@/lib/adult/presence";
-import { eligibleIds } from "@/lib/adult/characters";
+import { playableIds } from "@/lib/adult/characters";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { inBackground } from "@/lib/sets";
@@ -26,7 +26,8 @@ export const GET = handle(async (req: Request) => {
   if (!viewer) return hidden();
   const refused = await mediaRefusal(db, viewer);
   if (refused) return refused;
-  const eligible = await eligibleIds(db, viewer);
+  // In their After Dark, or someone who left the cast that they keep a pair with (#1132).
+  const eligible = await playableIds(db, viewer);
   const ids = (new URL(req.url).searchParams.get("ids") ?? "").split(",").filter((id) => eligible.has(id)).slice(0, 4);
   await collectPresence(db, viewer).catch(() => 0);
   return json({ presence: await presenceOf(db, viewer, ids) });
@@ -41,7 +42,7 @@ export const POST = handle(async (req: Request) => {
   const refused = await mediaRefusal(db, viewer);
   if (refused) return refused;
   const input = parseBody(Input, await readJson(req), "invalid_presence");
-  if (!(await eligibleIds(db, viewer)).has(input.character_id)) return hidden();
+  if (!(await playableIds(db, viewer)).has(input.character_id)) return hidden();
   // What would stop it (no face yet, no output check, the month's pictures used) is said now, not lost in the background.
   const blocked = await presenceBlocked(db, viewer, input.character_id);
   if (blocked) return json({ error: blocked.error, message: blocked.message }, blocked.status);

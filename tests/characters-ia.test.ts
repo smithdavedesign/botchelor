@@ -50,12 +50,12 @@ const characterPage = async (id: string, cookie: string | null) => {
   return renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id }) }));
 };
 /** The top of a character page: everything before its bio card. */
-const top = (html: string) => html.slice(0, html.indexOf('<section class="card">'));
+const top = (html: string) => html.slice(0, html.indexOf('<section class="card" id="profile">'));
 
 describe("the basics on a contestant card", () => {
   it("shows what they're here for, their type, sign, love language and interests under the bio, once", async () => {
     const html = await characterPage("house-juniper", null);
-    const card = html.slice(html.indexOf('<section class="card">'));
+    const card = html.slice(html.indexOf('<section class="card" id="profile">'));
     expect(card).toMatch(/<dl class="profile-facts char-basics">/);
     for (const text of ["🎯 Here for", "Figuring it out", "🎭 Type", "The mysterious loner", "✨ Sign", "Pisces", "💬 Love language", "Quality time", "🎨 Into", "Ghost stories, Podcasting, Talking to gulls"]) expect(card).toContain(text);
     expect(html.split("The mysterious loner")).toHaveLength(2);
@@ -86,7 +86,7 @@ describe("“date this character” at the top of a character page (lib/date-cta
     const me = await made("Ira Fenn");
     const html = await characterPage(HOUSE_PARTNER_ID, me.cookie);
     expect(top(html)).toMatch(/Send one of yours on a date with \w+/);
-    expect(top(html)).toMatch(/Ira goes\. 1 token, like any date\./);
+    expect(top(html)).toMatch(/Ira goes\./);
     expect(top(html)).toContain(">Cast</span>"); // the origin badge
     // The call to action is also kept further down, by the share card.
     expect(html.match(/Send one of yours on a date with/g)?.length).toBe(2);
@@ -108,7 +108,7 @@ describe("“date this character” at the top of a character page (lib/date-cta
     const html = top(await characterPage(open.id, me.cookie));
     expect(html).toMatch(/Send one of yours on a date with Wren/);
     expect(html).toContain(">Made by a person</span>");
-    expect(html).toMatch(/1 token, like any date/);
+    expect(html).toMatch(/goes\./);
     setSwipeGateForTests(true);
     try {
       const gated = top(await characterPage(open.id, me.cookie));

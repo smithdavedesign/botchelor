@@ -45,6 +45,7 @@ import { setConversationEnabledForTests } from "@/lib/conversation";
 import { setAfterglowEnabledForTests } from "@/lib/afterglow";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
+import { setLookAlikeGateForTests } from "@/lib/originality";
 import { setReflectionEnabledForTests } from "@/lib/reflection";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { setPublicLaunchDayForTests } from "@/lib/our-traffic";
@@ -119,6 +120,9 @@ export async function startTestDb() {
   // The swipe gate (lib/swipe-gate.ts) is off in tests by default, so the suites written before it keep asking
   // characters out by name. tests/swipe-gate.test.ts turns it on.
   setSwipeGateForTests(false);
+  // create_character's look-alike gate (#1154) is off in tests by default too: suites make several characters from one
+  // sheet (validCharacter). tests/loop-1154.test.ts and tests/originality-twins.test.ts turn it on.
+  setLookAlikeGateForTests(false);
   // The post-date reflection path is off in tests by default too (same reason). The reflection module is
   // tested directly in tests/reflection.test.ts.
   setReflectionEnabledForTests(false);

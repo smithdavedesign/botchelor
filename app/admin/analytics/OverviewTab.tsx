@@ -23,10 +23,18 @@ export default function OverviewTab({ data, interval }: { data: Insights; interv
 
       <h2>Key numbers</h2>
       <p className="muted small">
-        Each against the previous {data.query.days} days ({against}). A change only shows in colour when it&apos;s bigger than normal
-        variation (two standard errors); under {data.min_events} events, or {data.min_n} for a rate, it says &ldquo;too few to say&rdquo;.
+        Each against the previous {data.query.days} days ({against}).
       </p>
-      <KpiGrid kpis={data.kpis.filter((k) => !ELSEWHERE.has(k.key))} segment={data.query.segment} />
+      <KpiGrid
+        kpis={data.kpis.filter((k) => !ELSEWHERE.has(k.key))}
+        segment={data.query.segment}
+        explain={
+          <>
+            A change only shows in colour when it&apos;s bigger than normal variation (two standard errors); under {data.min_events} events, or{" "}
+            {data.min_n} for a rate, it says &ldquo;too few to say&rdquo;.
+          </>
+        }
+      />
 
       <div className="chart-grid-2">
         <CountChart
@@ -62,7 +70,7 @@ export function PeopleFunnel({ data }: { data: Insights }) {
       ) : (
         <p className="chart-empty">No new people in this period.</p>
       )}
-      <details className="chart-table">
+      <details className="chart-table ux-fold">
         <summary>Show the numbers</summary>
         <div className="table-scroll">
           <table className="board">

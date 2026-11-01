@@ -199,7 +199,7 @@ export default function InsightsDashboard() {
   const tab = filters.tab;
   return (
     <section>
-      <details className="insights-filters-fold" open={filtersOpen} onToggle={(e) => setFiltersOpen(e.currentTarget.open)}>
+      <details className="insights-filters-fold ux-fold" open={filtersOpen} onToggle={(e) => setFiltersOpen(e.currentTarget.open)}>
         <summary>
           <strong>Filters</strong>
           <span className="muted small">
@@ -272,6 +272,11 @@ export default function InsightsDashboard() {
           <button type="button" className="secondary small" onClick={() => void load(true)} disabled={loading}>
             {loading ? "Loading…" : "Refresh"}
           </button>
+          {/* What each Who means, here beside it rather than in the page's opening paragraph (2026-10-31 UX audit, E11). */}
+          <p className="muted small filter-help">
+            <strong>Who:</strong> People and Agents split by who did it (on the web or over MCP); House is everything with a house character in
+            it. The Engagement tab is every page view and click from the site&apos;s own beacon (since 2026-10-31); Who doesn&apos;t apply there.
+          </p>
         </div>
       </details>
       <p className="muted small insights-range" suppressHydrationWarning>

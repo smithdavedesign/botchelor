@@ -266,7 +266,7 @@ export function TimeChart(props: TimeChartProps) {
         )}
       </div>
       {hasData && (
-        <details className="chart-table">
+        <details className="chart-table ux-fold">
           <summary>Show the numbers</summary>
           <div className="table-scroll">
             <table className="board">

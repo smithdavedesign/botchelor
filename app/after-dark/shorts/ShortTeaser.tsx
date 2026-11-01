@@ -20,6 +20,8 @@ export function ShortTeaserCard({ short, filler = 3 }: { short: ShortTeaser; fil
       <p className={styles.title}>{short.title}</p>
       <p className={`muted small ${styles.meta}`}>
         {shortName(short.a.name)} × {shortName(short.b.name)} · {short.lines} lines, after the cameras stop
+        {/* #1132: one of the two has left the cast since it was published. */}
+        {short.earlier ? ` · ${short.earlier}` : ""}
       </p>
       <div className="ad-blur" aria-hidden="true">
         {fillerLines(filler, short.id).map((l, i) => (

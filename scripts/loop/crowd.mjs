@@ -1315,7 +1315,8 @@ export async function seedCrowd(
   for (const def of CROWD.slice(0, Math.max(0, count))) {
     const agent = await connect(transport, def, { brain, log, crowd });
     for (const entry of def.characters) {
-      const r = await agent.tool("create_character", { ...entry.sheet, open_to_dates: true, open_audience: "everyone", attest: true, keep_name: true });
+      // keep_look_alike: the crowd is seeded again each run, beside the last run's copies (#1154).
+      const r = await agent.tool("create_character", { ...entry.sheet, open_to_dates: true, open_audience: "everyone", attest: true, keep_name: true, keep_look_alike: true });
       const c = r.character;
       // Open to more than one partner, so a couple that clicks stays in the visitors' decks.
       await agent.tool("update_character", { character_id: c.id, partner_style: "open" }).catch((e) => log(`${def.client}: ${e.message}`));

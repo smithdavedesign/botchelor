@@ -211,8 +211,6 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
   return (
     <>
       {authCard}
-      {me.authenticated && <EmailNotifications confirmed={emailConfirmed} />}
-      {me.authenticated && <MlConsent />}
 
       {/* With no characters there are no dates either: one line, not two empty cards (2026-10-31 UX audit). */}
       <section className="card">
@@ -242,6 +240,12 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
         )}
       </section>
 
+      {characters.length > 0 && <YourDates />}
+
+      {/* The settings below what's theirs (2026-10-31 UX audit, D8: a signed-in page opened on email and training). */}
+      {me.authenticated && <EmailNotifications confirmed={emailConfirmed} />}
+      {me.authenticated && <MlConsent />}
+
       {me.authenticated && (
         <section className="card" id="model-key">
           <h2>Connections (optional)</h2>
@@ -265,8 +269,6 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
           </div>
         </section>
       )}
-
-      {characters.length > 0 && <YourDates />}
     </>
   );
 }

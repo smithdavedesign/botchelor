@@ -144,7 +144,7 @@ export default async function MessagesPage({ params, searchParams }: Props) {
               <ThreadSwitcher chats={chats} current={here} />
             </>
           ),
-          action: <ThreadNext next={next} mineId={me.id} themId={them.id} />,
+          action: <ThreadNext next={next} mine={{ id: me.id, name: me.name }} them={{ id: them.id, name: them.name }} />,
           more,
         }}
       />

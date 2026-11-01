@@ -63,7 +63,9 @@ import { fillPremise, rolesLine } from "./roleplays";
 import type { RejectReason } from "./safety";
 import { narrateEpisode } from "./showrunner";
 import { logSceneRequests, trackMoves } from "./scenes";
-import { buildDate, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
+import { buildDate, planFromChain, rememberDate, type BuiltDate, type CharacterForDate, type DateRequest } from "./simulation";
+import { loadChain } from "./text-chain";
+import { pairKey } from "./relationships";
 import { dateShape, moveCost, moveProblem, placesOf, segmentBudget, settleLine, type DateShape } from "./moves";
 import { venueName, venuePhrase, type PlaceId } from "./venues";
 import { applyWishes, resolveWishes, settledWishes, type StoredWishes, wishReport, wishRule } from "./wishes";
@@ -404,6 +406,8 @@ export type OwnDateResult =
       moved?: { to: string; of: number; was_of: number };
       /** 2.10.1 (#672): a see_again sent with something that carries none (the recap), and why. */
       wish_ignored?: string;
+      /** #1205: start_own_date set a roleplay, so its reply can say the roleplay sets the story, not the place. */
+      roleplay?: string;
     }
   | {
       ok: false;
@@ -681,6 +685,32 @@ function ownDateRoleplay(db: Db, userId: string, a: OwnCharacter, b: OwnCharacte
 }
 
 /**
+ * #1205 (the 2026-11-01-1037 run: a night-train roleplay played in "a karaoke booth, one hour booked", and the preview never
+ * named the venue): where a self-performed date happens, as start_own_date's booking decides it (lib/simulation.ts): the
+ * place named at booking, else one the two agreed by text; null when the show deals one as it starts.
+ */
+async function ownDateVenue(db: Db, userId: string, a: OwnCharacter, b: OwnCharacter, chosen: PlaceId | null): Promise<{ place: PlaceId; by: "you" | "their_texts" } | null> {
+  if (chosen) return { place: chosen, by: "you" };
+  const [lo] = pairKey(a.id, b.id);
+  const names = a.id === lo ? { lo: a.name, hi: b.name } : { lo: b.name, hi: a.name };
+  const agreed = await loadChain(db, a.id, b.id, { usableBy: userId })
+    .then((chain) => planFromChain(db, chain, lo, names))
+    .catch(() => null);
+  return agreed?.place ? { place: agreed.place, by: "their_texts" } : null;
+}
+
+/**
+ * #1205: a roleplay sets the story, never the place (the engine's venue stands), said in start_own_date's preview and its
+ * first reply. Whether a roleplay's own place should win instead is David's call; this says what's true now.
+ */
+export function roleplayPlaceNote(where: string | null, started: boolean): string {
+  const at = where ? `the date happens at ${where}` : "the date happens at the venue the show deals as it starts (the first step's where)";
+  return started
+    ? `The roleplay sets the story, not the place: ${at}, so write its lines, and the recap, there. To play a roleplay somewhere of its own (a night train), name it with place when you book.`
+    : `The roleplay sets the story, not the place: ${at}, and its lines and recap are set there. If the premise needs a place of its own (a night train), pass it as place.`;
+}
+
+/**
  * start_own_date with preview: true (#490): every check a start makes, and what the date would be, with nothing
  * written: who the partner is and who plays it (you, another agent, or a house-run bot), its length, who'd see it,
  * and what it costs (nothing: you write the lines).
@@ -698,9 +728,14 @@ export async function previewOwnDate(
   }
   const { a, b, partnerPerformer, formatId, visibility } = checked.plan;
   const bot = partnerPerformer ? await isHouseBotAgent(db, partnerPerformer) : false;
+  // #1205: a place the start would refuse, refused here too (as start_own_date checks it).
+  const chosenPlace = input.place?.trim() ? movePlace(input.place.trim().slice(0, 80), a.name, b.name) : null;
+  if (input.place?.trim() && !chosenPlace) return err(422, "place_not_allowed", `That place can't host a date on the show. ${placeRefusedWhy(input.place)}`);
   const rp = await ownDateRoleplay(db, userId, a, b, input);
   if (!rp.ok) return err(rp.status, rp.error, rp.message);
   const two = [{ id: a.id, name: a.name }, { id: b.id, name: b.name }];
+  const at = await ownDateVenue(db, userId, a, b, chosenPlace);
+  const where = at ? venueName(at.place) : null;
   // #1060 (the 2026-10-30-2233 run: "warn before start_own_date with a partner that has been quiet for a day"): when the
   // other agent was last here, and what its silence would cost, before anything starts.
   const twoAgent = Boolean(partnerPerformer) && !bot;
@@ -730,7 +765,15 @@ export async function previewOwnDate(
           : `${shortName(b.name)}'s agent plays its side on its own model; it's told and can decline. The show writes the recap.`,
       ...takeover,
       format: { id: formatId, label: showFormat(formatId).label, lines: totalTurns(formatId) },
+      // #1205: where it happens, before it starts.
+      venue: where,
+      venue_note: !at
+        ? `The show deals the venue as it starts, away from the places of either one's last two dates; the first step names it (where). place ("a night train", a few words) sets it instead.`
+        : at.by === "you"
+          ? `Where you said (place): ${where}.`
+          : `Where the two agreed in their texts: ${where}. place sets somewhere else.`,
       roleplay: rp.roleplay ? { title: rp.roleplay.title, premise: fillPremise(rp.roleplay, two), roles: rolesLine(rp.roleplay, two), agreed: rp.roleplay.agreed } : null,
+      ...(rp.roleplay ? { roleplay_note: roleplayPlaceNote(where, false) } : {}),
       visibility,
       visibility_note:
         visibility === "private"
@@ -836,7 +879,11 @@ export async function startOwnDate(
   const step = stepFor(episodeId, built, decided, formatId, [], [a.id, b.id]);
   // 2.10.1 (#673): the clock starts at the booking (no move yet), so the first step says it too.
   const since = inserted.rows[0]?.created_at ? new Date(inserted.rows[0].created_at) : now;
-  return { ok: true, step: forViewer(step, userId, { a: userId, b: partnerPerformer ?? userId }, partnerPerformer !== null, since) };
+  return {
+    ok: true,
+    step: forViewer(step, userId, { a: userId, b: partnerPerformer ?? userId }, partnerPerformer !== null, since),
+    ...(rp.roleplay ? { roleplay: rp.roleplay.title } : {}),
+  };
 }
 
 /* ------------------------------------------------ the steps ------------------------------------------------ */
@@ -1149,14 +1196,15 @@ function stepFor(
         // 2.10.0: a side's last line leads with its one lever, see_again (the step's see_again has the rest).
         (lastLine ? `${lastLineLead(speaker.name, other.name)} ` : "") +
         // 2.6.0 (#632, the 2026-10-22-0042 run: "as a single agent I just wrote the lines myself, which is allowed but not obvious").
+        // #1187: the line's limit, said before the first line instead of in its refusal.
         `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Quickest: write ${speaker.name}'s line yourself and hand in just the dialogue as "output" ` +
-        `(a bare string works; the reply's transcript has the conversation so far): messages is optional. ` +
+        `(${TURN_DIALOGUE_MAX} characters at most; a bare string works; the reply's transcript has the conversation so far): messages is optional. ` +
         `For the best dates, run these messages in ${speaker.name}'s own process — a separate model ` +
         `instance or sub-agent that plays only ${speaker.name} — and send its raw JSON reply back as "output". Don't show it the other ` +
         `character's prompts: each side knows only what it can see and what's been said. Run it warm (temperature around ` +
         `${TURN_TEMPERATURE} if your model takes one): the sheet is a sketch, not a script, so let ${speaker.name} improvise. ` +
         (shape.enabled
-          ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move") AND says so in its own line (a "move" the dialogue doesn't actually mention is ignored), and the other says yes on the very next turn ("accept_move"). When they do, the scene changes and the date gets ${segmentBudget(totalTurns(formatId))} more lines there — so the total ("of") grows — at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date. Most turns leave "move" empty. `
+          ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move": the place in a few words) AND says so in its own line (a "move" the dialogue doesn't actually mention is ignored), and the other says yes on the very next turn ("accept_move": true, with a line that says yes to the place or names it). When they do, the scene changes and the date gets ${segmentBudget(totalTurns(formatId))} more lines there — so the total ("of") grows — at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date. Most turns leave "move" empty. `
           : "") +
         endingLine(decided.ending, endingLabel(decided.ending, built.input.date_number)) +
         (lastLine ? " The step's see_again has the rest: how to send it (an object, not a bare string) and what stands in if you don't." : "") +
@@ -2228,7 +2276,8 @@ const TURN_REJECTIONS: Record<string, string> = {
 
 /** What each content rule is, for a filtered line (#474: say which one it broke). */
 const FILTER_WHY: Record<RejectReason, string> = {
-  minor: "it suggests someone under 18 (every age on the show is adult, even in passing)",
+  // #1210: a thing's age passes straight before the thing, so say how to write one.
+  minor: "it suggests someone under 18 (every age on the show is adult, even in passing; a thing's age passes as \"a sixteen-year-old fountain\", or say \"decades old\")",
   sexual: "it has sexual content",
   innuendo: "it's innuendo (no sexual content, nudity or innuendo: at most a hug or a kiss on the cheek)",
   real_person: "it names a real person",

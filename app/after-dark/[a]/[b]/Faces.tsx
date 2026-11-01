@@ -20,6 +20,14 @@ const tagWords = (t: RatingTag) => ((PICTURE_TAGS as Record<string, string>)[t] 
 export type Faces = Record<string, { image_id: string | null; picked: boolean; face_nude?: true; nude?: { image_id: string | null; picked: boolean; from_face?: boolean } | null }>;
 
 /**
+ * This picture is the face they picked (or the nude one they picked), not just the one used while none is (#1207: the
+ * gallery said "✓ Their face" on a fallback baseline, and "Use this face" was off for it, while the Studio said no face was
+ * set: readiness counts only a picked one, lib/adult/readiness.ts).
+ */
+export const pickedFace = (face: Faces[string] | undefined, imageId: string): boolean =>
+  Boolean(face && ((face.picked && face.image_id === imageId) || (face.nude?.picked && face.nude.image_id === imageId)));
+
+/**
  * The face each of them keeps (lib/adult/steering.ts): every picture and video of them starts from it. It's the one
  * the viewer picked ("Use this face", here or on any picture of them alone), else their best-rated waist-up picture.
  * "Draw three to pick from" makes three waist-up pictures of one of them, one in each light (lib/adult/media.ts
@@ -225,8 +233,8 @@ function FaceCard({
             <li key={m.id}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={mediaUrl(m.id)} alt={`A face to pick for ${character.name}`} />
-              <button type="button" className="secondary small" disabled={busy || face.image_id === m.id || face.nude?.image_id === m.id} onClick={() => void use(m.id)}>
-                {face.image_id === m.id || face.nude?.image_id === m.id ? "✓ Their face" : "Use this face"}
+              <button type="button" className="secondary small" disabled={busy || pickedFace(face, m.id)} onClick={() => void use(m.id)}>
+                {pickedFace(face, m.id) ? "✓ Their face" : "Use this face"}
               </button>
             </li>
           ))}

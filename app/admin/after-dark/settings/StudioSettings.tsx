@@ -1,63 +1,55 @@
 "use client";
 
 import { useState } from "react";
-import { requestJson } from "@/app/request";
-import type { AdultSettings } from "@/lib/adult/settings";
 import { STUDIO_OPEN_TO, type StudioConfig } from "@/lib/adult/studio-config";
-import { USAGE_KINDS, type UsageKind } from "@/lib/adult/usage";
+import { FieldNote, UnsavedBar, blurOnEnter, useSettings } from "./autosave";
 
-const CAP_LABEL: Record<UsageKind, string> = {
-  writes: "Scene steps",
-  pictures: "Scene pictures",
-  clips: "Clips",
-  voice_lines: "Voiced lines",
-  monologues: "Two sides of a night",
-  studio: "Studio pictures (our models)",
-  studio_byok: "Studio pictures (their own key)",
-  upscales: "Upscales",
-  moments: "Moments from clips (stills, boomerangs, loops)",
-  captions: "Captions written",
-};
+const pretty = (v: unknown) => JSON.stringify(v, null, 2);
+
+const SWITCHES = [
+  ["pov", "POV shots"],
+  ["free_redo", "A free redo for a shoot they 👎'd whole"],
+  ["free_setup", "Each character's first “Set up for pictures” included (a face and a body, 2–4 pictures on us; the site's free ones a day are free_setups_per_day below)"],
+  ["reference_set_everywhere", "Nights, clips and beat pictures send body references too (test first)"],
+  ["identity_in_shoots", "Shoots send the identity pack's view for the angle too, when the model has room (test first)"],
+] as const;
 
 /**
- * The Studio's settings (lib/adult/studio-config.ts, docs/PRDs/studio.md section 11) and every monthly cap
- * (lib/adult/usage.ts): the common ones as fields, everything else as the JSON itself, validated when it's saved.
+ * The Studio's settings (lib/adult/studio-config.ts, docs/PRDs/studio.md section 11): who can open it, a shoot's size,
+ * the highest level and the switches, each saved on its own (./autosave.tsx), then everything else as the JSON itself,
+ * validated when it's saved. Its prices and every monthly cap are under Prices & caps (./PricesCaps.tsx).
  */
-export default function StudioSettings({ initial }: { initial: AdultSettings }) {
-  const [studio, setStudio] = useState<StudioConfig>(initial.studio);
-  const [caps, setCaps] = useState(initial.caps);
-  const [json, setJson] = useState(() => JSON.stringify(initial.studio, null, 2));
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+export default function StudioSettings() {
+  const { base, save, status } = useSettings();
+  const studio = base.studio;
+  // What's typed in the JSON; null while it's untouched, so it follows the saved copy (a switch here used to throw
+  // away a half-typed configuration, 2026-10-31 UX audit).
+  const [draft, setDraft] = useState<string | null>(null);
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const shown = draft ?? pretty(studio);
+  const dirty = draft !== null && draft !== pretty(studio);
+  const saving = (field: string) => status[field]?.state === "saving";
+  const num = (v: string) => Math.max(0, Math.floor(Number(v) || 0));
+  const set = (field: string, patch: Partial<Omit<StudioConfig, "share">> | { share: Partial<StudioConfig["share"]> }) => void save(field, { studio: patch });
 
-  async function save(patch: Record<string, unknown>, fromJson = false) {
-    setBusy(true);
-    setNote(null);
-    const res = await requestJson("/api/admin/after-dark/settings", patch).catch(() => null);
-    setBusy(false);
-    if (!res?.ok) return setNote({ text: res?.message ?? "Couldn't save that.", error: true });
-    const s = res.data.settings as AdultSettings;
-    // The JSON follows the saved copy unless it was edited and this save wasn't it: a checkbox here used to throw away
-    // a half-typed configuration (2026-10-31 UX audit).
-    const before = JSON.stringify(studio, null, 2);
-    setJson((cur) => (cur === before || fromJson ? JSON.stringify(s.studio, null, 2) : cur));
-    setStudio(s.studio);
-    setCaps(s.caps);
-    setNote({ text: "Saved." });
+  async function saveJson() {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(shown);
+    } catch {
+      return setJsonError("That isn't valid JSON.");
+    }
+    setJsonError(null);
+    if (await save("studio.json", { studio: parsed })) setDraft(null);
   }
 
-  const num = (v: string) => Math.max(0, Math.floor(Number(v) || 0));
-  const price = (k: Exclude<keyof StudioConfig["prices"], "shoot" | "pair">): number => studio.prices[k];
-
   return (
-    <section className="card after-dark-settings" style={{ gridTemplateColumns: "minmax(0, 1fr)" }}>
-      <h2>🎨 Studio</h2>
-      <p className="muted small">
-        Shoots of one character, restyles, recasts and body references (docs/PRDs/studio.md). Prices are in bought tokens (5 for $4); a shoot
-        makes {studio.shoot_size} pictures.
-      </p>
-      <label htmlFor="ad-studio-open">Who can open it</label>
-      <select id="ad-studio-open" value={studio.open_to} disabled={busy} onChange={(e) => void save({ studio: { open_to: e.target.value } })}>
+    <section className="card after-dark-settings" style={{ gridTemplateColumns: "minmax(0, 1fr)" }} aria-label="Studio">
+      <p className="muted small">Shoots of one character, restyles, recasts and body references (docs/PRDs/studio.md).</p>
+      <label htmlFor="ad-studio-open">
+        Who can open it <FieldNote field="studio.open_to" />
+      </label>
+      <select id="ad-studio-open" value={studio.open_to} disabled={saving("studio.open_to")} onChange={(e) => set("studio.open_to", { open_to: e.target.value as StudioConfig["open_to"] })}>
         {STUDIO_OPEN_TO.map((x) => (
           <option key={x} value={x}>
             {x === "admins" ? "Admins only" : "Everyone After Dark is open to"}
@@ -65,98 +57,88 @@ export default function StudioSettings({ initial }: { initial: AdultSettings }) 
         ))}
       </select>
       <div className="ad-settings-grid">
-        {(
-          [
-            ["Shoot, standard", studio.prices.shoot.standard, (n: number) => ({ prices: { shoot: { ...studio.prices.shoot, standard: n } } })],
-            ["Shoot, pro", studio.prices.shoot.pro, (n: number) => ({ prices: { shoot: { ...studio.prices.shoot, pro: n } } })],
-            ["Restyle", price("restyle"), (n: number) => ({ prices: { restyle: n } })],
-            ["Recast", price("recast"), (n: number) => ({ prices: { recast: n } })],
-            ["Body reference", price("body"), (n: number) => ({ prices: { body: n } })],
-            ["More like this", price("variations"), (n: number) => ({ prices: { variations: n } })],
-            ["Upscale", price("upscale"), (n: number) => ({ prices: { upscale: n } })],
-            ["Identity pack (8 views; fewer cost their share)", price("identity"), (n: number) => ({ prices: { identity: n } })],
-            ["PG Studio identity pack", studio.pg.identity_price, (n: number) => ({ pg: { identity_price: n } })],
-            ["Carousel (6 angles of a picture)", price("carousel"), (n: number) => ({ prices: { carousel: n } })],
-            ["SFW twin (a picture made safe for work)", price("sfw_twin"), (n: number) => ({ prices: { sfw_twin: n } })],
-            ["PG Studio carousel", studio.pg.carousel_price, (n: number) => ({ pg: { carousel_price: n } })],
-            ["Animate 5 s", price("animate_5"), (n: number) => ({ prices: { animate_5: n } })],
-            ["Animate 10 s", price("animate_10"), (n: number) => ({ prices: { animate_10: n } })],
-            ["On their own key", price("own_key"), (n: number) => ({ prices: { own_key: n } })],
-          ] as const
-        ).map(([label, value, patch]) => (
-          <label key={label}>
-            {label} (tokens)
-            <input type="number" min={0} max={100} defaultValue={value} disabled={busy} onBlur={(e) => num(e.target.value) !== value && void save({ studio: patch(num(e.target.value)) })} />
-          </label>
-        ))}
         <label>
-          Pictures a shoot
-          <input type="number" min={1} max={4} defaultValue={studio.shoot_size} disabled={busy} onBlur={(e) => num(e.target.value) !== studio.shoot_size && void save({ studio: { shoot_size: num(e.target.value) } })} />
+          <span>
+            Pictures a shoot <FieldNote field="studio.shoot_size" />
+          </span>
+          <input
+            type="number"
+            min={1}
+            max={4}
+            key={studio.shoot_size}
+            defaultValue={studio.shoot_size}
+            onBlur={(e) => num(e.target.value) !== base.studio.shoot_size && set("studio.shoot_size", { shoot_size: num(e.target.value) })}
+            onKeyDown={blurOnEnter}
+          />
         </label>
         <label>
-          Highest level (0 dressed … 3 explicit)
-          <input type="number" min={0} max={3} defaultValue={studio.max_level} disabled={busy} onBlur={(e) => num(e.target.value) !== studio.max_level && void save({ studio: { max_level: num(e.target.value) } })} />
+          <span>
+            Highest level <FieldNote field="studio.max_level" />
+          </span>
+          <input
+            type="number"
+            min={0}
+            max={3}
+            key={studio.max_level}
+            defaultValue={studio.max_level}
+            onBlur={(e) => num(e.target.value) !== base.studio.max_level && set("studio.max_level", { max_level: num(e.target.value) })}
+            onKeyDown={blurOnEnter}
+          />
+          <small className="muted ad-hint">0 dressed … 3 explicit.</small>
         </label>
       </div>
-      {(
-        [
-          ["pov", "POV shots"],
-          ["free_redo", "A free redo for a shoot they 👎'd whole"],
-          ["reference_set_everywhere", "Nights, clips and beat pictures send body references too (test first)"],
-          ["identity_in_shoots", "Shoots send the identity pack's view for the angle too, when the model has room (test first)"],
-        ] as const
-      ).map(([k, label]) => (
+      {SWITCHES.map(([k, label]) => (
         <label key={k} className="ad-check-row">
-          <input type="checkbox" checked={studio[k]} disabled={busy} onChange={(e) => void save({ studio: { [k]: e.target.checked } })} /> <span>{label}</span>
+          <input type="checkbox" checked={studio[k]} disabled={saving(`studio.${k}`)} onChange={(e) => set(`studio.${k}`, { [k]: e.target.checked })} />{" "}
+          <span>
+            {label} <FieldNote field={`studio.${k}`} />
+          </span>
         </label>
       ))}
       <label className="ad-check-row">
-        <input type="checkbox" checked={studio.share.photos} disabled={busy} onChange={(e) => void save({ studio: { share: { photos: e.target.checked } } })} />{" "}
-        <span>Send a dressed picture as a photo in their texts</span>
+        <input type="checkbox" checked={studio.share.photos} disabled={saving("studio.share.photos")} onChange={(e) => set("studio.share.photos", { share: { photos: e.target.checked } })} />{" "}
+        <span>
+          Send a dressed picture as a photo in their texts <FieldNote field="studio.share.photos" />
+        </span>
       </label>
       <label className="ad-check-row">
-        <input type="checkbox" checked={studio.share.after_dark} disabled={busy} onChange={(e) => void save({ studio: { share: { after_dark: e.target.checked } } })} />{" "}
-        <span>Share in After Dark (the recipient accepts first)</span>
+        <input
+          type="checkbox"
+          checked={studio.share.after_dark}
+          disabled={saving("studio.share.after_dark")}
+          onChange={(e) => set("studio.share.after_dark", { share: { after_dark: e.target.checked } })}
+        />{" "}
+        <span>
+          Share in After Dark (the recipient accepts first) <FieldNote field="studio.share.after_dark" />
+        </span>
       </label>
-      <details className="ad-settings-section">
+      <details className="ad-settings-section ux-fold">
         <summary>
-          <h3>Everything else (models, options switched off, own keys)</h3>
+          <h3>Everything else</h3>
+          <span className="fold-status muted small">models, options switched off, own keys</span>
         </summary>
-        <p className="muted small">The Studio&apos;s whole configuration. Saving checks every value; a mistake is refused with what was wrong.</p>
-        <textarea aria-label="Studio configuration (JSON)" rows={18} value={json} onChange={(e) => setJson(e.target.value)} spellCheck={false} style={{ fontFamily: "monospace", width: "100%" }} />
-        <button
-          type="button"
-          className="primary"
-          disabled={busy}
-          onClick={() => {
-            let parsed: unknown;
-            try {
-              parsed = JSON.parse(json);
-            } catch {
-              return setNote({ text: "That isn't valid JSON.", error: true });
-            }
-            void save({ studio: parsed }, true);
-          }}
-        >
-          Save the configuration
-        </button>
+        <label htmlFor="ad-studio-json">
+          The Studio&apos;s whole configuration <FieldNote field="studio.json" />
+        </label>
+        <textarea id="ad-studio-json" rows={18} value={shown} onChange={(e) => setDraft(e.target.value)} spellCheck={false} style={{ fontFamily: "monospace", width: "100%" }} />
+        <small className="muted ad-hint">Saving checks every value; a mistake is refused with what was wrong.</small>
+        {jsonError && (
+          <p className="error small" role="alert">
+            {jsonError}
+          </p>
+        )}
+        {dirty && (
+          <UnsavedBar
+            what="the Studio's configuration"
+            busy={saving("studio.json")}
+            onSave={() => void saveJson()}
+            onDiscard={() => {
+              setDraft(null);
+              setJsonError(null);
+            }}
+          />
+        )}
       </details>
-
-      <h2>Monthly caps, per person</h2>
-      <p className="muted small">What each person can make a month (admins are never capped). The tokens protect the margin; these protect the checker and storage.</p>
-      <div className="ad-settings-grid">
-        {USAGE_KINDS.map((k) => (
-          <label key={k}>
-            {CAP_LABEL[k]}
-            <input type="number" min={0} defaultValue={caps[k]} disabled={busy} onBlur={(e) => num(e.target.value) !== caps[k] && void save({ caps: { [k]: num(e.target.value) } })} />
-          </label>
-        ))}
-      </div>
-      {note && (
-        <p className={note.error ? "error" : "muted small"} role={note.error ? "alert" : "status"}>
-          {note.text}
-        </p>
-      )}
     </section>
   );
 }

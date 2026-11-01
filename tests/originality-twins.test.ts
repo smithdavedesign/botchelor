@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { HOUSE_KITS } from "@/lib/house-kits";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
-import { conceptTerms, scoreSheet, surnamesClose, termWeights, twinWhy, type SheetDraft } from "@/lib/originality";
+import { conceptTerms, hookSentences, hookWeights, scoreSheet, setLookAlikeGateForTests, surnamesClose, termWeights, twinWhy, type SheetDraft } from "@/lib/originality";
 import { startTestDb, validCharacter } from "./helpers";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -48,13 +48,35 @@ const thaddeusTides: Sheet = {
     prompts: [{ id: "geek_out", answer: "Tide tables and the exact moment slack water turns" }, { id: "simple_pleasures", answer: "Thermos tea on a cold jetty" }],
   },
 };
+// #1177, the 2026-10-31-2052 run: a human-made ferry captain and an agent's character with another job and the same hook
+// (from the report: "a ferry captain who writes one postcard to a stranger every crossing and has never once signed his
+// name", and "a postcard-writer who never signs his name"). Bevan's job and bio are ours; the run gave only his hook.
+const teodor: Sheet = {
+  id: "teodor", name: "Teodor Abalos-Ferreira",
+  bio: "A ferry captain who writes one postcard to a stranger every crossing and has never once signed his name.",
+  traits: ["steady", "private", "romantic"], want: "someone who would write back without knowing who to", dealbreaker: "people who read other people's mail",
+  extras: { occupation: "Ferry captain" },
+};
+const bevan: Sheet = {
+  id: "bevan", name: "Bevan Quarmby",
+  bio: "A municipal tree surgeon who climbs before dawn and knows every elm in the borough by its lean.",
+  traits: ["shy", "wry", "patient"], want: "someone who notices small kindnesses", dealbreaker: "people who carve their initials into bark",
+  extras: { occupation: "Tree surgeon", quirk: "Writes postcards to strangers, never signs them." },
+};
 const house: Sheet[] = [...HOUSE_CHARACTERS, ...PREMIUM_HOUSE_CHARACTERS].map((c) => ({
   id: c.id, name: c.name, bio: c.bio, traits: c.traits, want: c.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: HOUSE_KITS[c.id],
 }));
-const everyone = [...house, bertrand, okonkwoLind, ostrowski, oyelaran, odalysLamp, thaddeusTides];
+const everyone = [...house, bertrand, okonkwoLind, ostrowski, oyelaran, odalysLamp, thaddeusTides, teodor, bevan];
 const terms = new Map(everyone.map((s) => [s.id, conceptTerms(s)]));
 const weight = termWeights([...terms.values()]);
-const twin = (a: Sheet, b: Sheet) => twinWhy(a, b, terms.get(a.id) ?? conceptTerms(a), terms.get(b.id) ?? conceptTerms(b), weight);
+const hooks = new Map(everyone.map((s) => [s.id, hookSentences(s)]));
+const hookWeight = hookWeights([...hooks.values()]);
+const twin = (a: Sheet, b: Sheet) =>
+  twinWhy(a, b, terms.get(a.id) ?? conceptTerms(a), terms.get(b.id) ?? conceptTerms(b), weight, {
+    mine: hooks.get(a.id) ?? hookSentences(a),
+    theirs: hooks.get(b.id) ?? hookSentences(b),
+    weight: hookWeight,
+  });
 
 describe("originality: concept twins (visitor runs 4 and 5)", () => {
   it("near-identical surnames, however they're spelled", () => {
@@ -89,6 +111,19 @@ describe("originality: concept twins (visitor runs 4 and 5)", () => {
     // Without them, all the two shared was "lighthouse" and "narrate".
     const bare = (x: Sheet): Sheet => ({ ...x, id: `${x.id}-bare`, extras: {} });
     expect(twin(bare(thaddeusTides), bare(odalysLamp))).toBeNull();
+  });
+
+  it("one hook in common is a twin, whatever the jobs: unsigned postcards to strangers (#1177)", () => {
+    // The whole sheets share too few words for the other signals: the hook alone is what flags it.
+    expect(twinWhy(bevan, teodor, conceptTerms(bevan), conceptTerms(teodor), weight)).toBeNull();
+    expect(twin(bevan, teodor)).toMatchObject({
+      kind: "concept",
+      why: 'Teodor Abalos-Ferreira has the same hook as this one (yours: "Writes postcards to strangers, never signs"; theirs: "writes one postcard to a stranger every crossing and has never once signed").',
+    });
+    expect(twin(teodor, bevan)?.kind).toBe("concept");
+    // Postcards alone, or strangers alone, aren't a hook.
+    const collector: Sheet = { ...bevan, id: "collector", extras: { occupation: "Tree surgeon", quirk: "Collects vintage postcards of seaside piers." } };
+    expect(twin(collector, teodor)).toBeNull();
   });
 
   it("a shared first name alone is a lighter nudge, and costs less than reading like someone", () => {
@@ -139,7 +174,22 @@ describe("check_originality and create_character see them on the show", () => {
     const checked = (await as(second, "check_originality", sheet(thaddeusTides))).structuredContent.originality;
     expect(checked.similar).toEqual([expect.objectContaining({ id: first.character.id, name: "Odalys Oyelaran", kind: "concept" })]);
     expect(checked.score).toBeLessThan(70); // 70 in the run, with nothing flagged
-    const made = (await as(second, "create_character", sheet(thaddeusTides))).structuredContent;
+    // keep_look_alike: saved anyway, to see what the save says (#1154 refuses it without).
+    const made = (await as(second, "create_character", { ...sheet(thaddeusTides), keep_look_alike: true })).structuredContent;
     expect(made.look_alikes).toEqual([expect.objectContaining({ id: first.character.id, name: "Odalys Oyelaran", both: expect.arrayContaining([expect.stringMatching(/barometer|tide table/)]) })]);
+  });
+
+  it("Bevan's unsigned postcards flag against Teodor's on the show, with the embedding pass off, and his save is refused (#1177, #1154)", async () => {
+    // Teodor is human-made on the show (the web builder isn't gated); here an agent saves him past his own look-alike, the
+    // house cast's ferry captain.
+    const made = (await call("create_character", { ...sheet(teodor), keep_look_alike: true })).structuredContent.character;
+    const checked = (await call("check_originality", sheet(bevan))).structuredContent.originality;
+    expect(checked.similar).toEqual([expect.objectContaining({ id: made.id, name: "Teodor Abalos-Ferreira", kind: "concept", why: expect.stringMatching(/has the same hook as this one \(yours: "Writes postcards to strangers, never signs"/) })]);
+    expect(checked.verdict).toBe("consider changing");
+    expect(checked.score).toBeLessThan(95); // 95 in the run, with nothing flagged
+    setLookAlikeGateForTests(true); // off in the shared harness
+    const saved = await call("create_character", { ...sheet(bevan), attest: true });
+    expect(saved.structuredContent).toMatchObject({ code: "look_alike", saved: false, look_alikes: [expect.objectContaining({ name: "Teodor Abalos-Ferreira" })] });
+    setLookAlikeGateForTests(false);
   });
 });
