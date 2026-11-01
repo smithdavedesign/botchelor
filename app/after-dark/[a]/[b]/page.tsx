@@ -22,6 +22,10 @@ import SceneWriter from "./SceneWriter";
 import ShortsPanel from "./ShortsPanel";
 import TwoSidesPanel from "./TwoSidesPanel";
 import { housePair } from "@/lib/adult/shorts";
+import { keptPairs, pairAbsence } from "@/lib/adult/characters";
+import { seasonMonth } from "@/lib/season-cast";
+import { shortName } from "@/lib/names";
+import { pairKey } from "@/lib/relationships";
 import CharacterName from "@/app/CharacterName";
 import { currentHere } from "../../view";
 
@@ -39,7 +43,10 @@ const refOf = (id: string, name: string, c: PublicCharacter | null): CharacterRe
   portrait: c?.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null,
 });
 
-/** Two of this season's cast, after dark. Not found for anyone but the admin, or for any other pair (lib/adult). */
+/**
+ * Two of this season's cast, after dark, or a pair kept from an earlier one (#1132). Not found for anyone After Dark isn't
+ * open to; a pair they can't have says why (pairAbsence) when it's theirs to know.
+ */
 export default async function AfterDarkScenePage({ params }: Props) {
   const { a, b } = await params;
   const db = await getDb();
@@ -50,28 +57,34 @@ export default async function AfterDarkScenePage({ params }: Props) {
   const textOnlyHere = here.mode === "text_only";
   const scene = await openScene(db, admin, a, b);
   if (!scene) {
-    // #1132: a night this person had with someone who has since left the cast (a new season) isn't a bare 404: it says
-    // why. What happens to those nights (keep playing, read only) is David's call; until then they're kept, not shown.
-    const earlier = (
-      await db.query<{ a: string; b: string }>(
-        `select ca.name as a, cb.name as b from adult_scenes s join characters ca on ca.id = s.character_a join characters cb on cb.id = s.character_b
-          where s.owner_id = $1 and ((s.character_a = $2 and s.character_b = $3) or (s.character_a = $3 and s.character_b = $2)) limit 1`,
-        [admin, a, b],
-      )
-    ).rows[0];
-    if (!earlier) notFound();
+    // #1132 (David, 2026-11-01: "keep them playable … no bare 404"): a pair kept from an earlier cast opens as usual
+    // (lib/adult/characters.ts keptPairs). One they can't have, with a house character who has left the cast or one of
+    // their own switched out, says so instead of a bare 404. Anything else (another person's character) stays not found.
+    const absent = await pairAbsence(db, admin, a, b);
+    if (!absent) notFound();
+    const out = [...absent.left, ...absent.off];
     return (
       <div className="after-dark-mode">
-        <article className="after-dark">
-          <h1>
-            {earlier.a} &amp; {earlier.b}
-          </h1>
-          <p>
-            One of them isn&apos;t in After Dark&apos;s cast this season, so this night can&apos;t go on for now. Your nights with them are
-            kept, not deleted.
+        <article className="after-dark" data-pair-absent="true">
+          <p className="kicker">
+            <Link href="/after-dark">← 🌙 After Dark</Link>
           </p>
+          <h1>{out.length > 1 ? "They aren't in your After Dark" : `${shortName(out[0].name)} isn't in your After Dark`}</h1>
+          {absent.left.map((c) => (
+            <p key={c.id}>
+              {c.season
+                ? `${c.name} left the cast with ${seasonMonth(c.season)}'s season.`
+                : `${c.name} isn't on this season's cast.`}{" "}
+              A night already under way with them stays with whoever had it; a new one is with this season&apos;s cast.
+            </p>
+          ))}
+          {absent.off.map((c) => (
+            <p key={c.id}>{c.name} is switched out of your After Dark. Switch them in under Your settings to play this pair.</p>
+          ))}
           <p>
-            <Link href="/after-dark">Back to After Dark</Link>
+            <Link className="button primary" href="/after-dark">
+              {absent.left.length ? "Pick from this season's cast" : "Back to After Dark"}
+            </Link>
           </p>
         </article>
       </div>
@@ -80,6 +93,8 @@ export default async function AfterDarkScenePage({ params }: Props) {
   // The viewer's own venues and roleplays (lib/studio/library.ts), beside the show's in Scene & roleplay.
   const library = await getLibrary(db, admin).catch(() => ({ prompts: [], places: [], roleplays: [] }));
   const drawnSets = (await db.query<{ label: string }>(`select label from place_sets where status = 'ready' order by updated_at desc limit 300`)).rows.map((r) => r.label);
+  // A pair kept from an earlier cast (#1132) says so, as on the hub.
+  const earlier = (await keptPairs(db, admin, { pair: pairKey(scene.a.id, scene.b.id) }))[0] ?? null;
   const characters = [refOf(scene.a.id, scene.a.name, await getPublicCharacter(db, scene.a.id)), refOf(scene.b.id, scene.b.name, await getPublicCharacter(db, scene.b.id))] as [CharacterRef, CharacterRef];
   return (
     <div className="after-dark-mode">
@@ -101,6 +116,12 @@ export default async function AfterDarkScenePage({ params }: Props) {
             ? "Their own night: they haven't been on a show date."
             : "They haven't been on a date yet: this is how they meet."}
       </p>
+      {earlier && (
+        <p className="muted small" data-earlier-cast="true">
+          🗓 {earlier.label}: {earlier.gone.map((id) => shortName(id === scene.a.id ? scene.a.name : scene.b.name)).join(" and ")}{" "}
+          {earlier.gone.length > 1 ? "have" : "has"} left the cast since, and this pair stays yours to play.
+        </p>
+      )}
       {/* The Studio (lib/adult/studio.ts) for whichever of the two it's the viewer's to use on. */}
       {await (async () => {
         const open = [];

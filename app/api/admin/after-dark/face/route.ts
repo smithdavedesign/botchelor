@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eligibleIds } from "@/lib/adult/characters";
+import { playableIds } from "@/lib/adult/characters";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
 import { facesFor, setFaceReference } from "@/lib/adult/steering";
@@ -26,7 +26,8 @@ export const POST = handle(async (req: Request) => {
   const refused = await mediaRefusal(db, viewer);
   if (refused) return refused;
   const input = parseBody(Input, await readJson(req), "invalid_request");
-  if (!(await eligibleIds(db, viewer)).has(input.character_id)) return hidden();
+  // In their After Dark, or someone who left the cast that they keep a pair with (#1132).
+  if (!(await playableIds(db, viewer)).has(input.character_id)) return hidden();
   const r = await setFaceReference(db, viewer, input.character_id, input.image_id, input.rivals ?? [], { nude: input.nude === true });
   if (!r.ok) return json({ error: r.error, message: r.message }, r.status);
   // Both of their faces as they are now: a new face takes the nude one with it (lib/adult/steering.ts setFaceReference).

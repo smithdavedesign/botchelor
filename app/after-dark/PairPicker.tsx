@@ -53,6 +53,12 @@ function PairRow({ p, now }: { p: Pair; now: number | null }) {
             </span>
           )}
           {meta && <span className="ad-pair-meta muted small">{meta}</span>}
+          {/* #1132: one of the two has left the cast since; the pair stays theirs, and says which month it's from. */}
+          {p.earlier && (
+            <span className="ad-pair-earlier muted small" data-earlier-cast="true">
+              🗓 {p.earlier}
+            </span>
+          )}
         </span>
       </Link>
     </li>
@@ -71,7 +77,8 @@ function Face({ c, on, onPick }: { c: Who; on: boolean; onPick: () => void }) {
 /**
  * The hub's scenes. The pairs under way are listed under Continue. A new pair is picked by faces, not a list (David,
  * 2026-10-24: the long list of every pair): everyone's face; pick one and only those they can pair with show; pick the
- * second and the way in shows. Start over clears either pick and brings every face back.
+ * second and the way in shows. Start over clears either pick and brings every face back. A pair kept from an earlier
+ * cast (#1132) is only under Continue: who left the cast isn't a face to start a new pair with.
  *
  * data-first-scene: the first pair's scene, for the screenshot scripts (they open a scene without picking).
  */
@@ -80,15 +87,17 @@ export default function PairPicker({ pairs }: { pairs: Pair[] }) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => setNow(Date.now()), []);
   const [two, setTwo] = useState<string | null>(null);
-  // Under way (lines, or a chapter filed), the latest played first.
-  const going = pairs.filter((p) => p.lines > 0 || (p.chapter ?? 1) > 1).sort((x, y) => (y.updated_at ?? "").localeCompare(x.updated_at ?? ""));
+  // Under way (lines, or a chapter filed, or kept from an earlier cast), the latest played first.
+  const going = pairs.filter((p) => p.earlier || p.lines > 0 || (p.chapter ?? 1) > 1).sort((x, y) => (y.updated_at ?? "").localeCompare(x.updated_at ?? ""));
+  // The pairs a new one is picked from: this season's (a kept pair is under Continue only).
+  const open = useMemo(() => pairs.filter((p) => !p.earlier), [pairs]);
   // Everyone in a pair, once each, by name.
   const cast = useMemo(() => {
     const seen = new Map<string, Who>();
-    for (const p of pairs) for (const c of [p.a, p.b]) if (!seen.has(c.id)) seen.set(c.id, c);
+    for (const p of open) for (const c of [p.a, p.b]) if (!seen.has(c.id)) seen.set(c.id, c);
     return [...seen.values()].sort((x, y) => x.name.localeCompare(y.name));
-  }, [pairs]);
-  const pairOf = (x: string, y: string) => pairs.find((p) => (p.a.id === x && p.b.id === y) || (p.a.id === y && p.b.id === x)) ?? null;
+  }, [open]);
+  const pairOf = (x: string, y: string) => open.find((p) => (p.a.id === x && p.b.id === y) || (p.a.id === y && p.b.id === x)) ?? null;
   const picked = cast.find((c) => c.id === one) ?? null;
   // Those the first pick can pair with: everyone they have a pair with.
   const partners = picked ? cast.filter((c) => c.id !== picked.id && pairOf(picked.id, c.id)) : [];
