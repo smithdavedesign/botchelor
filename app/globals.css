@@ -6782,6 +6782,10 @@ button.table-more {
 /* On a wide screen the deck sits beside its intro, so Pass and Like are on the first screen (2026-10-31 UX audit:
    under the intro they were ~950px down at 1280×800). The deck's height leaves room for them under it. */
 @media (min-width: 1024px) {
+  /* Wider than the reading column, or the intro beside the deck is ~270px and "Who should Thessaly meet?" is four lines. */
+  main:has(> .swipe-page) {
+    max-width: 62rem;
+  }
   .swipe-page {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 24rem;

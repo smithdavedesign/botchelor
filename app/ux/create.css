@@ -319,6 +319,13 @@
 .wizard .wizard-still .link-button {
   margin: 0;
 }
+/* On a touchscreen "Show me" keeps its 44px tap area without opening a gap in the line: the negative margin takes the
+   room back, as for every text button (globals.css), which the margin above had undone. */
+@media (pointer: coarse) {
+  .wizard .wizard-still .link-button {
+    margin-block: -0.625rem;
+  }
+}
 /* The steps that can be skipped: a dashed ring, "optional" under the name. */
 .wizard-rail-step.optional:not(.current):not(.done) .wizard-rail-dot {
   border-style: dashed;
