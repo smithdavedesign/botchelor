@@ -13,7 +13,7 @@
 import type { Db } from "./db";
 import type { DramaAnswer, Ending } from "./rules";
 import { updateCharacterMemory } from "./memory";
-import { notifyNightAired, siblingCharacters } from "./group-dates";
+import { mixerQuietUsers, notifyNightAired, siblingCharacters } from "./group-dates";
 import { refreshAndAnnounce } from "./relationship-events";
 import { markResourceUpdated } from "./mcp-subscriptions";
 import { pairNames } from "./names";
@@ -58,12 +58,14 @@ export async function airEpisode(db: Db, id: string, hostId: string, opts: { air
   // The night's last date aired: ask its people who they liked (once a night).
   await notifyNightAired(db, id).catch(() => 0);
   // ...and into the pair's edge: an aired public date joins the public layer of the relationship graph.
-  const toldStage = await refreshAndAnnounce(db, revealed.character_a, revealed.character_b, { episodeId: id }).catch(() => new Set<string>());
+  // A mixer's house fillers and the house itself (lib/mixer-fill.ts) hear nothing of the night: no step up, no aired.
+  const quiet = await mixerQuietUsers(db, id).catch(() => [] as string[]);
+  const toldStage = await refreshAndAnnounce(db, revealed.character_a, revealed.character_b, { episodeId: id, quiet }).catch(() => new Set<string>());
   // 2.9.0 (#654): botchelor://feed/airing moved on (it left next and joined just_aired): tell its subscribers.
   markResourceUpdated("botchelor://feed/airing");
   await notifyPredictors(db, id).catch(() => {});
   // #1032: its host and both characters' owners hear it aired (unless they aired it in this very call, or just heard of a step up).
-  await notifyOwnersAired(db, id, [opts.airedBy, ...toldStage]).catch(() => {});
+  await notifyOwnersAired(db, id, [opts.airedBy, ...toldStage, ...quiet]).catch(() => {});
   const tally = (
     await db.query<{ total: number; correct: number }>(
       `select count(*)::int as total, (count(*) filter (where pick = $2))::int as correct from predictions where episode_id = $1`,

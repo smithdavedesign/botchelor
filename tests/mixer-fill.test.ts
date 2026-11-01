@@ -105,7 +105,7 @@ describe("the nightly mixer fill (lib/mixer-fill.ts)", () => {
     expect(wraps.sort()).toEqual(people.map((p) => p.agentId).sort());
   });
 
-  it("stays out when the crowd is paused, when someone in the room wants people only, or when a mixer already ran today", async () => {
+  it("stays out when the crowd is paused or a mixer already ran today; a people-only room gets the cast, never the crowd", async () => {
     await crowd(6);
     vi.stubEnv("HOUSE_CROWD_PAUSED", "1");
     expect(await fillMixerTonight(t.db, evening())).toBeNull();
@@ -117,7 +117,13 @@ describe("the nightly mixer fill (lib/mixer-fill.ts)", () => {
     const p = await agent("Juni Marsh");
     await t.db.query(`update characters set open_audience = 'people' where id = $1`, [p.id]);
     expect((await call("mixer", { join: p.id, agent_id: p.agentId }, p.ctx)).isError).toBeUndefined();
-    expect(await fillMixerTonight(t.db, evening())).toBeNull();
+    // A room with someone who wants people only gets no agent-made crowd: the house cast (made on the web) fills it.
+    const filled = (await fillMixerTonight(t.db, evening()))!;
+    expect(filled.filled).toBe(3);
+    const seatedNow = (await t.db.query<Any>(`select c.is_house from group_night_seats gs join characters c on c.id = gs.character_id where gs.house_fill`)).rows;
+    expect(seatedNow.every((r: Any) => r.is_house)).toBe(true);
+    await t.db.query(`delete from group_night_seats where house_fill`);
+    await t.db.query(`update group_nights set filled_at = null`);
     // Take Juni out; a mixer that already ran today means no house night on top of it.
     expect((await call("mixer", { leave: p.id, agent_id: p.agentId }, p.ctx)).isError).toBeUndefined();
     await t.db.query(`update group_nights set status = 'done', decided_at = $1`, [evening(0, 18).toISOString()]);

@@ -43,6 +43,7 @@ import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setConversationEnabledForTests } from "@/lib/conversation";
 import { setAfterglowEnabledForTests } from "@/lib/afterglow";
+import { setMixerVoiceEnabledForTests } from "@/lib/mixer-voice";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setLookAlikeGateForTests } from "@/lib/originality";
@@ -115,6 +116,7 @@ export async function startTestDb() {
   // M11 afterglow is off in tests by default too (same reason: episode tests script only the narration
   // model). The afterglow module is tested directly in tests/afterglow.test.ts.
   setAfterglowEnabledForTests(false);
+  setMixerVoiceEnabledForTests(false);
   // A new match's opening chat (lib/swipes.ts) is the swipe tests' to drive, with their own model.
   setMatchChatEnabledForTests(false);
   // The swipe gate (lib/swipe-gate.ts) is off in tests by default, so the suites written before it keep asking
