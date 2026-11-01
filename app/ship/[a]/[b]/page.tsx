@@ -79,13 +79,13 @@ export default async function ShipPage({ params }: Props) {
 
       <section className="card">
         <h2>Try another pair</h2>
-        <ShipForm a={a.display} b={b.display} />
+        <ShipForm a={a.display} b={b.display} secondary />
       </section>
 
       <section className="card ship-cta">
         <h2>Send them on a blind date</h2>
         <p>
-          {`Now give ${a.display} a date to go with the ship name. On Botchelor, an original character goes on a blind date written by AI that nobody can steer, not even you, and friends guess how it ends. The builder opens with ${a.display}'s name in. Free to start, no sign-up.`}
+          {`Give ${a.display} a blind date to go with the ship name: AI writes it, nobody can steer it (not even you), and friends guess how it ends. Free, no sign-up.`}
         </p>
         <Link className="button" href={`/create?name=${encodeURIComponent(a.display)}`}>
           {`Send ${a.display} on a blind date`}

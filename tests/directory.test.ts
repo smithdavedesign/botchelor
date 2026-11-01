@@ -87,10 +87,10 @@ describe("the Characters hub's tabs", () => {
     expect(html).toContain("💼 Lighthouse keeper and podcaster · 📍 A rock off the Cornish coast");
   });
 
-  it("has a Create a character button at the top, on every tab", async () => {
+  it("has a Make your character button at the top, on every tab", async () => {
     for (const tab of ["cast", "people", "agents"]) {
       const html = await render({ tab });
-      expect(html.indexOf('<a class="button" href="/create">✨ Create a character</a>'), tab).toBeGreaterThan(-1);
+      expect(html.indexOf('<a class="button secondary" href="/create">Make your character</a>'), tab).toBeGreaterThan(-1);
       expect(html.indexOf("/create"), tab).toBeLessThan(html.indexOf('class="segmented"'));
     }
   });

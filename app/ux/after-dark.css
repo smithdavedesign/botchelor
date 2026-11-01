@@ -456,6 +456,7 @@ button.ad-capture-item:disabled {
     flex-wrap: nowrap;
   }
   .theater-after-dark .theater-tools > * {
+    flex-shrink: 0;
     white-space: nowrap;
   }
   .ad-theater-options {

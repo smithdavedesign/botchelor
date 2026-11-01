@@ -30,16 +30,19 @@ export default function StudioSettings({ initial }: { initial: AdultSettings }) 
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
 
-  async function save(patch: Record<string, unknown>) {
+  async function save(patch: Record<string, unknown>, fromJson = false) {
     setBusy(true);
     setNote(null);
     const res = await requestJson("/api/admin/after-dark/settings", patch).catch(() => null);
     setBusy(false);
     if (!res?.ok) return setNote({ text: res?.message ?? "Couldn't save that.", error: true });
     const s = res.data.settings as AdultSettings;
+    // The JSON follows the saved copy unless it was edited and this save wasn't it: a checkbox here used to throw away
+    // a half-typed configuration (2026-10-31 UX audit).
+    const before = JSON.stringify(studio, null, 2);
+    setJson((cur) => (cur === before || fromJson ? JSON.stringify(s.studio, null, 2) : cur));
     setStudio(s.studio);
     setCaps(s.caps);
-    setJson(JSON.stringify(s.studio, null, 2));
     setNote({ text: "Saved." });
   }
 
@@ -132,7 +135,7 @@ export default function StudioSettings({ initial }: { initial: AdultSettings }) 
             } catch {
               return setNote({ text: "That isn't valid JSON.", error: true });
             }
-            void save({ studio: parsed });
+            void save({ studio: parsed }, true);
           }}
         >
           Save the configuration

@@ -38,8 +38,9 @@ export default function ModerationSettings({ initial }: { initial: AdultSettings
     const s = res.data.settings as AdultSettings;
     setM(s.moderation);
     setLast4({ sightengine: s.sightengine_last4, endpoint: s.moderation_endpoint_last4 });
-    setSeKey("");
-    setEpKey("");
+    // Only a key that was sent leaves its field: one still being typed stays.
+    if ("sightengine_key" in patch) setSeKey("");
+    if ("moderation_endpoint_key" in patch) setEpKey("");
     setNote({ text: "Saved." });
   }
 

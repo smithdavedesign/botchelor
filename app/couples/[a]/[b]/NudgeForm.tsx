@@ -60,7 +60,7 @@ export default function NudgeForm({ pair, characterId, name, other, current }: {
       <p className="muted small">
         Private. It shapes their texts and goes into their next date together, then it&apos;s used. {shortName(name)} never says it outright.
       </p>
-      <button type="submit" disabled={busy}>
+      <button type="submit" className="secondary" disabled={busy}>
         {current ? "Change the note" : "Leave the note"}
       </button>{" "}
       {current && (

@@ -22,7 +22,7 @@ describe("Watch stays short", () => {
 
   it("keeps the latest episodes paged and crawlable, and folds the league form away", () => {
     expect(page).toContain("<Pager page={page} pages={latest.pages} label=\"Latest episodes pages\" href={(n) => `${pagePath(n)}#latest`}");
-    expect(page).toMatch(/<details className="watch-league-details">\s*<summary>Start a league with friends<\/summary>/);
+    expect(page).toMatch(/<details className="watch-league-details[^"]*">\s*<summary>Start a league with friends<\/summary>/);
   });
 });
 
