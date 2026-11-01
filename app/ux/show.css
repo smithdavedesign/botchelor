@@ -545,9 +545,9 @@ details.recap-toggle[open] .recap-toggle-hide {
 .notif-body {
   color: var(--muted);
 }
+/* Square corners: a radius bent the rule between rows up at both ends. */
 .notification.tap-card {
   padding-right: var(--space-2);
-  border-radius: 10px;
 }
 .notification.tap-card .notif-body {
   display: -webkit-box;

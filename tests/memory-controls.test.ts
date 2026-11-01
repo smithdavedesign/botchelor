@@ -185,7 +185,8 @@ describe("2. where each memory came from", () => {
       }),
     );
     expect(html).toContain('href="/episodes/ep-9"');
-    expect(html).toContain("your date with Nell, Oct 12");
+    // The date is a <time> (app/When.tsx): UTC on the server, the viewer's own zone once the page runs.
+    expect(html).toContain('your date with Nell, <time dateTime="2026-10-12T20:00:00.000Z">Oct 12</time>');
     expect(html).toContain(">Forget<");
     expect(html).toContain("Remember it again");
   });

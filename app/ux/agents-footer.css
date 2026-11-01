@@ -157,7 +157,7 @@
   margin: var(--space-3) 0;
 }
 .footer-group > summary {
-  min-height: 0;
+  min-height: 24px;
   color: var(--ink);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -184,6 +184,19 @@
   .footer-groups {
     grid-template-columns: 1fr;
     gap: 0;
+    margin-bottom: 0;
+  }
+  /* "About this show" is the list's fourth row on a phone: the same weight, its ⌄ on the right, a rule under it. */
+  .footer-about {
+    border-bottom: 1px solid var(--line);
+  }
+  .footer-about > summary {
+    min-height: 44px;
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+  .footer-about > summary::after {
+    margin-left: auto;
   }
   .footer-group {
     border-top: 1px solid var(--line);
