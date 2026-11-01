@@ -637,7 +637,7 @@ async function main() {
       await dates.getByRole("button", { name: "Test" }).click();
       await dates.getByText("Google accepted it").waitFor({ timeout: 10_000 });
       await dates.getByRole("button", { name: "Save" }).click();
-      await dates.getByText("Your Google key ✓").waitFor({ timeout: 10_000 });
+      await dates.getByText(/^Your Google key(?! ✓)/).waitFor({ timeout: 10_000 }); // the pill says connected; the line under it names the key
       await page.getByText("•••• L4st").first().waitFor();
       const shown = await page.content();
       assert(!shown.includes(apiKey), "the full API key must never be shown back");

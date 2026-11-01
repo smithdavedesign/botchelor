@@ -10,6 +10,19 @@ import KeyForm, { type AlsoJob, type FlowProvider } from "./KeyForm";
 const TONE: Record<JobCardView["state"], CardTone> = { unset: "unset", connected: "ok", error: "error", over_cap: "warn", fallback: "warn" };
 
 /**
+ * The status line under the pill, without what the pill already says (2026-10-31 UX audit, D9: "✓ Connected" over "Your
+ * OpenRouter key ✓", "Free model" over "Using: Botchelor's free model"). The account page's summary, with no pill, keeps
+ * the whole line.
+ */
+export function statusUnderPill(card: Pick<JobCardView, "state" | "status">): string | null {
+  if (card.state === "connected") return card.status.replace(" ✓", "");
+  if (card.state !== "unset") return card.status;
+  if (!card.status.startsWith("Not set up: ")) return null;
+  const rest = card.status.slice("Not set up: ".length);
+  return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
+/**
  * One job's card on the Connections page, with what can be done from it: Connect (the flow opens under it), and for a
  * job with a key, Change, Check (test the stored key live again: the card says "Checking…" meanwhile) and going back
  * to no key (the free model, for dates).
@@ -61,7 +74,7 @@ export default function JobCard({ card, providers, also }: { card: JobCardView; 
       provider={card.provider}
       tone={checking ? "checking" : localOnly ? "error" : card.state === "connected" && card.usage?.level === "warn" ? "warn" : TONE[card.state]}
       pill={checking ? "Checking…" : localOnly ? "Needs attention" : card.pill}
-      status={card.status}
+      status={statusUnderPill(card)}
       meta={card.meta}
       error={shownError}
       meter={

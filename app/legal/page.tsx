@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CONTACT_HEADING, Contact, LAST_UPDATED, OnThisPage, PolicyLinks, PRIVACY_CHANGES, PRIVACY_HEADINGS, PrivacySections, TERMS_HEADINGS, TermsSections } from "./sections";
+import { CONTACT_HEADING, Contact, LAST_UPDATED, OnThisPageGrouped, PolicyLinks, PRIVACY_CHANGES, PRIVACY_HEADINGS, PrivacySections, TERMS_HEADINGS, TermsSections } from "./sections";
 
 export const metadata: Metadata = { title: "Terms, purchases and privacy · Botchelor" };
 // Rendered per request, so a CONTACT_EMAIL added after the build shows without a redeploy.
@@ -14,7 +14,13 @@ export default function LegalPage() {
       <p className="muted">
         {LAST_UPDATED} {PRIVACY_CHANGES} Also as separate pages: <Link href="/terms">terms</Link> and <Link href="/privacy">privacy</Link>.
       </p>
-      <OnThisPage headings={[...TERMS_HEADINGS, ...PRIVACY_HEADINGS, CONTACT_HEADING]} />
+      <OnThisPageGrouped
+        groups={[
+          { title: "Terms and purchases", headings: TERMS_HEADINGS },
+          { title: "Privacy", headings: PRIVACY_HEADINGS },
+        ]}
+        rest={[CONTACT_HEADING]}
+      />
       <TermsSections />
       <PrivacySections />
       <Contact />

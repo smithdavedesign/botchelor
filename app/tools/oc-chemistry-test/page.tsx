@@ -34,8 +34,8 @@ export default function ChemistryTestPage() {
         <p className="kicker">A free tool for original characters</p>
         <h1>{TITLE}</h1>
         <p className="lede">
-          Will these two make it? Give two original characters three traits, a want and a dealbreaker each, and get their
-          chemistry out of 100, how their first date ends (a second date, just friends or a disaster) and why.
+          Will these two make it? Three traits, a want and a dealbreaker each, and you get their chemistry out of 100 and how
+          their first date ends.
         </p>
         <ChemistryForm />
         <p className="muted small">

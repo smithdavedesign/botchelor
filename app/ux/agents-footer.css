@@ -259,6 +259,15 @@
   padding: 0;
   list-style: none;
 }
+.legal-toc-group {
+  border-bottom: 1px solid var(--line);
+}
+.legal-toc-group > summary {
+  font-weight: 600;
+}
+.legal-toc-group[open] > ul {
+  padding-bottom: var(--space-2);
+}
 .legal-toc a {
   display: inline-flex;
   align-items: center;
