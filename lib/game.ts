@@ -237,6 +237,9 @@ export type EpisodeJson = {
   scenes?: string[];
   /** The turn-by-turn date "footage" (M9). A spoiler (it reaches the ending), so gated like `scenes`. */
   transcript?: Turn[];
+  /** #1146: a finished date with no lines (its conversation failed); transcript_note says why. */
+  transcript_missing?: true;
+  transcript_note?: string;
   twist?: string;
   finale?: string;
   ending?: Ending;
@@ -347,6 +350,13 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     // A date still being written shows its lines without interest: a side's last one can stand in for its private wish
     // (lib/wishes.ts), and on a two-agent date both agents see this view before the ending.
     if (ep.transcript.length) json.transcript = ep.status === "generating" ? ep.transcript.map(({ interest: _private, ...line }) => line as Turn) : ep.transcript;
+    // #1146: a finished date whose line-by-line conversation failed (its acts, best line and box score came out) says
+    // so instead of leaving the key out; the daily job writes the lines in later, from the stored outcome (lib/backfill.ts).
+    else if (ep.status === "ready") {
+      json.transcript = [];
+      json.transcript_missing = true;
+      json.transcript_note = "Its lines didn't come out when it was written; the acts (scenes), best line and box score did. They're written in later from the same outcome, so the ending and the score stay as they are.";
+    }
     json.twist = ep.twist;
     json.finale = ep.finale;
     json.ending = ep.ending;

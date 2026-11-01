@@ -207,6 +207,7 @@ export default function AfterDarkTheater({
   busy = false,
   note = null,
   onWrite,
+  steerDraft,
   steerMode = "nudge",
   onSteerMode,
   autoplay = false,
@@ -265,6 +266,8 @@ export default function AfterDarkTheater({
   crisis?: ReactNode;
   /** Writes the next lines; without it, this is a saved night's playback. */
   onWrite?: (direction: string) => Promise<boolean | void>;
+  /** A steer to put back in the box (#1147: one sent before the page closed that never reached the writer). */
+  steerDraft?: string | null;
   /** How strongly a steer is taken: worked toward (nudge) or done now (direct). Shared with the page's form. */
   steerMode?: "nudge" | "direct";
   onSteerMode?: (mode: "nudge" | "direct") => void;
@@ -377,6 +380,9 @@ export default function AfterDarkTheater({
     };
   }, [tools]);
   const [direction, setDirection] = useState("");
+  useEffect(() => {
+    if (steerDraft) setDirection(steerDraft);
+  }, [steerDraft]);
   // The scene picker (SetSceneModal.tsx) and the 📖 chapter menu.
   const [picking, setPicking] = useState<false | "where" | "who">(false);
   // The picker stays mounted once opened, and its pictures load in the background while the scene plays.
@@ -888,8 +894,9 @@ export default function AfterDarkTheater({
                     ? "Writing…"
                     : whisperTo
                       ? "Whisper"
-                      : !caughtUp && direction.trim()
-                        ? "Steer"
+                      : // #1148: the button stays Next; a typed steer rides with it (it skips to the end of what's playing).
+                        !caughtUp && direction.trim()
+                        ? "Next · with steer"
                         : // The Next that opens a chapter pays for it (lib/adult/settings.ts chapter_tokens).
                           // #1005: after that, Next says it's already paid for, so no step looks free or unexplained.
                           // A subscriber's chapters are included (#1005, David 2026-10-30): every Next says so.

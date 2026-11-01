@@ -62,6 +62,29 @@ const PICTURE_WAIT_MS = 2 * 60_000;
 /** What's said when an asked-for picture lands, for as long as the stage says so. */
 const PICTURE_LANDED = "📸 Your picture is here: on the stage, and first in the gallery.";
 
+/** A steer sent and still waiting on its lines, kept for this tab (#1147). Storage can be off: then it's just not kept. */
+const pendingSteer = {
+  key: (a: string, b: string) => `bz_ad_steer:${a}:${b}`,
+  save(a: string, b: string, v: { text: string; mode: "nudge" | "direct" }) {
+    try {
+      sessionStorage.setItem(this.key(a, b), JSON.stringify(v));
+    } catch {}
+  },
+  read(a: string, b: string): { text: string; mode: "nudge" | "direct" } | null {
+    try {
+      const v = JSON.parse(sessionStorage.getItem(this.key(a, b)) ?? "null") as { text?: unknown; mode?: unknown } | null;
+      return v && typeof v.text === "string" && v.text ? { text: v.text, mode: v.mode === "direct" ? "direct" : "nudge" } : null;
+    } catch {
+      return null;
+    }
+  },
+  clear(a: string, b: string) {
+    try {
+      sessionStorage.removeItem(this.key(a, b));
+    } catch {}
+  },
+};
+
 /**
  * The pair's night: the theater (AfterDarkTheater.tsx), open from the start and the only place the scene is watched and
  * written (David, 2026-10-25: "remove the dialog and this section… force them to watch in theaters"), then what's kept
@@ -259,7 +282,22 @@ export default function SceneWriter({
   }, [initial]);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   // The steer's echo stays ahead of it (#1017).
-  const writingNote = busy && (waited >= 10 || midWrite) ? `${note && !note.error ? `${note.text} ` : ""}Still writing, ${waited} s so far: the richer writer can take up to a minute.` : null;
+  const writingNote = busy && (waited >= 10 || midWrite) ? `${note && !note.error ? `${note.text} ` : ""}Still writing, ${waited} s so far: the richer writer can take up to a minute. Leaving doesn't stop it: the lines are here when you come back.` : null;
+  // #1147 (the 2026-10-31-1744 visitor: a steer sent, the page closed mid-write, and no sign of it after): a steer
+  // waiting on its lines is kept for this tab; reopened, the page says it's being written in, was used, or comes back.
+  const [steerDraft, setSteerDraft] = useState<string | null>(null);
+  useEffect(() => {
+    const kept = pendingSteer.read(initial.a.id, initial.b.id);
+    if (!kept) return;
+    if (initial.writing_for != null) setNote({ text: `Your steer is being written in now: "${kept.text}".` });
+    else if (initial.rewind?.last?.direction?.trim() === kept.text) setNote({ text: `Your steer was used: "${kept.text}". Its lines are the newest ones.` });
+    else {
+      setNote({ text: `Your last steer didn't reach the writer before the page closed: "${kept.text}". It's back in the box to send again.` });
+      setSteerMode(kept.mode);
+      setSteerDraft(kept.text);
+    }
+    pendingSteer.clear(initial.a.id, initial.b.id);
+  }, [initial]);
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const crisisNotice = crisis ? <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} /> : null;
   // Autoplay (lib/adult/autoplay.ts): the theater paces it by what's left to play.
@@ -346,8 +384,10 @@ export default function SceneWriter({
     // #1017: a steer says it was taken while its lines are written, not only once they change.
     const steered = echo && typeof body.direction === "string" && body.direction.trim() ? { text: body.direction, mode: body.steer_mode === "direct" ? ("direct" as const) : ("nudge" as const) } : null;
     setNote(steered ? { text: steerEcho(steered.text, steered.mode, false) } : null);
+    if (typeof body.direction === "string" && body.direction.trim()) pendingSteer.save(scene.a.id, scene.b.id, { text: body.direction.trim(), mode: body.steer_mode === "direct" ? "direct" : "nudge" });
     const asked = Date.now();
     const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
+    pendingSteer.clear(scene.a.id, scene.b.id);
     writing.current = false;
     setBusy(false);
     // The viewer's own steer or whisper read as wanting to hurt themselves (lib/crisis.ts): the help stays until closed.
@@ -553,6 +593,7 @@ export default function SceneWriter({
             busy={busy}
             note={writingNote ?? note?.text ?? null}
             onWrite={write}
+            steerDraft={steerDraft}
             steerMode={steerMode}
             onSteerMode={setSteerMode}
             whisperTo={whisperTo}

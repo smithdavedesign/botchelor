@@ -16,14 +16,16 @@ const KISSING = 2;
 const TOUCHES = 1;
 
 /**
- * What each stage looks like on the page, most explicit first. Plain words only: an innuendo shows nothing. v2.3's filthy
+ * What each stage looks like on the page, most explicit first. Plain words only: an innuendo shows nothing, and a word
+ * with an everyday sense counts only with a body in it (#1145: "the sound penetrates the nave", "the climax of the chord"
+ * and "a thrust of the organ" read as sex for an acoustician and a musician who'd talked about pitch). v2.3's filthy
  * heat (lib/adult/heat.ts) writes plainer talk, in the dialogue as much as the actions; a line is read whole, so its
  * words count wherever they are, and a few of the plain words that talk uses are signs too.
  */
 const SIGNS: [number, RegExp][] = [
   [
     SEX,
-    /\b(eat(s|ing)?\s+(her|him|me|you)\s+out|face\b.{0,25}\bsits?\s+on\b|go(es|ing)?\s+down\s+on|sits?\s+on\s+(her|his|my|your)\s+face|rid(e|es|ing)\s+(her|his|my|your)\s+face|face[- ]?sit|inside\s+(her|him|me|you)\b|thrust|penetrat|fuck(s|ed|ing)?\b|cum(s|ming)?\b|orgasm|climax(es|ed|ing)?\b|squirt|pussy|cock\b|clit|grind(s|ing)?\s+(against|on|into)\s+(her|him|me|you)|dick\b|blow ?job|(ride|rides|riding)\s+(me|him|you)\b(?!\s+(home|to|there|back|over|out))|(make|makes|making|made)\s+(me|you|him|her)\s+come\b|come\s+(for|inside|in)\s+me\b)/,
+    /\b(eat(s|ing)?\s+(her|him|me|you)\s+out|face\b.{0,25}\bsits?\s+on\b|go(es|ing)?\s+down\s+on|sits?\s+on\s+(her|his|my|your)\s+face|rid(e|es|ing)\s+(her|his|my|your)\s+face|face[- ]?sit|inside\s+(her|him|me|you)\b|thrust(s|ing)?\s+(into|inside|deeper|harder|against)\s+(her|him|me|you)\b|(his|her|my|your)\s+thrusts\b|penetrat(es|ed|ing)?\s+(her|him|me|you)\b|fuck(s|ed|ing)?\b|cum(s|ming)?\b|orgasm|(she|he|i|you|they|we|let's|to|gonna)\s+climax(es|ed|ing)?\b|squirt(s|ed|ing)?\b(?!\s+(gun|bottle))|mak(e|es|ing)\s+love\b|pussy|cock\b|clit|grind(s|ing)?\s+(against|on|into)\s+(her|him|me|you)|dick\b|blow ?job|(ride|rides|riding)\s+(me|him|you)\b(?!\s+(home|to|there|back|over|out))|(make|makes|making|made)\s+(me|you|him|her)\s+come\b|come\s+(for|inside|in)\s+me\b)/,
   ],
   [
     UNDRESSING,
