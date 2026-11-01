@@ -79,7 +79,7 @@ export default function TwoSidesPanel({ a, b, flat = false }: { a: { id: string 
                         {busy === n.id ? "Writing both sides… (about half a minute)" : n.written ? "Read both sides" : "Write both sides"}
                       </button>
                     ) : (
-                      <span className="muted small">Still going: Start over files it, then both sides can be written.</span>
+                      <span className="muted small">Still going: 🌙 End the night files it, then both sides can be written.</span>
                     )}
                   </span>
                   {open?.id === n.id && <TwoSidesView sides={open.sides} />}
@@ -87,7 +87,7 @@ export default function TwoSidesPanel({ a, b, flat = false }: { a: { id: string 
               ))}
             </ul>
           ) : (
-            <p className="muted small">No saved nights yet: Start over files the night that ran.</p>
+            <p className="muted small">No saved nights yet: 🌙 End the night (in the theater&apos;s ⋯) files the night that ran.</p>
           )}
         </>
       )}

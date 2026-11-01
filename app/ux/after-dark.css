@@ -2207,6 +2207,33 @@ a.ad-scenes-make-link {
     display: none;
   }
 }
+
+/* Gallery → Nights: one entry a night, its video, its chapters folded inside (David, 2026-11-01). */
+.after-dark-nights .ad-night {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--ad-line, var(--line));
+  list-style: none;
+}
+.ad-night-head,
+.ad-night-actions {
+  margin: 0 0 var(--space-1);
+}
+.ad-night-chapters ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-3);
+}
+.ad-night-chapters li {
+  list-style: none;
+  margin: var(--space-1) 0;
+}
+.ad-start-last button.linklike:disabled {
+  opacity: 0.5;
+}
+.ad-tools-items .ad-end-confirm {
+  color: #ffb4c8;
+  border-color: rgba(255, 180, 200, 0.45);
+}
+
 /* #1206 (the 2026-11-01 After Dark visitor at 390px: "the scene backdrop overlaps the top chat bubble"): nothing overlaps
    (prod check: the stage ends where the thread starts), but the thread scrolls under the stage's edge and its top line was
    cut straight across, which read as the picture covering it. A short fade says it scrolls. */
