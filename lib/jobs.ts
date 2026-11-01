@@ -289,8 +289,13 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     }
     if (gen.quality) trackDateQuality(episodeId, "job", gen.plan?.source ?? null, gen.quality);
     const { draft, transcript, afterglow, reflections, outcome } = gen;
-    // The finished transcript's (empty when the conversation failed, like the transcript; a backfill fills both later).
-    const turnMeta = metaOf(transcript, new Date().toISOString());
+    // J1: when the conversation failed (even after picking up once), the lines already said stay on the date, flagged,
+    // and the backfill finishes it from them (lib/backfill.ts) rather than the creator losing what they watched.
+    const partial = !transcript.length && gen.partialTranscript.length > 0;
+    const kept = partial ? gen.partialTranscript : transcript;
+    // The stored lines' (empty when nothing came out, like the transcript; a backfill fills both later).
+    const turnMeta = metaOf(kept, new Date().toISOString());
+    const generatedWith = { ...gen.generatedWith, ...(row.use_frontier ? { frontier: true } : {}), ...(partial ? { transcript_partial: true } : {}) };
 
     // The ending as it stands once the wishes weighed in (the engine's own, unless they tipped it), with its drama and sides.
     const saved = await db.query<{ id: string }>(
@@ -311,11 +316,11 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         draft.finale,
         draft.best_line,
         JSON.stringify(draft.confessionals),
-        JSON.stringify(transcript),
+        JSON.stringify(kept),
         JSON.stringify(afterglow),
         JSON.stringify(reflections),
         // Which models actually wrote it (by role, fallbacks included) and the prompt version: traceable quality.
-        JSON.stringify(row.use_frontier ? { ...gen.generatedWith, frontier: true } : gen.generatedWith),
+        JSON.stringify(generatedWith),
         outcome.ending,
         outcome.drama_question,
         outcome.drama_answer,

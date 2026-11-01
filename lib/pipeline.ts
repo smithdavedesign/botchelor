@@ -19,7 +19,7 @@
 import { simulateAfterglow, type AfterglowLine } from "./afterglow";
 import { planDate, type DatePlan } from "./beats";
 import type { Character } from "./character";
-import { bestLine, simulateConversation, type Turn } from "./conversation";
+import { bestLine, ConversationError, simulateConversation, type Turn } from "./conversation";
 import type { Outcome } from "./engine";
 import type { FormatContext, FormatId } from "./formats";
 import type { ChatMessage, Model, ModelOptions, Usage } from "./model";
@@ -101,6 +101,8 @@ export type GeneratedDate = {
   generatedWith: GeneratedWith;
   /** Why the conversation came back empty, when it did (content-free; for the logs). */
   conversationError: unknown;
+  /** When it did: the lines said before it failed (J1), for the episode to keep and the backfill to finish from. */
+  partialTranscript: Turn[];
   afterglowError: unknown;
 };
 
@@ -161,20 +163,34 @@ export async function generateDate(
   let plan: DatePlan | null = null;
   let transcript: Turn[] = [];
   let conversationError: unknown = null;
+  let partialTranscript: Turn[] = [];
   if (opts.conversation) {
     // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules.
     plan = await planDate(director.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.formatCtx);
-    try {
-      transcript = await simulateConversation(actor.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan, keyForSide, opts.onTurn, {
+    const converse = (from?: Turn[]) =>
+      simulateConversation(actor.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan ?? undefined, keyForSide, opts.onTurn, {
         moves: opts.moves,
         moveCutoff: opts.moveCutoff,
         deadline: opts.deadline,
         suggestion: opts.suggestion,
         onSuggestionProposed: opts.onSuggestionProposed,
         onDraft: opts.onDraft,
+        from,
       });
+    try {
+      transcript = await converse();
     } catch (err) {
-      conversationError = err;
+      // J1: one line that wouldn't come out cost the whole date, lines the creator had watched included. It picks up
+      // once from the lines already said (the creator's stage keeps playing); if that fails too, they're kept for the
+      // backfill to finish from (lib/backfill.ts).
+      partialTranscript = err instanceof ConversationError ? err.partial : [];
+      try {
+        transcript = await converse(partialTranscript);
+        partialTranscript = [];
+      } catch (again) {
+        conversationError = again;
+        if (again instanceof ConversationError && again.partial.length > partialTranscript.length) partialTranscript = again.partial;
+      }
     }
   }
 
@@ -225,7 +241,7 @@ export async function generateDate(
     byok: [...byokServed],
     prompts: PROMPT_VERSION,
   };
-  return { outcome, wishes, draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, afterglowError };
+  return { outcome, wishes, draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, partialTranscript, afterglowError };
 }
 
 /** What the quality checks treat as shared (the venue, the recap's setting) and as each side's private notes. */

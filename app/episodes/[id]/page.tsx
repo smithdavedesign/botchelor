@@ -344,6 +344,8 @@ export default async function EpisodePage({
       </EpisodeHero>
 
       <div className="episode-body">
+        {/* J1: a finished date whose lines didn't (all) come out says so, instead of quietly turning into a prose recap. */}
+        {episode.transcript_note && <p className="notice episode-transcript-note">{episode.transcript_note}</p>}
         {episode.roleplay && (
           // A roleplay both sides agreed to (lib/date-roleplays.ts): billing, like the format, shown from the start.
           <p className="notice episode-roleplay">
