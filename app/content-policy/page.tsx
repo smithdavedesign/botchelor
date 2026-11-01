@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { REPORT_RESPONSE } from "@/lib/legal-entity";
+import { pageMetadata } from "@/lib/seo";
 import { Contact, LAST_UPDATED, OnThisPage, PolicyLinks } from "../legal/sections";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Content policy · Botchelor",
   description: "What Botchelor's characters, dates and After Dark scenes may and may not contain, what we check automatically, and how to report.",
-};
+  path: "/content-policy",
+});
 // Rendered per request, so a CONTACT_EMAIL added after the build shows without a redeploy.
 export const dynamic = "force-dynamic";
 

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CRISIS_RESOURCES } from "@/lib/crisis";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Safety and self-harm protocol · Botchelor",
   description: "Botchelor's characters are AI. What happens when someone's words suggest they might hurt themselves, and where to get help.",
-};
+  path: "/safety",
+});
 
 /**
  * The published self-harm protocol (New York's AI companion law; California SB 243), and the AI disclosure it rests on.

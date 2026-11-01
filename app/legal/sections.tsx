@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
-import { PACK_5 } from "@/lib/catalog";
+import { formatPrice, PACK_5 } from "@/lib/catalog";
 import {
   AFTER_DARK_BLOCKED_COUNTRIES,
   AFTER_DARK_BLOCKED_US_STATES,
@@ -27,10 +27,13 @@ import { ConsentChoice } from "../ConsentBanner";
  * (docs/after-dark-legal-review.md). A plain draft: counsel should read it before After Dark takes money.
  */
 
+/** The other policy pages' date (content policy, 2257, cancelling). */
 export const LAST_UPDATED = "Last updated 24 October 2026.";
+/** The terms' and the privacy notice's date: they changed after the rest. */
+export const TERMS_PRIVACY_UPDATED = "Last updated 1 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed: who runs Botchelor, After Dark's data (the Studio's sharing and your own key too) and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed: Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -277,8 +280,8 @@ export function TermsSections() {
         Every creator gets {FREE_EPISODES_PER_SEASON} free dates a week. One thing is on sale on the show: &ldquo;
         {PACK_5.name}&rdquo;, a token pack with {PACK_5.episodes} more dates for your characters on top of the free ones.
         Pack dates are used after the week&apos;s free ones, they never expire, and they add episodes, never points.
-        It&apos;s a one-time price in US dollars, shown on the button and on Stripe&apos;s hosted payment page (a Stripe
-        Payment Link). It isn&apos;t a subscription. We never see your card details. Your dates are added once Stripe
+        It costs <strong>{formatPrice(PACK_5.price_cents)} once</strong>, in US dollars, shown on the button and on
+        Stripe&apos;s hosted payment page (a Stripe Payment Link). It isn&apos;t a subscription. We never see your card details. Your dates are added once Stripe
         confirms the payment, usually within seconds.
       </p>
       <p>
@@ -766,10 +769,13 @@ export function PrivacySections() {
           anything you typed.
         </li>
         <li>
-          Our own dashboard (RepoHQ) counts three things, with no cookies: a visit (once per browser session), your
-          first date, and a click on Buy, each with the page it happened on (a ship name page counts as /ship, without
-          the names, and a chemistry test result as its page, without the characters). A visit from an episode link someone shared also says it came from a share link. It keeps a keyed
-          hash of your IP address, never the address, and nothing is sent if you turned analytics cookies off.
+          Our own dashboard (RepoHQ) counts three events, with no cookies: <code>visit</code> (once per browser session),{" "}
+          <code>activate</code> (the first date this browser starts, once) and <code>checkout</code> (a click on Buy).
+          Each carries the page it happened on (a ship name page counts as /ship, without the names, and a chemistry test
+          result as its page, without the characters), and the address of the site that sent you here only when it&apos;s
+          another site, never one of our own pages. A visit from an episode link someone shared also says it came from a
+          share link. It keeps a keyed hash of your IP address, never the address. Nothing is sent from automated
+          browsers, from anything but the live site, or if you turned analytics cookies off.
         </li>
         <li>
           When a search engine or an AI agent reads our public pages or our agent docs, we log the bot&apos;s name (for
@@ -849,6 +855,12 @@ export function PrivacySections() {
   );
 }
 
+/**
+ * The way to reach us that needs nothing set up: the feedback form on every page (app/FeedbackDock.tsx), which the owner
+ * reads on /admin/feedback. Not GitHub issues: the code's repository is private, so a link there would be a dead end.
+ */
+const FEEDBACK_NOTE = "For anything else, the “Give us feedback” button at the foot of every page reaches us too.";
+
 /** Read per request (the pages are force-dynamic), so a CONTACT_EMAIL set after the build shows. */
 export function Contact() {
   const contact = contactEmail();
@@ -859,12 +871,12 @@ export function Contact() {
         <p>
           {OPERATOR}, trading as {TRADING_AS}. Refunds, restores, cancelling, privacy requests, copyright notices, removal
           from the waitlist and anything else: <a href={`mailto:${contact}`}>{contact}</a>. To report content, use the{" "}
-          <Link href="/report">report form</Link>.
+          <Link href="/report">report form</Link>. {FEEDBACK_NOTE}
         </p>
       ) : (
         <p>
           {OPERATOR}, trading as {TRADING_AS}. The contact address will be posted here before purchases open. To report
-          content, use the <Link href="/report">report form</Link>.
+          content, use the <Link href="/report">report form</Link>. {FEEDBACK_NOTE}
         </p>
       )}
     </>

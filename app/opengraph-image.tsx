@@ -1,8 +1,10 @@
 import { ImageResponse } from "next/og";
+import { SHARE_IMAGE, SHARE_IMAGE_ALT } from "@/lib/seo";
 
-// The share card for every page (og:image and twitter:image), rendered once at build time.
-export const alt = "Botchelor: a blind-date show for original characters. Friends predict the ending, for free points.";
-export const size = { width: 1200, height: 630 };
+// The share card for every page (og:image and twitter:image), rendered once at build time. A page that sets its own
+// openGraph names it again with lib/seo.ts's SHARE_IMAGE, so the two share one alt and size.
+export const alt = SHARE_IMAGE_ALT;
+export const size = { width: SHARE_IMAGE.width, height: SHARE_IMAGE.height };
 export const contentType = "image/png";
 
 export default function OpengraphImage() {

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "How it's built · Botchelor",
   description: "Every technology, host, integration and AI model behind Botchelor: the app, the infrastructure, the models that write the dates, the safety checks and the services it connects to.",
-};
+  path: "/about",
+});
 
 type Item = { name: string; what: string; href?: string };
 type Group = { id: string; title: string; intro: string; items: Item[] };

@@ -417,6 +417,24 @@ export function shownMove(lines: readonly PlaceLine[], from: number, here: strin
   return { proposal: move.proposal, agree: move.agree, at: move.agree >= from ? move.agree : going, to, home: move.home ?? homeFromOwner(canonicalSet(to), names) };
 }
 
+/**
+ * The first of these lines that narrates them going to `to`, or arriving there, when they're somewhere else (`here`); -1
+ * for none. #1136 (the 2026-10-31-1644 visitor: the label stayed "Cafe" while the narration said "She unlocks the door to
+ * her flat and pushes it open, revealing a dim, quiet hallway"): what a line does reads as going (GOING) with `to` among
+ * the places it names, or it says they've arrived out loud (ARRIVING) naming `to`, or "welcome to my…" when `to` is a
+ * home. Only asked of a move the rules refused (settlePlace's `rejected`): the lines then disagree with where they are.
+ */
+export function narratedMove(lines: readonly PlaceLine[], to: string, here: string | null): number {
+  const there = (p: string) => samePlace(p, to) && !(here && samePlace(p, here));
+  const head = canonicalSet(to).head;
+  const home = head !== null && HOME_ROOMS.has(head);
+  return lines.findIndex((l) => {
+    const acts = movingActions(l.text);
+    if (GOING.test(acts) && placesIn(acts).some(there)) return true;
+    return ARRIVING.test(l.text) && (placesIn(l.text).some(there) || (home && /\bwelcome to my\b/i.test(l.text)));
+  });
+}
+
 /** One stop in a night: where they were, the set it was on, whose home it is (when it's one), and the chapter. */
 export type PlaceStop = { place: string; set: string | null; home: "a" | "b" | null; chapter: number };
 /** A move the model reported, and whether it was taken (the observer reads the ones that weren't). */

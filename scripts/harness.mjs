@@ -76,12 +76,13 @@ const TURN_LINES = [
 function genericTurn(messages) {
   const user = messages.find((m) => m.role === "user")?.content ?? "";
   const data = JSON.parse(user.slice(user.indexOf("{")));
-  const n = data.transcript_so_far?.length ?? 0;
+  // The turn prompt's lines so far (lib/conversation.ts calls them conversation_so_far; older prompts, transcript_so_far).
+  const n = (data.conversation_so_far ?? data.transcript_so_far)?.length ?? 0;
   return { dialogue: TURN_LINES[n % TURN_LINES.length], action: "answers", emotion: "curious", interest_signal: 0.4 + (n % 5) * 0.1 };
 }
 
 // One afterglow text (M11): the morning-after thread. Same { you, them } shape as a turn, told apart by
-// the "your_feeling" field the afterglow prompt carries (a date turn carries "act"/"transcript_so_far").
+// the "your_feeling" field the afterglow prompt carries (a date turn carries "act"/"conversation_so_far").
 const AFTERGLOW_LINES = [
   "okay I'm not going to overthink this: last night was fun.",
   "it really was. the part where the plan fell apart? best bit.",

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { OPERATOR_FULL } from "@/lib/legal-entity";
+import { pageMetadata } from "@/lib/seo";
 import { Contact, LAST_UPDATED, Mail, PolicyLinks } from "../legal/sections";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "18 U.S.C. 2257 statement · Botchelor",
   description: "Botchelor's statement on 18 U.S.C. 2257 record-keeping: every visual depiction is wholly AI-generated and shows no actual human being.",
-};
+  path: "/2257",
+});
 // Rendered per request, so a CONTACT_EMAIL added after the build shows without a redeploy.
 export const dynamic = "force-dynamic";
 

@@ -68,4 +68,7 @@ export const PUBLIC_PATHS = [
   "/tools/oc-chemistry-test",
   "/prompts",
   "/about",
+  "/safety",
+  "/agents/pricing",
+  "/showcase",
 ] as const;

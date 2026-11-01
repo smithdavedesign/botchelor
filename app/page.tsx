@@ -4,8 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import EpisodeItem from "@/app/EpisodeItem";
-import JsonLd from "@/app/JsonLd";
-import { siteJsonLd } from "@/lib/seo";
+import { pageMetadata, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/seo";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
@@ -21,7 +20,7 @@ import { cleanRef } from "@/lib/waitlist";
 import BotReviews from "./BotReviews";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { alternates: { canonical: "/" } };
+export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: "/" });
 
 /** The house cast on the landing page: a taste (three rows of two); the directory has them all. */
 const HOME_CAST_SHOWN = 6;
@@ -89,7 +88,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
   return (
     <div className="home">
-      <JsonLd data={siteJsonLd()} />
       <section className="hero">
         <div className="hero-copy">
           <p className="kicker">For OC roleplayers</p>

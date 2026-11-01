@@ -143,9 +143,10 @@ describe("the privacy notice", () => {
     expect(strip(render(PrivacyPage))).toContain(`The log of an agent's tool calls: ${MCP_CALLS_KEEP_DAYS} days.`);
   });
 
-  it("is dated 24 October 2026", () => {
-    expect(render(PrivacyPage)).toMatch(/Last updated 24 October 2026\./);
-    expect(render(TermsPage)).toMatch(/Last updated 24 October 2026\./);
+  it("is dated 1 November 2026, with what changed", () => {
+    expect(render(PrivacyPage)).toMatch(/Last updated 1 November 2026\./);
+    expect(render(PrivacyPage)).toMatch(/Changed: Analytics names the three events/);
+    expect(render(TermsPage)).toMatch(/Last updated 1 November 2026\./);
   });
 });
 

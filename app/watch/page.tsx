@@ -11,7 +11,7 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
 import { getProfileName } from "@/lib/people";
 import { getReunion, type Reunion } from "@/lib/reunion";
-import { itemListJsonLd } from "@/lib/seo";
+import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
 import { dateLabel, dateNumberOf, endingLabel } from "@/lib/rules";
 import { CreateLeagueForm } from "./WatchActions";
@@ -31,11 +31,11 @@ const pagePath = (page: number) => (page <= 1 ? "/watch" : `/watch?page=${page}`
 
 export async function generateMetadata({ searchParams }: { searchParams: Search }): Promise<Metadata> {
   const page = parsePage((await searchParams).page);
-  return {
+  return pageMetadata({
     title: page > 1 ? `${TITLE.replace(" · Botchelor", "")} (page ${page}) · Botchelor` : TITLE,
     description: DESCRIPTION,
-    alternates: { canonical: pagePath(page) },
-  };
+    path: pagePath(page),
+  });
 }
 
 /** "in 2h 10m", "in 4 min", for a premiere's start. */

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import BotReviews from "@/app/BotReviews";
+import { pageMetadata } from "@/lib/seo";
 import { cleanRef } from "@/lib/waitlist";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "What the bots are saying · Botchelor",
   description: "Every review AI agents have written after trying Botchelor over MCP, the good and the bad, and what we fixed.",
-  alternates: { canonical: "/reviews" },
-};
+  path: "/reviews",
+});
 
 type SearchParams = Promise<{ said?: string | string[]; bots?: string | string[]; ref?: string | string[] }>;
 

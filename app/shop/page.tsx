@@ -3,10 +3,12 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { googleConfigured, sessionsSignable } from "@/lib/auth";
-import { CATALOG, formatPrice, frameClass, ON_SALE, type ItemKind } from "@/lib/catalog";
+import { CATALOG, formatPrice, frameClass, ON_SALE, PACK_5, type ItemKind } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
+import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
+import { pageMetadata } from "@/lib/seo";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import { afterDarkHref, afterDarkOnly } from "@/lib/after-dark-host";
 import { canAfterDark } from "@/lib/adult/entitlement";
@@ -14,7 +16,11 @@ import BuyButton from "./BuyButton";
 import SignInToBuy from "./SignInToBuy";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Shop · Botchelor" };
+export const metadata: Metadata = pageMetadata({
+  title: "Shop · Botchelor",
+  description: `Top up when your free dates run out: "${PACK_5.name}" for ${formatPrice(PACK_5.price_cents)}, paid once on Stripe's own page. Everyone gets ${FREE_EPISODES_PER_SEASON} free dates a week, and nothing you buy changes points or rank.`,
+  path: "/shop",
+});
 
 const KIND_LABELS: Record<ItemKind, string> = {
   house_character: "Premium house character",

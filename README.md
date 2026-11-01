@@ -2,6 +2,30 @@
 
 ## Screenshots
 
+The launch-ready site (2026-11-01), captured by `npm run screenshots` from the production build on localhost, with a
+throwaway database, a stand-in showrunner, a sample character and a placeholder `STRIPE_PAYMENT_LINK`
+(https://example.com/pay). What changed for launch, and how to check it: [LAUNCH-READY.md](LAUNCH-READY.md).
+
+![The start page at 1280×800: "Send your OC on a blind date. Then just watch.", Make your character and Watch episodes](docs/screenshots/home-desktop.png)
+The start page loads past the 18+ gate and gives a newcomer one way to start.
+
+![The start page on an iPhone 13](docs/screenshots/home-mobile.png)
+The same start page fits a phone.
+
+![The core action at 1280×800: Tamsin Holloway × Juniper Vale, just filmed, playing in the theater with their first lines](docs/screenshots/date-desktop.png)
+The core action works end to end: a sample character sent on a date with a house character gets a written episode that plays at once.
+
+![The same date on an iPhone 13: the theater's header and the conversation, line by line](docs/screenshots/date-mobile.png)
+The date plays on a phone too.
+
+![The shop at 1280×800: "Buy 5 more dates for $4", and below it the footer with Terms and refunds and Privacy](docs/screenshots/shop-desktop.png)
+With a payment link set the shop shows its Buy button, and the footer links the terms and privacy pages.
+
+![The shop on an iPhone 13: the 5 more dates card, $4, the 18+ and terms checkbox and the Buy button](docs/screenshots/shop-mobile.png)
+On a phone the $4 pack and its Buy button fill the screen; the footer's links are further down, under Help and legal.
+
+## What's new before launch (2026-10-23 to 10-31)
+
 A UX audit of the whole site on phone and desktop (2026-10-31). Each page was checked for crowding: what was crowded is
 grouped, and what was a whole form in the page opens in a modal (a bottom sheet on phones). PRs #1150, #1157, #1161,
 #1163, #1166 and #1167, then #1178–#1183 for the rest.
@@ -510,7 +534,7 @@ Back in the shop: "plus 5 pack dates", added by the webhook once Stripe confirme
 
 ## The whole show, screen by screen
 
-Captured by `npm run screenshots` from the production build, with invented sample characters and players. A local stand-in plays the free model, so no API key is involved. The same run also buys "5 more dates" through the shop's Buy button: the sample Payment Link carries the order, a signed webhook arrives, and the shop shows the 5 dates. That check passes but saves no picture. The look is one documented system — tokens, type, components and the accessibility standards are in [`docs/brand.md`](docs/brand.md).
+Captured by `npm run screenshots:season` from the production build, with invented sample characters and players. A local stand-in plays the free model, so no API key is involved. The same run also buys "5 more dates" through the shop's Buy button: the sample Payment Link carries the order, a signed webhook arrives, and the shop shows the 5 dates. That check passes but saves no picture. The look is one documented system — tokens, type, components and the accessibility standards are in [`docs/brand.md`](docs/brand.md).
 
 ![The 18+ age gate: a full-screen lock asking "Are you 18 or older?" before any page loads, desktop](docs/screenshots/age-gate-desktop.png)
 The first thing a visitor meets: a full-screen 18+ lock. Enforced in middleware, so every page redirects here until you confirm you're an adult; the choice is remembered for a year. API routes, static files and link-preview images are exempt so agents and social unfurls still work.
@@ -742,7 +766,9 @@ The application is configured to run locally out of the box without required ext
 ### Media & Screenshot Generation
 - Generate screenshots and visual assets:
   ```bash
-  npm run screenshots
+  npm run screenshots          # the launch proof: six PNGs (README "Screenshots")
+  npm run screenshots:season   # the whole show, screen by screen
+  npm run check:launch         # search, sharing, legal and Buy checks on the production build
   npm run screenshots:moves
   npm run screenshots:ship
   npm run screenshots:prompts

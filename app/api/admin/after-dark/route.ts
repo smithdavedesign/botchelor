@@ -271,6 +271,8 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     ...(r.auto_picture ? { auto_picture: true } : {}),
     // #1053: who wrote the step, when it wasn't their own writer (the fallback, or the fast one's opening).
     ...(r.writer_note ? { writer_note: r.writer_note } : {}),
+    // #1136: a steer its lines followed only partly, for the page's "Steer again?".
+    ...(r.steer_unfollowed ? { steer_unfollowed: r.steer_unfollowed } : {}),
     // A redo can take back a chapter's close, so its night list may have changed.
     ...(input.redo ? { nights: await listNights(db, admin, input.a, input.b) } : {}),
   });

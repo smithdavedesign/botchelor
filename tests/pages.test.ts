@@ -112,6 +112,9 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/tools/oc-chemistry-test",
         "/prompts",
         "/about",
+        "/safety",
+        "/agents/pricing",
+        "/showcase",
       ].map(
         (p) => `https://botchelor.vercel.app${p}`,
       ),

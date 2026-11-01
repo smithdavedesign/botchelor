@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CONTENT_REPORT_TARGET_MAX } from "@/lib/content-reports-shared";
 import { REPORT_RESPONSE } from "@/lib/legal-entity";
+import { pageMetadata } from "@/lib/seo";
 import { Contact, Mail, PolicyLinks } from "../legal/sections";
 import ReportForm from "./ReportForm";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Report a problem · Botchelor",
   description: "Report content on Botchelor, or ask for something to be taken down: a minor, a real person, non-consent, an intimate image, copyright.",
-};
+  path: "/report",
+});
 // Rendered per request, so a CONTACT_EMAIL added after the build shows without a redeploy.
 export const dynamic = "force-dynamic";
 

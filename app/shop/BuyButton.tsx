@@ -8,7 +8,8 @@ import { requestJson } from "@/app/request";
 
 /**
  * Starts buying one item: the server stores a pending order and answers with the owner's Stripe Payment
- * Link for it, and the browser goes there. `label` is the button text (STRIPE_PRICE_LABEL).
+ * Link for it, and the browser goes there. `label` is the button text (STRIPE_PRICE_LABEL). The shop always shows it,
+ * off while no Payment Link is set (app/shop/page.tsx; the UX audit's "a shop that always shows Buy").
  */
 export default function BuyButton({ sku, label, disabled }: { sku: string; label: string; disabled: boolean }) {
   const [busy, setBusy] = useState(false);
@@ -18,8 +19,6 @@ export default function BuyButton({ sku, label, disabled }: { sku: string; label
   async function buy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    // Intent to pay, for RepoHQ's funnel (app/funnel.ts): every Buy click, whether or not checkout opens.
-    sendFunnel("checkout");
     trackConversion("begin_checkout", { sku });
     setBusy(true);
     setError(null);
@@ -47,7 +46,9 @@ export default function BuyButton({ sku, label, disabled }: { sku: string; label
           I&apos;m 18 or older and agree to the <Link href="/terms">terms and refund policy</Link>.
         </span>
       </label>
-      <button type="submit" disabled={busy || disabled}>
+      {/* Intent to pay, for RepoHQ's funnel (app/funnel.ts): every Buy click, counted on the click itself, since the
+          required checkbox stops the form's submit until it's ticked. */}
+      <button type="submit" disabled={busy || disabled} onClick={() => sendFunnel("checkout")}>
         {busy ? "Opening Stripe…" : label}
       </button>
       {error && (
