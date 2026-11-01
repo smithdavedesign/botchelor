@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 type Status = {
   mixer: { id: string; venue: string; singles: number } | null;
   mine_in?: string[];
-  recent?: { character_id: string; episode_id: string; venue: string }[];
+  recent?: { character_id: string; episode_id: string; venue: string; night_id?: string }[];
   min: number;
   max: number;
 };
@@ -79,10 +79,11 @@ export default function MixerJoin({ characterId, first }: { characterId: string;
             ? `${m.venue} · ${m.singles}/${status.max} singles in · ${m.singles >= status.min ? "runs within the hour" : `runs once ${status.min} are in`}`
             : `None open yet: putting ${first} in opens tonight's`}
         </span>
-        <span className="muted small">Six lines with each of two singles, for one of your dates. They&apos;ll remember each other.</span>
+        <span className="muted small">One room, a bell between rounds: six lines with each of two singles, for one of your dates. They&apos;ll remember everyone there.</span>
         {last && (
           <span className="small">
-            {first}&apos;s last one: <Link href={`/episodes/${last.episode_id}`}>watch their date</Link> ·{" "}
+            {first}&apos;s last one: {last.night_id && <><Link href={`/mixers/${last.night_id}`}>the whole night</Link> · </>}
+            <Link href={`/episodes/${last.episode_id}`}>their date</Link> ·{" "}
             <Link href={`/characters/${characterId}/relationships#met-title`}>who they met</Link>
           </span>
         )}

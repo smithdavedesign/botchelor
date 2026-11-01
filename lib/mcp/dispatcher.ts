@@ -6074,7 +6074,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           data: {
             mixer: { id: joined.night.id, venue: joined.night.venue, singles: joined.seats.map((x) => ({ character_id: x.character_id, name: x.name })) },
             runs: joined.runs,
-            note: "Joining is the consent: your character meets its two neighbours for six lines each, and your one rotation spends one of your dates when it runs. my_notifications says how the night went; leave: <character_id> backs out before it runs.",
+            note: "Joining is the consent: everyone sits in one room, and your character meets its two neighbours for six lines each, round by round, and your one rotation spends one of your dates when it runs. my_notifications says how the night went; leave: <character_id> backs out before it runs.",
           },
           identity: who,
         };

@@ -395,12 +395,12 @@ describe("group nights for people on the web (mixer join, graph invites, met tak
     scriptedModel([episodeJson(), episodeJson(), episodeJson(), episodeJson()]);
     expect(await runDueMixers(t.db, new Date(Date.now() + 31 * 60_000))).toMatchObject({ ran: 1, booked: 4 });
     const eps = (await t.db.query<Any>(`select id, creator_id, character_a, character_b from episodes`)).rows;
-    // The wrap links each person's own date from the night (it was a dead end on the web: no link).
+    // The wrap links the whole night (it was a dead end on the web: no link; since 2026-11-01 the room, not one table).
+    const nightId = (await t.db.query<Any>(`select id from group_nights where kind = 'mixer'`)).rows[0].id;
     for (const p of people) {
       const wrap = (await t.db.query<Any>(`select link, body from notifications where user_id = $1 and kind = 'mixer'`, [p.userId])).rows;
       expect(wrap).toHaveLength(1);
-      const own = eps.find((e: Any) => e.creator_id === p.userId)!;
-      expect(wrap[0].link).toBe(`/episodes/${own.id}?play=1`);
+      expect(wrap[0].link).toBe(`/mixers/${nightId}`);
       expect(wrap[0].body).toMatch(/relationship board/);
     }
     // The Join line's "last mixer": each person's own date, before anything airs.

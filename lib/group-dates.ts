@@ -22,6 +22,8 @@ import { seasonCastIds } from "./season-cast";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { venuePhrase, type PlaceId } from "./venues";
+import { roomLine } from "./mixer-room";
+import type { Ending } from "./rules";
 
 /** Where every double happens for now: the booth set for four (a reviewed backdrop, and literally named for it). */
 export const DOUBLE_VENUE: PlaceId = "double_date";
@@ -32,7 +34,7 @@ export const DOUBLE_MAX_PENDING = 3;
 
 export type Couple = { character_id: string; partner_id: string };
 /** One drawn meeting of a mixer: who meets whom, whose date it spends, and how it went. */
-export type Rotation = { a: string; b: string; booker: string; episode_id?: string | null; failed?: string };
+export type Rotation = { a: string; b: string; booker: string; episode_id?: string | null; failed?: string; round?: number };
 export type GroupNight = {
   id: string;
   kind: "double" | "mixer";
@@ -401,9 +403,30 @@ export async function groupBookingFor(
     if (r.booker !== userId) return { ok: false, status: 403, error: "not_your_table", message: "This rotation is its own booker's to book." };
     if (g.status !== "running") return { ok: false, status: 409, error: "night_not_open", message: `This mixer is ${g.status}, so its rotations can't be booked.` };
     if (r.episode_id) return { ok: false, status: 409, error: "table_booked", message: "This rotation is already booked." };
+    // The whole room (lib/mixer-room.ts, David 2026-11-01: "a mixer is everyone same room"): who's here, the round, how
+    // the earlier rounds looked from across the room (those rotations booked first, so their engine endings exist),
+    // and the beats around this table. Snapshotted on the setup, so a rebuild writes the same room.
     const seats = await mixerSeats(db, g.id);
-    const others = seats.filter((x) => x.character_id !== characterId && x.character_id !== partnerId).map((x) => shortName(x.name));
-    const table = `It's a speed-dating mixer: six lines with each match before the bell moves everyone on.${others.length ? ` Also here tonight: ${others.join(", ")}.` : ""}`;
+    const rotations = g.rotations ?? [];
+    const earlierIds = rotations.map((x) => x.episode_id).filter((x): x is string => Boolean(x));
+    const endings = new Map<number, Ending>();
+    if (earlierIds.length) {
+      const { rows: eps } = await db.query<{ id: string; ending: Ending }>(`select id, ending from episodes where id = any($1)`, [earlierIds]);
+      const byId = new Map(eps.map((e) => [e.id, e.ending]));
+      rotations.forEach((x, j) => {
+        const ending = x.episode_id ? byId.get(x.episode_id) : undefined;
+        if (ending) endings.set(j, ending);
+      });
+    }
+    const table = roomLine({
+      nightId: g.id,
+      venue: g.venue,
+      rotations,
+      i,
+      names: new Map(seats.map((x) => [x.character_id, x.name])),
+      seatIds: seats.map((x) => x.character_id),
+      endings,
+    });
     return { ok: true, booking: { nightId: g.id, kind: "mixer", side: i, venue: g.venue as PlaceId, table } };
   }
   const side: "a" | "b" | null =

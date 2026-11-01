@@ -16,6 +16,7 @@ import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { userIdFromCookieStore } from "@/lib/http";
 import { secondDateState } from "@/lib/second-date";
 import { siblingEpisode } from "@/lib/group-dates";
+import { mixerNightOf } from "@/lib/mixer-night";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
@@ -262,6 +263,8 @@ export default async function EpisodePage({
   const squash = (t: string | null | undefined) => (t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
   // A double date (lib/group-dates.ts): the other couple's episode of the same night, when both tables aired publicly.
   const sibling = await siblingEpisode(db, episode.id).catch(() => null);
+  // A mixer's table (lib/mixer-night.ts): its round, and the way back to the whole room's night.
+  const mixer = sibling ? null : await mixerNightOf(db, episode.id).catch(() => null);
   const lastAct = episode.scenes?.length ? episode.scenes.length - 1 : -1;
   const finaleRepeats =
     lastAct >= 0 && Boolean(episode.finale) && squash(withoutActLabel(episode.scenes![lastAct], DATE_ACTS[lastAct])) === squash(episode.finale);
@@ -303,6 +306,7 @@ export default async function EpisodePage({
           a.house && b.house ? "House cast" : a.house || b.house ? "With a house character" : null,
           a.agent || b.agent ? "🤖 Agent-made" : null,
           sibling ? "💞💞 A double date" : null,
+          mixer ? `🍸 Mixer · round ${mixer.round} of ${mixer.rounds}` : null,
           selfPerformed ? (twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI") : null,
         ]}
       >
@@ -351,6 +355,12 @@ export default async function EpisodePage({
           <p className="muted">
             💞💞 A double date: {sibling.names.join(" and ")} shared the table —{" "}
             <Link href={`/episodes/${sibling.episode_id}`}>their date</Link> is its own episode.
+          </p>
+        )}
+        {mixer && (
+          <p className="muted">
+            🍸 Round {mixer.round} of {mixer.rounds} at the mixer at {venuePhrase(mixer.venue)}: everyone was in one room.{" "}
+            <Link href={`/mixers/${mixer.night_id}`}>Watch the whole night</Link>, every table in order.
           </p>
         )}
         {episode.creators && (
