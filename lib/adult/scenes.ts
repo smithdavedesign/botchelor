@@ -177,6 +177,8 @@ export type AdultScene = {
   /** The line the current stage began at: unsteered, a stage lasts MIN_LINES_PER_STAGE lines first. */
   stage_from: number;
   picture_note: string | null;
+  /** #1122: seconds since its next lines started being written, while a write is in flight (a reload says so); else absent. */
+  writing_for?: number;
   /** The set they're on, a short place name ("his bedroom"), drawn once (lib/sets.ts); and a paid cut the next lines react to. */
   set_place: string | null;
   cut_to: string | null;
@@ -420,9 +422,11 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
       id: string; lines: SceneLine[]; place: string | null; stage: number; stage_from: number; picture_note: string | null; set_place: string | null; cut_to: string | null;
       chapter: number; recap: string | null; prev_tail: SceneLine[] | null; place_history: PlaceStop[] | null; moves: MoveLog[] | null; suggestions: unknown; whispers: unknown; undo: StepUndo[] | null;
       intensity: string | null; hard_nos: unknown; framing: string | null; scenario: string | null; roleplay: { id?: unknown; swap?: unknown; chapter?: unknown } | null;
+      writing_for: number | null;
     }>(
       `select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail, place_history, moves, suggestions, whispers, undo, intensity, hard_nos,
-              framing, scenario, roleplay
+              framing, scenario, roleplay,
+              case when writing_since > now() - make_interval(secs => ${WRITING_STALE_MS / 1000}) then floor(extract(epoch from now() - writing_since))::int end as writing_for
          from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`,
       [adminId, a, b],
     )
@@ -441,6 +445,7 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     stage: row.stage ?? 0,
     stage_from: row.stage_from ?? 0,
     picture_note: row.picture_note ?? null,
+    ...(row.writing_for != null ? { writing_for: row.writing_for } : {}),
     // A plan places them as Set the scene would, without the token: the first lines open on arriving, and the step stores it.
     set_place: plan?.set ?? row.set_place ?? null,
     cut_to: plan?.place ?? row.cut_to ?? null,
@@ -2482,7 +2487,30 @@ export type StepOptions = {
  * whisper to one of them (lib/adult/director.ts) is held to the two lines like a steer, played this step and the next,
  * and kept on the step's log. Each step leaves what a rewind needs to take it back (StepUndo), UNDO_DEPTH deep.
  */
+/** How long an unfinished write counts as in flight (#1122): past it, a crashed request no longer holds the page. */
+export const WRITING_STALE_MS = 4 * 60_000;
+
+/**
+ * The next lines (writeScene), marked on the scene while they're written (#1122: a reload mid-write showed an empty page
+ * with no Start; now it says it's writing and waits), cleared when it ends, whatever the result.
+ */
 export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge", opts: StepOptions = {}): Promise<ContinueResult> {
+  const pair = await eligiblePair(db, adminId, x, y);
+  const mark = (on: boolean) =>
+    pair
+      ? db.query(`update adult_scenes set writing_since = ${on ? "now()" : "null"} where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, pair[0], pair[1]]).catch(() => {})
+      : Promise.resolve();
+  // A first night has no row yet (loadScene makes it): make it, so the mark lands on the very first Start too.
+  if (pair) await db.query(`insert into adult_scenes (id, owner_id, character_a, character_b) values ($1, $2, $3, $4) on conflict do nothing`, [crypto.randomUUID(), adminId, pair[0], pair[1]]).catch(() => {});
+  await mark(true);
+  try {
+    return await writeScene(db, adminId, x, y, direction, steerMode, opts);
+  } finally {
+    await mark(false);
+  }
+}
+
+async function writeScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge", opts: StepOptions = {}): Promise<ContinueResult> {
   const scene = await loadScene(db, adminId, x, y);
   if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
   // Unsaved hard nos sent with this step hold for it like saved ones (nothing writes a scene's hard_nos but saveLimits).

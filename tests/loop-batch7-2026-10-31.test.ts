@@ -4,6 +4,7 @@ import { PICTURES_OFF_NOTE } from "@/lib/adult/media";
 import { APPEARANCE_MAX, BIO_MAX, DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { SHEET_PROPS } from "@/lib/mcp/constants";
 import { movePlace } from "@/lib/places";
+import { SAMPLE_LINE_MAX, TEXT_DETAILS } from "@/lib/extras";
 
 // From the loop20 prod run 2026-10-31-1521 (~/.botchelor-loop/runs/2026-10-31-1521).
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -36,5 +37,13 @@ describe("#1115: a setup step isn't a failed picture", () => {
     expect(pictureNoteKind(PICTURES_OFF_NOTE)).toBe("status");
     expect(pictureNoteKind("This chapter's pictures are drawn: 📸 Picture this draws another.")).toBe("status");
     expect(pictureNoteKind("The picture didn't come through.")).toBe("failure");
+  });
+});
+
+describe("#1129: the extras' text limits are in the schema", () => {
+  it("every free-text detail is listed with its limit, and the sample lines' limit", () => {
+    const d = String((SHEET_PROPS as Any).extras.description);
+    for (const [k, { max }] of Object.entries(TEXT_DETAILS)) expect(d).toMatch(new RegExp(`≤${max} [a-z_, ]*\\b${k}\\b`));
+    expect(d).toContain(`≤${SAMPLE_LINE_MAX} each`);
   });
 });

@@ -367,7 +367,7 @@ const JOB_THINGS = [
   "phonograph", "gas lamp", "funicular", "taxidermy owl", "stained window", "rope bridge", "fountain", "planetarium dome",
 ];
 const JOB_KINDS = ["restorer", "tuner", "mender", "appraiser", "keeper", "carver", "inspector", "cataloguer", "painter", "rebuilder"];
-const JOB_COMBOS = JOB_THINGS.flatMap((thing) => JOB_KINDS.map((kind) => ({ job: `a ${thing} ${kind}`, thing })));
+const JOB_COMBOS = JOB_THINGS.flatMap((thing) => JOB_KINDS.map((kind) => ({ job: `a ${thing} ${kind}`, thing, kind })));
 
 /** Spare first names, for "pick a different name" (none of them is offered if the show already has it). */
 const NAME_IDEAS = ["Wren", "Tamsin", "Ottoline", "Bastien", "Leocadia", "Hollis", "Ysolde", "Casimir", "Peregrine", "Delphine", "Ambrose", "Sabine", "Lucan", "Mireille", "Thaddeus", "Ingrid"];
@@ -408,9 +408,11 @@ export function freshJobs(sheet: SheetDraft, others: SheetDraft[], n = 3, by: st
   // at most one per thing in a deal.
   const picked = dealt(JOB_IDEAS, key).filter(free).slice(0, Math.min(1, n));
   const things = new Set<string>();
+  const kinds = new Set(others.flatMap((r) => [...workWords(r)]).flatMap((w) => JOB_KINDS.filter((k) => k === w || stem(k) === stem(w))));
   for (const c of dealt(JOB_COMBOS, key)) {
     if (picked.length >= n) break;
-    if (things.has(c.thing) || !free(c.thing)) continue;
+    // Nor a kind of work their jobs already say ("a carousel horse inspector" beside two lighthouse inspectors).
+    if (things.has(c.thing) || !free(c.thing) || kinds.has(c.kind)) continue;
     things.add(c.thing);
     picked.push(c.job);
   }

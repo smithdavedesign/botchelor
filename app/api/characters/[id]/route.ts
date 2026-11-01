@@ -1,4 +1,6 @@
 import { AUDIENCES } from "@/lib/audience";
+import { APPEARANCE_MAX, BIO_MAX, DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
+import { nameCheck } from "@/lib/name-check";
 import { z } from "zod";
 import { TALK_LEVELS } from "@/lib/talk";
 import { PARTNER_STYLES, takenSql } from "@/lib/partners";
@@ -34,17 +36,19 @@ const text = (max: number) => z.string().trim().min(1, "Required.").max(max, `At
  */
 const CharacterPatch = z
   .object({
-    name: text(40).refine((s) => s.split(/\s+/).length <= MAX_NAME_WORDS, `At most ${MAX_NAME_WORDS} words.`).optional(),
+    name: text(NAME_MAX).refine((s) => s.split(/\s+/).length <= MAX_NAME_WORDS, `At most ${MAX_NAME_WORDS} words.`).optional(),
     age: z.number().int().min(MIN_AGE, "Characters must be adults (18+).").max(MAX_AGE, `At most ${MAX_AGE}.`).optional(),
-    bio: text(500).optional(),
-    traits: z.array(text(30)).length(3, "Give exactly three traits.").optional(),
-    want: text(140).optional(),
-    dealbreaker: text(140).optional(),
-    appearance: text(140).nullable().optional(),
+    bio: text(BIO_MAX).optional(),
+    traits: z.array(text(TRAIT_MAX)).length(3, "Give exactly three traits.").optional(),
+    want: text(WANT_MAX).optional(),
+    dealbreaker: text(DEALBREAKER_MAX).optional(),
+    appearance: text(APPEARANCE_MAX).nullable().optional(),
     avatar_hue: z.number().int().min(0).max(360).optional(),
     pronouns: z.enum(PRONOUNS, "Pick she/her, he/him or they/them.").nullable().optional(),
     voice: text(VOICE_MAX).nullable().optional(),
     soul: SoulInput.optional(),
+    // #1128: a rename onto a name already on the show is refused unless this says to keep it, as on create.
+    keep_name: z.boolean().optional(),
     // Consent to be asked out by name (see POST /api/characters). Toggle any time; past dates are unaffected.
     open_to_dates: z.boolean().optional(),
     // Who may ask them out while they're open (lib/audience.ts): everyone, only people's characters, only agents'.
@@ -141,6 +145,20 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   });
   if (!verdict.ok) {
     return json({ error: "content_rejected", reason: verdict.reason, field: verdict.field, message: REJECTION_MESSAGES[verdict.reason] }, 422, sess);
+  }
+  // #1128 (the 2026-10-31-1616 visitor renamed onto a taken name and nothing said so): the same test create runs.
+  const keepName = input.keep_name === true;
+  delete input.keep_name;
+  if (typeof input.name === "string" && !keepName) {
+    const { twin, freeNames } = await nameCheck(db, input.name, id);
+    if (twin) {
+      const free = await freeNames();
+      return json(
+        { error: "name_taken", message: `There's already a ${twin.name} on the show. Pick another name${free.length ? ` (free right now: ${free.join(", ")})` : ""}, or pass keep_name: true.`, free_names: free },
+        409,
+        sess,
+      );
+    }
   }
 
   // A one-partner character in a relationship can't reopen to dates; switching to more than one in the same edit can.
