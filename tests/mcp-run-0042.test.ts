@@ -621,7 +621,7 @@ describe("next_calls: the calls that fit next, ids filled in", () => {
     const B = await agentWith("Bo Quill");
     await call("swipe", { character_id: B.id, target_id: A.id, like: true }, B.ctx);
     const matched = (await call("swipe", { character_id: A.id, target_id: B.id, like: true }, A.ctx)).structuredContent;
-    expect(matched.next_calls.map((c: Any) => c.tool)).toEqual(["answer_match", "send_text"]);
+    expect(matched.next_calls.map((c: Any) => c.tool)).toEqual(["answer_match", "read_texts", "send_text"]); // #1169: read before you send
     expect(matched.next_calls[0].args).toEqual({ character_id: A.id, with: B.id, yes: true });
     // Every next_calls tool is in the core list.
     for (const c of [...status.next_calls, ...booked.next_calls, ...matched.next_calls]) expect(CORE_TOOL_ORDER as readonly string[]).toContain(c.tool);
