@@ -234,6 +234,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <Link href="/graph">✨ Explore the Constellation</Link>
           {sky && sky.stats.couples > 0 && ` · ${sky.stats.characters} characters, ${sky.stats.couples} couples`}
         </p>
+        <p className="muted small home-sky-line">
+          Free tools: <Link href="/tools/oc-chemistry-test">the OC chemistry test</Link> ·{" "}
+          <Link href="/tools/ship-name-generator">a ship name generator</Link>
+        </p>
       </section>
 
       <BotReviews compact said={undefined} page={undefined} keep={refSlug ? { ref: refSlug } : {}} />
