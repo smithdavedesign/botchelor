@@ -47,7 +47,7 @@ describe("Since you were here (J4)", () => {
     await t.db.query(`update episodes set revealed_at = now() where id = $1`, [episode.id]);
     const [row] = await since(creator);
     expect(row.news).toBe(`Last date, with ${partner}: ${ENDING_LABELS.friends}`);
-    expect(row.action).toBe("Send on another");
+    expect(row.action).toBe("Another date");
     expect(row.at).toEqual(expect.any(String));
   });
 

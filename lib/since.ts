@@ -66,7 +66,7 @@ export async function sinceYouWereHere(db: Db, userId: string, mine: readonly Ch
     const episode = `/episodes/${encodeURIComponent(d.episode_id)}`;
     if (d.status === "generating") return { character, news: `On a date with ${d.partner} right now`, action: "Watch", href: `${episode}?play=1`, at };
     if (!d.aired || !d.ending) return { character, news: `Their date with ${d.partner} is ready`, action: "Watch it", href: episode, at };
-    return { character, news: `Last date, with ${d.partner}: ${endingLabel(d.ending, d.date_number)}`, action: "Send on another", href: another, at };
+    return { character, news: `Last date, with ${d.partner}: ${endingLabel(d.ending, d.date_number)}`, action: "Another date", href: another, at };
   });
   // Newest news first; characters with nothing yet keep their order, last.
   return rows.map((r, i) => ({ r, i })).sort((x, y) => (y.r.at ?? "").localeCompare(x.r.at ?? "") || x.i - y.i).map(({ r }) => r);
