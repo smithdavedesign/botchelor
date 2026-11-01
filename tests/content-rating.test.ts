@@ -111,7 +111,7 @@ describe("serving a show asset by its rating", () => {
     const cookie = person();
     const res = await serve(id, { cookie });
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe(`${BASE_URL}/api/assets/${id}/teaser`);
+    expect(res.headers.get("location")).toBe(`/api/assets/${id}/teaser`);
     expect(res.headers.get("cache-control")).toContain("no-store");
     const tease = await teaser(id, { cookie });
     expect(tease.status).toBe(200);
