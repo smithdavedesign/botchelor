@@ -32,7 +32,11 @@ export const DEFAULT_WRITERS: WriterModel[] = [
   { id: "z-ai/glm-4.6", label: "GLM-4.6", note: "the richest writing; slow, about 1 to 2 min a step", think_tokens: 1200 },
   { id: "deepseek/deepseek-chat-v3.1:nitro", label: "DeepSeek V3.1", note: "fast; about 10 s a step", think_tokens: 0 },
 ];
-export const DEFAULT_WRITER = "z-ai/glm-4.6";
+/**
+ * The quick one (David, 2026-11-01, "yes do 1-3" on the After Dark review: the slow default writer was the most-cited
+ * drag across 24 After Dark visitor runs, "1 to 2½ minutes a step"). The richer one stays a pick away.
+ */
+export const DEFAULT_WRITER = "deepseek/deepseek-chat-v3.1:nitro";
 
 /**
  * What a person reads for each writer, in plain words, before the model's name (the audit, 2026-10-29: "GLM-4.6" and
@@ -99,7 +103,9 @@ export function writerConfigOf(raw: unknown): WriterConfig {
     }
   }
   const parsed = WriterConfig.parse(out);
-  return parsed.models.some((m) => m.id === parsed.default) ? parsed : { ...parsed, default: parsed.models[0].id };
+  if (parsed.models.some((m) => m.id === parsed.default)) return parsed;
+  // A default that's gone from the list: the show's own default if it's still listed, else the first.
+  return { ...parsed, default: parsed.models.some((m) => m.id === DEFAULT_WRITER) ? DEFAULT_WRITER : parsed.models[0].id };
 }
 
 /** A save: the stored config with these keys replaced. Throws on a bad value, a default that isn't on the list, or a repeat. */

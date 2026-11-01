@@ -17,13 +17,14 @@ import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
 // Who writes the scenes (lib/adult/writer*.ts; David, 2026-10-24: GLM-4.6, and a person can switch). No model is called.
 
 describe("the writers' settings", () => {
-  it("default to GLM-4.6 with DeepSeek V3.1 to switch to, keep what parses, and refuse a default off the list or a repeat", () => {
-    expect(DEFAULT_WRITER_CONFIG.default).toBe("z-ai/glm-4.6");
+  // David, 2026-11-01: the quick one by default (the slow default was After Dark visitors' most-cited drag).
+  it("default to DeepSeek V3.1 with GLM-4.6 to switch to, keep what parses, and refuse a default off the list or a repeat", () => {
+    expect(DEFAULT_WRITER_CONFIG.default).toBe("deepseek/deepseek-chat-v3.1:nitro");
     expect(DEFAULT_WRITER_CONFIG.models.map((m) => m.id)).toEqual(["z-ai/glm-4.6", "deepseek/deepseek-chat-v3.1:nitro"]);
     expect(writerConfigOf(null)).toEqual(DEFAULT_WRITER_CONFIG);
     // A stored default that's no longer on the list falls back to the first writer.
-    expect(writerConfigOf({ default: "gone/model" }).default).toBe("z-ai/glm-4.6");
-    expect(mergeWriterConfig(DEFAULT_WRITER_CONFIG, { default: "deepseek/deepseek-chat-v3.1:nitro" }).default).toBe("deepseek/deepseek-chat-v3.1:nitro");
+    expect(writerConfigOf({ default: "gone/model" }).default).toBe("deepseek/deepseek-chat-v3.1:nitro");
+    expect(mergeWriterConfig(DEFAULT_WRITER_CONFIG, { default: "z-ai/glm-4.6" }).default).toBe("z-ai/glm-4.6");
     expect(() => mergeWriterConfig(DEFAULT_WRITER_CONFIG, { default: "not/on-the-list" })).toThrow(/default/);
     expect(() => mergeWriterConfig(DEFAULT_WRITER_CONFIG, { models: [DEFAULT_WRITER_CONFIG.models[0], DEFAULT_WRITER_CONFIG.models[0]] })).toThrow(/once/);
   });
@@ -63,18 +64,20 @@ const signedIn = (userId: string) => sessionCookies({ userId, authenticated: tru
 describe("each person's writer", () => {
   it("is the default until they pick one on the list, and goes with their account", async () => {
     const me = userIdOf(newUserCookie());
-    expect(await writerFor(t.db, me)).toBe("z-ai/glm-4.6");
-    expect(await setWriter(t.db, me, "deepseek/deepseek-chat-v3.1:nitro")).toBe(true);
     expect(await writerFor(t.db, me)).toBe("deepseek/deepseek-chat-v3.1:nitro");
+    expect(await setWriter(t.db, me, "z-ai/glm-4.6")).toBe(true);
+    expect(await writerFor(t.db, me)).toBe("z-ai/glm-4.6");
     expect(await setWriter(t.db, me, "someone/else")).toBe(false);
     // Taken off the list by an admin: they're back on the default.
-    await saveAdultSettings(t.db, { writer: { models: [{ id: "z-ai/glm-4.6", label: "GLM-4.6", note: "" }] } });
-    expect(await writerOptions(t.db, me)).toMatchObject({ chosen: "z-ai/glm-4.6", default: "z-ai/glm-4.6" });
+    await saveAdultSettings(t.db, { writer: { models: [{ id: "deepseek/deepseek-chat-v3.1:nitro", label: "DeepSeek V3.1", note: "" }] } });
+    expect(await writerOptions(t.db, me)).toMatchObject({ chosen: "deepseek/deepseek-chat-v3.1:nitro", default: "deepseek/deepseek-chat-v3.1:nitro" });
     await deleteAfterDarkData(t.db, me);
     expect((await t.db.query(`select 1 from adult_prefs where user_id = $1`, [me])).rows).toHaveLength(0);
   });
 
   it("a night's first lines are the fast writer's, unless they picked one themselves (the audit, 2026-10-29)", async () => {
+    // A slow default (the admins' to set) is where the fast opening matters.
+    await saveAdultSettings(t.db, { writer: { default: "z-ai/glm-4.6" } });
     const me = userIdOf(newUserCookie());
     expect(await writerChoice(t.db, me, { opening: true })).toMatchObject({ id: "deepseek/deepseek-chat-v3.1:nitro", think_tokens: 0, theirs: "z-ai/glm-4.6" });
     expect((await writerChoice(t.db, me)).id).toBe("z-ai/glm-4.6");
@@ -87,10 +90,10 @@ describe("each person's writer", () => {
     await claimAdmin(t.db, me);
     const cookie = signedIn(me);
     const post = (body: unknown) => writerPost(new Request(`${BASE_URL}/api/admin/after-dark/writer`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) }));
-    expect((await (await writerGet(new Request(`${BASE_URL}/api/admin/after-dark/writer`, { headers: { cookie } }))).json()).chosen).toBe("z-ai/glm-4.6");
-    expect((await (await post({ model: "deepseek/deepseek-chat-v3.1:nitro" })).json()).chosen).toBe("deepseek/deepseek-chat-v3.1:nitro");
+    expect((await (await writerGet(new Request(`${BASE_URL}/api/admin/after-dark/writer`, { headers: { cookie } }))).json()).chosen).toBe("deepseek/deepseek-chat-v3.1:nitro");
+    expect((await (await post({ model: "z-ai/glm-4.6" })).json()).chosen).toBe("z-ai/glm-4.6");
     expect((await post({ model: "nope/nope" })).status).toBe(422);
-    expect((await (await post({ model: null })).json()).chosen).toBe("z-ai/glm-4.6");
+    expect((await (await post({ model: null })).json()).chosen).toBe("deepseek/deepseek-chat-v3.1:nitro");
     // Not open to a stranger.
     const stranger = signedIn(userIdOf(newUserCookie()));
     expect((await writerGet(new Request(`${BASE_URL}/api/admin/after-dark/writer`, { headers: { cookie: stranger } }))).status).toBe(404);
@@ -99,8 +102,8 @@ describe("each person's writer", () => {
     const bad = await save({ writer: { default: "not/listed" } });
     expect(bad.status).toBe(422);
     expect((await bad.json()).message).toMatch(/^Writer:/);
-    const ok = await (await save({ writer: { default: "deepseek/deepseek-chat-v3.1:nitro" } })).json();
-    expect(ok.settings.writer.default).toBe("deepseek/deepseek-chat-v3.1:nitro");
+    const ok = await (await save({ writer: { default: "z-ai/glm-4.6" } })).json();
+    expect(ok.settings.writer.default).toBe("z-ai/glm-4.6");
   });
 });
 
@@ -119,7 +122,8 @@ describe("a writer that thinks first", () => {
     });
     const me = userIdOf(newUserCookie());
     await claimAdmin(t.db, me);
-    await saveAdultSettings(t.db, { enabled: true, openrouter_key: "sk-or-test-0000" });
+    // The thinking writer as the default (the admins' to set), so the opening and the next step differ.
+    await saveAdultSettings(t.db, { enabled: true, openrouter_key: "sk-or-test-0000", writer: { default: "z-ai/glm-4.6" } });
     const step = () =>
       scenePost(new Request(`${BASE_URL}/api/admin/after-dark`, { method: "POST", headers: { "content-type": "application/json", cookie: signedIn(me) }, body: JSON.stringify({ a: HOUSE_CHARACTERS[0].id, b: HOUSE_CHARACTERS[1].id }) }));
     // The night's first lines are the fast writer's (writerChoice opening); the next step is the default's, with its room.

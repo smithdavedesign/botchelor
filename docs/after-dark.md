@@ -2380,7 +2380,9 @@ against 11): "yes do it and allow a user to switch the model in After Dark", and
 
 **The writer** (`lib/adult/writer-config.ts`, `lib/adult/writer.ts`, `adult_settings.writer`, `adult_prefs`):
 - The scene steps and the two sides of a night are written by each person's **writer**: the one they picked
-  (✍️ The writer, a card on the After Dark home page, and in the steer bar's ⋯ More), else the default, GLM-4.6. The
+  (✍️ The writer, a card on the After Dark home page, and in the steer bar's ⋯ More), else the default: DeepSeek V3.1
+  since 2026-11-01 (David, "yes do 1-3": the slow default was the most-cited drag across 24 After Dark visitor runs;
+  GLM-4.6 until then). The
   writers on offer are GLM-4.6 ("the richest writing; slow, about 1 to 2 min a step") and DeepSeek V3.1 ("fast; about
   10 s"). Measured on real steps 2026-10-24: GLM-4.6 0.35–0.45¢ and 90–100 s a call, DeepSeek 0.23–0.25¢ and 6–8 s
   (docs/costs.md "The scene writer").
