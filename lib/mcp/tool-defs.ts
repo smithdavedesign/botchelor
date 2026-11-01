@@ -427,7 +427,7 @@ export const TOOL_DEFS = [
     name: "mixer",
     title: "Join the speed-dating mixer",
     description:
-      "A speed-dating night: 4\u20136 singles, and each meets its two neighbours for six lines before the bell (speed_date format). join: one of your characters \u2014 joining is the consent, and your character's one rotation spends one of your dates when the night runs (within the hour of enough joining; the usual booking rules then). Each date is its own episode; everyone at the mixer joins your character's met memory once the dates air, and reflecting on each date afterwards is what makes the night stick. leave: back out before it runs; list: true shows the open mixer and your nights. A night that never fills is called off free.",
+      "A speed-dating night: 4\u20136 singles in one room, and the bell pairs each with its two neighbours, round by round, for six lines each (speed_date format; the whole night plays at /mixers/<id>). join: one of your characters \u2014 joining is the consent, and your character's one rotation spends one of your dates when the night runs (within the hour of enough joining; the usual booking rules then). Each date is its own episode; everyone at the mixer joins your character's met memory once the dates air, and reflecting on each date afterwards is what makes the night stick. leave: back out before it runs; list: true shows the open mixer and your nights. A night that never fills is called off free.",
     inputSchema: {
       type: "object",
       properties: {

@@ -8,9 +8,9 @@ import { operatorReserved } from "@/lib/operator-pass";
 import type { Db } from "@/lib/db";
 
 /** This person's dates from mixers in the last two days, newest first: the one each character booked (its own date). */
-async function recentMixerDates(db: Db, userId: string): Promise<{ character_id: string; episode_id: string; venue: string }[]> {
-  const { rows } = await db.query<{ character_id: string; episode_id: string; venue: string }>(
-    `select r->>'a' as character_id, r->>'episode_id' as episode_id, gn.venue
+async function recentMixerDates(db: Db, userId: string): Promise<{ character_id: string; episode_id: string; venue: string; night_id: string }[]> {
+  const { rows } = await db.query<{ character_id: string; episode_id: string; venue: string; night_id: string }>(
+    `select r->>'a' as character_id, r->>'episode_id' as episode_id, gn.venue, gn.id as night_id
        from group_nights gn, jsonb_array_elements(gn.rotations) r
       where gn.kind = 'mixer' and gn.status = 'done' and gn.decided_at > now() - interval '2 days'
         and r->>'booker' = $1 and r->>'episode_id' is not null

@@ -15,6 +15,7 @@ import { MCP_CALL_URL, USER_COOKIE } from "./http";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { venuePhrase } from "./venues";
+import { playOrder, roundOf } from "./mixer-room";
 
 async function book(asUserId: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const req = new Request(MCP_CALL_URL, {
@@ -94,8 +95,9 @@ function drawRotations(nightId: string, seats: { character_id: string; booker: s
     const j = seed % (i + 1);
     [order[i], order[j]] = [order[j], order[i]];
   }
-  // A circle: everyone meets their two neighbours, and books exactly one of those rotations (one date each).
-  return order.map((s, i) => ({ a: s.character_id, b: order[(i + 1) % order.length].character_id, booker: s.booker }));
+  // A circle: everyone meets their two neighbours, and books exactly one of those rotations (one date each). Each
+  // rotation carries the round the bell calls it in (lib/mixer-room.ts): the room plays round by round.
+  return order.map((s, i) => ({ a: s.character_id, b: order[(i + 1) % order.length].character_id, booker: s.booker, round: roundOf(i, order.length) }));
 }
 
 export type MixerRun = { ran: number; booked: number; failed: number; cancelled: number; waiting: number };
@@ -144,7 +146,9 @@ export async function runDueMixers(db: Db, now: Date = new Date()): Promise<Mixe
   if (!claimed.rows.length) return out;
   out.ran = 1;
   const names = new Map(open.seats.map((s) => [s.character_id, s.name]));
-  for (const [i, r] of rotations.entries()) {
+  // Booked round by round (lib/mixer-room.ts playOrder), so a later round's room line knows how the earlier ones looked.
+  for (const i of playOrder(rotations)) {
+    const r = rotations[i];
     const res = await book(r.booker, { character_id: r.a, partner_id: r.b, group_night: open.night.id, format: "speed_date" });
     if (res.ok) out.booked += 1;
     else {
@@ -159,21 +163,20 @@ export async function runDueMixers(db: Db, now: Date = new Date()): Promise<Mixe
   // The wrap: your rotations, and the ask that makes the night compound (David 2026-10-25: reflect on who you liked).
   // 2026-10-25 page review: it links the character's own date from the night (it had no link: a dead end on the web),
   // and speaks to people first; agents get the tool names in brackets.
-  const stamped = ((await db.query<{ rotations: Rotation[] }>(`select rotations from group_nights where id = $1`, [open.night.id])).rows[0]?.rotations ?? []) as Rotation[];
   for (const seat of open.seats) {
     const first = shortName(names.get(seat.character_id) ?? "someone");
     const mine = rotations.filter((r) => (r.a === seat.character_id || r.b === seat.character_id) && !r.failed);
     const met = mine.map((r) => shortName(names.get(r.a === seat.character_id ? r.b : r.a) ?? "someone"));
-    const ownDate = stamped.find((r) => r.a === seat.character_id && r.episode_id)?.episode_id ?? stamped.find((r) => r.b === seat.character_id && r.episode_id)?.episode_id;
     await notify(db, seat.booker, {
       kind: "mixer",
       title: out.booked ? `🍸 ${first} went to the mixer at ${venuePhrase(open.night.venue)}` : "🍸 The mixer couldn't run",
       body: out.booked
-        ? `${first} met ${met.join(" and ") || "nobody (their rotations fell through)"}: six lines each, being written now. ` +
+        ? `${first} met ${met.join(" and ") || "nobody (their rotations fell through)"} in one room: six lines each, round by round, being written now. ` +
           `Once they air, everyone there is in ${first}'s memory, and you can say what ${first} thought of each of them on their relationship board. ` +
           `(Agents: reflect_on_date for each date, remember_meeting for the singles ${first} didn't meet.)`
         : "No rotation could be booked, so nothing ran. Nothing was spent beyond what each refusal said.",
-      link: out.booked && ownDate ? `/episodes/${ownDate}?play=1` : `/characters/${seat.character_id}`,
+      // 2026-11-01: the whole room is the night (/mixers/[id]); each table's own page links back to it.
+      link: out.booked ? `/mixers/${open.night.id}` : `/characters/${seat.character_id}`,
     }).catch(() => {});
   }
   return out;

@@ -34,8 +34,9 @@ type Props = {
   /**
    * Centred notes before line `at` (one at turns.length closes the thread): After Dark's "Now: <place>" where a paid scene
    * change starts (#1030), with a hint under it while nothing has been said there yet. Only those playback has reached.
+   * `icon` replaces the 📍 (a mixer's room beats around a table, lib/mixer-room.ts, are 👀).
    */
-  dividers?: readonly { at: number; text: string; hint?: string | null }[];
+  dividers?: readonly { at: number; text: string; hint?: string | null; icon?: string }[];
   /**
    * Name the speaker whenever it changes, not only the first time each side talks in an act (#1171: After Dark's Story
    * pane is one long act, so after its first two lines nobody was named).
@@ -103,7 +104,7 @@ export default function ChatThread({ characters, turns, typing = null, challenge
       .filter((d) => d.at === i)
       .map((d) => (
         <div key={`d${i}:${d.text}`} className="chat-divider" role="note">
-          <p className="chat-note chat-move">📍 {d.text}</p>
+          <p className="chat-note chat-move">{d.icon ?? "📍"} {d.text}</p>
           {d.hint && <p className="chat-divider-hint">{d.hint}</p>}
         </div>
       ));
