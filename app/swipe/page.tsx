@@ -12,6 +12,7 @@ import { takenWith } from "@/lib/partners";
 import { deckFor, UNDO_MINUTES } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
 import SwipeDeck from "./SwipeDeck";
+import { pushKeys } from "@/lib/push";
 import Avatar from "@/app/Avatar";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +93,7 @@ export default async function SwipePage({ searchParams }: Props) {
         </p>
       </div>
       {deck.ok ? (
-        <SwipeDeck character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={await withOrigins(db, deck.cards)} serveId={serveId} undoMinutes={UNDO_MINUTES} />
+        <SwipeDeck character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={await withOrigins(db, deck.cards)} serveId={serveId} undoMinutes={UNDO_MINUTES} pushKey={pushKeys()?.publicKey ?? null} />
       ) : (
         <section className="card">
           <h2>{deck.error === "profile_incomplete" ? `Finish ${first}'s dating profile` : `${first} can't swipe right now`}</h2>

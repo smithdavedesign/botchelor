@@ -137,7 +137,7 @@ async function main() {
       assert((await page.locator(".hero-art .avatar").count()) === 2, "hero product teaser missing");
       assert((await page.locator(".features .feature").count()) >= 3, "feature grid missing");
       assert((await page.locator(".faq details").count()) >= 3, "FAQ missing");
-      // The builder lives at /create (the home's #start is "Jump back in", for creators with a character already).
+      // The builder lives at /create (the home's #start is "Since you were here", for creators with a character already).
       assert((await page.locator('a[href^="/create"]').count()) > 0, "no way to the builder");
     });
 
