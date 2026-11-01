@@ -254,9 +254,34 @@ const FALLBACK_OUTFITS = ["casual", "smart", "street"] as const;
  * their own style words when they're clean, else one of the outfit step's everyday picks, the same one every time (by
  * their id), so a night's pictures keep them in the same clothes.
  */
-export function everydayOf(c: Pick<Character, "id" | "pronouns" | "extras">): string {
-  const style = c.extras?.style?.trim();
-  if (style && checkAdultText({ words: style }).ok && !crossesTaboo(style)) return style;
+/**
+ * The clothes a character's own words name (#1158, the 2026-10-31-1838 After Dark visitor: "a waistcoat character dressed
+ * in a white tee and jeans"): their style, else what their look or appearance has them in ("in a velvet waistcoat",
+ * "wearing a black apron"). Null when neither says; only clean words. Pure.
+ */
+export function ownClothes(c: Pick<Character, "id" | "extras"> & { look?: Pick<Character["look"], "appearance" | "physical"> }): string | null {
+  const clean = (w: string | null | undefined) => {
+    const t = w?.trim().replace(/[.\s]+$/, "");
+    return t && checkAdultText({ words: t }).ok && !crossesTaboo(t) ? t : null;
+  };
+  const style = clean(c.extras?.style);
+  if (style) return style;
+  const named = (text: string | null | undefined) => {
+    for (const m of (text ?? "").matchAll(/\b(?:in (?:an?|his|her|their)|wearing|dressed in)\s+([^,.;]+)/gi)) {
+      // "in his late thirties", "in a hurry": an age or a mood, not clothes.
+      if (/\b(?:teens|twenties|thirties|forties|fifties|sixties|hurry|rush|mood)\b/i.test(m[1])) continue;
+      const words = clean(m[0].replace(/^in (?:his|her|their)\s+/i, "").replace(/^(?:in|wearing|dressed in)\s+/i, ""));
+      if (words) return words;
+    }
+    return null;
+  };
+  const house = ALL_HOUSE_CHARACTERS.find((h) => h.id === c.id)?.look;
+  return named(house) ?? named(c.look?.physical) ?? named(c.look?.appearance);
+}
+
+export function everydayOf(c: Pick<Character, "id" | "pronouns" | "extras"> & { look?: Pick<Character["look"], "appearance" | "physical"> }): string {
+  const own = ownClothes(c);
+  if (own) return own;
   const gender: Gender | null = c.extras?.looks?.gender ?? (/^\s*she\b/i.test(c.pronouns ?? "") ? "woman" : /^\s*he\b/i.test(c.pronouns ?? "") ? "man" : null);
   if (!gender) return "a plain t-shirt, a dark jacket and jeans";
   const n = [...c.id].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);

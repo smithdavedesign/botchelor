@@ -26,7 +26,7 @@ import { chooseView, framingScores } from "./framing";
 import { mediaLimits } from "./clips";
 import { climaxIn } from "./craft";
 import { checkReady, mediaGate } from "./moderation";
-import { everydayOf, recentActions } from "./media";
+import { everydayOf, ownClothes, recentActions } from "./media";
 import { keepPictureOfBoth } from "./pictures-menu";
 import { keyframePrompt, placeWords, povPrompt, reelCast, withoutNames, type ReelPerson } from "./reels";
 import { thumbsDown } from "./steering";
@@ -522,11 +522,11 @@ function wornOf(people: readonly [Character, Character], owner: string, stage: n
   }) as [string, string];
 }
 
-/** Either of them has no outfit of their own (no looks for it, no style): wornOf fell back on a stock outfit (#1142). */
+/** Either of them has no outfit of their own (no looks for it, nothing their words say they wear): a stock outfit (#1142, #1158). */
 function wornGuessed(people: readonly [Character, Character], owner: string, stage: number, publicPlace: boolean): boolean {
   return people.some((c) => {
     const p = looksPictureWords(c.extras?.looks, c.ownerId === owner);
-    return !((publicPlace || stage < 2 ? p.everyday : (p.outfit ?? p.everyday)) ?? c.extras?.style?.trim());
+    return !((publicPlace || stage < 2 ? p.everyday : (p.outfit ?? p.everyday)) ?? ownClothes(c));
   });
 }
 

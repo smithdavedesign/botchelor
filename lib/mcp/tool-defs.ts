@@ -228,7 +228,7 @@ export const TOOL_DEFS = [
   {
     name: "my_dates",
     title: "My dates",
-    description: "Every date your characters have been on (asked for, or asked out on), newest first. Returns { dates: [{id, characters, status, ending once written, visibility}] }.",
+    description: "Every date your characters have been on (asked for, or asked out on), newest first. Returns { dates: [{id, characters, with, status, aired, airs_at until it airs, ending once written, visibility}] }.",
     inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
     annotations: READ,
   },
