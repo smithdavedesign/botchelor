@@ -364,6 +364,27 @@ async function main() {
       { name: "matches-none", path: "/matches" },
       { name: "matches", path: `/matches?character=${swiper.id}`, as: "owner" },
       { name: "messages", path: `/messages/${[swiper.id, houseCard.id].sort().join("/")}?as=${swiper.id}`, as: "owner" },
+      {
+        // ⋯ open: their story, a double date, the other chats (on a phone), Unmatch (app/couples/[a]/[b]/ThreadMenu.tsx).
+        name: "messages-menu",
+        path: `/messages/${[swiper.id, houseCard.id].sort().join("/")}?as=${swiper.id}`,
+        as: "owner",
+        walk: async (page) => {
+          await page.locator(".phone-header .thread-menu > button").click();
+          await page.locator(".thread-menu-panel").waitFor();
+        },
+      },
+      {
+        // Unmatch asks first, in a modal (app/Sheet.tsx).
+        name: "messages-unmatch",
+        path: `/messages/${[swiper.id, houseCard.id].sort().join("/")}?as=${swiper.id}`,
+        as: "owner",
+        walk: async (page) => {
+          await page.locator(".phone-header .thread-menu > button").click();
+          await page.locator(".thread-menu-panel").getByRole("menuitem", { name: /Unmatch/ }).click();
+          await page.locator(".sheet-dialog[open]").waitFor();
+        },
+      },
       { name: "couple-owner", path: couplePath, as: "owner" },
       { name: "couple-spectator", path: couplePath },
       { name: "board-owner", path: `/characters/${myChar}/relationships`, as: "owner" },

@@ -13,6 +13,7 @@ import { shortName } from "@/lib/names";
 import { pairKey } from "@/lib/relationships";
 import { haveDated } from "@/lib/swipe-gate";
 import { unmatchedFor } from "@/lib/unmatch";
+import DoublePicker from "./DoublePicker";
 import ThreadNext from "./ThreadNext";
 import ThreadSwitcher from "./ThreadSwitcher";
 import Unmatch from "./Unmatch";
@@ -26,6 +27,9 @@ export const metadata: Metadata = {
 
 type Props = { params: Promise<{ a: string; b: string }>; searchParams: Promise<{ as?: string }> };
 
+/** The other chats ⋯ lists on a phone, newest first; the rest are a tap back, on Matches. */
+const CHATS_IN_MENU = 5;
+
 const refOf = (c: PublicCharacter): CharacterRef => ({
   id: c.id,
   name: c.name,
@@ -36,8 +40,9 @@ const refOf = (c: PublicCharacter): CharacterRef => ({
 
 /**
  * A thread and nothing else (David, 2026-10-18): the two characters' texts on a phone that fills the screen, opened
- * from Matches. Owners only; the couple page (ⓘ) keeps their dates, arc and plans. `?as=` says whose phone it is
- * when the viewer owns both. A match that hasn't dated yet can be ended here (⋯, Unmatch; lib/unmatch.ts).
+ * from Matches. Owners only; the couple page (⋯, Their dates and story) keeps their dates, arc and plans. `?as=` says
+ * whose phone it is when the viewer owns both. A match that hasn't dated yet can be ended here (⋯, Unmatch;
+ * lib/unmatch.ts).
  */
 export default async function MessagesPage({ params, searchParams }: Props) {
   const { a, b } = await params;
@@ -83,6 +88,31 @@ export default async function MessagesPage({ params, searchParams }: Props) {
     next?.kind === "declined" ? `💔 Not this time: ${shortName((next.by === "you" ? me : them).name)} isn't feeling it` : next?.kind === "waiting" ? "💘 Matched · deciding on a date" : t.stageLabel;
   // A match that hasn't had a date (nor one being filmed) can unmatch; after a date they're a couple (lib/unmatch.ts).
   const canUnmatch = Boolean(t.match) && !dated && next?.kind !== "filming";
+  // ⋯'s own items, after their story and the other phone: a double date while they're booking one, this character's
+  // other chats (a phone's header has no room for the ▾ switcher, so they're listed here), then Unmatch, last.
+  const others = chats.filter((c) => c.href !== here);
+  const more =
+    next?.kind === "book" || others.length > 0 || canUnmatch ? (
+      <>
+        {next?.kind === "book" && <DoublePicker mineId={me.id} themId={them.id} />}
+        {others.length > 0 && (
+          <div className="thread-menu-chats" role="group" aria-label={`${shortName(me.name)}'s other chats`}>
+            <span className="thread-menu-label">{shortName(me.name)}&apos;s other chats</span>
+            {others.slice(0, CHATS_IN_MENU).map((c) => (
+              <Link key={c.href} role="menuitem" className="thread-menu-item" href={c.href} data-close>
+                <span aria-hidden="true">💬</span> {c.name}
+              </Link>
+            ))}
+            {others.length > CHATS_IN_MENU && (
+              <Link role="menuitem" className="thread-menu-item" href={back} data-close>
+                <span aria-hidden="true">💘</span> All of {shortName(me.name)}&apos;s matches
+              </Link>
+            )}
+          </div>
+        )}
+        {canUnmatch && <Unmatch mineId={me.id} themId={them.id} mineName={shortName(me.name)} themName={shortName(them.name)} back={back} />}
+      </>
+    ) : null;
 
   return (
     <div className="messages-fullscreen">
@@ -115,7 +145,7 @@ export default async function MessagesPage({ params, searchParams }: Props) {
             </>
           ),
           action: <ThreadNext next={next} mineId={me.id} themId={them.id} />,
-          more: canUnmatch ? <Unmatch mineId={me.id} themId={them.id} mineName={shortName(me.name)} themName={shortName(them.name)} back={back} /> : null,
+          more,
         }}
       />
     </div>

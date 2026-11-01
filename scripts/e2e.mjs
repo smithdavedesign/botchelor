@@ -471,8 +471,15 @@ async function main() {
       }
       assert(agreed, "no agreed date after six matches");
       assert(await page.locator("#texts .phone-event", { hasText: "agreed to a date" }).isVisible(), "the chain should mark the agreed date");
-      // ⓘ leads to their story; the couple page books too.
-      assert((await page.locator(".phone-header a[href^='/couples/']").count()) === 1, "the thread should link to their story");
+      // ⋯ holds the rest of the header: their story (the couple page books too), a double date, Unmatch.
+      await page.locator(".phone-header .thread-menu > button").click();
+      const menu = page.locator(".thread-menu-panel");
+      await menu.getByRole("menuitem", { name: /Their dates and story/ }).waitFor();
+      assert((await menu.locator("a[href^='/couples/']").count()) === 1, "⋯ should link to their story");
+      assert(await menu.getByRole("menuitem", { name: /Make it a double date/ }).isVisible(), "⋯ should offer a double date while they're booking");
+      assert(await menu.getByRole("menuitem", { name: /Unmatch/ }).isVisible(), "⋯ should offer Unmatch before their first date");
+      await page.keyboard.press("Escape");
+      assert(await menu.isHidden(), "Esc should close ⋯");
       await page.locator(".phone-header").getByRole("button", { name: "📅 Book date" }).click();
       await page.waitForURL(/\/episodes\/[0-9a-f-]{36}/, { timeout: 30_000 });
       await page.locator(".theater").waitFor({ timeout: 10_000 });
