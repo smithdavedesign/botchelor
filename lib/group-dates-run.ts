@@ -17,6 +17,8 @@ import { notify } from "./notifications";
 import { venuePhrase } from "./venues";
 import { playOrder, roundOf } from "./mixer-room";
 import { fillMixerTonight } from "./mixer-fill";
+import { writeRoomOpening } from "./mixer-voice";
+import { HOUSE_BOOKER, markHouseRequest } from "./house-booker";
 
 async function book(asUserId: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const req = new Request(MCP_CALL_URL, {
@@ -24,6 +26,8 @@ async function book(asUserId: string, body: Record<string, unknown>): Promise<{ 
     headers: { "content-type": "application/json", cookie: `${USER_COOKIE}=${asUserId}` },
     body: JSON.stringify(body),
   });
+  // The house booking its cast's rotations (lib/house-booker.ts): only a request built here can act as the house.
+  if (asUserId === HOUSE_BOOKER) markHouseRequest(req);
   const res = await postEpisode(req);
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { ok: res.ok, status: res.status, data };
@@ -150,6 +154,8 @@ export async function runDueMixers(db: Db, now: Date = new Date()): Promise<Mixe
   );
   if (!claimed.rows.length) return out;
   out.ran = 1;
+  // The room's opening, written once now (lib/mixer-voice.ts: one short call, the template if it fails).
+  await writeRoomOpening(db, open.night.id).catch(() => false);
   const names = new Map(open.seats.map((s) => [s.character_id, s.name]));
   // Booked round by round (lib/mixer-room.ts playOrder), so a later round's room line knows how the earlier ones looked.
   for (const i of playOrder(rotations)) {

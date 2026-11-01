@@ -16,13 +16,15 @@
 import type { Db } from "./db";
 import { characterSeenSql } from "./activity";
 import { seedFrom } from "./engine";
-import { houseBotCharacterIds } from "./house-bots";
+import { houseBotCharacterIds, isHouseBotSql } from "./house-bots";
+import { writeRoomClosing } from "./mixer-voice";
 import { takenSql } from "./partners";
 import { seasonCastIds } from "./season-cast";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { venuePhrase, type PlaceId } from "./venues";
 import { roomLine } from "./mixer-room";
+import { HOUSE_BOOKER } from "./house-booker";
 import type { Ending } from "./rules";
 
 /** Where every double happens for now: the booth set for four (a reviewed backdrop, and literally named for it). */
@@ -257,7 +259,7 @@ export async function joinMixer(db: Db, userId: string, characterId: string, now
   const runs =
     seats.length >= MIXER_MIN
       ? `Within the hour (the doors stay open ~${MIXER_DOORS_MINUTES} minutes so others can join).`
-      : `Once ${MIXER_MIN} are in (${seats.length} now). If it's short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house tops it up with its own (labelled) crowd and it runs then.`;
+      : `Once ${MIXER_MIN} are in (${seats.length} now). If it's short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house tops it up with its own cast and (labelled) crowd and it runs then.`;
   void now;
   return { ok: true, night: open.night, seats, runs };
 }
@@ -395,7 +397,16 @@ export async function inviteView(
   };
 }
 
-export type GroupBooking = { nightId: string; kind: "double" | "mixer"; side: "a" | "b" | number; venue: PlaceId; table: string; housePaid?: boolean };
+export type GroupBooking = {
+  nightId: string;
+  kind: "double" | "mixer";
+  side: "a" | "b" | number;
+  venue: PlaceId;
+  table: string;
+  housePaid?: boolean;
+  /** The rotation's partner is one of the house's fillers (lib/mixer-fill.ts): nobody to tell of the booking. */
+  partnerIsFiller?: boolean;
+};
 
 /**
  * What the booking route needs for one table of a night (app/api/episodes/route.ts, input.group_night): which side
@@ -444,7 +455,13 @@ export async function groupBookingFor(
       seatIds: seats.map((x) => x.character_id),
       endings,
     });
-    return { ok: true, booking: { nightId: g.id, kind: "mixer", side: i, venue: g.venue as PlaceId, table, ...(r.house_paid ? { housePaid: true } : {}) } };
+    // The house books only its own house-paid rotations (lib/house-booker.ts).
+    if (r.booker === HOUSE_BOOKER && !r.house_paid) return { ok: false, status: 403, error: "not_your_table", message: "This rotation is its own booker's to book." };
+    const partnerIsFiller = seats.some((x) => x.character_id === partnerId && x.house_fill);
+    return {
+      ok: true,
+      booking: { nightId: g.id, kind: "mixer", side: i, venue: g.venue as PlaceId, table, ...(r.house_paid ? { housePaid: true } : {}), ...(partnerIsFiller ? { partnerIsFiller: true } : {}) },
+    };
   }
   const side: "a" | "b" | null =
     g.couple_a.character_id === characterId && g.couple_a.partner_id === partnerId
@@ -522,9 +539,14 @@ export async function notifyNightAired(db: Db, episodeId: string): Promise<numbe
     )
   ).rows[0];
   if (!night) return 0;
+  // A mixer's closing beat is written now, once, the moment its last table airs (lib/mixer-voice.ts; a template if not).
+  await writeRoomClosing(db, night.id).catch(() => false);
+  // Never the house: its cast has no owner, and its fillers (lib/mixer-fill.ts) and crowd bots aren't asked who they liked.
   const { rows } = await db.query<{ id: string; name: string; owner_id: string }>(
     `select distinct c.id, c.name, c.owner_id from episodes e join characters c on c.id in (e.character_a, e.character_b)
-      where e.group_id = $1 and not c.is_house and c.owner_id is not null and c.owner_id <> 'deleted'`,
+      where e.group_id = $1 and not c.is_house and c.owner_id is not null and c.owner_id <> 'deleted'
+        and not ${isHouseBotSql("c.owner_id")}
+        and not exists (select 1 from group_night_seats gs where gs.night_id = $1 and gs.character_id = c.id and gs.house_fill)`,
     [night.id],
   );
   for (const c of rows) {
@@ -537,4 +559,16 @@ export async function notifyNightAired(db: Db, episodeId: string): Promise<numbe
     }).catch(() => {});
   }
   return rows.length;
+}
+
+/**
+ * Who hears nothing about this episode because it's a mixer table the house filled (lib/mixer-fill.ts): the house's own
+ * booker and the fillers' bookers (house-crowd bots). Empty for any other date.
+ */
+export async function mixerQuietUsers(db: Db, episodeId: string): Promise<string[]> {
+  const { rows } = await db.query<{ booker: string }>(
+    `select gs.booker from episodes e join group_night_seats gs on gs.night_id = e.group_id and gs.house_fill where e.id = $1`,
+    [episodeId],
+  );
+  return rows.length ? [HOUSE_BOOKER, ...new Set(rows.map((r) => r.booker))] : [];
 }

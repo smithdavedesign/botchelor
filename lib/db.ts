@@ -629,6 +629,12 @@ create index if not exists episodes_group_idx on episodes (group_id) where group
 -- house-paid), and when the house topped a night up (once a UTC day; a filled night runs without the doors wait).
 alter table group_night_seats add column if not exists house_fill boolean not null default false;
 alter table group_nights add column if not exists filled_at timestamptz;
+-- The room's own words (lib/mixer-voice.ts): a mixer night's opening and closing, written once (by the model, or the
+-- template when the call failed or was refused: *_by says which).
+alter table group_nights add column if not exists room_opening text;
+alter table group_nights add column if not exists room_opening_by text;
+alter table group_nights add column if not exists room_closing text;
+alter table group_nights add column if not exists room_closing_by text;
 -- The house matchmaker's daily picks (lib/house-matchmaker.ts): a pair is proposed once, ever; both owners are told.
 create table if not exists matchmaker_picks (
   character_lo text not null references characters (id) on delete cascade,
