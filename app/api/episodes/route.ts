@@ -433,9 +433,12 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
   // A second date may be this season's free one (FREE_WEEKLY_SECOND_DATE); otherwise it costs a date like any other.
   // An operator pass (lib/operator-pass) spends a reserved date first: it leaves this week's free/pack dates untouched
   // and (marked operator_reserved) stays out of the shared agent cap. Gated off, so false for everyone until it's on.
-  const passDate = await reserveOperatorDate(db, sess.userId);
-  const reservation = passDate ? null : (secondDate ? await reserveSecondDate(db, sess.userId) : null) ?? (await reserveEpisode(db, sess.userId));
-  if (!passDate && !reservation) {
+  // A house filler's mixer rotation (lib/mixer-fill.ts): the house pays it, so it spends none of the bot's own dates.
+  // Only the night's stored rotation can say so (groupBookingFor), never the request.
+  const housePaid = group?.housePaid === true;
+  const passDate = housePaid ? false : await reserveOperatorDate(db, sess.userId);
+  const reservation = passDate || housePaid ? null : (secondDate ? await reserveSecondDate(db, sess.userId) : null) ?? (await reserveEpisode(db, sess.userId));
+  if (!passDate && !reservation && !housePaid) {
     return json(
       {
         error: "episode_limit_reached",

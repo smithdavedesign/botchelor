@@ -34,7 +34,16 @@ export const DOUBLE_MAX_PENDING = 3;
 
 export type Couple = { character_id: string; partner_id: string };
 /** One drawn meeting of a mixer: who meets whom, whose date it spends, and how it went. */
-export type Rotation = { a: string; b: string; booker: string; episode_id?: string | null; failed?: string; round?: number };
+export type Rotation = {
+  a: string;
+  b: string;
+  booker: string;
+  episode_id?: string | null;
+  failed?: string;
+  round?: number;
+  /** Booked by a house filler (lib/mixer-fill.ts): the house pays it, not the bot's own dates. */
+  house_paid?: boolean;
+};
 export type GroupNight = {
   id: string;
   kind: "double" | "mixer";
@@ -48,6 +57,8 @@ export type GroupNight = {
   episode_b: string | null;
   rotations: Rotation[] | null;
   created_at: string;
+  /** When the house topped this mixer up (lib/mixer-fill.ts), or null. */
+  filled_at?: string | null;
 };
 
 const night = (r: Record<string, unknown>): GroupNight => ({
@@ -63,6 +74,7 @@ const night = (r: Record<string, unknown>): GroupNight => ({
   episode_b: (r.episode_b as string | null) ?? null,
   rotations: (r.rotations as Rotation[] | null) ?? null,
   created_at: new Date(r.created_at as string).toISOString(),
+  filled_at: r.filled_at ? new Date(r.filled_at as string).toISOString() : null,
 });
 
 type CharLite = { id: string; name: string; owner_id: string | null; is_house: boolean; visibility: string };
@@ -177,6 +189,11 @@ async function lapseOldInvites(db: Db, now: Date): Promise<void> {
 
 /* ------------------------------------------------ mixers (M2) ------------------------------------------------ */
 
+/**
+ * The hour (UTC) the house tops tonight's mixer up to MIXER_MIN from its labelled crowd, or seats a mixer of its own
+ * when nobody joined (lib/mixer-fill.ts): evening in Europe, afternoon in the Americas. The lobby job runs at :20.
+ */
+export const MIXER_FILL_HOUR_UTC = 20;
 /** A mixer runs once this many singles are in (and the doors have been open a short while, so others can join). */
 export const MIXER_MIN = 4;
 export const MIXER_MAX = 6;
@@ -187,11 +204,11 @@ export const MIXER_DOORS_MINUTES = 30;
 /** Where a mixer happens: dealt per night from the venues a crowd suits. */
 const MIXER_VENUES: readonly PlaceId[] = ["dive_bar", "jazz_bar", "rooftop_bar", "night_market"];
 
-export type MixerSeat = { character_id: string; name: string; booker: string };
+export type MixerSeat = { character_id: string; name: string; booker: string; house_fill?: boolean };
 
 async function mixerSeats(db: Db, nightId: string): Promise<MixerSeat[]> {
   const { rows } = await db.query<MixerSeat>(
-    `select gs.character_id, c.name, gs.booker from group_night_seats gs join characters c on c.id = gs.character_id
+    `select gs.character_id, c.name, gs.booker, gs.house_fill from group_night_seats gs join characters c on c.id = gs.character_id
       where gs.night_id = $1 order by gs.joined_at`,
     [nightId],
   );
@@ -240,7 +257,7 @@ export async function joinMixer(db: Db, userId: string, characterId: string, now
   const runs =
     seats.length >= MIXER_MIN
       ? `Within the hour (the doors stay open ~${MIXER_DOORS_MINUTES} minutes so others can join).`
-      : `Once ${MIXER_MIN} are in (${seats.length} now); called off after ${MIXER_WAIT_HOURS}h if it never fills, and nothing is spent.`;
+      : `Once ${MIXER_MIN} are in (${seats.length} now). If it's short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house tops it up with its own (labelled) crowd and it runs then.`;
   void now;
   return { ok: true, night: open.night, seats, runs };
 }
@@ -378,7 +395,7 @@ export async function inviteView(
   };
 }
 
-export type GroupBooking = { nightId: string; kind: "double" | "mixer"; side: "a" | "b" | number; venue: PlaceId; table: string };
+export type GroupBooking = { nightId: string; kind: "double" | "mixer"; side: "a" | "b" | number; venue: PlaceId; table: string; housePaid?: boolean };
 
 /**
  * What the booking route needs for one table of a night (app/api/episodes/route.ts, input.group_night): which side
@@ -427,7 +444,7 @@ export async function groupBookingFor(
       seatIds: seats.map((x) => x.character_id),
       endings,
     });
-    return { ok: true, booking: { nightId: g.id, kind: "mixer", side: i, venue: g.venue as PlaceId, table } };
+    return { ok: true, booking: { nightId: g.id, kind: "mixer", side: i, venue: g.venue as PlaceId, table, ...(r.house_paid ? { housePaid: true } : {}) } };
   }
   const side: "a" | "b" | null =
     g.couple_a.character_id === characterId && g.couple_a.partner_id === partnerId

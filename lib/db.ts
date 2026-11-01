@@ -625,6 +625,10 @@ create table if not exists group_night_seats (
 -- The night a date belongs to: one table of a double date, or one rotation of a mixer (lib/group-dates.ts).
 alter table episodes add column if not exists group_id text;
 create index if not exists episodes_group_idx on episodes (group_id) where group_id is not null;
+-- The nightly fill (lib/mixer-fill.ts): a seat the house filled with one of its labelled crowd (its rotation is
+-- house-paid), and when the house topped a night up (once a UTC day; a filled night runs without the doors wait).
+alter table group_night_seats add column if not exists house_fill boolean not null default false;
+alter table group_nights add column if not exists filled_at timestamptz;
 -- The house matchmaker's daily picks (lib/house-matchmaker.ts): a pair is proposed once, ever; both owners are told.
 create table if not exists matchmaker_picks (
   character_lo text not null references characters (id) on delete cascade,

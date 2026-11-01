@@ -16,6 +16,7 @@ import { shortName } from "./names";
 import { notify } from "./notifications";
 import { venuePhrase } from "./venues";
 import { playOrder, roundOf } from "./mixer-room";
+import { fillMixerTonight } from "./mixer-fill";
 
 async function book(asUserId: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const req = new Request(MCP_CALL_URL, {
@@ -87,7 +88,7 @@ export async function bookDoubleNight(db: Db, g: GroupNight, visibility?: string
 /* ------------------------------------------------ mixers (M2) ------------------------------------------------ */
 
 /** The same dealt shuffle every run would deal (seeded by the night), so a retry can't redraw who meets whom. */
-function drawRotations(nightId: string, seats: { character_id: string; booker: string }[]): Rotation[] {
+function drawRotations(nightId: string, seats: { character_id: string; booker: string; house_fill?: boolean }[]): Rotation[] {
   const order = [...seats];
   let seed = seedFrom(nightId);
   for (let i = order.length - 1; i > 0; i--) {
@@ -97,10 +98,10 @@ function drawRotations(nightId: string, seats: { character_id: string; booker: s
   }
   // A circle: everyone meets their two neighbours, and books exactly one of those rotations (one date each). Each
   // rotation carries the round the bell calls it in (lib/mixer-room.ts): the room plays round by round.
-  return order.map((s, i) => ({ a: s.character_id, b: order[(i + 1) % order.length].character_id, booker: s.booker, round: roundOf(i, order.length) }));
+  return order.map((s, i) => ({ a: s.character_id, b: order[(i + 1) % order.length].character_id, booker: s.booker, round: roundOf(i, order.length), ...(s.house_fill ? { house_paid: true } : {}) }));
 }
 
-export type MixerRun = { ran: number; booked: number; failed: number; cancelled: number; waiting: number };
+export type MixerRun = { ran: number; booked: number; failed: number; cancelled: number; waiting: number; filled?: number };
 
 /**
  * Runs the open mixer when it's due (the hourly lobby job): enough singles in and the doors open a while (or full).
@@ -109,6 +110,9 @@ export type MixerRun = { ran: number; booked: number; failed: number; cancelled:
  */
 export async function runDueMixers(db: Db, now: Date = new Date()): Promise<MixerRun> {
   const out: MixerRun = { ran: 0, booked: 0, failed: 0, cancelled: 0, waiting: 0 };
+  // The nightly fill (lib/mixer-fill.ts): at the fill hour the house tops tonight's mixer up, or seats one of its own.
+  const fill = await fillMixerTonight(db, now).catch(() => null);
+  if (fill) out.filled = fill.filled;
   const open = await openMixer(db).catch(() => null);
   if (!open) return out;
   const age = now.getTime() - new Date(open.night.created_at).getTime();
@@ -133,7 +137,8 @@ export async function runDueMixers(db: Db, now: Date = new Date()): Promise<Mixe
     } else out.waiting = 1;
     return out;
   }
-  if (open.seats.length < MIXER_MAX && age < MIXER_DOORS_MINUTES * 60_000) {
+  // A night the house filled runs on that pass: the fill hour is its doors closing.
+  if (open.seats.length < MIXER_MAX && age < MIXER_DOORS_MINUTES * 60_000 && !open.night.filled_at) {
     out.waiting = 1; // enough to run, but the doors stay open a little for late joiners
     return out;
   }
@@ -163,7 +168,8 @@ export async function runDueMixers(db: Db, now: Date = new Date()): Promise<Mixe
   // The wrap: your rotations, and the ask that makes the night compound (David 2026-10-25: reflect on who you liked).
   // 2026-10-25 page review: it links the character's own date from the night (it had no link: a dead end on the web),
   // and speaks to people first; agents get the tool names in brackets.
-  for (const seat of open.seats) {
+  // The house's fillers get no wrap: their scripts aren't waiting on one, and the reflect ask is for people and agents.
+  for (const seat of open.seats.filter((x) => !x.house_fill)) {
     const first = shortName(names.get(seat.character_id) ?? "someone");
     const mine = rotations.filter((r) => (r.a === seat.character_id || r.b === seat.character_id) && !r.failed);
     const met = mine.map((r) => shortName(names.get(r.a === seat.character_id ? r.b : r.a) ?? "someone"));
