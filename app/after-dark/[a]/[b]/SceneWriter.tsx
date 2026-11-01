@@ -4,7 +4,7 @@ import MediaFilterBar from "../../MediaFilterBar";
 import { DEFAULT_FILTER, filterMedia, type MediaFilter } from "@/lib/media-filter";
 import PublishButton from "@/app/showcase/PublishButton";
 import SfwTwin from "../../SfwTwin";
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
@@ -27,7 +27,7 @@ import Reels, { stopReel } from "./Reels";
 import Storyboard from "./Storyboard";
 import MediaMenu from "./MediaMenu";
 import type { BusyReel, Reel, ReelScope } from "@/lib/adult/reels";
-import { runningNight } from "@/lib/adult/nights";
+import { byFiling, groupNights, runningNight } from "@/lib/adult/nights";
 import { autoplayStop } from "@/lib/adult/autoplay";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
@@ -537,6 +537,15 @@ export default function SceneWriter({
         ))}
       </p>
     ) : null;
+  // The saved chapters as whole nights, newest first (lib/adult/nights.ts: chapter 1 starts one, n+1 carries it on; the
+  // latest is still running while the scene is on its next chapter). David, 2026-11-01: "once the night is over you can't
+  // go back and make a video of the night … where are the previous 3 chapter nights stored?": each night is one entry
+  // with its own video, its chapters inside it.
+  const nightGroups = useMemo(() => groupNights(byFiling(nightList), { chapter: scene.chapter ?? 1 }).reverse(), [nightList, scene.chapter]);
+  const nightLines = (g: (typeof nightGroups)[number]) => g.rows.reduce((t, n) => t + n.lines.length, 0);
+  const nightVideo = (g: (typeof nightGroups)[number]) => void planVideo(g.rows.length > 1 ? "night" : "chapter", g.rows[0].id);
+  // The night that just ended, while the new one hasn't started: the start card says where it went.
+  const lastEnded = !scene.lines.length && (scene.chapter ?? 1) === 1 && nightGroups[0]?.complete ? nightGroups[0] : null;
   const chapterList = nightList.map((n) => ({ id: n.id, chapter: n.chapter, lines: n.lines.length, created_at: n.created_at, place: n.place }));
 
   return (
@@ -572,7 +581,7 @@ export default function SceneWriter({
           <span className="muted small">
             {scene.chapter > 1 ? `Chapter ${scene.chapter}. ` : ""}
             {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[scene.stage] ?? STAGES[0]}.
-            {scene.chapter > SOFT_CHAPTERS ? ` This night has run ${scene.chapter - 1} chapters: Start over (in the theater's ⋯) files it, and the next night begins fresh.` : ""}
+            {scene.chapter > SOFT_CHAPTERS ? ` This night has run ${scene.chapter - 1} chapters: 🌙 End the night (in the theater's ⋯) files it under Gallery → Nights, and the next night begins fresh.` : ""}
           </span>
         </div>
         {writingNote && !theater ? (
@@ -651,6 +660,17 @@ export default function SceneWriter({
             }}
             chapters={chapterList}
             onReplayChapter={(id) => setWatching(nightList.find((n) => n.id === id) ?? null)}
+            lastNight={
+              lastEnded
+                ? {
+                    label: lastEnded.rows.length > 1 ? `${lastEnded.rows.length} chapters` : `${nightLines(lastEnded)} lines`,
+                    videoTokens: reelTokens,
+                    canVideo: !mediaPaused && nightLines(lastEnded) >= 6,
+                    onWatch: () => setWatching(lastEnded.rows[0]),
+                    onVideo: () => nightVideo(lastEnded),
+                  }
+                : null
+            }
             onExit={() => {
               setSheet(false);
               setTheater(false);
@@ -787,26 +807,62 @@ export default function SceneWriter({
             reelList.length ? (
               <Reels reels={reelList} onChange={putReel} onMedia={(m) => setGallery((g) => [m, ...g.filter((x) => x.id !== m.id)])} />
             ) : (
-              <p className="muted small">No videos yet: 🎬 Video in the theater&apos;s ⋯ makes one, from a storyboard you check first.</p>
+              <p className="muted small">No videos yet: 🎬 Video in the theater&apos;s top bar makes one of tonight, and each night under Nights has its own, from a storyboard you check first.</p>
             )
-          ) : nightList.length ? (
+          ) : nightGroups.length ? (
               <ul className="after-dark-nights">
-                {nightList.map((n) => (
-                  <li key={n.id}>
-                    <button type="button" className="button-ghost" onClick={() => setWatching(n)}>
-                      ▶ Play
-                    </button>{" "}
-                    <button type="button" className="button-ghost" onClick={() => void planVideo("chapter", n.id)} disabled={Boolean(mediaPaused)} title={mediaPaused ?? `A short film of this chapter: check each shot's picture, then film (${reelTokens} tokens)`}>
-                      🎬 Video · {reelTokens} tokens
-                    </button>{" "}
-                    <LocalTime iso={n.created_at} format={NIGHT_DAY} />
-                    {n.chapter ? ` · Chapter ${n.chapter}` : ""} · {n.lines.length} lines
-                    {n.place ? ` · ended ${n.place}` : ""}
-                  </li>
-                ))}
+                {nightGroups.map((g) => {
+                  const many = g.rows.length > 1;
+                  const lines = nightLines(g);
+                  const last = g.rows.at(-1)!;
+                  return (
+                    <li key={g.id} className="ad-night" data-night={g.id}>
+                      <p className="ad-night-head">
+                        <strong>{g.complete ? <LocalTime iso={g.rows[0].created_at} format={NIGHT_DAY} /> : "Tonight, so far"}</strong>
+                        {" · "}
+                        {many ? `${g.rows.length} chapters` : g.rows[0].chapter ? `Chapter ${g.rows[0].chapter}` : "1 chapter"} · {lines} lines
+                        {g.complete && last.place ? ` · ended ${last.place}` : ""}
+                      </p>
+                      <p className="ad-night-actions">
+                        <button type="button" className="button-ghost" onClick={() => setWatching(g.rows[0])}>
+                          ▶ Watch{many ? " from chapter 1" : ""}
+                        </button>{" "}
+                        <button
+                          type="button"
+                          className="button-ghost"
+                          onClick={() => nightVideo(g)}
+                          disabled={Boolean(mediaPaused) || lines < 6}
+                          title={mediaPaused ?? (lines < 6 ? "Too short for a video yet" : `A short film of ${many ? "the whole night, every chapter" : "this night"}: check each shot's picture, then film (${reelTokens} tokens)`)}
+                        >
+                          🎬 {many ? "Video of the night" : "Video"} · {reelTokens} tokens
+                        </button>
+                      </p>
+                      {many && (
+                        <details className="ad-night-chapters">
+                          <summary>Its chapters, one at a time</summary>
+                          <ul>
+                            {g.rows.map((n) => (
+                              <li key={n.id}>
+                                <button type="button" className="button-ghost small" onClick={() => setWatching(n)}>
+                                  ▶ Chapter {n.chapter ?? "?"}
+                                </button>{" "}
+                                <button type="button" className="button-ghost small" onClick={() => void planVideo("chapter", n.id)} disabled={Boolean(mediaPaused) || n.lines.length < 6} title={mediaPaused ?? `A short film of this chapter alone (${reelTokens} tokens)`}>
+                                  🎬 This chapter · {reelTokens} tokens
+                                </button>{" "}
+                                <span className="muted small">
+                                  {n.lines.length} lines{n.place ? ` · ${n.place}` : ""}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
           ) : (
-            <p className="muted small">No saved nights yet: Start over files the night that ran, and it plays back here.</p>
+            <p className="muted small">No saved nights yet: each chapter is kept here as it closes, and 🌙 End the night (in the theater&apos;s ⋯) files the rest. Each night plays back here, with its video.</p>
           )}
         </div>
           )}
