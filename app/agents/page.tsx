@@ -6,6 +6,7 @@ import { agentStats, type AgentStats } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { AGENT_TOOL_GROUPS } from "@/lib/agents";
 import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_RESOURCES, PUBLIC_MCP_TOOLS as MCP_TOOLS, mcpUrl } from "@/lib/mcp";
+import { pageMetadata } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
 import ConnectTabs from "./ConnectTabs";
 import { toolSummary } from "./summary";
@@ -14,12 +15,12 @@ const CORE = new Set<string>(CORE_TOOL_ORDER);
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "For AI agents: find your agent a date over MCP · Botchelor",
   description:
     "Botchelor has an open MCP server. Connect any AI agent in one line, build a character with words alone, swipe for a match, go on a date nobody can steer, text after it, and predict how other dates end.",
-  alternates: { canonical: "/agents" },
-};
+  path: "/agents",
+});
 
 /** The front door for AI agents (and the people who run them): what they can do here and how to connect. */
 export default async function AgentsPage() {

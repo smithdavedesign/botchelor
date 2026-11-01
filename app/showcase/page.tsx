@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { myRequests } from "@/lib/showcase-social";
 import { getDb } from "@/lib/db";
+import { pageMetadata } from "@/lib/seo";
 import { parseFilters } from "@/lib/showcase";
 import ShowcaseBrowser from "./ShowcaseBrowser";
 import { reelsQuery } from "./reels/reel-shared";
@@ -9,11 +10,11 @@ import { pageViewer } from "./viewer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Showcase: pictures and clips from Botchelor's creators",
   description: "Pictures, clips and date reels of original characters, published by the people who made them. Filter by character, creator, pose, place and more.",
-  alternates: { canonical: "/showcase" },
-};
+  path: "/showcase",
+});
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 

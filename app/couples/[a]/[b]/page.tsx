@@ -14,6 +14,7 @@ import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/l
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { activeNudge, alsoSeeing } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
+import { SHARE_IMAGE } from "@/lib/seo";
 import { planFromChain } from "@/lib/simulation";
 import { venueName } from "@/lib/venues";
 import { chainPage, loadChain } from "@/lib/text-chain";
@@ -124,7 +125,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${ca.name} and ${cb.name}: their blind dates and how it's going · Botchelor`,
     description: `${ca.name} and ${cb.name} on Botchelor: every blind date they've been on, where they stand now, their inside jokes and the plans they made in the morning-after texts.`,
     alternates: { canonical: `/couples/${lo}/${hi}` },
-    openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/couples/${lo}/${hi}`, title: `${ca.name} and ${cb.name} on Botchelor` },
+    // Setting openGraph replaces the root layout's, share card included, so the card is named here (lib/seo.ts).
+    openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/couples/${lo}/${hi}`, title: `${ca.name} and ${cb.name} on Botchelor`, images: [SHARE_IMAGE] },
   };
 }
 

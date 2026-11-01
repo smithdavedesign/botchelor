@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { trackConversion } from "@/app/conversion";
 import { requestJson } from "@/app/request";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import type { DateCta } from "@/lib/date-cta";
@@ -66,7 +67,11 @@ export default function DateThisCharacter({
     const res = await requestJson("/api/episodes", { character_id: chosen.id, partner_id: targetId, ...(place.trim() ? { place: place.trim() } : {}), ...roleplayFields(roleplay) }).catch(() => null);
     setBusy(false);
     if (!res) return setMessage({ text: "Network error. Try again." });
-    if (res.ok && typeof res.data.id === "string") return router.push(`/episodes/${res.data.id}?play=1`);
+    if (res.ok && typeof res.data.id === "string") {
+      // A date started from here counts like one from /create, RepoHQ's activation included (app/conversion.ts).
+      trackConversion("date_started", { mode: "partner" });
+      return router.push(`/episodes/${res.data.id}?play=1`);
+    }
     setMessage({ text: res.message, shop: res.status === 402 || res.status === 429 });
   }
 

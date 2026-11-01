@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 /**
- * npm run screenshots: builds the app, starts it on localhost with a throwaway local database and a
- * stand-in showrunner, plays a realistic two-week sample season through the real API and UI, and saves
- * desktop (1280×800) and iPhone 13 screenshots to docs/screenshots/. Then it stops everything.
+ * npm run screenshots: the launch proof (LAUNCH-READY.md, README "Screenshots"). Builds the app (--skip-build reuses
+ * .next), starts it on localhost with a throwaway local database, the stand-in showrunner below and a placeholder
+ * Payment Link, and saves six viewport-only PNGs to docs/screenshots/, at 1280×800 and on an iPhone 13: the start page
+ * (home-*), a sample character's date with a house character, the show's core action (date-*), and the shop's Buy button
+ * with the footer's privacy and terms links (shop-*). Then it stops everything.
+ *
+ * npm run screenshots:season (--season): the older, longer run. It plays a realistic two-week sample season through
+ * the real API and UI, and saves desktop (1280×800) and iPhone 13 screenshots of most of the show to docs/screenshots/.
+ * Then it stops everything.
  *
  * - No real infrastructure: DATABASE_URL, GOOGLE_API_KEY, LLM_* and STRIPE_* are dropped from the app's
  *   environment. Episodes come from a local OpenAI-compatible stub with canned, schema-valid sample
@@ -149,7 +155,8 @@ const TURN_LINES = [
 function sampleTurn(messages) {
   const user = messages.find((m) => m.role === "user")?.content ?? "";
   const data = JSON.parse(user.slice(user.indexOf("{")));
-  const n = data.transcript_so_far?.length ?? 0;
+  // The turn prompt's lines so far (lib/conversation.ts calls them conversation_so_far; older prompts, transcript_so_far).
+  const n = (data.conversation_so_far ?? data.transcript_so_far)?.length ?? 0;
   return { dialogue: TURN_LINES[n % TURN_LINES.length], action: "answers", emotion: "curious", interest_signal: 0.4 + (n % 5) * 0.1 };
 }
 
@@ -794,8 +801,126 @@ async function captureGenerating(baseEnv) {
 }
 
 // ---------------------------------------------------------------------------------------------------
+// The launch proof (the default run): six viewport-only PNGs, desktop and iPhone 13, of the show doing its job.
 
-async function main() {
+const LAUNCH_DATA_DIR = join(ROOT, ".data", "screenshots-launch");
+// A placeholder Payment Link: the Buy button shows only with one set, and nothing in this run ever opens it.
+const PLACEHOLDER_PAYMENT_LINK = "https://example.com/pay";
+
+async function captureLaunch(base) {
+  const { chromium, devices } = await import("playwright-core");
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
+  const sizes = [
+    ["desktop", { viewport: { width: 1280, height: 800 }, userAgent: DESKTOP_UA }],
+    ["mobile", devices["iPhone 13"]],
+  ];
+  const saved = [];
+  try {
+    for (const [label, device] of sizes) {
+      const ctx = await adultContext(browser, device, base);
+      // The one-time "how was your first date?" prompt would cover the date; a returning visitor has seen it.
+      await ctx.addInitScript(() => localStorage.setItem("bz_beta_prompt", new Date().toISOString()));
+      const page = await ctx.newPage();
+      const shot = async (name) => {
+        await page.waitForLoadState("networkidle");
+        const path = join(OUT_DIR, `${name}-${label}.png`);
+        await page.screenshot({ path });
+        saved.push(path);
+      };
+
+      // 1. The start page, as a newcomer sees it past the 18+ gate.
+      await page.goto(`${base}/`);
+      await page.getByRole("heading", { level: 1, name: "Send your OC on a blind date. Then just watch." }).waitFor();
+      await shot("home");
+
+      // 2. The core action: a sample character, sent on a date with a house character from the send step, and the
+      // episode the showrunner wrote for them. The character is made through the API the wizard calls.
+      const who = persona();
+      await ctx.addCookies([{ name: "bz_uid", value: who.id, url: base }]);
+      const c = CHARACTERS.tamsin;
+      const made = await ctx.request.post(`${base}/api/characters`, { headers: { origin: base }, data: { ...c, attest: true, keep_name: true } });
+      if (!made.ok()) throw new Error(`creating ${c.name}: HTTP ${made.status()} ${await made.text()}`);
+      const { id } = await made.json();
+      await page.goto(`${base}/create?character=${id}`);
+      await page.getByText(`Who should ${c.name} meet?`).waitFor();
+      const juniper = page.getByRole("button", { name: "Send on a date with Juniper" });
+      if (!(await juniper.isVisible())) await page.locator(".send-phase details").filter({ has: juniper }).locator("summary").first().click();
+      await juniper.click();
+      await page.waitForURL(/\/episodes\/[0-9a-f-]{36}/);
+      await page.getByRole("heading", { level: 1, name: `${c.name} × Juniper Vale` }).waitFor();
+      // The date plays in the theater as it opens, a line at a time: wait until both of them have spoken twice.
+      await page.locator(".theater-convo .chat-row").nth(3).waitFor({ timeout: 60_000 });
+      await shot("date");
+
+      // 3. The shop: the Buy button (the placeholder Payment Link) and, under it, the footer's privacy and terms links.
+      // Buying needs an account, so the creator makes one; it keeps their character and date.
+      const password = randomBytes(12).toString("hex"); // made up for this run only, never written down
+      const joined = await ctx.request.post(`${base}/api/auth/register`, {
+        headers: { origin: base },
+        data: { handle: `crossword${label}`, password, attest: true },
+      });
+      if (!joined.ok()) throw new Error(`creating an account: HTTP ${joined.status()} ${await joined.text()}`);
+      await page.goto(`${base}/shop`);
+      const buy = page.getByRole("button", { name: "Buy 5 more dates for $4" });
+      await buy.waitFor();
+      // On a phone the footer's groups are folded: open "Help and legal", where Privacy and Terms are.
+      const legal = page.locator(".footer-group").filter({ hasText: "Help and legal" });
+      if (!(await page.getByRole("link", { name: "Privacy", exact: true }).isVisible())) await legal.locator("summary").click();
+      // At 1280×800 the Buy button and the footer's Privacy link are 739px apart, a few more than show under the sticky
+      // header: Privacy goes at the bottom edge, which tucks only the pill's top edge under the header and leaves its
+      // label clear. On a phone the footer is a screen and a half further down, so the pack's card fills the shot.
+      const framed = await page.evaluate(() => {
+        const header = document.querySelector(".site-header").getBoundingClientRect().height;
+        const at = (el) => el.getBoundingClientRect().top + window.scrollY;
+        const button = document.querySelector('.shop-item button[type="submit"]');
+        const privacy = [...document.querySelectorAll(".site-footer a")].find((a) => a.textContent.trim() === "Privacy");
+        const bottom = at(privacy) + privacy.getBoundingClientRect().height + 2;
+        // The label's first line: the pill's middle, less half a line of text.
+        const labelTop = at(button) + button.getBoundingClientRect().height / 2 - 8;
+        if (labelTop - (bottom - window.innerHeight) >= header) {
+          window.scrollTo(0, bottom - window.innerHeight);
+          return "the Buy button and the footer's links";
+        }
+        window.scrollTo(0, at(document.querySelector(".shop-item")) - header - 8);
+        return "the pack's card and its Buy button";
+      });
+      console.log(`  shop-${label}: ${framed}`);
+      await shot("shop");
+      await ctx.close();
+    }
+  } finally {
+    await browser.close();
+  }
+  return saved;
+}
+
+async function launchMain() {
+  if (!process.env.CHROMIUM_PATH) throw new Error("Set CHROMIUM_PATH to a local Chromium; this script never downloads one.");
+  if (!LAUNCH_DATA_DIR.startsWith(join(ROOT, ".data"))) throw new Error("refusing to use a data directory outside .data/");
+  rmSync(LAUNCH_DATA_DIR, { recursive: true, force: true });
+  mkdirSync(OUT_DIR, { recursive: true });
+
+  if (!process.argv.includes("--skip-build")) build();
+  const showrunner = await startShowrunner();
+  // The app's own Buy label ("Buy 5 more dates for $4"), not the season run's sample STRIPE_PRICE_LABEL.
+  const { STRIPE_PRICE_LABEL: _label, ...env } = appEnv(showrunner.address().port);
+  const port = await freePort();
+  let app;
+  try {
+    app = await startApp(port, { ...env, PGLITE_DIR: LAUNCH_DATA_DIR, STRIPE_PAYMENT_LINK: PLACEHOLDER_PAYMENT_LINK });
+    console.log(`App answering on ${app.base}; taking the launch screenshots…`);
+    const saved = await captureLaunch(app.base);
+    for (const path of saved) console.log(`  saved ${path.slice(ROOT.length + 1)}`);
+  } finally {
+    await stopApp(app);
+    showrunner.close();
+    rmSync(LAUNCH_DATA_DIR, { recursive: true, force: true });
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------
+
+async function seasonMain() {
   if (!process.env.CHROMIUM_PATH) throw new Error("Set CHROMIUM_PATH to a local Chromium; this script never downloads one.");
   if (!DATA_DIR.startsWith(join(ROOT, ".data"))) throw new Error("refusing to use a data directory outside .data/");
   rmSync(DATA_DIR, { recursive: true, force: true });
@@ -836,7 +961,7 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+(process.argv.includes("--season") ? seasonMain : launchMain)().catch((err) => {
   console.error(`screenshots failed: ${err instanceof Error ? err.message : err}`);
   process.exit(1);
 });

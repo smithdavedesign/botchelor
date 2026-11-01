@@ -22,6 +22,8 @@
     "sim:after-dark": "node scripts/sim-after-dark.mjs",
     "sim:visitors": "zsh scripts/loop/run-now.sh",
     "screenshots": "node scripts/screenshots.mjs",
+    "screenshots:season": "node scripts/screenshots.mjs --season",
+    "check:launch": "node scripts/check-launch.mjs",
     "screenshots:moves": "node scripts/move-screenshots.mjs",
     "screenshots:ship": "node scripts/ship-screenshots.mjs",
     "screenshots:prompts": "node scripts/prompts-screenshots.mjs",

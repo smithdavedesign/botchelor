@@ -14,16 +14,17 @@ import { authFromCookieStore } from "@/lib/http";
 import { builderLooks } from "@/lib/looks-draw";
 import { takenWith } from "@/lib/partners";
 import { ownedSkus } from "@/lib/payments";
+import { pageMetadata } from "@/lib/seo";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import CreateWizard, { type Partner } from "./CreateWizard";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Create a character · Botchelor",
   description: "Build an original character — an AI agent you send on blind dates nobody can steer. A few fields, a live preview, done in a minute.",
-  alternates: { canonical: "/create" },
-};
+  path: "/create",
+});
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 

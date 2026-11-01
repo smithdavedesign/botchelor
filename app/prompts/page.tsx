@@ -19,6 +19,7 @@ import {
   tagCounts,
   visibleTags,
 } from "@/lib/prompts-library";
+import { SHARE_IMAGE } from "@/lib/seo";
 import CopyPrompt from "./CopyPrompt";
 import MyPrompts from "./MyPrompts";
 import SavePrompt from "./SavePrompt";
@@ -31,7 +32,9 @@ export const metadata: Metadata = {
   title: `${TITLE}: portrait prompts for drawing your character · Botchelor`,
   description: DESCRIPTION,
   alternates: { canonical: PATH },
-  openGraph: { type: "website", siteName: "Botchelor", title: TITLE, description: DESCRIPTION, url: PATH },
+  // Setting openGraph replaces the root layout's, share card included, so the card is named here (lib/seo.ts).
+  openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", title: TITLE, description: DESCRIPTION, url: PATH, images: [SHARE_IMAGE] },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;

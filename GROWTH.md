@@ -6,10 +6,12 @@ funnel beacon in `app/funnel.ts`:
 | Event | Fires when | Where |
 |---|---|---|
 | `visit` | any page opens, once per browser session | `app/FunnelBeacon.tsx` (root layout) |
-| `activate` | **the core action: starting a date**, the first time a browser does it | `trackConversion("date_started")` in `app/conversion.ts` |
-| `checkout` | someone clicks Buy in the shop (intent, not a payment) | `app/shop/BuyButton.tsx` |
+| `activate` | **the core action: starting a date**, the first time a browser does it, from `/create`, a character's page or a couple's page (the last two since 2026-11-01) | `trackConversion("date_started")` in `app/conversion.ts` |
+| `checkout` | someone clicks Buy in the shop (intent, not a payment), counted on the click itself | `app/shop/BuyButton.tsx` |
 
-Not sent from previews or local runs, automated browsers, browsers marked as the owner's (open any page once with
+Sent only from the production build: `NEXT_PUBLIC_DEPLOY_ENV`, else Vercel's `NEXT_PUBLIC_VERCEL_ENV`, is `production`,
+and a build that sets neither goes by the server's `DEPLOY_ENV` (DigitalOcean's; `isProductionBuild` in
+`app/funnel.ts`). Not sent from automated browsers, browsers marked as the owner's (open any page once with
 `?repohq-notrack=1`), or visitors who declined analytics cookies. The privacy page names all three.
 
 **The detail lives in our own database (2026-10-31).** The same browsers, under the same rule (`trackingAllowed` in

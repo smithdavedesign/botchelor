@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { trackConversion } from "@/app/conversion";
 import { requestJson } from "@/app/request";
 import { SecondDate } from "@/app/episodes/[id]/Afterglow";
 import type { NextDate as NextDateData } from "@/lib/date-proposals";
@@ -34,7 +35,12 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
   const book = (extra: Record<string, unknown> = {}) =>
     run(
       () => requestJson("/api/episodes", { character_id: next.mine.id, partner_id: next.them.id, ...extra }),
-      (data) => (typeof data.id === "string" ? router.push(`/episodes/${data.id}?play=1`) : router.refresh()),
+      (data) => {
+        if (typeof data.id !== "string") return router.refresh();
+        // A date started from here counts like one from /create, RepoHQ's activation included (app/conversion.ts).
+        trackConversion("date_started", { mode: "partner" });
+        router.push(`/episodes/${data.id}?play=1`);
+      },
     );
   const propose = () => run(() => requestJson(`/api/couples/${pair[0]}/${pair[1]}/proposal`, { character_id: next.mine.id }), () => router.refresh());
   const close = (id: string) => run(() => requestJson(`/api/couples/${pair[0]}/${pair[1]}/proposal`, { proposal_id: id }, "DELETE"), () => router.refresh());

@@ -5,14 +5,15 @@ import { getDb } from "@/lib/db";
 import { getReunion } from "@/lib/reunion";
 import { pageHref, parsePage } from "@/lib/paging";
 import { privateAmong } from "@/lib/directory";
+import { pageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "The Reunion: this season's awards, couples and confessionals · Botchelor",
   description: "The cast back under the lights: this season's awards, where every couple stands, and the confessionals their creators chose to share.",
-  alternates: { canonical: "/reunion" },
-};
+  path: "/reunion",
+});
 
 /**
  * The Reunion special, on its own page again (2026-10-21). It had moved to the bottom of Watch, with this route
