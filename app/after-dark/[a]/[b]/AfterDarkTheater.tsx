@@ -693,7 +693,7 @@ export default function AfterDarkTheater({
         </div>
         <div className="theater-convo">
           {/* #1040: meta shows each line's actions beside that line, and an action-only line as a stage direction. */}
-          <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow meta empty="The scene appears here, line by line." feedback={feedback} dividers={dividers} />
+          <ChatThread characters={characters} turns={shown} typing={busy ? null : replay.typing} tone="dark" follow meta empty="The scene appears here, line by line." feedback={feedback} dividers={dividers} nameEvery />
         </div>
 
         <header className="theater-hud">
