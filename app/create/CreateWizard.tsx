@@ -1,5 +1,6 @@
 "use client";
 
+import { afterDarkHref } from "@/lib/after-dark-host";
 import { shortName } from "@/lib/names";
 import { takenNote } from "@/lib/partners-shared";
 import Link from "next/link";
@@ -221,6 +222,7 @@ export default function CreateWizard({
   startPair = null,
   lookTiles = [],
   afterDark = false,
+  afterDarkOpen = false,
   returnTo = null,
   signedIn = false,
   edit,
@@ -243,6 +245,8 @@ export default function CreateWizard({
   lookTiles?: readonly string[];
   /** This viewer can open After Dark, so its looks tab is unlocked (lib/adult/entitlement.ts). */
   afterDark?: boolean;
+  /** After Dark is open to this viewer at all (#1176): the finish screen says how to bring the new character in. */
+  afterDarkOpen?: boolean;
   /** Where they came from when something needed a character (/create?next=): offered once the character exists. */
   returnTo?: { href: string; label: string } | null;
   /** Signed in to an account: the roleplay picker's ✨ Yours (the Create library) is accounts only. */
@@ -709,6 +713,7 @@ export default function CreateWizard({
         onSend={(sharePath) => router.push(sharePath)}
         returnTo={returnTo}
         signedIn={signedIn}
+        afterDarkOpen={afterDarkOpen}
         // The chemistry test's other character, until they have one by that name.
         buildNext={
           startPair && !myCharacters.some((c) => c.name.trim().toLowerCase() === startPair.b.name.trim().toLowerCase())
@@ -895,7 +900,7 @@ export default function CreateWizard({
               <Avatar seed={avatarSeed} name={sheet.name || "?"} hue={hue} size={56} portraitSrc={portrait} />
               <div className="looks-card-meta">
                 <strong>{extras.looks?.gender ? "Their look" : "Not picked yet"}</strong>
-                <span className="muted small">{looksAppearance(extras.looks ?? {}) || "Pick from pictures: style, eyes, hair, build and an outfit."}</span>
+                <span className="muted small">{looksAppearance(extras.looks ?? {}) || "Pick from pictures: style, eyes, hair, build and an outfit. Optional, but their free portrait is drawn from it (without one they get a colour tile)."}</span>
               </div>
               <button type="button" className="secondary" onClick={() => setLooksOpen(true)}>
                 {extras.looks?.gender ? "Change their look" : "Pick their look"}
@@ -1398,9 +1403,10 @@ type SendProps = {
   /** The chemistry test's other character, still to build: a link to the builder with its fields in. */
   buildNext: { name: string; href: string } | null;
   signedIn: boolean;
+  afterDarkOpen?: boolean;
 };
 
-function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn }: SendProps) {
+function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   // How much of a mind of its own, per date (B6): it rides on each send, so it's set here, not on the character.
   const [autonomy, setAutonomy] = useState<Autonomy>(startAutonomy);
@@ -1560,6 +1566,14 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           <Link className="button" href={returnTo.href}>
             {returnTo.label} →
           </Link>
+        </p>
+      )}
+      {afterDarkOpen && (
+        // #1176 (the 2026-10-31 After Dark visitor: "It never mentions After Dark", and the new character was Out). Out
+        // stays the rule (each character's own consent, docs/after-dark.md); this says where the switch is.
+        <p className="card send-after-dark" data-bring-after-dark>
+          🌙 <strong>After Dark</strong>: {shortName(character.name)} starts Out, so nothing of theirs goes there until you say.{" "}
+          <a href={afterDarkHref(`/after-dark?bring=${encodeURIComponent(character.id)}`)}>Bring {shortName(character.name)} into After Dark →</a>
         </p>
       )}
       {buildNext && (

@@ -28,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /** After Dark (lib/adult): who's in it, and every pair's scene. Not found for anyone it isn't open to. */
-export default async function AfterDarkPage() {
+export default async function AfterDarkPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> } = {}) {
   const db = await getDb();
   const store = await cookies();
   const auth = authFromCookieStore(store);
@@ -60,6 +60,13 @@ export default async function AfterDarkPage() {
     currentHere(),
     writerOptions(db, owner),
   ]);
+  // #1176: one of theirs just made on the show (its finish screen's "Bring … into After Dark"), its switch first.
+  const bringId = (await searchParams)?.bring;
+  const bring = typeof bringId === "string" ? switchable.find((c) => c.id === bringId && !c.house) : undefined;
+  // Their own that are Out: the settings open, so the switch isn't behind a fold (#1176: "buried … which is collapsed").
+  const yoursOut = switchable.filter((c) => !c.house && !c.on).length;
+  // Switches keeps what it was given, so a switch flipped in one list remounts the other with the new state.
+  const onKey = switchable.filter((c) => c.on).map((c) => c.id).join(",");
   // The Studio (lib/adult/studio.ts): their own characters that are in, and for an admin the house cast that's in too.
   const studio = adSettings.studio.open_to === "entitled" || admin ? switchable.filter((c) => c.on && (!c.house || admin)) : [];
   return (
@@ -99,6 +106,17 @@ export default async function AfterDarkPage() {
           The adult season: this season&apos;s cast, and any of your characters you switch on. Nothing here is shown anywhere in the show. Two
           lines hold: nobody under 18, and no real people.
         </p>
+        {bring && (
+          <div data-bring={bring.id}>
+            <Switches key={`bring:${onKey}`} initial={[bring]} only={bring.id} title={bring.on ? `${bring.name} is in` : `Bring ${bring.name} into After Dark`}>
+              <p className="muted small">
+                {bring.on
+                  ? "Pick them a scene below, or set up their face and body in the Studio for pictures."
+                  : "Characters start Out: nothing of theirs comes here until you switch them In. You can switch them Out again any time, under Your settings."}
+              </p>
+            </Switches>
+          </div>
+        )}
         {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
         <section>
           <h2>Scenes</h2>
@@ -118,13 +136,13 @@ export default async function AfterDarkPage() {
           </section>
         )}
         {/* Set once, changed rarely: who's in, and who writes. */}
-        <details className="card ad-hub-settings">
+        <details className="card ad-hub-settings" open={yoursOut > 0 && !bring}>
           <summary>
             <strong>Your settings</strong> <span className="muted small">
               · who&apos;s in{switchable.some((c) => c.on) ? ` (${switchable.filter((c) => c.on).length})` : ""} · the writer
             </span>
           </summary>
-          <Switches initial={switchable} />
+          <Switches key={onKey} initial={switchable} />
           <WriterPicker initial={writer} />
         </details>
         <SharedWithYou initial={shared} textOnly={here.mode === "text_only" ? here.reason : null} />
