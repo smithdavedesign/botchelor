@@ -18,8 +18,8 @@ export function FollowButton({ pair, following, followers }: { pair: [string, st
   }
   return (
     <p className="couple-follow action-hint">
-      <button type="button" className={following ? "button-ghost" : "primary"} onClick={toggle} disabled={busy} aria-pressed={following}>
-        {following ? "Following ✓" : "Follow this couple"}
+      <button type="button" className={following ? "button-ghost" : "secondary"} onClick={toggle} disabled={busy} aria-pressed={following}>
+        {following ? "Following ✓" : "🔔 Follow this couple"}
       </button>{" "}
       <span className="muted small">
         {followers === 1 ? "1 follower" : `${followers} followers`} · hear when they go on another date
@@ -61,10 +61,11 @@ export function ArcCard({ pair, names, q }: { pair: [string, string]; names: str
         </p>
       ) : q.can_predict ? (
         <p>
-          <button type="button" className="primary" onClick={() => call("yes")} disabled={busy}>
+          {/* The same weight for both answers: a filled Yes nudged the call. */}
+          <button type="button" className="secondary" onClick={() => call("yes")} disabled={busy}>
             Yes, they will
           </button>{" "}
-          <button type="button" className="button-ghost" onClick={() => call("no")} disabled={busy}>
+          <button type="button" className="secondary" onClick={() => call("no")} disabled={busy}>
             No, they won&apos;t
           </button>
         </p>

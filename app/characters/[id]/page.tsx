@@ -578,7 +578,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         <h2>Share this contestant</h2>
         <ShareLink path={`/characters/${c.id}`} label="Character link" />
         <p className="muted">
-          <Link href="/">Make your own character</Link> · <Link href="/characters">See every character</Link>
+          <Link href="/create">Make your own character</Link> · <Link href="/characters">See every character</Link>
         </p>
       </section>
     </article>

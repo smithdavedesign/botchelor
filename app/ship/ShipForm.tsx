@@ -2,9 +2,10 @@ import { SHIP_NAME_MAX } from "@/lib/ship-names";
 
 /**
  * The ship name generator's two names. A plain GET form to /ship (app/ship/route.ts), which redirects to the
- * result's own address, so it works without JavaScript and every result is a link. Prefilled on a result page.
+ * result's own address, so it works without JavaScript and every result is a link. Prefilled on a result page, where
+ * it's `secondary` (outlined): the page's one filled button is the blind date.
  */
-export default function ShipForm({ a = "", b = "", submit = "Make ship names" }: { a?: string; b?: string; submit?: string }) {
+export default function ShipForm({ a = "", b = "", submit = "Make ship names", secondary = false }: { a?: string; b?: string; submit?: string; secondary?: boolean }) {
   return (
     <form action="/ship" method="get" className="ship-form">
       <label>
@@ -18,7 +19,9 @@ export default function ShipForm({ a = "", b = "", submit = "Make ship names" }:
         Second name
         <input type="text" name="b" required maxLength={SHIP_NAME_MAX} autoComplete="off" spellCheck={false} placeholder="Dex" defaultValue={b} />
       </label>
-      <button type="submit">{submit}</button>
+      <button type="submit" className={secondary ? "secondary" : undefined}>
+        {submit}
+      </button>
     </form>
   );
 }

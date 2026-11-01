@@ -24,14 +24,14 @@ export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
   // pill on every card. Anything more telling (a pick, waiting, hidden, the creators' own ending) stays a badge.
   const plainAired = status === "Aired";
   return (
-    <li className="card episode-item">
+    <li className="card episode-item tap-card">
       <div className="char">
         <span className="pair-faces">
           <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={38} />
           <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={38} />
         </span>
         <div className="meta">
-          <Link href={episode.share_path}>
+          <Link className="stretch" href={episode.share_path}>
             <strong>
               <span className="nowrap">{a.name} ×</span> <span className="nowrap">{b.name}</span>
             </strong>

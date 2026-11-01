@@ -115,7 +115,7 @@ export default function ReunionPanel({
           <ul className="list">{couples.items.slice(0, COUPLES_SHOWN).map(coupleRow)}</ul>
           {couples.items.length > COUPLES_SHOWN && (
             // Later pages (?couples=N) open it: someone paging through wants them all.
-            <details className="show-more" open={couples.page > 1}>
+            <details className="show-more ux-fold" open={couples.page > 1}>
               <summary>Show more ({reunion.couples.length} in all)</summary>
               <ul className="list">{couples.items.slice(COUPLES_SHOWN).map(coupleRow)}</ul>
               {couplesHref && <Pager page={couples.page} pages={couples.pages} label="Couples pages" href={couplesHref} scroll={false} />}
@@ -131,7 +131,7 @@ export default function ReunionPanel({
           <p className="muted">The private reflections their creators chose to share.</p>
           <ul className="list">{reunion.confessionals.slice(0, CONFESSIONALS_SHOWN).map(confessionalRow)}</ul>
           {reunion.confessionals.length > CONFESSIONALS_SHOWN && (
-            <details className="show-more">
+            <details className="show-more ux-fold">
               <summary>{reunion.confessionals.length - CONFESSIONALS_SHOWN} more</summary>
               <ul className="list">{reunion.confessionals.slice(CONFESSIONALS_SHOWN).map((c, i) => confessionalRow(c, i + CONFESSIONALS_SHOWN))}</ul>
             </details>

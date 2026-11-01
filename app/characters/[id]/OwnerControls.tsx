@@ -199,7 +199,7 @@ export default function OwnerControls(props: Props) {
     <section className="card owner-controls" aria-label={`Your character: ${props.name}`} aria-busy={busy}>
       <div className="owner-head">
         <p className="muted">This is your character.</p>
-        <Link className="button" href={`/characters/${props.id}/edit`}>
+        <Link className="button secondary" href={`/characters/${props.id}/edit`}>
           ✏️ Edit {shortName(props.name)}
         </Link>
       </div>

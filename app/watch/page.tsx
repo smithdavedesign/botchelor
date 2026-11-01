@@ -69,8 +69,8 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
           {room.date_number && <span className="badge watch-lobby-second">{dateLabel(room.date_number)}</span>}
         </span>
       </div>
-      {/* A room nobody has started: its action looks like the button it is (the whole card is the link). */}
-      <span className={`watch-lobby-live${room.status === "live" ? " on" : ""}${room.status === "ready" ? " is-action" : ""}`}>{action}</span>
+      {/* A room to start or replay: its action looks like the button it is (the whole card is the link). */}
+      <span className={`watch-lobby-live${room.status === "live" ? " on" : ""}${room.status === "ready" || room.status === "replay" ? " is-action" : ""}`}>{action}</span>
     </Link>
   );
 }
@@ -306,7 +306,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           </ul>
         )}
         {/* Folded: the form is tall, and most visitors come to watch (2026-10-21). */}
-        <details className="watch-league-details">
+        <details className="watch-league-details ux-fold">
           <summary>Start a league with friends</summary>
           <CreateLeagueForm hasName={profileName !== null} />
         </details>
@@ -314,7 +314,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
 
       <ReunionTeaser reunion={reunion} />
 
-      <details className="watch-how-details" id="how-it-works">
+      <details className="watch-how-details ux-fold" id="how-it-works">
         <summary>How it works</summary>
         <p>
           Nobody steers a date, not even the audience. Watch one with the room: chat, react, and call the ending before
