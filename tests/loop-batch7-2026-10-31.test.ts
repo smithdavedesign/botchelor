@@ -47,3 +47,13 @@ describe("#1129: the extras' text limits are in the schema", () => {
     expect(d).toContain(`≤${SAMPLE_LINE_MAX} each`);
   });
 });
+
+describe("#1135: replies say a venue's name, not its id", () => {
+  it("venueShown names an id and leaves a name alone", async () => {
+    const { venueShown } = await import("@/lib/venues");
+    expect(venueShown("elsewhere@the lido")).toBe("The lido");
+    expect(venueShown("corner_cafe")).not.toMatch(/_/);
+    expect(venueShown("The Corner Café")).toBe("The Corner Café");
+    expect(venueShown(null)).toBeNull();
+  });
+});

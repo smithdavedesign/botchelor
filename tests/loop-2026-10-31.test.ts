@@ -131,3 +131,21 @@ describe("#1128: a rename is checked like a new name", () => {
     expect((await call("update_character", { character_id: dewey, name: "Hettie Brack", keep_name: true }, ctx)).isError).toBeFalsy();
   });
 });
+
+describe("#1134: an agreed date says when the other agent has been away", () => {
+  it("quietPartnerNote warns for an agent gone six days, not for one here five minutes ago or one of your own", async () => {
+    const { quietPartnerNote } = await import("@/lib/own-date");
+    const mine = await connect();
+    const theirs = await connect();
+    const me = (await call("create_character", validCharacter({ name: "Hettie Brack", keep_name: true }), mine)).structuredContent;
+    const them = (await call("create_character", validCharacter({ name: "Dewey Lamarque", keep_name: true }), theirs)).structuredContent;
+    const other = them.agent_id as string;
+    await t.db.query(`update mcp_sessions set last_seen = now() - interval '6 days' where agent_id = $1`, [other]);
+    const away = await quietPartnerNote(t.db, me.agent_id, them.character.id);
+    expect(away?.note).toMatch(/Dewey's agent was last here 6 days ago, so it may not answer/);
+    expect(away?.note).toMatch(/show-model dates all agents share/);
+    await t.db.query(`update mcp_sessions set last_seen = now() - interval '5 minutes' where agent_id = $1`, [other]);
+    expect(await quietPartnerNote(t.db, me.agent_id, them.character.id)).toBeNull();
+    expect(await quietPartnerNote(t.db, me.agent_id, me.character.id)).toBeNull();
+  });
+});

@@ -49,7 +49,34 @@ export default async function AfterDarkScenePage({ params }: Props) {
   // Where only the scenes are allowed (lib/jurisdiction.ts) there are no pictures to set them up for.
   const textOnlyHere = here.mode === "text_only";
   const scene = await openScene(db, admin, a, b);
-  if (!scene) notFound();
+  if (!scene) {
+    // #1132: a night this person had with someone who has since left the cast (a new season) isn't a bare 404: it says
+    // why. What happens to those nights (keep playing, read only) is David's call; until then they're kept, not shown.
+    const earlier = (
+      await db.query<{ a: string; b: string }>(
+        `select ca.name as a, cb.name as b from adult_scenes s join characters ca on ca.id = s.character_a join characters cb on cb.id = s.character_b
+          where s.owner_id = $1 and ((s.character_a = $2 and s.character_b = $3) or (s.character_a = $3 and s.character_b = $2)) limit 1`,
+        [admin, a, b],
+      )
+    ).rows[0];
+    if (!earlier) notFound();
+    return (
+      <div className="after-dark-mode">
+        <article className="after-dark">
+          <h1>
+            {earlier.a} &amp; {earlier.b}
+          </h1>
+          <p>
+            One of them isn&apos;t in After Dark&apos;s cast this season, so this night can&apos;t go on for now. Your nights with them are
+            kept, not deleted.
+          </p>
+          <p>
+            <Link href="/after-dark">Back to After Dark</Link>
+          </p>
+        </article>
+      </div>
+    );
+  }
   // The viewer's own venues and roleplays (lib/studio/library.ts), beside the show's in Scene & roleplay.
   const library = await getLibrary(db, admin).catch(() => ({ prompts: [], places: [], roleplays: [] }));
   const drawnSets = (await db.query<{ label: string }>(`select label from place_sets where status = 'ready' order by updated_at desc limit 300`)).rows.map((r) => r.label);

@@ -318,6 +318,12 @@ describe("(3) repeated actions and openings (lines 36 and 38: the same action; 3
     expect(r.dropped.map((d) => d.reason)).toEqual([]);
   });
 
+  it("#1136: a line left with an action and nothing said after its \u2026 is cut goes; speech that's only \u2026 keeps the action", () => {
+    const r = cut(lines(["a", "\u2026 You'd like that."], ["a", "*leans back* \u2026"], ["b", "*laughs softly* ..."], ["b", "\u2026"], ["a", "*kisses her shoulder*"]));
+    expect(r.kept.map((l) => l.text)).toEqual(["\u2026 You'd like that.", "*laughs softly*", "*kisses her shoulder*"]);
+    expect(r.dropped.map((d) => d.reason)).toEqual(["opens the same way again (a trailing \u2026)", "nothing said (only punctuation)"]);
+  });
+
   it("v1 (no craft guards) keeps them all", () => {
     const written = lines(["b", "Oh god, don't stop. Harder, Dex, harder."], ["a", `${PACE} You feel like home.`]);
     expect(dropRepeats(written, night, night, dex(), lexi()).kept.map((l) => l.text)).toEqual(written.map((l) => l.text));

@@ -89,7 +89,7 @@ import { describeTemperament, temperamentWords } from "../temperament";
 import { loadSoul, ownsCharacter } from "../souls";
 import { deleteCharacter } from "../account";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
-import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
+import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
@@ -166,7 +166,7 @@ import { DATE_ROLEPLAYS, ROLEPLAY_ANSWERS } from "../roleplays";
 import { arcQuestion, predictArc } from "../arcs";
 import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
 import { CONVERSATION_TURNS } from "../rules";
-import { isPlaceholder, placeLabel, venueName, venuePhrase } from "../venues";
+import { isPlaceholder, placeLabel, venueName, venuePhrase, venueShown } from "../venues";
 import { planPlace } from "../places";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, feedbackBoard, saveFeedback, similarOnBoard, voteFeedback } from "../feedback";
 import { followCouple, followState, unfollowCouple } from "../follows";
@@ -3976,7 +3976,7 @@ function trimEpisode(e: Record<string, unknown>): Record<string, unknown> {
     revealed: e.revealed,
     ...(e.ending ? { ending: e.ending } : {}),
     ...(e.format ? { format: e.format } : {}),
-    ...(e.venue ? { venue: e.venue } : {}),
+    ...(e.venue ? { venue: venueShown(String(e.venue)) } : {}),
     ...(e.visibility ? { visibility: e.visibility } : {}),
   };
 }
@@ -4120,7 +4120,7 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
       status: e.status,
       share_path: e.share_path,
       characters: chars,
-      venue: e.venue,
+      venue: venueShown(e.venue as string | null | undefined),
       setting: e.setting,
       ending: e.ending,
       best_line: e.best_line,
@@ -4247,8 +4247,8 @@ function insertAfter(data: Record<string, unknown>, key: string, extra: Record<s
 function chainMarker(item: Exclude<ChainItem, ChainText>): Record<string, unknown> {
   if (item.kind === "date") {
     return {
-      id: item.id, kind: "date", from: "show", text: `📅 Date ${item.number}${item.venue ? ` at ${item.venue}` : ""}${item.ending_label ? `: ${item.ending_label}` : ""}`, at: item.at,
-      number: item.number, venue: item.venue, ending: item.ending_label, aired: item.aired, episode_id: item.episode_id, day: item.day,
+      id: item.id, kind: "date", from: "show", text: `📅 Date ${item.number}${item.venue ? ` at ${venueShown(item.venue)}` : ""}${item.ending_label ? `: ${item.ending_label}` : ""}`, at: item.at,
+      number: item.number, venue: venueShown(item.venue), ending: item.ending_label, aired: item.aired, episode_id: item.episode_id, day: item.day,
     };
   }
   return { id: item.id, kind: item.event, from: "show", text: item.event === "matched" ? "💘 They matched" : "📅 Both said yes to a date", at: item.at, day: item.day };
@@ -5973,6 +5973,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       return r.ok
         ? {
             data: {
+              // #1133: the new date's id first, so it isn't dug out of a long first step.
+              episode_id: r.step.episode_id,
               ...(r.resumed ? { resumed: true, resumed_note: "These two already had a date of yours in progress: this is it, as it stands." } : {}),
               ...(botNote ? { house_bot_date: botNote } : {}),
               ...(partnerRun ? { other_side: partnerRun === HOUSE_BOT_LABEL ? `${partnerRun}: its lines come from the show's script, not another agent (autoplay_own_date plays its side too).` : `their agent: ${partnerRun}` } : {}),
@@ -7060,7 +7062,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 // #367: a house character is played by the show, so only go_on_date fits.
                 const house = (await db.query(`select 1 from characters where id = $1 and is_house`, [String(args.with ?? "")])).rows.length > 0;
                 const ids = { character_id: String(args.character_id ?? ""), partner_id: String(args.with ?? "") };
+                const quiet = house ? null : await quietPartnerNote(db, who.id, ids.partner_id);
                 return {
+                  ...(quiet ? { partner_last_seen_minutes: quiet.last_seen_minutes, takeover_note: quiet.note } : {}),
                   next: house
                     ? "Date agreed: book it with go_on_date (the show plays house characters; uses one of your free dates; preview: true first shows the cost). start_own_date needs another agent's character or two of your own."
                     : "Date agreed: either of you can book it now. start_own_date: you play your character and their agent plays theirs (free, turn by turn, can take a while). " +
@@ -7107,7 +7111,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!r.ok) return { error: r.message };
       const arc = await arcQuestion(db, who.id, x, y);
       // The pick as it was asked ("yes" / "no"), not the stored boolean (run 3: "my_pick": false read as "no pick").
-      return { data: { arc: arc ? { ...arc, my_pick: arc.my_pick === null ? null : arc.my_pick ? "yes" : "no" } : arc }, identity: who };
+      // #1135: target is the date number the pick is about (two past their public dates, at least 3), said in words.
+      return {
+        data: {
+          arc: arc
+            ? { ...arc, my_pick: arc.my_pick === null ? null : arc.my_pick ? "yes" : "no", ...(typeof (arc as { target?: unknown }).target === "number" ? { target_note: `The pick: do they reach date ${(arc as { target: number }).target}?` } : {}) }
+            : arc,
+        },
+        identity: who,
+      };
     }
     case "wait_for_text": {
       // #226: an agent waiting for a reply text polled read_texts; this waits for it instead.
