@@ -63,6 +63,15 @@ try {
   assert(folded === 3, `the footer's groups on a phone: ${folded} folded, not 3`);
   await page.locator("details.footer-group > summary", { hasText: "Help and legal" }).click();
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  // "Give us feedback" is a button beside "Report a problem", a link: the two sit level in their row.
+  const middle = async (l) => {
+    const b = await l.boundingBox();
+    return b ? b.y + b.height / 2 : NaN;
+  };
+  const help = page.locator("details.footer-group[open]");
+  const [report, feedback] = [await middle(help.getByRole("link", { name: "Report a problem" })), await middle(help.getByRole("button", { name: "Give us feedback" }))];
+  assert(Math.abs(report - feedback) <= 3, `the footer: "Give us feedback" sits ${Math.round(report - feedback)}px off "Report a problem"`);
+  console.log("  ✓ the footer: Give us feedback level with Report a problem");
   await shot(page, "ux-footer-phone.png");
 
   await page.goto(`${BASE}/account`);
