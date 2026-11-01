@@ -51,6 +51,11 @@ describe("freshJobs (#1016)", () => {
     expect(freshJobs(sheet, [{ extras: { occupation: "a truck driver" } }], 200, "agent-a", NOW).some((j) => /lorry/.test(j))).toBe(false);
   });
 
+  it("never deals a kind of work the others' jobs already say, in any deal window (the mcp-run-0042 flake: 'a carousel horse inspector')", () => {
+    const others: SheetDraft[] = [{ extras: { occupation: "Lighthouse inspector" } }, { extras: { occupation: "a lighthouse inspector" } }];
+    for (let w = 0; w < 96; w++) for (const job of freshJobs(sheet, others, 3, "agent-x", NOW + w * WINDOW)) expect(job).not.toMatch(/inspector|lighthouse/);
+  });
+
   it("reads a job from the bio when there's no occupation: a perfume tester in a bio keeps 'a perfume tester' out (#1123)", () => {
     // Fitzgerald Wren on prod (2026-10-31): no occupation, and his bio opens with the job.
     const fitz: SheetDraft = { bio: "A perfume tester who can smell a lie but not his own kitchen fire, and keeps a notebook of scents he has forgiven." };
