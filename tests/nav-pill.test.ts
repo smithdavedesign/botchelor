@@ -30,3 +30,12 @@ describe("the header's date meter", () => {
     expect(html).toContain('href="/shop"');
   });
 });
+
+// David, 2026-11-01: "add constellation … when logged in … right now it disappears": the owner's nav had dropped it.
+describe("the Constellation link", () => {
+  it("is in the nav with or without a character", () => {
+    for (const hasCharacter of [true, false]) {
+      expect(renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter }))).toMatch(/<a[^>]*href="\/graph"[^>]*>Constellation<\/a>/);
+    }
+  });
+});
