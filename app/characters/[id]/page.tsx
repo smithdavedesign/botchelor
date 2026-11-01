@@ -13,7 +13,7 @@ import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import { portraitPathSql } from "@/lib/assets";
 import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd, characterJsonLd } from "@/lib/seo";
-import ShareLink from "@/app/ShareLink";
+import { CopyLink } from "@/app/couples/[a]/[b]/CoupleActions";
 import { getDatingProfile } from "@/lib/dating";
 import { hasExtras, profileComplete, profileMissing, type CharacterExtras } from "@/lib/extras";
 import { archetypeLabel, goalLabel } from "@/lib/kinds";
@@ -183,6 +183,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     : ((await db.query<{ while_away: string | null; created_via: string; adopted: boolean }>(`select while_away, created_via, adopted_at is not null as adopted from characters where id = $1`, [id])).rows[0] ?? null);
   // Who made them (lib/origin.ts), and the "date this character" call to action under the header (lib/date-cta.ts).
   const origin = (await originsOf(db, [id])).get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
+  // Back to the tab they're on (the cast, people's, agents'), for the kicker and the breadcrumb.
+  const listHref = c.house ? "/characters" : `/characters?tab=${origin === "person" ? "people" : "agents"}`;
   // An agent-made character links to its maker's public profile — by the agent's public handle (lib/agent-handle),
   // never its agent_id, which is a bearer token. The handle is assigned here the first time it's needed.
   const makerHandle = origin === "agent" && c.owner_id ? await ensureAgentHandle(db, c.owner_id).catch(() => null) : null;
@@ -255,13 +257,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           characterJsonLd(c),
           breadcrumbJsonLd([
             { name: "Botchelor", path: "/" },
-            { name: "Characters", path: c.house ? "/characters" : `/characters?tab=${origin === "person" ? "people" : "agents"}` },
+            { name: "Characters", path: listHref },
             { name: c.name, path: `/characters/${c.id}` },
           ]),
         ]}
       />
       <p className="kicker">
-        <Link href="/characters">← Characters</Link> · Contestant card
+        <Link href={listHref}>← Characters</Link> · Contestant card
       </p>
       <div className="contestant">
         <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={96} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} />
@@ -280,7 +282,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">
                 💍 With <CharacterName character={partnerStyle.partners[0]} label={shortName(partnerStyle.partners[0].name)} size={18} />
               </span>}
-            {partnerStyle && !partnerStyle.taken && partnerStyle.effective === "open" && (partnerStyle.choice === "open" || partnerStyle.decided) && (
+            {/* Only while they're dating: beside "Not taking dates" it said two things at once. */}
+            {partnerStyle && !partnerStyle.taken && (c.house ? dating?.can_ask_out : dating?.open_to_dates) && partnerStyle.effective === "open" && (partnerStyle.choice === "open" || partnerStyle.decided) && (
               <span className="badge">🌈 Open to more than one</span>
             )}
           </h1>
@@ -304,25 +307,53 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           )}
         </div>
       </div>
+      {/* Share them: the phone's share sheet, else the link copied (it was a whole card at the bottom, a cut-off URL field
+          on a phone). */}
+      {!c.private && (
+        <p className="small character-share">
+          <CopyLink path={`/characters/${c.id}`} title={`${c.name} on Botchelor`} />
+        </p>
+      )}
       <AiFiction />
       <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} />
 
       {ratings.is_owner && !c.house && (
-        // The swipe deck (lib/swipes.ts): a complete dating profile to swipe; open to dates to be in others' decks.
-        <p className="notice swipe-cta">
+        // The owner's one next step, the page's one filled button (2026-10-31 UX audit: three filled buttons went to side
+        // actions, and the way to swipe was a green text link). The swipe deck (lib/swipes.ts) takes a complete dating
+        // profile; open to dates puts them in other people's decks.
+        <section className="card owner-next" aria-labelledby="owner-next-title">
           {profileComplete(c.extras) ? (
             <>
-              💘 <Link href={`/swipe?character=${c.id}`}>Swipe for {shortName(c.name)}</Link> ·{" "}
-              <Link href={`/matches?character=${c.id}`}>💬 {shortName(c.name)}&apos;s matches</Link>
-              {dating?.open_to_dates ? " · they're in the swipe deck too" : " · open them to dates to be in others' decks"}
+              <h2 id="owner-next-title">💘 Find {shortName(c.name)} a date</h2>
+              <p className="cta-row">
+                <Link className="button" href={`/swipe?character=${c.id}`}>
+                  Swipe for {shortName(c.name)}
+                </Link>
+                <Link className="button secondary" href={`/create?character=${c.id}`}>
+                  📅 Send on a date now
+                </Link>
+                <Link href={`/matches?character=${c.id}`}>💬 {shortName(c.name)}&apos;s matches</Link>
+              </p>
+              <p className="muted small">
+                {dating?.open_to_dates
+                  ? `✓ ${shortName(c.name)} is in other people's decks too.`
+                  : `${shortName(c.name)} isn't in other people's decks: Open to dates, below, puts them there.`}
+              </p>
             </>
           ) : (
             <>
-              💘 Finish {shortName(c.name)}&apos;s dating profile to swipe: {profileMissing(c.extras).map((m) => m.replace(/ \(extras\.\w+\)$/, "")).join(", ")}.{" "}
-              <Link href={`/characters/${c.id}/edit`}>Fill it in</Link>
+              <h2 id="owner-next-title">💘 Get {shortName(c.name)} dating</h2>
+              <p>
+                To swipe, their dating profile needs {profileMissing(c.extras).map((m) => m.replace(/ \(extras\.\w+\)$/, "")).join(" and ")}.
+              </p>
+              <p className="cta-row">
+                <Link className="button" href={`/characters/${c.id}/edit`}>
+                  Finish {shortName(c.name)}&apos;s profile
+                </Link>
+              </p>
             </>
           )}
-        </p>
+        </section>
       )}
       {ratings.is_owner && !c.house && !partnerStyle?.taken && <MixerJoin characterId={c.id} first={shortName(c.name)} />}
       {ratings.is_owner && !c.house && !c.private && !partnerStyle?.taken && <ShareDateLink characterId={c.id} first={shortName(c.name)} />}
@@ -457,30 +488,21 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      <section className="card">
-        <h2>Audience rating</h2>
-        <p className="muted">How the crowd reads this contestant. It&apos;s just for fun — it never changes a date, the odds or your points on a prediction.</p>
+      {/* The crowd's read of them and its reviews, one card (2026-10-31 UX audit: two cards for one thing). */}
+      <section className="card character-audience" aria-labelledby="audience-title">
+        <h2 id="audience-title">Audience</h2>
+        <p className="muted small">How the crowd reads them: just for fun, it never changes a date, the odds or anyone&apos;s points.</p>
         <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} />
-      </section>
-
-      <section className="card">
-        <h2>Reviews</h2>
+        <h3>Reviews</h3>
         <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} open={!c.house || (await reviewableNow(c.id))} />
       </section>
 
-      {memory?.arc && (
-        <section className="card">
-          <h2>Who they&apos;ve become</h2>
-          <p>{memory.arc}</p>
-          {learned && (learned.sections.some((x) => x.items.length) || learned.drift.length > 0 || learned.people.length > 0 || learned.forgotten.length > 0) && (
-            <LearnedPanel characterId={c.id} name={c.name} {...learned} />
-          )}
-        </section>
-      )}
-
-      {memory && ((memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && (
-        <section className="card">
+      {/* Who they've become and their story, one card (2026-10-31 UX audit: the same dates were told in four cards); what
+          they've learned, the owner's alone, folded inside it. */}
+      {memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && (
+        <section className="card character-story">
           <h2>Their story so far</h2>
+          {memory.arc && <p>{memory.arc}</p>}
           {(memory.milestones?.length ?? 0) > 0 && (
             <ul className="chips milestones">
               {memory.milestones!.map((m) => (
@@ -498,6 +520,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                 </li>
               ))}
             </ul>
+          )}
+          {learned && (learned.sections.some((x) => x.items.length) || learned.drift.length > 0 || learned.people.length > 0 || learned.forgotten.length > 0) && (
+            <details className="ux-fold character-learned">
+              <summary>🔒 What {shortName(c.name)} has learned (only you see this)</summary>
+              <LearnedPanel characterId={c.id} name={c.name} {...learned} />
+            </details>
           )}
         </section>
       )}
@@ -574,13 +602,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      <section className="card">
-        <h2>Share this contestant</h2>
-        <ShareLink path={`/characters/${c.id}`} label="Character link" />
-        <p className="muted">
-          <Link href="/create">Make your own character</Link> · <Link href="/characters">See every character</Link>
-        </p>
-      </section>
+      <p className="muted character-more">
+        <Link href="/create">Make your own character</Link> · <Link href={listHref}>See every character</Link>
+      </p>
     </article>
   );
 }

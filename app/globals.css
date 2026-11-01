@@ -4442,6 +4442,20 @@ details.recap-toggle[open] > summary {
 }
 /* The owner's card. Its action text is sized by the card's own width (cqi), clamped, so a narrow card shrinks the
    labels a little rather than squeezing a sentence into several cramped lines. */
+/* The owner's one next step on their character's page (app/characters/[id]/page.tsx): swipe, or finish the profile. */
+.owner-next h2 {
+  margin-bottom: var(--space-2);
+}
+.owner-next .cta-row {
+  margin-top: var(--space-2);
+}
+/* Under the header: Share (or Copy link). The audience's two halves in one card. */
+.character-share {
+  margin: var(--space-2) 0 0;
+}
+.character-audience h3 {
+  margin-top: var(--space-5);
+}
 .owner-controls {
   border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
   container-type: inline-size;

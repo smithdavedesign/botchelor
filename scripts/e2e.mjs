@@ -532,7 +532,7 @@ async function main() {
       await spage.locator(".gallery .meta a").first().click();
       await spage.waitForURL(/\/characters\//);
       assert((await spage.locator(".contestant .avatar").count()) > 0, "contestant card avatar missing");
-      assert((await spage.getByText("Share this contestant").count()) > 0, "share section missing on the card");
+      assert((await spage.locator(".character-share button").count()) > 0, "the share button is missing on the card");
       // Audience rating: a spectator (who doesn't own this contestant) toggles a rating chip on.
       await spage.locator(".ratings .rating-chip").first().click();
       await spage.locator(".rating-chip.on").first().waitFor({ timeout: 10_000 });

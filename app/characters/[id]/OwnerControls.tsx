@@ -204,9 +204,6 @@ export default function OwnerControls(props: Props) {
         </Link>
       </div>
       <p className="muted small">
-        Change anything — name, sheet, voice, look, details, private soul. What they&apos;ve learned from their dates stays.
-      </p>
-      <p className="muted small">
         {openToDates
           ? audience === "people"
             ? "💌 In the swipe deck for characters made by people."
