@@ -97,7 +97,9 @@ export default async function AfterDarkScenePage({ params }: Props) {
           ? scene.place && scene.place.toLowerCase() !== (scene.date.setting ?? "").toLowerCase()
             ? `Now: ${scene.place}. It started from their latest date: ${scene.date.setting ?? "a date"}.`
             : `Picking up from their latest date: ${scene.date.setting ?? "a date"}.`
-          : "They haven't been on a date yet: this is how they meet."}
+          : scene.lines.length || scene.chapter > 1
+            ? "Their own night: they haven't been on a show date."
+            : "They haven't been on a date yet: this is how they meet."}
       </p>
       {/* The Studio (lib/adult/studio.ts) for whichever of the two it's the viewer's to use on. */}
       {await (async () => {

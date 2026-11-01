@@ -945,7 +945,9 @@ export function sceneMessages(
     ...profileLines(names, now.profile?.turnOns ?? { a: [], b: [] }, now.profile?.framing ?? null),
     now.profile?.scenario ? `Tonight's scenario: ${now.profile.scenario.title}. ${now.profile.scenario.premise} Both of them chose to be here, and either can stop at any time.` : "",
     now.profile?.roleplay ? roleplayLine(now.profile.roleplay.rp, names, now.profile.roleplay.swap) : "",
-    date ? `Their latest date: ${date.setting ?? "a date"}. It ended: ${date.ending ?? "unknown"}.` : "They haven't been on a date yet: they've just met.",
+    // #1155: "they've just met" only before a single line of the night; after that they already know each other from it
+    // (v2: v1's prompt stays as it was, tests/fixtures/after-dark-v1-prompt.json).
+    date ? `Their latest date: ${date.setting ?? "a date"}. It ended: ${date.ending ?? "unknown"}.` : v2 && (lines.length || now.recap) ? "They haven't been on a show date: tonight is their own, and it's already under way." : "They haven't been on a date yet: they've just met.",
     dateTail.length ? `The end of that date:\n${dateTail.join("\n")}` : "",
     v2
       ? remembered.length

@@ -7305,12 +7305,13 @@ a.phone-head-btn {
   border-radius: 10px;
 }
 @media (max-width: 720px) {
+  /* #1155: on a phone it sits at the top and stops short of the bar, so Next (which answers it "later") stays in reach. */
   .ad-beat-offer {
     position: fixed;
-    top: 50%;
-    transform: translate(-50%, -50%);
+    top: 8px;
+    transform: translateX(-50%);
     z-index: 20;
-    max-height: 80vh;
+    max-height: 55vh;
   }
 }
 .ad-beat-guide {

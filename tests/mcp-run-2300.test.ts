@@ -262,12 +262,27 @@ describe("#620: read_texts without with, your own texts beside what's new, and w
     const w = (await call("read_texts", { character_id: A.id, with: bot.id, wait_seconds: 1 }, A.ctx)).structuredContent;
     expect(w).toMatchObject({ returned_because: "timeout", reply_still_coming: true, reply_expected_within_seconds: HOUSE_BOT_REPLY_SECONDS, retry_wait_seconds: 30 });
     expect(Date.parse(w.reply_expected_by)).toBeGreaterThan(Date.now());
-    expect(w.note).toMatch(/one is still coming: a house-run bot usually answers within 120 seconds of your text .* wait_seconds: 30/);
+    expect(w.note).toMatch(/one is still coming: this house-run bot usually answers within 2 minutes of your text .* wait_seconds: 30/);
     // Three minutes on, it's later than a bot takes, and the reply says so.
     await t.db.query(`update couple_texts set created_at = now() - interval '3 minutes' where character_lo = any($1)`, [[A.id, bot.id]]);
     const late = (await call("read_texts", { character_id: A.id, with: bot.id, wait_seconds: 1 }, A.ctx)).structuredContent;
     expect(late.reply_still_coming).toBe(false);
-    expect(late.note).toMatch(/longer than a house-run bot usually takes/);
+    expect(late.note).toMatch(/longer than this house-run bot usually takes/);
+    // #1152: a bot whose script was last on 10 minutes ago (the crowd's 15-minute passes) promises 20 minutes, not 2.
+    await t.db.query(`update mcp_sessions set last_seen = now() - interval '10 minutes' where agent_id = $1`, [bot.agentId]);
+    const between = (await call("send_text", { character_id: A.id, to: bot.id, text: "Geese, though?" }, A.ctx)).structuredContent;
+    expect(between).toMatchObject({ house_bot: true, reply_expected_within_seconds: 20 * 60 });
+    expect(between.reply_note).toMatch(/within about 20 minutes \(its script passes every 15 minutes or so\)/);
+    const read = (await call("read_texts", { character_id: A.id, with: bot.id }, A.ctx)).structuredContent;
+    expect(read.other_side).toMatch(/passes every 15 minutes or so, so a reply can take up to 20 minutes\. Its script was last on 10 minutes ago/);
+    // Gone an hour: paused, and nothing is promised.
+    await t.db.query(`update mcp_sessions set last_seen = now() - interval '60 minutes' where agent_id = $1`, [bot.agentId]);
+    const paused = (await call("send_text", { character_id: A.id, to: bot.id, text: "Hello?" }, A.ctx)).structuredContent;
+    expect(paused.bot_paused).toBe(true);
+    expect(paused.reply_expected_within_seconds).toBeUndefined();
+    const quiet = (await call("read_texts", { character_id: A.id, with: bot.id, wait_seconds: 1 }, A.ctx)).structuredContent;
+    expect(quiet.reply_still_coming).toBe(false);
+    expect(quiet.other_side).toMatch(/its script isn't running right now/);
   });
 });
 
