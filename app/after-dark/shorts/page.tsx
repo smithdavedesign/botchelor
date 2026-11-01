@@ -103,6 +103,8 @@ export default async function ShortsPage() {
                   <CharacterName character={{ ...s.a, house: true }} label={shortName(s.a.name)} link={false} /> ×{" "}
                   <CharacterName character={{ ...s.b, house: true }} label={shortName(s.b.name)} link={false} /> · {s.lines} lines{s.video ? " · 🎬 with its video" : ""}
                   {watched.has(s.id) ? " · watched" : ""}
+                  {/* #1132: one of the two has left the cast since it was published (a Short stays up). */}
+                  {s.earlier && <span data-earlier-cast="true"> · 🗓 {s.earlier}</span>}
                 </p>
               </li>
             ))}

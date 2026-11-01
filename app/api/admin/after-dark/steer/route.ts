@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eligibleIds } from "@/lib/adult/characters";
+import { playableIds } from "@/lib/adult/characters";
 import { adultViewer } from "@/lib/adult/mode";
 import { resetSteering, steerSummary } from "@/lib/adult/steering";
 import { getDb } from "@/lib/db";
@@ -19,7 +19,8 @@ export const POST = handle(async (req: Request) => {
   const viewer = await adultViewer(db, req);
   if (!viewer) return hidden();
   const input = parseBody(Input, await readJson(req), "invalid_request");
-  if (!(await eligibleIds(db, viewer)).has(input.character_id)) return hidden();
+  // In their After Dark, or someone who left the cast that they keep a pair with (#1132).
+  if (!(await playableIds(db, viewer)).has(input.character_id)) return hidden();
   await resetSteering(db, viewer, input.character_id);
   return json({ steer: (await steerSummary(db, viewer, [input.character_id]))[input.character_id] });
 });

@@ -11,7 +11,7 @@ import { moveLineFeedback } from "../line-feedback";
 import type { ChatMessage, Model, ModelOptions, Usage } from "../model";
 import { pairKey } from "../relationships";
 import { checkAdultText, type SafetyResult } from "../safety";
-import { eligibleIds } from "./characters";
+import { eligibleIds, keptPairs } from "./characters";
 import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, recentActions, scenePrompt, type Media } from "./media";
 import { countUse, overCap } from "./usage";
 import { adultModel, adultModelId } from "./mode";
@@ -270,11 +270,17 @@ const NOTE_MAX = 240;
 
 export type LatestDate = { setting: string | null; ending: string | null; venue: string | null; character_a: string; transcript: { side: "a" | "b"; dialogue: string; action?: string }[] | null };
 
-/** The pair, lower id first, when both may be in this person's after dark (lib/adult/characters.ts); null otherwise. */
+/**
+ * The pair, lower id first, when both may be in this person's after dark (lib/adult/characters.ts), or when it's a pair
+ * they keep from an earlier cast (keptPairs, #1132: they had nights of it before one of the two left the cast); null
+ * otherwise. Every scene, picture, video and talk of a pair is gated here, so a kept pair plays as before.
+ */
 export async function eligiblePair(db: Db, ownerId: string, x: string, y: string): Promise<[string, string] | null> {
-  if (x === y) return null;
+  if (!x || !y || x === y) return null;
   const ok = await eligibleIds(db, ownerId);
-  return ok.has(x) && ok.has(y) ? pairKey(x, y) : null;
+  const pair = pairKey(x, y);
+  if (ok.has(x) && ok.has(y)) return pair;
+  return (await keptPairs(db, ownerId, { eligible: ok, pair })).length ? pair : null;
 }
 
 /** Every pair of the characters who can be in after dark, with how far each pair's scene has gone for this admin. */
@@ -288,17 +294,23 @@ export type CastPair = {
   last?: { who: string; text: string } | null;
   chapter?: number;
   updated_at?: string | null;
+  /** A pair kept from an earlier cast (lib/adult/characters.ts keptPairs, #1132): "From October's cast". */
+  earlier?: string;
 };
 
 /**
  * Every pair of who's in for this person, and how far each one's night has got. The ones under way also carry the face
  * this person keeps for each of them (their After Dark face, a picture behind the privacy blur), the night's last line and
  * when it was played (the audit, 2026-10-29: the hub listed nights as names and a line count, with initials for faces).
+ * Then the pairs they keep from an earlier cast (keptPairs, #1132), each marked with its month ("From October's cast").
  */
 export async function listCastPairs(db: Db, adminId: string): Promise<CastPair[]> {
-  const cast = [...(await eligibleIds(db, adminId))];
+  const eligible = await eligibleIds(db, adminId);
+  const cast = [...eligible];
+  const kept = await keptPairs(db, adminId, { eligible });
+  const everyone = [...new Set([...cast, ...kept.flatMap((k) => k.gone)])];
   const names = new Map(
-    (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [cast])).rows.map((r) => [r.id, r.name]),
+    (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [everyone])).rows.map((r) => [r.id, r.name]),
   );
   type Row = { character_a: string; character_b: string; n: number; chapter: number; updated_at: Date | string | null; last: { who?: string; text?: string } | null };
   const scenes = new Map(
@@ -315,36 +327,39 @@ export async function listCastPairs(db: Db, adminId: string): Promise<CastPair[]
     (
       await db.query<{ character_id: string; image_id: string }>(
         `select f.character_id, f.image_id from adult_face_refs f join adult_images i on i.id = f.image_id and i.status = 'ready' where f.owner_id = $1 and f.character_id = any($2)`,
-        [adminId, cast],
+        [adminId, everyone],
       )
     ).rows.map((r) => [r.character_id, `/api/admin/after-dark/media/${encodeURIComponent(r.image_id)}`]),
   );
+  const pairOf = (a: string, b: string, earlier?: string): CastPair => {
+    const row = scenes.get(`${a}/${b}`);
+    const lines = row?.n ?? 0;
+    // Under way: lines in this chapter, or chapters filed (a new chapter starts empty). A kept pair always is: its nights
+    // may all be saved (Start over), and it's listed only because there are some.
+    const going = Boolean(earlier) || lines > 0 || (row?.chapter ?? 1) > 1;
+    const who = (id: string) => ({ id, name: names.get(id) ?? id, ...(going ? { photo: faces.get(id) ?? null } : {}) });
+    const said = row?.last?.text ? row.last.text.replace(/\*[^*]*\*/g, " ").replace(/\s+/g, " ").trim() : "";
+    return {
+      a: who(a),
+      b: who(b),
+      lines,
+      path: `/after-dark/${a}/${b}`,
+      ...(going
+        ? {
+            last: said ? { who: (row!.last!.who === "b" ? names.get(b) ?? b : names.get(a) ?? a).split(/\s+/)[0], text: said.slice(0, 140) } : null,
+            chapter: row?.chapter ?? 1,
+            updated_at: row?.updated_at ? new Date(row.updated_at).toISOString() : null,
+          }
+        : {}),
+      ...(earlier ? { earlier } : {}),
+    };
+  };
   const pairs: CastPair[] = [];
   const sorted = [...cast].sort();
   for (let i = 0; i < sorted.length; i++) {
-    for (let j = i + 1; j < sorted.length; j++) {
-      const [a, b] = [sorted[i], sorted[j]];
-      const row = scenes.get(`${a}/${b}`);
-      const lines = row?.n ?? 0;
-      // Under way: lines in this chapter, or chapters filed (a new chapter starts empty).
-      const going = lines > 0 || (row?.chapter ?? 1) > 1;
-      const who = (id: string) => ({ id, name: names.get(id) ?? id, ...(going ? { photo: faces.get(id) ?? null } : {}) });
-      const said = row?.last?.text ? row.last.text.replace(/\*[^*]*\*/g, " ").replace(/\s+/g, " ").trim() : "";
-      pairs.push({
-        a: who(a),
-        b: who(b),
-        lines,
-        path: `/after-dark/${a}/${b}`,
-        ...(going
-          ? {
-              last: said ? { who: (row!.last!.who === "b" ? names.get(b) ?? b : names.get(a) ?? a).split(/\s+/)[0], text: said.slice(0, 140) } : null,
-              chapter: row!.chapter,
-              updated_at: row!.updated_at ? new Date(row!.updated_at).toISOString() : null,
-            }
-          : {}),
-      });
-    }
+    for (let j = i + 1; j < sorted.length; j++) pairs.push(pairOf(sorted[i], sorted[j]));
   }
+  for (const k of kept) pairs.push(pairOf(k.pair[0], k.pair[1], k.label));
   return pairs;
 }
 
