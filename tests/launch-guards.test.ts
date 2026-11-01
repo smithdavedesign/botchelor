@@ -230,16 +230,25 @@ describe("GET /api/health", () => {
     expect(await (await health({ authorization: "Bearer nope" })).json()).toEqual({ ok: true });
   });
 
-  it("503s when the database is unreachable", async () => {
+  it("503s to the monitor when the database is unreachable, and never queries it for public checks", async () => {
+    let queries = 0;
     const broken: Db = {
       async query() {
+        queries++;
         throw new Error("connection refused");
       },
       async exec() {},
     };
     setDbForTests(broken);
     try {
-      const res = await health();
+      // The host's 10-second check: answering it from the database kept Neon awake around the clock.
+      const pub = await health();
+      expect(pub.status).toBe(200);
+      expect(await pub.json()).toEqual({ ok: true });
+      expect(queries).toBe(0);
+
+      vi.stubEnv("CRON_SECRET", "cron-secret");
+      const res = await health({ authorization: "Bearer cron-secret" });
       expect(res.status).toBe(503);
       expect((await res.json()).ok).toBe(false);
     } finally {
