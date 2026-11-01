@@ -7,7 +7,8 @@ import { ModelError, setModelForTests } from "@/lib/model";
 import { CONVERSATION_TURNS, ENDING_LABELS } from "@/lib/rules";
 import { GET as lobbyJob } from "@/app/api/jobs/lobby/route";
 import { createTemplateParty, FRESH_ROOMS_PER_DAY, listLobby, refreshLobby } from "@/lib/watch";
-import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, planJson, scriptedModel, scriptOutcome, setupEpisode, startTestDb, validCharacter } from "./helpers";
+import { getEpisodeView } from "@/lib/game";
+import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, planJson, scriptedModel, scriptOutcome, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 // Varied openers and no repeated distinctive content words — so the critics (opener, catchphrase, motif, near-
 // duplicate, profile) don't force revisions and the scripted model doesn't run out of outputs.
@@ -261,6 +262,70 @@ describe("backfillTranscripts", () => {
     expect(filled.transcript).toHaveLength(CONVERSATION_TURNS);
     expect(filled.turn_meta).toHaveLength(filled.transcript.length);
     for (const m of filled.turn_meta) expect(m).toEqual({ at: expect.any(String), by: "show" });
+  });
+
+  /** A creator's date on a model whose turns answer while `ok(n)` says so for the n-th turn call (0-based), "model down" otherwise. */
+  async function dateWithFlakyTurns(ok: (n: number) => boolean) {
+    const creator = newUserCookie();
+    const character = await (await api.createCharacter(validCharacter(), creator)).json();
+    scriptOutcome({ ending: "friends" });
+    setConversationEnabledForTests(true);
+    let n = 0;
+    let said = 0;
+    setModelForTests({
+      async complete(messages) {
+        const system = messages[0]?.content ?? "";
+        if (system.startsWith("You are one fictional adult")) {
+          if (!ok(n++)) throw new Error("model down");
+          return turnJson(said++);
+        }
+        return system.includes("story editor") ? "{}" : episodeJson();
+      },
+    });
+    const res = await api.createEpisode({ character_id: character.id, partner_id: HOUSE_PARTNER_ID }, creator);
+    expect(res.status).toBe(200);
+    const id = (await res.json()).id as string;
+    const row = async () =>
+      (
+        await t.db.query<{ transcript: { dialogue: string }[]; turn_meta: unknown[]; partial: boolean | null }>(
+          `select transcript, turn_meta, (generated_with->>'transcript_partial')::boolean partial from episodes where id = $1`,
+          [id],
+        )
+      ).rows[0];
+    return { id, creator, row };
+  }
+
+  it("J1: a line that won't come out doesn't cost the date: it picks up from the lines already said", async () => {
+    // The fifth line fails on all three tries; the date picks up once from the four already said and finishes.
+    const { row } = await dateWithFlakyTurns((n) => n < 4 || n > 6);
+    const stored = await row();
+    expect(stored.transcript).toHaveLength(CONVERSATION_TURNS);
+    expect(stored.transcript.slice(0, 4).map((l) => l.dialogue)).toEqual(TURN_LINES.slice(0, 4));
+    expect(stored.turn_meta).toHaveLength(CONVERSATION_TURNS);
+    expect(stored.partial).toBeNull();
+  });
+
+  it("J1: when picking up fails too, the lines already said stay (and say so), and the backfill finishes from them", async () => {
+    const { id, creator, row } = await dateWithFlakyTurns((n) => n < 4);
+    const kept = await row();
+    expect(kept.transcript.map((l) => l.dialogue)).toEqual(TURN_LINES.slice(0, 4));
+    expect(kept.turn_meta).toHaveLength(4);
+    expect(kept.partial).toBe(true);
+    const view = await getEpisodeView(t.db, id, userIdOf(creator));
+    expect(view?.transcript).toHaveLength(4);
+    expect(view?.transcript_partial).toBe(true);
+    expect(view?.transcript_note).toMatch(/stops early for now/);
+
+    // The backfill writes only the rest, after the kept lines, and clears the flag.
+    scriptedModel(["{}", "{}", ...turns(CONVERSATION_TURNS).slice(4)]);
+    expect((await backfillTranscripts(t.db, 5)).filled).toEqual([id]);
+    const done = await row();
+    expect(done.transcript).toHaveLength(CONVERSATION_TURNS);
+    expect(done.transcript.slice(0, 4).map((l) => l.dialogue)).toEqual(TURN_LINES.slice(0, 4));
+    expect(done.turn_meta).toHaveLength(CONVERSATION_TURNS);
+    expect(done.partial).toBeNull();
+    expect((await getEpisodeView(t.db, id, userIdOf(creator)))?.transcript_partial).toBeUndefined();
+    expect(await backfillTranscripts(t.db, 5)).toEqual({ filled: [], failed: [] });
   });
 });
 

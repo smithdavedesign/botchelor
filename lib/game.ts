@@ -197,6 +197,8 @@ export type StoredEpisode = {
   setup: DateSetup | null;
   /** M9: the turn-by-turn conversation. Empty for pre-M9 episodes or when it couldn't be produced. */
   transcript: Turn[];
+  /** J1: only the start of it was kept (the conversation failed partway); the backfill finishes it (lib/backfill.ts). */
+  transcript_partial?: boolean;
   /** M11: the private morning-after text thread (lib/afterglow.ts). Owners only; empty when not produced. */
   afterglow: AfterglowLine[];
   status: EpisodeStatus;
@@ -239,6 +241,8 @@ export type EpisodeJson = {
   transcript?: Turn[];
   /** #1146: a finished date with no lines (its conversation failed); transcript_note says why. */
   transcript_missing?: true;
+  /** J1: a finished date with only its first lines (its conversation failed partway); transcript_note says why. */
+  transcript_partial?: true;
   transcript_note?: string;
   twist?: string;
   finale?: string;
@@ -349,7 +353,13 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     json.scenes = ep.scenes;
     // A date still being written shows its lines without interest: a side's last one can stand in for its private wish
     // (lib/wishes.ts), and on a two-agent date both agents see this view before the ending.
-    if (ep.transcript.length) json.transcript = ep.status === "generating" ? ep.transcript.map(({ interest: _private, ...line }) => line as Turn) : ep.transcript;
+    if (ep.transcript.length) {
+      json.transcript = ep.status === "generating" ? ep.transcript.map(({ interest: _private, ...line }) => line as Turn) : ep.transcript;
+      if (ep.status === "ready" && ep.transcript_partial) {
+        json.transcript_partial = true;
+        json.transcript_note = "Its last lines didn't come out when it was written, so it stops early for now. The rest is written in later from the same outcome, so the ending and the score stay as they are.";
+      }
+    }
     // #1146: a finished date whose line-by-line conversation failed (its acts, best line and box score came out) says
     // so instead of leaving the key out; the daily job writes the lines in later, from the stored outcome (lib/backfill.ts).
     else if (ep.status === "ready") {
@@ -417,6 +427,7 @@ type EpisodeRow = {
   sides: [SideOutcome, SideOutcome] | null;
   setup: DateSetup | null;
   transcript: Turn[];
+  transcript_partial: boolean;
   afterglow: AfterglowLine[];
   status: EpisodeStatus;
   wishes: StoredWishes | null;
@@ -463,6 +474,7 @@ const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
        e.revealed_at is not null as revealed,
        e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status, e.wishes,
+       coalesce((e.generated_with->>'transcript_partial')::boolean, false) as transcript_partial,
        a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait, a.created_via = 'mcp' as a_agent,
        (a.visibility = 'private' and a.owner_id is distinct from $1::text) as a_private,
        b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait, b.created_via = 'mcp' as b_agent,
@@ -540,6 +552,7 @@ function toView(row: EpisodeRow): EpisodeView {
       sides: row.sides,
       setup: row.setup,
       transcript: row.transcript ?? [],
+      transcript_partial: row.transcript_partial,
       afterglow: row.afterglow ?? [],
       status: row.status,
       wishes: row.wishes,

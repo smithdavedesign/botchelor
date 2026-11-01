@@ -21,7 +21,7 @@ const RANK: Partial<Record<Stage, number>> = { just_met: 1, sparks: 2, dating: 3
  * and settles the arc predictions the new public record decides (lib/arcs.ts). Only on airing, so making a date
  * private and public again can't re-announce anything. Returns who was told of a step up (#1032: they need no "aired" notice too).
  */
-export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { episodeId?: string } = {}): Promise<Set<string>> {
+export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { episodeId?: string; quiet?: readonly string[] } = {}): Promise<Set<string>> {
   const [lo, hi] = pairKey(x, y);
   const prior = (await db.query<{ public_stage: Stage | null; stage: Stage | null }>(`select public_stage, stage from relationships where character_a = $1 and character_b = $2`, [lo, hi])).rows[0];
   const before = prior?.public_stage ?? null;
@@ -41,7 +41,8 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
     // they can see (unaired, unlisted, their private ones), so it could say Friends beside a Sparks notice. An owner
     // whose view names another stage hears both: the title says it's the public stage, the body names theirs.
     const ownerIds = [...new Set([owners.get(lo), owners.get(hi)].filter((x): x is string => Boolean(x)))];
-    for (const owner of ownerIds) {
+    // `quiet`: owners who hear nothing of this date (a mixer's house fillers, lib/group-dates.ts mixerQuietUsers).
+    for (const owner of ownerIds.filter((o) => !opts.quiet?.includes(o))) {
       const theirs = rel ? (viewRelationship(rel, { userId: owner, owner: true })?.stage ?? null) : null;
       await notifyAll(
         db,
