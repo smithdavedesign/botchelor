@@ -299,6 +299,11 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes }: 
             </button>
           </div>
         )}
+        {top && (
+          <p className="swipe-keys muted small" aria-hidden="true">
+            ← Pass · Like →
+          </p>
+        )}
         {lastLike && (
           <p className="muted small swipe-undo">
             Liked {lastLike.name}.{" "}

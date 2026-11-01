@@ -195,10 +195,17 @@ export default async function CouplePage({ params, searchParams }: Props) {
             .
           </p>
         )}
-        {follow && <FollowButton pair={[ca.id, cb.id]} following={follow.following} followers={follow.followers} />}
+        {/* One filled button (2026-10-31 UX audit): their latest date for anyone watching; an owner's is Plan, below. An
+            owner hears about their own couple anyway, so Follow is for everyone else. */}
+        {latest && (
+          <p className="action-hint">
+            <Link className={owner ? "button secondary" : "button"} href={`/episodes/${latest.episode_id}`}>
+              ▶ Watch their latest date
+            </Link>
+          </p>
+        )}
+        {follow && !owner && <FollowButton pair={[ca.id, cb.id]} following={follow.following} followers={follow.followers} />}
         <p className="small couple-links">
-          {latest && <Link href={`/episodes/${latest.episode_id}`}>▶ Watch their latest date</Link>}
-          {latest && " · "}
           <Link href={`/graph?focus=${encodeURIComponent(ca.id)}`}>✨ See them in the Constellation</Link>
           {" · "}
           <CopyLink path={`/couples/${ca.id < cb.id ? ca.id : cb.id}/${ca.id < cb.id ? cb.id : ca.id}`} title={`${ca.name} × ${cb.name} on Botchelor`} />

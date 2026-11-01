@@ -19,7 +19,7 @@ import { withoutLeadName } from "@/app/episodes/[id]/lead-name";
 function RoomNext({ state }: { state: RoomState }) {
   return (
     <p className="room-next">
-      <Link className="button small" href={`/episodes/${state.episode_id}`}>
+      <Link className="button secondary small" href={`/episodes/${state.episode_id}`}>
         Read the full episode
       </Link>
       <Link className="button-ghost small" href="/watch">
@@ -92,8 +92,16 @@ function RoomPanel({
   hideIcon?: string;
   className?: string;
 }) {
-  // The opening tab only: after that the viewer's choice stands (it never jumps when, say, they vote).
+  // The opening tab, then the viewer's choice stands (it never jumps when, say, they vote). One move of its own: a room
+  // opened before its predictions did (a just-started room renders before its clock runs) goes to Vote when they open,
+  // unless the viewer has picked a tab (2026-10-31 UX audit: it stayed on Chat, with nothing to call the ending with).
   const [tab, setTab] = useState<RoomTab>(start);
+  const touched = useRef(false);
+  const hasVote = tabs.includes("vote");
+  const callNow = state.predictions_open && !state.my_prediction;
+  useEffect(() => {
+    if (hasVote && callNow && !touched.current) setTab("vote");
+  }, [hasVote, callNow]);
   const live = voteLive(state);
   return (
     <aside className={`room-panel${dark ? " is-dark" : ""}${className ? ` ${className}` : ""}`} aria-label="The room">
@@ -107,7 +115,10 @@ function RoomPanel({
             aria-selected={tab === t}
             aria-controls={`room-pane-${t}`}
             className="room-tab"
-            onClick={() => setTab(t)}
+            onClick={() => {
+              touched.current = true;
+              setTab(t);
+            }}
           >
             {TAB_LABELS[t]}
             {t === "chat" && state.messages.length > 0 && <span className="room-tab-count">{state.messages.length}</span>}
@@ -244,7 +255,7 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
             <span className="watch-dot" aria-hidden /> {state.watching} watching
           </span>
           <span className="chip">{state.clock.started ? state.clock.phase_label : "Starting…"}</span>
-          <button type="button" className="primary small" onClick={() => setTheater(true)}>
+          <button type="button" className={state.clock.ended ? "primary small" : "secondary small"} onClick={() => setTheater(true)}>
             {state.clock.ended ? "▶ Watch the replay" : "🎬 Theater mode"}
           </button>
         </div>
@@ -287,7 +298,8 @@ export default function WatchRoom({ initial }: { initial: RoomState }) {
       {/* Phone only (CSS): the vote and the chat within thumb's reach, wherever the date has scrolled to. */}
       {!sheet && (
         <nav className="watch-dock" aria-label="The room">
-          <button type="button" className="watch-dock-btn" onClick={() => setSheet("vote")}>
+          {/* Filled only while there's something to vote on. */}
+          <button type="button" className={`watch-dock-btn${voteLive(state) ? "" : " secondary"}`} onClick={() => setSheet("vote")}>
             🗳️ Vote
             {voteLive(state) && <span className="room-tab-live" aria-label="open now" />}
           </button>
@@ -506,14 +518,13 @@ function Preshow({ state, left, tone = "light" }: { state: RoomState; left: numb
         {place ? <> at {place}</> : null}.
       </p>
       <p className="watch-countdown-hint">
-        {state.predictions_open ? "Call the ending before the first impressions." : "The first lines play when the countdown ends."}
+        {state.predictions_open ? "Call the ending before the first line." : "The first lines play when the countdown ends."}
       </p>
     </div>
   );
 }
 
 function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict: () => void; preshowLeft: number | null }) {
-  void onPredict;
   const [a, b] = state.characters;
   const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
   return (
@@ -539,11 +550,8 @@ function Stage({ state, onPredict, preshowLeft }: { state: RoomState; onPredict:
         <section className="card watch-preshow">
           <h2>The date is about to start</h2>
           <Preshow state={state} left={preshowLeft} />
-          <p className="muted">
-            {state.kind === "template"
-              ? "You just tapped in — the date is rolling. Call it before it plays out."
-              : "Predict how it ends before the first impressions, then react live as it happens."}
-          </p>
+          {/* The call, right here: one tap (it was only in the sidebar's Vote tab, which a room could open past). */}
+          <Predictions state={state} onDone={onPredict} compact />
         </section>
       )}
 
@@ -814,7 +822,8 @@ function PollCard({
   );
 }
 
-function Predictions({ state, onDone }: { state: RoomState; onDone: () => void }) {
+/** The ending's call. `compact`: just the options and what you picked, inside the pre-show card. */
+function Predictions({ state, onDone, compact = false }: { state: RoomState; onDone: () => void; compact?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!state.predictions_open && !state.my_prediction) return null;
@@ -829,16 +838,20 @@ function Predictions({ state, onDone }: { state: RoomState; onDone: () => void }
     onDone();
   }
   return (
-    <section className="card watch-predict">
-      <div className="watch-poll-head">
-        <h2>How does it end?</h2>
-        <span className={`poll-status ${state.predictions_open ? "live" : "closed"}`}>
-          {state.predictions_open ? "Open" : "Closed"}
-        </span>
-      </div>
-      <p className="muted">
-        {state.predictions_open ? "Predict before the decision. A right call scores on the prediction board." : "Predictions closed at the decision."}
-      </p>
+    <section className={compact ? "watch-predict is-compact" : "card watch-predict"} aria-label={compact ? "How does it end?" : undefined}>
+      {!compact && (
+        <>
+          <div className="watch-poll-head">
+            <h2>How does it end?</h2>
+            <span className={`poll-status ${state.predictions_open ? "live" : "closed"}`}>
+              {state.predictions_open ? "Open" : "Closed"}
+            </span>
+          </div>
+          <p className="muted">
+            {state.predictions_open ? "Predict before the decision. A right call scores on the prediction board." : "Predictions closed at the decision."}
+          </p>
+        </>
+      )}
       {state.predictions_open && (
         <div className="poll-options" role="radiogroup" aria-label="How does it end?">
           {ENDINGS.map((ending) => (

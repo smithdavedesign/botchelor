@@ -268,6 +268,13 @@ h2 {
   color: var(--muted);
   font-size: var(--text-md);
 }
+/* Only where the header has room for it beside the nav: at 1280px it pushed the nav onto a second row, a ~115px
+   sticky header (2026-10-31 UX audit). */
+@media (max-width: 1439px) {
+  .tagline {
+    display: none;
+  }
+}
 
 .tagline,
 .muted {
@@ -613,6 +620,45 @@ h2 {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
 
+/* A card that opens with a tap anywhere on it (2026-10-31 UX audit: on a character, episode or couple card only the
+   name was a link). Its one main link (.stretch) covers the card with an invisible ::after; any other link, button
+   or field in it sits above that, so it still works on its own. A press shrinks the card a touch; keyboard focus
+   rings the whole card. */
+.tap-card {
+  position: relative;
+}
+.tap-card .stretch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.tap-card :is(a, button, summary, input, select, textarea, label):not(.stretch) {
+  position: relative;
+  z-index: 1;
+}
+.tap-card .stretch:focus-visible {
+  outline: none;
+}
+.tap-card:has(.stretch:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.tap-card:has(.stretch:active) {
+  transform: scale(0.985);
+}
+@media (hover: hover) {
+  .tap-card:has(.stretch:hover) {
+    box-shadow: var(--shadow);
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  }
+  .tap-card:has(.stretch:hover) .stretch :is(strong, .char-name-text) {
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 3px;
+  }
+}
+
 /* ---------------- forms ----------------
    One control system for every field on the site (docs/brand.md, "Forms"). Every text-like input, whatever its
    type (or none), every select and every textarea gets the same box: --control-h tall, --control-px of padding,
@@ -898,7 +944,10 @@ button:disabled {
   box-shadow: none;
 }
 
-button.secondary {
+/* The outline button, for everything on a page but its one next step (2026-10-31 UX audit: an unstyled button is
+   filled, so pages had three or four). On a link too: <Link className="button secondary">. */
+button.secondary,
+a.button.secondary {
   --btn-border: 1.5px;
   background: transparent;
   color: var(--accent-text);
@@ -906,7 +955,8 @@ button.secondary {
   box-shadow: none;
 }
 
-button.secondary:hover:not(:disabled) {
+button.secondary:hover:not(:disabled),
+a.button.secondary:hover {
   background: var(--soft);
 }
 
@@ -1712,6 +1762,16 @@ button.swatch.chosen {
   margin-top: 0;
 }
 
+/* The 404 page (app/not-found.tsx): centred, the way back first. */
+.not-found {
+  max-width: 34rem;
+  margin: var(--space-6) auto;
+  text-align: center;
+}
+.not-found .cta-row {
+  justify-content: center;
+}
+
 .cta-final {
   justify-content: center;
   margin: 2.25rem 0;
@@ -2058,6 +2118,10 @@ main:has(> .watch) {
 }
 
 .watch-poll .choices,
+/* The ending's call inside the pre-show card (WatchRoom.tsx Predictions compact). */
+.watch-predict.is-compact {
+  margin-top: var(--space-3);
+}
 .watch-predict .choices {
   display: flex;
   flex-wrap: wrap;
@@ -4225,8 +4289,11 @@ button.chat-vote[aria-pressed="true"] .chat-vote-face {
   .theater-convo .chat-thread {
     padding: 0.75rem var(--gutter) 1rem;
   }
-  /* The thread is the main view on a phone, so its toggle has nothing to do. */
-  .theater-icon-wide {
+  /* The thread is the main view on a phone, so its toggle has nothing to do. As specific as the worded-pill rule
+     (.theater-icon:has(.theater-icon-word)), which kept "📜 Story" showing and pushed 📍 off a 390px screen (2026-10-31
+     UX audit). */
+  .theater-icon-wide,
+  .theater-icon.theater-icon-wide {
     display: none;
   }
   .theater-stage.with-convo .theater-verdict {
@@ -4375,6 +4442,20 @@ details.recap-toggle[open] > summary {
 }
 /* The owner's card. Its action text is sized by the card's own width (cqi), clamped, so a narrow card shrinks the
    labels a little rather than squeezing a sentence into several cramped lines. */
+/* The owner's one next step on their character's page (app/characters/[id]/page.tsx): swipe, or finish the profile. */
+.owner-next h2 {
+  margin-bottom: var(--space-2);
+}
+.owner-next .cta-row {
+  margin-top: var(--space-2);
+}
+/* Under the header: Share (or Copy link). The audience's two halves in one card. */
+.character-share {
+  margin: var(--space-2) 0 0;
+}
+.character-audience h3 {
+  margin-top: var(--space-5);
+}
 .owner-controls {
   border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
   container-type: inline-size;
@@ -5014,6 +5095,19 @@ button.dice:hover:not(:disabled) {
   font-weight: 600;
   line-height: inherit;
   vertical-align: baseline;
+}
+/* On a touchscreen a text button's tap area is 44px tall, without moving the words around it: the padding grows it
+   and the negative margin takes the room back (2026-10-31 UX audit: "Clear", "Forget" and "Remove it" were ~24px
+   targets on a phone). After .learned-list's rule, which this extends. */
+@media (pointer: coarse) {
+  button.link-button,
+  button.linklike,
+  .learned-list button.link-button,
+  .learned-forgotten button.link-button {
+    min-height: 2.75rem;
+    padding-block: 0.625rem;
+    margin-block: -0.625rem;
+  }
 }
 .learned-forgotten {
   margin-top: 0.75rem;
@@ -6052,6 +6146,44 @@ main:has(> .admin-wide) {
 .tabs::-webkit-scrollbar {
   display: none;
 }
+/* A row that doesn't fit fades at the edge it scrolls toward, so a tab past the edge shows there's more (2026-10-31
+   UX audit: /admin/analytics' fifth tab and /agents' "stdio" were off-screen with no cue). Without scroll-driven
+   animations it's a fade on the right, which only shows when a tab sits under it. */
+@property --tabs-fade-l {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --tabs-fade-r {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes tabs-fade {
+  0% {
+    --tabs-fade-l: 0px;
+    --tabs-fade-r: 1.5rem;
+  }
+  15%,
+  85% {
+    --tabs-fade-l: 1.5rem;
+    --tabs-fade-r: 1.5rem;
+  }
+  100% {
+    --tabs-fade-l: 1.5rem;
+    --tabs-fade-r: 0px;
+  }
+}
+.tabs {
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+}
+@supports (animation-timeline: scroll()) {
+  .tabs {
+    mask-image: linear-gradient(to right, transparent, #000 var(--tabs-fade-l), #000 calc(100% - var(--tabs-fade-r)), transparent);
+    animation: tabs-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
 .tabs button[role="tab"] {
   flex: none;
   margin: 0;
@@ -6658,6 +6790,43 @@ button.table-more {
 .swipe-topbar,
 .swipe-faces {
   display: none;
+}
+/* On a wide screen the deck sits beside its intro, so Pass and Like are on the first screen (2026-10-31 UX audit:
+   under the intro they were ~950px down at 1280×800). The deck's height leaves room for them under it. */
+@media (min-width: 1024px) {
+  .swipe-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 24rem;
+    column-gap: var(--space-6);
+    align-items: start;
+  }
+  .swipe-page > .swipe-intro {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .swipe-page > .swipe-deck,
+  .swipe-page > .card {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .swipe-page > .swipe-deck {
+    width: 100%;
+    margin-top: 0;
+  }
+  .swipe-page .swipe-stack {
+    height: clamp(26rem, calc(100dvh - 15rem), 38rem);
+  }
+}
+/* The keys, where there's a keyboard (the deck's label says it to a screen reader). */
+.swipe-keys {
+  display: none;
+  margin: var(--space-2) 0 0;
+  text-align: center;
+}
+@media (hover: hover) and (pointer: fine) {
+  .swipe-keys {
+    display: block;
+  }
 }
 .swipe-topbar-btn {
   position: relative;
@@ -11697,10 +11866,36 @@ button.pg-group-head:hover {
   font-size: var(--text-xs);
 }
 
-/* Group nights on the web (lib/group-dates.ts): the mixer's join line, and the board's "Met at a group night". */
-.mixer-join button {
-  margin-left: 0.25rem;
+/* An invitation as a row (the mixer's, a character's date link): icon, what it is and where it stands, its one
+   outlined button on the right; on a phone the button goes under the words. */
+.invite-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
 }
+.invite-row-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.invite-row-text {
+  display: grid;
+  gap: 0.15rem;
+}
+.invite-row > button {
+  margin: 0;
+}
+@media (max-width: 480px) {
+  .invite-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .invite-row > button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+/* Group nights on the web (lib/group-dates.ts): the board's "Met at a group night". */
 .met-at-nights {
   margin-top: 1.5rem;
 }

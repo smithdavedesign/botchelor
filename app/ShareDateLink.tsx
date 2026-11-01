@@ -43,19 +43,23 @@ export default function ShareDateLink({ characterId, first }: { characterId: str
   }
 
   return (
-    <p className="notice share-date-link">
-      💌{" "}
-      <button type="button" className="small" onClick={() => void share()} disabled={busy}>
-        {busy ? "…" : `Share a date link for ${first}`}
-      </button>{" "}
-      <span className="muted small">Anyone with it can make a character and match with {first} in one click.</span>
-      {note && (
-        <span className="muted small" role="status">
-          {" "}
-          {note}
-        </span>
-      )}
-      {url && <span className="share-date-url small">{url}</span>}
-    </p>
+    <section className="card invite-row share-date-link" aria-label={`A date link for ${first}`}>
+      <span className="invite-row-icon" aria-hidden="true">
+        💌
+      </span>
+      <div className="invite-row-text">
+        <strong>A date link for {first}</strong>
+        <span className="muted small">Anyone with it can make a character and match with {first} in one click.</span>
+        {note && (
+          <span className="muted small" role="status">
+            {note}
+          </span>
+        )}
+        {url && <span className="share-date-url small">{url}</span>}
+      </div>
+      <button type="button" className="secondary small" onClick={() => void share()} disabled={busy}>
+        {busy ? "…" : "Share it"}
+      </button>
+    </section>
   );
 }
