@@ -29,7 +29,7 @@ const render = (portrait: string | null) =>
 describe("the editor shows the character as their card does", () => {
   it("uses their generated portrait in the preview", () => {
     const html = render("/api/assets/portrait-123");
-    expect(html).toMatch(/src="\/api\/assets\/portrait-123\?w=\d+"/);
+    expect(html).toMatch(/src="\/api\/assets\/portrait-123\.webp\?w=\d+"/);
     expect(html).toContain('alt="Ira Fenn portrait"');
   });
 
