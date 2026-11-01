@@ -22,7 +22,19 @@ import FactsStep from "./FactsStep";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { languageName } from "@/lib/language";
-import { hasExtras, LOVE_LANGUAGES, normaliseExtras, promptLabel, sampleLineLabel, tellLabel, TEXT_DETAILS, type CharacterExtras, profileComplete } from "@/lib/extras";
+import {
+  hasExtras,
+  LOVE_LANGUAGES,
+  normaliseExtras,
+  PROFILE_MIN_INTERESTS,
+  PROFILE_MIN_PROMPTS,
+  promptLabel,
+  sampleLineLabel,
+  tellLabel,
+  TEXT_DETAILS,
+  type CharacterExtras,
+  profileComplete,
+} from "@/lib/extras";
 import { archetypeLabel, goalLabel, kindLabel, kindName } from "@/lib/kinds";
 import { LOOK_GALLERY, type ResolvedLook } from "@/lib/presets";
 import { DEFAULT_FORMAT, FORMATS, type FormatId } from "@/lib/formats";
@@ -129,8 +141,26 @@ function words(s: string): number {
   return s.trim().split(/\s+/).filter(Boolean).length;
 }
 
-/** The build steps, shown as a tappable progress rail. */
-function Stepper({ step, max, onJump, labels }: { step: number; max: number; onJump: (i: number) => void; labels: readonly string[] }) {
+/** "a, b and c". */
+const listWords = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
+/** The steps a new character can skip: everything but who they are, the dating profile and the review. */
+const OPTIONAL_STEPS: readonly number[] = [S.voice, S.look, S.facts, S.soul];
+
+/** The build steps, shown as a tappable progress rail. The ones that can be skipped say so (2026-10-31 UX audit). */
+function Stepper({
+  step,
+  max,
+  onJump,
+  labels,
+  optional = [],
+}: {
+  step: number;
+  max: number;
+  onJump: (i: number) => void;
+  labels: readonly string[];
+  optional?: readonly number[];
+}) {
   // Seven steps don't fit a 375px phone: the rail scrolls sideways, so bring the current step into view.
   const rail = useRef<HTMLOListElement>(null);
   useEffect(() => {
@@ -142,7 +172,7 @@ function Stepper({ step, max, onJump, labels }: { step: number; max: number; onJ
       {labels.map((label, i) => {
         const state = i === step ? "current" : i < max ? "done" : "todo";
         return (
-          <li key={label} className={`wizard-rail-step ${state}`}>
+          <li key={label} className={`wizard-rail-step ${state}${optional.includes(i) ? " optional" : ""}`}>
             <button
               type="button"
               className="wizard-rail-dot"
@@ -152,13 +182,17 @@ function Stepper({ step, max, onJump, labels }: { step: number; max: number; onJ
             >
               <span className="wizard-rail-num">{i < max && i !== step ? "✓" : i + 1}</span>
             </button>
-            <span className="wizard-rail-label">{label}</span>
+            <span className="wizard-rail-label">
+              {label}
+              {optional.includes(i) && <span className="wizard-rail-optional">optional</span>}
+            </span>
           </li>
         );
       })}
       {/* On a phone the labels are hidden: the current one, said once under the dots. */}
       <li className="wizard-rail-caption" aria-hidden="true">
         Step {step + 1} of {labels.length} · {labels[step]}
+        {optional.includes(step) && " (optional)"}
       </li>
     </ol>
   );
@@ -258,7 +292,7 @@ export default function CreateWizard({
 
   // Flow state.
   // Returning with ?character=id starts at the date step itself (not a flash of the builder before it).
-  const [created, setCreated] = useState<{ id: string; name: string; hue?: number | null; portrait?: string | null; taken?: { id: string; name: string } | null } | null>(
+  const [created, setCreated] = useState<SendProps["character"] | null>(
     () => (startCharacterId ? (myCharacters.find((c) => c.id === startCharacterId) ?? null) : null),
   );
   const [busy, setBusy] = useState<null | "character" | "episode">(null);
@@ -414,16 +448,63 @@ export default function CreateWizard({
   // Why Create is greyed out (#1109: an unticked box near the bottom, and nothing pointed to it).
   const createWhy = !identityOk ? "identity" : !profileOk ? "profile" : !attest ? "attest" : null;
 
+  // What this step still needs before Next, in words, each with the field to take them to. 2026-10-31 UX audit: Next
+  // sat greyed out and nothing said why; now Next always answers, and once tried, the line under it says what's left.
+  const stillNeeded: { what: string; field: string }[] = (() => {
+    if (step === S.identity) {
+      const firstBlankTrait = traits.findIndex((t) => !t.trim());
+      return [
+        !sheet.name.trim() ? { what: "a name", field: '[name="name"]' } : nameClash ? { what: "a name nobody on the show has", field: '[name="name"]' } : null,
+        !(Number.isFinite(ageNum) && ageNum >= 18) ? { what: "an adult age (18 or over)", field: '[name="age"]' } : null,
+        words(sheet.bio) < 1 ? { what: "a bio", field: '[name="bio"]' } : null,
+        firstBlankTrait >= 0 ? { what: "three traits", field: `[name="trait${firstBlankTrait + 1}"]` } : null,
+        !sheet.want.trim() ? { what: "what they want", field: '[name="want"]' } : null,
+        !sheet.dealbreaker.trim() ? { what: "a dealbreaker", field: '[name="dealbreaker"]' } : null,
+      ].filter((m): m is { what: string; field: string } => m !== null);
+    }
+    if (step === S.details && !profileOk) {
+      const prompts = extras.prompts ?? [];
+      const answered = prompts.filter((q) => q.answer.trim()).length;
+      const interests = (extras.hobbies ?? []).filter((h) => h.trim()).length;
+      const blank = prompts.findIndex((q) => !q.answer.trim());
+      const out: { what: string; field: string }[] = [];
+      if (answered < PROFILE_MIN_PROMPTS) {
+        const n = PROFILE_MIN_PROMPTS - answered;
+        out.push({ what: `${n} more answered prompt${n === 1 ? "" : "s"}`, field: blank >= 0 ? `[name="extra_prompt_${blank}"]` : ".prompt-edit" });
+      }
+      if (interests < PROFILE_MIN_INTERESTS) {
+        const n = PROFILE_MIN_INTERESTS - interests;
+        out.push({ what: `${n} more interest${n === 1 ? "" : "s"}`, field: "#hobby-input" });
+      }
+      return out;
+    }
+    return [];
+  })();
+  const [triedNext, setTriedNext] = useState(false);
+  const showMe = (field: string) => {
+    const el = document.querySelector<HTMLElement>(field);
+    el?.closest("details")?.setAttribute("open", "");
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    el?.focus({ preventScroll: true });
+  };
+
   function next() {
-    if (!canAdvance) return;
+    if (!canAdvance) {
+      setTriedNext(true);
+      if (stillNeeded[0]) showMe(stillNeeded[0].field);
+      return;
+    }
     const n = Math.min(step + 1, last);
+    setTriedNext(false);
     setStep(n);
     setMaxStep((m) => Math.max(m, n));
   }
   function back() {
+    setTriedNext(false);
     setStep((s) => Math.max(0, s - 1));
   }
   function jump(i: number) {
+    setTriedNext(false);
     setStep(i);
   }
 
@@ -456,14 +537,15 @@ export default function CreateWizard({
       });
       if (status === 201) {
         trackConversion("character_created", { open_to_dates: openToDates });
-        setCreated({ id: String(data.id), name: String(data.name), hue: typeof data.hue === "number" ? data.hue : null });
+        const looksPicked = Boolean(normaliseExtras(extras).looks?.gender);
+        setCreated({ id: String(data.id), name: String(data.name), hue: typeof data.hue === "number" ? data.hue : null, drawing: looksPicked });
         // The site's nav is in the root layout, which a client-side link keeps: refresh it so it becomes the owner's
         // (Swipe, Matches) now that there's a character.
         router.refresh();
         // The next screen starts at the top ("Who should … meet?", and the way back), not where the form ended.
         window.scrollTo({ top: 0 });
         // Looks picked: draw their portrait from them in the background (free, capped; lib/looks-draw.ts).
-        if (normaliseExtras(extras).looks?.gender) void fetch(`/api/characters/${String(data.id)}/looks-portrait`, { method: "POST" }).catch(() => {});
+        if (looksPicked) void fetch(`/api/characters/${String(data.id)}/looks-portrait`, { method: "POST" }).catch(() => {});
         try {
           localStorage.removeItem(DRAFT_KEY);
         } catch {
@@ -541,9 +623,11 @@ export default function CreateWizard({
   const previewName = sheet.name || created?.name || "preview";
   // Editing: draw the avatar exactly as their card does (seeded by id, their generated portrait if any).
   const avatarSeed = edit ? edit.id : previewName;
+  // Between the first step and the review it's one row, so each step opens on its own question (2026-10-31 UX audit).
+  const compactPreview = step > 0 && step < last;
   const livePreview = (
-    <div className="wizard-preview">
-      <Avatar seed={avatarSeed} name={sheet.name || created?.name || "?"} hue={hue} size={88} portraitSrc={portrait} />
+    <div className={`wizard-preview${compactPreview ? " is-compact" : ""}`}>
+      <Avatar seed={avatarSeed} name={sheet.name || created?.name || "?"} hue={hue} size={compactPreview ? 44 : 88} portraitSrc={portrait} />
       <div className="wizard-preview-meta">
         <strong>{sheet.name || created?.name || "Your character"}</strong>
         {sheet.age && <span className="muted"> · {sheet.age}</span>}
@@ -600,7 +684,7 @@ export default function CreateWizard({
       : null;
 
   return (
-    <article className="wizard">
+    <article className={`wizard${!edit && step > 0 ? " is-later" : ""}`}>
       {edit ? (
         <>
           <p className="kicker">Edit</p>
@@ -619,25 +703,24 @@ export default function CreateWizard({
         <>
           <p className="kicker">Create</p>
           <h1>Build your character</h1>
-          {step === S.identity ? (
+          {step === S.identity && (
             <p className="muted">
-              An original fictional adult. You give them a personality; an engine decides how their dates end, and nobody
-              (not even you) can steer them. Two steps are needed, who they are and a short dating profile; the rest is optional
-              and makes their dates better.
+              An original fictional adult. You give them a personality; an engine decides how their dates end, and nobody (not
+              even you) can steer them. Only who they are and a short dating profile are needed: the steps marked optional make
+              their dates better.
             </p>
-          ) : (
-            <p className="muted small wizard-intro-short">Only Identity and the dating profile are needed; the rest makes their dates better.</p>
           )}
         </>
       )}
 
       {!edit && startPair && step === S.identity && <PairPrefill pair={startPair} />}
 
-      <Stepper step={step} max={maxStep} onJump={jump} labels={labels} />
+      <Stepper step={step} max={maxStep} onJump={jump} labels={labels} optional={edit ? [] : OPTIONAL_STEPS} />
       {livePreview}
 
       <form
         className="card wizard-step"
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           if (step === last) void (edit ? saveEdits() : createCharacter());
@@ -753,7 +836,7 @@ export default function CreateWizard({
               <div className="looks-fields">
                 <label>
                   Appearance <span className="muted">(optional)</span>
-                  <input type="text" name="appearance" maxLength={APPEARANCE_MAX} placeholder="tall, freckled, always in a yellow raincoat" value={appearance} onChange={(e) => {
+                  <input type="text" name="appearance" maxLength={APPEARANCE_MAX} placeholder="e.g. tall, freckled, always in a yellow raincoat" value={appearance} onChange={(e) => {
                       appearanceTyped.current = true;
                       setAppearance(e.target.value);
                     }} />
@@ -1020,6 +1103,14 @@ export default function CreateWizard({
           </div>
         ) : (
           <div className="wizard-actions">
+            {triedNext && stillNeeded.length > 0 && (
+              <p className="wizard-still" role="status">
+                To go on, add {listWords(stillNeeded.map((m) => m.what))}.{" "}
+                <button type="button" className="link-button" onClick={() => showMe(stillNeeded[0].field)}>
+                  Show me
+                </button>
+              </p>
+            )}
             {step > 0 ? (
               <button type="button" className="button-ghost" onClick={back} disabled={busy !== null}>
                 Back
@@ -1030,8 +1121,8 @@ export default function CreateWizard({
               </Link>
             )}
             {step < last ? (
-              <button type="submit" disabled={!canAdvance}>
-                Next: {labels[step + 1]}
+              <button type="submit">
+                Next<span className="wizard-next-label">: {labels[step + 1]}</span>
               </button>
             ) : (
               <button type="submit" disabled={busy !== null || !attest || !identityOk || !profileOk}>
@@ -1209,8 +1300,9 @@ function reviewExtras(extras: CharacterExtras): Record<"voice" | "look" | "profi
 /* ------------------------------- phase two: send on a date ------------------------------- */
 
 type SendProps = {
-  /** `taken`: their partner when they're with someone and want only them; then only that date is on offer. */
-  character: { id: string; name: string; hue?: number | null; portrait?: string | null; taken?: { id: string; name: string } | null };
+  /** `taken`: their partner when they're with someone and want only them; then only that date is on offer. `drawing`:
+   *  just created with looks picked, so their free portrait is being drawn. */
+  character: { id: string; name: string; hue?: number | null; portrait?: string | null; taken?: { id: string; name: string } | null; drawing?: boolean };
   partners: Partner[];
   openCharacters: OpenCharacter[];
   swipeGate: boolean;
@@ -1243,36 +1335,6 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
   // The self-harm notice (lib/crisis.ts), and the date it held back from opening.
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const [datePath, setDatePath] = useState<string | null>(null);
-  // Pro portrait (BYOK): whether this viewer can generate one, and the generation status.
-  const [pro, setPro] = useState<{ canGenerate: boolean; authenticated: boolean } | null>(null);
-  const [portrait, setPortrait] = useState<string | null>(null);
-
-  const loadPro = useCallback(async () => {
-    try {
-      const me = await fetch("/api/me").then((r) => r.json());
-      if (!me?.authenticated) {
-        setPro({ canGenerate: false, authenticated: false });
-        return;
-      }
-      const keys = await fetch("/api/me/keys").then((r) => r.json());
-      const hasImage = Array.isArray(keys?.keys) && keys.keys.some((k: { kind: string }) => k.kind === "image");
-      setPro({ canGenerate: hasImage, authenticated: true });
-    } catch {
-      setPro({ canGenerate: false, authenticated: false });
-    }
-  }, []);
-  useEffect(() => {
-    void loadPro();
-  }, [loadPro]);
-
-  async function generatePortrait() {
-    setPortrait("Generating a portrait on your key…");
-    const { ok, status, message } = await requestJson(`/api/characters/${character.id}/portrait`, {}, "POST").catch(() => ({ ok: false, status: 0, message: "Network error." }));
-    if (ok) setPortrait("done");
-    else if (status === 400) setPortrait("Connect an OpenAI key for Portraits first (Account → Connections).");
-    else setPortrait(message ?? "Couldn't generate a portrait.");
-  }
-
   async function sendOnDate(partnerId: string | null, house = false) {
     if (house && roleplay && !choiceReady(roleplay)) return setError("Finish your roleplay first (a title and a premise of a sentence or more), or take it off.");
     setBusy("episode");
@@ -1417,8 +1479,8 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         </p>
       )}
       <p className="muted">
-        {tokens.left} {tokens.left === 1 ? "token" : "tokens"} left (one sends a character on one date). Free tokens come
-        back Monday 00:00 UTC.{" "}
+        {/* In the nav's words (app/Nav.tsx: "1 date left"). */}
+        {tokens.left} {tokens.left === 1 ? "date" : "dates"} left · free dates come back Monday 00:00 UTC.{" "}
         {tokens.left <= 1 && offer && <Link href="/shop">{offer}</Link>}
       </p>
 
@@ -1573,35 +1635,20 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         </p>
       )}
 
-      {/* The Pro upsell last, below every way to send them on a date. */}
-      <section className="card wizard-pro-card">
-        <h2>
-          <span className="pro-tag">✨ Pro</span> Portrait
-        </h2>
-        {pro === null ? (
-          <p className="muted">…</p>
-        ) : portrait === "done" ? (
-          <p className="notice">
-            Portrait generated — see it on <Link href={`/characters/${character.id}`}>{character.name}&apos;s card</Link>.
-          </p>
-        ) : pro.canGenerate ? (
-          <>
-            <p className="muted">
-              Generate an original portrait from {character.name}&apos;s sheet, on your own OpenAI key. You pay the
-              provider; it costs Botchelor nothing. Provider-moderated, reportable like everything else.
-            </p>
-            <button type="button" onClick={generatePortrait} disabled={portrait === "Generating a portrait on your key…"}>
-              {portrait === "Generating a portrait on your key…" ? "Generating…" : "Generate a portrait"}
-            </button>
-            {portrait && portrait !== "done" && portrait !== "Generating a portrait on your key…" && <p className="error">{portrait}</p>}
-          </>
-        ) : (
-          <p className="muted">
-            Image generation is a Pro feature. {pro.authenticated ? "Add your own OpenAI image key" : "Sign in and add your own OpenAI image key"} on your{" "}
-            <Link href="/account">account</Link> — you pay the provider, we store your character and its portrait with your account.
-          </p>
-        )}
-      </section>
+      {/* Their picture in a line, last (2026-10-31 UX audit: a "✨ Pro Portrait" card here contradicted the free portrait
+          being drawn). The portrait on your own key stays on their edit page. */}
+      {!character.portrait && (
+        <p className="muted send-portrait">
+          {character.drawing ? (
+            `📸 ${first}'s portrait is being drawn from their looks, free. It shows on their card when it's ready.`
+          ) : (
+            <>
+              📸 Pick {first}&apos;s looks on <Link href={`/characters/${character.id}/edit`}>their edit page</Link> and their portrait
+              is drawn from them, free.
+            </>
+          )}
+        </p>
+      )}
     </article>
   );
 }

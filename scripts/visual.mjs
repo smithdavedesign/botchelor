@@ -351,7 +351,7 @@ async function main() {
         name: "account-other-mode",
         path: "/account",
         walk: async (page) => {
-          await page.locator("button.link-button").filter({ hasText: /^(Sign in|Create an account)$/ }).first().click();
+          await page.locator("button.link-button").filter({ hasText: /^(Switch to signing in|Create an account)$/ }).first().click();
           await page.waitForTimeout(200);
         },
       },
@@ -473,7 +473,8 @@ async function main() {
             await audit(route.name);
             if (route.walk === "wizard") {
               for (let i = 1; i < 8; i++) {
-                const next = page.getByRole("button", { name: /^Next:/ });
+                // "Next: Voice", or just "Next" on a phone (the step's name is on the rail).
+                const next = page.getByRole("button", { name: /^Next\b/ });
                 if (!(await next.count())) break;
                 await next.first().click();
                 await page.waitForTimeout(250);

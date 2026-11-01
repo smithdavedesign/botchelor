@@ -318,6 +318,12 @@ h2 {
   font-size: var(--text-sm);
   box-shadow: none;
 }
+/* On /create it's where you are, not a call to action: the current tab's look, so the page's own Next is the one
+   filled button (2026-10-31 UX audit). */
+.nav a.nav-create[aria-current="page"] {
+  color: var(--accent-text);
+  background: var(--soft);
+}
 
 /* The token meter (nav): always visible, a pill that doubles as the top-up entry. One token = one date. */
 .nav a.token-pill {
@@ -1119,6 +1125,8 @@ button.chosen {
   font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
+  /* An idea to tap, not a primary button: no glow from the base button (2026-10-31 UX audit). */
+  box-shadow: none;
 }
 
 .look-chip:hover {
@@ -4700,7 +4708,7 @@ details.recap-toggle[open] > summary {
   margin-top: 1rem;
 }
 
-/* The Pro (BYOK image) affordance: a tag and the portrait card in the send phase. */
+/* The Pro (BYOK image) affordance: a tag, and the portrait hint on the looks step. */
 .pro-tag {
   display: inline-block;
   padding: 0.05rem 0.5rem;
@@ -4718,9 +4726,6 @@ details.recap-toggle[open] > summary {
   border-radius: 10px;
   background: color-mix(in srgb, var(--accent-2) 9%, transparent);
   font-size: var(--text-sm);
-}
-.wizard-pro-card h2 {
-  font-size: var(--text-lg);
 }
 
 @media (max-width: 520px) {
@@ -5377,6 +5382,7 @@ body:has(.beta-toast) .install-hint {
  *   .swipe-match-overlay           the "It's a match!" screen (app/swipe/SwipeDeck.tsx)
  *   .messages-fullscreen           a message thread, full screen on a phone: its compose bar and Send sit bottom right
  *   .phone-stage.is-full           the texts phone opened full screen (app/couples/[a]/[b]/TextPhone.tsx)
+ *   .wizard, .send-phase           building a character and sending them (app/create/CreateWizard.tsx): its bar is at the foot
  *   .after-dark-form               After Dark's sticky Nudge/Direct steer bar at the foot of the page
  *   .ad-reel-theater               After Dark's reel, full screen
  *   .consent-banner                the cookie choice, fixed at the bottom while it's up, its buttons where ours would be
@@ -5393,6 +5399,8 @@ body:has(.beta-toast) .install-hint {
         .swipe-match-overlay,
         .messages-fullscreen,
         .phone-stage.is-full,
+        .wizard,
+        .send-phase,
         .after-dark-form,
         .ad-reel-theater,
         .consent-banner,
@@ -9739,7 +9747,9 @@ a.phone-head-btn {
     width: 2.75rem;
   }
   .look-chip,
-  .chip-removable button {
+  .chip-removable button,
+  .drawn-to .chips button.chip,
+  .looks-detail button.chip {
     min-height: 2.75rem;
   }
 }
