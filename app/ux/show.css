@@ -856,3 +856,26 @@ details.recap-toggle[open] .recap-toggle-hide {
 :is(#profile, #audience, #story, #date-record) {
   scroll-margin-top: 5rem;
 }
+
+/* Just aired: six are fetched for the wide screen's two rows of three; narrower, four (two rows of two, or a list). */
+@media (max-width: 1023px) {
+  .home .watch-latest-list > li:nth-child(n + 5) {
+    display: none;
+  }
+}
+/* Home on a wide screen (UX audit 2026-10-31, A2): a wider column, so Just aired, How it works, the cast and the reviews
+   go three across instead of stacking down a 46rem column. The questions keep a reading width. */
+@media (min-width: 1024px) {
+  main:has(> .home) {
+    max-width: 72rem;
+  }
+  .home .watch-latest-list,
+  .home ol.home-features,
+  .home .home-cast,
+  .home .bot-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .home .faq {
+    max-width: 46rem;
+  }
+}

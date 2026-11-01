@@ -70,7 +70,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const tokens = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
   const shared = db ?? (await getDb());
-  const [aired, sky] = await Promise.all([listAiredPage(shared, viewerId, 1, 4).catch(() => null), constellation(shared).catch(() => null)]);
+  const [aired, sky] = await Promise.all([listAiredPage(shared, viewerId, 1, 6).catch(() => null), constellation(shared).catch(() => null)]);
 
   // This season's handful of house characters (lib/season-cast.ts), plus any premium one this viewer owns.
   const onSeason = await seasonCastCards(db ?? (await getDb()));
@@ -88,7 +88,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
 
   return (
-    <>
+    <div className="home">
       <JsonLd data={siteJsonLd()} />
       <section className="hero">
         <div className="hero-copy">
@@ -257,6 +257,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           Make your character
         </Link>
       </p>
-    </>
+    </div>
   );
 }
