@@ -99,6 +99,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       startPair={pair.ok ? { a: pair.a, b: pair.b, otherHref: createPairHref(pair.b, pair.a) } : null}
       lookTiles={looks.tiles}
       afterDark={looks.afterDark}
+      signedIn={auth?.authenticated === true}
     />
   );
 }

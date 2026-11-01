@@ -34,13 +34,27 @@ const fill = (premise: string, a: string, b: string) => premise.replaceAll("{a}"
  * play it as a game they share for the evening, and the engine decides the ending. One of yours goes as written terms,
  * checked again like any.
  */
-export default function RoleplayPicker({ me, them, value, onChange }: { me: string; them: string | null; value: RoleplayChoice | null; onChange: (v: RoleplayChoice | null) => void }) {
+export default function RoleplayPicker({
+  me,
+  them,
+  value,
+  onChange,
+  signedIn,
+}: {
+  me: string;
+  them: string | null;
+  value: RoleplayChoice | null;
+  onChange: (v: RoleplayChoice | null) => void;
+  /** The library is accounts only: without one, it isn't asked for (that was a 401 on every open, 2026-10-31 UX audit). */
+  signedIn: boolean;
+}) {
   const id = useId();
   const [tag, setTag] = useState<RoleplayTag | "all" | "yours">("all");
   // Their library: null until it answers, and stays null for a visitor who isn't signed in (it's accounts only).
   const [yours, setYours] = useState<MyRoleplay[] | null>(null);
   const [kept, setKept] = useState<{ text: string; error?: boolean } | null>(null);
   useEffect(() => {
+    if (!signedIn) return;
     let live = true;
     fetch("/api/library")
       .then((r) => (r.ok ? r.json() : null))
@@ -51,7 +65,7 @@ export default function RoleplayPicker({ me, them, value, onChange }: { me: stri
     return () => {
       live = false;
     };
-  }, []);
+  }, [signedIn]);
   const mine = shortName(me);
   const theirs = them ? shortName(them) : "your date";
   const custom = value && "custom" in value ? value.custom : null;

@@ -22,12 +22,14 @@ export default function RoleplayCard({
   them,
   auto,
   initial,
+  signedIn,
 }: {
   pair: [string, string];
   me: { id: string; name: string };
   them: { id: string; name: string };
   auto: boolean;
   initial: RoleplayView | null;
+  signedIn: boolean;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -189,7 +191,7 @@ export default function RoleplayCard({
 
       {picking && (
         <>
-          <RoleplayPicker me={me.name} them={them.name} value={choice} onChange={setChoice} />
+          <RoleplayPicker me={me.name} them={them.name} value={choice} onChange={setChoice} signedIn={signedIn} />
           {!auto && (
             <label className="roleplay-note">
               A line to {theirs}&apos;s creator <span className="muted small">(optional)</span>
