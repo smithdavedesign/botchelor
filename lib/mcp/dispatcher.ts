@@ -164,6 +164,7 @@ import { closeProposal, pendingProposal, PROPOSAL_DAYS, proposeDate } from "../d
 import { answerRoleplay, myRoleplays, proposeRoleplay, ROLEPLAY_PROPOSAL_DAYS } from "../date-roleplays";
 import { DATE_ROLEPLAYS, ROLEPLAY_ANSWERS } from "../roleplays";
 import { arcQuestion, predictArc } from "../arcs";
+import { extrasText, renameLeftovers } from "../rename-leftovers";
 import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
 import { CONVERSATION_TURNS } from "../rules";
 import { isPlaceholder, placeLabel, venueName, venuePhrase, venueShown } from "../venues";
@@ -5277,7 +5278,26 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       if (!who) return { data: { dates: [], note: NEEDS_IDENTITY } };
       const dates = (await listMyEpisodes(db, who.id)).map((e: EpisodeView) => trimEpisode(e as unknown as Record<string, unknown>));
-      return { data: { dates }, identity: who };
+      // #1159 (the 2026-10-31-1838 run: "no aired flag or airs_at, and no with"): aired said by name, when one that hasn't
+      // aired will, and who it was with from your side.
+      const mine = new Set((await db.query<{ id: string }>(`select id from characters where owner_id = $1`, [who.id])).rows.map((r) => r.id));
+      const unaired = dates.filter((d) => d.revealed !== true && d.visibility !== "private").map((d) => String(d.id));
+      const timings = await airTimings(db, unaired).catch(() => new Map<string, AirTiming>());
+      const shown = dates.map((d) => {
+        const cast = (d.characters as { id: string; name: string }[]) ?? [];
+        const other = cast.find((c) => !mine.has(c.id)) ?? (cast.length === 2 ? cast[1] : undefined);
+        const t = timings.get(String(d.id));
+        const when =
+          d.revealed === true
+            ? {}
+            : d.visibility === "private"
+              ? { airs: "never: it's private" }
+              : t
+                ? { airs_at: t.airs_at, seconds_left: t.seconds_left, airs: t.airs, ...(t.airs_note ? { airs_note: t.airs_note } : {}) }
+                : {};
+        return { ...d, aired: d.revealed === true, ...(other ? { with: other.name } : {}), ...when };
+      });
+      return { data: { dates: shown }, identity: who };
     }
     case "link_account": {
       // An agent with no identity yet has nothing to show anyone: the link is for an agent that's played.
@@ -5585,6 +5605,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         for (const [k, v] of Object.entries(merged)) if (v === null) delete merged[k];
         body.extras = merged;
       }
+      // #1160: the name before a rename, to find the text that still says it.
+      const oldName = typeof body.name === "string" ? ((await db.query<{ name: string }>(`select name from characters where id = $1 and owner_id = $2`, [String(args.character_id ?? ""), who.id])).rows[0]?.name ?? null) : null;
       const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body, params: { id: String(args.character_id ?? "") } });
       if (!r.ok && r.data.error === "character_not_found") {
         // Run 5: "not found" for a character that exists but isn't yours (house-boaz).
@@ -5592,11 +5614,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         if (exists) return { error: "That character isn't yours: you can only edit characters you made (my_status lists them)." };
       }
       if (!r.ok) return { error: extrasHint(errorOf(r)) };
-      const saved = (await db.query<{ pronouns: string | null; voice: string | null; bio: string | null; extras: CharacterExtras | null }>(
-        `select pronouns, voice, bio, extras from characters where id = $1`,
+      const saved = (await db.query<{ name: string; pronouns: string | null; voice: string | null; bio: string | null; want: string | null; dealbreaker: string | null; appearance: string | null; extras: CharacterExtras | null }>(
+        `select name, pronouns, voice, bio, want, dealbreaker, appearance, extras from characters where id = $1`,
         [String(r.data.id)],
       )).rows[0];
       const warnings = saved ? pronounWarnings(saved) : [];
+      if (saved && oldName)
+        warnings.push(...renameLeftovers(oldName, saved.name, { bio: saved.bio, voice: saved.voice, want: saved.want, dealbreaker: saved.dealbreaker, appearance: saved.appearance, ...extrasText(saved.extras) }));
       // 2.7.0: what a new partner_style means (visitor 1 set open and was surprised the couple still moved up), and where the
       // dating profile stands after extras changed (#642).
       const style = (PARTNER_STYLES as readonly unknown[]).includes(body.partner_style) ? (body.partner_style as PartnerStyle) : null;
