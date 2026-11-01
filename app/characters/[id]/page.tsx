@@ -397,6 +397,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </p>
       )}
 
+      {/* Where each part of a long page is, in one row (2026-10-31 UX audit, C4: ~5 phone screens of cards). */}
+      <nav className="page-jumps" aria-label="On this page">
+        <a href="#profile">Profile</a>
+        <a href="#audience">Audience</a>
+        {memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && <a href="#story">Story</a>}
+        <a href="#date-record">Dates</a>
+      </nav>
+
       {c.clip_asset_id && (
         <section className="card">
           {c.clip_is_video ? (
@@ -420,7 +428,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      <section className="card">
+      <section className="card" id="profile">
         <p>{c.bio}</p>
         {/* The basics at a glance (David, 2026-10-25): from the profile, only what's filled in. */}
         {(() => {
@@ -491,7 +499,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
 
       {/* The crowd's read of them and its reviews, one card (2026-10-31 UX audit: two cards for one thing). */}
-      <section className="card character-audience" aria-labelledby="audience-title">
+      <section className="card character-audience" id="audience" aria-labelledby="audience-title">
         {/* The "never changes points" line behind an ⓘ (2026-10-31 UX audit, A10: one of seven copies of it on the way
             here; the shop's and the footer's stay in full). */}
         <div className="audience-head">
@@ -509,7 +517,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {/* Who they've become and their story, one card (2026-10-31 UX audit: the same dates were told in four cards); what
           they've learned, the owner's alone, folded inside it. */}
       {memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && (
-        <section className="card character-story">
+        <section className="card character-story" id="story">
           <h2>Their story so far</h2>
           {memory.arc && <p>{memory.arc}</p>}
           {(memory.milestones?.length ?? 0) > 0 && (
