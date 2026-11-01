@@ -6083,7 +6083,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       return {
         data: open
           ? {
-              mixer: { id: open.night.id, venue: open.night.venue, singles: open.seats.map((x) => ({ character_id: x.character_id, name: x.name })) },
+              mixer: { id: open.night.id, venue: open.night.venue, singles: open.seats.map((x) => ({ character_id: x.character_id, name: x.name, ...(x.house_fill ? { house: true } : {}) })) },
               runs: open.seats.length >= MIXER_MIN ? "Within the hour." : `Once ${MIXER_MIN} are in (${open.seats.length} now).`,
               note: "join: <character_id> puts one of yours in.",
             }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { joinMixer, leaveMixer, MIXER_MAX, MIXER_MIN, openMixer } from "@/lib/group-dates";
+import { joinMixer, leaveMixer, MIXER_FILL_HOUR_UTC, MIXER_MAX, MIXER_MIN, openMixer } from "@/lib/group-dates";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { venueName } from "@/lib/venues";
 import { episodeAllowance } from "@/lib/allowance";
@@ -36,6 +36,7 @@ export const GET = handle(async (req) => {
       recent,
       min: MIXER_MIN,
       max: MIXER_MAX,
+      fill_hour: MIXER_FILL_HOUR_UTC,
     },
     200,
     sess,

@@ -9,6 +9,7 @@ type Status = {
   recent?: { character_id: string; episode_id: string; venue: string; night_id?: string }[];
   min: number;
   max: number;
+  fill_hour?: number;
 };
 
 /**
@@ -76,7 +77,7 @@ export default function MixerJoin({ characterId, first }: { characterId: string;
         <strong>Tonight&apos;s mixer</strong>
         <span className="muted small">
           {m
-            ? `${m.venue} · ${m.singles}/${status.max} singles in · ${m.singles >= status.min ? "runs within the hour" : `runs once ${status.min} are in`}`
+            ? `${m.venue} · ${m.singles}/${status.max} singles in · ${m.singles >= status.min ? "runs within the hour" : `runs once ${status.min} are in, or at ${status.fill_hour ?? 20}:20 UTC with the house topping it up`}`
             : `None open yet: putting ${first} in opens tonight's`}
         </span>
         <span className="muted small">One room, a bell between rounds: six lines with each of two singles, for one of your dates. They&apos;ll remember everyone there.</span>
