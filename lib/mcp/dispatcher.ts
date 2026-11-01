@@ -5902,15 +5902,28 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // A repeat by mistake (2026-10-20 visitor: "re-ran go_on_date with Nell and spent another date"): the same two
       // booked in the last half hour need again: true.
       if (typeof args.partner_id === "string" && args.again !== true) {
-        const recent = (await db.query<{ id: string }>(
-          // Not yet aired: dating again after a date has aired (a second date, a proposal) is the point, not a slip.
+        const recent = (await db.query<{ id: string; aired: boolean }>(
+          // #1189 (the 2026-11-01-0610 run: a probe without preview booked a second Orin date at once): aired or not. A date by
+          // an agent airs within minutes, so a guard on unaired dates only missed the probe made after it aired; booking
+          // again on purpose is again: true (or plan_second_date, for a second date the show offers).
           // Only with the house cast, where a repeat books straight away (with anyone else it's a proposal, which spends nothing).
-          `select e.id from episodes e join characters p on p.id = $3 and p.is_house
-            where e.creator_id = $1 and e.created_at > now() - interval '30 minutes' and e.revealed_at is null
-              and ((e.character_a = $2 and e.character_b = $3) or (e.character_a = $3 and e.character_b = $2)) limit 1`,
+          `select e.id, e.revealed_at is not null as aired from episodes e join characters p on p.id = $3 and p.is_house
+            where e.creator_id = $1 and e.created_at > now() - interval '30 minutes'
+              and ((e.character_a = $2 and e.character_b = $3) or (e.character_a = $3 and e.character_b = $2))
+            order by e.created_at desc limit 1`,
           [who.id, String(args.character_id ?? ""), args.partner_id],
         )).rows[0];
-        if (recent) return { error: `These two already had a date just now (${recent.id}). Booking again spends another date: pass again: true if you mean it, or get_episode reads that one.` };
+        if (recent) {
+          const left = await episodeAllowance(db, who.id).catch(() => null);
+          const spends = left ? ` (you have ${left.left} left)` : "";
+          return {
+            error:
+              `These two already had a date just now (${recent.id}${recent.aired ? ", aired" : ", not aired yet"}). Booking again spends another date${spends}, so nothing was booked: ` +
+              "pass again: true if you mean it (preview: true shows it first), plan_second_date books a second date the show offers, or get_episode reads that one.",
+            code: "repeat_date",
+            details: { episode_id: recent.id, aired: recent.aired },
+          };
+        }
       }
       // #866 (the 2026-10-25-0746 run: character_id "nope" said the show was fully booked): a wrong id says so first, before
       // the daily budget, which only matters to a date that could be booked.
