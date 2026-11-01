@@ -16,6 +16,7 @@ import { notify } from "./notifications";
 import { takenSql } from "./partners";
 import { pairKey } from "./relationships";
 import { scheduleMatchChat } from "./swipes";
+import { areUnmatched } from "./unmatch";
 
 /** New dates one link can start in a day. */
 export const ACCEPTS_PER_DAY = 25;
@@ -95,6 +96,8 @@ export async function acceptDateLink(db: Db, userId: string, code: string, myCha
     [userId, invite.owner_id],
   );
   if (blocked.rows.length) return refuse(404, "link_not_found", "This date link isn't open any more.");
+  // A pair that unmatched (lib/unmatch.ts) doesn't match again by a link either: told as a block is.
+  if (await areUnmatched(db, mine.id, invite.character_id)) return refuse(404, "link_not_found", "This date link isn't open any more.");
 
   const [lo, hi] = pairKey(mine.id, invite.character_id);
   const thread = `/messages/${mine.id}/${invite.character_id}?as=${encodeURIComponent(mine.id)}`;

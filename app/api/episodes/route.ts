@@ -43,6 +43,7 @@ import { bookingAsk, roleplayForBooking } from "@/lib/date-roleplays";
 import { ROLEPLAY_PREMISE_MAX, ROLEPLAY_ROLE_MAX, ROLEPLAY_TITLE_MAX, type DateRoleplay } from "@/lib/roleplays";
 import { datedSql, MATCH_FIRST, swipeGateOn } from "@/lib/swipe-gate";
 import { agreedMatchSql } from "@/lib/swipes";
+import { areUnmatched, unmatchedMessage, unmatchedSql } from "@/lib/unmatch";
 import { movePlace, placeRefusedWhy } from "@/lib/places";
 import { audienceAllowsSql } from "@/lib/audience";
 import { useNudges } from "@/lib/between-dates";
@@ -148,10 +149,10 @@ const forDate = (c: CharacterRow): CharacterForDate => ({ id: c.id, sheet: toShe
 
 /**
  * Blind date: a random OC from another creator, skipping any pair where either creator blocked the
- * other and any character whose creator deleted their account; a random free house character when there is
- * nobody (yet). Never fails, never premium.
+ * other, any character whose creator deleted their account and any this one unmatched (lib/unmatch.ts); a random
+ * free house character when there is nobody (yet). Never premium; undefined only if it unmatched every one of those.
  */
-async function blindMatch(db: Db, userId: string, ownId: string): Promise<CharacterRow> {
+async function blindMatch(db: Db, userId: string, ownId: string): Promise<CharacterRow | undefined> {
   // Behind the swipe gate (lib/swipe-gate.ts), a blind date is one of your agreed matches, or one of this season's
   // house cast: never a stranger.
   if (swipeGateOn()) {
@@ -169,8 +170,9 @@ async function blindMatch(db: Db, userId: string, ownId: string): Promise<Charac
     ).rows[0];
     if (matched) return matched;
     const { rows } = await db.query<CharacterRow>(
-      `select ${CHARACTER_COLUMNS} from characters c where c.is_house and c.premium_sku is null and c.id = any($1) order by random() limit 1`,
-      [seasonCastIds()],
+      `select ${CHARACTER_COLUMNS} from characters c
+        where c.is_house and c.premium_sku is null and c.id = any($1) and not ${unmatchedSql("c.id", "$2::text")} order by random() limit 1`,
+      [seasonCastIds(), ownId],
     );
     return rows[0];
   }
@@ -179,7 +181,7 @@ async function blindMatch(db: Db, userId: string, ownId: string): Promise<Charac
       `select ${CHARACTER_COLUMNS}
          from characters c
         where not c.is_house and c.owner_id <> $1 and c.owner_id <> $2
-          and not ${takenSql("c")}
+          and not ${takenSql("c")} and not ${unmatchedSql("c.id", "$3::text")}
           and ${audienceAllowsSql("c", "(select o.created_via from characters o where o.id = $3)")}
           and not exists (
             select 1 from blocks bl
@@ -194,9 +196,9 @@ async function blindMatch(db: Db, userId: string, ownId: string): Promise<Charac
   // Nobody else around: one of this season's house cast (lib/season-cast.ts).
   const { rows } = await db.query<CharacterRow>(
     `select ${CHARACTER_COLUMNS} from characters c
-      where c.is_house and c.premium_sku is null and c.id = any($1)
+      where c.is_house and c.premium_sku is null and c.id = any($1) and not ${unmatchedSql("c.id", "$2::text")}
       order by random() limit 1`,
-    [seasonCastIds()],
+    [seasonCastIds(), ownId],
   );
   return rows[0];
 }
@@ -271,13 +273,13 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
     partner = (
       await db.query<CharacterRow>(
         `select ${CHARACTER_COLUMNS} from characters c
-          where c.id = $1 and not ${takenSql("c", "$3")}
+          where c.id = $1 and not ${takenSql("c", "$3")} and not ${unmatchedSql("c.id", "$3::text")}
             and not exists (select 1 from blocks bl
                              where (bl.blocker_id = $2 and bl.blocked_id = c.owner_id) or (bl.blocker_id = c.owner_id and bl.blocked_id = $2))`,
         [input.partner_id, sess.userId, own.id],
       )
     ).rows[0];
-    if (!partner) return json({ error: "partner_not_available", message: "That match from the night isn't available any more (taken, gone, or a block)." }, 422, sess);
+    if (!partner) return json({ error: "partner_not_available", message: "That match from the night isn't available any more (taken, gone, unmatched, or a block)." }, 422, sess);
   } else if (input.second_date_of) {
     // Both characters wanted it, this is the other one, and its owner has agreed (lib/second-date.ts).
     if (!input.partner_id) return json({ error: "invalid_request", message: "A second date needs partner_id." }, 400, sess);
@@ -288,6 +290,7 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
     if (!partner) return json({ error: "partner_not_available", message: "That character isn't here any more." }, 422, sess);
   } else if (input.blind) {
     partner = await blindMatch(db, sess.userId, own.id);
+    if (!partner) return json({ error: "partner_not_available", message: "There's nobody left for a blind date with them right now: pick someone from the deck." }, 422, sess);
   } else {
     if (input.proposal_id && !(await acceptableProposal(db, sess.userId, input.proposal_id, own.id, input.partner_id ?? ""))) {
       return json({ error: "proposal_unavailable", message: "That proposal isn't open any more." }, 409, sess);
@@ -300,7 +303,7 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
     partner = (
       await db.query<CharacterRow>(
         `select ${CHARACTER_COLUMNS} from characters c
-          where c.id = $1
+          where c.id = $1 and not ${unmatchedSql("c.id", "$4::text")}
             and ((c.is_house and (c.premium_sku is not null or c.id = any($3) or ${agreedMatchSql("c", "$4")} or ${datedSql("c", "$4")}))
                  or (((c.open_to_dates and ${audienceAllowsSql("c", "(select o.created_via from characters o where o.id = $4)")}
                        and (not $6::boolean or ${datedSql("c", "$4")}))
@@ -326,6 +329,11 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
         404,
         sess,
       );
+    }
+    if (!partner && input.partner_id && (await areUnmatched(db, own.id, input.partner_id))) {
+      const them = (await db.query<{ name: string }>(`select name from characters where id::text = $1`, [input.partner_id])).rows[0];
+      const [x, y] = pairNames(own.name, them?.name);
+      return json({ error: "unmatched", message: unmatchedMessage(x, y) }, 409, sess);
     }
     if (!partner) {
       return json(

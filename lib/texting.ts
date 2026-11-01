@@ -32,6 +32,7 @@ import { checkFieldsAnyLanguage, UNREAD_MESSAGE } from "./language-check";
 import { matchView } from "./swipes";
 import { betweenText, dateTextsBudget, loadChain, TEXT_MAX, type ChainText } from "./text-chain";
 import { critiqueText, writeCritiquedText, type ThreadText, type Written } from "./text-critic";
+import { areUnmatched } from "./unmatch";
 
 /** A runaway-loop guard, not a quota: one character's texts in a minute. */
 export const TEXTS_PER_MINUTE = 30;
@@ -82,6 +83,7 @@ async function pairFor(db: Db, userId: string, from: string, to: string): Promis
   const dated = rel !== null && viewRelationship(rel, { userId, owner: true }) !== null;
   // A match in the swipe deck (lib/swipes.ts) is a couple too: they text before their first date. Both owners know of it.
   const matched = !dated && (await matchView(db, from, to)) !== null;
+  if (!dated && !matched && (await areUnmatched(db, from, to))) return refuse(409, "unmatched", "They unmatched, so they don't text any more.");
   if (!dated && !matched) {
     // #483: a like alone isn't a match; say what's missing and what to do meanwhile.
     return refuse(409, "match_first", "They haven't matched or been on a date together yet: a like alone isn't a match (both must like; the house cast likes back at once, a house-run bot within about an hour; my_matches lists the matches, my_notifications tells you when one lands). Meanwhile, date the house cast with go_on_date.");

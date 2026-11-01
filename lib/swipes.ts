@@ -34,6 +34,7 @@ import { pairKey, type End } from "./relationships";
 import { seasonCastIds } from "./season-cast";
 import { loadChain, PUBLIC_VIEWER } from "./text-chain";
 import { critiqueText, writeCritiquedText, type ThreadText } from "./text-critic";
+import { areUnmatched, unmatchedSql } from "./unmatch";
 
 /** How many cards the deck deals at a time. */
 export const DECK_PAGE = 10;
@@ -180,8 +181,8 @@ function cantSwipe(mine: Mine | null): Refusal | null {
 /**
  * Who could be in `mine`'s deck: this season's house cast, and characters in the deck (open to dates, a complete
  * dating profile, open to characters like this one) that aren't yours, taken or across a block. Never someone it has
- * matched or dated already. `only` narrows it to one character (a swipe's target). Swiped ones are left out unless
- * `includeSwiped`.
+ * matched, unmatched (lib/unmatch.ts) or dated already. `only` narrows it to one character (a swipe's target). Swiped
+ * ones are left out unless `includeSwiped`.
  */
 async function deckPool(db: Db, userId: string, mine: Mine, opts: { only?: string; includeSwiped?: boolean; fresh?: boolean } = {}): Promise<ProfileRow[]> {
   const { rows } = await db.query<ProfileRow>(
@@ -195,6 +196,7 @@ async function deckPool(db: Db, userId: string, mine: Mine, opts: { only?: strin
         and ($5::boolean or not exists (select 1 from swipes s where s.swiper = $2 and s.target = c.id))
         and not exists (select 1 from matches m
                          where (m.character_lo = c.id and m.character_hi = $2) or (m.character_lo = $2 and m.character_hi = c.id))
+        and not ${unmatchedSql("c.id", "$2::text")}
         and not exists (select 1 from relationships r
                          where r.dates > 0 and ((r.character_a = c.id and r.character_b = $2) or (r.character_a = $2 and r.character_b = c.id)))
       order by c.created_at desc, c.id
@@ -550,6 +552,7 @@ async function notInDeckWhy(db: Db, userId: string, mine: Mine, targetId: string
   if (!c) return generic;
   const them = shortName(c.name);
   if (c.matched) return `${shortName(mine.name)} and ${them} are already matched: text them (send_text), or answer_match about a date.`;
+  if (await areUnmatched(db, mine.id, c.id)) return `${shortName(mine.name)} and ${them} unmatched, and that's for good: they don't meet in the deck again.`;
   if (c.dated) return `${shortName(mine.name)} and ${them} have dated already, so there's nothing to swipe: go_on_date with them books the next one.`;
   if (c.owner_id === userId) return `${them} is one of your own characters: a character doesn't swipe on its owner's others (start_own_date plays a date between two of yours).`;
   if (c.is_house) return `${them} is off this season's house cast, so they can't be swiped or booked until they're back on it.`;
@@ -607,9 +610,13 @@ async function sides(db: Db, lo: string, hi: string): Promise<[Side, Side] | nul
   return a && b ? [a, b] : null;
 }
 
-/** Makes the match (idempotent), decides each side's answer, and tells both owners. */
-export async function createMatch(db: Db, x: string, y: string): Promise<MatchView> {
+/**
+ * Makes the match (idempotent), decides each side's answer, and tells both owners. Null for a pair that unmatched
+ * (lib/unmatch.ts): that's for good, so nothing matches them again.
+ */
+export async function createMatch(db: Db, x: string, y: string): Promise<MatchView | null> {
   const [lo, hi] = pairKey(x, y);
+  if (await areUnmatched(db, lo, hi)) return null;
   const made = await db.query(`insert into matches (character_lo, character_hi) values ($1, $2) on conflict do nothing returning matched_at`, [lo, hi]);
   const pair = await sides(db, lo, hi);
   if (made.rows.length && pair) {
@@ -898,6 +905,8 @@ export async function startMatchChat(db: Db, x: string, y: string, model: Model 
       const messages = buildTextMessages(me, them, null, thread, { nudge: null, alsoSeeing: [], matched: true, reply: thread.length > 0, answer: answerNote(yes, last) });
       const line = await writeLine(model, messages, me, them, thread);
       if (!line) break;
+      // Unmatched while it was being written (lib/unmatch.ts): the chat stops there.
+      if (!(await matchView(db, lo, hi))) break;
       await insertText(db, lo, hi, who, line, "match", now);
       sent++;
     }

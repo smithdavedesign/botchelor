@@ -56,7 +56,14 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes }: 
   // The like that couldn't be taken back because it had become a match: where their thread is.
   const [matchedMeanwhile, setMatchedMeanwhile] = useState<{ name: string; href: string } | null>(null);
   const startX = useRef<number | null>(null);
+  /** A card on its way out (its 220ms) or an Undo being sent: nothing else is decided meanwhile. */
   const busy = useRef(false);
+  /** Swipes reach the server one at a time, in the order they were made; the deck doesn't wait for them. */
+  const sending = useRef<Promise<void>>(Promise.resolve());
+  /** How many cards have been decided this visit: a like's answer offers Undo only if nothing was decided after it. */
+  const decided = useRef(0);
+  /** Cards swiped this visit, so a refill that crosses a swipe still on its way can't deal one back. */
+  const gone = useRef(new Set<string>());
   const refilling = useRef(false);
   const keep = useRef<HTMLButtonElement>(null);
   const first = shortName(character.name);
@@ -73,7 +80,7 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes }: 
       if (!data.cards.length) setExhausted(true);
       setCards((shown) => {
         const have = new Set(shown.map((c) => c.id));
-        return [...shown, ...data.cards.filter((c) => !have.has(c.id))];
+        return [...shown, ...data.cards.filter((c) => !have.has(c.id) && !gone.current.has(c.id))];
       });
     } catch {
       // The deck still shows what it has; another swipe tries again.
@@ -109,42 +116,52 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes }: 
   const decide = useCallback(
     async (like: boolean) => {
       const card = cards[0];
-      if (!card || busy.current) return;
+      // `gone`: a second key press can land before the deck re-renders, with this card still first in its hand.
+      if (!card || busy.current || gone.current.has(card.id)) return;
       busy.current = true;
       setError(null);
       setLeaving(like ? "right" : "left");
       const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       await new Promise((r) => setTimeout(r, still ? 0 : 220));
+      gone.current.add(card.id);
       setCards((c) => c.slice(1));
       setLeaving(null);
       setDragX(0);
       setStatus(like ? `Liked ${card.name}.` : `Passed on ${card.name}.`);
       setLastLike(null);
       setMatchedMeanwhile(null);
-      try {
-        // Its impression goes in before its swipe: a like on the house cast is a match at once, and a match leaves the deck.
-        await Promise.race([seen.current.sent.get(card.id), new Promise((r) => setTimeout(r, SEEN_WAIT_MS))]);
-        const res = await fetch("/api/swipes", {
-          method: "POST",
-          headers: { "content-type": "application/json", accept: "application/json" },
-          body: JSON.stringify({ character_id: character.id, target_id: card.id, like }),
-        });
-        const data = (await res.json().catch(() => ({}))) as { message?: string; match?: MatchView | null };
-        if (!res.ok) {
-          setError(data.message ?? "That swipe didn't go through.");
-        } else if (data.match) {
-          const m = data.match;
-          setMatched(card);
-          setMatchPage(`/messages/${m.lo}/${m.hi}?as=${encodeURIComponent(character.id)}`);
-          setStatus(`It's a match: ${first} and ${card.name}.`);
-        } else if (like) {
-          setLastLike(card);
+      // The next card can be swiped now (2026-10-31, live on a phone: a swipe within a second or so of the last one was
+      // dropped while that one's request was out). This one's request goes in behind any still on their way.
+      busy.current = false;
+      const n = ++decided.current;
+      const send = async () => {
+        try {
+          // Its impression goes in before its swipe: a like on the house cast is a match at once, and a match leaves the deck.
+          await Promise.race([seen.current.sent.get(card.id), new Promise((r) => setTimeout(r, SEEN_WAIT_MS))]);
+          const res = await fetch("/api/swipes", {
+            method: "POST",
+            headers: { "content-type": "application/json", accept: "application/json" },
+            body: JSON.stringify({ character_id: character.id, target_id: card.id, like }),
+          });
+          const data = (await res.json().catch(() => ({}))) as { message?: string; match?: MatchView | null };
+          if (!res.ok) {
+            gone.current.delete(card.id); // the server says what's dealt again
+            setError(data.message ?? `The swipe on ${card.name} didn't go through.`);
+          } else if (data.match) {
+            const m = data.match;
+            setMatched(card);
+            setMatchPage(`/messages/${m.lo}/${m.hi}?as=${encodeURIComponent(character.id)}`);
+            setStatus(`It's a match: ${first} and ${card.name}.`);
+          } else if (like && n === decided.current) {
+            setLastLike(card);
+          }
+        } catch {
+          gone.current.delete(card.id);
+          setError(`Network error: the swipe on ${card.name} didn't go through.`);
         }
-      } catch {
-        setError("Network error. Try again.");
-      } finally {
-        busy.current = false;
-      }
+      };
+      sending.current = sending.current.then(send);
+      await sending.current;
     },
     [cards, character.id, first],
   );
@@ -163,6 +180,7 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes }: 
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
       if (res.ok) {
+        gone.current.delete(card.id);
         setCards((c) => [card, ...c.filter((x) => x.id !== card.id)]);
         setStatus(`Took back the like on ${card.name}.`);
       } else if (data.error === "already_matched") {
@@ -291,7 +309,7 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes }: 
         )}
         {matchedMeanwhile && (
           <p className="muted small swipe-undo">
-            {matchedMeanwhile.name} liked {first} back meanwhile, so it&apos;s a match and the like stands. <Link href={matchedMeanwhile.href}>Read their chat</Link>
+            {matchedMeanwhile.name} liked {first} back meanwhile, so it&apos;s a match: unmatching is in <Link href={matchedMeanwhile.href}>their chat</Link> (⋯).
           </p>
         )}
         <p className="sr-only" role="status">

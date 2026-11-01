@@ -17,6 +17,7 @@ import { notify } from "./notifications";
 import { currentPartners, takenSql } from "./partners";
 import { takenMessage, takenNote } from "./partners-shared";
 import { haveDated, MATCH_FIRST, swipeGateOn } from "./swipe-gate";
+import { areUnmatched, unmatchedMessage } from "./unmatch";
 import { dateNotAgreed } from "./swipes";
 import { DELETED_OWNER } from "./rules";
 import { secondDateState, type SecondDateState } from "./second-date";
@@ -69,6 +70,7 @@ export async function proposeDate(db: Db, userId: string, fromId: string, toId: 
   const to = cs.get(toId);
   if (!from || from.owner_id !== userId || from.is_house) return no(404, "character_not_found", "Pick one of your own characters.");
   if (!to) return no(404, "partner_not_found", "That character isn't here any more.");
+  if (await areUnmatched(db, fromId, toId)) return no(409, "unmatched", unmatchedMessage(...pairNames(from.name, to.name)));
   // Behind the swipe gate (lib/swipe-gate.ts), a proposal is for a couple who've dated: a first date starts with a match.
   if (!to.is_house && swipeGateOn() && !(await haveDated(db, fromId, toId))) {
     // #618 (the 2026-10-21-2300 run): a pair that has matched hears where it stands, not "match first".

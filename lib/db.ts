@@ -542,6 +542,16 @@ create table if not exists matches (
   primary key (character_lo, character_hi)
 );
 create index if not exists matches_hi_idx on matches (character_hi);
+-- A match ended from its thread (lib/unmatch.ts; David, 2026-10-31), for good: the pair doesn't text, date, meet in the
+-- deck or match again. by_character is whose owner ended it.
+create table if not exists unmatches (
+  character_lo text not null references characters (id) on delete cascade,
+  character_hi text not null references characters (id) on delete cascade,
+  by_character text not null,
+  created_at timestamptz not null default now(),
+  primary key (character_lo, character_hi)
+);
+create index if not exists unmatches_hi_idx on unmatches (character_hi);
 -- "Date my OC" links (lib/date-invites.ts): one live link per character; each accept is a match with the date agreed.
 create table if not exists date_invites (
   code text primary key,

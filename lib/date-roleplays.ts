@@ -25,6 +25,7 @@ import { notify } from "./notifications";
 import { DELETED_OWNER } from "./rules";
 import { checkShowText } from "./safety";
 import { haveDated, swipeGateOn } from "./swipe-gate";
+import { areUnmatched, unmatchedMessage } from "./unmatch";
 import {
   checkCustomRoleplay,
   dateRoleplayById,
@@ -277,6 +278,8 @@ export async function proposeRoleplay(
   const them = cast.get(input.with);
   if (!mine || mine.owner_id !== userId || mine.is_house) return refuse(404, "character_not_found", "Pick one of your own characters.");
   if (!them || them.id === mine.id) return refuse(404, "partner_not_found", "That character isn't here any more.");
+  // A pair that unmatched (lib/unmatch.ts) has no next date to play one on, a house character's included.
+  if (await areUnmatched(db, mine.id, them.id)) return refuse(409, "unmatched", unmatchedMessage(...pairNames(mine.name, them.name)));
   const auto = await agreesAtOnce(db, userId, them);
   const live = await liveRow(db, mine.id, them.id);
   if (!auto) {
