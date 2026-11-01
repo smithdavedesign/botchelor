@@ -1,5 +1,6 @@
 "use client";
 
+import When from "@/app/When";
 import { shortName } from "@/lib/names";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,7 +22,7 @@ function From({ from }: { from: Source[] }) {
         <span key={s.episode_id}>
           {i > 0 && ", "}
           <Link href={`/episodes/${s.episode_id}`}>
-            your date with {shortName(s.with)}, {new Date(s.at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+            your date with {shortName(s.with)}, <When iso={s.at} style="date" />
           </Link>
         </span>
       ))}

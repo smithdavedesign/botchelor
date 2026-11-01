@@ -106,6 +106,8 @@ export type EditInitial = {
   thisWeek?: string | null;
   /** What the show dealt them this week (shown as the field's placeholder). */
   thisWeekDealt?: string;
+  /** Signed in to an account: choosing one of their pictures needs one (app/api/characters/[id]/pictures). */
+  signedIn?: boolean;
 };
 const EMPTY_SHEET: Sheet = { name: "", age: "", bio: "", want: "", dealbreaker: "" };
 const EMPTY_SOUL: Soul = { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "", local_only: false };
@@ -897,7 +899,7 @@ export default function CreateWizard({
               <p className="muted small">✓ Their instincts were trained from an image or a curated look; that stays unless you train again.</p>
             )}
             {edit ? (
-              <PortraitPanel id={edit.id} name={sheet.name || init?.name || "them"} portrait={portrait} onPortrait={setPortrait} hasLooks={Boolean(init?.extras.looks?.gender)} />
+              <PortraitPanel id={edit.id} name={sheet.name || init?.name || "them"} portrait={portrait} onPortrait={setPortrait} hasLooks={Boolean(init?.extras.looks?.gender)} signedIn={Boolean(init?.signedIn)} />
             ) : (
               <p className="wizard-pro-hint">
                 {extras.looks?.gender
@@ -1203,7 +1205,7 @@ function ReviewRow({ label, children }: { label: string; children: ReactNode }) 
  * Edit mode, Look step: their generated portrait (BYOK, Pro). Shows whether they have one and makes a new one
  * on the owner's own image key. The server builds it from the SAVED sheet, so a just-changed look needs saving first.
  */
-function PortraitPanel({ id, name, portrait, onPortrait, hasLooks }: { id: string; name: string; portrait: string | null; onPortrait: (src: string) => void; hasLooks: boolean }) {
+function PortraitPanel({ id, name, portrait, onPortrait, hasLooks, signedIn }: { id: string; name: string; portrait: string | null; onPortrait: (src: string) => void; hasLooks: boolean; signedIn: boolean }) {
   const [state, setState] = useState<null | "working" | "no_key" | { error: string }>(null);
   const [fromLooks, setFromLooks] = useState<null | "working" | { error: string }>(null);
   const first = shortName(name);
@@ -1263,8 +1265,9 @@ function PortraitPanel({ id, name, portrait, onPortrait, hasLooks }: { id: strin
         </p>
       )}
       {state && typeof state === "object" && <p className="error">{state.error}</p>}
-      {/* Or one of the pictures already made for them (David, 2026-10-25): their profile picture and After Dark face. */}
-      <ChoosePicture id={id} name={name} onPortrait={onPortrait} />
+      {/* Or one of the pictures already made for them (David, 2026-10-25): their profile picture and After Dark face. It
+          needs an account, so it isn't asked for without one (2026-10-31 UX audit: a 401 on every anonymous edit). */}
+      {signedIn && <ChoosePicture id={id} name={name} onPortrait={onPortrait} />}
     </div>
   );
 }

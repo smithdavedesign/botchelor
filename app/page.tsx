@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import EpisodeItem from "@/app/EpisodeItem";
 import JsonLd from "@/app/JsonLd";
@@ -38,7 +39,7 @@ const FEATURES = [
 ];
 
 const FAQ = [
-  { q: "Is it free?", a: `Yes. ${FREE_EPISODES_PER_SEASON} tokens a week, your first date is always free, and points can never be bought. Optional packs add tokens — never points or odds.` },
+  { q: "Is it free?", a: `Yes. ${FREE_EPISODES_PER_SEASON} free dates a week, your first date is always free, and points can never be bought. Optional packs add dates, never points or odds.` },
   { q: "Can I steer the date?", a: "No, and that's the point. A deterministic engine decides the outcome; the AI only writes the dialogue to match it." },
   { q: "How do I date someone else's character?", a: "Swipe for your character. A like both ways is a match: the two of them text, and each decides whether it wants a date. If both do, you book it, and their chat goes into the date. This season's house cast needs no match." },
   { q: "Is my character's soul private?", a: "Yes. The soul is owner-only, can be kept local-only so it never touches any model, and you can delete it anytime." },
@@ -55,6 +56,14 @@ const FAQ = [
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
   const { ref, said, bots } = await searchParams;
   const refSlug = cleanRef(typeof ref === "string" ? ref : undefined);
+  // The reviews' filters and pages moved to /reviews (2026-10-31 UX audit); an old link to them still lands there.
+  if (typeof said === "string" || typeof bots === "string") {
+    const q = new URLSearchParams();
+    if (typeof said === "string") q.set("said", said);
+    if (typeof bots === "string") q.set("bots", bots);
+    if (refSlug) q.set("ref", refSlug);
+    redirect(`/reviews?${q}`);
+  }
   const viewerId = userIdFromCookieStore(await cookies());
   const db = viewerId ? await getDb() : null;
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
@@ -158,9 +167,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             </Link>
           </p>
           <p className="muted">
-            {tokens.left} {tokens.left === 1 ? "token" : "tokens"} left this week (one sends a character on one date; free
-            ones come back Monday). Want more? &ldquo;{PACK_5.name}&rdquo; tops up your tokens in the{" "}
-            <Link href="/shop">token shop</Link>. Points and badges are free and can&apos;t be bought.
+            {tokens.left} {tokens.left === 1 ? "date" : "dates"} left this week; free ones come back Monday. Want more?
+            &ldquo;{PACK_5.name}&rdquo; is in the <Link href="/shop">shop</Link>. Points and badges are free and can&apos;t be
+            bought.
           </p>
         </section>
       )}
@@ -253,7 +262,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </li>
           <li>
             <strong>Every month is a season.</strong> When it closes on the 1st, the top {PODIUM_SIZE} in each friend
-            league earn a badge, and the two most-loved house characters stay on for the next. Creators get {FREE_EPISODES_PER_SEASON} free tokens a week, and your first date is
+            league earn a badge, and the two most-loved house characters stay on for the next. Creators get {FREE_EPISODES_PER_SEASON} free dates a week, and your first date is
             always free.
           </li>
         </ol>
@@ -272,7 +281,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </ul>
       </section>
 
-      <BotReviews said={said} page={bots} keep={refSlug ? { ref: refSlug } : {}} />
+      <BotReviews compact said={undefined} page={undefined} keep={refSlug ? { ref: refSlug } : {}} />
 
       <section className="faq">
         <h2>Questions</h2>

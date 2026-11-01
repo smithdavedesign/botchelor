@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import When from "@/app/When";
 import { requestJson } from "@/app/request";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import type { RoleplayView } from "@/lib/date-roleplays";
 import { shortName } from "@/lib/names";
 import { ROLEPLAY_NOTE_MAX } from "@/lib/roleplays";
 
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /**
  * A roleplay for the couple's next date (lib/date-roleplays.ts), as one of its owners sees it: choose one, or answer the
@@ -109,7 +109,7 @@ export default function RoleplayCard({
           {view.status === "pending" && view.from_you && (
             <p>
               You suggested {view.terms.icon} <strong>{view.terms.title}</strong>. Waiting for {theirs}&apos;s creator to agree, suggest another or pass
-              (until {day(view.lapses_at)}).
+              (until <When iso={view.lapses_at} style="date" />).
             </p>
           )}
           <p className="roleplay-premise">{view.premise}</p>
@@ -139,7 +139,7 @@ export default function RoleplayCard({
                   They&apos;re playing it now. <Link href={`/episodes/${view.playing_now}`}>Watch their date</Link>
                 </>
               ) : (
-                <>Book their next date and they&apos;ll play it. Unused, it lapses {day(view.lapses_at)}.</>
+                <>Book their next date and they&apos;ll play it. Unused, it lapses <When iso={view.lapses_at} style="date" />.</>
               )}
             </p>
           )}

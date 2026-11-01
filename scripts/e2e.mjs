@@ -520,6 +520,8 @@ async function main() {
       await spage.goto(`${base}/cast`); // the cast tab of /characters (2026-10-21)
       await spage.getByRole("heading", { level: 1, name: "Characters" }).waitFor();
       assert((await spage.locator(".gallery .avatar").count()) > 0, "cast gallery avatars missing");
+      // The form opens in a modal from the matchmaker row (2026-10-31 UX audit).
+      await spage.getByRole("button", { name: "Pick a pair" }).click();
       const selects = spage.locator("form .traits select");
       await selects.nth(0).selectOption({ index: 1 });
       await selects.nth(1).selectOption({ index: 2 });

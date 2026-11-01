@@ -137,10 +137,16 @@ async function main() {
       }
     });
 
-    await step("on a phone the install hint shows once, explains itself, and stays away once closed", async () => {
+    await step("on a phone the install hint shows once they have a character, explains itself, and stays away once closed", async () => {
       const ctx = await context(IPHONE);
       try {
         const page = await ctx.newPage();
+        // Not on a first visit with nothing to hear about (2026-10-31 UX audit): only once they've made a character.
+        await page.goto(`${base}/`);
+        await page.waitForTimeout(3500);
+        assert((await page.locator(".install-hint").count()) === 0, "the hint showed before they had a character");
+        const made = await page.request.post(`${base}/api/characters`, { data: { name: "Wren Halloway", age: 31, bio: "A ferry pilot who knows every lighthouse on the coast by its blink.", traits: ["steady", "dry", "kind"], want: "Someone who likes the quiet hours", dealbreaker: "Being late for the tide", attest: true, keep_name: true } });
+        assert(made.ok(), `making a character: HTTP ${made.status()}`);
         await page.goto(`${base}/`);
         const hint = page.locator(".install-hint");
         await hint.waitFor({ timeout: 10_000 });

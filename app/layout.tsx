@@ -21,6 +21,7 @@ import FeedbackDock, { FeedbackLink } from "./FeedbackDock";
 import EngagementBeacon from "./EngagementBeacon";
 import FunnelBeacon from "./FunnelBeacon";
 import InstallHint from "./InstallHint";
+import FooterGroup from "./FooterGroup";
 import Nav from "./Nav";
 import { unreadTexts } from "@/lib/inbox";
 import { CrisisResources } from "./Notices";
@@ -144,7 +145,33 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           {/* The two lines that must never be one tap away stay out in the open: who's on the show, and where help is. */}
           <p className="footer-adults">Every character is a fictional adult (18+), and every episode is written by an AI model.</p>
           <CrisisResources />
-          <details className="footer-about">
+          {/* Three groups, not fifteen links in one list (2026-10-31 UX audit): columns on a wide screen, folds on a phone. */}
+          <nav className="footer-groups" aria-label="More of the site">
+            <FooterGroup title="The show">
+              <li><Link href="/graph">The Constellation</Link></li>
+              <li><Link href="/prompts">Prompts library</Link></li>
+              <li><Link href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
+              <li><Link href="/about">How it&apos;s built</Link></li>
+            </FooterGroup>
+            <FooterGroup title="Tools">
+              <li><Link href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
+              <li><Link href="/tools/ship-name-generator">Ship name generator</Link></li>
+              <li><Link href="/agents">For AI agents</Link></li>
+            </FooterGroup>
+            <FooterGroup title="Help and legal">
+              <li><Link href="/report">Report a problem</Link></li>
+              <li>
+                <FeedbackLink />
+              </li>
+              <li><Link href="/content-policy">Content policy</Link></li>
+              <li><Link href="/terms">Terms and refunds</Link></li>
+              <li><Link href="/privacy">Privacy</Link></li>
+              <li><Link href="/legal">Terms and privacy, one page</Link></li>
+              <li><Link href="/2257">2257 statement</Link></li>
+              <li><Link href="/cancel">Cancel a subscription</Link></li>
+            </FooterGroup>
+          </nav>
+          <details className="footer-about ux-fold">
             <summary>About this show</summary>
             <p>
               Episodes are written by an AI model from the character sheets. Every character is a fictional adult.
@@ -155,28 +182,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               Nothing you buy changes points, badges or rank.
             </p>
           </details>
-          <ul className="footer-links">
-            <li><Link href="/terms">Terms and refunds</Link></li>
-            <li><Link href="/privacy">Privacy</Link></li>
-            <li><Link href="/legal">Both on one page</Link></li>
-            <li><Link href="/content-policy">Content policy</Link></li>
-            <li><Link href="/report">Report a problem</Link></li>
-            <li><Link href="/cancel">Cancel After Dark</Link></li>
-            <li><Link href="/2257">2257 statement</Link></li>
-            <li><Link href="/shop">Tokens</Link></li>
-            <li><Link href="/agents">For AI agents</Link></li>
-            <li><Link href="/about">How it&apos;s built</Link></li>
-            <li><Link href="/graph">The Constellation</Link></li>
-            <li><Link href="/prompts">Prompts library</Link></li>
-            <li><Link href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
-            <li><Link href="/tools/ship-name-generator">Ship name generator</Link></li>
-            <li>
-              <FeedbackLink />
-            </li>
-          </ul>
         </footer>
         <FeedbackDock />
-        <InstallHint />
+        <InstallHint hasCharacter={hasCharacter} />
         {google && consent.ask && <ConsentBanner />}
         <FunnelBeacon production={TRACKING.production} consentDefault={consent.granted} />
         <EngagementBeacon afterDarkHost={adHost} />

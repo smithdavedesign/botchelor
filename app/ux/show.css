@@ -50,31 +50,39 @@
     font-size: var(--text-sm);
   }
 }
-/* The house cast: six, two to a row on a phone as compact tiles (the directory has the rest). */
+/* The house cast: six, two to a row on a phone as compact tiles (the directory has the rest). /characters' cards too
+   (2026-10-31 UX audit: one to a row, fifteen cards were ~2,900px). */
 @media (max-width: 640px) {
-  .home-cast {
+  :is(.home-cast, .characters-hub .gallery) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-2);
   }
-  .home-cast > .card {
+  :is(.home-cast, .characters-hub .gallery) > .card {
     padding: var(--space-3);
   }
-  .home-cast .char {
+  :is(.home-cast, .characters-hub .gallery) .char {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-2);
   }
-  .home-cast .chips {
+  :is(.home-cast, .characters-hub .gallery) .chips {
     margin: var(--space-2) 0 0;
     gap: var(--space-1);
   }
-  /* Two traits are enough for a tile; the character's page has all three. */
-  .home-cast .chips > li:nth-child(n + 3) {
+  /* Two traits are enough for a tile; the character's page has all three, and their job and hometown. */
+  :is(.home-cast, .characters-hub .gallery) .chips > li:nth-child(n + 3),
+  .characters-hub .gallery .dir-job {
     display: none;
   }
-  .home-cast .chip {
+  :is(.home-cast, .characters-hub .gallery) .chip {
     font-size: var(--text-2xs);
   }
+}
+.characters-head h1 {
+  margin: 0;
+}
+.characters-head .button {
+  margin: 0;
 }
 .home-cast-more {
   margin-top: var(--space-3);
@@ -267,6 +275,39 @@
 .reunion-panel .show-more > .list {
   margin-top: var(--space-2);
 }
+/* A couple's row opens their page (.tap-card): the names read as a title, and a chevron on the right says it goes on. */
+.reunion-couple .stretch {
+  color: inherit;
+  text-decoration: none;
+}
+.reunion-couple .meta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.reunion-chevron {
+  align-self: center;
+  color: var(--muted);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+/* The awards two to a row on a phone, compact, rather than four full-width cards with wide gaps. */
+@media (max-width: 640px) {
+  .reunion-panel .boards {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+  }
+  .reunion-panel .award {
+    padding: var(--space-3);
+  }
+  .reunion-panel .award h3 {
+    font-size: var(--text-sm);
+  }
+  .reunion-panel .award .award-body {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+}
 
 /* ---------------- a friends' league (app/leagues/[id]) ---------------- */
 .league-board th.num,
@@ -275,13 +316,27 @@
   font-variant-numeric: tabular-nums;
   width: 4.5rem;
 }
-.league-invite {
-  margin-top: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
+.league-head h1 {
+  margin: 0;
 }
-.league-invite > h2 {
-  margin-top: 0;
+.league-head > button {
+  margin: 0;
+}
+.league-join {
+  margin: var(--space-3) 0 var(--space-4);
+}
+.league-join > button {
+  margin: 0 0 var(--space-1);
+}
+.league-join > p {
+  margin: 0;
+}
+.league-join-form {
+  display: grid;
+  gap: var(--space-3);
+}
+.league-points {
+  margin: var(--space-2) 0 var(--space-4);
 }
 
 /* ---------------- an episode (app/episodes/[id]) ---------------- */
@@ -473,6 +528,81 @@ details.recap-toggle[open] .recap-toggle-hide {
 .notif-emoji {
   margin-right: 0.35rem;
 }
+/* A row opens with a tap anywhere on it (2026-10-31 UX audit: only the title was a link, two lines of underlined words
+   on a phone, and every body sat in quotes). The title's link covers the row (.tap-card), so it reads as a row: bold
+   only while unread, the body a muted preview of two lines, and Clear and a booked date's link still work on their
+   own. A press tints the row rather than shrinking it, and a hover underlines the title. */
+.notif-title {
+  font-weight: 600;
+}
+.notification.unread .notif-title {
+  font-weight: 800;
+}
+.notif-title a {
+  color: inherit;
+  text-decoration: none;
+}
+.notif-body {
+  color: var(--muted);
+}
+.notification.tap-card {
+  padding-right: var(--space-2);
+  border-radius: 10px;
+}
+.notification.tap-card .notif-body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.notification.tap-card:has(.stretch:active) {
+  transform: none;
+  background: var(--soft);
+}
+@media (hover: hover) {
+  .notification.tap-card:has(.stretch:hover) {
+    box-shadow: none;
+    border-color: var(--line);
+  }
+  .notification.tap-card:has(.stretch:hover) .stretch {
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 3px;
+  }
+}
+/* The heading with ⚙ Settings beside it; the settings open in a modal (NotificationSettings.tsx). */
+.notif-head {
+  margin-bottom: var(--space-3);
+}
+.notif-head h1 {
+  margin: 0;
+}
+.notif-head .notif-settings {
+  margin: 0;
+}
+.notif-setting h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-md);
+}
+.notif-setting > * + * {
+  margin-top: var(--space-2);
+}
+.notif-clear-all {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.notif-clear-all .button-ghost {
+  margin: 0;
+}
+/* Above the list while browser notifications are off and could be on (PushToggle's prompt). */
+.push-prompt {
+  margin-bottom: var(--space-3);
+}
+.push-prompt-done {
+  margin: 0 0 var(--space-3);
+  color: var(--muted);
+}
 
 /* ---------------- the token shop (app/shop/page.tsx) ---------------- */
 .shop-item-head {
@@ -534,4 +664,50 @@ details.recap-toggle[open] .recap-toggle-hide {
 }
 .thread-preview-msg.is-mine p strong {
   color: inherit;
+}
+
+/* ---------------- the account page (app/account/AccountPanel.tsx) ---------------- */
+/* Sign in | Create account as two tabs at the top of the card (2026-10-31 UX audit: signing in was a small link under
+   the form). The selected one is filled like a pressed segment, and hover never repaints it. */
+.auth-tabs {
+  margin-top: 0;
+}
+.segmented button.segmented-tab[aria-selected="true"],
+.segmented button.segmented-tab[aria-selected="true"]:hover:not(:disabled) {
+  background: var(--accent-btn);
+  color: var(--accent-ink);
+  transform: none;
+  box-shadow: none;
+}
+
+/* ---------------- what the bots are saying (app/BotReviews.tsx) ---------------- */
+/* The home page quotes three and links to the rest (/reviews); there, the filter chips are a 44px tap on a phone. */
+.bot-more {
+  margin: var(--space-3) 0 0;
+}
+.bot-more .button {
+  margin: 0;
+}
+@media (pointer: coarse) {
+  .bot-filter a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+}
+
+/* ---------------- the cast tab (app/characters/page.tsx) ---------------- */
+/* Matchmaking is a row whose button opens the form in a modal; the pairings fold under one summary. */
+.matchmaker {
+  margin: var(--space-4) 0;
+}
+.matchmaker-form {
+  display: grid;
+  gap: var(--space-3);
+}
+.matchmaker-form .traits {
+  margin: 0;
+}
+.graph-pairs > .list {
+  margin-top: var(--space-2);
 }

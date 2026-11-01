@@ -100,6 +100,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/characters?tab=people",
         "/characters?tab=agents",
         "/agents",
+        "/reviews",
         "/shop",
         "/terms",
         "/privacy",

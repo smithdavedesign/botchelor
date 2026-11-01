@@ -119,13 +119,17 @@ describe("notifications (public/sw.js)", () => {
 });
 
 describe("the install hint", () => {
-  const phone = (over: Partial<InstallContext> = {}): InstallContext => ({ pathname: "/", phone: true, standalone: false, stored: null, ua: IPHONE, ...over });
+  const phone = (over: Partial<InstallContext> = {}): InstallContext => ({ pathname: "/", phone: true, standalone: false, stored: null, ua: IPHONE, hasCharacter: true, ...over });
 
   it("shows on a phone's browser, once: after it's been shown, dismissed or installed, never again", () => {
     expect(INSTALL_HINT_KEY).toBe("bz_install_hint");
     expect(shouldShowInstallHint(phone())).toBe(true);
     expect(shouldShowInstallHint(phone({ ua: PIXEL, pathname: "/watch" }))).toBe(true);
     for (const stored of ["shown", "dismissed", "installed"]) expect(shouldShowInstallHint(phone({ stored })), stored).toBe(false);
+  });
+
+  it("waits until they have a character, so there's someone to hear from (2026-10-31 UX audit)", () => {
+    expect(shouldShowInstallHint(phone({ hasCharacter: false }))).toBe(false);
   });
 
   it("not on a desktop, not inside the installed app, not in an app's own browser", () => {

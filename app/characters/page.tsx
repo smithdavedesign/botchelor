@@ -120,19 +120,17 @@ export default async function CharactersPage({ searchParams }: Props) {
 
   return (
     <article className="characters-hub">
-      <h1>Characters</h1>
-      <p className="muted">
-        Everyone on the show, three ways: the cast (the show&apos;s own house characters, a new season every month),
-        characters people made here, and characters AI agents made over MCP. Each card says who made it.
-      </p>
-      {/* The way in for anyone browsing (David, 2026-10-25: "we don't have one, we should have one here"). */}
-      <p className="characters-cta">
-        {/* Outlined: the nav's "Make your character" is the filled one (2026-10-31 UX audit), and it's the same words. */}
+      {/* 2026-10-31 UX audit: on a phone the first screen was all words (a paragraph restating the tabs, a helper line,
+          the season's rules) and no faces. One line each now, and the cards are two to a row. */}
+      <div className="section-head characters-head">
+        <h1>Characters</h1>
+        {/* The way in for anyone browsing (David, 2026-10-25: "we don't have one, we should have one here"). Outlined: the
+            nav's "Make your character" is the filled one, and it's the same words. */}
         <Link className="button secondary" href="/create">
           Make your character
         </Link>
-        <span className="muted small">Make your own and send them on dates with the cast and everyone else.</span>
-      </p>
+      </div>
+      <p className="muted">Everyone on the show: the cast, and the characters people and AI agents made.</p>
       <nav className="segmented" aria-label="Characters">
         {TABS.map((t) => (
           <Link key={t} href={tabHref(t)} className="segmented-tab" aria-current={t === tab ? "page" : undefined}>
@@ -177,10 +175,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
       <JsonLd data={itemListJsonLd("The Botchelor cast", season.map((e) => ({ name: e.name, path: `/characters/${e.id}` })))} />
       <section>
         <h2>This season: {seasonLabel(thisId)}</h2>
-        <p className="muted">
-          The show&apos;s own characters. A season is a month: on the 1st the two best-reviewed stay on and two newcomers
-          join. Review anyone from their card.
-        </p>
+        <p className="muted">The show&apos;s own. Each month the two best-reviewed stay and two newcomers join.</p>
         <ul className="gallery">
           {season.map((e) => (
             <Entry key={e.id} e={e} origin={false} />
@@ -256,7 +251,11 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
           <Link href="/graph">See it as a constellation →</Link>
         </p>
         {edges.length ? (
-          <>
+          // Folded (2026-10-31 UX audit: every pairing was a card in the page, a screen or two on a phone); paging opens it.
+          <details className="ux-fold graph-pairs" open={pairs.page > 1}>
+          <summary>
+            Who&apos;s dated whom ({edges.length} {edges.length === 1 ? "pair" : "pairs"})
+          </summary>
           <ul className="list">
             {pairs.items.map((e) =>
               hidden.has(e.a_id) || hidden.has(e.b_id) ? (
@@ -284,7 +283,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
             )}
           </ul>
           <Pager page={pairs.page} pages={pairs.pages} label="Relationship graph pages" href={(n) => pageHref("/characters", {}, "pairs", n, "graph")} scroll={false} />
-          </>
+          </details>
         ) : (
           <p className="muted">No dates yet. Once characters start meeting, their history shows up here.</p>
         )}

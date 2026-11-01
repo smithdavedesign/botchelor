@@ -45,15 +45,37 @@ export default function ReunionPanel({
   const hasContent = reunion.couples.length > 0 || reunion.confessionals.length > 0 || reunion.awards.length > 0;
   if (!hasContent) return null;
   const couples = couplesHref ? pageOf(reunion.couples, couplesPage, COUPLES_PAGE) : { items: reunion.couples, page: 1, pages: 1 };
-  const coupleRow = (couple: Reunion["couples"][number]) => (
-    <li key={`${couple.a.id}-${couple.b.id}`} className="card reunion-couple">
-      <span className="pair-faces">
-        <Face c={couple.a} />
-        <Face c={couple.b} />
+  // A row opens the couple's page with a tap anywhere on it (2026-10-31 UX audit: it only linked the two characters),
+  // unless one of them is private: then it names them, unlinked, as before.
+  const coupleRow = (couple: Reunion["couples"][number]) => {
+    const open = !hidden?.has(couple.a.id) && !hidden?.has(couple.b.id);
+    const [lo, hi] = couple.a.id < couple.b.id ? [couple.a, couple.b] : [couple.b, couple.a];
+    return (
+    <li key={`${couple.a.id}-${couple.b.id}`} className={`card reunion-couple${open ? " tap-card" : ""}`}>
+      <span className="pair-faces" aria-hidden={open || undefined}>
+        {open ? (
+          <>
+            <Avatar seed={couple.a.id} name={couple.a.name} hue={couple.a.hue} house={couple.a.house} portraitSrc={couple.a.portrait} size={34} decorative />
+            <Avatar seed={couple.b.id} name={couple.b.name} hue={couple.b.hue} house={couple.b.house} portraitSrc={couple.b.portrait} size={34} decorative />
+          </>
+        ) : (
+          <>
+            <Face c={couple.a} />
+            <Face c={couple.b} />
+          </>
+        )}
       </span>
       <div className="meta">
         <strong>
-          <CharacterName character={named(couple.a)} avatar={false} /> × <CharacterName character={named(couple.b)} avatar={false} />
+          {open ? (
+            <Link className="stretch" href={`/couples/${lo.id}/${hi.id}`}>
+              {couple.a.name} × {couple.b.name}
+            </Link>
+          ) : (
+            <>
+              <CharacterName character={named(couple.a)} avatar={false} /> × <CharacterName character={named(couple.b)} avatar={false} />
+            </>
+          )}
         </strong>{" "}
         <span className="badge">{couple.stage}</span>
         <p className="muted">
@@ -62,8 +84,14 @@ export default function ReunionPanel({
           {couple.last_ending && ` · last: ${endingLabel(couple.last_ending, couple.dates)}`}
         </p>
       </div>
+      {open && (
+        <span className="reunion-chevron" aria-hidden="true">
+          ›
+        </span>
+      )}
     </li>
-  );
+    );
+  };
   const confessionalRow = (c: Reunion["confessionals"][number], i: number) => (
     <li key={`${c.episode_id}-${i}`} className="card reunion-confessional">
       <Face c={c.character} />
@@ -116,7 +144,7 @@ export default function ReunionPanel({
           {couples.items.length > COUPLES_SHOWN && (
             // Later pages (?couples=N) open it: someone paging through wants them all.
             <details className="show-more ux-fold" open={couples.page > 1}>
-              <summary>Show more ({reunion.couples.length} in all)</summary>
+              <summary>Show {reunion.couples.length - COUPLES_SHOWN} more</summary>
               <ul className="list">{couples.items.slice(COUPLES_SHOWN).map(coupleRow)}</ul>
               {couplesHref && <Pager page={couples.page} pages={couples.pages} label="Couples pages" href={couplesHref} scroll={false} />}
             </details>
@@ -132,7 +160,7 @@ export default function ReunionPanel({
           <ul className="list">{reunion.confessionals.slice(0, CONFESSIONALS_SHOWN).map(confessionalRow)}</ul>
           {reunion.confessionals.length > CONFESSIONALS_SHOWN && (
             <details className="show-more ux-fold">
-              <summary>{reunion.confessionals.length - CONFESSIONALS_SHOWN} more</summary>
+              <summary>Show {reunion.confessionals.length - CONFESSIONALS_SHOWN} more</summary>
               <ul className="list">{reunion.confessionals.slice(CONFESSIONALS_SHOWN).map((c, i) => confessionalRow(c, i + CONFESSIONALS_SHOWN))}</ul>
             </details>
           )}
