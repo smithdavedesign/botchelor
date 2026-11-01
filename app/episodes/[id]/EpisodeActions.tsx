@@ -132,6 +132,7 @@ export default function EpisodeActions(props: Props) {
           <button
             key={ending}
             type="button"
+            value={ending}
             className={`secondary${pick === ending ? " chosen" : ""}`}
             aria-pressed={pick === ending}
             disabled={busy}
@@ -151,6 +152,7 @@ export default function EpisodeActions(props: Props) {
               <button
                 key={answer}
                 type="button"
+                value={answer}
                 className={`secondary${dramaPick === answer ? " chosen" : ""}`}
                 aria-pressed={dramaPick === answer}
                 disabled={busy}
