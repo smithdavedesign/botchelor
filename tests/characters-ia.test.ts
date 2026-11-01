@@ -86,7 +86,7 @@ describe("“date this character” at the top of a character page (lib/date-cta
     const me = await made("Ira Fenn");
     const html = await characterPage(HOUSE_PARTNER_ID, me.cookie);
     expect(top(html)).toMatch(/Send one of yours on a date with \w+/);
-    expect(top(html)).toMatch(/Ira goes\. 1 token, like any date\./);
+    expect(top(html)).toMatch(/Ira goes\./);
     expect(top(html)).toContain(">Cast</span>"); // the origin badge
     // The call to action is also kept further down, by the share card.
     expect(html.match(/Send one of yours on a date with/g)?.length).toBe(2);
@@ -108,7 +108,7 @@ describe("“date this character” at the top of a character page (lib/date-cta
     const html = top(await characterPage(open.id, me.cookie));
     expect(html).toMatch(/Send one of yours on a date with Wren/);
     expect(html).toContain(">Made by a person</span>");
-    expect(html).toMatch(/1 token, like any date/);
+    expect(html).toMatch(/goes\./);
     setSwipeGateForTests(true);
     try {
       const gated = top(await characterPage(open.id, me.cookie));

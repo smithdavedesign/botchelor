@@ -198,10 +198,15 @@ async function main() {
       assert((await page.getByRole("button", { name: /Send on a date with/ }).count()) > 0, "this season's house cast should still book straight away");
     });
 
-    await step("sets date settings (incl. a show format) and sends the character on a date", async () => {
-      await page.getByText("Date settings (optional)").click();
-      await page.getByLabel("Show format").selectOption("meet_the_parents");
+    await step("a Date button asks first: the sheet holds the settings (incl. a show format) and sends the character", async () => {
       await page.getByRole("button", { name: /Send on a date with/ }).first().click();
+      // B5 (2026-10-31 UX audit): nothing is spent until the sheet's one Send.
+      const sheet = page.locator("dialog.sheet-dialog[open]");
+      await sheet.waitFor();
+      assert(page.url().includes("/create"), "a Date button shouldn't send on its own");
+      await sheet.getByText("Date settings").click();
+      await sheet.getByLabel("Show format").selectOption("meet_the_parents");
+      await sheet.getByRole("button", { name: /^Send .* on the date$/ }).click();
       // Sending opens the date straight into the theater (?play=1); keep the plain episode URL for later steps.
       await page.waitForURL(/\/episodes\/[0-9a-f-]{36}(\?.*)?$/);
       const sent = new URL(page.url());
@@ -487,6 +492,7 @@ async function main() {
       await page.keyboard.press("Escape");
       assert(await menu.isHidden(), "Esc should close ⋯");
       await page.locator(".phone-header").getByRole("button", { name: "📅 Book date" }).click();
+      await page.locator("dialog.sheet-dialog[open]").getByRole("button", { name: "📅 Book the date" }).click();
       await page.waitForURL(/\/episodes\/[0-9a-f-]{36}/, { timeout: 30_000 });
       await page.locator(".theater").waitFor({ timeout: 10_000 });
     });

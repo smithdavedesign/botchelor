@@ -604,14 +604,17 @@ async function capture(base, leagueId, viewer) {
       await home.getByText(`Who should ${c.name} meet?`).waitFor();
       // The date settings (PRD budget & autonomy): open them for a screenshot of the controls, and pick a
       // non-classic show format (M11) so the episode and feed carry a format badge.
-      await home.getByText("Date settings (optional)").click();
-      await home.getByText("A note in the pocket", { exact: false }).waitFor();
-      await home.getByLabel("Show format").selectOption("meet_the_parents");
-      await shot(home, "date-settings");
       // The house cast shows six, the rest under "Show all": open it if Juniper is folded away.
       const juniper = home.getByRole("button", { name: "Send on a date with Juniper" });
       if (!(await juniper.isVisible())) await home.locator(".send-phase details").filter({ has: juniper }).locator("summary").first().click();
       await juniper.click();
+      // A Date button asks first (B5): the sheet holds the settings and the one Send.
+      const sheet = home.locator("dialog.sheet-dialog[open]");
+      await sheet.getByText("Date settings").click();
+      await sheet.getByText("A note in the pocket", { exact: false }).waitFor();
+      await sheet.getByLabel("Show format").selectOption("meet_the_parents");
+      await shot(home, "date-settings");
+      await sheet.getByRole("button", { name: /^Send .* on the date$/ }).click();
       await home.waitForURL(/\/episodes\/[0-9a-f-]{36}$/);
       await home.getByRole("heading", { level: 1, name: `${c.name} × Juniper Vale` }).waitFor();
       await shot(home, "episode");

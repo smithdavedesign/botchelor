@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Avatar from "@/app/Avatar";
+import DateConfirm from "@/app/DateConfirm";
 import { requestJson } from "@/app/request";
 import type { CharacterRef, EpisodeView } from "@/lib/game";
 import { afterglowVerdictKind, dateLabel } from "@/lib/rules";
@@ -81,6 +82,8 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean; shop?: boolean } | null>(null);
   const first = shortName(state.partner_name);
+  // A booking that spends a date asks first (2026-10-31 UX audit, B5); a yes that waits for theirs, or a free one, doesn't.
+  const [asking, setAsking] = useState(false);
 
   async function plan() {
     setBusy(true);
@@ -116,6 +119,8 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
   }
   if (!state.can_plan) return null;
   const waiting = state.needs_their_yes && state.you_asked && !state.they_asked;
+  const books = state.they_asked || !state.needs_their_yes;
+  const spends = books && !state.free;
   return (
     <div className="second-date">
       <h3>They both want a {next}</h3>
@@ -131,30 +136,47 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
           {state.they_asked && <p className="muted">{first}&apos;s creator already said yes.</p>}
           {/* The button on its own line and the cost under it (it wrapped raggedly beside it). */}
           <p className="action-hint">
-          <button type="button" className="primary" onClick={plan} disabled={busy}>
-            {busy ? "Booking…" : state.they_asked || !state.needs_their_yes ? `Plan the ${next}` : `Say yes to a ${next} with ${first}`}
+          <button type="button" className="primary" onClick={spends ? () => (setMessage(null), setAsking(true)) : plan} disabled={busy}>
+            {busy && !spends ? "Booking…" : books ? `Plan the ${next}` : `Say yes to a ${next} with ${first}`}
           </button>{" "}
           <span className="muted small">
             {state.needs_their_yes && !state.they_asked
-              ? `Free to say yes; whoever completes it books it${state.free ? " (free for you: your second date this week is on the show)" : " with 1 token"}.`
+              ? `Free to say yes; whoever completes it books it${state.free ? " (free for you: your second date this week is on the show)" : " with 1 date"}.`
               : state.free
                 ? "Free: your second date this week is on the show. It happens where they planned it."
-                : "1 token, like any date. It happens where they planned it."}
+                : "1 date, like any other. It happens where they planned it."}
           </span>
           </p>
         </>
       )}
-      {message && (
+      {message && !asking && (
         <p className={message.error ? "error" : "muted"}>
           {message.text}
           {message.shop && (
             <>
               {" "}
-              <Link href="/shop">Get tokens</Link>
+              <Link href="/shop">Get more dates</Link>
             </>
           )}
         </p>
       )}
+      <DateConfirm
+        open={asking}
+        onClose={() => {
+          if (!busy) setAsking(false);
+        }}
+        title={`Plan their ${next}?`}
+        lede={
+          <>
+            <strong>{shortName(state.my_character_name)}</strong> and <strong>{first}</strong> both want it. It happens where they planned it, and the show decides how it ends.
+          </>
+        }
+        sendLabel={`Plan the ${next}`}
+        busyLabel="Booking…"
+        busy={busy}
+        error={message?.error ? { text: message.text, shop: message.shop } : null}
+        onSend={() => void plan()}
+      />
     </div>
   );
 }

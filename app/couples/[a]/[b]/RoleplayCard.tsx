@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import When from "@/app/When";
 import { requestJson } from "@/app/request";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
@@ -73,9 +73,32 @@ export default function RoleplayCard({
   }
 
   const picking = mode === "pick" || mode === "counter";
+  // Folded (2026-10-31 UX audit, C2): it's optional, so the page shows a line saying where it stands, and opens it only
+  // when the other creator is waiting on this one (or the page was opened at #roleplay).
+  const [startOpen] = useState(() => Boolean(initial?.status === "pending" && initial.your_move));
+  const fold = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    // A notification links here (lib/date-roleplays.ts): open the fold it points at.
+    const reveal = () => {
+      if (window.location.hash === "#roleplay" && fold.current) fold.current.open = true;
+    };
+    reveal();
+    window.addEventListener("hashchange", reveal);
+    return () => window.removeEventListener("hashchange", reveal);
+  }, []);
+  const status = !view
+    ? "None yet"
+    : view.status === "agreed"
+      ? `${view.terms.icon} ${view.terms.title}`
+      : view.your_move
+        ? `💌 Your move: ${view.terms.title}`
+        : `Waiting on ${theirs}'s creator`;
   return (
-    <section className="card roleplay-card" id="roleplay" aria-labelledby="roleplay-title">
-      <h2 id="roleplay-title">🎭 A roleplay for their next date</h2>
+    <details ref={fold} className="card ux-fold roleplay-card" id="roleplay" open={startOpen || undefined}>
+      <summary>
+        <h2 id="roleplay-title">🎭 A roleplay</h2>
+        <span className="muted small fold-status">{status}</span>
+      </summary>
 
       {!view && !picking && (
         <>
@@ -219,6 +242,6 @@ export default function RoleplayCard({
           {message.text}
         </p>
       )}
-    </section>
+    </details>
   );
 }

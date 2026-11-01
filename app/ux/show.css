@@ -487,6 +487,9 @@ details.recap-toggle[open] .recap-toggle-hide {
   align-items: center;
   gap: var(--space-1) var(--space-2);
 }
+.couple-private {
+  margin: var(--space-2) 0 0;
+}
 .couple-name-unit {
   display: inline-flex;
   align-items: center;
