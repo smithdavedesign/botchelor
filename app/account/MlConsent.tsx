@@ -41,10 +41,15 @@ export default function MlConsent() {
         off leaves you out of every dataset built after that. <Link href="/privacy">Privacy</Link>
       </p>
       <p>
+        {/* One label that says what a tick does, whatever the state (D8: "Off: keep my data out of training" beside an
+            empty box read as the thing a tick would do). */}
         <label className="ml-consent-toggle">
-          <input type="checkbox" checked={c.granted} disabled={busy} onChange={(e) => void choose(e.target.checked)} />{" "}
-          {c.granted ? "On: my public dates can help train the show" : "Off: keep my data out of training"}
+          <input type="checkbox" checked={c.granted} disabled={busy} onChange={(e) => void choose(e.target.checked)} /> Use my public dates to
+          help train the show
         </label>
+      </p>
+      <p className="muted small" role="status">
+        {c.granted ? "On: your public dates can be used." : "Off: nothing of yours is used."}
       </p>
       {c.outdated && !c.granted && (
         <p className="muted">The wording above changed since you turned this on, so it&apos;s off until you turn it on again.</p>

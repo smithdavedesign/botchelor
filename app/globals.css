@@ -9768,8 +9768,28 @@ html.ad-studio-locked {
   .chem-form {
     grid-template-columns: 1fr;
   }
+  /* No box inside the card on a phone (2026-10-31 UX audit, D15): the two sides are headed sections with a rule
+     between, and the button spans the width under the thumb. */
   .chem-side {
-    padding-inline: var(--space-3);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .chem-side + .chem-side {
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--line);
+  }
+  .chem-side legend {
+    float: left;
+    width: 100%;
+    padding: 0;
+    font-size: var(--text-md);
+  }
+  .chem-side legend + label {
+    clear: both;
+  }
+  .chem-form button {
+    justify-self: stretch;
   }
 }
 
