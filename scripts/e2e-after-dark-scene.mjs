@@ -182,12 +182,13 @@ async function main() {
       const text = await card.innerText();
       assert(/Lexi\s+○ face · ✓ body/.test(text), `the start card doesn't say Lexi's face is missing: ${text}`);
       assert(/nothing is guessed/.test(text), "the start card doesn't say pictures wait");
-      await card.getByRole("link", { name: "Set up in the Studio →" }).click();
+      // #1207: the card offers Set up for pictures and links to the Studio step for what's missing (here, the face).
+      await card.getByRole("link", { name: /pick a face/i }).click();
       const ready = page.locator(".ad-ready-card");
       await ready.waitFor({ timeout: 30_000 });
       assert(/Before After Dark can picture Lexi/.test(await ready.innerText()), "the Studio doesn't open on what's missing");
       await shot("studio-not-ready");
-      await ready.getByRole("button", { name: "Use the one shown below" }).click();
+      await ready.getByRole("button", { name: "Use this face" }).click();
       await page.waitForFunction(() => /✓ Lexi is ready for After Dark's pictures/.test(document.querySelector(".ad-ready-card")?.textContent ?? ""), null, { timeout: 15_000 });
       await shot("studio-ready");
       await page.goto(`${app.base}${scenePath}`);

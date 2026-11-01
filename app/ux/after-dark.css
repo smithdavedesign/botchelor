@@ -2243,3 +2243,36 @@ a.ad-scenes-make-link {
     mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem);
   }
 }
+
+/* #1207 "Set up for pictures": the one-tap setup under a night's setup note, on the start card and the Studio's readiness
+   card, with the face already drawn (and its "Use this face") beside it. */
+.ad-setup-offer {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+}
+.ad-setup-offer p {
+  margin: 0;
+}
+.ad-setup-offer-row,
+.ad-ready-face {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ad-ready-face {
+  margin-left: var(--space-1);
+}
+.ad-setup-thumb {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  border: 1px solid var(--ad-line);
+}
+/* The faces and body references drawn lately, under Recast and Body reference (they used to vanish on a reload). */
+.ad-drawn-head {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: 0.95rem;
+}

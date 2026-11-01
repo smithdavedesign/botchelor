@@ -15,7 +15,7 @@ import { includedPrice } from "@/lib/adult/pricing";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { mineScenes, sceneCatalog } from "@/lib/adult/scene-catalog";
 import { asRoleplay, getLibrary } from "@/lib/studio/library";
-import { studioAccess } from "@/lib/adult/studio";
+import { studioAccess, withSetupOffers } from "@/lib/adult/studio";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
 import SceneWriter from "./SceneWriter";
@@ -124,7 +124,8 @@ export default async function AfterDarkScenePage({ params }: Props) {
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}
         reelTokens={(await getAdultSettings(db)).reel_tokens}
-        readiness={textOnlyHere ? [] : await pairReadiness(db, admin, scene.a.id, scene.b.id)}
+        // With "Set up for pictures" on each of theirs not ready yet (#1207), where the Studio is theirs to use.
+        readiness={textOnlyHere ? [] : await withSetupOffers(db, admin, await pairReadiness(db, admin, scene.a.id, scene.b.id))}
         // A chapter's price for this viewer: free for an admin, included with a subscription (#1005, lib/adult/pricing.ts).
         chapterTokens={(await includedPrice(db, admin, (await getAdultSettings(db)).chapter_tokens)).tokens}
         chapterIncluded={(await includedPrice(db, admin, (await getAdultSettings(db)).chapter_tokens)).included}

@@ -30,7 +30,7 @@
  *  - **The check:** every picture passes the output check before it's kept (lib/adult/check.ts), as everywhere.
  */
 import type { CameraMoveId } from "./camera-moves";
-import { readinessOf, type Readiness } from "./readiness";
+import { readinessOf, type Readiness, type SetupOffer } from "./readiness";
 import { isAdmin } from "../admins";
 import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { loadCharacter, type Character } from "../character";
@@ -76,7 +76,7 @@ import { sharePartners, sharesOf, type OutgoingShare, type SharePartner } from "
 import { STAGES } from "./stages";
 import { runModel } from "./replicate";
 import { adultKeys, getAdultSettings } from "./settings";
-import { choosePreset, faceReferenceId, NO_STEERING, steeringFor, withSteering } from "./steering";
+import { choosePreset, faceReferenceId, NO_STEERING, setFaceReference, steeringFor, withSteering } from "./steering";
 import {
   ANIMATE_MOTIONS,
   ANIMATE_SECONDS,
@@ -270,7 +270,13 @@ export type Shoot = {
   background?: boolean;
 };
 
-export type JobResult = { ok: true; shoot: Shoot; pictures: Media[]; refunded: boolean; message: string | null } | StudioFail;
+export type JobResult =
+  | {
+      ok: true; shoot: Shoot; pictures: Media[]; refunded: boolean; message: string | null;
+      /** How many the check refused outright (not a checker that couldn't run or was paused): a free setup is spent on those. */
+      refused?: number;
+    }
+  | StudioFail;
 
 let pauses = true;
 /** Tests skip the pause between checks. */
@@ -366,7 +372,7 @@ async function jobKeys(db: Db, viewer: string, access: Extract<StudioAccess, { o
   return { ok: true, keys: { venice: house.venice, replicate: house.replicate, hive: house.hive }, own: null };
 }
 
-type Drawn = { kept: Media[]; lastError: string | null; paused: string | null; drawnCount: number; unchecked: number };
+type Drawn = { kept: Media[]; lastError: string | null; paused: string | null; drawnCount: number; unchecked: number; refused: number };
 
 /**
  * Draws `prompts` (all at once, or `concurrency` at a time), checks each one after another, and keeps the ones that
@@ -394,6 +400,7 @@ async function drawAndKeep(db: Db, viewer: string, c: Character, spec: JobSpec, 
   let checked = 0;
   let paused: string | null = null;
   let unchecked = 0;
+  let refused = 0;
   for (const d of drawn) {
     if ("error" in d) {
       lastError = d.error;
@@ -409,6 +416,7 @@ async function drawAndKeep(db: Db, viewer: string, c: Character, spec: JobSpec, 
       lastError = verdict.reason;
       if (verdict.paused) paused = verdict.paused;
       if (!verdict.reason.startsWith("the check couldn't run")) {
+        if (!verdict.paused) refused++;
         await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'studio', $3)`, [crypto.randomUUID(), viewer, `studio ${spec.kind}: ${verdict.reason}`.slice(0, 300)]).catch(() => {});
       }
       continue;
@@ -436,7 +444,7 @@ async function drawAndKeep(db: Db, viewer: string, c: Character, spec: JobSpec, 
   // On their own key, what the provider billed them: every picture it drew, kept or not (the job's monthly cap).
   const drawnCount = drawn.filter((d) => !("error" in d)).length;
   if (own && drawnCount) await recordJobSpend(db, viewer, "after_dark", own.provider, Math.round(spec.model.usd * drawnCount * 10000) / 10000);
-  return { kept, lastError, paused, drawnCount, unchecked };
+  return { kept, lastError, paused, drawnCount, unchecked, refused };
 }
 
 /** Pictures a bigger shoot draws at once, and how long one look carries it on before leaving the rest to the next. */
@@ -479,7 +487,7 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
     const shot = shootRow(row);
     return { ok: true, shoot: shot, pictures: await mediaByIds(db, shot.pictures, viewer), refunded: false, message: shot.status === "making" ? `Shooting ${asked}: each one lands below as it's kept.` : null };
   }
-  const { kept, lastError, paused } = await drawAndKeep(db, viewer, c, spec, spec.prompts, id, keys, own, capKind);
+  const { kept, lastError, paused, refused } = await drawAndKeep(db, viewer, c, spec, spec.prompts, id, keys, own, capKind);
   // Their own words (custom, extras), read by the text model for the place and act, after the answer.
   if (kept.length && ownWordsIn(spec.choices)) await modelTagLater(db, viewer, [c.id]);
   const made = kept.length;
@@ -499,7 +507,7 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
       : made < asked
         ? `${made} of ${asked} came through; the rest ${paused ? "waited on the safety check" : "didn't pass the check or failed to draw"}.`
         : null;
-  return { ok: true, shoot: shootRow(row), pictures: kept, refunded, message: paused && made === 0 ? hivePausedErrorMessage(new HivePausedError(paused, "", true), refunded) : message };
+  return { ok: true, shoot: shootRow(row), pictures: kept, refunded, refused, message: paused && made === 0 ? hivePausedErrorMessage(new HivePausedError(paused, "", true), refunded) : message };
 }
 
 /** After the answer (Next's after()), or at once where there's no request: a script, a test. */
@@ -1024,19 +1032,30 @@ export const OLDER_FACE_WORDS = "Clearly a grown adult in their late twenties or
 export async function recast(db: Db, viewer: string, characterId: string, input: { model?: string | null; own_key?: boolean; older?: boolean }): Promise<JobResult> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
+  const spec = await recastSpec(db, viewer, access, input);
+  return "kind" in spec ? runJob(db, viewer, access, spec) : spec;
+}
+
+/** A recast's job: new faces drawn from their look, the Recast's number of them unless `count` says (a setup's). */
+async function recastSpec(
+  db: Db,
+  viewer: string,
+  access: Extract<StudioAccess, { ok: true }>,
+  input: { model?: string | null; own_key?: boolean; older?: boolean; count?: number },
+): Promise<JobSpec | StudioFail> {
   const { character: c, config } = access;
   const model = studioModel(config, "new", input.model);
   if (!model) return fail(422, "unknown_model", "Pick one of the Studio's new-picture models.");
   const steer = await steeringFor(db, viewer, [c.id]).catch(() => NO_STEERING);
-  const prompts = Array.from({ length: config.recast_candidates }, (_, i) => {
+  const prompts = Array.from({ length: input.count ?? config.recast_candidates }, (_, i) => {
     const p = PICTURE_PRESETS[i % PICTURE_PRESETS.length];
     const base = baselinePrompt(c, viewer, p.light);
     return { prompt: withSteering(input.older ? `${base} ${OLDER_FACE_WORDS}` : base, steer, null), preset: p.id };
   });
-  return runJob(db, viewer, access, {
+  return {
     kind: "recast", pictureKind: "baseline", prompts, images: [], negative: [NEGATIVE_PROMPT, ...steer.negative].join(", "), model,
     tokens: input.own_key ? config.prices.own_key : config.prices.recast, choices: {}, place: null, ownKey: input.own_key === true,
-  });
+  };
 }
 
 /* ----------------------------------------------- body reference ----------------------------------------------- */
@@ -1044,6 +1063,18 @@ export async function recast(db: Db, viewer: string, characterId: string, input:
 export async function bodyShoot(db: Db, viewer: string, characterId: string, input: { nude?: boolean; model?: string | null; own_key?: boolean }, baseUrl: string): Promise<JobResult> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
+  const spec = await bodySpec(db, viewer, access, input, baseUrl);
+  return "kind" in spec ? runJob(db, viewer, access, spec) : spec;
+}
+
+/** A body reference's job: head to toe from the face they keep, the Studio's number of them. */
+async function bodySpec(
+  db: Db,
+  viewer: string,
+  access: Extract<StudioAccess, { ok: true }>,
+  input: { nude?: boolean; model?: string | null; own_key?: boolean },
+  baseUrl: string,
+): Promise<JobSpec | StudioFail> {
   const { character: c, config } = access;
   const model = studioModel(config, "edit", input.model);
   if (!model) return fail(422, "unknown_model", "Pick one of the Studio's edit models.");
@@ -1054,10 +1085,10 @@ export async function bodyShoot(db: Db, viewer: string, characterId: string, inp
   if (typeof face !== "string") return face;
   const prompt = bodyPrompt(subjectOf(c, viewer, nude), nude);
   if (!wordsOk(subjectOf(c, viewer, nude).look)) return fail(422, "not_allowed", "Their look crosses one of the lines After Dark never crosses.");
-  return runJob(db, viewer, access, {
+  return {
     kind: "body", pictureKind: "scene", prompts: Array.from({ length: config.body_candidates }, () => ({ prompt, preset: null })), images: [face], negative: NEGATIVE_PROMPT,
     model, tokens: input.own_key ? config.prices.own_key : config.prices.body, choices: { nude }, place: null, ownKey: input.own_key === true,
-  });
+  };
 }
 
 /** "Use as body reference": one of the viewer's pictures of the character alone; null takes it away. */
@@ -1076,6 +1107,179 @@ export async function setBodyReference(db: Db, viewer: string, characterId: stri
   }
   await upsertIdentity(db, viewer, characterId, "body_image_id", imageId);
   return { ok: true, body: imageId };
+}
+
+/* --------------------------------------------- set up for pictures --------------------------------------------- */
+
+/**
+ * Faces a character's included first setup draws (David, 2026-11-01: "we pay the 2–4 pictures"): two, so one the check
+ * refuses still leaves one. A setup they pay for draws the Recast's number, as the Recast does.
+ */
+export const FREE_SETUP_FACES = 2;
+
+type SetupPlan = { readiness: Readiness; baseline: string | null; free: boolean; drawing: boolean; faces: number; bodies: number; tokens: number };
+
+/**
+ * The face the Studio shows for them before one is picked (faceReferenceId's fallback: a baseline drawn for them, a
+ * shoot's or a date's), when it's a dressed baseline they haven't 👎'd: "Use this face" picks it, and a setup uses it
+ * rather than drawing new ones (#1207: "if baseline pictures already exist, offer Use this one").
+ */
+async function unpickedFace(db: Db, viewer: string, characterId: string): Promise<string | null> {
+  const id = await faceReferenceId(db, viewer, characterId);
+  if (!id) return null;
+  const r = (
+    await db.query<{ ok: boolean }>(
+      `select (i.kind = 'baseline' and i.character_b is null and not ${nudeSql("i")} and coalesce(t.rating, 0) >= 0) as ok
+         from adult_images i left join adult_media_thumbs t on t.media_id = i.id and t.owner_id = $2 where i.id = $1`,
+      [id, viewer],
+    )
+  ).rows[0];
+  return r?.ok ? id : null;
+}
+
+/** What a setup would do for this character now, or null when there's nothing to set up (ready, or not theirs). */
+async function setupPlan(db: Db, viewer: string, access: Extract<StudioAccess, { ok: true }>): Promise<SetupPlan | null> {
+  const { character: c, config, admin } = access;
+  if (c.ownerId !== viewer) return null;
+  const readiness = await readinessOf(db, viewer, c.id);
+  if (!readiness || readiness.ready) return null;
+  const baseline = readiness.face ? null : await unpickedFace(db, viewer, c.id);
+  const row = (
+    await db.query<{ taken: boolean; today: number; drawing: boolean }>(
+      `select exists (select 1 from adult_identity where owner_id = $1 and character_id = $2 and free_setup_at is not null) as taken,
+              (select count(*)::int from adult_identity where free_setup_at > now() - interval '1 day') as today,
+              exists (select 1 from adult_studio_shoots where owner_id = $1 and character_id = $2 and status = 'making'
+                        and choices->>'setup' = 'true' and created_at > now() - interval '5 minutes') as drawing`,
+      [viewer, c.id],
+    )
+  ).rows[0];
+  // Admins pay nothing anyway, so theirs never takes a character's included setup.
+  const free = !admin && config.free_setup && !row?.taken && (row?.today ?? 0) < config.free_setups_per_day;
+  const faces = readiness.face || baseline ? 0 : free ? Math.min(FREE_SETUP_FACES, config.recast_candidates) : config.recast_candidates;
+  const bodies = readiness.body ? 0 : config.body_candidates;
+  const tokens = admin || free ? 0 : (faces ? config.prices.recast : 0) + (bodies ? config.prices.body : 0);
+  return { readiness, baseline, free, drawing: Boolean(row?.drawing), faces, bodies, tokens };
+}
+
+const offerOf = (p: SetupPlan): SetupOffer => ({ free: p.free, tokens: p.tokens, pictures: p.faces + p.bodies, baseline: p.baseline, drawing: p.drawing });
+
+/** What "Set up for pictures" would do for one character (the Studio's Identity tab, the night's checklist), or null. */
+export async function setupOffer(db: Db, viewer: string, characterId: string): Promise<SetupOffer | null> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return null;
+  const plan = await setupPlan(db, viewer, access);
+  return plan ? offerOf(plan) : null;
+}
+
+/** Readiness with each not-ready own character's setup offer on it, where the Studio is theirs to use (the scene page). */
+export async function withSetupOffers(db: Db, viewer: string, rs: readonly Readiness[]): Promise<Readiness[]> {
+  return Promise.all(
+    rs.map(async (r) => {
+      if (r.ready || !r.own) return r;
+      const setup = await setupOffer(db, viewer, r.id);
+      return setup ? { ...r, setup } : r;
+    }),
+  );
+}
+
+/** Takes the character's included setup: true when it was still theirs (one statement, so two taps can't both have it). */
+async function takeFreeSetup(db: Db, viewer: string, characterId: string): Promise<boolean> {
+  const r = await db.query(
+    `insert into adult_identity (owner_id, character_id, free_setup_at) values ($1, $2, now())
+     on conflict (owner_id, character_id) do update set free_setup_at = now(), updated_at = now() where adult_identity.free_setup_at is null
+     returning free_setup_at`,
+    [viewer, characterId],
+  );
+  return r.rows.length > 0;
+}
+
+export type SetupResult =
+  | { ok: true; ready: boolean; free: boolean; tokens: number; pictures: Media[]; message: string }
+  | StudioFail;
+
+/**
+ * "Set up for pictures" (#1207; David, 2026-11-01: "a Set up for pictures button, with each character's first setup
+ * included (we pay the 2–4 pictures); later redraws cost tokens as now"): one tap that gives a person's own character
+ * what After Dark's pictures need (lib/adult/readiness.ts), in order:
+ *
+ *  - **A face:** the one picked stays; else a dressed baseline already drawn for them is picked (nothing drawn); else
+ *    new faces are drawn as the Recast draws them (two on an included setup) and the first the check keeps is picked.
+ *  - **A body reference:** drawn from that face as Body reference draws it (dressed, as its Nude box starts), and the
+ *    first kept is used. The rest of both stay on Identity to switch to.
+ *
+ * The same jobs as the Studio's own buttons (runJob): the checker, keys, monthly cap and Hive gate first, every picture
+ * checked before it's kept, and a paid part's tokens back when nothing of it came through. Only the charge differs: the
+ * character's first setup takes no tokens (adult_identity.free_setup_at, taken before anything is drawn and given back
+ * only when nothing was kept and the check refused nothing, i.e. we paid for nothing it judged). Every later one costs
+ * the Recast and Body reference prices for the parts it draws; admins pay nothing, as everywhere.
+ */
+export async function setUpForPictures(db: Db, viewer: string, characterId: string, baseUrl: string): Promise<SetupResult> {
+  const access = await studioAccess(db, viewer, characterId);
+  if (!access.ok) return access;
+  const c = access.character;
+  const first = c.name.split(/\s+/)[0];
+  if (c.ownerId !== viewer) return fail(409, "not_yours", `${first} is one of the house cast: always ready for pictures.`);
+  const plan = await setupPlan(db, viewer, access);
+  if (!plan) return fail(409, "already_ready", `${first} is already set up for pictures.`);
+  if (plan.drawing) return fail(409, "setting_up", `${first}'s setup is still drawing: it lands in a minute or two.`);
+  // What both parts need, before anything is drawn or spent: the tokens for both, and room in the month for every picture.
+  if (plan.tokens > 0 && (await episodeAllowance(db, viewer)).pack_left < plan.tokens) {
+    return fail(402, "needs_tokens", `Setting ${first} up costs ${plan.tokens} token${plan.tokens === 1 ? "" : "s"}. Get more on the shop page.`);
+  }
+  const room = await usageLeft(db, viewer, "studio");
+  if (room !== null && room < plan.faces + plan.bodies) return fail(429, "over_cap", `That's ${plan.faces + plan.bodies} pictures and ${room} are left this month. They reset on the 1st.`);
+  const free = plan.free && (await takeFreeSetup(db, viewer, c.id));
+  const pictures: Media[] = [];
+  let tokens = 0;
+  let refused = 0;
+  /** One part, as its own Studio button runs it, marked as a setup's (and on us, when it's the included one). */
+  const run = async (spec: JobSpec | StudioFail): Promise<JobResult> => {
+    if (!("kind" in spec)) return spec;
+    const r = await runJob(db, viewer, access, { ...spec, tokens: free ? 0 : spec.tokens, choices: { ...(spec.choices as object), setup: true, ...(free ? { free: true } : {}) } });
+    if (r.ok) {
+      pictures.push(...r.pictures);
+      tokens += r.shoot.tokens;
+      refused += r.refused ?? 0;
+    }
+    return r;
+  };
+  /**
+   * Nothing kept and nothing the check refused (the provider drew nothing, a part was refused before drawing, the
+   * checker was down or paused): the included setup is still theirs. Whether it was given back.
+   */
+  const giveBack = async (): Promise<boolean> => {
+    if (!free || pictures.length > 0 || refused > 0) return false;
+    await db.query(`update adult_identity set free_setup_at = null where owner_id = $1 and character_id = $2`, [viewer, c.id]);
+    return true;
+  };
+  const stopped = async (message: string): Promise<SetupResult> => {
+    const back = await giveBack();
+    return { ok: true, ready: false, free, tokens, pictures, message: back ? `${message} Your included setup is still there to try again.` : message };
+  };
+
+  // The face first: the body reference is drawn from it.
+  const picked = plan.readiness.face || (plan.baseline !== null && (await setFaceReference(db, viewer, c.id, plan.baseline)).ok);
+  if (!picked) {
+    const r = await run(await recastSpec(db, viewer, access, { count: free ? Math.min(FREE_SETUP_FACES, access.config.recast_candidates) : undefined }));
+    if (!r.ok) {
+      await giveBack();
+      return r;
+    }
+    const [pick, ...rest] = r.pictures;
+    if (!pick || !(await setFaceReference(db, viewer, c.id, pick.id, rest.map((p) => p.id))).ok) return stopped(`No face came through for ${first}. ${r.message ?? ""}`.trim());
+  }
+  if (!plan.readiness.body) {
+    const r = await run(await bodySpec(db, viewer, access, { nude: false }, baseUrl));
+    if (!r.ok) {
+      await giveBack();
+      return r;
+    }
+    const pick = r.pictures[0];
+    if (!pick) return stopped(`${first}'s face is picked, but no body reference came through. ${r.message ?? ""} Try again, or Make one under Body reference.`.replace(/\s+/g, " "));
+    await upsertIdentity(db, viewer, c.id, "body_image_id", pick.id);
+  }
+  const others = pictures.length > 2 ? " The others drawn are on Identity, to switch to." : "";
+  return { ok: true, ready: true, free, tokens, pictures, message: `✓ ${first} is ready for pictures${free ? " (this first setup is included)" : ""}.${others}` };
 }
 
 /** The studio's own limits for pictures of the character alone: intensity and hard nos. */
@@ -1704,8 +1908,13 @@ export async function redoShoot(db: Db, viewer: string, shootId: string, baseUrl
 export type StudioState = {
   character: { id: string; name: string; noun: Noun; house: boolean; own: boolean };
   identity: Identity;
-  /** Whether After Dark can picture them yet: a face picked and a body reference (lib/adult/readiness.ts). */
+  /** Whether After Dark can picture them yet: a face picked and a body reference (lib/adult/readiness.ts), with the setup's offer. */
   ready: Readiness | null;
+  /**
+   * The faces (recasts, restyles) and body references drawn here lately, still kept and not 👎'd, to pick from on
+   * Identity (#1207: drawn body options vanished on a reload, found again only under Gallery, nearly paid for twice).
+   */
+  drawn: { faces: Media[]; bodies: Media[] };
   menu: ReturnType<typeof studioMenu>;
   restyle: ReturnType<typeof restyleMenu>;
   /** Their look now, on the restyle menu (restyleCurrent): the menu starts there. */
@@ -1755,6 +1964,9 @@ export type StudioState = {
   shoot_sizes: number[];
 };
 
+/** How many drawn faces, and body references, Identity keeps to pick from. */
+const DRAWN_SHOWN = 6;
+
 export async function studioState(db: Db, viewer: string, characterId: string): Promise<{ ok: true; state: StudioState } | StudioFail> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
@@ -1797,12 +2009,22 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
   const shoot_of: Record<string, string> = {};
   for (const s of shoots) for (const p of s.pictures) shoot_of[p] = s.id;
   const priceOf = (m: StudioModel) => (m.job === "edit" ? config.prices.shoot[m.tier] : config.prices.recast);
+  const ready = await readinessOf(db, viewer, c.id);
+  const plan = ready && !ready.ready && ready.own ? await setupPlan(db, viewer, access) : null;
+  const drawnOf = (kinds: readonly ShootKind[]) =>
+    shoots
+      .filter((x) => kinds.includes(x.kind))
+      .flatMap((x) => x.pictures)
+      .map((id) => solo.find((g) => g.id === id))
+      .filter((m): m is Media => Boolean(m) && !m!.archived && (m!.rating ?? 0) >= 0)
+      .slice(0, DRAWN_SHOWN);
   return {
     ok: true,
     state: {
       character: { id: c.id, name: c.name, noun, house: c.house, own: c.ownerId === viewer },
       identity,
-      ready: await readinessOf(db, viewer, c.id),
+      ready: ready && plan ? { ...ready, setup: offerOf(plan) } : ready,
+      drawn: { faces: drawnOf(["recast", "restyle"]), bodies: drawnOf(["body"]) },
       menu: studioMenu(shootLimits(identity, config), noun),
       restyle: restyleMenu(gender),
       restyle_current: restyleCurrent(c.extras?.looks, gender, c.ownerId === viewer),
