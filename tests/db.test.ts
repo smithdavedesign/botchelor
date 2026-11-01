@@ -380,6 +380,13 @@ describe("pgPoolDb", () => {
     expect(query).toHaveBeenNthCalledWith(2, "select 1; select 2;");
   });
 
+  it("gives the one long-lived server ten connections that time out, not three that queue forever (2026-11-01 audit, R1)", async () => {
+    const pool = await createPool("postgres://user@127.0.0.1:1/none");
+    expect(pool.options.max).toBe(10);
+    expect(pool.options.connectionTimeoutMillis).toBe(10_000);
+    await pool.end();
+  });
+
   it("survives the database dropping an idle connection (an unhandled pool error would crash the instance)", async () => {
     // No connection is opened until a query runs, so a placeholder URL is fine here.
     const pool = await createPool("postgres://user@127.0.0.1:1/none");

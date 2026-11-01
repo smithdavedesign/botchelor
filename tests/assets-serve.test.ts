@@ -26,7 +26,7 @@ describe("serving an approved asset", () => {
   it("a house portrait recorded by its path in public/cast is a redirect to that file (it used to 404 on every house card)", async () => {
     const res = await serve(await approved("/cast/house-nell-v3.webp"));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("http://localhost:3000/cast/house-nell-v3.webp");
+    expect(res.headers.get("location")).toBe("/cast/house-nell-v3.webp");
   });
 
   it("never redirects anywhere else", async () => {
