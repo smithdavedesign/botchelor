@@ -424,3 +424,15 @@
   margin: var(--space-3) 0 var(--space-1);
   font-weight: 600;
 }
+
+/* The last step: the promise is the bar's first row, full width, with Back and Create under it (B7). */
+.wizard .wizard-actions > .wizard-attest {
+  flex: 1 0 100%;
+  margin-top: 0;
+}
+@media (max-width: 640px) {
+  .wizard .wizard-actions > .wizard-attest {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--text-sm);
+  }
+}

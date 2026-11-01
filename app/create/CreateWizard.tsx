@@ -293,6 +293,7 @@ export default function CreateWizard({
   // A new character fills in its dating profile, so it joins the swipe deck unless its creator says not to.
   const [openToDates, setOpenToDates] = useState(init?.openToDates ?? !edit);
   const [saved, setSaved] = useState(false);
+  const [redraw, setRedraw] = useState<null | "ask" | "working" | { error: string }>(null);
   const [portrait, setPortrait] = useState<string | null>(init?.portrait ?? null);
   const [week, setWeek] = useState(init?.thisWeek ?? "");
   // Editing: the owner chose to drop the explicit temperament and let the character's words decide again.
@@ -608,8 +609,11 @@ export default function CreateWizard({
       );
       if (ok) {
         setSaved(true);
-        router.push(`/characters/${edit.id}`);
-        router.refresh();
+        // New looks: offer to redraw the portrait from them before leaving (UX audit 2026-10-31, B9). The portrait is
+        // drawn from the saved character, so this is the first moment it can use them.
+        const looks = normaliseExtras(extras).looks;
+        if (looks?.gender && JSON.stringify(looks) !== JSON.stringify(init?.extras.looks ?? null)) setRedraw("ask");
+        else leaveEdit();
       } else {
         setError(message);
       }
@@ -618,6 +622,26 @@ export default function CreateWizard({
     } finally {
       setBusy(null);
     }
+  }
+
+  function leaveEdit() {
+    if (!edit) return;
+    router.push(`/characters/${edit.id}`);
+    router.refresh();
+  }
+
+  async function redrawPortrait() {
+    if (!edit) return;
+    setRedraw("working");
+    const { ok, data, message } = await requestJson(`/api/characters/${edit.id}/looks-portrait`, {}, "POST").catch(() => ({
+      ok: false,
+      data: {} as Record<string, unknown>,
+      message: "Network error. Try again.",
+    }));
+    if (ok && typeof data.portrait_path === "string") {
+      setPortrait(data.portrait_path);
+      leaveEdit();
+    } else setRedraw({ error: message ?? "Couldn't draw a portrait." });
   }
 
   // The temperament the engine would use right now (lib/temperament.ts): set explicitly, else the soul's words,
@@ -740,6 +764,27 @@ export default function CreateWizard({
       {edit && (
         <ModalSheet open={pictureOpen} onClose={() => setPictureOpen(false)} title={`${shortName(sheet.name || init?.name || "Their")}'s picture`}>
           <PortraitPanel id={edit.id} name={sheet.name || init?.name || "them"} portrait={portrait} onPortrait={setPortrait} hasLooks={Boolean(init?.extras.looks?.gender)} signedIn={Boolean(init?.signedIn)} />
+        </ModalSheet>
+      )}
+      {edit && (
+        <ModalSheet open={redraw !== null} onClose={leaveEdit} title="Saved ✓">
+          <p>
+            You changed {shortName(sheet.name || init?.name || "their")}&apos;s look. Redraw their portrait from the new
+            look? It&apos;s free.
+          </p>
+          <div className="sheet-actions">
+            <button type="button" className="button-ghost" onClick={leaveEdit} disabled={redraw === "working"}>
+              Not now
+            </button>
+            <button type="button" className="primary" onClick={() => void redrawPortrait()} disabled={redraw === "working"}>
+              {redraw === "working" ? "Drawing…" : "Redraw portrait"}
+            </button>
+          </div>
+          {redraw && typeof redraw === "object" && (
+            <p className="sheet-error" role="alert">
+              {redraw.error}
+            </p>
+          )}
         </ModalSheet>
       )}
 
@@ -1091,18 +1136,10 @@ export default function CreateWizard({
                 learned memory and past dates are unchanged.
               </p>
             ) : (
-              <>
-                <label className="check wizard-attest">
-                  <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
-                  <span>
-                    <span aria-hidden>✍️ </span>This is my own original character: a fictional adult, not a real person.
-                  </span>
-                </label>
-                <p className="muted small">
-                  Your sheet (and any soul) is sent to an AI model to write episodes, and other creators&apos; blind dates may
-                  be matched with your character. Episodes appear in the public feed; you stay anonymous.
-                </p>
-              </>
+              <p className="muted small">
+                Your sheet (and any soul) is sent to an AI model to write episodes, and other creators&apos; blind dates may be
+                matched with your character. Episodes appear in the public feed; you stay anonymous.
+              </p>
             )}
           </fieldset>
         )}
@@ -1149,6 +1186,16 @@ export default function CreateWizard({
                 Cancel
               </Link>
             )}
+            {step === last && (
+              // The promise sits on the bar beside Create (UX audit 2026-10-31, B7): on a phone it's in reach with the
+              // button, not under the whole review.
+              <label className="check wizard-attest">
+                <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
+                <span>
+                  <span aria-hidden>✍️ </span>This is my own original character: a fictional adult, not a real person.
+                </span>
+              </label>
+            )}
             {step < last ? (
               <button type="submit">
                 Next<span className="wizard-next-label">: {labels[step + 1]}</span>
@@ -1168,7 +1215,7 @@ export default function CreateWizard({
                 <button type="button" className="link-button" onClick={() => document.getElementById("wizard-attest")?.focus()}>
                   &ldquo;This is my own original character&rdquo;
                 </button>{" "}
-                above.
+                first.
               </>
             ) : (
               <>
