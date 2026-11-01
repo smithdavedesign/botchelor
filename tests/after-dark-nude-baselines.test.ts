@@ -5,7 +5,7 @@ import { POST as facePost } from "@/app/api/admin/after-dark/face/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { attireOf } from "@/lib/adult/attire";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
-import { baselinePrompt, drawBaselineChoices, ensureNudeBaseline, listMedia, setMediaFetchForTests } from "@/lib/adult/media";
+import { baselinePrompt, drawBaselineChoices, ensureBaseline, ensureNudeBaseline, listMedia, setMediaFetchForTests } from "@/lib/adult/media";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { keepPictureOfBoth } from "@/lib/adult/pictures-menu";
 import { baselines, reelCast, setReelFetchForTests, setReelPausesForTests, startShots, type Reel, type ReelShot } from "@/lib/adult/reels";
@@ -347,5 +347,25 @@ describe("#1116: an undressed face is never the avatar", () => {
     expect(faces[RAFE]).toMatchObject({ image_id: "rafe-nude", face_nude: true });
     expect(faces[JUNIPER].image_id).toBe("juniper-dressed");
     expect(faces[JUNIPER]).not.toHaveProperty("face_nude");
+  });
+});
+
+describe("#1158: a house character's first baseline starts from their show portrait", () => {
+  it("is an edit of the portrait at the site's URL, so the theater and the gallery show one face; with no editor, words as before", async () => {
+    const { id, cookie } = await admin();
+    await setUp(cookie);
+    fakeHive();
+    const { pictures } = fakeVenice();
+    const rafe = (await loadCharacter(t.db, RAFE))!;
+    const edit = vi.fn(async () => ({ bytes: Buffer.from(PNG), mime: "image/png", provider: "venice", fell_back: false, model: "qwen-edit-uncensored" }));
+    const made = (await ensureBaseline(t.db, id, rafe, edit))!;
+    expect(edit).toHaveBeenCalledTimes(1);
+    expect(edit.mock.calls[0]).toEqual([expect.stringMatching(/^Make one photograph of the same person as in Picture 1: the same face, hair, skin tone and build\. /), expect.stringMatching(new RegExp(`/cast/${RAFE}-[^/]+\\.webp$`))]);
+    expect(pictures).toHaveLength(0);
+    expect((await t.db.query(`select kind, character_id from adult_images where id = $1`, [made.id])).rows[0]).toEqual({ kind: "baseline", character_id: RAFE });
+    // No editor: drawn from words, as before.
+    const juniper = (await loadCharacter(t.db, JUNIPER))!;
+    expect(await ensureBaseline(t.db, id, juniper, null)).not.toBeNull();
+    expect(pictures).toHaveLength(1);
   });
 });
