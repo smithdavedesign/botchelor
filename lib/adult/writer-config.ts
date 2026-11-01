@@ -41,6 +41,24 @@ export const DEFAULT_WRITER = "z-ai/glm-4.6";
  */
 const PLAIN: Record<string, string> = { "z-ai/glm-4.6": "Richer, slower", "deepseek/deepseek-chat-v3.1:nitro": "Quick" };
 export const plainName = (m: Pick<WriterModel, "id" | "label">): string => PLAIN[m.id] ?? m.label;
+
+/**
+ * How long a step usually takes on each writer, in seconds and in words (#1164, the 2026-10-31-1905 visitor: "Still
+ * writing … up to a minute" while GLM-4.6 took two). From the measured steps above; a writer added later has none.
+ */
+const TYPICAL: Record<string, { max: number; words: string }> = {
+  "z-ai/glm-4.6": { max: 150, words: "1 to 2½ minutes a step" },
+  "deepseek/deepseek-chat-v3.1:nitro": { max: 20, words: "about 10 seconds a step" },
+};
+
+/** The theater's note while a step is written: how long this writer usually takes, then, past that, that it's late. */
+export function writingNoteFor(writer: Pick<WriterModel, "id" | "label"> | null | undefined, waited: number): string {
+  const typical = writer ? TYPICAL[writer.id] : undefined;
+  const leaving = "Leaving doesn't stop it: the lines are here when you come back.";
+  if (typical && waited > typical.max) return `Taking longer than usual (${waited} s): it's still going. ${leaving}`;
+  if (typical && writer) return `Still writing, ${waited} s so far: the ${plainName(writer).toLowerCase()} writer usually takes ${typical.words}. ${leaving}`;
+  return `Still writing, ${waited} s so far. ${leaving}`;
+}
 /**
  * Who writes a step when the writer twice sends nothing back (2026-10-25: GLM-4.6 returned no text on 5 of 18 steps in
  * six hours, each one an error the owner had to retry): the fast one, with no thinking to run out of room on.

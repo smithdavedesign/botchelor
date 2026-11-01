@@ -37,6 +37,7 @@ import FacesPanel, { type Faces } from "./Faces";
 import type { SteerSummary } from "@/lib/adult/steering";
 import RateMedia from "./RateMedia";
 import type { WriterOptions } from "@/lib/adult/writer";
+import { writingNoteFor } from "@/lib/adult/writer-config";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import MediaTags from "../../MediaTags";
 import LocalTime from "../../LocalTime";
@@ -282,7 +283,9 @@ export default function SceneWriter({
   }, [initial]);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   // The steer's echo stays ahead of it (#1017).
-  const writingNote = busy && (waited >= 10 || midWrite) ? `${note && !note.error ? `${note.text} ` : ""}Still writing, ${waited} s so far: the richer writer can take up to a minute. Leaving doesn't stop it: the lines are here when you come back.` : null;
+  // #1164: how long this viewer's writer usually takes, not one fixed minute for every writer.
+  const writerNow = writer?.models.find((m) => m.id === writer.chosen) ?? null;
+  const writingNote = busy && (waited >= 10 || midWrite) ? `${note && !note.error ? `${note.text} ` : ""}${writingNoteFor(writerNow, waited)}` : null;
   // #1147 (the 2026-10-31-1744 visitor: a steer sent, the page closed mid-write, and no sign of it after): a steer
   // waiting on its lines is kept for this tab; reopened, the page says it's being written in, was used, or comes back.
   const [steerDraft, setSteerDraft] = useState<string | null>(null);
