@@ -19,13 +19,15 @@ export default function AdminAnalyticsPage() {
         <Link href="/admin">Admin</Link> · Analytics
       </p>
       <h1>How the show is doing</h1>
-      <p className="muted">
-        Real people and real agents, from the database, with our own traffic left out unless you ask for it. One row of filters scopes
-        every tab and stays in the address, so a link opens the same view. <strong>People</strong> and <strong>Agents</strong> split by
-        who did it (on the web or over MCP); <strong>House</strong> is everything with a house character in it.{" "}
-        <strong>Engagement</strong> is every page view and click from the site&apos;s own beacon (since 2026-10-31; Who doesn&apos;t
-        apply there). No money is shown here.
-      </p>
+      <p className="muted">Real people and real agents, from the database, against the period before.</p>
+      <details className="ux-fold admin-how">
+        <summary>How this works</summary>
+        <p className="muted small">
+          Our own traffic is left out unless you ask for it. One row of filters scopes every tab and stays in the address, so a link opens the
+          same view; what People, Agents and House mean is under Who. docs/analytics.md says what each chart means and where its numbers come
+          from. No money is shown here.
+        </p>
+      </details>
       <Suspense fallback={<p className="muted">Loading…</p>}>
         <InsightsDashboard />
       </Suspense>

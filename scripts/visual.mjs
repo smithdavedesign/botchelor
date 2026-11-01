@@ -421,6 +421,9 @@ async function main() {
       // Signed in but not subscribed: an admin is sent on to the hub (and /admin/after-dark is only a redirect there).
       { name: "after-dark-subscribe", path: "/after-dark/subscribe", as: "member" },
       { name: "admin-after-dark-settings", path: "/admin/after-dark/settings", as: "adult-admin" },
+      // Its other tabs (2026-10-31 UX audit, E3): every price and cap in one tab, and the Studio's.
+      { name: "admin-after-dark-settings-prices", path: "/admin/after-dark/settings?tab=prices", as: "adult-admin" },
+      { name: "admin-after-dark-settings-studio", path: "/admin/after-dark/settings?tab=studio", as: "adult-admin" },
     ].filter((r) => !only.length || only.some((o) => r.name.includes(o)));
 
     for (const [device, opts] of Object.entries(DEVICES)) {

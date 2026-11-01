@@ -6313,8 +6313,7 @@ main:has(> .admin-wide) {
   line-height: 1.15;
 }
 .kpi-delta,
-.kpi-sub,
-.kpi-note {
+.kpi-sub {
   font-size: var(--text-xs);
   line-height: 1.35;
 }
@@ -6325,8 +6324,7 @@ main:has(> .admin-wide) {
   color: var(--bad-text);
 }
 .kpi-delta.is-quiet,
-.kpi-sub,
-.kpi-note {
+.kpi-sub {
   color: var(--muted);
 }
 .kpi .sparkline {
@@ -9409,6 +9407,7 @@ html.ad-studio-locked {
 }
 .ad-settings-grid label {
   display: grid;
+  align-content: start; /* a field beside a longer one keeps its own height */
   gap: 0.2rem;
   font-size: var(--text-sm);
 }

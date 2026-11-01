@@ -246,7 +246,7 @@ function Pair({ content: c }: { content: PairContent }) {
 
       <h3>The scene ({c.scene?.lines.length ?? 0} lines)</h3>
       {c.scene ? (
-        <details>
+        <details className="ux-fold">
           <summary>
             Read it · last written {day(c.scene.updated_at)} · {writtenByLabel(c.scene.written_by)}
           </summary>
@@ -259,7 +259,7 @@ function Pair({ content: c }: { content: PairContent }) {
       <h3>Saved nights ({c.nights.length})</h3>
       {c.nights.length ? (
         c.nights.map((n) => (
-          <details key={n.id}>
+          <details key={n.id} className="ux-fold">
             <summary>
               {day(n.created_at)} · {n.place ?? "no place"} · stage {n.stage} · {n.lines.length} lines · {writtenByLabel(n.written_by)}
             </summary>
