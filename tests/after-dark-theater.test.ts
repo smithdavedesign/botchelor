@@ -106,3 +106,36 @@ describe("#1029: discreet mode says why the pictures are blurred", () => {
     expect(html).toContain('href="/after-dark#privacy"');
   });
 });
+
+describe("the first evening (the 2026-11-01 After Dark review: tabs hidden in ⋯, nothing said what to press)", () => {
+  const tabs = [
+    { id: "gallery", label: "🖼 Gallery (2)" },
+    { id: "setup", label: "⚙️ Set up" },
+  ];
+  const writer = { models: [{ id: "deepseek/deepseek-chat-v3.1:nitro", label: "DeepSeek V3.1", note: "" }], chosen: "deepseek/deepseek-chat-v3.1:nitro", default: "deepseek/deepseek-chat-v3.1:nitro", picked: false };
+
+  it("the page's tabs are a strip along the theater's bottom, the scene first, and no longer in ⋯", () => {
+    const html = render({ onWrite: async () => {}, pageTabs: tabs, onPageTab: () => {}, steps: { canRewind: false, canReset: false, onRewind() {}, onRedo() {}, onReset() {} } });
+    expect(html).toMatch(/<nav class="ad-theater-tabs" aria-label="Their night"><span class="ad-theater-tab on" aria-current="page">🎬 Scene<\/span><button[^>]*>🖼 Gallery \(2\)<\/button><button[^>]*>⚙️ Set up<\/button><\/nav>/);
+    expect(html).not.toContain("ad-tools-page-tab");
+  });
+
+  it("without the page (a saved night played back) there's no strip", () => {
+    expect(render({})).not.toContain("ad-theater-tabs");
+  });
+
+  it("before the first line: how it goes and who writes it, and no video or picture buttons yet", () => {
+    const html = render({ scene: { ...scene, lines: [] }, onWrite: async () => {}, writer, onMakeVideo: () => {}, onPlanVideo: () => {} });
+    expect(html).toContain('class="ad-start-card"');
+    expect(html).toMatch(/ad-start-how[^>]*>▶ Start, then <strong>Next<\/strong> for each step, or tick Autoplay\. Type in the box below to steer them\. ✍️ DeepSeek V3\.1 writes it: switch at the top\./);
+    expect(html).not.toContain("Video of the night");
+    expect(html).not.toContain("ad-capture");
+  });
+
+  it("once it's going, the video and picture buttons are back", () => {
+    const html = render({ onWrite: async () => {}, writer, onMakeVideo: () => {}, onPlanVideo: () => {} });
+    expect(html).toContain("Video of the night");
+    expect(html).toContain("ad-capture");
+    expect(html).not.toContain("ad-start-how");
+  });
+});

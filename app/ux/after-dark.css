@@ -2019,3 +2019,66 @@ a.ad-scenes-make-link {
   padding: var(--space-2) var(--space-3) var(--space-3);
   background: rgba(16, 8, 22, 0.97);
 }
+
+/* ---------------- the theater's tabs (the 2026-11-01 After Dark review: they were in ⋯, and one left the theater) ---------------- */
+.ad-theater-tabs {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: var(--space-2) var(--space-3);
+  background: rgba(10, 5, 18, 0.82);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ad-theater-tabs::-webkit-scrollbar {
+  display: none;
+}
+.ad-theater-tab {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.35rem 0.8rem;
+  min-height: 2.2rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+.ad-theater-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.ad-theater-tab.on {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+/* A tab picked in the theater opens over it (SceneWriter.tsx), above the theater's 200 and under its own pickers (260+). */
+.ad-page-tabs.ad-tab-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-3) max(var(--space-4), calc((100vw - 64rem) / 2)) var(--space-6);
+  background: #120c1c;
+}
+.ad-tab-sheet-back {
+  position: sticky;
+  top: calc(-1 * var(--space-3));
+  z-index: 2;
+  margin: calc(-1 * var(--space-3)) 0 var(--space-3);
+  padding: var(--space-3) 0 var(--space-2);
+  background: #120c1c;
+}
+.ad-tab-sheet-back button {
+  margin: 0;
+}
+.ad-start-how {
+  margin: var(--space-2) 0;
+}

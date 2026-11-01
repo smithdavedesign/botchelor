@@ -218,6 +218,16 @@ export default function SceneWriter({
   }
   // The theater is where the night is watched: open from the start (`play` stays for old ?play=1 links).
   const [theater, setTheater] = useState(true);
+  // A tab picked in the theater opens over it as a sheet (the After Dark review, 2026-11-01: Exit and scroll lost the
+  // scene), and Back goes straight back to it. Out of the theater the tabs sit on the page as before.
+  const [sheet, setSheet] = useState(false);
+  const sheetOpen = theater && sheet;
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSheet(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sheetOpen]);
   // A steer is a nudge by default (worked toward at the scene's own pace); direct does it now.
   const [steerMode, setSteerMode] = useState<"nudge" | "direct">("nudge");
   // Or the words go to one of them only, as a whisper (lib/adult/director.ts): their secret, not the other's.
@@ -641,13 +651,14 @@ export default function SceneWriter({
             }}
             chapters={chapterList}
             onReplayChapter={(id) => setWatching(nightList.find((n) => n.id === id) ?? null)}
-            onExit={() => setTheater(false)}
-            pageTabs={PAGE_TABS.filter((t) => !(t === "make" && textOnly)).map((t) => ({ id: t, label: PAGE_TAB_LABEL[t] }))}
-            onPageTab={(t) => {
-              // #1061: out of the theater, on that tab, scrolled to it.
-              setPageTab(t as PageTab);
+            onExit={() => {
+              setSheet(false);
               setTheater(false);
-              requestAnimationFrame(() => document.querySelector(".ad-page-tabs")?.scrollIntoView({ block: "start" }));
+            }}
+            pageTabs={PAGE_TABS.filter((t) => !(t === "make" && textOnly)).map((t) => ({ id: t, label: t === "gallery" ? `${PAGE_TAB_LABEL[t]} (${gallery.length + reelList.length})` : PAGE_TAB_LABEL[t] }))}
+            onPageTab={(t) => {
+              setPageTab(t as PageTab);
+              setSheet(true);
             }}
             crisis={crisisNotice}
           />
@@ -695,7 +706,14 @@ export default function SceneWriter({
             {mediaPaused}
           </p>
         )}
-        <section className="ad-page-tabs">
+        <section className={sheetOpen ? "ad-page-tabs ad-tab-sheet" : "ad-page-tabs"} {...(sheetOpen ? { role: "dialog", "aria-modal": true, "aria-label": "Their night" } : {})}>
+          {sheetOpen && (
+            <p className="ad-tab-sheet-back">
+              <button type="button" className="primary" onClick={() => setSheet(false)} autoFocus>
+                🎬 Back to the scene
+              </button>
+            </p>
+          )}
           <div className="ad-studio-tabs ad-page-tabbar" role="tablist" aria-label="Their night">
             {PAGE_TABS.filter((t) => !(t === "make" && textOnly)).map((t) => (
               <button key={t} type="button" role="tab" aria-selected={pageTab === t} className={pageTab === t ? "on" : ""} onClick={() => setPageTab(t)}>
