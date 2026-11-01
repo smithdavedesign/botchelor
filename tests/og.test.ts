@@ -44,6 +44,16 @@ describe("opengraph images render to PNG (next/og / Satori)", () => {
     await renderPng(await EpisodeOg({ params: Promise.resolve({ id: episode.id }) }));
   });
 
+  it("both cards are cached a day at the CDN, with or without a portrait (2026-11-01 audit, R7: 8–11 s, every unfurl)", async () => {
+    const { character, episode } = await setupEpisode();
+    for (const res of [await CharacterOg({ params: Promise.resolve({ id: character.id }) }), await EpisodeOg({ params: Promise.resolve({ id: episode.id }) })]) {
+      expect(res.headers.get("cache-control")).toContain("s-maxage=86400");
+    }
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    await reviewAsset(t.db, await recordAsset(t.db, { content_rating: "pg", character_id: character.id, kind: "portrait", source_type: "generated", source_model: "openai:test", url: png }), "approved");
+    expect((await CharacterOg({ params: Promise.resolve({ id: character.id }) })).headers.get("cache-control")).toContain("s-maxage=86400");
+  });
+
   it("the site card renders", async () => {
     await renderPng(await StaticOg());
   });

@@ -381,6 +381,12 @@ export const aiBody = (bytes: Buffer | Uint8Array, mime: string): Uint8Array<Arr
  * A share card (next/og ImageResponse) with the mark written into its PNG: for a card that shows a generated portrait.
  * Its own headers are kept (cache-control above all), plus AI_HEADERS.
  */
+/**
+ * A share card's cache: an hour in the browser, a day at the CDN, and a week served stale while it redraws. A card with
+ * a portrait took 8–11 s to draw from the full-size picture, and every unfurl drew it again (2026-11-01 audit, R7).
+ */
+export const SHARE_CARD_CACHE = { "cache-control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800" };
+
 export async function markedImageResponse(res: Response): Promise<Response> {
   const bytes = markAiImage(Buffer.from(await res.arrayBuffer()));
   const headers = new Headers(res.headers);
