@@ -9407,6 +9407,7 @@ html.ad-studio-locked {
 }
 .ad-settings-grid label {
   display: grid;
+  align-content: start; /* a field beside a longer one keeps its own height */
   gap: 0.2rem;
   font-size: var(--text-sm);
 }
