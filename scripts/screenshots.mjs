@@ -700,7 +700,7 @@ async function capture(base, leagueId, viewer) {
       await castPage.locator(".gallery").first().waitFor();
       await shot(castPage, "cast");
       // The audience leaderboard (most likable / most surprising), lower on the cast page.
-      await castPage.getByRole("heading", { name: "Audience leaderboard" }).scrollIntoViewIfNeeded();
+      await castPage.getByRole("heading", { name: "Top rated" }).scrollIntoViewIfNeeded();
       await shot(castPage, "cast-leaderboard");
 
       // 5. A shareable contestant card.

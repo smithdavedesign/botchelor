@@ -492,8 +492,15 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
       {/* The crowd's read of them and its reviews, one card (2026-10-31 UX audit: two cards for one thing). */}
       <section className="card character-audience" aria-labelledby="audience-title">
-        <h2 id="audience-title">Audience</h2>
-        <p className="muted small">How the crowd reads them: just for fun, it never changes a date, the odds or anyone&apos;s points.</p>
+        {/* The "never changes points" line behind an ⓘ (2026-10-31 UX audit, A10: one of seven copies of it on the way
+            here; the shop's and the footer's stay in full). */}
+        <div className="audience-head">
+          <h2 id="audience-title">Audience</h2>
+          <details className="info-tip">
+            <summary aria-label="About audience ratings">ⓘ</summary>
+            <span className="info-tip-body muted small">How the crowd reads them: just for fun, it never changes a date, the odds or anyone&apos;s points.</span>
+          </details>
+        </div>
         <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} />
         <h3>Reviews</h3>
         <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} open={!c.house || (await reviewableNow(c.id))} />
