@@ -2229,7 +2229,8 @@ const TURN_REJECTIONS: Record<string, string> = {
 
 /** What each content rule is, for a filtered line (#474: say which one it broke). */
 const FILTER_WHY: Record<RejectReason, string> = {
-  minor: "it suggests someone under 18 (every age on the show is adult, even in passing)",
+  // #1210: a thing's age passes straight before the thing, so say how to write one.
+  minor: "it suggests someone under 18 (every age on the show is adult, even in passing; a thing's age passes as \"a sixteen-year-old fountain\", or say \"decades old\")",
   sexual: "it has sexual content",
   innuendo: "it's innuendo (no sexual content, nudity or innuendo: at most a hug or a kiss on the cheek)",
   real_person: "it names a real person",
