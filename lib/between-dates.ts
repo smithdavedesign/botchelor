@@ -76,7 +76,7 @@ export async function setNudge(db: Db, userId: string, characterId: string, othe
   const owns = (await db.query(`select 1 from characters where id = $1 and owner_id = $2`, [characterId, userId])).rows.length > 0;
   if (!owns) return { ok: false, status: 403, error: "not_your_character", message: "You can only nudge your own character." };
   if (!(await loadRelationship(db, characterId, otherId))) {
-    return { ok: false, status: 404, error: "not_a_couple", message: "They haven't been on a date together yet." };
+    return { ok: false, status: 404, error: "not_a_couple", message: "They haven't been on a date together yet: a nudge is for someone your character has been on a date with. Book a date with them first, then leave it." };
   }
   await db.query(
     `insert into nudges (character_id, other_id, user_id, note) values ($1, $2, $3, $4)

@@ -154,7 +154,7 @@ const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired
 import { POST as postPrediction } from "@/app/api/predictions/route";
 import { POST as postDealbreakerGuess } from "@/app/api/dealbreaker-guesses/route";
 import { loadRelationship, pairKey, relationshipsOf, STAGE_LABELS, stageOf, viewRelationship, type End, type Relationship } from "../relationships";
-import { clearNudge, setNudge } from "../between-dates";
+import { clearNudge, NUDGE_MAX, setNudge } from "../between-dates";
 import { chainAfter, chainPage, type ChainItem, isText, loadChain, TEXT_MAX, type ChainText } from "../text-chain";
 import { couplePageFor, houseReplyCap, sendText } from "../texting";
 import { answerMatch, dateNotAgreed, DECK_PAGE, DECK_THEMES, deckFor, logImpressions, matchStatus, myMatches, scheduleMatchChat, swipe, type DeckTheme } from "../swipes";
@@ -1072,6 +1072,27 @@ async function lastTextRead(db: Db, otherOwner: string | null, x: string, y: str
     [otherOwner, [`/messages/${lo}/${hi}`, `/couples/${lo}/${hi}#texts`]],
   )).rows[0];
   return r ? r.read : null;
+}
+
+/**
+ * The other side's texts this owner hadn't read when theirs went out (#1169, the 2026-10-31-1958 run: a house character
+ * texted 4 seconds after the match and the agent texted over it unread): since this side's last text and the owner's
+ * last read of the thread, oldest first.
+ */
+async function unreadFromThem(db: Db, userId: string, from: string, to: string): Promise<string[]> {
+  const [lo, hi] = pairKey(from, to);
+  const rows = await db
+    .query<{ text: string }>(
+      `select t.text from couple_texts t
+        where t.character_lo = $1 and t.character_hi = $2 and t.who <> $3
+          and t.created_at > coalesce((select read_at from thread_reads where user_id = $4 and character_lo = $1 and character_hi = $2), '-infinity')
+          and t.created_at > coalesce((select max(created_at) from couple_texts where character_lo = $1 and character_hi = $2 and who = $3), '-infinity')
+        order by t.created_at, t.seq`,
+      [lo, hi, from === lo ? "lo" : "hi", userId],
+    )
+    .then((q) => q.rows)
+    .catch(() => []);
+  return rows.map((x) => x.text);
 }
 
 /**
@@ -6273,6 +6294,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           if (!checkOnly && accepted > 0 && current.stage !== "turn") break;
           const turnNo = current.stage === "turn" ? current.turn_number : null;
           const speaker = current.stage === "turn" ? current.speaker.name : null;
+          const seeAgain = current.stage === "turn" ? current.see_again : undefined;
           const one = await submitOwnDateStep(db, who.id, episodeId, unpinned(output), { checkOnly });
           if (!one.ok) return ownDateError(one, ` (${accepted} of ${sent} handed in first.)`);
           if (one.rejected) {
@@ -6289,6 +6311,18 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           // A later line's checks depend on the turns before it (who speaks, what was said), so check_only stops at the first.
           if (one.checked) break;
           if (one.wish) kept.push(wishKept(one.wish));
+          // #1170 (the 2026-10-31-1958 run: a bare string went in as a side's last line, and the batch said nothing): a last
+          // line without see_again is said, with what stands in, as the single output's step text says.
+          else if (seeAgain && speaker && turnNo !== null) {
+            const standIn = seeAgain.indexOf("Left out");
+            kept.push({
+              turn_number: turnNo,
+              character: speaker,
+              see_again: null,
+              last_line: true,
+              counts: `No see_again with ${shortName(speaker)}'s last line. ${standIn >= 0 ? seeAgain.slice(standIn) : "Their interest_signal stands in."} A see_again on an earlier line of ${shortName(speaker)}'s still counts instead.`,
+            });
+          }
           if (turnNo !== null && speaker) filled.push({ turn_number: turnNo, who: speaker });
           await markTurnRead(db, who.id, episodeId);
           current = one.step;
@@ -6683,7 +6717,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             },
             identity: who,
           }
-        : { error: r.message };
+        : // #1172: what unlocks a nudge, in the tools an agent has.
+          { error: r.error === "not_a_couple" ? `${r.message} (go_on_date or start_own_date with them; the nudge note is up to ${NUDGE_MAX} characters.)` : r.message };
     }
     case "send_text": {
       const who = resolveIdentity(args, session, false);
@@ -6709,6 +6744,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           identity: who,
         };
       }
+      const talkedOver = await unreadFromThem(db, who.id, from, to);
       const r = await sendText(db, { userId: who.id, from, to, text: String(args.text ?? "") });
       if (!r.ok) return { error: r.message, ...crisisDetails };
       const [lo, hi] = pairKey(from, to);
@@ -6741,6 +6777,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           reply: r.reply ? agentText(r.reply, self) : null,
           // #448: whether they've read your newest text (false right after sending; a house reply means read).
           last_text_read: r.reply ? true : await lastTextRead(db, theirOwner, lo, hi),
+          ...(talkedOver.length
+            ? {
+                their_unread_before_yours: talkedOver.length,
+                their_unread_note: `They had texted ${talkedOver.length === 1 ? "once" : `${talkedOver.length} times`} since your last, unread when this went out; the first: “${talkedOver[0]}” read_texts shows the thread.`,
+              }
+            : {}),
           final_note: "Sent: it's in their thread for good and their owner is told.",
           next_calls: [nextCall("read_texts", { character_id: from, with: to, wait_seconds: WAIT_MAX_SECONDS }, "Waits for their reply.")],
           ...when,
@@ -6997,8 +7039,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 ...((await db.query(`select 1 from characters where id = $1 and is_house`, [String(args.target_id ?? "")])).rows.length
                   ? {
                       why_now: "This season's house characters always like back, so a like on one is a match straight away.",
-                      next: "No answer needed: the house cast can be booked any time. go_on_date with them (preview: true first shows the cost; without it, it books).",
-                      next_calls: [nextCall("go_on_date", { character_id: String(args.character_id ?? ""), partner_id: target, preview: true }, "The house cast can be booked straight away: preview first; without preview it books.")],
+                      // #1169 (the 2026-10-31-1958 run: the house character texted 4 seconds after the match, and the agent
+                      // texted over it unread): they text first, so the read comes before any send.
+                      next:
+                        "No answer needed: the house cast can be booked any time. go_on_date with them (preview: true first shows the cost; without it, it books). " +
+                        "They text first, within a minute: read_texts (wait_seconds) shows it, so read it before you send one.",
+                      next_calls: [
+                        nextCall("read_texts", { character_id: String(args.character_id ?? ""), with: target, wait_seconds: 60 }, "Their opening text, which lands within a minute of the match."),
+                        nextCall("go_on_date", { character_id: String(args.character_id ?? ""), partner_id: target, preview: true }, "The house cast can be booked straight away: preview first; without preview it books."),
+                      ],
                     }
                   : {
                       why_now: "They had already liked your character, so your like made it mutual.",
@@ -7010,7 +7059,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                         "and their side answers too (my_status lists it under dates_to_book once both have). The two text a little after a match (read_texts with wait_seconds shows it).",
                       next_calls: [
                         nextCall("answer_match", { character_id: String(args.character_id ?? ""), with: target, yes: true }, "A date needs both yeses: this is yours (yes: false says no)."),
-                        nextCall("send_text", { character_id: String(args.character_id ?? ""), to: target, text: "<in your character's voice>" }, "Say hello first, if you like."),
+                        nextCall("read_texts", { character_id: String(args.character_id ?? ""), with: target, wait_seconds: WAIT_MAX_SECONDS }, "Whether they've texted yet: read before you send."),
+                        nextCall("send_text", { character_id: String(args.character_id ?? ""), to: target, text: "<in your character's voice>" }, "Say hello, once you've read the thread."),
                       ],
                     }),
               }

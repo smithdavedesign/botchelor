@@ -148,14 +148,14 @@ export const ExtrasInput = z
     archetype: z.enum(ARCHETYPE_IDS).optional(),
     here_for: z.enum(GOAL_IDS).optional(),
     drawn_to: z.array(z.enum(DRAWN_TO_IDS)).max(DRAWN_TO_MAX, `At most ${DRAWN_TO_MAX} kinds.`).optional(),
-    hobbies: z.array(z.string().trim().min(1).max(30)).max(MAX_HOBBIES, `At most ${MAX_HOBBIES} hobbies.`).optional(),
+    hobbies: z.array(z.string().trim().min(1, "A hobby can't be empty.").max(30, "At most 30 characters a hobby.")).max(MAX_HOBBIES, `At most ${MAX_HOBBIES} hobbies.`).optional(),
     prompts: z
-      .array(z.object({ id: z.enum(PROMPT_IDS), answer: z.string().trim().min(1).max(PROMPT_ANSWER_MAX) }))
+      .array(z.object({ id: z.enum(PROMPT_IDS), answer: z.string().trim().min(1, "An answer can't be empty.").max(PROMPT_ANSWER_MAX, `At most ${PROMPT_ANSWER_MAX} characters an answer.`) }))
       .max(MAX_PROMPTS, `At most ${MAX_PROMPTS} prompts.`)
       .optional(),
     lines: keyed(SAMPLE_LINE_IDS, SAMPLE_LINE_MAX).optional(),
     tells: keyed(TELL_IDS, TELL_MAX).optional(),
-    never_says: z.array(z.string().trim().min(1).max(NEVER_SAY_MAX)).max(MAX_NEVER_SAYS, `At most ${MAX_NEVER_SAYS}.`).optional(),
+    never_says: z.array(z.string().trim().min(1, "A never-say can't be empty.").max(NEVER_SAY_MAX, `At most ${NEVER_SAY_MAX} characters each.`)).max(MAX_NEVER_SAYS, `At most ${MAX_NEVER_SAYS}.`).optional(),
     facts: z
       .array(
         z

@@ -36,6 +36,11 @@ type Props = {
    * change starts (#1030), with a hint under it while nothing has been said there yet. Only those playback has reached.
    */
   dividers?: readonly { at: number; text: string; hint?: string | null }[];
+  /**
+   * Name the speaker whenever it changes, not only the first time each side talks in an act (#1171: After Dark's Story
+   * pane is one long act, so after its first two lines nobody was named).
+   */
+  nameEvery?: boolean;
 };
 
 const NEAR_BOTTOM_PX = 80;
@@ -70,7 +75,7 @@ export function LineVoteButtons({ index, vote, name, onVote }: { index: number; 
  * replay, the episode replay and the episode page's record of the date. With `feedback`, each line gets a quiet 👍/👎
  * (David, 2026-10-21: real-user signals) beside its caption.
  */
-export default function ChatThread({ characters, turns, typing = null, challenge, tone = "light", follow = false, meta = true, empty, feedback = null, dividers = [] }: Props) {
+export default function ChatThread({ characters, turns, typing = null, challenge, tone = "light", follow = false, meta = true, empty, feedback = null, dividers = [], nameEvery = false }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const lineVotes = useLineVotes(feedback);
@@ -110,7 +115,7 @@ export default function ChatThread({ characters, turns, typing = null, challenge
         const prev = turns[i - 1];
         const newAct = !prev || prev.act !== t.act;
         // Name the speaker the first time each side talks in an act; after that the side + avatar say who it is.
-        const named = newAct || !turns.slice(0, i).some((x) => x.act === t.act && x.side === t.side);
+        const named = newAct || (nameEvery ? prev.side !== t.side : !turns.slice(0, i).some((x) => x.act === t.act && x.side === t.side));
         const c = who(t.side);
         // #1040: a line that's only a stage direction shows as one, in italics under the speaker, not as "…".
         const direction = meta && t.dialogue === "…" && Boolean(t.action);
