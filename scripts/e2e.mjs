@@ -144,6 +144,10 @@ async function main() {
     await step("builds a custom character in the /create wizard: identity, voice, look, details, a private soul", async () => {
       await page.goto(`${base}/create`);
       await page.getByRole("heading", { level: 1, name: "Build your character" }).waitFor();
+      // Next isn't greyed out: pressed too soon, it says what's missing and takes you to the first of it.
+      await page.getByRole("button", { name: "Next: Voice" }).click();
+      await page.locator(".wizard-still").getByText(/To go on, add a name/).waitFor();
+      assert(await page.locator('input[name="name"]').evaluate((el) => el === document.activeElement), "Next should take you to the name");
       await page.locator('input[name="name"]').fill(CHAR.name);
       await page.locator('input[name="age"]').fill(CHAR.age);
       await page.locator('textarea[name="bio"]').fill(CHAR.bio);
@@ -161,10 +165,12 @@ async function main() {
       await page.getByText("Their dating profile").waitFor();
       // The swipe deck shows a dating profile: two answered prompts and two interests are needed to create a character.
       await page.getByRole("button", { name: /Surprise me/ }).click();
+      // The optional groups stay folded (Surprise me fills them without opening each one).
+      await page.locator("summary", { hasText: "The basics" }).click();
       await page.locator('input[name="extra_occupation"]').fill("Lighthouse electrician");
       // More about them: one public fact from an idea chip, one private fact typed in.
       await page.getByRole("button", { name: "Next: More about them" }).click();
-      await page.getByText(/More about .* \(optional\)/).waitFor();
+      await page.locator("legend", { hasText: /More about .* \(optional\)/ }).waitFor(); // the rail's caption says it too
       await page.getByRole("button", { name: "+ A fear" }).click();
       await page.locator('input[name="fact_value_0"]').fill("Heights, despite the job");
       await page.getByRole("button", { name: "+ Add a fact" }).click();
@@ -535,7 +541,7 @@ async function main() {
 
     await step("an image trains the character's look and traits, entirely in the browser", async () => {
       await page.goto(`${base}/create`);
-      // Next stays disabled until the first step is complete: a sample fills it, then the image sets the look.
+      // Next only goes on once the first step is complete: a sample fills it, then the image sets the look.
       await page.getByRole("button", { name: "Use a sample character" }).click();
       await page.getByRole("button", { name: "Next: Voice" }).click();
       await page.getByRole("button", { name: "Next: Look" }).click();
