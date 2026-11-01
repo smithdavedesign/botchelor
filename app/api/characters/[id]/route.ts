@@ -18,7 +18,7 @@ import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { ExtrasInput, extrasFields, normaliseExtras, type ExtrasInputType } from "@/lib/extras";
 import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { stampThisWeek, THIS_WEEK_MAX } from "@/lib/life";
-import { assertSafeSoul, clearSignals, isEmptySoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SoulInput } from "@/lib/souls";
+import { assertSafeSoul, clearSignals, isEmptySoul, loadSoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SOUL_FIELDS, SoulInput, unknownSoulKeys } from "@/lib/souls";
 import { WHILE_AWAY_MODES } from "@/lib/activity";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -129,7 +129,11 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   const db = await getDb();
   if (!(await ownsCharacter(db, id, sess.userId))) return json({ error: "character_not_found" }, 404, sess);
 
-  const input = parseBody(CharacterPatch, await readJson(req), "invalid_character") as Record<string, unknown>;
+  const raw = await readJson(req);
+  const input = parseBody(CharacterPatch, raw, "invalid_character") as Record<string, unknown>;
+  // #1188: as on create, a soul of unknown keys is refused before anything is written, and the rest are named.
+  const soulKeys = unknownSoulKeys((raw as { soul?: unknown } | null)?.soul);
+  if (soulKeys.refusal) return json({ error: "invalid_soul", field: "soul", message: soulKeys.refusal }, 422, sess);
   if (input.extras) input.extras = await gateAfterDarkLooks(db, sess, normaliseExtras(input.extras as ExtrasInputType));
   // In any language (lib/language-check.ts): an edit in Spanish is read in English too.
   const verdict = await checkFieldsAnyLanguage({
@@ -207,6 +211,12 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   // The soul is replaced wholesale when present: a filled soul upserts, an empty one clears its text. Its
   // image-trained signals are kept either way (saveSoul coalesces them), so clearing the words never quietly
   // changes how the character behaves; a row with neither text nor signals is removed.
+  // #1188: soul_changed says whether the stored soul's words (or local_only) changed, not only that a soul was sent.
+  const soulWords = async () => {
+    const s = await loadSoul(db, id);
+    return s ? JSON.stringify([...SOUL_FIELDS.map((f) => s[f] ?? ""), s.local_only]) : null;
+  };
+  const soulBefore = input.soul !== undefined ? await soulWords() : null;
   if (input.soul !== undefined) {
     const soul = normaliseSoul(input.soul as z.infer<typeof SoulInput>);
     if (isEmptySoul(soul)) {
@@ -227,7 +237,7 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   // A dating profile finished on an edit makes a person's character swipe-ready: the welcome experiment (lib/welcome.ts).
   if ("extras" in input && !isMcpCall(req)) await scheduleWelcome(db, id);
 
-  return json({ id, updated: columns, soul_changed: input.soul !== undefined, signals_changed: signalsChanged }, 200, sess);
+  return json({ id, updated: columns, soul_changed: input.soul !== undefined && (await soulWords()) !== soulBefore, signals_changed: signalsChanged, ...(soulKeys.unknown.length ? { ignored_soul_keys: soulKeys.unknown } : {}) }, 200, sess);
 });
 
 /** Delete your own character (PRD privacy). Owner-only; kept as a tombstone if it already aired in an episode. */

@@ -35,6 +35,24 @@ export const SoulInput = z.object({
 });
 export type SoulInputType = z.infer<typeof SoulInput>;
 
+/**
+ * #1188 (an agent sent soul { secret, wound, private_belief }, heard soul_changed: true, and its dates had no soul): the
+ * keys of a soul as sent that SoulInput would quietly drop. `refusal` is set when none of the soul's keys is a field, so
+ * nothing in it would be kept; otherwise the unknown keys are reported beside what was saved (ignored_soul_keys).
+ */
+export function unknownSoulKeys(raw: unknown): { unknown: string[]; refusal: string | null } {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { unknown: [], refusal: null };
+  const known = new Set<string>([...SOUL_FIELDS, "local_only"]);
+  const keys = Object.keys(raw);
+  const unknown = keys.filter((k) => !known.has(k));
+  if (!unknown.length) return { unknown, refusal: null };
+  const fields = `${SOUL_FIELDS.join(", ")} (text, up to ${SOUL_FIELD_MAX} characters each), plus local_only`;
+  const refusal = keys.some((k) => (SOUL_FIELDS as readonly string[]).includes(k))
+    ? null
+    : `soul doesn't take ${unknown.map((k) => `"${k}"`).join(", ")}, so nothing in it would be saved. Its fields: ${fields}.`;
+  return { unknown, refusal };
+}
+
 /** A soul as stored: the content, whether it is kept off the model, and any image-trained signals. */
 export type StoredSoul = SoulProfile & { local_only: boolean; signals: ImageSignals | null };
 
