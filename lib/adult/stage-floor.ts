@@ -25,7 +25,7 @@ const TOUCHES = 1;
 const SIGNS: [number, RegExp][] = [
   [
     SEX,
-    /\b(eat(s|ing)?\s+(her|him|me|you)\s+out|face\b.{0,25}\bsits?\s+on\b|go(es|ing)?\s+down\s+on|sits?\s+on\s+(her|his|my|your)\s+face|rid(e|es|ing)\s+(her|his|my|your)\s+face|face[- ]?sit|inside\s+(her|him|me|you)\b|thrust(s|ing)?\s+(into|inside|deeper|harder|against)\s+(her|him|me|you)\b|(his|her|my|your)\s+thrusts\b|penetrat(es|ed|ing)?\s+(her|him|me|you)\b|fuck(s|ed|ing)?\b|cum(s|ming)?\b|orgasm|(she|he|i|you|they|we)\s+climax(es|ed|ing)?\b|squirt(s|ed|ing)?\b(?!\s+(gun|bottle))|mak(e|es|ing)\s+love\b|pussy|cock\b|clit|grind(s|ing)?\s+(against|on|into)\s+(her|him|me|you)|dick\b|blow ?job|(ride|rides|riding)\s+(me|him|you)\b(?!\s+(home|to|there|back|over|out))|(make|makes|making|made)\s+(me|you|him|her)\s+come\b|come\s+(for|inside|in)\s+me\b)/,
+    /\b(eat(s|ing)?\s+(her|him|me|you)\s+out|face\b.{0,25}\bsits?\s+on\b|go(es|ing)?\s+down\s+on|sits?\s+on\s+(her|his|my|your)\s+face|rid(e|es|ing)\s+(her|his|my|your)\s+face|face[- ]?sit|inside\s+(her|him|me|you)\b|thrust(s|ing)?\s+(into|inside|deeper|harder|against)\s+(her|him|me|you)\b|(his|her|my|your)\s+thrusts\b|penetrat(es|ed|ing)?\s+(her|him|me|you)\b|fuck(s|ed|ing)?\b|cum(s|ming)?\b|orgasm|(she|he|i|you|they|we|let's|to|gonna)\s+climax(es|ed|ing)?\b|squirt(s|ed|ing)?\b(?!\s+(gun|bottle))|mak(e|es|ing)\s+love\b|pussy|cock\b|clit|grind(s|ing)?\s+(against|on|into)\s+(her|him|me|you)|dick\b|blow ?job|(ride|rides|riding)\s+(me|him|you)\b(?!\s+(home|to|there|back|over|out))|(make|makes|making|made)\s+(me|you|him|her)\s+come\b|come\s+(for|inside|in)\s+me\b)/,
   ],
   [
     UNDRESSING,

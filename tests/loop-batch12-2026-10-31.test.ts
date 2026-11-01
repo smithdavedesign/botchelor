@@ -42,6 +42,7 @@ describe("#1145: an acoustician's words aren't sex", () => {
     expect(stageShown("She climaxes with a gasp.")).toBe(4);
     expect(stageShown("He penetrates her, finally.")).toBe(4);
     expect(stageShown("I want to make love to you.")).toBe(4);
+    expect(stageShown("Let's climax right now.")).toBe(4);
     // A batch of pitch talk leaves the stage where the claim put it.
     expect(stagesFor([{ text: "The climax of the chord." }, { text: "The sound penetrates the nave." }], 1, 1).stage).toBe(1);
   });
