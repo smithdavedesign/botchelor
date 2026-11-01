@@ -13,11 +13,15 @@ export default function AdminSeasonPage() {
         <Link href="/admin">Admin</Link> · Seasons
       </p>
       <h1>The season&apos;s cast</h1>
-      <p className="muted">
-        A season is a month. On the 1st the two best-reviewed of the cast stay on and two newcomers join. From the 20th the
-        show writes three candidates for next month (sheet, voice, soul, a portrait checked by Hive); approve the two you
-        want. If nobody reviews them by the 1st, the ones whose portrait passed the check go on so the season still starts.
-      </p>
+      <p className="muted">Next month&apos;s newcomers: approve the two you want before the 1st.</p>
+      <details className="ux-fold admin-how">
+        <summary>How this works</summary>
+        <p className="muted small">
+          A season is a month. On the 1st the two best-reviewed of the cast stay on and two newcomers join. From the 20th the show writes three
+          candidates for next month (sheet, voice, soul, a portrait checked by Hive). If nobody reviews them by the 1st, the ones whose portrait
+          passed the check go on so the season still starts.
+        </p>
+      </details>
       <SeasonPanel />
     </article>
   );

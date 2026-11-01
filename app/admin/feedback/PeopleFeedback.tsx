@@ -26,6 +26,17 @@ const PERIODS: [Period, string][] = [
   ["custom", "Dates…"],
 ];
 const STATUS_LABELS: Record<FeedbackStatus, string> = { new: "New", seen: "Seen", done: "Done" };
+/**
+ * The list's order. By default the notes still to triage come first (New, then Seen, then Done), each newest first:
+ * the page is a triage queue, and newest-first alone buried an untouched note under ones already handled (2026-10-31
+ * UX audit, E14). "Newest first" is the order the notes arrive in.
+ */
+type Sort = "triage" | "newest";
+const STATUS_RANK: Record<FeedbackStatus, number> = { new: 0, seen: 1, done: 2 };
+export function sortNotes<T extends { status: FeedbackStatus }>(items: T[], sort: Sort): T[] {
+  // The API sends them newest first, and a stable sort keeps that order inside each status.
+  return sort === "newest" ? items : [...items].sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status]);
+}
 const FLAG_LABELS: Record<string, string> = { sexual: "sexual", minor: "a minor", real_person: "a real person", innuendo: "innuendo" };
 
 /** The filter as the API's query string; empty boxes are left out (they mean "any"). */
@@ -109,6 +120,7 @@ export default function PeopleFeedback() {
   const [password, setPassword] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [sort, setSort] = useState<Sort>("triage");
   const latest = useRef(0);
 
   const load = useCallback(async (f: Filters) => {
@@ -302,6 +314,11 @@ export default function PeopleFeedback() {
             Mark these {unseen.length} seen
           </button>
         )}
+        <label htmlFor="pf-sort">Sort</label>
+        <select id="pf-sort" value={sort} onChange={(e) => setSort(e.target.value === "newest" ? "newest" : "triage")}>
+          <option value="triage">New first, then newest</option>
+          <option value="newest">Newest first</option>
+        </select>
       </div>
       {error && (
         <p className="error" role="alert">
@@ -351,7 +368,7 @@ export default function PeopleFeedback() {
             {s.flagged > 0 ? ` · ${s.flagged} flagged by the content filter` : ""}
           </p>
           {busyDays.length > 0 && (
-            <details>
+            <details className="ux-fold">
               <summary className="small">Day by day</summary>
               <table className="pf-days small">
                 <thead>
@@ -381,7 +398,7 @@ export default function PeopleFeedback() {
             </p>
           )}
           <ul className="list">
-            {data.items.map((r) => {
+            {sortNotes(data.items, sort).map((r) => {
               const draft = notes[r.id] ?? r.note ?? "";
               return (
                 <li key={r.id} className={`card pf-note${r.status === "new" ? " is-new" : ""}`}>

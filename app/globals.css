@@ -6313,8 +6313,7 @@ main:has(> .admin-wide) {
   line-height: 1.15;
 }
 .kpi-delta,
-.kpi-sub,
-.kpi-note {
+.kpi-sub {
   font-size: var(--text-xs);
   line-height: 1.35;
 }
@@ -6325,8 +6324,7 @@ main:has(> .admin-wide) {
   color: var(--bad-text);
 }
 .kpi-delta.is-quiet,
-.kpi-sub,
-.kpi-note {
+.kpi-sub {
   color: var(--muted);
 }
 .kpi .sparkline {

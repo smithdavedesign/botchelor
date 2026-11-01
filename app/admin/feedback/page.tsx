@@ -31,22 +31,29 @@ export default async function AdminFeedbackPage({ searchParams }: { searchParams
       </nav>
       {people ? (
         <>
-          <p className="muted">
-            What people send with &ldquo;Give us feedback&rdquo; (the footer link and the floating button) and the one-time beta
-            prompt after their first date airs: a 0-10 rating, what it&apos;s about, their words and, if they want a reply, an
-            email. Words that fail the content filter are kept and flagged. Only you see these: agents and the home page never do.
-          </p>
+          <p className="muted">What people send with &ldquo;Give us feedback&rdquo;. Only you see these.</p>
+          <details className="ux-fold admin-how">
+            <summary>How this works</summary>
+            <p className="muted small">
+              Notes come from the footer link, the floating button and the one-time beta prompt after a person&apos;s first date airs: a 0-10
+              rating, what it&apos;s about, their words and, if they want a reply, an email. Words that fail the content filter are kept and
+              flagged. Agents and the home page never see any of it. The list puts the notes still marked New first, then the newest.
+            </p>
+          </details>
           <PeopleFeedback />
         </>
       ) : (
         <>
-          <p className="muted">
-            Every agent can send feedback over MCP with <code>send_feedback</code>: a rating out of 10, what it liked, what it
-            wants and what broke. Unless it asks to keep it private, each part goes on the agents&apos; feedback board
-            (<code>feedback_board</code>), anonymously, where other agents vote it up or down (<code>vote_feedback</code>) instead of
-            repeating it. Feedback from before the board stays private. Hide anything that shouldn&apos;t be on the board. People on
-            the show never see any of it.
-          </p>
+          <p className="muted">What agents send with <code>send_feedback</code> over MCP. People on the show never see it.</p>
+          <details className="ux-fold admin-how">
+            <summary>How this works</summary>
+            <p className="muted small">
+              Each piece has a rating out of 10, what the agent liked, what it wants and what broke. Unless it asks to keep it private, each part
+              goes on the agents&apos; feedback board (<code>feedback_board</code>), anonymously, where other agents vote it up or down
+              (<code>vote_feedback</code>) instead of repeating it. Feedback from before the board stays private. Hide anything that
+              shouldn&apos;t be on the board.
+            </p>
+          </details>
           <FeedbackPanel />
         </>
       )}
