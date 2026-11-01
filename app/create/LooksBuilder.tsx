@@ -11,7 +11,6 @@ import { AiFiction } from "@/app/AiLabel";
 import {
   detailsFor,
   genderTileId,
-  LOOK_AGES,
   LOOK_DETAILS,
   looksAppearance,
   optionLabel,
@@ -27,8 +26,8 @@ import {
 type Props = {
   looks: Looks;
   setLooks: (l: Looks) => void;
+  /** The Identity step's age: shown on the summary, and what their portrait is drawn at. */
   age: string;
-  setAge: (a: string) => void;
   /** Tiles that have a picture (the rest show their label). */
   tiles: readonly string[];
   /** This viewer can open After Dark (an admin, or a subscriber with a passed age check). */
@@ -37,6 +36,12 @@ type Props = {
   onAppearance: (line: string) => void;
   onGender?: (g: Gender) => void;
 };
+
+/**
+ * The steps on a tab, without the age row (2026-10-31 UX audit, B4: it asked again for Identity's age and quietly changed
+ * it). The portrait uses the sheet's age (lib/looks.ts looksPortraitPrompt).
+ */
+const flow = (gender: Gender, adTab: boolean) => stepsFor(gender, adTab).filter((s) => s.id !== "age");
 
 /** A step's current pick, wherever it's stored (After Dark's live under looks.after_dark). */
 function current(looks: Looks, step: LookStep, adTab: boolean): string | undefined {
@@ -93,14 +98,14 @@ function lockedTile(gender: Gender, step: LookStep, option: string): string {
   return tileId(gender, step.id, option, false);
 }
 
-export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afterDark, onAppearance, onGender }: Props) {
+export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, onAppearance, onGender }: Props) {
   const [tab, setTab] = useState<"show" | "after_dark">("show");
   const adTab = tab === "after_dark";
   const locked = adTab && !afterDark;
   const gender: Gender = looks.gender ?? "woman";
-  const steps = stepsFor(gender, adTab);
+  const steps = flow(gender, adTab);
   // A look already picked (editing, or back on this step): open on its summary, not an empty first step.
-  const [i, setI] = useState(() => (looks.gender ? stepsFor(looks.gender, false).length : 0));
+  const [i, setI] = useState(() => (looks.gender ? flow(looks.gender, false).length : 0));
   const at = Math.min(i, steps.length);
   const step = steps[at] as LookStep | undefined; // undefined: the summary
   const have = new Set(tiles);
@@ -118,14 +123,6 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
     setI(to);
   };
 
-  // The age strip runs 18 and up, sideways: bring the age they already have into view, so it reads as theirs (a 34
-  // used to sit off-screen with 18–22 showing, and a tap quietly changed the Identity step's age).
-  const ages = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (step?.id !== "age") return;
-    ages.current?.querySelector<HTMLElement>(".chosen")?.scrollIntoView({ block: "nearest", inline: "center" });
-  }, [step?.id]);
-
   function pick(s: LookStep, id: string) {
     if (locked) return;
     const next = choose(looks, s, adTab, id);
@@ -134,7 +131,7 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
     if (s.id === "gender") onGender?.(id as Gender);
     // Like the reference flow: a pick moves on by itself, after a beat to see it chosen.
     if (advance.current) window.clearTimeout(advance.current);
-    advance.current = window.setTimeout(() => setI((n) => Math.min(n + 1, stepsFor((next.gender ?? "woman") as Gender, adTab).length)), 280);
+    advance.current = window.setTimeout(() => setI((n) => Math.min(n + 1, flow((next.gender ?? "woman") as Gender, adTab).length)), 280);
   }
 
   function pickDetail(d: LookDetail, id: string | undefined) {
@@ -142,13 +139,6 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
     const next = chooseDetail(looks, d, id);
     setLooks(next);
     onAppearance(looksAppearance(next));
-  }
-
-  function pickAge(n: number) {
-    if (locked) return;
-    const next = { ...looks, age: n };
-    setLooks(next);
-    setAge(String(n));
   }
 
   const src = (id: string) => (have.has(id) ? `/api/looks/${id}` : null);
@@ -187,62 +177,41 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
               </span>
               {step.title}
             </h3>
-            {step.id === "age" ? (
-              <>
-                {age && <p className="muted small looks-age-note">{age}, the age from their identity. Pick another to change it.</p>}
-                <div ref={ages} className="looks-ages" role="radiogroup" aria-label="Age">
-                  {LOOK_AGES.map((n) => (
+            <ul className={`looks-grid${step.id === "gender" || step.id === "style" ? " two" : ""}`}>
+              {(step.id === "gender" ? (["woman", "man"] as const).map((g) => ({ id: g, label: g === "woman" ? "Woman" : "Man" })) : optionsFor(step, gender, adTab)).map((o) => {
+                const id = step.id === "gender" ? genderTileId(o.id as Gender) : tileId(gender, step.id, o.id, adTab && afterDark);
+                // Locked: the show's tile, blurred. An explicit one is never sent to someone who can't open After Dark.
+                const img = src(locked ? lockedTile(gender, step, o.id) : id);
+                const chosen = current(looks, step, adTab) === o.id;
+                const label = "labelMan" in o ? optionLabel(o, gender) : o.label;
+                return (
+                  <li key={o.id}>
                     <button
-                      key={n}
                       type="button"
-                      role="radio"
-                      aria-checked={String(n) === age}
-                      className={String(n) === age ? "chosen" : ""}
-                      onClick={() => pickAge(n)}
+                      className={`looks-tile${chosen ? " chosen" : ""}${img ? "" : " no-img"}`}
+                      aria-pressed={chosen}
+                      onClick={() => pick(step, o.id)}
                       tabIndex={locked ? -1 : undefined}
                     >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <ul className={`looks-grid${step.id === "gender" || step.id === "style" ? " two" : ""}`}>
-                {(step.id === "gender" ? (["woman", "man"] as const).map((g) => ({ id: g, label: g === "woman" ? "Woman" : "Man" })) : optionsFor(step, gender, adTab)).map((o) => {
-                  const id = step.id === "gender" ? genderTileId(o.id as Gender) : tileId(gender, step.id, o.id, adTab && afterDark);
-                  // Locked: the show's tile, blurred. An explicit one is never sent to someone who can't open After Dark.
-                  const img = src(locked ? lockedTile(gender, step, o.id) : id);
-                  const chosen = current(looks, step, adTab) === o.id;
-                  const label = "labelMan" in o ? optionLabel(o, gender) : o.label;
-                  return (
-                    <li key={o.id}>
-                      <button
-                        type="button"
-                        className={`looks-tile${chosen ? " chosen" : ""}${img ? "" : " no-img"}`}
-                        aria-pressed={chosen}
-                        onClick={() => pick(step, o.id)}
-                        tabIndex={locked ? -1 : undefined}
-                      >
-                        {img ? (
-                          <img src={img} alt="" loading="lazy" decoding="async" />
-                        ) : (
-                          // No picture drawn for this tile yet: a figure over the label, not an empty box.
-                          <span className="looks-tile-fallback" aria-hidden>
-                            {step.id === "gender" ? (o.id === "man" ? "👨" : "👩") : "👤"}
-                          </span>
-                        )}
-                        <span className="looks-tile-label">
-                          {chosen && <span aria-hidden>✓ </span>}
-                          {label}
+                      {img ? (
+                        <img src={img} alt="" loading="lazy" decoding="async" />
+                      ) : (
+                        // No picture drawn for this tile yet: a figure over the label, not an empty box.
+                        <span className="looks-tile-fallback" aria-hidden>
+                          {step.id === "gender" ? (o.id === "man" ? "👨" : "👩") : "👤"}
                         </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                      )}
+                      <span className="looks-tile-label">
+                        {chosen && <span aria-hidden>✓ </span>}
+                        {label}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
             {/* The example pictures were drawn by a model: one label for the grid, not one per tile. */}
-            {step.id !== "age" && <AiFiction text="Example pictures are AI-generated." className="looks-ai-note" />}
+            <AiFiction text="Example pictures are AI-generated." className="looks-ai-note" />
           </>
         ) : (
           <div className="looks-summary">
@@ -257,11 +226,18 @@ export default function LooksBuilder({ looks, setLooks, age, setAge, tiles, afte
                   return (
                     <li key={s.id}>
                       <button type="button" className="chip" onClick={() => go(steps.indexOf(s))}>
-                        {s.id === "gender" ? (v === "man" ? "Man" : "Woman") : s.id === "age" ? `${v} years` : o ? optionLabel(o, gender) : v}
+                        {s.id === "gender" ? (v === "man" ? "Man" : "Woman") : o ? optionLabel(o, gender) : v}
                       </button>
                     </li>
                   );
                 })}
+              {age && (
+                <li>
+                  <span className="chip chip-static" title="From their Identity step">
+                    {age}, from Identity
+                  </span>
+                </li>
+              )}
             </ul>
             {looks.gender && (
               // The finer details: fixed choices, no pictures, none needed (lib/looks.ts LOOK_DETAILS).
