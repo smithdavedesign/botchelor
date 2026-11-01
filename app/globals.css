@@ -3303,6 +3303,23 @@ html.phone-open body {
   .phone-card {
     padding-inline: 0.75rem;
   }
+  /* The relationship board on a phone: its inbox in a plain card, not a drawn phone inside the real one (C11). */
+  .board-phone .phone {
+    height: auto;
+    padding: 0;
+    border-radius: var(--radius);
+    background: none;
+    box-shadow: none;
+  }
+  .board-phone .phone .phone-screen {
+    height: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .board-phone .phone-status,
+  .board-phone .phone-home {
+    display: none;
+  }
   .phone:not(.phone-bare) {
     padding: 0.45rem;
     border-radius: 2.5rem;
