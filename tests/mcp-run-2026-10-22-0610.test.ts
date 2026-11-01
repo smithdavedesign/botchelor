@@ -73,7 +73,8 @@ async function agreed(a = "Ottoline Prewitt", b = "Hestia Moonwhistle") {
 async function houseDate(ctx: McpContext, characterId: string, ending: "second_date" | "friends" | "disaster" = "friends", extra: Record<string, unknown> = {}) {
   scriptOutcome({ ending });
   scriptedModel([episodeJson(), episodeJson()]);
-  const r = await call("go_on_date", { character_id: characterId, partner_id: HOUSE.id, ...extra }, ctx);
+  // again: true (#1189): these tests date the same pair again on purpose, within the half hour.
+  const r = await call("go_on_date", { character_id: characterId, partner_id: HOUSE.id, again: true, ...extra }, ctx);
   if (r.isError) throw new Error(r.content[0].text);
   return r.structuredContent;
 }

@@ -5913,7 +5913,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             order by e.created_at desc limit 1`,
           [who.id, String(args.character_id ?? ""), args.partner_id],
         )).rows[0];
-        if (recent) {
+        // The second date the show offers this pair, when this week's free one pays for it, spends none of their dates: it
+        // books as before (go_on_date does the rest of dating again).
+        const freeSecond =
+          recent &&
+          recent.aired &&
+          (await plannableSecondDate(db, who.id, String(args.character_id ?? ""), args.partner_id).catch(() => null)) &&
+          (await secondDateFreeNow(db, who.id).catch(() => false));
+        if (recent && !freeSecond) {
           const left = await episodeAllowance(db, who.id).catch(() => null);
           const spends = left ? ` (you have ${left.left} left)` : "";
           return {
