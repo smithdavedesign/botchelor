@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { sized } from "@/app/Avatar";
 import { avatarPalette, initials } from "@/lib/avatar";
 import { shade, starColor, type ColorBy } from "./colors";
 import type { GraphEdge, GraphNode } from "@/lib/graph";
 import { ALPHA_MIN, createSim, pick, REHEAT, settle, tick, type Sim } from "./sim";
+
+/** How many portraits the sky fetches at once. */
+const IMAGES_AT_ONCE = 4;
 
 export type Selection = { kind: "node"; id: string } | { kind: "edge"; a_id: string; b_id: string } | null;
 
@@ -292,16 +296,33 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       if (!rafRef.current) rafRef.current = requestAnimationFrame(loop);
     };
 
+    // Small copies (?w=128, not the 1024px originals), a few at a time: on 2026-11-01 a phone opening /graph asked for
+    // 176 full portraits at once and the show's one replica stopped answering until it was restarted.
+    const queued: (() => void)[] = [];
+    let loading = 0;
+    const next = () => {
+      while (loading < IMAGES_AT_ONCE && queued.length) queued.shift()!();
+    };
     const loadImage = (id: string, src: string) => {
       const images = imagesRef.current;
       if (images.has(id)) return;
-      const img = new Image();
       images.set(id, "failed"); // replaced on load; marks "requested" so we don't refetch
-      img.onload = () => {
-        images.set(id, img);
-        if (!rafRef.current) draw();
-      };
-      img.src = src;
+      queued.push(() => {
+        loading++;
+        const img = new Image();
+        const done = () => {
+          loading--;
+          next();
+        };
+        img.onload = () => {
+          images.set(id, img);
+          if (!rafRef.current) draw();
+          done();
+        };
+        img.onerror = done;
+        img.src = sized(src, 64) ?? src;
+      });
+      next();
     };
 
     // ---- pointers: drag a node, pan the sky, pinch to zoom, tap to select ----

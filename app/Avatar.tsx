@@ -91,7 +91,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
 }
 
 /** A generated portrait (/api/assets/<id>) at about twice its drawn size, for sharp screens, instead of the 1024px original. */
-function sized(src: string | null, size: number): string | null {
+export function sized(src: string | null, size: number): string | null {
   if (!src || !src.startsWith("/api/assets/") || src.includes("?")) return src;
   return `${src}?w=${Math.ceil(size * 2)}`;
 }
