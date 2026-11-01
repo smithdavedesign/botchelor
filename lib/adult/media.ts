@@ -17,6 +17,8 @@
 import type { Character } from "../character";
 import type { Db } from "../db";
 import { ALL_HOUSE_CHARACTERS } from "../house";
+import { characterPortrait } from "../portraits";
+import { siteUrl } from "../site";
 import { IMAGE_MIN_AGE, LOOK_STEPS, looksPictureWords, optionPrompt, optionsFor, type Gender } from "../looks";
 import { crossesTaboo } from "./acts";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -559,7 +561,10 @@ export async function drawBaselineChoices(db: Db, ownerId: string, c: Character,
       pictures.push(
         face && opts.editFace
           ? (await withRequestLog(() => nudeFromFace(db, ownerId, c, face, opts.editFace!, p))).value
-          : await makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId, p.light, opts), kind: "baseline", character_id: c.id, preset: p.id }),
+          : opts.nude
+            ? await makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId, p.light, opts), kind: "baseline", character_id: c.id, preset: p.id })
+            : // #1158: the three to pick a face from start from the show portrait too, where there is one.
+              await portraitOrWords(db, ownerId, c, undefined, p),
       );
     } catch (e) {
       // Hive out for the day, or this month's pictures used up (lib/adult/usage.ts overCap): the rest would fail the same way.
@@ -571,11 +576,73 @@ export async function drawBaselineChoices(db: Db, ownerId: string, c: Character,
   return { pictures, failed };
 }
 
-/** The character's baseline, making it the first time it's needed. */
-export async function ensureBaseline(db: Db, ownerId: string, c: Character): Promise<Media | null> {
+/** An edit of a picture at a URL (lib/adult/reels.ts urlEdit): the portrait a baseline starts from. */
+export type PortraitEdit = (prompt: string, url: string) => ReturnType<FaceEdit>;
+
+/**
+ * The editor a baseline is drawn from the show portrait with (#1158, the 2026-10-31-1838 After Dark visitor: "his gallery
+ * face differs from his theater portrait"): the configured keyframe editor, on the site's own portrait URL. Null when no
+ * editor key is set, so the baseline is drawn from words as before.
+ */
+let portraitBaselines = true;
+/** Tests of the picture providers themselves (fallback, Replicate, chapter pictures) draw baselines from words, as before. */
+export function setPortraitBaselinesForTests(on: boolean | null): void {
+  portraitBaselines = on ?? true;
+}
+async function defaultPortraitEdit(db: Db): Promise<PortraitEdit | null> {
+  if (!portraitBaselines) return null;
+  const keys = await adultKeys(db).catch(() => null);
+  if (!keys?.venice && !keys?.replicate) return null;
+  const { urlEdit } = await import("./reels");
+  return urlEdit(db);
+}
+
+/** A baseline's prompt as an edit of the portrait: the same person as Picture 1, as their baseline frames them. */
+export function baselineFromPortraitPrompt(c: Character, viewer?: string | null, light = "natural light"): string {
+  return `Make one photograph of the same person as in Picture 1: the same face, hair, skin tone and build. ${baselinePrompt(c, viewer, light)}`;
+}
+
+/** The baseline edited from the show portrait at `url`, held to the same lines, limits and output check as any picture. */
+async function baselineFromPortrait(db: Db, ownerId: string, c: Character, url: string, edit: PortraitEdit, preset?: (typeof PICTURE_PRESETS)[number]): Promise<Media> {
+  if (!(await outputCheckReady(db))) throw new Error(PICTURES_OFF_NOTE);
+  const capped = await overCap(db, ownerId, "pictures");
+  if (capped) throw new Error(capped);
+  const prompt = baselineFromPortraitPrompt(c, ownerId, preset?.light);
+  const check = checkAdultText({ prompt });
+  if (!check.ok) throw new Error(`That picture crosses one of the two lines (${check.reason}).`);
+  const gate = await mediaGate(db, { owner: ownerId });
+  if (!gate.ok) {
+    await logRejection(db, ownerId, "baseline", gate.reason);
+    throw new HivePausedError(gate.until, gate.message);
+  }
+  const { bytes, mime, ...made } = await edit(prompt, url);
+  const verdict = await checkMedia(db, { base64: bytes.toString("base64"), mime }, "image", { owner: ownerId });
+  if (!verdict.ok) return discarded(db, ownerId, "baseline", verdict);
+  return storePicture(db, ownerId, { prompt, kind: "baseline", character_id: c.id, preset: preset?.id ?? null }, { bytes, mime }, null, made);
+}
+
+/**
+ * A baseline from the show portrait when the character has one and an editor is set (#1158), else from words. A failed
+ * edit falls back to words (Hive paused still stops it). `edit`: null forces words; left out, the configured editor.
+ */
+async function portraitOrWords(db: Db, ownerId: string, c: Character, edit: PortraitEdit | null | undefined, preset?: (typeof PICTURE_PRESETS)[number]): Promise<Media> {
+  const portrait = characterPortrait(c.id);
+  const editor = portrait ? (edit === undefined ? await defaultPortraitEdit(db) : edit) : null;
+  if (portrait && editor) {
+    try {
+      return await withRequestLog(() => baselineFromPortrait(db, ownerId, c, new URL(portrait, siteUrl()).toString(), editor, preset)).then((r) => r.value);
+    } catch (e) {
+      if (e instanceof HivePausedError) throw e;
+    }
+  }
+  return makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId, preset?.light), kind: "baseline", character_id: c.id, ...(preset ? { preset: preset.id } : {}) });
+}
+
+/** The character's baseline, making it the first time it's needed: from their show portrait when they have one (#1158). */
+export async function ensureBaseline(db: Db, ownerId: string, c: Character, edit?: PortraitEdit | null): Promise<Media | null> {
   const have = (await db.query<{ id: string }>(`select id from adult_images where character_id = $1 and kind = 'baseline' and status = 'ready' limit 1`, [c.id])).rows[0];
   if (have) return null;
-  return makePicture(db, ownerId, { prompt: baselinePrompt(c, ownerId), kind: "baseline", character_id: c.id });
+  return portraitOrWords(db, ownerId, c, edit);
 }
 
 /**

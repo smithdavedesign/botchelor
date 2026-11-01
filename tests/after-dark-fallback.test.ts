@@ -5,7 +5,7 @@ import { GET as reelGet } from "@/app/api/admin/after-dark/reel/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { CREDIT_COOLDOWN_MS, limitOf, MAX_COOLDOWN_MS, ProviderError, RATE_COOLDOWN_MS, setFallbackClockForTests } from "@/lib/adult/fallback";
-import { baselinePrompt, listMedia, makePicture, setMediaFetchForTests } from "@/lib/adult/media";
+import { baselinePrompt, listMedia, makePicture, setMediaFetchForTests, setPortraitBaselinesForTests } from "@/lib/adult/media";
 import { runAdultTool } from "@/lib/adult/mcp";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { setReelFetchForTests, setReelPausesForTests, type Reel } from "@/lib/adult/reels";
@@ -29,6 +29,8 @@ afterAll(async () => {
 const NOW = Date.parse("2026-10-23T12:00:00.000Z");
 let now = NOW;
 beforeEach(async () => {
+  // These test the words-drawn pictures and their providers; a portrait-edited baseline (#1158) has its own test.
+  setPortraitBaselinesForTests(false);
   await t.reset();
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.stubEnv("SESSION_SECRET", "a-test-session-secret-that-is-long-enough-0123456789");
@@ -43,6 +45,7 @@ beforeEach(async () => {
   setFallbackClockForTests(() => now);
 });
 afterEach(() => {
+  setPortraitBaselinesForTests(null);
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   setAdultModelForTests(null);

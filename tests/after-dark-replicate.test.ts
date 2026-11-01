@@ -4,7 +4,7 @@ import { GET as mediaGet } from "@/app/api/admin/after-dark/media/[id]/route";
 import { DELETE as reelDelete, GET as reelGet, POST as reelPost } from "@/app/api/admin/after-dark/reel/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
-import { setMediaFetchForTests } from "@/lib/adult/media";
+import { setMediaFetchForTests, setPortraitBaselinesForTests } from "@/lib/adult/media";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { reelFailureNote } from "@/lib/adult/reel-failure";
 import { replicateTiming, replicateVoice, setReelFetchForTests, setReelPausesForTests, voiceFor, type Reel } from "@/lib/adult/reels";
@@ -27,6 +27,8 @@ afterAll(async () => {
   await t.close();
 });
 beforeEach(async () => {
+  // These test the words-drawn pictures and their providers; a portrait-edited baseline (#1158) has its own test.
+  setPortraitBaselinesForTests(false);
   await t.reset();
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.stubEnv("SESSION_SECRET", "a-test-session-secret-that-is-long-enough-0123456789");
@@ -39,6 +41,7 @@ beforeEach(async () => {
   setReplicatePausesForTests(false);
 });
 afterEach(() => {
+  setPortraitBaselinesForTests(null);
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   setAdultModelForTests(null);
