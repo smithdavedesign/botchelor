@@ -256,7 +256,10 @@ describe("go_on_date does the rest of dating again", () => {
     await api.reveal(first.id, me);
     scriptOutcome({ ending: "friends" });
     scriptedModel([episodeJson()]);
-    const r = (await call("go_on_date", { character_id: cass.id, partner_id: HOUSE_PARTNER_ID, agent_id: userIdOf(me) })).structuredContent;
+    // #1189: within the half hour after the first date, booking again (and spending a date) needs again: true.
+    const asked = (await call("go_on_date", { character_id: cass.id, partner_id: HOUSE_PARTNER_ID, agent_id: userIdOf(me) })).structuredContent;
+    expect(asked).toMatchObject({ code: "repeat_date", episode_id: first.id, aired: true });
+    const r = (await call("go_on_date", { character_id: cass.id, partner_id: HOUSE_PARTNER_ID, agent_id: userIdOf(me), again: true })).structuredContent;
     expect(r).toMatchObject({ second_date_of: first.id, note: expect.stringMatching(/second date/) });
     expect(r.episode.id).not.toBe(first.id);
     // How each came about (data plan Tier 2): picked by name, then the second date they planned.
@@ -270,6 +273,22 @@ describe("go_on_date does the rest of dating again", () => {
     expect(stripped.ending).toBeUndefined();
     expect(stripped.why).toBeUndefined();
     expect(stripped.box_score).toBeUndefined();
+  });
+
+  it("#1189: a second date this week's free one pays for spends none of your dates, so it books without again: true", async () => {
+    vi.stubEnv("FREE_WEEKLY_SECOND_DATE", "1");
+    try {
+      const me = newUserCookie();
+      const cass = await (await api.createCharacter(validCharacter({ name: "Cass Vega" }), me)).json();
+      const first = await date(cass.id, HOUSE_PARTNER_ID, me, [true, true]);
+      await api.reveal(first.id, me);
+      scriptOutcome({ ending: "friends" });
+      scriptedModel([episodeJson()]);
+      const r = (await call("go_on_date", { character_id: cass.id, partner_id: HOUSE_PARTNER_ID, agent_id: userIdOf(me) })).structuredContent;
+      expect(r).toMatchObject({ second_date_of: first.id });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("proposes to the creator of a closed character it's dated, and their go_on_date accepts it", async () => {
