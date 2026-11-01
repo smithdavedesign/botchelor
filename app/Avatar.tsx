@@ -32,7 +32,7 @@ export default function Avatar({ seed, name, hue, size = 48, house = false, port
   const r = round ? "50%" : size * 0.28;
   // A house character's reviewed file first: its ledger row (when it has one) only redirects to that same file.
   // Then an OC's BYOK-generated portrait (the owner's own, provider-moderated).
-  const portrait = photoSrc ?? characterPortrait(seed) ?? sized(portraitSrc, size);
+  const portrait = sized(photoSrc, size) ?? characterPortrait(seed) ?? sized(portraitSrc, size);
   if (portrait) {
     // The tile's own gradient under the picture, so a face still loading (they're lazy) reads as theirs, not a blank box.
     const p = avatarPalette(seed, hue);

@@ -10,7 +10,7 @@ import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
 import { listAiredPage, listMyCharacters } from "@/lib/game";
-import { constellation } from "@/lib/graph";
+import { cachedConstellation } from "@/lib/graph-cache";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
 import { GENERATE_FROM_DAY } from "@/lib/season-gen";
@@ -70,7 +70,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const tokens = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
   const shared = db ?? (await getDb());
-  const [aired, sky] = await Promise.all([listAiredPage(shared, viewerId, 1, 6).catch(() => null), constellation(shared).catch(() => null)]);
+  const [aired, sky] = await Promise.all([listAiredPage(shared, viewerId, 1, 6).catch(() => null), cachedConstellation(shared).catch(() => null)]); // two counts: the minute-old sky is plenty (2026-11-01 audit, R9)
 
   // This season's handful of house characters (lib/season-cast.ts), plus any premium one this viewer owns.
   const onSeason = await seasonCastCards(db ?? (await getDb()));

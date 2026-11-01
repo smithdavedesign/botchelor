@@ -19,7 +19,9 @@ export async function POST(req: Request): Promise<Response> {
   // Secure only when actually on https (prod): a Secure cookie set mid-redirect over http isn't sent back,
   // which would loop the gate on a local http deployment.
   const secure = new URL(req.url).protocol === "https:" ? "; Secure" : "";
-  const headers = new Headers({ location: new URL(from, req.url).toString(), "cache-control": "no-store" });
+  // A relative Location (from is a same-site path, safeFrom): behind DigitalOcean's proxy req.url is the container's
+  // own https://localhost:8080, so an absolute one sent a no-JS visitor there (2026-11-01 audit, R8).
+  const headers = new Headers({ location: from, "cache-control": "no-store" });
   headers.append("set-cookie", `${ADULT_COOKIE}=1; Path=/; Max-Age=${ONE_YEAR}; HttpOnly; SameSite=Lax${secure}`);
   return new Response(null, { status: 303, headers });
 }

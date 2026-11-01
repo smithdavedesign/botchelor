@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getDb, pingDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
 import { paidDatesPerDay, paidDatesToday } from "@/lib/limits";
@@ -18,14 +18,18 @@ const STUCK_AFTER_MINUTES = 15;
  * {ok}.
  */
 export const GET = handle(async (req: Request) => {
-  let db;
   try {
-    db = await getDb();
-    await db.query("select 1");
+    await pingDb();
   } catch {
     return json({ ok: false, db: "unreachable" }, 503);
   }
-  if (!internalJobAuthorized(req)) return json({ ok: true });
+  // Opening the shared database also brings the schema up to date: start it on a new replica's first check without
+  // making the check wait for it.
+  if (!internalJobAuthorized(req)) {
+    void getDb().catch(() => {});
+    return json({ ok: true });
+  }
+  const db = await getDb();
   const [reports, takedowns, stuck, paidToday, errors] = await Promise.all([
     openReportSummary(db),
     contentReportSummary(db),

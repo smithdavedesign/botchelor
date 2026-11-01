@@ -413,8 +413,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               className="character-clip"
               controls
               playsInline
-              preload="metadata"
-              poster={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : undefined}
+              // Nothing loads until it's played, and the poster is a thumbnail: the full portrait (1.4 MB) and three range
+              // requests that each read the whole clip from the database came with every visit (2026-11-01 audit, R2).
+              preload="none"
+              poster={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}?w=384` : undefined}
               aria-label={`${c.name}'s intro clip`}
             >
               <source src={`/api/assets/${c.clip_asset_id}/video`} type="video/mp4" />

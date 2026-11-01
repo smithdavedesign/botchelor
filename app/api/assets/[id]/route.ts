@@ -31,12 +31,14 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   // The answer depends on who's asking, so neither of these may be cached for everyone (json() is no-store).
   if (gate.serve === "none") return json({ error: "asset_not_found" }, 404);
   if (gate.serve === "teaser") {
-    return new Response(null, { status: 302, headers: { location: new URL(`/api/assets/${id}/teaser`, req.url).toString(), "cache-control": "private, no-store" } });
+    return new Response(null, { status: 302, headers: { location: `/api/assets/${id}/teaser`, "cache-control": "private, no-store" } });
   }
+  // Both redirects are relative: req.url is the container's own address behind the proxy (https://localhost:8080), and
+  // an absolute one sent every house portrait there, cached a day (2026-11-01 audit, R8).
   // The house cast's reviewed portraits are files in public/cast, recorded in the ledger by their path: send the
   // browser there (only that exact shape of same-site path, so this can never redirect anywhere else).
   if (head.path && STATIC_CAST.test(head.path)) {
-    return new Response(null, { status: 307, headers: { location: new URL(head.path, req.url).toString(), "cache-control": gate.cache === PUBLIC_CACHE ? "public, max-age=86400" : gate.cache } });
+    return new Response(null, { status: 307, headers: { location: head.path, "cache-control": gate.cache === PUBLIC_CACHE ? "public, max-age=86400" : gate.cache } });
   }
   if (!head.is_data) return json({ error: "asset_not_found" }, 404);
   // Every picture here was made by a model: it goes out with the "AI-generated" mark in its XMP and its headers
