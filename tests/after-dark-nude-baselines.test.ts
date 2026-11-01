@@ -258,7 +258,7 @@ describe("the face a moment starts from", () => {
     await setUp(cookie);
     await baseline("rafe-1", id, RAFE, NUDE, 10);
     const res = await call(facePost, "/api/admin/after-dark/face", { character_id: RAFE, image_id: "rafe-1" }, cookie);
-    expect(await res.json()).toEqual({ image_id: "rafe-1", nude: false, faces: { image_id: "rafe-1", picked: true, nude: null } });
+    expect(await res.json()).toEqual({ image_id: "rafe-1", nude: false, faces: { image_id: "rafe-1", picked: true, face_nude: true, nude: null } }); // #1116: never his avatar
     expect(await faceReferenceId(t.db, id, RAFE)).toBe("rafe-1");
     expect(await faceReferenceId(t.db, id, RAFE, { nude: true })).toBe("rafe-1");
   });
@@ -333,5 +333,19 @@ describe("pictures and videos at sex", () => {
       ["base-juniper", "base-rafe"],
       ["nude-juniper", "base-rafe"],
     ]);
+  });
+});
+
+describe("#1116: an undressed face is never the avatar", () => {
+  it("facesFor marks a face that's a nude baseline, so the stage shows a dressed picture or the drawn portrait", async () => {
+    const { id } = await admin();
+    await dressJuniper();
+    await baseline("juniper-dressed", id, JUNIPER, DRESSED, 10);
+    // Rafe's only baseline is undressed: faceReferenceId falls back to it, and the panel says so.
+    await baseline("rafe-nude", id, RAFE, NUDE, 10);
+    const faces = await facesFor(t.db, id, [JUNIPER, RAFE]);
+    expect(faces[RAFE]).toMatchObject({ image_id: "rafe-nude", face_nude: true });
+    expect(faces[JUNIPER].image_id).toBe("juniper-dressed");
+    expect(faces[JUNIPER]).not.toHaveProperty("face_nude");
   });
 });

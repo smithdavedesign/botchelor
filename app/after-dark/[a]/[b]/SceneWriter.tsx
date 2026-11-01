@@ -14,6 +14,7 @@ import type { Media } from "@/lib/adult/media";
 import type { CharacterRef } from "@/lib/game";
 import PictureContext from "./PictureContext";
 import type { PictureEdit } from "@/lib/adult/beats";
+import { pictureNoteKind } from "@/lib/adult/picture-notes";
 import type { Readiness } from "@/lib/adult/readiness";
 import AfterDarkTheater, { steerEcho } from "./AfterDarkTheater";
 import type { CatalogScene } from "@/lib/adult/scene-catalog";
@@ -222,7 +223,17 @@ export default function SceneWriter({
     return null;
   }
   const [busy, setBusy] = useState(false);
+  // #1122 (the 2026-10-31-1549 visitor: "a minute with no progress"): seconds since the lines were asked for, while writing.
+  const [waited, setWaited] = useState(0);
+  useEffect(() => {
+    if (!busy) return setWaited(0);
+    const since = Date.now();
+    const tick = setInterval(() => setWaited(Math.floor((Date.now() - since) / 1000)), 1000);
+    return () => clearInterval(tick);
+  }, [busy]);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  // The steer's echo stays ahead of it (#1017).
+  const writingNote = busy && waited >= 10 ? `${note && !note.error ? `${note.text} ` : ""}Still writing, ${waited} s so far: the richer writer can take up to a minute.` : null;
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const crisisNotice = crisis ? <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} /> : null;
   // Autoplay (lib/adult/autoplay.ts): the theater paces it by what's left to play.
@@ -309,6 +320,7 @@ export default function SceneWriter({
     // #1017: a steer says it was taken while its lines are written, not only once they change.
     const steered = echo && typeof body.direction === "string" && body.direction.trim() ? { text: body.direction, mode: body.steer_mode === "direct" ? ("direct" as const) : ("nudge" as const) } : null;
     setNote(steered ? { text: steerEcho(steered.text, steered.mode, false) } : null);
+    const asked = Date.now();
     const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
     writing.current = false;
     setBusy(false);
@@ -320,7 +332,8 @@ export default function SceneWriter({
     }
     if (!res || !res.ok) setAutoplay(false);
     if (!res) {
-      setNote({ text: "Network error. Try again.", error: true });
+      // A long write the page gave up on may still land on the server: say so, so a second Start doesn't follow at once.
+      setNote({ text: Date.now() - asked >= 45_000 ? "The page lost the answer after a long wait, but the lines may still land: reload in a minute to see them before trying again." : "Network error. Try again.", error: true });
       return false;
     }
     if (!res.ok) {
@@ -416,10 +429,11 @@ export default function SceneWriter({
     : "Nothing to redo yet";
   const whispers = (["a", "b"] as const).filter((who) => scene.whispers?.[who]);
   // The face each keeps for this viewer (Faces.tsx), as their avatar: a realistic headshot, like the videos (David,
-  // 2026-10-25). With none yet, their latest picture alone; else the drawn portrait.
+  // 2026-10-25). With none yet, their latest picture alone; else the drawn portrait. Never an undressed one (#1116): a
+  // kept face that's nude gives way to a dressed picture of them, else the drawn portrait.
   const photoOf = (id: string) => {
     const kept = faces[id]?.image_id;
-    if (kept) return mediaUrl(kept);
+    if (kept && !faces[id]?.face_nude) return mediaUrl(kept);
     const own = gallery.find((m) => m.character_id === id && !m.character_b && m.kind === "baseline" && !m.nude && m.status === "ready");
     return own ? mediaUrl(own.id) : null;
   };
@@ -482,10 +496,17 @@ export default function SceneWriter({
             {scene.chapter > SOFT_CHAPTERS ? ` This night has run ${scene.chapter - 1} chapters: Start over (in the theater's ⋯) files it, and the next night begins fresh.` : ""}
           </span>
         </div>
-        {note && !theater && (
-          <p className={note.error ? "error ad-note-error" : "muted small"} role={note.error ? "alert" : "status"}>
-            {note.text}
+        {writingNote && !theater ? (
+          <p className="muted small" role="status">
+            {writingNote}
           </p>
+        ) : (
+          note &&
+          !theater && (
+            <p className={note.error ? "error ad-note-error" : "muted small"} role={note.error ? "alert" : "status"}>
+              {note.text}
+            </p>
+          )
         )}
         {!theater && crisisNotice}
         {theater && (
@@ -504,7 +525,7 @@ export default function SceneWriter({
             }}
             characters={cast}
             busy={busy}
-            note={note?.text ?? null}
+            note={writingNote ?? note?.text ?? null}
             onWrite={write}
             steerMode={steerMode}
             onSteerMode={setSteerMode}
@@ -662,8 +683,12 @@ export default function SceneWriter({
               items={gallery}
               drawing={picture === "drawing"}
               fresh={freshPictures}
-              problem={scene.picture_note}
-              onAdd={(m) => setGallery((g) => [m, ...g])}
+              // #1115: a setup note their live readiness has made stale is dropped, and a picture that lands clears the note.
+              problem={scene.picture_note && pictureNoteKind(scene.picture_note) === "setup" && readiness.length > 0 && readiness.every((r) => r.ready) ? null : scene.picture_note}
+              onAdd={(m) => {
+                setGallery((g) => [m, ...g]);
+                setScene((s) => (s.picture_note ? { ...s, picture_note: null } : s));
+              }}
               paused={mediaPaused}
               faces={faces}
               onFace={pickFace}
@@ -791,11 +816,16 @@ function Gallery({
           📸 Drawing your picture… about half a minute. It comes in here, first.
         </p>
       )}
-      {problem && (
-        <p className="error" role="status">
-          The last picture didn&apos;t come through: {problem}
-        </p>
-      )}
+      {problem &&
+        (pictureNoteKind(problem) === "failure" ? (
+          <p className="error" role="status">
+            The last picture didn&apos;t come through: {problem}
+          </p>
+        ) : (
+          <p className="muted small" role="status">
+            {problem}
+          </p>
+        ))}
     </>
   );
   if (!items.length) {

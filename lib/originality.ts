@@ -435,13 +435,25 @@ function withSynonyms(words: Set<string>): Set<string> {
   return out;
 }
 
+/**
+ * A character's job: its occupation, else the role its bio opens with (#1123: "A perfume tester who can smell a lie…" had
+ * no occupation, so "a perfume tester" was dealt again). Up to five words before "who", "with", a comma or the stop.
+ */
+export function jobOf(sheet: SheetDraft): string {
+  const occupation = sheet.extras?.occupation?.trim();
+  if (occupation) return occupation;
+  const lead = /^(?:i'?m |i am |she'?s |he'?s |they'?re )?(?:an?|the)\s+([a-z][a-z' -]*?)\s*(?:\b(?:who|that|with|and|from|in|at|by|turned)\b|[,.;:(—–-]\s|$)/i.exec((sheet.bio ?? "").trim());
+  const words = lead?.[1].trim().split(/\s+/) ?? [];
+  return words.length && words.length <= 5 ? words.join(" ") : "";
+}
+
 /** Every character's job alone (no bio), to keep suggestions off jobs the show already has (#1016). */
-const jobsOnly = (rows: SheetDraft[]): SheetDraft[] => rows.map((r) => ({ extras: { occupation: r.extras?.occupation ?? "" } }));
+const jobsOnly = (rows: SheetDraft[]): SheetDraft[] => rows.map((r) => ({ extras: { occupation: jobOf(r) } }));
 
 /** #852: jobs no character on the show has yet (by occupation), for a check that found look-alikes but no recent twin. */
 export async function unusedJobs(db: Db, sheet: SheetDraft, n = 3, by: string | null = null): Promise<string[]> {
-  const { rows } = await db.query<{ occupation: string | null }>(`select extras->>'occupation' as occupation from characters where coalesce(extras->>'occupation', '') <> ''`);
-  return freshJobs(sheet, rows.map((r) => ({ extras: { occupation: r.occupation ?? "" } })), n, by);
+  const { rows } = await db.query<{ occupation: string | null; bio: string | null }>(`select extras->>'occupation' as occupation, bio from characters`);
+  return freshJobs(sheet, jobsOnly(rows.map((r) => ({ bio: r.bio ?? "", extras: { occupation: r.occupation ?? "" } }))), n, by);
 }
 
 /** The concrete suggestion: free names (keeping nothing that's close to the twin's) and jobs nobody recent has. */

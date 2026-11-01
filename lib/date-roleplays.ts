@@ -23,11 +23,11 @@ import { isHouseBotAgent } from "./house-bots";
 import { pairNames, shortName } from "./names";
 import { notify } from "./notifications";
 import { DELETED_OWNER } from "./rules";
-import { checkShowText, excludedTheme } from "./safety";
+import { checkShowText } from "./safety";
 import { haveDated, swipeGateOn } from "./swipe-gate";
 import { areUnmatched, unmatchedMessage } from "./unmatch";
 import {
-  DATE_ROLEPLAY_NEVER,
+  checkCustomRoleplay,
   dateRoleplayById,
   fillPremise,
   ROLEPLAY_ANSWERS,
@@ -38,6 +38,7 @@ import {
   roleIndex,
   rolesLine,
   sameTerms,
+  suggestiveIn,
   termsFor,
   type DateRoleplay,
   type RoleplayTerms,
@@ -207,23 +208,7 @@ export type TermsInput = {
   my_role?: unknown;
 };
 
-/** A roleplay written for a date: PG, adults, no real people, and none of the never-list. Null when it's fine. */
-export function checkCustomRoleplay(t: { title: string; premise: string; roles: [string, string] | null }): string | null {
-  const fields = { title: t.title, premise: t.premise, ...(t.roles ? { role_a: t.roles[0], role_b: t.roles[1] } : {}) };
-  const r = checkShowText(fields);
-  if (!r.ok) {
-    return r.reason === "minor"
-      ? "That roleplay can't be used: everyone in it is an adult, with nothing suggesting otherwise."
-      : r.reason === "real_person"
-        ? "That roleplay can't be used: no real or famous people (made-up ones are fine)."
-        : "That roleplay can't be used: the show is PG, so nothing sexual and no innuendo.";
-  }
-  const all = Object.values(fields).join(" ");
-  if (excludedTheme(all) || DATE_ROLEPLAY_NEVER.test(all)) {
-    return "That roleplay can't be used: two adults who both want to be there, never family, school or a babysitter, nobody with a say over the other's job, and nobody drunk, trapped or kept from saying no.";
-  }
-  return null;
-}
+export { checkCustomRoleplay };
 
 type TermsResult = { ok: true; terms: RoleplayTerms } | { ok: false; status: number; error: string; message: string };
 
@@ -260,7 +245,7 @@ export function resolveTerms(input: TermsInput, meId: string, themId: string): T
 function checkNote(raw: unknown): { ok: true; note: string | null } | { ok: false; message: string } {
   const note = typeof raw === "string" ? raw.trim().replace(/\s+/g, " ").slice(0, ROLEPLAY_NOTE_MAX) : "";
   if (!note) return { ok: true, note: null };
-  return checkShowText({ note }).ok ? { ok: true, note } : { ok: false, message: "Keep the note PG: no real people, minors or anything sexual." };
+  return checkShowText({ note }).ok && !suggestiveIn(note) ? { ok: true, note } : { ok: false, message: "Keep the note PG: no real people, minors or anything sexual." };
 }
 
 /* ---------------------------------------------------- proposing ---------------------------------------------------- */

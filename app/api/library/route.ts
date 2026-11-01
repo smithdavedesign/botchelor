@@ -20,8 +20,8 @@ import {
 
 /**
  * The viewer's Create library (lib/studio/library.ts): their own prompts, venues and roleplays. Signed-in accounts only.
- * After Dark items (and roleplays, which are After Dark's) only for someone After Dark is open to; everyone else sees
- * and saves their safe ones.
+ * After Dark items only for someone After Dark is open to; everyone else sees and saves their safe ones (a safe roleplay
+ * plays on show dates). A roleplay saved without a mode is After Dark's, as its Studio's form always sent.
  */
 async function who(req: Request) {
   const auth = authFromRequest(req);
@@ -45,6 +45,7 @@ const Input = z.discriminatedUnion("action", [
     premise: z.string().max(ROLEPLAY_PREMISE_MAX * 2),
     roles: z.tuple([z.string().max(ROLE_MAX * 2), z.string().max(ROLE_MAX * 2)]).nullable().optional(),
     category: z.enum(ROLEPLAY_CATEGORIES).optional(),
+    mode: z.enum(LIBRARY_MODES).optional(),
   }),
   z.object({ action: z.literal("delete"), kind: z.enum(["prompt", "place", "roleplay"]), id: z.string().min(1).max(64) }),
 ]);
@@ -53,8 +54,9 @@ export const POST = handle(async (req: Request) => {
   const w = await who(req);
   if (!w) return json({ error: "sign_in", message: "Sign in to keep your own prompts, venues and roleplays." }, 401);
   const input = parseBody(Input, await readJson(req), "invalid_library");
-  const adOnly = (input.action === "save_prompt" || input.action === "save_place") && input.mode === "after_dark";
-  if ((adOnly || input.action === "save_roleplay") && !w.afterDark) return json({ error: "not_after_dark", message: "After Dark items are for After Dark members." }, 403);
+  const adOnly =
+    ((input.action === "save_prompt" || input.action === "save_place") && input.mode === "after_dark") || (input.action === "save_roleplay" && (input.mode ?? "after_dark") === "after_dark");
+  if (adOnly && !w.afterDark) return json({ error: "not_after_dark", message: "After Dark items are for After Dark members." }, 403);
   if (input.action === "delete") return (await deleteItem(w.db, w.owner, input.kind, input.id)) ? json({ ok: true }) : json({ error: "not_found", message: "Not found." }, 404);
   const r =
     input.action === "save_prompt"

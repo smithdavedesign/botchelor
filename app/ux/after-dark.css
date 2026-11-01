@@ -354,6 +354,12 @@ button.ad-tools-toggle {
   min-width: var(--tool-h);
   height: var(--tool-h);
 }
+/* #1121: a button with a word in it ("📜 Story") is a pill, sized to its words, not clamped to the icon square. */
+.theater-tools .theater-icon:has(.theater-icon-word) {
+  width: auto;
+  min-width: var(--tool-h);
+  padding: 0 0.75rem;
+}
 .theater-tools .ad-writer-logo button.ad-writer-logo-button {
   height: var(--tool-h);
   min-height: var(--tool-h);
