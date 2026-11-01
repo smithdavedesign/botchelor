@@ -70,14 +70,28 @@ export function lineToTurn(l: SceneLine): Turn {
   return { side: l.who, act: 0, dialogue: dialogue || "…", action: actions.join(" · "), emotion: "", interest: 0 };
 }
 
+/** A steer said back, in quotes, cut at 80 characters. */
+const quotedSteer = (direction: string): string => {
+  const words = direction.trim().replace(/\s+/g, " ");
+  return `"${words.length > 80 ? `${words.slice(0, 79).trimEnd()}…` : words}"`;
+};
+
+/**
+ * #1136 (the 2026-10-31-1644 visitor's top suggestion: "show when it was only partly followed"; the 2026-11-01-1105 one:
+ * a nudge "acknowledged… but only loosely followed, with no sign of it"): a steer whose lines didn't show it, said under
+ * them in place of "Steered", with Steer again beside it (lib/adult/quality.ts steerFollowed reads it from its key words).
+ */
+export function unfollowedNote(u: { text: string; followed: "partly" | "no" }): string {
+  return `${u.followed === "no" ? "Not followed" : "Only partly followed"}: ${quotedSteer(u.text)}.`;
+}
+
 /**
  * #1017 (the 2026-10-30 ad visitors: "I only found out the steer was queued by seeing the lines change", "nothing on
  * screen showed the steer was queued or used"): the steer said back under the bar, while its lines are written and once
  * they're in, with what the mode does, so a nudge that's only worked toward doesn't look ignored.
  */
 export function steerEcho(direction: string, mode: "nudge" | "direct", done: boolean): string {
-  const words = direction.trim().replace(/\s+/g, " ");
-  const quoted = `"${words.length > 80 ? `${words.slice(0, 79).trimEnd()}…` : words}"`;
+  const quoted = quotedSteer(direction);
   if (!done) return `🎬 Steering (${mode}): ${quoted}. Writing the next lines…`;
   return mode === "direct"
     ? `🎬 Steered (direct): ${quoted}. These lines act on it now.`
@@ -207,6 +221,7 @@ export default function AfterDarkTheater({
   characters,
   busy = false,
   note = null,
+  steerAgain = null,
   onWrite,
   steerDraft,
   steerMode = "nudge",
@@ -264,6 +279,8 @@ export default function AfterDarkTheater({
   characters: [CharacterRef, CharacterRef];
   busy?: boolean;
   note?: string | null;
+  /** #1136: the last steer, when its lines followed it only partly or not at all, and sending it again (unfollowedNote). */
+  steerAgain?: { text: string; followed: "partly" | "no"; onResend: () => void } | null;
   /** The crisis notice (app/CrisisNotice.tsx), when the viewer's own steer tripped lib/crisis.ts: shown over the stage. */
   crisis?: ReactNode;
   /** Writes the next lines; without it, this is a saved night's playback. */
@@ -1016,6 +1033,14 @@ export default function AfterDarkTheater({
               {(videoNote || note || presenceNote) && (
                 <p className="ad-theater-note" role="status">
                   {videoNote || note || presenceNote}
+                </p>
+              )}
+              {steerAgain && !busy && (
+                <p className="ad-theater-note ad-steer-partly" role="status">
+                  {unfollowedNote(steerAgain)}{" "}
+                  <button type="button" className="linklike" onClick={steerAgain.onResend}>
+                    Steer again?
+                  </button>
                 </p>
               )}
               {crisis}

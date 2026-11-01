@@ -45,8 +45,9 @@
 import type { Character } from "../character";
 import { publicExtras, TEXT_DETAIL_KEYS } from "../extras";
 import { EVERYDAY_WORDS, tokens } from "../quality";
-import { placeIn, repeatOf } from "./continuity";
-import { strangerIn } from "./guards";
+import { overlap, placeIn, repeatOf, speechOf } from "./continuity";
+import { pronounKind } from "./craft";
+import { givenName, strangerIn } from "./guards";
 import { STAGES } from "./stages";
 // observer.ts reads the drift from here too: each side only calls the other inside functions, so the cycle is harmless.
 import { memoryFounded, observeNight, type ObservedSide } from "./observer";
@@ -645,6 +646,130 @@ export function withoutDanglingCue(text: string): string | null {
   const tail = t.replace(/^(?:\s*\*[^*]*\*)+/, "");
   if (!tail.trim() || !CUE_IN_TEXT.test(tail)) return null;
   return lastSentenceGone(t);
+}
+
+/** What a line says, as sentences (its *actions* out). */
+const saidSentences = (text: string): string[] =>
+  text
+    .replace(/\*[^*]*\*/g, " ")
+    .trim()
+    .split(/(?<=[.!?…])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+/** A sentence this short ("I know.", "Come here.") is said again all the time; it never counts as a repeat here. */
+const STEP_REPEAT_MIN = 4;
+/**
+ * Nearly the same sentence, within a step: most of its 3-word runs (lib/adult/continuity.ts overlap). Stricter than a
+ * whole line's NEAR_DUPLICATE: only a near-exact copy goes, never a sentence that opens the same way and goes elsewhere.
+ */
+const STEP_NEAR = 0.8;
+
+/**
+ * A sentence of this line already said in this step, word for word or nearly (STEP_NEAR), by either of them, or earlier
+ * in this same line; null for none. #1136 (the 2026-11-01-1105 visitor, Tovah × Barnaby: "A very steady beat. A
+ * metronome for a very short song." and "You must have many small gears…" twice in one step):
+ * the guards held a whole line to the night (repeatOf) and a speaker to their own lines (the near_duplicate critic), so a
+ * sentence copied inside a longer line, or into the other's, got through. Pure.
+ */
+export function stepRepeatOf(text: string, step: readonly string[]): string | null {
+  const earlier = step.flatMap(saidSentences);
+  for (const s of saidSentences(text)) {
+    if (repeatsSentence(s, earlier)) return s;
+    earlier.push(s);
+  }
+  return null;
+}
+
+/** Whether a sentence says one of these again (STEP_REPEAT_MIN words or more, word for word or nearly). */
+const repeatsSentence = (s: string, earlier: readonly string[]): boolean => {
+  const said = speechOf(s);
+  return said.split(" ").filter(Boolean).length >= STEP_REPEAT_MIN && earlier.some((e) => speechOf(e) === said || overlap(s, e) >= STEP_NEAR);
+};
+
+/**
+ * The line without the sentences it says again (stepRepeatOf: from the step, or a second time in itself), its leading
+ * *action* kept; null when nothing it says would be left (as lib/adult/continuity.ts withoutPhrase). Pure.
+ */
+export function withoutStepRepeats(text: string, step: readonly string[]): string | null {
+  const action = /^\s*\*[^*]+\*\s*/.exec(text)?.[0] ?? "";
+  const earlier = step.flatMap(saidSentences);
+  const kept: string[] = [];
+  for (const s of text.slice(action.length).trim().split(/(?<=[.!?…])\s+/).filter(Boolean)) {
+    if (repeatsSentence(s, earlier)) continue;
+    kept.push(s);
+    earlier.push(s);
+  }
+  const rest = kept.join(" ").trim();
+  if (!rest || speechOf(rest).split(" ").filter(Boolean).length < 2) return null;
+  return `${action}${rest}`.trim();
+}
+
+/**
+ * The other one as the subject of this line's stage direction: their name, or (when the two go by different pronouns)
+ * their pronoun ("She", "Her gaze…"), opening the line's *action*, with nothing of the speaker's own in that sentence
+ * to say it's theirs (their name, or "he"/"him" for him). The word that gave it away, or null. #1136 (the 2026-11-01-1105
+ * visitor: "Her gaze drops to the vest covering his chest." under Barnaby): the line is the other one's beat under the
+ * wrong speaker. Only the opening subject of an action counts, never what's said, so a line about her stays his. Pure.
+ */
+export function othersAction(
+  text: string,
+  self: { name: string; pronouns?: string | null },
+  other: { name: string; pronouns?: string | null },
+): string | null {
+  const action = actionOf(text);
+  if (!action) return null;
+  const words = tokens(action.split(/(?<=[.!?…])\s+/)[0]);
+  const lead = words[0]?.replace(/'s$/, "");
+  if (!lead) return null;
+  const mine = givenName(self.name).toLowerCase();
+  const theirs = givenName(other.name).toLowerCase();
+  const me = pronounKind(self.pronouns);
+  const them = pronounKind(other.pronouns);
+  // Something of the speaker's own in the sentence ("Her laugh makes him grin"): theirs after all.
+  const own = new Set([mine, ...(me === "he" ? ["he", "him", "himself"] : me === "she" ? ["she", "herself"] : me === "they" ? ["they", "them", "themselves"] : [])]);
+  if (words.some((w) => own.has(w.replace(/'s$/, "")))) return null;
+  if (theirs.length >= 2 && theirs !== mine && lead === theirs) return words[0];
+  if (!them || them === "they" || them === me) return null;
+  return (them === "she" ? ["she", "her"] : ["he", "his"]).includes(lead) ? words[0] : null;
+}
+
+/** Steer words that say how, not what ("stop", "plainly", "actually"): never what a line has to show to follow it. */
+const STEER_GLUE = new Set("stop start please plainly actually finally instead".split(" "));
+/** A steer's key words (as stems) at this share or more in the step's lines is followed; fewer is partly. */
+const STEER_FOLLOWED = 0.5;
+
+/**
+ * Whether a step's lines followed its steer, by its key words (stems, past GLUE, STEER_GLUE and the pair's names) in what
+ * the lines say and do: "yes" at STEER_FOLLOWED of them or more, "partly" for fewer, "no" for none. A Direct steer's
+ * quoted lines are their own check (lib/adult/quotes.ts quotesKept): one not said makes it partly at best. Null when the
+ * steer has nothing to look for. #1136 (the 2026-10-31-1644 visitor: "I asked Nell to 'stop deflecting with acoustics
+ * and tell Odile plainly the one thing she is actually afraid of tonight'… No fear was named", and its top suggestion,
+ * "show when it was only partly followed"): free and deterministic, no model call, so lines that put the steer in other
+ * words can read as partly; the page only offers to steer again.
+ */
+export function steerFollowed(
+  steer: string | null | undefined,
+  lines: readonly { text: string }[],
+  names: readonly string[],
+  quotes: { all: number; kept: number } | null = null,
+): "yes" | "partly" | "no" | null {
+  if (!steer?.trim()) return null;
+  const skip = new Set(names.flatMap((n) => tokens(n)).map((w) => w.replace(/'s$/, "")));
+  const keys = new Set(
+    tokens(steer)
+      .map((w) => w.replace(/'s$/, ""))
+      .filter((w) => w.length >= 3 && !GLUE.has(w) && !STEER_GLUE.has(w) && !skip.has(w) && !/^\d+$/.test(w))
+      .map(stem),
+  );
+  const quoted = quotes?.all ? (quotes.kept >= quotes.all ? "yes" : quotes.kept ? "partly" : "no") : null;
+  if (!keys.size) return quoted;
+  const said = new Set(lines.flatMap((l) => tokens(l.text.replace(/\*/g, " "))).map(stem));
+  const share = [...keys].filter((k) => said.has(k)).length / keys.size;
+  const acted = share >= STEER_FOLLOWED ? "yes" : share > 0 ? "partly" : "no";
+  if (!quoted) return acted;
+  // Both have to hold: the quotes said, and the rest acted out.
+  const rank = { no: 0, partly: 1, yes: 2 } as const;
+  return rank[quoted] < rank[acted] ? quoted : acted;
 }
 
 /**
