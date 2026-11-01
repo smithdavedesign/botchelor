@@ -3,6 +3,7 @@ import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { GET as whyGet } from "@/app/api/admin/after-dark/why/route";
 import { cleanSuggestion, fallbackSuggestion, holdSuggestion, suggestionsFor, suggestionsIn, SUGGESTION_MAX, type SuggestionRules } from "@/lib/adult/director";
 import { setAdultModelForTests } from "@/lib/adult/mode";
+import { saveAdultSettings } from "@/lib/adult/settings";
 import { CHAPTER_LINES, parseSceneMeta, UNDO_DEPTH } from "@/lib/adult/scenes";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -195,6 +196,15 @@ describe("suggested next moves", () => {
     freshSteps({ place: "the bar", stage: 2, suggestions: { mild: "She buys him a drink", flirty: "He whispers a dare in her ear", spicy: "They leave for his place, kissing in the cab" } });
     const r2 = await (await post({ a: CAST_A, b: CAST_B }, cookie)).json();
     expect(r2.scene.suggestions.find((s: { heat: string }) => s.heat === "spicy").text).toBe("They leave for his place, kissing in the cab");
+  });
+
+  it("the Quick writer (v1) proposes none, so the chips are the held fallbacks, never none (#1136)", async () => {
+    const { cookie } = await admin();
+    await saveAdultSettings(t.db, { prompt_version: "v1" });
+    freshSteps({});
+    await post({ a: CAST_A, b: CAST_B }, cookie);
+    const chips = (await get(cookie)).suggestions as { heat: string }[];
+    expect(chips.map((c) => c.heat).sort()).toEqual(["flirty", "mild", "spicy"]);
   });
 
   it("go when the night starts over or the scene is set somewhere new", async () => {

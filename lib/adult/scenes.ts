@@ -2397,16 +2397,15 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   const stage_from = stage === scene.stage ? scene.stage_from : scene.lines.length;
   // v2's suggested next moves (lib/adult/director.ts), held to the rules a line is, for the scene as these lines leave it:
   // at most a stage on, and past kissing somewhere public only by leaving first.
-  const { suggestions, replaced } = v2
-    ? suggestionsFor(meta.suggestions ?? {}, {
-        stage,
-        maxStage: Math.min(cap, stage + 1),
-        publicPlace: isPublicPlace(set_place ?? place ?? date?.setting ?? null, place_history.at(-1)?.home ?? null),
-        names,
-        cast: input.cast,
-        limit: (text) => limitsHit(text, limits),
-      })
-    : { suggestions: [], replaced: 0 };
+  // #1136: the Quick writer (not v2) proposes none, so its chips are the held fallbacks rather than none at all.
+  const { suggestions, replaced } = suggestionsFor(v2 ? (meta.suggestions ?? {}) : {}, {
+    stage,
+    maxStage: Math.min(cap, stage + 1),
+    publicPlace: isPublicPlace(set_place ?? place ?? date?.setting ?? null, place_history.at(-1)?.home ?? null),
+    names,
+    cast: input.cast,
+    limit: (text) => limitsHit(text, limits),
+  });
   flags.suggestions_replaced = replaced;
   const next: SceneState = {
     ...scene, lines: [...scene.lines, ...stamped], place, stage, stage_from, set_place, cut_to: null, place_history, moves, suggestions, whispers: afterWhisperStep(whispers),
