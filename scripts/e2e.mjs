@@ -282,8 +282,8 @@ async function main() {
     await step("a spectator sees a teaser, predicts the ending and guesses the dealbreaker", async () => {
       await spage.goto(episodeUrl);
       assert((await spage.locator(".boxscore").count()) === 0, "box score should be hidden before the finale airs");
-      await spage.locator('input[name="pick"][value="friends"]').check();
-      await spage.getByRole("button", { name: /Lock in my pick|Change my pick/ }).click();
+      // One tap saves the pick (D2).
+      await spage.locator(".pick-choices").first().getByRole("button", { name: "Just friends" }).click();
       await spage.getByText(/Your pick:/).waitFor();
       // Guess the dealbreaker.
       await spage.locator(".quiz .choices button").first().click();
@@ -420,7 +420,7 @@ async function main() {
 
     await step("each character has a relationship board, linked from its page", async () => {
       await page.goto(`${base}/characters/${mine}`);
-      await page.getByRole("link", { name: "📱 Open their relationship board" }).click();
+      await page.getByRole("link", { name: "📱 See their board →" }).click();
       await page.waitForURL(/\/characters\/[^/]+\/relationships$/);
       assert((await page.locator(".phone-row").count()) >= 1, "the board should list their date");
       assert((await page.locator(".phone-row-preview").count()) >= 1, "an owner should see the newest text");

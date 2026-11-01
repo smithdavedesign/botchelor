@@ -1597,6 +1597,21 @@ details.settings[open] > summary {
   padding-left: 1.1rem;
 }
 
+/* The episode's ending pick (D2): the quiz's tap-to-save buttons, one to a row. */
+.pick-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+.pick-choices button {
+  text-align: left;
+  margin-top: 0;
+}
+.pick-bonus-q {
+  margin: var(--space-3) 0 var(--space-2);
+  font-weight: 600;
+}
 .quiz .choices {
   display: flex;
   flex-direction: column;
@@ -3287,6 +3302,23 @@ html.phone-open body {
 @media (max-width: 34rem) {
   .phone-card {
     padding-inline: 0.75rem;
+  }
+  /* The relationship board on a phone: its inbox in a plain card, not a drawn phone inside the real one (C11). */
+  .board-phone .phone {
+    height: auto;
+    padding: 0;
+    border-radius: var(--radius);
+    background: none;
+    box-shadow: none;
+  }
+  .board-phone .phone .phone-screen {
+    height: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .board-phone .phone-status,
+  .board-phone .phone-home {
+    display: none;
   }
   .phone:not(.phone-bare) {
     padding: 0.45rem;

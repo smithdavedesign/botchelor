@@ -724,3 +724,40 @@ details.recap-toggle[open] .recap-toggle-hide {
 .graph-pairs > .list {
   margin-top: var(--space-2);
 }
+
+/* One Share button with a popover (app/ShareButton.tsx, D3). */
+.share-button {
+  position: relative;
+  display: inline-block;
+}
+.share-button > button {
+  margin: 0;
+}
+.share-pop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: min(18rem, 80vw);
+  margin: 0;
+  padding: var(--space-3);
+  box-shadow: var(--shadow);
+}
+.share-pop > :is(a, button) {
+  margin: 0;
+  justify-self: stretch;
+  text-align: center;
+}
+.share-pop[hidden] {
+  display: none;
+}
+.share-pop > input {
+  width: 100%;
+  margin: 0;
+}
+.share-pop-note {
+  white-space: normal;
+}

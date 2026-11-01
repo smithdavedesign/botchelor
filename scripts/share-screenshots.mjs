@@ -138,8 +138,9 @@ async function shoot(base, episode, longEpisode) {
         const header = document.querySelector(".site-header")?.getBoundingClientRect().height ?? 0;
         window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - header - 24);
       });
-      const reddit = new URL(await page.getByRole("link", { name: "Share on Reddit" }).getAttribute("href"));
-      const bsky = new URL(await page.getByRole("link", { name: "Share on Bluesky" }).getAttribute("href"));
+      await page.getByRole("button", { name: "🔗 Share this date" }).click();
+      const reddit = new URL(await page.getByRole("link", { name: "Reddit" }).getAttribute("href"));
+      const bsky = new URL(await page.getByRole("link", { name: "Bluesky" }).getAttribute("href"));
       const copy = await page.getByLabel("Episode link").inputValue();
       const shared = [reddit.searchParams.get("url"), bsky.searchParams.get("text").match(/https?:\/\/\S+/)?.[0], copy];
       for (const url of shared) assert(url && new URL(url).searchParams.get("ref") === "share", `a share link without ?ref=share: ${url}`);
