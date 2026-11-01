@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { markedImageResponse } from "@/lib/ai-mark";
+import { markedImageResponse, SHARE_CARD_CACHE } from "@/lib/ai-mark";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { approvedPortraitDataUrl } from "@/lib/assets";
 import { getDb } from "@/lib/db";
@@ -63,7 +63,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         </div>
       </div>
     ),
-    size,
+    { ...size, headers: SHARE_CARD_CACHE },
   );
   // A card with a generated portrait in it is marked AI-generated, in its PNG's XMP and its headers (lib/ai-mark.ts).
   return portrait ? markedImageResponse(card) : card;
