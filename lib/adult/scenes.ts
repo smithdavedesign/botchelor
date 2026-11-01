@@ -2853,7 +2853,11 @@ async function writeScene(db: Db, adminId: string, x: string, y: string, directi
     ...(picture_note ? { picture_note } : {}),
     ...(autoPicture || askedBoth ? { auto_picture: true } : {}),
     ...(writer_note ? { writer_note } : {}),
-    ...(steer && (step.flags.steer_followed === "partly" || step.flags.steer_followed === "no") ? { steer_unfollowed: { text: steer, mode: steerMode, followed: step.flags.steer_followed } } : {}),
+    // Said for a Direct steer only: a nudge is worked toward over a few steps, so "partly" after its first one is the
+    // nudge doing its job, and a note every step would be noise (the flag is still logged for both).
+    ...(steer && steerMode === "direct" && (step.flags.steer_followed === "partly" || step.flags.steer_followed === "no")
+      ? { steer_unfollowed: { text: steer, mode: steerMode, followed: step.flags.steer_followed } }
+      : {}),
   };
 }
 
