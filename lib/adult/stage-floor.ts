@@ -60,6 +60,19 @@ export function stagesFor(lines: readonly { text: string }[], before: number, cl
   return { perLine, stage };
 }
 
+/**
+ * How far the lines have actually gone, for the page's "So far": the furthest stage any of them plainly shows (stageShown,
+ * the last chapter's carried-over lines too), never past the scene's own stage. With no lines yet, the scene's stage (a new
+ * chapter says where it carries on). #1136 (the 2026-11-01-1037 visitor: "So far: kissing" after a nudge, while the lines
+ * were still about a watch and no kiss had happened): the scene's stage is the model's claim at the end of a step, which a
+ * steer moves on before the lines get there, and the step's last line carries it (stagesFor). Pure.
+ */
+export function stageReached(scene: { lines: readonly { text: string }[]; prev_tail?: readonly { text: string }[] | null; stage: number }): number {
+  if (!scene.lines.length) return scene.stage;
+  const shown = [...(scene.prev_tail ?? []), ...scene.lines].reduce((m, l) => Math.max(m, stageShown(l.text) ?? 0), 0);
+  return Math.min(scene.stage, shown);
+}
+
 const words = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}'\s]+/gu, " ").split(/\s+/).filter(Boolean);
 
 /** The longest run of words the two share, in order (how much of the steer a passage repeats word for word). */

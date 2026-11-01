@@ -38,7 +38,7 @@ import {
   type Suggestion,
   type Whispers,
 } from "./director";
-import { agreedMove, historyPhrase, isPublicPlace as isPublicSet, MAX_SCENE_MOVES, placeLocked, proposesMove, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
+import { agreedMove, historyPhrase, isPublicPlace as isPublicSet, MAX_SCENE_MOVES, narratedMove, placeLocked, proposesMove, repeatOf, saysCatchphrase, settlePlace, shownMove, withoutOpening, withoutPart, withoutPhrase, type MoveLog, type PlaceStop } from "./continuity";
 import { loadChain } from "../text-chain";
 import { placeParts, venuePhrase } from "../venues";
 import { activeLimit, climaxesIn, climaxIn, linesAtPlace, objectOf, possessiveNames, possessiveOf, pronounKind, recentClimax, repairPlacePronouns, THRESHOLD_LINES, thresholdOf } from "./craft";
@@ -107,6 +107,7 @@ import {
   gestureRepeatOf,
   withoutDanglingCue,
   withoutLeadingEllipsis,
+  othersAction,
   phraseNames,
   phrasesIn,
   questionHabit,
@@ -116,6 +117,9 @@ import {
   sheetText,
   showsTell,
   sideOfCharacter,
+  steerFollowed,
+  stepRepeatOf,
+  withoutStepRepeats,
   TELL_CAP,
   topicEvery,
   topicsOf,
@@ -1364,7 +1368,7 @@ export function dropRepeats(
   chapter: readonly SceneLine[],
   a: Character | null,
   b: Character | null,
-  opts: { worn?: boolean; craft?: boolean; quotes?: readonly SteerQuote[]; topics?: TopicBudget } = {},
+  opts: { worn?: boolean; craft?: boolean; quotes?: readonly SteerQuote[]; topics?: TopicBudget; step?: readonly SceneLine[] } = {},
 ): { kept: SceneLine[]; dropped: DroppedLine[]; worn: number; cuts: CraftCuts } {
   const kept: SceneLine[] = [];
   const dropped: DroppedLine[] = [];
@@ -1442,6 +1446,18 @@ export function dropRepeats(
     if (rep) {
       drop(l, `${rep.kind === "verbatim" ? "said word for word" : "nearly said"} before: "${rep.of.slice(0, 80)}"`);
       continue;
+    }
+    // #1136: a sentence already said in this step (by either of them, or earlier in this line) goes, and the line when
+    // nothing it says is left; the same as the near_duplicate critic does across steps, for a copy inside a longer line.
+    const stepLines = [...(opts.step ?? []), ...kept].map((x) => x.text);
+    const again = stepRepeatOf(text, stepLines);
+    if (again) {
+      const cut = withoutStepRepeats(text, stepLines);
+      if (!cut) {
+        drop(l, `said again in this step ("${again.slice(0, 80)}")`);
+        continue;
+      }
+      text = cut;
     }
     if (a && b) {
       const issues = lineIssues(before.slice(-CRITIC_WINDOW).map(asTurn), asTurn({ ...l, text }), [a, b]);
@@ -1594,7 +1610,20 @@ export function dropRepeats(
 }
 
 export type ContinueResult =
-  | { ok: true; scene: AdultScene; added: number; held: number; repeats: number; dropped: number; pictures: Media[]; picture_note?: string; auto_picture?: boolean; writer_note?: string }
+  | {
+      ok: true;
+      scene: AdultScene;
+      added: number;
+      held: number;
+      repeats: number;
+      dropped: number;
+      pictures: Media[];
+      picture_note?: string;
+      auto_picture?: boolean;
+      writer_note?: string;
+      /** #1136: the steer the step was given, when its lines followed it only partly or not at all (StepFlags steer_followed). */
+      steer_unfollowed?: { text: string; mode: SteerMode; followed: "partly" | "no" };
+    }
   | { ok: false; status: number; message: string };
 
 /**
@@ -1772,6 +1801,16 @@ export type StepFlags = {
   /** v2.3: a new chapter carrying on from the last (the stage and place it carried), and a claim it raised to that stage. */
   carry?: { stage: number; place: string; first: boolean; floor: boolean };
   stage_floor_raised?: boolean;
+  /**
+   * #1136: lines narrating a move the rules refused were asked for once more (move_retry); where they went when the lines
+   * that stood still narrate it (move_unagreed: the label stays where the rules settled it); lines dropped for an action
+   * that's the other one's (wrong_speaker); and whether the lines followed the step's steer, by its key words
+   * (lib/adult/quality.ts steerFollowed).
+   */
+  move_retry?: boolean;
+  move_unagreed?: string;
+  wrong_speaker?: number;
+  steer_followed?: "yes" | "partly" | "no";
 };
 
 /** "kissing" (STAGES): as far as it goes in a public place (David, 2026-10-18). */
@@ -1946,6 +1985,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     const inScene: SceneLine[] = [];
     let named = 0;
     let refused = 0;
+    let misplaced = 0;
     // The viewer's limits, whatever the steer: a hard no crossed (the step is asked once more), or past the intensity.
     const hardHits: string[] = [];
     let limited = 0;
@@ -1985,6 +2025,18 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
         continue;
       }
       if (unselfed !== g.text) flags.names_repaired++;
+      // #1136 (the 2026-11-01-1105 visitor: "Her gaze drops to the vest covering his chest." under Barnaby): an action
+      // whose subject is the other one (their name, or their pronoun when the two differ) is their beat under the wrong
+      // speaker, like a line calling out its own speaker's name.
+      const mine = l.who === "a" ? a : b;
+      const theirs = l.who === "a" ? b : a;
+      const wrong = othersAction(unselfed, { name: names[l.who], pronouns: mine?.pronouns }, { name: names[l.who === "a" ? "b" : "a"], pronouns: theirs?.pronouns });
+      if (wrong) {
+        misplaced++;
+        flags.wrong_speaker = (flags.wrong_speaker ?? 0) + 1;
+        drops.push({ who: l.who, text: l.text, reason: `its action is the other one's ("${wrong}…"): under the wrong speaker` });
+        continue;
+      }
       // The steer acted out, never quoted (lib/adult/stage-floor.ts): an action that copies it goes, a line that does is dropped.
       // v2.3: a steer's quoted lines are meant to be said, so only the rest of it is held to that rule.
       const own = withoutSteerCopy(unselfed, copyRule);
@@ -2089,7 +2141,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     flags.alternation_dropped += turns.dropped.length;
     dropped.push(...drops, ...reps.dropped, ...turns.dropped);
     // Only repeats stood in the way (the note, and the message, say so as before).
-    const onlyRepeats = reps.dropped.length > 0 && refused + named + publicDropped + turns.dropped.length + hardHits.length + limited === 0;
+    const onlyRepeats = reps.dropped.length > 0 && refused + named + misplaced + publicDropped + turns.dropped.length + hardHits.length + limited === 0;
     return { raw, written, safe, kept: turns.kept, boundary: turns.boundary, onlyRepeats, repeated: reps.dropped, hardHits };
   };
 
@@ -2119,6 +2171,36 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     if (reps.kept.length !== 1 || reps.kept[0].text !== text) return null;
     if ((showLines.length && repeatOf(text, showLines)) || copiedRun(text, ownLines[l.who])) return null;
     return text;
+  };
+
+  // v2.2 (Lexi × Dex on prod, 2026-10-22: "Lexis bedroom", typed into set the scene without its apostrophe): a name that
+  // lost its apostrophe gets it back, where they are and in what the model claims, so the set they're on is put right too.
+  const named = (label: string | null) => possessiveNames(label, names);
+  // Where they are after these lines (lib/adult/continuity.ts): a rewording keeps the set; a move needs one to propose and
+  // the other to agree in these lines, a move left this chapter, and somewhere they aren't already. Anything else is ignored.
+  const settleFor = (lines: readonly SceneLine[], meta: Pick<SceneMeta, "place" | "set">) =>
+    settlePlace({
+      // Before the model has named a place, they're where their date was (they don't leave it unprompted either).
+      current: { place: named(scene.place ?? date?.setting ?? null), set: named(scene.set_place) },
+      claimed: { place: named(meta.place), set: named(meta.set ?? null) },
+      lines: [...night, ...lines],
+      from: night.length,
+      movesThisChapter: movesTaken,
+      homeNow,
+      names,
+      fromLines: v2,
+      locked: placeLocked(scene),
+    });
+  /**
+   * #1136: a move the rules refused (no agreement, or none left this chapter) that the lines narrate anyway, walking into
+   * her flat while the label and the set stay on the cafe; null when the lines and where they are agree.
+   */
+  const refusedMove = (o: ReturnType<typeof guard>): { to: string; reason: MoveLog["reason"]; here: string; at: number } | null => {
+    const s = settleFor(o.kept, parseSceneMeta(o.raw));
+    if (s.moved || !s.rejected || s.rejected.reason === "already_there") return null;
+    const here = s.set ?? s.place ?? date?.setting ?? null;
+    const at = narratedMove(o.kept, s.rejected.to, here);
+    return at < 0 ? null : { to: s.rejected.to, reason: s.rejected.reason, here: here ?? "where they are", at };
   };
 
   let out: ReturnType<typeof guard>;
@@ -2252,6 +2334,39 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
         dropped.length = droppedBefore;
       }
     }
+    // #1136 (the 2026-10-31-1644 visitor: "the location label stayed 'Cafe'… Meanwhile the narration said 'She unlocks the
+    // door to her flat'"; David, 2026-11-01: keep the move rules, redo the step): lines that narrate a move the rules
+    // refused are asked for once more, at where they are (the step's one retry, so only when it hasn't had it). The new
+    // take is used when it doesn't; otherwise the first stands, and the label stays where they are, adding nothing.
+    const strayed = !flags.retried && out.kept.length ? refusedMove(out) : null;
+    if (strayed) {
+      const first = (who: "a" | "b") => names[who].split(/\s+/)[0];
+      const why = strayed.reason === "cap" ? "they've moved as often as a chapter allows" : `neither asked to go there and had the other say yes`;
+      const note =
+        `Your lines took ${first("a")} and ${first("b")} to ${strayed.to}, but ${why}, so they're still at ${strayed.here}. ` +
+        `Write the ${LINES_PER_TURN} lines again, all of them at ${strayed.here}: to go somewhere, one of them asks and the other agrees first, in the lines. Reply with the JSON again.`;
+      const snapshot = { ...flags, citations: [...flags.citations] };
+      const droppedBefore = dropped.length;
+      flags.retried = true;
+      flags.move_retry = true;
+      flags.calls++;
+      let second: ReturnType<typeof guard> | null = null;
+      try {
+        second = guard(await model.complete([...messages, { role: "assistant", content: out.raw }, { role: "user", content: note }], modelOptions));
+      } catch {
+        second = null;
+      }
+      if (second && second.kept.length && !refusedMove(second)) out = second;
+      else {
+        // The first take stands, the place kept as the rules settled it: what the second one dropped isn't this step's.
+        Object.assign(flags, { ...snapshot, retried: true, move_retry: true, move_unagreed: strayed.to, calls: flags.calls });
+        dropped.length = droppedBefore;
+      }
+    } else if (out.kept.length && flags.retried) {
+      // The step had its retry already: the lines stand, and the label stays where the rules settled it (logged).
+      const late = refusedMove(out);
+      if (late) flags.move_unagreed = late.to;
+    }
   } catch (err) {
     return { ok: false, status: 502, message: `After dark's model didn't answer: ${err instanceof Error ? err.message : "error"}`, dropped, flags, shown, usage, served: served() };
   }
@@ -2287,23 +2402,7 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
 
   const meta = parseSceneMeta(raw);
   const resolve = async (label: string) => (input.resolveSet ? await input.resolveSet(label) : cutSetLabel(drawLabel(label)));
-  // v2.2 (Lexi × Dex on prod, 2026-10-22: "Lexis bedroom", typed into set the scene without its apostrophe): a name that
-  // lost its apostrophe gets it back, where they are and in what the model claims, so the set they're on is put right too.
-  const named = (label: string | null) => possessiveNames(label, names);
-  // Where they are now (lib/adult/continuity.ts): a rewording keeps the set; a move needs one to propose and the other
-  // to agree in these lines, a move left this chapter, and somewhere they aren't already. Anything else is ignored.
-  const settled = settlePlace({
-    // Before the model has named a place, they're where their date was (they don't leave it unprompted either).
-    current: { place: named(scene.place ?? date?.setting ?? null), set: named(scene.set_place) },
-    claimed: { place: named(meta.place), set: named(meta.set ?? null) },
-    lines: [...night, ...kept],
-    from: night.length,
-    movesThisChapter: movesTaken,
-    homeNow,
-    names,
-    fromLines: v2,
-    locked: placeLocked(scene),
-  });
+  const settled = settleFor(kept, meta);
   // The public cap goes by the same signal as the place (botchelor-41, 2026-10-22): a line past kissing that the guard let
   // through because these lines agreed to go goes after all when the move wasn't taken (a third this chapter, or nowhere
   // new), so the stage can't climb past the cap while they're still somewhere public.
@@ -2396,6 +2495,10 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
     flags.quotes = quotesKept(quotes, stamped);
     flags.quote_kept = flags.quotes.every((q) => q.kept);
   }
+  // #1136: whether the lines followed the steer (its key words, and a Direct steer's quotes), for the page's "Only partly
+  // followed" note. Free: no model call.
+  const followed = steerFollowed(copyRule, stamped, [names.a, names.b], flags.quotes ? { all: flags.quotes.length, kept: flags.quotes.filter((q) => q.kept).length } : null);
+  if (followed) flags.steer_followed = followed;
   const stage_from = stage === scene.stage ? scene.stage_from : scene.lines.length;
   // v2's suggested next moves (lib/adult/director.ts), held to the rules a line is, for the scene as these lines leave it:
   // at most a stage on, and past kissing somewhere public only by leaving first.
@@ -2745,11 +2848,12 @@ async function writeScene(db: Db, adminId: string, x: string, y: string, directi
     added: step.lines.length,
     held: step.flags.held,
     repeats: step.flags.repeats,
-    dropped: step.flags.names_dropped + step.flags.alternation_dropped + step.flags.refused + (step.flags.whispers_said ?? 0),
+    dropped: step.flags.names_dropped + step.flags.alternation_dropped + step.flags.refused + (step.flags.whispers_said ?? 0) + (step.flags.wrong_speaker ?? 0),
     pictures,
     ...(picture_note ? { picture_note } : {}),
     ...(autoPicture || askedBoth ? { auto_picture: true } : {}),
     ...(writer_note ? { writer_note } : {}),
+    ...(steer && (step.flags.steer_followed === "partly" || step.flags.steer_followed === "no") ? { steer_unfollowed: { text: steer, mode: steerMode, followed: step.flags.steer_followed } } : {}),
   };
 }
 

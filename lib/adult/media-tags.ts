@@ -63,6 +63,9 @@ const STUDIO_POV_ACT: Record<string, string> = { on_top: "on_top", kneel: "oral"
 /** A first-person view of two of them: whose eyes (lib/adult/acts.ts Eyes). */
 const isEyes = (v: unknown): v is "a" | "b" => v === "a" || v === "b";
 
+/** The place a picture's prompt asked for ("The place: …", lib/adult/reels.ts keyframePrompt and povPrompt), or null. */
+export const askedPlace = (prompt: string | null | undefined): string | null => /\bThe place: ([^\n]{2,200}?)\.(?:\s|$)/.exec(prompt ?? "")?.[1]?.trim() ?? null;
+
 /** How far the night must have gone for a picture of each level to fit it: STAGES index → the highest level it shows. */
 export function levelForStage(stage: number): Level {
   return stage >= 4 ? 3 : stage >= 3 ? 2 : stage >= 2 ? 1 : 0;
@@ -127,8 +130,16 @@ export function deriveTags(row: TagSourceRow, source: MediaTag[] = []): MediaTag
     const extra = (c.extra ?? {}) as Record<string, unknown>;
     for (const k of placeKeys(str(extra.place))) add("place", k, "derived");
   }
+  // #1136 (the 2026-11-01-1105 visitor: "'Standing close · Home' picture is an alley with an EXIT sign", a "Home" slow
+  // dance on a café terrace): a scene's picture is drawn where its brief read the lines to be (lib/adult/beats.ts
+  // pictureBrief), and the beat and the picture keep where the scene was settled then. When the place its prompt asked
+  // for names none of those, it's labelled from the prompt.
+  const asked = !row.shoot_kind && !row.clip && !row.shot ? placeKeys(askedPlace(row.prompt)) : [];
+  const settledKeys = [...placeKeys(row.beat_place), ...placeKeys(row.scene_place)];
+  const drawnElsewhere = asked.length > 0 && settledKeys.length > 0 && !asked.some((k) => settledKeys.includes(k));
+  if (drawnElsewhere) for (const k of asked) add("place", k, "derived");
   if (row.beat_act && ACT_IDS.has(row.beat_act)) add("act", row.beat_act, "choice");
-  for (const k of placeKeys(row.beat_place)) add("place", k, "choice");
+  if (!drawnElsewhere) for (const k of placeKeys(row.beat_place)) add("place", k, "choice");
   if (row.beat_stage !== null) add("stage", String(levelForStage(row.beat_stage)), "choice");
   if (row.clip) {
     if (row.clip.act && ACT_IDS.has(row.clip.act)) add("act", row.clip.act, "choice");
@@ -142,7 +153,7 @@ export function deriveTags(row: TagSourceRow, source: MediaTag[] = []): MediaTag
     if (typeof row.shot.stage === "number") add("stage", String(levelForStage(row.shot.stage)), "choice");
     add("act", positionIn(`${row.shot.text ?? ""} ${row.shot.frame ?? ""}`), "derived");
   }
-  for (const k of placeKeys(row.scene_place)) add("place", k, "derived");
+  if (!drawnElsewhere) for (const k of placeKeys(row.scene_place)) add("place", k, "derived");
   // Plain words in what it was made from, when nothing better said it.
   if (![...out.values()].some((t) => t.kind === "act")) add("act", positionIn(row.prompt), "derived");
   if (![...out.values()].some((t) => t.kind === "place")) for (const k of placeKeys(row.prompt)) add("place", k, "derived");

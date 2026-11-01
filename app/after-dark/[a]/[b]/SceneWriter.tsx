@@ -16,7 +16,7 @@ import PictureContext from "./PictureContext";
 import type { PictureEdit } from "@/lib/adult/beats";
 import { pictureNoteKind } from "@/lib/adult/picture-notes";
 import type { Readiness } from "@/lib/adult/readiness";
-import AfterDarkTheater, { steerEcho } from "./AfterDarkTheater";
+import AfterDarkTheater, { steerEcho, unfollowedNote } from "./AfterDarkTheater";
 import type { CatalogScene } from "@/lib/adult/scene-catalog";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 import Limits from "./Limits";
@@ -31,6 +31,7 @@ import { byFiling, groupNights, runningNight } from "@/lib/adult/nights";
 import { autoplayStop } from "@/lib/adult/autoplay";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
+import { stageReached } from "@/lib/adult/stage-floor";
 import { hiveNoticeText, type HiveNotice } from "@/lib/adult/hive-notice";
 import CharacterName from "@/app/CharacterName";
 import FacesPanel, { pickedFace, type Faces } from "./Faces";
@@ -292,6 +293,8 @@ export default function SceneWriter({
     };
   }, [initial]);
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  // #1136: the last steer, when its lines followed it only partly or not at all: said under them, to send again in one tap.
+  const [unfollowed, setUnfollowed] = useState<{ text: string; mode: "nudge" | "direct"; followed: "partly" | "no" } | null>(null);
   // The steer's echo stays ahead of it (#1017).
   // #1164: how long this viewer's writer usually takes, not one fixed minute for every writer.
   const writerNow = writer?.models.find((m) => m.id === writer.chosen) ?? null;
@@ -397,6 +400,7 @@ export default function SceneWriter({
     // #1017: a steer says it was taken while its lines are written, not only once they change.
     const steered = echo && typeof body.direction === "string" && body.direction.trim() ? { text: body.direction, mode: body.steer_mode === "direct" ? ("direct" as const) : ("nudge" as const) } : null;
     setNote(steered ? { text: steerEcho(steered.text, steered.mode, false) } : null);
+    setUnfollowed(null);
     if (typeof body.direction === "string" && body.direction.trim()) pendingSteer.save(scene.a.id, scene.b.id, { text: body.direction.trim(), mode: body.steer_mode === "direct" ? "direct" : "nudge" });
     const asked = Date.now();
     const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
@@ -460,7 +464,10 @@ export default function SceneWriter({
     }
     if (body.scenario) parts.unshift("A new night: the last one is under Their nights.");
     if (body.redo) parts.unshift("Rewritten: the last step was taken back and written again.");
-    if (steered) parts.unshift(steerEcho(steered.text, steered.mode, true));
+    // #1136: a steer its lines followed only partly says so (with Steer again) in place of "Steered".
+    const missed = steered ? (res.data.steer_unfollowed as { text: string; mode: "nudge" | "direct"; followed: "partly" | "no" } | undefined) : undefined;
+    if (missed) setUnfollowed(missed);
+    else if (steered) parts.unshift(steerEcho(steered.text, steered.mode, true));
     if (body.whisper) parts.push(`🤫 Whispered to ${nameOf((body.whisper as { to: "a" | "b" }).to)}: it shapes this step and the next.`);
     const stop = autoplay && !body.reset && body.set_scene === undefined && body.roleplay === undefined && !body.forget_whisper && !body.scenario ? autoplayStop(scene, next, Number(res.data.added ?? 0)) : null;
     if (stop) {
@@ -468,6 +475,8 @@ export default function SceneWriter({
       parts.push(stop);
     }
     if (parts.length) setNote({ text: parts.join(" ") });
+    // The "Writing the next lines…" echo goes: the unfollowed note says what came of the steer.
+    else if (missed) setNote(null);
     return true;
   }
 
@@ -580,7 +589,8 @@ export default function SceneWriter({
           </button>
           <span className="muted small">
             {scene.chapter > 1 ? `Chapter ${scene.chapter}. ` : ""}
-            {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[scene.stage] ?? STAGES[0]}.
+            {/* #1136: how far the lines have actually gone, not the stage a steer asked for before they got there. */}
+            {scene.place ? `Now: ${scene.place}. ` : ""}So far: {STAGES[stageReached(scene)] ?? STAGES[0]}.
             {scene.chapter > SOFT_CHAPTERS ? ` This night has run ${scene.chapter - 1} chapters: 🌙 End the night (in the theater's ⋯) files it under Gallery → Nights, and the next night begins fresh.` : ""}
           </span>
         </div>
@@ -595,6 +605,14 @@ export default function SceneWriter({
               {note.text}
             </p>
           )
+        )}
+        {!theater && !busy && unfollowed && (
+          <p className="muted small" role="status">
+            {unfollowedNote(unfollowed)}{" "}
+            <button type="button" className="linklike" onClick={() => void send({ direction: unfollowed.text, steer_mode: unfollowed.mode })}>
+              Steer again?
+            </button>
+          </p>
         )}
         {!theater && crisisNotice}
         {theater && (
@@ -614,6 +632,7 @@ export default function SceneWriter({
             characters={cast}
             busy={busy}
             note={writingNote ?? note?.text ?? null}
+            steerAgain={unfollowed ? { text: unfollowed.text, followed: unfollowed.followed, onResend: () => void send({ direction: unfollowed.text, steer_mode: unfollowed.mode }) } : null}
             onWrite={write}
             steerDraft={steerDraft}
             steerMode={steerMode}
