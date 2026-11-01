@@ -2,6 +2,43 @@
 
 ## Screenshots
 
+A UX audit of the whole site on phone and desktop (2026-10-31). Each page was checked for crowding: what was crowded is
+grouped, and what was a whole form in the page opens in a modal (a bottom sheet on phones). Six PRs: #1150, #1157,
+#1161, #1163, #1166 and #1167.
+- **Crowded pages grouped:**
+  - /characters is two to a row on a phone, with the matchmaker form in a modal and the pairings folded.
+  - The footer's fifteen links are three groups.
+  - The home page quotes three bot reviews, and the rest are on /reviews.
+  - Notifications' settings are in a ⚙ modal.
+- **One next step:** the owner's character page opens on what to do next, with one filled button per page site-wide.
+- **Easier to start:** the create wizard folds what's optional, and Next says what's missing. The account page has Sign
+  in and Create account tabs.
+- **Desktop:** the swipe deck sits beside its intro, with Pass and Like in view at 1280×800.
+
+Captured on botchelor.com by a throwaway test visitor (`npm run screenshots:ux-live`), whose character was closed to
+dates and deleted afterwards. Every finding and where it stands:
+[docs/audits/2026-10-31-ux-audit.md](docs/audits/2026-10-31-ux-audit.md).
+
+<img src="docs/screenshots/ux-characters-phone.png" width="240" alt="/characters on a phone: the heading with Make your character, a one-line intro, and the cast two to a row">
+<img src="docs/screenshots/ux-character-owner-phone.png" width="240" alt="The owner's character page on a phone: one next step at the top">
+<img src="docs/screenshots/ux-notifications-settings-phone.png" width="240" alt="Notifications on a phone with ⚙ Settings open as a bottom sheet: browser notifications and email">
+<img src="docs/screenshots/ux-create-next-phone.png" width="240" alt="The create wizard on a phone: Next on an empty first step says what's still needed">
+<img src="docs/screenshots/ux-account-phone.png" width="240" alt="The account page on a phone, signed out: Sign in and Create account as two tabs">
+<img src="docs/screenshots/ux-footer-phone.png" width="240" alt="The footer on a phone: three folded groups, with Help and legal open">
+
+![The swipe deck at 1280×800: the intro on the left and the card on the right, with Pass and Like in view](docs/screenshots/ux-swipe-desktop.png)
+
+Swipe with a finger on a phone, and Unmatch from the chat (2026-10-31, #1131, #1138, #1150). On a phone, a card drags
+left to pass and right to like; let go short and it springs back. Undo never undoes a match. Unmatching is in the
+chat's ⋯ menu instead, and it asks first in a modal. Once unmatched, their chat ends, and a like again is refused.
+Captured on botchelor.com by a throwaway test visitor with real touch input (`npm run screenshots:swipes-live`).
+
+<img src="docs/screenshots/swipe-live-drag-phone.png" width="240" alt="The swipe deck on a phone: a card dragged right by a finger, tilting, with LIKE showing">
+<img src="docs/screenshots/swipe-live-match-phone.png" width="240" alt="After a right swipe on a house character: It's a match">
+<img src="docs/screenshots/unmatch-menu-phone.png" width="240" alt="Their chat on a phone with the ⋯ menu open: Unmatch at the bottom">
+<img src="docs/screenshots/unmatch-confirm-phone.png" width="240" alt="Unmatch asks first, in a bottom sheet: Keep the match, or 💔 Unmatch">
+<img src="docs/screenshots/unmatch-ended-phone.png" width="240" alt="The old link to the chat after unmatching: their chat has ended">
+
 Roleplays on show dates (2026-10-31, #1113). Two characters can play a game for one date: rival spies, the knight and
 the dragon, a second first date. The show offers 25 PG roleplays in eight kinds, or an owner writes one.
 - **Who agrees:**
