@@ -90,7 +90,7 @@ export default function ReelFeed(props: Props) {
     return () => io.disconnect();
   }, [total]);
 
-  // Opened at a post ("▶ Reels from here"): start there.
+  // Opened at a post ("▶ Watch full screen from here"): the page puts it first.
   useEffect(() => {
     if (!props.start) return;
     const i = feed.findIndex((x) => x.kind === "post" && x.post.id === props.start);
@@ -314,7 +314,7 @@ function Slide({
           <video
             data-v={i}
             src={near ? src(p) : undefined}
-            poster={near ? still(p, "screen") : undefined}
+            poster={near && p.poster ? still(p, "screen") : undefined}
             muted
             loop
             playsInline

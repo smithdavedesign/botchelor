@@ -1,5 +1,7 @@
 import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
+import { afterDarkElsewhere } from "@/lib/after-dark-host";
 import { PUBLIC_CACHE, PRIVATE_CACHE } from "@/lib/asset-gate";
+import { signMediaGrant, verifyMediaGrant } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { objectStore, readBytes } from "@/lib/object-store";
 import { postMedia, showcaseViewer } from "@/lib/showcase";
@@ -11,12 +13,29 @@ import { thumbFor, thumbSizeOf } from "@/lib/showcase-thumbs";
  * a redirect to a short-lived presigned link. `?size=tile|screen`: a smaller copy of a picture (lib/showcase-thumbs.ts),
  * for the grid and the reels; the same viewer's rules decide first. For a clip, a sized copy is its poster: the
  * picture it was filmed from (adult_images.source_image), or nothing, never the clip itself.
+ *
+ * With After Dark on its own host (lib/after-dark-host.ts), a file made there is in its store (Bunny), which the show's
+ * can't read: the show sends the browser there (David, 2026-11-01: a character's clip didn't show; every After Dark clip
+ * on the show was a blank tile). A file anyone may see goes as it is; any other carries `?g=`, the show's OK for that
+ * post (lib/auth.ts signMediaGrant), since that host may not know who's watching.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const db = await getDb();
   const { id } = await params;
-  const m = await postMedia(db, await showcaseViewer(db, req), id);
+  const url = new URL(req.url);
+  const m = await postMedia(db, await showcaseViewer(db, req), id, { granted: verifyMediaGrant(url.searchParams.get("g"), id) });
   if (!m) return new Response("Not found", { status: 404 });
+  const elsewhere = m.source === "after_dark" ? afterDarkElsewhere() : null;
+  if (elsewhere) {
+    const q = new URLSearchParams();
+    const asked = url.searchParams.get("size");
+    if (asked) q.set("size", asked);
+    const grant = m.rating === "pg" ? null : signMediaGrant(id);
+    if (grant) q.set("g", grant);
+    const location = `${elsewhere}/api/showcase/${encodeURIComponent(id)}/media${q.size ? `?${q}` : ""}`;
+    // Kept for less than the grant lasts, so a cached redirect never carries a spent one.
+    return new Response(null, { status: 302, headers: { location, "cache-control": grant ? "private, max-age=600" : "public, max-age=3600", "x-robots-tag": "noindex" } });
+  }
   const row = (
     await db.query<{ mime: string; data: Buffer | Uint8Array | null; object_key: string | null; source_image: string | null }>(
       m.source === "pg"
@@ -27,7 +46,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   ).rows[0];
   if (!row) return new Response("Not found", { status: 404 });
   const cache = m.rating === "pg" ? PUBLIC_CACHE : PRIVATE_CACHE;
-  const size = thumbSizeOf(new URL(req.url).searchParams.get("size"));
+  const size = thumbSizeOf(url.searchParams.get("size"));
   const video = row.mime.startsWith("video/");
   if (size && (video || row.mime.startsWith("image/"))) {
     const thumb = await thumbFor(db, id, size, async () => {

@@ -37,7 +37,7 @@ export default async function CreatorPage({ params, searchParams }: Props) {
         {c.bio && <p>{c.bio}</p>}
         <FollowButton handle={c.handle} {...(await followState(db, viewer.id, c.handle))} />{" "}
         <Link href={`/showcase/reels?creator=${encodeURIComponent(c.handle)}`} className="button small showcase-reels-link">
-          ▶ Watch as reels
+          ▶ Watch full screen
         </Link>
       </header>
       <ShowcaseBrowser db={db} viewer={viewer} base={`/creators/${c.handle}`} filters={parseFilters(await searchParams)} fixed={{ creator: c.handle }} />

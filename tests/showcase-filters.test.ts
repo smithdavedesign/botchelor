@@ -1,4 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
+}));
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ShowcaseBrowser from "@/app/showcase/ShowcaseBrowser";
@@ -135,7 +139,7 @@ describe("the showcase's filters", () => {
     expect(Object.fromEntries(ad.from)).toEqual({ studio: 1 });
   });
 
-  it("lays the filters out as sides, sort and rows, with what's picked removable one at a time", async () => {
+  it("lays the filters out as sides, a sort and type bar, and dropdowns, with what's picked removable one at a time", async () => {
     const w = await world();
     const render = async (v: ShowcaseViewer, q: string) => renderToStaticMarkup(createElement("div", null, await ShowcaseBrowser({ db: t.db, viewer: v, base: "/showcase", filters: parseFilters(new URLSearchParams(q)) })));
     const html = await render(ADMIN(w.me), "place=bar&sort=trending");
@@ -146,6 +150,14 @@ describe("the showcase's filters", () => {
     expect(html).toContain('href="/showcase?sort=trending&amp;side=after_dark"');
     expect(html).toContain('aria-label="Remove: Bar"');
     expect(html).toContain('href="/showcase?sort=trending"');
+    // David, 2026-11-01 ("too many buttons"): sort and type are one bar; character, place, pose, made and shape are
+    // dropdowns in a form that carries the bar's picks, with the pick shown; no rows of chips.
+    expect(html).toMatch(/aria-label="Sort"[^]*class="showcase-side on" aria-current="true"[^>]*>Trending</);
+    expect(html).toContain('<form class="showcase-selects" action="/showcase" method="get">');
+    expect(html).toContain('<input type="hidden" name="sort" value="trending"/>');
+    expect(html).toMatch(/<select name="place">[^]*<option value="bar" selected="">Bar \(\d+\)<\/option>/);
+    expect(html).not.toContain('name="place" value="bar" type="hidden"');
+    expect(html).not.toContain("showcase-row");
     // Someone who can't see After Dark gets no side tabs at all.
     expect(await render(ANYONE, "")).not.toContain("Which side");
   });

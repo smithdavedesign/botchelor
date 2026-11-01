@@ -103,6 +103,8 @@ export type Post = {
   liked: boolean;
   /** Whether its character can be asked on a date by name (the house cast, or open to dates): the reels' 💘. */
   dateable?: boolean;
+  /** A clip with a still to show before it plays (the picture it was filmed from): its `?size=` copy. Without one, its first frame. */
+  poster?: boolean;
 };
 
 type SourceRow = {
@@ -348,8 +350,18 @@ export const MIX_RUN = 3;
  * reload or come back it isn't the same assets from the start"); fixed for a feed's every page, so a post seen while
  * it's watched doesn't move between its pages.
  */
-export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, opts: { pageSize?: number; mix?: boolean; seenBefore?: Date } = {}): Promise<{ posts: Post[]; more: boolean }> {
+export async function listShowcase(
+  db: Db,
+  v: ShowcaseViewer,
+  f: Filters = {},
+  opts: { pageSize?: number; mix?: boolean; seenBefore?: Date; only?: string } = {},
+): Promise<{ posts: Post[]; more: boolean }> {
   const w = where(v, f);
+  // One post, if this viewer may see it under these filters: the reels opened at it.
+  if (opts.only) {
+    w.args.push(opts.only);
+    w.sql += ` and p.id = $${w.args.length}`;
+  }
   const page = Math.max(1, Math.floor(f.page ?? 1));
   const size = opts.pageSize ?? PAGE_SIZE;
   w.args.push(size + 1, (page - 1) * size, v.id ?? "");
@@ -379,12 +391,13 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
   }
   const { rows } = await db.query<Omit<Post, "creator" | "character" | "partner" | "published_at" | "mine" | "mime"> & {
     handle: string; display_name: string; character_id: string; character_name: string; character_b: string | null; partner_name: string | null; published_at: Date; owner_id: string; mime: string | null;
-    likes: number; liked: boolean; remixable: boolean; dateable: boolean;
+    likes: number; liked: boolean; remixable: boolean; dateable: boolean; poster: boolean;
   }>(
     `select p.id, p.source, p.media_id, p.rating, p.medium, p.aspect, p.act, p.place, p.pov, p.from_date, p.caption, p.status, p.published_at, p.owner_id, (p.remix is not null) as remixable,
             cp.handle, cp.display_name, p.character_id, c.name as character_name, p.character_b, cb.name as partner_name, (c.is_house or c.open_to_dates) as dateable,
             coalesce((select i.mime from adult_images i where p.source = 'after_dark' and i.id = p.media_id and i.status = 'ready'),
                      (select g.mime from studio_pg_pictures g where p.source = 'pg' and g.id = p.media_id)) as mime,
+            exists (select 1 from adult_images i where p.source = 'after_dark' and i.id = p.media_id and i.source_image is not null) as poster,
             (select count(*)::int from showcase_likes l where l.post_id = p.id) as likes,
             exists (select 1 from showcase_likes l where l.post_id = p.id and l.user_id = $${n}) as liked
        ${FROM} ${mixed} ${seen}
@@ -400,7 +413,7 @@ export async function listShowcase(db: Db, v: ShowcaseViewer, f: Filters = {}, o
       caption: r.caption, status: r.status, published_at: new Date(r.published_at).toISOString(),
       creator: { handle: r.handle, display_name: r.display_name }, character: { id: r.character_id, name: r.character_name },
       partner: r.character_b ? { id: r.character_b, name: r.partner_name ?? "" } : null, mine: Boolean(v.id && r.owner_id === v.id),
-      likes: r.likes, liked: r.liked, remixable: r.remixable, dateable: r.dateable,
+      likes: r.likes, liked: r.liked, remixable: r.remixable, dateable: r.dateable, poster: r.poster,
     }));
   return { posts: posts.slice(0, size), more: rows.length > size };
 }
@@ -479,9 +492,16 @@ export async function showcaseFacets(db: Db, v: ShowcaseViewer, f: Filters = {})
 /* -------------------------------------------------- the bytes -------------------------------------------------- */
 
 /** A post's item for this viewer: live (or theirs, or an admin's look), of a rating they may see. Null otherwise. */
-export async function postMedia(db: Db, v: ShowcaseViewer, postId: string): Promise<{ source: ShowcaseSource; media_id: string; rating: ContentRating } | null> {
+export async function postMedia(
+  db: Db,
+  v: ShowcaseViewer,
+  postId: string,
+  opts: { granted?: boolean } = {},
+): Promise<{ source: ShowcaseSource; media_id: string; rating: ContentRating } | null> {
   const r = (await db.query<{ source: ShowcaseSource; media_id: string; rating: string; status: string; owner_id: string; held: boolean }>(`select source, media_id, rating, status, owner_id, held from showcase_posts where id = $1`, [postId])).rows[0];
   if (!r) return null;
+  // The show already let this viewer in (lib/auth.ts signMediaGrant): After Dark's host serves its file.
+  if (opts.granted) return { source: r.source, media_id: r.media_id, rating: ratingOf(r.rating) };
   // Held by a serious report: only its creator and the moderators, until an admin looks.
   if (r.held && !v.admin && !(v.id && r.owner_id === v.id)) return null;
   const rating = ratingOf(r.rating);
