@@ -428,6 +428,9 @@ describe("over MCP", () => {
 describe("the model call", () => {
   it("asks for a bounded reply, so a small OpenRouter key isn't refused for the model's whole maximum", async () => {
     const { cookie } = await admin();
+    // A thinking writer as the default (the admins' to set; the quick one is since 2026-11-01), so its room shows.
+    const { saveAdultSettings } = await import("@/lib/adult/settings");
+    await saveAdultSettings(t.db, { writer: { default: "z-ai/glm-4.6" } });
     let seen: { maxTokens?: number } | undefined;
     setAdultModelForTests({ complete: async (_m, o) => ((seen = o), JSON.stringify({ lines: [{ who: "a", text: "Hi." }] })) });
     await post({ a: CAST_A, b: CAST_B }, cookie);

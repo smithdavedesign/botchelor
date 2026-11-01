@@ -69,7 +69,8 @@ describe("the model a step was written by", () => {
 
   it("is recorded on each step: the reported id and host, else the model asked for; and shown on the why view", async () => {
     const { cookie } = await admin();
-    await settings({ enabled: true, openrouter_key: "placeholder-text-ABCD" }, cookie);
+    // GLM-4.6 as the default writer (the admins' to set; DeepSeek V3.1 since 2026-11-01), so the two steps' models differ.
+    await settings({ enabled: true, openrouter_key: "placeholder-text-ABCD", writer: { default: "z-ai/glm-4.6" } }, cookie);
     // A step whose response names the model and host it was routed to.
     setAdultModelForTests({
       complete: async (_m, o?: ModelOptions) => {
@@ -78,7 +79,7 @@ describe("the model a step was written by", () => {
       },
     });
     expect((await call(POST, "/api/admin/after-dark", { a: RAFE, b: JUNIPER }, cookie)).status).toBe(200);
-    // One whose response doesn't say: the model it asked for, their writer (GLM-4.6 unless they picked another).
+    // One whose response doesn't say: the model it asked for, their writer (the default, GLM-4.6 here, unless they picked another).
     setAdultModelForTests({ complete: async () => reply.replace("You came.", "Here you are.").replace("I said I would.", "Of course.") }, "deepseek/deepseek-chat-v3.1");
     expect((await call(POST, "/api/admin/after-dark", { a: RAFE, b: JUNIPER }, cookie)).status).toBe(200);
     const rows = (await t.db.query<{ text_model: string; text_provider: string | null }>(`select text_model, text_provider from adult_steps where kind = 'write' order by created_at`)).rows;
