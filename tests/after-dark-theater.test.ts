@@ -175,3 +175,13 @@ describe("#1204: a steer typed while a step is being written", () => {
     expect(html).not.toContain("ad-steer-queued");
   });
 });
+
+describe("#1214: a night still going opens where it is", () => {
+  it("shows every line already written, so the first Next writes the next step instead of skipping a replay", () => {
+    // The 2026-11-01 After Dark visitor: "the next Next reveals lines that were already written; the home list (24 lines)
+    // ran ahead of the theater (20)". It replayed the last six on opening.
+    const lines = Array.from({ length: 10 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `Line number ${i + 1}.` }));
+    const html = render({ scene: { ...scene, lines }, onWrite: async () => {} });
+    for (let i = 1; i <= 10; i++) expect(html).toContain(`Line number ${i}.`);
+  });
+});
