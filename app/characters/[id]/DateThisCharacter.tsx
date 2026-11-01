@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import DateConfirm from "@/app/DateConfirm";
 import { requestJson } from "@/app/request";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import type { DateCta } from "@/lib/date-cta";
@@ -11,7 +12,8 @@ import { takenNote } from "@/lib/partners-shared";
 
 /**
  * "Date this character", right under the contestant header (lib/date-cta.ts says which version shows). Sending one of
- * yours books it like any date (POST /api/episodes, 1 token) and opens it as it's filmed; one that has to match first
+ * yours books it like any date (POST /api/episodes, 1 date), after a confirm sheet that holds where and a roleplay
+ * (2026-10-31 UX audit, B5), and opens it as it's filmed; one that has to match first
  * goes to the swipe deck instead. `roleplays`: a house character, so a roleplay can be added and plays at once
  * (lib/date-roleplays.ts); with anyone else's, the two creators agree one on the couple page first.
  */
@@ -40,6 +42,7 @@ export default function DateThisCharacter({
   const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
   // The picker mounts once it's opened, not in every character page's HTML.
   const [roleplayOpen, setRoleplayOpen] = useState(false);
+  const [asking, setAsking] = useState(false);
 
   if (cta.kind === "none") return null;
   if (cta.kind === "closed") {
@@ -92,23 +95,16 @@ export default function DateThisCharacter({
           <Link href={`/characters/${chosen.id}#partners-${chosen.id}`}>Change it on {shortName(chosen.name)}&apos;s page</Link>
         </p>
       )}
-      {chosen.mode === "book" && !chosen.taken && (
-        <label className="date-cta-pick">
-          <span className="muted small">Where? (optional)</span>
-          <input type="text" name="place" maxLength={80} value={place} placeholder="the night market, my place…" onChange={(e) => setPlace(e.target.value)} />
-        </label>
-      )}
-      {roleplays && chosen.mode === "book" && !chosen.taken && (
-        <details className="date-cta-roleplay" onToggle={(e) => setRoleplayOpen(e.currentTarget.open)}>
-          <summary>
-            🎭 Add a roleplay <span className="muted small">(optional)</span>
-          </summary>
-          {roleplayOpen && <RoleplayPicker me={chosen.name} them={first} value={roleplay} onChange={setRoleplay} signedIn={signedIn} />}
-        </details>
-      )}
       {chosen.taken ? null : chosen.mode === "book" ? (
-        <button type="button" className="primary" onClick={() => void book()} disabled={busy || (roleplay !== null && !choiceReady(roleplay))}>
-          {busy ? "Booking…" : `💌 ${cta.label}`}
+        <button
+          type="button"
+          className="primary"
+          onClick={() => {
+            setMessage(null);
+            setAsking(true);
+          }}
+        >
+          💌 {cta.label}
         </button>
       ) : (
         <Link href={`/swipe?character=${encodeURIComponent(chosen.id)}`} className="button">
@@ -117,14 +113,40 @@ export default function DateThisCharacter({
       )}
       <p className="muted small date-cta-note" hidden={Boolean(chosen.taken)}>
         {chosen.mode === "book"
-          ? `${shortName(chosen.name)} goes. 1 token, like any date.`
+          ? `${shortName(chosen.name)} goes.`
           : `A first date with someone else's character starts with a match: swipe for ${first} as ${shortName(chosen.name)}.`}
       </p>
-      {message && (
-        <p className="error small" role="alert">
-          {message.text} {message.shop && <Link href="/shop">Get more tokens</Link>}
-        </p>
-      )}
+      <DateConfirm
+        open={asking}
+        onClose={() => {
+          if (!busy) setAsking(false);
+        }}
+        title={`Send ${shortName(chosen.name)} on a date with ${first}?`}
+        lede={
+          <>
+            <strong>{shortName(chosen.name)}</strong> meets <strong>{first}</strong>. The show films it and decides how it ends: you can&apos;t steer it.
+          </>
+        }
+        sendLabel={`Send ${shortName(chosen.name)} on the date`}
+        busyLabel="Booking…"
+        busy={busy}
+        disabled={roleplay !== null && !choiceReady(roleplay)}
+        error={message}
+        onSend={() => void book()}
+      >
+        <label className="date-cta-pick">
+          <span className="muted small">Where? (optional)</span>
+          <input type="text" name="place" maxLength={80} value={place} placeholder="the night market, my place…" onChange={(e) => setPlace(e.target.value)} />
+        </label>
+        {roleplays && (
+          <details className="ux-fold date-cta-roleplay" onToggle={(e) => setRoleplayOpen(e.currentTarget.open)}>
+            <summary>
+              🎭 Add a roleplay <span className="muted small">(optional)</span>
+            </summary>
+            {roleplayOpen && <RoleplayPicker me={chosen.name} them={first} value={roleplay} onChange={setRoleplay} signedIn={signedIn} />}
+          </details>
+        )}
+      </DateConfirm>
     </div>
   );
 }

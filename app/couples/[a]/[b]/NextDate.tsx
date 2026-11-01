@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import DateConfirm from "@/app/DateConfirm";
 import { requestJson } from "@/app/request";
 import { SecondDate } from "@/app/episodes/[id]/Afterglow";
 import type { NextDate as NextDateData } from "@/lib/date-proposals";
@@ -18,6 +19,8 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
   const [message, setMessage] = useState<{ text: string; error?: boolean; shop?: boolean } | null>(null);
   // David, 2026-10-23: the owner may say where (else the place they agreed by text, else the show picks).
   const [place, setPlace] = useState("");
+  // Booking spends a date, so it asks first in a sheet (2026-10-31 UX audit, C2): "date" plans one, "accept" books theirs.
+  const [confirm, setConfirm] = useState<null | { kind: "date" } | { kind: "accept"; id: string }>(null);
   const me = shortName(next.mine.name);
   const them = shortName(next.them.name);
   const o = next.option;
@@ -72,22 +75,10 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
                 ? "Their last date is still being filmed. You can book the next one now."
                 : `${them} is ${next.them.house ? "on the show" : "open to dates"}, and they'll remember every date so far.`}
           </p>
-          <label className="next-date-place">
-            Where? <span className="muted small">(optional)</span>
-            <input
-              type="text"
-              name="place"
-              maxLength={80}
-              value={place}
-              placeholder={next.plan_place ?? "the night market, my place, under the old footbridge…"}
-              onChange={(e) => setPlace(e.target.value)}
-            />
-          </label>
           <p className="action-hint">
-            <button type="button" className="primary" onClick={() => void book(place.trim() ? { place: place.trim() } : {})} disabled={busy}>
-              {busy ? "Booking…" : `Send ${me} on a date with ${them}`}
-            </button>{" "}
-            <span className="muted small">1 token, like any date.</span>
+            <button type="button" className="primary" onClick={() => setConfirm({ kind: "date" })}>
+              📅 Plan {me}&apos;s date with {them}
+            </button>
           </p>
         </>
       )}
@@ -98,13 +89,12 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
             💌 <strong>{them}&apos;s creator proposed a date with {me}.</strong>
           </p>
           <p className="action-hint">
-            <button type="button" className="primary" onClick={() => void book({ proposal_id: o.theirs_pending!.id })} disabled={busy}>
-              {busy ? "Booking…" : "Accept and book it"}
+            <button type="button" className="primary" onClick={() => setConfirm({ kind: "accept", id: o.theirs_pending!.id })} disabled={busy}>
+              Accept and book it
             </button>{" "}
             <button type="button" className="button-ghost" onClick={() => void close(o.theirs_pending!.id)} disabled={busy}>
               Not this time
             </button>{" "}
-            <span className="muted small">Accepting books it: 1 token, like any date.</span>
           </p>
         </>
       )}
@@ -145,21 +135,63 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
 
       {o.kind !== "unavailable" && o.kind !== "planned" && hasNudge && (
         <p className="muted small">
-          <a href="#nudge">Leave {me} a nudge first</a>: it goes into their next date together.
+          <a
+            href="#nudge"
+            onClick={() => {
+              const fold = document.getElementById("nudge");
+              if (fold instanceof HTMLDetailsElement) fold.open = true;
+            }}
+          >
+            Leave {me} a nudge first
+          </a>
+          : it goes into their next date together.
         </p>
       )}
 
-      {message && (
+      {message && !confirm && (
         <p className={message.error ? "error" : "muted"} role="status">
           {message.text}
           {message.shop && (
             <>
               {" "}
-              <Link href="/shop">Get tokens</Link>
+              <Link href="/shop">Get more dates</Link>
             </>
           )}
         </p>
       )}
+
+      <DateConfirm
+        open={confirm !== null}
+        onClose={() => {
+          setConfirm(null);
+          setMessage(null);
+        }}
+        title={confirm?.kind === "accept" ? "Book the date they proposed?" : `Plan ${me}'s date`}
+        lede={
+          <>
+            <strong>{me}</strong> meets <strong>{them}</strong> again, and they&apos;ll remember every date so far. The show films it and decides how it ends.
+          </>
+        }
+        sendLabel={confirm?.kind === "accept" ? "Accept and book it" : `Send ${me} on the date`}
+        busyLabel="Booking…"
+        busy={busy}
+        error={message?.error ? { text: message.text, shop: message.shop } : null}
+        onSend={() => void book(confirm?.kind === "accept" ? { proposal_id: confirm.id } : place.trim() ? { place: place.trim() } : {})}
+      >
+        {confirm?.kind === "date" && (
+          <label className="next-date-place">
+            Where? <span className="muted small">(optional)</span>
+            <input
+              type="text"
+              name="place"
+              maxLength={80}
+              value={place}
+              placeholder={next.plan_place ?? "the night market, my place, under the old footbridge…"}
+              onChange={(e) => setPlace(e.target.value)}
+            />
+          </label>
+        )}
+      </DateConfirm>
     </section>
   );
 }
