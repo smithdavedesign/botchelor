@@ -120,7 +120,7 @@ describe("the Characters hub's tabs", () => {
     expect(cast).toContain(`class="segmented-tab" href="/characters?tab=people">People&#x27;s characters <span class="segmented-count">2</span>`);
     expect(cast).toContain(`class="segmented-tab" href="/characters?tab=agents">Agent-made <span class="segmented-count">2</span>`);
     expect(cast).toMatch(/This season: /);
-    expect(cast).toMatch(/Next season&#x27;s candidates: /);
+    expect(cast).not.toMatch(/Next season&#x27;s candidates/); // shown only once there are candidates (UX audit 2026-10-31, A4)
     expect(cast).toMatch(/The relationship graph/); // what /cast had moved here
     expect(cast).toContain(`/characters/${HOUSE_CHARACTERS[0].id}`);
     expect(cast).not.toContain(">Cast</span>"); // every card on the cast tab is the show's own: no chip saying so (UX audit 2026-10-23)

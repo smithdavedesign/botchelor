@@ -50,12 +50,12 @@ const characterPage = async (id: string, cookie: string | null) => {
   return renderToStaticMarkup(await CharacterPage({ params: Promise.resolve({ id }) }));
 };
 /** The top of a character page: everything before its bio card. */
-const top = (html: string) => html.slice(0, html.indexOf('<section class="card">'));
+const top = (html: string) => html.slice(0, html.indexOf('<section class="card" id="profile">'));
 
 describe("the basics on a contestant card", () => {
   it("shows what they're here for, their type, sign, love language and interests under the bio, once", async () => {
     const html = await characterPage("house-juniper", null);
-    const card = html.slice(html.indexOf('<section class="card">'));
+    const card = html.slice(html.indexOf('<section class="card" id="profile">'));
     expect(card).toMatch(/<dl class="profile-facts char-basics">/);
     for (const text of ["🎯 Here for", "Figuring it out", "🎭 Type", "The mysterious loner", "✨ Sign", "Pisces", "💬 Love language", "Quality time", "🎨 Into", "Ghost stories, Podcasting, Talking to gulls"]) expect(card).toContain(text);
     expect(html.split("The mysterious loner")).toHaveLength(2);
