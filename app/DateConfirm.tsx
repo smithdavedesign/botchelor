@@ -56,7 +56,8 @@ export default function DateConfirm({
         <button type="button" className="button-ghost" onClick={onClose} disabled={busy}>
           Not yet
         </button>
-        <button type="button" className="primary" onClick={onSend} disabled={busy || disabled || left === 0}>
+        {/* Not disabled at 0: the server decides (an admin's or a pass's dates don't run out), and says why if not. */}
+        <button type="button" className="primary" onClick={onSend} disabled={busy || disabled}>
           {busy ? busyLabel : sendLabel}
         </button>
       </div>
