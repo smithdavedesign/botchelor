@@ -2003,3 +2003,18 @@ a.ad-scenes-make-link {
     top: 7.4rem;
   }
 }
+
+/* #1148 (the 2026-10-31-1744 visitor, 1280×900: "Create picture sat behind the steer bar"): the picture form ends above
+   the bottom bar and scrolls inside itself, with its buttons pinned to its own bottom so they're always in reach. */
+@media (min-width: 721px) {
+  .ad-beat-offer {
+    max-height: max(14rem, calc(94% - 9rem));
+  }
+}
+.ad-beat-offer .ad-beat-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--space-3));
+  margin: 0 calc(-1 * var(--space-3)) calc(-1 * var(--space-3));
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  background: rgba(16, 8, 22, 0.97);
+}
