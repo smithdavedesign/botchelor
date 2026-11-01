@@ -5575,6 +5575,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const storedWeek = (await db.query<{ this_week: StoredThisWeek | null }>(`select this_week from characters where id = $1`, [id]).catch(() => ({ rows: [] as { this_week: StoredThisWeek | null }[] }))).rows[0]?.this_week;
       const week = thisWeek(id, storedWeek);
       const weekByYou = isOwnUpdate(storedWeek);
+      const { ignored_soul_keys: ignoredSoul, ...made } = r.data;
       return {
         data: {
           ...(twinWarning ? { warning: twinWarning } : {}),
@@ -5583,7 +5584,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           saved: true,
           character_id: id,
           // 2.8.0 (#651): open_to_dates said outright, false when left out (the route echoes only what it was sent).
-          character: { ...r.data, made_by: "agent", partner_style: style, open_to_dates: sheet.open_to_dates === true },
+          character: { ...made, made_by: "agent", partner_style: style, open_to_dates: sheet.open_to_dates === true },
+          // #1188: soul keys that aren't its fields, beside the character rather than in it.
+          ...(ignoredSoul ? { ignored_soul_keys: ignoredSoul } : {}),
           ...(week
             ? {
                 this_week: week,

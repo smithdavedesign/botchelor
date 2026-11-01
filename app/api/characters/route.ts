@@ -12,7 +12,7 @@ import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { CHARACTER_REJECTION_MESSAGES } from "@/lib/safety";
 import { checkFieldsAnyLanguage } from "@/lib/language-check";
 import { nameCheck } from "@/lib/name-check";
-import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput } from "@/lib/souls";
+import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput, unknownSoulKeys } from "@/lib/souls";
 import { WHILE_AWAY_MODES } from "@/lib/activity";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 
@@ -88,6 +88,9 @@ export const POST = handle(async (req) => {
   const input = checkOnly
     ? (parseBody(CharacterInput.partial(), raw, "invalid_character") as Partial<z.infer<typeof CharacterInput>>)
     : parseBody(CharacterInput, raw, "invalid_character");
+  // #1188: a soul whose keys are none of its fields would be saved as no soul at all; one with some is saved and names the rest.
+  const soulKeys = unknownSoulKeys((raw as { soul?: unknown }).soul);
+  if (soulKeys.refusal) return json({ error: "invalid_soul", field: "soul", message: soulKeys.refusal }, 422, sess);
   const db = await getDb();
   const extras = await gateAfterDarkLooks(db, sess, normaliseExtras(input.extras));
   // Which language a person writes their character in (lib/language-seen.ts; an agent's call is counted as MCP).
@@ -166,7 +169,7 @@ export const POST = handle(async (req) => {
 
   const { attest: _attest, keep_name: _keep, check_only: _check, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, ...character } = input;
   return json(
-    { id, ...character, extras, this_week: thisWeek(id, input.this_week?.trim() ? stampThisWeek(input.this_week) : null), house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals) },
+    { id, ...character, extras, this_week: thisWeek(id, input.this_week?.trim() ? stampThisWeek(input.this_week) : null), house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals), ...(soulKeys.unknown.length ? { ignored_soul_keys: soulKeys.unknown } : {}) },
     201,
     sess,
   );
