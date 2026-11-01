@@ -17,6 +17,8 @@ type Props = {
   initial: DeckCard[];
   /** This visit's deck session (app/swipe/page.tsx): each card shown on top is reported under it. */
   serveId: string;
+  /** How long an unanswered like can be taken back (lib/swipes.ts UNDO_MINUTES). */
+  undoMinutes: number;
 };
 
 /** How far a card has to be dragged to count as a swipe. */
@@ -33,10 +35,13 @@ const HUMAN = kindLabel({ kind: "human" });
  * or use the buttons or the arrow keys. A match shows "It's a match!" and opens their thread; every match is on
  * /matches. The characters decide about a date themselves.
  *
+ * Undo takes back an unanswered like only (#622). A match is never undone from the deck (David, 2026-10-31: "they have to
+ * do that in their messages"), so a like back that lands meanwhile turns the Undo into a link to their thread.
+ *
  * What's seen is what the preference data records (lib/swipes.ts logShownCard): each card is reported once, when it
  * comes on top, with its place in what this person has seen this visit. The hand that was dealt is never logged.
  */
-export default function SwipeDeck({ character, initial, serveId }: Props) {
+export default function SwipeDeck({ character, initial, serveId, undoMinutes }: Props) {
   const [cards, setCards] = useState(initial);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -48,6 +53,8 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
   const [exhausted, setExhausted] = useState(initial.length === 0);
   // #622: the last like, while it can still be taken back (unanswered: no match; the server holds the 10-minute rule).
   const [lastLike, setLastLike] = useState<DeckCard | null>(null);
+  // The like that couldn't be taken back because it had become a match: where their thread is.
+  const [matchedMeanwhile, setMatchedMeanwhile] = useState<{ name: string; href: string } | null>(null);
   const startX = useRef<number | null>(null);
   const busy = useRef(false);
   const refilling = useRef(false);
@@ -113,6 +120,7 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
       setDragX(0);
       setStatus(like ? `Liked ${card.name}.` : `Passed on ${card.name}.`);
       setLastLike(null);
+      setMatchedMeanwhile(null);
       try {
         // Its impression goes in before its swipe: a like on the house cast is a match at once, and a match leaves the deck.
         await Promise.race([seen.current.sent.get(card.id), new Promise((r) => setTimeout(r, SEEN_WAIT_MS))]);
@@ -153,12 +161,16 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
         headers: { "content-type": "application/json", accept: "application/json" },
         body: JSON.stringify({ character_id: character.id, target_id: card.id }),
       });
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      if (!res.ok) {
-        setError(data.message ?? "That like can't be undone now.");
-      } else {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+      if (res.ok) {
         setCards((c) => [card, ...c.filter((x) => x.id !== card.id)]);
         setStatus(`Took back the like on ${card.name}.`);
+      } else if (data.error === "already_matched") {
+        // They liked back meanwhile: a match stays (both owners were told), and what happens next is in their thread.
+        const [lo, hi] = character.id < card.id ? [character.id, card.id] : [card.id, character.id]; // pairKey's order
+        setMatchedMeanwhile({ name: card.name, href: `/messages/${lo}/${hi}?as=${encodeURIComponent(character.id)}` });
+      } else {
+        setError(data.message ?? "That like can't be undone now.");
       }
       setLastLike(null);
     } catch {
@@ -167,6 +179,13 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
       busy.current = false;
     }
   }, [lastLike, character.id]);
+
+  // The Undo goes once the server would refuse it for its age anyway.
+  useEffect(() => {
+    if (!lastLike) return;
+    const lapse = setTimeout(() => setLastLike(null), undoMinutes * 60_000);
+    return () => clearTimeout(lapse);
+  }, [lastLike, undoMinutes]);
 
   // "It's a match!": the way out is focused, and Esc closes it.
   useEffect(() => {
@@ -196,6 +215,12 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
     if (Math.abs(dragX) > THRESHOLD) void decide(dragX > 0);
     else setDragX(0);
   };
+  // The browser took the gesture (a finger scrolling the profile, say): the card goes back, and it's never a swipe.
+  const onCancel = () => {
+    startX.current = null;
+    setDragging(false);
+    setDragX(0);
+  };
   const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.key === "ArrowRight") {
       e.preventDefault();
@@ -223,7 +248,7 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
               onPointerDown={onDown}
               onPointerMove={onMove}
               onPointerUp={onUp}
-              onPointerCancel={onUp}
+              onPointerCancel={onCancel}
             >
               <span className="swipe-stamp swipe-stamp-like" style={{ opacity: Math.max(0, lean) }} aria-hidden="true">
                 Like
@@ -262,6 +287,11 @@ export default function SwipeDeck({ character, initial, serveId }: Props) {
             <button type="button" className="button-ghost" onClick={() => void undo()}>
               Undo
             </button>
+          </p>
+        )}
+        {matchedMeanwhile && (
+          <p className="muted small swipe-undo">
+            {matchedMeanwhile.name} liked {first} back meanwhile, so it&apos;s a match and the like stands. <Link href={matchedMeanwhile.href}>Read their chat</Link>
           </p>
         )}
         <p className="sr-only" role="status">

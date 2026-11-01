@@ -9,7 +9,7 @@ import CastPreview from "@/app/CastPreview";
 import CharacterTabs from "@/app/CharacterTabs";
 import { unreadTexts } from "@/lib/inbox";
 import { takenWith } from "@/lib/partners";
-import { deckFor } from "@/lib/swipes";
+import { deckFor, UNDO_MINUTES } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
 import SwipeDeck from "./SwipeDeck";
 import Avatar from "@/app/Avatar";
@@ -92,7 +92,7 @@ export default async function SwipePage({ searchParams }: Props) {
         </p>
       </div>
       {deck.ok ? (
-        <SwipeDeck character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={await withOrigins(db, deck.cards)} serveId={serveId} />
+        <SwipeDeck character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={await withOrigins(db, deck.cards)} serveId={serveId} undoMinutes={UNDO_MINUTES} />
       ) : (
         <section className="card">
           <h2>{deck.error === "profile_incomplete" ? `Finish ${first}'s dating profile` : `${first} can't swipe right now`}</h2>
