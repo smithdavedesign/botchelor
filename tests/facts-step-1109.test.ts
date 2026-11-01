@@ -14,8 +14,8 @@ describe("#1109: a fact row's hint fits its label", () => {
         extras: { facts: [{ label: "A secret", value: "", private: true }, { label: "Collects", value: "" }, { label: "", value: "" }] },
       }),
     );
-    expect(html).toContain('placeholder="they failed their driving test four times"');
-    expect(html).toContain('placeholder="hotel keycards from places they never stayed"');
+    expect(html).toContain('placeholder="e.g. they failed their driving test four times"');
+    expect(html).toContain('placeholder="e.g. hotel keycards from places they never stayed"');
     expect(html).toContain('placeholder="e.g. coriander, which they&#x27;ll deny"');
     expect(html.match(/coriander/g)).toHaveLength(1);
   });

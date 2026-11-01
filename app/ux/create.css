@@ -203,8 +203,9 @@
   font-weight: 600;
 }
 @media (max-width: 640px) {
-  /* On a phone the row stays in reach: a bar stuck to the bottom of the screen while the step scrolls. */
-  .wizard .wizard-actions-edit {
+  /* On a phone the row stays in reach, creating or editing: a bar stuck to the bottom of the screen while the step
+     scrolls (2026-10-31 UX audit: creating, Next was up to four screens down, under every optional field). */
+  .wizard .wizard-actions {
     position: sticky;
     bottom: 0;
     z-index: 5;
@@ -305,4 +306,63 @@
   cursor: pointer;
   color: var(--accent-text);
   font-weight: 700;
+}
+
+/* ---------------- 2026-10-31 UX audit ---------------- */
+/* Next always answers: once tried, what the step still needs, in the bar above the buttons. */
+.wizard .wizard-still {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+.wizard .wizard-still .link-button {
+  margin: 0;
+}
+/* The steps that can be skipped: a dashed ring, "optional" under the name. */
+.wizard-rail-step.optional:not(.current):not(.done) .wizard-rail-dot {
+  border-style: dashed;
+}
+.wizard-rail-optional {
+  display: block;
+  font-weight: 500;
+  color: var(--muted);
+}
+/* Between the first step and the review, the preview is one row (no traits), so each step opens on its question. */
+.wizard-preview.is-compact {
+  gap: 0.65rem;
+  padding: 0.5rem 0.85rem;
+}
+.wizard-preview.is-compact .chips,
+.wizard-preview.is-compact .wizard-preview-job {
+  display: none;
+}
+.wizard-preview.is-compact .wizard-preview-meta strong {
+  font-size: var(--text-md);
+}
+/* After the first step a phone starts on the step: the kicker goes and the title shrinks (the rail says where). */
+@media (max-width: 640px) {
+  .wizard.is-later > .kicker {
+    display: none;
+  }
+  .wizard.is-later > h1 {
+    margin-bottom: 0;
+    font-size: var(--text-lg);
+  }
+}
+/* The dating profile's two parts: what the deck needs, then the optional groups. */
+.wizard .detail-section-label {
+  margin: var(--space-4) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.wizard .detail-section-label + .detail-group {
+  margin-top: var(--space-2);
+}
+
+/* An example in a field reads as one, not as an answer already given (2026-10-31 UX audit): italic, and each starts
+   "e.g.". */
+.wizard ::placeholder {
+  font-style: italic;
 }

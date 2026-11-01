@@ -99,7 +99,7 @@ export default function VoiceStep({
         <textarea
           maxLength={200}
           rows={3}
-          placeholder="Dry and deadpan: short sentences, long pauses, never laughs at their own jokes."
+          placeholder="e.g. Dry and deadpan: short sentences, long pauses, never laughs at their own jokes."
           value={voice}
           onChange={(e) => setVoice(e.target.value)}
         />
@@ -119,7 +119,7 @@ export default function VoiceStep({
                 type="text"
                 name={`line_${l.id}`}
                 maxLength={SAMPLE_LINE_MAX}
-                placeholder={LINE_PLACEHOLDERS[l.id]}
+                placeholder={`e.g. ${LINE_PLACEHOLDERS[l.id]}`}
                 value={extras.lines?.[l.id] ?? ""}
                 onChange={(e) => setLine(l.id, e.target.value)}
               />
@@ -189,7 +189,7 @@ export default function VoiceStep({
                 type="text"
                 name={`tell_${t.id}`}
                 maxLength={TELL_MAX}
-                placeholder={TELL_PLACEHOLDERS[t.id]}
+                placeholder={`e.g. ${TELL_PLACEHOLDERS[t.id]}`}
                 value={extras.tells?.[t.id] ?? ""}
                 onChange={(e) => setTell(t.id, e.target.value)}
               />

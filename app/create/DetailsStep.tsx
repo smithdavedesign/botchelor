@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LANGUAGE_CODES, LANGUAGE_NAMES } from "@/lib/language";
 import {
   LOVE_LANGUAGES,
@@ -48,7 +48,7 @@ export function DetailField({ k, extras, setExtras }: { k: TextDetail; extras: C
     <label className="detail-field">
       {label}
       <span className="detail-row">
-        <input type="text" name={`extra_${k}`} maxLength={max} placeholder={PLACEHOLDERS[k]} value={extras[k] ?? ""} onChange={(e) => set(e.target.value)} />
+        <input type="text" name={`extra_${k}`} maxLength={max} placeholder={PLACEHOLDERS[k] && `e.g. ${PLACEHOLDERS[k]}`} value={extras[k] ?? ""} onChange={(e) => set(e.target.value)} />
         {SUGGESTIONS[k] && (
           <button type="button" className="dice" aria-label={`Suggest a ${label.toLowerCase()}`} title="Suggest one" onClick={() => set(suggest(k))}>
             🎲
@@ -60,8 +60,11 @@ export function DetailField({ k, extras, setExtras }: { k: TextDetail; extras: C
 }
 
 function Group({ title, filled, children, open = false }: { title: string; filled: number; children: ReactNode; open?: boolean }) {
+  // Open from the start when it's needed or already has something in it. Only at the start: Surprise me filling a
+  // group shows in its count, and doesn't unfold every group at once (2026-10-31 UX audit).
+  const [initial] = useState(open || filled > 0);
   return (
-    <details className="detail-group" open={open || filled > 0}>
+    <details className="detail-group" open={initial}>
       <summary>
         {title} {filled > 0 && <span className="badge">{filled}</span>}
       </summary>
@@ -99,8 +102,8 @@ export function surpriseFill(e: CharacterExtras): CharacterExtras {
 }
 
 /**
- * The optional details step: the dating-profile layer (lib/extras.ts). Everything is skippable; the 🎲 buttons
- * draw ideas, and "Surprise me" fills only the blanks.
+ * The dating-profile step (lib/extras.ts): what the deck needs comes first (two answered prompts, two interests), then
+ * the optional groups, folded. The 🎲 buttons draw ideas, and "Surprise me" fills only the blanks.
  */
 export default function DetailsStep({ extras, setExtras, name }: { extras: CharacterExtras; setExtras: SetExtras; name: string }) {
   const [hobbyDraft, setHobbyDraft] = useState("");
@@ -108,6 +111,22 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
   const prompts = extras.prompts ?? [];
   const usedPrompts = new Set(prompts.map((p) => p.id));
   const answeredPrompts = prompts.filter((p) => p.answer.trim()).length;
+  // The two prompts the deck needs are there to answer when the step opens, not behind "+ Add a prompt" (2026-10-31 UX
+  // audit). Empty ones never save (normaliseExtras drops them).
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current) return;
+    seeded.current = true;
+    setExtras((p) => {
+      const have = p.prompts ?? [];
+      if (have.length >= PROFILE_MIN_PROMPTS) return p;
+      const used = new Set(have.map((q) => q.id));
+      const add = PROFILE_PROMPTS.filter((o) => !used.has(o.id))
+        .slice(0, PROFILE_MIN_PROMPTS - have.length)
+        .map((o) => ({ id: o.id, answer: "" }));
+      return { ...p, prompts: [...have, ...add] };
+    });
+  }, [setExtras]);
 
   function addHobby(h: string) {
     const v = h.trim().slice(0, 30);
@@ -128,18 +147,8 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
     <fieldset className="wizard-fields">
       <legend className="wizard-legend">Their dating profile</legend>
       <p className="muted">
-        This is what the swipe deck shows, like any dating app. {name || "They"} need{name ? "s" : ""} {PROFILE_MIN_PROMPTS} answered prompts and{" "}
-        {PROFILE_MIN_INTERESTS} interests; everything else is optional. It all shows on their card and shapes how they talk — never how a date ends.
-      </p>
-      <p className="small profile-progress" role="status">
-        {answeredPrompts >= PROFILE_MIN_PROMPTS && hobbies.length >= PROFILE_MIN_INTERESTS ? (
-          "✓ Ready for the swipe deck"
-        ) : (
-          <>
-            For the swipe deck: <strong>{Math.min(answeredPrompts, PROFILE_MIN_PROMPTS)}/{PROFILE_MIN_PROMPTS}</strong> prompts answered ·{" "}
-            <strong>{Math.min(hobbies.length, PROFILE_MIN_INTERESTS)}/{PROFILE_MIN_INTERESTS}</strong> interests
-          </>
-        )}
+        What the swipe deck shows. {name || "They"} need{name ? "s" : ""} {PROFILE_MIN_PROMPTS} answered prompts and {PROFILE_MIN_INTERESTS} interests; the
+        rest is optional. It shapes how they talk, never how a date ends.
       </p>
       <p>
         <button type="button" className="secondary small" onClick={() => setExtras(surpriseFill)}>
@@ -147,7 +156,150 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
         </button>
       </p>
 
-      <Group title="Who they are" filled={filledOf(extras, ["kind", "archetype", "here_for", "drawn_to"])} open>
+      {/* What the deck needs, first, with how far along it is. */}
+      <p className="detail-section-label" role="status">
+        {answeredPrompts >= PROFILE_MIN_PROMPTS && hobbies.length >= PROFILE_MIN_INTERESTS ? (
+          "✓ Ready for the swipe deck"
+        ) : (
+          <>
+            Needed for the swipe deck: <strong>{Math.min(answeredPrompts, PROFILE_MIN_PROMPTS)}/{PROFILE_MIN_PROMPTS}</strong> prompts answered ·{" "}
+            <strong>{Math.min(hobbies.length, PROFILE_MIN_INTERESTS)}/{PROFILE_MIN_INTERESTS}</strong> interests
+          </>
+        )}
+      </p>
+      <Group title="Profile prompts" filled={answeredPrompts} open>
+        <p className="muted small">
+          Answer {PROFILE_MIN_PROMPTS} (up to {MAX_PROMPTS}) in their voice: they&apos;re the heart of their card.
+        </p>
+        {prompts.map((p, i) => (
+          <div key={i} className="prompt-edit">
+            <label>
+              Prompt
+              <select value={p.id} onChange={(e) => setPrompt(i, { id: e.target.value as PromptId })}>
+                {PROFILE_PROMPTS.filter((o) => o.id === p.id || !usedPrompts.has(o.id)).map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Their answer
+              <textarea name={`extra_prompt_${i}`} maxLength={PROMPT_ANSWER_MAX} rows={2} value={p.answer} onChange={(e) => setPrompt(i, { answer: e.target.value })} />
+            </label>
+            <button type="button" className="link-button danger prompt-remove" onClick={() => removePrompt(i)}>
+              Remove this prompt
+            </button>
+          </div>
+        ))}
+        {prompts.length < MAX_PROMPTS && (
+          <button type="button" className="secondary small" onClick={addPrompt}>
+            + Add a prompt
+          </button>
+        )}
+      </Group>
+
+      <Group title="Interests" filled={hobbies.length} open>
+        <label htmlFor="hobby-input">
+          Add an interest <span className="muted">(at least {PROFILE_MIN_INTERESTS}, up to {MAX_HOBBIES})</span>
+        </label>
+        {hobbies.length > 0 && (
+          <ul className="chips">
+            {hobbies.map((h) => (
+              <li key={h} className="chip chip-removable">
+                {h}
+                <button type="button" aria-label={`Remove ${h}`} onClick={() => removeHobby(h)}>
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {hobbies.length < MAX_HOBBIES && (
+          <span className="detail-row">
+            <input
+              id="hobby-input"
+              type="text"
+              maxLength={30}
+              placeholder="Type one and press Enter"
+              value={hobbyDraft}
+              onChange={(e) => setHobbyDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addHobby(hobbyDraft);
+                }
+              }}
+            />
+            {/* Full height, like the input beside it (--control-h), not a small pill next to a 44px field. */}
+            <button type="button" className="secondary" onClick={() => addHobby(hobbyDraft)}>
+              Add
+            </button>
+          </span>
+        )}
+        <div className="voice-picks" role="group" aria-label="Hobby ideas">
+          {(SUGGESTIONS.hobbies ?? [])
+            .filter((h) => !hobbies.includes(h))
+            .slice(0, 8)
+            .map((h) => (
+              <button key={h} type="button" className="look-chip" disabled={hobbies.length >= MAX_HOBBIES} onClick={() => addHobby(h)}>
+                + {h}
+              </button>
+            ))}
+        </div>
+      </Group>
+
+      <p className="detail-section-label">Optional: it all shows on their card</p>
+      <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "star_sign", "love_language", "language"])}>
+        <DetailField k="occupation" extras={extras} setExtras={setExtras} />
+        <DetailField k="hometown" extras={extras} setExtras={setExtras} />
+        <div className="detail-pair">
+          <label>
+            Star sign
+            <select name="extra_star_sign" value={extras.star_sign ?? ""} onChange={(e) => setExtras((p) => ({ ...p, star_sign: (e.target.value || undefined) as CharacterExtras["star_sign"] }))}>
+              <option value="">—</option>
+              {STAR_SIGNS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Love language
+            <select
+              name="extra_love_language"
+              value={extras.love_language ?? ""}
+              onChange={(e) => setExtras((p) => ({ ...p, love_language: (e.target.value || undefined) as CharacterExtras["love_language"] }))}
+            >
+              <option value="">—</option>
+              {LOVE_LANGUAGES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <label>
+          Speaks
+          <select
+            name="extra_language"
+            value={extras.language ?? ""}
+            onChange={(e) => setExtras((p) => ({ ...p, language: (e.target.value || undefined) as CharacterExtras["language"] }))}
+          >
+            <option value="">The language you write their sheet in</option>
+            {LANGUAGE_CODES.map((code) => (
+              <option key={code} value={code}>
+                {LANGUAGE_NAMES[code]}
+              </option>
+            ))}
+          </select>
+          <span className="muted small">Their dates and texts are in this language. After Dark stays in English for now.</span>
+        </label>
+      </Group>
+
+      <Group title="Type and what they want" filled={filledOf(extras, ["kind", "archetype", "here_for", "drawn_to"])}>
         <div className="detail-pair">
           <label>
             What they are
@@ -171,7 +323,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
                 type="text"
                 name="extra_kind_label"
                 maxLength={KIND_LABEL_MAX}
-                placeholder="A lighthouse spirit"
+                placeholder="e.g. a lighthouse spirit"
                 value={extras.kind_label ?? ""}
                 onChange={(e) => setExtras((p) => ({ ...p, kind_label: e.target.value }))}
               />
@@ -242,103 +394,7 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
         </fieldset>
       </Group>
 
-      <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "star_sign", "love_language", "language"])} open>
-        <DetailField k="occupation" extras={extras} setExtras={setExtras} />
-        <DetailField k="hometown" extras={extras} setExtras={setExtras} />
-        <div className="detail-pair">
-          <label>
-            Star sign
-            <select name="extra_star_sign" value={extras.star_sign ?? ""} onChange={(e) => setExtras((p) => ({ ...p, star_sign: (e.target.value || undefined) as CharacterExtras["star_sign"] }))}>
-              <option value="">—</option>
-              {STAR_SIGNS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Love language
-            <select
-              name="extra_love_language"
-              value={extras.love_language ?? ""}
-              onChange={(e) => setExtras((p) => ({ ...p, love_language: (e.target.value || undefined) as CharacterExtras["love_language"] }))}
-            >
-              <option value="">—</option>
-              {LOVE_LANGUAGES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <label>
-          Speaks
-          <select
-            name="extra_language"
-            value={extras.language ?? ""}
-            onChange={(e) => setExtras((p) => ({ ...p, language: (e.target.value || undefined) as CharacterExtras["language"] }))}
-          >
-            <option value="">The language you write their sheet in</option>
-            {LANGUAGE_CODES.map((code) => (
-              <option key={code} value={code}>
-                {LANGUAGE_NAMES[code]}
-              </option>
-            ))}
-          </select>
-          <span className="muted small">Their dates and texts are in this language. After Dark stays in English for now.</span>
-        </label>
-      </Group>
-
-      <Group title="Interests & loves" filled={filledOf(extras, ["hobbies", "go_to_order", "walk_on_music"])} open>
-        <label htmlFor="hobby-input">
-          Interests <span className="muted">(at least {PROFILE_MIN_INTERESTS}, up to {MAX_HOBBIES})</span>
-        </label>
-        {hobbies.length > 0 && (
-          <ul className="chips">
-            {hobbies.map((h) => (
-              <li key={h} className="chip chip-removable">
-                {h}
-                <button type="button" aria-label={`Remove ${h}`} onClick={() => removeHobby(h)}>
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {hobbies.length < MAX_HOBBIES && (
-          <span className="detail-row">
-            <input
-              id="hobby-input"
-              type="text"
-              maxLength={30}
-              placeholder="Type one and press Enter"
-              value={hobbyDraft}
-              onChange={(e) => setHobbyDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addHobby(hobbyDraft);
-                }
-              }}
-            />
-            {/* Full height, like the input beside it (--control-h), not a small pill next to a 44px field. */}
-            <button type="button" className="secondary" onClick={() => addHobby(hobbyDraft)}>
-              Add
-            </button>
-          </span>
-        )}
-        <div className="voice-picks" role="group" aria-label="Hobby ideas">
-          {(SUGGESTIONS.hobbies ?? [])
-            .filter((h) => !hobbies.includes(h))
-            .slice(0, 8)
-            .map((h) => (
-              <button key={h} type="button" className="look-chip" disabled={hobbies.length >= MAX_HOBBIES} onClick={() => addHobby(h)}>
-                + {h}
-              </button>
-            ))}
-        </div>
+      <Group title="Favourites" filled={filledOf(extras, ["go_to_order", "walk_on_music"])}>
         <DetailField k="go_to_order" extras={extras} setExtras={setExtras} />
         <DetailField k="walk_on_music" extras={extras} setExtras={setExtras} />
       </Group>
@@ -355,38 +411,6 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
         <DetailField k="ideal_first_date" extras={extras} setExtras={setExtras} />
         <DetailField k="green_flag" extras={extras} setExtras={setExtras} />
         <DetailField k="red_flag" extras={extras} setExtras={setExtras} />
-      </Group>
-
-      <Group title="Profile prompts" filled={prompts.length} open>
-        <p className="muted small">
-          Answer at least {PROFILE_MIN_PROMPTS} (up to {MAX_PROMPTS}) in their voice: they&apos;re the heart of their card in the swipe deck.
-        </p>
-        {prompts.map((p, i) => (
-          <div key={i} className="prompt-edit">
-            <label>
-              Prompt
-              <select value={p.id} onChange={(e) => setPrompt(i, { id: e.target.value as PromptId })}>
-                {PROFILE_PROMPTS.filter((o) => o.id === p.id || !usedPrompts.has(o.id)).map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Their answer
-              <textarea name={`extra_prompt_${i}`} maxLength={PROMPT_ANSWER_MAX} rows={2} value={p.answer} onChange={(e) => setPrompt(i, { answer: e.target.value })} />
-            </label>
-            <button type="button" className="link-button danger prompt-remove" onClick={() => removePrompt(i)}>
-              Remove this prompt
-            </button>
-          </div>
-        ))}
-        {prompts.length < MAX_PROMPTS && (
-          <button type="button" className="secondary small" onClick={addPrompt}>
-            + Add a prompt
-          </button>
-        )}
       </Group>
     </fieldset>
   );

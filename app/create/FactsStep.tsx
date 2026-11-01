@@ -49,12 +49,8 @@ export default function FactsStep({ extras, setExtras, name }: { extras: Charact
     <fieldset className="wizard-fields">
       <legend className="wizard-legend">More about {who} (optional)</legend>
       <p className="muted">
-        Anything else that makes {who} who they are: a fear, a secret, what they collect, what they&apos;d never do. Up to {MAX_FACTS}. Each
-        date brings out a few, so different dates show different sides of them. Facts shape how a date goes, never how it ends.
-      </p>
-      <p className="muted small">
-        <strong>Public</strong> facts go on the card. <strong>🔒 Private</strong> ones only {who} knows: they shape the character on dates
-        and are never shown or said outright.
+        A fear, a secret, what they collect: anything else that makes {who} who they are, up to {MAX_FACTS}. Each date brings out a few,
+        and they shape how it goes, never how it ends.
       </p>
 
       <div className="chips" role="group" aria-label="Fact ideas">
@@ -85,7 +81,7 @@ export default function FactsStep({ extras, setExtras, name }: { extras: Charact
                 type="text"
                 name={`fact_value_${i}`}
                 maxLength={FACT_VALUE_MAX}
-                placeholder={f.label.trim() ? (FACT_EXAMPLES[f.label.trim().toLowerCase()] ?? "") : "e.g. coriander, which they'll deny"}
+                placeholder={f.label.trim() ? (FACT_EXAMPLES[f.label.trim().toLowerCase()] ? `e.g. ${FACT_EXAMPLES[f.label.trim().toLowerCase()]}` : "") : "e.g. coriander, which they'll deny"}
                 value={f.value}
                 onChange={(e) => update(i, { value: e.target.value })}
               />
@@ -100,6 +96,13 @@ export default function FactsStep({ extras, setExtras, name }: { extras: Charact
           </li>
         ))}
       </ul>
+      {/* What 🔒 means, beside the toggles once there are some (2026-10-31 UX audit: the intro was two paragraphs). */}
+      {facts.length > 0 && (
+        <p className="muted small">
+          Facts go on {who}&apos;s card. <strong>🔒 Private</strong> ones only {who} knows: they shape their dates and are never shown or said
+          outright.
+        </p>
+      )}
 
       <p>
         <button type="button" className="secondary small" disabled={facts.length >= MAX_FACTS} onClick={() => add()}>
