@@ -64,8 +64,9 @@ describe("runEvalCase", () => {
 
   it("records a failed conversation instead of throwing (the recap still stands)", async () => {
     const c = EVAL_CASES[0];
-    // An unusable plan (rules fallback), a first turn that never parses (every attempt), then the recap.
-    const actor = queue(["{}", "{}", "not a turn", "not a turn", "not a turn", episodeJson()]);
+    // An unusable plan (rules fallback), a first turn that never parses (every attempt, and again when the date picks
+    // up once, J1), then the recap.
+    const actor = queue(["{}", "{}", ...Array(6).fill("not a turn"), episodeJson()]);
     const result = await runEvalCase(c, { actor, director: actor }, null);
     expect(result.transcript).toEqual([]);
     expect(result.conversation_error).toBeTruthy();
