@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { loadCharacter } from "@/lib/character";
-import { eligibleIds } from "@/lib/adult/characters";
+import { playableIds } from "@/lib/adult/characters";
 import { HivePausedError } from "@/lib/adult/hive-limit";
 import { drawBaselineChoices } from "@/lib/adult/media";
 import { faceEdit } from "@/lib/adult/reels";
@@ -32,7 +32,8 @@ export const POST = handle(async (req: Request) => {
   const refused = await mediaRefusal(db, viewer);
   if (refused) return refused;
   const input = parseBody(Input, await readJson(req), "invalid_request");
-  if (!(await eligibleIds(db, viewer)).has(input.character_id)) return hidden();
+  // In their After Dark, or someone who left the cast that they keep a pair with (#1132).
+  if (!(await playableIds(db, viewer)).has(input.character_id)) return hidden();
   const c = await loadCharacter(db, input.character_id);
   if (!c) return hidden();
   try {

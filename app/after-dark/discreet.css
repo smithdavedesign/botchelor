@@ -13,7 +13,8 @@
    A tap sets data-ad-shown (app/after-dark/DiscreetMedia.tsx); leaving the page or the tab takes it off again. */
 [data-ad-discreet="blur"] :is(img, video, image):not(.avatar):not([data-ad-shown]):not([src^="/api/looks/"]):not([src^="/cast/"]),
 [data-ad-discreet="blur"] :is(img, video)[src*="/after-dark/"]:not([data-ad-shown]),
-[data-ad-discreet="blur"] image[href*="/after-dark/"]:not([data-ad-shown]) {
+[data-ad-discreet="blur"] image[href*="/after-dark/"]:not([data-ad-shown]),
+[data-ad-discreet="blur"] img[src*="/api/looks/nsfw-"]:not([data-ad-shown]) {
   filter: blur(28px) saturate(0.5) brightness(0.8);
   /* Keeps the blur inside the picture's own box, with the gallery's corners (the reel's stage clips its own). */
   clip-path: inset(0 round 0.8rem);

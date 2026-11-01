@@ -115,9 +115,9 @@ describe("readiness", () => {
 
   it("says what's missing, in plain words", async () => {
     const { id } = await setup();
-    expect(missingNote(await pairReadiness(t.db, id, SWEET, RAFE))).toBe("No pictures until they're set up: Sweet needs a face and a body set in the Studio.");
+    expect(missingNote(await pairReadiness(t.db, id, SWEET, RAFE))).toBe("No pictures until they're set up: Sweet needs a face and a body reference set in the Studio.");
     await setUp(id, { face: true });
-    expect(missingNote(await pairReadiness(t.db, id, SWEET, RAFE))).toBe("No pictures until they're set up: Sweet needs a body set in the Studio.");
+    expect(missingNote(await pairReadiness(t.db, id, SWEET, RAFE))).toBe("No pictures until they're set up: Sweet needs a body reference set in the Studio.");
     await setUp(id);
     expect(missingNote(await pairReadiness(t.db, id, SWEET, RAFE))).toBeNull();
   });
@@ -136,7 +136,7 @@ describe("a night with someone not set up", () => {
     expect(r.status).toBe(200);
     await autoPicturesSettled();
     const scene = (await (await GET(new Request(`${BASE_URL}/api/admin/after-dark?a=${SWEET}&b=${RAFE}`, { headers: { cookie } }))).json()).scene;
-    expect(scene.picture_note).toMatch(/Sweet needs a face and a body set in the Studio/);
+    expect(scene.picture_note).toMatch(/Sweet needs a face and a body reference set in the Studio/);
     // Picture this, its preview and the shot menu all say so, nothing drawn.
     for (const body of [{ picture_now: { line: 1 } }, { picture_preview: { line: 1 } }]) {
       const res = await post({ a: SWEET, b: RAFE, ...body }, cookie);

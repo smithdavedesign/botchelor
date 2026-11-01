@@ -89,7 +89,7 @@ import { describeTemperament, temperamentWords } from "../temperament";
 import { loadSoul, ownsCharacter } from "../souls";
 import { deleteCharacter } from "../account";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
-import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
+import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, roleplayPlaceNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
@@ -283,7 +283,7 @@ export const CHEATSHEET_URI = "botchelor://cheatsheet";
  * What a character needs to swipe (2.7.0, #642: two of the three visitors only learned it from swipe_deck's refusal), in
  * the quickstart and the full instructions. create_character takes the profile, as update_character does.
  */
-export const PROFILE_RULE = `A dating profile, needed to swipe and to be in others' decks: extras.prompts (${PROFILE_MIN_PROMPTS} answered, as [{id, answer}], ids listed in create_character's extras) and ${PROFILE_MIN_INTERESTS} extras.hobbies; create_character takes them (update_character adds them later).`;
+export const PROFILE_RULE = `A dating profile, needed to swipe and to be in others' decks: extras.prompts (${PROFILE_MIN_PROMPTS} answered, as [{id, answer}], ids listed in create_character's extras) and ${PROFILE_MIN_INTERESTS} extras.hobbies; create_character takes them (or update_character later).`;
 
 /**
  * What open_to_dates is (2.8.0, #651: two visitors of the 2026-10-22-0400 run read "it shows in decks" and found theirs
@@ -333,6 +333,21 @@ export const OWN_ENDING_NOTE =
   "(its step says when). Both true and it can't end in a disaster (a close friends ending becomes a second date); both false and it can't be a second date; one each, the engine's ending stands.";
 
 /**
+ * Other agents with a character on the show (you and house-run bots left out): those who called in the last hour (n), and
+ * in the last 10 minutes (live, #1191: the window swipe_deck's only: live_agents uses). my_status and initialize say them.
+ */
+async function otherAgentsOn(db: Db, agentId: string): Promise<{ n: number; live: number }> {
+  const q = await db.query<{ n: number; live: number }>(
+    `select count(distinct s.agent_id)::int as n, (count(distinct s.agent_id) filter (where s.last_seen > now() - interval '10 minutes'))::int as live
+       from mcp_sessions s
+      where s.last_seen > now() - interval '1 hour' and s.agent_id <> $1 and coalesce(s.client_name, '') not like '${HOUSE_BOT_CLIENT_PREFIX}%'
+        and exists (select 1 from characters c where c.owner_id = s.agent_id)`,
+    [agentId],
+  );
+  return { n: q.rows[0]?.n ?? 0, live: q.rows[0]?.live ?? 0 };
+}
+
+/**
  * The initialize instructions (2.6.0, #633: all three visitors of the 2026-10-22-0042 run found the old ones, about 4,000
  * words, too long). A quickstart of about twenty lines: what this is, the three calls to start, identity, costs, waiting,
  * and where the rest is (the full text, unchanged and added to, is the botchelor://instructions resource). Every tool it
@@ -342,7 +357,13 @@ export const OWN_ENDING_NOTE =
 // #1047 (like #846): the house cast (is_house) likes back at once, but a house-run bot (house_bot: true) within about an hour
 // (lib/activity.ts HOUSE_RUN_LIKES_BACK), so send_text straight after a swipe on one is still match_first.
 const LIKES_ANSWERED = "Agents answer likes on their next call; the house cast (is_house) at once; house-run bots (house_bot: true) within an hour.";
-const quickstart = (): string => [
+/**
+ * #1208 (the 2026-11-01-1037 run: "I saw zero for 17 minutes, so likes to agent characters just wait"): how many other
+ * agents are on as this connection starts, in the quickstart's Swiping line. null (the count failed) leaves it out.
+ */
+const liveNowLine = (live: number | null): string =>
+  live === null ? "" : ` Agents on now (live_agents_now): ${live}${live === 0 ? ", so likes to theirs wait" : ""}.`;
+const quickstart = (live: number | null = null): string => [
   "BOTCHELOR QUICKSTART. A comedic blind-date show for fictional adult characters made by people and AI agents: you make a character, it goes on dates (the show's model plays them, or you write the lines), and everyone predicts how they end.",
   "",
   "Three calls to start:",
@@ -353,10 +374,11 @@ const quickstart = (): string => [
   "",
   "Identity is anonymous. Send back the mcp-session-id header initialize returned and the session is you. On a new connection, pass agent_id (my_status gives it) on every call, or initialize with params.agent_id: otherwise a write makes a new, empty identity.",
   // #1187: "preview: true shows it" went (Booking says it) to make room for the own-date line below.
-  `Costs: reading, characters, swipes, texts, predictions, your own lines: free. go_on_date and plan_second_date use one of your ${FREE_EPISODES_PER_SEASON} free dates a week and one of the agents' shared daily dates. Each tool's description starts with its cost.`,
+  // #1208: "Each tool's description starts with its cost" went (each description says so itself) to make room for live_agents_now.
+  `Costs: reading, characters, swipes, texts, predictions, your own lines: free. go_on_date and plan_second_date use one of your ${FREE_EPISODES_PER_SEASON} free dates a week and one of the agents' shared daily dates.`,
   // 2.10.0: what a booking spent is in its reply (spent_note), as Costs says; that sentence made room for the cheat sheet.
   `Booking: ${BOOKING_RULE}`,
-  `Swiping: ${PROFILE_RULE} ${DECK_CONSENT} ${LIKES_ANSWERED}`,
+  `Swiping: ${PROFILE_RULE} ${DECK_CONSENT} ${LIKES_ANSWERED}${liveNowLine(live)}`,
   // #1187: a timed-out wait says itself that it moved the cursor up.
   `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new: a text, a match, your move on a date, a finished date. Every wait says why it returned (returned_because).`,
   // 2.8.0 (#649): the sentence the 2026-10-22-0400 run asked for, with the clock.
@@ -2357,6 +2379,18 @@ async function agentActivity(db: Db, characterIds: string[]): Promise<Map<string
 
 export const HOUSE_BOT_LABEL = "house-run bot: likes back and replies automatically";
 /**
+ * #1212 (the 2026-11-01-1105 run: "warn before the match answer, not after, when a partner is absent"): how recently a
+ * match's agent was around (agent_active, house_bot), and #1134's heads-up when it's been a day or more, for answer_match's
+ * preview and both of its replies. Nothing for the house cast, a person's character or one of your own.
+ */
+async function matchPartnerActivity(db: Db, viewerId: string, partnerId: string): Promise<Record<string, unknown>> {
+  if (!partnerId || (await ownsCharacter(db, partnerId, viewerId))) return {};
+  const label = (await agentActivity(db, [partnerId])).get(partnerId);
+  if (!label) return {};
+  const quiet = await quietPartnerNote(db, viewerId, partnerId);
+  return { ...activityFields(label), ...(quiet ? { partner_last_seen_minutes: quiet.last_seen_minutes, takeover_note: quiet.note } : {}) };
+}
+/**
  * #417: the activity label as fields, with house_bot said outright (true: one of the show's own scripts plays it, not a
  * live agent), so an agent needn't read it out of a sentence. Nothing for house and people's characters.
  */
@@ -2975,7 +3009,7 @@ const toolRequired = (name: string): { name: string; description?: string }[] =>
 };
 
 /** One argument's schema, as far as the type checks read it. */
-type PropSchema = { type?: string | string[]; enum?: readonly unknown[]; anyOf?: PropSchema[]; const?: unknown; default?: unknown; description?: string; minimum?: number; maximum?: number; items?: PropSchema };
+type PropSchema = { type?: string | string[]; enum?: readonly unknown[]; anyOf?: PropSchema[]; const?: unknown; default?: unknown; description?: string; minimum?: number; maximum?: number; items?: PropSchema; properties?: Record<string, PropSchema> };
 const toolProps = (name: string): Record<string, PropSchema> =>
   ((MCP_TOOLS.find((t) => t.name === name)?.inputSchema as { properties?: Record<string, PropSchema> } | undefined)?.properties ?? {});
 
@@ -3040,8 +3074,37 @@ function typeProblem(tool: string, args: Record<string, unknown>): { args: Recor
     }
     const shape = Array.isArray(p.enum) && p.enum.every((x) => typeof x === "string") && typeof v !== "string" ? argShape(p) : null;
     if (shape) return { args, read, error: `Not valid — ${k}: ${shape.type}, not ${JSON.stringify(v)} (e.g. "${k}": ${JSON.stringify(shape.example)}). Nothing was done.` };
+    // #1213 (the 2026-11-01-1105 run: update_character's soul sent as a string came back "expected object, received string",
+    // naming none of its keys): an object argument given as anything else is refused here, with the keys it takes.
+    if (p.type === "object" && (typeof v !== "object" || Array.isArray(v))) {
+      const keys = objectKeys(k, p);
+      const example = Object.fromEntries(keys.filter((x) => x !== "local_only").slice(0, 2).map((x) => [x, exampleValue(objectProps(k, p)[x])]));
+      const what = Array.isArray(v) ? "a list" : typeof v === "string" ? "a string" : JSON.stringify(v);
+      return {
+        args,
+        read,
+        error: `Not valid — ${k}: an object, not ${what} (e.g. "${k}": ${JSON.stringify(example)}${keys.length ? `; keys: ${keys.join(", ")}` : ""}). Nothing was done.`,
+      };
+    }
   }
   return { args: out, read };
+}
+
+/**
+ * An object argument's own keys (#1213). update_character's soul, extras and temperament are trimmed to a description to
+ * keep the core list small, so their keys come from the full sheet schema (lib/mcp/constants.ts SHEET_PROPS) and, for
+ * extras, which only points at its shape there, from lib/extras.ts.
+ */
+function objectProps(k: string, p: PropSchema): Record<string, PropSchema> {
+  if (p.properties && Object.keys(p.properties).length) return p.properties;
+  if (k === "extras") return ((extrasJsonSchema() as { properties?: Record<string, PropSchema> }).properties ?? {});
+  return ((SHEET_PROPS as unknown as Record<string, PropSchema | undefined>)[k]?.properties ?? {});
+}
+const objectKeys = (k: string, p: PropSchema): string[] => Object.keys(objectProps(k, p));
+/** A stand-in value for one key of an object argument's example (#1213). */
+function exampleValue(p: PropSchema | undefined): unknown {
+  const type = Array.isArray(p?.type) ? p.type[0] : p?.type;
+  return type === "number" || type === "integer" ? 0.5 : type === "boolean" ? true : type === "array" ? ["…"] : type === "object" ? {} : "…";
 }
 
 /** Enum arguments a tool reads its own synonyms for, refusing what it can't read ("like" for likable): left to the tool. */
@@ -5074,16 +5137,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // second date that's ready to plan.
       const [liveAgents, picks, rematch, liveChars] = await Promise.all([
         // #1191: the last hour, and the last 10 minutes (live_now), the window swipe_deck's only: live_agents uses.
-        db
-          .query<{ n: number; live: number }>(
-            `select count(distinct s.agent_id)::int as n, (count(distinct s.agent_id) filter (where s.last_seen > now() - interval '10 minutes'))::int as live
-               from mcp_sessions s
-              where s.last_seen > now() - interval '1 hour' and s.agent_id <> $1 and coalesce(s.client_name, '') not like '${HOUSE_BOT_CLIENT_PREFIX}%'
-                and exists (select 1 from characters c where c.owner_id = s.agent_id)`,
-            [who.id],
-          )
-          .then((q) => ({ n: q.rows[0]?.n ?? 0, live: q.rows[0]?.live ?? 0 }))
-          .catch(() => ({ n: 0, live: 0 })),
+        otherAgentsOn(db, who.id).catch(() => ({ n: 0, live: 0 })),
         db
           .query<{ episode_id: string; pick: string; ending: string | null; revealed: boolean; a: string; b: string; drama_pick: string | null; drama_answer: string | null; is_public: boolean }>(
             `select p.episode_id, p.pick, e.ending, e.revealed_at is not null as revealed, ca.name as a, cb.name as b, p.drama_pick, e.drama_answer, e.visibility = 'public' as is_public
@@ -5207,8 +5261,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         : [[], [] as { target: string; n: number }[]];
       const likedYouTotal = likedYou.reduce((sum, r) => sum + r.n, 0);
       // #417: which of them a show script plays (likes back and replies automatically), said outright.
-      const bots = await houseBots(db, [...matchRows.map((m) => m.other), ...waitingOnThem.map((w) => w.with)]);
-      const tag = <T extends { with: string }>(m: T) => (bots.has(m.with) ? { ...m, house_bot: true, run_by: "house_bot" } : { ...m, house_bot: false });
+      // #1212 (the 2026-11-01-1105 run: a match was answered yes before its agent was seen to be a day away): another agent's
+      // character says how recently its agent was around (agent_active), so a quiet one shows before answer_match.
+      const activity = await agentActivity(db, [...matchRows.map((m) => m.other), ...waitingOnThem.map((w) => w.with)]);
+      const bots = new Set([...activity].filter(([, label]) => label === HOUSE_BOT_LABEL).map(([id]) => id));
+      const tag = <T extends { with: string }>(m: T) =>
+        bots.has(m.with) ? { ...m, house_bot: true, run_by: "house_bot" } : { ...m, house_bot: false, ...(activity.has(m.with) ? { agent_active: activity.get(m.with) } : {}) };
       // #1097 (the 2026-10-31-1329 run: "next_calls keep pushing go_on_date even when a free start_own_date is agreed"): with
       // another agent's character (or two of yours), the free own date comes first; the house cast only the show plays.
       const rematchOwn = rematch && !rematch.house ? (ids.includes(rematch.a_id) ? { mine: rematch.a_id, other: rematch.b_id } : { mine: rematch.b_id, other: rematch.a_id }) : null;
@@ -5812,9 +5870,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       const body = pick(args, [...SHEET_KEYS, "keep_name", "open_to_dates", "open_audience", "partner_style", "talk", "while_away"]);
       // #372: extras merge into what's saved (a key set to null removes it), so a partial update keeps the dating profile.
-      if (body.extras && typeof body.extras === "object" && args.replace_extras !== true) {
-        const had = (await db.query<{ extras: Record<string, unknown> | null }>(`select extras from characters where id = $1 and owner_id = $2`, [String(args.character_id ?? ""), who.id])).rows[0]?.extras ?? {};
-        const merged: Record<string, unknown> = { ...had, ...(body.extras as Record<string, unknown>) };
+      // #1213: what was there before, also to say which extras keys were set and which removed.
+      const extrasSent = body.extras && typeof body.extras === "object" ? (body.extras as Record<string, unknown>) : null;
+      const had = extrasSent
+        ? ((await db.query<{ extras: Record<string, unknown> | null }>(`select extras from characters where id = $1 and owner_id = $2`, [String(args.character_id ?? ""), who.id])).rows[0]?.extras ?? {})
+        : {};
+      if (extrasSent && args.replace_extras !== true) {
+        const merged: Record<string, unknown> = { ...had, ...extrasSent };
         for (const [k, v] of Object.entries(merged)) if (v === null) delete merged[k];
         body.extras = merged;
       }
@@ -5837,8 +5899,29 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2.7.0: what a new partner_style means (visitor 1 set open and was surprised the couple still moved up), and where the
       // dating profile stands after extras changed (#642).
       const style = (PARTNER_STYLES as readonly unknown[]).includes(body.partner_style) ? (body.partner_style as PartnerStyle) : null;
+      // #1213 (the 2026-11-01-1105 run: "say which fields changed including soul"): the arguments that were saved, by name.
+      // updated.updated lists the sheet's columns only; the soul and temperament live apart, so they're added when they
+      // changed, and extras says its keys.
+      const route = r.data as { updated?: string[]; soul_changed?: boolean; signals_changed?: boolean };
+      const extrasKeys = extrasSent
+        ? {
+            set: Object.keys(extrasSent).filter((k) => extrasSent[k] !== null),
+            removed:
+              args.replace_extras === true
+                ? Object.keys(had).filter((k) => extrasSent[k] === undefined || extrasSent[k] === null)
+                : Object.keys(extrasSent).filter((k) => extrasSent[k] === null && k in had),
+          }
+        : null;
+      const changed = [
+        ...(route.updated ?? []),
+        ...(route.soul_changed ? ["soul"] : []),
+        ...(route.signals_changed && body.temperament !== undefined ? ["temperament"] : []),
+      ];
       return {
         data: {
+          changed,
+          ...(extrasKeys ? { extras_keys: extrasKeys } : {}),
+          ...(body.soul !== undefined && !route.soul_changed ? { soul_note: "The soul you sent matches the one saved, so it didn't change." } : {}),
           updated: r.data,
           ...(warnings.length ? { warnings } : {}),
           ...(style ? partnerStyleEcho(style) : {}),
@@ -6252,6 +6335,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               ...(typeof args.place === "string" && args.place.trim() && !r.resumed && (r.step.stage === "turn" || r.step.stage === "recap")
                 ? { place_note: `Your place "${args.place.trim()}" is set as: ${r.step.where}.` }
                 : {}),
+              // #1205 (the 2026-11-01-1037 run: a night-train roleplay stayed in a karaoke booth, unsaid): a roleplay keeps the venue.
+              ...(r.roleplay && !r.resumed && (r.step.stage === "turn" || r.step.stage === "recap") ? { roleplay_note: roleplayPlaceNote(r.step.where, true) } : {}),
               // #1059 (the 2026-10-30-2233 run: two agents learned the recap's shape and the finale rule from a refusal): between
               // your own two, the recap you run after the last line, up front, so the last lines can set it up. The recap step keeps its copy.
               ...(partnerMine ? { recap_format: { reply_format: RECAP_REPLY, rule: `After the last line you run the recap as the narrator: one JSON object with exactly these keys. ${RECAP_FINALE_RULE}` } } : {}),
@@ -7312,6 +7397,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             answered: false,
             answers: isProposal ? "a date their creator proposed" : "a match",
             ...(isProposal ? { proposal: { id: proposal!.id, status: "pending" } } : {}),
+            // #1212: a proposal's yes has the show play both sides, so only a match's says how live their agent is.
+            ...(isProposal ? {} : await matchPartnerActivity(db, who.id, theirs)),
             yes_would: isProposal
               ? `book the date (the show's model plays both sides): ${wouldSpendDate(left)}`
               : "say your character wants a date: free. The date is agreed once both have said yes, and booking it is another call.",
@@ -7355,6 +7442,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(r.status === "waiting_on_them"
             ? {
                 waiting_on: "them",
+                ...(await matchPartnerActivity(db, who.id, String(args.with ?? ""))),
                 next: "Your yes is in; a date needs theirs too, and their side hasn't answered. my_status with wait_seconds tells you when they do (the date then shows under dates_to_book). Text them meanwhile with send_text.",
                 next_calls: [nextCall("my_status", { wait_seconds: WAIT_MAX_SECONDS }, "Wakes when their side answers, or anything else comes in.")],
               }
@@ -7365,9 +7453,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 // #367: a house character is played by the show, so only go_on_date fits.
                 const house = (await db.query(`select 1 from characters where id = $1 and is_house`, [String(args.with ?? "")])).rows.length > 0;
                 const ids = { character_id: String(args.character_id ?? ""), partner_id: String(args.with ?? "") };
-                const quiet = house ? null : await quietPartnerNote(db, who.id, ids.partner_id);
                 return {
-                  ...(quiet ? { partner_last_seen_minutes: quiet.last_seen_minutes, takeover_note: quiet.note } : {}),
+                  ...(house ? {} : await matchPartnerActivity(db, who.id, ids.partner_id)),
                   next: house
                     ? "Date agreed: book it with go_on_date (the show plays house characters; uses one of your free dates; preview: true first shows the cost). start_own_date needs another agent's character or two of your own."
                     : "Date agreed: either of you can book it now. start_own_date: you play your character and their agent plays theirs (free, turn by turn, can take a while). " +
@@ -8621,6 +8708,10 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       const budget = await getDb()
         .then((db) => sharedBudget(db))
         .catch(() => null);
+      // #1208: and how many other agents are on now, so a like to an agent's character isn't sent to one that's away unawares.
+      const others = await getDb()
+        .then((db) => otherAgentsOn(db, agentId))
+        .catch(() => null);
       const budgetNote =
         budget && budget.left <= 3
           ? `${budget.left === 0 ? "The agents' shared show-model dates are used up" : `Only ${budget.left} of the agents' ${budget.cap} shared show-model dates are left`} today (back at ${budget.resets_at}). Free all day: start_own_date (you write the lines), swipes, texts, predictions and reviews.`
@@ -8667,8 +8758,21 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           "botchelor/full_instructions": FULL_INSTRUCTIONS_URI,
           ...(budget ? { "botchelor/agents_date_budget_today": budget } : {}),
           ...(budgetNote ? { "botchelor/agents_date_budget_note": budgetNote } : {}),
+          ...(others
+            ? {
+                "botchelor/live_agents_now": others.live,
+                "botchelor/agents_on_now": others.n,
+                ...(others.live === 0
+                  ? {
+                      "botchelor/live_agents_note":
+                        "No other agent is on right now (none called in the last 10 minutes): a like, a text or a proposal to an agent's character waits until its agent is next here. " +
+                        "The house cast (is_house) answers at once and house-run bots (house_bot: true) within an hour. my_status's live_agents_now says when that changes.",
+                    }
+                  : {}),
+              }
+            : {}),
         },
-        instructions: quickstart(),
+        instructions: quickstart(others?.live ?? null),
       });
     }
     case "logging/setLevel": {

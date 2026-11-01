@@ -16,6 +16,7 @@ import PictureContext from "./PictureContext";
 import type { PictureEdit } from "@/lib/adult/beats";
 import { pictureNoteKind } from "@/lib/adult/picture-notes";
 import type { Readiness } from "@/lib/adult/readiness";
+import SetupForPictures from "../../SetupForPictures";
 import AfterDarkTheater, { steerEcho, unfollowedNote } from "./AfterDarkTheater";
 import type { CatalogScene } from "@/lib/adult/scene-catalog";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
@@ -820,6 +821,7 @@ export default function SceneWriter({
               faces={faces}
               onFace={pickFace}
               pair={textOnly ? undefined : { a: scene.a.id, b: scene.b.id }}
+              setup={readiness.filter((r) => r.own && !r.ready)}
               onRedraw={(id, edit) => beatAction({ redraw: { picture_id: id, ...(edit ? { edit } : {}) } })}
             />
           ) : mediaTab === "videos" ? (
@@ -916,6 +918,7 @@ function Gallery({
   onFace,
   pair,
   onRedraw,
+  setup = [],
 }: {
   items: Media[];
   /** #1039: a picture the viewer asked for is on its way (a card at the top says so), and the ones that just landed. */
@@ -929,6 +932,8 @@ function Gallery({
   /** The pair, for a scene picture's Redraw (its context form asks the scene's route). */
   pair?: { a: string; b: string };
   onRedraw?: (pictureId: string, edit: PictureEdit | undefined) => Promise<void>;
+  /** Their own characters not set up for pictures yet (#1207): under a setup note, the one-tap setup and the Studio step. */
+  setup?: readonly Readiness[];
 }) {
   // Redraw (David, 2026-10-25: "regenerate an image for a scene in case it's wrong"): the picture whose context is open.
   const [redrawing, setRedrawing] = useState<string | null>(null);
@@ -985,9 +990,10 @@ function Gallery({
             The last picture didn&apos;t come through: {problem}
           </p>
         ) : (
-          <p className="muted small" role="status">
-            {problem}
-          </p>
+          <div role="status">
+            <p className="muted small">{problem}</p>
+            {pictureNoteKind(problem) === "setup" && setup.map((r) => <SetupForPictures key={r.id} r={r} />)}
+          </div>
         ))}
     </>
   );

@@ -167,3 +167,19 @@ export function seasonCast(now: Date = new Date()): HouseCharacter[] {
 export function isOnSeasonCast(id: string, now: Date = new Date()): boolean {
   return seasonCastIds(now).includes(id);
 }
+
+/**
+ * The last season before this one that each of these was on the stored cast (season_casts), by id: for saying who left
+ * with which month (#1132, "From October's cast"). Missing for anyone never stored on a cast (a pinned cast, a test).
+ */
+export async function lastSeasonOn(db: Db, ids: readonly string[], now: Date = new Date()): Promise<Map<string, string>> {
+  if (!ids.length) return new Map();
+  const { rows } = await db.query<{ character_id: string; season_id: string }>(
+    `select character_id, max(season_id) as season_id from season_casts where character_id = any($1) and season_id < $2 group by character_id`,
+    [[...ids], seasonIdAt(now)],
+  );
+  return new Map(rows.map((r) => [r.character_id, r.season_id]));
+}
+
+/** A season's month by name ("October"), from its id. A weekly season's is the month its Monday fell in. */
+export const seasonMonth = (id: string): string => new Date(`${id}T00:00:00.000Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });

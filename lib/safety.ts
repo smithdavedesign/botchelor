@@ -87,10 +87,15 @@ const REAL_PEOPLE = [
 // so "victim cooks" never matches "tim cook".
 const REAL_PEOPLE_PATTERNS = REAL_PEOPLE.map((name) => new RegExp(` ${name.split(" ").join(" ?")} `));
 
+// A thing's age, said right before the thing ("a sixteen-year-old fountain", "a twelve year old whisky"), isn't a
+// person's (#1210; David, 2026-11-01: allow it for a short list of things, everything else stays refused). Only these
+// words, only straight after "<age> year old": never a pet, a doll, a photo or anything a person could be.
+const THINGS = "fountain|house|home|building|bridge|tower|church|chapel|barn|cabin|hotel|bar|pub|restaurant|cafe|bakery|shop|store|theater|theatre|tree|oak|vine|garden|wine|whisky|whiskey|scotch|bourbon|rum|cognac|port|brandy|car|truck|van|bike|motorcycle|boat|ship|clock|piano|guitar|violin|cello|record|book|map|coat|jacket|recipe|painting|statue|sculpture|rug|sofa|couch|table|machine|laptop|computer|phone";
+const A_THINGS_AGE = `(?!(?:${THINGS})s? )`;
 const UNDER_18 = "(?:[1-9]|1[0-7])";
 const NOT_AN_AGE_AFTER = "(?!(?:\\d+|foot|feet|ft|cm|m|in|inch|inches|kg|lb|lbs|stone|of|out|percent|times)\\b)";
 const MINOR_AGE_PATTERNS = [
-  new RegExp(` ${UNDER_18} ?(?:years?|yrs?) old `),
+  new RegExp(` ${UNDER_18} ?(?:years?|yrs?) old ${A_THINGS_AGE}`),
   new RegExp(` ${UNDER_18} ?(?:yo|y o) `),
   new RegExp(` aged? ${UNDER_18} `),
   new RegExp(` (?:i am|im|i m|she is|shes|she s|he is|hes|he s|they are|theyre|they re) ${UNDER_18} ${NOT_AN_AGE_AFTER}`),
@@ -164,7 +169,7 @@ const NOT_A_TIME = "(?!(?:am|pm|a m|p m|o clock|oclock|sharp|tonight|tomorrow|th
 const CHILDHOOD_AGE_PATTERNS = [
   new RegExp(` (?:when|since|back when) (?:i|he|she|they|you|we) (?:was|were) (?:only |just |about |maybe |like |barely )?${CHILD_AGE} `),
   new RegExp(` (?:age|ages|aged) (?:of )?${CHILD_AGE} `),
-  new RegExp(` ${CHILD_AGE} ?(?:years?|yrs?) old `),
+  new RegExp(` ${CHILD_AGE} ?(?:years?|yrs?) old ${A_THINGS_AGE}`),
   new RegExp(` (?:started|began|learned|learnt|first|working|worked|was) (?:[a-z]+ ){0,3}at (?:${WORK_AGE_WORDS}|[5-9]|1[0-7]) ${NOT_A_TIME}`),
 ];
 
@@ -232,7 +237,7 @@ const SAYS_AN_AGE = [
 ];
 const ADULT_AGE_PATTERNS = [
   ...SAYS_AN_AGE.map((says) => new RegExp(`${says}${OLDER_CHILD_AGE} ${NOT_AN_AMOUNT}`)),
-  new RegExp(` ${CHILD_AGE} (?:year old|years old|yo|y o)\\b`),
+  new RegExp(` ${CHILD_AGE} (?:year old|years old|yo|y o)\\b(?! (?:${THINGS})s? )`),
 ];
 const ONE_OR_TWO_AGE_PATTERNS = SAYS_AN_AGE.map(
   (says) => new RegExp(`${says}(?:one|two) (?=$|(?:and|or|but|maybe|now|today|already|years?|yrs?|yo|y o)\\b)`),

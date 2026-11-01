@@ -9,6 +9,7 @@ const pretty = (v: unknown) => JSON.stringify(v, null, 2);
 const SWITCHES = [
   ["pov", "POV shots"],
   ["free_redo", "A free redo for a shoot they 👎'd whole"],
+  ["free_setup", "Each character's first “Set up for pictures” included (a face and a body, 2–4 pictures on us; the site's free ones a day are free_setups_per_day below)"],
   ["reference_set_everywhere", "Nights, clips and beat pictures send body references too (test first)"],
   ["identity_in_shoots", "Shoots send the identity pack's view for the angle too, when the model has room (test first)"],
 ] as const;

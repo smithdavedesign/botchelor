@@ -131,7 +131,8 @@ export default function MediaMenu({
     } else {
       onPicture(res.data.picture as Media);
       if (pictures?.left !== null && pictures?.left !== undefined) setPictures({ ...pictures, left: Math.max(0, pictures.left - 1) });
-      setNote({ text: "📸 It's in the gallery below." });
+      // #1207: the gallery is its own tab now, not below this one.
+      setNote({ text: "📸 It's in 🖼 Gallery → Pictures (the tab above)." });
     }
   }
 

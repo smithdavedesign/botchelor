@@ -1638,7 +1638,9 @@ changes once it's up; what it points at is fixed when it's published (`adult_sho
 **Who can publish, and what.**
 - A signed-in admin only (everyone else, a subscriber included, gets not found from the route), and only their own nights.
 - Only when both characters are house characters on this season's cast (`housePair`: `seasonCastIds` and `is_house`).
-  A Short already up stays up when the season changes; once taken down, it can't go back up without both on the cast.
+  A Short already up stays up when the season changes, and the Shorts list (and the teaser) marks one whose pair has
+  someone who has left the cast since: "From October's cast" (#1132). Once taken down, it can't go back up without both
+  on the cast.
 - At least 6 lines.
 - The title is held to the two lines (`checkAdultText`) and to the show's own PG check (`checkShowText`), because it shows
   on the teaser outside the paywall: "Naked in his kitchen" is refused.
@@ -2834,3 +2836,35 @@ reels, images, boomerangs, rating, archived … we shouldn't see thumbs down or 
   nothing is hidden by default.
 - **The admin library** (`/admin/after-dark/library`, `rated=`): hides anything averaging under 3.5★ or with its
   owner's 👎 by default. The other choices are liked, not rated yet, low, and all.
+
+## When the season changes: nights with the old cast stay playable (#1132, 2026-11-01)
+
+The cast rotates on the 1st (`lib/season-cast.ts`), and After Dark's pairs come from it (`eligibleIds`: this season's
+cast and the characters a person switched on). Before this, a house character who left the cast took the person's
+nights with them: the pair dropped off the hub and `/after-dark/<a>/<b>` was a bare 404, though the `adult_scenes` and
+`adult_nights` rows were all still there (the 2026-10-31 loop run lost five scenes at 00:05 UTC on 1 November).
+
+**David's call (2026-11-01): keep them playable.** Code: `lib/adult/characters.ts` (`keptPairs`, `playableIds`,
+`pairAbsence`), `lib/adult/scenes.ts` (`eligiblePair`, `listCastPairs`).
+
+- **Who keeps what.** A person keeps a pair when they already have nights of it (a scene with lines or a chapter filed,
+  or a saved night in `adult_nights`) and one or both of the two are house characters no longer on the cast. Only that
+  pair, and only for them: someone who never had a night of it can't start one, and nobody gets a new pair with a
+  character who has left. A page opened once with no lines doesn't count. A person's own character they switched out
+  isn't kept this way; switching them back in is theirs to do.
+- **The hub** lists a kept pair under Continue, marked "🗓 From October's cast" (the last season they were on the
+  stored cast, `lastSeasonOn` over `season_casts`; "From a past season's cast" when it isn't stored). Who left isn't a
+  face in "Start a new pair". `after_dark_pairs` over MCP carries the same `earlier` label.
+- **Playing it.** Everything that gates a pair goes through `eligiblePair` (the scene, its lines, pictures, videos,
+  clips, talks, Two sides, the scene match), so a kept pair plays as before. The per-character routes the scene page
+  uses (the face, the baselines, the presence, Start fresh on the steer, and `after_dark_baseline` over MCP) take
+  `playableIds`: the eligible ones plus whoever left that the person keeps a pair with. The scene page says "🗓 From
+  October's cast: Rafe has left the cast since, and this pair stays yours to play."
+- **No bare 404.** A pair someone can't have says why (`pairAbsence`): "Rafe left the cast with October's season. A
+  night already under way with them stays with whoever had it; a new one is with this season's cast", with a link to
+  pick from this season's cast; or, for one of their own switched out, where to switch them in. Another person's
+  character, or an id that isn't a character, is still not found.
+- **Not changed:** the Studio (`studioAccess`, and a pair shoot's partners) and publishing a Short still need both on
+  this season's cast. A warning before the rollover (the issue's third point) isn't built.
+
+**Proof:** tests/after-dark-old-cast.test.ts.

@@ -21,7 +21,8 @@ import { isAdmin } from "../admins";
 import type { Db } from "../db";
 import { pairKey } from "../relationships";
 import { checkAdultText, checkShowText } from "../safety";
-import { seasonCastIds } from "../season-cast";
+import { lastSeasonOn, seasonCastIds } from "../season-cast";
+import { fromCastLabel } from "./characters";
 import { playable } from "./clip-chains";
 import type { PlaceStop } from "./continuity";
 import { canAfterDark } from "./entitlement";
@@ -349,6 +350,11 @@ export type ShortCard = {
   cover: string | null;
   published_at: string | null;
   path: string;
+  /**
+   * When one of the two has left the cast since it was published (#1132; the 2026-10-31 loop: "Rafe isn't in the pair
+   * picker and isn't one of the four cast characters"): "From October's cast". A Short stays up when the season changes.
+   */
+  earlier?: string;
 };
 /** The same for the teaser: no cover, nothing that could show what happens. */
 export type ShortTeaser = Omit<ShortCard, "cover" | "video">;
@@ -375,14 +381,22 @@ const cardOf = (r: CardRow): ShortCard => ({
   path: shortPath(r.id),
 });
 
-/** The published Shorts, newest first. */
+/** The published Shorts, newest first, each marked when one of the two has left the cast since (`earlier`). */
 export async function listShorts(db: Db, limit = SHORTS_LISTED): Promise<ShortCard[]> {
   const { rows } = await db.query<CardRow>(`${CARD_SELECT} where s.published_at is not null order by s.published_at desc, s.id limit $1`, [limit]);
-  return rows.map(cardOf);
+  const cast = new Set(seasonCastIds());
+  const goneOf = (r: CardRow) => [r.character_a, r.character_b].filter((id) => !cast.has(id));
+  const seasons = await lastSeasonOn(db, [...new Set(rows.flatMap(goneOf))]);
+  return rows.map((r) => {
+    const gone = goneOf(r);
+    if (!gone.length) return cardOf(r);
+    const season = gone.map((id) => seasons.get(id)).filter((x): x is string => Boolean(x)).sort()[0] ?? null;
+    return { ...cardOf(r), earlier: fromCastLabel(season) };
+  });
 }
 
 /** Only what may show outside the paywall: the title (PG-checked when it was published), the two names, the length. */
-const teaserOf = (c: ShortCard): ShortTeaser => ({ id: c.id, title: c.title, a: c.a, b: c.b, lines: c.lines, published_at: c.published_at, path: c.path });
+const teaserOf = (c: ShortCard): ShortTeaser => ({ id: c.id, title: c.title, a: c.a, b: c.b, lines: c.lines, published_at: c.published_at, path: c.path, ...(c.earlier ? { earlier: c.earlier } : {}) });
 
 /** The teaser's cards: the published Shorts, newest first. */
 export async function teaserShorts(db: Db, limit = SHORTS_LISTED): Promise<ShortTeaser[]> {

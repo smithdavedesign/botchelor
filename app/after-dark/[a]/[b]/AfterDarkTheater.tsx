@@ -36,6 +36,7 @@ import { libraryVenueFor, type CatalogScene } from "@/lib/adult/scene-catalog";
 import SetSceneModal, { preloadScenes, type RoleplayPick } from "./SetSceneModal";
 import PictureContext from "./PictureContext";
 import type { Readiness } from "@/lib/adult/readiness";
+import SetupForPictures from "../../SetupForPictures";
 import type { PictureEdit } from "@/lib/adult/beats";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 
@@ -362,10 +363,12 @@ export default function AfterDarkTheater({
 }) {
   const live = Boolean(onWrite);
   const turns = useMemo(() => scene.lines.map(lineToTurn), [scene.lines]);
-  // Live: playback waits at the newest line and carries on as the next ones are written. A replay of a night already
-  // watched opens at the end (David, 2026-10-24: revisiting shouldn't make you sit through it again) — ▶ or From the top
-  // replays it.
-  const [startAt] = useState(() => (live ? Math.max(0, scene.lines.length - 6) : scene.lines.length));
+  // Both open at the end: a replay of a night already watched (David, 2026-10-24: revisiting shouldn't make you sit
+  // through it again; ▶ or From the top replays it), and a night still going, which waits at the newest line and carries
+  // on as the next ones are written. #1214 (the 2026-11-01 After Dark visitor: "the next Next reveals lines that were
+  // already written; the home list's 24 lines ran ahead of the theater's 20"): it used to replay its last six on opening,
+  // so the first Next only skipped to the end, and the counts disagreed until it had.
+  const [startAt] = useState(() => scene.lines.length);
   const [listenHold, setListenHold] = useState(false);
   // 🔈 on: the voices, and the place's sound under them.
   const [listening, setListening] = useState(false);
@@ -691,11 +694,8 @@ export default function AfterDarkTheater({
                       ) : (
                         <>
                           {`${r.face ? "✓" : "○"} face · ${r.body ? "✓" : "○"} body`}{" "}
-                          {r.own && (
-                            <a href={r.studio} className="ad-start-setup">
-                              Set up in the Studio →
-                            </a>
-                          )}
+                          {/* #1207: one tap that sets both up (the first one included), or the Studio step for what's missing. */}
+                          {r.own && <SetupForPictures r={r} />}
                         </>
                       )}
                     </li>

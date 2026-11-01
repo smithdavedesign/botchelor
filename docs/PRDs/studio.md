@@ -307,6 +307,10 @@ Hive's capacity and storage; tokens protect the margin.
   `share` {`photos` on, `after_dark` on, `pg_max_nsfw` 0.15}, `own_keys` {`venice` on, `replicate` on},
   `upscale` {`scale` 2 (or 4), `usd` 0.02}, `animate` {`model`: null, After Dark's `reel_model`}. A motion is switched
   off by `disabled_options` as `motion.<id>`.
+- `free_setup` (on), `free_setups_per_day` (100): "Set up for pictures" (#1207; David, 2026-11-01) draws and picks a
+  face and a body in one go; each character's first one is included (2 faces on the default model, then the
+  `body_candidates` body references: 2–4 pictures, ours), recorded in `adult_identity.free_setup_at`; later ones cost
+  `prices.recast` + `prices.body` for the parts they draw, as the two buttons do.
 
 `adult_settings.moderation` (JSON): `mode` (`hive`), `alts` (`["venice_vlm"]`), `min_sources` (1), `vlm_model`,
 `sightengine_user`, `sightengine_minor_max` (0.1), `endpoint_url`, `pg_via` (`hive`). Keys sealed like the others:
