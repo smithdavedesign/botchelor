@@ -2906,10 +2906,12 @@ export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, 
   const place_history = [...scene.place_history, { place: named, set: set_place, home: null, chapter: scene.chapter }];
   const moves: MoveLog[] = [...scene.moves, { chapter: scene.chapter, at: scene.lines.length, from: scene.set_place ?? scene.place, to: set_place, taken: true, reason: "set_scene" }];
   // A cut is a paid jump nobody rewinds past (the steps before it can't be taken back), and the last step's suggestions
-  // were for where they were: the next step suggests again.
+  // were for where they were: the plain held ones for the new place until the next step suggests again (#1136: "the
+  // Flirt, Spicy and Surprise me chips were missing", after a cut they were none).
+  const suggestions = await heldAgain(db, { ...scene, place: named, set_place, place_history }, limitsOf(scene), [], { orPlain: true });
   await db.query(
-    `update adult_scenes set place = $2, set_place = $3, cut_to = $2, place_history = $4::jsonb, moves = $5::jsonb, suggestions = '[]'::jsonb, undo = '[]'::jsonb, updated_at = now() where id = $1`,
-    [scene.id, named, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40))],
+    `update adult_scenes set place = $2, set_place = $3, cut_to = $2, place_history = $4::jsonb, moves = $5::jsonb, suggestions = $6::jsonb, undo = '[]'::jsonb, updated_at = now() where id = $1`,
+    [scene.id, named, set_place, JSON.stringify(place_history), JSON.stringify(moves.slice(-40)), JSON.stringify(suggestions)],
   );
   await ensureSet(db, set_place);
   await logStep(db, ownerId, { a: scene.a.id, b: scene.b.id }, scene.id, {
@@ -2919,7 +2921,7 @@ export async function setSceneTo(db: Db, ownerId: string, x: string, y: string, 
   // A picture of them at the new place (lib/adult/auto-pictures.ts), once a chapter per place; never fails the cut.
   const [ca, cb] = await Promise.all([loadCharacter(db, scene.a.id), loadCharacter(db, scene.b.id)]);
   const autoPicture = await kickAutoPicture(db, ownerId, { id: scene.id, chapter: scene.chapter, place: named, set_place, stage: scene.stage, lines: scene.lines, ownerSet: true }, ca, cb);
-  return { ok: true, scene: publicScene({ ...scene, place: named, set_place, cut_to: named, place_history, moves, suggestions: [], undo: [] }), ...(autoPicture ? { auto_picture: true } : {}) };
+  return { ok: true, scene: publicScene({ ...scene, place: named, set_place, cut_to: named, place_history, moves, suggestions, undo: [] }), ...(autoPicture ? { auto_picture: true } : {}) };
 }
 
 export type RewindResult = { ok: true; scene: AdultScene; given: Given; rewound: number } | { ok: false; status: number; message: string };
@@ -3029,8 +3031,9 @@ export async function forgetWhisper(db: Db, ownerId: string, x: string, y: strin
  * The last step's suggestions held again, to the limits as they are now and the scene as it stands (after the limits
  * change, or a rewind brings back older ones): one that no longer passes is replaced like any other. None stays none.
  */
-async function heldAgain(db: Db, scene: LoadedScene, limits: PairLimits, suggestions: readonly Suggestion[]): Promise<Suggestion[]> {
-  if (!suggestions.length) return [];
+async function heldAgain(db: Db, scene: LoadedScene, limits: PairLimits, suggestions: readonly Suggestion[], opts: { orPlain?: boolean } = {}): Promise<Suggestion[]> {
+  // `orPlain`: none becomes the plain held ones for the scene as it stands (#1136: a 📍 cut left no chips to press).
+  if (!suggestions.length && !opts.orPlain) return [];
   const cap = INTENSITY[limits.intensity].maxStage;
   const where = scene.set_place ?? scene.place ?? scene.date?.setting ?? null;
   return suggestionsFor(Object.fromEntries(suggestions.map((x) => [x.heat, x.text])), {

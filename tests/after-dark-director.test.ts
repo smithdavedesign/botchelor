@@ -207,13 +207,15 @@ describe("suggested next moves", () => {
     expect(chips.map((c) => c.heat).sort()).toEqual(["flirty", "mild", "spicy"]);
   });
 
-  it("go when the night starts over or the scene is set somewhere new", async () => {
+  it("go when the night starts over; set somewhere new, the plain held ones for there stand in (#1136)", async () => {
     const { cookie } = await admin();
     freshSteps({ suggestions: { mild: "He makes her tea", flirty: "She teases him", spicy: "Her hand finds his" } });
     await post({ a: CAST_A, b: CAST_B }, cookie);
     expect((await get(cookie)).suggestions).toHaveLength(3);
     await post({ a: CAST_A, b: CAST_B, set_scene: "the rooftop" }, cookie);
-    expect((await get(cookie)).suggestions).toEqual([]);
+    const chips = (await get(cookie)).suggestions as { heat: string; text: string }[];
+    expect(chips.map((c) => c.heat).sort()).toEqual(["flirty", "mild", "spicy"]);
+    expect(chips.map((c) => c.text)).not.toContain("He makes her tea");
     await post({ a: CAST_A, b: CAST_B }, cookie);
     await post({ a: CAST_A, b: CAST_B, reset: true }, cookie);
     expect((await get(cookie)).suggestions).toEqual([]);

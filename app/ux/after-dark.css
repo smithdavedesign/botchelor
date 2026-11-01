@@ -2191,3 +2191,19 @@ a.ad-scenes-make-link {
 .ad-start-how {
   margin: var(--space-2) 0;
 }
+/* A phone (390px): the four tabs fit without a sideways scroll (prod check, 2026-11-01: 546px of tabs, Two sides off
+   screen). The theater is the scene, so its marker goes there. */
+@media (max-width: 600px) {
+  .ad-theater-tabs {
+    gap: 2px;
+    padding: var(--space-1) var(--space-2);
+    justify-content: space-between;
+  }
+  .ad-theater-tab {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
+  }
+  .ad-theater-tab.on {
+    display: none;
+  }
+}
