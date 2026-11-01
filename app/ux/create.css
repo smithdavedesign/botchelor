@@ -229,22 +229,19 @@
   margin-top: var(--space-2);
 }
 
-/* Date settings: a tidy grid of fields, one column on a phone, two on a desktop. */
-.send-phase .send-settings {
+/* Date settings, in the send sheet (app/DateConfirm.tsx, rendered into <body>, so not under .send-phase): one column
+   of fields. */
+.send-settings {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0 var(--space-4);
+  gap: 0;
 }
-.send-phase .send-settings > label {
+.send-settings > label {
   margin-top: var(--space-3);
 }
-@media (min-width: 641px) {
-  .send-phase .send-settings {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .send-phase .send-settings-wide {
-    grid-column: 1 / -1;
-  }
+.send-settings select,
+.send-settings input[type="text"] {
+  width: 100%;
 }
 
 /* The house cast and open characters: one compact row each (face, name, a meta line, one line of bio, a small
