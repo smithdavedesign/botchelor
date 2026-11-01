@@ -451,7 +451,10 @@ async function main() {
           const consoleErrors = [];
           page.on("pageerror", (e) => consoleErrors.push(e.message));
           page.on("console", (m) => {
-            if (m.type() === "error" && !/ERR_ABORTED|_rsc=/.test(m.text())) consoleErrors.push(m.text());
+            if (m.type() !== "error" || /ERR_ABORTED|_rsc=/.test(m.text())) return;
+            // A failed load names its resource, so the report says which request failed (the message alone doesn't).
+            const url = /^Failed to load resource/.test(m.text()) ? m.location()?.url : "";
+            consoleErrors.push(url ? `${m.text()}: ${url.replace(/^https?:\/\/[^/]+/, "")}` : m.text());
           });
 
           const audit = async (state) => {

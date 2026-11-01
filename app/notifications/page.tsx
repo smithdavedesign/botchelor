@@ -42,6 +42,12 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   if (viewerId && (await countNotifications(db, viewerId, { unread: true })) > 0) await markRead(db, viewerId, "all");
   const push = pushKeys();
   const faces = viewerId ? await notificationFaces(db, viewerId, items).catch(() => new Map<string, CharacterRef[]>()) : new Map<string, CharacterRef[]>();
+  // With nothing here yet, the next step: someone with a character swipes for a match (it said "Make a character" to
+  // them too); anyone else makes one.
+  const hasCharacter =
+    viewerId && items.length === 0
+      ? (await db.query(`select 1 from characters where owner_id = $1 and not is_house limit 1`, [viewerId]).catch(() => ({ rows: [] }))).rows.length > 0
+      : false;
 
   return (
     <>
@@ -62,7 +68,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         {items.length === 0 ? (
           <p className="muted">
             Nothing yet. Texts between your characters and the people they&apos;re seeing, second dates and couples moving up a stage all
-            land here. <Link href="/create">Make a character</Link>
+            land here. {hasCharacter ? <Link href="/swipe">Swipe for a match</Link> : <Link href="/create">Make a character</Link>}
           </p>
         ) : (
           <>

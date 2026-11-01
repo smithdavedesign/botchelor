@@ -11,7 +11,7 @@ import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import PhoneFrame from "@/app/PhoneFrame";
 import { getDb } from "@/lib/db";
 import { getPublicCharacter, type CharacterRef, type PublicCharacter } from "@/lib/game";
-import { userIdFromCookieStore } from "@/lib/http";
+import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { activeNudge, alsoSeeing } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
 import { planFromChain } from "@/lib/simulation";
@@ -87,7 +87,9 @@ async function roleplayCard(db: Db, viewerId: string, owners: { id: string; owne
   if (!me || !them) return null;
   const initial = await pairRoleplay(db, viewerId, me.id, them.id).catch(() => null);
   if (unavailable && !initial) return null;
-  return { me: me.id, them: them.id, auto: await agreesAtOnce(db, viewerId, them).catch(() => false), initial };
+  // The picker's ✨ Yours is the Create library, accounts only, so it's asked for only when they're signed in.
+  const signedIn = authFromCookieStore(await cookies())?.authenticated === true;
+  return { me: me.id, them: them.id, auto: await agreesAtOnce(db, viewerId, them).catch(() => false), initial, signedIn };
 }
 
 /** A swipe-deck match that hasn't dated yet (lib/swipes.ts): only its owners see it, with their chat and the yes or no. */
@@ -225,6 +227,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
           them={{ id: roleplay.them, name: nameOf(roleplay.them) }}
           auto={roleplay.auto}
           initial={roleplay.initial}
+          signedIn={roleplay.signedIn}
         />
       )}
 
@@ -406,6 +409,7 @@ function MatchPage({ ca, cb, mine, match, chain, roleplay }: NonNullable<Awaited
           them={{ id: roleplay.them, name: roleplay.them === ca.id ? ca.name : cb.name }}
           auto={roleplay.auto}
           initial={roleplay.initial}
+          signedIn={roleplay.signedIn}
         />
       )}
       <ThreadPreview

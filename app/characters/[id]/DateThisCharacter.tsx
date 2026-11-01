@@ -15,7 +15,20 @@ import { takenNote } from "@/lib/partners-shared";
  * goes to the swipe deck instead. `roleplays`: a house character, so a roleplay can be added and plays at once
  * (lib/date-roleplays.ts); with anyone else's, the two creators agree one on the couple page first.
  */
-export default function DateThisCharacter({ cta, targetId, first, roleplays = false }: { cta: DateCta; targetId: string; first: string; roleplays?: boolean }) {
+export default function DateThisCharacter({
+  cta,
+  targetId,
+  first,
+  roleplays = false,
+  signedIn = false,
+}: {
+  cta: DateCta;
+  targetId: string;
+  first: string;
+  roleplays?: boolean;
+  /** For the roleplay picker's ✨ Yours (the Create library, accounts only). */
+  signedIn?: boolean;
+}) {
   const router = useRouter();
   const mine = cta.kind === "send" ? cta.mine : [];
   // One that's free to go first (a taken one, with someone else and wanting only them, is listed but can't go).
@@ -90,7 +103,7 @@ export default function DateThisCharacter({ cta, targetId, first, roleplays = fa
           <summary>
             🎭 Add a roleplay <span className="muted small">(optional)</span>
           </summary>
-          {roleplayOpen && <RoleplayPicker me={chosen.name} them={first} value={roleplay} onChange={setRoleplay} />}
+          {roleplayOpen && <RoleplayPicker me={chosen.name} them={first} value={roleplay} onChange={setRoleplay} signedIn={signedIn} />}
         </details>
       )}
       {chosen.taken ? null : chosen.mode === "book" ? (

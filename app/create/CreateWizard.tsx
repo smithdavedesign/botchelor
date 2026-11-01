@@ -219,6 +219,7 @@ export default function CreateWizard({
   lookTiles = [],
   afterDark = false,
   returnTo = null,
+  signedIn = false,
   edit,
 }: {
   partners?: Partner[];
@@ -241,6 +242,8 @@ export default function CreateWizard({
   afterDark?: boolean;
   /** Where they came from when something needed a character (/create?next=): offered once the character exists. */
   returnTo?: { href: string; label: string } | null;
+  /** Signed in to an account: the roleplay picker's ✨ Yours (the Create library) is accounts only. */
+  signedIn?: boolean;
   /** Edit an existing character instead of creating one: every field is prefilled and every step open. */
   edit?: { id: string; initial: EditInitial };
 }) {
@@ -667,6 +670,7 @@ export default function CreateWizard({
         setOutOfTokens={setOutOfTokens}
         onSend={(sharePath) => router.push(sharePath)}
         returnTo={returnTo}
+        signedIn={signedIn}
         // The chemistry test's other character, until they have one by that name.
         buildNext={
           startPair && !myCharacters.some((c) => c.name.trim().toLowerCase() === startPair.b.name.trim().toLowerCase())
@@ -1322,9 +1326,10 @@ type SendProps = {
   returnTo: { href: string; label: string } | null;
   /** The chemistry test's other character, still to build: a link to the builder with its fields in. */
   buildNext: { name: string; href: string } | null;
+  signedIn: boolean;
 };
 
-function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext }: SendProps) {
+function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   const [strategy, setStrategy] = useState<Strategy>("genuine_chemistry");
   const [budget, setBudget] = useState<GameBudget>(25);
@@ -1585,7 +1590,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
             <summary>
               🎭 A roleplay{roleplay ? " (chosen)" : ""} <span className="muted small">(with a house character: it plays on that date)</span>
             </summary>
-            {roleplayOpen && <RoleplayPicker me={character.name} them={null} value={roleplay} onChange={setRoleplay} />}
+            {roleplayOpen && <RoleplayPicker me={character.name} them={null} value={roleplay} onChange={setRoleplay} signedIn={signedIn} />}
           </details>
         </div>
       </details>

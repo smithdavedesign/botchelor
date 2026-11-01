@@ -87,6 +87,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
   const viewerId = userIdFromCookieStore(await cookies());
+  // The roleplay picker's ✨ Yours is the Create library, accounts only.
+  const signedIn = authFromCookieStore(await cookies())?.authenticated === true;
   // A private character (its owner's choice): everyone but the owner sees only its name.
   if (c.private && c.owner_id !== viewerId) {
     return (
@@ -598,7 +600,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {(cta.kind === "send" || cta.kind === "make") && (
         <section className="card">
           <h2>Date {shortName(c.name)}</h2>
-          <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} roleplays={c.house} />
+          <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} roleplays={c.house} signedIn={signedIn} />
         </section>
       )}
 
