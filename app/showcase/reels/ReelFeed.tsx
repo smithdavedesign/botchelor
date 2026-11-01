@@ -314,7 +314,7 @@ function Slide({
           <video
             data-v={i}
             src={near ? src(p) : undefined}
-            poster={near ? still(p, "screen") : undefined}
+            poster={near && p.poster ? still(p, "screen") : undefined}
             muted
             loop
             playsInline

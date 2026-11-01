@@ -114,6 +114,37 @@ export function verifyCarry(token: string | null | undefined, env: Record<string
   }
 }
 
+/** How long a media grant lasts: a page left open a while still plays; its redirect is kept for less (app/api/showcase/[id]/media). */
+export const MEDIA_GRANT_TTL_SECONDS = 3600;
+
+/**
+ * The show's OK for one showcase post's file, for After Dark's host to serve it (David, 2026-11-01: a character's clip
+ * didn't show). After Dark's files are in its own store, which only its host can read, and that host may not know the
+ * viewer the show has already checked. `mg.v1.<payload>.<sig>`: its own prefix and HMAC context, bound to the post, an hour long.
+ */
+export function signMediaGrant(postId: string, env: Record<string, string | undefined> = process.env, now = Date.now()): string | null {
+  const secret = sessionSecret(env);
+  if (!secret) return null;
+  const payload = b64url(Buffer.from(JSON.stringify({ p: postId, e: Math.floor(now / 1000) + MEDIA_GRANT_TTL_SECONDS })));
+  return `mg.v1.${payload}.${b64url(hmac(secret, `media:${payload}`))}`;
+}
+
+/** Whether a media grant is for this post, correctly signed and unexpired. */
+export function verifyMediaGrant(token: string | null | undefined, postId: string, env: Record<string, string | undefined> = process.env, now = Date.now()): boolean {
+  const secret = sessionSecret(env);
+  if (!secret || !token) return false;
+  const parts = token.split(".");
+  if (parts.length !== 4 || parts[0] !== "mg" || parts[1] !== "v1") return false;
+  const [, , payload, sig] = parts;
+  if (!safeEqual(sig, b64url(hmac(secret, `media:${payload}`)))) return false;
+  try {
+    const g = JSON.parse(Buffer.from(payload, "base64url").toString()) as { p?: unknown; e?: unknown };
+    return g.p === postId && typeof g.e === "number" && g.e >= Math.floor(now / 1000);
+  } catch {
+    return false;
+  }
+}
+
 /* ----------------------------------- passwords ----------------------------------- */
 
 const SCRYPT_KEYLEN = 64;
