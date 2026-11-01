@@ -8,6 +8,7 @@ import { runDueScheduledDates } from "@/lib/scheduled-dates";
 import { runDueMixers } from "@/lib/group-dates-run";
 import { drawQueuedSets, retryDueSets } from "@/lib/sets";
 import { runWhileAway } from "@/lib/away";
+import { playVotedSituation } from "@/lib/situations";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -37,7 +38,10 @@ async function run(req: Request): Promise<Response> {
   const scheduled = await runDueScheduledDates(db).catch(() => ({ ran: 0, booked: 0, waiting: 0, failed: 0 }));
   // The speed-dating mixer (lib/group-dates-run.ts): runs once enough singles joined, through the normal booking route.
   const mixers = await runDueMixers(db).catch(() => ({ ran: 0, booked: 0, failed: 0, cancelled: 0, waiting: 0 }));
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), aired, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  // Tonight's situation (lib/situations.ts): once yesterday's vote has closed, its date is made, once. Before the lobby's
+  // own refresh, so the voted room is the open one and the refresh doesn't make another beside it.
+  const situation = await playVotedSituation(db).catch(() => null);
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, aired, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);
