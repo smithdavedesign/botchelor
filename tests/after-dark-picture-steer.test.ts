@@ -111,8 +111,8 @@ describe("a scene picture's context, before it's drawn", () => {
     const { preview: p } = await res.json();
     expect(p.fields).toEqual({
       happening: "pulls him down onto the bed by his collar; laughs against her mouth; tugs his shirt loose from his jeans",
-      // Neither has an outfit picked: each gets one of the everyday picks, the same every time (everydayOf).
-      wearing: "The woman in a tailored blazer over a silk blouse and trousers; the man in an oversized hoodie, cargo trousers and sneakers",
+      // Neither has an outfit picked: each wears what their own look says (#1158, ownClothes), not a stock pick.
+      wearing: "The woman in an oversized dark storm coat; the man in a black chef's apron over a dark t-shirt",
       place: "her bedroom",
       mood: "Rivals · trash talking between kisses",
     });
