@@ -4,8 +4,8 @@
  * action, GROWTH.md), and `checkout` when someone clicks Buy, each with the page it happened on (beaconPath). A visit
  * from a shared episode link also carries its tag, `ref: "share"` (beaconRef).
  * Fire-and-forget POSTs with no cookies; RepoHQ keeps a keyed hash of the IP, never the address. Nothing is sent from
- * previews or local runs, from automated browsers, when localStorage "repohq:notrack" is set (the owner's own
- * browsers), or when the visitor declined analytics cookies.
+ * anything but the production build (isProductionBuild), from automated browsers, when localStorage "repohq:notrack" is
+ * set (the owner's own browsers), or when the visitor declined analytics cookies.
  */
 import { safeFrom } from "@/lib/age";
 import { SHARE_REF } from "@/lib/episode-share";
@@ -20,6 +20,24 @@ export type FunnelContext = { production: boolean; webdriver: boolean; notrack: 
 export function shouldSend(ctx: FunnelContext): boolean {
   return ctx.production && !ctx.webdriver && !ctx.notrack && !ctx.consentDenied;
 }
+
+type BuildEnv = { NEXT_PUBLIC_DEPLOY_ENV?: string; NEXT_PUBLIC_VERCEL_ENV?: string };
+
+/**
+ * Whether this is the production build. The build says so first: NEXT_PUBLIC_DEPLOY_ENV (the Cloudflare build script
+ * sets it to "production"), else Vercel's NEXT_PUBLIC_VERCEL_ENV. A build that sets neither (DigitalOcean's: lib/deploy.ts
+ * reads its DEPLOY_ENV on the server) goes by what the server said, so the live site counts on any host.
+ */
+export function isProductionBuild(build: BuildEnv, serverSaysProduction: boolean): boolean {
+  const declared = build.NEXT_PUBLIC_DEPLOY_ENV?.trim() || build.NEXT_PUBLIC_VERCEL_ENV?.trim();
+  return declared ? declared === "production" : serverSaysProduction;
+}
+
+// Spelled out in full so Next inlines both into the browser bundle at build time.
+const BUILD_ENV: BuildEnv = {
+  NEXT_PUBLIC_DEPLOY_ENV: process.env.NEXT_PUBLIC_DEPLOY_ENV,
+  NEXT_PUBLIC_VERCEL_ENV: process.env.NEXT_PUBLIC_VERCEL_ENV,
+};
 
 /** document.referrer only when it's another site (our own pages aren't a source), else null. */
 export function externalReferrer(referrer: string, origin: string): string | null {
@@ -79,7 +97,7 @@ function context(): FunnelContext | null {
   // A choice made on the banner or the privacy page (lib/consent.ts) wins over the region's default.
   const stored = /(?:^|;\s*)bz_consent=(granted|denied)/.exec(document.cookie)?.[1];
   const granted = stored ? stored === "granted" : cfg.consentDefault;
-  return { production: cfg.production, webdriver: Boolean(navigator.webdriver), notrack, consentDenied: !granted };
+  return { production: isProductionBuild(BUILD_ENV, cfg.production), webdriver: Boolean(navigator.webdriver), notrack, consentDenied: !granted };
 }
 
 /** Whether this browser may send analytics at all: the same rule as the beacon (app/engagement.ts uses it too). */

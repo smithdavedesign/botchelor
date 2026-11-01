@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
-import { CONTACT_HEADING, Contact, LAST_UPDATED, OnThisPage, PolicyLinks, PRIVACY_CHANGES, PRIVACY_HEADINGS, PrivacySections } from "../legal/sections";
+import { pageMetadata } from "@/lib/seo";
+import { CONTACT_HEADING, Contact, OnThisPage, PolicyLinks, PRIVACY_CHANGES, PRIVACY_HEADINGS, PrivacySections, TERMS_PRIVACY_UPDATED } from "../legal/sections";
 
-export const metadata: Metadata = { title: "Privacy · Botchelor" };
+export const metadata: Metadata = pageMetadata({
+  title: "Privacy · Botchelor",
+  description:
+    "What Botchelor stores and why, the cookies it sets, the three counts sent to our own dashboard (a visit, a first date, a Buy click), who processes your data, how long we keep it, and your rights.",
+  path: "/privacy",
+});
 // Rendered per request, so a CONTACT_EMAIL added after the build shows without a redeploy.
 export const dynamic = "force-dynamic";
 
@@ -11,7 +17,7 @@ export default function PrivacyPage() {
     <article className="legal-page">
       <h1>Privacy</h1>
       <p className="muted">
-        {LAST_UPDATED} {PRIVACY_CHANGES}
+        {TERMS_PRIVACY_UPDATED} {PRIVACY_CHANGES}
       </p>
       <OnThisPage headings={[...PRIVACY_HEADINGS, CONTACT_HEADING]} />
       <PrivacySections />

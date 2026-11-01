@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PROCESSORS } from "@/lib/legal-entity";
+import { pageMetadata } from "@/lib/seo";
 import { Contact, LAST_UPDATED, Mail, PolicyLinks } from "../legal/sections";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Cancel After Dark · Botchelor",
   description: "How to cancel an After Dark subscription: on the card processor's site, from your account, or by email.",
-};
+  path: "/cancel",
+});
 // Rendered per request, so a CONTACT_EMAIL added after the build shows without a redeploy.
 export const dynamic = "force-dynamic";
 

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
+import { SHARE_IMAGE } from "@/lib/seo";
 import { getRoomState } from "@/lib/watch";
 import WatchRoom from "./WatchRoom";
 
@@ -26,7 +27,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description,
     alternates: { canonical: `/episodes/${state.episode_id}` },
     robots: { index: false, follow: true },
-    openGraph: { title, description, type: "video.episode" },
+    // Setting openGraph replaces the root layout's, share card included, so the card is named here (lib/seo.ts).
+    openGraph: { title, description, type: "video.episode", siteName: "Botchelor", locale: "en_US", images: [SHARE_IMAGE] },
   };
 }
 

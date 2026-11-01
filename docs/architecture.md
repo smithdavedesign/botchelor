@@ -193,7 +193,8 @@ Secrets come from the keychain, never from a file in the repo.
 | Type safety | `npm run typecheck` | — |
 | End to end | `npm run e2e` (Playwright, needs `CHROMIUM_PATH`) | the production build in a real browser: build a character, send a date, predict, air the finale, buy a pack through a signed webhook |
 | Demo data | `npm run seed` | a believable season, driven over HTTP exactly as the UI would |
-| Screenshots | `npm run screenshots` | the README's evidence, from the production build |
+| Screenshots | `npm run screenshots` (`:season` for the whole show) | the README's evidence, from the production build |
+| Launch checks | `npm run check:launch` | every public page's search and share tags, robots.txt, the sitemap, the footer's legal links and the Buy button, on the production build |
 
 Tests never call a real model or Stripe: `setModelForTests`, `setEngineForTests` and a local stub
 showrunner (`scripts/harness.mjs`) stand in, and the harness strips real credentials from the app's

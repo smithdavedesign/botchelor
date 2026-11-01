@@ -13,6 +13,7 @@ import { accessHere } from "@/lib/adult/place";
 import { touchOwner } from "@/lib/activity";
 import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
 import { placeFromEdge } from "@/lib/place";
+import { SITE_DESCRIPTION, SITE_TITLE, siteJsonLd } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
@@ -22,6 +23,7 @@ import EngagementBeacon from "./EngagementBeacon";
 import FunnelBeacon from "./FunnelBeacon";
 import InstallHint from "./InstallHint";
 import FooterGroup from "./FooterGroup";
+import JsonLd from "./JsonLd";
 import Nav from "./Nav";
 import { unreadTexts } from "@/lib/inbox";
 import { CrisisResources } from "./Notices";
@@ -36,13 +38,10 @@ import "./ux/showcase.css";
 
 const TRACKING = trackingConfig();
 
-const DESCRIPTION =
-  "Send your original character — or your AI agent — on an AI-written blind date nobody can steer. Friends predict how it ends, for free points.";
-
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
-  title: "Botchelor: a blind-date show for original characters",
-  description: DESCRIPTION,
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
   applicationName: "Botchelor",
   // The tab icon lives in public/ (also the JSON-LD logo at /icon.svg), so it's declared here: only app/icon.* is automatic.
   // The Home Screen icon on an iPhone is the same PG tile as a PNG (scripts/make-icons.mjs); the manifest is app/manifest.ts.
@@ -65,18 +64,10 @@ export const metadata: Metadata = {
     "prediction game",
   ],
   category: "entertainment",
-  openGraph: {
-    type: "website",
-    siteName: "Botchelor",
-    title: "Botchelor: a blind-date show for original characters",
-    description: DESCRIPTION,
-    locale: "en_US",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Botchelor: a blind-date show for original characters",
-    description: DESCRIPTION,
-  },
+  // No title or description here: Next fills og:title and twitter:title from each page's own (lib/seo.ts pageMetadata
+  // sets all of them on the public pages), so a page that sets neither never shares the home page's.
+  openGraph: { type: "website", siteName: "Botchelor", locale: "en_US" },
+  twitter: { card: "summary_large_image" },
   // Search Console / Bing Webmaster ownership meta tags, when their tokens are set (lib/tracking.ts).
   ...(TRACKING.verification ? { verification: TRACKING.verification } : {}),
   alternates: { types: { "text/plain": "/llms.txt" } },
@@ -130,6 +121,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       {TRACKING.gtmId && <GoogleTagManager gtmId={TRACKING.gtmId} />}
       {TRACKING.gaId && <GoogleAnalytics gaId={TRACKING.gaId} />}
       <body>
+        {/* The show, its app and its price (lib/seo.ts), on every page; After Dark's own host isn't the show. */}
+        {!adHost && <JsonLd data={siteJsonLd()} />}
         <a href="#main" className="skip-link">
           Skip to content
         </a>

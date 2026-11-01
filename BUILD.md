@@ -72,7 +72,9 @@ npm run typecheck
 | `npm run e2e:live` | The same journey against botchelor.com (the purchase step is skipped on the live link) |
 | `npm run sim:relationships` | 10 couples × 5 dates, on the stub or the paid model ([evidence](docs/relationship-sim-evidence.md)) |
 | `npm run sim:visitors` | The self-improving loop now: uninstructed agents explore a local copy, then triage (`LOOP_FIX=1` adds the fixer) |
-| `npm run screenshots` | Regenerates `docs/screenshots/` |
+| `npm run screenshots` | The launch proof: six PNGs in `docs/screenshots/` (home, date, shop; desktop and iPhone 13), for README's "Screenshots" |
+| `npm run screenshots:season` | Plays a sample season and regenerates most of `docs/screenshots/` |
+| `npm run check:launch` | Search, sharing, legal and Buy-button checks on a local production build ([LAUNCH-READY.md](LAUNCH-READY.md)) |
 
 **CI** (`.github/workflows/ci.yml`: typecheck and `npm test`) runs by hand only (`gh workflow run ci.yml --ref
 <branch>`), since 2026-10-21: the repo is private, so every run spends the account's free Actions minutes, which

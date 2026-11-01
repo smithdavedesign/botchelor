@@ -7,7 +7,7 @@ import { pageHref, pageOf, parsePage } from "@/lib/paging";
 import type { KindPair } from "@/lib/graph";
 import { cachedConstellation } from "@/lib/graph-cache";
 import { kindLabel } from "@/lib/kinds";
-import { breadcrumbJsonLd, itemListJsonLd } from "@/lib/seo";
+import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
 import ConstellationApp from "./ConstellationApp";
 
 // Rendered per request (the site chrome reads the session), but the graph itself comes from a 60-second cache that a
@@ -17,11 +17,8 @@ export const dynamic = "force-dynamic";
 const DESCRIPTION =
   "Every character on Botchelor and who they've dated, drawn as one living constellation: the couples, the sparks, the exes and the hopefuls still waiting for a first date.";
 
-export const metadata: Metadata = {
-  title: "The Constellation: Botchelor's social graph",
-  description: DESCRIPTION,
-  alternates: { canonical: "/graph" },
-};
+// Its own share card (./opengraph-image), so no site card here.
+export const metadata: Metadata = pageMetadata({ title: "The Constellation: Botchelor's social graph", description: DESCRIPTION, path: "/graph", image: null });
 
 /** How the kind table names a kind ("🧛 Vampire"), or a character that hasn't said. */
 const kindText = (k: KindPair["a"]): string => (k === "unsaid" ? "Hasn't said" : (kindLabel({ kind: k }) ?? k));

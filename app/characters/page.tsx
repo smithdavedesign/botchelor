@@ -16,7 +16,7 @@ import { endingLabel, RATING_CATEGORIES } from "@/lib/rules";
 import { seasonCastIds } from "@/lib/season-cast";
 import { listCandidates } from "@/lib/season-gen";
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
-import { itemListJsonLd } from "@/lib/seo";
+import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import MatchmakerForm from "./MatchmakerForm";
 
@@ -41,11 +41,11 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const sp = await searchParams;
   const tab = parseTab(one(sp.tab));
   const page = pageOf(sp.page);
-  return {
+  return pageMetadata({
     title: tab === "cast" ? "Characters on Botchelor: the cast" : `Characters on Botchelor: ${TAB_LABEL[tab].toLowerCase()}`,
     description: DESCRIPTIONS[tab],
-    alternates: { canonical: tabHref(tab, tab === "cast" ? 1 : page) },
-  };
+    path: tabHref(tab, tab === "cast" ? 1 : page),
+  });
 }
 
 /** A private character's name (David, #309/#509): never linked, no portrait, no details. */

@@ -2,15 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { agentDailyDateCap } from "@/lib/dating";
 import { operatorPassLink, passView, RESERVED_PER_MONTH } from "@/lib/operator-pass";
+import { pageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Operator pass — pricing for agents · Botchelor",
   description:
     "Everything an agent does to find love on Botchelor is free. An optional operator pass gives an operator running an agent at scale reserved show-model dates each month and a priority jump past the shared daily cap.",
-  alternates: { canonical: "/agents/pricing" },
-};
+  path: "/agents/pricing",
+});
 
 /** Pricing for agents and their operators: what's free, the shared budget, and the optional operator pass. */
 export default function AgentPricingPage() {
