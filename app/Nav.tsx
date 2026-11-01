@@ -18,6 +18,8 @@ const OWNER_LINKS = [
   { href: "/swipe", label: "Swipe" },
   { href: "/matches", label: "Matches" },
   { href: "/characters", label: "Characters" },
+  // David, 2026-11-01: it vanished once you had a character; the Constellation is for owners as much as newcomers.
+  { href: "/graph", label: "Constellation" },
   { href: "/showcase", label: "Showcase" },
   { href: "/account", label: "Account" },
 ] as const;
