@@ -22,6 +22,16 @@
 
 /* ---------------- home (app/page.tsx) ---------------- */
 /* The feature cards: icon beside the words. On a phone they're compact rows, not six tall cards (~1,300px). */
+/* How it works (A2): three numbered rows, the icon beside the words, on every width. */
+ol.home-features {
+  grid-template-columns: 1fr;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.home-sky-line {
+  margin-top: var(--space-1);
+}
 .home-features .feature {
   display: flex;
   align-items: flex-start;
