@@ -10,6 +10,7 @@ import { ownedSkus } from "@/lib/payments";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import { afterDarkOnly } from "@/lib/after-dark-host";
 import BuyButton from "./BuyButton";
+import SignInToBuy from "./SignInToBuy";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Shop · Botchelor" };
@@ -78,7 +79,7 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
             <p>{item.description}</p>
             {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
             {signInToBuy ? (
-              <SignInToBuy google={googleConfigured()} />
+              <SignInToBuy sku={item.sku} label={`Buy ${item.name} · ${formatPrice(item.price_cents)}`} google={googleConfigured()} />
             ) : (
               <BuyButton
                 sku={item.sku}
@@ -97,46 +98,21 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         ))}
       </ul>
 
-      <p>
-        <strong>Nothing here changes points, picks, badges or rank, and points can&apos;t be bought.</strong>
-      </p>
-      <p className="muted">
-        Topped-up tokens also make a 4-second intro clip for a character of yours: one token each, plus about $0.20 on
-        your own Google key (Veo). A clip Google can&apos;t make gives the token back.
-      </p>
-      <p className="muted">
-        You pay on Stripe&apos;s own page (a Stripe Payment Link); we never see your card. Purchases belong to your
-        account, so your tokens follow you to any device you sign in on. Keep your Stripe receipt. Refunds within 14
-        days, see the <Link href="/terms">terms</Link>.
-      </p>
-    </>
-  );
-}
-
-/**
- * In place of Buy for a visitor who isn't signed in. Signing up keeps everything they already have (the account
- * adopts their anonymous id), and both ways back land on the shop again.
- */
-function SignInToBuy({ google }: { google: boolean }) {
-  return (
-    <>
-      <p className="shop-signin-note">
-        Sign in to buy, so your tokens follow you to any device. Your characters and dates come with you.
-      </p>
-      {google ? (
-        <>
-          <a className="button-google" href="/api/auth/google/start?next=%2Fshop">
-            Continue with Google
-          </a>
-          <p className="muted small or-divider">
-            or <Link href="/account?next=%2Fshop">use a handle</Link>
-          </p>
-        </>
-      ) : (
-        <Link className="button" href="/account?next=%2Fshop">
-          Sign in or create an account
-        </Link>
-      )}
+      {signInToBuy && <p className="muted small">Buying needs an account, so what you buy follows you to any device.</p>}
+      <p className="muted small">Nothing here changes points, picks, badges or rank, and points can&apos;t be bought.</p>
+      {/* The small print, folded (2026-10-31 UX audit, A9). */}
+      <details className="ux-fold shop-small-print">
+        <summary>How paying works</summary>
+        <p className="muted">
+          You pay on Stripe&apos;s own page (a Stripe Payment Link); we never see your card. Purchases belong to your
+          account, so your {units} follow you to any device you sign in on. Keep your Stripe receipt. Refunds within 14
+          days, see the <Link href="/terms">terms</Link>.
+        </p>
+        <p className="muted">
+          Topped-up {units} also make a 4-second intro clip for a character of yours: one {unit} each, plus about $0.20 on
+          your own Google key (Veo). A clip Google can&apos;t make gives the {unit} back.
+        </p>
+      </details>
     </>
   );
 }
