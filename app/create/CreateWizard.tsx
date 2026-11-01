@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Avatar from "../Avatar";
+import DateConfirm from "../DateConfirm";
+import ModalSheet from "../Sheet";
 import CrisisNotice, { crisisFrom } from "../CrisisNotice";
 import { requestJson } from "../request";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "../RoleplayPicker";
@@ -135,8 +137,9 @@ async function checkName(name: string, except?: string): Promise<{ taken: boolea
 
 /** The steps, by name, so their order can change without renumbering every check. */
 const S = { identity: 0, voice: 1, look: 2, details: 3, facts: 4, soul: 5, review: 6 } as const;
-const STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Soul & autonomy", "Review"] as const;
-const EDIT_STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Soul", "Review"] as const;
+// "Inner life" in both (2026-10-31 UX audit, B6): the step is the private soul; autonomy moved to the send sheet.
+const STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Inner life", "Review"] as const;
+const EDIT_STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Inner life", "Review"] as const;
 const DRAFT_KEY = "botchelor:create-draft:v1";
 
 function words(s: string): number {
@@ -630,9 +633,20 @@ export default function CreateWizard({
   const avatarSeed = edit ? edit.id : previewName;
   // Between the first step and the review it's one row, so each step opens on its own question (2026-10-31 UX audit).
   const compactPreview = step > 0 && step < last;
+  const [pictureOpen, setPictureOpen] = useState(false);
+  const [looksOpen, setLooksOpen] = useState(false);
   const livePreview = (
     <div className={`wizard-preview${compactPreview ? " is-compact" : ""}`}>
-      <Avatar seed={avatarSeed} name={sheet.name || created?.name || "?"} hue={hue} size={compactPreview ? 44 : 88} portraitSrc={portrait} />
+      <span className="wizard-preview-face">
+        <Avatar seed={avatarSeed} name={sheet.name || created?.name || "?"} hue={hue} size={compactPreview ? 44 : 88} portraitSrc={portrait} />
+        {/* Editing: the picture is changed from here, in a modal (B9), not from buttons in the middle of the Look step
+            that acted on the saved character mid-edit. */}
+        {edit && (
+          <button type="button" className="link-button wizard-picture-btn" onClick={() => setPictureOpen(true)}>
+            Change picture
+          </button>
+        )}
+      </span>
       <div className="wizard-preview-meta">
         <strong>{sheet.name || created?.name || "Your character"}</strong>
         {sheet.age && <span className="muted"> · {sheet.age}</span>}
@@ -723,6 +737,11 @@ export default function CreateWizard({
 
       <Stepper step={step} max={maxStep} onJump={jump} labels={labels} optional={edit ? [] : OPTIONAL_STEPS} />
       {livePreview}
+      {edit && (
+        <ModalSheet open={pictureOpen} onClose={() => setPictureOpen(false)} title={`${shortName(sheet.name || init?.name || "Their")}'s picture`}>
+          <PortraitPanel id={edit.id} name={sheet.name || init?.name || "them"} portrait={portrait} onPortrait={setPortrait} hasLooks={Boolean(init?.extras.looks?.gender)} signedIn={Boolean(init?.signedIn)} />
+        </ModalSheet>
+      )}
 
       <form
         className="card wizard-step"
@@ -825,18 +844,36 @@ export default function CreateWizard({
         {step === S.look && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">Give them a look</legend>
-            <LooksBuilder
-              looks={extras.looks ?? {}}
-              setLooks={(l) => setExtras((p) => ({ ...p, looks: l }))}
-              age={sheet.age}
-              setAge={(a) => setField("age", a)}
-              tiles={lookTiles}
-              afterDark={afterDark}
-              onAppearance={looksAppearanceChanged}
-              onGender={(g) => setPronouns((p) => p || (g === "man" ? "he/him" : "she/her"))}
-            />
-            <details className="looks-more" open={Boolean(appearance.trim() && !extras.looks?.gender) || undefined}>
-              <summary>Or describe them in your own words, pick a colour, or train the look from an image</summary>
+            {/* One card and one button (2026-10-31 UX audit, B4): the picker of pictures, a wizard of its own, opens in a
+                sheet with its own steps and Done, instead of sitting inside this one. */}
+            <div className="looks-card">
+              <Avatar seed={avatarSeed} name={sheet.name || "?"} hue={hue} size={56} portraitSrc={portrait} />
+              <div className="looks-card-meta">
+                <strong>{extras.looks?.gender ? "Their look" : "Not picked yet"}</strong>
+                <span className="muted small">{looksAppearance(extras.looks ?? {}) || "Pick from pictures: style, eyes, hair, build and an outfit."}</span>
+              </div>
+              <button type="button" className="secondary" onClick={() => setLooksOpen(true)}>
+                {extras.looks?.gender ? "Change their look" : "Pick their look"}
+              </button>
+            </div>
+            <ModalSheet open={looksOpen} onClose={() => setLooksOpen(false)} title="Their look" wide>
+              <LooksBuilder
+                looks={extras.looks ?? {}}
+                setLooks={(l) => setExtras((p) => ({ ...p, looks: l }))}
+                age={sheet.age}
+                tiles={lookTiles}
+                afterDark={afterDark}
+                onAppearance={looksAppearanceChanged}
+                onGender={(g) => setPronouns((p) => p || (g === "man" ? "he/him" : "she/her"))}
+              />
+              <div className="sheet-actions">
+                <button type="button" className="primary" onClick={() => setLooksOpen(false)}>
+                  Done
+                </button>
+              </div>
+            </ModalSheet>
+            <details className="looks-more ux-fold" open={Boolean(appearance.trim() && !extras.looks?.gender) || undefined}>
+              <summary>Other ways: your own words, a colour, an image</summary>
             <div className="looks">
               <Avatar seed={avatarSeed} name={sheet.name || "?"} hue={hue} size={72} portraitSrc={portrait} />
               <div className="looks-fields">
@@ -903,7 +940,7 @@ export default function CreateWizard({
               <p className="muted small">✓ Their instincts were trained from an image or a curated look; that stays unless you train again.</p>
             )}
             {edit ? (
-              <PortraitPanel id={edit.id} name={sheet.name || init?.name || "them"} portrait={portrait} onPortrait={setPortrait} hasLooks={Boolean(init?.extras.looks?.gender)} signedIn={Boolean(init?.signedIn)} />
+              <p className="wizard-pro-hint">📸 Change their picture from their card above. New looks? Save first, then draw a new portrait from them.</p>
             ) : (
               <p className="wizard-pro-hint">
                 {extras.looks?.gender
@@ -946,16 +983,16 @@ export default function CreateWizard({
               people or sexual content.
             </p>
             {([
-              ["values", "Core values"],
-              ["insecurities", "Insecurities"],
-              ["humor", "Sense of humour"],
-              ["boundaries", "Boundaries"],
-              ["romantic", "Romantic preferences"],
-              ["communication", "Communication style"],
-            ] as const).map(([k, label]) => (
+              ["values", "Core values", "e.g. loyalty over comfort; never lies to a friend"],
+              ["insecurities", "Insecurities", "e.g. afraid they're only fun in small doses"],
+              ["humor", "Sense of humour", "e.g. bone-dry, laughs at their own bad luck"],
+              ["boundaries", "Boundaries", "e.g. won't talk about their family on a first date"],
+              ["romantic", "Romantic preferences", "e.g. slow burns, long walks that end somewhere odd"],
+              ["communication", "Communication style", "e.g. answers a question with a question"],
+            ] as const).map(([k, label, example]) => (
               <label key={k}>
                 {label}
-                <input type="text" name={`soul_${k}`} maxLength={300} value={soul[k]} onChange={(e) => setSoulField(k, e.target.value)} />
+                <input type="text" name={`soul_${k}`} maxLength={300} placeholder={example} value={soul[k]} onChange={(e) => setSoulField(k, e.target.value)} />
               </label>
             ))}
             <label className="check">
@@ -963,6 +1000,9 @@ export default function CreateWizard({
               <span>Keep this soul off the model (engine only). It still shapes the date, but its text is never sent to any AI model.</span>
             </label>
 
+            {/* Worked out from the sheet, so folded (B6): open it to fine-tune. */}
+            <details className="ux-fold wizard-temperament" open={Boolean(explicitTemperament) || undefined}>
+              <summary>Fine-tune temperament</summary>
             <TemperamentSliders
               value={shownTemperament}
               source={temperamentSource}
@@ -981,46 +1021,29 @@ export default function CreateWizard({
                   : null
               }
             />
+            </details>
 
-            {!edit && (
-              <>
-                <label className="wizard-legend" style={{ marginTop: "1.25rem" }}>
-                  How much of a mind of its own?
-                </label>
-                <div className="voice-picks" role="group" aria-label="Autonomy">
-                  {AUTONOMY_LEVELS.map((a) => (
-                    <button key={a} type="button" className={`look-chip${autonomy === a ? " chosen" : ""}`} onClick={() => setAutonomy(a)}>
-                      {AUTONOMY_LABELS[a]}
-                    </button>
-                  ))}
-                </div>
-                <p className="muted">{AUTONOMY_BLURBS[autonomy]}</p>
-              </>
-            )}
           </fieldset>
         )}
 
         {step === S.review && (
           <fieldset className="wizard-fields">
-            <legend className="wizard-legend">{edit ? "Review your changes" : "Review & create"}</legend>
-            {/* Grouped by the step each answer came from, with a way straight back to that step. */}
+            <legend className="wizard-legend">{edit ? "Review" : "Review & create"}</legend>
+            {/* Grouped by the step each answer came from, each a line that opens (2026-10-31 UX audit, B7: a full
+                read-back was ~3 phone screens to Create), with a way straight back to that step. */}
             {(() => {
               const more = reviewExtras(extras);
               const soulSet = (Object.keys(EMPTY_SOUL) as (keyof Soul)[]).some((k) => k !== "local_only" && String(soul[k]).trim());
               const soulRows: [string, ReactNode][] = [
                 ...(soulSet ? [["Soul", `Private — ${soul.local_only ? "engine only" : "shapes the date"}`] as [string, ReactNode]] : []),
-                ...(!edit ? [["Autonomy", AUTONOMY_LABELS[autonomy]] as [string, ReactNode]] : []),
               ];
               const groups: [number, string, [string, ReactNode][]][] = [
                 [
                   S.identity,
                   "Identity",
+                  // The card above already shows the name, age, pronouns and traits.
                   [
-                    ["Name", sheet.name || <em className="muted">—</em>],
-                    ["Age", sheet.age || <em className="muted">—</em>],
-                    ...(pronouns ? [["Pronouns", pronouns] as [string, ReactNode]] : []),
                     ["Bio", sheet.bio],
-                    ["Traits", traits.filter((t) => t.trim()).join(", ")],
                     ["Wants", sheet.want],
                     ["Dealbreaker", sheet.dealbreaker],
                   ],
@@ -1029,24 +1052,24 @@ export default function CreateWizard({
                 [S.look, "Look", [...(appearance.trim() ? [["Looks", appearance] as [string, ReactNode]] : []), ...more.look]],
                 [S.details, "Dating profile", [...more.profile, ...(week.trim() ? [["This week", week] as [string, ReactNode]] : [])]],
                 [S.facts, "More about them", more.facts],
-                [S.soul, edit ? "Soul" : "Soul & autonomy", soulRows],
+                [S.soul, "Inner life", soulRows],
               ];
               return groups
                 .filter(([, , rows]) => rows.length > 0)
                 .map(([at, title, rows]) => (
-                  <section key={title} className="wizard-review-group" aria-label={title}>
-                    <h3 className="wizard-review-head">
-                      {title}
-                      <button type="button" className="link-button" onClick={() => jump(at)} aria-label={`Edit ${title}`}>
-                        Edit
-                      </button>
-                    </h3>
+                  <details key={title} className="wizard-review-group ux-fold">
+                    <summary className="wizard-review-head">
+                      {title} <span className="muted small">· {rows.length === 1 ? "1 detail" : `${rows.length} details`}</span>
+                    </summary>
                     {rows.map(([label, value], n) => (
                       <ReviewRow key={`${label}-${n}`} label={label}>
                         {value}
                       </ReviewRow>
                     ))}
-                  </section>
+                    <button type="button" className="link-button" onClick={() => jump(at)} aria-label={`Edit ${title}`}>
+                      Edit {title.toLowerCase()}
+                    </button>
+                  </details>
                 ));
             })()}
 
@@ -1245,7 +1268,8 @@ function PortraitPanel({ id, name, portrait, onPortrait, hasLooks, signedIn }: {
   }
 
   return (
-    <div className="wizard-pro-hint wizard-portrait">
+    <div className="wizard-portrait">
+      <p className="muted small">These use {first}&apos;s saved character: if you&apos;ve changed their look, save first.</p>
       <p>
         <strong>📸 Portrait from their looks</strong> — free, drawn from the looks they&apos;ve saved{hasLooks ? "" : " (pick and save their looks first)"}.
       </p>
@@ -1258,7 +1282,7 @@ function PortraitPanel({ id, name, portrait, onPortrait, hasLooks, signedIn }: {
         {portrait ? `${first}'s generated portrait shows on their card (and above).` : "none yet, so their card shows the drawn avatar."}
       </p>
       <p className="muted small">
-        Made from their saved sheet, on your own OpenAI key — if you&apos;ve just changed their look, save first.
+        Made from their saved sheet, on your own OpenAI key.
       </p>
       <button type="button" className="secondary small" onClick={generate} disabled={state === "working"}>
         {state === "working" ? "Generating…" : portrait ? "Generate a new portrait" : "Generate a portrait"}
@@ -1329,8 +1353,10 @@ type SendProps = {
   signedIn: boolean;
 };
 
-function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn }: SendProps) {
+function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
+  // How much of a mind of its own, per date (B6): it rides on each send, so it's set here, not on the character.
+  const [autonomy, setAutonomy] = useState<Autonomy>(startAutonomy);
   const [strategy, setStrategy] = useState<Strategy>("genuine_chemistry");
   const [budget, setBudget] = useState<GameBudget>(25);
   const [agenda, setAgenda] = useState("");
@@ -1343,6 +1369,14 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
   // The self-harm notice (lib/crisis.ts), and the date it held back from opening.
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const [datePath, setDatePath] = useState<string | null>(null);
+  // Every Date button asks first (2026-10-31 UX audit, B5): this sheet says who they'll meet and what it uses, holds the
+  // date's settings (which used to sit under the blind date but went with any send) and has the one Send.
+  const [pending, setPending] = useState<null | { partnerId: string | null; house: boolean; name: string | null }>(null);
+  const ask = (partnerId: string | null, name: string | null, house = false) => {
+    setError(null);
+    setOutOfTokens(false);
+    setPending({ partnerId, house, name });
+  };
   async function sendOnDate(partnerId: string | null, house = false) {
     if (house && roleplay && !choiceReady(roleplay)) return setError("Finish your roleplay first (a title and a premise of a sentence or more), or take it off.");
     setBusy("episode");
@@ -1370,6 +1404,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         trackConversion("date_started", { mode: partnerId ? "partner" : "blind" });
         if (help) {
           setDatePath(`${String(data.share_path)}?play=1`);
+          setPending(null);
           setBusy(null);
           return;
         }
@@ -1407,7 +1442,8 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         <CharacterName character={{ id: p.id, name: p.name, hue: p.hue ?? null, house: true }} avatar={false} strong />
         <span className="send-row-sub">
           {p.age}
-          {p.archetype && ` · ${p.archetype}`} · {p.premium ? "Premium · yours" : "House character"}
+          {p.archetype && ` · ${p.archetype}`}
+          {p.premium && " · Premium · yours"}
         </span>
         {partnerTag(p.id)}
         <p className="send-row-bio" title={p.bio}>
@@ -1421,7 +1457,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
         aria-label={`Send on a date with ${p.premium ? p.name : shortName(p.name)}`}
         disabled={busy !== null || closed(p.id)}
         title={closed(p.id) ? closedWhy : undefined}
-        onClick={() => sendOnDate(p.id, true)}
+        onClick={() => ask(p.id, p.premium ? p.name : shortName(p.name), true)}
       >
         Date
       </button>
@@ -1441,7 +1477,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           {o.bio}
         </p>
       </div>
-      <button type="button" className="secondary small send-row-cta" disabled={busy !== null || closed(o.id)} title={closed(o.id) ? closedWhy : undefined} onClick={() => sendOnDate(o.id)}>
+      <button type="button" className="secondary small send-row-cta" disabled={busy !== null || closed(o.id)} title={closed(o.id) ? closedWhy : undefined} onClick={() => ask(o.id, shortName(o.name))}>
         Ask {shortName(o.name)} out
       </button>
     </li>
@@ -1498,8 +1534,8 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           <span className="badge taken-tag">💍 With {partnerFirst}</span>
           <p>{takenNote(first, taken.name)}</p>
           <div className="send-taken-actions">
-            <button type="button" className="primary" disabled={busy !== null} onClick={() => sendOnDate(taken.id)}>
-              {busy === "episode" ? "Sending…" : `Send ${first} on a date with ${partnerFirst}`}
+            <button type="button" className="primary" disabled={busy !== null} onClick={() => ask(taken.id, partnerFirst)}>
+              {`Send ${first} on a date with ${partnerFirst}`}
             </button>
             <Link href={`/characters/${character.id}#partners-${character.id}`}>Change it on {first}&apos;s page</Link>
           </div>
@@ -1521,14 +1557,51 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           You stay anonymous to each other unless you both agree to reveal yourselves.
         </p>
         {taken && <p className="muted small">Not while {closedWhy}.</p>}
-        <button type="button" disabled={busy !== null || Boolean(taken)} title={taken ? closedWhy : undefined} onClick={() => sendOnDate(null)}>
+        <button type="button" disabled={busy !== null || Boolean(taken)} title={taken ? closedWhy : undefined} onClick={() => ask(null, null)}>
           Send {character.name} on a blind date
         </button>
       </div>
 
-      <details className="card settings">
-        <summary>Date settings (optional)</summary>
+      <DateConfirm
+        open={pending !== null}
+        onClose={() => {
+          if (busy === "episode") return;
+          setPending(null);
+          setError(null);
+        }}
+        title={pending?.name ? `Send ${first} on a date with ${pending.name}?` : `Send ${first} on a blind date?`}
+        lede={
+          pending?.name ? (
+            <>
+              <strong>{first}</strong> meets <strong>{pending.name}</strong>. The show films it and decides how it ends: you can&apos;t steer it.
+            </>
+          ) : (
+            <>The show picks who {first} meets. The show films it and decides how it ends: you can&apos;t steer it.</>
+          )
+        }
+        sendLabel={pending?.name ? `Send ${first} on the date` : "Send them on a blind date"}
+        busyLabel="Sending…"
+        busy={busy === "episode"}
+        disabled={Boolean(pending?.house && roleplay && !choiceReady(roleplay))}
+        error={error ? { text: error, shop: outOfTokens } : null}
+        onSend={() => pending && void sendOnDate(pending.partnerId, pending.house)}
+      >
+        <details className="ux-fold send-settings-fold">
+          <summary>
+            Date settings <span className="muted small">optional</span>
+          </summary>
         <div className="send-settings">
+          <div className="send-settings-wide">
+            <span className="send-settings-label">How much of a mind of its own?</span>
+            <div className="voice-picks" role="group" aria-label="Autonomy">
+              {AUTONOMY_LEVELS.map((a) => (
+                <button key={a} type="button" className={`look-chip${autonomy === a ? " chosen" : ""}`} aria-pressed={autonomy === a} onClick={() => setAutonomy(a)}>
+                  {AUTONOMY_LABELS[a]}
+                </button>
+              ))}
+            </div>
+            <span className="muted small field-help">{AUTONOMY_BLURBS[autonomy]}</span>
+          </div>
           <label>
             Show format
             <select value={format} onChange={(e) => setFormat(e.target.value as FormatId)}>
@@ -1586,14 +1659,18 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
             A note in the pocket <span className="muted">(one sentence; your AI may or may not take it)</span>
             <input type="text" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
+          {pending?.house && (
           <details className="send-settings-wide send-roleplay" onToggle={(e) => setRoleplayOpen(e.currentTarget.open)}>
             <summary>
-              🎭 A roleplay{roleplay ? " (chosen)" : ""} <span className="muted small">(with a house character: it plays on that date)</span>
+              🎭 A roleplay{roleplay ? " (chosen)" : ""} <span className="muted small">(it plays on this date)</span>
             </summary>
             {roleplayOpen && <RoleplayPicker me={character.name} them={null} value={roleplay} onChange={setRoleplay} signedIn={signedIn} />}
           </details>
+          )}
         </div>
-      </details>
+        </details>
+        {busy === "episode" && <p className="muted small">The engine is deciding the outcome and the showrunner is writing it…</p>}
+      </DateConfirm>
       {crisis && <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} />}
       {datePath && (
         <p>
@@ -1634,14 +1711,6 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
           : "Or one of this season's house cast — a handful the show fields each month. Either way, you can't steer the date."}
       </p>
       {compactList(partners, houseRow, "This season's house cast")}
-      {busy === "episode" && <p className="muted">The engine is deciding the outcome and the showrunner is writing it…</p>}
-      {error && <p className="error">{error}</p>}
-      {outOfTokens && (
-        <p>
-          {offer ? <Link href="/shop">{offer}</Link> : <Link href="/shop">Top up your tokens</Link>}{" "}
-          <span className="muted">(optional; tokens never add points)</span>
-        </p>
-      )}
 
       {/* Their picture in a line, last (2026-10-31 UX audit: a "✨ Pro Portrait" card here contradicted the free portrait
           being drawn). The portrait on your own key stays on their edit page. */}

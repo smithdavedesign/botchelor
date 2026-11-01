@@ -47,7 +47,7 @@ export const LOOK_AGES: readonly number[] = Array.from({ length: LOOK_MAX_AGE - 
 export const LOOK_STEPS: readonly LookStep[] = [
   {
     id: "gender",
-    title: "Who are they?",
+    title: "Woman or man?",
     options: [
       { id: "woman", label: "Woman", prompt: "" },
       { id: "man", label: "Man", prompt: "" },

@@ -9,17 +9,18 @@ import { createPortal } from "react-dom";
  * the page behind is inert, Tab stays inside and Escape closes it; so does a tap on the dimmed page (not a drag that
  * started inside and ended outside). It's rendered into <body> while open, so it outlives the menu that opened it.
  */
-export default function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode }) {
+export default function Sheet({ open, onClose, title, children, wide = false }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; wide?: boolean }) {
   if (!open) return null;
   return createPortal(
-    <SheetDialog onClose={onClose} title={title}>
+    <SheetDialog onClose={onClose} title={title} wide={wide}>
       {children}
     </SheetDialog>,
     document.body,
   );
 }
 
-function SheetDialog({ onClose, title, children }: { onClose: () => void; title: ReactNode; children: ReactNode }) {
+/** `wide`: room for a picker of pictures (the looks builder): wider on a desktop, the whole screen on a phone. */
+function SheetDialog({ onClose, title, children, wide }: { onClose: () => void; title: ReactNode; children: ReactNode; wide: boolean }) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const pressedBackdrop = useRef(false);
@@ -33,7 +34,7 @@ function SheetDialog({ onClose, title, children }: { onClose: () => void; title:
   return (
     <dialog
       ref={dialog}
-      className="sheet-dialog"
+      className={wide ? "sheet-dialog is-wide" : "sheet-dialog"}
       aria-labelledby={`${id}-title`}
       onCancel={(e) => {
         e.preventDefault();

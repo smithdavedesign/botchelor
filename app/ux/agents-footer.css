@@ -30,8 +30,18 @@
 :is(.agents-group, .agents-fair, .footer-about, .ux-fold)[open] > summary::after {
   transform: rotate(180deg);
 }
-:is(.agents-group, .agents-fair) > summary :is(h2, h3) {
+:is(.agents-group, .agents-fair, .ux-fold) > summary :is(h2, h3) {
   margin: 0;
+}
+/* A folded card's one line of where it stands (the couple page's roleplay and nudges), beside its title. */
+.ux-fold > summary .fold-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card.ux-fold[open] > summary {
+  margin-bottom: var(--space-2);
 }
 
 /* ---------------- /agents ---------------- */
@@ -248,6 +258,15 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.legal-toc-group {
+  border-bottom: 1px solid var(--line);
+}
+.legal-toc-group > summary {
+  font-weight: 600;
+}
+.legal-toc-group[open] > ul {
+  padding-bottom: var(--space-2);
 }
 .legal-toc a {
   display: inline-flex;

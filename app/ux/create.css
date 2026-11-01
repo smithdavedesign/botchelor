@@ -151,17 +151,20 @@
 /* ---------------- review ---------------- */
 
 .wizard .wizard-review-group {
-  margin: var(--space-4) 0 0;
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+}
+.wizard .wizard-review-group[open] {
+  padding-bottom: var(--space-2);
 }
 .wizard .wizard-review-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-2);
-  margin: 0 0 var(--space-1);
-  padding-bottom: var(--space-1);
-  border-bottom: 2px solid var(--line);
+  margin: 0;
   font-size: var(--text-md);
+  font-weight: 700;
 }
 .wizard .wizard-review-head .link-button {
   font-family: inherit;
@@ -229,22 +232,19 @@
   margin-top: var(--space-2);
 }
 
-/* Date settings: a tidy grid of fields, one column on a phone, two on a desktop. */
-.send-phase .send-settings {
+/* Date settings, in the send sheet (app/DateConfirm.tsx, rendered into <body>, so not under .send-phase): one column
+   of fields. */
+.send-settings {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0 var(--space-4);
+  gap: 0;
 }
-.send-phase .send-settings > label {
+.send-settings > label {
   margin-top: var(--space-3);
 }
-@media (min-width: 641px) {
-  .send-phase .send-settings {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .send-phase .send-settings-wide {
-    grid-column: 1 / -1;
-  }
+.send-settings select,
+.send-settings input[type="text"] {
+  width: 100%;
 }
 
 /* The house cast and open characters: one compact row each (face, name, a meta line, one line of bio, a small
@@ -372,4 +372,55 @@
    "e.g.". */
 .wizard ::placeholder {
   font-style: italic;
+}
+
+/* ---------------- the Look step: one card, the picker in a sheet (2026-10-31 UX audit, B4) ---------------- */
+.looks-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+}
+.looks-card-meta {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.looks-card > button {
+  margin: 0;
+}
+.chip.chip-static {
+  background: none;
+  border-style: dashed;
+}
+/* The picture panel opens from the edit preview's face (B9). */
+.wizard-preview-face {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  flex: none;
+}
+.wizard-preview-face .wizard-picture-btn {
+  font-size: var(--text-xs);
+}
+.wizard-portrait {
+  display: grid;
+  gap: var(--space-2);
+}
+.wizard-portrait > button {
+  justify-self: start;
+  margin: 0;
+}
+.wizard-temperament {
+  margin-top: var(--space-3);
+}
+.send-settings-label {
+  display: block;
+  margin: var(--space-3) 0 var(--space-1);
+  font-weight: 600;
 }

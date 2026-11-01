@@ -315,10 +315,11 @@ async function main() {
       await page.getByRole("button", { name: "Use a sample character" }).click();
       await page.getByRole("button", { name: "Next: Voice" }).click();
       await page.getByRole("button", { name: "Next: Look" }).click();
+      await page.getByRole("button", { name: "Pick their look" }).click();
       await page.getByRole("button", { name: "Woman", exact: true }).click();
       await page.getByRole("button", { name: "Realistic" }).click();
       await page.getByRole("button", { name: /Latina/ }).click();
-      await page.getByText("How old do they look?").waitFor();
+      await page.getByText("Choose an eye colour").waitFor();
       await page.getByRole("button", { name: "Your look" }).click();
       const details = page.locator(".looks-details");
       await details.waitFor({ timeout: 15_000 });

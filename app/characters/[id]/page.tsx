@@ -551,50 +551,50 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {/* Their own After Dark pictures of them, blurred: the owner's page only. */}
       {adPhotos && <AfterDarkPhotos characterId={c.id} data={adPhotos} />}
 
-      {relationships.length > 0 && (
-        <section className="card" id="relationships">
-          <div className="section-head">
-            <h2>Relationships</h2>
-            <span>
-              <Link href={`/characters/${c.id}/relationships`}>📱 Open their relationship board</Link> ·{" "}
-              <Link href={`/graph?focus=${encodeURIComponent(c.id)}`}>✨ See {shortName(c.name)} in the Constellation</Link>
-            </span>
-          </div>
-          <ul className="list connections">
-            {relPage.items.map((r) => (
-              <li key={r.otherId} className="row-2line">
-                {/* Two lines on purpose: who and where they stand, then the numbers and the links (they wrapped raggedly). */}
-                <span className="row-2line-head">
-                  <CharacterName character={r.other} /> {r.view.stage_label && <span className="badge">{r.view.stage_label}</span>}
-                </span>
-                <span className="muted row-2line-meta">
-                  {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
-                  {ratings.is_owner && (
-                    <>
-                      {" "}
-                      · <Link href={`${r.path.replace("/couples/", "/messages/")}?as=${encodeURIComponent(c.id)}`}>💬 their texts</Link>
-                    </>
-                  )}
-                </span>
-                <span className="meter-track tie" role="img" aria-label={`How close: ${Math.round(r.view.tie * 100)}%`}>
-                  <span className="meter-fill" style={{ width: `${Math.round(r.view.tie * 100)}%` }} />
-                </span>
-              </li>
-            ))}
-          </ul>
-          <Pager page={relPage.page} pages={relPage.pages} label="Relationships pages" href={here("rel", "relationships")} scroll={false} />
-        </section>
-      )}
-
+      {/* One card for their dates (2026-10-31 UX audit, A6: "Relationships" and "Date record" told the same dates
+          twice): the totals, one row per person, and every date folded under them. */}
       <section className="card" id="date-record">
-        <h2>Date record</h2>
+        <div className="section-head">
+          <h2>Dates</h2>
+          {relationships.length > 0 && <Link href={`/characters/${c.id}/relationships`}>📱 See their board →</Link>}
+        </div>
+        {record.dates > 0 && (
+          <p className="muted">
+            <strong>{record.dates}</strong> {record.dates === 1 ? "aired date" : "aired dates"} · {record.second_dates} second{" "}
+            {record.second_dates === 1 ? "date" : "dates"} · {record.friends} just friends · {record.disasters}{" "}
+            {record.disasters === 1 ? "disaster" : "disasters"}
+          </p>
+        )}
+        {relationships.length > 0 && (
+          <div id="relationships">
+            <ul className="list connections">
+              {relPage.items.map((r) => (
+                <li key={r.otherId} className="row-2line">
+                  {/* Two lines on purpose: who and where they stand, then the numbers and the links (they wrapped raggedly). */}
+                  <span className="row-2line-head">
+                    <CharacterName character={r.other} /> {r.view.stage_label && <span className="badge">{r.view.stage_label}</span>}
+                  </span>
+                  <span className="muted row-2line-meta">
+                    {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
+                    {ratings.is_owner && (
+                      <>
+                        {" "}
+                        · <Link href={`${r.path.replace("/couples/", "/messages/")}?as=${encodeURIComponent(c.id)}`}>💬 their texts</Link>
+                      </>
+                    )}
+                  </span>
+                  <span className="meter-track tie" role="img" aria-label={`How close: ${Math.round(r.view.tie * 100)}%`}>
+                    <span className="meter-fill" style={{ width: `${Math.round(r.view.tie * 100)}%` }} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <Pager page={relPage.page} pages={relPage.pages} label="Relationships pages" href={here("rel", "relationships")} scroll={false} />
+          </div>
+        )}
         {record.dates > 0 ? (
-          <>
-            <p>
-              <strong>{record.dates}</strong> {record.dates === 1 ? "aired date" : "aired dates"} ·{" "}
-              {record.second_dates} second {record.second_dates === 1 ? "date" : "dates"} · {record.friends} just
-              friends · {record.disasters} {record.disasters === 1 ? "disaster" : "disasters"}
-            </p>
+          <details className="ux-fold character-dates-all" open={datesPage > 1 || undefined}>
+            <summary>Every aired date ({record.dates})</summary>
             <ul className="list">
               {episodes.map((e) => (
                 <li key={e.episode_id} className="row-split">
@@ -606,9 +606,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               ))}
             </ul>
             <Pager page={datesPage} pages={datesPages} label="Date record pages" href={here("dates", "date-record")} prev="Newer" next="Older" scroll={false} />
-          </>
+          </details>
         ) : (
-          <p className="muted">No aired dates yet.</p>
+          relationships.length === 0 && <p className="muted">No aired dates yet.</p>
+        )}
+        {relationships.length > 0 && (
+          <p className="small">
+            <Link href={`/graph?focus=${encodeURIComponent(c.id)}`}>✨ See {shortName(c.name)} in the Constellation</Link>
+          </p>
         )}
       </section>
 

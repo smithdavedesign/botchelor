@@ -22,6 +22,16 @@
 
 /* ---------------- home (app/page.tsx) ---------------- */
 /* The feature cards: icon beside the words. On a phone they're compact rows, not six tall cards (~1,300px). */
+/* How it works (A2): three numbered rows, the icon beside the words, on every width. */
+ol.home-features {
+  grid-template-columns: 1fr;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.home-sky-line {
+  margin-top: var(--space-1);
+}
 .home-features .feature {
   display: flex;
   align-items: flex-start;
@@ -487,6 +497,9 @@ details.recap-toggle[open] .recap-toggle-hide {
   align-items: center;
   gap: var(--space-1) var(--space-2);
 }
+.couple-private {
+  margin: var(--space-2) 0 0;
+}
 .couple-name-unit {
   display: inline-flex;
   align-items: center;
@@ -710,6 +723,43 @@ details.recap-toggle[open] .recap-toggle-hide {
 }
 .graph-pairs > .list {
   margin-top: var(--space-2);
+}
+
+/* One Share button with a popover (app/ShareButton.tsx, D3). */
+.share-button {
+  position: relative;
+  display: inline-block;
+}
+.share-button > button {
+  margin: 0;
+}
+.share-pop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: min(18rem, 80vw);
+  margin: 0;
+  padding: var(--space-3);
+  box-shadow: var(--shadow);
+}
+.share-pop > :is(a, button) {
+  margin: 0;
+  justify-self: stretch;
+  text-align: center;
+}
+.share-pop[hidden] {
+  display: none;
+}
+.share-pop > input {
+  width: 100%;
+  margin: 0;
+}
+.share-pop-note {
+  white-space: normal;
 }
 
 /* /characters' cast tab: each board's leader in one row, the full boards folded (2026-10-31 UX audit, A4). */
