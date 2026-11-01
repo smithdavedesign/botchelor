@@ -11,6 +11,8 @@
  *   /reviews.
  *   With a character of its own: the character page's one next step and notifications' ⚙ Settings modal on a phone,
  *   and the swipe deck at 1280×800 with Pass and Like in view.
+ *   The fix-all round: home's three steps, the shop's Buy button, the Constellation's Filters, jump links, tap-to-call
+ *   and the date confirm sheet (opened and closed, never sent).
  */
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -91,6 +93,45 @@ try {
   await page.locator("#bots").evaluate((el) => el.scrollIntoView({ block: "start" }));
   await shot(page, "ux-home-reviews-phone.png");
 
+  // The fix-all round (#1178–#1183): home's three steps, the shop's Buy for everyone, the sky's one Filters button,
+  // a character page's jump links, and tap-to-call on an episode. Nothing here is clicked that spends or saves.
+  await page.goto(`${BASE}/`);
+  await page.locator(".home-how").evaluate((el) => el.scrollIntoView({ block: "start" }));
+  assert((await page.locator(".home-how ol > li").count()) === 3, "home's How it works should be three rows");
+  await shot(page, "ux-home-how-phone.png");
+
+  await page.goto(`${BASE}/shop`);
+  const buy = page.getByRole("button", { name: /^Buy / }).first();
+  await buy.waitFor();
+  console.log(`  ✓ the signed-out shop's price is a button: "${(await buy.innerText()).trim()}"`);
+  await shot(page, "ux-shop-phone.png");
+
+  await page.goto(`${BASE}/graph`);
+  const filters = page.locator(".constellation-filters-btn");
+  await filters.waitFor();
+  assert(!(await page.locator("#constellation-filters").isVisible()), "the Constellation's filters should start folded on a phone");
+  await checkPhone(page, "the Constellation");
+  await shot(page, "ux-constellation-phone.png");
+  await filters.click();
+  await page.locator("#constellation-filters.is-open").waitFor();
+  await shot(page, "ux-constellation-filters-phone.png");
+
+  await page.goto(`${BASE}/characters/house-juniper`);
+  assert((await page.locator("nav.page-jumps a").count()) >= 3, "a character page should have its jump links");
+  await checkPhone(page, "a character page");
+  await shot(page, "ux-character-jumps-phone.png");
+
+  await page.goto(`${BASE}/watch`);
+  const episode = page.locator('a[href^="/episodes/"]').first();
+  await episode.waitFor();
+  await page.goto(new URL((await episode.getAttribute("href")) ?? "/", BASE).href);
+  const picks = page.locator(".pick-choices").first();
+  if (await picks.count()) {
+    await picks.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    console.log(`  ✓ the ending is ${await picks.locator("button").count()} tap buttons`);
+    await shot(page, "ux-episode-pick-phone.png");
+  } else console.log("  (the latest episode has no open call; no pick shot)");
+
   // A character of its own, closed to dates, with a dating profile finished (so the deck opens for it).
   let me = null;
   for (const name of NAMES) {
@@ -136,6 +177,17 @@ try {
   await page.getByRole("button", { name: /Settings/ }).click();
   await page.locator("dialog.sheet-dialog[open]").waitFor();
   await shot(page, "ux-notifications-settings-phone.png");
+
+  // Every date asks first (B5): the sheet opens, says what it uses, and is closed with "Not yet" — nothing is sent.
+  await page.goto(`${BASE}/characters/house-juniper`);
+  const ask = page.locator(".date-cta button.primary").first();
+  if (await ask.count()) {
+    await ask.click();
+    const sheet = page.locator("dialog.sheet-dialog[open]");
+    await sheet.getByText(/^(Uses 1|You have no dates)/).waitFor();
+    await shot(page, "ux-date-confirm-phone.png");
+    await sheet.getByRole("button", { name: "Not yet" }).click();
+  } else console.log("  (no Date button for a character closed to dates; no confirm shot)");
 
   // The same visitor on a desktop: Pass and Like in view at 1280×800, beside the intro.
   const desk = await browser.newContext({ userAgent: DESKTOP_UA, viewport: DESKTOP, storageState: await ctx.storageState() });
