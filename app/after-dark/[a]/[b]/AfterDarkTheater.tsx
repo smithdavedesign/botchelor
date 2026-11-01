@@ -533,6 +533,8 @@ export default function AfterDarkTheater({
     e.preventDefault();
     // A whisper needs its words; a refused steer or whisper stays in the box, to be reworded.
     if (whisperTo && !direction.trim()) return;
+    // #1155 (the 2026-10-31-1808 visitor: "the popup blocks Next"): Next with a picture offer open answers it "later".
+    if (offer) void answer(offer.id, "later");
     // The 2026-10-30 prod loop (run 4: "the Playing… lock was the biggest obstacle"): Next during playback jumps to the end
     // and carries on, rather than waiting out a replay of the last lines on every visit.
     // A steer leaves playback running: its lines come after what's playing. Carrying on means playing on: skip() also
@@ -934,8 +936,11 @@ export default function AfterDarkTheater({
                         type="button"
                         className={`ad-suggestion is-${sg.heat}`}
                         disabled={busy}
-                        onClick={() => void onSuggest(sg.text)}
-                        title={sg.heat === "mild" ? "A surprise: something they didn't see coming" : `Send it as a nudge: ${sg.text}`}
+                        // #1155: Flirt and Spicy put their words in the steer box, to send as they are or change first;
+                        // Surprise me stays a surprise and goes at once.
+                        onClick={() => (sg.heat === "mild" ? void onSuggest(sg.text) : (setDirection(sg.text), onWhisperTo?.(null), onSteerMode?.("nudge")))}
+                        title={sg.heat === "mild" ? "A surprise: something they didn't see coming (sent at once)" : `Puts it in the steer box: "${sg.text}"`}
+                        aria-label={sg.heat === "mild" ? "Surprise me: send a surprise turn" : `${HEAT_WORD[sg.heat]}: put "${sg.text}" in the steer box`}
                       >
                         <span className="ad-heat">{HEAT_WORD[sg.heat]}</span>
                       </button>

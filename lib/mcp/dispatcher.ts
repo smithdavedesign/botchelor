@@ -1079,15 +1079,59 @@ async function lastTextRead(db: Db, otherOwner: string | null, x: string, y: str
  * model, so a reply usually lands within two minutes of your text.
  */
 export const HOUSE_BOT_REPLY_SECONDS = 120;
+/**
+ * #1152 (the 2026-10-31-1808 run: a matched house-run bot never answered in 10+ minutes): most house-run bots are the
+ * crowd, one pass every 15 minutes (scripts/crowd/prod-crowd.mjs), so between passes a reply takes up to
+ * HOUSE_BOT_PASS_MINUTES; only a bot whose script is running now (seen in the last few minutes) answers in two. One not
+ * seen for HOUSE_BOT_PAUSED_MINUTES is paused: nothing is promised.
+ */
+export const HOUSE_BOT_PASS_MINUTES = 20;
+export const HOUSE_BOT_PAUSED_MINUTES = 45;
+const BOT_RUNNING_MINUTES = 3;
+/** How soon this house-run bot should answer, from when its script was last on; null when it's paused (or unknown). */
+export function botReplySeconds(lastRanMinutes: number | null): number | null {
+  if (lastRanMinutes === null) return null;
+  if (lastRanMinutes <= BOT_RUNNING_MINUTES) return HOUSE_BOT_REPLY_SECONDS;
+  return lastRanMinutes <= HOUSE_BOT_PAUSED_MINUTES ? HOUSE_BOT_PASS_MINUTES * 60 : null;
+}
+/** Minutes since this character's house-run bot was last on (its agent's newest session), or null. */
+async function botLastRan(db: Db, characterId: string): Promise<number | null> {
+  const r = (await db.query<{ m: number | null }>(
+    `select (extract(epoch from now() - max(s.last_seen)) / 60)::float as m from mcp_sessions s join characters c on c.owner_id = s.agent_id where c.id = $1`,
+    [characterId],
+  )).rows[0];
+  return r?.m === null || r?.m === undefined ? null : Math.round(r.m);
+}
+/** send_text's word on a house-run bot's reply (#620, #1152). */
+function botReplyFields(lastRan: number | null): Record<string, unknown> {
+  const within = botReplySeconds(lastRan);
+  if (within === null) return { bot_paused: true, reply_note: "This house-run bot's script isn't running right now, so a reply may not come today: date the house cast or start_own_date meanwhile." };
+  return {
+    reply_expected_within_seconds: within,
+    reply_note: `A house-run bot answers on its own, ${within === HOUSE_BOT_REPLY_SECONDS ? `usually within ${within} seconds (its script is on now)` : `within about ${Math.round(within / 60)} minutes (its script passes every 15 minutes or so)`}: read_texts with wait_seconds: ${WAIT_MAX_SECONDS} waits for it, and a wait that runs out says how long to wait again.`,
+  };
+}
+/** A house-run bot's side of a thread: when its script last ran and so how soon it answers (#1152). */
+function houseBotSide(name: string, lastRan: number | null): Record<string, unknown> {
+  const within = botReplySeconds(lastRan);
+  const ran = lastRan === null ? "" : ` Its script was last on ${lastRan < 1 ? "just now" : `${lastRan} minute${lastRan === 1 ? "" : "s"} ago`}.`;
+  return {
+    other_side:
+      within === null
+        ? `${name} is played by a house-run bot, and its script isn't running right now.${ran} A reply may not come today: date the house cast or start_own_date meanwhile.`
+        : within === HOUSE_BOT_REPLY_SECONDS
+          ? `${name} is played by a house-run bot: its script is on now, and it usually replies within ${HOUSE_BOT_REPLY_SECONDS / 60} minutes of your text.`
+          : `${name} is played by a house-run bot whose script passes every 15 minutes or so, so a reply can take up to ${HOUSE_BOT_PASS_MINUTES} minutes.${ran}`,
+    house_bot: true,
+    ...(lastRan === null ? {} : { bot_last_ran_minutes_ago: lastRan }),
+    ...(within === null ? { bot_paused: true } : { reply_expected_within_seconds: within }),
+  };
+}
 
-/** What answers for the other character in a thread, and how soon to expect it (#472). */
-const otherSideNote = (label: string | undefined, name: string): Record<string, unknown> =>
+/** What answers for the other character in a thread, and how soon to expect it (#472; a house-run bot's, #1152). */
+const otherSideNote = (label: string | undefined, name: string, botRan: number | null = null): Record<string, unknown> =>
   label === HOUSE_BOT_LABEL
-    ? {
-        other_side: `${name} is played by a house-run bot: its lines come from a script, and it usually replies within ${HOUSE_BOT_REPLY_SECONDS / 60} minutes of your text.`,
-        house_bot: true,
-        reply_expected_within_seconds: HOUSE_BOT_REPLY_SECONDS,
-      }
+    ? houseBotSide(name, botRan)
     : label
       ? {
           // #860: "active today" is up to a day old, so only "active now" is worth a wait.
@@ -1104,6 +1148,8 @@ const otherSideNote = (label: string | undefined, name: string): Record<string, 
 
 /** How many of a thread's newest texts ride along beside items (#620), both ways, so your own don't seem to vanish. */
 const THREAD_TAIL = 8;
+/** #1153: a second date's visibility (lib/second-date.ts stricter): the first date's, unless a stricter one is asked for. */
+const SECOND_DATE_VISIBILITY = "A second date is never more public than the first: it takes the first date's visibility unless you ask for a stricter one (visibility).";
 /** items against thread, said once wherever both are in a reply (#620: "my own sent texts seemed to vanish"). */
 const ITEMS_VS_THREAD =
   "items: only what's new since your cursor (after, or this wait). thread: the newest texts both ways, your own included (from: this_character). read_texts without after or wait_seconds pages the whole thread.";
@@ -1165,15 +1211,18 @@ async function threadsFor(db: Db, agentId: string, characterId: string | null): 
  * When a house-run bot's reply is due, from your newest text (#620): still coming (with how long to wait), or later than
  * it usually takes. Nothing when they spoke last, or the other side isn't a house-run bot.
  */
-function replyTiming(all: ChainText[], self: End, houseBot: boolean): Record<string, unknown> {
-  if (!houseBot) return {};
+function replyTiming(all: ChainText[], self: End, side: Record<string, unknown>): Record<string, unknown> {
+  if (side.house_bot !== true) return {};
   const mine = all.filter((t) => t.who === self).at(-1);
   if (!mine || all.some((t) => t.who !== self && t.id > mine.id)) return {};
-  const due = new Date(new Date(mine.at).getTime() + HOUSE_BOT_REPLY_SECONDS * 1000);
+  // #1152: when its script is paused, nothing is coming until it's back.
+  const within = typeof side.reply_expected_within_seconds === "number" ? side.reply_expected_within_seconds : null;
+  if (within === null) return { reply_still_coming: false, reply_late: "Its script isn't running right now, so no reply is coming until it's back. Text again later, or date the house cast meanwhile." };
+  const due = new Date(new Date(mine.at).getTime() + within * 1000);
   const left = Math.ceil((due.getTime() - Date.now()) / 1000);
   return left > 0
     ? { reply_still_coming: true, reply_expected_by: due.toISOString(), retry_wait_seconds: Math.min(WAIT_MAX_SECONDS, left) }
-    : { reply_still_coming: false, reply_late: `No reply ${HOUSE_BOT_REPLY_SECONDS / 60} minutes after your last text, longer than a house-run bot usually takes: it may be done for the day. Text again later, or date the house cast meanwhile.` };
+    : { reply_still_coming: false, reply_late: `No reply ${Math.round(within / 60)} minutes after your last text, longer than this house-run bot usually takes: it may be done for the day. Text again later, or date the house cast meanwhile.` };
 }
 
 /** An episode as get_episode returns it: plus when it airs, or, while it's being written, how long it's been (#190). */
@@ -1387,7 +1436,8 @@ async function waitForText(db: Db, who: Identity, args: Record<string, unknown>,
   const limit = Math.max(1000, plan.ms);
   // #472: who answers on the other side, and how soon to expect it.
   const other = (await db.query<{ name: string }>(`select name from characters where id = $1`, [withId])).rows[0]?.name ?? "They";
-  const side = otherSideNote((await agentActivity(db, [withId])).get(withId), other);
+  const otherLabel = (await agentActivity(db, [withId])).get(withId);
+  const side = otherSideNote(otherLabel, other, otherLabel === HOUSE_BOT_LABEL ? await botLastRan(db, withId) : null);
   const from = await dbNow(db);
   // What's new to this agent: theirs after the cursor, and theirs it hadn't read when it called (2.9.0), in thread order.
   const freshIn = (all: ChainText[]): ChainText[] => {
@@ -1438,7 +1488,7 @@ async function waitForText(db: Db, who: Identity, args: Record<string, unknown>,
     }
     if (Date.now() - plan.started >= limit) {
       // #620: a house-run bot's reply that's still due says so, and how long to wait for it.
-      const timing = replyTiming(all, self, side.house_bot === true);
+      const timing = replyTiming(all, self, side);
       const retry = typeof timing.retry_wait_seconds === "number" ? timing.retry_wait_seconds : null;
       // 2.8.0 (#619's comment): the cursor moves up to where this wait stopped looking, and says so.
       const nextAfter = isoCursor(advancedCursor(look, from))?.milli ?? null;
@@ -1458,7 +1508,7 @@ async function waitForText(db: Db, who: Identity, args: Record<string, unknown>,
           ...side,
           ...timing,
           note: retry
-            ? `No reply yet, and one is still coming: a house-run bot usually answers within ${HOUSE_BOT_REPLY_SECONDS} seconds of your text (by ${String(timing.reply_expected_by)}). Call read_texts again with wait_seconds: ${retry} and after: next_after.`
+            ? `No reply yet, and one is still coming: this house-run bot usually answers within ${Math.round(Number(side.reply_expected_within_seconds) / 60)} minutes of your text (by ${String(timing.reply_expected_by)}). Call read_texts again with wait_seconds: ${retry} and after: next_after.`
             : typeof timing.reply_late === "string"
               ? `No reply yet. ${timing.reply_late}`
               : "No reply yet. Call again with after: next_after (where this wait stopped looking) to keep waiting.",
@@ -2162,6 +2212,8 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
       // 2.7.0 (#641): what it spent and what's left, said plainly.
       spent_note: spentNote(cost),
       visibility: await visibilityOf(db, String(r.data.id)),
+      // #1153: where that came from, said once.
+      visibility_note: SECOND_DATE_VISIBILITY,
       second_date_of: episodeId,
       // 2.7.0 (#643): where it happens and why, honestly (it used to say "where they planned it" of a dealt venue).
       note: "Both wanted another date, so this is their second date.",
@@ -5486,6 +5538,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         data: {
           ...(twinWarning ? { warning: twinWarning } : {}),
           ...(savedTwins ? lookAlikeFields(savedTwins) : {}),
+          // #1153: the new id at the top, as the other create-style replies have theirs; character.id stays.
+          saved: true,
+          character_id: id,
           // 2.8.0 (#651): open_to_dates said outright, false when left out (the route echoes only what it was sent).
           character: { ...r.data, made_by: "agent", partner_style: style, open_to_dates: sheet.open_to_dates === true },
           ...(week
@@ -6676,12 +6731,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           // #349: how recently their agent was around, so a wait can be judged.
           ...activityFields(theirLabel, "their_agent"),
           // #620 (the 2026-10-21-2300 run: a 30-second wait missed a reply at 38 seconds): a house-run bot answers on its own, and when.
-          ...(theirLabel === HOUSE_BOT_LABEL
-            ? {
-                reply_expected_within_seconds: HOUSE_BOT_REPLY_SECONDS,
-                reply_note: `A house-run bot answers on its own, usually within ${HOUSE_BOT_REPLY_SECONDS} seconds: read_texts with wait_seconds: ${WAIT_MAX_SECONDS} waits for it, and a wait that runs out says how long to wait again.`,
-              }
-            : {}),
+          // #1152: how soon, from when its script was last on; a paused one promises nothing.
+          ...(theirLabel === HOUSE_BOT_LABEL ? botReplyFields(await botLastRan(db, to)) : {}),
         },
         identity: who,
       };
@@ -6785,7 +6836,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const beforeCursor = textCursor(args.before, "before");
       const after = afterCursor.value;
       const page = after ? { items: chainAfter(items, after), cursor: null, has_more: false } : chainPage(items, beforeCursor.value);
-      const side = otherSideNote((await agentActivity(db, [withId])).get(withId), otherName);
+      const withLabel = (await agentActivity(db, [withId])).get(withId);
+      const side = otherSideNote(withLabel, otherName, withLabel === HOUSE_BOT_LABEL ? await botLastRan(db, withId) : null);
       const texts = items.filter(isText);
       return {
         data: {
@@ -6800,7 +6852,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...afterCursor.note,
           ...beforeCursor.note,
           ...side,
-          ...replyTiming(texts, self, side.house_bot === true),
+          ...replyTiming(texts, self, side),
           ...pageLink(rel ? couplePageFor(rel) : null, "#texts"),
         },
         identity: who,
@@ -7434,7 +7486,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           }),
           ...(left ? { dates_left: { total: left.left, free_left: left.free_left, free_reset_at: left.resets_at, free_second_date: freeSecond } } : {}),
         });
-        const flags = { preview: true, booked: false };
+        const flags = { preview: true, booked: false, visibility_note: SECOND_DATE_VISIBILITY };
         // What the wait did, and that it booked nothing (2.7.0): its own report, and the one deliberate change said once.
         const waited = airWait
           ? {
