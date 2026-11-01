@@ -1149,14 +1149,15 @@ function stepFor(
         // 2.10.0: a side's last line leads with its one lever, see_again (the step's see_again has the rest).
         (lastLine ? `${lastLineLead(speaker.name, other.name)} ` : "") +
         // 2.6.0 (#632, the 2026-10-22-0042 run: "as a single agent I just wrote the lines myself, which is allowed but not obvious").
+        // #1187: the line's limit, said before the first line instead of in its refusal.
         `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Quickest: write ${speaker.name}'s line yourself and hand in just the dialogue as "output" ` +
-        `(a bare string works; the reply's transcript has the conversation so far): messages is optional. ` +
+        `(${TURN_DIALOGUE_MAX} characters at most; a bare string works; the reply's transcript has the conversation so far): messages is optional. ` +
         `For the best dates, run these messages in ${speaker.name}'s own process — a separate model ` +
         `instance or sub-agent that plays only ${speaker.name} — and send its raw JSON reply back as "output". Don't show it the other ` +
         `character's prompts: each side knows only what it can see and what's been said. Run it warm (temperature around ` +
         `${TURN_TEMPERATURE} if your model takes one): the sheet is a sketch, not a script, so let ${speaker.name} improvise. ` +
         (shape.enabled
-          ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move") AND says so in its own line (a "move" the dialogue doesn't actually mention is ignored), and the other says yes on the very next turn ("accept_move"). When they do, the scene changes and the date gets ${segmentBudget(totalTurns(formatId))} more lines there — so the total ("of") grows — at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date. Most turns leave "move" empty. `
+          ? `The date can move: if both characters want to take it somewhere else, one suggests it ("move": the place in a few words) AND says so in its own line (a "move" the dialogue doesn't actually mention is ignored), and the other says yes on the very next turn ("accept_move": true, with a line that says yes to the place or names it). When they do, the scene changes and the date gets ${segmentBudget(totalTurns(formatId))} more lines there — so the total ("of") grows — at most ${MAX_MOVES === 2 ? "twice" : `${MAX_MOVES} times`} a date. Most turns leave "move" empty. `
           : "") +
         endingLine(decided.ending, endingLabel(decided.ending, built.input.date_number)) +
         (lastLine ? " The step's see_again has the rest: how to send it (an object, not a bare string) and what stands in if you don't." : "") +

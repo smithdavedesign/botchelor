@@ -38,7 +38,10 @@ import { dateShape, moveCost } from "@/lib/moves";
 
 describe("a move proposal says what yes costs (#1002)", () => {
   it("names the lines it adds, the new total and the moves left", () => {
-    const shape = dateShape([], "cafe" as Any, 12, { moves: true });
-    expect(moveCost(shape)).toBe("Yes adds 12 lines there (the date goes from 12 to 24; 1 more move possible after it); false keeps it at 12.");
+    // #1187: proposed on line 11, so the yes is the segment's last line and the new place's 12 lines follow it.
+    const line = (i: number) => ({ side: i % 2 ? "b" : "a", act: 0, dialogue: `Line ${i + 1}.`, action: "", emotion: "warm", interest: 0.5 }) as Any;
+    const transcript = [...Array.from({ length: 10 }, (_, i) => line(i)), { ...line(10), move: { say: "the night market", to: "night_market" } }];
+    const shape = dateShape(transcript, "cafe" as Any, 12, { moves: true });
+    expect(moveCost(shape)).toBe("Yes gives 12 lines there (the date goes from 12 to 24; 1 more move possible after it); false keeps it at 12.");
   });
 });

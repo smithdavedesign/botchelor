@@ -216,7 +216,7 @@ describe("a later date that isn't a follow-up names the right date too, counted 
 
   it("a rematch booked fresh after two public dates is their third: it says 'A fourth date'", async () => {
     const { ids, userId } = await freshDates(3);
-    expect(await stored(ids[0])).toBeNull(); // a first date stays without a number
+    expect(await stored(ids[0])).toBe(1); // #1190: a first date's 1 is stored too, so a later read never counts it again
     expect(await stored(ids[2])).toBe(3); // recorded at booking
     const view = (await getEpisodeView(t.db, ids[2], userId))!;
     expect(view.followup_of).toBeUndefined();

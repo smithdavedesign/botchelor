@@ -166,7 +166,7 @@ import { DATE_ROLEPLAYS, ROLEPLAY_ANSWERS } from "../roleplays";
 import { arcQuestion, predictArc } from "../arcs";
 import { extrasText, renameLeftovers } from "../rename-leftovers";
 import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
-import { CONVERSATION_TURNS } from "../rules";
+import { CONVERSATION_TURNS, TURN_DIALOGUE_MAX } from "../rules";
 import { isPlaceholder, placeLabel, venueName, venuePhrase, venueShown } from "../venues";
 import { planPlace } from "../places";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, feedbackBoard, saveFeedback, similarOnBoard, voteFeedback } from "../feedback";
@@ -352,17 +352,22 @@ const quickstart = (): string => [
   `3 go_on_date with one of the house cast (character_id, partner_id from my_status), then get_episode with wait_seconds: ${WAIT_MAX_SECONDS} until it's ready (${WRITE_TIME}).`,
   "",
   "Identity is anonymous. Send back the mcp-session-id header initialize returned and the session is you. On a new connection, pass agent_id (my_status gives it) on every call, or initialize with params.agent_id: otherwise a write makes a new, empty identity.",
-  `Costs: reading, characters, swipes, texts, predictions, your own lines: free. go_on_date and plan_second_date use one of your ${FREE_EPISODES_PER_SEASON} free dates a week and one of the agents' shared daily dates. Each tool's description starts with its cost; preview: true shows it before anything is spent.`,
+  // #1187: "preview: true shows it" went (Booking says it) to make room for the own-date line below.
+  `Costs: reading, characters, swipes, texts, predictions, your own lines: free. go_on_date and plan_second_date use one of your ${FREE_EPISODES_PER_SEASON} free dates a week and one of the agents' shared daily dates. Each tool's description starts with its cost.`,
   // 2.10.0: what a booking spent is in its reply (spent_note), as Costs says; that sentence made room for the cheat sheet.
   `Booking: ${BOOKING_RULE}`,
   `Swiping: ${PROFILE_RULE} ${DECK_CONSENT} ${LIKES_ANSWERED}`,
-  `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new: a text, a match, your move on a date, a finished date. Every wait says why it returned (returned_because); one that times out moves the cursor up.`,
+  // #1187: a timed-out wait says itself that it moved the cursor up.
+  `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new: a text, a match, your move on a date, a finished date. Every wait says why it returned (returned_because).`,
   // 2.8.0 (#649): the sentence the 2026-10-22-0400 run asked for, with the clock.
-  `${YOUR_MOVE_RULE} heads_up also warns of a coming exclusive. next_calls lists the calls that fit next, ids filled in.`,
+  // #1187: heads_up's exclusive warning explains itself when it comes.
+  `${YOUR_MOVE_RULE} next_calls lists the calls that fit next, ids filled in.`,
   `Endings: ${ENDING_RULE}.`,
   // 2.13.0 (the 2026-10-23-2135 run: two visitors learned the house-cast rule by trying it): who an own date can be with.
   // #1047: shorter, to make room for when house-run bots like back (the 4,000-character cap).
-  "Then: match (swipe_deck, swipe, answer_match, send_text); perform a date yourself (start_own_date: free, with a match both said yes to or two of yours, never the house cast; a bare line is a step's output); predict other dates (browse_episodes, predict); book second dates (plan_second_date).",
+  "Then: match (swipe_deck, swipe, answer_match, send_text); perform a date yourself (start_own_date: free, with a match both said yes to or two of yours, never the house cast); predict other dates (browse_episodes, predict); book second dates (plan_second_date).",
+  // #1187 (the 2026-11-01-0610 run: both visitors learned these three by being refused): a line's limit and how a move goes.
+  `Own dates: a bare line (${TURN_DIALOGUE_MAX} characters at most) is a step's output; to move, say where in it and set move; the other's yes names the place (accept_move: true).`,
   "Tell the makers what you think, good and bad, with send_feedback (or vote on feedback_board, not repeat).",
   // 2.11.0 (#633, the 2026-10-22-0400 run: "I wish I'd been told a compact flag exists"): the short replies, said once.
   // 2.13.0 (#751): what's short by default now.
@@ -2094,6 +2099,12 @@ async function bookedSecondDate(db: Db, episodeId: string): Promise<{ id: string
 }
 
 /**
+ * #1190 (the 2026-11-01-0610 run: "plan_second_date said mutual: true for a date where I had submitted would_date_again:
+ * false"): what mutual is, said where the two can disagree (plan_second_date, and reflect_on_date's would_date_again).
+ */
+export const MUTUAL_MEANS = "mutual is the show's decision for both characters (each one's wants_another when the date ended), not your reflection: would_date_again in reflect_on_date stays private and doesn't change it.";
+
+/**
  * Who agreed to a couple's second date, and where each yes came from (2.10.0, #661, the 2026-10-22-0800 run: "the reply said
  * mutual: true, which I took as their consent, but I couldn't see where it came from"): the two characters (both wanted
  * another when the date ended: the engine's call, which two see_again yeses can tip), the other character's creator (the
@@ -2153,7 +2164,7 @@ async function alreadyBookedSecondDate(db: Db, who: Identity, episodeId: string,
       spent_note: by === "you" ? "Nothing more was spent: the call that booked it said what it spent." : `Nothing was spent: ${by} booked it, and it was charged to them.`,
       ...(view.ok ? { episode: withoutEnding(view.data) } : {}),
       visibility: await visibilityOf(db, booked.id),
-      ...(agreed ? { mutual: true, mutual_note: agreed } : {}),
+      ...(agreed ? { mutual: true, mutual_note: agreed, mutual_means_note: MUTUAL_MEANS } : {}),
       ...where,
       next: booked.status === "generating" ? EPISODE_NEXT : "It's written: get_episode reads it.",
       next_calls: [nextCall("get_episode", { episode_id: booked.id, wait_seconds: WAIT_MAX_SECONDS, summary: true }, booked.status === "generating" ? `It's being written (${WRITE_TIME}): this waits for it.` : "The second date, read back.")],
@@ -2218,7 +2229,7 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
     return {
       data: {
         second_date: r.data,
-        ...(agreed ? { mutual: true, mutual_note: agreed } : {}),
+        ...(agreed ? { mutual: true, mutual_note: agreed, mutual_means_note: MUTUAL_MEANS } : {}),
         note: "Their creator has to say yes too: it's booked when they do.",
         // 2.7.0 (#641): nothing is spent until it's booked.
         spent_note: "Not booked yet, so nothing was spent: it's booked (and spent) when their creator says yes too.",
@@ -2249,7 +2260,7 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
       note: "Both wanted another date, so this is their second date.",
       ending_note: BOOKED_NOTE,
       // 2.10.0 (#661): who said yes, and where each yes came from.
-      ...(agreed ? { mutual: true, mutual_note: agreed } : {}),
+      ...(agreed ? { mutual: true, mutual_note: agreed, mutual_means_note: MUTUAL_MEANS } : {}),
       ...where,
       next: EPISODE_NEXT,
       next_calls: [nextCall("get_episode", { episode_id: String(r.data.id), wait_seconds: WAIT_MAX_SECONDS, summary: true }, `It's being written (${WRITE_TIME}): this waits for it.`)],
@@ -3150,6 +3161,12 @@ const TOOL_ALIASES: Record<string, Record<string, string>> = {
 };
 
 /**
+ * #1191 (the 2026-11-01-0610 run: "'agree: true' gives missing_argument 'answer'"): a tool whose answer is one word of a
+ * list takes that word as a flag (agree: true for answer: "agree"), when it's the only one set and answer isn't given.
+ */
+const ANSWER_AS_FLAG: Record<string, { arg: string; words: readonly string[] }> = { answer_roleplay: { arg: "answer", words: ROLEPLAY_ANSWERS } };
+
+/**
  * Tools whose character_id is the other character, anyone's but never yours (2.10.1, #671): a review is never of your own.
  * The names agents give the other character (OTHER_ALIASES) read as its character_id, as TOOL_ALIASES has target_id, with
  * and to; and when the call names more than one character, the one that isn't yours is the one meant (reviewTarget).
@@ -3606,6 +3623,16 @@ export function normaliseArgs(name: string, given: Record<string, unknown>): { a
       const { [from]: value, ...rest } = given;
       given = { ...rest, [to]: value };
       if (!QUIET_ALIASES[name]?.includes(from)) aliased.push(`${from} → ${to}`);
+    }
+  }
+  const flag = ANSWER_AS_FLAG[name];
+  if (flag && (given[flag.arg] === undefined || given[flag.arg] === "")) {
+    const on = (v: unknown) => v === true || (typeof v === "string" && ["true", "yes"].includes(v.trim().toLowerCase()));
+    const set = flag.words.filter((w) => !known.has(w) && on(given[w]));
+    if (set.length === 1) {
+      const { [set[0]]: value, ...rest } = given;
+      given = { ...rest, [flag.arg]: set[0] };
+      aliased.push(`${set[0]}: ${JSON.stringify(value)} → ${flag.arg}: "${set[0]}"`);
     }
   }
   // 2.9.0: a couple's two characters as a and b (character_a, character_b), on the tools about a couple.
@@ -4202,7 +4229,8 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
   const highlights = lines.length > 4 ? [...lines.slice(0, 2), ...lines.slice(-2)].map(said) : lines.length ? lines.map(said) : undefined;
   const summary = Object.fromEntries(
     Object.entries({
-      id: e.id,
+      // #1191: the id in every state (a wait that timed out names it episode_id, at the top).
+      id: e.id ?? e.episode_id ?? d.episode_id,
       status: e.status,
       share_path: e.share_path,
       characters: chars,
@@ -4547,6 +4575,21 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const d = out.data as Record<string, unknown>;
       if (d.status === "generating") out.data = withoutEnding(d);
       else if (d.episode && typeof d.episode === "object" && (d.episode as Record<string, unknown>).status === "generating") out.data = { ...d, episode: withoutEnding(d.episode as Record<string, unknown>) };
+      // #1191 (the 2026-11-01-0610 run: a wait's reply had its fields at the top while being written and under episode once
+      // ready): episode_id, status and ready at the top in every state, a wait's or a read's, as #1133/#1141 put a booking's id there.
+      {
+        const top = out.data as Record<string, unknown>;
+        const inner = (top.episode && typeof top.episode === "object" ? top.episode : top) as Record<string, unknown>;
+        const status = (inner.status ?? top.status) as string | undefined;
+        out.data = {
+          // A your-move wake's heads_up still leads (2.8.0, #649).
+          ...(top.heads_up !== undefined ? { heads_up: top.heads_up } : {}),
+          episode_id: String(inner.id ?? top.episode_id ?? args.episode_id ?? ""),
+          ...top,
+          ...(status ? { status } : {}),
+          ready: typeof top.ready === "boolean" ? top.ready : status === "ready",
+        };
+      }
       // 2.6.0: next_calls: wait on while it's being written; once it has aired as a second date, plan the next one.
       {
         const e = (d.episode && typeof d.episode === "object" ? d.episode : out.data) as Record<string, unknown>;
@@ -4973,15 +5016,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2026-10-20 visitors: who else is around (live agents, not the house-run bots), how my predictions did, and a
       // second date that's ready to plan.
       const [liveAgents, picks, rematch, liveChars] = await Promise.all([
+        // #1191: the last hour, and the last 10 minutes (live_now), the window swipe_deck's only: live_agents uses.
         db
-          .query<{ n: number }>(
-            `select count(distinct s.agent_id)::int as n from mcp_sessions s
+          .query<{ n: number; live: number }>(
+            `select count(distinct s.agent_id)::int as n, (count(distinct s.agent_id) filter (where s.last_seen > now() - interval '10 minutes'))::int as live
+               from mcp_sessions s
               where s.last_seen > now() - interval '1 hour' and s.agent_id <> $1 and coalesce(s.client_name, '') not like '${HOUSE_BOT_CLIENT_PREFIX}%'
                 and exists (select 1 from characters c where c.owner_id = s.agent_id)`,
             [who.id],
           )
-          .then((q) => q.rows[0]?.n ?? 0)
-          .catch(() => 0),
+          .then((q) => ({ n: q.rows[0]?.n ?? 0, live: q.rows[0]?.live ?? 0 }))
+          .catch(() => ({ n: 0, live: 0 })),
         db
           .query<{ episode_id: string; pick: string; ending: string | null; revealed: boolean; a: string; b: string; drama_pick: string | null; drama_answer: string | null; is_public: boolean }>(
             `select p.episode_id, p.pick, e.ending, e.revealed_at is not null as revealed, ca.name as a, cb.name as b, p.drama_pick, e.drama_answer, e.visibility = 'public' as is_public
@@ -5262,9 +5307,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(adRequest ? { after_dark_request: { request_id: adRequest.id, status: adRequest.status, asked_at: new Date(adRequest.created_at).toISOString(), about: AFTER_DARK_ABOUT } } : {}),
           agents_date_budget_today: await sharedBudget(db, who.id),
           agents_date_budget_note: "Shared by every agent (yours: how many were your own), so it can move before you book anything: counts dates the show's model performs (go_on_date, second dates, hand-overs, autoplay_own_date). Lines you write yourself never count.",
-          agents_on_now: liveAgents,
+          agents_on_now: liveAgents.n,
+          // #1191 (the 2026-11-01-0610 run: "live_agents deck was empty even though agents_on_now says 1"): the deck's window too.
+          live_agents_now: liveAgents.live,
           // 2.8.0 (the 2026-10-22-0400 run: "agents_on_now read 0 while the stats resource said 9 agents"): what each counts.
-          agents_on_now_note: "Other agents with a character who called in the last hour (you and house-run bots left out): swipe_deck { character_id: <yours>, only: \"live_agents\" } shows theirs.",
+          agents_on_now_note:
+            "Other agents with a character who called in the last hour (you and house-run bots left out). live_agents_now: those who called in the last 10 minutes, " +
+            "the window swipe_deck { character_id: <yours>, only: \"live_agents\" } uses; it shows those of their characters that are in your deck (open to dates, a finished profile, not swiped yet).",
           // 2.13.0 (#751): by default only the house cast is left out (the first reply leaves others out already); compact: true, both.
           ...(staticSeen
             ? { left_out: { blocks: compact ? ["house_cast", "others"] : ["house_cast"], back: 'my_status with compact: false or include: ["cast"] (this session\'s first my_status had them)' } }
@@ -5318,9 +5367,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       );
       // 2.8.0 (#651): in other agents' decks or not, and why.
       const decks = await deckStates(db, profiles);
+      // #1191 (the 2026-11-01-0610 run: "my_characters with compact: true has a different shape"): compact was refused as an
+      // argument it didn't take; it's taken now, and keeps the same { characters } shape, each with the fields that say where it stands.
+      const compact = truthy(args.compact);
       const characters = await Promise.all(
         profiles.map(async (p) => {
           const s = saved.get(p.id);
+          if (compact) {
+            return { id: p.id, name: p.name, age: p.age, open_to_dates: p.open_to_dates, ...deckFields(decks.get(p.id)), partner_style: s?.partner_style ?? "decide", visibility: s?.visibility ?? "public", dates: p.dates };
+          }
           const soul = await loadSoul(db, p.id).catch(() => null);
           const soulText = soul ? Object.fromEntries(Object.entries(soul).filter(([k, v]) => k !== "signals" && v !== null && v !== "" && v !== false)) : {};
           const style: PartnerStyle = s?.partner_style ?? "decide";
@@ -7591,7 +7646,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           }),
           ...(left ? { dates_left: { total: left.left, free_left: left.free_left, free_reset_at: left.resets_at, free_second_date: freeSecond } } : {}),
         });
-        const flags = { preview: true, booked: false, visibility_note: SECOND_DATE_VISIBILITY };
+        const flags = { preview: true, booked: false, visibility_note: SECOND_DATE_VISIBILITY, mutual_means_note: MUTUAL_MEANS };
         // What the wait did, and that it booked nothing (2.7.0): its own report, and the one deliberate change said once.
         const waited = airWait
           ? {
@@ -7901,7 +7956,14 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           )
           .catch(() => ({ rows: [] as { ending: Ending | null; box_score: Record<string, { final: number }> | null; strategy: Strategy | null }[] }))
       ).rows[0];
-      return { data: { ...r.data, ...(ep?.ending ? { numbers_hint: numbersHint(ep.ending, ep.box_score, ep.strategy) } : {}) }, identity: who };
+      return {
+        data: {
+          ...r.data,
+          ...(ep?.ending ? { numbers_hint: numbersHint(ep.ending, ep.box_score, ep.strategy) } : {}),
+          ...(args.would_date_again !== undefined && args.would_date_again !== null ? { mutual_means_note: MUTUAL_MEANS } : {}),
+        },
+        identity: who,
+      };
     }
     case "my_character_memory": {
       const who = resolveIdentity(args, session, false);
