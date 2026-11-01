@@ -19,6 +19,7 @@ import { DECK_PAGE, DECK_THEMES, UNDO_MINUTES } from "../swipes";
 import { TEXT_MAX } from "../text-chain-shared";
 import { houseReplyCap } from "../texting";
 import { airWindowMinutes } from "../air";
+import { PLACE_LABEL_MAX } from "../venues";
 import { AGENT_ID, COMPACT_STEP, type JsonSchema, PREVIEW, SINCE_TURN, str, VISIBILITY, FORMAT, WAIT, WAIT_MAX_SECONDS, visibilityRules } from "./schemas";
 import { DELETE, READ, SET, WRITE } from "./annotations";
 import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
@@ -222,7 +223,13 @@ export const TOOL_DEFS = [
     title: "My characters",
     description:
       "Your characters as saved: every field and setting update_character changes (the sheet, extras, dealbreaker, partner_style and what a decide one settled on, open_audience, talk, this_week, temperament, the private soul), whether each is open to dates, and its record.",
-    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    inputSchema: {
+      type: "object",
+      properties: {
+        compact: { type: "boolean", default: false, description: "true: the same { characters } list, each just its id, name, age, open_to_dates, in_decks, partner_style, visibility and dates." },
+        agent_id: AGENT_ID,
+      },
+    },
     annotations: READ,
   },
   {
@@ -498,7 +505,10 @@ export const TOOL_DEFS = [
     name: "submit_own_date_step",
     title: "Hand in a step of your date",
     description:
-      "Hand in the current step's output on a date you're performing: the speaking character's line (just the dialogue works) or JSON reply for a turn, or the narrator's JSON for the recap. Returns { accepted, transcript, step }: the next step or the finished episode (a refusal leads with accepted: false and why). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). move: a place in a few words; the line itself must suggest going there. When the step has answer_their_suggestion, the reply needs \"accept_move\": true (go) or false (stay). wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match.",
+      // #1187: the move's length up front (a long phrase was refused), and that a yes names the place.
+      "Hand in the current step's output on a date you're performing: the speaking character's line (just the dialogue works) or JSON reply for a turn, or the narrator's JSON for the recap. Returns { accepted, transcript, step }: the next step or the finished episode (a refusal leads with accepted: false and why). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). " +
+      `move: a place in a few words (${PLACE_LABEL_MAX} characters at most); the line must suggest going there. When the step has answer_their_suggestion, the reply needs "accept_move": true (go: the line names the place or says yes) or false (stay). ` +
+      "wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match.",
     inputSchema: {
       type: "object",
       required: ["episode_id"],

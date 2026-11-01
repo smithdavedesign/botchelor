@@ -14,7 +14,7 @@ import type { Turn } from "./conversation";
 import { movePlace, placeFor } from "./places";
 import { agrees, saysNo } from "./plans";
 import { actForTurn, DATE_ACTS, MAX_MOVES, MOVE_SEGMENT_LINES } from "./rules";
-import { placeParts, venue, venuePhrase, type PlaceId } from "./venues";
+import { PLACE_LABEL_MAX, placeParts, venue, venuePhrase, type PlaceId } from "./venues";
 
 const FINAL_ACT = DATE_ACTS.length - 1;
 
@@ -57,13 +57,16 @@ export const segmentBudget = (base: number): number => Math.min(base, MOVE_SEGME
 
 /**
  * What saying yes to a pending move costs, in numbers (#1002, the 2026-10-30 prod loop: "accepting a venue move silently
- * extends the date from 12 to 23 to 31 turns"): the lines it adds, the new total, and the moves left after it.
+ * extends the date from 12 to 23 to 31 turns"): the lines in the new place, the new total, and the moves left after it.
+ * The new place's lines start after the yes (dateShape), so the new total is the yes's line plus that budget (#1187: a
+ * yes on line 11 of 12 goes to 23, not 24).
  */
 export function moveCost(shape: DateShape): string {
-  const added = segmentBudget(shape.segments[0]?.budget ?? MOVE_SEGMENT_LINES);
+  const there = segmentBudget(shape.segments[0]?.budget ?? MOVE_SEGMENT_LINES);
+  const total = shape.next + 1 + there;
   const left = Math.max(0, MAX_MOVES - shape.segments.length);
   const after = left ? `${left} more move${left === 1 ? "" : "s"} possible after it` : "no more moves after it";
-  return `Yes adds ${added} lines there (the date goes from ${shape.total} to ${shape.total + added}; ${after}); false keeps it at ${shape.total}.`;
+  return `Yes gives ${there} lines there (the date goes from ${shape.total} to ${total}; ${after}); false keeps it at ${shape.total}.`;
 }
 
 /** Where the date stands before its next line, from the transcript so far. */
@@ -141,7 +144,7 @@ export function moveProblem(
   if (!reply.move || (shape.pending && reply.accept === true)) return null;
   if (shape.movesLeft === 0) return agent ? 'no more moving tonight: the rest of the date happens here, so leave "move" empty' : null;
   const to = proposed(reply, names);
-  if (!to) return 'say where in a few words ("move": a place, like "the night market" or "my place")';
+  if (!to) return `say where in a few words, ${PLACE_LABEL_MAX} characters at most ("move": a place, like "the night market" or "my place")`;
   if (to === shape.place) return agent ? `you're already at ${venuePhrase(to)}: leave "move" empty` : null;
   if (!voiced(dialogue, reply.move, to, names)) return agent ? `your line doesn't suggest going to ${venuePhrase(to)}: say it in the line, or leave "move" empty` : null;
   if (isHome(to) && !shape.homeOk) return "it's too early to go back to one of your places: get to know each other here first, then suggest it, or go somewhere out";
