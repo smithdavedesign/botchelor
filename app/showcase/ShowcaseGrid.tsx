@@ -19,9 +19,11 @@ const tileSrc = (p: Post) => `${src(p)}?size=tile`;
  * muted, looping: on hover or focus, or on a touch screen while mostly in view; never while still blurred), and a tap
  * opens one large with who made it, who's in it, what it shows, how it was made (the model
  * and prompt, MadeWith), and the ones either side
- * (← → and Esc). An explicit one (admins only for now) stays blurred until it's tapped.
+ * (← → and Esc). An explicit one (admins only for now) stays blurred until it's tapped. A clip's tile shows the picture
+ * it was filmed from, or its first frame, never an empty box. `reels`: the filters as a query, so "Watch full screen
+ * from here" opens the reels at this post with the same filters.
  */
-export default function ShowcaseGrid({ posts, admin = false }: { posts: Post[]; admin?: boolean }) {
+export default function ShowcaseGrid({ posts, admin = false, reels = "" }: { posts: Post[]; admin?: boolean; reels?: string }) {
   const [open, setOpen] = useState<number | null>(null);
   const [shown, setShown] = useState<Set<string>>(new Set());
   const close = useCallback(() => setOpen(null), []);
@@ -65,7 +67,9 @@ export default function ShowcaseGrid({ posts, admin = false }: { posts: Post[]; 
       <video
         ref={big ? undefined : (el) => void (el ? clips.current.set(p.id, el) : clips.current.delete(p.id))}
         data-veiled={veiled ? "1" : undefined}
-        src={src(p)}
+        // A tile with no still of its own shows its first frame (a media fragment: browsers draw that frame on load).
+        src={big || p.poster ? src(p) : `${src(p)}#t=0.1`}
+        poster={!big && p.poster ? tileSrc(p) : undefined}
         muted
         loop
         playsInline
@@ -135,7 +139,7 @@ export default function ShowcaseGrid({ posts, admin = false }: { posts: Post[]; 
               <p className="muted small">{[p.act ? actLabel(p.act) : "", p.place ? placeLabel(p.place) : "", p.pov ? "First person" : "", p.from_date ? "From a date" : "From the Studio"].filter(Boolean).join(" · ")}</p>
               <MadeWith postId={p.id} />
               <p className="small">
-                <Link href={`/showcase/reels?start=${encodeURIComponent(p.id)}${p.rating === "nsfw" ? "&side=after_dark" : ""}`}>▶ Watch as reels from here</Link>
+                <Link href={`/showcase/reels?start=${encodeURIComponent(p.id)}${reels ? `&${reels}` : p.rating === "nsfw" ? "&side=after_dark" : ""}`}>▶ Watch full screen from here</Link>
               </p>
               {admin && <AdminSide key={`side-${p.id}`} post={p} />}
               <RemixButton key={`remix-${p.id}`} post={p} />

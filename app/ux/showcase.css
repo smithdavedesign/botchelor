@@ -6,6 +6,8 @@
    never a transform: a transform would make this box the viewer's frame, and the full-screen viewer would sit inside it. */
 .showcase-page {
   width: min(1200px, calc(100vw - 2rem));
+  /* main's reading-column cap (736px) would win over the width above. */
+  max-width: none;
   margin-left: calc(50% - min(600px, 50vw - 1rem));
   padding: var(--space-2) 0 var(--space-4);
 }
@@ -14,32 +16,49 @@
   gap: var(--space-2);
   margin: var(--space-3) 0 var(--space-4);
 }
-.showcase-row {
+/* The sort and the type, side by side (ShowcaseBrowser.tsx); each a bar like the sides'. */
+.showcase-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.showcase-bar .showcase-sides {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+/* The rest as dropdowns, in a row that wraps. */
+.showcase-selects {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
-.showcase-row-label {
-  min-width: 5.5rem;
-  color: var(--muted);
-  font-size: var(--text-xs);
+.showcase-select select {
+  --control-h: var(--control-h-sm);
+  width: auto;
+  max-width: 14rem;
+  margin-top: 0;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+  font-size: var(--text-sm);
 }
-a.showcase-chip {
+/* On a phone, two dropdowns a row, each as wide as its half. */
+@media (max-width: 720px) {
+  .showcase-select {
+    flex: 1 1 calc(50% - var(--space-2));
+    min-width: 0;
+  }
+  .showcase-select select {
+    width: 100%;
+    max-width: none;
+  }
+}
+.showcase-check {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: 0.3rem 0.75rem;
-  border: 1.5px solid var(--line);
-  background: transparent;
-  text-decoration: none;
-}
-a.showcase-chip:hover {
-  border-color: var(--accent);
-}
-a.showcase-chip.chip-on {
-  border-color: var(--accent);
-  background: var(--soft);
+  font-size: var(--text-sm);
 }
 .showcase-count {
   color: var(--muted);
@@ -48,6 +67,7 @@ a.showcase-chip.chip-on {
 /* The two sides (lib/showcase.ts sideOf): safe for work, the default, and After Dark, by each post's rating. */
 .showcase-sides {
   display: inline-flex;
+  white-space: nowrap;
   justify-self: start;
   border: 1.5px solid var(--line);
   border-radius: 999px;
