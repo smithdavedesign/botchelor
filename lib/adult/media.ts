@@ -584,7 +584,13 @@ export type PortraitEdit = (prompt: string, url: string) => ReturnType<FaceEdit>
  * face differs from his theater portrait"): the configured keyframe editor, on the site's own portrait URL. Null when no
  * editor key is set, so the baseline is drawn from words as before.
  */
+let portraitBaselines = true;
+/** Tests of the picture providers themselves (fallback, Replicate, chapter pictures) draw baselines from words, as before. */
+export function setPortraitBaselinesForTests(on: boolean | null): void {
+  portraitBaselines = on ?? true;
+}
 async function defaultPortraitEdit(db: Db): Promise<PortraitEdit | null> {
+  if (!portraitBaselines) return null;
   const keys = await adultKeys(db).catch(() => null);
   if (!keys?.venice && !keys?.replicate) return null;
   const { urlEdit } = await import("./reels");

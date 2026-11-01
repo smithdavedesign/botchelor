@@ -6,7 +6,7 @@ import { autoPictureKey, autoPicturesSettled, RETRY_AFTER_MS, setAutoPictureCloc
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { runAdultTool } from "@/lib/adult/mcp";
 import { observeNight } from "@/lib/adult/observer";
-import { setMediaFetchForTests, VENICE_IMAGE } from "@/lib/adult/media";
+import { setMediaFetchForTests, setPortraitBaselinesForTests, VENICE_IMAGE } from "@/lib/adult/media";
 import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { quoteOverlap, quotesKept, saysQuote, steerQuotes, withoutQuotes } from "@/lib/adult/quotes";
@@ -322,6 +322,8 @@ afterAll(async () => {
   await t.close();
 });
 beforeEach(async () => {
+  // These test the words-drawn pictures and their providers; a portrait-edited baseline (#1158) has its own test.
+  setPortraitBaselinesForTests(false);
   // No picture call ever leaves the test: a scene picture's edit fails unless a test stubs it (fakeMedia).
   setReelFetchForTests(async () => new Response("no", { status: 500 }));
   setReelPausesForTests(false);
@@ -336,6 +338,7 @@ beforeEach(async () => {
   setSetsFetchForTests(async () => new Response("no", { status: 500 }));
 });
 afterEach(async () => {
+  setPortraitBaselinesForTests(null);
   setReelFetchForTests(null);
   setReelPausesForTests(true);
   await autoPicturesSettled();
