@@ -1319,7 +1319,11 @@ async function waitForEpisode(db: Db, args: Record<string, unknown>, session: Se
     const row = (await db.query<{ status: string; age: number }>(`select status, extract(epoch from now() - created_at)::int as age from episodes where id = $1`, [id])).rows[0];
     if (!row || row.status !== "generating") {
       const out = await episodeData(db, args, session);
-      return "data" in out && out.data ? { ...out, data: { ...out.data, ...waitReport(plan, first ? "at_start" : "new") } } : out;
+      // #1175: a wait here is for the writing, not the airing; a written date that hasn't aired says what waits for that.
+      const unaired = "data" in out && out.data?.aired === false && row?.status === "ready";
+      const airsAt = "data" in out && typeof out.data?.airs_at === "string" ? ` (airs_at ${out.data.airs_at})` : "";
+      const note = unaired ? { wait_note: `It's written and hasn't aired yet${airsAt}: this wait is for the writing, so it returned. my_status with wait_seconds wakes when it airs (date_aired).` } : {};
+      return "data" in out && out.data ? { ...out, data: { ...out.data, ...waitReport(plan, first ? "at_start" : "new"), ...note } } : out;
     }
     const wake = who ? await yourMoveWake(db, who.id, from) : null;
     if (wake) {
@@ -1744,6 +1748,10 @@ async function statusNews(
   let look = callStart;
   while (plan.ms && !fresh.length && !wake && Date.now() - plan.started < plan.ms) {
     await pause(plan);
+    // #1175 (the 2026-10-31-2052 run: a wait timed out while the agent's unlisted date came due, and date_aired came on
+    // the next call): due dates air on every call's start (callTool), so a wait already running sweeps them on each poll
+    // too, and the notice it writes wakes this wait.
+    await airDueDates(db, null, 5).catch(() => []);
     look = await dbNow(db);
     fresh = await freshSince(after);
     if (!fresh.length) fresh = await ownMoves(after);
