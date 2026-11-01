@@ -72,7 +72,7 @@ export default function JobCard({ card, providers, also }: { card: JobCardView; 
     >
       <div className="connection-actions">
         {card.state === "unset" ? (
-          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          <button type="button" className="secondary" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
             {open ? "Cancel" : card.reusable.length ? "Connect a key" : "Connect"}
           </button>
         ) : (

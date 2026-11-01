@@ -29,7 +29,7 @@ export default function ThreadPreview({
     <section className="card thread-preview" id="texts" aria-labelledby="texts-title">
       <div className="section-head">
         <h2 id="texts-title">Their texts</h2>
-        <Link className="button small" href={thread}>
+        <Link className="button secondary small" href={thread}>
           💬 Open the thread
         </Link>
       </div>

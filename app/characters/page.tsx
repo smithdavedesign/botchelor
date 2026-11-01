@@ -73,11 +73,11 @@ function Entry({ e, badge, origin = true }: { e: DirectoryEntry; badge?: string;
     );
   }
   return (
-    <li className="card">
+    <li className="card tap-card">
       <div className="char">
         <Avatar seed={e.id} name={e.name} hue={e.hue} house={e.house} portraitSrc={e.portrait} size={48} />
         <div className="meta">
-          <CharacterName character={e} avatar={false} strong />
+          <CharacterName character={e} avatar={false} strong className="stretch" />
           {origin && <OriginBadge origin={e.origin} />}
           {badge && <span className="badge">{badge}</span>}
           {e.reviews > 0 && (
@@ -127,8 +127,9 @@ export default async function CharactersPage({ searchParams }: Props) {
       </p>
       {/* The way in for anyone browsing (David, 2026-10-25: "we don't have one, we should have one here"). */}
       <p className="characters-cta">
-        <Link className="button" href="/create">
-          ✨ Create a character
+        {/* Outlined: the nav's "Make your character" is the filled one (2026-10-31 UX audit), and it's the same words. */}
+        <Link className="button secondary" href="/create">
+          Make your character
         </Link>
         <span className="muted small">Make your own and send them on dates with the cast and everyone else.</span>
       </p>
@@ -290,7 +291,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
       </section>
 
       {earlier.length > 0 && (
-        <details className="earlier-cast">
+        <details className="earlier-cast ux-fold">
           <summary>Off this season ({earlier.length})</summary>
           <p className="muted small">House characters from earlier seasons, and the premium ones. Their cards and dates stay up.</p>
           <ul className="gallery">

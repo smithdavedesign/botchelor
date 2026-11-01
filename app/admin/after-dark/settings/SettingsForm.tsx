@@ -2,11 +2,15 @@
 
 import { useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
+import { mergeSaved } from "@/lib/form-merge";
 import type { HiveState } from "@/lib/adult/hive-limit";
 import type { AdultSettings, VoiceModel } from "@/lib/adult/settings";
 
 /** A number field's value: a number, or null when it's empty (the setting's default, or none). */
 const numberOrNull = (v: string): number | null => (v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+
+/** Each sampling field as typed, and the setting it saves to. */
+const SAMPLING_KEYS = { temperature: "text_temperature", frequency: "frequency_penalty", presence: "presence_penalty", repetition: "repetition_penalty" } as const;
 
 /**
  * The switch, the models and the provider keys. A key field left empty keeps the saved key. `hive`: the safety check's
@@ -14,6 +18,8 @@ const numberOrNull = (v: string): number | null => (v.trim() === "" || !Number.i
  */
 export default function SettingsForm({ initial, hive = null }: { initial: AdultSettings; hive?: HiveState | null }) {
   const [s, setS] = useState(initial);
+  // The server's copy as last loaded or saved: what tells an edit here from what's saved.
+  const [base, setBase] = useState(initial);
   // The sampling fields as typed, so one can be emptied (back to its default) and retyped.
   const samplingOf = (x: AdultSettings) => ({
     temperature: String(x.text_temperature),
@@ -36,13 +42,17 @@ export default function SettingsForm({ initial, hive = null }: { initial: AdultS
     const res = await requestJson("/api/admin/after-dark/settings", patch).catch(() => null);
     setBusy(false);
     if (!res?.ok) return setNote({ text: res?.message ?? "Couldn't save that.", error: true });
-    setS(res.data.settings as AdultSettings);
-    setSampling(samplingOf(res.data.settings as AdultSettings));
-    setOrKey("");
-    setFalKey("");
-    setHiveKey("");
-    setVeniceKey("");
-    setReplicateKey("");
+    const saved = res.data.settings as AdultSettings;
+    const sent = (k: string) => k in patch;
+    setS((cur) => mergeSaved(cur, base, saved, sent));
+    setSampling((cur) => mergeSaved(cur, samplingOf(base), samplingOf(saved), (f) => sent(SAMPLING_KEYS[f as keyof typeof SAMPLING_KEYS])));
+    setBase(saved);
+    // A key typed and not saved stays in its field too.
+    if (sent("openrouter_key")) setOrKey("");
+    if (sent("fal_key")) setFalKey("");
+    if (sent("hive_key")) setHiveKey("");
+    if (sent("venice_key")) setVeniceKey("");
+    if (sent("replicate_key")) setReplicateKey("");
     setNote({ text: "Saved." });
   }
 

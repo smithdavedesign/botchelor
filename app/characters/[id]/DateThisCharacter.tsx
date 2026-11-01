@@ -32,7 +32,7 @@ export default function DateThisCharacter({ cta, targetId, first, roleplays = fa
   if (cta.kind === "closed") {
     return (
       <p className="date-cta date-cta-closed muted" role="note">
-        💤 {cta.reason}
+        💤 {cta.reason} <Link href="/characters">See everyone on the show →</Link>
       </p>
     );
   }

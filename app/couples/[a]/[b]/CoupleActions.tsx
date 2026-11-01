@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 import type { ArcQuestion } from "@/lib/arcs";
 import { POINTS_PER_ARC } from "@/lib/rules";
@@ -18,8 +18,8 @@ export function FollowButton({ pair, following, followers }: { pair: [string, st
   }
   return (
     <p className="couple-follow action-hint">
-      <button type="button" className={following ? "button-ghost" : "primary"} onClick={toggle} disabled={busy} aria-pressed={following}>
-        {following ? "Following ✓" : "Follow this couple"}
+      <button type="button" className={following ? "button-ghost" : "secondary"} onClick={toggle} disabled={busy} aria-pressed={following}>
+        {following ? "Following ✓" : "🔔 Follow this couple"}
       </button>{" "}
       <span className="muted small">
         {followers === 1 ? "1 follower" : `${followers} followers`} · hear when they go on another date
@@ -61,10 +61,11 @@ export function ArcCard({ pair, names, q }: { pair: [string, string]; names: str
         </p>
       ) : q.can_predict ? (
         <p>
-          <button type="button" className="primary" onClick={() => call("yes")} disabled={busy}>
+          {/* The same weight for both answers: a filled Yes nudged the call. */}
+          <button type="button" className="secondary" onClick={() => call("yes")} disabled={busy}>
             Yes, they will
           </button>{" "}
-          <button type="button" className="button-ghost" onClick={() => call("no")} disabled={busy}>
+          <button type="button" className="secondary" onClick={() => call("no")} disabled={busy}>
             No, they won&apos;t
           </button>
         </p>
@@ -88,9 +89,11 @@ export function ArcCard({ pair, names, q }: { pair: [string, string]; names: str
   );
 }
 
-/** Copy the couple page's link (or share it, where the browser can). */
+/** Copy a page's link (or share it, where the browser can: then it says Share). A couple's, a character's. */
 export function CopyLink({ path, title }: { path: string; title: string }) {
   const [done, setDone] = useState(false);
+  const [canShare, setCanShare] = useState(false);
+  useEffect(() => setCanShare(typeof navigator.share === "function"), []);
   async function share() {
     const url = new URL(path, window.location.origin).toString();
     if (navigator.share) {
@@ -102,7 +105,7 @@ export function CopyLink({ path, title }: { path: string; title: string }) {
   }
   return (
     <button type="button" className="link-button" onClick={() => void share()}>
-      {done ? "Link copied ✓" : "Copy link"}
+      {done ? "Link copied ✓" : canShare ? "🔗 Share" : "🔗 Copy link"}
     </button>
   );
 }

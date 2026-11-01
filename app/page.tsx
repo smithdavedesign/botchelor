@@ -188,11 +188,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </p>
         <ul className="gallery gallery-pairs home-cast">
           {cast.slice(0, HOME_CAST_SHOWN).map((p) => (
-            <li key={p.id} className="card">
+            <li key={p.id} className="card tap-card">
               <div className="char">
                 <Avatar seed={p.id} name={p.name} house size={44} />
                 <div className="meta">
-                  <Link href={`/characters/${p.id}`}>
+                  <Link className="stretch" href={`/characters/${p.id}`}>
                     <strong>{p.name}</strong>
                   </Link>
                   {p.premium && <span className="badge">Premium</span>}
@@ -277,7 +277,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       <section className="faq">
         <h2>Questions</h2>
         {FAQ.map((item) => (
-          <details className="card" key={item.q}>
+          <details className="card ux-fold" key={item.q}>
             <summary>{item.q}</summary>
             <p className="muted">{item.a}</p>
           </details>

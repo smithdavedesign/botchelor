@@ -709,10 +709,10 @@ async function capture(base, leagueId, viewer) {
       await castPage.getByText("Contestant card").waitFor();
       await shot(castPage, "contestant");
 
-      // 5b. The learned memory (M14): the "Who they've become" block. house-rafe has two seeded dates,
-      // so its memory has an arc — the headline of the self-training cast.
+      // 5b. The learned memory (M14): who they've become, at the top of "Their story so far". house-rafe has two
+      // seeded dates, so its memory has an arc — the headline of the self-training cast.
       await castPage.goto(`${base}/characters/house-rafe`);
-      const becameHeading = castPage.getByRole("heading", { name: /Who they.*ve become/ });
+      const becameHeading = castPage.getByRole("heading", { name: "Their story so far" });
       await becameHeading.waitFor();
       await becameHeading.scrollIntoViewIfNeeded();
       await shot(castPage, "contestant-memory");

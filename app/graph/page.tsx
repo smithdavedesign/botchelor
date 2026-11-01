@@ -132,9 +132,10 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
                   {b.private ? <PrivateName name={b.name} /> : <CharacterName character={b} strong />}
                 </li>
               ) : (
-                <li key={`${e.a_id}~${e.b_id}`} className="card graph-row">
-                  {/* One link to the couple: only the names underline, and each name keeps its face when the row wraps. */}
-                  <Link className="pair-link" href={`/couples/${e.a_id}/${e.b_id}`}>
+                <li key={`${e.a_id}~${e.b_id}`} className="card graph-row tap-card">
+                  {/* One link to the couple, over the whole row: only the names underline, and each name keeps its face
+                      when the row wraps. */}
+                  <Link className="pair-link stretch" href={`/couples/${e.a_id}/${e.b_id}`}>
                     <CharacterName character={a} link={false} strong />
                     <span className="pair-x">×</span>
                     <CharacterName character={b} link={false} strong />
@@ -202,7 +203,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         <h2>What the network doesn&apos;t know yet</h2>
         <p className="muted small">The constellation draws everything the show records publicly. These are the edges it can&apos;t draw — yet.</p>
         {/* Folded (UX audit 2026-10-23): six long bullets, ~650px on a phone, for the few who want the caveats. */}
-        <details className="constellation-missing-details">
+        <details className="constellation-missing-details ux-fold">
           <summary>Why some edges are missing</summary>
         <ul>
           <li>

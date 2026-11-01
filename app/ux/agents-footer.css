@@ -1,6 +1,8 @@
 /* UX audit 2026-10-23: agents-footer. Loaded after globals.css (app/layout.tsx). */
 
-/* ---------------- shared: a folded section whose summary carries a chevron (agents groups, footer, account keys…) ---------------- */
+/* ---------------- shared: a folded section whose summary carries a chevron (agents groups, footer, account keys…) ----------------
+   `.ux-fold` on any <details> gives it this one look: the label left, a ⌄ right that turns when it's open (2026-10-31
+   UX audit: summaries styled display:flex had lost their marker and looked like plain text). */
 .agents-group > summary,
 .agents-fair > summary,
 .agents-tool > summary,

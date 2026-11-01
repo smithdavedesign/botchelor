@@ -66,40 +66,41 @@ export default function MixerJoin({ characterId, first }: { characterId: string;
   const m = status.mixer;
   // The last night this character went to (within two days): its own date from it, so the result isn't only in a notice.
   const last = status.recent?.find((r) => r.character_id === characterId);
+  // A row, not a sentence with a button in it (2026-10-31 UX audit): what it is, where it stands, then the one button.
   return (
-    <p className="notice mixer-join">
-      {last && (
-        <>
-          🍸 {first}&apos;s last mixer: <Link href={`/episodes/${last.episode_id}`}>watch their date</Link> ·{" "}
-          <Link href={`/characters/${characterId}/relationships#met-title`}>who they met</Link>
-          <br />
-        </>
-      )}
-      🍸{" "}
-      {m ? (
-        <>
-          Tonight&apos;s mixer: {m.venue.charAt(0).toLowerCase() + m.venue.slice(1)}, {m.singles}/{status.max} singles in
-          {m.singles >= status.min ? " · runs within the hour" : ` · runs once ${status.min} are in`}.{" "}
-        </>
-      ) : (
-        <>No mixer open yet: joining opens tonight&apos;s. </>
-      )}
+    <section className="card invite-row mixer-join" aria-label="Tonight's mixer">
+      <span className="invite-row-icon" aria-hidden="true">
+        🍸
+      </span>
+      <div className="invite-row-text">
+        <strong>Tonight&apos;s mixer</strong>
+        <span className="muted small">
+          {m
+            ? `${m.venue} · ${m.singles}/${status.max} singles in · ${m.singles >= status.min ? "runs within the hour" : `runs once ${status.min} are in`}`
+            : `None open yet: putting ${first} in opens tonight's`}
+        </span>
+        <span className="muted small">Six lines with each of two singles, for one of your dates. They&apos;ll remember each other.</span>
+        {last && (
+          <span className="small">
+            {first}&apos;s last one: <Link href={`/episodes/${last.episode_id}`}>watch their date</Link> ·{" "}
+            <Link href={`/characters/${characterId}/relationships#met-title`}>who they met</Link>
+          </span>
+        )}
+        {note && (
+          <span className="muted small" role="status">
+            {note} {shop && <Link href="/shop">Get dates</Link>}
+          </span>
+        )}
+      </div>
       {inIt ? (
-        <button type="button" className="small" onClick={() => void act("leave")} disabled={busy}>
+        <button type="button" className="button-ghost small" onClick={() => void act("leave")} disabled={busy}>
           Take {first} out
         </button>
       ) : (
-        <button type="button" className="small primary" onClick={() => void act("join")} disabled={busy || (m ? m.singles >= status.max : false)}>
+        <button type="button" className="secondary small" onClick={() => void act("join")} disabled={busy || (m ? m.singles >= status.max : false)}>
           {busy ? "…" : `Put ${first} in`}
         </button>
       )}
-      <span className="muted"> Six lines with each of two singles; one of your dates when it runs. Everyone there joins {first}&apos;s memory.</span>
-      {note && (
-        <span className="muted" role="status">
-          {" "}
-          {note} {shop && <Link href="/shop">Get dates</Link>}
-        </span>
-      )}
-    </p>
+    </section>
   );
 }
