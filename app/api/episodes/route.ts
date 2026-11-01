@@ -50,6 +50,7 @@ import { useNudges } from "@/lib/between-dates";
 import { notify, notifyDateBooked, resolvePairNotices } from "@/lib/notifications";
 import { buildDate, type CharacterForDate, type DateRequest } from "@/lib/simulation";
 import { groupBookingFor, markNightBooked, type GroupBooking } from "@/lib/group-dates";
+import { HOUSE_BOOKER, isHouseRequest } from "@/lib/house-booker";
 import { type CharacterSheet } from "@/lib/showrunner";
 
 // The request itself is instant (the engine, no model). Generation runs in after(), which keeps the
@@ -220,9 +221,15 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
 
   const db = await getDb();
 
+  // The house books a season-cast filler's mixer rotation itself (lib/house-booker.ts): only on a request the mixer run
+  // built in-process, only for a house character, and only as one of a night's tables (groupBookingFor then checks the
+  // rotation is the house's and house-paid). Anyone else books only their own, never a house character.
+  const asHouse = sess.userId === HOUSE_BOOKER && isHouseRequest(req) && Boolean(input.group_night);
   const own = (
     await db.query<CharacterRow>(
-      `select ${CHARACTER_COLUMNS} from characters c where c.id = $1 and c.owner_id = $2 and not c.is_house`,
+      asHouse
+        ? `select ${CHARACTER_COLUMNS} from characters c where c.id = $1 and c.is_house and $2::text is not null`
+        : `select ${CHARACTER_COLUMNS} from characters c where c.id = $1 and c.owner_id = $2 and not c.is_house`,
       [input.character_id, sess.userId],
     )
   ).rows[0];
@@ -620,7 +627,9 @@ async function writeAndSave(
   if (input.proposal_id) {
     const proposal = await acceptableProposal(db, sess.userId, input.proposal_id, own.id, partner.id);
     if (proposal) await markAccepted(db, proposal, episodeId);
-  } else if (!secondDate) {
+  } else if (!secondDate && !group?.partnerIsFiller && !group?.housePaid) {
+    // A mixer's house fillers (lib/mixer-fill.ts) get no mixer notices (the house's scripts aren't waiting on one), and a
+    // rotation the house booked isn't news from "another creator": the night's wrap tells its people.
     // #563: the other character's owner hears of it, private dates included (a second date has its own notice above, an
     // accepted proposal tells its proposer: date_accepted). House characters have no owner; the booker isn't told of their own.
     await notifyDateBooked(db, {
