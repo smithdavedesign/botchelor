@@ -817,10 +817,24 @@ details.recap-toggle[open] .recap-toggle-hide {
   background: var(--card);
   box-shadow: var(--shadow);
 }
+/* Closed, the small print takes no room: laid out off to the right, it widened a phone's page to 426px. */
+.info-tip:not([open]) > .info-tip-body {
+  display: none;
+}
+/* The audience card's ⓘ opens across the card, so a phone's narrow screen never cuts it off. */
 .audience-head {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 2px;
+}
+.audience-head .info-tip {
+  position: static;
+}
+.audience-head .info-tip-body {
+  left: 0;
+  right: 0;
+  width: auto;
 }
 .audience-head h2 {
   margin: 0;
