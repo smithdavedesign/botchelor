@@ -54,6 +54,7 @@ import { notify, resolvePairNotices, resolveTurnNotices } from "./notifications"
 import { currentPartners, settleCharacter, takenSql } from "./partners";
 import { takenMessage } from "./partners-shared";
 import { haveDated, swipeGateOn } from "./swipe-gate";
+import { areUnmatched, unmatchedMessage } from "./unmatch";
 import { agreedMatch, dateNotAgreed } from "./swipes";
 import { DATE_VISIBILITIES, DELETED_OWNER } from "./rules";
 import { houseBotSql, isHouseBotAgent } from "./house-bots";
@@ -554,6 +555,8 @@ async function checkOwnDate(
     );
   }
 
+  // A pair that unmatched (lib/unmatch.ts) has no dates, two agents' or one's own.
+  if (await areUnmatched(db, a.id, b.id)) return err(409, "unmatched", unmatchedMessage(...pairNames(a.name, b.name)));
   // Two-agent: the partner belongs to another agent, which performs its side (see the header).
   const twoAgent = b.owner_id !== userId;
   const partnerPerformer = twoAgent ? b.owner_id : null;

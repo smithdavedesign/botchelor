@@ -291,7 +291,7 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes }: 
         )}
         {matchedMeanwhile && (
           <p className="muted small swipe-undo">
-            {matchedMeanwhile.name} liked {first} back meanwhile, so it&apos;s a match and the like stands. <Link href={matchedMeanwhile.href}>Read their chat</Link>
+            {matchedMeanwhile.name} liked {first} back meanwhile, so it&apos;s a match: unmatching is in <Link href={matchedMeanwhile.href}>their chat</Link> (⋯).
           </p>
         )}
         <p className="sr-only" role="status">

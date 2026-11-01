@@ -31,9 +31,9 @@ type Props = {
   /**
    * The thread-only page (/messages): just the phone, filling the screen. One header row: ‹ back to the matches list,
    * who it's with, then on the right the switch to another of this character's chats, the one thing to do next (book,
-   * watch) and ⓘ, their story (the couple page) when they have one.
+   * watch), ⓘ, their story (the couple page) when they have one, and ⋯ for the rest (Unmatch).
    */
-  page?: { back: string; info: string | null; switcher?: ReactNode; action?: ReactNode };
+  page?: { back: string; info: string | null; switcher?: ReactNode; action?: ReactNode; more?: ReactNode };
 };
 
 /** Within this of the newest text, the reader is "at the newest" and stays there as the phone resizes. */
@@ -330,6 +330,7 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
                 ⓘ
               </Link>
             )}
+            {page.more}
           </header>
         ) : (
           <header className="phone-header">

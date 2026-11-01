@@ -11652,6 +11652,10 @@ button.pg-group-head:hover {
 .double-group > p {
   flex: 1 0 100%;
 }
+/* ⋯ Unmatch on the thread (app/messages/[a]/[b]/Unmatch.tsx) opens the same panel; its button is red, as it's for good. */
+.double-panel button.danger {
+  color: var(--bad-text);
+}
 
 /* "Date my OC" links (lib/date-invites.ts): the invite page's character card, and the owner's share line. */
 .date-link-card {

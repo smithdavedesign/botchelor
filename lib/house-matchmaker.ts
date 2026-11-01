@@ -94,8 +94,8 @@ export async function dailyMatchmakerPicks(db: Db, now: Date = new Date(), limit
   pairs.sort((x, y) => y.mutual - x.mutual);
   if (!pairs.length) return 0;
 
-  // Never the same pair twice, never a pair that already matched in the deck, one pick per character a day, and
-  // no pick between two house-run bots.
+  // Never the same pair twice, never a pair that already matched in the deck or unmatched (lib/unmatch.ts), one pick
+  // per character a day, and no pick between two house-run bots.
   const bots = await houseBotCharacterIds(db, [...new Set(pairs.flatMap((p) => [p.lo.id, p.hi.id]))]);
   const used = new Set<string>();
   let made = 0;
@@ -106,7 +106,9 @@ export async function dailyMatchmakerPicks(db: Db, now: Date = new Date(), limit
     const already = await db.query(
       `select 1 from matchmaker_picks where character_lo = $1 and character_hi = $2
        union all
-       select 1 from matches where character_lo = $1 and character_hi = $2`,
+       select 1 from matches where character_lo = $1 and character_hi = $2
+       union all
+       select 1 from unmatches where character_lo = $1 and character_hi = $2`,
       [p.lo.id, p.hi.id],
     );
     if (already.rows.length) continue;

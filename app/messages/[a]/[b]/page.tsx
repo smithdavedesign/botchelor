@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import TextPhone from "@/app/couples/[a]/[b]/TextPhone";
@@ -10,8 +11,11 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { listThreads, loadThread, markPairNoticesRead, markTextsRead } from "@/lib/inbox";
 import { shortName } from "@/lib/names";
 import { pairKey } from "@/lib/relationships";
+import { haveDated } from "@/lib/swipe-gate";
+import { unmatchedFor } from "@/lib/unmatch";
 import ThreadNext from "./ThreadNext";
 import ThreadSwitcher from "./ThreadSwitcher";
+import Unmatch from "./Unmatch";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +37,7 @@ const refOf = (c: PublicCharacter): CharacterRef => ({
 /**
  * A thread and nothing else (David, 2026-10-18): the two characters' texts on a phone that fills the screen, opened
  * from Matches. Owners only; the couple page (ⓘ) keeps their dates, arc and plans. `?as=` says whose phone it is
- * when the viewer owns both.
+ * when the viewer owns both. A match that hasn't dated yet can be ended here (⋯, Unmatch; lib/unmatch.ts).
  */
 export default async function MessagesPage({ params, searchParams }: Props) {
   const { a, b } = await params;
@@ -42,6 +46,24 @@ export default async function MessagesPage({ params, searchParams }: Props) {
   if (a !== lo) permanentRedirect(`/messages/${lo}/${hi}${as ? `?as=${encodeURIComponent(as)}` : ""}`);
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
+  // A pair that unmatched: their chat has ended for both owners, so an old link (a notification, history) says so.
+  const ended = await unmatchedFor(db, viewerId, lo, hi, as);
+  if (ended) {
+    const [x, y] = ended.names;
+    return (
+      <article className="matches-page">
+        <h1>Messages</h1>
+        <section className="card">
+          <p>
+            💔 {x} and {y} unmatched, so their chat has ended: they don&apos;t text, go on dates or meet in the deck again.
+          </p>
+          <Link className="button" href={`/matches?character=${encodeURIComponent(ended.self)}`}>
+            Back to {x}&apos;s matches
+          </Link>
+        </section>
+      </article>
+    );
+  }
   const t = await loadThread(db, viewerId, lo, hi);
   if (!t || !viewerId) notFound();
   const self = as && t.mine.includes(as) ? as : t.mine[0];
@@ -49,7 +71,7 @@ export default async function MessagesPage({ params, searchParams }: Props) {
   await Promise.all([markTextsRead(db, viewerId, lo, hi), markPairNoticesRead(db, viewerId, lo, hi, ["matched"])]);
   const me = self === lo ? t.ca : t.cb;
   const them = self === lo ? t.cb : t.ca;
-  const [inbox, next] = await Promise.all([listThreads(db, viewerId, self), t.nextFor(self)]);
+  const [inbox, next, dated] = await Promise.all([listThreads(db, viewerId, self), t.nextFor(self), haveDated(db, lo, hi)]);
   // This character's other chats, newest first, for the switcher (switching characters is back on Matches).
   const here = `/messages/${lo}/${hi}?as=${encodeURIComponent(self)}`;
   const chats = [...(inbox?.conversations ?? []), ...(inbox?.fresh ?? [])].map((c) => ({ href: `${c.link}?as=${encodeURIComponent(self)}`, name: shortName(c.with.name) }));
@@ -59,6 +81,8 @@ export default async function MessagesPage({ params, searchParams }: Props) {
   // While they're deciding, or one said no, the line under the name says so (the action button only shows to act).
   const stage =
     next?.kind === "declined" ? `💔 Not this time: ${shortName((next.by === "you" ? me : them).name)} isn't feeling it` : next?.kind === "waiting" ? "💘 Matched · deciding on a date" : t.stageLabel;
+  // A match that hasn't had a date (nor one being filmed) can unmatch; after a date they're a couple (lib/unmatch.ts).
+  const canUnmatch = Boolean(t.match) && !dated && next?.kind !== "filming";
 
   return (
     <div className="messages-fullscreen">
@@ -91,6 +115,7 @@ export default async function MessagesPage({ params, searchParams }: Props) {
             </>
           ),
           action: <ThreadNext next={next} mineId={me.id} themId={them.id} />,
+          more: canUnmatch ? <Unmatch mineId={me.id} themId={them.id} mineName={shortName(me.name)} themName={shortName(them.name)} back={back} /> : null,
         }}
       />
     </div>

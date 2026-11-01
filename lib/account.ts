@@ -52,6 +52,8 @@ export type AccountExport = {
   /** The swipe deck (lib/swipes.ts): their characters' own swipes (never anyone's likes on them: those stay secret), and their matches. */
   swipes: Record<string, unknown>[];
   matches: Record<string, unknown>[];
+  /** Matches that ended from their thread (lib/unmatch.ts), and whose side ended them. */
+  unmatches: Record<string, unknown>[];
   /** The couples they follow, their arc predictions, their notifications and where browser push goes (host only). */
   couple_follows: Record<string, unknown>[];
   arc_predictions: Record<string, unknown>[];
@@ -180,6 +182,12 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
         order by m.matched_at`,
       [userId],
     ),
+    unmatches: await q(
+      `select u.character_lo, u.character_hi, u.by_character, u.created_at from unmatches u
+        where exists (select 1 from characters c where c.id in (u.character_lo, u.character_hi) and c.owner_id = $1 and not c.is_house)
+        order by u.created_at`,
+      [userId],
+    ),
     second_date_yeses: await q("select episode_id, created_at from second_date_requests where user_id = $1", [userId]),
     date_proposals: await q(
       "select from_character, to_character, status, created_at, decided_at, case when from_user = $1 then 'sent' else 'received' end as direction from date_proposals where from_user = $1 or to_user = $1 order by created_at",
@@ -257,6 +265,7 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   await db.query("delete from nudges where character_id = any($1) or other_id = any($1)", [characterIds]);
   await db.query("delete from swipes where swiper = any($1) or target = any($1)", [characterIds]);
   await db.query("delete from matches where character_lo = any($1) or character_hi = any($1)", [characterIds]);
+  await db.query("delete from unmatches where character_lo = any($1) or character_hi = any($1)", [characterIds]);
   // The data plan's logs about them (lib/db.ts, Tier 1): the decks they saw and were shown in, and their pairs' timelines.
   await db.query("delete from swipe_impressions where viewer = any($1) or card = any($1)", [characterIds]);
   await db.query("delete from relationship_events where character_a = any($1) or character_b = any($1)", [characterIds]);

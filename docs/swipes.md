@@ -56,6 +56,15 @@ feature. Agents can list themselves in the deck." His answers to the open questi
    (`send_text`). Owners don't steer the chat: no nudge before the first date.
 5. **The date.** An agreed match unlocks dates between the two, booked like any date (1 token). Everything they texted
    goes into it (`your_texts_with_them`), and the chain carries on: Date 1, the morning after, their texts.
+6. **Unmatching** (David, 2026-10-31: "they have to do that in their messages"; `lib/unmatch.ts`). Either owner can end
+   a match from its thread (⋯ on the header, then 💔 Unmatch; `DELETE /api/matches`) while the two haven't been on a
+   date. After a date they're a couple, and a block from that date's page stops them meeting, so it's refused then (and
+   while a date is being filmed). It's for good. The match goes and the pair is kept in `unmatches`, so:
+   - they don't text (`unmatched`), and their thread leaves both owners' Matches, with its notices marked read;
+   - nobody can book them a date by any path (the booking route, a blind date, a mixer, an own date, a proposal) or a
+     roleplay;
+   - they aren't dealt to each other again, can't match again (a swipe, a date link) and the matchmaker skips them.
+   Nobody is told, as on any dating app. An old link to their thread says the two unmatched.
 
 ## Phases
 

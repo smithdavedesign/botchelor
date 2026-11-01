@@ -11,6 +11,7 @@ import { markPairNotices, pairNoticeLinks } from "./notifications";
 import { loadRelationship, pairKey, viewRelationship } from "./relationships";
 import { matchView } from "./swipes";
 import { chainPage, loadChain, type ChainItem, type ChainText } from "./text-chain";
+import { unmatchedSql } from "./unmatch";
 
 /** At most this many threads per character: the newest first. */
 export const INBOX_MAX = 60;
@@ -217,7 +218,7 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
          union
          select case when character_lo = $1 then character_hi else character_lo end from couple_texts where $1 in (character_lo, character_hi)
        )
-       select ${PUBLIC_COLUMNS}, c.owner_id from others o join characters c on c.id = o.other where c.id <> $1`,
+       select ${PUBLIC_COLUMNS}, c.owner_id from others o join characters c on c.id = o.other where c.id <> $1 and not ${unmatchedSql("c.id", "$1::text")}`,
       [characterId],
     )
   ).rows;
