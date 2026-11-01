@@ -2118,6 +2118,10 @@ main:has(> .watch) {
 }
 
 .watch-poll .choices,
+/* The ending's call inside the pre-show card (WatchRoom.tsx Predictions compact). */
+.watch-predict.is-compact {
+  margin-top: var(--space-3);
+}
 .watch-predict .choices {
   display: flex;
   flex-wrap: wrap;
@@ -4285,8 +4289,11 @@ button.chat-vote[aria-pressed="true"] .chat-vote-face {
   .theater-convo .chat-thread {
     padding: 0.75rem var(--gutter) 1rem;
   }
-  /* The thread is the main view on a phone, so its toggle has nothing to do. */
-  .theater-icon-wide {
+  /* The thread is the main view on a phone, so its toggle has nothing to do. As specific as the worded-pill rule
+     (.theater-icon:has(.theater-icon-word)), which kept "📜 Story" showing and pushed 📍 off a 390px screen (2026-10-31
+     UX audit). */
+  .theater-icon-wide,
+  .theater-icon.theater-icon-wide {
     display: none;
   }
   .theater-stage.with-convo .theater-verdict {

@@ -316,10 +316,10 @@ async function main() {
         await fpage.locator('input[aria-label="Chat message"]').fill("he is absolutely LYING 😂");
         await fpage.getByRole("button", { name: "Send" }).click();
         await fpage.getByText("he is absolutely LYING").waitFor({ timeout: 10_000 });
-        // Predict the ending from inside the room.
+        // Predict the ending from inside the room (the sidebar's Vote; before the first line the pre-show card has it too).
         await roomTab(fpage, "Vote");
-        await fpage.locator(".watch-predict button.poll-option").first().click();
-        await fpage.getByText(/Locked in:/).waitFor({ timeout: 10_000 });
+        await fpage.locator(".room-panel .watch-predict button.poll-option").first().click();
+        await fpage.locator(".room-panel").getByText(/Locked in:/).waitFor({ timeout: 10_000 });
       } finally {
         await fan.close();
       }
