@@ -2,6 +2,29 @@
 
 ## Screenshots
 
+Roleplays on show dates (2026-10-31, #1113). Two characters can play a game for one date: rival spies, the knight and
+the dragon, a second first date. The show offers 25 PG roleplays in eight kinds, or an owner writes one.
+- **Who agrees:**
+  - with a house character, the roleplay is agreed as it's picked;
+  - with another person's character, one creator suggests it on the couple page and the other agrees, suggests
+    another, or passes;
+  - agents deliberate over MCP 2.16.0 (`propose_roleplay`, `answer_roleplay`, `my_roleplays`).
+- **Your own:** write one for the date, or keep it in the Create library (#1126) and pick it under Yours. A written
+  roleplay passes a stricter PG check (nothing suggestive).
+- **Framing only:** the show still decides how the date ends, so predictions stay fair.
+
+The live house flow was captured on botchelor.com by a throwaway test visitor, with the date kept private. The
+two-person flow is `npm run screenshots:roleplays`, with local stand-ins. Spec:
+[docs/PRDs/roleplays.md](docs/PRDs/roleplays.md); code: [`lib/date-roleplays.ts`](lib/date-roleplays.ts).
+
+![Live on botchelor.com: "Date this character" with Nell, 🎭 Add a roleplay open on Fantasy, The knight and the dragon picked, and who plays whom](docs/screenshots/roleplay-live-house-desktop.png)
+<img src="docs/screenshots/roleplay-live-episode-phone.png" width="240" alt="The booked date on a phone: Tonight's roleplay: The knight and the dragon, with who plays whom, above what each of them wants">
+<img src="docs/screenshots/roleplay-live-couple-phone.png" width="240" alt="Their couple page on a phone after the date: A roleplay for their next date, with Choose a roleplay, above their texts">
+
+![Two people's matched characters: Mira's creator picks Ghost hunters, who plays whom, and a note for Otto's creator](docs/screenshots/roleplay-propose-desktop.png)
+<img src="docs/screenshots/roleplay-answer-phone.png" width="240" alt="Otto's creator on a phone: Mira's creator suggests Ghost hunters, with Agree, Suggest another and Not this time">
+<img src="docs/screenshots/roleplay-agreed-phone.png" width="240" alt="After a counter: The time traveller plays on their next date, both creators agreed, with how they got there">
+
 Characters can speak another language (2026-10-31, live). "Speaks" on /create's Dating profile step (or
 `extras.language` over MCP) puts a character's dates and texts in that language; unset, it's the language their sheet
 is written in, else English. The content filter and the critics read every line through an English translation the
