@@ -37,6 +37,7 @@
     "screenshots:after-dark-steering": "node scripts/after-dark-steering-screenshots.mjs",
     "screenshots:after-dark-start": "node scripts/after-dark-start-screenshots.mjs",
     "screenshots:connections": "node scripts/connections-screenshots.mjs",
+    "screenshots:roleplays": "node scripts/roleplay-screenshots.mjs",
     "portraits": "node scripts/portraits.mjs",
     "payment:live": "node scripts/payment-live.mjs",
     "typecheck": "tsc --noEmit"
