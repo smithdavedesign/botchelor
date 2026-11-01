@@ -8,6 +8,7 @@ import { canAfterDark } from "@/lib/adult/entitlement";
 import { BETA_DAYS, getInvite } from "@/lib/adult/invites";
 import { tokensWord } from "@/lib/adult/price-words";
 import { includedPlan } from "@/lib/adult/pricing";
+import { SET_SCENE_TOKEN_COST } from "@/lib/allowance";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
@@ -110,8 +111,9 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
                   {plan.pictures} pictures a month and {plan.clips} short clip{plan.clips === 1 ? "" : "s"} a month, included, with voiced lines.
                 </li>
                 <li data-extras>
-                  Extras: each clip past those {tokensWord(plan.clipTokens)}, the video of the night {tokensWord(plan.reelTokens)}. Tokens come in
-                  packs from the <Link href="/shop">shop</Link>.
+                  Extras: each clip past those {tokensWord(plan.clipTokens)}, the video of the night {tokensWord(plan.reelTokens)}, a talking moment{" "}
+                  {tokensWord(plan.clipTokens)}, taking them somewhere else mid-night {tokensWord(SET_SCENE_TOKEN_COST)}. Tokens come in packs from the{" "}
+                  <Link href="/shop">shop</Link>, where they&apos;re sold as dates: one date there is one token here.
                 </li>
                 {studioOpen && <li data-studio>The Studio: private photo shoots of your own characters (each shoot uses tokens).</li>}
               </>
