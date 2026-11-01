@@ -283,7 +283,7 @@ export default function SetSceneModal({
                           type="button"
                           className="button-ghost small"
                           disabled={busy}
-                          title="Start the night as this story: tonight's scene is filed under their nights, like Start over"
+                          title="Start the night as this story: tonight's scene is filed under Gallery → Nights, like 🌙 End the night"
                           onClick={async () => {
                             await onScenario(s.scenario!);
                             onClose();

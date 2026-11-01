@@ -233,6 +233,7 @@ export default function AfterDarkTheater({
   onExit,
   pageTabs,
   onPageTab,
+  lastNight = null,
   crisis = null,
   whisperTo = null,
   onWhisperTo,
@@ -321,6 +322,11 @@ export default function AfterDarkTheater({
    */
   pageTabs?: readonly { id: string; label: string }[];
   onPageTab?: (id: string) => void;
+  /**
+   * The night that just ended, while the new one hasn't started (David, 2026-11-01: "once the night is over you can't go
+   * back and make a video of the night"): where it went, to watch again or film.
+   */
+  lastNight?: { label: string; videoTokens: number; canVideo: boolean; onWatch: () => void; onVideo: () => void } | null;
   /** The steer goes to one of them only, as a whisper (lib/adult/director.ts); null: to the scene. Shared with the page. */
   whisperTo?: "a" | "b" | null;
   onWhisperTo?: (who: "a" | "b" | null) => void;
@@ -365,6 +371,11 @@ export default function AfterDarkTheater({
   }, [mediaShape]);
   // Rewind, Redo and Start over fold into "⋯".
   const [tools, setTools] = useState(false);
+  // End the night asks once: the first tap says where its chapters go, the second ends it; the menu closing forgets it.
+  const [ending, setEnding] = useState(false);
+  useEffect(() => {
+    if (!tools) setEnding(false);
+  }, [tools]);
   // #1004 (2026-10-30 prod loop: "the ⋯ menu stays open after I used other controls"): a tap anywhere else closes it.
   useEffect(() => {
     if (!tools) return;
@@ -611,6 +622,18 @@ export default function AfterDarkTheater({
           {waiting && (
             <div className="ad-start-card" role="group" aria-label="Before the night starts">
               <p className="kicker">Tonight</p>
+              {lastNight && (
+                <p className="muted small ad-start-last" data-last-night>
+                  🌙 Your last night ({lastNight.label}) is kept under 🖼 Gallery → Nights.{" "}
+                  <button type="button" className="linklike" onClick={lastNight.onWatch}>
+                    ▶ Watch it
+                  </button>
+                  {" · "}
+                  <button type="button" className="linklike" disabled={!lastNight.canVideo} onClick={lastNight.onVideo}>
+                    🎬 Make its video · {lastNight.videoTokens} tokens
+                  </button>
+                </p>
+              )}
               <p className="ad-start-where">
                 📍{" "}
                 {scene.planned
@@ -808,8 +831,16 @@ export default function AfterDarkTheater({
                   <button type="button" className="button-ghost small" disabled={busy || !steps.canRewind} onClick={() => (setTools(false), steps.onRedo())} title={steps.redoTitle}>
                     ↻ Redo
                   </button>
-                  <button type="button" className="button-ghost small" disabled={busy || !steps.canReset} onClick={() => (setTools(false), steps.onReset())} title="File tonight under their nights and start a new one">
-                    Start over
+                  {/* Ending the night was "Start over", one tap (David, 2026-11-01: "ending the night or date is confusing,
+                      where are the previous 3 chapter nights stored?"): it says what it does, and asks once. */}
+                  <button
+                    type="button"
+                    className={`button-ghost small${ending ? " ad-end-confirm" : ""}`}
+                    disabled={busy || !steps.canReset}
+                    onClick={() => (ending ? (setTools(false), setEnding(false), steps.onReset()) : setEnding(true))}
+                    title="Files tonight's chapters under Gallery → Nights (watch them again or make their video there) and starts a new night"
+                  >
+                    {ending ? "Yes, end it: its chapters go to Gallery → Nights" : "🌙 End the night"}
                   </button>
                   {stageSpeaker && sayable && (
                     <button

@@ -139,3 +139,25 @@ describe("the first evening (the 2026-11-01 After Dark review: tabs hidden in �
     expect(html).not.toContain("ad-start-how");
   });
 });
+
+describe("a night that's over (David, 2026-11-01: \"once the night is over you can't go back and make a video of the night\")", () => {
+  const steps = { canRewind: false, redoTitle: "", canReset: true, onRewind() {}, onRedo() {}, onReset() {} };
+
+  it("the new night's start card says where the last one went, to watch it or make its video", () => {
+    const html = render({ scene: { ...scene, lines: [] }, onWrite: async () => {}, lastNight: { label: "3 chapters", videoTokens: 7, canVideo: true, onWatch() {}, onVideo() {} } });
+    expect(html).toMatch(/data-last-night[^>]*>🌙 Your last night \(3 chapters\) is kept under 🖼 Gallery → Nights\./);
+    expect(html).toMatch(/<button type="button" class="linklike">▶ Watch it<\/button> · <button type="button" class="linklike">🎬 Make its video · 7 tokens<\/button>/);
+  });
+
+  it("a night too short to film says so with the button off; with no ended night there's no line", () => {
+    const short = render({ scene: { ...scene, lines: [] }, onWrite: async () => {}, lastNight: { label: "4 lines", videoTokens: 7, canVideo: false, onWatch() {}, onVideo() {} } });
+    expect(short).toMatch(/<button type="button" class="linklike" disabled="">🎬 Make its video · 7 tokens<\/button>/);
+    expect(render({ scene: { ...scene, lines: [] }, onWrite: async () => {} })).not.toContain("data-last-night");
+  });
+
+  it("⋯ says End the night, not Start over, and where its chapters go", () => {
+    const html = render({ onWrite: async () => {}, steps });
+    expect(html).toMatch(/title="Files tonight&#x27;s chapters under Gallery → Nights[^"]*"[^>]*>🌙 End the night<\/button>/);
+    expect(html).not.toMatch(/>Start over</);
+  });
+});
