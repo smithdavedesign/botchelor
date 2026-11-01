@@ -8,7 +8,7 @@ import { possessiveNames } from "@/lib/adult/craft";
 import { citeMemory, usesFact, type AdultFact, type ShownFact } from "@/lib/adult/facts";
 import { rememberAfterDark } from "@/lib/adult/memory";
 import { setAdultModelForTests } from "@/lib/adult/mode";
-import { actionRepeatOf, buildUpIn, gestureRepeatOf, flaggedHooks, hookAllowance, hooksOf, openingRepeatOf, openingShape, sceneQuality, showsTell, sideOfCharacter, touchesHook, whyIsGeneric } from "@/lib/adult/quality";
+import { actionRepeatOf, buildUpIn, gestureRepeatOf, withoutDanglingCue, flaggedHooks, hookAllowance, hooksOf, openingRepeatOf, openingShape, sceneQuality, showsTell, sideOfCharacter, touchesHook, whyIsGeneric } from "@/lib/adult/quality";
 import { dropRepeats, emptyScene, recapFallback, recapFrom, sceneMessages, writeRecap, writeSceneStep, type SceneLine, type SceneState, type StepInput } from "@/lib/adult/scenes";
 import type { Db } from "@/lib/db";
 import type { CharacterRef } from "@/lib/game";
@@ -318,6 +318,12 @@ describe("(3) repeated actions and openings (lines 36 and 38: the same action; 3
     expect(r.dropped.map((d) => d.reason)).toEqual([]);
   });
 
+  it("#1136: a line left with an action and nothing said after its \u2026 is cut goes; speech that's only \u2026 keeps the action", () => {
+    const r = cut(lines(["a", "\u2026 You'd like that."], ["a", "*leans back* \u2026"], ["b", "*laughs softly* ..."], ["b", "\u2026"], ["a", "*kisses her shoulder*"]));
+    expect(r.kept.map((l) => l.text)).toEqual(["\u2026 You'd like that.", "*laughs softly*", "*kisses her shoulder*"]);
+    expect(r.dropped.map((d) => d.reason)).toEqual(["opens the same way again (a trailing \u2026)", "nothing said (only punctuation)"]);
+  });
+
   it("v1 (no craft guards) keeps them all", () => {
     const written = lines(["b", "Oh god, don't stop. Harder, Dex, harder."], ["a", `${PACE} You feel like home.`]);
     expect(dropRepeats(written, night, night, dex(), lexi()).kept.map((l) => l.text)).toEqual(written.map((l) => l.text));
@@ -471,5 +477,23 @@ describe("(6) possessive set labels ('Lexis bedroom')", () => {
     );
     expect(html).toContain("Lexi&#x27;s bedroom");
     expect(html).not.toContain("Lexis bedroom");
+  });
+});
+
+describe("#1142: a spoken line promised and never given", () => {
+  it("the cue's sentence goes; quoted or said words with a cue stay", () => {
+    expect(withoutDanglingCue("Come here. *She pulls him closer, and then she whispers.*")).toBe("Come here.");
+    expect(withoutDanglingCue("*leans in and murmurs*")).toBe("");
+    expect(withoutDanglingCue("I missed this. And then she whispers.")).toBe("I missed this.");
+    expect(withoutDanglingCue('"Come closer," she whispers.')).toBeNull();
+    expect(withoutDanglingCue("Come closer, she whispers.")).toBeNull();
+    expect(withoutDanglingCue("*She whispers* Stay.")).toBeNull();
+    expect(withoutDanglingCue("You never ask.")).toBeNull();
+  });
+
+  it("dropRepeats trims the cue, and drops a line that was nothing else", () => {
+    const r = dropRepeats(lines(["a", "Stay. *pulls her close, and then he whispers*"], ["b", "*leans in and murmurs*"], ["a", "You never ask."]), [], [], dex(), lexi());
+    expect(r.kept.map((l) => l.text)).toEqual(["Stay.", "You never ask."]);
+    expect(r.dropped).toEqual([expect.objectContaining({ who: "b", reason: "promises a line and says nothing" })]);
   });
 });

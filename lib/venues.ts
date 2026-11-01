@@ -149,6 +149,15 @@ export const venue = (id: PlaceId | string | null | undefined): Venue => {
 
 export const venueName = (id: PlaceId | string | null | undefined): string => venue(id).name;
 
+/**
+ * A venue as a reply should say it: a stored id ("late_night_diner", "elsewhere@the lido") by its name, anything already
+ * a name as it is (#1135: three MCP replies sent the raw id). Null stays null.
+ */
+export function venueShown(v: string | null | undefined): string | null {
+  if (!v) return null;
+  return v.includes("@") || ALL_VENUES.some((x) => x.id === v) ? venueName(v) : v;
+}
+
 /** Where a date is after these lines: the last place they moved to (lib/moves.ts stamps `moved_to`), else where it started. */
 export function placeAt<P extends string>(turns: readonly { moved_to?: P }[], start: P | null): P | null {
   for (let i = turns.length - 1; i >= 0; i--) {

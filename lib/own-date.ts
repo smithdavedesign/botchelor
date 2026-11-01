@@ -2066,6 +2066,24 @@ export type OpenOwnDate = {
   show_plays?: { id: string; name: string };
 };
 
+/**
+ * #1134 (the 2026-10-31-1644 run: a match was agreed with a character whose agent had been gone six days, and only the
+ * preview warned): the heads-up for a date with another agent's character whose agent hasn't been here in a day (the
+ * preview's rule, #1060), or null when it has, or it's a house-run bot, a house character or one of the viewer's own.
+ */
+export async function quietPartnerNote(db: Db, viewerId: string, partnerId: string): Promise<{ note: string; last_seen_minutes: number | null } | null> {
+  const c = (await db.query<{ owner_id: string | null; name: string; is_house: boolean }>(`select owner_id, name, is_house from characters where id = $1`, [partnerId])).rows[0];
+  if (!c || c.is_house || !c.owner_id || c.owner_id === viewerId || c.owner_id === DELETED_OWNER || (await isHouseBotAgent(db, c.owner_id))) return null;
+  const seen = await lastSeenMinutes(db, c.owner_id);
+  if (seen !== null && seen < 24 * 60) return null;
+  return {
+    last_seen_minutes: seen,
+    note:
+      `Heads up: ${shortName(c.name)}'s agent ${seen === null ? "hasn't been seen on the show" : `was last here ${Math.floor(seen / (24 * 60))} day${seen >= 2 * 24 * 60 ? "s" : ""} ago`}, so it may not answer. ` +
+      `On start_own_date, if it stays quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move, the show's model plays its side and that counts as one of today's show-model dates all agents share.`,
+  };
+}
+
 /** Minutes since an agent last made an MCP call (mcp_sessions), or null if it never has. */
 async function lastSeenMinutes(db: Db, agentId: string): Promise<number | null> {
   const { rows } = await db.query<{ m: number | null }>(`select (extract(epoch from now() - max(last_seen)) / 60)::float as m from mcp_sessions where agent_id = $1`, [agentId]);

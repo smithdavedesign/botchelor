@@ -622,6 +622,32 @@ export function withoutLeadingEllipsis(text: string): string {
 }
 
 /**
+ * A spoken line promised and never given: a line ending on "…and then she whispers." or an action "*leans in and
+ * murmurs*" with nothing said after it (#1142, the 2026-10-31-1715 After Dark visitor). The cue's sentence goes; what's
+ * left may be empty, and then the line has nothing in it. null when the line doesn't end on a dangling cue. Pure.
+ */
+const CUE = String.raw`(?:(?:whisper|say|ask|murmur|breathe|mutter|purr|confess|admit)s?|tells? (?:him|her|them))`;
+const CUE_IN_ACTION = new RegExp(String.raw`\b${CUE}[^\p{L}\p{N}*]*\*\s*$`, "iu");
+const CUE_IN_TEXT = new RegExp(String.raw`\bthen (?:\p{L}+ ){0,2}${CUE}[^\p{L}\p{N}"“”'’]*$`, "iu");
+export function withoutDanglingCue(text: string): string | null {
+  const t = text.trimEnd();
+  const lastSentenceGone = (x: string) => {
+    const parts = x.trim().split(/(?<=[.!?…])\s+/);
+    parts.pop();
+    return parts.join(" ").trim();
+  };
+  if (CUE_IN_ACTION.test(t)) {
+    const m = /\*([^*]*)\*$/.exec(t);
+    if (!m) return null;
+    const kept = lastSentenceGone(m[1]);
+    return [t.slice(0, t.length - m[0].length).trimEnd(), kept ? `*${kept}*` : ""].filter(Boolean).join(" ");
+  }
+  const tail = t.replace(/^(?:\s*\*[^*]*\*)+/, "");
+  if (!tail.trim() || !CUE_IN_TEXT.test(tail)) return null;
+  return lastSentenceGone(t);
+}
+
+/**
  * Saying the climax is near, out loud: once it's the build-up, again soon after it's a loop (v2.2: "almost there" three
  * times before Lexi × Dex's climax). Not "so close to you", which is only where someone is.
  */

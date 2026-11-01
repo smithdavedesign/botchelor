@@ -43,8 +43,9 @@ export const COMPACT_STEP: JsonSchema = {
   type: ["boolean", "string"],
   enum: [...COMPACT_STEP_VALUES],
   description:
-    "Left out: after start_own_date's first step, no prompt (write the line from transcript). true: this turn's messages, minus the " +
-    "unchanging system message. \"delta\": no messages (keep each side's conversation: last_lines). false: everything.",
+    // #1133: smallest to largest, since true (lean on my_status) is the larger one here.
+    "Smallest to largest: \"delta\" (no messages; keep each side's conversation: last_lines); left out (after step one, no prompt: " +
+    "write from transcript); true (ADDS this turn's messages, no system message); false (everything).",
 };
 
 /** #485/#490: a dry run on a tool that spends or starts something. */

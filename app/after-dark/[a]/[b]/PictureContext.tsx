@@ -2,11 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
-import type { PictureEdit, PictureFields } from "@/lib/adult/beats";
+import type { PictureEdit, PictureFields, WearingFrom } from "@/lib/adult/beats";
 
 /** The limits the server holds them to (lib/adult/beats.ts PICTURE_FIELD_MAX, SCENE_CUSTOM_MAX): a server module, so not imported. */
 const FIELD_MAX = 300;
 const EXTRA_MAX = 400;
+
+/** Said under "What they're wearing" when the chapter didn't say it (#1142: "Picture this moment invents clothes"). */
+const WEARING_FROM: Partial<Record<WearingFrom, string>> = {
+  looks: "Not said in the story: from their looks. Describe it, or leave it.",
+  guess: "Not said in the story, and they have no outfit picked: a plain guess. Describe it, or leave it.",
+};
 
 const LABELS: { key: keyof PictureFields; label: string; hint: string }[] = [
   { key: "happening", label: "What's happening", hint: "Who's doing what, right now" },
@@ -41,6 +47,7 @@ export default function PictureContext({
   cancelLabel?: string;
 }) {
   const [guess, setGuess] = useState<PictureFields | null>(null);
+  const [wearingFrom, setWearingFrom] = useState<WearingFrom | null>(null);
   const [values, setValues] = useState<PictureFields>({ happening: "", wearing: "", place: "", mood: "" });
   const [extra, setExtra] = useState("");
   const [prompt, setPrompt] = useState<string | null>(null);
@@ -63,10 +70,11 @@ export default function PictureContext({
       setNote(res?.message ?? "Couldn't read this moment. Try again.");
       return;
     }
-    const p = res.data.preview as { fields: PictureFields; edit: PictureEdit | null; prompt: string };
+    const p = res.data.preview as { fields: PictureFields; wearing_from?: WearingFrom; edit: PictureEdit | null; prompt: string };
     setPrompt(p.prompt);
     if (!withEdit) {
       setGuess(p.fields);
+      setWearingFrom(p.wearing_from ?? null);
       // A picture redrawn starts from the changes it was drawn with.
       setValues({ ...p.fields, ...Object.fromEntries(LABELS.filter(({ key }) => p.edit?.[key]).map(({ key }) => [key, p.edit![key]!])) } as PictureFields);
       setExtra(p.edit?.extra ?? "");
@@ -94,6 +102,7 @@ export default function PictureContext({
             disabled={disabled || !guess}
             onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
           />
+          {key === "wearing" && wearingFrom && WEARING_FROM[wearingFrom] && guess && values.wearing.trim() === guess.wearing.trim() && <span className="muted small">{WEARING_FROM[wearingFrom]}</span>}
         </label>
       ))}
       <label className="ad-pc-field">

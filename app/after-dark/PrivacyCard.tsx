@@ -56,13 +56,22 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
     const res = await requestJson("/api/admin/after-dark/privacy", body).catch(() => null);
     setBusy(false);
     if (!res?.ok) {
-      setNote({ text: res?.message ?? "That didn't save. Try again.", error: true });
+      // #1143: a 404 here is a locked device or a signed-out tab, never a missing page: say so, not "Something went wrong".
+      const why = res?.status === 404 ? "That didn't save: this device is locked or signed out of After Dark. Unlock it (or sign in again) and try again." : (res?.message ?? "That didn't save. Try again.");
+      setNote({ text: why, error: true });
       return false;
     }
     setP(res.data.privacy as Privacy);
     setNote({ text: done, error: false });
     router.refresh();
     return true;
+  }
+
+  /** A switch flips at once (#1143: "the blur box did not change its state") and goes back, with why, if the save fails. */
+  async function flip(key: "blur" | "neutral_title", on: boolean, done: string) {
+    const before = p;
+    setP({ ...p, [key]: on });
+    if (!(await save({ [key]: on }, done))) setP(before);
   }
 
   function pinFor(m: PinMode) {
@@ -109,7 +118,7 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
     <details className="card settings ad-privacy">
       <summary>Privacy: {summary}</summary>
       <label className="check">
-        <input type="checkbox" checked={p.blur} disabled={busy} onChange={(e) => void save({ blur: e.target.checked }, e.target.checked ? "Blur on." : "Blur off.")} />
+        <input type="checkbox" checked={p.blur} disabled={busy} onChange={(e) => void flip("blur", e.target.checked, e.target.checked ? "Blur on." : "Blur off.")} />
         <span>
           Blur pictures and videos until I tap them <span className="muted small">(and again when I leave the page)</span>
         </span>
@@ -119,7 +128,7 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
           type="checkbox"
           checked={p.neutral_title}
           disabled={busy}
-          onChange={(e) => void save({ neutral_title: e.target.checked }, e.target.checked ? "Neutral title on." : "Neutral title off.")}
+          onChange={(e) => void flip("neutral_title", e.target.checked, e.target.checked ? "Neutral title on." : "Neutral title off.")}
         />
         <span>
           Neutral tab title <span className="muted small">(just &ldquo;{NEUTRAL_TITLE}&rdquo;)</span>

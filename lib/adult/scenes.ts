@@ -105,6 +105,7 @@ import {
   openingRepeatOf,
   shapeRepeatOf,
   gestureRepeatOf,
+  withoutDanglingCue,
   withoutLeadingEllipsis,
   phraseNames,
   phrasesIn,
@@ -472,6 +473,9 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     beats: await chapterBeats(db, row.id, row.chapter ?? 1),
   };
 }
+
+/** Whether a line says anything out loud: a letter or digit outside its *actions*. */
+const wordsSpoken = (text: string): boolean => /[\p{L}\p{N}]/u.test(text.replace(/\*[^*]*\*/g, ""));
 
 /** The scene's limits as a step holds them. */
 export const limitsOf = (scene: Pick<AdultScene, "intensity" | "hard_nos">): PairLimits => ({ intensity: scene.intensity, hard_nos: scene.hard_nos });
@@ -1472,7 +1476,8 @@ export function dropRepeats(
       if (shape) {
         cuts.openings++;
         const cut = shape === "ellipsis" ? withoutLeadingEllipsis(text) : withoutOpening(text, 1);
-        if (!cut) {
+        // #1136: "*action* …" with its "…" gone is an action and nothing said, a dead beat on the stage: it goes too.
+        if (!cut || !wordsSpoken(cut)) {
           drop(l, `opens the same way again (${shape === "quote" ? "quoting them back" : "a trailing \u2026"})`);
           continue;
         }
@@ -1559,6 +1564,24 @@ export function dropRepeats(
           continue;
         }
         text = tic.text;
+      }
+    }
+    // #1142: "…and then she whispers." with nothing whispered: the cue's sentence goes, and the line if that was all.
+    const uncued = withoutDanglingCue(text);
+    if (uncued !== null) {
+      cuts.openings++;
+      if (!uncued) {
+        drop(l, "promises a line and says nothing");
+        continue;
+      }
+      text = uncued;
+    }
+    // #1136: speech that is only punctuation ("…") draws an empty bubble: the line keeps its action, or goes.
+    if (!wordsSpoken(text) && text.replace(/\*[^*]*\*/g, "").trim()) {
+      text = (text.match(/\*[^*]*\*/g) ?? []).join(" ");
+      if (!text) {
+        drop(l, "nothing said (only punctuation)");
+        continue;
       }
     }
     const line = text === l.text ? l : { ...l, text };
