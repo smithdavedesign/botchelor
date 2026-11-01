@@ -10,6 +10,7 @@
  * whoever booked it, the next time anyone opens it or the hourly job runs. A host who wants it off the air makes it
  * private ("offline"), which it then stays. A watch party's premiere airs live in its room instead.
  */
+import { callRecord, NO_CALLS, runNote } from "./streaks";
 import type { Db } from "./db";
 import type { DramaAnswer, Ending } from "./rules";
 import { updateCharacterMemory } from "./memory";
@@ -92,10 +93,12 @@ export async function notifyPredictors(db: Db, id: string): Promise<void> {
     const [x, y] = pairNames(r.a, r.b);
     const points = r.is_public ? predictionPoints(r, r) : 0;
     const right = r.pick === r.ending;
+    // A public call extends or ends the predictor's run (lib/streaks.ts); a private date doesn't count toward it.
+    const run = r.is_public ? runNote(await callRecord(db, r.user_id).catch(() => NO_CALLS), right) : "";
     await notify(db, r.user_id, {
       kind: "prediction_scored",
       title: points > 0 ? `🔮 Your pick on ${x} × ${y} scored: +${points} points` : `🔮 Your pick on ${x} × ${y}: not this time`,
-      body: `You picked ${ENDING_LABELS[r.pick].toLowerCase()}; it ended in ${ENDING_LABELS[r.ending].toLowerCase()}.${right ? "" : " No points for the ending."}${r.is_public ? "" : " It's not a public date, so it scores nothing."}`,
+      body: `You picked ${ENDING_LABELS[r.pick].toLowerCase()}; it ended in ${ENDING_LABELS[r.ending].toLowerCase()}.${right ? "" : " No points for the ending."}${r.is_public ? "" : " It's not a public date, so it scores nothing."}${run}`,
       link: `/episodes/${id}`,
     });
   }

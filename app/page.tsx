@@ -8,7 +8,7 @@ import { pageMetadata, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/seo";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
-import { listAiredPage, listMyCharacters } from "@/lib/game";
+import { listAiredPage, listAiringSoon, listMyCharacters } from "@/lib/game";
 import { cachedConstellation } from "@/lib/graph-cache";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
@@ -18,6 +18,9 @@ import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { cleanRef } from "@/lib/waitlist";
 import BotReviews from "./BotReviews";
+import { CallsLine } from "./YourCalls";
+import { airWindowMinutes } from "@/lib/air";
+import { callRecord } from "@/lib/streaks";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: "/" });
@@ -69,7 +72,13 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const tokens = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
   const shared = db ?? (await getDb());
-  const [aired, sky] = await Promise.all([listAiredPage(shared, viewerId, 1, 6).catch(() => null), cachedConstellation(shared).catch(() => null)]); // two counts: the minute-old sky is plenty (2026-11-01 audit, R9)
+  const [aired, sky, record, airing] = await Promise.all([
+    listAiredPage(shared, viewerId, 1, 6).catch(() => null),
+    cachedConstellation(shared).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
+    // Your calls (lib/streaks.ts): your record and run, and how many dates you could still call.
+    callRecord(shared, viewerId).catch(() => null),
+    listAiringSoon(shared, viewerId, airWindowMinutes()).catch(() => []),
+  ]);
 
   // This season's handful of house characters (lib/season-cast.ts), plus any premium one this viewer owns.
   const onSeason = await seasonCastCards(db ?? (await getDb()));
@@ -126,6 +135,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <p className="muted mini-cap">A real box score, decided by the engine — and friends guess it first.</p>
         </div>
       </section>
+
+      {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" />}
 
       {aired && aired.episodes.length > 0 && (
         <section className="home-aired">
