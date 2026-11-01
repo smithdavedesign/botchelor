@@ -33,7 +33,7 @@ import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
 import { hiveNoticeText, type HiveNotice } from "@/lib/adult/hive-notice";
 import CharacterName from "@/app/CharacterName";
-import FacesPanel, { type Faces } from "./Faces";
+import FacesPanel, { pickedFace, type Faces } from "./Faces";
 import type { SteerSummary } from "@/lib/adult/steering";
 import RateMedia from "./RateMedia";
 import type { WriterOptions } from "@/lib/adult/writer";
@@ -960,7 +960,7 @@ function Gallery({
               {status === "ready" && (
                 <RateMedia id={m.id} kind={m.kind} rating={m.rating ?? null} tags={m.tags ?? []} onRated={(r) => setRated((x) => ({ ...x, [m.id]: r }))} />
               )}
-              {status === "ready" && m.character_id && !m.character_b && (faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id) && (
+              {status === "ready" && m.character_id && !m.character_b && pickedFace(faces[m.character_id], m.id) && (
                 <span className="badge ad-face-badge">✓ Their face</span>
               )}
               {/* Picking pictures to export: the tick stays on the tile. */}
@@ -1015,7 +1015,7 @@ function Gallery({
                       m.character_id &&
                       !m.character_b &&
                       onFace &&
-                      !(faces[m.character_id]?.image_id === m.id || faces[m.character_id]?.nude?.image_id === m.id) && (
+                      !pickedFace(faces[m.character_id], m.id) && (
                         // One of them alone: it can be the face every picture and video of them keeps.
                         <button type="button" className="button-ghost small" disabled={facing === m.id} onClick={() => void keepFace(m)}>
                           {facing === m.id ? "Keeping it…" : "Use this face"}

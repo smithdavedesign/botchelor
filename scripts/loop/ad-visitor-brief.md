@@ -20,6 +20,7 @@ Rules:
 - The account has a small allowance of tokens. Spend them on what a subscriber would: scenes, steering, pictures. Don't buy anything.
 - Take your time. You have about {{MINUTES}} minutes, until about {{UNTIL}} (`date` tells you the time). Stay at least {{MIN_MINUTES}} minutes: don't write the report before {{NOT_BEFORE}}.
 - Try more than one pair, steer at least one scene, and look at what the pictures, the gallery and the settings offer.
+- This test account is shared with earlier visitors, and its settings carry over. Start from what a new subscriber gets: if the ✍️ writer chip in a scene doesn't say it's the default, open it and pick the one marked "the default" before your first scene. Try the other writer if you like, but pick the default again before you finish.
 
 When you're done, write a report. Start it with one line, `Model: <the model you run on, as exactly as you know it>`, then these sections:
 1. What you expected After Dark to be, and what it is.
