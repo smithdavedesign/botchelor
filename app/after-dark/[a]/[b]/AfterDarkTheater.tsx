@@ -392,6 +392,9 @@ export default function AfterDarkTheater({
     };
   }, [tools]);
   const [direction, setDirection] = useState("");
+  // #1204 (the 2026-11-01 After Dark visitor: "While it writes, the steer box is disabled, so there is nothing to do"): a
+  // steer typed while a step is being written waits here, and goes with the next step as soon as this one lands.
+  const [queued, setQueued] = useState<string | null>(null);
   useEffect(() => {
     if (steerDraft) setDirection(steerDraft);
   }, [steerDraft]);
@@ -504,8 +507,15 @@ export default function AfterDarkTheater({
   // Never before the night has started: Start does that, so ticking Autoplay first doesn't begin it.
   const waiting = live && awaitingStart(scene);
   useEffect(() => {
-    if (live && autoplay && !busy && !waiting && left <= AUTOPLAY_THEATER_AHEAD) void onWrite?.("");
-  }, [live, autoplay, busy, waiting, left, onWrite]);
+    if (live && autoplay && !busy && !waiting && !queued && left <= AUTOPLAY_THEATER_AHEAD) void onWrite?.("");
+  }, [live, autoplay, busy, waiting, queued, left, onWrite]);
+  // The queued steer goes once the step being written has landed; refused, it's back in the box to reword.
+  useEffect(() => {
+    if (!live || busy || !queued) return;
+    const words = queued;
+    setQueued(null);
+    void onWrite?.(words).then((ok) => ok === false && setDirection((d) => d || words));
+  }, [live, busy, queued, onWrite]);
   // Autoplay means play (the audit, 2026-10-31: a paused player under Autoplay sat at 94 lines for ten minutes and
   // nothing said why): switching it on starts playback, and the viewer's own pause (below) switches it off.
   useEffect(() => {
@@ -545,6 +555,14 @@ export default function AfterDarkTheater({
     e.preventDefault();
     // A whisper needs its words; a refused steer or whisper stays in the box, to be reworded.
     if (whisperTo && !direction.trim()) return;
+    // Mid-write, the words wait for the next step (#1204); with nothing typed there's nothing to do until it lands.
+    if (busy) {
+      if (direction.trim()) {
+        setQueued(direction.trim());
+        setDirection("");
+      }
+      return;
+    }
     // #1155 (the 2026-10-31-1808 visitor: "the popup blocks Next"): Next with a picture offer open answers it "later".
     if (offer) void answer(offer.id, "later");
     // The 2026-10-30 prod loop (run 4: "the Playing… lock was the biggest obstacle"): Next during playback jumps to the end
@@ -918,15 +936,21 @@ export default function AfterDarkTheater({
                   value={direction}
                   maxLength={whisperTo ? 200 : 300}
                   onChange={(e) => setDirection(e.target.value)}
-                  placeholder={whisperName ? `A secret for ${whisperName} alone…` : "Steer it (optional)…"}
-                  disabled={busy}
+                  placeholder={whisperName ? `A secret for ${whisperName} alone…` : busy ? "Type the next steer: it goes when these lines land…" : "Steer it (optional)…"}
                 />
                 {/* Autoplay is always writing ahead, so a steer goes as soon as it's typed. */}
                 {/* #1017 (the 2026-10-30 prod loop: "pressing Enter in the steer box did nothing"): a typed steer goes while the
                     last lines still play, as with autoplay; a browser won't submit a form whose button is disabled. */}
-                <button type="submit" className="primary" disabled={busy || (Boolean(whisperTo) && !direction.trim())} title={caughtUp ? undefined : "Skips to the end of what's playing and carries on"}>
+                <button
+                  type="submit"
+                  className="primary"
+                  disabled={(busy && !direction.trim()) || (Boolean(whisperTo) && !direction.trim())}
+                  title={busy ? "Sent with the next step, as soon as these lines land" : caughtUp ? undefined : "Skips to the end of what's playing and carries on"}
+                >
                   {busy
-                    ? "Writing…"
+                    ? direction.trim()
+                      ? "Queue it"
+                      : "Writing…"
                     : whisperTo
                       ? "Whisper"
                       : // #1148: the button stays Next; a typed steer rides with it (it skips to the end of what's playing).
@@ -981,6 +1005,14 @@ export default function AfterDarkTheater({
                   </span>
                 )}
               </div>
+              {queued && (
+                <p className="ad-theater-note ad-steer-queued" role="status">
+                  ⏳ Next step{whisperName ? `, whispered to ${whisperName}` : ""}: &ldquo;{queued}&rdquo;{" "}
+                  <button type="button" className="linklike" onClick={() => (setDirection(queued), setQueued(null))}>
+                    Change it
+                  </button>
+                </p>
+              )}
               {(videoNote || note || presenceNote) && (
                 <p className="ad-theater-note" role="status">
                   {videoNote || note || presenceNote}
