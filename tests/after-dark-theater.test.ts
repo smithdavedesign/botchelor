@@ -139,3 +139,17 @@ describe("the first evening (the 2026-11-01 After Dark review: tabs hidden in �
     expect(html).not.toContain("ad-start-how");
   });
 });
+
+describe("#1204: a steer typed while a step is being written", () => {
+  it("the box stays open mid-write and says the steer goes when these lines land; Next waits", () => {
+    const html = render({ onWrite: async () => {}, busy: true });
+    expect(html).toMatch(/<input aria-label="Steer it \(optional\)"(?![^>]*disabled)[^>]*placeholder="Type the next steer: it goes when these lines land…"/);
+    expect(html).toMatch(/<button type="submit" class="primary" disabled=""[^>]*>Writing…<\/button>/);
+  });
+
+  it("not writing, the box and Next are as they were", () => {
+    const html = render({ onWrite: async () => {} });
+    expect(html).toContain('placeholder="Steer it (optional)…"');
+    expect(html).not.toContain("ad-steer-queued");
+  });
+});
