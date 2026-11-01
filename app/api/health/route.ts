@@ -12,22 +12,25 @@ export const dynamic = "force-dynamic";
 const STUCK_AFTER_MINUTES = 15;
 
 /**
- * Liveness for the system monitor (RepoHQ's collector, every 5 minutes): 200 when the app can reach its database,
- * 503 when it can't. With the cron secret (Authorization: Bearer $CRON_SECRET) it adds what needs the owner: episodes
- * with open reports, complaints and takedown requests waiting (/report), dates stuck generating, and today's paid-model dates against the cap. Public callers get only
- * {ok}.
+ * Liveness. Public callers, DigitalOcean's 10-second health check among them, get only {ok} and the database isn't
+ * touched: a `select 1` every 10 seconds kept Neon from ever scaling to zero, so the database ran (and billed) around the
+ * clock (2026-11-01). Restarting the app wouldn't fix an unreachable database anyway.
+ * The system monitor (RepoHQ's collector, hourly) sends the cron secret (Authorization: Bearer $CRON_SECRET): it gets
+ * 200 when the app can reach its database, 503 when it can't, and what needs the owner: episodes with open reports,
+ * complaints and takedown requests waiting (/report), dates stuck generating, and today's paid-model dates against the
+ * cap.
  */
 export const GET = handle(async (req: Request) => {
+  if (!internalJobAuthorized(req)) {
+    // Opening the shared database also brings the schema up to date: start it on a new replica's first check without
+    // making the check wait for it. After the first call it's cached and sends nothing.
+    void getDb().catch(() => {});
+    return json({ ok: true });
+  }
   try {
     await pingDb();
   } catch {
     return json({ ok: false, db: "unreachable" }, 503);
-  }
-  // Opening the shared database also brings the schema up to date: start it on a new replica's first check without
-  // making the check wait for it.
-  if (!internalJobAuthorized(req)) {
-    void getDb().catch(() => {});
-    return json({ ok: true });
   }
   const db = await getDb();
   const [reports, takedowns, stuck, paidToday, errors] = await Promise.all([
