@@ -23,11 +23,13 @@ function needsInstall(): boolean {
 
 /**
  * Browser notifications for this browser (lib/push.ts): registers the service worker, subscribes with the site's
- * public key, and stores the subscription. Off by default; the browser asks first.
+ * public key, and stores the subscription. Off by default; the browser asks first. In ⚙ Settings it shows every state;
+ * as a prompt above the list (2026-10-31 UX audit) it's one row while it's off and could be on, and goes once it's on.
  */
-export default function PushToggle({ publicKey }: { publicKey: string }) {
+export default function PushToggle({ publicKey, prompt = false }: { publicKey: string; prompt?: boolean }) {
   const [state, setState] = useState<State>("busy");
   const [error, setError] = useState<string | null>(null);
+  const [asked, setAsked] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -68,10 +70,43 @@ export default function PushToggle({ publicKey }: { publicKey: string }) {
     setState("off");
   }
 
+  if (prompt) {
+    if (asked && state === "on") {
+      return (
+        <p className="push-prompt-done" role="status">
+          ✓ Browser notifications are on. Turn them off in ⚙ Settings.
+        </p>
+      );
+    }
+    if (state !== "off" && !(asked && state === "busy")) return null;
+    return (
+      <section className="card invite-row push-prompt" aria-label="Browser notifications">
+        <span className="invite-row-icon" aria-hidden="true">
+          🔔
+        </span>
+        <div className="invite-row-text">
+          <strong>Hear it as it happens</strong>
+          <span className="muted small">When they text, or a second date is booked, even with the site closed.</span>
+          {error && <span className="error">{error}</span>}
+        </div>
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => {
+            setAsked(true);
+            void turnOn();
+          }}
+          disabled={state === "busy"}
+        >
+          {state === "busy" ? "…" : "Turn on"}
+        </button>
+      </section>
+    );
+  }
   if (state === "unsupported") return null;
   return (
-    <section className="card">
-      <h2>Browser notifications</h2>
+    <div className="notif-setting">
+      <h3>Browser notifications</h3>
       {state === "install" ? (
         <p className="muted">On an iPhone they come through the Home Screen app. {installSteps("ios")}</p>
       ) : state === "denied" ? (
@@ -94,6 +129,6 @@ export default function PushToggle({ publicKey }: { publicKey: string }) {
         </>
       )}
       {error && <p className="error">{error}</p>}
-    </section>
+    </div>
   );
 }

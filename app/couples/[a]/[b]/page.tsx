@@ -1,3 +1,4 @@
+import When from "@/app/When";
 import { shortName } from "@/lib/names";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -125,9 +126,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-const date = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "";
-
 /** A couple's page: their relationship in the graph (lib/relationships.ts), as the viewer is allowed to see it. */
 export default async function CouplePage({ params, searchParams }: Props) {
   const { a, b } = await params;
@@ -176,7 +174,12 @@ export default async function CouplePage({ params, searchParams }: Props) {
         {view.stage_label && <p className="ending">{view.stage_label}</p>}
         <p className="muted">
           {view.dates === 1 ? "One date" : `${view.dates} dates`}
-          {view.first_at && ` since ${date(view.first_at)}`}
+          {view.first_at && (
+            <>
+              {" since "}
+              <When iso={view.first_at} style="date" />
+            </>
+          )}
           {view.second_dates > 0 && ` · ${view.second_dates === view.dates && view.dates > 1 ? "all" : view.second_dates} ended in a second date`}
           {view.second_dates > 0 && ` · ${followedUp === 0 ? "none booked yet" : `${followedUp} booked`}`}
         </p>
@@ -283,7 +286,9 @@ export default async function CouplePage({ params, searchParams }: Props) {
           {timeline.items.map((t) => (
             <li key={t.episode_id}>
               <Link href={`/episodes/${t.episode_id}`}>Date {t.n}</Link> <span className="muted">· {t.venue}</span>{" "}
-              <span className="muted small">· {date(t.at)}</span> → <strong>{t.ending_label}</strong>
+              <span className="muted small">
+                · <When iso={t.at} style="date" />
+              </span> → <strong>{t.ending_label}</strong>
               {t.second_date_of && <span className="badge">planned together</span>}
               {t.roleplay && <span className="badge">🎭 {t.roleplay}</span>}
               {!t.aired && <span className="badge">not aired yet</span>}
@@ -385,7 +390,7 @@ function MatchPage({ ca, cb, mine, match, chain, roleplay }: NonNullable<Awaited
         <h1>
           {shortName(ca.name)} × {shortName(cb.name)}
         </h1>
-        <p className="ending">💘 Matched {date(match.matched_at)}</p>
+        <p className="ending">💘 Matched {match.matched_at && <When iso={match.matched_at} style="date" />}</p>
         <MatchHeader
           mine={{ id: me.id, name: me.name }}
           them={{ id: them.id, name: them.name }}

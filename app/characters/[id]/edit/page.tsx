@@ -81,6 +81,7 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
     portrait: portraitId ? `/api/assets/${portraitId}` : null,
     thisWeek: isOwnUpdate(row.this_week) ? row.this_week!.text : null,
     thisWeekDealt: dealtEvent(id, seasonIdAt(new Date())),
+    signedIn: auth?.authenticated ?? false,
   };
   const looks = await builderLooks(db, auth);
   return <CreateWizard edit={{ id, initial }} lookTiles={looks.tiles} afterDark={looks.afterDark} />;

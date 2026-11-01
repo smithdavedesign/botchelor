@@ -551,18 +551,6 @@ h2 {
   content: "● ";
   color: var(--accent);
 }
-/* "Latest" and Clear all on one row at the top of the card, with no band under it (mobile audit 2026-10-21). */
-.notification-actions {
-  margin: 0;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--line);
-}
-.notification-actions h2 {
-  font-size: var(--text-md);
-}
-.notification-actions .button-ghost {
-  margin: 0;
-}
 /* A "Book it" notice whose date has been booked since: it says so, with the way to the date. */
 .notification-booked {
   color: var(--muted);
@@ -6944,10 +6932,9 @@ a.phone-head-btn {
   text-decoration: none;
 }
 
-/* Under the Matches heading: the character's card and its deck, so the page always leads somewhere. */
-.matches-sub {
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-sm);
+/* Beside the Matches heading: their deck, so the page always leads somewhere. */
+.matches-head .matches-swipe {
+  margin: 0;
 }
 .matches-face-badge {
   max-width: 100%;
@@ -11202,7 +11189,8 @@ details > summary.small {
   .feedback-fab {
     display: none;
   }
-  .beta-toast {
+  .beta-toast,
+  .install-hint {
     bottom: max(var(--space-4), env(safe-area-inset-bottom));
   }
   body:has(.feedback-fab) .site-footer {
@@ -11560,18 +11548,6 @@ details > summary.small {
 }
 .char-basics div {
   padding: 0.4rem 0.6rem;
-}
-
-/* Create a character, at the top of /characters (app/characters/page.tsx). */
-.characters-cta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  margin: var(--space-3) 0 var(--space-4);
-}
-.characters-cta .button {
-  margin: 0;
 }
 
 /* The basics on a directory card (app/characters/page.tsx Entry). */

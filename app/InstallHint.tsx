@@ -32,9 +32,9 @@ const write = (choice: InstallChoice) => {
  * "Install the app", for phones (lib/pwa.ts): installed, Botchelor opens from the Home Screen like an app, and on
  * an iPhone its notifications only come through that way. It shows once, on one page, and never again after that; ×
  * or installing says so for good, in localStorage. Never on After Dark's pages, the admin pages or the 18+ gate, and
- * it steps aside wherever the floating Feedback button does (app/globals.css).
+ * it steps aside wherever the floating Feedback button does (app/globals.css). Only once they have a character.
  */
-export default function InstallHint() {
+export default function InstallHint({ hasCharacter = false }: { hasCharacter?: boolean }) {
   const pathname = usePathname() ?? "/";
   const [show, setShow] = useState<{ platform: Platform } | null>(null);
   const [how, setHow] = useState(false);
@@ -76,13 +76,14 @@ export default function InstallHint() {
         standalone: window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true,
         stored: read() ?? rememberedThisTab,
         ua: nav.userAgent,
+        hasCharacter,
       });
       if (!ok) return;
       shownOn.current = pathname;
       setShow({ platform: platformOf(nav.userAgent, nav.maxTouchPoints) });
     }, DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [pathname]);
+  }, [pathname, hasCharacter]);
 
   // Counted as shown only once it's really on screen (it hides wherever the Feedback button does), so the one chance
   // isn't spent behind a full-screen view.

@@ -753,7 +753,8 @@ function agreedBody(pair: [Side, Side], owner: string, starter: Side | null, tex
   const liked = starter ? `${shortName(starter.name)} liked first` : "They liked each other";
   const started = `${liked}${texter ? `; ${shortName(texter.name)} texted first` : ""}. `;
   const mine = pair.find((c) => c.owner_id === owner && c.created_via === "mcp");
-  if (!mine) return `${started}Book it from their chat: 📅 Book date, at the top. The show's model performs both sides.`;
+  // 2026-10-31 UX audit: in words a person uses; the notice opens their chat, where 📅 Book date sits at the top.
+  if (!mine) return `${started}Book it from their chat (📅 Book date), and the show plays them both.`;
   const other = mine === pair[0] ? pair[1] : pair[0];
   // #1024 (the 2026-10-30-1950 run: "a naive agent could burn the shared daily budget"): the free start_own_date first
   // where it fits, and go_on_date's cost said, since it spends one of the agents' shared daily dates.

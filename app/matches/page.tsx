@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import When from "@/app/When";
 import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
 import { listMyDatingProfiles } from "@/lib/dating";
@@ -28,25 +29,15 @@ type Props = { searchParams: Promise<{ character?: string; page?: string | strin
 /** The conversations: this many a page (?page=N). The new-match faces above are a row, not paged. */
 const CONVERSATIONS_PAGE = 10;
 
-/** "now", "12m", "3h", "Tue", "Oct 12": how long ago, as a messaging app's list says it. */
-function ago(iso: string, now: number): string {
-  const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-  if (mins < 24 * 60) return `${Math.floor(mins / 60)}h`;
-  const d = new Date(iso);
-  if (mins < 6 * 24 * 60) return d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-}
-
 /**
  * The next step as a badge, for the ones worth acting on (the thread's action bar has the button). `short` is for the
  * new-match faces, whose column fits a word or two on one line.
  */
 function dateBadge(t: Thread, short = false): string | null {
   switch (t.next?.kind) {
+    // A status, not a button (2026-10-31 UX audit: "📅 Book their date" read as one); the thread's bar has the button.
     case "book":
-      return short ? "📅 Book" : "📅 Book their date";
+      return short ? "📅 Agreed" : "📅 Date agreed";
     case "filming":
       return "🎬 On now";
     case "dated":
@@ -89,23 +80,29 @@ export default async function MatchesPage({ searchParams }: Props) {
   const me = mine.find((c) => c.id === character) ?? characterToOpen(mine, news) ?? mine[0];
   const inbox = (await listThreads(db, viewerId, me.id)) ?? { fresh: [], conversations: [] };
   const first = shortName(me.name);
-  const now = Date.now();
   const convos = pageOf(inbox.conversations, parsePage(page), CONVERSATIONS_PAGE);
   const thread = (t: Thread) => `${t.link}?as=${encodeURIComponent(me.id)}`;
 
   return (
     <article className="matches-page">
+      {/* 2026-10-31 UX audit: the name was said three times up here. With two or more characters the tabs below say whose
+          matches these are; with one, the heading does, and its face opens their card. */}
       <header className="matches-head">
         <h1>
-          <CharacterName character={me} label={first} size={32} />
-          &apos;s matches
+          {mine.length > 1 ? (
+            "Matches"
+          ) : (
+            <>
+              <CharacterName character={me} label={first} size={32} />
+              &apos;s matches
+            </>
+          )}
         </h1>
+        <Link className="button secondary matches-swipe" href={`/swipe?character=${encodeURIComponent(me.id)}`}>
+          Swipe for {first}
+        </Link>
       </header>
       <CharacterTabs characters={mine} current={me.id} href="/matches?character=" label="Whose matches" news={news} taken={taken} takenNote="closed to other dates" />
-      <p className="matches-sub">
-        <Link href={`/characters/${encodeURIComponent(me.id)}`}>{first}&apos;s card</Link> ·{" "}
-        <Link href={`/swipe?character=${encodeURIComponent(me.id)}`}>Swipe for {first}</Link>
-      </p>
       {/* 2026-10-25 page review: the mixer leads only an empty inbox (somewhere to go); with chats, it follows them. */}
       {!taken.has(me.id) && !inbox.conversations.length && !inbox.fresh.length && <MixerJoin characterId={me.id} first={first} />}
 
@@ -150,7 +147,7 @@ export default async function MatchesPage({ searchParams }: Props) {
                         {t.new_match && !badge && <span className="badge matches-new">New match</span>}
                         {badge && <span className="badge">{badge}</span>}
                         <time className="matches-row-time" dateTime={t.last!.at}>
-                          {ago(t.last!.at, now)}
+                          <When iso={t.last!.at} />
                         </time>
                       </span>
                       <span className="matches-row-preview">

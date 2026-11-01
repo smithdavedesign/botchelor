@@ -57,11 +57,19 @@ export type InstallContext = {
   /** What localStorage says (INSTALL_HINT_KEY), null when nothing yet. */
   stored: string | null;
   ua: string;
+  /**
+   * They have a character of their own (app/layout.tsx), so "notifications when they text" means someone (2026-10-31
+   * UX audit: it slid up 2.5 seconds into a first visit, over the page, before there was anyone to hear from).
+   */
+  hasCharacter: boolean;
 };
 
-/** Whether to show the hint on this page view: a phone browser that can install, not installed, never shown before. */
+/**
+ * Whether to show the hint on this page view: a phone browser that can install, not installed, never shown before, for
+ * someone with a character.
+ */
 export function shouldShowInstallHint(c: InstallContext): boolean {
-  if (!c.phone || c.standalone || c.stored) return false;
+  if (!c.phone || c.standalone || c.stored || !c.hasCharacter) return false;
   if (inAppBrowser(c.ua)) return false;
   return !installHintPathBlocked(c.pathname);
 }

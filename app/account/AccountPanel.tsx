@@ -20,6 +20,12 @@ type Me = {
 };
 type Character = { id: string; name: string; hue?: number | null; portrait?: string | null };
 
+/**
+ * Which tab the sign-in card opens on: the last one used in this browser, so someone coming back lands on Sign in
+ * (2026-10-31 UX audit: everyone landed on Create an account, and signing in was a small link under the form).
+ */
+const AUTH_MODE_KEY = "bz_auth_mode";
+
 /** A job card's one line, from /api/me/connections (lib/connections-shared.ts jobCards). */
 type ConnectionLine = { job: string; title: string; status: string; state: "unset" | "connected" | "error"; error: { message: string } | null };
 
@@ -33,9 +39,21 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
   const [me, setMe] = useState<Me | null>(null);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [connections, setConnections] = useState<ConnectionLine[]>([]);
-  const [mode, setMode] = useState<"login" | "register">("register");
+  const [mode, setModeState] = useState<"login" | "register">("register");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const setMode = (m: "login" | "register") => {
+    setModeState(m);
+    setError(null);
+    try {
+      localStorage.setItem(AUTH_MODE_KEY, m);
+    } catch {}
+  };
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(AUTH_MODE_KEY) === "login") setModeState("login");
+    } catch {}
+  }, []);
 
   const load = useCallback(async () => {
     const [m, c] = await Promise.all([
@@ -66,6 +84,12 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
         : { handle: String(form.get("handle") ?? ""), password: String(form.get("password") ?? "") };
     const { ok, message } = await requestJson(`/api/auth/${mode}`, body).catch(() => ({ ok: false, message: "Network error." }));
     setBusy(false);
+    if (ok) {
+      // Whoever has an account signs in next time.
+      try {
+        localStorage.setItem(AUTH_MODE_KEY, "login");
+      } catch {}
+    }
     if (ok && mode === "register") trackConversion("sign_up", { method: "password" });
     if (ok && next) window.location.assign(next); // back where they were going (the shop, to buy)
     else if (ok) {
@@ -110,12 +134,45 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
         <p className="notice">You&apos;re playing anonymously, which is all you need. Accounts aren&apos;t enabled on this deployment yet.</p>
       </section>
     ) : (
-      <section className="card">
-        <h2>{mode === "register" ? "Create an account" : "Sign in"}</h2>
+      <section className="card account-auth">
+        <h2 className="sr-only">Your account</h2>
+        <div
+          className="segmented auth-tabs"
+          role="tablist"
+          aria-label="Sign in or create an account"
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+            const other = mode === "login" ? "register" : "login";
+            setMode(other);
+            document.getElementById(`auth-tab-${other}`)?.focus();
+          }}
+        >
+          {(
+            [
+              ["login", "Sign in"],
+              ["register", "Create account"],
+            ] as const
+          ).map(([m, label]) => (
+            <button
+              key={m}
+              id={`auth-tab-${m}`}
+              type="button"
+              role="tab"
+              className="segmented-tab"
+              aria-selected={mode === m}
+              aria-controls="auth-panel"
+              tabIndex={mode === m ? 0 : -1}
+              onClick={() => setMode(m)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div id="auth-panel" role="tabpanel" aria-labelledby={`auth-tab-${mode}`} className="auth-panel">
         {next === "/shop" && (
-          <p className="notice">Sign in or create an account to buy tokens. Your characters and dates come with you, and you&apos;ll go straight back to the shop.</p>
+          <p className="notice">Sign in or create an account to buy. Your characters and dates come with you, and you&apos;ll go straight back to the shop.</p>
         )}
-        <p className="muted" hidden={next === "/shop"}>
+        <p className="muted" hidden={next === "/shop" || mode === "login"}>
           Optional. Anonymous play already works. An account keeps your characters across devices, lets you keep dates
           private, and bring your own model key. No email needed — a handle is anonymous.
         </p>
@@ -147,24 +204,7 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
           </button>
         </form>
         {error && <p className="error">{error}</p>}
-        <p className="muted small">
-          {mode === "register" ? (
-            <>
-              Already have one?{" "}
-              {/* #1025: not a second "Sign in" beside the form's own button. */}
-              <button type="button" className="link-button" onClick={() => setMode("login")}>
-                Switch to signing in
-              </button>
-            </>
-          ) : (
-            <>
-              New here?{" "}
-              <button type="button" className="link-button" onClick={() => setMode("register")}>
-                Create an account
-              </button>
-            </>
-          )}
-        </p>
+        </div>
       </section>
     );
 
@@ -174,11 +214,12 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
       {me.authenticated && <EmailNotifications confirmed={emailConfirmed} />}
       {me.authenticated && <MlConsent />}
 
+      {/* With no characters there are no dates either: one line, not two empty cards (2026-10-31 UX audit). */}
       <section className="card">
         <h2>Your characters</h2>
         {characters.length === 0 ? (
           <p className="muted">
-            None yet. <Link href="/create">Make one</Link> — it&apos;s yours to edit any time.
+            No characters or dates yet. <Link href="/create">Make your character</Link>: it&apos;s yours to edit any time.
           </p>
         ) : (
           <ul className="account-characters">
@@ -225,7 +266,7 @@ export default function AccountPanel({ next = null, emailConfirmed = null }: { n
         </section>
       )}
 
-      <YourDates />
+      {characters.length > 0 && <YourDates />}
     </>
   );
 }

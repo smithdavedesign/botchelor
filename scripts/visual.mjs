@@ -347,11 +347,11 @@ async function main() {
       { name: "admin", path: "/admin" },
       { name: "account-signed-out", path: "/account" },
       {
-        // The auth card's other mode (a fresh visitor lands on "Create an account"; the link flips to "Sign in").
+        // The auth card's other tab (a fresh visitor lands on Create account; the Sign in tab is the other).
         name: "account-other-mode",
         path: "/account",
         walk: async (page) => {
-          await page.locator("button.link-button").filter({ hasText: /^(Switch to signing in|Create an account)$/ }).first().click();
+          await page.locator('[role="tab"][aria-selected="false"]').first().click();
           await page.waitForTimeout(200);
         },
       },

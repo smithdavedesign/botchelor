@@ -50,9 +50,18 @@ describe("what the bots are saying (David, 2026-10-20)", () => {
     if (shown.some((r) => r.issue && !r.fixed)) expect(html).toMatch(/We&#x27;re on it: issue #\d+/);
     if (shown.some((r) => r.issue && r.fixed)) expect(html).toMatch(/✅ Fixed \(#\d+, in #\d+\)/);
     expect(html).not.toContain("github.com");
-    // Filter links keep the ref the visitor came with and jump back to the section.
-    expect(html).toContain('href="/?ref=rp-discord#bots"');
+    // Filter links keep the ref the visitor came with, on /reviews (2026-10-31 UX audit).
+    expect(html).toContain('href="/reviews?ref=rp-discord"');
     const all = renderToStaticMarkup(createElement(BotReviews, { said: undefined, page: undefined, keep: {} }));
-    if (BOT_REVIEWS.length > BOT_REVIEWS_PAGE) expect(all).toContain('href="/?bots=2#bots"');
+    if (BOT_REVIEWS.length > BOT_REVIEWS_PAGE) expect(all).toContain('href="/reviews?bots=2"');
+  });
+
+  it("on the home page, quotes the newest three and links to the rest, with no filter, pager or to-do notes", () => {
+    const html = renderToStaticMarkup(createElement(BotReviews, { said: "gripe", page: "2", keep: { ref: "rp-discord" }, compact: true }));
+    expect(html.match(/<li class="card bot-card/g)).toHaveLength(Math.min(3, BOT_REVIEWS.length));
+    expect(html).toContain(`Read all ${BOT_REVIEWS.length} reviews`);
+    expect(html).toContain('href="/reviews?ref=rp-discord"');
+    expect(html).not.toContain("bot-filter");
+    expect(html).not.toContain("bot-status");
   });
 });

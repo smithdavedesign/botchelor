@@ -56,6 +56,7 @@ export const PUBLIC_PATHS = [
   "/characters?tab=people",
   "/characters?tab=agents",
   "/agents",
+  "/reviews",
   "/shop",
   "/terms",
   "/privacy",

@@ -10,7 +10,7 @@ import { getLeague } from "@/lib/leagues";
 import { getProfileName } from "@/lib/people";
 import { PODIUM_SIZE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "@/lib/rules";
 import { seasonLabel, tryCloseDueSeasons } from "@/lib/seasons";
-import LeagueActions from "./LeagueActions";
+import { InviteFriends, JoinLeague } from "./LeagueActions";
 
 export const dynamic = "force-dynamic";
 
@@ -37,11 +37,17 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
   return (
     <article>
       <p className="kicker">Friends&apos; league</p>
-      <h1>{league.name}</h1>
+      {/* 2026-10-31 UX audit: Join was under the board and the rules, ~1,000px down a phone; the season's dates were said
+          twice. Join (or a member's Invite) sits by the title, the dates are one line, and the rules fold away. */}
+      <div className="section-head league-head">
+        <h1>{league.name}</h1>
+        {league.is_member && <InviteFriends invitePath={league.invite_path} />}
+      </div>
       <p className="season">
-        <strong>This season: {seasonLabel(league.season.id)}.</strong> It closes {day(closes)}, 00:00 UTC; the top{" "}
-        {PODIUM_SIZE} with points earn a badge.
+        <strong>This season: {seasonLabel(league.season.id)}</strong>, {day(start)} to {day(lastDay)}. When it closes ({day(closes)},
+        00:00 UTC), the top {PODIUM_SIZE} with points earn a badge.
       </p>
+      {!league.is_member && <JoinLeague leagueId={league.id} hasName={profileName !== null} />}
 
       {lastSeason && (
         <section className="card">
@@ -74,18 +80,20 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
           ))}
         </tbody>
       </table>
-      <p className="muted">
-        This season runs {day(start)} to {day(lastDay)}. Points come from episodes whose finale airs in it:{" "}
-        {POINTS_PER_CORRECT_PICK} for the right ending, {POINTS_PER_DRAMA_PICK} for the bonus question. Points and badges
-        are free and carry no prizes.
-      </p>
-
-      <LeagueActions
-        leagueId={league.id}
-        invitePath={league.invite_path}
-        isMember={league.is_member}
-        hasName={profileName !== null}
-      />
+      <details className="ux-fold league-points">
+        <summary>How points work</summary>
+        <p className="muted">
+          Points come from episodes whose finale airs this season: {POINTS_PER_CORRECT_PICK} for the right ending,{" "}
+          {POINTS_PER_DRAMA_PICK} for the bonus question. Points and badges are free and carry no prizes.
+        </p>
+      </details>
+      {league.is_member && (
+        <p>
+          <Link className="button secondary" href="/watch">
+            Find episodes to predict →
+          </Link>
+        </p>
+      )}
 
       {!lastSeason && <p className="muted">No badges yet. The first podium appears when this season closes.</p>}
       {earlierSeasons.length > 0 && (
@@ -99,10 +107,6 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
           ))}
         </section>
       )}
-
-      <p>
-        <Link href="/watch">Find episodes to predict</Link>
-      </p>
     </article>
   );
 }

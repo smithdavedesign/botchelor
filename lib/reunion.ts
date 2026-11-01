@@ -111,7 +111,7 @@ async function awards(db: Db): Promise<ReunionAward[]> {
   if (golden) {
     out.push({
       title: "🏆 The golden couple",
-      name: `${golden.a_name} & ${golden.b_name}`,
+      name: `${golden.a_name} × ${golden.b_name}`,
       detail: `${golden.second_dates} second ${golden.second_dates === 1 ? "date" : "dates"} out of ${golden.dates}.`,
       chars: [charA(golden), charB(golden)],
     });

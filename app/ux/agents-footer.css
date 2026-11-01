@@ -148,23 +148,69 @@
 .footer-about p {
   margin: 0 0 var(--space-2);
 }
+/* The links in three groups (app/FooterGroup.tsx, 2026-10-31 UX audit): columns under small headings on a wide screen,
+   where they're always open; on a phone each group is a row that opens, its links two to a row. */
+.footer-groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-3) 0;
+}
+.footer-group > summary {
+  min-height: 24px;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+@media (min-width: 641px) {
+  .footer-group > summary {
+    pointer-events: none;
+  }
+  .footer-group > summary::after {
+    display: none;
+  }
+}
 .footer-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin: 0;
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
   padding: 0;
   list-style: none;
 }
 .footer-links li {
   margin: 0;
 }
-/* A tidy two-column list on a phone instead of four wrapped lines of links and dots; each row a comfortable tap. */
 @media (max-width: 640px) {
+  .footer-groups {
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-bottom: 0;
+  }
+  /* "About this show" is the list's fourth row on a phone: the same weight, its ⌄ on the right, a rule under it. */
+  .footer-about {
+    border-bottom: 1px solid var(--line);
+  }
+  .footer-about > summary {
+    min-height: 44px;
+    font-size: var(--text-sm);
+    font-weight: 700;
+  }
+  .footer-about > summary::after {
+    margin-left: auto;
+  }
+  .footer-group {
+    border-top: 1px solid var(--line);
+  }
+  .footer-group:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .footer-group > summary {
+    min-height: 44px;
+  }
   .footer-links {
-    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 var(--space-3);
+    margin: 0 0 var(--space-2);
   }
   .site-footer .footer-links li > :is(a, button) {
     display: inline-flex;

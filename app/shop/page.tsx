@@ -8,10 +8,11 @@ import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
+import { afterDarkOnly } from "@/lib/after-dark-host";
 import BuyButton from "./BuyButton";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Tokens · Botchelor" };
+export const metadata: Metadata = { title: "Shop · Botchelor" };
 
 const KIND_LABELS: Record<ItemKind, string> = {
   house_character: "Premium house character",
@@ -39,23 +40,27 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   const ownedOffSale = CATALOG.filter((i) => !ON_SALE.includes(i) && owned.includes(i.sku));
   // Buying needs an account (app/api/checkout): an anonymous player's tokens would live in one browser's cookie.
   const signInToBuy = open && sessionsSignable() && !viewer?.authenticated;
+  // One word for one thing (2026-10-31 UX audit: the nav said "dates left", this page "tokens", the pack "Episode pack"):
+  // the show counts dates. After Dark's host spends only bought tokens (#1005), so there it says tokens.
+  const unit = afterDarkOnly() ? "token" : "date";
+  const units = `${unit}s`;
 
   return (
     <>
-      <h1>Tokens</h1>
+      <h1>{unit === "token" ? "Tokens" : "More dates"}</h1>
       {/* The product first (UX audit 2026-10-23: ~430px of explanation sat above the only thing to buy); the small print
           follows it. */}
       <p>
-        Top up your tokens when the free ones run out. <strong>One token sends a character on one date.</strong>
+        Top up when your free {units} run out. <strong>Each one sends a character on one date.</strong>
       </p>
       <p className="muted token-balance">
-        You have <strong>{dates.left}</strong> {dates.left === 1 ? "token" : "tokens"} left: {dates.free_left} of{" "}
+        You have <strong>{dates.left}</strong> {dates.left === 1 ? unit : units} left: {dates.free_left} of{" "}
         {dates.free_per_season} free this week
-        {dates.pack_left > 0 && `, plus ${dates.pack_left} topped up`}. Free tokens come back Monday 00:00 UTC.
+        {dates.pack_left > 0 && `, plus ${dates.pack_left} topped up`}. Free {units} come back Monday 00:00 UTC.
       </p>
       {checkout === "success" && (
         <p className="notice">
-          Thanks! Your tokens are added as soon as Stripe confirms the payment, usually within a few seconds. Refresh if
+          Thanks! Your {units} are added as soon as Stripe confirms the payment, usually within a few seconds. Refresh if
           they aren&apos;t here yet.
         </p>
       )}
@@ -68,7 +73,8 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
               <strong>{item.name}</strong>
               <span className="shop-item-price">{formatPrice(item.price_cents)}</span>
             </div>
-            <span className="badge">{KIND_LABELS[item.kind]}</span>
+            {/* A pack's name already says what it is ("5 more dates"). */}
+            {item.kind !== "episode_pack" && <span className="badge">{KIND_LABELS[item.kind]}</span>}
             <p>{item.description}</p>
             {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
             {signInToBuy ? (

@@ -3,8 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-/** Clears notifications (DELETE /api/notifications): one, when given its id, or all of them. Refreshes the page and the bell. */
-export default function ClearNotifications({ id }: { id?: string }) {
+/**
+ * Clears notifications (DELETE /api/notifications): one, when given its id, or all of them (from ⚙ Settings, which
+ * onDone closes). Refreshes the page and the bell.
+ */
+export default function ClearNotifications({ id, onDone }: { id?: string; onDone?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const router = useRouter();
@@ -21,12 +24,13 @@ export default function ClearNotifications({ id }: { id?: string }) {
     setBusy(false);
     if (!res?.ok) return setFailed(true);
     router.refresh();
+    onDone?.();
   }
 
   return (
     <>
       <button type="button" className={id ? "link-button small" : "button-ghost"} onClick={() => void clear()} disabled={busy} aria-label={id ? "Clear this notification" : undefined}>
-        {busy ? "Clearing…" : id ? "Clear" : "Clear all"}
+        {busy ? "Clearing…" : id ? "Clear" : "Clear all notifications"}
       </button>
       {failed && (
         <span className="muted small" role="status">
