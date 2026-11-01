@@ -553,6 +553,13 @@ describe("blur until tapped", () => {
     expect(BLURRED_MEDIA).toContain('image[href*="/after-dark/"]:not([data-ad-shown])');
   });
 
+  it("#1211: blurs After Dark's own look tiles (Restyle's bare torsos), never the show's PG ones", () => {
+    // David, 2026-11-01: the explicit tiles blur with tap to show; the PG tiles stay sharp so Restyle's options read.
+    expect(BLURRED_MEDIA).toContain('img[src*="/api/looks/nsfw-"]:not([data-ad-shown])');
+    expect(BLURRED_MEDIA).toContain(':not([src^="/api/looks/"])');
+    expect(BLURRED_MEDIA).not.toMatch(/looks\/(?!nsfw-)[a-z]/);
+  });
+
   it("the tap script shows a picture and its siblings, and blurs everything again on leaving", () => {
     const script = readFileSync(join(ROOT, "app", "after-dark", "DiscreetMedia.tsx"), "utf8");
     expect(script).toContain('window.addEventListener("click", onClick, true)');

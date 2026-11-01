@@ -43,6 +43,9 @@ export const BLURRED_MEDIA_SELECTORS = [
   `:is(img, video, image):not(.avatar):not([${SHOWN_ATTR}]):not([src^="/api/looks/"]):not([src^="/cast/"])`,
   `:is(img, video)[src*="/after-dark/"]:not([${SHOWN_ATTR}])`,
   `image[href*="/after-dark/"]:not([${SHOWN_ATTR}])`,
+  // ...but not After Dark's own tiles: bare torsos in Restyle's body options (#1211; David, 2026-11-01: blur the explicit
+  // ones, tap to show; the PG tiles stay sharp so the options still read).
+  `img[src*="/api/looks/nsfw-"]:not([${SHOWN_ATTR}])`,
 ] as const;
 export const BLURRED_MEDIA = BLURRED_MEDIA_SELECTORS.join(", ");
 
