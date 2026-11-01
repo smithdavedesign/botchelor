@@ -11,6 +11,7 @@ import type { CharacterRef } from "@/lib/game";
 import { shortName } from "@/lib/names";
 import type { End } from "@/lib/relationships";
 import { dayLabel, isText, type ChainDate, type ChainItem, type ChainPage } from "@/lib/text-chain-shared";
+import ThreadMenu from "./ThreadMenu";
 
 type Props = {
   /** The pair, lower id first: the texts route's path. */
@@ -31,7 +32,8 @@ type Props = {
   /**
    * The thread-only page (/messages): just the phone, filling the screen. One header row: ‹ back to the matches list,
    * who it's with, then on the right the switch to another of this character's chats, the one thing to do next (book,
-   * watch), ⓘ, their story (the couple page) when they have one, and ⋯ for the rest (Unmatch).
+   * watch) and ⋯ (app/couples/[a]/[b]/ThreadMenu.tsx) for the rest: their story (the couple page) when they have one,
+   * the other phone when the viewer owns both, then `more` (a double date, Unmatch).
    */
   page?: { back: string; info: string | null; switcher?: ReactNode; action?: ReactNode; more?: ReactNode };
 };
@@ -320,17 +322,21 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
             </Link>
             {page.switcher}
             <span className="phone-head-actions">{page.action}</span>
-            {canFlip && (
-              <button type="button" className="phone-head-btn" onClick={() => setMe(them)} aria-label={`See it on ${shortName(other.name)}'s phone`} title={`See it on ${shortName(other.name)}'s phone`}>
-                ⇄
-              </button>
+            {(page.info || canFlip || page.more) && (
+              <ThreadMenu label={`More for ${shortName(self.name)} and ${shortName(other.name)}`}>
+                {page.info && (
+                  <Link role="menuitem" className="thread-menu-item" href={page.info} data-close>
+                    <span aria-hidden="true">ⓘ</span> Their dates and story
+                  </Link>
+                )}
+                {canFlip && (
+                  <button type="button" role="menuitem" className="thread-menu-item" data-close onClick={() => setMe(them)}>
+                    <span aria-hidden="true">⇄</span> See it on {shortName(other.name)}&apos;s phone
+                  </button>
+                )}
+                {page.more}
+              </ThreadMenu>
             )}
-            {page.info && (
-              <Link className="phone-head-btn" href={page.info} aria-label={`${shortName(self.name)} and ${shortName(other.name)}: their dates and story`} title="Their dates and story">
-                ⓘ
-              </Link>
-            )}
-            {page.more}
           </header>
         ) : (
           <header className="phone-header">
