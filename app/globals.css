@@ -1597,6 +1597,21 @@ details.settings[open] > summary {
   padding-left: 1.1rem;
 }
 
+/* The episode's ending pick (D2): the quiz's tap-to-save buttons, one to a row. */
+.pick-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+.pick-choices button {
+  text-align: left;
+  margin-top: 0;
+}
+.pick-bonus-q {
+  margin: var(--space-3) 0 var(--space-2);
+  font-weight: 600;
+}
 .quiz .choices {
   display: flex;
   flex-direction: column;

@@ -236,10 +236,6 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
 
       <section className="watch-section" id="latest">
         <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>
-        <p className="muted small">
-          Aired dates, newest first: read the whole date at your pace or watch it in the theater. Creators stay anonymous
-          unless they both agree to reveal themselves. See <Link href="/characters">the cast &amp; matchmaking</Link>.
-        </p>
         {feed.length ? (
           <ul className="list watch-latest-list">
             {feed.map((episode) => (
@@ -270,27 +266,22 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         </p>
       )}
 
-      <section className="watch-section">
-        <h2>Replays</h2>
-        {replays.length ? (
-          <>
-            <p className="muted small">
-              Rooms that have ended, in theater mode{replays.length > REPLAYS_SHOWN ? `: the newest ${REPLAYS_SHOWN} of ${replays.length}` : ""}. Swipe or page for more.
-            </p>
-            <StripPager label="Replays pages">
-              {replays.slice(0, REPLAYS_SHOWN).map((r) => (
-                <RoomCard key={r.id} room={r} action="Replay" />
-              ))}
-            </StripPager>
-          </>
-        ) : (
-          <p className="muted">No replays yet.</p>
-        )}
-      </section>
+      {/* Shorter (2026-10-31 UX audit, D6): replays fold behind one line, and aren't mentioned when there are none. */}
+      {replays.length > 0 && (
+        <details className="watch-section watch-replays ux-fold">
+          <summary>
+            <h2>Replays</h2> <span className="muted small">{replays.length > REPLAYS_SHOWN ? `the newest ${REPLAYS_SHOWN} of ${replays.length}` : replays.length}</span>
+          </summary>
+          <StripPager label="Replays pages">
+            {replays.slice(0, REPLAYS_SHOWN).map((r) => (
+              <RoomCard key={r.id} room={r} action="Replay" />
+            ))}
+          </StripPager>
+        </details>
+      )}
 
       <section className="watch-section" id="leagues">
-        <h2>Leagues</h2>
-        <p className="muted small">Call endings with friends: the top 3 in each league earn a badge when a season closes.</p>
+        {leagues.length > 0 && <h2>Your leagues</h2>}
         {leagues.length > 0 && (
           <ul className="list">
             {leagues.map((league) => (
@@ -307,7 +298,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         )}
         {/* Folded: the form is tall, and most visitors come to watch (2026-10-21). */}
         <details className="watch-league-details ux-fold">
-          <summary>Start a league with friends</summary>
+          <summary>🏆 Start a league with friends</summary>
+          <p className="muted small">Call endings together: the top 3 in each league earn a badge when a season closes.</p>
           <CreateLeagueForm hasName={profileName !== null} />
         </details>
       </section>

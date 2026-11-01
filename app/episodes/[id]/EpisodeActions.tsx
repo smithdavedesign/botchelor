@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormEvent } from "react";
+import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
 import { trackConversion } from "@/app/conversion";
@@ -54,15 +54,22 @@ export default function EpisodeActions(props: Props) {
   const { busy, error, setError, run } = useAction();
   const share = <EpisodeShare path={sharePath} base={shareBase} names={names} dateNumber={dateNumber} />;
 
-  function predict(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const pick = form.get("pick");
-    if (!pick) return setError("Pick an ending first.");
-    const dramaPick = form.get("drama_pick");
+  // One tap saves a pick (2026-10-31 UX audit, D2: small radios, then a second button to submit), like the dealbreaker
+  // quiz below. A bonus tapped before an ending waits for it.
+  const [pick, setPick] = useState<Ending | null>(myPick);
+  const [dramaPick, setDramaPick] = useState<DramaAnswer | null>(myDramaPick);
+  const [saved, setSaved] = useState<{ pick: Ending; drama: DramaAnswer | null } | null>(myPick ? { pick: myPick, drama: myDramaPick } : null);
+
+  function save(nextPick: Ending | null, nextDrama: DramaAnswer | null) {
+    setPick(nextPick);
+    setDramaPick(nextDrama);
+    if (!nextPick) return setError(null);
     void run(() =>
-      requestJson("/api/predictions", { episode_id: episodeId, pick, ...(dramaPick ? { drama_pick: dramaPick } : {}) }).then((r) => {
-        if (r.ok) trackConversion("prediction_made", { surface: "episode", with_drama: Boolean(dramaPick) });
+      requestJson("/api/predictions", { episode_id: episodeId, pick: nextPick, ...(nextDrama ? { drama_pick: nextDrama } : {}) }).then((r) => {
+        if (r.ok) {
+          setSaved({ pick: nextPick, drama: nextDrama });
+          trackConversion("prediction_made", { surface: "episode", with_drama: Boolean(nextDrama) });
+        }
         return r;
       }),
     );
@@ -120,33 +127,46 @@ export default function EpisodeActions(props: Props) {
     <section className="card">
       <h2>How does it end?</h2>
       {lately && <p className="muted">{lately.charAt(0).toUpperCase() + lately.slice(1)}.</p>}
-      <form className="choices" onSubmit={predict}>
+      <div className="choices pick-choices" role="group" aria-label="How does it end?">
         {ENDINGS.map((ending) => (
-          <label key={ending}>
-            <input type="radio" name="pick" value={ending} defaultChecked={myPick === ending} /> {endingLabel(ending, dateNumber)}
-          </label>
+          <button
+            key={ending}
+            type="button"
+            className={`secondary${pick === ending ? " chosen" : ""}`}
+            aria-pressed={pick === ending}
+            disabled={busy}
+            onClick={() => save(ending, dramaPick)}
+          >
+            {endingLabel(ending, dateNumber)}
+          </button>
         ))}
-        {dramaQuestion && (
-          <fieldset>
-            <legend>
-              Bonus: {DRAMA_QUESTION_LABELS[dramaQuestion]} <span className="muted">(optional)</span>
-            </legend>
+      </div>
+      {dramaQuestion && (
+        <div className="pick-bonus">
+          <p className="pick-bonus-q">
+            Bonus: {DRAMA_QUESTION_LABELS[dramaQuestion]} <span className="muted">(optional)</span>
+          </p>
+          <div className="choices pick-choices" role="group" aria-label={`Bonus: ${DRAMA_QUESTION_LABELS[dramaQuestion]}`}>
             {DRAMA_ANSWERS.map((answer) => (
-              <label key={answer}>
-                <input type="radio" name="drama_pick" value={answer} defaultChecked={myDramaPick === answer} />{" "}
+              <button
+                key={answer}
+                type="button"
+                className={`secondary${dramaPick === answer ? " chosen" : ""}`}
+                aria-pressed={dramaPick === answer}
+                disabled={busy}
+                onClick={() => save(pick, answer)}
+              >
                 {dramaAnswerLabel(dramaQuestion, answer, names)}
-              </label>
+              </button>
             ))}
-          </fieldset>
-        )}
-        <button type="submit" disabled={busy}>
-          {myPick ? "Change my pick" : "Lock in my pick"}
-        </button>
-      </form>
-      {myPick && (
-        <p className="notice">
-          Your pick: {endingLabel(myPick, dateNumber)}
-          {dramaQuestion && myDramaPick && `, and ${dramaAnswerLabel(dramaQuestion, myDramaPick, names)}`}. You can
+          </div>
+          {dramaPick && !pick && <p className="muted small">Pick an ending too, and both lock in.</p>}
+        </div>
+      )}
+      {saved && (
+        <p className="notice" role="status">
+          Your pick: {endingLabel(saved.pick, dateNumber)}
+          {dramaQuestion && saved.drama && `, and ${dramaAnswerLabel(dramaQuestion, saved.drama, names)}`}. You can
           change it until the finale airs. A right ending earns {POINTS_PER_CORRECT_PICK} points
           {dramaQuestion && `, the bonus ${POINTS_PER_DRAMA_PICK}`}.
         </p>
