@@ -316,7 +316,8 @@ export default function AfterDarkTheater({
   onExit: () => void;
   /**
    * #1061 (the 2026-10-30 ad visitor: "the Gallery / Make / Set up / Two sides tabs are hidden under the full-screen
-   * theater"): the page's tabs, in the ⋯ menu: one leaves the theater on that tab.
+   * theater"): the page's tabs. A strip along the theater's bottom since the 2026-11-01 After Dark review (they were in ⋯,
+   * and picking one left the theater): the page opens one over the scene.
    */
   pageTabs?: readonly { id: string; label: string }[];
   onPageTab?: (id: string) => void;
@@ -644,6 +645,11 @@ export default function AfterDarkTheater({
                   <li className="muted small">Until both are set up, the night runs without pictures: nothing is guessed.</li>
                 </ul>
               )}
+              {/* How it goes, once, before it starts (the 2026-11-01 After Dark review: visitors hunted for what to press). */}
+              <p className="muted small ad-start-how">
+                ▶ Start, then <strong>Next</strong> for each step, or tick Autoplay. Type in the box below to steer them.
+                {live && writer ? ` ✍️ ${writer.models.find((m) => m.id === writer.chosen)?.label ?? "The writer"} writes it: switch at the top.` : ""}
+              </p>
               <p className="ad-start-rp">{rpOf(scene.roleplay?.id) ? `${rpOf(scene.roleplay?.id)!.icon} ${rpOf(scene.roleplay?.id)!.title}` : "💬 No roleplay: just the two of them"}</p>
               <div className="ad-start-actions">
                 {onSetScene && (
@@ -761,7 +767,8 @@ export default function AfterDarkTheater({
                 📍 <span className="ad-tool-word">Scene &amp; roleplay</span>
               </button>
             )}
-            {onMakeVideo && (
+            {/* Before the first line there's nothing to film or picture yet: fewer buttons on the first screen. */}
+            {onMakeVideo && !(waiting && !videoChapters.length) && (
               <VideoChoice chapters={videoChapters} scene={{ chapter: scene.chapter ?? 1, lines: scene.lines.length }} tokens={videoTokens} busy={busy} paused={mediaPaused} onMake={onMakeVideo} onPlan={onPlanVideo} />
             )}
             <button
@@ -777,6 +784,7 @@ export default function AfterDarkTheater({
             </button>
             {/* Who writes the lines (David, 2026-10-25: "the writer drop down as a logo in the theatre mode"). */}
             {live && writer && <WriterPicker initial={writer} icon />}
+            {!waiting && (
             <CaptureMenu
               a={a.id}
               b={b.id}
@@ -787,6 +795,7 @@ export default function AfterDarkTheater({
               canPicture={shown.length > 0}
               match={live ? sceneMedia.match : null}
             />
+            )}
             {steps && (
               <div className={`ad-tools-more${tools ? " open" : ""}`}>
                 <button type="button" className="theater-icon ad-tools-toggle" aria-expanded={tools} aria-label="More tools" title="Rewind, redo, start over" onClick={() => setTools((v) => !v)}>
@@ -802,13 +811,6 @@ export default function AfterDarkTheater({
                   <button type="button" className="button-ghost small" disabled={busy || !steps.canReset} onClick={() => (setTools(false), steps.onReset())} title="File tonight under their nights and start a new one">
                     Start over
                   </button>
-                  {/* #1061: the tabs under the theater, reachable from it (the theater covers the page). */}
-                  {onPageTab &&
-                    pageTabs?.map((t) => (
-                      <button key={t.id} type="button" className="button-ghost small ad-tools-page-tab" onClick={() => (setTools(false), onPageTab(t.id))} title="Leave the theater for this tab below it">
-                        {t.label}
-                      </button>
-                    ))}
                   {stageSpeaker && sayable && (
                     <button
                       type="button"
@@ -967,6 +969,18 @@ export default function AfterDarkTheater({
               </div>
             )
           )}
+          {onPageTab && pageTabs?.length ? (
+            <nav className="ad-theater-tabs" aria-label="Their night">
+              <span className="ad-theater-tab on" aria-current="page">
+                🎬 Scene
+              </span>
+              {pageTabs.map((t) => (
+                <button key={t.id} type="button" className="ad-theater-tab" onClick={() => onPageTab(t.id)}>
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+          ) : null}
         </div>
         {pickerOpened && onSetScene && (
           <SetSceneModal

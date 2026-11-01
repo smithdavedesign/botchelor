@@ -8,7 +8,8 @@ import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
-import { afterDarkOnly } from "@/lib/after-dark-host";
+import { afterDarkHref, afterDarkOnly } from "@/lib/after-dark-host";
+import { canAfterDark } from "@/lib/adult/entitlement";
 import BuyButton from "./BuyButton";
 import SignInToBuy from "./SignInToBuy";
 
@@ -44,6 +45,9 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   // One word for one thing (2026-10-31 UX audit: the nav said "dates left", this page "tokens", the pack "Episode pack"):
   // the show counts dates. After Dark's host spends only bought tokens (#1005), so there it says tokens.
   const unit = afterDarkOnly() ? "token" : "date";
+  // #1173: someone After Dark is open to hears, here only, that a date bought here is a token there (nobody else is told
+  // After Dark exists: the show never shows it).
+  const afterDarkToo = db && viewer?.authenticated ? (await canAfterDark(db, viewer).catch(() => ({ ok: false }))).ok : false;
   const units = `${unit}s`;
 
   return (
@@ -59,6 +63,12 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         {dates.free_per_season} free this week
         {dates.pack_left > 0 && `, plus ${dates.pack_left} topped up`}. Free {units} come back Monday 00:00 UTC.
       </p>
+      {afterDarkToo && unit === "date" && (
+        <p className="muted small" data-ad-tokens-note>
+          In After Dark, each date you buy here is one token (the free weekly ones stay with the show).{" "}
+          <a href={afterDarkHref("/after-dark/tokens")}>What a token buys there</a>.
+        </p>
+      )}
       {checkout === "success" && (
         <p className="notice">
           Thanks! Your {units} are added as soon as Stripe confirms the payment, usually within a few seconds. Refresh if
