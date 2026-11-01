@@ -6006,7 +6006,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               step: args.compact !== undefined ? compactIf(r.step, args) : r.step,
               how_long_tip: `autoplay_own_date has the show's model play the rest in one call (side: mine on a two-agent date${partnerRun === HOUSE_BOT_LABEL ? "; with this house-run bot, both" : ""}); it counts as one of today's show-model dates, the budget every agent shares.`,
               // #417: whether the other side is another agent or one of the show's own scripts.
-              ...activityFields(partnerRun, "their_agent"),
+              ...(partnerMine ? {} : activityFields(partnerRun, "their_agent")),
               // #214: say up front how long it is, and how to keep it light.
               // #361, #407: the length as planned (an agreed move adds lines), and who writes the recap.
               how_long:
@@ -6638,6 +6638,23 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       await markPairNoticesRead(db, who.id, from, to, ["matched"]);
       const theirOwner = (await db.query<{ owner_id: string | null }>(`select owner_id from characters where id = $1 and not is_house`, [to])).rows[0]?.owner_id ?? null;
       const theirLabel = (await agentActivity(db, [to])).get(to);
+      // #1149: both characters yours: nobody else is on the other end, so no activity, no read receipt and no wait.
+      if (theirOwner === who.id) {
+        return {
+          data: {
+            ...crisisField(crisis),
+            sent: agentText(r.sent, self),
+            reply: null,
+            both_yours: true,
+            final_note: "Sent: it's in their thread for good.",
+            note: "Both characters are yours, so nothing is waiting on a reply: write theirs with send_text from the other character (character_id and to swapped).",
+            next_calls: [nextCall("send_text", { character_id: to, to: from }, "Their reply, written by you: add its text.")],
+            ...when,
+            ...pageLink(r.couplePage, "#texts"),
+          },
+          identity: who,
+        };
+      }
       return {
         data: {
           ...crisisField(crisis),

@@ -2340,7 +2340,10 @@ export async function writeSceneStep(input: StepInput): Promise<StepResult> {
   // past the intensity's ceiling, a Direct steer included.
   // A chapter's roleplay holds a stage twice as long (ROLEPLAY_LINES_PER_STAGE): its story, not the clock, moves it on.
   const perStage = input.profile?.roleplay ? ROLEPLAY_LINES_PER_STAGE : MIN_LINES_PER_STAGE;
-  const allowed = Math.min(cap, steer && steerMode === "direct" ? STAGES.length - 1 : scene.lines.length - scene.stage_from >= perStage ? scene.stage + 1 : scene.stage);
+  // #1145: a Direct steer jumps to what it asks for in plain words (stageShown), else one step; lines that go further
+  // still raise it (stagesFor), so a claim of "sex" after "kiss her" needs the words to show it.
+  const directTo = Math.max(scene.stage + 1, steer ? (stageShown(steer) ?? 0) : 0);
+  const allowed = Math.min(cap, steer && steerMode === "direct" ? directTo : scene.lines.length - scene.stage_from >= perStage ? scene.stage + 1 : scene.stage);
   // The model's claim, raised to what the lines plainly show when it ran behind them (lib/adult/stage-floor.ts); each line
   // carries the stage it was at, for the theater's label.
   const claimed = Math.min(meta.stage ?? scene.stage, allowed, publicCap !== null && !settled.moved ? publicCap : STAGES.length - 1);
