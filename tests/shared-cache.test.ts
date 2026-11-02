@@ -59,6 +59,14 @@ describe("the signed-out pages' shared copy", () => {
     expect(await forViewer(null, "page", load)).toBe(3);
   });
 
+  it("hands over what it can't copy as it is, and doesn't keep it", async () => {
+    setSharedCacheForTests(true);
+    let loads = 0;
+    const load = async () => ({ n: ++loads, fn: () => 1 });
+    expect((await shared("fn", load)).n).toBe(1);
+    expect((await shared("fn", load)).n).toBe(2);
+  });
+
   it("is off in tests and scripts unless turned on", async () => {
     let loads = 0;
     const load = async () => ++loads;
