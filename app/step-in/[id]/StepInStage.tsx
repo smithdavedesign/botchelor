@@ -162,10 +162,10 @@ export default function StepInStage({ initial, initialCrisis }: { initial: StepI
         <Scene
           characters={[view.you, view.them]}
           venue={view.venue}
-          lineA={[...shown].reverse().find((t) => t.side === "a")?.dialogue ?? null}
-          lineB={[...shown].reverse().find((t) => t.side === "b")?.dialogue ?? null}
+          // The lines are in the thread below; the stage keeps the faces, the place and the act.
+          lineA={null}
+          lineB={null}
           actLabel={view.act}
-          placeholder={`${view.format}. ${first} is on their way in…`}
         />
       </div>
 
