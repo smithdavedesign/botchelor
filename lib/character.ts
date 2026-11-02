@@ -95,6 +95,21 @@ export type Character = {
    * so a voice tic ("captain", "dare") doesn't recur on every date. Aired-only, so it never leaks an unaired date.
    */
   overused?: string[];
+  /**
+   * Set only on a date's characters: opinions this character really holds (lib/hot-takes.ts hotTakesOf: its creator's
+   * own, else the ones the show derived once from its sheet). In its own self view; the other side hears them only when said.
+   */
+  hotTakes?: string[];
+  /**
+   * Set only on a date's characters: what this side noted the other claiming about themselves on their earlier dates
+   * (episodes.inner_life, lib/inner-life.ts pairClaims), so it can notice a story that changed. Its own notes only.
+   */
+  claimsBefore?: string[];
+  /**
+   * Set only on a date's characters: this cast member's own secrets still hidden this season (lib/cast-secrets.ts
+   * secretsForDate), to guard, hint at or let slip. Private: only its own turn prompt carries them (never the director's).
+   */
+  secrets?: { season_id: string; idx: number; secret: string }[];
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
@@ -258,6 +273,8 @@ export function characterSelfView(c: Character, privateExtra: Record<string, unk
     // Their own details: things they know about themselves and may bring up (never the other's).
     ...(Object.keys(details).length ? { details } : {}),
     ...(c.thisWeek ? { whats_new_this_week: c.thisWeek } : {}),
+    // Opinions they really hold (living dates, lib/hot-takes.ts): theirs to argue for.
+    ...(c.hotTakes?.length ? { hot_takes: c.hotTakes } : {}),
     ...languageNote(c),
     private: {
       soul: soul ?? "(none — play from your public sheet)",

@@ -438,7 +438,8 @@ export default async function EpisodePage({
               <h2>Read it line by line</h2>
               <span className="muted">The two characters played this out turn by turn: nobody scripted the lines in advance.</span>
             </summary>
-            <ChatThread characters={episode.characters} turns={episode.transcript} feedback={{ kind: "episode", refId: episode.id }} />
+            {episode.inner?.thoughts.some(Boolean) && <p className="muted small chat-thought-hint">💭 Tap a thought bubble to see what they were thinking.</p>}
+            <ChatThread characters={episode.characters} turns={episode.transcript} feedback={{ kind: "episode", refId: episode.id }} thoughts={episode.inner?.thoughts} />
           </details>
         )}
 
@@ -543,7 +544,19 @@ export default async function EpisodePage({
       </RecapToggle>
 
       {/* The diary cam: each side's take to camera, once the date has aired (never before the ending is out). */}
-      {episode.diary && <DiaryCam diary={episode.diary} characters={episode.characters} folded={hasTheater} />}
+      {/* ...with each side's own answer to "see them again?" (living dates, lib/choices.ts), once it has aired. */}
+      {(episode.diary || episode.inner) && (
+        <DiaryCam
+          diary={episode.diary ?? []}
+          choices={episode.inner?.choices ?? []}
+          thoughts={episode.characters.map((c, i) => ({
+            character_id: c.id,
+            thoughts: (episode.transcript ?? []).flatMap((t, n) => (t.side === (i === 0 ? "a" : "b") && episode.inner?.thoughts[n] ? [episode.inner.thoughts[n]!] : [])),
+          }))}
+          characters={episode.characters}
+          folded={hasTheater}
+        />
+      )}
 
       {episode.afterglow && (
         <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} />

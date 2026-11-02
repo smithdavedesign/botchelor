@@ -17,6 +17,7 @@ import { track, trackEpisodeCost } from "./analytics";
 import type { Character } from "./character";
 import { generationPaused } from "./compute";
 import { ConversationError, isConversationEnabled, simulateConversation, type Turn } from "./conversation";
+import { outerLine } from "./inner-life";
 import type { Db } from "./db";
 import type { CharacterSheet, Outcome, SideOutcome, VariableArc } from "./engine";
 import { DEFAULT_FORMAT, formatContextOf } from "./formats";
@@ -123,9 +124,11 @@ async function conversationFor(db: Db, r: Row, actor: Model, director: Model): P
   const formatCtx = { ...formatContextOf(built), chaperone: r.setup?.chaperone, ex: r.setup?.ex };
   // Played from a beat sheet of the STORED outcome, like a fresh date (lib/beats.ts).
   const plan = await planDate(director, built.input, outcome, characters, producer, venueId, format, formatCtx);
-  return simulateConversation(actor, built.input, outcome, characters, producer, venueId, format, undefined, formatCtx, plan, undefined, undefined, {
+  // A line's inner life (living dates) is never stored on it; a backfilled date keeps none (lib/inner-life.ts).
+  const lines = await simulateConversation(actor, built.input, outcome, characters, producer, venueId, format, undefined, formatCtx, plan, undefined, undefined, {
     from: r.partial ? r.transcript : undefined,
   });
+  return lines.map(outerLine);
 }
 
 /** The free tier said "slow down" (a 429 that outlasted the model client's own short backoff). */

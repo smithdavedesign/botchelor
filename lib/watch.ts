@@ -24,6 +24,8 @@ import { portraitPathSql } from "./assets";
 import { claimPaidDate } from "./limits";
 import { getDirectorModel, getModel, paidDefaultOn } from "./model";
 import { generateDate } from "./pipeline";
+import { ensureHotTakes } from "./hot-takes";
+import { recordSlips } from "./cast-secrets";
 import { DEFAULT_FORMAT, formatContextOf } from "./formats";
 import { getProfileName } from "./people";
 import {
@@ -821,6 +823,8 @@ export async function createTemplateParty(
 
   const episodeId = crypto.randomUUID();
   const forDate = (c: HouseRow): CharacterForDate => ({ id: c.id, sheet: houseSheet(c) });
+  // Hot takes for a character with none yet, derived once on the free model (lib/hot-takes.ts). Never fails the room.
+  await ensureHotTakes(db, [a.id, b.id], getModel("minimal", false)).catch(() => {});
   // A house room has no owner: its characters bring in only their public history together.
   const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST, undefined, undefined, {
     creatorId: PUBLIC_ONLY,
@@ -880,9 +884,9 @@ export async function createTemplateParty(
   await db.query(
     `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending,
                            drama_question, drama_answer, seed, box_score, sides, best_line, confessionals, setup, transcript, generated_with, engine_trace,
-                           turn_meta)
+                           turn_meta, inner_life)
      values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb, $19::jsonb, $20::jsonb, $21::jsonb,
-             $22::jsonb)`,
+             $22::jsonb, $23::jsonb)`,
     [
       episodeId,
       SYSTEM_CREATOR_ID,
@@ -906,8 +910,11 @@ export async function createTemplateParty(
       JSON.stringify(gen.generatedWith),
       trace ? JSON.stringify(trace) : null,
       JSON.stringify(transcript.map(() => ({ at, by: "show" }))),
+      // Living dates: the lines' private thoughts, shown once the room airs it (lib/inner-life.ts).
+      gen.inner ? JSON.stringify(gen.inner) : null,
     ],
   );
+  if (gen.slips.length) await recordSlips(db, episodeId, gen.slips).catch(() => {});
   await rememberDate(db, a.id, b.id).catch(() => {});
   // M14: learned memory is recomputed when the room airs the date (below), not now — a template date is
   // unrevealed until its clock reaches the decision, and its arc is public, so counting it early would spoil.

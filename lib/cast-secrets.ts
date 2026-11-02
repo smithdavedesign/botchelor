@@ -10,8 +10,12 @@
  * already came out from the fixed pool (the hour before the job ran), they get the pool's, dealt by seed. About four
  * short calls a month, well under a cent.
  *
- * Reveals follow the schedule, not the dates' words: the date writer never sees them (David's call kept for later:
- * hinting them on dates means a measured sim first, docs/ideas.md). Pure reads apart from ensureCastSecrets.
+ * Reveals follow the schedule, and since living dates (2026-11-01, measured in the blind sim, docs/date-quality.md) the
+ * dates' words too: a cast member's side of a date carries its own secrets still hidden (secretsForDate), as private
+ * context to guard, hint at or let slip. When a line clearly gives one away (the actor says which, and the line shares its
+ * words: slipped), the date records it (recordSlips: cast_secrets.revealed_episode), and it counts as out once that date
+ * airs publicly, the date's air time as when. The schedule then deals the next ones from the rest. Pure reads apart
+ * from ensureCastSecrets and recordSlips.
  */
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
@@ -126,13 +130,21 @@ async function airedThisSeason(db: Db, characterId: string, now: Date): Promise<
   return r.rows.map((x) => new Date(x.revealed_at));
 }
 
-/** The stored secrets for a cast member this season, or the pool's when none are stored yet. */
-async function secretsFor(db: Db, characterId: string, seasonId: string): Promise<string[]> {
-  const r = await db.query<{ secret: string }>(
-    `select secret from cast_secrets where character_id = $1 and season_id = $2 order by idx`,
-    [characterId, seasonId],
+/**
+ * The stored secrets for a cast member this season, or the pool's when none are stored yet; `slipped_at` when one came
+ * out on a date (living dates) that has since aired publicly.
+ */
+async function secretsFor(db: Db, characterId: string, seasonId: string, now: Date): Promise<{ secret: string; slipped_at: string | null }[]> {
+  const r = await db.query<{ secret: string; slipped_at: string | Date | null }>(
+    `select s.secret,
+            case when e.revealed_at is not null and e.revealed_at <= $3 and e.visibility = 'public' then e.revealed_at end as slipped_at
+       from cast_secrets s left join episodes e on e.id = s.revealed_episode
+      where s.character_id = $1 and s.season_id = $2 order by s.idx`,
+    [characterId, seasonId, now.toISOString()],
   );
-  return r.rows.length >= SECRETS_PER_CAST ? r.rows.map((x) => x.secret) : dealtSecrets(characterId, seasonId);
+  return r.rows.length >= SECRETS_PER_CAST
+    ? r.rows.map((x) => ({ secret: x.secret, slipped_at: x.slipped_at ? new Date(x.slipped_at).toISOString() : null }))
+    : dealtSecrets(characterId, seasonId).map((secret) => ({ secret, slipped_at: null }));
 }
 
 export type CastSecrets = {
@@ -147,13 +159,68 @@ export type CastSecrets = {
 export async function castSecrets(db: Db, characterId: string, now: Date = new Date()): Promise<CastSecrets | null> {
   if (!seasonCastIds(now).includes(characterId)) return null;
   const season = seasonIdOf(now);
-  const [secrets, aired] = await Promise.all([secretsFor(db, characterId, season), airedThisSeason(db, characterId, now)]);
-  const n = Math.min(SECRETS_PER_CAST, Math.floor(aired.length / SECRET_EVERY));
+  const [secrets, aired] = await Promise.all([secretsFor(db, characterId, season, now), airedThisSeason(db, characterId, now)]);
+  // Those that slipped out on an aired date are out; the schedule deals the rest, in order, one per SECRET_EVERY dates.
+  const slipped = secrets.filter((s) => s.slipped_at).map((s) => ({ secret: s.secret, at: s.slipped_at! }));
+  const rest = secrets.filter((s) => !s.slipped_at);
+  const n = Math.min(rest.length, Math.floor(aired.length / SECRET_EVERY));
+  const scheduled = rest.slice(0, n).map((s, i) => ({ secret: s.secret, at: aired[(i + 1) * SECRET_EVERY - 1].toISOString() }));
+  const out = [...slipped, ...scheduled].sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0));
   return {
     total: SECRETS_PER_CAST,
-    out: secrets.slice(0, n).map((secret, i) => ({ secret, at: aired[(i + 1) * SECRET_EVERY - 1].toISOString() })),
-    next_in: n >= SECRETS_PER_CAST ? null : (n + 1) * SECRET_EVERY - aired.length,
+    out,
+    next_in: out.length >= SECRETS_PER_CAST ? null : (n + 1) * SECRET_EVERY - aired.length,
   };
+}
+
+/** One secret a side carries onto a date: which it is (to record a slip) and its words. */
+export type DateSecret = { season_id: string; idx: number; secret: string };
+
+/**
+ * A cast member's own secrets still hidden, for its side of a date (living dates): stored ones only (a slip has to be
+ * recorded against a row), not yet slipped on any date, and not yet out by the schedule. Empty for anyone not on this
+ * season's cast. Private: only that side's own prompt ever carries them.
+ */
+export async function secretsForDate(db: Db, characterId: string, now: Date = new Date()): Promise<DateSecret[]> {
+  if (!seasonCastIds(now).includes(characterId)) return [];
+  const season = seasonIdOf(now);
+  const r = await db.query<{ idx: number; secret: string }>(
+    `select idx, secret from cast_secrets where character_id = $1 and season_id = $2 and revealed_episode is null order by idx`,
+    [characterId, season],
+  );
+  if (!r.rows.length) return [];
+  const status = await castSecrets(db, characterId, now);
+  const out = new Set((status?.out ?? []).map((o) => o.secret));
+  return r.rows.filter((x) => !out.has(x.secret)).map((x) => ({ season_id: season, idx: x.idx, secret: x.secret }));
+}
+
+const SLIP_STOP = new Set(["has", "have", "had", "the", "and", "for", "with", "that", "this", "was", "are", "every", "never", "still", "once", "now", "them", "their", "they", "who", "can", "cannot", "can't", "its", "it's", "not", "but", "one", "all"]);
+const slipWords = (t: string) => new Set(t.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter((w) => w.length >= 3 && !SLIP_STOP.has(w)).map((w) => (w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w)));
+
+/**
+ * Whether a line clearly gives a secret away: the actor said it let this one slip, and the line (in English) shares
+ * enough of the secret's own words (two, or every one when it has fewer). A hint or a dodge never counts.
+ */
+export function slipped(line: string, secret: string): boolean {
+  const want = slipWords(secret);
+  if (!want.size) return false;
+  const have = slipWords(line);
+  const shared = [...want].filter((w) => have.has(w)).length;
+  return shared >= Math.min(2, want.size);
+}
+
+/** A secret that came out on a date: whose, which, and on which line. */
+export type SecretSlip = { character_id: string; season_id: string; idx: number; line: number };
+
+/** Records the secrets a finished date let slip (once each: a secret already slipped elsewhere keeps its first date). */
+export async function recordSlips(db: Db, episodeId: string, slips: readonly SecretSlip[]): Promise<void> {
+  for (const s of slips) {
+    await db.query(
+      `update cast_secrets set revealed_episode = $4, revealed_line = $5
+        where character_id = $1 and season_id = $2 and idx = $3 and revealed_episode is null`,
+      [s.character_id, s.season_id, s.idx, episodeId, s.line],
+    );
+  }
 }
 
 export type SecretOut = { character_id: string; name: string; secret: string; index: number; total: number; at: string };

@@ -56,6 +56,9 @@ import { pickVenueAvoiding, type PlaceId } from "./venues";
 import { DEFAULT_FORMAT, format as showFormat, type FormatId } from "./formats";
 import { fillPremise, roleplayForActor, rolesLine, type DateRoleplay } from "./roleplays";
 import { HOUSE_CHARACTERS } from "./house";
+import { hotTakesOf, type StoredHotTakes } from "./hot-takes";
+import { CLAIMS_KEPT, type StoredInner } from "./inner-life";
+import { secretsForDate, type DateSecret } from "./cast-secrets";
 
 export type CharacterForDate = { id: string; sheet: CharacterSheet };
 
@@ -173,6 +176,15 @@ export type DateParts = {
   table?: string | null;
   /** The roleplay both sides agreed to (lib/roleplays.ts): each actor plays its role, and the setup keeps the terms. */
   roleplay?: DateRoleplay | null;
+  /** The hot takes the show derived for each side (characters.hot_takes); a side's own extras.hot_takes win (lib/hot-takes.ts). */
+  hotTakesA?: StoredHotTakes | null;
+  hotTakesB?: StoredHotTakes | null;
+  /** What each side noted the other claiming on their earlier dates (lib/inner-life.ts), its own notes only. */
+  claimsA?: string[];
+  claimsB?: string[];
+  /** Each cast member's own secrets still hidden this season (lib/cast-secrets.ts secretsForDate). Private to its side. */
+  secretsA?: DateSecret[];
+  secretsB?: DateSecret[];
 };
 
 /**
@@ -186,6 +198,16 @@ export function assembleDate(p: DateParts): BuiltDate {
   const charB = assembleCharacter({ id: b.id, sheet: b.sheet, soul: p.soulB, memory: p.memoryB, extras: p.extrasB, thisWeek: p.thisWeekB });
   if (p.overusedA?.length) charA.overused = p.overusedA;
   if (p.overusedB?.length) charB.overused = p.overusedB;
+  // Living dates: the opinions each really holds (its creator's, else the ones derived once), and what each noted the
+  // other claiming before (lib/hot-takes.ts, lib/inner-life.ts). Flavour only: the engine never reads them.
+  const takesA = hotTakesOf(p.extrasA, p.hotTakesA);
+  const takesB = hotTakesOf(p.extrasB, p.hotTakesB);
+  if (takesA.length) charA.hotTakes = takesA;
+  if (takesB.length) charB.hotTakes = takesB;
+  if (p.claimsA?.length) charA.claimsBefore = p.claimsA;
+  if (p.claimsB?.length) charB.claimsBefore = p.claimsB;
+  if (p.secretsA?.length) charA.secrets = p.secretsA;
+  if (p.secretsB?.length) charB.secrets = p.secretsB;
   // The plan they agreed to by text is tonight (David, 2026-10-18: "honoring their discussion in the texting"): it's
   // where the date happens, and each side knows it kept the plan. One plan per date: with it, a second date's older
   // plan (from its morning after) stays out of the prompts, so the venue and the premise can't come from two plans.
@@ -379,8 +401,8 @@ export async function buildDate(
     loadRelationship(db, a.id, b.id),
     req.format === "ex_returns" ? findEx(db, a.id, b.id) : Promise.resolve(undefined),
     // Loaded here, beside the soul and memory, so every path that builds a date gets the details.
-    db.query<{ id: string; extras: CharacterExtras | null; this_week: StoredThisWeek | null }>(
-      `select id, extras, this_week from characters where id = any($1)`,
+    db.query<{ id: string; extras: CharacterExtras | null; this_week: StoredThisWeek | null; hot_takes: StoredHotTakes | null }>(
+      `select id, extras, this_week, hot_takes from characters where id = any($1)`,
       [[a.id, b.id]],
     ),
     opts.nudges
@@ -404,6 +426,13 @@ export async function buildDate(
     opts.creatorId !== undefined && opts.creatorId !== PUBLIC_ONLY
       ? await Promise.all([pairMemory(db, a.id, b.id, opts.creatorId), pairMemory(db, b.id, a.id, opts.creatorId)]).catch(() => [null, null])
       : [null, null];
+  // What each noted the other claiming on the dates between them this creator may use (living dates).
+  const [claimsA, claimsB] =
+    opts.creatorId !== undefined && opts.creatorId !== PUBLIC_ONLY
+      ? await Promise.all([pairClaims(db, a.id, b.id, opts.creatorId, episodeId), pairClaims(db, b.id, a.id, opts.creatorId, episodeId)]).catch(() => [[], []])
+      : [[], []];
+  // A cast member's own secrets still hidden this season, to guard or let slip (living dates, lib/cast-secrets.ts).
+  const [secretsA, secretsB] = await Promise.all([secretsForDate(db, a.id).catch(() => []), secretsForDate(db, b.id).catch(() => [])]);
   const [lo] = pairKey(a.id, b.id);
   const texts = chain.some(isText) ? { a: promptTexts(chain, a.id === lo ? "lo" : "hi"), b: promptTexts(chain, b.id === lo ? "lo" : "hi") } : undefined;
   const names: Record<End, string> = a.id === lo ? { lo: a.sheet.name, hi: b.sheet.name } : { lo: b.sheet.name, hi: a.sheet.name };
@@ -427,6 +456,8 @@ export async function buildDate(
     dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : ((await nextDateNumber(db, a.id, b.id, episodeId)) ?? 1),
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
+    hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,
+    claimsA, claimsB, secretsA, secretsB,
     overusedA, overusedB,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });
@@ -450,6 +481,32 @@ export async function planFromChain(db: Db, chain: ChainItem[], lo: string, name
   }
   const conversation = [...said, ...since];
   return agreedPlan(conversation, names, conversation.length);
+}
+
+/**
+ * What `selfId` noted `otherId` claiming about themselves on their last few dates (episodes.inner_life, living dates), the
+ * newest last, from the dates this creator may use (pairMemory's rule: the public record, plus its own private and
+ * unaired ones). Only `selfId`'s own notes: the lines it spoke.
+ */
+async function pairClaims(db: Db, selfId: string, otherId: string, creatorId: string, excludeEpisodeId: string): Promise<string[]> {
+  const { rows } = await db.query<{ inner_life: StoredInner | null; transcript: Turn[] | null; is_a: boolean }>(
+    `select e.inner_life, e.transcript, (e.character_a = $1) as is_a
+       from episodes e
+      where ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1))
+        and e.id <> $4 and e.status = 'ready' and e.inner_life is not null
+        and ((e.revealed_at is not null and e.visibility = 'public') or e.creator_id = $3 or e.partner_performer = $3)
+      order by e.created_at desc
+      limit 3`,
+    [selfId, otherId, creatorId, excludeEpisodeId],
+  );
+  const out: string[] = [];
+  for (const r of rows.reverse()) {
+    const side = r.is_a ? "a" : "b";
+    (r.inner_life?.lines ?? []).forEach((l, i) => {
+      if (l?.claim && r.transcript?.[i]?.side === side) out.push(l.claim);
+    });
+  }
+  return out.slice(-CLAIMS_KEPT);
 }
 
 /** The venues of each person's character's last two dates (house characters date everyone, so theirs don't count). */

@@ -26,6 +26,7 @@
  */
 import type { Turn } from "./conversation";
 import { getEngine, marks, seedFrom, type Outcome, type SideOutcome } from "./engine";
+import type { SeeAgain } from "./inner-life";
 import { ENDINGS, WISH_LIFT_NEAR, WISH_NO_AT, WISH_TIP_CHANCE, WISH_YES_AT, type DramaAnswer, type DramaQuestion, type Ending } from "./rules";
 
 /** true: wants to see them again; false: doesn't; null: no wish either way. */
@@ -37,7 +38,14 @@ export type Wishes = { a: Wish; b: Wish };
  * `sent` (MCP 2.10.0): which sides' wishes were a see_again their performer sent, the rest read from that side's last
  * interest_signal, so the finished date can tell its owner which (wishReport). Dates settled before it have none.
  */
-export type StoredWishes = { a?: Wish; b?: Wish; engine?: Ending; sent?: { a: boolean; b: boolean } };
+export type StoredWishes = {
+  a?: Wish;
+  b?: Wish;
+  engine?: Ending;
+  sent?: { a: boolean; b: boolean };
+  /** Engine v5+ (lib/choices.ts): each side's own "see them again?" answer, which decided the ending (maybe is no wish). */
+  choices?: { a: SeeAgain | null; b: SeeAgain | null };
+};
 
 /** A side's interest_signal read as a wish. */
 export function interestWish(interest: number | undefined): Wish {

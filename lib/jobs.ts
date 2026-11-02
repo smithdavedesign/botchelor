@@ -18,6 +18,8 @@ import { isConversationEnabled } from "./conversation";
 import { isAfterglowEnabled } from "./afterglow";
 import { isReflectionEnabled } from "./reflection";
 import { generateDate } from "./pipeline";
+import { ensureHotTakes } from "./hot-takes";
+import { recordSlips } from "./cast-secrets";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
 
@@ -196,6 +198,9 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     const signalsSnapshot =
       row.setup?.signals_a && row.setup?.signals_b ? { a: row.setup.signals_a, b: row.setup.signals_b } : undefined;
     // ...and on the pair's history as POST stored it (a date between them since can't change tonight's start).
+    // Living dates: a character with no hot takes yet gets them derived once, on the cheap default model, before its first
+    // date that needs them (lib/hot-takes.ts). Never fails the date.
+    await ensureHotTakes(db, [row.a_id, row.b_id], getModel("minimal", false)).catch(() => {});
     const built = await buildDate(db, episodeId, forDate("a"), forDate("b"), dateRequest, seed, signalsSnapshot, {
       creatorId: row.creator_id,
       followupOf: row.setup?.followup_of ?? null,
@@ -265,8 +270,10 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       // Set the scene (lib/scene-suggestions.ts): the creator's paid place, read before each line that could propose it.
       suggestion: () => pendingSuggestion(db, episodeId),
       onSuggestionProposed: (id) => markProposed(db, id),
-      // David 2026-10-20: each character's own last read of the other weighs in on how it ends (lib/wishes.ts).
+      // David 2026-10-20: each character's own say weighs in on how it ends (lib/wishes.ts); under engine v5 their own
+      // answers decide, the engine the guardrail (lib/choices.ts, David 2026-11-01).
       wishes: true,
+      engineVersion: row.setup?.engine_version ?? 1,
       onDraft: (d) => void drafts.push(d),
       // The creator's theater plays the date while it's filmed: each line is saved as it's written (only the
       // creator sees a transcript before it airs, lib/game.ts), and the finished date overwrites it below.
@@ -304,7 +311,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
               best_line = $7, confessionals = $8::jsonb, transcript = $9::jsonb, afterglow = $10::jsonb,
               reflections = $11::jsonb, generated_with = $12::jsonb, status = 'ready',
               ending = $13, drama_question = $14, drama_answer = $15, sides = $16::jsonb, wishes = $17::jsonb,
-              engine_trace = coalesce(engine_trace, $18::jsonb), turn_meta = $19::jsonb
+              engine_trace = coalesce(engine_trace, $18::jsonb), turn_meta = $19::jsonb, inner_life = $20::jsonb
         where id = $1 and status = 'generating'
         returning id`,
       [
@@ -329,11 +336,15 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         // A date booked before traces existed gets one now (same inputs, same outcome); a stored one is kept.
         trace ? JSON.stringify(trace) : null,
         JSON.stringify(turnMeta),
+        // Living dates: each line's private feeling and thought, and each side's own answer (shown only once it airs).
+        gen.inner && !partial ? JSON.stringify(gen.inner) : null,
       ],
     );
     if (saved.rows.length) {
       for (const d of drafts) await logTurnDraft(db, { episodeId, turnIndex: d.turn_index, side: d.side, source: "critic", reason: d.reason, rejected: d.rejected });
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
+      // A cast secret a line let slip (living dates): out once this date airs publicly (lib/cast-secrets.ts).
+      if (!partial && gen.slips.length) await recordSlips(db, episodeId, gen.slips).catch(() => {});
       await logSceneRequests(db, episodeId, built.setup, transcript);
       await settleSuggestions(db, episodeId, transcript);
       trackMoves(episodeId, transcript, "show");

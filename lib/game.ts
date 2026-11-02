@@ -1,5 +1,7 @@
 import { endingWhy } from "./why";
 import { wishLine, type StoredWishes } from "./wishes";
+import { choiceLine } from "./choices";
+import { innerForViewer, type SeeAgain, type StoredInner } from "./inner-life";
 import type { CharacterSheet, DateHistory, EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
 import { approvedClipId, approvedClipIsVideo, approvedPortraitId, portraitPathSql } from "./assets";
 import type { Db } from "./db";
@@ -206,6 +208,8 @@ export type StoredEpisode = {
   wishes?: StoredWishes | null;
   /** Which date it is for the couple, as read (lib/date-number.ts): the stored number, or computed for an older date. */
   date_number?: number | null;
+  /** Living dates (lib/inner-life.ts): each line's private feeling, thought and note, and each side's own answer. */
+  inner_life?: StoredInner | null;
 };
 
 export type EpisodeJson = {
@@ -266,6 +270,12 @@ export type EpisodeJson = {
    * character's only when the host shared the confessionals (the PRD's approval). Never before the ending is out.
    */
   diary?: { character_id: string; line: string }[];
+  /**
+   * Living dates (lib/inner-life.ts innerForViewer), once the date has aired and never before (for anyone, the creators
+   * included): each line's private thought, aligned with `transcript` (null where there was none, or the side's are
+   * kept private: the diary cam's rule), and each side's own answer to "see them again?" (its reason under the same rule).
+   */
+  inner?: { thoughts: (string | null)[]; choices: { character_id: string; see_again: SeeAgain; reason: string | null }[] };
   // Only present once every creator of the episode has consented (POST /api/reveal).
   creators?: CreatorRef[];
 };
@@ -325,6 +335,8 @@ type EpisodeJsonOpts = {
   creators?: CreatorRef[];
   /** Which sides' confessionals may be a public diary cam once it airs: [a, b] (see EpisodeJson.diary). */
   diarySides?: [boolean, boolean];
+  /** Which sides' thoughts and reasons may show once it airs (the diary cam's rule, plus the viewer's own sides). */
+  innerSides?: [boolean, boolean];
   /** #469: both characters are the viewer's, so the cue that tripped a dealbreaker can be said (never across owners). */
   dealbreakers?: [string | null, string | null];
 };
@@ -385,7 +397,8 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     if (ep.box_score) json.box_score = ep.box_score;
     const why = endingWhy(ep.ending, ep.box_score, ep.sides, ep.setup?.strategy, ep.setup?.engine_version, [a.name, b.name], number);
     // When the two sides' wishes tipped the ending, the numbers alone don't explain it: say so (never which way a lone wish went).
-    const tipped = wishLine(ep.wishes, ep.ending);
+    // Under engine v5 the two answers are said as they were (lib/choices.ts), when they moved it.
+    const tipped = ep.wishes?.choices ? choiceLine(ep.wishes.choices, ep.wishes.engine, ep.ending, [a.name, b.name]) : wishLine(ep.wishes, ep.ending);
     // #469: on a date between a viewer's own two characters, which cue tripped which dealbreaker (the debrief the
     // engine keeps for exactly this); never shown when another owner's character is on the date.
     const cues = opts.dealbreakers && ep.sides
@@ -420,6 +433,11 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
       .filter((d, i) => opts.diarySides![i] && d.line);
     if (diary.length) json.diary = diary;
   }
+  // Living dates: the thoughts and the answers, only once it has aired (lib/inner-life.ts innerForViewer).
+  if (opts.full && ep.revealed && ep.inner_life) {
+    const seen = innerForViewer(ep.inner_life, ep.revealed, opts.innerSides ?? opts.diarySides ?? [false, false], ep.transcript);
+    if (seen) json.inner = { thoughts: seen.thoughts, choices: seen.choices.map((c) => ({ character_id: (c.side === "a" ? a : b).id, see_again: c.see_again, reason: c.reason })) };
+  }
   if (opts.creators) json.creators = opts.creators;
   return json;
 }
@@ -448,6 +466,7 @@ type EpisodeRow = {
   afterglow: AfterglowLine[];
   status: EpisodeStatus;
   wishes: StoredWishes | null;
+  inner_life: StoredInner | null;
   a_id: string;
   a_name: string;
   a_house: boolean;
@@ -490,7 +509,7 @@ type EpisodeRow = {
 const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
        e.revealed_at is not null as revealed,
-       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status, e.wishes,
+       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status, e.wishes, e.inner_life,
        coalesce((e.generated_with->>'transcript_partial')::boolean, false) as transcript_partial,
        a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait, a.created_via = 'mcp' as a_agent,
        (a.visibility = 'private' and a.owner_id is distinct from $1::text) as a_private,
@@ -575,11 +594,13 @@ function toView(row: EpisodeRow): EpisodeView {
       status: row.status,
       wishes: row.wishes,
       date_number: row.date_number,
+      inner_life: row.inner_life,
     },
     {
       full,
       showConfessionals: row.is_creator || (row.revealed && row.confessionals_shared),
       diarySides: [row.a_house || row.confessionals_shared, row.b_house || row.confessionals_shared],
+      innerSides: [row.a_house || row.confessionals_shared || row.my_side === 0, row.b_house || row.confessionals_shared || row.my_side === 1],
       creators,
       ...(row.owns_both ? { dealbreakers: [row.setup?.sheet_a?.dealbreaker ?? null, row.setup?.sheet_b?.dealbreaker ?? null] } : {}),
     },
