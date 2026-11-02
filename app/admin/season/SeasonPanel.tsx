@@ -147,6 +147,12 @@ export default function SeasonPanel() {
             <span className="muted small"> · announces itself as “{view.formats.find((f) => f.slug === season.format)?.label}”</span>
           </p>
         ))}
+        <p>
+          <button type="button" className="button-ghost small" disabled={busy !== null} onClick={() => act("recoupling", { action: "recoupling" })}>
+            {busy === "recoupling" ? "Running the night…" : "Stage a recoupling night now"}
+          </button>{" "}
+          <span className="muted small">Off-cycle test: seats the cast and their season partners, runs the room tonight, house-paid.</span>
+        </p>
       </section>
     </>
   );

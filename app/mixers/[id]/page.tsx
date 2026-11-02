@@ -18,9 +18,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const view = await mixerNightView(await getDb(), id, null).catch(() => null);
   if (!view) return { title: "A mixer · Botchelor", robots: { index: false, follow: false } };
+  const recoupling = view.theme === "recoupling";
   return {
-    title: `The mixer at ${venueName(view.venue)} · Botchelor`,
-    description: `${view.seats.length} singles, one room, ${view.rounds} rounds of speed dates: an AI-written night on Botchelor.`,
+    title: `${recoupling ? "The Recoupling" : "The mixer"} at ${venueName(view.venue)} · Botchelor`,
+    description: recoupling
+      ? `The season's couples and singles in one room, and pairs re-form: the Recoupling, an AI-written night on Botchelor.`
+      : `${view.seats.length} singles, one room, ${view.rounds} rounds of speed dates: an AI-written night on Botchelor.`,
     alternates: { canonical: `/mixers/${id}` },
     robots: { index: false, follow: true },
   };
@@ -74,7 +77,7 @@ export default async function MixerNightPage({ params }: { params: Promise<{ id:
               </li>
             ))}
           </ul>
-          <h1>🍸 The mixer at {venuePhrase(view.venue)}</h1>
+          <h1>{view.theme === "recoupling" ? <>💘 The Recoupling at {venuePhrase(view.venue)}</> : <>🍸 The mixer at {venuePhrase(view.venue)}</>}</h1>
           <p className="episode-hero-setting">{view.opening}</p>
           <ul className="episode-hero-chips" aria-label="About this night">
             <li>AI-generated</li>

@@ -9,7 +9,7 @@
  */
 import { POST as postEpisode } from "@/app/api/episodes/route";
 import type { Db } from "./db";
-import { MIXER_DOORS_MINUTES, MIXER_MAX, MIXER_MIN, MIXER_WAIT_HOURS, openMixer, type GroupNight, type Rotation } from "./group-dates";
+import { MIXER_DOORS_MINUTES, MIXER_MAX, MIXER_MIN, MIXER_WAIT_HOURS, mixerSeats, openMixer, type GroupNight, type Rotation } from "./group-dates";
 import { seedFrom } from "./engine";
 import { MCP_CALL_URL, USER_COOKIE } from "./http";
 import { shortName } from "./names";
@@ -194,3 +194,40 @@ export async function runDueMixers(db: Db, now: Date = new Date()): Promise<Mixe
   return out;
 }
 
+/**
+ * Runs a night the house has already seated (the recoupling night, lib/recoupling.ts): draws the rotations, writes the
+ * room's opening, books every rotation through the same route as go_on_date as its seat's booker (house_paid, like the
+ * nightly fill), and closes the night. `noteFor` is the producer's one-sided channel — the audience's voted couple gets
+ * a note its date partner never sees, the same channel a dare would use (lib/simulation.ts req.note).
+ */
+export async function runSeatedNight(
+  db: Db,
+  nightId: string,
+  opts: { noteFor?: (a: string, b: string) => string | null } = {},
+): Promise<{ booked: number; failed: number }> {
+  const seats = await mixerSeats(db, nightId);
+  const rotations = drawRotations(nightId, seats);
+  const claimed = await db.query(
+    `update group_nights set rotations = $2::jsonb, status = 'running', decided_at = now() where id = $1 and status = 'open' returning id`,
+    [nightId, JSON.stringify(rotations)],
+  );
+  if (!claimed.rows.length) return { booked: 0, failed: 0 };
+  await writeRoomOpening(db, nightId).catch(() => false);
+  let booked = 0;
+  let failed = 0;
+  for (const i of playOrder(rotations)) {
+    const r = rotations[i];
+    const note = opts.noteFor?.(r.a, r.b) ?? null;
+    const res = await book(r.booker, { character_id: r.a, partner_id: r.b, group_night: nightId, format: "speed_date", ...(note ? { note } : {}) });
+    if (res.ok) booked += 1;
+    else {
+      failed += 1;
+      const why = String(res.data.message ?? res.data.error ?? `refused (${res.status})`).slice(0, 160);
+      await db
+        .query(`update group_nights set rotations = jsonb_set(rotations, $2::text[], to_jsonb($3::text)) where id = $1`, [nightId, `{${i},failed}`, why])
+        .catch(() => {});
+    }
+  }
+  await db.query(`update group_nights set status = $2 where id = $1`, [nightId, booked ? "done" : "cancelled"]);
+  return { booked, failed };
+}

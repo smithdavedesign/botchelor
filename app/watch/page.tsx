@@ -14,6 +14,8 @@ import SituationVote from "@/app/SituationVote";
 import SeasonBanner from "@/app/SeasonBanner";
 import ShowSince from "@/app/ShowSince";
 import ThisWeek from "./ThisWeek";
+import RecouplingCard from "./RecouplingCard";
+import { recouplingBoard } from "@/lib/recoupling";
 import { thisWeekOn } from "@/lib/season-format";
 import { seasonFormatNow } from "@/lib/season-format-store";
 import ChemistryShiftsPanel from "@/app/ChemistryShifts";
@@ -161,7 +163,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const page = parsePage((await searchParams).page);
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling] = await Promise.all([
     listLobby(db),
     countRecentPrivateDates(db),
     listAiringSoon(db, viewerId, airWindowMinutes()),
@@ -177,6 +179,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     showSince(db, viewerId).catch(() => null),
     chemistryShifts(db).catch(() => null),
     seasonFormatNow(db).catch(() => null),
+    recouplingBoard(db, viewerId).catch(() => null),
   ]);
   const feed = latest.episodes;
   const now = Date.now();
@@ -202,6 +205,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
 
       <SeasonBanner />
       {seasonDef && <ThisWeek card={thisWeekOn(seasonDef, new Date(now))} />}
+      {recoupling && <RecouplingCard board={recoupling} now={now} />}
       {showNews && <ShowSince card={showNews} />}
 
       {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} />}

@@ -3035,6 +3035,32 @@ create table if not exists situation_nights (
   created_at timestamptz not null default now()
 );
 
+-- Recoupling nights (lib/recoupling.ts; docs/ideas.md "Bringing viewers back", idea 9): one row per night the season's
+-- format schedules (lib/season-format.ts recouplingNightDays) or an admin stages. The row opens the viewer vote with a
+-- frozen ballot (choices), and night_id is set when the night runs as a one-room group night (theme 'recoupling').
+create table if not exists recoupling_nights (
+  season_id text not null,
+  night_at text not null,
+  question text not null check (question in ('couple_in_trouble', 'newcomer')),
+  choices jsonb not null,
+  staged boolean not null default false,
+  night_id text,
+  winner text,
+  created_at timestamptz not null default now(),
+  primary key (season_id, night_at)
+);
+-- One vote a viewer a recoupling night (night_at is recoupling_nights' key day), changeable until the night runs.
+create table if not exists recoupling_votes (
+  night_at text not null,
+  user_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (night_at, user_id)
+);
+-- A group night's theme: 'recoupling' marks the season's special night, so /mixers/[id] bills it as The Recoupling.
+alter table group_nights add column if not exists theme text;
+
 -- Which format a season runs in (lib/season-format.ts; docs/ideas.md F "An island season"): one row a season, written
 -- from /admin/season. No row = 'classic', the show exactly as it was before formats existed.
 create table if not exists season_formats (

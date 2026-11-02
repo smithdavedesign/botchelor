@@ -35,6 +35,8 @@ export type MixerSeatView = CharacterRef & { house_run: boolean };
 export type MixerNightView = {
   id: string;
   venue: string;
+  /** 'recoupling' bills the night as The Recoupling (lib/recoupling.ts); null is an ordinary mixer. */
+  theme: string | null;
   status: GroupNight["status"];
   rounds: number;
   seats: MixerSeatView[];
@@ -48,8 +50,8 @@ export type MixerNightView = {
 type SeatRow = { id: string; name: string; is_house: boolean; hue: number | null; portrait: string | null; agent: boolean; private: boolean };
 
 export async function mixerNightView(db: Db, nightId: string, viewerId: string | null): Promise<MixerNightView | null> {
-  const g = (await db.query<{ id: string; venue: string; status: GroupNight["status"]; rotations: Rotation[] | null; room_opening: string | null; room_closing: string | null }>(
-    `select id, venue, status, rotations, room_opening, room_closing from group_nights where id = $1 and kind = 'mixer'`,
+  const g = (await db.query<{ id: string; venue: string; theme: string | null; status: GroupNight["status"]; rotations: Rotation[] | null; room_opening: string | null; room_closing: string | null }>(
+    `select id, venue, theme, status, rotations, room_opening, room_closing from group_nights where id = $1 and kind = 'mixer'`,
     [nightId],
   )).rows[0];
   if (!g) return null;
@@ -126,7 +128,7 @@ export async function mixerNightView(db: Db, nightId: string, viewerId: string |
       closing = g.room_closing ?? roomClosing(g.venue, endings, names, seatIds);
     }
   }
-  return { id: g.id, venue: g.venue, status: g.status, rounds, seats, opening: g.room_opening ?? roomOpening(g.id, g.venue, seats.map((s) => s.name)), closing, tables };
+  return { id: g.id, venue: g.venue, theme: g.theme ?? null, status: g.status, rounds, seats, opening: g.room_opening ?? roomOpening(g.id, g.venue, seats.map((s) => s.name)), closing, tables };
 }
 
 /** The mixer night an episode was one table of (the episode page's link back to the whole room), with its round. */

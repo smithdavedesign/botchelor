@@ -184,6 +184,11 @@ export async function startTestDb() {
         // Tonight's situation (lib/situations.ts): the house cast outlives a reset, so its nights would too.
         "situation_votes",
         "situation_nights",
+        // The recoupling night and the season's format (lib/recoupling.ts, lib/season-format-store.ts): keyed by
+        // season, which outlives a reset.
+        "recoupling_votes",
+        "recoupling_nights",
+        "season_formats",
         // Backings (lib/backing.ts) and dares (lib/dares.ts) hang off the house cast too.
         "cast_backings",
         "dare_votes",

@@ -6,6 +6,7 @@ import { frontierAuthorized } from "@/lib/model";
 import { ensureSeasonCast } from "@/lib/season-cast";
 import { SEASON_FORMAT_SLUGS, SEASON_FORMATS } from "@/lib/season-format";
 import { seasonFormatSlug, setSeasonFormat } from "@/lib/season-format-store";
+import { stageRecouplingNight } from "@/lib/recoupling";
 import { generateCandidates, GENERATE_FROM_DAY, listCandidates, makePortrait, reviewCandidate } from "@/lib/season-gen";
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 
@@ -60,6 +61,7 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("portrait"), character_id: z.string().min(1).max(80) }),
   z.object({ action: z.literal("generate") }),
   z.object({ action: z.literal("format"), season_id: z.string().min(4).max(10), slug: z.enum(SEASON_FORMAT_SLUGS) }),
+  z.object({ action: z.literal("recoupling") }),
 ]);
 
 /** Approve or reject a candidate, redo a portrait, write next month's candidates, or pick a season's format. */
@@ -77,6 +79,10 @@ export const POST = handle(async (req: Request) => {
     if (!allowed.includes(input.season_id)) return json({ error: "season_closed", message: "Only this season or the next can change format." }, 400);
     await setSeasonFormat(db, input.season_id, input.slug);
     note = `${seasonLabel(input.season_id)} runs as ${SEASON_FORMATS.find((f) => f.slug === input.slug)?.label ?? input.slug}.`;
+  } else if (input.action === "recoupling") {
+    // Stage the recoupling night now, off-cycle (lib/recoupling.ts): the same run the season's last night gets.
+    const r = await stageRecouplingNight(db);
+    note = r.ran ? `The Recoupling ran: ${r.booked} booked, ${r.failed} failed — watch it at /mixers/${r.night_id}.` : `Not run: ${r.reason}.`;
   } else if (input.action === "portrait") {
     note = await makePortrait(db, input.character_id);
   } else {

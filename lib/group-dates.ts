@@ -208,7 +208,7 @@ const MIXER_VENUES: readonly PlaceId[] = ["dive_bar", "jazz_bar", "rooftop_bar",
 
 export type MixerSeat = { character_id: string; name: string; booker: string; house_fill?: boolean };
 
-async function mixerSeats(db: Db, nightId: string): Promise<MixerSeat[]> {
+export async function mixerSeats(db: Db, nightId: string): Promise<MixerSeat[]> {
   const { rows } = await db.query<MixerSeat>(
     `select gs.character_id, c.name, gs.booker, gs.house_fill from group_night_seats gs join characters c on c.id = gs.character_id
       where gs.night_id = $1 order by gs.joined_at`,

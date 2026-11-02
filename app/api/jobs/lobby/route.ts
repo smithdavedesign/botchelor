@@ -9,6 +9,7 @@ import { runDueMixers } from "@/lib/group-dates-run";
 import { drawQueuedSets, retryDueSets } from "@/lib/sets";
 import { runWhileAway } from "@/lib/away";
 import { playVotedSituation } from "@/lib/situations";
+import { runDueRecoupling } from "@/lib/recoupling";
 import { ensureCastSecrets } from "@/lib/cast-secrets";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
@@ -42,9 +43,11 @@ async function run(req: Request): Promise<Response> {
   // Tonight's situation (lib/situations.ts): once yesterday's vote has closed, its date is made, once. Before the lobby's
   // own refresh, so the voted room is the open one and the refresh doesn't make another beside it.
   const situation = await playVotedSituation(db).catch(() => null);
+  // The recoupling night (lib/recoupling.ts): opens the vote when a night is close, runs it at the fill hour.
+  const recoupling = await runDueRecoupling(db).catch(() => null);
   // This season's cast secrets (lib/cast-secrets.ts): written once a season each on the show's cheap model; a no-op after.
   const secrets = await ensureCastSecrets(db).catch(() => null);
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, secrets, aired, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, recoupling, secrets, aired, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);
