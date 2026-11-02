@@ -9,7 +9,6 @@
  *    the finale — so a title can't leak the outcome; a title that names an ending word is rejected anyway.
  *  - Viewer-facing generated text, so it passes the same PG check as sheets (lib/safety.ts checkSheetText).
  */
-import { trimTo } from "./conversation";
 import { dateNumberSql } from "./date-number";
 import type { Db } from "./db";
 import { needsTranslation } from "./language-check";
@@ -61,7 +60,15 @@ export type EpisodeTitleFacts = {
  */
 export function templateEpisodeTitle(facts: Pick<EpisodeTitleFacts, "venue" | "dateNumber">): string {
   const ordinal = dateLabel(facts.dateNumber && facts.dateNumber > 1 ? facts.dateNumber : 1);
-  return trimTo(facts.venue ? `${ordinal} at ${venuePhrase(facts.venue)}` : `The ${ordinal.toLowerCase()}`, EPISODE_TITLE_MAX);
+  // A title is never cut mid-word ("…" in quotes reads broken): too long with the ordinal, the venue stands alone;
+  // too long even alone, the ordinal does.
+  if (facts.venue) {
+    const at = `${ordinal} at ${venuePhrase(facts.venue)}`;
+    if (at.length <= EPISODE_TITLE_MAX) return at;
+    const alone = venueName(facts.venue);
+    if (alone.length <= EPISODE_TITLE_MAX) return alone;
+  }
+  return `The ${ordinal.toLowerCase()}`;
 }
 
 const SYSTEM =

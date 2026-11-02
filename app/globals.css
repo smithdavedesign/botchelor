@@ -12909,3 +12909,352 @@ button.thread-menu-item:hover:not(:disabled) {
 .cast-secret-locked {
   font-style: italic;
 }
+
+/* ---------------- the show feel (docs/show-style.md) ----------------
+   The visitor-facing show surfaces read as television: the tonight band, episode shelves, cast faces, the vote as a
+   named moment, couples as a story arc. Dark "on air" surfaces stay dark in both themes (the title-card rule). */
+
+/* The tonight band: the show on the air right now, first thing on home. */
+.tonight-band {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 150% at 85% -30%, rgba(229, 53, 107, 0.3), transparent 60%),
+    linear-gradient(160deg, #241131, #140a1e 70%);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+.tonight-band-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+.tonight-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: tonight-pulse 2.4s ease-in-out infinite;
+}
+.tonight-slots {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(15.5rem, 1fr);
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.tonight-slots::-webkit-scrollbar {
+  display: none;
+}
+.tonight-slot {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+.tonight-slot-link {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto auto;
+  column-gap: 0.75rem;
+  row-gap: 0.2rem;
+  height: 100%;
+  padding: var(--space-3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.tonight-slot-link:hover {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+.tonight-slot-label {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+.tonight-slot.is-live .tonight-slot-label {
+  color: #ffd1e0;
+}
+.tonight-live-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #ff4d79;
+  box-shadow: 0 0 8px #ff4d79;
+  animation: tonight-pulse 1.6s ease-in-out infinite;
+}
+.tonight-slot-faces {
+  grid-row: 2 / span 2;
+  align-self: center;
+  display: flex;
+}
+.tonight-slot-faces .avatar + .avatar {
+  margin-left: -10px;
+}
+.tonight-slot-faces .avatar {
+  box-shadow: 0 0 0 2px #1d1030;
+}
+.tonight-slot-names {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tonight-slot-line {
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.75);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@keyframes tonight-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+@media (max-width: 760px) {
+  /* A full-bleed strip on a phone, flush under the header. */
+  .tonight-band {
+    margin: calc(-1 * 1.25rem) calc(-1 * var(--gutter)) var(--space-4);
+    border-radius: 0;
+  }
+}
+
+/* The just-aired shelf: small title cards on the venue's own colors, sideways on a phone, three across on desktop. */
+.episode-shelf {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(16rem, 80%);
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.episode-shelf::-webkit-scrollbar {
+  display: none;
+}
+@media (min-width: 760px) {
+  .episode-shelf {
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+    grid-template-columns: repeat(2, 1fr);
+    overflow: visible;
+  }
+}
+@media (min-width: 1024px) {
+  .episode-shelf {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.episode-shelf-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  min-height: 11rem;
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  overflow: hidden;
+  scroll-snap-align: start;
+  color: #fff;
+  background-size: cover;
+  background-position: center;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.episode-shelf-card:has(.stretch:hover) {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+}
+.episode-shelf-card .pair-faces .avatar {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+.episode-shelf-names {
+  font-weight: 700;
+  font-size: var(--text-md);
+  color: #fff;
+  text-decoration: none;
+}
+.episode-shelf-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+.episode-shelf-setting {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.78);
+}
+.episode-shelf-chip {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The cast as faces: portrait-led tiles on home. */
+.home-cast-faces {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  margin: var(--space-3) 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 640px) {
+  .home-cast-faces {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.home-cast-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: var(--space-4) var(--space-3);
+  text-align: center;
+}
+.home-cast-tile .avatar {
+  box-shadow: 0 0 0 3px var(--soft), 0 10px 22px -12px rgba(36, 16, 34, 0.4);
+}
+.home-cast-name {
+  text-decoration: none;
+  font-size: var(--text-md);
+}
+.home-cast-traits {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* Tonight's vote as a named moment: the ballot wears the show's frame. */
+.situation.card {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    var(--grad) border-box;
+}
+.situation-head .kicker {
+  color: var(--accent-text);
+}
+
+/* The TV-guide listing: airing-soon cards read as fixtures, the countdown loud. */
+.watch-airing-card .watch-airing-when {
+  background: var(--grad);
+  border-color: transparent;
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+/* A couple's page as the story so far: the pair close together, the stage as the headline, dates as an arc. */
+.couple-avatars {
+  gap: 0;
+}
+.couple-avatars > * + * {
+  margin-left: -16px;
+}
+.couple-avatars .avatar {
+  box-shadow: 0 0 0 3px var(--card), 0 8px 24px -12px rgba(36, 16, 34, 0.45);
+}
+.couple-head .ending {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-xl);
+  margin: 0.35rem 0 0.1rem;
+}
+.couple-timeline {
+  position: relative;
+  margin: 0.25rem 0 0;
+}
+.couple-timeline > li {
+  position: relative;
+  padding: 0.4rem 0 0.4rem 1.35rem;
+}
+.couple-timeline > li::before {
+  content: "";
+  position: absolute;
+  left: 0.35rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+.couple-timeline > li::after {
+  content: "";
+  position: absolute;
+  left: calc(0.35rem - 3.5px);
+  top: 1.05rem;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--card);
+}
+.couple-timeline > li:first-child::before {
+  top: 1.05rem;
+}
+.couple-timeline > li:last-child::before {
+  bottom: auto;
+  height: 1.05rem;
+}
+
+/* The contestant header as a cast card: the headshot gets a ring and some air. */
+.contestant .avatar {
+  box-shadow: 0 0 0 3px var(--soft), 0 12px 28px -14px rgba(36, 16, 34, 0.45);
+}
+
+/* Secrets as intrigue (docs/show-style.md): the one card on a cast page that goes dark, locks glowing. */
+.cast-secrets.card {
+  border-color: transparent;
+  background:
+    radial-gradient(120% 150% at 15% -30%, rgba(122, 54, 201, 0.35), transparent 60%),
+    linear-gradient(160deg, #241131, #140a1e 70%);
+  color: rgba(255, 255, 255, 0.92);
+}
+.cast-secrets.card :is(h2, strong) {
+  color: #fff;
+}
+.cast-secrets.card .muted {
+  color: rgba(255, 255, 255, 0.62);
+}
+.cast-secrets.card .cast-secrets-list li {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+}

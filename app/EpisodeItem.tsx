@@ -3,11 +3,14 @@ import Avatar from "@/app/Avatar";
 import { formatLabel } from "@/lib/formats";
 import type { EpisodeView } from "@/lib/game";
 import { dateLabel, dateNumberOf, endingLabel, endingWithDetail } from "@/lib/rules";
+import { templateEpisodeTitle } from "@/lib/episode-title";
 
 /** One episode in a list (Watch's latest episodes, Account's own dates): the pair, where it stands, its setting. */
 export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
   const [a, b] = episode.characters;
   const dateNo = dateNumberOf(episode);
+  // A written title is the row's billing; the template one would only repeat the setting shown underneath.
+  const title = episode.title && episode.title !== templateEpisodeTitle({ venue: episode.venue ?? null, dateNumber: dateNo ?? null }) ? episode.title : null;
   const status = episode.hidden
     ? "Hidden after reports"
     : episode.revealed
@@ -38,7 +41,7 @@ export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
           </Link>
           <span className="episode-item-meta">
             {/* The episode's own title (lib/episode-title.ts), once one was written at air time; lists stay quiet otherwise. */}
-            {episode.title && <span className="episode-item-title">“{episode.title}”</span>}
+            {title && <span className="episode-item-title">“{title}”</span>}
             {plainAired ? <span className="episode-item-status">Aired</span> : <span className="badge">{status}</span>}
             {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
             {/* David, 2026-11-01: "Group night" read as a date of several people; it's one pairing of the night. */}
