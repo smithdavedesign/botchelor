@@ -1,10 +1,10 @@
 import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
 import { afterDarkElsewhere } from "@/lib/after-dark-host";
 import { PUBLIC_CACHE, PRIVATE_CACHE } from "@/lib/asset-gate";
-import { signMediaGrant, verifyMediaGrant } from "@/lib/auth";
+import { verifyMediaGrant } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { objectStore, readBytes } from "@/lib/object-store";
-import { postMedia, showcaseViewer } from "@/lib/showcase";
+import { mediaHref, postMedia, showcaseViewer } from "@/lib/showcase";
 import { thumbFor, thumbSizeOf } from "@/lib/showcase-thumbs";
 
 /**
@@ -27,13 +27,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!m) return new Response("Not found", { status: 404 });
   const elsewhere = m.source === "after_dark" ? afterDarkElsewhere() : null;
   if (elsewhere) {
-    const q = new URLSearchParams();
-    const asked = url.searchParams.get("size");
-    if (asked) q.set("size", asked);
-    const grant = m.rating === "pg" ? null : signMediaGrant(id);
-    if (grant) q.set("g", grant);
-    const location = `${elsewhere}/api/showcase/${encodeURIComponent(id)}/media${q.size ? `?${q}` : ""}`;
+    const location = mediaHref({ id, source: m.source, rating: m.rating }, thumbSizeOf(url.searchParams.get("size")) ?? undefined);
     // Kept for less than the grant lasts, so a cached redirect never carries a spent one.
+    const grant = new URL(location).searchParams.has("g");
     return new Response(null, { status: 302, headers: { location, "cache-control": grant ? "private, max-age=600" : "public, max-age=3600", "x-robots-tag": "noindex" } });
   }
   const row = (

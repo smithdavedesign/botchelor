@@ -19,7 +19,7 @@ import { REEL_PAGE } from "@/app/showcase/reels/reel-shared";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { MEDIA_GRANT_TTL_SECONDS, signMediaGrant, verifyMediaGrant } from "@/lib/auth";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { listShowcase, publish, saveCreatorProfile, type ShowcaseViewer } from "@/lib/showcase";
+import { listShowcase, mediaHref, publish, saveCreatorProfile, type ShowcaseViewer } from "@/lib/showcase";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
@@ -112,6 +112,24 @@ describe("a showcase file made in After Dark, on the show", () => {
     expect((await get(id, `?g=${encodeURIComponent(forged)}`)).status).toBe(404);
     // Anyone's file needs no grant here, and isn't sent on anywhere.
     expect((await get(w.ids["clip-pg"])).status).toBe(200);
+  });
+
+  it("is linked straight from the feed to After Dark's host, so a clip doesn't wait on the show's redirect first", async () => {
+    // David, 2026-11-02: a 2 s wait between reels; each clip went show → After Dark → the CDN, two uncached hops.
+    const w = await world();
+    vi.stubEnv("AFTER_DARK_ORIGIN", AD);
+    const { posts } = await listShowcase(t.db, { id: null, admin: false, ratings: ["pg"] }, { page: 1 });
+    const media = Object.fromEntries(posts.map((p) => [p.id, p.media]));
+    expect(media[w.ids["clip-pg"]]).toBe(`${AD}/api/showcase/${w.ids["clip-pg"]}/media`);
+    // The show's own file stays on the show.
+    expect(media[w.ids["pg-1"]]).toBe(`/api/showcase/${w.ids["pg-1"]}/media`);
+    // One only some may see carries the show's OK for that post, as the redirect would have.
+    const sugg = new URL(mediaHref({ id: w.ids["clip-sugg"], source: "after_dark", rating: "suggestive" }, "tile"));
+    expect([sugg.origin, sugg.pathname, sugg.searchParams.get("size")]).toEqual([AD, `/api/showcase/${w.ids["clip-sugg"]}/media`, "tile"]);
+    expect(verifyMediaGrant(sugg.searchParams.get("g"), w.ids["clip-sugg"])).toBe(true);
+    // The grid uses it, and falls back to the show's route if it fails.
+    const html = renderToStaticMarkup(createElement(ShowcaseGrid, { posts }));
+    expect(html).toContain(`src="${AD}/api/showcase/${w.ids["clip-pg"]}/media#t=0.1"`);
   });
 
   it("with After Dark on the same host, nothing changes", async () => {

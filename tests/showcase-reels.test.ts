@@ -16,7 +16,7 @@ import { GET as reelsGet } from "@/app/api/showcase/reels/route";
 import { POST as seenPost } from "@/app/api/showcase/reels/seen/route";
 import ReelFeed from "@/app/showcase/reels/ReelFeed";
 import ReelsPage from "@/app/showcase/reels/page";
-import { CARD_EVERY, feedOf, motionOf, REEL_PAGE, reelsQuery } from "@/app/showcase/reels/reel-shared";
+import { AHEAD, CARD_EVERY, feedOf, loads, motionOf, REEL_PAGE, reelsQuery } from "@/app/showcase/reels/reel-shared";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { pairKey } from "@/lib/relationships";
@@ -26,6 +26,19 @@ import { api, BASE_URL, newUserCookie, startTestDb, TEST_SESSION_SECRET, userIdO
 
 // The showcase as reels (app/showcase/reels; David, 2026-10-29: "an infinite reel / video, scroll-swipe… a safe image of
 // the person animated with cta to see all their content with a paywall after").
+
+describe("what loads ahead", () => {
+  // David, 2026-11-02: "make the full screen reels preload before swiping next? otherwise it's a 2 sec wait. maybe preload 4 in advance?"
+  it("loads the one before, the one on screen and the next at once, then four more once the one on screen can play through", () => {
+    const window = (active: number, ready: boolean) => Array.from({ length: 12 }, (_, i) => i).filter((i) => loads(i, active, ready));
+    expect(AHEAD).toBe(4);
+    expect(window(0, false)).toEqual([0, 1]);
+    expect(window(0, true)).toEqual([0, 1, 2, 3, 4]);
+    expect(window(5, false)).toEqual([4, 5, 6]);
+    // Anything further back or ahead is let go.
+    expect(window(5, true)).toEqual([4, 5, 6, 7, 8, 9]);
+  });
+});
 
 describe("the feed's shape", () => {
   it("puts a card after every few posts, taking turns, and After Dark's only when it's asked for", () => {
