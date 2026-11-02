@@ -6,6 +6,7 @@ import { AiTag } from "@/app/AiLabel";
 import type { Media } from "@/lib/adult/media";
 import type { Reel, ReelScope, ReelShot, ShotSuggestion } from "@/lib/adult/reels";
 import { MediaRequest } from "../../MediaRequest";
+import { videoPrice } from "@/lib/adult/reel-timing";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -188,7 +189,7 @@ export default function Storyboard({
         <div className="ad-storyboard-head">
           <strong>🎬 Storyboard</strong>
           <span className="small muted">
-            {kept.length} shot{kept.length === 1 ? "" : "s"} kept · {tokens} tokens to film
+            {kept.length} shot{kept.length === 1 ? "" : "s"} kept · {tokens ? `${tokens} tokens to film` : "filmed on your key"}
           </span>
           <button type="button" className="button-ghost small" onClick={onClose}>
             Close
@@ -375,7 +376,7 @@ export default function Storyboard({
             </button>
           ) : null}
           <button type="button" className="primary" onClick={() => void film()} disabled={busy !== null || !canFilm} title={!kept.length ? "Draw and keep at least one picture first" : toApprove ? `Approve ${toApprove} more shot${toApprove === 1 ? "" : "s"} first` : undefined}>
-            {busy === "film" ? "Filming…" : !canFilm && kept.length ? `Approve ${toApprove} more first` : `🎬 Make the movie · ${tokens} tokens`}
+            {busy === "film" ? "Filming…" : !canFilm && kept.length ? `Approve ${toApprove} more first` : `🎬 Make the movie · ${videoPrice(tokens)}`}
           </button>
           <AiTag />
         </div>

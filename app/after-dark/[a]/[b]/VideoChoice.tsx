@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { NightChapter } from "@/lib/adult/nights";
 import type { ReelScope } from "@/lib/adult/reels";
+import { videoPrice } from "@/lib/adult/reel-timing";
 
 /** A video needs at least this many lines (lib/adult/reels.ts makeReel). */
 const MIN_LINES = 6;
@@ -39,7 +40,7 @@ export default function VideoChoice({
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<ReelScope>("night");
   const whole = chapters.reduce((t, c) => t + c.lines, 0);
-  const price = `${tokens} tokens`;
+  const price = videoPrice(tokens);
   const nums = chapters.map((c) => c.chapter).filter((n): n is number => typeof n === "number");
   const span = nums.length ? `chapters ${Math.min(...nums)}–${Math.max(...nums)}` : `${chapters.length} chapters`;
   const thisOne = `chapter ${scene.chapter}`;

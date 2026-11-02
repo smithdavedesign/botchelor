@@ -13,6 +13,7 @@ import { listNights, openScene } from "@/lib/adult/scenes";
 import { pairReadiness } from "@/lib/adult/readiness";
 import { includedPrice } from "@/lib/adult/pricing";
 import { getAdultSettings } from "@/lib/adult/settings";
+import { hasJobKey } from "@/lib/connections";
 import { mineScenes, sceneCatalog } from "@/lib/adult/scene-catalog";
 import { asRoleplay, getLibrary } from "@/lib/studio/library";
 import { studioAccess, withSetupOffers } from "@/lib/adult/studio";
@@ -144,7 +145,8 @@ export default async function AfterDarkScenePage({ params }: Props) {
         myRoleplays={library.roleplays.map(asRoleplay)}
         nights={await listNights(db, admin, scene.a.id, scene.b.id)}
         reels={await listReels(db, admin, scene.a.id, scene.b.id)}
-        reelTokens={(await getAdultSettings(db)).reel_tokens}
+        // On their own key (Connections, After Dark videos) a video costs no tokens (lib/adult/reels.ts reelMedia).
+        reelTokens={(await hasJobKey(db, admin, "after_dark_video")) ? 0 : (await getAdultSettings(db)).reel_tokens}
         // With "Set up for pictures" on each of theirs not ready yet (#1207), where the Studio is theirs to use.
         readiness={textOnlyHere ? [] : await withSetupOffers(db, admin, await pairReadiness(db, admin, scene.a.id, scene.b.id))}
         // A chapter's price for this viewer: free for an admin, included with a subscription (#1005, lib/adult/pricing.ts).
