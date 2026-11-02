@@ -75,12 +75,18 @@ Bring-your-own-key (M16) works, but it's organised around keys, not around what 
 | **Portraits & pictures** (image) | A portrait of your own character, when you ask | Not set up (portraits need a key) | OpenAI (it moderates its own images) |
 | **Intro clips** (video) | A 4-second clip from a character's portrait, when you ask | Not set up (Veo has no free tier) | Google (Veo, billing on) |
 | **🌙 After Dark** (admins only, read-only) | Text, pictures, video and voice | Always the house's providers | none: nobody's own key reaches After Dark |
+| **After Dark pictures** (after_dark; only where After Dark is open) | Studio pictures of your own characters | Botchelor's models, for tokens | Venice, Replicate |
+| **After Dark videos** (after_dark_video; only where After Dark is open; 2026-11-01) | Videos of the night and clips: their keyframes and shots, with the video model you pick (Wan 3.0 on Venice, Wan 2.6 on Replicate recommended) | Botchelor's models, for tokens | Venice, Replicate |
 
 - **Voice** is left out: no voice path in the show takes a person's key (After Dark's voices run on the house's Venice or
   Replicate key, `lib/adult/voice.ts`). It becomes a card the day one does.
 - **After Dark** is admin-only today and no user key reaches it (`lib/adult/settings.ts`: its keys are the house's, set on
   its settings page). So its card shows only to a signed-in admin, never on a device that hasn't entered the After Dark PIN,
   and it's read-only: the house providers' status, with a link to the providers view.
+- **After Dark videos** (`lib/adult/reels.ts` reelMedia): with a key here, every video and clip runs on it, free of tokens,
+  its keyframes too, and nothing falls back to the house's keys; shots are collected and stopped with it, and each landed
+  shot goes on the card's meter as an estimate (`ownShotUsd`). A paused key (over its cap, or refused) stops the video
+  with the reason rather than charging tokens. The Hive check stays the house's.
 - **One key, several jobs.** A key is stored once per provider. Connecting Google for dates offers "Also use this key for
   Intro clips (only when you make a clip)"; connecting a job whose provider already has a key offers "Use your Google key
   (•••• abcd)" without pasting again.

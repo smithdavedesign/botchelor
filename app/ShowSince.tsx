@@ -24,6 +24,12 @@ function Items({ card }: { card: ShowSinceData }) {
           <Link href={card.situation.room_path}>watch how it went</Link>
         </li>
       )}
+      {card.diary && (
+        <li>
+          <span aria-hidden="true">📹</span> {card.diary.name}, after the date with {card.diary.partner}: <em>“{card.diary.line}”</em>{" "}
+          <Link href={card.diary.episode_path}>watch it</Link>
+        </li>
+      )}
       {card.moves.map((m) => (
         <li key={`${m.lo}-${m.hi}`}>
           <span aria-hidden="true">💫</span>{" "}
@@ -37,6 +43,16 @@ function Items({ card }: { card: ShowSinceData }) {
       {card.followed > 0 && (
         <li>
           <span aria-hidden="true">👀</span> Couples you follow went on {plural(card.followed, "date", "dates")}
+        </li>
+      )}
+      {card.shift && (
+        <li>
+          <span aria-hidden="true">{card.shift.shift > 0 ? "🔥" : "🧊"}</span> Biggest chemistry shift this week:{" "}
+          <Link href={`/couples/${card.shift.lo}/${card.shift.hi}`}>
+            {card.shift.a} &amp; {card.shift.b}
+          </Link>{" "}
+          {card.shift.shift > 0 ? "+" : "−"}
+          {Math.abs(card.shift.shift)}
         </li>
       )}
       {card.calls && (

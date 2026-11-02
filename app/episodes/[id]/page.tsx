@@ -29,6 +29,7 @@ import Afterglow, { SecondDate } from "./Afterglow";
 import EpisodeTheater from "./EpisodeTheater";
 import ChatThread from "@/app/ChatThread";
 import BoxScore from "./BoxScore";
+import DiaryCam from "./DiaryCam";
 import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
 import DealbreakerQuiz from "./DealbreakerQuiz";
@@ -540,6 +541,9 @@ export default async function EpisodePage({
           </section>
         )}
       </RecapToggle>
+
+      {/* The diary cam: each side's take to camera, once the date has aired (never before the ending is out). */}
+      {episode.diary && <DiaryCam diary={episode.diary} characters={episode.characters} folded={hasTheater} />}
 
       {episode.afterglow && (
         <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} />

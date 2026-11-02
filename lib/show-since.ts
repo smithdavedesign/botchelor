@@ -2,7 +2,9 @@
  * What happened on the show since your last visit (docs/ideas.md "Bringing viewers back", idea 12; David 2026-11-01).
  * lib/since.ts (2026-11-01 audit J4) tells someone with characters what happened to THEM; this is the show's half, for
  * everyone who comes back, characters or not: how many dates aired, the couples who moved (the ones you follow first),
- * dates by couples you follow, how your calls did and your run, and the situation the viewers picked. Home puts it in
+ * dates by couples you follow, how your calls did and your run, the situation the viewers picked, and the newest diary
+ * cam take (lib/game.ts EpisodeJson.diary: a house character's, or a shared one, from a date that has aired), and the
+ * week's biggest chemistry shift (lib/chemistry-shifts.ts). Home puts it in
  * the "Since you were here" card for an owner and in a card of its own for a spectator; /watch opens with it.
  *
  *  - "Your last visit" is owner_activity.prev_seen: the visit before this one, kept by lib/activity.ts touchOwner when
@@ -17,9 +19,14 @@ import { RETURN_GAP_HOURS } from "./activity";
 import { STAGE_LABELS, type Stage } from "./relationships";
 import { DATE_ROLEPLAYS } from "./roleplays";
 import { callRecord } from "./streaks";
+import { chemistryShifts, type ChemistryShift } from "./chemistry-shifts";
+import { clipBody } from "./notifications";
+import { REPORT_HIDE_THRESHOLD } from "./rules";
 
 /** The furthest back the card counts from. */
 export const LOOKBACK_DAYS = 30;
+/** How much of a diary cam take the card quotes (the episode has the whole of it). */
+export const DIARY_SHOWN_MAX = 160;
 /** How many couples' moves it names. */
 export const MOVES_SHOWN = 4;
 
@@ -38,6 +45,10 @@ export type ShowSince = {
   followed: number;
   /** The newest date the viewers picked the situation for (lib/situations.ts), made since. */
   situation: { title: string; icon: string; room_path: string } | null;
+  /** The newest diary cam take from a public date that aired since: who said it, about whom, and the episode. */
+  diary: { name: string; partner: string; line: string; episode_path: string } | null;
+  /** The week's biggest chemistry shift either way (lib/chemistry-shifts.ts), when there's one. */
+  shift: ChemistryShift | null;
 };
 
 /** When this person's last visit was, or null for a first visit (or one too recent to count as a return). */
@@ -59,7 +70,7 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
   const floor = new Date(now.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   const since = visit > floor ? visit : floor;
   const at = since.toISOString();
-  const [aired, moves, calls, followed, night] = await Promise.all([
+  const [aired, moves, calls, followed, night, diaryRows, shifts] = await Promise.all([
     db.query<{ n: number }>(`select count(*)::int as n from episodes where revealed_at > $1 and visibility = 'public'`, [at]),
     db.query<{ lo: string; hi: string; a: string; b: string; to_stage: string; following: boolean }>(
       `select * from (
@@ -92,7 +103,22 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
       `select pick, party_id from situation_nights where party_id is not null and created_at > $1 order by day desc limit 1`,
       [at],
     ),
+    // The diary cam's rule (lib/game.ts): a house character's take, or either side's when the host shared them. Never a
+    // reported-away date.
+    db.query<{ id: string; a: string; b: string; a_ok: boolean; b_ok: boolean; lines: [string, string] }>(
+      `select e.id, ca.name as a, cb.name as b, (ca.is_house or e.confessionals_shared) as a_ok, (cb.is_house or e.confessionals_shared) as b_ok,
+              e.confessionals as lines
+         from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+        where e.revealed_at > $1 and e.visibility = 'public' and e.confessionals is not null
+          and (ca.is_house or cb.is_house or e.confessionals_shared)
+          and (select count(*) from reports r where r.episode_id = e.id) < $2
+        order by e.revealed_at desc limit 1`,
+      [at, REPORT_HIDE_THRESHOLD],
+    ),
+    chemistryShifts(db, now).catch(() => ({ up: [], down: [] })),
   ]);
+  const d = diaryRows.rows[0];
+  const side = d ? ([0, 1] as const).find((i) => (i === 0 ? d.a_ok : d.b_ok) && d.lines?.[i]?.trim()) : undefined;
   const c = calls.rows[0];
   const n = night.rows[0];
   const def = n ? DATE_ROLEPLAYS.find((r) => r.id === n.pick) : undefined;
@@ -105,7 +131,13 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     calls: c && c.called > 0 ? { called: c.called, right: c.hits, streak: (await callRecord(db, viewerId)).streak } : null,
     followed: followed.rows[0]?.n ?? 0,
     situation: n && def ? { title: def.title, icon: def.icon, room_path: `/watch/${n.party_id}` } : null,
+    diary:
+      d && side !== undefined
+        ? { name: side === 0 ? d.a : d.b, partner: side === 0 ? d.b : d.a, line: clipBody(d.lines[side].trim(), DIARY_SHOWN_MAX), episode_path: `/episodes/${d.id}` }
+        : null,
+    shift: [...shifts.up, ...shifts.down].sort((x, y) => Math.abs(y.shift) - Math.abs(x.shift))[0] ?? null,
   };
-  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation;
+  // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
+  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary;
   return anything ? card : null;
 }
