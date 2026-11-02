@@ -17,6 +17,7 @@
  *    FRESH_ROOMS_PER_DAY, so a busy day makes no more rooms than before): at most ~5¢ a day, under $1.50 a month.
  */
 import { dareChoices, dareCounts, daredOf, dareWinnerOf, producerDareNote } from "./dares";
+import { judgeDare } from "./dare-verdict";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { notifyAll } from "./notifications";
@@ -128,6 +129,8 @@ export async function playVotedSituation(db: Db, now: Date = new Date()): Promis
        on conflict (day) do nothing`,
       [day, dared, dare.id, dareTally.get(dare.id) ?? 0, [...dareTally.values()].reduce((s, n) => s + n, 0), room.id, episodeId],
     );
+    // Did they do it: read from the date's own lines now, stored once, revealed when it airs (lib/dare-verdict.ts).
+    await judgeDare(db, day).catch(() => null);
   }
   const names = await namesOf(db, pair);
   const cast = pair.map((id) => ({ id, name: names.get(id) ?? "" }));
