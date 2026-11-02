@@ -15,6 +15,7 @@
  *  - Looks back at most LOOKBACK_DAYS, and shows nothing when nothing happened.
  *  - A season that closed since (lib/season-ref.ts): its finale, /seasons/<month-year>.
  */
+import { newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
 import { STAGE_LABELS, type Stage } from "./relationships";
@@ -51,6 +52,8 @@ export type ShowSince = {
   diary: { name: string; partner: string; line: string; episode_path: string } | null;
   /** The week's biggest chemistry shift either way (lib/chemistry-shifts.ts), when there's one. */
   shift: ChemistryShift | null;
+  /** The newest of this season's cast secrets to come out since (lib/cast-secrets.ts). */
+  secret: SecretOut | null;
   /** A season that closed since: its finale page. */
   season: SeasonRef | null;
 };
@@ -121,6 +124,7 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     ),
     chemistryShifts(db, now).catch(() => ({ up: [], down: [] })),
   ]);
+  const secret = await newestSecretOut(db, since, now).catch(() => null);
   const d = diaryRows.rows[0];
   const side = d ? ([0, 1] as const).find((i) => (i === 0 ? d.a_ok : d.b_ok) && d.lines?.[i]?.trim()) : undefined;
   const c = calls.rows[0];
@@ -140,9 +144,10 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
         ? { name: side === 0 ? d.a : d.b, partner: side === 0 ? d.b : d.a, line: clipBody(d.lines[side].trim(), DIARY_SHOWN_MAX), episode_path: `/episodes/${d.id}` }
         : null,
     shift: [...shifts.up, ...shifts.down].sort((x, y) => Math.abs(y.shift) - Math.abs(x.shift))[0] ?? null,
+    secret,
     season: seasonClosedSince(since, now),
   };
   // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
-  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.season;
+  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret || card.season;
   return anything ? card : null;
 }

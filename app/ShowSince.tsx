@@ -36,6 +36,13 @@ function Items({ card }: { card: ShowSinceData }) {
           <Link href={card.diary.episode_path}>watch it</Link>
         </li>
       )}
+      {card.secret && (
+        <li>
+          <span aria-hidden="true">🤫</span> A secret came out: {card.secret.name} <em>{card.secret.secret.charAt(0).toLowerCase() + card.secret.secret.slice(1)}</em> (
+          {card.secret.index} of {card.secret.total}).{" "}
+          <Link href={`/characters/${card.secret.character_id}#secrets`}>See their secrets</Link>
+        </li>
+      )}
       {card.moves.map((m) => (
         <li key={`${m.lo}-${m.hi}`}>
           <span aria-hidden="true">💫</span>{" "}

@@ -176,6 +176,8 @@ export async function startTestDb() {
         "situation_nights",
         // A season's finale (lib/season-recap.ts): frozen once, so a reset must forget it.
         "season_recaps",
+        // This season's cast secrets (lib/cast-secrets.ts) hang off the house cast, which outlives a reset.
+        "cast_secrets",
         "adult_invites",
         "adult_monologues",
         "adult_short_calls",
