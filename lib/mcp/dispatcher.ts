@@ -6875,7 +6875,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const when = !timing
         ? ""
         : waitsOnRoom(timing)
-          ? ` only when someone opens its watch party room on /watch (${timing.airs_at ? `its listed time, ${timing.airs_at}, has passed` : "it has no start time"}, so this pick may wait a long while; browse_episodes with open: true lists dates that air on their own)`
+          ? " only when someone opens its watch party room on /watch (it has no start time, so this pick may wait a long while; browse_episodes with open: true lists dates that air on their own)"
           : timing.airs === "due" ? " (its time has come: it airs on the next call anyone makes)" : timing.airs_at ? ` (${timing.airs === "scheduled" ? "at" : "no sooner than"} ${timing.airs_at})` : "";
       // 2.6.0 (the 2026-10-22-0042 run: "a bit more to go on"): what the pick could rest on, never the ending, and the prior.
       const context = (await predictionContext(db, [String(args.episode_id ?? "")]).catch(() => new Map<string, Record<string, unknown>>())).get(String(args.episode_id ?? ""));
