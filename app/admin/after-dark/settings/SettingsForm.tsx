@@ -297,6 +297,9 @@ export default function SettingsForm({ hive = null }: { hive?: HiveState | null 
         <Field id="ad-replicate-video" field="replicate_video_model" label="Video model">
           {text("replicate_video_model", "ad-replicate-video")}
         </Field>
+        <Field id="ad-replicate-talk" field="replicate_talk_model" label="Speaking video model" hint="Shots with a line: says it itself. Shots it can't make fall back to the video model plus the voice model; off: always that.">
+          {text("replicate_talk_model", "ad-replicate-talk")}
+        </Field>
         <Field id="ad-replicate-voice" field="replicate_voice_model" label="Voice model">
           {text("replicate_voice_model", "ad-replicate-voice")}
         </Field>

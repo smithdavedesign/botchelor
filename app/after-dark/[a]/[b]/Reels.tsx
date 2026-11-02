@@ -382,7 +382,8 @@ function ReelPlayer({ reel, onChange, what = "video", price = null, onMedia }: {
  * Plays shots back to back with no gap: every shot is fetched first (a progress count until they're all in), then two
  * stacked <video>s take turns: while one plays, the next is already loaded underneath, and they swap on `ended`.
  *
- * A shot made on Replicate is silent, its line said beside it (`audio_id`, lib/adult/reels.ts): that voice is
+ * A shot made on Replicate's silent model has its line said beside it (`audio_id`, lib/adult/reels.ts; a talking shot
+ * has its own sound and plays unmuted): that voice is
  * preloaded with it, starts with the shot, pauses and resumes with it at the shot's time, and a line longer than its
  * shot finishes on the shot's last frame before the next one starts.
  *
