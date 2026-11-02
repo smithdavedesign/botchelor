@@ -254,6 +254,7 @@ describe("the shared pieces the page uses", () => {
       ["image", "unset", "Not set up", "Not set up: portraits need your own OpenAI key."],
       ["video", "unset", "Not set up", "Not set up: clips need your own Google key, with billing on."],
       ["after_dark", "unset", "For tokens", "Using: Botchelor's models, for tokens"],
+      ["after_dark_video", "unset", "For tokens", "Using: Botchelor's models, for tokens"],
     ]);
     const conn = { provider: "openrouter", last4: "abcd", verified_at: "2026-10-23T11:58:00Z", last_used_at: "2026-10-23T11:00:00Z", last_error: null, created_at: "2026-10-20T00:00:00Z", jobs: ["text" as const] };
     const ok = jobCards({ connections: [conn], jobs: [{ job: "text", provider: "openrouter", model: "deepseek/deepseek-chat-v3.1" }] }, now)[0];

@@ -55,7 +55,7 @@ import {
   reelMadeOn,
   startShots,
   stillOf,
-  talkModel,
+  reelMedia,
   withoutNames,
   type ClipMeta,
   type MakeReelResult,
@@ -352,10 +352,10 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   const [a, b] = pair;
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
-  const onReplicate = settings.media_provider === "replicate";
-  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
-    return refuse(409, "not_set_up", `Clips need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.`);
-  }
+  // On their own key (Connections, After Dark videos) or After Dark's, and Hive's for the checks.
+  const media = await reelMedia(db, ownerId, settings, keys);
+  if (!media.ok) return refuse(media.status, media.error, media.message.replace(/^Videos need/, "Clips need"));
+  const onReplicate = media.media.provider === "replicate";
   // Hive over its daily limit (lib/adult/hive-limit.ts): refused before the director, a draw or a token is spent.
   const gate = await hiveGate(db, keys.hive);
   if (!gate.ok) {
@@ -493,7 +493,8 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     plan.meta = { ...plan.meta, cut: { video: plan.cut.video, at: frame.moment_at ?? 0, seamless: plan.cut.seamless } };
   }
   const seamless = Boolean(cutFrame && plan.cut?.seamless);
-  const pays = !(await isAdmin(db, ownerId));
+  // On their own key, free of tokens (and no included clip taken).
+  const pays = !media.media.own && !(await isAdmin(db, ownerId));
   // One of a subscriber's included clips this month first (#1005; David, 2026-10-30), then clip_tokens. Nothing included
   // is ever charged; it's given back to the month if the clip doesn't come through.
   const included = pays && (await clipsIncluded(db, ownerId)) ? await takeIncludedClip(db, ownerId, settings.included_clips) : null;
@@ -529,10 +530,6 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     const stages: number[] = [];
     where[plan.shot.line] = plan.place;
     stages[plan.shot.line] = plan.stage;
-    // Both providers' details when both are set up: the shot goes to the other when the configured one is limited.
-    const replicate = keys.replicate
-      ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora, talk: talkModel(settings) }
-      : null;
     await startShots(db, ownerId, shots, {
       pair: [a, b],
       cast,
@@ -541,12 +538,11 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
       bases,
       // A clip at sex starts from their nude baselines (lib/adult/reels.ts nudeBaselines): an edit keeps what they wear.
       nudeBases: !seamless && plan.stage >= NUDE_FROM ? await nudeBaselines(db, ownerId, ca, cb, baseUrl) : null,
-      venice: keys.venice ?? "",
-      hive: keys.hive,
-      model: settings.reel_model,
+      // Both providers' details when both are set up (the shot goes to the other when the configured one is limited), or
+      // only their own key's.
+      ...media.media,
+      hive: keys.hive!,
       baseUrl,
-      replicate,
-      provider: settings.media_provider,
       keyframeFor: (_s, set, place) => plan.keyframe(set, place),
     });
     const made = reelMadeOn(shots);

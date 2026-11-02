@@ -675,7 +675,7 @@ async function claimNotice(db: Db, userId: string, job: Job, which: "warned_at" 
 const fallbackWords = (job: Job, cap: CapSettings, now: number) =>
   job === "text" && cap.on_cap === "fallback"
     ? `Botchelor's free model stands in for your dates, and for a few texts a day, until ${resetDay(now)}.`
-    : `${job === "text" ? "Your dates wait" : job === "image" ? "Portraits wait" : job === "after_dark" ? "Studio pictures on your key wait" : "Clips wait"} until ${resetDay(now)}, or until you raise the cap.`;
+    : `${job === "text" ? "Your dates wait" : job === "image" ? "Portraits wait" : job === "after_dark" ? "Studio pictures on your key wait" : job === "after_dark_video" ? "Videos on your key wait" : "Clips wait"} until ${resetDay(now)}, or until you raise the cap.`;
 
 /**
  * The notices a job's spend calls for (once a month each): the heads-up at WARN_AT of its cap, and the cap itself. In the
