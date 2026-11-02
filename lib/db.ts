@@ -2996,6 +2996,17 @@ create table if not exists situation_votes (
 );
 -- Display names are one person's each (app/api/profile, #1238): the check reads this.
 create index if not exists profiles_name_lower on profiles (lower(trim(name)));
+-- This season's cast members' hidden secrets (lib/cast-secrets.ts): written once a season each, by the show's model or
+-- from the fixed pool; they come out on the schedule as their public dates air.
+create table if not exists cast_secrets (
+  character_id text not null references characters (id) on delete cascade,
+  season_id text not null,
+  idx integer not null,
+  secret text not null,
+  source text not null check (source in ('model', 'pool')),
+  created_at timestamptz not null default now(),
+  primary key (character_id, season_id, idx)
+);
 create table if not exists situation_nights (
   day text primary key,
   a_id text not null,

@@ -12752,3 +12752,21 @@ button.thread-menu-item:hover:not(:disabled) {
 .chem-shift-num.down {
   color: var(--muted);
 }
+
+/* A cast member's hidden secrets this season (app/characters/[id]/Secrets.tsx, lib/cast-secrets.ts). */
+.cast-secrets-list {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.cast-secrets-list li {
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+}
+.cast-secret-locked {
+  font-style: italic;
+}
