@@ -8,7 +8,7 @@ routes), only daily cron jobs, and no commercial use. So the show moved to Digit
 |---|---|---|---|
 | The show | `botchelor.com`, `www.botchelor.com` | [`.do/show.yaml`](../.do/show.yaml) | $12 a month (1 vCPU, 1 GiB) |
 | After Dark | `ad.botchelor.com` | [`.do/app.yaml`](../.do/app.yaml), runbook [after-dark-hosting.md](after-dark-hosting.md) | $10 a month |
-| Scheduled jobs | the lobby (hourly), the showcase check (hourly), the daily job | a job on After Dark's app (`.do/app.yaml` `jobs`) | at most $5 a month |
+| Scheduled jobs | the lobby (hourly), the showcase check (hourly, which also cuts a first-frame still for each new clip: lib/showcase-posters.ts), the daily job | a job on After Dark's app (`.do/app.yaml` `jobs`) | at most $5 a month |
 | After Dark's media | `media.botchelor.com` | Bunny (runbook) | about $1–6 a month |
 
 The database (Neon) and the show's media bucket (Neon Object Storage) didn't move.
