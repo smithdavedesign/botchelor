@@ -34,6 +34,7 @@ import { showSince } from "@/lib/show-since";
 import { dareBoard } from "@/lib/dares";
 import { situationBoard } from "@/lib/situations";
 import { getProfileName } from "@/lib/people";
+import { forViewer, shared } from "@/lib/shared-cache";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: "/" });
@@ -94,21 +95,23 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   // Your calls line offers "Put my name on the board" to someone with no display name yet (app/BoardName.tsx).
   const profileName = db && viewerId ? await getProfileName(db, viewerId).catch(() => null) : null;
   const showNews = db && viewerId ? await showSince(db, viewerId).catch(() => null) : null;
-  const shared = db ?? (await getDb());
-  const [aired, sky, situation, dares, record, airing, rooms] = await Promise.all([
-    listAiredPage(shared, viewerId, 1, 6).catch(() => null),
-    cachedConstellation(shared).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
-    situationBoard(shared, viewerId).catch(() => null),
-    dareBoard(shared, viewerId).catch(() => null),
+  const conn = db ?? (await getDb());
+  // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts).
+  const [aired, sky, situation, dares, record, airing, rooms, onSeason] = await Promise.all([
+    forViewer(viewerId, "home:aired", () => listAiredPage(conn, viewerId, 1, 6)).catch(() => null),
+    cachedConstellation(conn).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
+    forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null),
+    forViewer(viewerId, "home:dares", () => dareBoard(conn, viewerId)).catch(() => null),
     // Your calls (lib/streaks.ts): your record and run, and how many dates you could still call.
-    callRecord(shared, viewerId).catch(() => null),
-    listAiringSoon(shared, viewerId, airWindowMinutes()).catch(() => []),
+    forViewer(viewerId, "home:calls", () => callRecord(conn, viewerId)).catch(() => null),
+    forViewer(viewerId, "home:airing", () => listAiringSoon(conn, viewerId, airWindowMinutes())).catch(() => []),
     // The tonight band's live rooms (lib/watch.ts): what's on the air right now.
-    listLobby(shared).catch(() => []),
+    forViewer(viewerId, "lobby", () => listLobby(conn)).catch(() => []),
+    // This season's handful of house characters (lib/season-cast.ts), the same for everyone.
+    shared("season-cast", () => seasonCastCards(conn)),
   ]);
 
-  // This season's handful of house characters (lib/season-cast.ts), plus any premium one this viewer owns.
-  const onSeason = await seasonCastCards(db ?? (await getDb()));
+  // Plus any premium house character this viewer owns.
   const cast: { id: string; name: string; traits: string[]; premium: boolean }[] = [
     ...onSeason.map((c) => ({ id: c.id, name: c.name, traits: [...c.traits], premium: false })),
     ...PREMIUM_HOUSE_CHARACTERS.filter((c) => owned.includes(c.sku)).map((c) => ({

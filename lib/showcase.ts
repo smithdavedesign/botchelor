@@ -17,6 +17,7 @@
 import { isAdmin } from "./admins";
 import { afterDarkElsewhere } from "./after-dark-host";
 import { signMediaGrant } from "./auth";
+import { clearSharedCache } from "./shared-cache";
 import { adultViewer } from "./adult/mode";
 import { mediaAllowedFor } from "./adult/place";
 import { getAdultSettings } from "./adult/settings";
@@ -245,6 +246,8 @@ export async function remixOf(db: Db, v: ShowcaseViewer, postId: string): Promis
  * `removed`, and it can't be put back).
  */
 export async function unpublish(db: Db, viewer: string, postId: string): Promise<boolean> {
+  // Off the signed-out pages' shared copies at once too (lib/shared-cache.ts).
+  clearSharedCache();
   const admin = await isAdmin(db, viewer);
   const r = await db.query(
     `delete from showcase_posts p where p.id = $1 and (p.owner_id = $2 or exists (select 1 from showcase_consents s where s.post_id = p.id and s.owner_id = $2)) returning p.id`,
