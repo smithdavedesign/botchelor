@@ -36,6 +36,7 @@ const ALSO_NOTE: Record<Job, string> = {
   image: "only when you make a portrait",
   video: "only when you make a clip, on your Google bill",
   after_dark: "only Studio pictures you ask for, on your bill",
+  after_dark_video: "only videos you make in After Dark, on your bill",
 };
 
 /** The After Dark card's one line: each house provider and how it is, a pause in the viewer's own time. */

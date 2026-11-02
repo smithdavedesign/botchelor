@@ -39,6 +39,7 @@ import type { Readiness } from "@/lib/adult/readiness";
 import SetupForPictures from "../../SetupForPictures";
 import type { PictureEdit } from "@/lib/adult/beats";
 import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
+import { videoPrice } from "@/lib/adult/reel-timing";
 
 /** A saved chapter the 📖 menu can play again (lib/adult/scenes.ts AdultNight, trimmed). */
 export type ChapterEntry = { id: string; chapter: number | null; lines: number; created_at: string; place: string | null };
@@ -668,7 +669,7 @@ export default function AfterDarkTheater({
                   </button>
                   {" · "}
                   <button type="button" className="linklike" disabled={!lastNight.canVideo} onClick={lastNight.onVideo}>
-                    🎬 Make its video · {lastNight.videoTokens} tokens
+                    🎬 Make its video · {videoPrice(lastNight.videoTokens)}
                   </button>
                 </p>
               )}
