@@ -3022,6 +3022,8 @@ alter table cast_secrets add column if not exists revealed_line integer;
 -- Go deeper: a creator's own "what they're hiding" for their character, in the same table under season 'own' (source 'owner').
 alter table cast_secrets drop constraint if exists cast_secrets_source_check;
 alter table cast_secrets add constraint cast_secrets_source_check check (source in ('model', 'pool', 'owner'));
+-- The show feel (docs/show-style.md): an episode's display title, written once at air time (lib/episode-title.ts).
+alter table episodes add column if not exists title text;
 create table if not exists situation_nights (
   day text primary key,
   a_id text not null,
@@ -3078,6 +3080,22 @@ create table if not exists season_recaps (
   narrative_by text,
   frozen_at timestamptz
 );
+
+-- Back a cast member (lib/backing.ts; docs/ideas.md "Bringing viewers back", idea 3): one pick per viewer per season,
+-- changeable until mid-month. Settled once when the season closes (won = ended the season publicly coupled): points
+-- (lib/game.ts) and a season badge (the won row itself).
+create table if not exists cast_backings (
+  season_id text not null,
+  user_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  won boolean,
+  settled_at timestamptz,
+  primary key (season_id, user_id)
+);
+create index if not exists cast_backings_character_idx on cast_backings (season_id, character_id);
+create index if not exists cast_backings_user_idx on cast_backings (user_id);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

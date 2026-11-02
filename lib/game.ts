@@ -23,6 +23,7 @@ import {
   POINTS_PER_DRAMA_PICK,
   POINTS_PER_MATCHMAKER,
   POINTS_PER_ARC,
+  POINTS_PER_BACKING,
   POINTS_PER_RATING_RECEIVED,
   pointsFor,
   predictionPoints,
@@ -187,6 +188,10 @@ export type EpisodeStatus = "generating" | "ready";
 export type StoredEpisode = {
   id: string;
   characters: [CharacterRef, CharacterRef];
+  /** The episode's display title, written once at air time (lib/episode-title.ts); null before, and for old episodes. */
+  title?: string | null;
+  /** When the finale aired, for the episode code ("S1 · Night 14" on the title card). */
+  aired_at?: Date | string | null;
   setting: string;
   goals: string[];
   scenes: string[];
@@ -230,6 +235,10 @@ export type EpisodeJson = {
   goals: { character_id: string; goal: string }[];
   drama_question: DramaQuestion | null;
   revealed: boolean;
+  /** The episode's display title ("The Fountain Incident"), written once at air time (lib/episode-title.ts). */
+  title?: string;
+  /** When the finale aired (ISO), for the episode code ("S1 · Night 14"). Absent until it airs. */
+  aired_at?: string;
   /** Where the date happened (lib/venues.ts). Not a secret: it is the teaser's location, shown from the start. */
   /** This date carried an After Dark memory (the page shows 🌙 only to someone After Dark is open to). */
   after_dark?: boolean;
@@ -366,6 +375,8 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     drama_question: ep.drama_question,
     revealed: ep.revealed,
   };
+  if (ep.title) json.title = ep.title;
+  if (ep.aired_at) json.aired_at = new Date(ep.aired_at).toISOString();
   if (ep.setup?.venue) json.venue = ep.setup.venue;
   if (ep.setup?.after_dark) json.after_dark = true;
   // The format is the episode's billing (shown from the start), not a spoiler. Classic is the default, so
@@ -460,6 +471,8 @@ type EpisodeRow = {
   grouped: boolean;
   group_kind: string | null;
   id: string;
+  title: string | null;
+  aired_at: Date | string | null;
   setting: string;
   goals: string[];
   scenes: string[];
@@ -523,7 +536,7 @@ type EpisodeRow = {
  */
 const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
-       e.revealed_at is not null as revealed,
+       e.revealed_at is not null as revealed, e.title, e.revealed_at as aired_at,
        e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status, e.wishes, e.inner_life, e.ending_detail,
        coalesce((e.generated_with->>'transcript_partial')::boolean, false) as transcript_partial,
        a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait, a.created_via = 'mcp' as a_agent,
@@ -589,6 +602,8 @@ function toView(row: EpisodeRow): EpisodeView {
     {
       id: row.id,
       characters,
+      title: row.title,
+      aired_at: row.aired_at,
       setting: row.setting,
       goals: row.goals,
       scenes: row.scenes,
@@ -1080,7 +1095,7 @@ export async function getCharacterDatesPage(
 }
 
 /** Where a viewer's points came from, by source (getPoints is their sum). */
-export type PointsBreakdown = { predictions: number; dealbreaker_guesses: number; matchmaking: number; ratings_received: number; arc_calls: number };
+export type PointsBreakdown = { predictions: number; dealbreaker_guesses: number; matchmaking: number; ratings_received: number; arc_calls: number; backings: number };
 
 export async function getPointsBreakdown(db: Db, userId: string): Promise<PointsBreakdown> {
   const { rows } = await db.query<PointsBreakdown>(
@@ -1099,13 +1114,15 @@ export async function getPointsBreakdown(db: Db, userId: string): Promise<Points
                     join characters c on c.id = cr.character_id
                    where c.owner_id = $1 and not ${isHouseBotSql("cr.rater_id")}), 0) * $6)::int as ratings_received,
         (coalesce((select count(*) from arc_predictions ap
-                   where ap.user_id = $1 and ap.resolved_at is not null and ap.pick = ap.outcome), 0) * $7)::int as arc_calls`,
-    [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, POINTS_PER_RATING_RECEIVED, POINTS_PER_ARC],
+                   where ap.user_id = $1 and ap.resolved_at is not null and ap.pick = ap.outcome), 0) * $7)::int as arc_calls,
+        (coalesce((select count(*) from cast_backings cb
+                   where cb.user_id = $1 and cb.won), 0) * $8)::int as backings`,
+    [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, POINTS_PER_RATING_RECEIVED, POINTS_PER_ARC, POINTS_PER_BACKING],
   );
-  return rows[0] ?? { predictions: 0, dealbreaker_guesses: 0, matchmaking: 0, ratings_received: 0, arc_calls: 0 };
+  return rows[0] ?? { predictions: 0, dealbreaker_guesses: 0, matchmaking: 0, ratings_received: 0, arc_calls: 0, backings: 0 };
 }
 
 export async function getPoints(db: Db, userId: string): Promise<number> {
   const b = await getPointsBreakdown(db, userId);
-  return b.predictions + b.dealbreaker_guesses + b.matchmaking + b.ratings_received + b.arc_calls;
+  return b.predictions + b.dealbreaker_guesses + b.matchmaking + b.ratings_received + b.arc_calls + b.backings;
 }

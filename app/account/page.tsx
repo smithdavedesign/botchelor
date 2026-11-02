@@ -8,6 +8,7 @@ import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
 import { listBlocks } from "@/lib/people";
+import { backingBadges } from "@/lib/backing";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import AccountPanel from "./AccountPanel";
 import { UnlinkAgentButton } from "./AgentLinks";
@@ -57,6 +58,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
     await tryCloseDueSeasons(db);
     badges = await listMyBadges(db, viewerId);
   }
+  // Season badges from backing a cast member who ended it coupled (lib/backing.ts).
+  const backingWins = viewerId ? await backingBadges(db, viewerId).catch(() => []) : [];
   const afterDark = await afterDarkCard(db, auth);
   return (
     <>
@@ -104,13 +107,23 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
         </section>
       )}
 
-      {badges.length > 0 && (
+      {(badges.length > 0 || backingWins.length > 0) && (
         <section>
           <h2>Your badges</h2>
           <p className="muted">
             The top 3 in each <Link href="/watch#leagues">league</Link> earn one when a season closes. Badges are free and carry no prizes.
           </p>
-          <BadgeList badges={badges} />
+          {backingWins.length > 0 && (
+            <ul className="list">
+              {backingWins.map((w) => (
+                <li key={w.season_id} className="card">
+                  <span aria-hidden="true">🏅</span> You backed <Link href={`/characters/${w.character_id}`}><strong>{w.name}</strong></Link>, and they ended{" "}
+                  {w.label} coupled.
+                </li>
+              ))}
+            </ul>
+          )}
+          {badges.length > 0 && <BadgeList badges={badges} />}
         </section>
       )}
 
