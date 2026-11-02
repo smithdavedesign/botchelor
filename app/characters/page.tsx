@@ -14,6 +14,7 @@ import { parseTab, TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
 import { topRatedCharacters } from "@/lib/ratings";
 import { endingLabel, RATING_CATEGORIES } from "@/lib/rules";
 import { seasonCastIds } from "@/lib/season-cast";
+import { castDateBanner } from "@/lib/cast-date";
 import { listCandidates } from "@/lib/season-gen";
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 import { itemListJsonLd, pageMetadata } from "@/lib/seo";
@@ -150,13 +151,14 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
   const nextId = seasonIdOf(nextSeasonStart(now));
   const candidates = (await listCandidates(db, nextId)).filter((c) => c.status !== "rejected");
   const candidateIds = candidates.map((c) => c.character_id);
-  const [upcoming, earlier, cast, edges, proposals, boards] = await Promise.all([
+  const [upcoming, earlier, cast, edges, proposals, boards, castDateWin] = await Promise.all([
     directoryEntries(db, candidateIds),
     offSeasonHouse(db, [...castIds, ...candidateIds]),
     listCast(db),
     listRelationshipEdges(db),
     viewerId ? listMyProposals(db, viewerId) : Promise.resolve([]),
     Promise.all(RATING_CATEGORIES.map((c) => topRatedCharacters(db, c.id))),
+    castDateBanner(db, viewerId).catch(() => null),
   ]);
   const statusOf = new Map(candidates.map((c) => [c.character_id, c.status]));
   // The matchmaker picks from public characters only: a private one stays its creator's.
@@ -173,6 +175,16 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
   return (
     <>
       <JsonLd data={itemListJsonLd("The Botchelor cast", season.map((e) => ({ name: e.name, path: `/characters/${e.id}` })))} />
+      {/* The weekly earned slot's winner (lib/cast-date.ts): their banner, for a week. */}
+      {castDateWin && (
+        <section className="card notice" data-track-area="cast-date-won">
+          <h2>The producers were watching</h2>
+          <p>
+            You were one of last week&apos;s most active viewers, so this week&apos;s earned slot is yours: one date between your character and a season
+            cast member of your choosing, on the show. Pick your cast member below and <strong>ask them out</strong> — the date&apos;s already covered.
+          </p>
+        </section>
+      )}
       <section>
         <h2>This season: {seasonLabel(thisId)}</h2>
         <p className="muted">The show&apos;s own. Each month the two best-reviewed stay and two newcomers join.</p>
