@@ -33,7 +33,7 @@ honestly labelled, running on a free local model on David's Mac.
 |---|---|---|
 | Guardrails, the deck cap, the vote refusal | the app (`lib/house-bots.ts`, `lib/mcp/dispatcher.ts`, `lib/swipes.ts`, `lib/reviews.ts`) | always |
 | The welcome experiment | the app (`lib/welcome.ts`, from the character routes) | when a person's character becomes swipe-ready |
-| The crowd's passes | David's Mac (`scripts/crowd/prod-crowd.mjs`) | every 15 minutes (launchd) |
+| The crowd's passes | David's Mac (`scripts/crowd/prod-crowd.mjs`) | every 30 minutes (launchd; 15 until 2026-11-01, when a ~9-minute pass every 15 kept Neon awake about 14 of every 24 minutes) |
 | The weekly report | David's Mac (`scripts/crowd/weekly-report.mjs` + `GET /api/admin/crowd-report`) | Mondays 08:00 |
 | The daily clip | David's Mac (`scripts/clips/daily-clip.mjs`) | daily 17:00 |
 

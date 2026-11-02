@@ -112,6 +112,28 @@ describe("the swipe page: whose deck, as faces", () => {
     expect(html).toContain('<span class="swipe-topbar-name">Wren</span>');
   });
 
+  it("/matches leaves out the matches that didn't work out unless asked, and says how many", async () => {
+    const owner = newUserCookie();
+    const wren = await make("Wren Kestrel", owner);
+    const bo = await make("Bo Quill", newUserCookie());
+    const cy = await make("Cy Marr", newUserCookie());
+    for (const [other, yes] of [[bo, true], [cy, false]] as const) {
+      const [lo, hi] = [wren, other].sort();
+      await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi) values ($1, $2, $3, $3)`, [lo, hi, yes]);
+    }
+    jar.cookies.set(owner.split("=")[0], owner.split("=")[1]);
+    const page = async (all?: string) => renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: wren, ...(all ? { all } : {}) }) }));
+    const html = await page();
+    expect(html).toContain("Bo");
+    expect(html).not.toContain("Cy");
+    expect(html).toContain("Show 1 that didn&#x27;t work out");
+    expect(html).toContain(`href="/matches?character=${wren}&amp;all=1#messages-title"`);
+    const everyone = await page("1");
+    expect(everyone).toContain("Cy");
+    expect(everyone).toContain("Not this time");
+    expect(everyone).toContain("Hide the 1 that didn&#x27;t work out");
+  });
+
   it("/matches marks the same taken face", async () => {
     const { wren, lexi } = await ownerWithATakenOne();
     const html = renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: wren }) }));
