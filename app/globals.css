@@ -6812,6 +6812,10 @@ button.table-more {
 .matches-empty {
   padding: var(--space-4) 0;
 }
+/* "Show 3 that didn't work out": the passed and the disasters, left out of the list by default. */
+.matches-over {
+  margin-top: var(--space-3);
+}
 
 /* A thread and nothing else: the bare phone at full height, with whose matches above it. */
 .messages-fullscreen {
