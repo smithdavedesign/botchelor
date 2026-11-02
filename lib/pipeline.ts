@@ -35,6 +35,8 @@ import { applyWishes, resolveWishes, settledWishes, type StoredWishes } from "./
 import { applyChoices, askChoices, CHOICE_ENGINE_VERSION, choiceWish } from "./choices";
 import { getEngine } from "./engine";
 import { innerOf, outerLine, type StoredInner } from "./inner-life";
+import { endingDetail as detailOf, ghostSide, walkOutSide } from "./ending-detail";
+import type { EndingDetail } from "./rules";
 import type { SecretSlip } from "./cast-secrets";
 
 /**
@@ -102,6 +104,8 @@ export type GeneratedDate = {
   inner: StoredInner | null;
   /** Cast secrets the date let slip (lib/cast-secrets.ts), for the caller to record once the date is saved. */
   slips: SecretSlip[];
+  /** More endings (lib/ending-detail.ts): which kind of its ending this date had, for episodes.ending_detail. */
+  endingDetail: EndingDetail | null;
   draft: EpisodeDraft;
   transcript: Turn[];
   afterglow: AfterglowLine[];
@@ -196,6 +200,8 @@ export async function generateDate(
         onSuggestionProposed: opts.onSuggestionProposed,
         onDraft: opts.onDraft,
         from,
+        // More endings (engine v5): on a disaster, the side it went worse for may walk out (lib/ending-detail.ts).
+        walkOut: (opts.engineVersion ?? 1) >= CHOICE_ENGINE_VERSION ? walkOutSide(decided) : null,
       });
     try {
       transcript = await converse();
@@ -254,11 +260,14 @@ export async function generateDate(
   // A scheduling line is never the date's best line (it became what they remembered, and booked, every time).
   if (draft.best_line && isLogistics(draft.best_line)) draft = { ...draft, best_line: bestLine(transcript) ?? draft.best_line };
 
+  // More endings: the side that said no against a yes or a maybe may never answer the morning after (ghosted).
+  const seeAgain = wishes?.choices?.a && wishes.choices.b ? { a: wishes.choices.a, b: wishes.choices.b } : null;
+  const ghost = ghostSide(seeAgain, built.seed);
   let afterglow: AfterglowLine[] = [];
   let afterglowError: unknown = null;
   if (opts.afterglow) {
     try {
-      afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.talk?.texts, opts.formatCtx, transcript, keyForSide);
+      afterglow = await simulateAfterglow(actor.model, built.input, outcome, characters, venueId, opts.formatId, opts.talk?.texts, opts.formatCtx, transcript, keyForSide, ghost);
     } catch (err) {
       afterglowError = err;
     }
@@ -279,7 +288,11 @@ export async function generateDate(
     byok: [...byokServed],
     prompts: PROMPT_VERSION,
   };
-  return { outcome, wishes, inner, slips, draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, partialTranscript, afterglowError };
+  // Which kind of its ending it was (decided here, before the date is ready: predictions never see it move).
+  const endingDetail = (opts.engineVersion ?? 1) >= CHOICE_ENGINE_VERSION && transcript.length
+    ? detailOf({ ending: outcome.ending, choices: seeAgain, transcript: lived, afterglow: opts.afterglow ? afterglow : null, ghost, names: [characters[0].name, characters[1].name] })
+    : null;
+  return { outcome, wishes, inner, slips, endingDetail, draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, partialTranscript, afterglowError };
 }
 
 /** What the quality checks treat as shared (the venue, the recap's setting) and as each side's private notes. */

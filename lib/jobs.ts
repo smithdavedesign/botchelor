@@ -311,7 +311,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
               best_line = $7, confessionals = $8::jsonb, transcript = $9::jsonb, afterglow = $10::jsonb,
               reflections = $11::jsonb, generated_with = $12::jsonb, status = 'ready',
               ending = $13, drama_question = $14, drama_answer = $15, sides = $16::jsonb, wishes = $17::jsonb,
-              engine_trace = coalesce(engine_trace, $18::jsonb), turn_meta = $19::jsonb, inner_life = $20::jsonb
+              engine_trace = coalesce(engine_trace, $18::jsonb), turn_meta = $19::jsonb, inner_life = $20::jsonb,
+              ending_detail = $21
         where id = $1 and status = 'generating'
         returning id`,
       [
@@ -338,6 +339,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         JSON.stringify(turnMeta),
         // Living dates: each line's private feeling and thought, and each side's own answer (shown only once it airs).
         gen.inner && !partial ? JSON.stringify(gen.inner) : null,
+        // More endings: which kind of its ending it had (lib/ending-detail.ts), decided before it's ready.
+        partial ? null : gen.endingDetail,
       ],
     );
     if (saved.rows.length) {

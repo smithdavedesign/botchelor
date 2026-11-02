@@ -19,7 +19,7 @@ import { siblingEpisode } from "@/lib/group-dates";
 import { mixerNightOf } from "@/lib/mixer-night";
 import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
-import { DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import { DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, endingWithDetail, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import { formatLabel } from "@/lib/formats";
 import { venuePhrase, venueBackdropCss, venueName } from "@/lib/venues";
 import { venueBackdrop } from "@/lib/portraits";
@@ -321,7 +321,7 @@ export default async function EpisodePage({
               characters={episode.characters}
               venue={episode.venue ?? null}
               transcript={episode.transcript}
-              endingLabel={endingLabel(episode.ending, dateNo)}
+              endingLabel={endingWithDetail(episode.ending, dateNo, episode.ending_detail)}
               autoOpen={play && episode.is_creator}
               startAt={play && episode.is_creator ? from : 0}
               roleplay={episode.roleplay ?? null}
@@ -464,7 +464,7 @@ export default async function EpisodePage({
                 <p>{episode.finale}</p>
               </>
             )}
-            <p className="ending">Ending: {endingLabel(episode.ending, dateNo)}</p>
+            <p className="ending">Ending: {endingWithDetail(episode.ending, dateNo, episode.ending_detail)}</p>
             {episode.drama_question && episode.drama_answer && (
               <p>
                 {DRAMA_QUESTION_LABELS[episode.drama_question]}{" "}

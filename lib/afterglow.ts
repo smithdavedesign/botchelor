@@ -128,6 +128,8 @@ export function buildAfterglowMessages(
       return plan ? { you_already_made_a_plan: plan } : {};
     })(),
     your_feeling: feelingFor(sideIndex, outcome),
+    // Ghosted (lib/ending-detail.ts): they haven't answered a single text. A real person notices, and texts like it.
+    ...(thread.length && thread.every((t) => t.side === side) ? { they_havent_replied: "They haven't answered anything you've sent. Text like someone who's noticed: one more try, or let it go gracefully. Never beg." } : {}),
   };
 
   return {
@@ -173,10 +175,13 @@ export async function simulateAfterglow(
   /** BYOK: the model for a given side's texts, or null for the platform model. A text carries only that
    *  side's own soul, so a user's key never sees another user's private soul (lib/pipeline keyForSide). */
   actorForSide?: (side: "a" | "b") => Model | null,
+  /** More endings (lib/ending-detail.ts ghostSide): the side that never texts back, so the other's texts go unanswered. */
+  silent?: "a" | "b" | null,
 ): Promise<AfterglowLine[]> {
   const thread: AfterglowLine[] = [];
   const reasons: string[] = [];
   for (let i = 0; i < turns; i++) {
+    if (silent && (i % 2 === 0 ? "a" : "b") === silent) continue;
     const { messages, side } = buildAfterglowMessages(input, outcome, characters, venueId, formatId, thread, i, formatCtx, date);
     const turnModel = actorForSide?.(side) ?? model;
     const me = characters[side === "a" ? 0 : 1];
