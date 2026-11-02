@@ -1998,6 +1998,8 @@ create table if not exists owner_activity (
   user_id text primary key,
   last_seen timestamptz not null default now()
 );
+-- prev_seen: their visit before this one, kept when they come back after RETURN_GAP_HOURS (lib/show-since.ts).
+alter table owner_activity add column if not exists prev_seen timestamptz;
 alter table characters add column if not exists while_away text check (while_away in ('adopt', 'answer', 'nothing'));
 alter table characters add column if not exists adopted_at timestamptz;
 create index if not exists characters_adopted_idx on characters (owner_id) where adopted_at is not null;

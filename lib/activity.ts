@@ -38,6 +38,12 @@ export const whileAwayOf = (c: { while_away?: string | null; created_via?: strin
 
 const touched = new Map<string, number>();
 
+/**
+ * Away this long, then back: the visit before counts as their last one (owner_activity.prev_seen), so what happened on the show
+ * since (lib/show-since.ts) has a time to count from that holds still for the whole of this visit.
+ */
+export const RETURN_GAP_HOURS = 6;
+
 /** A person was here (a page view). Best effort and throttled: at most one write per person every TOUCH_EVERY_MS. */
 export async function touchOwner(db: Db, userId: string | null | undefined, now = Date.now()): Promise<void> {
   if (!userId) return;
@@ -46,7 +52,13 @@ export async function touchOwner(db: Db, userId: string | null | undefined, now 
   if (touched.size > 10_000) touched.clear(); // one-off identities (directory checks) mustn't grow it forever
   touched.set(userId, now);
   await db
-    .query(`insert into owner_activity (user_id, last_seen) values ($1, now()) on conflict (user_id) do update set last_seen = now()`, [userId])
+    .query(
+      `insert into owner_activity (user_id, last_seen) values ($1, now())
+       on conflict (user_id) do update
+          set prev_seen = case when owner_activity.last_seen < now() - $2 * interval '1 hour' then owner_activity.last_seen else owner_activity.prev_seen end,
+              last_seen = now()`,
+      [userId, RETURN_GAP_HOURS],
+    )
     .catch(() => touched.delete(userId));
 }
 
