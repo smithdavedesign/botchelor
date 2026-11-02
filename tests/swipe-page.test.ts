@@ -119,7 +119,7 @@ describe("the swipe page: whose deck, as faces", () => {
     const cy = await make("Cy Marr", newUserCookie());
     for (const [other, yes] of [[bo, true], [cy, false]] as const) {
       const [lo, hi] = [wren, other].sort();
-      await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi) values ($1, $2, $3, $3)`, [lo, hi, yes]);
+      await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi, matched_at) values ($1, $2, $3, $3, now() - interval '3 hours')`, [lo, hi, yes]); // past the wait for texts (talk, then decide)
     }
     jar.cookies.set(owner.split("=")[0], owner.split("=")[1]);
     const page = async (all?: string) => renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: wren, ...(all ? { all } : {}) }) }));

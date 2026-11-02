@@ -205,7 +205,25 @@ describe("after a match: the chat, each character's yes, and the date", () => {
     await t.db.query(`update matches set yes_lo = true, yes_hi = true`);
     expect(await startMatchChat(t.db, a.id, HOUSE_PARTNER_ID, texter(["never sent"]))).toBe(0);
     expect((await matchView(t.db, a.id, HOUSE_PARTNER_ID))!.agreed).toBe(true);
-    expect((await loadChain(t.db, a.id, HOUSE_PARTNER_ID, { userId: a.userId, owner: true })).map((i) => i.kind)).toEqual(["event", "event"]);
+    // Talk, then decide: with no texts, the yes shows two hours after the match, not before.
+    const events = async () => (await loadChain(t.db, a.id, HOUSE_PARTNER_ID, { userId: a.userId, owner: true })).map((i) => (i.kind === "event" ? i.event : i.kind));
+    expect(await events()).toEqual(["matched"]);
+    await t.db.query(`update matches set matched_at = now() - interval '3 hours'`);
+    expect(await events()).toEqual(["matched", "date_agreed"]);
+  });
+
+  it("a person's character gets its opening chat even when the day's cap is used up; an agent's match doesn't", async () => {
+    vi.stubEnv("MATCH_CHATS_DAILY", "1");
+    const x = await agent("Ada Lumen");
+    const y = await agent("Bo Quill");
+    const [lo, hi] = x.id < y.id ? [x.id, y.id] : [y.id, x.id];
+    await t.db.query(`insert into couple_texts (character_lo, character_hi, day, seq, who, text, via) values ($1, $2, current_date, 1, 'lo', 'hi', 'match')`, [lo, hi]);
+    const a = await person("Wren Kestrel");
+    await swipe(t.db, a.userId, a.id, HOUSE_PARTNER_ID, true);
+    expect(await startMatchChat(t.db, a.id, HOUSE_PARTNER_ID, texter(["one", "two", "three", "four"]))).toBe(4);
+    const b = await agent("Cy Morrow");
+    expect(await swipe(t.db, b.userId, b.id, HOUSE_PARTNER_ID, true)).toMatchObject({ match: expect.any(Object) });
+    expect(await startMatchChat(t.db, b.id, HOUSE_PARTNER_ID, texter(["capped"]))).toBe(0);
   });
 
   it("an agreed match unlocks the date with a character that isn't open to dates; a match without both yeses doesn't", async () => {

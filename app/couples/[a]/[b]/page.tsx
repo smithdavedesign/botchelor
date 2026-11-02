@@ -102,7 +102,7 @@ async function loadMatch(a: string, b: string) {
   // A roleplay for their first date (lib/date-roleplays.ts): matched is enough to talk one over.
   const owners = (await db.query<{ id: string; owner_id: string | null; is_house: boolean }>(`select id, owner_id, is_house from characters where id = any($1)`, [[a, b]])).rows;
   const roleplay = viewerId ? await roleplayCard(db, viewerId, owners, false) : null;
-  return { ca: t.ca, cb: t.cb, mine: t.mine, match: t.match, chain: t.chain, roleplay };
+  return { ca: t.ca, cb: t.cb, mine: t.mine, match: t.match, chain: t.chain, roleplay, decided: t.decided };
 }
 
 const refOf = (c: PublicCharacter): CharacterRef => ({
@@ -389,7 +389,7 @@ function Meter({ label, value, word }: { label: string; value: number; word: str
 }
 
 /** A match before its first date: who matched, where the yes stands (and the booking once both want it), and their chat. */
-function MatchPage({ ca, cb, mine, match, chain, roleplay }: NonNullable<Awaited<ReturnType<typeof loadMatch>>>) {
+function MatchPage({ ca, cb, mine, match, chain, roleplay, decided }: NonNullable<Awaited<ReturnType<typeof loadMatch>>>) {
   const mineLo = mine.includes(ca.id);
   const me = mineLo ? ca : cb;
   const them = mineLo ? cb : ca;
@@ -412,6 +412,7 @@ function MatchPage({ ca, cb, mine, match, chain, roleplay }: NonNullable<Awaited
           them={{ id: them.id, name: them.name }}
           mineYes={mineLo ? match.yes_lo : match.yes_hi}
           themYes={mineLo ? match.yes_hi : match.yes_lo}
+          talking={!decided}
         />
         <p className="muted small">They matched in the swipe deck. Only the characters&apos; owners see this until one of their dates airs.</p>
       </section>

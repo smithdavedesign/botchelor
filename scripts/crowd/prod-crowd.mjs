@@ -122,14 +122,15 @@ async function socialise(agent, bot, ctx) {
     if (!other || m.with?.house || ctx.outOfTime()) continue;
     const key = `${bot.id}:${other}`;
     const firstSeen = (ctx.state.seen[key] ??= ctx.now);
-    // A beat before answering: the pass after it first saw the match, like someone who checks their phone now and then.
-    if (m.you == null && firstSeen < ctx.now && P.underCap(used, "answers")) {
+    const items = (await agent.tool("read_texts", { character_id: bot.id, with: other }).catch(() => ({ items: [] }))).items ?? [];
+    const thread = items.filter((i) => typeof i.text === "string" && i.from !== "show");
+    // Talk, then decide (David, 2026-11-02: "there aren't any texts exchanged before they make the decision"): it answers
+    // on a pass after it has texted them, like someone who checks their phone now and then.
+    if (m.you == null && firstSeen < ctx.now && thread.some((i) => i.from === "you") && P.underCap(used, "answers")) {
       await agent.tool("answer_match", { character_id: bot.id, with: other, yes: true });
       used.answers = (used.answers ?? 0) + 1;
       ctx.stats.answers++;
     }
-    const items = (await agent.tool("read_texts", { character_id: bot.id, with: other }).catch(() => ({ items: [] }))).items ?? [];
-    const thread = items.filter((i) => typeof i.text === "string" && i.from !== "show");
     const kind = m.with?.run_by === "house_bot" || ctx.crowd.has(other) ? "bot" : m.with?.run_by === "agent" ? "agent" : "person";
     // Prompt tests: what came back since the bot's last texts here.
     for (const e of ctx.ledger) if (e.character_id === bot.id && e.partner_id === other) e.outcome = P.settle(e, thread, ctx.now);

@@ -48,7 +48,10 @@ const MET_BOOST = 2;
 /** The opening chat after a match: up to this many texts, on the show's free model. */
 export const MATCH_CHAT_TEXTS = 4;
 
-/** How many matches a day get their opening chat on the show's model, show-wide. MATCH_CHATS_DAILY overrides; 0 stops it. */
+/**
+ * How many matches a day get their opening chat on the show's model, show-wide. MATCH_CHATS_DAILY overrides; 0 stops it.
+ * A match with a person's character isn't counted against it: it always gets its chat (startMatchChat).
+ */
 export function matchChatDailyCap(env: Record<string, string | undefined> = process.env): number {
   const n = Number(env.MATCH_CHATS_DAILY?.trim() || 50);
   return Number.isFinite(n) ? Math.max(0, Math.min(1000, Math.floor(n))) : 50;
@@ -887,8 +890,13 @@ export async function startMatchChat(db: Db, x: string, y: string, model: Model 
     if (!writers.length) return 0;
     const already = await db.query(`select 1 from couple_texts where character_lo = $1 and character_hi = $2 and via = 'match' limit 1`, [lo, hi]);
     if (already.rows.length) return 0;
-    const today = await db.query<{ n: number }>(`select count(distinct (character_lo, character_hi))::int as n from couple_texts where day = $1::date and via = 'match'`, [dayOf(now)]);
-    if ((today.rows[0]?.n ?? 0) >= matchChatDailyCap()) return 0;
+    // A person's character always gets its opening chat (David, 2026-11-02: decisions showed with no texts before them;
+    // the house crowd's matches had used up the day's cap). The cap is for everyone else.
+    const cap = matchChatDailyCap();
+    if (cap === 0) return 0;
+    const person = pair.some((s) => !s.is_house && s.created_via !== "mcp");
+    const today = person ? null : await db.query<{ n: number }>(`select count(distinct (character_lo, character_hi))::int as n from couple_texts where day = $1::date and via = 'match'`, [dayOf(now)]);
+    if (today && (today.rows[0]?.n ?? 0) >= cap) return 0;
     const [a, b] = await Promise.all([loadCharacter(db, lo), loadCharacter(db, hi)]);
     if (!a || !b) return 0;
     // Who opens: a person's character before a house one; between two of a kind, the seed decides.

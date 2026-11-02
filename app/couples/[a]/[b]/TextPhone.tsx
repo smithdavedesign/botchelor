@@ -459,6 +459,26 @@ export default function TextPhone({ pair, characters, mine, canFlip, stageLabel,
  * The thread: a day label when the day changes, each date as a card, "the morning after" before its texts, and
  * the texts as bubbles (this phone's character on the right), grouped while one of them keeps texting.
  */
+/**
+ * A moment in the thread that isn't a text: the match, the yes to a date, a date's morning-after texts waiting for it to
+ * air (David, 2026-11-02: they "don't show in the text thread"), and one side never answering them ("a label saying
+ * ghosted").
+ */
+function eventLine(item: Extract<ChainItem, { kind: "event" }>, characters: Record<End, CharacterRef>): string {
+  switch (item.event) {
+    case "matched":
+      return "💘 It's a match";
+    case "date_agreed":
+      return "📅 They agreed to a date";
+    case "afterglow_held": {
+      const n = item.count ?? 0;
+      return `🌅 ${n === 1 ? "A text" : `${n} texts`} from the morning after: here once the date airs`;
+    }
+    case "ghosted":
+      return `👻 ${shortName(characters[item.who ?? "lo"].name)} never replied`;
+  }
+}
+
 function Thread({ items, me, characters, today }: { items: ChainItem[]; me: End; characters: Record<End, CharacterRef>; today: string }) {
   const startsMorning = (i: number) => {
     const t = items[i];
@@ -490,7 +510,7 @@ function Thread({ items, me, characters, today }: { items: ChainItem[]; me: End;
     if (item.kind === "event") {
       out.push(
         <p key={item.id} className="phone-note phone-event">
-          {item.event === "matched" ? "💘 It's a match" : "📅 They agreed to a date"}
+          {eventLine(item, characters)}
         </p>,
       );
       return;
