@@ -789,3 +789,35 @@ in-process on Haiku 5.5 through OPENROUTER_LOOP_KEY, never the live Gemini quota
   +42% a date on these runs (the shipped arm's dates also ran a line longer), against the +10–15% expected. Per date
   at the show's length that's about 1.3¢ → 1.7–1.8¢. Hot takes are a one-time call per character.
 - **Spend:** $1.28 across every run (arms $0.96, judges $0.30, re-asking $0.013), under the $2 cap.
+
+## Round: more endings (2026-11-01)
+
+Five new endings, each a kind of one of the three, never a fourth (`lib/ending-detail.ts`, `lib/rules.ts`
+`ENDING_DETAILS`). `episodes.ending` stays the family that predictions and points, endings lately, the Reunion,
+seasons, MCP filters, analytics and the sims key on; `episodes.ending_detail` (text, no check constraint: an unknown
+value reads as none) says which kind it was, and the episode page, its share image, the feed, the prediction notice and
+MCP (`ending_detail`, `ending_detail_label`, hidden with the ending until it's written) show it: "Just friends · A slow
+burn". All of it comes from the two sides' own answers (engine v5, "Round: living dates"); a v4-or-older date has none.
+
+| Kind | Family | Comes from |
+|---|---|---|
+| A walk-out | disaster | On half of disasters (seeded) the side it went worse for (a dealbreaker it hit, else the less satisfied) is offered the walk-out in the closing stretch (`you_can_walk_out`, its data only). When its line sets `"walk_out": true`, the date ends there; the line is stored with `walked_out` and the thread shows "🚪 … walks out". |
+| Ghosted | friends, disaster | One side said no against a yes or a maybe; on half of those (seeded) the one who said no never answers the morning-after texts (`simulateAfterglow` `silent`), and the other is told it's had no reply. Decided from the answers, so it holds with the afterglow off too. |
+| Rivals | friends, disaster | Both sides felt competitive toward each other on two or more of their own lines (their private feeling) and didn't both say yes. |
+| A slow burn | friends | Nobody said no, and the morning-after texts make a plan they both agree to (`lib/plans.ts` agreedPlan, the same rule that sets up their next date): decided by the texts after. No texts, no slow burn. |
+| One-sided | friends, disaster | One said yes and the other no, and it wasn't ghosting. |
+
+First match wins, in that order; a kind on the wrong family (a walk-out the answers lifted to friends) is dropped.
+
+**Predictions stay scoreable and fair.** A pick is still one of the three, and scores on the family exactly as before:
+"Just friends" is right on a slow burn, a rivalry or a one-sided friends ending; "A disaster" is right on a walk-out
+and on a ghosting or a rivalry that ended in one. Nothing about the kind is decided after the date is ready (the walk-out
+during the lines, the answers and the ghosting right after, the slow burn in the morning-after texts, all inside the
+generation job), so the prediction window, which opens once it's ready, never sees an ending move. The notice says the
+kind beside the family ("it ended in just friends: a slow burn").
+
+**The mix.** At defaults the family mix is v5's (within a few points of the engine's 44/33/23). Of the disasters, about
+half offer the walk-out (whether a side takes it is up to the line); about half of the yes-against-no and
+maybe-against-no answers become ghosting. On the 20-date eval's answers (shipped arm, 12 of its 20 dates disasters), 8 were a
+no against a yes or a maybe, so about 4 in 20 would be ghosted and 1 one-sided; a slow burn needs the morning-after texts, which
+the eval didn't run.

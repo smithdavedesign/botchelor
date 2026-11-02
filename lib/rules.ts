@@ -16,6 +16,38 @@ export const ENDING_LABELS: Record<Ending, string> = {
   disaster: "A disaster",
 };
 
+/**
+ * More endings (David 2026-11-01), each a kind of one of the three above, never a fourth: the three stay the family that
+ * predictions, points, endings lately, the Reunion, seasons, MCP filters, analytics and the sims key on
+ * (episodes.ending), and the detail (episodes.ending_detail, lib/ending-detail.ts) says which kind it was. A prediction
+ * scores on the family, so a pick of "Just friends" is right on a slow burn (docs/date-quality.md "Round: more endings").
+ */
+export const ENDING_DETAILS = ["one_sided", "slow_burn", "walked_out", "ghosted", "rivals"] as const;
+export type EndingDetail = (typeof ENDING_DETAILS)[number];
+
+export const ENDING_DETAIL_LABELS: Record<EndingDetail, string> = {
+  one_sided: "One-sided",
+  slow_burn: "A slow burn",
+  walked_out: "A walk-out",
+  ghosted: "Ghosted",
+  rivals: "Rivals",
+};
+
+/** Which family each kind belongs to: a detail on any other ending is dropped (endingDetailOf). */
+export const ENDING_DETAIL_FAMILY: Record<EndingDetail, readonly Ending[]> = {
+  one_sided: ["friends", "disaster"],
+  slow_burn: ["friends"],
+  walked_out: ["disaster"],
+  ghosted: ["friends", "disaster"],
+  rivals: ["friends", "disaster"],
+};
+
+/** A stored detail, kept only when it's one of ENDING_DETAILS and belongs to this ending's family. */
+export function endingDetailOf(raw: unknown, ending: Ending | null | undefined): EndingDetail | null {
+  if (!ending || typeof raw !== "string" || !(ENDING_DETAILS as readonly string[]).includes(raw)) return null;
+  return ENDING_DETAIL_FAMILY[raw as EndingDetail].includes(ending) ? (raw as EndingDetail) : null;
+}
+
 /** The one drama question per episode: the showrunner picks which, and answers it. */
 export const DRAMA_QUESTIONS = ["leaves_first", "rejected"] as const;
 export type DramaQuestion = (typeof DRAMA_QUESTIONS)[number];
@@ -253,6 +285,12 @@ function takesAn(word: string): boolean {
  * no number, or on a first date, it's "A second date"; friends and disaster read as ENDING_LABELS. Display text only:
  * the stored ending stays second_date. ENDING_LABELS stays the name for the category in general (analytics, filters).
  */
+/** The ending with its kind, when it has one: "Just friends · A slow burn". Display text only (endingLabel otherwise). */
+export function endingWithDetail(ending: Ending, dateNumber?: number | null, detail?: unknown): string {
+  const kind = endingDetailOf(detail, ending);
+  return kind ? `${endingLabel(ending, dateNumber)} · ${ENDING_DETAIL_LABELS[kind]}` : endingLabel(ending, dateNumber);
+}
+
 export function endingLabel(ending: Ending, dateNumber?: number | null): string {
   if (ending !== "second_date" || !dateNumber || !Number.isFinite(dateNumber) || dateNumber < 2) return ENDING_LABELS[ending];
   const next = dateLabel(Math.floor(dateNumber) + 1);
