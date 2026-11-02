@@ -8,10 +8,11 @@
  *    nothing; each after that costs `clip_tokens` (1, about cost).
  *  - Extras at about cost: the video of the night (`reel_tokens`, 7), clips past the allowance, talking moments, setting
  *    the scene.
- * Admins never pay. The chapter/picture/Draw ahead prices stay in the settings for a viewer with no subscription, who
+ * Admins never pay, and nor does a video or clip filmed on the viewer's own key (Connections, After Dark videos). The chapter/picture/Draw ahead prices stay in the settings for a viewer with no subscription, who
  * can't open After Dark anyway (lib/adult/entitlement.ts).
  */
 import { isAdmin } from "../admins";
+import { hasJobKey } from "../connections";
 import type { Db } from "../db";
 import { canAfterDark } from "./entitlement";
 import { DEFAULT_CLIP_TOKENS, DEFAULT_INCLUDED_CLIPS, DEFAULT_REEL_TOKENS, getAdultSettings, type AdultSettings } from "./settings";
@@ -49,7 +50,7 @@ export type ClipPrice = Price & {
 export async function clipPrice(db: Db, viewer: string, settings?: AdultSettings, now: Date = new Date()): Promise<ClipPrice> {
   const s = settings ?? (await getAdultSettings(db));
   const of = Math.max(0, s.included_clips);
-  if (await isAdmin(db, viewer)) return { tokens: 0, included: false, included_left: null, included_of: of };
+  if ((await isAdmin(db, viewer)) || (await hasJobKey(db, viewer, "after_dark_video"))) return { tokens: 0, included: false, included_left: null, included_of: of };
   if (of > 0 && (await clipsIncluded(db, viewer, now))) {
     const left = Math.max(0, of - (await includedClipsUsed(db, viewer, now)));
     return left > 0 ? { tokens: 0, included: true, included_left: left, included_of: of } : { tokens: s.clip_tokens, included: false, included_left: 0, included_of: of };
