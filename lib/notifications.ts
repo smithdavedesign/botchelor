@@ -18,6 +18,7 @@ export type NotificationKind =
   | "double_invite" // another couple proposed a double date with yours (lib/group-dates.ts)
   | "double_date" // how a double date went: booked, declined, or one table fell through (lib/group-dates.ts)
   | "mixer" // a speed-dating mixer ran, was called off, or wrapped with a reflect nudge (lib/group-dates-run.ts)
+  | "recoupling" // the recoupling night ran, and how the audience's pick went (lib/recoupling.ts)
   | "group_reflect" // a group night's last date aired: who did your character like? (lib/group-dates.ts notifyNightAired)
   | "date_link" // someone took your character's date link: a match with the date agreed (lib/date-invites.ts)
   | "date_agreed" // a match where both characters said yes to a date: book it

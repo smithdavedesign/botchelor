@@ -32,6 +32,8 @@ import { takenSql } from "./partners";
 import type { PlaceId } from "./venues";
 import { HOUSE_BOOKER } from "./house-booker";
 import { seasonCastIds } from "./season-cast";
+import { nextRecouplingDay } from "./season-format";
+import { seasonFormatNow } from "./season-format-store";
 
 /** How many of `need` filler seats go to the season's house cast first: half, rounded down (the crowd gets the rest). */
 export const castShare = (need: number): number => Math.floor(need / 2);
@@ -50,6 +52,9 @@ const utcDay = (now: Date): Date => new Date(Date.UTC(now.getUTCFullYear(), now.
 
 export async function fillMixerTonight(db: Db, now: Date = new Date(), env: Record<string, string | undefined> = process.env): Promise<FillResult | null> {
   if (!mixerFillOn(env) || now.getUTCHours() < MIXER_FILL_HOUR_UTC) return null;
+  // The recoupling night (lib/recoupling.ts) is tonight's house room: the fill sits it out, so the house never runs two.
+  const def = await seasonFormatNow(db, now).catch(() => null);
+  if (def && nextRecouplingDay(def, now) === now.toISOString().slice(0, 10)) return null;
   const today = utcDay(now);
   const yesterday = new Date(today.getTime() - 86_400_000);
   const done = (

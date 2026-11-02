@@ -76,9 +76,9 @@ async function counts(db: Db, day: string): Promise<Map<string, number>> {
   return new Map(rows.map((r) => [r.pick, r.n]));
 }
 
-/** A day's winner: most votes, ties to the earlier choice; null when nobody voted. */
-export function winnerOf(choices: readonly DateRoleplayDef[], tally: Map<string, number>): DateRoleplayDef | null {
-  let best: DateRoleplayDef | null = null;
+/** A day's winner: most votes, ties to the earlier choice; null when nobody voted. Generic: the recoupling vote (lib/recoupling.ts) reuses it. */
+export function winnerOf<C extends { id: string }>(choices: readonly C[], tally: Map<string, number>): C | null {
+  let best: C | null = null;
   for (const c of choices) if ((tally.get(c.id) ?? 0) > 0 && (!best || (tally.get(c.id) ?? 0) > (tally.get(best.id) ?? 0))) best = c;
   return best;
 }
