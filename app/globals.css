@@ -12553,3 +12553,48 @@ button.thread-menu-item:hover:not(:disabled) {
 .situation-last {
   margin: var(--space-3) 0 0;
 }
+
+/* Your calls (app/YourCalls.tsx, lib/streaks.ts): the record line on home and /watch, and this week's best callers. */
+.calls-line {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.callers-board {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+  max-width: 32rem;
+}
+.callers-board li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  background: var(--card);
+}
+.callers-board li.mine {
+  border-color: var(--accent);
+}
+.callers-rank {
+  width: 1.5rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.callers-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+.callers-score {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

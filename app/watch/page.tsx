@@ -6,6 +6,8 @@ import EpisodeItem from "@/app/EpisodeItem";
 import JsonLd from "@/app/JsonLd";
 import { airWindowMinutes } from "@/lib/air";
 import { getDb } from "@/lib/db";
+import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
+import { callersBoard, callRecord } from "@/lib/streaks";
 import SituationVote from "@/app/SituationVote";
 import { situationBoard } from "@/lib/situations";
 import { listAiredPage, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
@@ -147,7 +149,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const page = parsePage((await searchParams).page);
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, record, callers] = await Promise.all([
     listLobby(db),
     countRecentPrivateDates(db),
     listAiringSoon(db, viewerId, airWindowMinutes()),
@@ -156,6 +158,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     getProfileName(db, viewerId),
     getReunion(db),
     situationBoard(db, viewerId).catch(() => null),
+    callRecord(db, viewerId).catch(() => null),
+    callersBoard(db, viewerId).catch(() => null),
   ]);
   const feed = latest.episodes;
   const now = Date.now();
@@ -179,9 +183,12 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         <a href="#how-it-works">How it works</a>
       </p>
 
+      {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} />}
+
       {airing.length > 0 && (
         <section className="watch-section" aria-labelledby="airing-soon">
           <h2 id="airing-soon">Airing soon: call it before it airs</h2>
+          {record && record.called > 0 && <CallsLine record={record} airing={0} />}
           <ul className="watch-airing">
             {airing.map((episode) => (
               <AiringCard key={episode.id} episode={episode} now={now} />
@@ -284,6 +291,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           </StripPager>
         </details>
       )}
+
+      {callers && <CallersBoardPanel board={callers} />}
 
       <section className="watch-section" id="leagues">
         {leagues.length > 0 && <h2>Your leagues</h2>}

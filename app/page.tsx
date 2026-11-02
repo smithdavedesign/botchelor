@@ -8,7 +8,7 @@ import { pageMetadata, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/seo";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
-import { listAiredPage, listMyCharacters } from "@/lib/game";
+import { listAiredPage, listAiringSoon, listMyCharacters } from "@/lib/game";
 import { countNotifications } from "@/lib/notifications";
 import { sinceYouWereHere } from "@/lib/since";
 import When from "@/app/When";
@@ -21,6 +21,9 @@ import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { cleanRef } from "@/lib/waitlist";
 import BotReviews from "./BotReviews";
+import { CallsLine } from "./YourCalls";
+import { airWindowMinutes } from "@/lib/air";
+import { callRecord } from "@/lib/streaks";
 import SituationVote from "./SituationVote";
 import { situationBoard } from "@/lib/situations";
 
@@ -79,11 +82,14 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       ? await Promise.all([sinceYouWereHere(db, viewerId, myCharacters).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0];
   const shared = db ?? (await getDb());
-  const [aired, sky, situation] = await Promise.all([
+  const [aired, sky, situation, record, airing] = await Promise.all([
     listAiredPage(shared, viewerId, 1, 6).catch(() => null),
-    cachedConstellation(shared).catch(() => null),
+    cachedConstellation(shared).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
     situationBoard(shared, viewerId).catch(() => null),
-  ]); // the minute-old sky is plenty (2026-11-01 audit, R9)
+    // Your calls (lib/streaks.ts): your record and run, and how many dates you could still call.
+    callRecord(shared, viewerId).catch(() => null),
+    listAiringSoon(shared, viewerId, airWindowMinutes()).catch(() => []),
+  ]);
 
   // This season's handful of house characters (lib/season-cast.ts), plus any premium one this viewer owns.
   const onSeason = await seasonCastCards(db ?? (await getDb()));
@@ -180,6 +186,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       </section>
 
       {situation && <SituationVote board={situation} now={Date.now()} />}
+      {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" />}
 
       {aired && aired.episodes.length > 0 && (
         <section className="home-aired">
