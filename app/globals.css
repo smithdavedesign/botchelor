@@ -13268,3 +13268,48 @@ button.thread-menu-item:hover:not(:disabled) {
   text-transform: uppercase;
   color: var(--accent-text);
 }
+
+/* "This week on Botchelor" (app/watch/ThisWeek.tsx): the producer's billboard above tonight's listings. */
+.watch-this-week.card {
+  background:
+    radial-gradient(120% 160% at 90% -40%, rgba(122, 54, 201, 0.14), transparent 60%),
+    var(--card);
+}
+.watch-this-week .kicker {
+  color: var(--accent-text);
+}
+.watch-this-week h2 {
+  margin: 0.1rem 0 0.35rem;
+}
+
+/* Back a cast member (app/BackCast.tsx): the cast as pickable faces, your pick ringed like a vote cast. */
+.back-cast-faces button {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.6rem;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.back-cast-faces button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow: var(--shadow-sm);
+}
+.back-cast-faces button:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+.back-cast-faces button[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.back-cast-faces button .chip {
+  background: var(--grad);
+  border-color: transparent;
+  color: var(--accent-ink);
+  font-weight: 700;
+}
