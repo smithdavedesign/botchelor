@@ -22,6 +22,8 @@ import { getProfileName } from "@/lib/people";
 import { DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, endingWithDetail, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import { formatLabel } from "@/lib/formats";
 import { venuePhrase, venueBackdropCss, venueName } from "@/lib/venues";
+import { episodeCode, templateEpisodeTitle } from "@/lib/episode-title";
+import { previouslyOn } from "@/lib/previously-on";
 import { venueBackdrop } from "@/lib/portraits";
 import Avatar from "@/app/Avatar";
 import CharacterName from "@/app/CharacterName";
@@ -110,12 +112,18 @@ function EpisodeHero({
   venue,
   setting,
   chips,
+  code,
+  title,
   children,
 }: {
   characters: [HeroCharacter, HeroCharacter];
   venue: string | null;
   setting: string | null;
   chips: (string | null | false | undefined)[];
+  /** "S1 · Night 18" once it has aired (lib/episode-title.ts episodeCode). */
+  code?: string | null;
+  /** The episode's own title, quoted on the card ("The Fountain Incident"). */
+  title?: string | null;
   children?: React.ReactNode;
 }) {
   const [a, b] = characters;
@@ -133,6 +141,7 @@ function EpisodeHero({
       <div className="episode-hero-inner">
         <p className="episode-hero-kicker">
           <span>Botchelor</span>
+          {code && <span>{code}</span>}
           {venue && <span>{venueName(venue)}</span>}
         </p>
         <div className="episode-hero-cast" aria-hidden="true">
@@ -147,6 +156,7 @@ function EpisodeHero({
           </span>{" "}
           <CharacterName character={b} avatar={false} />
         </h1>
+        {title && <p className="episode-hero-title">“{title}”</p>}
         {setting && <p className="episode-hero-setting">{setting}</p>}
         {children}
         <ul className="episode-hero-chips" aria-label="About this episode">
@@ -269,6 +279,12 @@ export default async function EpisodePage({
   const sibling = await siblingEpisode(db, episode.id).catch(() => null);
   // A mixer's table (lib/mixer-night.ts): its round, and the way back to the whole room's night.
   const mixer = sibling ? null : await mixerNightOf(db, episode.id).catch(() => null);
+  // The title card (docs/show-style.md): the episode's code and title once it airs. Older aired episodes have no
+  // stored title, so the $0 template stands in; an unaired episode shows none (the setting is the tease).
+  const code = episodeCode(episode.aired_at);
+  const displayTitle = episode.title ?? (episode.revealed ? templateEpisodeTitle({ venue: episode.venue ?? null, dateNumber: dateNo ?? null }) : null);
+  // The cold open, for a pair with history: their last aired date, told in one line (lib/previously-on.ts).
+  const prev = dateNo && dateNo > 1 ? await previouslyOn(db, episode.id).catch(() => null) : null;
   const lastAct = episode.scenes?.length ? episode.scenes.length - 1 : -1;
   const finaleRepeats =
     lastAct >= 0 && Boolean(episode.finale) && squash(withoutActLabel(episode.scenes![lastAct], DATE_ACTS[lastAct])) === squash(episode.finale);
@@ -298,10 +314,20 @@ export default async function EpisodePage({
           ])]}
         />
       )}
+      {prev && (
+        <aside className="episode-prev" aria-label="Previously on Botchelor">
+          <span className="episode-prev-label">Previously on</span>
+          <p>
+            {prev.line} <Link href={`/episodes/${prev.episode_id}`}>Watch that one</Link>
+          </p>
+        </aside>
+      )}
       <EpisodeHero
         characters={episode.characters}
         venue={episode.venue ?? null}
         setting={episode.setting}
+        code={code}
+        title={displayTitle}
         chips={[
           "AI-generated",
           episode.followup_of ? dateLabel(episode.date_number ?? 2) : null,
@@ -464,7 +490,9 @@ export default async function EpisodePage({
                 <p>{episode.finale}</p>
               </>
             )}
-            <p className="ending">Ending: {endingWithDetail(episode.ending, dateNo, episode.ending_detail)}</p>
+            <div className="ending-beat">
+              <p className="ending">Ending: {endingWithDetail(episode.ending, dateNo, episode.ending_detail)}</p>
+            </div>
             {episode.drama_question && episode.drama_answer && (
               <p>
                 {DRAMA_QUESTION_LABELS[episode.drama_question]}{" "}
