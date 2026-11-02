@@ -324,7 +324,8 @@ export const BOOKED_ENDING_NOTE =
 /** go_on_date's booking reply (2.11.0, #656): the ending is set now, from the numbers, whatever the lines read like. */
 export const BOOKED_ENDING_LINE = "The ending was set at booking, from the two characters' numbers (the sheets and this date's setup), not from how the lines read.";
 /** Every show-model booking's ending_note (go_on_date, a second date, an accepted proposal). */
-const BOOKED_NOTE = `${BOOKED_ENDING_LINE} It stays hidden until the date is written: get_episode shows it then, with the box score and why.`;
+// #1253: a show-model date can end short of its planned lines, and get_episode's lines say why.
+const BOOKED_NOTE = `${BOOKED_ENDING_LINE} It stays hidden until the date is written: get_episode shows it then, with the box score and why. The show's model can end a date before its planned lines (a goodbye or a walk-out in its last stretch, or a wrap-up when it runs past the show's time limit); get_episode's lines.ended_early says which, and the ending stays the one set at booking.`;
 
 /**
  * start_own_date's first reply (2.9.0): a date you write yourself has no settings to pick; the lines don't move it either.

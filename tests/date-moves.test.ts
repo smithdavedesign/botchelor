@@ -5,6 +5,7 @@ import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import type { ChatMessage, Model } from "@/lib/model";
 import { dateShape, moveProblem, placesPhrase, settleLine, whereItHappened, type DateShape } from "@/lib/moves";
 import { movePlace, placeRefusedWhy } from "@/lib/places";
+import { dateLines } from "@/lib/own-date";
 import { actForTurn, MAX_MOVES } from "@/lib/rules";
 import { scenePlaces } from "@/lib/scenes";
 import { buildMessages } from "@/lib/showrunner";
@@ -262,6 +263,42 @@ describe("simulateConversation: a date that moves", () => {
     expect(t).toHaveLength(2);
     expect(t.every((l) => !l.move && !l.moved_to)).toBe(true);
     expect(m.data(0)).toMatchObject({ the_night_is_ending: expect.any(String), how_you_say_goodbye: expect.any(String) });
+    expect(t[1].time_up).toBe(true);
+  });
+
+  it("a date the deadline cuts short after one line says the time ran out, not that someone said goodbye (#1253)", async () => {
+    let clock = 1_000;
+    const now = vi.spyOn(Date, "now").mockImplementation(() => clock);
+    try {
+      const m = fake((i) => {
+        if (i === 0) clock = 5_000; // the first line took past the deadline (a slow model)
+        return i === 2 ? { done: true } : {};
+      });
+      const t = await simulateConversation(m.model, built.input, outcome, built.characters, built.setup.producer, START, "classic", 12, {}, undefined, undefined, undefined, { moves: true, deadline: 2_000 });
+      expect(t).toHaveLength(3);
+      expect(t.map((l) => l.time_up)).toEqual([undefined, undefined, true]);
+      const lines = dateLines({ format: "classic", venue: START, moves: true, transcript: t, names: ["Chud the crusher", "Nell Abiodun"], finished: true });
+      expect(lines.ended_early).toMatchObject({ at_line: 3, by: "the show", why: expect.stringMatching(/ran out of time/) });
+      expect(lines.note).toMatch(/12 lines planned .*it ended at line 3: the show ran out of time/);
+      expect(lines.ended_early?.why).not.toMatch(/goodbye/);
+      // The recap is told the date was that short, so it doesn't write the rest of the plan.
+      const data = JSON.parse(buildMessages(built.input, outcome, built.characters, built.setup.producer, START, "classic", {}, { transcript: t, plan: null })[1].content.replace(/^[^\n]*\n/, ""));
+      expect(data.cut_short).toMatch(/after these 3 lines/);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it("a full date, a goodbye in the last stretch and a walk-out each say so (#1253)", async () => {
+    const full = await simulateConversation(fake().model, built.input, outcome, built.characters, built.setup.producer, START, "classic", 12);
+    expect(full).toHaveLength(12);
+    expect(full.some((l) => l.time_up)).toBe(false);
+    expect(JSON.parse(buildMessages(built.input, outcome, built.characters, built.setup.producer, START, "classic", {}, { transcript: full, plan: null })[1].content.replace(/^[^\n]*\n/, "")).cut_short).toBeUndefined();
+    const names: [string, string] = ["Chud the crusher", "Nell Abiodun"];
+    const bye = played(10, 12, { 9: { done: true } });
+    expect(dateLines({ format: "classic", venue: START, moves: false, transcript: bye, names, finished: true }).ended_early).toMatchObject({ at_line: 10, by: "Nell Abiodun", why: expect.stringMatching(/^said goodbye in the date's last stretch/) });
+    const out = played(11, 12, { 10: { walked_out: true } });
+    expect(dateLines({ format: "classic", venue: START, moves: false, transcript: out, names, finished: true }).ended_early).toMatchObject({ at_line: 11, by: "Chud the crusher", why: expect.stringMatching(/^walked out/) });
   });
 
   it("past the move cutoff they stay put; a date that can't move keeps the old prompt", async () => {

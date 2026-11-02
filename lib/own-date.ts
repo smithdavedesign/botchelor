@@ -1091,13 +1091,21 @@ export function dateLines(o: {
   if (full > planned) out.grew_to = full;
   if (o.finished && inAll < full && inAll > 0) {
     const at = o.endBy && o.endBy <= inAll ? o.endBy : inAll;
-    out.ended_early = {
-      at_line: at,
-      by: nameOf(o.transcript[at - 1].side),
-      why: o.endBy
-        ? "said goodbye (done: true) in the goodbye stretch, which ends a date after the other side's last line"
-        : "said goodbye, and the show's model closed the date there (it may, in a date's last stretch or when it runs long)",
-    };
+    const last = o.transcript[at - 1];
+    // #1253: why it stopped, from what the line stored: the show's time limit, a walk-out or a goodbye.
+    out.ended_early = last.time_up
+      ? { at_line: at, by: "the show", why: "ran out of time for this date, so the show's model wrapped it up there (a slow model call; nobody chose to leave, and the ending was set at booking either way)" }
+      : {
+          at_line: at,
+          by: nameOf(last.side),
+          why: last.walked_out
+            ? "walked out (a disaster may end that way in its last stretch)"
+            : o.endBy
+              ? "said goodbye (done: true) in the goodbye stretch, which ends a date after the other side's last line"
+              : last.done
+                ? "said goodbye in the date's last stretch, and the show's model closed the date there"
+                : "spoke last before the show's model closed the date (a goodbye in its last stretch, or the show's time limit: this date was written before the reason was kept)",
+        };
   }
   if (o.showSides?.length) out.show_played = o.showSides.map((side) => ({ name: nameOf(side), from_line: typeof o.showFromLine === "number" ? o.showFromLine + 1 : null }));
   const parts: string[] = [];
