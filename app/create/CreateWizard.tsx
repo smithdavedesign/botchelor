@@ -115,6 +115,8 @@ export type EditInitial = {
   signedIn?: boolean;
   /** Go deeper's what they're hiding, as stored (their own secrets, lib/cast-secrets.ts), the ones not out yet included. */
   hiding?: string[];
+  /** The ones of those that already slipped out on a date: they can't be taken back. */
+  hidingOut?: string[];
 };
 const EMPTY_SHEET: Sheet = { name: "", age: "", bio: "", want: "", dealbreaker: "" };
 const EMPTY_SOUL: Soul = { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "", local_only: false };
@@ -1038,7 +1040,7 @@ export default function CreateWizard({
 
         {step === S.facts && <FactsStep extras={extras} setExtras={setExtras} name={sheet.name} />}
 
-        {step === S.deeper && <DeeperStep extras={extras} setExtras={setExtras} hiding={hiding} setHiding={setHiding} name={sheet.name} />}
+        {step === S.deeper && <DeeperStep extras={extras} setExtras={setExtras} hiding={hiding} setHiding={setHiding} hidingOut={init?.hidingOut} name={sheet.name} />}
 
         {step === S.soul && (
           <fieldset className="wizard-fields">

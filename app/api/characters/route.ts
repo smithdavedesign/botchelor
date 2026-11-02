@@ -10,7 +10,7 @@ import { recordLanguage } from "@/lib/language-seen";
 import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
-import { CHARACTER_REJECTION_MESSAGES } from "@/lib/safety";
+import { CHARACTER_REJECTION_MESSAGES, checkSheetText } from "@/lib/safety";
 import { checkFieldsAnyLanguage } from "@/lib/language-check";
 import { nameCheck } from "@/lib/name-check";
 import { assertSafeSoul, isEmptySoul, normaliseSoul, saveSoul, SoulInput, unknownSoulKeys } from "@/lib/souls";
@@ -102,6 +102,8 @@ export const POST = handle(async (req) => {
   }
 
   // In any language (lib/language-check.ts): a sheet in Spanish is read in English too.
+  // Held to the PG show's sheet check (lib/safety.ts checkSheetText, 2026-11-02): the explicit words plus innuendo
+  // ("exploring in the bedroom"), which checkFields alone let onto public profiles. After Dark's words aren't sheet fields.
   const verdict = await checkFieldsAnyLanguage({
     name: input.name,
     bio: input.bio,
@@ -113,7 +115,7 @@ export const POST = handle(async (req) => {
     this_week: input.this_week,
     hiding: input.hiding,
     ...extrasFields(extras),
-  });
+  }, { check: checkSheetText });
   if (!verdict.ok) {
     return json(
       { error: "content_rejected", reason: verdict.reason, field: verdict.field, message: CHARACTER_REJECTION_MESSAGES[verdict.reason] },

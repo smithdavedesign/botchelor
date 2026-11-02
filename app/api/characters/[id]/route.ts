@@ -10,7 +10,7 @@ import { getDb } from "@/lib/db";
 import { invalidateGraph } from "@/lib/graph-cache";
 import { handle, isMcpCall, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
-import type { RejectReason } from "@/lib/safety";
+import { checkSheetText, type RejectReason } from "@/lib/safety";
 import { checkFieldsAnyLanguage } from "@/lib/language-check";
 import { scheduleWelcome } from "@/lib/welcome";
 import type { ImageSignals } from "@/lib/avatar";
@@ -97,7 +97,7 @@ const REJECTION_MESSAGES: Record<RejectReason, string> = {
   minor: "Characters must be adults, with nothing suggesting they are under 18.",
   sexual: "Keep the character sheet free of sexual content.",
   real_person: "Characters must be original: no real people.",
-  innuendo: "Keep the character sheet free of innuendo.",
+  innuendo: "Keep the character sheet PG: no innuendo or bedroom talk (the show is PG; After Dark has its own settings).",
   unread: "We couldn't check a sheet in that language just now. Try again in a minute.",
   language: "After Dark is English-only for now.",
 };
@@ -139,6 +139,8 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   if (soulKeys.refusal) return json({ error: "invalid_soul", field: "soul", message: soulKeys.refusal }, 422, sess);
   if (input.extras) input.extras = await gateAfterDarkLooks(db, sess, normaliseExtras(input.extras as ExtrasInputType));
   // In any language (lib/language-check.ts): an edit in Spanish is read in English too.
+  // Held to the PG show's sheet check (lib/safety.ts checkSheetText, 2026-11-02): the explicit words plus innuendo
+  // ("exploring in the bedroom"), which checkFields alone let onto public profiles. After Dark's words aren't sheet fields.
   const verdict = await checkFieldsAnyLanguage({
     name: input.name as string | undefined,
     bio: input.bio as string | undefined,
@@ -150,7 +152,7 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     this_week: (input.this_week as string | null | undefined) ?? undefined,
     hiding: input.hiding as string[] | undefined,
     ...(input.extras ? extrasFields(normaliseExtras(input.extras as ExtrasInputType)) : {}),
-  });
+  }, { check: checkSheetText });
   if (!verdict.ok) {
     return json({ error: "content_rejected", reason: verdict.reason, field: verdict.field, message: REJECTION_MESSAGES[verdict.reason] }, 422, sess);
   }

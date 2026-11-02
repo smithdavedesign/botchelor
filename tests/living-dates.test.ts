@@ -13,7 +13,7 @@ import { buildDirectorMessages, dateFacts } from "@/lib/beats";
 import { CURRENT_ENGINE_VERSION, deterministicEngine, fixedEngine, marks, NEUTRAL_SIGNALS, type CharacterSheet, type DateInput, type Outcome, type SideOutcome, type SideSetup } from "@/lib/engine";
 import { buildEvalDate, EVAL_CASES } from "@/lib/eval";
 import { collidingTakes, ensureHotTakes, fallbackHotTakes, hotTakesOf, setHotTakesDerivingForTests, type StoredHotTakes } from "@/lib/hot-takes";
-import { claimsSoFar, feelingName, feelingSoFar, innerForViewer, innerOf, outerLine, readInner, trustStance, type LineInner, type SeeAgain } from "@/lib/inner-life";
+import { claimsSoFar, feelingName, feelingSoFar, freshThoughts, innerForViewer, innerOf, outerLine, readInner, repeatsThought, trustStance, type LineInner, type SeeAgain } from "@/lib/inner-life";
 import type { ChatMessage, Model } from "@/lib/model";
 import { generateDate } from "@/lib/pipeline";
 import { CONVERSATION_TURNS, ENDINGS, type Ending } from "@/lib/rules";
@@ -349,5 +349,41 @@ describe("with a database", () => {
     expect(anyone.choices.map((c: { reason: string | null }) => c.reason)).toEqual([null, "B-REASON"]);
     const owner = await view(creator);
     expect(owner.thoughts).toEqual(["OWNER-SIDE", "HOUSE-SIDE"]);
+  });
+});
+
+describe("one thought, thought once (2026-11-02)", () => {
+  // Juniper's, on a date that aired: the same thought twice, a few lines apart.
+  const FIRST = "He thinks he's dangerous, which is entirely adorable.";
+  const AGAIN = "He thinks he's dangerous. It's almost endearing.";
+
+  it("a thought that repeats an earlier one of the same side is caught, and a new one isn't", () => {
+    expect(repeatsThought(AGAIN, [FIRST])).toBe(true);
+    expect(repeatsThought("It's almost endearing, the way he stirs his tea.", ["Honestly, it's almost endearing how lost he is."])).toBe(true);
+    expect(repeatsThought("The candlelight suits her.", [FIRST])).toBe(false);
+    expect(repeatsThought("I think she's lovely.", ["I think she's nervous."])).toBe(false);
+    expect(repeatsThought(FIRST, [null, undefined, ""])).toBe(false);
+    // Per side: the other side may think it too.
+    expect(freshThoughts([FIRST, AGAIN, AGAIN, "Something new entirely."], ["a", "b", "a", "a"])).toEqual([FIRST, AGAIN, null, "Something new entirely."]);
+  });
+
+  it("a conversation drops the repeat and keeps the line", async () => {
+    const model = scripted([
+      line("Hi. I'm Mira.", { thought: FIRST }),
+      line("Rafe. I bake.", { thought: "She looks like she has a plan." }),
+      line("I have a compass.", { thought: AGAIN }),
+      ...Array.from({ length: CONVERSATION_TURNS }, (_, i) => line(`Line ${i}: something friendly to say about the room.`, { thought: `Thought number ${i} about the room, fresh each time.` })),
+    ]);
+    const t = await simulateConversation(model, INPUT, OUTCOME, chars(), "a_hard_question", VENUE);
+    expect(t[0].inner?.thought).toBe(FIRST);
+    expect(t[2].dialogue).toBe("I have a compass.");
+    expect(t[2].inner?.thought).toBeUndefined();
+    expect(t[2].inner?.feeling).toBe("curious");
+  });
+
+  it("a date stored before the check shows the repeat once", () => {
+    const inner = { v: 1 as const, lines: [{ thought: FIRST }, { thought: "B-T" }, { thought: AGAIN }] };
+    const tr = [{ side: "a" as const }, { side: "b" as const }, { side: "a" as const }];
+    expect(innerForViewer(inner, true, [true, true], tr)?.thoughts).toEqual([FIRST, "B-T", null]);
   });
 });

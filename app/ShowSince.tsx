@@ -40,7 +40,11 @@ function Items({ card }: { card: ShowSinceData }) {
         <li>
           <span aria-hidden="true">🤫</span> A secret came out: {card.secret.name} <em>{card.secret.secret.charAt(0).toLowerCase() + card.secret.secret.slice(1)}</em> (
           {card.secret.index} of {card.secret.total}).{" "}
-          <Link href={`/characters/${card.secret.character_id}#secrets`}>See their secrets</Link>
+          {card.secret.own ? (
+            <Link href={card.secret.own.episode_path}>See the date</Link>
+          ) : (
+            <Link href={`/characters/${card.secret.character_id}#secrets`}>See their secrets</Link>
+          )}
         </li>
       )}
       {card.moves.map((m) => (

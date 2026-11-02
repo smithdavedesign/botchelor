@@ -303,7 +303,56 @@ export async function setOwnSecrets(db: Db, characterId: string, list: readonly 
   }
 }
 
-export type SecretOut = { character_id: string; name: string; secret: string; index: number; total: number; at: string };
+export type SecretOut = {
+  character_id: string;
+  name: string;
+  secret: string;
+  index: number;
+  total: number;
+  at: string;
+  /** A creator's own secret ("what they're hiding") that slipped on a date: the date it came out on. */
+  own?: { episode_path: string };
+};
+
+/**
+ * The newest of a creator's own secrets (OWN_SEASON) to slip on a date that aired after `since`, for "Since you were
+ * here", or null. Only where this viewer may see that date: a public one (its character public, and not reported away)
+ * for anyone, and an unlisted or private one only for the person who made it (episodes.visibility: private is the
+ * creator's alone, unlisted is link-only and stays out of everything public). `index` counts this character's secrets
+ * out by then on dates this viewer may see.
+ */
+export async function newestOwnSlip(db: Db, since: Date, viewerId: string | null, now: Date = new Date()): Promise<SecretOut | null> {
+  const r = await db.query<{ character_id: string; name: string; secret: string; episode_id: string; at: string | Date; total: number; index: number }>(
+    `with seen as (
+       select s.character_id, s.secret, e.id as episode_id, e.revealed_at
+         from cast_secrets s
+         join episodes e on e.id = s.revealed_episode
+         join characters c on c.id = s.character_id
+        where s.season_id = $5 and e.revealed_at is not null and e.revealed_at <= $2
+          and ((e.visibility = 'public' and c.visibility = 'public'
+                and (select count(*) from reports r where r.episode_id = e.id) < $4)
+               or (e.creator_id = $3 and $3 is not null))
+     )
+     select x.character_id, c.name, x.secret, x.episode_id, x.revealed_at as at,
+            (select count(*)::int from cast_secrets t where t.character_id = x.character_id and t.season_id = $5) as total,
+            (select count(*)::int from seen y where y.character_id = x.character_id and y.revealed_at <= x.revealed_at) as index
+       from seen x join characters c on c.id = x.character_id
+      where x.revealed_at > $1
+      order by x.revealed_at desc limit 1`,
+    [since.toISOString(), now.toISOString(), viewerId, REPORT_HIDE_THRESHOLD, OWN_SEASON],
+  );
+  const row = r.rows[0];
+  if (!row) return null;
+  return {
+    character_id: row.character_id,
+    name: row.name,
+    secret: row.secret,
+    index: row.index,
+    total: Math.max(row.total, row.index),
+    at: new Date(row.at).toISOString(),
+    own: { episode_path: `/episodes/${row.episode_id}` },
+  };
+}
 
 /** The newest secret that came out after `since` across this season's cast, or null. For "Since you were here". */
 export async function newestSecretOut(db: Db, since: Date, now: Date = new Date()): Promise<SecretOut | null> {

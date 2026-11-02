@@ -856,3 +856,44 @@ guarded, not blurted. The answers moved toward honest: plain was maybe/maybe, ye
 maybe/yes; deeper was maybe/no, then 3 × maybe/maybe and 2 × yes/yes. The cost was 1.8¢ a date plain and 2.3¢ deeper
 (+27%: longer prompts on the side that has the fields, and 11.7 lines against 11), and only on dates with a character
 that went deeper. The run cost $0.29 ($0.11 + $0.14 generation, $0.04 judging).
+
+## Round: living dates follow-ups (2026-11-02)
+
+David approved five follow-ups to living dates and Go deeper.
+
+- **One thought, thought once.** Juniper thought "He thinks he's dangerous…" twice in one aired date. The near-duplicate
+  critic (#230, lib/quality.ts) looks for a 4-word run of content words shared with the same speaker's last 6 lines.
+  That's too loose for one short sentence, so `repeatsThought` (lib/inner-life.ts, on the critic's own `tokens`) catches a
+  thought that shares a 3-word run carrying a word of its own ("it's almost endearing"), or opens with the same four
+  words ("he thinks he's dangerous"), with any earlier thought of the same side. A conversation drops a repeat on the
+  line it comes with (the line stays). `innerForViewer` hides one on dates written before this, Juniper's included.
+- **A creator's secret in Since you were here.** One a creator's character lets slip now shows in "Since you were here"
+  like a cast reveal, linked to the date it came out on ("See the date"). It follows that date's visibility
+  (`newestOwnSlip` in lib/cast-secrets.ts): a public date with a public character, not reported away, for anyone; an
+  unlisted or private date only for the person who made it. Whichever of a cast reveal and an own slip is newer shows.
+- **Out is out.** A secret that has slipped stays, whatever the owner later edits (this was already the rule in
+  `setOwnSecrets`; now a test pins it through rewording, removing and emptying the list). On the edit page, Go deeper
+  shows it read-only with "Out on a date" and says: "A secret that's already slipped out on one of <name>'s dates can't
+  be taken back: it stays out, even if you change or remove it here."
+- **Public sheets stay PG.** Chud's public dealbreaker read "They're boring or not into exploring in the bedroom". The
+  sheet check (`checkFields`) knew only the explicit word list, minors and real people; the innuendo patterns ran only
+  on what dates write (`checkShowText`). Saves and edits now go through `checkSheetText` (lib/safety.ts): the same words,
+  plus the innuendo dates are held to, plus `SHEET_SUGGESTIVE` (bedroom talk, "good in bed", hookups, "what every guy
+  wants", "back to his place for…", sultry/seductive/lingerie and the like). Everyday lines pass ("breakfast in bed",
+  "loves physical touch", "made out of clay", "back to my place for board games"). After Dark's own inputs keep their own
+  checks. Rows saved before this aren't rewritten: `pgPublic` (lib/pg-public.ts) shows a flagged field as "(Hidden for
+  now: this part doesn't fit the show's PG rules yet.)", leaves out a flagged trait or detail, on the character page,
+  dating profiles, search, swipes and the date invite. The dealbreaker quiz skips a flagged dealbreaker, as the answer
+  and as a decoy. The owner's own page names the flagged fields and links to the edit page. A read-only count on prod
+  (239 characters, 2026-11-02) found 4 with a flagged public field, all public: Chud (want, dealbreaker, and the quirk
+  "trys to manipulate you into sleeping with him"), two with a flagged trait ("naughty", "sensual"), one with a flagged
+  voice ("Smooth sensual and teasing"). None of the house cast.
+
+**Go deeper, 20 dates (2026-11-02, OPENROUTER_LOOP_KEY only).** The same harness as the six-date run, on all 20 fixed
+cases (Haiku 5.5, morning-after texts on), judged blind in both orders by Gemini 3.7 Flash. Better: deeper 10, plain 7,
+ties 3 (sign test p = 0.63). More alive: deeper 9, plain 7, ties 4 (p = 0.80). The judge picked the first position 19
+times in 40, so no position lean. The genuineness critic scored plain 84.9 and deeper 83.6 on average, lines 10.8 against
+10.9, and no owner secret slipped in 20. Cost 1.9¢ a date plain and 2.1¢ deeper (+11%). So the six-date lean (3-0-3)
+mostly washed out: on 20 dates Go deeper is no worse and maybe slightly better, but not measurably. It stays as it is,
+an optional step; its case is what creators can say about their character, not a judged lift. Spend $0.93: $0.81
+generating (the first six dates' files were lost when the Mac restarted and were played again), $0.12 judging.

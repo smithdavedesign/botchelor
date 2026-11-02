@@ -16,8 +16,11 @@ import { extrasForPrompt, MOOD_IDS, normaliseExtras, publicExtras, type Characte
 import type { ChatMessage } from "@/lib/model";
 import { orderConfessionals } from "@/lib/showrunner";
 import type { StoredSoul } from "@/lib/souls";
+import { REPORT_HIDE_THRESHOLD } from "@/lib/rules";
+import { showSince } from "@/lib/show-since";
 import { pickVenue } from "@/lib/venues";
-import { api, newUserCookie, setupEpisode, startTestDb, validCharacter } from "./helpers";
+import { readFileSync } from "node:fs";
+import { api, newUserCookie, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 const BAGGAGE = "Engaged once, for eleven days; still keeps the empty ring box";
 const WINS = "Someone who remembers the name of their first goldfish";
@@ -144,6 +147,62 @@ describe("what they're hiding, as their own secrets", () => {
     // [] clears the ones not out yet.
     await api.editCharacter(made.id, { hiding: [] }, cookie);
     expect((await ownSecrets(t.db, made.id)).map((s) => s.secret)).toEqual([HIDING]);
+  });
+
+  it("a secret that's out stays out, whatever the owner edits it to, and the edit page says so", async () => {
+    const cookie = newUserCookie();
+    const made = await (await api.createCharacter(validCharacter({ hiding: [HIDING] }), cookie)).json();
+    const [mine] = await secretsForDate(t.db, made.id);
+    const { episode } = await setupEpisode("friends");
+    await recordSlips(t.db, episode.id, [{ character_id: made.id, season_id: OWN_SEASON, idx: mine.idx, line: 2 }]);
+    await t.db.query(`update episodes set revealed_at = now() - interval '1 minute', visibility = 'public' where id = $1`, [episode.id]);
+    // Reworded, removed, or the whole list emptied: the slipped one is kept word for word, and still out.
+    for (const hiding of [["Sleeps with a night light, but only sometimes"], [], ["Something else entirely"]]) {
+      expect((await api.editCharacter(made.id, { hiding }, cookie)).status).toBe(200);
+      const now = await ownSecrets(t.db, made.id);
+      expect(now.filter((x) => x.slipped).map((x) => x.secret)).toEqual([HIDING]);
+      expect(now.map((x) => x.secret)).toEqual([HIDING, ...hiding]);
+      expect((await ownSecretsCard(t.db, made.id))!.out.map((o) => o.secret)).toEqual([HIDING]);
+    }
+    // The edit page hands the slipped ones to Go deeper, which locks them and says why in plain words.
+    expect(readFileSync("app/characters/[id]/edit/page.tsx", "utf8")).toContain("hidingOut: hiding.filter((h) => h.slipped)");
+    const step = readFileSync("app/create/DeeperStep.tsx", "utf8");
+    expect(step).toContain("can't be taken back: it stays out, even if you change or remove it here.");
+    expect(step).toContain("readOnly={isLocked(t)}");
+  });
+
+  it("one that slips shows in Since you were here, only to viewers who may see that date", async () => {
+    const owner = newUserCookie();
+    const made = await (await api.createCharacter(validCharacter({ hiding: [HIDING] }), owner)).json();
+    const [mine] = await secretsForDate(t.db, made.id);
+    const { creator, episode } = await setupEpisode("friends");
+    await recordSlips(t.db, episode.id, [{ character_id: made.id, season_id: OWN_SEASON, idx: mine.idx, line: 2 }]);
+    const creatorId = userIdOf(creator);
+    for (const who of ["fan", creatorId]) {
+      await t.db.query(`insert into owner_activity (user_id, last_seen) values ($1, now() - interval '2 days') on conflict (user_id) do update set last_seen = excluded.last_seen`, [who]);
+    }
+    const secretFor = async (who: string) => (await showSince(t.db, who))?.secret ?? null;
+    const air = (visibility: string) => t.db.query(`update episodes set revealed_at = now() - interval '1 minute', visibility = $2 where id = $1`, [episode.id, visibility]);
+
+    // Not before the date airs.
+    expect(await secretFor("fan")).toBeNull();
+    // A public date: anyone, linked to the date it came out on.
+    await air("public");
+    expect(await secretFor("fan")).toMatchObject({ character_id: made.id, secret: HIDING, index: 1, total: 1, own: { episode_path: `/episodes/${episode.id}` } });
+    // Unlisted (link only) or private: only the person who made the date.
+    for (const v of ["unlisted", "private"]) {
+      await air(v);
+      expect(await secretFor("fan")).toBeNull();
+      expect(await secretFor(creatorId)).toMatchObject({ character_id: made.id, own: { episode_path: `/episodes/${episode.id}` } });
+    }
+    // Public again, but its character made private: not for everyone.
+    await air("public");
+    await t.db.query(`update characters set visibility = 'private' where id = $1`, [made.id]);
+    expect(await secretFor("fan")).toBeNull();
+    await t.db.query(`update characters set visibility = 'public' where id = $1`, [made.id]);
+    // Reported away: not for everyone either.
+    for (let i = 0; i < REPORT_HIDE_THRESHOLD; i++) await t.db.query(`insert into reports (episode_id, reporter_id) values ($1, $2)`, [episode.id, `r${i}`]);
+    expect(await secretFor("fan")).toBeNull();
   });
 
   it("the same content rules as the sheet, and at most three", async () => {

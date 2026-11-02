@@ -1,4 +1,5 @@
 import { languageName } from "@/lib/language";
+import { PG_FIELD_LABELS } from "@/lib/pg-public";
 import { shortName } from "@/lib/names";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -325,6 +326,20 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       <AiFiction />
       <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} />
 
+      {ratings.is_owner && c.pg_flags.length > 0 && (
+        // A public field saved before the sheet's PG check (lib/pg-public.ts): everyone sees it hidden until it's edited.
+        <section className="card pg-flags" role="status" aria-labelledby="pg-flags-title">
+          <h2 id="pg-flags-title">Some of {shortName(c.name)}&apos;s profile is hidden</h2>
+          <p className="small">
+            Botchelor&apos;s show is PG, and {c.pg_flags.length === 1 ? "this part doesn't" : "these parts don't"} fit yet:{" "}
+            <strong>{c.pg_flags.map((f) => PG_FIELD_LABELS[f]).join(", ")}</strong>. Everyone sees{" "}
+            {c.pg_flags.length === 1 ? "it" : "them"} as hidden until you reword {c.pg_flags.length === 1 ? "it" : "them"}.
+          </p>
+          <p className="small">
+            <Link href={`/characters/${c.id}/edit`}>Edit {shortName(c.name)}</Link>
+          </p>
+        </section>
+      )}
       {ratings.is_owner && !c.house && (
         // The owner's one next step, the page's one filled button (2026-10-31 UX audit: three filled buttons went to side
         // actions, and the way to swipe was a green text link). The swipe deck (lib/swipes.ts) takes a complete dating
