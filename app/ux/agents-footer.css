@@ -1066,3 +1066,43 @@ button.chip-toggle.is-on {
     display: none;
   }
 }
+
+/* ---------------- Watch's "Back a cast member" faces (app/BackCast.tsx) ---------------- */
+/* Plain face tiles, not the gradient pill every button gets: a face, the name, then "Your pick" or "N backing". */
+.back-cast-faces {
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+}
+.back-cast-faces button {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  padding: var(--space-2) 0.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius, 12px);
+  color: var(--ink);
+  text-align: center;
+  cursor: pointer;
+}
+.back-cast-faces button:hover:not(:disabled) {
+  border-color: var(--line, rgba(0, 0, 0, 0.12));
+}
+.back-cast-faces button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.back-cast-faces button[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+.back-cast-faces button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.back-cast-faces button > .small {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
