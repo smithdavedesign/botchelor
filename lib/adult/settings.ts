@@ -40,7 +40,12 @@ export const DEFAULT_VENICE_IMAGE_MODEL = "lustify-v8";
  */
 export const DEFAULT_REEL_MODEL = "wan-3-0-image-to-video";
 export const DEFAULT_REEL_SHOTS = 6;
-export const DEFAULT_REEL_TOKENS = 7;
+/**
+ * 8 since 2026-11-01 (David: "update the token cost"): on Replicate, shots with a line now say it on Wan 2.6 (#1240),
+ * $3.25 to $6.40 a video (a line over 13 words takes a 10 s shot), against about $5.45 in at 8; Wan 3.0 on Venice
+ * ($4.25 to $5.50) is covered too.
+ */
+export const DEFAULT_REEL_TOKENS = 8;
 /**
  * A clip on demand (lib/adult/clips.ts): one shot of the two of them, from the act menu or the scene's latest moment, or
  * kept going from the last one. About $0.70 to make on Venice (a keyframe and 5 s of Wan 3.0), about $0.15 on

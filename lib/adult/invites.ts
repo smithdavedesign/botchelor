@@ -16,7 +16,7 @@ import { safeEqual } from "../http";
 import { contactEmail } from "../legal-entity";
 import { siteUrl } from "../site";
 import { BETA_PROVIDER } from "./entitlement";
-import { getAdultSettings } from "./settings";
+import { DEFAULT_REEL_TOKENS, getAdultSettings } from "./settings";
 
 type Env = Record<string, string | undefined>;
 
@@ -111,7 +111,7 @@ export async function decideInvite(
       [userId, end.toISOString(), BETA_PROVIDER, invite.requested_at, invite.country],
     );
     const settings = await getAdultSettings(db).catch(() => null);
-    const message = welcomeEmail({ base: siteUrl(env), until: end, clipTokens: settings?.clip_tokens ?? 1, reelTokens: settings?.reel_tokens ?? 7 });
+    const message = welcomeEmail({ base: siteUrl(env), until: end, clipTokens: settings?.clip_tokens ?? 1, reelTokens: settings?.reel_tokens ?? DEFAULT_REEL_TOKENS });
     // The welcome asks for replies: send them to the operator, not the no-reply sender.
     welcomed = (await sendAccountEmail(db, userId, "ad_invite_welcome", invite.email, { ...message, replyTo: contactEmail(env) }, env)) === "sent";
   }
