@@ -23,6 +23,7 @@ import {
   POINTS_PER_DRAMA_PICK,
   POINTS_PER_MATCHMAKER,
   POINTS_PER_ARC,
+  POINTS_PER_BACKING,
   POINTS_PER_RATING_RECEIVED,
   pointsFor,
   predictionPoints,
@@ -1080,7 +1081,7 @@ export async function getCharacterDatesPage(
 }
 
 /** Where a viewer's points came from, by source (getPoints is their sum). */
-export type PointsBreakdown = { predictions: number; dealbreaker_guesses: number; matchmaking: number; ratings_received: number; arc_calls: number };
+export type PointsBreakdown = { predictions: number; dealbreaker_guesses: number; matchmaking: number; ratings_received: number; arc_calls: number; backings: number };
 
 export async function getPointsBreakdown(db: Db, userId: string): Promise<PointsBreakdown> {
   const { rows } = await db.query<PointsBreakdown>(
@@ -1099,13 +1100,15 @@ export async function getPointsBreakdown(db: Db, userId: string): Promise<Points
                     join characters c on c.id = cr.character_id
                    where c.owner_id = $1 and not ${isHouseBotSql("cr.rater_id")}), 0) * $6)::int as ratings_received,
         (coalesce((select count(*) from arc_predictions ap
-                   where ap.user_id = $1 and ap.resolved_at is not null and ap.pick = ap.outcome), 0) * $7)::int as arc_calls`,
-    [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, POINTS_PER_RATING_RECEIVED, POINTS_PER_ARC],
+                   where ap.user_id = $1 and ap.resolved_at is not null and ap.pick = ap.outcome), 0) * $7)::int as arc_calls,
+        (coalesce((select count(*) from cast_backings cb
+                   where cb.user_id = $1 and cb.won), 0) * $8)::int as backings`,
+    [userId, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_MATCHMAKER, POINTS_PER_RATING_RECEIVED, POINTS_PER_ARC, POINTS_PER_BACKING],
   );
-  return rows[0] ?? { predictions: 0, dealbreaker_guesses: 0, matchmaking: 0, ratings_received: 0, arc_calls: 0 };
+  return rows[0] ?? { predictions: 0, dealbreaker_guesses: 0, matchmaking: 0, ratings_received: 0, arc_calls: 0, backings: 0 };
 }
 
 export async function getPoints(db: Db, userId: string): Promise<number> {
   const b = await getPointsBreakdown(db, userId);
-  return b.predictions + b.dealbreaker_guesses + b.matchmaking + b.ratings_received + b.arc_calls;
+  return b.predictions + b.dealbreaker_guesses + b.matchmaking + b.ratings_received + b.arc_calls + b.backings;
 }

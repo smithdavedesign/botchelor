@@ -62,6 +62,12 @@ function Items({ card }: { card: ShowSinceData }) {
           <span aria-hidden="true">👀</span> Couples you follow went on {plural(card.followed, "date", "dates")}
         </li>
       )}
+      {card.backing && (
+        <li>
+          <span aria-hidden="true">🏅</span> Your cast pick <Link href={`/characters/${card.backing.character_id}`}>{card.backing.name}</Link> went on{" "}
+          {plural(card.backing.aired, "date", "dates")}
+        </li>
+      )}
       {card.shift && (
         <li>
           <span aria-hidden="true">{card.shift.shift > 0 ? "🔥" : "🧊"}</span> Biggest chemistry shift this week:{" "}

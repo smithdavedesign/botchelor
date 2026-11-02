@@ -15,6 +15,7 @@
  *  - Looks back at most LOOKBACK_DAYS, and shows nothing when nothing happened.
  *  - A season that closed since (lib/season-ref.ts): its finale, /seasons/<month-year>.
  */
+import { backingSince, type BackingSince } from "./backing";
 import { newestOwnSlip, newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
@@ -54,6 +55,8 @@ export type ShowSince = {
   shift: ChemistryShift | null;
   /** The newest secret to come out since: a cast member's, or a creator's own that slipped on a date you may see (lib/cast-secrets.ts). */
   secret: SecretOut | null;
+  /** The cast member you're backing this month (lib/backing.ts): their dates that aired since. */
+  backing: BackingSince | null;
   /** A season that closed since: its finale page. */
   season: SeasonRef | null;
 };
@@ -126,9 +129,10 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
   ]);
   // The newest secret out: a cast member's on the schedule or a slip, or a creator's own that slipped on a date this
   // viewer may see (lib/cast-secrets.ts newestOwnSlip). Whichever came out last.
-  const [castSecret, ownSlip] = await Promise.all([
+  const [castSecret, ownSlip, backing] = await Promise.all([
     newestSecretOut(db, since, now).catch(() => null),
     newestOwnSlip(db, since, viewerId, now).catch(() => null),
+    backingSince(db, viewerId, at, now).catch(() => null),
   ]);
   const secret = castSecret && ownSlip ? (ownSlip.at > castSecret.at ? ownSlip : castSecret) : (castSecret ?? ownSlip);
   const d = diaryRows.rows[0];
@@ -151,9 +155,10 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
         : null,
     shift: [...shifts.up, ...shifts.down].sort((x, y) => Math.abs(y.shift) - Math.abs(x.shift))[0] ?? null,
     secret,
+    backing,
     season: seasonClosedSince(since, now),
   };
   // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
-  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret || card.season;
+  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret || card.backing || card.season;
   return anything ? card : null;
 }

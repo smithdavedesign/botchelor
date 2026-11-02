@@ -1,6 +1,7 @@
 import { track } from "@/lib/analytics";
 import { backfillTranscripts } from "@/lib/backfill";
 import { resolveExpiredArcs } from "@/lib/arcs";
+import { settleDueBackings } from "@/lib/backing";
 import { sendDailyTexts } from "@/lib/between-dates";
 import { sendDigests } from "@/lib/email";
 import { sendRenewalReminders } from "@/lib/adult/billing";
@@ -55,6 +56,8 @@ async function run(req: Request): Promise<Response> {
   const ownDatesCleared = await clearStaleOwnDates(db).catch(() => 0);
   // Arc predictions whose deadline passed (lib/arcs.ts).
   const arcsSettled = await resolveExpiredArcs(db).catch(() => 0);
+  // Cast backings of a season that closed without its recap being read yet (lib/backing.ts): the backstop settle.
+  const backingsSettled = await settleDueBackings(db).catch(() => []);
   // Couples keep texting between dates (lib/between-dates.ts): free model only, capped, inside what's left of the run.
   const texts = await sendDailyTexts(db, getModel(undefined, false), new Date(), { budgetMs: Math.max(0, 240_000 - (Date.now() - t0)), gapMs: 1500 }).catch(
     () => ({ couples: 0, texts: 0, failed: 0 }),
@@ -114,6 +117,7 @@ async function run(req: Request): Promise<Response> {
     email_digests: digests,
     ad_renewal_reminders: renewalReminders,
     arcs_settled: arcsSettled,
+    backings_settled: backingsSettled.reduce((s, b) => s + b.settled, 0),
     texts_failed: texts.failed,
     agent_day_7_returns: day7,
     matchmaker_picks: matchmaker,
