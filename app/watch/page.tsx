@@ -32,6 +32,7 @@ import { listMyLeagues } from "@/lib/leagues";
 import { getProfileName } from "@/lib/people";
 import { getReunion, type Reunion } from "@/lib/reunion";
 import { itemListJsonLd, pageMetadata } from "@/lib/seo";
+import { forViewer, shared } from "@/lib/shared-cache";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
 import { dateLabel, dateNumberOf, endingLabel } from "@/lib/rules";
 import { CreateLeagueForm } from "./WatchActions";
@@ -165,24 +166,28 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const page = parsePage((await searchParams).page);
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
+  // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
+  // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
+  const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
   const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat] = await Promise.all([
-    listLobby(db),
-    countRecentPrivateDates(db),
-    listAiringSoon(db, viewerId, airWindowMinutes()),
-    listAiredPage(db, viewerId, page),
+    mine("lobby", () => listLobby(db)),
+    shared("watch:private-dates", () => countRecentPrivateDates(db)),
+    mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
+    mine(`watch:aired:${page}`, () => listAiredPage(db, viewerId, page)),
     viewerId ? listMyLeagues(db, viewerId) : Promise.resolve([]),
     getProfileName(db, viewerId),
-    getReunion(db),
-    situationBoard(db, viewerId).catch(() => null),
-    dareBoard(db, viewerId).catch(() => null),
-    backingBoard(db, viewerId).catch(() => null),
-    callRecord(db, viewerId).catch(() => null),
-    callersBoard(db, viewerId).catch(() => null),
+    shared("watch:reunion", () => getReunion(db)),
+    mine("home:situation", () => situationBoard(db, viewerId)).catch(() => null),
+    mine("home:dares", () => dareBoard(db, viewerId)).catch(() => null),
+    mine("watch:backing", () => backingBoard(db, viewerId)).catch(() => null),
+    mine("home:calls", () => callRecord(db, viewerId)).catch(() => null),
+    mine("watch:callers", () => callersBoard(db, viewerId)).catch(() => null),
     showSince(db, viewerId).catch(() => null),
-    chemistryShifts(db).catch(() => null),
-    seasonFormatNow(db).catch(() => null),
-    recouplingBoard(db, viewerId).catch(() => null),
-    latestCastChat(db).catch(() => null),
+    shared("watch:shifts", () => chemistryShifts(db)).catch(() => null),
+    shared("watch:season-format", () => seasonFormatNow(db)).catch(() => null),
+    mine("watch:recoupling", () => recouplingBoard(db, viewerId)).catch(() => null),
+    // The cast group chat (lib/cast-chat.ts): the same for everyone.
+    shared("watch:cast-chat", () => latestCastChat(db)).catch(() => null),
   ]);
   const feed = latest.episodes;
   const now = Date.now();

@@ -10,6 +10,7 @@
  */
 import { revalidateTag, unstable_cache } from "next/cache";
 import { getDb, type Db } from "./db";
+import { clearSharedCache } from "./shared-cache";
 import { constellation, pairTimeline, publicPair, type GraphData, type PairTimeline } from "./graph";
 
 export const GRAPH_TAG = "constellation";
@@ -63,8 +64,13 @@ export async function cachedPairTimeline(a: string, b: string, db?: Db): Promise
   );
 }
 
-/** Drop the cached constellation now (the next visit rebuilds it). Safe anywhere: outside a request there's nothing to drop. */
+/**
+ * Drop the cached constellation now (the next visit rebuilds it), and the signed-out pages' shared copies with it
+ * (lib/shared-cache.ts): whatever takes something off the public sky takes it off those too. Safe anywhere: outside a
+ * request there's nothing to drop.
+ */
 export function invalidateGraph(): void {
+  clearSharedCache();
   try {
     revalidateTag(GRAPH_TAG, { expire: 0 });
   } catch {

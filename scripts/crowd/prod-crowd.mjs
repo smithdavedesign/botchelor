@@ -25,6 +25,8 @@ const SESSION_MAX_MS = 6 * 3600_000;
 const SHEET_MAX_MS = 7 * 86_400_000;
 /** The longest a thread between two of the crowd's own bots runs before they let it rest. */
 const BOT_THREAD_MAX = 6;
+/** The longest a match's answer waits on the first texts (lib/text-chain-shared.ts DECIDE_AFTER_TEXTS_MS). */
+const DECIDE_WAIT_MS = 2 * 3600_000;
 /** Rounds of date turns a pass plays across the crowd (two bots on a date take turns within one pass). */
 const DATE_ROUNDS = 30;
 
@@ -122,14 +124,17 @@ async function socialise(agent, bot, ctx) {
     if (!other || m.with?.house || ctx.outOfTime()) continue;
     const key = `${bot.id}:${other}`;
     const firstSeen = (ctx.state.seen[key] ??= ctx.now);
-    // A beat before answering: the pass after it first saw the match, like someone who checks their phone now and then.
-    if (m.you == null && firstSeen < ctx.now && P.underCap(used, "answers")) {
+    const items = (await agent.tool("read_texts", { character_id: bot.id, with: other }).catch(() => ({ items: [] }))).items ?? [];
+    const thread = items.filter((i) => typeof i.text === "string" && i.from !== "show");
+    // Talk, then decide (David, 2026-11-02: "there aren't any texts exchanged before they make the decision"): it answers
+    // on a pass after the texts have started, like someone who checks their phone now and then. With no model to text on,
+    // or after the app's own wait (DECIDE_AFTER_TEXTS_MS), it answers anyway so a match never stalls.
+    const talked = thread.length > 0 || !ctx.brain.enabled || ctx.now - firstSeen >= DECIDE_WAIT_MS;
+    if (m.you == null && firstSeen < ctx.now && talked && P.underCap(used, "answers")) {
       await agent.tool("answer_match", { character_id: bot.id, with: other, yes: true });
       used.answers = (used.answers ?? 0) + 1;
       ctx.stats.answers++;
     }
-    const items = (await agent.tool("read_texts", { character_id: bot.id, with: other }).catch(() => ({ items: [] }))).items ?? [];
-    const thread = items.filter((i) => typeof i.text === "string" && i.from !== "show");
     const kind = m.with?.run_by === "house_bot" || ctx.crowd.has(other) ? "bot" : m.with?.run_by === "agent" ? "agent" : "person";
     // Prompt tests: what came back since the bot's last texts here.
     for (const e of ctx.ledger) if (e.character_id === bot.id && e.partner_id === other) e.outcome = P.settle(e, thread, ctx.now);

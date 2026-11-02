@@ -11,7 +11,7 @@ import { markPairNotices, pairNoticeLinks } from "./notifications";
 import { loadRelationship, pairKey, viewRelationship } from "./relationships";
 import type { Ending } from "./rules";
 import { matchView } from "./swipes";
-import { chainPage, loadChain, type ChainItem, type ChainText } from "./text-chain";
+import { chainPage, decisionShown, loadChain, type ChainItem, type ChainText } from "./text-chain";
 import { unmatchedSql } from "./unmatch";
 
 /** At most this many threads per character: the newest first. */
@@ -44,6 +44,7 @@ export type Thread = {
  * Otherwise the swipe deck's yes or no: both want one (book it), someone said no, or someone hasn't answered.
  */
 export type NextStep =
+  | { kind: "talking" }
   | { kind: "book" }
   | { kind: "waiting"; on: "you" | "them" }
   | { kind: "declined"; by: "you" | "them" }
@@ -52,11 +53,13 @@ export type NextStep =
 
 type LatestDate = { id: string; status: string; created_at: string | Date; revealed_at: string | Date | null; ending?: Ending | null };
 
-export function nextStep(match: { matched_at: string; you: boolean | null; them: boolean | null } | null, latest: LatestDate | null): NextStep | null {
+export function nextStep(match: { matched_at: string; you: boolean | null; them: boolean | null; shown?: boolean } | null, latest: LatestDate | null): NextStep | null {
   if (latest && (!match || new Date(latest.created_at).getTime() >= new Date(match.matched_at).getTime())) {
     return latest.status === "generating" ? { kind: "filming", episode_id: latest.id } : { kind: "dated", episode_id: latest.id, aired: latest.revealed_at !== null };
   }
   if (!match) return null;
+  // Talk, then decide (lib/text-chain-shared.ts decisionShown): until they've texted, nobody's answer shows.
+  if (match.shown === false) return { kind: "talking" };
   if (match.you === true && match.them === true) return { kind: "book" };
   if (match.you === false || match.them === false) return { kind: "declined", by: match.you === false ? "you" : "them" };
   return { kind: "waiting", on: match.you === null ? "you" : "them" };
@@ -275,7 +278,7 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
       const { unread, mark } = threadUnread(texts, self, readAt.get(`${lo}/${hi}`), notices);
       if (mark && texts.length) await setThreadRead(db, userId, lo, hi, mark);
       const newest = latest.get(p.id) ?? null;
-      const next = nextStep(match, newest);
+      const next = nextStep(match ? { ...match, shown: decisionShown(match.matched_at, chain) } : null, newest);
       return {
         with: { id: p.id, name: p.name, house: p.made_by === "house", made_by: p.made_by, portrait: p.portrait, hue: p.hue },
         pair: [lo, hi],
@@ -328,11 +331,13 @@ export async function loadThread(db: Db, viewerId: string | null, a: string, b: 
     const other = self === lo ? hi : lo;
     const latest = (await latestDates(db, viewerId, self, other)).get(other) ?? null;
     const mineLo = self === lo;
-    const m = match ? { matched_at: match.matched_at, you: mineLo ? match.yes_lo : match.yes_hi, them: mineLo ? match.yes_hi : match.yes_lo } : null;
+    const m = match ? { matched_at: match.matched_at, you: mineLo ? match.yes_lo : match.yes_hi, them: mineLo ? match.yes_hi : match.yes_lo, shown: decisionShown(match.matched_at, items) } : null;
     return nextStep(m, latest);
   };
   return {
     nextFor,
+    /** Whether the match's answers about a date show yet: talk, then decide (decisionShown). True with no match. */
+    decided: match ? decisionShown(match.matched_at, items) : true,
     /** The couple page exists for a pair that has dated or matched (a pair that has only texted has none). */
     hasStory: Boolean(view || match),
     ca,

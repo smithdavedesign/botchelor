@@ -6,6 +6,7 @@ import CharacterName from "@/app/CharacterName";
 import Pager from "@/app/Pager";
 import JsonLd from "@/app/JsonLd";
 import OriginBadge from "@/app/OriginBadge";
+import { forViewer, shared } from "@/lib/shared-cache";
 import { getDb } from "@/lib/db";
 import { directoryEntries, listTab, offSeasonHouse, privateAmong, tabCounts, type DirectoryEntry } from "@/lib/directory";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
@@ -119,7 +120,12 @@ export default async function CharactersPage({ searchParams }: Props) {
   const now = new Date();
   const thisId = seasonIdOf(now);
   const castIds = seasonCastIds(now);
-  const [season, counts] = await Promise.all([directoryEntries(db, castIds), tabCounts(db)]);
+  const viewerId = userIdFromCookieStore(await cookies());
+  // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts).
+  const [season, counts] = await Promise.all([
+    shared(`characters:season:${castIds.join(",")}`, () => directoryEntries(db, castIds)),
+    forViewer(viewerId, "characters:counts", () => tabCounts(db)),
+  ]);
   const count: Record<Tab, number> = { cast: season.length, people: counts.people, agents: counts.agents };
 
   return (
@@ -143,32 +149,38 @@ export default async function CharactersPage({ searchParams }: Props) {
         ))}
       </nav>
       {/* Awaited here, not rendered as async components, so the whole page is one server render (and testable). */}
-      {tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs) }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private })}
+      {tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewerId }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewerId })}
     </article>
   );
 }
 
-async function castTab({ season, thisId, castIds, now, pairsPage }: { season: DirectoryEntry[]; thisId: string; castIds: string[]; now: Date; pairsPage: number }) {
-  const viewerId = userIdFromCookieStore(await cookies());
+async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { season: DirectoryEntry[]; thisId: string; castIds: string[]; now: Date; pairsPage: number; viewerId: string | null }) {
   const db = await getDb();
   // Step into the date (lib/step-in.ts): for whoever it's open to (admins until STEP_IN_OPEN).
   const stepIn = await stepInAllowed(db, authFromCookieStore(await cookies())).catch(() => false);
   const nextId = seasonIdOf(nextSeasonStart(now));
-  const candidates = (await listCandidates(db, nextId)).filter((c) => c.status !== "rejected");
-  const candidateIds = candidates.map((c) => c.character_id);
-  const [upcoming, earlier, cast, edges, proposals, boards, castDateWin] = await Promise.all([
-    directoryEntries(db, candidateIds),
-    offSeasonHouse(db, [...castIds, ...candidateIds]),
-    listCast(db),
-    listRelationshipEdges(db),
+  // The cast's boards are the same for everyone: one shared copy a few seconds old (lib/shared-cache.ts).
+  const everyones = shared(`characters:cast:${nextId}:${castIds.join(",")}`, async () => {
+    const candidates = (await listCandidates(db, nextId)).filter((c) => c.status !== "rejected");
+    const candidateIds = candidates.map((c) => c.character_id);
+    const [upcoming, earlier, cast, edges, boards] = await Promise.all([
+      directoryEntries(db, candidateIds),
+      offSeasonHouse(db, [...castIds, ...candidateIds]),
+      listCast(db),
+      listRelationshipEdges(db),
+      Promise.all(RATING_CATEGORIES.map((c) => topRatedCharacters(db, c.id))),
+    ]);
+    // The matchmaker picks from public characters only: a private one stays its creator's.
+    // The leaderboard and the relationship graph show a private one by name only (#509's rule).
+    const hidden = await privateAmong(db, [...cast.map((c) => c.id), ...boards.flat().map((t) => t.id), ...edges.flatMap((e) => [e.a_id, e.b_id])]);
+    return { candidates, upcoming, earlier, cast, edges, boards, hidden };
+  });
+  const [{ candidates, upcoming, earlier, cast, edges, boards, hidden }, proposals, castDateWin] = await Promise.all([
+    everyones,
     viewerId ? listMyProposals(db, viewerId) : Promise.resolve([]),
-    Promise.all(RATING_CATEGORIES.map((c) => topRatedCharacters(db, c.id))),
     castDatePrize(db, viewerId).catch(() => null),
   ]);
   const statusOf = new Map(candidates.map((c) => [c.character_id, c.status]));
-  // The matchmaker picks from public characters only: a private one stays its creator's.
-  // The leaderboard and the relationship graph show a private one by name only (#509's rule).
-  const hidden = await privateAmong(db, [...cast.map((c) => c.id), ...boards.flat().map((t) => t.id), ...edges.flatMap((e) => [e.a_id, e.b_id])]);
   const matchable = cast.filter((c) => !hidden.has(c.id));
   const pairs = pageSlice(edges, pairsPage, PAIRS_PAGE);
   // Faces for the graph's names: the cast already carries each one's colour and portrait; anyone not in it (an
@@ -342,9 +354,9 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
   );
 }
 
-async function madeByTab({ tab, page, privateCount }: { tab: "people" | "agents"; page: number; privateCount: number }) {
+async function madeByTab({ tab, page, privateCount, viewerId }: { tab: "people" | "agents"; page: number; privateCount: number; viewerId: string | null }) {
   const db = await getDb();
-  const list = await listTab(db, tab, page);
+  const list = await forViewer(viewerId, `characters:${tab}:${page}`, () => listTab(db, tab, page));
   const what = tab === "people" ? "characters made by people" : "characters made by AI agents";
   return (
     <section>
