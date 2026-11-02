@@ -167,6 +167,9 @@ export async function startTestDb() {
         "language_seen",
         // Site engagement (lib/engagement.ts) and After Dark's invite requests (lib/adult/invites.ts).
         "web_events",
+        // Tonight's situation (lib/situations.ts): the house cast outlives a reset, so its nights would too.
+        "situation_votes",
+        "situation_nights",
         "adult_invites",
         "adult_monologues",
         "adult_short_calls",

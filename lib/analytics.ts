@@ -13,6 +13,7 @@ export type AnalyticsEvent =
   | "episode_created"
   | "episode_generated" // the unit-economics event: model calls + latency for one date
   | "prediction_submitted"
+  | "situation_vote" // a vote on tonight's situation (lib/situations.ts)
   | "purchase_completed"
   | "purchase_refunded" // a full refund made in Stripe took the pack's unused dates back
   | "content_reported"

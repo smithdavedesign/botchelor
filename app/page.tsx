@@ -21,6 +21,8 @@ import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { cleanRef } from "@/lib/waitlist";
 import BotReviews from "./BotReviews";
+import SituationVote from "./SituationVote";
+import { situationBoard } from "@/lib/situations";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: "/" });
@@ -77,7 +79,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       ? await Promise.all([sinceYouWereHere(db, viewerId, myCharacters).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0];
   const shared = db ?? (await getDb());
-  const [aired, sky] = await Promise.all([listAiredPage(shared, viewerId, 1, 6).catch(() => null), cachedConstellation(shared).catch(() => null)]); // two counts: the minute-old sky is plenty (2026-11-01 audit, R9)
+  const [aired, sky, situation] = await Promise.all([
+    listAiredPage(shared, viewerId, 1, 6).catch(() => null),
+    cachedConstellation(shared).catch(() => null),
+    situationBoard(shared, viewerId).catch(() => null),
+  ]); // the minute-old sky is plenty (2026-11-01 audit, R9)
 
   // This season's handful of house characters (lib/season-cast.ts), plus any premium one this viewer owns.
   const onSeason = await seasonCastCards(db ?? (await getDb()));
@@ -172,6 +178,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <p className="muted mini-cap">A real box score, decided by the engine — and friends guess it first.</p>
         </div>
       </section>
+
+      {situation && <SituationVote board={situation} now={Date.now()} />}
 
       {aired && aired.episodes.length > 0 && (
         <section className="home-aired">

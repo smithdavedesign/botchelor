@@ -2965,6 +2965,28 @@ create table if not exists web_events (
 create index if not exists web_events_at_idx on web_events (at);
 create index if not exists web_events_event_idx on web_events (event, at);
 create index if not exists web_events_visitor_idx on web_events (visitor);
+
+-- Tonight's situation (lib/situations.ts; docs/ideas.md "Bringing viewers back", idea 1): one vote a viewer a UTC day
+-- (YYYY-MM-DD) on which of three show roleplays two of the house cast play, and, once the vote closes, the date it made
+-- (one row a day: the claim that stops two lobby runs both making it; party_id is set once the room exists).
+create table if not exists situation_votes (
+  day text not null,
+  user_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (day, user_id)
+);
+create table if not exists situation_nights (
+  day text primary key,
+  a_id text not null,
+  b_id text not null,
+  pick text not null,
+  votes integer not null,
+  total integer not null,
+  party_id text,
+  created_at timestamptz not null default now()
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

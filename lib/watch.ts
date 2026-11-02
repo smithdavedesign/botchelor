@@ -64,6 +64,7 @@ import { mixerQuietUsers, notifyNightAired, siblingCharacters } from "./group-da
 import { notifyOwnersAired, notifyPredictors } from "./air";
 import { ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, type Turn } from "./conversation";
+import type { DateRoleplay } from "./roleplays";
 import { generationPaused, PAUSED_MESSAGE } from "./compute";
 import { placeAt, venueName, type PlaceId } from "./venues";
 
@@ -799,7 +800,13 @@ const houseSheet = (c: HouseRow): CharacterSheet => ({
  * Meant for the seed/demo path (scripts/seed.mjs) and tests; in production David pre-generates a handful
  * so the lobby is never empty. Refreshing them on a schedule is a deferred, spend-free follow-up.
  */
-export async function createTemplateParty(db: Db, aId: string, bId: string): Promise<CreatePartyResult | null> {
+export async function createTemplateParty(
+  db: Db,
+  aId: string,
+  bId: string,
+  // The situation the viewers voted for (lib/situations.ts): the date plays it as a roleplay the show agreed to.
+  opts: { roleplay?: DateRoleplay | null } = {},
+): Promise<CreatePartyResult | null> {
   if (generationPaused()) return { ok: false, status: 503, error: "generation_paused", message: PAUSED_MESSAGE };
   const rows = (
     await db.query<HouseRow>(
@@ -815,7 +822,10 @@ export async function createTemplateParty(db: Db, aId: string, bId: string): Pro
   const episodeId = crypto.randomUUID();
   const forDate = (c: HouseRow): CharacterForDate => ({ id: c.id, sheet: houseSheet(c) });
   // A house room has no owner: its characters bring in only their public history together.
-  const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST, undefined, undefined, { creatorId: PUBLIC_ONLY });
+  const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST, undefined, undefined, {
+    creatorId: PUBLIC_ONLY,
+    roleplay: opts.roleplay ?? null,
+  });
   built.setup.met_via = "show"; // how it came about (data plan Tier 2): the show set it up for the lobby
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
   // The shared pipeline (lib/pipeline.ts): the recap, plus the turn-by-turn conversation so template rooms
