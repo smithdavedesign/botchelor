@@ -4843,14 +4843,29 @@ details.recap-toggle[open] > summary {
 .start-card {
   border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
 }
-.start-mine {
+/* "Since you were here" (lib/since.ts): a face, what happened, and the one thing to do about it. */
+.since-list {
   margin: 0.5rem 0;
 }
-.start-mine .char {
-  margin: 0.4rem 0;
+.since-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
 }
-.start-mine .button-ghost {
+.since-text {
+  display: grid;
+  min-width: 0;
+}
+.since-text > * {
+  overflow-wrap: anywhere;
+}
+.since-row .button-ghost {
   margin-top: 0;
+}
+.since-foot {
+  margin-bottom: 0;
 }
 
 /* ---------------- watch: the private-dates teaser (a real count; hidden at zero) ---------------- */

@@ -9,6 +9,9 @@ import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
 import { listAiredPage, listMyCharacters } from "@/lib/game";
+import { countNotifications } from "@/lib/notifications";
+import { sinceYouWereHere } from "@/lib/since";
+import When from "@/app/When";
 import { cachedConstellation } from "@/lib/graph-cache";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
@@ -50,7 +53,7 @@ const FAQ = [
  * The landing page, pitched at AI-friendly roleplayers. The UX pass (David, 2026-10-22: "think about the human
  * experience"): the show itself straight under the hero (the latest aired dates), then what it is, the cast, the
  * Constellation, how it works, what the bots say, questions. A newcomer gets one way to start (the hero's); someone with
- * a character gets "Jump back in".
+ * a character comes back to "Since you were here" first (2026-11-01 audit, J4: lib/since.ts).
  */
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
   const { ref, said, bots } = await searchParams;
@@ -68,6 +71,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
   const tokens = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
+  // A returning visitor sees what happened first (J4); a first visit is unchanged.
+  const [since, unread] =
+    db && viewerId && myCharacters.length
+      ? await Promise.all([sinceYouWereHere(db, viewerId, myCharacters).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
+      : [[], 0];
   const shared = db ?? (await getDb());
   const [aired, sky] = await Promise.all([listAiredPage(shared, viewerId, 1, 6).catch(() => null), cachedConstellation(shared).catch(() => null)]); // two counts: the minute-old sky is plenty (2026-11-01 audit, R9)
 
@@ -88,6 +96,44 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
   return (
     <div className="home">
+      {myCharacters.length > 0 && (
+        <section id="start" className="card start-card since-card" aria-labelledby="since-title">
+          <div className="section-head">
+            <h2 id="since-title">Since you were here</h2>
+            {unread > 0 && (
+              <Link href="/notifications">
+                {unread} new {unread === 1 ? "notification" : "notifications"} →
+              </Link>
+            )}
+          </div>
+          <ul className="list since-list">
+            {since.map((s) => (
+              <li key={s.character.id} className="since-row">
+                <Avatar seed={s.character.id} name={s.character.name} hue={s.character.hue} portraitSrc={s.character.portrait} size={40} />
+                <span className="since-text">
+                  <strong>{s.character.name}</strong>
+                  <span className="muted small">
+                    {s.news}
+                    {s.at && (
+                      <>
+                        {" · "}
+                        <When iso={s.at} />
+                      </>
+                    )}
+                  </span>
+                </span>
+                <Link className="button-ghost small" href={s.href} aria-label={`${s.action}: ${s.character.name}`}>
+                  {s.action}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="muted small since-foot">
+            {tokens.left} {tokens.left === 1 ? "date" : "dates"} left this week; free ones come back Monday. Want more? &ldquo;{PACK_5.name}&rdquo;
+            is in the <Link href="/shop">shop</Link>. <Link href="/create">Build a new character</Link>.
+          </p>
+        </section>
+      )}
       <section className="hero">
         <div className="hero-copy">
           <p className="kicker">For OC roleplayers</p>
@@ -138,37 +184,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               <EpisodeItem key={episode.id} episode={episode} />
             ))}
           </ul>
-        </section>
-      )}
-
-      {myCharacters.length > 0 && (
-        <section id="start" className="card start-card">
-          <h2>Jump back in</h2>
-          {myCharacters.length > 0 && (
-            <>
-              <p className="muted">Your characters — send one on another date:</p>
-              <ul className="list start-mine">
-                {myCharacters.map((c) => (
-                  <li key={c.id} className="char">
-                    <Avatar seed={c.id} name={c.name} hue={c.hue} portraitSrc={c.portrait} size={36} />
-                    <Link className="button-ghost small" href={`/create?character=${c.id}`}>
-                      Send {c.name} on a date
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          <p className="cta-row">
-            <Link className="button-ghost" href="/create">
-              Build a new character
-            </Link>
-          </p>
-          <p className="muted">
-            {tokens.left} {tokens.left === 1 ? "date" : "dates"} left this week; free ones come back Monday. Want more?
-            &ldquo;{PACK_5.name}&rdquo; is in the <Link href="/shop">shop</Link>. Points and badges are free and can&apos;t be
-            bought.
-          </p>
         </section>
       )}
 

@@ -7,6 +7,7 @@ import { shortName } from "@/lib/names";
 import type { DeckCard as BaseCard, MatchView } from "@/lib/swipes";
 import type { Origin } from "@/lib/origin";
 import OriginBadge from "@/app/OriginBadge";
+import PushToggle from "@/app/notifications/PushToggle";
 import { kindLabel } from "@/lib/kinds";
 
 /** A deck card with who made it (lib/origin.ts withOrigins). */
@@ -19,6 +20,8 @@ type Props = {
   serveId: string;
   /** How long an unanswered like can be taken back (lib/swipes.ts UNDO_MINUTES). */
   undoMinutes: number;
+  /** The site's push key (lib/push.ts), for "Tell me when they text" on a match; null when push isn't set up. */
+  pushKey?: string | null;
 };
 
 /** How far a card has to be dragged to count as a swipe. */
@@ -41,7 +44,7 @@ const HUMAN = kindLabel({ kind: "human" });
  * What's seen is what the preference data records (lib/swipes.ts logShownCard): each card is reported once, when it
  * comes on top, with its place in what this person has seen this visit. The hand that was dealt is never logged.
  */
-export default function SwipeDeck({ character, initial, serveId, undoMinutes }: Props) {
+export default function SwipeDeck({ character, initial, serveId, undoMinutes, pushKey = null }: Props) {
   const [cards, setCards] = useState(initial);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -347,6 +350,8 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes }: 
                 Keep swiping
               </button>
             </p>
+            {/* J3: the peak is when someone wants to hear what happens next; gone once notifications are on. */}
+            {pushKey && <PushToggle publicKey={pushKey} prompt emailFallback title="Tell me when they text" body="A note the moment they text or agree to a date, even with the site closed." />}
           </div>
         </div>
       )}

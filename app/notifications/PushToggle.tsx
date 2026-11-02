@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { installSteps, platformOf } from "@/lib/pwa";
 
@@ -25,8 +26,23 @@ function needsInstall(): boolean {
  * Browser notifications for this browser (lib/push.ts): registers the service worker, subscribes with the site's
  * public key, and stores the subscription. Off by default; the browser asks first. In ⚙ Settings it shows every state;
  * as a prompt above the list (2026-10-31 UX audit) it's one row while it's off and could be on, and goes once it's on.
+ * At the peak (2026-11-01 audit, J3: "It's a match!", a creator's finished date) the prompt says what it's for, and
+ * where this browser can't notify, offers email instead.
  */
-export default function PushToggle({ publicKey, prompt = false }: { publicKey: string; prompt?: boolean }) {
+export default function PushToggle({
+  publicKey,
+  prompt = false,
+  title = "Hear it as it happens",
+  body = "When they text, or a second date is booked, even with the site closed.",
+  emailFallback = false,
+}: {
+  publicKey: string;
+  prompt?: boolean;
+  title?: string;
+  body?: string;
+  /** In the prompt: where push can't work here (unsupported, blocked, or an iPhone outside the Home Screen app), email. */
+  emailFallback?: boolean;
+}) {
   const [state, setState] = useState<State>("busy");
   const [error, setError] = useState<string | null>(null);
   const [asked, setAsked] = useState(false);
@@ -78,6 +94,22 @@ export default function PushToggle({ publicKey, prompt = false }: { publicKey: s
         </p>
       );
     }
+    if (emailFallback && (state === "unsupported" || state === "denied" || state === "install")) {
+      return (
+        <section className="card invite-row push-prompt" aria-label="Email notifications">
+          <span className="invite-row-icon" aria-hidden="true">
+            ✉️
+          </span>
+          <div className="invite-row-text">
+            <strong>{title}</strong>
+            <span className="muted small">This browser can&apos;t notify you, but email can (it needs a free account).</span>
+          </div>
+          <Link className="button-ghost small" href="/account">
+            Email me
+          </Link>
+        </section>
+      );
+    }
     if (state !== "off" && !(asked && state === "busy")) return null;
     return (
       <section className="card invite-row push-prompt" aria-label="Browser notifications">
@@ -85,8 +117,8 @@ export default function PushToggle({ publicKey, prompt = false }: { publicKey: s
           🔔
         </span>
         <div className="invite-row-text">
-          <strong>Hear it as it happens</strong>
-          <span className="muted small">When they text, or a second date is booked, even with the site closed.</span>
+          <strong>{title}</strong>
+          <span className="muted small">{body}</span>
           {error && <span className="error">{error}</span>}
         </div>
         <button
