@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
-import { siblingEpisode, DOUBLE_VENUE } from "@/lib/group-dates";
+import { MIXER_FILL_HOUR_UTC, siblingEpisode, DOUBLE_VENUE } from "@/lib/group-dates";
 import { api, episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter, newUserCookie } from "./helpers";
 import { seasonCastIds } from "@/lib/season-cast";
 import { airEpisode } from "@/lib/air";
@@ -302,8 +302,12 @@ describe("mixers (group dates M2)", () => {
     expect((await call("mixer", { join: a.id, agent_id: a.agentId }, a.ctx)).isError).toBe(true); // already in
     expect((await call("mixer", { join: b.id, agent_id: b.agentId }, b.ctx)).isError).toBeUndefined();
     expect((await call("mixer", { leave: b.id, agent_id: b.agentId }, b.ctx)).isError).toBeUndefined();
-    // Too few, too old: called off, told, nothing spent.
-    expect(await runDueMixers(t.db, new Date(Date.now() + 25 * 60 * 60_000))).toMatchObject({ cancelled: 1 });
+    // Too few, too old: called off, told, nothing spent. The clock stays clear of the nightly fill window
+    // (lib/mixer-fill.ts, hour >= MIXER_FILL_HOUR_UTC): there the house would top the room up and run it, so the bare
+    // +25h made this test fail whenever the suite ran between 19:00 and 23:00 UTC.
+    const due = new Date(Date.now() + 25 * 60 * 60_000);
+    while (due.getUTCHours() >= MIXER_FILL_HOUR_UTC) due.setTime(due.getTime() + 60 * 60_000);
+    expect(await runDueMixers(t.db, due)).toMatchObject({ cancelled: 1 });
     expect((await t.db.query<Any>(`select count(*)::int as n from episodes`)).rows[0].n).toBe(0);
     const note = (await t.db.query<Any>(`select title from notifications where user_id = $1 and kind = 'mixer'`, [a.agentId])).rows;
     expect(note).toHaveLength(1);

@@ -3055,6 +3055,31 @@ create table if not exists season_recaps (
   frozen_at timestamptz
 );
 
+-- Dares (lib/dares.ts; docs/ideas.md "Bringing viewers back", idea 2): the nightly ballot's second lane. One vote a
+-- viewer a UTC day on which producer dare tomorrow's house date carries; the winner is slipped to ONE dealt side as its
+-- private note. dare_nights is the night's record: who was dared to do what, on which date (the reveal reads it).
+create table if not exists dare_votes (
+  day text not null,
+  user_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (day, user_id)
+);
+create table if not exists dare_nights (
+  day text primary key,
+  character_id text not null,
+  dare_id text not null,
+  votes integer not null,
+  total integer not null,
+  party_id text,
+  episode_id text,
+  created_at timestamptz not null default now()
+);
+create index if not exists dare_nights_episode_idx on dare_nights (episode_id) where episode_id is not null;
+-- A night can now be made by the dare lane alone: its situation pick is then null.
+alter table situation_nights alter column pick drop not null;
+
 -- Back a cast member (lib/backing.ts; docs/ideas.md "Bringing viewers back", idea 3): one pick per viewer per season,
 -- changeable until mid-month. Settled once when the season closes (won = ended the season publicly coupled): points
 -- (lib/game.ts) and a season badge (the won row itself).
