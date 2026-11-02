@@ -28,6 +28,7 @@ import SituationVote from "./SituationVote";
 import ShowSince from "./ShowSince";
 import { showSince } from "@/lib/show-since";
 import { situationBoard } from "@/lib/situations";
+import { getProfileName } from "@/lib/people";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: "/" });
@@ -85,6 +86,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       : [[], 0];
   // What happened on the show since their last visit (lib/show-since.ts): inside that card for an owner, its own card for
   // a spectator. Nothing on a first visit.
+  // Your calls line offers "Put my name on the board" to someone with no display name yet (app/BoardName.tsx).
+  const profileName = db && viewerId ? await getProfileName(db, viewerId).catch(() => null) : null;
   const showNews = db && viewerId ? await showSince(db, viewerId).catch(() => null) : null;
   const shared = db ?? (await getDb());
   const [aired, sky, situation, record, airing] = await Promise.all([
@@ -193,7 +196,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       </section>
 
       {situation && <SituationVote board={situation} now={Date.now()} />}
-      {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" />}
+      {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} />}
 
       {aired && aired.episodes.length > 0 && (
         <section className="home-aired">
