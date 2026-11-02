@@ -628,7 +628,7 @@ export type RelationshipView = {
   tie: number;
   chemistry: number | null;
   trust: number | null;
-  timeline: { episode_id: string; at: string; ending: Ending; ending_label: string; venue: string; aired: boolean; second_date_of: string | null; date_number: number | null; roleplay: string | null }[];
+  timeline: { episode_id: string; at: string; ending: Ending; ending_label: string; led_to?: string; venue: string; aired: boolean; second_date_of: string | null; date_number: number | null; roleplay: string | null }[];
   jokes: string[];
   /** What each has told the other, by character id. */
   told: Record<string, string[]>;
@@ -650,6 +650,20 @@ export function timelineLabel(h: Pick<HistoryItem, "ending">, ledToAnother: bool
   if (h.ending === "second_date" && isFollowUp) return "Another date";
   return ENDING_LABELS[h.ending];
 }
+
+/**
+ * #1254 (three agents read "Date 2: A third date" as an off-by-one): a happy ending's label names the date it led to,
+ * so beside "Date N" it reads as that outcome: "a third date" (null for an ending that isn't one more date).
+ */
+export function ledTo(label: string): string | null {
+  return /\bdate$/i.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : null;
+}
+
+/** A timeline label as the outcome beside "Date N": "wants a third date", or the label itself ("Just friends"). */
+export const outcomeText = (label: string): string => {
+  const next = ledTo(label);
+  return next ? `wants ${next}` : label;
+};
 
 /** What a viewer sees of an edge. Spectators get the public layer only; an owner gets all the pair's dates and the plans. */
 export function viewRelationship(rel: Relationship, v: Viewer, now = new Date()): RelationshipView | null {
@@ -683,11 +697,14 @@ export function viewRelationship(rel: Relationship, v: Viewer, now = new Date())
       // other 1 + the earlier public dates.
       const n = h.date_number ?? (h.followup_of && numbers.has(h.followup_of) ? numbers.get(h.followup_of)! + 1 : 1 + seen.slice(0, i).filter((x) => x.public).length);
       numbers.set(h.episode_id, n);
+      const label = timelineLabel(h, ledOn.has(h.episode_id), Boolean(h.followup_of && ids.has(h.followup_of)), n);
+      const next = ledTo(label);
       return {
         episode_id: h.episode_id,
         at: h.aired_at ?? h.at,
         ending: h.ending,
-        ending_label: timelineLabel(h, ledOn.has(h.episode_id), Boolean(h.followup_of && ids.has(h.followup_of)), n),
+        ending_label: label,
+        ...(next ? { led_to: next } : {}),
         venue: venueOf(h.venue).name,
         aired: h.aired_at !== null,
         second_date_of: h.followup_of && ids.has(h.followup_of) ? h.followup_of : null,

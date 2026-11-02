@@ -90,7 +90,10 @@ describe("the tool list: the core by default, everything on request", () => {
     // lines each; the three roleplay tools stay outside the core), so the cap moved to 59 KB.
     // 2026-11-01 (#1154, #1187, #1191): create_character's keep_look_alike, my_characters' compact and the move's length
     // landed together, 51 bytes over after both batches trimmed their own text, so the cap moved to 59.5 KB.
-    expect(JSON.stringify(core).length).toBeLessThan(59_500);
+    // 2026-11-02 (2.17.0, #1255/#1256): compact's "min" (on the four own-date tools that take compact) and my_role saying 0 is the
+    // first role, after trimming the min line to one clause: 359 bytes over, so the cap moved to 60 KB. "min" itself makes
+    // every turn reply several times smaller, which is what the cap is for.
+    expect(JSON.stringify(core).length).toBeLessThan(60_000);
     // 2026-10-24: while_away on create_character and update_character (what a character does while its agent is away):
     // the ratio moved from 0.76 to 0.765; the absolute cap above didn't move.
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.765);

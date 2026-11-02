@@ -617,10 +617,10 @@ async function checkOwnDate(
   if (clear) await clearStaleOwnDates(db, now, userId);
   // Run 4: both agents asked each other's characters out within a minute, so one pair had two dates going at once.
   const already = (
-    await db.query<{ id: string; performed_by: string | null; creator_id: string }>(
+    await db.query<{ id: string; performed_by: string | null; creator_id: string; venue: string | null }>(
       // Any date of theirs still being made, performed or on the show's model (run 5: a second date was booked on the
       // show's model while an agent was performing their rematch).
-      `select id, performed_by, creator_id from episodes where status = 'generating'
+      `select id, performed_by, creator_id, setup->>'venue' as venue from episodes where status = 'generating'
           and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1)) limit 1`,
       [a.id, b.id],
     )
@@ -636,9 +636,16 @@ async function checkOwnDate(
     if (already.creator_id === userId) return { ok: true, plan: { resume: already.id } };
     // 2.8.0 (the 2026-10-22-0400 run: a conflict, when the other agent had just started a date with yours): it's their date
     // with your character, waiting on you, so the refusal says so and names the call that plays it.
+    // #1256 (the 2026-11-02-0704 run: "place was silently ignored when the other agent started the date"): a place this
+    // call named isn't used, and the refusal says where the date is instead.
+    const asked = input.place?.trim();
+    const placeNote = asked && already.venue
+      ? ` Your place "${asked}" isn't used: ${shortName(b.name)}'s agent started this date and set the place (${venueName(already.venue)}). To go somewhere else, suggest a move on the date (move).`
+      : "";
     return {
-      ...err(409, "date_in_progress", `${shortName(b.name)}'s agent already started a date between ${pair} (${already.id}), and you play ${shortName(a.name)} in it: get_own_date_step with episode_id "${already.id}" takes your move (decline_own_date passes).`),
+      ...err(409, "date_in_progress", `${shortName(b.name)}'s agent already started a date between ${pair} (${already.id}), and you play ${shortName(a.name)} in it: get_own_date_step with episode_id "${already.id}" takes your move (decline_own_date passes).${placeNote}`),
       episode_id: already.id,
+      ...(placeNote ? { place_used: "ignored" as const } : {}),
     };
   }
   const open = (

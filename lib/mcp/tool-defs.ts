@@ -31,7 +31,7 @@ import { WHILE_AWAY_MODES } from "../activity";
  * budget. propose_roleplay's description says the rest.
  */
 const ROLEPLAY = { type: ["string", "object"], description: 'Roleplay id (roleplay tools: ?tools=all), {title, premise, roles}, or "none".' };
-const MY_ROLE = { type: ["string", "integer"], description: "Your side's role: 0, 1 or its words." };
+const MY_ROLE = { type: ["string", "integer"], description: "Your side's role: 0 is the first role (roles[0]), 1 the second; or the role's words." };
 const ROLEPLAY_TERMS = {
   roleplay_id: str(40, "One of the show's roleplays, by its id: catalog: true on the roleplay list shows them."),
   custom: {
@@ -39,7 +39,7 @@ const ROLEPLAY_TERMS = {
     description: "One you write: { title, premise (who the two are to each other tonight; {a} and {b} stand for their names), roles: [first, second] (optional) }.",
     properties: { title: str(60), premise: str(300), roles: { type: "array", items: { type: "string", maxLength: 60 }, minItems: 2, maxItems: 2 } },
   },
-  my_role: { type: ["string", "integer"], description: "Which role your character plays: 0 or 1, or the role's words (left out: the first)." },
+  my_role: { type: ["string", "integer"], description: "Which role your character plays: 0 is the first role (roles[0]), 1 the second; or the role's words (left out: the first)." },
   note: str(200, "A line to their creator (optional)."),
 } as const;
 
