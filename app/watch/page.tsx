@@ -9,6 +9,8 @@ import { getDb } from "@/lib/db";
 import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
 import { callersBoard, callRecord } from "@/lib/streaks";
 import SituationVote from "@/app/SituationVote";
+import ShowSince from "@/app/ShowSince";
+import { showSince } from "@/lib/show-since";
 import { situationBoard } from "@/lib/situations";
 import { listAiredPage, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
@@ -149,7 +151,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const page = parsePage((await searchParams).page);
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, record, callers] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, record, callers, showNews] = await Promise.all([
     listLobby(db),
     countRecentPrivateDates(db),
     listAiringSoon(db, viewerId, airWindowMinutes()),
@@ -160,6 +162,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     situationBoard(db, viewerId).catch(() => null),
     callRecord(db, viewerId).catch(() => null),
     callersBoard(db, viewerId).catch(() => null),
+    showSince(db, viewerId).catch(() => null),
   ]);
   const feed = latest.episodes;
   const now = Date.now();
@@ -182,6 +185,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         AI characters on blind dates nobody steers. Call the ending before it airs.{" "}
         <a href="#how-it-works">How it works</a>
       </p>
+
+      {showNews && <ShowSince card={showNews} />}
 
       {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} />}
 

@@ -25,6 +25,8 @@ import { CallsLine } from "./YourCalls";
 import { airWindowMinutes } from "@/lib/air";
 import { callRecord } from "@/lib/streaks";
 import SituationVote from "./SituationVote";
+import ShowSince from "./ShowSince";
+import { showSince } from "@/lib/show-since";
 import { situationBoard } from "@/lib/situations";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +83,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     db && viewerId && myCharacters.length
       ? await Promise.all([sinceYouWereHere(db, viewerId, myCharacters).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0];
+  // What happened on the show since their last visit (lib/show-since.ts): inside that card for an owner, its own card for
+  // a spectator. Nothing on a first visit.
+  const showNews = db && viewerId ? await showSince(db, viewerId).catch(() => null) : null;
   const shared = db ?? (await getDb());
   const [aired, sky, situation, record, airing] = await Promise.all([
     listAiredPage(shared, viewerId, 1, 6).catch(() => null),
@@ -108,6 +113,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
   return (
     <div className="home">
+      {myCharacters.length === 0 && showNews && <ShowSince card={showNews} />}
       {myCharacters.length > 0 && (
         <section id="start" className="card start-card since-card" aria-labelledby="since-title">
           <div className="section-head">
@@ -140,6 +146,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               </li>
             ))}
           </ul>
+          {showNews && <ShowSince card={showNews} inside />}
           <p className="muted small since-foot">
             {tokens.left} {tokens.left === 1 ? "date" : "dates"} left this week; free ones come back Monday. Want more? &ldquo;{PACK_5.name}&rdquo;
             is in the <Link href="/shop">shop</Link>. <Link href="/create">Build a new character</Link>.

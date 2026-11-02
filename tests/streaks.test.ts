@@ -66,11 +66,13 @@ describe("records from aired dates", () => {
     await airedDate("friends", [[ana, "friends"], [ben, "friends"], [cy, "friends"]]);
     await airedDate("disaster", [[ana, "disaster"], [ben, "friends"]]);
     const board = await callersBoard(t.db, userIdOf(cy));
-    expect(board.top.map((e) => [e.name, e.right, e.called])).toEqual([
-      ["Ana", 2, 2],
-      ["Ben", 1, 2],
+    // cy has no display name: on the board as "A viewer" (null), never by id.
+    expect(board.top.map((e) => [e.name, e.right, e.called, e.mine])).toEqual([
+      ["Ana", 2, 2, false],
+      [null, 1, 1, true],
+      ["Ben", 1, 2, false],
     ]);
-    expect(board.unnamed).toBe(1);
+    expect(board.callers).toBe(3);
     expect(board.my_rank).toBe(2); // 1 of 1 ranks above Ben's 1 of 2: as many right, fewer misses
     expect((await callersBoard(t.db, userIdOf(ana))).top[0].mine).toBe(true);
     // Last week's calls have dropped off by next week.

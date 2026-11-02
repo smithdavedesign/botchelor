@@ -8,7 +8,8 @@
  *  - Only the ending pick counts toward the record and the run (the drama question is a side bet worth fewer points).
  *  - In order of airing, so a run is the dates as they aired, not as they were picked.
  *  - The board names only people who chose a display name (lib/people.ts profiles, the name leagues and creator reveals
- *    already show); everyone else is counted without a name, so a person never appears on it by surprise.
+ *    already show); everyone else is on it as "A viewer", so a person's name never appears on it by surprise. (#1237: on
+ *    2026-11-01 none of the week's 8 right callers had a name, so a names-only board never showed.)
  */
 import type { Db } from "./db";
 
@@ -65,8 +66,10 @@ export const BOARD_DAYS = 7;
 /** How many names the board shows. */
 export const BOARD_SIZE = 5;
 
-export type BoardEntry = { name: string; right: number; called: number; mine: boolean };
-export type CallersBoard = { top: BoardEntry[]; /** callers this week with a right call and no display name */ unnamed: number; my_rank: number | null };
+/** name: their display name, or null ("A viewer"). */
+export type BoardEntry = { name: string | null; right: number; called: number; mine: boolean };
+/** callers: everyone with a right call this week; my_rank: the viewer's place among them, or null. */
+export type CallersBoard = { top: BoardEntry[]; callers: number; my_rank: number | null };
 
 /**
  * This week's best callers: right ending calls on public dates that aired in the last BOARD_DAYS days, the most first,
@@ -87,10 +90,9 @@ export async function callersBoard(db: Db, viewerId: string | null, now: Date = 
     [since.toISOString(), now.toISOString()],
   );
   const myIndex = viewerId ? rows.findIndex((r) => r.user_id === viewerId) : -1;
-  const named = rows.filter((r) => r.name);
   return {
-    top: named.slice(0, BOARD_SIZE).map((r) => ({ name: r.name!, right: r.hits, called: r.called, mine: r.user_id === viewerId })),
-    unnamed: rows.length - named.length,
+    top: rows.slice(0, BOARD_SIZE).map((r) => ({ name: r.name, right: r.hits, called: r.called, mine: r.user_id === viewerId })),
+    callers: rows.length,
     my_rank: myIndex >= 0 ? myIndex + 1 : null,
   };
 }

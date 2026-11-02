@@ -12598,3 +12598,68 @@ button.thread-menu-item:hover:not(:disabled) {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* What happened on the show since your last visit (app/ShowSince.tsx, lib/show-since.ts): its own card on /watch and for
+   a spectator's home, a part of the "Since you were here" card for an owner. */
+.show-since {
+  margin: var(--space-3) 0;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.show-since-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.show-since-top h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.show-since-top button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .show-since-top h2 {
+    font-size: var(--text-lg);
+  }
+}
+.show-since-when {
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.show-since-inside {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.show-since-inside h3 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+.show-since-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.show-since-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+/* Tonight's situation on a phone: the faces above the question, and a smaller question, so it doesn't run down a narrow
+   column beside them. */
+@media (max-width: 560px) {
+  .situation-head {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .situation-head h2 {
+    font-size: var(--text-lg);
+  }
+}
