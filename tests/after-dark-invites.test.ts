@@ -125,7 +125,7 @@ describe("reviewing from the email", () => {
     // Replies go to the operator.
     expect(welcome.replyTo).toBe(OPERATOR);
     expect(welcome.text).toContain("Video isn't included: that one's on you");
-    expect(welcome.text).toContain("Each clip costs 1 token and the video of the night 7 tokens");
+    expect(welcome.text).toContain("Each clip costs 1 token and the video of the night 8 tokens");
     expect(welcome.text).toContain("https://botchelor.com/after-dark");
     // Discreet: nothing explicit in the subject.
     expect(welcome.subject).not.toMatch(/after dark|adult|18/i);

@@ -1157,11 +1157,11 @@ describe("the video of the night", () => {
     expect(speech[0].body.voice).toBe(voiceFor((await loadCharacter(t.db, scene.a.id))!));
   });
 
-  it("costs a subscriber the reel's price (7 by default), gives back the share of discarded shots, and waits when Hive is busy", async () => {
+  it("costs a subscriber the reel's price (8 by default), gives back the share of discarded shots, and waits when Hive is busy", async () => {
     const { id: adminId, cookie: adminCookie } = await admin();
     await ready(adminCookie, adminId);
-    // #1005 (David, 2026-10-30: "just break even"): the video of the night at about cost, 7 tokens (it was 15).
-    expect((await call(settingsPost, "/api/admin/after-dark/settings", {}, adminCookie).then((r) => r.json())).settings.reel_tokens).toBe(7);
+    // #1005 (David, 2026-10-30: "just break even"): the video of the night at about cost, 8 tokens since 2026-11-01 (7 before; 15 before #1005).
+    expect((await call(settingsPost, "/api/admin/after-dark/settings", {}, adminCookie).then((r) => r.json())).settings.reel_tokens).toBe(8);
     const sub = userIdOf(newUserCookie());
     await t.db.query(`insert into adult_entitlements (user_id, subscription_status, age_verified_at) values ($1, 'active', now())`, [sub]);
     const cookie = signedIn(sub);
@@ -1174,8 +1174,8 @@ describe("the video of the night", () => {
     await t.db.query(`insert into token_grants (id, user_id, episodes, granted_by) values ($1, $2, 20, 'test')`, [crypto.randomUUID(), sub]);
     const used = async () => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [sub])).rows[0]?.used ?? 0;
     const started = (await (await make(cookie)).json()).reel as Reel;
-    expect(started.tokens).toBe(7);
-    expect(await used()).toBe(7);
+    expect(started.tokens).toBe(8);
+    expect(await used()).toBe(8);
     expect((await make(cookie)).status).toBe(409);
     // Hive busy (down for a while): nothing discarded, and that shot waits before it's sent again (nothing more goes to
     // Hive this poll). The second check in a row that can't run opens the breaker, which pauses every shot.
@@ -1206,7 +1206,7 @@ describe("the video of the night", () => {
     expect(done.status).toBe("ready");
     expect(done.shots.map((s) => s.status)).toEqual(["discarded", "ready", "ready"]);
     // Two of three shots kept: ceil(7 × 2 / 3) = 5 paid, 2 back.
-    expect(await used()).toBe(5);
+    expect(await used()).toBe(6);
   });
 
   it("gives up on shots still unchecked after hours, so a stuck video stops blocking new ones", async () => {
