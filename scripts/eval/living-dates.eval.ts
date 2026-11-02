@@ -10,9 +10,10 @@
  *   # judge two arms blind, both orders (A = the first file, B = the second)
  *   LIVING_EVAL_KEY=… LIVING_EVAL_MODE=judge LIVING_EVAL_A=<dir>/before.json LIVING_EVAL_B=<dir>/after.json LIVING_EVAL_OUT=<dir> \
  *     npx vitest run --config scripts/eval/vitest.eval.mts
+ *   # LIVING_EVAL_MODE=score scores each date on its own (no pairs); rechoose re-asks the two answers on an arm's dates
  *
  * Options (environment): LIVING_EVAL_MODEL (default anthropic/claude-haiku-5.5, what the show's dates run on),
- * LIVING_EVAL_JUDGE (default deepseek/deepseek-chat-v3.1: another family, so it doesn't favour its own style),
+ * LIVING_EVAL_JUDGE (default google/gemini-3.7-flash: another family, so it doesn't favour its own style),
  * LIVING_EVAL_CASES (a comma list of case ids), LIVING_EVAL_CONCURRENCY (3), LIVING_EVAL_MAX_USD (2: stops before
  * going past it, counting what OpenRouter reports each call cost).
  */
@@ -33,7 +34,9 @@ const MODE = env.LIVING_EVAL_MODE ?? "";
 const KEY = env.LIVING_EVAL_KEY ?? "";
 const OUT = env.LIVING_EVAL_OUT ?? "";
 const MODEL = env.LIVING_EVAL_MODEL || "anthropic/claude-haiku-5.5";
-const JUDGE = env.LIVING_EVAL_JUDGE || "deepseek/deepseek-chat-v3.1";
+// Gemini, not DeepSeek: on 2026-11-01 DeepSeek V3.1 picked whichever version came first 39 times in 40 (all ties) and
+// scored every date 9+ out of 10; Gemini 3.7 Flash picked first 17–21 times in 40.
+const JUDGE = env.LIVING_EVAL_JUDGE || "google/gemini-3.7-flash";
 const MAX_USD = Number(env.LIVING_EVAL_MAX_USD || 2);
 const CONCURRENCY = Math.max(1, Number(env.LIVING_EVAL_CONCURRENCY || 3));
 const GATEWAY = "https://openrouter.ai/api/v1";
@@ -252,9 +255,94 @@ async function judge(): Promise<void> {
   console.log(JSON.stringify({ ...report, verdicts: undefined }, null, 2));
 }
 
+const SCORE_SYSTEM = `You are an exacting script editor for a TV dating show, hard to impress. You read one blind date between two fictional characters and score the dialogue as written, 1 to 10 each (10 is rare):
+- "alive": do they feel like two real people rather than two performers?
+- "opinions": do they hold real opinions and push back, rather than agree to be nice?
+- "listening": do they notice what the other says, remember it, and doubt it when it doesn't add up?
+- "carry": does how each feels carry from line to line (a hurt stays, a spark builds), and do they reach their goodbye because of what happened?
+- "watch": how much would you want to watch this scene?
+Reply with ONLY a JSON object: {"alive":n,"opinions":n,"listening":n,"carry":n,"watch":n,"why":"one short sentence"}`;
+
+const DIMS = ["alive", "opinions", "listening", "carry", "watch"] as const;
+
+/**
+ * Each date scored on its own (no pairs, so no position to favour: the pairwise judge picked whichever version came
+ * first 39 times in 40 on 2026-11-01), twice, the two arms' dates in one shuffled order. Reports each arm's means and a
+ * paired sign test per dimension.
+ */
+async function score(): Promise<void> {
+  const arms = [JSON.parse(readFileSync(env.LIVING_EVAL_A!, "utf8")) as Arm, JSON.parse(readFileSync(env.LIVING_EVAL_B!, "utf8")) as Arm];
+  const model = paid(JUDGE);
+  const jobs = arms.flatMap((arm, k) => arm.results.filter((r) => r.transcript.length).flatMap((r) => [0, 1].map((pass) => ({ k, r, pass }))));
+  // A fixed shuffle, so a rerun asks in the same order.
+  let h = 1101;
+  const rand = () => ((h = (Math.imul(h, 1103515245) + 12345) >>> 0) / 4294967296);
+  for (let i = jobs.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [jobs[i], jobs[j]] = [jobs[j], jobs[i]]; }
+  const got = await pool(jobs, CONCURRENCY, async ({ k, r, pass }) => {
+    const raw = await model
+      .complete([{ role: "system", content: SCORE_SYSTEM }, { role: "user", content: `The characters: ${r.characters.join(" and ")}.\n\n${asText(r, r.characters)}` }], { temperature: pass ? 0.4 : 0.2 })
+      .catch(() => "");
+    try {
+      const j = JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g, "")) as Record<string, unknown>;
+      return { k, case: r.case, scores: Object.fromEntries(DIMS.map((d) => [d, Number(j[d])])) as Record<(typeof DIMS)[number], number>, why: String(j.why ?? "") };
+    } catch {
+      return null;
+    }
+  });
+  const ok = got.filter((g): g is NonNullable<typeof g> => Boolean(g) && DIMS.every((d) => Number.isFinite(g!.scores[d])));
+  const per = (k: number, c: string, d: (typeof DIMS)[number]) => {
+    const xs = ok.filter((g) => g.k === k && g.case === c).map((g) => g.scores[d]);
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+  };
+  const cases = [...new Set(ok.map((g) => g.case))];
+  const report: Record<string, unknown> = { judge: JUDGE, cases: cases.length, scored: ok.length, of: jobs.length };
+  for (const d of DIMS) {
+    const pairs = cases.map((c) => [per(0, c, d), per(1, c, d)]).filter((p): p is [number, number] => p[0] !== null && p[1] !== null);
+    const mean = (i: 0 | 1) => Math.round((pairs.reduce((n, p) => n + p[i], 0) / (pairs.length || 1)) * 100) / 100;
+    const w = pairs.filter((p) => p[1] > p[0]).length;
+    const l = pairs.filter((p) => p[1] < p[0]).length;
+    const n = w + l;
+    const choose = (nn: number, kk: number) => { let r = 1; for (let i = 1; i <= kk; i++) r = (r * (nn - kk + i)) / i; return r; };
+    let p = 0;
+    for (let i = 0; i <= n; i++) if (Math.abs(i - n / 2) >= Math.abs(w - n / 2)) p += choose(n, i) / 2 ** n;
+    report[d] = { a: mean(0), b: mean(1), b_better: w, a_better: l, same: pairs.length - n, sign_test_p: n ? Math.round(Math.min(1, p) * 1000) / 1000 : null };
+  }
+  report.spent_usd = Math.round(spent * 1e4) / 1e4;
+  writeFileSync(join(OUT, `score-${env.LIVING_EVAL_LABEL || "ab"}.json`), JSON.stringify({ ...report, rows: ok }, null, 2));
+  console.log(JSON.stringify(report, null, 2));
+}
+
+/**
+ * The two answers asked again on an arm's finished dates (the lines and their inner life as they were), with the
+ * choices code checked out now: a cheap way to measure a change to the question or the table without new dates.
+ */
+async function rechoose(): Promise<void> {
+  const arm = JSON.parse(readFileSync(env.LIVING_EVAL_A!, "utf8")) as { results: (Arm["results"][number] & { inner?: { lines?: unknown[] } | null })[] };
+  const choices = await import("@/lib/choices");
+  const takesFile = join(OUT, "hot-takes.json");
+  const cache: Record<string, string[]> = existsSync(takesFile) ? JSON.parse(readFileSync(takesFile, "utf8")) : {};
+  const rows = await pool(arm.results.filter((r) => r.transcript.length), CONCURRENCY, async (r) => {
+    const c = LIVING_CASES.find((x) => x.id === r.case)!;
+    const built = buildEvalDate(c);
+    const characters = built.characters as [Character, Character];
+    for (const ch of characters) if (cache[ch.id]) ch.hotTakes = cache[ch.id];
+    const outcome = deterministicEngine.decide(built.input, built.seed, built.setup.engine_version as never);
+    const lived = r.transcript.map((t, i) => ({ ...t, interest: 0.5, inner: (r.inner?.lines?.[i] ?? undefined) as never })) as never;
+    const got = await choices.askChoices(paid(MODEL), characters, lived);
+    const ending = choices.choiceEnding(outcome.ending, got.a.see_again, got.b.see_again, outcome.margin);
+    return { case: r.case, engine: outcome.ending, margin: outcome.margin, answers: `${got.a.see_again}/${got.b.see_again}`, ending, reasons: [got.a.reason, got.b.reason] };
+  });
+  const mix = (k: "engine" | "ending") => Object.fromEntries(["second_date", "friends", "disaster"].map((e) => [e, rows.filter((x) => x[k] === e).length]));
+  const report = { model: MODEL, dates: rows.length, engine_mix: mix("engine"), final_mix: mix("ending"), spent_usd: Math.round(spent * 1e4) / 1e4, rows };
+  writeFileSync(join(OUT, `rechoose-${env.LIVING_EVAL_LABEL || "arm"}.json`), JSON.stringify(report, null, 2));
+  console.log(JSON.stringify({ ...report, rows: rows.map((x) => `${x.case} ${x.engine}(${x.margin}) ${x.answers} → ${x.ending}`) }, null, 2));
+}
+
 it("living dates eval", async () => {
   if (!KEY || !OUT) throw new Error("LIVING_EVAL_KEY and LIVING_EVAL_OUT must be set");
   if (MODE === "generate") await generate();
   else if (MODE === "judge") await judge();
-  else throw new Error("LIVING_EVAL_MODE is generate or judge");
+  else if (MODE === "score") await score();
+  else if (MODE === "rechoose") await rechoose();
+  else throw new Error("LIVING_EVAL_MODE is generate, judge, score or rechoose");
 });

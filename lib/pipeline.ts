@@ -231,7 +231,7 @@ export async function generateDate(
       // Engine v5 (lib/choices.ts): each side answers "see them again?" itself, and the answers decide within a step of
       // the engine's ending. A test's forced outcome stands exactly as given.
       const choices = await askChoices(actor.model, characters, lived, keyForSide);
-      outcome = getEngine().exact ? decided : applyChoices(decided, choices);
+      outcome = getEngine().exact ? decided : applyChoices(decided, choices, opts.engineVersion ?? undefined);
       wishes = { ...settledWishes({ a: choiceWish(choices.a), b: choiceWish(choices.b) }, decided.ending), choices: { a: choices.a.see_again, b: choices.b.see_again } };
       inner = { ...(inner ?? { v: 1 as const, lines: transcript.map(() => null) }), choices };
     } else {

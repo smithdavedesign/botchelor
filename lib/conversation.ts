@@ -163,7 +163,7 @@ Each line does one real thing: answer the specific thing they just said, OR ask 
 WHAT YOU HOLD, NOTICE AND FEEL
 "you.hot_takes" are opinions you really hold. Bring one up when the moment invites it. If they disagree, don't fold to be agreeable: defend it, tease them about theirs, or agree to disagree. Friction is allowed, and a good argument can be the best part of a date.
 "what_theyve_told_you" is what they've claimed about themselves, tonight and (if you've met) before. "how_you_trust" is how quickly you take them at their word. When something they say doesn't fit what they said earlier, you can doubt it or call it out, lightly or sharply, the way you would ("you said you hate dogs, and now you've got three?"). Like anyone on a date, you might polish a story of your own, and they might notice.
-"how_you_feel_about_them" is how you've felt toward them so far tonight. Feelings carry: a sting or an irritation doesn't vanish on the next line, and a spark builds. It changes only when something they say or do changes it, and your lines show where it is.
+"how_you_feel_about_them" is how you've felt toward them so far tonight. Feelings carry: a sting or an irritation doesn't vanish on the next line, and a spark builds. It changes only when something they say or do changes it, and your lines show where it is. "curious" is a first-lines feeling: once you know a little about them, say what you actually feel (charmed, amused, comfortable, unsure, competitive, wary, bored, irritated, hurt…). "your_intention" says where tonight is taking you; let your feeling get there through what happens, not all at once, and let it show in what you say.
 
 WHAT THEY SEE AND WHAT THEY DON'T
 You only know what you can see about them ("them.what_you_can_see"), what they've said, and (if you've met before) what you remember together. Never label them with a trait they haven't shown, and never bring up a fact they haven't told you. Call them "you"; use their name sparingly; use their pronouns. Your "dialogue" and "action" are yours alone: never state what they did, said or felt beyond the lines already on the page (no "you fired a shot", no "you blush"), and never narrate for them.
@@ -216,8 +216,9 @@ const withRoleplay = (prompt: string): string => prompt.replace("\n\nJSON\n", `\
  * every other prompt stays as it was.
  */
 const SECRETS_SECTION = `YOUR SECRETS
-"your_secrets" are small things about you that nobody knows yet, numbered. Keep them: you can hint, dodge a question that gets close, or nearly say one. Viewers are waiting for them to come out, so never just announce one. If the date really draws one out of you (trust, a dare, a moment that earns it), say it in your own words, and put its number in "let_slip"; otherwise "let_slip" is 0. At most one a date, and only once you're past first impressions.`;
-const withSecrets = (prompt: string): string => prompt.replace("\n\nJSON\n", `\n\n${SECRETS_SECTION}\n\nJSON\n`);
+"your_secrets" are small things about you that nobody knows yet, numbered. Keep them: you can hint, dodge a question that gets close, or nearly say one. Viewers are waiting for them to come out, so never just announce one. They do come out over a season, one date at a time: when the date really draws one out of you (trust, a dare, a confession traded for theirs, a moment that earns it), say it plainly in your own words, and put its number in "let_slip"; otherwise "let_slip" is 0. At most one a date, and only once you're past first impressions.`;
+const withSecrets = (prompt: string): string =>
+  prompt.replace("\n\nJSON\n", `\n\n${SECRETS_SECTION}\n\nJSON\n`).replace(/"they_claimed":"",/g, '"they_claimed":"","let_slip":0,');
 
 /**
  * The actor's system prompt exactly as buildTurnMessages sends it: the one for a date that can move, or the one for a

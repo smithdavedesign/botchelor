@@ -712,3 +712,80 @@ each move resets the line budget so they can keep talking there.
   names only the start (it's public before the date airs). The morning after and the reflections know where it went.
 - **Scenes people ask for (`lib/scenes.ts`).** A finished date that planned or moved somewhere with no set logs one
   `scene_requests` row per place (`scene_requested` event); `/admin` lists them, most asked-for first.
+
+## Round: living dates (2026-11-01, engine v5)
+
+David: "the dates feel rudimentary". Characters performed an ending rather than reacting to each other: no opinions to
+push on, a fresh one-word emotion every line, nothing remembered about what the other claimed, and the ending decided
+for them. This round gives each side an inner life, and a say in how it ends.
+
+- **Hot takes (`lib/hot-takes.ts`).** Three to five opinions per character. A creator's own (`extras.hot_takes`)
+  win; otherwise they're derived once on the cheap default model and stored (`characters.hot_takes`, `ensureHotTakes`
+  before a show date or a template room is written), never per date, with a fixed fallback drawn from the character's
+  own traits, seeded by its id. A side carries its own (`you.hot_takes`) and is told not to fold to be agreeable. The
+  director sees both, and two that collide on a subject become a planned bit of friction (`collidingTakes`, which
+  ignores opinion words like "best" or "never", in `dateFacts`).
+- **Feelings that carry, notes on claims, thoughts (`lib/inner-life.ts`).** Each line now also carries, privately, a
+  `feeling` toward the other (one of eleven, with a strength), a one-sentence `thought`, and `they_claimed`, anything
+  new the other just claimed about themselves. On its next line the side gets `how_you_feel_about_them` (where it is
+  and how it moved), `what_theyve_told_you` (tonight, plus the last three dates' notes on this partner, under the same
+  visibility rule as pair memory), and `how_you_trust` from its temperament's guardedness: a guarded character
+  notices a story that doesn't add up and says so, an open book needs a real contradiction. "Curious" is a first-lines
+  feeling; after that the feeling says what they actually feel, and `your_intention` says where it's heading.
+- **Privacy.** A side's prompt carries only its own feeling, notes, thoughts, hot takes and secrets
+  (tests/living-dates.test.ts). None of it is on a stored or played line: `lib/pipeline.ts` takes it off every line
+  (`outerLine`) before anything is saved, streamed to the theater or backfilled, and keeps it in `episodes.inner_life`.
+- **Thoughts after airing.** On the episode page each line can open a 💭 (folded, tap to show), and the diary cam card
+  lists each side's thoughts and its see-again answer with the reason. Shown only once the date has aired, for nobody
+  before (the creators included: a thought can give the ending away), and only for the sides the diary cam's rule
+  allows (house characters, shared confessionals) plus your own side.
+- **Secrets on dates (`lib/cast-secrets.ts`, #1246).** A cast member's side gets its own secrets still hidden this
+  season (`your_secrets`, numbered: stored rows only, not yet slipped and not yet out by the schedule). It can hint,
+  dodge or nearly say one, and when the date really draws one out it says it and puts the number in `let_slip`, at
+  most one a date, after first impressions. A slip counts only when the line really shares the secret's words
+  (`slipped`), and is recorded on the row (`cast_secrets.revealed_episode`, `revealed_line`). It counts as out (the
+  "N of 3 out" card, Since you were here) once that date has aired publicly, alongside the one-per-four-dates schedule.
+  Never in the director's view.
+- **Their own choice, engine v5 (`lib/choices.ts`).** Once the last line is in, each side is asked privately, on its own
+  model (an owner's key sees only its own side), "would you see them again?": yes, maybe (see them, not sure it's a
+  date) or no, with a reason. The two answers can move the ending one step, with the engine as the guardrail:
+
+  | Engine's ending | Moves when | To |
+  |---|---|---|
+  | second date | a no, or two maybes | friends |
+  | friends | both yes | a second date |
+  | friends | a no and no yes (two noes, or a no and a maybe) | a disaster |
+  | disaster | both yes | friends |
+  | any | anything else (a yes and a maybe, a yes and a no) | stays |
+
+  and only when the engine's own score was within `CHOICE_NEAR` (3, the agent-date lift's reach) of the mark it
+  crosses: the answers settle a close call, never a clear one. v5 decides with v4's numbers to the decimal; v4 and
+  older dates keep their 40% wish roll, so every old date replays exactly. The answers are kept
+  (`episodes.wishes.choices`, `episodes.inner_life.choices`) and asked before the date is ready, so predictions (open
+  once it's ready) never see a moving target. The "why" says when the answers moved it.
+- **Why the guardrail is asymmetric.** The first run let any agreeing pair move a step: disasters fell from 12 to 5 of
+  20. Models are agreeable, and "yes, I'd see them again" is the polite answer after a pleasant date that went nowhere.
+  So up needs both to say yes and down needs one no, the question now says that most first dates don't lead to a
+  second, and only close calls move. Re-asking the same 20 dates (`LIVING_EVAL_MODE=rechoose`, 1.3¢): 3/6/11 against
+  the engine's 3/5/12. With the answers the eval got, the default spread (6,000 sampled dates) ends within 5 points of
+  the engine's 44/33/23; if every answer were yes, second dates would still stay under two thirds.
+
+**Measured** (`scripts/eval/living-dates.eval.ts`: 20 fixed dates, the 6 EVAL_CASES and 14 house pairings, generated
+in-process on Haiku 5.5 through OPENROUTER_LOOP_KEY, never the live Gemini quota; judged blind, both orders):
+
+| Arm | Genuineness | Lines | Calls | Cost a date | Cost a line | Mix (2nd/friends/disaster) | Secrets slipped |
+|---|---|---|---|---|---|---|---|
+| before (main) | 83.05 | 9.9 | 17.1 | 1.27¢ | 0.128¢ | 3/5/12 | (none held) |
+| living dates, first try | 87.35 | 11.05 | 19.9 | 1.70¢ | 0.154¢ | 4/11/5 | 0 |
+| living dates, shipped | 85.65 | 11.15 | 21.4 | 1.80¢ | 0.162¢ | 3/5/12 | 1 |
+
+- Blind, pairwise, Gemini 3.7 Flash: the shipped arm won **12 of 20, lost 5, tied 3** against before (67.5%, sign test
+  p = 0.14); the first try won 9, lost 6. Not significant at twenty dates, but the same direction both times, and the
+  judge's reasons for the wins are what this round is for (sharper clashes of worldview, specific friction, "lets the
+  wager play out"). The losses mostly preferred before's backstory moments.
+- DeepSeek V3.1, the old default judge, was no use here: it picked whichever version came first 39 times in 40, and
+  scored every date 9 or more out of 10. The eval now defaults to Gemini 3.7 Flash.
+- **Cost:** +27% a line (0.128¢ → 0.162¢; more input per turn, the four private fields out, two answers a date),
+  +42% a date on these runs (the shipped arm's dates also ran a line longer), against the +10–15% expected. Per date
+  at the show's length that's about 1.3¢ → 1.7–1.8¢. Hot takes are a one-time call per character.
+- **Spend:** $1.28 across every run (arms $0.96, judges $0.30, re-asking $0.013), under the $2 cap.

@@ -7,13 +7,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { forgetTouchesForTests } from "@/lib/activity";
 import { castSecrets, ensureCastSecrets, recordSlips, secretsForDate, slipped } from "@/lib/cast-secrets";
 import { assembleCharacter, type Character } from "@/lib/character";
-import { applyChoices, askChoices, choiceEnding, choiceLine, parseChoice, readChoice, setChoicesAskedForTests } from "@/lib/choices";
+import { applyChoices, askChoices, CHOICE_NEAR, choiceEnding, choiceLine, parseChoice, readChoice, setChoicesAskedForTests } from "@/lib/choices";
 import { buildTurnMessages, simulateConversation, type Turn } from "@/lib/conversation";
 import { buildDirectorMessages, dateFacts } from "@/lib/beats";
-import { CURRENT_ENGINE_VERSION, deterministicEngine, fixedEngine, NEUTRAL_SIGNALS, type CharacterSheet, type DateInput, type Outcome, type SideOutcome, type SideSetup } from "@/lib/engine";
+import { CURRENT_ENGINE_VERSION, deterministicEngine, fixedEngine, marks, NEUTRAL_SIGNALS, type CharacterSheet, type DateInput, type Outcome, type SideOutcome, type SideSetup } from "@/lib/engine";
 import { buildEvalDate, EVAL_CASES } from "@/lib/eval";
 import { collidingTakes, ensureHotTakes, fallbackHotTakes, hotTakesOf, setHotTakesDerivingForTests, type StoredHotTakes } from "@/lib/hot-takes";
-import { claimsSoFar, feelingName, feelingSoFar, innerForViewer, innerOf, outerLine, readInner, trustStance, type LineInner } from "@/lib/inner-life";
+import { claimsSoFar, feelingName, feelingSoFar, innerForViewer, innerOf, outerLine, readInner, trustStance, type LineInner, type SeeAgain } from "@/lib/inner-life";
 import type { ChatMessage, Model } from "@/lib/model";
 import { generateDate } from "@/lib/pipeline";
 import { CONVERSATION_TURNS, ENDINGS, type Ending } from "@/lib/rules";
@@ -66,31 +66,55 @@ describe("engine v5: the same numbers as v4, the answers decide within a step", 
     }
   });
 
-  it("the answer table, kept within one step of the engine's ending", () => {
+  it("the answer table: up needs both yes, down needs a no, one step at most", () => {
+    // No score (a test's forced outcome): the table alone.
     expect(choiceEnding("friends", "yes", "yes")).toBe("second_date");
-    expect(choiceEnding("disaster", "yes", "yes")).toBe("friends"); // the guardrail: one step only
+    expect(choiceEnding("disaster", "yes", "yes")).toBe("friends");
+    expect(choiceEnding("disaster", "yes", "maybe")).toBe("disaster");
+    expect(choiceEnding("disaster", "maybe", "maybe")).toBe("disaster");
     expect(choiceEnding("friends", "no", "no")).toBe("disaster");
-    expect(choiceEnding("second_date", "no", "no")).toBe("friends");
-    expect(choiceEnding("second_date", "yes", "maybe")).toBe("second_date");
+    expect(choiceEnding("friends", "maybe", "no")).toBe("disaster");
+    expect(choiceEnding("friends", "yes", "no")).toBe("friends"); // one-sided: not a better or worse ending
     expect(choiceEnding("friends", "yes", "maybe")).toBe("friends");
-    expect(choiceEnding("second_date", "maybe", "maybe")).toBe("friends");
+    expect(choiceEnding("second_date", "no", "no")).toBe("friends");
     expect(choiceEnding("second_date", "yes", "no")).toBe("friends");
-    expect(choiceEnding("disaster", "maybe", "no")).toBe("disaster");
-    expect(choiceEnding("friends", "maybe", "no")).toBe("friends");
+    expect(choiceEnding("second_date", "maybe", "maybe")).toBe("friends");
+    expect(choiceEnding("second_date", "yes", "maybe")).toBe("second_date");
     for (const e of ENDINGS) for (const a of ["yes", "maybe", "no"] as const) for (const b of ["yes", "maybe", "no"] as const) {
       expect(Math.abs(ENDINGS.indexOf(choiceEnding(e, a, b)) - ENDINGS.indexOf(e))).toBeLessThanOrEqual(1);
     }
   });
 
-  it("answers that agree with the engine keep its mix exactly (a third or so each way at defaults)", () => {
-    const agree: Record<Ending, ["yes" | "maybe" | "no", "yes" | "maybe" | "no"]> = { second_date: ["yes", "yes"], friends: ["maybe", "maybe"], disaster: ["no", "no"] };
+  it("the answers settle a close call, never a clear one (within CHOICE_NEAR of the mark)", () => {
+    const { friendsAt, secondDateAt } = marks(5);
+    expect(choiceEnding("friends", "yes", "yes", secondDateAt - 1)).toBe("second_date");
+    expect(choiceEnding("friends", "yes", "yes", secondDateAt - CHOICE_NEAR - 1)).toBe("friends");
+    expect(choiceEnding("disaster", "yes", "yes", friendsAt - 2)).toBe("friends");
+    expect(choiceEnding("disaster", "yes", "yes", friendsAt - CHOICE_NEAR - 5)).toBe("disaster");
+    expect(choiceEnding("second_date", "no", "no", secondDateAt + 1)).toBe("friends");
+    expect(choiceEnding("second_date", "no", "no", secondDateAt + CHOICE_NEAR + 2)).toBe("second_date");
+    expect(choiceEnding("friends", "no", "no", friendsAt + 1)).toBe("disaster");
+    expect(choiceEnding("friends", "no", "no", friendsAt + CHOICE_NEAR + 1)).toBe("friends");
+  });
+
+  it("keeps the engine's mix at defaults within a few points, with the answers the eval got (2026-11-01)", () => {
     const sample = sampleDates(3000, 1102);
-    const engine = mixOf(sample, (input, seed) => deterministicEngine.decide(input, seed, 5).ending);
-    const answered = mixOf(sample, (input, seed) => {
-      const e = deterministicEngine.decide(input, seed, 5).ending;
-      return choiceEnding(e, ...agree[e]);
-    });
-    expect(answered).toEqual(engine);
+    const decide = (input: DateInput, seed: number) => deterministicEngine.decide(input, seed, 5);
+    const engine = mixOf(sample, (i, s) => decide(i, s).ending);
+    // Answers that agree with the engine change nothing.
+    const agree: Record<Ending, [SeeAgain, SeeAgain]> = { second_date: ["yes", "yes"], friends: ["yes", "maybe"], disaster: ["no", "no"] };
+    expect(mixOf(sample, (i, s) => { const o = decide(i, s); return choiceEnding(o.ending, ...agree[o.ending], o.margin); })).toEqual(engine);
+    // The answers the measured run got (scratchpad living-eval rechoose-after-v2), per engine ending, dealt in turn.
+    const seen: Record<Ending, [SeeAgain, SeeAgain][]> = {
+      second_date: [["yes", "yes"], ["yes", "maybe"], ["yes", "yes"]],
+      friends: [["yes", "maybe"], ["yes", "maybe"], ["maybe", "yes"], ["yes", "maybe"], ["maybe", "maybe"]],
+      disaster: [["yes", "no"], ["yes", "maybe"], ["no", "maybe"], ["no", "maybe"], ["yes", "yes"], ["maybe", "yes"], ["maybe", "maybe"], ["no", "maybe"], ["no", "yes"], ["yes", "maybe"], ["yes", "maybe"], ["maybe", "maybe"]],
+    };
+    let k = 0;
+    const answered = mixOf(sample, (i, s) => { const o = decide(i, s); const l = seen[o.ending]; return choiceEnding(o.ending, ...l[k++ % l.length], o.margin); });
+    for (const e of ENDINGS) expect(Math.abs(answered[e] - engine[e])).toBeLessThan(0.05);
+    // Even if every answer were yes, the guardrail holds second dates under two thirds.
+    expect(mixOf(sample, (i, s) => { const o = decide(i, s); return choiceEnding(o.ending, "yes", "yes", o.margin); }).second_date).toBeLessThan(0.67);
   });
 
   it("applyChoices: wants follow the answers, and a second date isn't anyone's rejection", () => {
@@ -100,8 +124,8 @@ describe("engine v5: the same numbers as v4, the answers decide within a step", 
     expect(up.sides.map((s) => s.wants_another)).toEqual([true, true]);
     expect(up).toMatchObject({ drama_question: "leaves_first", drama_answer: "neither" });
     const down = applyChoices(OUTCOME, { a: { see_again: "no", reason: "x" }, b: { see_again: "maybe", reason: "y" } });
-    expect(down.ending).toBe("friends");
-    expect(down.sides.map((s) => s.wants_another)).toEqual([false, true]);
+    expect(down.ending).toBe("disaster");
+    expect(down.sides.map((s) => s.wants_another)).toEqual([false, false]);
     expect(choiceLine({ a: "yes", b: "yes" }, "friends", "second_date", ["Mira Vale", "Rafe Holt"])).toMatch(/Mira said yes and Rafe said yes.*better/);
     expect(choiceLine({ a: "maybe", b: "maybe" }, "friends", "friends", ["Mira", "Rafe"])).toBeNull();
   });
