@@ -41,7 +41,7 @@ import { factsForAct } from "./extras";
 import { dateShape, moveProblem, settleLine, type DateShape, type MoveReply } from "./moves";
 import { textsForPrompt } from "./text-chain";
 import { venue, venuePhrase, type PlaceId } from "./venues";
-import { claimsSoFar, feelingSoFar, FEELINGS, readInner, trustStance, type LineInner } from "./inner-life";
+import { claimsSoFar, feelingSoFar, FEELINGS, readInner, repeatsThought, trustStance, type LineInner } from "./inner-life";
 import { slipped } from "./cast-secrets";
 
 /** One line of the date. `side` is "a"/"b"; `act` indexes DATE_ACTS. emotion is flavour; interest, see Turn.interest. */
@@ -710,6 +710,8 @@ export async function simulateConversation(
       const said = mine[(turn.inner.slip ?? 0) - 1];
       const already = transcript.some((t) => t.side === side && t.inner?.secret);
       if (said && !already && slipped(line.english ?? turn.dialogue, said.secret)) turn.inner.secret = { season_id: said.season_id, idx: said.idx };
+      // A thought it already had tonight (lib/inner-life.ts repeatsThought) is dropped: the line stands, the echo doesn't.
+      if (turn.inner.thought && repeatsThought(turn.inner.thought, transcript.filter((t) => t.side === side).map((t) => t.inner?.thought))) delete turn.inner.thought;
     }
     // A walk-out, where it was offered (a disaster's closing stretch, that side): the date ends on this line.
     if (line.walkOut && opts.walkOut === side && shape.closing && outcome.ending === "disaster") {

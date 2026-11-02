@@ -1,3 +1,4 @@
+import { pgFlags, pgPublic, type PgField } from "./pg-public";
 import { endingWhy } from "./why";
 import { wishLine, type StoredWishes } from "./wishes";
 import { choiceLine } from "./choices";
@@ -948,12 +949,17 @@ export type PublicCharacter = {
   extras: CharacterExtras;
   /** The creator's own "this week" update as stored (lib/life.ts thisWeek turns it into what's shown). */
   this_week: { text: string; season: string } | null;
+  /**
+   * Public fields that don't fit the PG show as saved (lib/pg-public.ts): shown softened above, and named to the owner on
+   * their page so they can fix them. The dealbreaker is checked too (the quiz shows it), never returned.
+   */
+  pg_flags: PgField[];
 };
 
 /** A character's public persona. Its private facts are stripped (lib/extras.ts publicExtras): the owner's page reads them itself. */
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
-  const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id" | "clip_is_video">>(
-    `select id, name, age, bio, traits, appearance, want, is_house as house, avatar_hue as hue, pronouns, voice,
+  const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id" | "clip_is_video" | "pg_flags"> & { dealbreaker: string }>(
+    `select id, name, age, bio, traits, appearance, want, dealbreaker, is_house as house, avatar_hue as hue, pronouns, voice,
             coalesce(extras, '{}'::jsonb) as extras, this_week, created_via = 'mcp' as made_by_agent,
             visibility = 'private' as private, owner_id
        from characters where id = $1`,
@@ -962,7 +968,11 @@ export async function getPublicCharacter(db: Db, id: string): Promise<PublicChar
   if (!rows[0]) return null;
   const [portrait_asset_id, clip_asset_id] = await Promise.all([approvedPortraitId(db, id), approvedClipId(db, id)]);
   const clip_is_video = clip_asset_id ? await approvedClipIsVideo(db, clip_asset_id) : false;
-  return { ...rows[0], extras: publicExtras(rows[0].extras), portrait_asset_id, clip_asset_id, clip_is_video };
+  // The dealbreaker is read only for the PG check: it stays the quiz's secret.
+  const { dealbreaker: _quiz, ...row } = rows[0];
+  const pg_flags = pgFlags(rows[0]);
+  const shown = pgPublic(row);
+  return { ...shown, extras: publicExtras(shown.extras), portrait_asset_id, clip_asset_id, clip_is_video, pg_flags };
 }
 
 /** date_number: which date it was for the couple (absent on a first date), so its ending reads right. */

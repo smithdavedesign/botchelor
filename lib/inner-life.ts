@@ -16,6 +16,7 @@
  * lib/pipeline.ts takes it off every line before anything is saved or played, and keeps it in episodes.inner_life, read
  * only once the date has aired (lib/game.ts). Pure, no server imports.
  */
+import { tokens } from "./quality";
 import { checkShowText } from "./safety";
 import type { SoulSignals } from "./engine";
 
@@ -163,6 +164,58 @@ export function outerLine<T extends { inner?: LineInner }>(line: T): Omit<T, "in
   return rest;
 }
 
+/* --------------------------------- one thought, thought once --------------------------------- */
+
+// Words that make up the frame of any thought ("I think he's…", "It's so…"), not what it's about.
+const THOUGHT_STOP = new Set(
+  ("i i'm im me my you you're your he he's him his she she's her they they're them their it it's its this that these those " +
+    "a an the and or but so if of to in on at by for with from as is are was were be been am do does did have has had " +
+    "not no just really very too still even only also almost quite rather maybe think thinks thought feel feels know knows " +
+    "like likes wants want what who how why when where which there here then than now tonight one").split(" "),
+);
+const thoughtGrams = (ws: string[]): Set<string> => {
+  const out = new Set<string>();
+  for (let i = 0; i + 3 <= ws.length; i++) {
+    const g = ws.slice(i, i + 3);
+    // A run counts only when it carries a word of its own (not "I think he's").
+    if (g.some((w) => w.length >= 4 && !THOUGHT_STOP.has(w))) out.add(g.join(" "));
+  }
+  return out;
+};
+
+/**
+ * Whether a thought repeats one the same side already had on this date: the dates' near-duplicate rule (lib/quality.ts,
+ * #230: a run of words shared with an earlier line of the same speaker), tightened for one short sentence. A three-word run
+ * with a word of its own in it ("it's almost endearing"), or the same first four words ("he thinks he's dangerous"). Its
+ * words are the critic's own (quality.ts tokens, which imports only types, so the client can use this too).
+ * 2026-11-02: Juniper thought "He thinks he's dangerous…" twice in one date.
+ */
+export function repeatsThought(thought: string, earlier: readonly (string | null | undefined)[]): boolean {
+  const mine = tokens(thought);
+  if (!mine.length) return false;
+  const grams = thoughtGrams(mine);
+  const opening = mine.length >= 4 ? mine.slice(0, 4).join(" ") : null;
+  return earlier.some((e) => {
+    if (!e) return false;
+    const theirs = tokens(e);
+    if (opening && theirs.length >= 4 && theirs.slice(0, 4).join(" ") === opening) return true;
+    const had = thoughtGrams(theirs);
+    return [...grams].some((g) => had.has(g));
+  });
+}
+
+/** Each side's thoughts with any that repeats an earlier one of its own taken out (null in its place). */
+export function freshThoughts(thoughts: readonly (string | null | undefined)[], sides: readonly ("a" | "b")[]): (string | null)[] {
+  const seen: Record<"a" | "b", string[]> = { a: [], b: [] };
+  return thoughts.map((t, i) => {
+    const side = sides[i];
+    if (!t || !side) return null;
+    if (repeatsThought(t, seen[side])) return null;
+    seen[side].push(t);
+    return t;
+  });
+}
+
 /**
  * The inner life a viewer may see on an aired date: thoughts (and the side's own see-again with its reason) for the
  * sides `shown` allows (house characters, and owners who share their characters' confessionals: the same rule as the diary
@@ -176,7 +229,9 @@ export function innerForViewer(
 ): { thoughts: (string | null)[]; choices: { side: "a" | "b"; see_again: SeeAgain; reason: string | null }[] } | null {
   if (!revealed || !inner || !Array.isArray(inner.lines)) return null;
   const ok = (side: "a" | "b") => shown[side === "a" ? 0 : 1];
-  const thoughts = transcript.map((t, i) => (ok(t.side) ? (inner.lines[i]?.thought ?? null) : null));
+  // A thought that repeats an earlier one of the same side isn't shown (dates written before repeatsThought kept them).
+  const fresh = freshThoughts(transcript.map((_, i) => inner.lines[i]?.thought ?? null), transcript.map((t) => t.side));
+  const thoughts = transcript.map((t, i) => (ok(t.side) ? fresh[i] : null));
   const choices = (["a", "b"] as const).flatMap((s) => {
     const c = inner.choices?.[s];
     return c ? [{ side: s, see_again: c.see_again, reason: ok(s) && !c.read ? c.reason : null }] : [];

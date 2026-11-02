@@ -32,12 +32,15 @@ export default function DeeperStep({
   setExtras,
   hiding,
   setHiding,
+  hidingOut = [],
   name,
 }: {
   extras: CharacterExtras;
   setExtras: SetExtras;
   hiding: string[];
   setHiding: (next: string[]) => void;
+  /** Editing: the secrets that already slipped out on a date. They stay, whatever the list says (setOwnSecrets). */
+  hidingOut?: string[];
   name: string;
 }) {
   const who = name.trim().split(/\s+/)[0] || "them";
@@ -76,6 +79,8 @@ export default function DeeperStep({
         placeholder="e.g. Still sleeps with a night light on"
         field="hiding"
         noun="secret"
+        locked={hidingOut}
+        lockedNote={`A secret that's already slipped out on one of ${who}'s dates can't be taken back: it stays out, even if you change or remove it here.`}
       />
 
       <TextField
@@ -138,6 +143,8 @@ function ListField({
   placeholder,
   field,
   noun,
+  locked = [],
+  lockedNote,
 }: {
   title: string;
   hint: string;
@@ -149,7 +156,11 @@ function ListField({
   placeholder: string;
   field: string;
   noun: string;
+  /** Rows that can't change (a secret already out): shown read-only, with no Remove. */
+  locked?: readonly string[];
+  lockedNote?: string;
 }) {
+  const isLocked = (t: string) => locked.some((l) => l.trim().toLowerCase() === t.trim().toLowerCase());
   const used = new Set(items.map((t) => t.trim().toLowerCase()));
   const blank = items.findIndex((t) => !t.trim());
   const full = blank < 0 && items.length >= max;
@@ -161,6 +172,11 @@ function ListField({
     <fieldset className="deeper-group">
       <legend>{title}</legend>
       <p className="muted small">{hint}</p>
+      {locked.length > 0 && lockedNote && (
+        <p className="muted small deeper-locked" role="note">
+          {lockedNote}
+        </p>
+      )}
       <div className="chips" role="group" aria-label={`${title.replace(/^\S+\s/, "")} ideas`}>
         {ideas
           .filter((idea) => !used.has(idea.toLowerCase()))
@@ -178,11 +194,23 @@ function ListField({
               <span className="sr-only">
                 {noun} {i + 1}
               </span>
-              <input type="text" name={`${field}_${i}`} maxLength={maxLength} placeholder={placeholder} value={t} onChange={(e) => set(items.map((x, j) => (j === i ? e.target.value : x)))} />
+              <input
+                type="text"
+                name={`${field}_${i}`}
+                maxLength={maxLength}
+                placeholder={placeholder}
+                value={t}
+                readOnly={isLocked(t)}
+                onChange={(e) => set(items.map((x, j) => (j === i ? e.target.value : x)))}
+              />
             </label>
-            <button type="button" className="link-button danger" aria-label={`Remove ${noun} ${i + 1}`} onClick={() => set(items.filter((_, j) => j !== i))}>
-              Remove
-            </button>
+            {isLocked(t) ? (
+              <span className="muted small">🔓 Out on a date</span>
+            ) : (
+              <button type="button" className="link-button danger" aria-label={`Remove ${noun} ${i + 1}`} onClick={() => set(items.filter((_, j) => j !== i))}>
+                Remove
+              </button>
+            )}
           </li>
         ))}
       </ul>

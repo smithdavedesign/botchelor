@@ -22,7 +22,7 @@ export const CHARACTER_REJECTION_MESSAGES: Record<RejectReason, string> = {
   minor: "Characters must be adults, with nothing suggesting they are under 18.",
   sexual: "Keep the character sheet free of sexual content.",
   real_person: "Characters must be original: no real people.",
-  innuendo: "Keep the character sheet free of innuendo.",
+  innuendo: "Keep the character sheet PG: no innuendo or bedroom talk (the show is PG; After Dark has its own settings).",
   unread: "We couldn't check a sheet in that language just now. Try again in a minute.",
   language: "After Dark is English-only for now.",
 };
@@ -326,6 +326,60 @@ export function checkAdultText(fields: Record<string, string | readonly string[]
     }
   }
   return { ok: true };
+}
+
+/**
+ * What a public sheet field on the PG show can't say even without an explicit word (2026-11-02: a public dealbreaker read
+ * "They're boring or not into exploring in the bedroom", and its want "a wild first night … back to his place for what
+ * every guys wants"; checkFields only knew the explicit words, and the innuendo list only ran on what dates write).
+ * Whole phrases on the normalised text, like INNUENDO_PATTERNS, chosen so an everyday profile line ("breakfast in bed",
+ * "a cosy bedroom window", "physical touch" as a love language, "back to my place for board games") never trips them.
+ */
+const SHEET_SUGGESTIVE = [
+  / (?:in|into|to) the bedroom /,
+  / bedroom (?:skills|games|fun|action|eyes|antics|adventures?) /,
+  / (?:good|great|bad|adventurous|wild|amazing|boring|experienced|freaky) in bed /,
+  / (?:exploring|explore|explores|experiment|experimenting|experimental|adventurous) (?:in|between) (?:the )?(?:bed|bedroom|sheets) /,
+  / what every (?:guy|guys|man|men|girl|girls|woman|women|lady|ladies) (?:wants|want|needs|need) /,
+  / (?:back|home) to (?:his|her|my|their|your) (?:place|apartment|flat|bed) (?:for|to) (?:what|the rest|dessert|more|fun|a good time|some fun) /,
+  / (?:wild|steamy|hot|passionate) (?:first )?(?:night|nights|night in) (?:together|with|that|in) /,
+  / wild first night /,
+  / hookups? /,
+  / hook(?:s|ed|ing)? up with /,
+  / (?:make|makes|making|made) out with /,
+  / one night (?:stands?|things?|flings?) /,
+  / no strings (?:attached|fun) /,
+  / spice (?:things|it) up (?:in|between) /,
+  / (?:sensual|sultry|seductive|seduce|seduces|seducing|seduction|lustful|frisky|foreplay|lingerie|topless|undress|undressing|submissive) /,
+  / naughty (?!or nice|list)/,
+  / (?:take|takes|taking|took) (?:you|me|her|him|them) to bed /,
+];
+
+/**
+ * A public sheet field on the PG show (name, bio, traits, want, dealbreaker, appearance, voice, this week, public
+ * details, what they're hiding): checkFields, plus the innuendo dates are held to, plus SHEET_SUGGESTIVE. On save
+ * (app/api/characters) and when shown (sheetPgIssue, lib/pg-public.ts) for rows saved before it. After Dark's own
+ * inputs keep their own checks (checkAdultText).
+ */
+export function checkSheetText(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
+  for (const [field, value] of Object.entries(fields)) {
+    const texts = value === undefined ? [] : typeof value === "string" ? [value] : value;
+    for (const text of texts) {
+      const reason = sheetPgIssue(text);
+      if (reason) return { ok: false, reason, field };
+    }
+  }
+  return { ok: true };
+}
+
+/** Why one public sheet text doesn't fit the PG show, or null when it does. */
+export function sheetPgIssue(text: string | null | undefined): RejectReason | null {
+  if (!text) return null;
+  const first = classify(text);
+  if (first) return first;
+  const plain = spaced(fold(text));
+  if (INNUENDO_PATTERNS.some((re) => re.test(plain)) || SHEET_SUGGESTIVE.some((re) => re.test(plain))) return "innuendo";
+  return null;
 }
 
 /** Checks each field in order and reports the first one that fails. */

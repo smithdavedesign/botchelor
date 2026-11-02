@@ -9,6 +9,7 @@
  * Compatibility here is a hint for who to ask. It never touches the date: the engine decides how a date
  * ends from the two characters on the night.
  */
+import { pgPublic } from "./pg-public";
 import { contentWords, EVERYDAY_WORDS } from "./quality";
 import { portraitPathSql } from "./assets";
 import { audienceAllows, type Audience } from "./audience";
@@ -87,9 +88,11 @@ const NOT_BLOCKED = `not exists (
 const madeBy = (r: Pick<ProfileRow, "is_house" | "created_via">): MadeBy => (r.is_house ? "house" : r.created_via === "mcp" ? "agent" : "human");
 
 /** A character as anyone may see it; `owner` keeps its private facts (only ever for the owner's own view). */
-export function toProfile(r: ProfileRow, owner = false): DatingProfile {
+export function toProfile(raw: ProfileRow, owner = false): DatingProfile {
   // A house character is available only while it's on this season's cast; an OC, while it's open to dates.
-  const available = r.is_house ? isOnSeasonCast(r.id) : r.open_to_dates;
+  const available = raw.is_house ? isOnSeasonCast(raw.id) : raw.open_to_dates;
+  // Anyone but its owner sees a field that doesn't fit the PG show softened (lib/pg-public.ts).
+  const r = owner ? raw : pgPublic(raw);
   return {
     id: r.id,
     name: r.name,

@@ -15,7 +15,7 @@
  *  - Looks back at most LOOKBACK_DAYS, and shows nothing when nothing happened.
  *  - A season that closed since (lib/season-ref.ts): its finale, /seasons/<month-year>.
  */
-import { newestSecretOut, type SecretOut } from "./cast-secrets";
+import { newestOwnSlip, newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
 import { STAGE_LABELS, type Stage } from "./relationships";
@@ -52,7 +52,7 @@ export type ShowSince = {
   diary: { name: string; partner: string; line: string; episode_path: string } | null;
   /** The week's biggest chemistry shift either way (lib/chemistry-shifts.ts), when there's one. */
   shift: ChemistryShift | null;
-  /** The newest of this season's cast secrets to come out since (lib/cast-secrets.ts). */
+  /** The newest secret to come out since: a cast member's, or a creator's own that slipped on a date you may see (lib/cast-secrets.ts). */
   secret: SecretOut | null;
   /** A season that closed since: its finale page. */
   season: SeasonRef | null;
@@ -124,7 +124,13 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     ),
     chemistryShifts(db, now).catch(() => ({ up: [], down: [] })),
   ]);
-  const secret = await newestSecretOut(db, since, now).catch(() => null);
+  // The newest secret out: a cast member's on the schedule or a slip, or a creator's own that slipped on a date this
+  // viewer may see (lib/cast-secrets.ts newestOwnSlip). Whichever came out last.
+  const [castSecret, ownSlip] = await Promise.all([
+    newestSecretOut(db, since, now).catch(() => null),
+    newestOwnSlip(db, since, viewerId, now).catch(() => null),
+  ]);
+  const secret = castSecret && ownSlip ? (ownSlip.at > castSecret.at ? ownSlip : castSecret) : (castSecret ?? ownSlip);
   const d = diaryRows.rows[0];
   const side = d ? ([0, 1] as const).find((i) => (i === 0 ? d.a_ok : d.b_ok) && d.lines?.[i]?.trim()) : undefined;
   const c = calls.rows[0];

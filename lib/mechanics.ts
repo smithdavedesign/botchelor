@@ -3,6 +3,7 @@
  * matchmakers, and the surprise score (know your own AI). They use data the app already collects and
  * need no model call. Their points are free and, like all points here, cannot be bought or transferred.
  */
+import { fitsPg } from "./pg-public";
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
@@ -56,15 +57,21 @@ export async function getDealbreakerQuiz(
   );
   if (!rows[0]) return null;
   const { real } = rows[0];
+  // A dealbreaker that doesn't fit the PG show (saved before the sheet check, lib/pg-public.ts) isn't quizzed on.
+  if (!fitsPg(real)) return null;
   const seed = Number(rows[0].seed ?? seedFrom(episodeId));
   const decoys = (
     await db.query<{ d: string }>(
       // #258: never one of the guesser's own characters' dealbreakers: they'd know it's a decoy.
       `select d from (select distinct dealbreaker as d from characters where dealbreaker <> $1 and ($3::text is null or owner_id is distinct from $3)) s
-        order by md5(d || $2) limit 3`,
+        order by md5(d || $2) limit 12`,
       [real, String(seed), viewerId ?? null],
     )
-  ).rows.map((r) => r.d);
+  ).rows
+    .map((r) => r.d)
+    // Nor is one offered as a decoy: any character's dealbreaker can be one, on anyone's date.
+    .filter((d) => fitsPg(d))
+    .slice(0, 3);
   // Stable, seed-dependent order independent of how the rows arrived.
   const options = [real, ...decoys].sort((x, y) => seedFrom(x, seed) - seedFrom(y, seed));
   const mine = viewerId

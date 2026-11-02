@@ -85,6 +85,7 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
     signedIn: auth?.authenticated ?? false,
     // Go deeper's what they're hiding (lib/cast-secrets.ts own secrets): one that already slipped on a date stays either way.
     hiding: hiding.map((h) => h.secret),
+    hidingOut: hiding.filter((h) => h.slipped).map((h) => h.secret),
   };
   const looks = await builderLooks(db, auth);
   return <CreateWizard edit={{ id, initial }} lookTiles={looks.tiles} afterDark={looks.afterDark} />;
