@@ -268,15 +268,15 @@ describe("#620: read_texts without with, your own texts beside what's new, and w
     const late = (await call("read_texts", { character_id: A.id, with: bot.id, wait_seconds: 1 }, A.ctx)).structuredContent;
     expect(late.reply_still_coming).toBe(false);
     expect(late.note).toMatch(/longer than this house-run bot usually takes/);
-    // #1152: a bot whose script was last on 10 minutes ago (the crowd's 15-minute passes) promises 20 minutes, not 2.
+    // #1152: a bot whose script was last on 10 minutes ago (the crowd's 30-minute passes) promises 40 minutes, not 2.
     await t.db.query(`update mcp_sessions set last_seen = now() - interval '10 minutes' where agent_id = $1`, [bot.agentId]);
     const between = (await call("send_text", { character_id: A.id, to: bot.id, text: "Geese, though?" }, A.ctx)).structuredContent;
-    expect(between).toMatchObject({ house_bot: true, reply_expected_within_seconds: 20 * 60 });
-    expect(between.reply_note).toMatch(/within about 20 minutes \(its script passes every 15 minutes or so\)/);
+    expect(between).toMatchObject({ house_bot: true, reply_expected_within_seconds: 40 * 60 });
+    expect(between.reply_note).toMatch(/within about 40 minutes \(its script passes every 30 minutes or so\)/);
     const read = (await call("read_texts", { character_id: A.id, with: bot.id }, A.ctx)).structuredContent;
-    expect(read.other_side).toMatch(/passes every 15 minutes or so, so a reply can take up to 20 minutes\. Its script was last on 10 minutes ago/);
-    // Gone an hour: paused, and nothing is promised.
-    await t.db.query(`update mcp_sessions set last_seen = now() - interval '60 minutes' where agent_id = $1`, [bot.agentId]);
+    expect(read.other_side).toMatch(/passes every 30 minutes or so, so a reply can take up to 40 minutes\. Its script was last on 10 minutes ago/);
+    // Gone an hour and a half: paused, and nothing is promised.
+    await t.db.query(`update mcp_sessions set last_seen = now() - interval '100 minutes' where agent_id = $1`, [bot.agentId]);
     const paused = (await call("send_text", { character_id: A.id, to: bot.id, text: "Hello?" }, A.ctx)).structuredContent;
     expect(paused.bot_paused).toBe(true);
     expect(paused.reply_expected_within_seconds).toBeUndefined();

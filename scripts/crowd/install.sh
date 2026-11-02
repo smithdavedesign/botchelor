@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Installs the house crowd (docs/house-crowd.md) on this Mac: its own clone in ~/.botchelor-crowd/repo (launchd can't
-# read ~/Documents), the roster of bots, and three launchd jobs: the crowd every 15 minutes, the weekly report on Mondays
+# read ~/Documents), the roster of bots, and three launchd jobs: the crowd every 30 minutes, the weekly report on Mondays
 # at 08:00 and the daily clip at 17:00 (local time). Re-run to update or to load a new roster.
 #   scripts/crowd/install.sh [roster.json]     roster: [{ id, owner, name }] (default: .data/crowd30/portraits.json, else bots30.json)
 #   scripts/crowd/install.sh --uninstall       removes the jobs (keeps ~/.botchelor-crowd: state, ledger, reports)
@@ -61,11 +61,11 @@ PL
   launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
   launchctl bootstrap "gui/$(id -u)" "$AGENTS/$label.plist"
 }
-job com.user.botchelor-crowd crowd "<key>StartInterval</key><integer>900</integer>"
+job com.user.botchelor-crowd crowd "<key>StartInterval</key><integer>1800</integer>"
 job com.user.botchelor-crowd-report report "<key>StartCalendarInterval</key><dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>"
 job com.user.botchelor-clip clip "<key>StartCalendarInterval</key><dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>0</integer></dict>"
 cat <<DONE
-Installed the house crowd: a pass every 15 minutes, the report Mondays 08:00, a clip daily 17:00 (clips in ~/BotchelorClips).
+Installed the house crowd: a pass every 30 minutes, the report Mondays 08:00, a clip daily 17:00 (clips in ~/BotchelorClips).
   Logs:    $HOME_DIR/logs     Reports: $HOME_DIR/reports
   Run now: launchctl kickstart gui/$(id -u)/com.user.botchelor-crowd   (or -report, or com.user.botchelor-clip)
   Pause:   touch $HOME_DIR/PAUSE      Uninstall: $REPO/scripts/crowd/install.sh --uninstall
