@@ -8,6 +8,7 @@
  * here that returns a pending or rejected asset to a page.
  */
 import { markAiDataUrl } from "./ai-mark";
+import { compactImageDataUrl } from "./compact-image";
 import { ratingOf, type ContentRating } from "./content-rating";
 import type { Db } from "./db";
 
@@ -82,9 +83,11 @@ export async function recordAsset(db: Db, asset: NewAsset): Promise<string> {
   const problem = assetProvenanceError(asset);
   if (problem) throw new Error(`asset provenance: ${problem}`);
   const id = crypto.randomUUID();
-  // A generated picture stored as a data URL (a BYOK or season portrait) carries the machine-readable "AI-generated"
-  // mark from here on (lib/ai-mark.ts, EU AI Act Art. 50).
-  const url = asset.source_type === "generated" && asset.url ? markAiDataUrl(asset.url) : (asset.url ?? null);
+  // A generated picture stored as a data URL (a BYOK or season portrait): a big PNG becomes a JPEG a tenth the size
+  // (lib/compact-image.ts; 4.5 MB portraits kept the database off Neon's free plan), then carries the machine-readable
+  // "AI-generated" mark from here on (lib/ai-mark.ts, EU AI Act Art. 50). Licensed pictures are stored as given.
+  const url =
+    asset.source_type === "generated" && asset.url ? markAiDataUrl((await compactImageDataUrl(asset.url)).url) : (asset.url ?? null);
   await db.query(
     `insert into character_assets (id, character_id, kind, source_type, source_model, prompt, prompt_version,
                                    seed, source_url, license_name, attribution, url, content_rating)
