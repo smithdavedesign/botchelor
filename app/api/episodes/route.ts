@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { releaseEpisode, reserveEpisode, reserveSecondDate, type Reservation } from "@/lib/allowance";
 import { releaseOperatorDate, reserveOperatorDate } from "@/lib/operator-pass";
+import { isCastDateRequest } from "@/lib/cast-date-request";
 import { portraitPathSql } from "@/lib/assets";
 import { PACK_5 } from "@/lib/catalog";
 import { jobUsability } from "@/lib/connections";
@@ -442,7 +443,9 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
   // and (marked operator_reserved) stays out of the shared agent cap. Gated off, so false for everyone until it's on.
   // A house filler's mixer rotation (lib/mixer-fill.ts): the house pays it, so it spends none of the bot's own dates.
   // Only the night's stored rotation can say so (groupBookingFor), never the request.
-  const housePaid = group?.housePaid === true;
+  // The weekly cast-date prize (lib/cast-date.ts): the redeem route claimed it and marked this in-process request, so
+  // the show pays for it too (lib/cast-date-request.ts). Nothing from outside can mark one.
+  const housePaid = group?.housePaid === true || isCastDateRequest(req);
   const passDate = housePaid ? false : await reserveOperatorDate(db, sess.userId);
   const reservation = passDate || housePaid ? null : (secondDate ? await reserveSecondDate(db, sess.userId) : null) ?? (await reserveEpisode(db, sess.userId));
   if (!passDate && !reservation && !housePaid) {

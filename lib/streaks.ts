@@ -12,6 +12,7 @@
  *    2026-11-01 none of the week's 8 right callers had a name, so a names-only board never showed.)
  */
 import type { Db } from "./db";
+import { SHARE_SQUARES } from "./share-record";
 
 export type CallRecord = {
   /** Public dates whose ending this person called, that have aired. */
@@ -24,6 +25,8 @@ export type CallRecord = {
   best: number;
   /** The run the latest call ended (when it was wrong), or 0: "that ends a run of 4". */
   ended: number;
+  /** The latest calls, oldest first (true: right), for the spoiler-free share grid (lib/share-record.ts). */
+  recent?: boolean[];
 };
 
 export const NO_CALLS: CallRecord = { called: 0, right: 0, streak: 0, best: 0, ended: 0 };
@@ -58,7 +61,8 @@ export async function callRecord(db: Db, userId: string | null): Promise<CallRec
       order by e.revealed_at, e.id`,
     [userId],
   );
-  return recordOf(rows.map((r) => r.hit));
+  const hits = rows.map((r) => r.hit);
+  return { ...recordOf(hits), recent: hits.slice(-SHARE_SQUARES) };
 }
 
 /** How long the board looks back. */
