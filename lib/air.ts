@@ -19,7 +19,13 @@ import { refreshAndAnnounce } from "./relationship-events";
 import { markResourceUpdated } from "./mcp-subscriptions";
 import { pairNames } from "./names";
 import { notify, notifyAll } from "./notifications";
-import { ENDING_LABELS, predictionPoints, REPORT_HIDE_THRESHOLD, WRITE_TIME } from "./rules";
+import { ENDING_DETAIL_LABELS, endingDetailOf, ENDING_LABELS, predictionPoints, REPORT_HIDE_THRESHOLD, WRITE_TIME } from "./rules";
+
+/** ": a slow burn" after the ending, when it had a kind (lib/ending-detail.ts), else "". */
+const kindOf = (detail: string | null, ending: Ending): string => {
+  const k = endingDetailOf(detail, ending);
+  return k ? `: ${ENDING_DETAIL_LABELS[k].toLowerCase()}` : "";
+};
 
 export const AIR_WINDOW_MINUTES_DEFAULT = 10;
 export const airWindowMinutes = (env: Record<string, string | undefined> = process.env): number => {
@@ -82,8 +88,8 @@ export async function airEpisode(db: Db, id: string, hostId: string, opts: { air
  * wait. Only public dates score (as the leaderboard counts them), so an unlisted one says it scored nothing.
  */
 export async function notifyPredictors(db: Db, id: string): Promise<void> {
-  const { rows } = await db.query<{ user_id: string; pick: Ending; drama_pick: DramaAnswer | null; ending: Ending; drama_answer: DramaAnswer | null; is_public: boolean; a: string; b: string }>(
-    `select p.user_id, p.pick, p.drama_pick, e.ending, e.drama_answer, e.visibility = 'public' as is_public, ca.name as a, cb.name as b
+  const { rows } = await db.query<{ user_id: string; pick: Ending; drama_pick: DramaAnswer | null; ending: Ending; ending_detail: string | null; drama_answer: DramaAnswer | null; is_public: boolean; a: string; b: string }>(
+    `select p.user_id, p.pick, p.drama_pick, e.ending, e.ending_detail, e.drama_answer, e.visibility = 'public' as is_public, ca.name as a, cb.name as b
        from predictions p join episodes e on e.id = p.episode_id
        join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
       where p.episode_id = $1 and e.revealed_at is not null and e.ending is not null`,
@@ -98,7 +104,8 @@ export async function notifyPredictors(db: Db, id: string): Promise<void> {
     await notify(db, r.user_id, {
       kind: "prediction_scored",
       title: points > 0 ? `🔮 Your pick on ${x} × ${y} scored: +${points} points` : `🔮 Your pick on ${x} × ${y}: not this time`,
-      body: `You picked ${ENDING_LABELS[r.pick].toLowerCase()}; it ended in ${ENDING_LABELS[r.ending].toLowerCase()}.${right ? "" : " No points for the ending."}${r.is_public ? "" : " It's not a public date, so it scores nothing."}${run}`,
+      // More endings: the kind rides along ("just friends: a slow burn"); the pick scores on the family, as it always did.
+      body: `You picked ${ENDING_LABELS[r.pick].toLowerCase()}; it ended in ${ENDING_LABELS[r.ending].toLowerCase()}${kindOf(r.ending_detail, r.ending)}.${right ? "" : " No points for the ending."}${r.is_public ? "" : " It's not a public date, so it scores nothing."}${run}`,
       link: `/episodes/${id}`,
     });
   }

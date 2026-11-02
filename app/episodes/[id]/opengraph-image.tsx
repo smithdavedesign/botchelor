@@ -4,7 +4,7 @@ import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { approvedPortraitDataUrl } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import { getEpisodeView } from "@/lib/game";
-import { DATE_VARIABLES, dateNumberOf, endingLabel, VARIABLE_LABELS } from "@/lib/rules";
+import { DATE_VARIABLES, dateNumberOf, endingWithDetail, VARIABLE_LABELS } from "@/lib/rules";
 
 export const alt = "A Botchelor episode box score";
 export const size = { width: 1200, height: 630 };
@@ -81,7 +81,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               </div>
             ))}
             {episode?.ending && (
-              <div style={{ display: "flex", fontSize: 36, marginTop: 20, fontWeight: 700 }}>{`Ending: ${endingLabel(episode.ending, dateNumberOf(episode))}`}</div>
+              <div style={{ display: "flex", fontSize: 36, marginTop: 20, fontWeight: 700 }}>{`Ending: ${endingWithDetail(episode.ending, dateNumberOf(episode), episode.ending_detail)}`}</div>
             )}
           </div>
         ) : (

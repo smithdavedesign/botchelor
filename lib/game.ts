@@ -12,7 +12,10 @@ import { dateNumberSql } from "./date-number";
 import {
   agendaLabel,
   dateNumberOf,
+  ENDING_DETAIL_LABELS,
+  endingDetailOf,
   ENDING_LABELS,
+  type EndingDetail,
   ENDINGS,
   POINTS_PER_CORRECT_PICK,
   POINTS_PER_DEALBREAKER_PICK,
@@ -210,6 +213,8 @@ export type StoredEpisode = {
   date_number?: number | null;
   /** Living dates (lib/inner-life.ts): each line's private feeling, thought and note, and each side's own answer. */
   inner_life?: StoredInner | null;
+  /** More endings (lib/ending-detail.ts): which kind of its ending it was, or null for the plain one. */
+  ending_detail?: string | null;
 };
 
 export type EpisodeJson = {
@@ -251,6 +256,9 @@ export type EpisodeJson = {
   twist?: string;
   finale?: string;
   ending?: Ending;
+  /** More endings: which kind of `ending` it was (lib/rules.ts ENDING_DETAILS), with its label, once the ending is shown. */
+  ending_detail?: EndingDetail;
+  ending_detail_label?: string;
   drama_answer?: DramaAnswer | null;
   best_line?: string;
   box_score?: BoxScore;
@@ -392,6 +400,11 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     json.twist = ep.twist;
     json.finale = ep.finale;
     json.ending = ep.ending;
+    const kind = endingDetailOf(ep.ending_detail, ep.ending);
+    if (kind) {
+      json.ending_detail = kind;
+      json.ending_detail_label = ENDING_DETAIL_LABELS[kind];
+    }
     json.drama_answer = ep.drama_answer;
     if (ep.best_line) json.best_line = ep.best_line;
     if (ep.box_score) json.box_score = ep.box_score;
@@ -467,6 +480,7 @@ type EpisodeRow = {
   status: EpisodeStatus;
   wishes: StoredWishes | null;
   inner_life: StoredInner | null;
+  ending_detail: string | null;
   a_id: string;
   a_name: string;
   a_house: boolean;
@@ -509,7 +523,7 @@ type EpisodeRow = {
 const EPISODE_SELECT = `
 select e.id, e.setting, e.goals, e.scenes, e.twist, e.finale, e.ending, e.drama_question, e.drama_answer,
        e.revealed_at is not null as revealed,
-       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status, e.wishes, e.inner_life,
+       e.best_line, e.box_score, e.confessionals, e.confessionals_shared, e.sides, e.setup, e.transcript, e.afterglow, e.status, e.wishes, e.inner_life, e.ending_detail,
        coalesce((e.generated_with->>'transcript_partial')::boolean, false) as transcript_partial,
        a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait, a.created_via = 'mcp' as a_agent,
        (a.visibility = 'private' and a.owner_id is distinct from $1::text) as a_private,
@@ -595,6 +609,7 @@ function toView(row: EpisodeRow): EpisodeView {
       wishes: row.wishes,
       date_number: row.date_number,
       inner_life: row.inner_life,
+      ending_detail: row.ending_detail,
     },
     {
       full,

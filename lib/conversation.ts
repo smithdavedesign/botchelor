@@ -62,6 +62,8 @@ export type Turn = {
   move?: { say: string; to: PlaceId };
   /** This line said yes to the other's proposal: the date goes there after it (lib/moves.ts). */
   moved_to?: PlaceId;
+  /** More endings (lib/ending-detail.ts): on this line the speaker walked out, and the date ended there. Stored. */
+  walked_out?: true;
   /**
    * Living dates (lib/inner-life.ts): this line's private feeling toward the other, the speaker's thought and what it
    * noted the other claiming. Only while the date is written: lib/pipeline.ts takes it off every line before anything is
@@ -128,6 +130,8 @@ const TurnOutput = z.object({
   they_claimed: z.unknown().optional(),
   /** Which of "your_secrets" this line lets slip (1-based), or 0 (lib/cast-secrets.ts). */
   let_slip: z.unknown().optional(),
+  /** The side offered the walk-out (lib/ending-detail.ts walkOutSide): true when this line walks out. Read strictly. */
+  walk_out: flag,
 });
 
 /** Shortens text to `max` characters at the last sentence end (else the last space) inside the limit. */
@@ -227,6 +231,9 @@ const DEEPER_SECTION = `WHAT GOES DEEPER
 In "you.details": "your_last_relationship" is what you carry from your last one. It shapes how fast you open up and what makes you flinch, and it comes out only if the date earns it, in your own words, never as a speech. "what_really_wins_you_over" is private: when they do it, let it land on you and show; never ask for it or hint at it. "how_you_date" is how you play a date: hold to it, and if theirs is different, let the mismatch show.`;
 const withDeeper = (prompt: string): string => prompt.replace("\n\nJSON\n", `\n\n${DEEPER_SECTION}\n\nJSON\n`);
 const wentDeeper = (c: Character): boolean => Boolean(c.extras?.baggage || c.extras?.wins_them_over || c.extras?.mood);
+/** What the side offered the walk-out reads (lib/ending-detail.ts). The field is only in its data, so only it can. */
+const WALK_OUT_NOTE = `If you've had enough of tonight, you can walk out instead of a goodbye: say it to them in your own words (no scene, no cruelty) and set "walk_out": true in your JSON. It ends the date on your line. You don't have to: only if you would.`;
+
 const withSecrets = (prompt: string): string =>
   prompt.replace("\n\nJSON\n", `\n\n${SECRETS_SECTION}\n\nJSON\n`).replace(/"they_claimed":"",/g, '"they_claimed":"","let_slip":0,');
 
@@ -272,6 +279,8 @@ export type TurnOptions = {
    * it the acts map from `totalTurns` and the date stays where it started, exactly as before moves.
    */
   shape?: DateShape;
+  /** The side that may walk out of this disaster in its closing stretch (lib/ending-detail.ts walkOutSide), if any. */
+  walkOut?: "a" | "b" | null;
 };
 
 /** Builds the messages for one agent's turn. Only this side's private data and its own beat are ever included. */
@@ -345,6 +354,8 @@ export function buildTurnMessages(
       return {
         ...(depth ? { what_you_want_from_tonight: depth.actor } : {}),
         ...(closing ? { how_you_say_goodbye: closingMove(outcome, together?.times ?? 0).actor } : {}),
+        // More endings: on a disaster, the side it went worse for may walk out instead of a goodbye (lib/ending-detail.ts).
+        ...(closing && opts.walkOut === side && outcome.ending === "disaster" ? { you_can_walk_out: WALK_OUT_NOTE } : {}),
       };
     })(),
     ...(meChar.nudge ? { your_creator_asked_you: meChar.nudge } : {}),
@@ -441,7 +452,7 @@ export function parseTurnResult(
   /** `english`: the date is in another language (languageBlock), so a line that isn't English must carry its translation. */
   opts: { english?: boolean } = {},
 ):
-  | { turn: Turn; reply: MoveReply; wish?: boolean; /** The line in English (a date in another language), for the checks only. */ english?: string; /** Its private feeling, thought and note (lib/inner-life.ts). */ inner?: LineInner }
+  | { turn: Turn; reply: MoveReply; wish?: boolean; /** The line in English (a date in another language), for the checks only. */ english?: string; /** Its private feeling, thought and note (lib/inner-life.ts). */ inner?: LineInner; /** It says it walks out (honoured only where offered). */ walkOut?: true }
   | { rejected: TurnRejection; /** Which content rule a filtered line broke (#474). */ reason?: RejectReason } {
   const trimmed = raw.trim();
   const unfenced = CODE_FENCE.exec(trimmed)?.[1] ?? trimmed;
@@ -479,6 +490,7 @@ export function parseTurnResult(
     reply: { ...(parsed.data.move ? { move: parsed.data.move } : {}), ...(parsed.data.accept_move !== undefined ? { accept: parsed.data.accept_move } : {}) },
     // Kept off the turn (the transcript is what both sides and the creator read), so it stays private.
     ...(parsed.data.see_again !== undefined ? { wish: parsed.data.see_again } : {}),
+    ...(parsed.data.walk_out ? { walkOut: true as const } : {}),
     // So is its inner life: simulateConversation puts it on the line in memory only (lib/pipeline.ts strips it).
     ...(() => {
       const inner = readInner(parsed.data);
@@ -577,6 +589,8 @@ export type ConversationOptions = {
   onDraft?: (d: { turn_index: number; side: "a" | "b"; reason: string; rejected: string }) => void;
   /** Lines already said (a date whose conversation failed partway, J1): kept as they are, and the date picks up after them. */
   from?: Turn[];
+  /** More endings (lib/ending-detail.ts walkOutSide): the side that may walk out of this disaster, if any. */
+  walkOut?: "a" | "b" | null;
 };
 
 /** The producer's note to the next speaker when the creator has set the scene. */
@@ -632,13 +646,14 @@ export async function simulateConversation(
       plan: beats,
       totalTurns: turns,
       shape,
+      walkOut: opts.walkOut,
     });
     const { side, act } = built;
     const messages = suggestion ? [...built.messages, { role: "user" as const, content: suggestionNote(suggestion.to) }] : built.messages;
     const names = side === "a" ? { self: characters[0].name, other: characters[1].name } : { self: characters[1].name, other: characters[0].name };
     const turnModel = actorForSide?.(side) ?? model;
-    let line: { turn: Turn; reply: MoveReply; english?: string; inner?: LineInner } | null = null;
-    let draft: { turn: Turn; reply: MoveReply; english?: string; inner?: LineInner } | null = null; // a parsed line the critic sent back: kept if the revision doesn't work out
+    let line: { turn: Turn; reply: MoveReply; english?: string; inner?: LineInner; walkOut?: true } | null = null;
+    let draft: { turn: Turn; reply: MoveReply; english?: string; inner?: LineInner; walkOut?: true } | null = null; // a parsed line the critic sent back: kept if the revision doesn't work out
     let draftNotes = "";
     let prompt = messages;
     for (let attempt = 0; attempt < TURN_ATTEMPTS && !line; attempt++) {
@@ -696,8 +711,14 @@ export async function simulateConversation(
       const already = transcript.some((t) => t.side === side && t.inner?.secret);
       if (said && !already && slipped(line.english ?? turn.dialogue, said.secret)) turn.inner.secret = { season_id: said.season_id, idx: said.idx };
     }
+    // A walk-out, where it was offered (a disaster's closing stretch, that side): the date ends on this line.
+    if (line.walkOut && opts.walkOut === side && shape.closing && outcome.ending === "disaster") {
+      turn.walked_out = true;
+      delete turn.done;
+    }
     transcript.push(turn);
     if (onTurn) await Promise.resolve().then(() => onTurn([...transcript])).catch(() => {});
+    if (turn.walked_out) break;
     // The actor's own "I'm done" signal, respected only in the goodbye stretch (David 2026-10-18: let dates close
     // when they've landed rather than run to a fixed length). Keeps the engine's decided ending — short dates
     // happen only when the actor says so, where the ending is being landed. settleLine drops it on a move.

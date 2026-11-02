@@ -163,6 +163,8 @@ export default function ChatThread({ characters, turns, typing = null, challenge
             </div>
             {/* Both said yes to going somewhere else (lib/moves.ts): the date moves there after this line. */}
             {t.moved_to && <p className="chat-note chat-move">📍 They head to {venuePhrase(t.moved_to)}</p>}
+            {/* More endings (lib/ending-detail.ts): the speaker walked out, and the date ended on this line. */}
+            {t.walked_out && <p className="chat-note chat-move">🚪 {c.name.split(/\s+/)[0]} walks out</p>}
           </div>
         );
       })}

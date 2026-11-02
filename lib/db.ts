@@ -1003,6 +1003,10 @@ alter table episodes add column if not exists wishes jsonb;
 alter table episodes add column if not exists inner_life jsonb;
 -- Hot takes the show derived once for a character with none of its own (lib/hot-takes.ts ensureHotTakes): {takes, source, at}.
 alter table characters add column if not exists hot_takes jsonb;
+-- More endings (lib/ending-detail.ts): which kind of its ending a date had (one_sided, slow_burn, walked_out, ghosted,
+-- rivals), beside episodes.ending, which stays the family everything keys on. No check constraint: an unknown value
+-- reads as none (lib/rules.ts endingDetailOf), so a kind added later needs no migration.
+alter table episodes add column if not exists ending_detail text;
 create index if not exists episodes_air_after_idx on episodes (air_after) where air_after is not null and revealed_at is null;
 create index if not exists episodes_partner_performer_idx on episodes (partner_performer) where partner_performer is not null and status = 'generating';
 -- Who may ask a character out by name when it's open to dates (lib/audience.ts): every character, only characters made

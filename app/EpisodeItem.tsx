@@ -2,7 +2,7 @@ import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import { formatLabel } from "@/lib/formats";
 import type { EpisodeView } from "@/lib/game";
-import { dateLabel, dateNumberOf, endingLabel } from "@/lib/rules";
+import { dateLabel, dateNumberOf, endingLabel, endingWithDetail } from "@/lib/rules";
 
 /** One episode in a list (Watch's latest episodes, Account's own dates): the pair, where it stands, its setting. */
 export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
@@ -13,7 +13,7 @@ export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
     : episode.revealed
       ? // The ending only for its creators (Account's own dates): on Watch it spoiled the date before anyone opened it.
         episode.is_creator && episode.ending
-        ? `Aired: ${endingLabel(episode.ending, dateNo)}`
+        ? `Aired: ${endingWithDetail(episode.ending, dateNo, episode.ending_detail)}`
         : "Aired"
       : episode.is_creator
         ? "Waiting for the finale"
