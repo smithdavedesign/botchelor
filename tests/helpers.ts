@@ -189,8 +189,11 @@ export async function startTestDb() {
         "recoupling_votes",
         "recoupling_nights",
         "season_formats",
-        // Backings (lib/backing.ts) hang off the house cast too.
+        // Backings (lib/backing.ts) and dares (lib/dares.ts) hang off the house cast too.
         "cast_backings",
+        "dare_votes",
+        "dare_nights",
+        "cast_date_weeks",
         // A season's finale (lib/season-recap.ts): frozen once, so a reset must forget it.
         "season_recaps",
         // This season's cast secrets (lib/cast-secrets.ts) hang off the house cast, which outlives a reset.

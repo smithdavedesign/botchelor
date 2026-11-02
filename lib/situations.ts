@@ -16,6 +16,7 @@
  *  - Cost: one lobby date a day, on the show's default model like every lobby room (it counts toward
  *    FRESH_ROOMS_PER_DAY, so a busy day makes no more rooms than before): at most ~5¢ a day, under $1.50 a month.
  */
+import { dareChoices, dareCounts, daredOf, dareWinnerOf, producerDareNote } from "./dares";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { notifyAll } from "./notifications";
@@ -84,7 +85,7 @@ export function winnerOf<C extends { id: string }>(choices: readonly C[], tally:
 }
 
 export type SituationPlayed =
-  | { played: true; day: string; pick: string; party_id: string; room_path: string }
+  | { played: true; day: string; pick: string | null; dare: string | null; party_id: string; room_path: string }
   | { played: false; day: string; reason: "already" | "no_votes" | "no_cast" | "failed" };
 
 /**
@@ -94,43 +95,76 @@ export type SituationPlayed =
  */
 export async function playVotedSituation(db: Db, now: Date = new Date()): Promise<SituationPlayed> {
   const day = utcDay(new Date(now.getTime() - 24 * 60 * 60 * 1000));
-  const tally = await counts(db, day);
+  const [tally, dareTally] = await Promise.all([counts(db, day), dareCounts(db, day)]);
   const choices = situationChoices(day);
   const winner = winnerOf(choices, tally);
-  if (!winner) return { played: false, day, reason: "no_votes" };
+  // The ballot's dare lane (lib/dares.ts): its winner rides the same date. Either lane alone makes the night.
+  const dare = dareWinnerOf(dareChoices(day), dareTally);
+  if (!winner && !dare) return { played: false, day, reason: "no_votes" };
   const pair = situationPair(day);
   if (!pair) return { played: false, day, reason: "no_cast" };
+  const dared = dare ? daredOf(day, pair) : null;
   const total = [...tally.values()].reduce((s, n) => s + n, 0);
   const claimed = await db.query(
     `insert into situation_nights (day, a_id, b_id, pick, votes, total) values ($1, $2, $3, $4, $5, $6)
      on conflict (day) do nothing returning day`,
-    [day, pair[0], pair[1], winner.id, tally.get(winner.id) ?? 0, total],
+    [day, pair[0], pair[1], winner?.id ?? null, winner ? (tally.get(winner.id) ?? 0) : 0, total],
   );
   if (!claimed.rows.length) return { played: false, day, reason: "already" };
-  const roleplay: DateRoleplay = { ...termsFor(winner, pair[0]), agreed: "auto" };
-  const room = await createTemplateParty(db, pair[0], pair[1], { roleplay }).catch(() => null);
+  const roleplay: DateRoleplay | null = winner ? { ...termsFor(winner, pair[0]), agreed: "auto" } : null;
+  // The dared one goes in first (side A), so the dare rides its private note and the other side never sees it.
+  const [first, second]: [string, string] = dared && dared !== pair[0] ? [pair[1], pair[0]] : [pair[0], pair[1]];
+  const room = await createTemplateParty(db, first, second, { roleplay, dare: dare ? producerDareNote(dare.text) : null }).catch(() => null);
   if (!room?.ok) {
     await db.query(`delete from situation_nights where day = $1 and party_id is null`, [day]);
     return { played: false, day, reason: "failed" };
   }
   await db.query(`update situation_nights set party_id = $2 where day = $1`, [day, room.id]);
+  // The dare lane's record (the reveal reads it once the date airs).
+  if (dare && dared) {
+    const episodeId = (await db.query<{ episode_id: string }>(`select episode_id from watch_parties where id = $1`, [room.id])).rows[0]?.episode_id ?? null;
+    await db.query(
+      `insert into dare_nights (day, character_id, dare_id, votes, total, party_id, episode_id) values ($1, $2, $3, $4, $5, $6, $7)
+       on conflict (day) do nothing`,
+      [day, dared, dare.id, dareTally.get(dare.id) ?? 0, [...dareTally.values()].reduce((s, n) => s + n, 0), room.id, episodeId],
+    );
+  }
   const names = await namesOf(db, pair);
   const cast = pair.map((id) => ({ id, name: names.get(id) ?? "" }));
-  const voters = (await db.query<{ user_id: string; pick: string }>(`select user_id, pick from situation_votes where day = $1`, [day])).rows;
-  const body = `${cast[0].name} × ${cast[1].name}: ${fillPremise(termsFor(winner, pair[0]), cast)}`;
-  await notifyAll(db, voters.filter((v) => v.pick === winner.id).map((v) => v.user_id), {
-    kind: "situation_on",
-    title: `Your pick won: ${winner.title}`,
-    body,
-    link: room.room_path,
-  });
-  await notifyAll(db, voters.filter((v) => v.pick !== winner.id).map((v) => v.user_id), {
-    kind: "situation_on",
-    title: `The viewers picked ${winner.title}`,
-    body,
-    link: room.room_path,
-  });
-  return { played: true, day, pick: winner.id, party_id: room.id, room_path: room.room_path };
+  if (winner) {
+    const voters = (await db.query<{ user_id: string; pick: string }>(`select user_id, pick from situation_votes where day = $1`, [day])).rows;
+    const body = `${cast[0].name} × ${cast[1].name}: ${fillPremise(termsFor(winner, pair[0]), cast)}`;
+    await notifyAll(db, voters.filter((v) => v.pick === winner.id).map((v) => v.user_id), {
+      kind: "situation_on",
+      title: `Your pick won: ${winner.title}`,
+      body,
+      link: room.room_path,
+    });
+    await notifyAll(db, voters.filter((v) => v.pick !== winner.id).map((v) => v.user_id), {
+      kind: "situation_on",
+      title: `The viewers picked ${winner.title}`,
+      body,
+      link: room.room_path,
+    });
+  }
+  if (dare && dared) {
+    const daredName = names.get(dared) ?? "";
+    const voters = (await db.query<{ user_id: string; pick: string }>(`select user_id, pick from dare_votes where day = $1`, [day])).rows;
+    const body = `${daredName}'s side has it in the pocket: "${dare.text}" Their date doesn't know. Watch whether they go through with it.`;
+    await notifyAll(db, voters.filter((v) => v.pick === dare.id).map((v) => v.user_id), {
+      kind: "dare_on",
+      title: `The producers took your dare`,
+      body,
+      link: room.room_path,
+    });
+    await notifyAll(db, voters.filter((v) => v.pick !== dare.id).map((v) => v.user_id), {
+      kind: "dare_on",
+      title: `The viewers dared ${daredName}`,
+      body,
+      link: room.room_path,
+    });
+  }
+  return { played: true, day, pick: winner?.id ?? null, dare: dare?.id ?? null, party_id: room.id, room_path: room.room_path };
 }
 
 async function namesOf(db: Db, ids: string[]): Promise<Map<string, string>> {
