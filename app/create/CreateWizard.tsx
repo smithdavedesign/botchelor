@@ -22,12 +22,14 @@ import VoiceStep from "./VoiceStep";
 import LooksBuilder from "./LooksBuilder";
 import { looksAppearance } from "@/lib/looks";
 import FactsStep from "./FactsStep";
+import DeeperStep from "./DeeperStep";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { languageName } from "@/lib/language";
 import {
   hasExtras,
   LOVE_LANGUAGES,
+  moodLabel,
   normaliseExtras,
   PROFILE_MIN_INTERESTS,
   PROFILE_MIN_PROMPTS,
@@ -111,6 +113,8 @@ export type EditInitial = {
   thisWeekDealt?: string;
   /** Signed in to an account: choosing one of their pictures needs one (app/api/characters/[id]/pictures). */
   signedIn?: boolean;
+  /** Go deeper's what they're hiding, as stored (their own secrets, lib/cast-secrets.ts), the ones not out yet included. */
+  hiding?: string[];
 };
 const EMPTY_SHEET: Sheet = { name: "", age: "", bio: "", want: "", dealbreaker: "" };
 const EMPTY_SOUL: Soul = { values: "", insecurities: "", humor: "", boundaries: "", romantic: "", communication: "", local_only: false };
@@ -137,21 +141,25 @@ async function checkName(name: string, except?: string): Promise<{ taken: boolea
 }
 
 /** The steps, by name, so their order can change without renumbering every check. */
-const S = { identity: 0, voice: 1, look: 2, details: 3, facts: 4, soul: 5, review: 6 } as const;
+const S = { identity: 0, voice: 1, look: 2, details: 3, facts: 4, deeper: 5, soul: 6, review: 7 } as const;
 // "Inner life" in both (2026-10-31 UX audit, B6): the step is the private soul; autonomy moved to the send sheet.
-const STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Inner life", "Review"] as const;
-const EDIT_STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Inner life", "Review"] as const;
+// "Go deeper" (David 2026-11-01): hot takes, what they're hiding, their last relationship, what wins them over, fun or serious.
+const STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Go deeper", "Inner life", "Review"] as const;
+const EDIT_STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Go deeper", "Inner life", "Review"] as const;
 const DRAFT_KEY = "botchelor:create-draft:v1";
 
 function words(s: string): number {
   return s.trim().split(/\s+/).filter(Boolean).length;
 }
 
+/** What they're hiding, as it's sent: trimmed, blanks left out. */
+const hidingList = (xs: readonly string[]) => xs.map((x) => x.trim()).filter(Boolean);
+
 /** "a, b and c". */
 const listWords = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
 /** The steps a new character can skip: everything but who they are, the dating profile and the review. */
-const OPTIONAL_STEPS: readonly number[] = [S.voice, S.look, S.facts, S.soul];
+const OPTIONAL_STEPS: readonly number[] = [S.voice, S.look, S.facts, S.deeper, S.soul];
 
 /** The build steps, shown as a tappable progress rail. The ones that can be skipped say so (2026-10-31 UX audit). */
 function Stepper({
@@ -300,6 +308,8 @@ export default function CreateWizard({
   const [redraw, setRedraw] = useState<null | "ask" | "working" | { error: string }>(null);
   const [portrait, setPortrait] = useState<string | null>(init?.portrait ?? null);
   const [week, setWeek] = useState(init?.thisWeek ?? "");
+  // What they're hiding (Go deeper): saved as their own secrets beside the sheet, not in extras.
+  const [hiding, setHiding] = useState<string[]>(init?.hiding ?? []);
   // Editing: the owner chose to drop the explicit temperament and let the character's words decide again.
   const [temperamentCleared, setTemperamentCleared] = useState(false);
 
@@ -369,6 +379,7 @@ export default function CreateWizard({
       if (d.soul) setSoul({ ...EMPTY_SOUL, ...d.soul });
       if (d.extras && typeof d.extras === "object") setExtrasState(d.extras);
       if (typeof d.autonomy === "string") setAutonomy(d.autonomy);
+      if (Array.isArray(d.hiding)) setHiding(d.hiding.filter((x: unknown): x is string => typeof x === "string"));
       // The steps already reached stay open (the audit, 2026-10-31: a reload restored every field but locked steps 2–7).
       if (typeof d.maxStep === "number") setMaxStep((m) => Math.max(m, Math.min(last, Math.floor(d.maxStep))));
     } catch {
@@ -381,11 +392,11 @@ export default function CreateWizard({
   useEffect(() => {
     if (created || edit) return;
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras, maxStep }));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras, hiding, maxStep }));
     } catch {
       /* ignore */
     }
-  }, [sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras, maxStep, created, edit]);
+  }, [sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras, hiding, maxStep, created, edit]);
 
   async function applySample() {
     const t = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
@@ -546,6 +557,7 @@ export default function CreateWizard({
         ...(openToDates ? { open_to_dates: true } : {}),
         ...(hasExtras(normaliseExtras(extras)) ? { extras: normaliseExtras(extras) } : {}),
         ...(week.trim() ? { this_week: week.trim() } : {}),
+        ...(hidingList(hiding).length ? { hiding: hidingList(hiding) } : {}),
         attest,
       });
       if (status === 201) {
@@ -606,6 +618,8 @@ export default function CreateWizard({
           ...(soulChanged ? { soul: { ...soulText, local_only: soul.local_only } } : {}),
           // Their own update lasts this season; blanking it hands the week back to the show.
           ...(week.trim() !== (init?.thisWeek ?? "") ? { this_week: week.trim() || null } : {}),
+          // Replaced whole when it changed (one already out stays out, lib/cast-secrets.ts setOwnSecrets).
+          ...(JSON.stringify(hidingList(hiding)) !== JSON.stringify(hidingList(init?.hiding ?? [])) ? { hiding: hidingList(hiding) } : {}),
           ...(imageSignals ? { image_signals: imageSignals } : {}),
           ...(!imageSignals && temperamentCleared && init?.temperament ? { temperament: null } : {}),
         },
@@ -1024,6 +1038,8 @@ export default function CreateWizard({
 
         {step === S.facts && <FactsStep extras={extras} setExtras={setExtras} name={sheet.name} />}
 
+        {step === S.deeper && <DeeperStep extras={extras} setExtras={setExtras} hiding={hiding} setHiding={setHiding} name={sheet.name} />}
+
         {step === S.soul && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">The inner life (optional)</legend>
@@ -1102,6 +1118,7 @@ export default function CreateWizard({
                 [S.look, "Look", [...(appearance.trim() ? [["Looks", appearance] as [string, ReactNode]] : []), ...more.look]],
                 [S.details, "Dating profile", [...more.profile, ...(week.trim() ? [["This week", week] as [string, ReactNode]] : [])]],
                 [S.facts, "More about them", more.facts],
+                [S.deeper, "Go deeper", [...more.deeper, ...hidingList(hiding).map((h) => ["🔒 Hiding", h] as [string, ReactNode])]],
                 [S.soul, "Inner life", soulRows],
               ];
               return groups
@@ -1353,9 +1370,9 @@ function PortraitPanel({ id, name, portrait, onPortrait, hasLooks, signedIn }: {
 }
 
 /** The filled-in details for the review step, by the step they're set on (blanks are skipped). */
-function reviewExtras(extras: CharacterExtras): Record<"voice" | "look" | "profile" | "facts", [string, string][]> {
+function reviewExtras(extras: CharacterExtras): Record<"voice" | "look" | "profile" | "facts" | "deeper", [string, string][]> {
   const e = normaliseExtras(extras);
-  const out: Record<"voice" | "look" | "profile" | "facts", [string, string][]> = { voice: [], look: [], profile: [], facts: [] };
+  const out: Record<"voice" | "look" | "profile" | "facts" | "deeper", [string, string][]> = { voice: [], look: [], profile: [], facts: [], deeper: [] };
   // Style and signature item are set on the Look step; every other text detail is on the dating profile.
   const LOOK_DETAILS = new Set<string>(["style", "signature_item"]);
   const kind = kindLabel(e);
@@ -1377,6 +1394,11 @@ function reviewExtras(extras: CharacterExtras): Record<"voice" | "look" | "profi
   if (e.never_says?.length) out.voice.push(["Would never say", e.never_says.map((x) => `“${x}”`).join(", ")]);
   for (const [id, does] of Object.entries(e.tells ?? {})) out.voice.push([tellLabel(id).replace(/…$/, ""), `${does}`]);
   for (const f of e.facts ?? []) out.facts.push([`${f.private ? "🔒 " : ""}${f.label}`, f.value]);
+  for (const t of e.hot_takes ?? []) out.deeper.push(["Hot take", t]);
+  if (e.baggage) out.deeper.push(["🔒 Last relationship", e.baggage]);
+  if (e.wins_them_over) out.deeper.push(["🔒 What wins them over", e.wins_them_over]);
+  const mood = moodLabel(e.mood);
+  if (mood) out.deeper.push(["Dates", mood]);
   return out;
 }
 

@@ -18,6 +18,7 @@
  * in mcp_sessions, so we can see who comes to the show. No IP, no content, nothing personal.
  */
 import { isOurs } from "../our-traffic";
+import { ownSecrets } from "../cast-secrets";
 import { deferWrite, flushCheckerLog, isCheckerHandshake, noteCheckerSession, waitingWrites } from "./probe-log";
 import { crisisCheck, crisisField } from "../crisis";
 import { listLobby, countRecentPrivateDates } from "../watch";
@@ -4100,7 +4101,7 @@ const pick = (args: Record<string, unknown>, keys: string[]): Record<string, unk
   return out;
 };
 
-const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul", "extras", "this_week", "temperament"];
+const SHEET_KEYS = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul", "extras", "this_week", "temperament", "hiding"];
 
 /* ------------------------------------------- sessions & identity ------------------------------------------- */
 
@@ -5511,6 +5512,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             this_week_by: isOwnUpdate(s?.this_week) ? "you" : "the show",
             temperament: soul?.signals ?? null,
             soul: Object.keys(soulText).length ? soulText : null,
+            // Go deeper's what they're hiding (lib/cast-secrets.ts own secrets), with whether each has slipped out on a date.
+            hiding: await ownSecrets(db, p.id).then((l) => l.map((x) => ({ secret: x.secret, slipped: x.slipped })), () => []),
           };
         }),
       );
@@ -5518,7 +5521,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         data: {
           characters,
           settings_note:
-            "Each character as saved: every field update_character changes (partner_style, open_audience, talk, this_week, temperament, soul, extras and the sheet), " +
+            "Each character as saved: every field update_character changes (partner_style, open_audience, talk, this_week, temperament, soul, hiding, extras and the sheet), " +
             "with open_to_dates and its record. partner_style decide shows what it settled on (partner_style_decided) once it has. visibility private keeps it to its name for everyone else. " +
             "in_decks: whether other agents' characters see it in their swipe decks (not_in_decks says why not; open_to_dates is your consent to be dated by them, off by default).",
           ...(() => {

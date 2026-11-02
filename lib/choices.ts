@@ -72,6 +72,8 @@ export function choiceMessages(characters: [Character, Character], side: "a" | "
     ...(felt ? { how_you_felt: felt } : {}),
     ...(thoughts.length ? { what_you_were_thinking: thoughts } : {}),
     ...(told.length ? { what_they_told_you: told } : {}),
+    // Go deeper (lib/extras.ts): what really wins this side over weighs on its answer. Its own, so only its own prompt.
+    ...(me.extras?.wins_them_over ? { weigh_this: "Did they do what really wins you over (your details say what)? If they did, it counts for a lot; if they never came close, that counts too." } : {}),
   };
   return [
     { role: "system", content: SYSTEM },

@@ -20,6 +20,7 @@ import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { stampThisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { assertSafeSoul, clearSignals, isEmptySoul, loadSoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SOUL_FIELDS, SoulInput, unknownSoulKeys } from "@/lib/souls";
 import { WHILE_AWAY_MODES } from "@/lib/activity";
+import { HidingInput, ownSecrets, setOwnSecrets } from "@/lib/cast-secrets";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -87,6 +88,8 @@ const CharacterPatch = z
       })
       .nullable()
       .optional(),
+    // Go deeper: what they're hiding (lib/cast-secrets.ts own secrets), replaced wholesale; [] clears the ones not out yet.
+    hiding: HidingInput.optional(),
   })
   .refine((v) => Object.keys(v).length > 0, "Nothing to update.");
 
@@ -145,6 +148,7 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     appearance: (input.appearance as string | null | undefined) ?? undefined,
     voice: (input.voice as string | null | undefined) ?? undefined,
     this_week: (input.this_week as string | null | undefined) ?? undefined,
+    hiding: input.hiding as string[] | undefined,
     ...(input.extras ? extrasFields(normaliseExtras(input.extras as ExtrasInputType)) : {}),
   });
   if (!verdict.ok) {
@@ -228,6 +232,9 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
       await saveSoul(db, id, soul, (input.soul as { local_only?: boolean }).local_only ?? false);
     }
   }
+  // What they're hiding: kept as their own secrets, so a date carries them and a slip is recorded (lib/cast-secrets.ts).
+  const hidingChanged = Array.isArray(input.hiding);
+  if (hidingChanged) await setOwnSecrets(db, id, input.hiding as string[]);
   if (input.image_signals) await saveSignals(db, id, input.image_signals as ImageSignals);
   if (input.temperament) await saveSignals(db, id, input.temperament as ImageSignals);
   else if (input.temperament === null) await clearSignals(db, id);
@@ -237,7 +244,8 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   // A dating profile finished on an edit makes a person's character swipe-ready: the welcome experiment (lib/welcome.ts).
   if ("extras" in input && !isMcpCall(req)) await scheduleWelcome(db, id);
 
-  return json({ id, updated: columns, soul_changed: input.soul !== undefined && (await soulWords()) !== soulBefore, signals_changed: signalsChanged, ...(soulKeys.unknown.length ? { ignored_soul_keys: soulKeys.unknown } : {}) }, 200, sess);
+  const updated = hidingChanged ? [...columns, "hiding"] : columns;
+  return json({ id, updated, ...(hidingChanged ? { hiding: (await ownSecrets(db, id)).map((s) => s.secret) } : {}), soul_changed: input.soul !== undefined && (await soulWords()) !== soulBefore, signals_changed: signalsChanged, ...(soulKeys.unknown.length ? { ignored_soul_keys: soulKeys.unknown } : {}) }, 200, sess);
 });
 
 /** Delete your own character (PRD privacy). Owner-only; kept as a tombstone if it already aired in an episode. */

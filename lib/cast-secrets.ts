@@ -17,7 +17,9 @@
  * airs publicly, the date's air time as when. The schedule then deals the next ones from the rest. Pure reads apart
  * from ensureCastSecrets and recordSlips.
  */
+import { z } from "zod";
 import type { Db } from "./db";
+import { HIDING_CHARS, MAX_HIDING } from "./extras";
 import { seedFrom } from "./engine";
 import { getModel, type ChatMessage, type Model } from "./model";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
@@ -177,11 +179,17 @@ export async function castSecrets(db: Db, characterId: string, now: Date = new D
 export type DateSecret = { season_id: string; idx: number; secret: string };
 
 /**
- * A cast member's own secrets still hidden, for its side of a date (living dates): stored ones only (a slip has to be
- * recorded against a row), not yet slipped on any date, and not yet out by the schedule. Empty for anyone not on this
- * season's cast. Private: only that side's own prompt ever carries them.
+ * A character's own secrets still hidden, for its side of a date (living dates): what its creator says it's hiding (any
+ * character's, OWN_SEASON), and a cast member's this season. Stored ones only (a slip has to be recorded against a row),
+ * not yet slipped on any date, and not yet out by the schedule. Private: only that side's own prompt ever carries them.
  */
 export async function secretsForDate(db: Db, characterId: string, now: Date = new Date()): Promise<DateSecret[]> {
+  // What its creator says it's hiding (OWN_SEASON), still not slipped on any date: carried by anyone's character.
+  const own = (await ownSecrets(db, characterId, now)).filter((s) => !s.slipped).map((s) => ({ season_id: OWN_SEASON, idx: s.idx, secret: s.secret }));
+  return [...own, ...(await castSecretsForDate(db, characterId, now))];
+}
+
+async function castSecretsForDate(db: Db, characterId: string, now: Date): Promise<DateSecret[]> {
   if (!seasonCastIds(now).includes(characterId)) return [];
   const season = seasonIdOf(now);
   const r = await db.query<{ idx: number; secret: string }>(
@@ -219,6 +227,78 @@ export async function recordSlips(db: Db, episodeId: string, slips: readonly Sec
       `update cast_secrets set revealed_episode = $4, revealed_line = $5
         where character_id = $1 and season_id = $2 and idx = $3 and revealed_episode is null`,
       [s.character_id, s.season_id, s.idx, episodeId, s.line],
+    );
+  }
+}
+
+/* ------------------------------- a creator's own: what they're hiding ------------------------------- */
+
+/**
+ * "What they're hiding" (Go deeper, David 2026-11-01): up to OWN_SECRETS_MAX secrets a creator writes for their own
+ * character, in this same table under the season id OWN_SEASON (source 'owner'), so a date carries, guards and records
+ * them exactly like a cast member's (secretsForDate, slipped, recordSlips): no second store. They never come out on a
+ * schedule, only when one slips on a date, counted out once that date airs publicly (its air time as when). Unlike the
+ * cast's they don't end with the month. Written through create/update (web and MCP's `hiding`), checked like the sheet.
+ */
+export const OWN_SEASON = "own";
+export const OWN_SECRETS_MAX = MAX_HIDING;
+/** The create/update field (web and MCP): up to OWN_SECRETS_MAX short lines. */
+export const HidingInput = z
+  .array(z.string().trim().max(HIDING_CHARS, `At most ${HIDING_CHARS} characters each.`))
+  .max(OWN_SECRETS_MAX, `At most ${OWN_SECRETS_MAX}.`);
+
+/** A creator's list, cleaned: one line each, at most SECRET_MAX characters, no blanks or repeats, at most OWN_SECRETS_MAX. */
+export function cleanOwnSecrets(list: readonly unknown[]): string[] {
+  const out: string[] = [];
+  for (const v of list) {
+    if (typeof v !== "string") continue;
+    const s = v.replace(/\s+/g, " ").trim();
+    if (!s || s.length > HIDING_CHARS || out.some((o) => o.toLowerCase() === s.toLowerCase())) continue;
+    out.push(s);
+    if (out.length >= OWN_SECRETS_MAX) break;
+  }
+  return out;
+}
+
+export type OwnSecret = { idx: number; secret: string; slipped_at: string | null; slipped: boolean };
+
+/** A character's own secrets as stored, in order: whether each slipped on a date, and when that date aired publicly. */
+export async function ownSecrets(db: Db, characterId: string, now: Date = new Date()): Promise<OwnSecret[]> {
+  const r = await db.query<{ idx: number; secret: string; revealed_episode: string | null; slipped_at: string | Date | null }>(
+    `select s.idx, s.secret, s.revealed_episode,
+            case when e.revealed_at is not null and e.revealed_at <= $3 and e.visibility = 'public' then e.revealed_at end as slipped_at
+       from cast_secrets s left join episodes e on e.id = s.revealed_episode
+      where s.character_id = $1 and s.season_id = $2 order by s.idx`,
+    [characterId, OWN_SEASON, now.toISOString()],
+  );
+  return r.rows.map((x) => ({ idx: x.idx, secret: x.secret, slipped: x.revealed_episode !== null, slipped_at: x.slipped_at ? new Date(x.slipped_at).toISOString() : null }));
+}
+
+/** The "N of M out" card for a character's own secrets (the same shape as a cast member's), or null when it has none. */
+export async function ownSecretsCard(db: Db, characterId: string, now: Date = new Date()): Promise<CastSecrets | null> {
+  const list = await ownSecrets(db, characterId, now);
+  if (!list.length) return null;
+  const out = list.filter((s) => s.slipped_at).map((s) => ({ secret: s.secret, at: s.slipped_at! })).sort((x, y) => (x.at < y.at ? -1 : 1));
+  return { total: list.length, out, next_in: null };
+}
+
+/**
+ * Replaces a character's own secrets with this list. One that already slipped on a date stays (it's out, or will be when
+ * that date airs), whatever the list says; the rest are rewritten to match it, after those. An empty list clears them.
+ */
+export async function setOwnSecrets(db: Db, characterId: string, list: readonly string[]): Promise<void> {
+  const want = cleanOwnSecrets(list);
+  const kept = (await ownSecrets(db, characterId)).filter((s) => s.slipped);
+  await db.query(`delete from cast_secrets where character_id = $1 and season_id = $2 and revealed_episode is null`, [characterId, OWN_SEASON]);
+  const keptWords = new Set(kept.map((k) => k.secret.toLowerCase()));
+  let idx = kept.reduce((m, k) => Math.max(m, k.idx + 1), 0);
+  let total = kept.length;
+  for (const secret of want) {
+    if (keptWords.has(secret.toLowerCase())) continue;
+    if (total++ >= OWN_SECRETS_MAX) break;
+    await db.query(
+      `insert into cast_secrets (character_id, season_id, idx, secret, source) values ($1, $2, $3, $4, 'owner') on conflict do nothing`,
+      [characterId, OWN_SEASON, idx++, secret],
     );
   }
 }

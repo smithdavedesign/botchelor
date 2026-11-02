@@ -59,7 +59,7 @@ export { AGENT_ID, PREVIEW, str };
 
 // ─── SHEET_PROPS: the character fields create_character, update_character and check_originality share ───
 import { PRONOUNS } from "../rules";
-import { MAX_HOBBIES, PROFILE_PROMPTS, SAMPLE_LINE_MAX, TEXT_DETAIL_KEYS, TEXT_DETAILS } from "../extras";
+import { BAGGAGE_MAX, HIDING_CHARS, HOT_TAKE_CHARS, MAX_HIDING, MAX_HOBBIES, MAX_HOT_TAKES, MOOD_IDS, PROFILE_PROMPTS, SAMPLE_LINE_MAX, TEXT_DETAIL_KEYS, TEXT_DETAILS, WINS_THEM_OVER_MAX } from "../extras";
 
 /** "≤60 occupation, hometown…; ≤80 style…": the text details grouped by their limit. */
 function detailsByMax(): string {
@@ -100,7 +100,8 @@ export const SHEET_PROPS = {
       // #1129: each free-text key with its limit, grouped by limit (lib/extras.ts TEXT_DETAILS), so none is learned from a refusal.
       `Optional details (public, except private facts). Text keys: ${detailsByMax()}. Also star_sign, ` +
       "love_language, language (es, fr, ja…: what they speak on dates; unset is their sheet's language, else English), kind, kind_label (with kind other), archetype, here_for, drawn_to (≤4 kinds), hobbies (up to " + MAX_HOBBIES + ", 30 characters each), prompts ([{id, answer}], two for the swipe deck, answers up to " + PROMPT_ANSWER_MAX + "; id one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}, ≤" + SAMPLE_LINE_MAX + " each), " +
-      "tells ({nervous, smitten, bored, annoyed}), never_says (list), facts ([{label, value, private?}], up to 20). " +
+      "tells ({nervous, smitten, bored, annoyed}), never_says (list), facts ([{label, value, private?}], up to 20), " +
+      `hot_takes (≤${MAX_HOT_TAKES}, ≤${HOT_TAKE_CHARS} each), private baggage and wins_them_over (≤${Math.max(BAGGAGE_MAX, WINS_THEM_OVER_MAX)}), mood (${MOOD_IDS.join("|")}). ` +
       "Exact shape: botchelor://schema/character.",
   },
   temperament: {
@@ -116,6 +117,12 @@ export const SHEET_PROPS = {
       guardedness: { type: "number", minimum: 0, maximum: 1 },
       humor: { type: "number", minimum: 0, maximum: 1 },
     },
+  },
+  hiding: {
+    type: "array",
+    items: str(HIDING_CHARS),
+    maxItems: MAX_HIDING,
+    description: "Optional, private: things they're hiding. Dates guard them; one a date draws out slips, shown once it airs. Update replaces the list.",
   },
   this_week: str(100, "Optional: what's new in their life this week (\"just adopted a very old cat\"). Lasts until Monday; without one the show deals one. On update, null hands it back to the show."),
 } as const;

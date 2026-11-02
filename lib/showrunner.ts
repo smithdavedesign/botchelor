@@ -244,6 +244,23 @@ export function anchorBestLine(draft: EpisodeDraft, transcript: Turn[]): Episode
   return { ...draft, best_line: fitted };
 }
 
+const THIRD_PERSON: Record<string, RegExp> = { "he/him": /\b(he|him|his|himself)\b/gi, "she/her": /\b(she|her|hers|herself)\b/gi };
+const mentions = (line: string, pronouns: string): number => (line.match(THIRD_PERSON[pronouns]) ?? []).length;
+
+/**
+ * The confessionals in the right order. Each is one character speaking about the OTHER, but a model now and then hands
+ * them back swapped (2026-11-02: Juniper's diary cam read "She is hard to read…", about herself). When the two have
+ * different he/she pronouns and each line speaks only of its own speaker's, and so only of the other's once swapped,
+ * they're swapped back. Anything less clear (they/them, both or neither in a line) is left as written.
+ */
+export function orderConfessionals(draft: EpisodeDraft, characters: readonly [Pick<Character, "pronouns">, Pick<Character, "pronouns">]): EpisodeDraft {
+  const [pa, pb] = [characters[0].pronouns ?? "", characters[1].pronouns ?? ""];
+  if (!THIRD_PERSON[pa] || !THIRD_PERSON[pb] || pa === pb || draft.confessionals.length !== 2) return draft;
+  const [ca, cb] = draft.confessionals;
+  const swapped = mentions(ca, pa) > 0 && mentions(ca, pb) === 0 && mentions(cb, pb) > 0 && mentions(cb, pa) === 0;
+  return swapped ? { ...draft, confessionals: [cb, ca] } : draft;
+}
+
 export async function narrateEpisode(
   model: Model,
   input: DateInput,
@@ -266,10 +283,10 @@ export async function narrateEpisode(
       continue;
     }
     const result = parseEpisode(raw);
-    if (result.ok) return anchorBestLine(result.episode, story?.transcript ?? []);
+    if (result.ok) return orderConfessionals(anchorBestLine(result.episode, story?.transcript ?? []), characters);
     // Self-talk on the last try: take the asides out rather than lose the date (it was safe, just untidy).
     if (result.reason === "self_talk" && result.episode && attempt === SHOWRUNNER_ATTEMPTS - 1) {
-      return anchorBestLine(repairSelfTalk(result.episode), story?.transcript ?? []);
+      return orderConfessionals(anchorBestLine(repairSelfTalk(result.episode), story?.transcript ?? []), characters);
     }
     reasons.push(result.reason);
   }

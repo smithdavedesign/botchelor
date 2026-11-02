@@ -130,6 +130,19 @@ async function generate(): Promise<void> {
         if (ch.house) (ch as Character & { secrets?: unknown }).secrets = secrets.dealtSecrets(ch.id, "eval").map((secret, idx) => ({ season_id: "eval", idx, secret }));
       }
     }
+    // Go deeper (LIVING_EVAL_DEEPER=1): side a gets the step's fields, drawn from its idea lists by the case's seed (its
+    // last relationship, what wins it over, fun or serious, and two things it's hiding); side b gets a mood too, so a
+    // mismatch comes up. The same every run.
+    if (env.LIVING_EVAL_DEEPER === "1") {
+      const ex = await import("@/lib/extras");
+      const [a, b] = built.characters as Character[];
+      const at = <T,>(xs: readonly T[], k: number) => xs[(c.seed + k) % xs.length];
+      a.extras = { ...a.extras, baggage: at(ex.BAGGAGE_IDEAS, 0), wins_them_over: at(ex.WINS_THEM_OVER_IDEAS, 1), mood: at(ex.MOOD_IDS, 0) };
+      b.extras = { ...b.extras, mood: at(ex.MOOD_IDS, 2) };
+      const own = [at(ex.HIDING_IDEAS, 0), at(ex.HIDING_IDEAS, 3)].map((secret, idx) => ({ season_id: "own", idx: 10 + idx, secret }));
+      const ch = a as Character & { secrets?: { season_id: string; idx: number; secret: string }[] };
+      ch.secrets = [...own, ...(ch.secrets ?? [])];
+    }
     const version = built.setup.engine_version;
     const outcome = deterministicEngine.decide(built.input, built.seed, version as never);
     const actor = costing(paid(MODEL));
@@ -146,13 +159,14 @@ async function generate(): Promise<void> {
     const characters = built.characters as [Character, Character];
     const metrics = gen.quality ?? transcriptQuality(gen.transcript, characters, qualityContext(built, gen.draft.setting));
     const g = gen as unknown as Record<string, unknown>;
-    console.log(`[${label}] ${c.id}: ${outcome.ending} → ${gen.outcome.ending}${(gen.outcome as { detail?: string }).detail ? ` (${(gen.outcome as { detail?: string }).detail})` : ""}, ${gen.transcript.length} lines, $${actor.cost()}, total $${spent.toFixed(3)}`);
+    const detail = (g.endingDetail as string | null | undefined) ?? null;
+    console.log(`[${label}] ${c.id}: ${outcome.ending} → ${gen.outcome.ending}${detail ? ` (${detail})` : ""}, ${gen.transcript.length} lines, $${actor.cost()}, total $${spent.toFixed(3)}`);
     return {
       case: c.id,
       characters: characters.map((x) => x.name),
       engine_ending: outcome.ending,
       ending: gen.outcome.ending,
-      detail: (gen.outcome as { detail?: string }).detail ?? null,
+      detail,
       transcript: gen.transcript.map((t) => ({ side: t.side, act: t.act, dialogue: t.dialogue, action: t.action, emotion: t.emotion })),
       inner: g.inner ?? null,
       slips: g.slips ?? [],

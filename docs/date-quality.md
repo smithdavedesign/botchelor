@@ -821,3 +821,38 @@ half offer the walk-out (whether a side takes it is up to the line); about half 
 maybe-against-no answers become ghosting. On the 20-date eval's answers (shipped arm, 12 of its 20 dates disasters), 8 were a
 no against a yes or a maybe, so about 4 in 20 would be ghosted and 1 one-sided; a slow burn needs the morning-after texts, which
 the eval didn't run.
+
+## Round: go deeper (2026-11-01)
+
+The create wizard has a new optional step, "Go deeper", between "More about them" and "Inner life". The edit page and
+MCP (`create_character` / `update_character`: `hiding`, plus extras `hot_takes`, `baggage`, `wins_them_over`, `mood`)
+have the same fields. Each field is used on the character's dates, only through its own side:
+
+| Field | Where it lives | Who sees it | What it does on a date |
+|---|---|---|---|
+| Hot takes | `extras.hot_takes` (≤5 × 120) | public (they'd say them) | Living dates' hot takes, now in the creator's own words instead of derived ones. Two that collide become the director's friction. |
+| What they're hiding | `cast_secrets`, season `own`, source `owner` (≤3 × 120) | private until one slips | The cast-secrets mechanism, not a second store. `secretsForDate` carries them for any character, the actor guards or hints at them (YOUR SECRETS), a slip is recorded (`recordSlips`), and it counts as out once that date airs publicly. Their page shows "N of M out", with no schedule. An edit replaces the rest, and one that has slipped stays. |
+| Their last relationship | `extras.baggage` (≤160) | private (`publicExtras` drops it) | `your_last_relationship` in its own details, plus WHAT GOES DEEPER: it shapes how fast they open up, and comes out only if the date earns it. The director is told only that it exists. |
+| What really wins them over | `extras.wins_them_over` (≤160) | private | `what_really_wins_you_over`: it lands when the other does it, and they never ask for it. It also weighs on their own "see them again?" (`weigh_this` in lib/choices.ts). |
+| Fun or serious | `extras.mood`: playful, balanced or earnest | on the card ("🎲 Dates") | `how_you_date` in its own prompt. When one is playful and the other earnest, the director plans a moment where the difference shows. |
+
+The WHAT GOES DEEPER section and the `weigh_this` line appear only on a side that has one of these fields, so every
+other prompt is unchanged. The same content checks as the sheet apply (`checkFieldsAnyLanguage`, the field is named
+`hiding`). Catalog names are untouched, so the currency-word guardrail is unaffected.
+
+Also in this round, the diary cam's confessionals come back in the right order (`orderConfessionals` in
+lib/showrunner.ts). On 2026-11-02, Juniper's to-camera line read "She is hard to read…", about herself. The model had
+handed back the pair swapped. When the two sides have different he/she pronouns and each line speaks only of its own
+speaker, the pair is swapped back.
+
+**Measured (2026-11-02, OPENROUTER_LOOP_KEY).** Six fixed dates were played twice by the real pipeline on Haiku 5.5
+with the morning-after texts on: plain, and with Go deeper (`LIVING_EVAL_DEEPER=1`). In the deeper arm, side a gets a
+last relationship, what wins it over, a mood and two things it's hiding, drawn from the idea lists by seed, and side b
+gets a mood. Gemini 3.7 Flash judged each pair blind in both orders and preferred the deeper date 3 times, the plain one
+0 times, with 3 ties (it picked the first position 3 times in 6). Six is too few for significance (sign test p = 0.25),
+but nothing got worse. The fields showed up the way they're meant to. One baggage came out when the date earned it
+(Teo: "eleven days, one ring, and a drawer I haven't opened since"). No owner secret slipped in six dates, so they're
+guarded, not blurted. The answers moved toward honest: plain was maybe/maybe, yes/maybe, then 3 × yes/yes and
+maybe/yes; deeper was maybe/no, then 3 × maybe/maybe and 2 × yes/yes. The cost was 1.8¢ a date plain and 2.3¢ deeper
+(+27%: longer prompts on the side that has the fields, and 11.7 lines against 11), and only on dates with a character
+that went deeper. The run cost $0.29 ($0.11 + $0.14 generation, $0.04 judging).

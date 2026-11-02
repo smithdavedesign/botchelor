@@ -3,9 +3,10 @@ import { SECRET_EVERY } from "@/lib/cast-secrets";
 
 /**
  * A cast member's hidden secrets this season (lib/cast-secrets.ts): the ones out so far, and a lock for each still to
- * come, with how many more public dates until the next. Server-rendered, nothing to click.
+ * come, with how many more public dates until the next. Or (own) what a creator says their character is hiding (Go
+ * deeper): those come out only when one slips on a date, so no count. Server-rendered, nothing to click.
  */
-export function Secrets({ name, secrets }: { name: string; secrets: CastSecrets }) {
+export function Secrets({ name, secrets }: { name: string; secrets: CastSecrets & { own?: boolean } }) {
   const locked = secrets.total - secrets.out.length;
   return (
     <section className="card cast-secrets" id="secrets" aria-labelledby="secrets-title">
@@ -24,14 +25,18 @@ export function Secrets({ name, secrets }: { name: string; secrets: CastSecrets 
         {Array.from({ length: locked }, (_, i) => (
           <li key={`locked-${i}`} className="muted cast-secret-locked">
             <span aria-hidden="true">🔒</span>{" "}
-            {i === 0 && secrets.next_in !== null
+            {secrets.own
+              ? "Still hidden"
+              : i === 0 && secrets.next_in !== null
               ? `Comes out after ${secrets.next_in} more public ${secrets.next_in === 1 ? "date" : "dates"}`
               : "Still hidden"}
           </li>
         ))}
       </ul>
       <p className="muted small">
-        {name} has {secrets.total} this season. One comes out for every {SECRET_EVERY} of their dates that air.
+        {secrets.own
+          ? `${name} is hiding ${secrets.total === 1 ? "something" : `${secrets.total} things`}. One only comes out when a date draws it out of them, once that date airs.`
+          : `${name} has ${secrets.total} this season. One comes out for every ${SECRET_EVERY} of their dates that air.`}
       </p>
     </section>
   );
