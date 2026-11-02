@@ -14,8 +14,9 @@ type Candidate = {
   check_note: string | null;
 };
 type View = {
-  this_season: { id: string; label: string; cast: Slot[] };
-  next_season: { id: string; label: string; generate_from_day: number; candidates: Candidate[] };
+  this_season: { id: string; label: string; format: string; cast: Slot[] };
+  next_season: { id: string; label: string; format: string; generate_from_day: number; candidates: Candidate[] };
+  formats: { slug: string; label: string }[];
   note?: string | null;
 };
 
@@ -118,6 +119,34 @@ export default function SeasonPanel() {
             </li>
           ))}
         </ol>
+      </section>
+      <section className="card">
+        <h2>Format</h2>
+        <p className="muted small">
+          How a season runs (venues, weekly twists, recoupling nights). Classic is the default; nothing is scheduled
+          until you pick another here.
+        </p>
+        {([
+          ["This season", view.this_season],
+          ["Next season", view.next_season],
+        ] as const).map(([title, season]) => (
+          <p key={season.id}>
+            <strong>{title}</strong> ({season.label}):{" "}
+            {view.formats.map((f) => (
+              <span key={f.slug}>
+                <button
+                  type="button"
+                  className={season.format === f.slug ? "primary small" : "button-ghost small"}
+                  disabled={busy !== null || season.format === f.slug}
+                  onClick={() => act(`f-${season.id}-${f.slug}`, { action: "format", season_id: season.id, slug: f.slug })}
+                >
+                  {f.slug === "classic" ? "Classic" : "Island"}
+                </button>{" "}
+              </span>
+            ))}
+            <span className="muted small"> · announces itself as “{view.formats.find((f) => f.slug === season.format)?.label}”</span>
+          </p>
+        ))}
       </section>
     </>
   );

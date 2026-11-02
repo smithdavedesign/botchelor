@@ -20,6 +20,8 @@ import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
 import { STAGE_LABELS, type Stage } from "./relationships";
 import { DATE_ROLEPLAYS } from "./roleplays";
+import { twistOf, twistWeekStart } from "./season-format";
+import { seasonFormatNow } from "./season-format-store";
 import { seasonClosedSince, type SeasonRef } from "./season-ref";
 import { callRecord } from "./streaks";
 import { chemistryShifts, type ChemistryShift } from "./chemistry-shifts";
@@ -56,6 +58,8 @@ export type ShowSince = {
   secret: SecretOut | null;
   /** A season that closed since: its finale page. */
   season: SeasonRef | null;
+  /** The twist week that began since their last visit (lib/season-format.ts): "This week on Botchelor". */
+  twist: { label: string; tease: string } | null;
 };
 
 /** When this person's last visit was, or null for a first visit (or one too recent to count as a return). */
@@ -152,8 +156,19 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     shift: [...shifts.up, ...shifts.down].sort((x, y) => Math.abs(y.shift) - Math.abs(x.shift))[0] ?? null,
     secret,
     season: seasonClosedSince(since, now),
+    twist: await twistSince(db, since, now),
   };
   // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
+  // Nor is the week's twist: most weeks have one, so it rides along but never summons the card.
   const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret || card.season;
   return anything ? card : null;
+}
+
+/** This week's twist ("This week on Botchelor"), when its week began after their last visit; otherwise null. */
+async function twistSince(db: Db, since: Date, now: Date): Promise<{ label: string; tease: string } | null> {
+  const def = await seasonFormatNow(db, now).catch(() => null);
+  if (!def) return null;
+  if (twistWeekStart(def, now) <= since) return null;
+  const twist = twistOf(def, now);
+  return { label: twist.label, tease: twist.tease };
 }

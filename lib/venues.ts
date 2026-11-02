@@ -191,6 +191,21 @@ export function pickVenueAvoiding(seed: number, avoid: readonly string[] = []): 
   return VENUE_IDS[start];
 }
 
+/**
+ * Deals a venue like pickVenueAvoiding, but from a season format's own pool when one is set (lib/season-format.ts:
+ * the island month's villa venues). No pool (null/empty) falls through to pickVenueAvoiding, byte for byte, so a
+ * classic season deals exactly as before formats existed.
+ */
+export function pickVenueFrom(seed: number, pool: readonly VenueId[] | null | undefined, avoid: readonly string[] = []): VenueId {
+  if (!pool?.length) return pickVenueAvoiding(seed, avoid);
+  const start = seed % pool.length;
+  for (let i = 0; i < pool.length; i++) {
+    const v = pool[(start + i) % pool.length];
+    if (!avoid.includes(v)) return v;
+  }
+  return pool[start];
+}
+
 /** The backdrop gradient for a venue, for the episode page and the share card. */
 export const venueBackdropCss = (id: PlaceId | string | null | undefined): string => {
   const [from, to] = venue(id).hues;
