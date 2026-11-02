@@ -4,3 +4,6 @@
  * getting back the share of tokens for the shots that never came. Its own file so the page can use it too.
  */
 export const REEL_STALLED_MS = 30 * 60 * 1000;
+
+/** A video's price as its buttons say it: its tokens, or on the viewer's own key (Connections, After Dark videos: 0). */
+export const videoPrice = (tokens: number): string => (tokens > 0 ? `${tokens} tokens` : "on your key");

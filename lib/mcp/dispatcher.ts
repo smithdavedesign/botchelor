@@ -18,6 +18,7 @@
  * in mcp_sessions, so we can see who comes to the show. No IP, no content, nothing personal.
  */
 import { isOurs } from "../our-traffic";
+import { deferWrite, flushCheckerLog, isCheckerHandshake, noteCheckerSession, waitingWrites } from "./probe-log";
 import { crisisCheck, crisisField } from "../crisis";
 import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentShareRefusal, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
@@ -1187,12 +1188,13 @@ async function unreadFromThem(db: Db, userId: string, from: string, to: string):
 export const HOUSE_BOT_REPLY_SECONDS = 120;
 /**
  * #1152 (the 2026-10-31-1808 run: a matched house-run bot never answered in 10+ minutes): most house-run bots are the
- * crowd, one pass every 15 minutes (scripts/crowd/prod-crowd.mjs), so between passes a reply takes up to
+ * crowd, one pass every HOUSE_BOT_EVERY_MINUTES (scripts/crowd/prod-crowd.mjs; 15 until 2026-11-01), so between passes a reply takes up to
  * HOUSE_BOT_PASS_MINUTES; only a bot whose script is running now (seen in the last few minutes) answers in two. One not
  * seen for HOUSE_BOT_PAUSED_MINUTES is paused: nothing is promised.
  */
-export const HOUSE_BOT_PASS_MINUTES = 20;
-export const HOUSE_BOT_PAUSED_MINUTES = 45;
+export const HOUSE_BOT_EVERY_MINUTES = 30;
+export const HOUSE_BOT_PASS_MINUTES = 40;
+export const HOUSE_BOT_PAUSED_MINUTES = 90;
 const BOT_RUNNING_MINUTES = 3;
 /** How soon this house-run bot should answer, from when its script was last on; null when it's paused (or unknown). */
 export function botReplySeconds(lastRanMinutes: number | null): number | null {
@@ -1214,7 +1216,7 @@ function botReplyFields(lastRan: number | null): Record<string, unknown> {
   if (within === null) return { bot_paused: true, reply_note: "This house-run bot's script isn't running right now, so a reply may not come today: date the house cast or start_own_date meanwhile." };
   return {
     reply_expected_within_seconds: within,
-    reply_note: `A house-run bot answers on its own, ${within === HOUSE_BOT_REPLY_SECONDS ? `usually within ${within} seconds (its script is on now)` : `within about ${Math.round(within / 60)} minutes (its script passes every 15 minutes or so)`}: read_texts with wait_seconds: ${WAIT_MAX_SECONDS} waits for it, and a wait that runs out says how long to wait again.`,
+    reply_note: `A house-run bot answers on its own, ${within === HOUSE_BOT_REPLY_SECONDS ? `usually within ${within} seconds (its script is on now)` : `within about ${Math.round(within / 60)} minutes (its script passes every ${HOUSE_BOT_EVERY_MINUTES} minutes or so)`}: read_texts with wait_seconds: ${WAIT_MAX_SECONDS} waits for it, and a wait that runs out says how long to wait again.`,
   };
 }
 /** A house-run bot's side of a thread: when its script last ran and so how soon it answers (#1152). */
@@ -1227,7 +1229,7 @@ function houseBotSide(name: string, lastRan: number | null): Record<string, unkn
         ? `${name} is played by a house-run bot, and its script isn't running right now.${ran} A reply may not come today: date the house cast or start_own_date meanwhile.`
         : within === HOUSE_BOT_REPLY_SECONDS
           ? `${name} is played by a house-run bot: its script is on now, and it usually replies within ${HOUSE_BOT_REPLY_SECONDS / 60} minutes of your text.`
-          : `${name} is played by a house-run bot whose script passes every 15 minutes or so, so a reply can take up to ${HOUSE_BOT_PASS_MINUTES} minutes.${ran}`,
+          : `${name} is played by a house-run bot whose script passes every ${HOUSE_BOT_EVERY_MINUTES} minutes or so, so a reply can take up to ${HOUSE_BOT_PASS_MINUTES} minutes.${ran}`,
     house_bot: true,
     ...(lastRan === null ? {} : { bot_last_ran_minutes_ago: lastRan }),
     ...(within === null ? { bot_paused: true } : { reply_expected_within_seconds: within }),
@@ -4119,6 +4121,8 @@ export type McpContext = {
   logLevel?: string;
   /** The client's declared capabilities from initialize (sampling, elicitation, roots, …). Spec: ClientCapabilities. */
   clientCapabilities?: Record<string, unknown>;
+  /** A registry or liveness checker shaking hands (lib/mcp/probe-log.ts): answered and logged without the database. */
+  checker?: boolean;
 };
 
 /** The call carries the admin key (the admin's own agents). */
@@ -8619,6 +8623,15 @@ async function reusableAgent(db: Db, c: { client: string | null; userAgent: stri
 }
 
 export async function handleMcpMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Record<string, unknown> | null> {
+  const method = typeof msg?.method === "string" ? msg.method : "";
+  const clientName = method === "initialize" ? clip((msg.params?.clientInfo as Record<string, unknown> | undefined)?.name, 80) : null;
+  ctx.checker = isCheckerHandshake(method, { clientName, userAgent: ctx.userAgent, sessionId: ctx.sessionId });
+  // Anything else uses the database anyway: write the checkers' waiting rows first, so a session this call refers to exists.
+  if (!ctx.checker && !method.startsWith("notifications/") && waitingWrites() > 0) {
+    await getDb()
+      .then((db) => flushCheckerLog(db))
+      .catch(() => {});
+  }
   const out = await handleMessage(msg, ctx);
   // Every call, for the admin analytics page (lib/agent-analytics.ts): which method or tool, whether it worked.
   await logCall(msg, ctx, out).catch(() => {});
@@ -8635,13 +8648,20 @@ async function logCall(msg: RpcMessage, ctx: McpContext, out: Record<string, unk
     ? String((out?.error as { message?: string } | undefined)?.message ?? ((result?.content as { text?: string }[] | undefined)?.[0]?.text ?? "")).slice(0, 200)
     : null;
   const sessionId = clip(ctx.issuedSessionId ?? ctx.sessionId, 64);
+  const insert = (db: Db, at: Date | null) =>
+    db.query(
+      `insert into mcp_calls (session_id, agent_id, method, tool, ok, error, client_name, user_agent, created_at)
+       values ($1, coalesce((select agent_id from mcp_sessions where id = $1), $2), $3, $4, $5, $6,
+               coalesce((select client_name from mcp_sessions where id = $1), $7), $8, coalesce($9::timestamptz, now()))`,
+      [sessionId, clip(msg.params?.arguments && (msg.params.arguments as Record<string, unknown>).agent_id, 64), method, tool, !failed, error, detectBot(ctx.userAgent)?.name ?? null, clip(ctx.userAgent, 200), at],
+    );
+  if (ctx.checker) {
+    const at = new Date();
+    deferWrite((db) => insert(db, at));
+    return;
+  }
   const db = await getDb();
-  await db.query(
-    `insert into mcp_calls (session_id, agent_id, method, tool, ok, error, client_name, user_agent)
-     values ($1, coalesce((select agent_id from mcp_sessions where id = $1), $2), $3, $4, $5, $6,
-             coalesce((select client_name from mcp_sessions where id = $1), $7), $8)`,
-    [sessionId, clip(msg.params?.arguments && (msg.params.arguments as Record<string, unknown>).agent_id, 64), method, tool, !failed, error, detectBot(ctx.userAgent)?.name ?? null, clip(ctx.userAgent, 200)],
-  );
+  await insert(db, null);
   // Which language the agent wrote in (lib/language-seen.ts), refused calls too: the call's prose arguments, never the words.
   const prose = tool ? proseArguments(msg.params?.arguments) : [];
   if (prose.length) {
@@ -8675,7 +8695,22 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       let agentId = crypto.randomUUID();
       let recorded = false;
       let wasReused = false;
-      try {
+      if (ctx.checker) {
+        // A registry or liveness checker (lib/mcp/probe-log.ts): the same answer, its session and funnel rows written later.
+        const at = new Date();
+        const row = [sessionId, agentId, clip(info.name, 80), clip(info.version, 40), clip(ctx.userAgent, 200), ctx.visitor ?? null, at];
+        deferWrite((db) =>
+          db.query(
+            `insert into mcp_sessions (id, agent_id, client_name, client_version, user_agent, visitor, created_at, last_seen) values ($1, $2, $3, $4, $5, $6, $7, $7)`,
+            row,
+          ),
+        );
+        deferWrite((db) => recordAgentEvent(db, agentId, "agent_initialize", { client: clip(info.name, 80) ?? null }));
+        noteCheckerSession(sessionId);
+        ctx.issuedSessionId = sessionId;
+        recorded = true;
+        track("agent_connected", { client: clip(info.name, 80) ?? detectBot(ctx.userAgent)?.name ?? "unknown", version: clip(info.version, 40) });
+      } else try {
         const db = await getDb();
         // #361: initialize again with your agent_id (params.agent_id, or _meta.agent_id) and this session resumes it, no stray agent.
         const meta = (msg.params?._meta ?? {}) as Record<string, unknown>;
@@ -8705,13 +8740,17 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         /* recording is best effort: the agent can still play statelessly with agent_id */
       }
       // #867: the agents' shared show-model budget, live, so an agent knows on arrival when today's is (nearly) spent.
-      const budget = await getDb()
-        .then((db) => sharedBudget(db))
-        .catch(() => null);
+      const budget = ctx.checker
+        ? null
+        : await getDb()
+            .then((db) => sharedBudget(db))
+            .catch(() => null);
       // #1208: and how many other agents are on now, so a like to an agent's character isn't sent to one that's away unawares.
-      const others = await getDb()
-        .then((db) => otherAgentsOn(db, agentId))
-        .catch(() => null);
+      const others = ctx.checker
+        ? null
+        : await getDb()
+            .then((db) => otherAgentsOn(db, agentId))
+            .catch(() => null);
       const budgetNote =
         budget && budget.left <= 3
           ? `${budget.left === 0 ? "The agents' shared show-model dates are used up" : `Only ${budget.left} of the agents' ${budget.cap} shared show-model dates are left`} today (back at ${budget.resets_at}). Free all day: start_own_date (you write the lines), swipes, texts, predictions and reviews.`

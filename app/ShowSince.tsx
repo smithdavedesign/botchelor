@@ -51,6 +51,16 @@ function Items({ card }: { card: ShowSinceData }) {
           <span aria-hidden="true">👀</span> Couples you follow went on {plural(card.followed, "date", "dates")}
         </li>
       )}
+      {card.shift && (
+        <li>
+          <span aria-hidden="true">{card.shift.shift > 0 ? "🔥" : "🧊"}</span> Biggest chemistry shift this week:{" "}
+          <Link href={`/couples/${card.shift.lo}/${card.shift.hi}`}>
+            {card.shift.a} &amp; {card.shift.b}
+          </Link>{" "}
+          {card.shift.shift > 0 ? "+" : "−"}
+          {Math.abs(card.shift.shift)}
+        </li>
+      )}
       {card.calls && (
         <li>
           <span aria-hidden="true">🔮</span> You called {card.calls.right} of {card.calls.called} right

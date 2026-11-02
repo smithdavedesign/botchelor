@@ -49,6 +49,7 @@ import TileTools, { SelectBar } from "@/app/studio/TileTools";
 import FixFaces from "../../FixFaces";
 import { tileRatio } from "@/app/studio/FormatChips";
 import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
+import { videoPrice } from "@/lib/adult/reel-timing";
 
 /** The tabs under the theater, in order; the gallery opens first. */
 const PAGE_TABS = ["gallery", "make", "setup", "sides"] as const;
@@ -853,9 +854,9 @@ export default function SceneWriter({
                           className="button-ghost"
                           onClick={() => nightVideo(g)}
                           disabled={Boolean(mediaPaused) || lines < 6}
-                          title={mediaPaused ?? (lines < 6 ? "Too short for a video yet" : `A short film of ${many ? "the whole night, every chapter" : "this night"}: check each shot's picture, then film (${reelTokens} tokens)`)}
+                          title={mediaPaused ?? (lines < 6 ? "Too short for a video yet" : `A short film of ${many ? "the whole night, every chapter" : "this night"}: check each shot's picture, then film (${videoPrice(reelTokens)})`)}
                         >
-                          🎬 {many ? "Video of the night" : "Video"} · {reelTokens} tokens
+                          🎬 {many ? "Video of the night" : "Video"} · {videoPrice(reelTokens)}
                         </button>
                       </p>
                       {many && (
@@ -867,8 +868,8 @@ export default function SceneWriter({
                                 <button type="button" className="button-ghost small" onClick={() => setWatching(n)}>
                                   ▶ Chapter {n.chapter ?? "?"}
                                 </button>{" "}
-                                <button type="button" className="button-ghost small" onClick={() => void planVideo("chapter", n.id)} disabled={Boolean(mediaPaused) || n.lines.length < 6} title={mediaPaused ?? `A short film of this chapter alone (${reelTokens} tokens)`}>
-                                  🎬 This chapter · {reelTokens} tokens
+                                <button type="button" className="button-ghost small" onClick={() => void planVideo("chapter", n.id)} disabled={Boolean(mediaPaused) || n.lines.length < 6} title={mediaPaused ?? `A short film of this chapter alone (${videoPrice(reelTokens)})`}>
+                                  🎬 This chapter · {videoPrice(reelTokens)}
                                 </button>{" "}
                                 <span className="muted small">
                                   {n.lines.length} lines{n.place ? ` · ${n.place}` : ""}

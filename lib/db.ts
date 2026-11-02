@@ -2267,7 +2267,7 @@ create table if not exists user_connections (
 );
 create table if not exists user_connection_jobs (
   user_id text not null,
-  job text not null check (job in ('text', 'image', 'video', 'after_dark')),
+  job text not null check (job in ('text', 'image', 'video', 'after_dark', 'after_dark_video')),
   provider text not null,
   model text,
   created_at timestamptz not null default now(),
@@ -2926,6 +2926,17 @@ alter table adult_identity add column if not exists free_setup_at timestamptz;
 -- Reel shots that speak (David, 2026-11-01: "the best reasonable price model"): on Replicate, a shot with a line goes to
 -- a model that says the line itself (lib/adult/reels.ts talkShotInput); null: DEFAULT_REPLICATE_TALK_MODEL.
 alter table adult_settings add column if not exists replicate_talk_model text;
+
+-- After Dark videos on someone's own key (David, 2026-11-01): one more Connections job. Widen the CHECK once more.
+do $$ begin
+  if exists (
+    select 1 from pg_constraint where conname = 'user_connection_jobs_job_check'
+       and pg_get_constraintdef(oid) not like '%after_dark_video%'
+  ) then
+    alter table user_connection_jobs drop constraint if exists user_connection_jobs_job_check;
+    alter table user_connection_jobs add constraint user_connection_jobs_job_check check (job in ('text', 'image', 'video', 'after_dark', 'after_dark_video'));
+  end if;
+end $$;
 
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.

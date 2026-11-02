@@ -6,7 +6,7 @@
  */
 
 /** What a key can be used for. Each job has at most one key (one connection) at a time. */
-export const JOBS = ["text", "image", "video", "after_dark"] as const;
+export const JOBS = ["text", "image", "video", "after_dark", "after_dark_video"] as const;
 export type Job = (typeof JOBS)[number];
 export const isJob = (v: unknown): v is Job => typeof v === "string" && (JOBS as readonly string[]).includes(v);
 
@@ -52,10 +52,19 @@ export const JOB_INFO: Record<Job, JobInfo> = {
     anchor: "after-dark-pictures",
     costHint: "the model's price, about 2–6¢ a picture on your bill",
   },
+  // After Dark's videos of the night and clips (lib/adult/reels.ts reelMedia; David, 2026-11-01: "allow people to change
+  // with their BYOK"): the whole video, its pictures and the shots, on their own key, with the speaking model they pick.
+  after_dark_video: {
+    title: "After Dark videos",
+    what: "Videos of the night and clips, filmed on your own Venice or Replicate key with the video model you pick, free of tokens. Every shot is still checked before it's kept.",
+    free: "Botchelor's models, for tokens",
+    anchor: "after-dark-videos",
+    costHint: "the model's price, about 11¢–$1.30 a shot on your bill",
+  },
 };
 
 /** The jobs only someone After Dark is open to sees (the Connections page leaves them out for everyone else). */
-export const ADULT_JOBS: readonly Job[] = ["after_dark"];
+export const ADULT_JOBS: readonly Job[] = ["after_dark", "after_dark_video"];
 
 /**
  * Providers whose chat API is OpenAI-compatible at a known base URL. No custom endpoints (SSRF / prompt theft).
@@ -199,8 +208,8 @@ export const PROVIDER_INFO: Record<UserProvider, ProviderInfo> = {
   venice: {
     label: "Venice",
     mark: "VE",
-    jobs: ["after_dark"],
-    blurb: "After Dark pictures on Venice's own uncensored models; you pay Venice directly.",
+    jobs: ["after_dark", "after_dark_video"],
+    blurb: "After Dark pictures and videos on Venice's own uncensored models; you pay Venice directly.",
     keyHint: "A Venice API key",
     keysUrl: "https://venice.ai/settings/api",
     billingUrl: "https://venice.ai/settings/api",
@@ -208,8 +217,8 @@ export const PROVIDER_INFO: Record<UserProvider, ProviderInfo> = {
   replicate: {
     label: "Replicate",
     mark: "RE",
-    jobs: ["after_dark"],
-    blurb: "After Dark pictures on Replicate's open models; you pay Replicate directly.",
+    jobs: ["after_dark", "after_dark_video"],
+    blurb: "After Dark pictures and videos on Replicate's open models; you pay Replicate directly.",
     keyHint: "Starts with r8_",
     keysUrl: "https://replicate.com/account/api-tokens",
     billingUrl: "https://replicate.com/account/billing",
@@ -253,6 +262,24 @@ export const AFTER_DARK_MODELS: Partial<Record<string, ModelChoice[]>> = {
   replicate: [{ id: "qwen/qwen-image-edit-2511", note: "keeps the face, about 3¢ a picture", recommended: true }],
 };
 
+/**
+ * The video models After Dark's videos can be filmed with on someone's own key (lib/adult/reels.ts reelMedia), from the
+ * bake-off of 2026-11-01 (every model, one keyframe, one line). Each says a shot's line itself except Wan 2.2, which is
+ * silent and has the line said beside it by a stock voice. The keyframes are drawn on the same key.
+ */
+export const AFTER_DARK_VIDEO_MODELS: Partial<Record<string, ModelChoice[]>> = {
+  venice: [
+    { id: "wan-3-0-image-to-video", note: "says the line best of all, about $0.65 a 5 s shot", recommended: true },
+    { id: "wan-2.6-image-to-video", note: "lip-syncs to a stock voice" },
+    { id: "wan-2-7-image-to-video", note: "lip-syncs to a stock voice, newer" },
+  ],
+  replicate: [
+    { id: "wan-video/wan-2.6-i2v", note: "says the line itself, about $0.50 a 5 s shot", recommended: true },
+    { id: "wan-video/wan-2.7-i2v", note: "says the line itself, newer, up to 15 s" },
+    { id: "wan-video/wan-2.2-i2v-fast", note: "silent, the line said beside it, about 11¢ a shot" },
+  ],
+};
+
 /** The curated models a job can run on a provider, the recommended one first. Empty: the provider can't do the job. */
 export function curatedModels(provider: string, job: Job): ModelChoice[] {
   if (job === "text") {
@@ -262,6 +289,7 @@ export function curatedModels(provider: string, job: Job): ModelChoice[] {
   }
   if (job === "image") return provider === "openai" ? [{ id: IMAGE_MODEL, note: "OpenAI's current image model", recommended: true }] : [];
   if (job === "after_dark") return AFTER_DARK_MODELS[provider] ?? [];
+  if (job === "after_dark_video") return AFTER_DARK_VIDEO_MODELS[provider] ?? [];
   return provider === "google" ? [{ id: VIDEO_MODEL, note: "Veo 3.1 Lite: 4 s at 720p, about $0.20 a clip", recommended: true }] : [];
 }
 
@@ -392,6 +420,7 @@ const UNSET_STATUS: Record<Job, string> = {
   image: "Not set up: portraits need your own OpenAI key.",
   video: "Not set up: clips need your own Google key, with billing on.",
   after_dark: "Using: Botchelor's models, for tokens",
+  after_dark_video: "Using: Botchelor's models, for tokens",
 };
 
 /**
@@ -408,7 +437,7 @@ export function keyMeta(c: Pick<ConnectionSummary, "last4" | "verified_at" | "la
 }
 
 /** What waits at the cap for each job, when it isn't the free model standing in. */
-const WAITS: Record<Job, string> = { text: "your dates wait", image: "portraits wait", video: "clips wait", after_dark: "Studio pictures on your key wait" };
+const WAITS: Record<Job, string> = { text: "your dates wait", image: "portraits wait", video: "clips wait", after_dark: "Studio pictures on your key wait", after_dark_video: "videos on your key wait" };
 
 /** Every job's card, from a person's connections, assignments and this month's spend. Pure: the page and the tests share it. */
 export function jobCards(
@@ -425,7 +454,7 @@ export function jobCards(
       .map((x) => ({ provider: x.provider, label: providerLabel(x.provider), last4: x.last4 }));
     if (!a || !c) {
       // After Dark pictures without a key run on Botchelor's models for tokens: not free, so not "Free model".
-      const pill = !info.free ? "Not set up" : job === "after_dark" ? "For tokens" : "Free model";
+      const pill = !info.free ? "Not set up" : job === "after_dark" || job === "after_dark_video" ? "For tokens" : "Free model";
       return { job, title: info.title, what: info.what, state: "unset", pill, status: UNSET_STATUS[job], meta: [], provider: null, model: null, feel: null, cap: null, usage: null, error: null, reusable };
     }
     const model = a.model ?? defaultModelFor(a.provider, job);
@@ -556,6 +585,7 @@ export function modelFitsJob(job: Job, id: string): boolean {
   if (job === "image") return /^gpt-image/.test(id) && !/^gpt-image-1$/.test(id);
   if (job === "video") return /^veo/.test(id);
   if (job === "after_dark") return Object.values(AFTER_DARK_MODELS).some((ms) => ms?.some((m) => m.id === id));
+  if (job === "after_dark_video") return Object.values(AFTER_DARK_VIDEO_MODELS).some((ms) => ms?.some((m) => m.id === id));
   return !/(embed|tts|whisper|dall-e|gpt-image|imagen|veo|moderation|realtime|audio|transcribe|speech|guard|aqa|search-preview|computer-use|instruct$|^babbage|^davinci)/i.test(id);
 }
 
@@ -586,7 +616,7 @@ export function modelOptions(provider: string, job: Job, listed: string[] | null
     out.push(modelOption(provider, job, id));
   };
   for (const m of curated) add(m.id);
-  if (job === "video" || job === "after_dark") return out; // clips are tuned to Veo 3.1 Lite (lib/video.ts); the Studio has its own list
+  if (job === "video" || job === "after_dark" || job === "after_dark_video") return out; // clips are tuned to Veo 3.1 Lite (lib/video.ts); the Studio has its own list
   for (const id of [...(listed ?? [])].filter((m) => modelFitsJob(job, m)).sort()) add(id);
   return out;
 }

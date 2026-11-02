@@ -71,6 +71,7 @@ import { faceReferenceId, NO_STEERING, ratingsFor, steeringFor } from "./steerin
 import { logRequest, requestJson, withRequestLog, type LoggedRequest } from "./request-log";
 import { candidates, ensureTagged, placeKeys, rank, tagNow } from "./media-tags";
 import { giveBackIncludedClip } from "./usage";
+import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
 
 export const VENICE = "https://api.venice.ai/api/v1";
 /** Shots in a reel, and how many words a shot can carry (people say about 2.5 words a second). */
@@ -156,6 +157,8 @@ export type ReelShot = {
   /** On Replicate: the stock voice that says the line, and once the shot is in, that line (an adult_images 'audio'). */
   voice?: string;
   audio_id?: string;
+  /** Made on its owner's own key (Connections, "After Dark videos"): collected, stopped and paid for there. */
+  own?: boolean;
   /** On Replicate: made by the talk model, which says the line itself (its own sound, no `audio_id`). */
   speaks?: boolean;
   /**
@@ -1171,6 +1174,8 @@ export type ShotContext = {
   avoid?: string;
   /** The faces a shot of the night at sex starts from (nudeBaselines); unset or null, `bases` for every shot. */
   nudeBases?: [string, string] | null;
+  /** On the owner's own key (reelMedia): every shot queued is marked `own`, and nothing falls back to our keys. */
+  own?: { provider: "venice" | "replicate"; userId: string } | null;
 };
 
 /** One keyframe from Replicate's edit model, its bytes downloaded at once. */
@@ -1223,6 +1228,15 @@ async function withSteering(db: Db, ownerId: string, ctxIn: ShotContext): Promis
   return { ...ctxIn, avoid: steer.video.join(", ") || undefined };
 }
 
+/**
+ * runMedia for a reel's keyframe or video: on someone's own key, straight there, since their key's limits are theirs
+ * (nothing cools down for everyone, nothing falls back to ours).
+ */
+function runShotMedia<T>(db: Db, job: "keyframe" | "video", run: (p: MediaProvider) => Promise<T>, ctx: Pick<ShotContext, "provider" | "replicate" | "venice" | "own">) {
+  const own = ctx.own?.provider;
+  return own ? run(own).then((value) => ({ value, provider: own, fell_back: false })) : runMedia(db, job, run, providersOf(ctx));
+}
+
 /** The configured provider and what's available, for runMedia's fallback. */
 function providersOf(ctx: Pick<ShotContext, "provider" | "replicate" | "venice">) {
   const configured: MediaProvider = ctx.provider ?? (ctx.replicate ? "replicate" : "venice");
@@ -1237,7 +1251,6 @@ function providersOf(ctx: Pick<ShotContext, "provider" | "replicate" | "venice">
  * (`from_beat`) is already `frame_ready` with nothing to draw. No video is queued and no tokens are spent here.
  */
 export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx: ShotContext): Promise<void> {
-  const providers = providersOf(ctx);
   // A shot that already starts from a kept picture (a beat picture) is ready to film — nothing to draw.
   for (const s of shots) if (s.status === "planned" && s.from_beat && s.media_id) s.status = "frame_ready";
   const planned = shots.filter((s) => s.status === "planned");
@@ -1271,14 +1284,14 @@ export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx
         // A keyframe is one job: drawn on the other provider when this one is limited.
         // What it sent is kept with the keyframe (lib/adult/request-log.ts).
         const { value: made, requests } = await withRequestLog(() =>
-          runMedia(
+          runShotMedia(
             db,
             "keyframe",
             (p) =>
               p === "replicate"
                 ? drawReplicateKeyframe(ctx.replicate!, prompt, third ? [...faces, third] : set && place ? [...faces, replicateSetImage(set, place, ctx.baseUrl)] : faces)
                 : drawKeyframe(ctx.venice, prompt, third ? [...faces, third] : set ? [...faces, set] : faces),
-            providers,
+            ctx,
           ),
         );
         return { s, prompt, file: made.value, provider: made.provider, fell_back: made.fell_back, requests };
@@ -1345,18 +1358,19 @@ export async function drawFrames(db: Db, ownerId: string, shots: ReelShot[], ctx
  * other provider when the configured one is limited; once queued it's collected where it went (`provider`).
  */
 export async function queueVideos(db: Db, shots: ReelShot[], ctx: ShotContext): Promise<void> {
-  const providers = providersOf(ctx);
   for (const s of shots) {
     if (s.status !== "frame_ready" || s.archived_at) continue;
     try {
-      const { value: queued, requests } = await withRequestLog(() => runMedia(db, "video", (p) => (p === "replicate" ? queueReplicateShot(ctx, s) : queueShot(ctx, s)), providers));
+      const { value: queued, requests } = await withRequestLog(() => runShotMedia(db, "video", (p) => (p === "replicate" ? queueReplicateShot(ctx, s) : queueShot(ctx, s)), ctx));
       s.request = requests;
       if (queued.provider === "replicate") s.provider = "replicate";
       else delete s.provider;
       if (queued.fell_back) s.fell_back = true;
+      if (ctx.own) s.own = true;
       s.status = "queued";
     } catch (err) {
       Object.assign(s, { status: "failed", reason: err instanceof Error ? err.message.slice(0, 200) : "error" });
+      if (ctx.own) await ownKeyRefused(db, ctx.own.userId, ctx.own.provider, err);
     }
   }
 }
@@ -1458,10 +1472,13 @@ export async function stopReel(db: Db, ownerId: string, id: string, reason = "st
   const shots = row.shots.map((s) => (s.status === "queued" ? { ...s, status: "failed" as const, reason } : s));
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'making'`, [id, JSON.stringify(shots)]);
   // A shot still running on Replicate is stopped there too, so it doesn't go on billing for a video nobody collects.
+  // One made on their own key is stopped with that key.
   const running = row.shots.filter((s) => s.status === "queued" && s.provider === "replicate" && s.queue_id);
   if (running.length) {
     const { replicate } = await adultKeys(db).catch(() => ({ replicate: null }));
-    if (replicate) await Promise.all(running.map((s) => cancelPrediction(replicate, s.queue_id!)));
+    const own = running.some((s) => s.own) ? await jobKey(db, ownerId, "after_dark_video").catch(() => null) : null;
+    const tokenFor = (s: ReelShot) => (s.own ? (own?.provider === "replicate" ? own.apiKey : null) : replicate);
+    await Promise.all(running.map((s) => tokenFor(s) && cancelPrediction(tokenFor(s)!, s.queue_id!)));
   }
   return settleIfDone(db, id);
 }
@@ -1533,6 +1550,59 @@ export const talkModel = (settings: Pick<Settings, "replicate_talk_model">): str
 const replicateMedia = (keys: Awaited<ReturnType<typeof adultKeys>>, settings: Settings): ReplicateMedia | null =>
   keys.replicate ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora, talk: talkModel(settings) } : null;
 
+/** Where a video's pictures and shots are made, and on whose key. */
+export type ReelMedia = Pick<ShotContext, "venice" | "replicate" | "provider" | "model" | "own">;
+type ReelFail = { ok: false; status: number; error: string; message: string };
+
+/**
+ * Where a video is made (David, 2026-11-01: "allow people to change with their BYOK"): on the owner's own Venice or
+ * Replicate key when they've connected one for After Dark videos (Connections), with the video model they picked, its
+ * keyframes on that key too and nothing falling back to ours, free of tokens (`own`); otherwise on After Dark's keys
+ * (`media_provider`), for tokens. A key that's paused (over its cap, or refused) says so rather than charging tokens.
+ */
+export async function reelMedia(db: Db, ownerId: string, settings: Settings, keys: Awaited<ReturnType<typeof adultKeys>>): Promise<{ ok: true; media: ReelMedia } | ReelFail> {
+  const usable = await jobUsability(db, ownerId, "after_dark_video");
+  if (usable.state !== "none") {
+    if (usable.state !== "ok") return { ok: false, status: 409, error: "own_key_paused", message: usable.message };
+    const jk = await jobKey(db, ownerId, "after_dark_video");
+    const provider = jk?.provider;
+    if (!keys.hive) return { ok: false, status: 409, error: "not_set_up", message: "Videos need the Hive key in After Dark's settings." };
+    if (!jk || (provider !== "venice" && provider !== "replicate")) return { ok: false, status: 409, error: "no_own_key", message: "Your key for After Dark videos can't be opened: connect it again under Connections." };
+    if (!settings.studio.own_keys[provider]) return { ok: false, status: 403, error: "own_key_off", message: "Own keys for that provider are switched off in the settings." };
+    const own = { provider, userId: ownerId } as const;
+    if (provider === "venice") return { ok: true, media: { venice: jk.apiKey, replicate: null, provider, model: jk.model, own } };
+    // Wan 2.2 is silent: picked, it films every shot with the line said beside it; any other model says the line itself.
+    const silent = /wan-2\.2/.test(jk.model);
+    const replicate: ReplicateMedia = { token: jk.apiKey, keyframe: settings.replicate_keyframe_model, video: silent ? jk.model : settings.replicate_video_model, videoLora: settings.replicate_video_lora, talk: silent ? null : jk.model };
+    return { ok: true, media: { venice: "", replicate, provider, model: settings.reel_model, own } };
+  }
+  const onReplicate = settings.media_provider === "replicate";
+  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
+    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
+  }
+  return { ok: true, media: { venice: keys.venice ?? "", replicate: replicateMedia(keys, settings), provider: settings.media_provider, model: settings.reel_model, own: null } };
+}
+
+/** A refusal of someone's own key (invalid, out of credit) goes on its Connections card, as a Studio picture's does. */
+async function ownKeyRefused(db: Db, userId: string, provider: string, err: unknown): Promise<void> {
+  const status = (err as { status?: number })?.status;
+  if (status) await recordJobFailure(db, userId, "after_dark_video", provider, `${err instanceof Error ? err.message : "error"} (HTTP ${status})`).catch(() => {});
+}
+
+/**
+ * About what a shot cost on someone's own key, for their Connections card's meter (an estimate: the providers don't say
+ * per prediction): Wan 2.2 with its voice about 11¢; a talking model about 10¢ a second (Replicate's Wan 2.6, 720p),
+ * Venice's Wan 3.0 about 13¢; and its keyframe, about 4¢.
+ */
+export function ownShotUsd(s: Pick<ReelShot, "model" | "text" | "speaks" | "from_beat" | "from_picture">): number {
+  const keyframe = s.from_beat || s.from_picture ? 0 : 0.04;
+  const model = s.model ?? "";
+  if (/wan-2\.2/.test(model) && !s.speaks) return keyframe + 0.11;
+  const seconds = s.text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND + BREATH_S;
+  const shot = /wan-2\.7/.test(model) ? Math.min(15, Math.max(5, Math.ceil(seconds))) : seconds <= 5 ? 5 : 10;
+  return keyframe + shot * (/^wan-3-0/.test(model) ? 0.13 : 0.1);
+}
+
 /** Sparse place/stage arrays keyed by each shot's night-line index, rebuilt from a draft's stored shots. */
 function shotGrids(shots: readonly ReelShot[]): { places: (string | null)[]; stages: number[] } {
   const places: (string | null)[] = [];
@@ -1565,11 +1635,10 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
   if (notReady) return { ok: false, status: 409, error: "not_ready", message: notReady };
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
-  // Made where After Dark's media is made: Venice, or Replicate as the backup.
-  const onReplicate = settings.media_provider === "replicate";
-  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
-    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
-  }
+  // Made where After Dark's media is made (Venice, or Replicate as the backup), or on their own key (Connections),
+  // and Hive's for the checks.
+  const where = await reelMedia(db, ownerId, settings, keys);
+  if (!where.ok) return where;
   if (lines.length < 6) return { ok: false, status: 409, error: "too_short", message: "Let the night run a little longer first: a video needs at least six lines." };
   // Hive over its daily limit (lib/adult/hive-limit.ts): refused before anything is drawn or spent.
   const gate = await hiveGate(db, keys.hive);
@@ -1579,7 +1648,7 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
   }
   const busy = await busyReel(db, ownerId);
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
-  const pays = !(await isAdmin(db, ownerId));
+  const pays = !where.media.own && !(await isAdmin(db, ownerId));
   const price = settings.reel_tokens;
   if (pays && !(await spendBoughtTokens(db, ownerId, price))) {
     return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. Get more on the shop page.` };
@@ -1604,7 +1673,7 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
     ]);
     // A shot of the night at sex starts from their nude baselines (made now for one who wears something and has none).
     const nudeBases = built.shots.some((s) => !s.from_beat && (s.stage ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, built.ca, built.cb, baseUrl) : null;
-    await startShots(db, ownerId, built.shots, { pair: [a, b], cast: built.cast, places: built.places, stages: built.stages, bases, nudeBases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
+    await startShots(db, ownerId, built.shots, { pair: [a, b], cast: built.cast, places: built.places, stages: built.stages, bases, nudeBases, hive: keys.hive!, baseUrl, ...where.media });
     const made = reelMadeOn(built.shots);
     await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [id, JSON.stringify(built.shots), made.provider, made.fell_back]);
     return { ok: true, reel: await settleIfDone(db, id) };
@@ -1631,10 +1700,9 @@ export async function planReel(db: Db, ownerId: string, x: string, y: string, li
   if (notReady) return { ok: false, status: 409, error: "not_ready", message: notReady };
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
-  const onReplicate = settings.media_provider === "replicate";
-  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
-    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
-  }
+  // On their own key (Connections) or ours, and Hive's for the checks.
+  const where = await reelMedia(db, ownerId, settings, keys);
+  if (!where.ok) return where;
   if (lines.length < 6) return { ok: false, status: 409, error: "too_short", message: "Let the night run a little longer first: a video needs at least six lines." };
   // The same night's draft from the last twelve hours is handed back as it is (the audit, 2026-10-31: closing and
   // reopening the dialog re-ran the director and threw the plan away), unless asked again.
@@ -1670,10 +1738,9 @@ export async function drawReelFrames(db: Db, ownerId: string, reelId: string, ba
   if (row.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
-  const onReplicate = settings.media_provider === "replicate";
-  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
-    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
-  }
+  // On their own key (Connections) or ours, and Hive's for the checks.
+  const where = await reelMedia(db, ownerId, settings, keys);
+  if (!where.ok) return where;
   const gate = await hiveGate(db, keys.hive);
   if (!gate.ok) {
     await logPaused(db, ownerId, gate.reason);
@@ -1689,7 +1756,7 @@ export async function drawReelFrames(db: Db, ownerId: string, reelId: string, ba
     // One shot (the storyboard's per-shot draw), or every one still planned.
     const drawing = only === undefined ? row.shots : row.shots.filter((_, k) => k === only);
     const nudeBases = drawing.some((s) => s.status === "planned" && !s.from_beat && (s.stage ?? 0) >= NUDE_FROM) ? await nudeBaselines(db, ownerId, ca, cb, baseUrl) : null;
-    const ctx = await withSteering(db, ownerId, { pair: [row.a, row.b], cast: reelCast(ca, cb, ownerId), places, stages, bases, nudeBases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
+    const ctx = await withSteering(db, ownerId, { pair: [row.a, row.b], cast: reelCast(ca, cb, ownerId), places, stages, bases, nudeBases, hive: keys.hive!, baseUrl, ...where.media });
     await drawFrames(db, ownerId, drawing, ctx);
     const made = reelMadeOn(row.shots);
     await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(row.shots), made.provider, made.fell_back]);
@@ -1724,13 +1791,12 @@ export async function filmReel(db: Db, ownerId: string, reelId: string, baseUrl:
   if (toApprove) return { ok: false, status: 409, error: "needs_approval", message: `Approve every shot's picture first: ${toApprove} still to go.` };
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
-  const onReplicate = settings.media_provider === "replicate";
-  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
-    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
-  }
+  // On their own key (Connections) or ours, and Hive's for the checks.
+  const where = await reelMedia(db, ownerId, settings, keys);
+  if (!where.ok) return where;
   const busy = await busyReel(db, ownerId);
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
-  const pays = !(await isAdmin(db, ownerId));
+  const pays = !where.media.own && !(await isAdmin(db, ownerId));
   const price = settings.reel_tokens;
   if (pays && !(await spendBoughtTokens(db, ownerId, price))) {
     return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. Get more on the shop page.` };
@@ -1740,7 +1806,7 @@ export async function filmReel(db: Db, ownerId: string, reelId: string, baseUrl:
     if (!ca || !cb) throw new Error("one of them is missing");
     const { places, stages } = shotGrids(row.shots);
     const bases = (await baselines(db, row.a, row.b, ownerId)) ?? (["", ""] as [string, string]);
-    const ctx = await withSteering(db, ownerId, { pair: [row.a, row.b], cast: reelCast(ca, cb, ownerId), places, stages, bases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
+    const ctx = await withSteering(db, ownerId, { pair: [row.a, row.b], cast: reelCast(ca, cb, ownerId), places, stages, bases, hive: keys.hive!, baseUrl, ...where.media });
     // The draft becomes a reel being made before anything is queued, so "one video at a time" still holds.
     await db.query(`update adult_reels set status = 'making', tokens = $2, updated_at = now() where id = $1 and status = 'draft'`, [reelId, pays ? price : 0]);
     await queueVideos(db, row.shots, ctx);
@@ -1871,15 +1937,12 @@ async function collectReplicateShot(
   // doesn't come leaves the shot silent, with its caption, rather than losing it.
   try {
     // The voice is a job of its own: on Venice's Kokoro when Replicate is limited (the video stays where it was made).
-    const said = await runMedia(
-      db,
-      "voice",
-      async (p) =>
-        p === "replicate"
-          ? runModel(keys.replicate, await voiceModel(), replicateVoiceInput(s), { maxBytes: MAX_VOICE_BYTES, timeoutMs: 60_000 })
-          : veniceSpeech(keys.venice!, s.text, s.voice ?? "af_alloy"),
-      { configured: "replicate", available: (p) => p === "replicate" || Boolean(keys.venice) },
-    );
+    // On someone's own key, on that key only.
+    const say = async (p: MediaProvider) =>
+      p === "replicate" ? runModel(keys.replicate, await voiceModel(), replicateVoiceInput(s), { maxBytes: MAX_VOICE_BYTES, timeoutMs: 60_000 }) : veniceSpeech(keys.venice!, s.text, s.voice ?? "af_alloy");
+    const said = s.own
+      ? { value: await say("replicate"), provider: "replicate" as const, fell_back: false }
+      : await runMedia(db, "voice", say, { configured: "replicate", available: (p) => p === "replicate" || Boolean(keys.venice) });
     const voice = said.value;
     if (!voice.mime.startsWith("audio/")) throw new Error("Replicate returned no audio");
     const audioId = crypto.randomUUID();
@@ -1914,6 +1977,9 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     // Its start was cut off before its video was queued (makeReel stopped partway): it's never coming.
     else if (!s.queue_id && age > NEVER_QUEUED_MS) Object.assign(s, { status: "failed", reason: s.reason ?? "never started" });
   }
+  // A shot made on its owner's own key is collected with that key, and never with ours.
+  const ownKey = shots.some((s) => s.own && s.status === "queued") ? await jobKey(db, ownerId, "after_dark_video").catch(() => undefined) : null;
+  const ownOf = (provider: "venice" | "replicate") => (ownKey?.provider === provider ? ownKey.apiKey : null);
   // Replicate's voice model, read once a poll and only when a Replicate shot needs it.
   let voiceModel: string | null = null;
   const voiceModelOf = async () => (voiceModel ??= (await getAdultSettings(db)).replicate_voice_model);
@@ -1931,17 +1997,26 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     if (paused) break;
     if (s.status !== "queued" || !s.queue_id || !s.model || checked >= SHOTS_PER_POLL) continue;
     if (s.retry_at && now < new Date(s.retry_at).getTime()) continue;
+    // Couldn't be read just now: asked again next poll. Gone (disconnected, or switched to the other provider): failed.
+    if (s.own && ownKey === undefined) continue;
+    if (s.own && !ownOf(s.provider ?? "venice")) {
+      failShot(s, "Your key for After Dark videos isn't connected any more (Connections)");
+      continue;
+    }
     if (s.provider === "replicate") {
-      if (!keys.replicate) continue;
-      const got = await collectReplicateShot(db, ownerId, row, s, { replicate: keys.replicate, hive: keys.hive, venice: keys.venice }, voiceModelOf, now);
+      const token = s.own ? ownOf("replicate") : keys.replicate;
+      if (!token) continue;
+      const got = await collectReplicateShot(db, ownerId, row, s, { replicate: token, hive: keys.hive, venice: s.own ? null : keys.venice }, voiceModelOf, now);
       if (got === "checked") checked++;
+      if (s.own && (s as ReelShot).status === "ready") await recordJobSpend(db, ownerId, "after_dark_video", "replicate", ownShotUsd(s));
       // Hive couldn't check it: nothing more goes to Hive this poll.
       if (got === "busy") break;
       continue;
     }
-    if (!keys.venice) continue;
+    const veniceKey = s.own ? ownOf("venice") : keys.venice;
+    if (!veniceKey) continue;
     // Venice keeps the file until we've stored our own (a check that can't run yet is tried again next poll).
-    const res = await venice(keys.venice, "/video/retrieve", { model: s.model, queue_id: s.queue_id });
+    const res = await venice(veniceKey, "/video/retrieve", { model: s.model, queue_id: s.queue_id });
     if (!res.ok) {
       s.status = "failed";
       s.reason = `Venice ${res.status}`;
@@ -1975,8 +2050,9 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
     delete s.retry_at;
     delete s.request;
     delete s.reason;
+    if (s.own) await recordJobSpend(db, ownerId, "after_dark_video", "venice", ownShotUsd(s));
     // Ours now: Venice's copy can go.
-    await venice(keys.venice, "/video/retrieve", { model: s.model, queue_id: s.queue_id, delete_media_on_completion: true }).catch(() => {});
+    await venice(veniceKey, "/video/retrieve", { model: s.model, queue_id: s.queue_id, delete_media_on_completion: true }).catch(() => {});
   }
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1`, [id, JSON.stringify(shots)]);
   // The shots that landed, tagged now the reel says what each shows (lib/adult/media-tags.ts tagNow).
@@ -2324,13 +2400,12 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
   if (!shot) return { ok: false, status: 404, error: "not_found", message: "There's no such shot to film again." };
   const settings = await getAdultSettings(db);
   const keys = await adultKeys(db);
-  const onReplicate = settings.media_provider === "replicate";
-  if (!(onReplicate ? keys.replicate : keys.venice) || !keys.hive) {
-    return { ok: false, status: 409, error: "not_set_up", message: `Videos need the ${onReplicate ? "Replicate" : "Venice"} and Hive keys in After Dark's settings.` };
-  }
+  // On their own key (Connections) or ours, and Hive's for the checks.
+  const where = await reelMedia(db, ownerId, settings, keys);
+  if (!where.ok) return where;
   const busy = await busyReel(db, ownerId);
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
-  const pays = !(await isAdmin(db, ownerId));
+  const pays = !where.media.own && !(await isAdmin(db, ownerId));
   // A clip filmed again costs what a clip past the allowance does (#1005: extras at about cost); a night's shot, its share.
   const price = !pays ? 0 : r.kind === "clip" ? settings.clip_tokens : Math.max(1, Math.ceil(settings.reel_tokens / Math.max(1, r.shots.length)));
   if (price && !(await spendBoughtTokens(db, ownerId, price))) {
@@ -2341,10 +2416,10 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
     if (!ca || !cb) throw new Error("one of them is missing");
     const { places, stages } = shotGrids(r.shots);
     const bases = (await baselines(db, r.character_a, r.character_b, ownerId)) ?? (["", ""] as [string, string]);
-    const ctx = await withSteering(db, ownerId, { pair: [r.character_a, r.character_b], cast: reelCast(ca, cb, ownerId), places, stages, bases, venice: keys.venice ?? "", hive: keys.hive, model: settings.reel_model, baseUrl, replicate: replicateMedia(keys, settings), provider: settings.media_provider });
+    const ctx = await withSteering(db, ownerId, { pair: [r.character_a, r.character_b], cast: reelCast(ca, cb, ownerId), places, stages, bases, hive: keys.hive!, baseUrl, ...where.media });
     // Back to its start picture, queued again; the reel is being made until it's in.
     Object.assign(shot, { status: "frame_ready" as const, media_id: shot.frame_id, refilm_tokens: price });
-    for (const f of ["queue_id", "reason", "retry_at", "audio_id", "request"] as const) delete shot[f];
+    for (const f of ["queue_id", "reason", "retry_at", "audio_id", "request", "own"] as const) delete shot[f];
     await db.query(`update adult_reels set status = 'making', updated_at = now() where id = $1 and status in ('ready', 'failed')`, [reelId]);
     await queueVideos(db, [shot], ctx);
     if (shot.status !== "queued") throw new Error(shot.reason ?? "it couldn't be queued");

@@ -11,6 +11,7 @@ import { replicateTiming, replicateVoice, setReelFetchForTests, setReelPausesFor
 import { downloadOutput, predictionRequest, ReplicateError, runModel, setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { adultKeys, DEFAULT_REPLICATE_VOICE_MODEL, getAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
+import { assignJob, recordError, saveConnection } from "@/lib/connections";
 import { loadCharacter } from "@/lib/character";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
@@ -498,6 +499,58 @@ describe("the video of the night on Replicate", () => {
     expect(replicate.creates(VOICE_VERSION)).toHaveLength(1);
     const made = (await t.db.query<{ model: string }>(`select model from adult_images where kind = 'video' order by model`)).rows.map((r) => r.model);
     expect(made).toEqual([VIDEO, TALK, TALK]);
+    expect(venice).toEqual([]);
+  });
+
+  it("films on someone's own Replicate key with the model they picked, collects and stops with it, and meters it on their card", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id, { replicate_talk_model: "" });
+    const venice = noVenice();
+    fakeHive();
+    const replicate = fakeReplicate();
+    await t.db.query(`insert into accounts (user_id, google_sub, email) values ($1, $2, $3)`, [id, `g-${id}`, `${id.slice(0, 8)}@example.test`]);
+    await saveConnection(t.db, id, "replicate", "placeholder-their-replicate-0007");
+    await assignJob(t.db, id, "after_dark_video", "replicate", "wan-video/wan-2.7-i2v");
+    threeShots();
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    expect(started.status).toBe("making");
+    expect(started.tokens).toBe(0);
+    expect(started.shots.every((s) => s.own === true && s.status === "queued" && s.model === "wan-video/wan-2.7-i2v" && s.speaks)).toBe(true);
+    // Keyframes and videos on their key, never ours; Wan 2.7 takes its picture as first_frame and any length.
+    const sent = replicate.seen.filter((x) => x.method === "POST" && x.url.includes("api.replicate.com"));
+    expect(sent.length).toBe(6);
+    expect(sent.every((x) => x.headers.authorization === "Bearer placeholder-their-replicate-0007")).toBe(true);
+    const talks = replicate.creates("wan-video/wan-2.7-i2v");
+    expect(talks).toHaveLength(3);
+    expect(talks[0].body!.input).toMatchObject({ duration: 5, resolution: "720p" });
+    expect(mediaOf((talks[0].body!.input as { first_frame: string }).first_frame)).toBeTruthy();
+    expect(talks[0].body!.input).not.toHaveProperty("image");
+
+    // Collected with their key too; each shot that lands goes on their card's meter (about 4¢ + 5 s at 10¢).
+    for (let i = 0; i < 3; i++) await advance(started.id, cookie);
+    const done = await advance(started.id, cookie);
+    expect(done.status).toBe("ready");
+    const polls = replicate.seen.filter((x) => x.method === "GET" && x.url.includes("/v1/predictions/"));
+    expect(polls.length).toBeGreaterThan(0);
+    expect(polls.every((x) => x.headers.authorization === "Bearer placeholder-their-replicate-0007")).toBe(true);
+    expect(replicate.creates(VOICE_VERSION)).toHaveLength(0);
+    const spent = (await t.db.query<{ cost_usd: number }>(`select cost_usd from user_connection_usage where user_id = $1 and job = 'after_dark_video'`, [id])).rows[0];
+    expect(spent.cost_usd).toBeCloseTo(3 * 0.54, 5);
+
+    // Stopped: cancelled on their key.
+    threeShots();
+    const second = (await (await make(cookie)).json()).reel as Reel;
+    await reelDelete(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${second.id}`, { method: "DELETE", headers: { cookie } }));
+    const cancels = replicate.seen.filter((x) => x.url.endsWith("/cancel"));
+    expect(cancels).toHaveLength(3);
+    expect(cancels.every((x) => x.headers.authorization === "Bearer placeholder-their-replicate-0007")).toBe(true);
+
+    // A key that's been refused says so, rather than charging tokens on ours.
+    await recordError(t.db, id, "replicate", "invalid_key");
+    threeShots();
+    const paused = await make(cookie);
+    expect(paused.status).toBe(409);
+    expect((await paused.json()).error).toBe("own_key_paused");
     expect(venice).toEqual([]);
   });
 

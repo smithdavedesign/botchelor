@@ -35,6 +35,7 @@ import { POST as postReaction } from "@/app/api/watch-parties/[id]/reactions/rou
 import { POST as postVote } from "@/app/api/watch-parties/[id]/votes/route";
 import { catalogItem, CURRENCY } from "@/lib/catalog";
 import { ensureSchema, pgliteDb, setDbForTests, type Db } from "@/lib/db";
+import { resetCheckerLogForTests } from "@/lib/mcp/probe-log";
 import { fixedEngine, setEngineForTests, type Outcome } from "@/lib/engine";
 import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -149,6 +150,7 @@ export async function startTestDb() {
   return {
     db,
     async reset() {
+      resetCheckerLogForTests();
       // The recent ending mix is cached per database (lib/endings-lately.ts): a reset starts it over.
       clearEndingsLatelyForTests();
       for (const table of [

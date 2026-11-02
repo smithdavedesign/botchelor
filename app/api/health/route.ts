@@ -1,4 +1,5 @@
 import { getDb, pingDb } from "@/lib/db";
+import { flushCheckerLog } from "@/lib/mcp/probe-log";
 import { handle, json } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
 import { paidDatesPerDay, paidDatesToday } from "@/lib/limits";
@@ -33,6 +34,8 @@ export const GET = handle(async (req: Request) => {
     return json({ ok: false, db: "unreachable" }, 503);
   }
   const db = await getDb();
+  // The MCP checkers' rows wait for the database to be awake for something else (lib/mcp/probe-log.ts): at least hourly.
+  await flushCheckerLog(db).catch(() => 0);
   const [reports, takedowns, stuck, paidToday, errors] = await Promise.all([
     openReportSummary(db),
     contentReportSummary(db),
