@@ -844,3 +844,15 @@ Also in this round, the diary cam's confessionals come back in the right order (
 lib/showrunner.ts). On 2026-11-02, Juniper's to-camera line read "She is hard to read…", about herself. The model had
 handed back the pair swapped. When the two sides have different he/she pronouns and each line speaks only of its own
 speaker, the pair is swapped back.
+
+**Measured (2026-11-02, OPENROUTER_LOOP_KEY).** Six fixed dates were played twice by the real pipeline on Haiku 5.5
+with the morning-after texts on: plain, and with Go deeper (`LIVING_EVAL_DEEPER=1`). In the deeper arm, side a gets a
+last relationship, what wins it over, a mood and two things it's hiding, drawn from the idea lists by seed, and side b
+gets a mood. Gemini 3.7 Flash judged each pair blind in both orders and preferred the deeper date 3 times, the plain one
+0 times, with 3 ties (it picked the first position 3 times in 6). Six is too few for significance (sign test p = 0.25),
+but nothing got worse. The fields showed up the way they're meant to. One baggage came out when the date earned it
+(Teo: "eleven days, one ring, and a drawer I haven't opened since"). No owner secret slipped in six dates, so they're
+guarded, not blurted. The answers moved toward honest: plain was maybe/maybe, yes/maybe, then 3 × yes/yes and
+maybe/yes; deeper was maybe/no, then 3 × maybe/maybe and 2 × yes/yes. The cost was 1.8¢ a date plain and 2.3¢ deeper
+(+27%: longer prompts on the side that has the fields, and 11.7 lines against 11), and only on dates with a character
+that went deeper. The run cost $0.29 ($0.11 + $0.14 generation, $0.04 judging).
