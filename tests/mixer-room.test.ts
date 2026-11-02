@@ -3,7 +3,7 @@ import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { episodeJson, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 import { runDueMixers } from "@/lib/group-dates-run";
 import { airEpisode } from "@/lib/air";
-import { backgroundBeats, playOrder, roomClosing, roomLine, roomOpening, roundCount, roundOf, rotationRound, type RoomRotation } from "@/lib/mixer-room";
+import { backgroundBeats, leftTogether, playOrder, roomClosing, roomLine, roomOpening, roundCount, roundOf, rotationRound, type RoomRotation } from "@/lib/mixer-room";
 import { mixerNightOf, mixerNightView } from "@/lib/mixer-night";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,6 +75,15 @@ describe("the mixer's rounds and room (lib/mixer-room.ts, pure)", () => {
     expect(closing).toMatch(/Sol slips Pia a number on the way out\./);
     expect(closing).toMatch(/Kit heads home on their own\./);
     expect(closing).toMatch(/empties out/);
+    // The pairs the closing names "leave together" are exactly leftTogether's (the backing settle reads them).
+    expect(
+      leftTogether([
+        { a: "s0", b: "s1", ending: "second_date" },
+        { a: "s1", b: "s2", ending: "second_date" },
+        { a: "s2", b: "s3", ending: "disaster" },
+        { a: "s3", b: "s0", ending: "friends" },
+      ]),
+    ).toEqual([["s0", "s1"]]);
   });
 });
 

@@ -20,8 +20,12 @@ export default function BackCast({ board }: { board: BackingBoard }) {
       <p className="kicker">Back a cast member · {board.label}</p>
       <h2 id="back-cast-head">Who are you backing this month?</h2>
       <p className="muted small">
-        Pick one. If they end the season coupled, you take the points and the badge.{" "}
-        {board.locked ? "Picks are locked for the month — a first pick still counts." : `Change your mind until ${day(board.locks_at)}; then it's locked. No take-backs.`}
+        {board.locked
+          ? mine
+            ? "Your pick is locked for the month. No take-backs. If they end the season coupled, the points and the badge are yours."
+            : // The book closed at mid-month for everyone (lib/backing.ts): a latecomer watches this month and backs the next.
+              "The producers closed the book at mid-month. Picks open again next month."
+          : `Pick one. If they end the season coupled, you take the points and the badge. Change your mind until ${day(board.locks_at)}; then the book closes. No take-backs.`}
       </p>
       <ul className="cast-preview-faces back-cast-faces">
         {board.cast.map((c) => (
@@ -29,7 +33,7 @@ export default function BackCast({ board }: { board: BackingBoard }) {
             <button
               type="button"
               aria-pressed={mine === c.id}
-              disabled={busy || (board.locked && mine !== null && mine !== c.id)}
+              disabled={busy || (board.locked && mine !== c.id)}
               onClick={() => back(c.id)}
               data-track="back-cast"
               data-track-where="watch"
@@ -65,9 +69,10 @@ export function BackThem({ characterId, name, board }: { characterId: string; na
           <span aria-hidden="true">🏅</span> You&apos;re backing {name} for {board.label}.{" "}
           <span className="muted">{board.locked ? "Locked. No take-backs." : `If they end the season coupled, the points are yours.`}</span>
         </>
-      ) : board.locked && mine !== null ? (
+      ) : board.locked ? (
         <span className="muted">
-          <span aria-hidden="true">🏅</span> Your pick for {board.label} is locked. No take-backs.
+          <span aria-hidden="true">🏅</span>{" "}
+          {mine !== null ? `Your pick for ${board.label} is locked. No take-backs.` : `The book on ${board.label} is closed. Picks open again next month.`}
         </span>
       ) : (
         <>

@@ -3147,6 +3147,11 @@ create table if not exists cast_backings (
 );
 create index if not exists cast_backings_character_idx on cast_backings (season_id, character_id);
 create index if not exists cast_backings_user_idx on cast_backings (user_id);
+
+-- The dare's verdict, read from the date itself (lib/dare-verdict.ts): went_through / sort_of / chickened_out, stored once
+-- with where it came from ('model', or 'roll': the engine's note_followed when the check failed). Null: not judged yet.
+alter table dare_nights add column if not exists verdict text;
+alter table dare_nights add column if not exists verdict_source text;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
