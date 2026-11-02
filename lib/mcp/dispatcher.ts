@@ -155,7 +155,7 @@ function playsAsNote(c: Character): string {
 const fromDate = (s: Source) => ({ episode_id: s.episode_id, with: s.with, aired: s.at.slice(0, 10) });
 import { POST as postPrediction } from "@/app/api/predictions/route";
 import { POST as postDealbreakerGuess } from "@/app/api/dealbreaker-guesses/route";
-import { loadRelationship, pairKey, relationshipsOf, STAGE_LABELS, stageOf, viewRelationship, type End, type Relationship } from "../relationships";
+import { loadRelationship, outcomeText, pairKey, relationshipsOf, STAGE_LABELS, stageOf, viewRelationship, type End, type Relationship } from "../relationships";
 import { clearNudge, NUDGE_MAX, setNudge } from "../between-dates";
 import { chainAfter, chainPage, type ChainItem, isText, loadChain, TEXT_MAX, type ChainText } from "../text-chain";
 import { couplePageFor, houseReplyCap, sendText } from "../texting";
@@ -170,7 +170,7 @@ import { extrasText, renameLeftovers } from "../rename-leftovers";
 import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
 import { CONVERSATION_TURNS, TURN_DIALOGUE_MAX } from "../rules";
 import { isPlaceholder, placeLabel, venueName, venuePhrase, venueShown } from "../venues";
-import { planPlace } from "../places";
+import { movePlace, planPlace } from "../places";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, feedbackBoard, saveFeedback, similarOnBoard, voteFeedback } from "../feedback";
 import { followCouple, followState, unfollowCouple } from "../follows";
 import type { Ending, Strategy } from "../rules";
@@ -215,7 +215,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // by default: the deliberate changes; compact: false has it all), made_by: agent without house-run bots and a house_bot
 // value, returned_because: date_agreed, the date their agent started said where it's agreed, this_week said when the show
 // dealt it, plays_as explained, and agents_on_now in the first my_status: new fields and values otherwise.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.16.0" } as const;
+// 2.17.0 (the 2026-11-02-0704 run, #1254-#1256): compact: "min" on the turn tools, place_used/place_note wherever a place
+// passed wasn't used as written, led_to and timeline_note beside a happy ending's label, and a second date planned from an
+// older date numbered after the pair's later ones: new fields and values otherwise.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.17.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -2167,6 +2170,38 @@ const agoWords = (seconds: number): string => {
 const starterOf = (r: { creator_id: string; starter: string; via: string }, userId: string): string =>
   r.creator_id === userId ? "you" : `${shortName(r.starter)}'s ${r.via === "mcp" ? "agent" : "creator"}`;
 
+/**
+ * #1256 (the 2026-11-02-0704 run: "place was silently ignored when the other agent started the date", and "a Roman aqueduct
+ * museum after closing" became museum_night unsaid): what became of a place the caller passed, read from the date as it
+ * stands: kept in its words, matched to a venue the show has, or not used (another agent started it, or a plan set it).
+ */
+async function placeArgNote(db: Db, episodeId: string, asked: unknown, userId: string): Promise<{ place_note?: string; place_used?: "kept" | "mapped" | "ignored" }> {
+  const words = typeof asked === "string" ? asked.trim() : "";
+  if (!words) return {};
+  const row = (
+    await db.query<{ venue: string | null; creator_id: string; a: string; b: string; starter: string; via: string }>(
+      `select e.setup->>'venue' as venue, e.creator_id, ca.name as a, cb.name as b, cs.name as starter, cs.created_via as via
+         from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+         left join lateral (select c.name, c.created_via from characters c where c.id in (e.character_a, e.character_b) order by (c.owner_id = e.creator_id) desc limit 1) cs on true
+        where e.id = $1`,
+      [episodeId],
+    )
+  ).rows[0];
+  if (!row?.venue) return {};
+  const name = venueName(row.venue);
+  const said = `Your place "${words}"`;
+  const wanted = [movePlace(words.slice(0, 80), row.a, row.b), movePlace(words.slice(0, 80), row.b, row.a)];
+  if (!(wanted as (string | null)[]).includes(row.venue)) {
+    const why = row.creator_id !== userId
+      ? `${starterOf(row, userId).replace(/^./, (c) => c.toUpperCase())} started this date and set the place`
+      : "this date was already set up";
+    return { place_used: "ignored", place_note: `${said} wasn't used: ${why}, so it's at ${name}. To go somewhere else, suggest a move on the date (move), or text them a place for the next one.` };
+  }
+  return isPlaceholder(row.venue) || row.venue.startsWith("home@")
+    ? { place_used: "kept", place_note: `${said} is kept: ${name}.` }
+    : { place_used: "mapped", place_note: `${said} was matched to ${name}, a venue the show has (a place it doesn't have keeps your words).` };
+}
+
 /** The second date already booked after `episodeId`, if any, with who booked it and how long ago (2.10.0, #661). */
 async function bookedSecondDate(db: Db, episodeId: string): Promise<{ id: string; creator_id: string; starter: string; via: string; ago: number; status: string } | null> {
   return (
@@ -2225,11 +2260,15 @@ async function whoAgreed(db: Db, episodeId: string, userId: string): Promise<str
  * already booked, as the success it is for this caller too: which date, who booked it and when, and that it charged this
  * caller nothing.
  */
-async function alreadyBookedSecondDate(db: Db, who: Identity, episodeId: string, booked: NonNullable<Awaited<ReturnType<typeof bookedSecondDate>>>): Promise<ToolOutcome> {
+async function alreadyBookedSecondDate(db: Db, who: Identity, episodeId: string, booked: NonNullable<Awaited<ReturnType<typeof bookedSecondDate>>>, place?: unknown): Promise<ToolOutcome> {
   const by = starterOf(booked, who.id);
   const ago = agoWords(booked.ago);
   const view = await callRoute(getEpisodeRoute as unknown as RouteHandler, { method: "GET", agentId: who.id, params: { id: booked.id } });
-  const [where, agreed] = await Promise.all([secondDateWhere(db, booked.id).catch(() => ({}) as Record<string, unknown>), whoAgreed(db, episodeId, who.id).catch(() => null)]);
+  const [where, agreed, placed] = await Promise.all([
+    secondDateWhere(db, booked.id).catch(() => ({}) as Record<string, unknown>),
+    whoAgreed(db, episodeId, who.id).catch(() => null),
+    placeArgNote(db, booked.id, place, who.id).catch(() => ({})),
+  ]);
   return {
     data: {
       already_booked: true,
@@ -2248,6 +2287,7 @@ async function alreadyBookedSecondDate(db: Db, who: Identity, episodeId: string,
       visibility: await visibilityOf(db, booked.id),
       ...(agreed ? { mutual: true, mutual_note: agreed, mutual_means_note: MUTUAL_MEANS } : {}),
       ...where,
+      ...placed,
       next: booked.status === "generating" ? EPISODE_NEXT : "It's written: get_episode reads it.",
       next_calls: [nextCall("get_episode", { episode_id: booked.id, wait_seconds: WAIT_MAX_SECONDS, summary: true }, booked.status === "generating" ? `It's being written (${WRITE_TIME}): this waits for it.` : "The second date, read back.")],
       cost: await costReport(db, who.id, { yours: "nothing", shared: false }),
@@ -2269,7 +2309,7 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
     ).rows.length > 0;
   // 2.10.0 (#661): already booked (the other agent's call landed first, or a retry of yours): that date, as a success.
   const booked = owner ? await bookedSecondDate(db, episodeId) : null;
-  if (booked) return alreadyBookedSecondDate(db, who, episodeId, booked);
+  if (booked) return alreadyBookedSecondDate(db, who, episodeId, booked, args.place);
   // One date at a time for a couple (run 5): not while another of theirs is still being made or performed.
   const busy = !owner
     ? undefined
@@ -2302,7 +2342,7 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
     // unique second date let theirs through, and this one gave back its reserved date (app/api/episodes).
     if (owner && (r.data.error === "planned" || r.data.error === "already_planned")) {
       const raced = await bookedSecondDate(db, episodeId);
-      if (raced) return alreadyBookedSecondDate(db, who, episodeId, raced);
+      if (raced) return alreadyBookedSecondDate(db, who, episodeId, raced, args.place);
     }
     return { error: errorOf(r) };
   }
@@ -2324,7 +2364,7 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
   await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
   const tookFreeSecond = freeSecond && !(await secondDateFreeNow(db, who.id).catch(() => true));
   const cost = await costReport(db, who.id, { before, shared: true, ...(tookFreeSecond ? { yours: "this week's free second date" } : {}) });
-  const where = await secondDateWhere(db, String(r.data.id)).catch(() => ({}) as Record<string, unknown>);
+  const where = { ...(await secondDateWhere(db, String(r.data.id)).catch(() => ({}) as Record<string, unknown>)), ...(await placeArgNote(db, String(r.data.id), args.place, who.id).catch(() => ({}))) };
   return {
     data: {
       // #1141: booked, and the new date's id at the top, as the preview's booked: false and the already-booked reply have.
@@ -2589,7 +2629,7 @@ function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateSte
     } as unknown as OwnDateStep;
   }
   const instructions = `${lead}Turn ${step.turn_number} of ${step.of}: ${step.speaker.name} speaks. As before: run it in ${step.speaker.name}'s own process; its JSON reply, or just the line, as "output". (Lost it? compact: false.)${hints}`;
-  if (args.compact === "delta") {
+  if (args.compact === "delta" || args.compact === "min") {
     const { messages: _m, ...rest } = step;
     return { ...rest, instructions, messages: [], system_unchanged: true, delta: true } as OwnDateStep;
   }
@@ -2640,12 +2680,12 @@ async function markReadyRead(db: Db, userId: string, episodeId: string): Promise
  * start_own_date's refusal as a tool error (#618, the 2026-10-21-2300 run): match_first keeps its code whatever the words
  * say now (matched but a yes missing reads differently from "haven't matched"), with where the pair stands.
  */
-const startRefusal = (r: { message: string; error: string; match_status?: string; waiting_on?: string; episode_id?: string }): ToolOutcome =>
+const startRefusal = (r: { message: string; error: string; match_status?: string; waiting_on?: string; episode_id?: string; place_used?: string }): ToolOutcome =>
   r.error === "match_first"
     ? { error: r.message, code: "match_first", details: { ...(r.match_status ? { match_status: r.match_status } : {}), ...(r.waiting_on ? { waiting_on: r.waiting_on } : {}) } }
     : // 2.8.0 (the 2026-10-22-0400 run): the other agent already started this pair's date: it's the one to play.
       r.episode_id
-      ? { error: r.message, code: "conflict", details: { episode_id: r.episode_id, next_calls: [nextCall("get_own_date_step", { episode_id: r.episode_id }, "Their agent already started this date with yours: this is your side of it.")] } }
+      ? { error: r.message, code: "conflict", details: { episode_id: r.episode_id, ...(r.place_used ? { place_used: r.place_used } : {}), next_calls: [nextCall("get_own_date_step", { episode_id: r.episode_id }, "Their agent already started this date with yours: this is your side of it.")] } }
       : { error: r.message };
 
 /** An own-date refusal as a tool error: #551's date_finished keeps its code and names the date's state. */
@@ -3576,6 +3616,38 @@ async function withTranscript(db: Db, data: Record<string, unknown>): Promise<Re
   return insertAfter(data, "summary", { transcript });
 }
 
+/** The own-date tools that take compact: "min" (#1255). */
+const MIN_STEP_TOOLS = new Set(["submit_own_date_step", "get_own_date_step", "wait_for_my_turn"]);
+/** What a compact: "min" reply keeps, in this order (stepTop's fields, a refusal's, a wait's, and what leads a reply). */
+const MIN_KEEP = [
+  "warning", "heads_up", "accepted", "ok", "rejected", "message", "stage", "episode_id", "turn_number", "of", "your_move", "whose_move",
+  "summary", "last_line", "show_takes_over_at", "seconds_left", "returned_because", "result", "wishes", "ignored_arguments",
+] as const;
+
+/**
+ * #1255 (four reports: "replies are huge even with compact: true or delta"): compact: "min" on a turn tool keeps only what
+ * the next move needs: accepted, the other side's last line (their_line), whose move, turn_number of of, and next_calls. No
+ * step, transcript or notes. A recap step keeps its step (the narrator's prompt is the move); a turn that answers their
+ * suggestion says so, and a last line's summary already asks for see_again.
+ */
+export function minStepReply(data: Record<string, unknown>): Record<string, unknown> {
+  const step = data.step as (OwnDateStep & { answer_their_suggestion?: unknown }) | undefined;
+  const out: Record<string, unknown> = {};
+  for (const k of MIN_KEEP) if (data[k] !== undefined) out[k] = data[k];
+  if (Array.isArray(out.heads_up)) {
+    out.heads_up = (out.heads_up as Record<string, unknown>[]).map((h) => ({ kind: h.kind, episode_id: h.episode_id, what: h.what }));
+  }
+  const transcript = Array.isArray(data.transcript) ? (data.transcript as { who: string; said: string }[]) : [];
+  const mine = step?.stage === "turn" ? step.speaker.name : null;
+  const theirs = step?.stage === "waiting" && step.waiting_for !== "recap" ? step.waiting_for.name : null;
+  const line = [...transcript].reverse().find((t) => (mine ? t.who !== mine : theirs ? t.who === theirs : false));
+  if (line) out.their_line = line;
+  if (step?.stage === "turn" && step.answer_their_suggestion) out.answer_their_suggestion = step.answer_their_suggestion;
+  if (step?.stage === "recap") out.step = step;
+  if (data.next_calls !== undefined) out.next_calls = data.next_calls;
+  return out;
+}
+
 /** 2.6.0: an own-date reply's next call, by stage, ids filled in (next_calls). */
 function withStepNext(data: Record<string, unknown>): Record<string, unknown> {
   const step = data.step as OwnDateStep | undefined;
@@ -4482,11 +4554,15 @@ function insertAfter(data: Record<string, unknown>, key: string, extra: Record<s
   return out;
 }
 
+/** #1254: what a timeline date's ending_label and led_to are, said once beside them. */
+const TIMELINE_NOTE =
+  "A date's ending_label is how it ended; on a happy ending it names the date it led to (led_to), not its own number: date 2's \"A third date\" means it ended wanting a third. date_number is the date's own.";
+
 /** A thread's date and event markers in the text shape (2.4.3, #556): from "show", a line of text, and when. */
 function chainMarker(item: Exclude<ChainItem, ChainText>): Record<string, unknown> {
   if (item.kind === "date") {
     return {
-      id: item.id, kind: "date", from: "show", text: `📅 Date ${item.number}${item.venue ? ` at ${venueShown(item.venue)}` : ""}${item.ending_label ? `: ${item.ending_label}` : ""}`, at: item.at,
+      id: item.id, kind: "date", from: "show", text: `📅 Date ${item.number}${item.venue ? ` at ${venueShown(item.venue)}` : ""}${item.ending_label ? ` → ${outcomeText(item.ending_label)}` : ""}`, at: item.at,
       number: item.number, venue: venueShown(item.venue), ending: item.ending_label, aired: item.aired, episode_id: item.episode_id, day: item.day,
     };
   }
@@ -6258,6 +6334,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       return {
         data: {
           episode: withoutEnding(r.data),
+          // #1256: what the place passed became.
+          ...(await placeArgNote(db, String(r.data.id), args.place, who.id).catch(() => ({}))),
           // 2.7.0 (#641): what it spent and what's left, said plainly.
           spent_note: spentNote(cost),
           // 2.8.0: who sees it, as saved (public_note or private_note says what that means).
@@ -6339,9 +6417,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                 "and the finished date says how the wishes counted (wishes). sliding_doors shows afterwards what one change would have done.",
               ...(r.step.stage === "turn" || r.step.stage === "recap" ? { where: r.step.where } : {}),
               // #1119: what the place you named became (a car park had silently been dealt the botanic park).
-              ...(typeof args.place === "string" && args.place.trim() && !r.resumed && (r.step.stage === "turn" || r.step.stage === "recap")
-                ? { place_note: `Your place "${args.place.trim()}" is set as: ${r.step.where}.` }
-                : {}),
+              // #1256: and on a date another agent started (resumed), that it wasn't used.
+              ...(await placeArgNote(db, r.step.episode_id, args.place, who.id).catch(() => ({}))),
               // #1205 (the 2026-11-01-1037 run: a night-train roleplay stayed in a karaoke booth, unsaid): a roleplay keeps the venue.
               ...(r.roleplay && !r.resumed && (r.step.stage === "turn" || r.step.stage === "recap") ? { roleplay_note: roleplayPlaceNote(r.step.where, true) } : {}),
               // #1059 (the 2026-10-30-2233 run: two agents learned the recap's shape and the finale rule from a refusal): between
@@ -6942,7 +7019,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           Object.assign(r, { texts: texts.map((t) => agentText(t, self)) });
         }
       }
-      return { data: { character_id: id, relationships }, identity: who };
+      // #1254 (three agents read "Date 2 … A third date" as an off-by-one): what the label beside a date's number means.
+      const ledOn = relationships.some((r) => (r as { timeline?: { led_to?: string }[] }).timeline?.some((x) => x.led_to));
+      return { data: { character_id: id, relationships, ...(ledOn ? { timeline_note: TIMELINE_NOTE } : {}) }, identity: who };
     }
     case "leave_nudge": {
       const who = resolveIdentity(args, session, true)!;
@@ -7845,6 +7924,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         // preview charged nothing; and a mutual one says who agreed and where each yes came from.
         const planned = state.reason === "planned" ? await bookedSecondDate(db, params.id).catch(() => null) : null;
         const agreed = state.mutual ? await whoAgreed(db, params.id, who.id).catch(() => null) : null;
+        // #1254: the number it books as counts every public date the pair has had, so planned from an older date it's more
+        // than that date's plus one; and the ending labels name the date a date led to, not its own number.
+        const nextN = (r.data as { next_date_number?: number }).next_date_number;
+        const numberNote = state.mutual && typeof nextN === "number"
+          ? { next_date_number_note: `It books as their ${ordinal(nextN)} date (date_number ${nextN}): one more than all their public dates so far, not only the one it follows. An ending label names the date a date led to ("A third date" on date 2), not that date's number.` }
+          : {};
         // 2.7.0 (#641): the booking call comes only here, after a preview; before it airs, the wait (which books nothing).
         const calls = planned
           ? [nextCall("get_episode", { episode_id: planned.id, wait_seconds: WAIT_MAX_SECONDS, summary: true }, "Their second date is already booked: this reads it (it waits while it's being written).")]
@@ -7886,7 +7971,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
                   note: `A second date follows a date that's aired.${when} plan_second_date with wait_seconds waits for an airing that close, then previews (confirm: true books).`,
                   ...(agreed ? { mutual_note: agreed } : {}),
                 }
-              : { ...r.data, ...(agreed ? { mutual_note: agreed } : {}) },
+              : { ...r.data, ...(agreed ? { mutual_note: agreed } : {}), ...numberNote },
             ...(await costFor()),
             agents_date_budget_today: await sharedBudget(db, who.id),
             ...waited,
@@ -9185,6 +9270,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // 2.13.0 (#751): agent_id_note when it's news (a minted identity, or this connection's first reply that names it), and a
       // note this connection was already sent word for word is left out (compact: false sends them all).
       const idNews = "error" in out || !out.identity || out.identity.given ? false : out.identity.minted || !session ? true : await firstIdNote(db, session.id);
+      // #1255: compact: "min", last, so what rode along (waiting_for_you, notes) is left out too.
+      if (!("error" in out) && args.compact === "min" && MIN_STEP_TOOLS.has(name)) out = { ...out, data: minStepReply(out.data) };
       if (!("error" in out) && args.compact !== false) {
         const noteKey = session?.id ?? (out.identity?.given ? `agent:${out.identity.id}` : null);
         if (noteKey) out = { ...out, data: dropSentNotes(noteKey, out.data) };

@@ -147,6 +147,23 @@ describe("a second date — only when they both want one", () => {
     expect(notice.body).toMatch(/^Started by Otto's side \(their owner booked it\)\. The show's model performs both sides, Otto and Mira: nothing for you to write\./);
   });
 
+  it("#1254: planned from an older date after the pair has dated since, it takes the next number, not the parent's plus one", async () => {
+    const { creator, character, first } = await mutualHouseDate();
+    scriptOutcome({ ending: "friends", sides: [side(true), side(false)] });
+    scriptDate();
+    const between = await (await api.createEpisode({ character_id: character.id, partner_id: HOUSE_PARTNER_ID }, creator)).json();
+    // Both aired publicly, so both count as the pair's dates (the roleplay own date in the issue was one of these).
+    await t.db.query(`update episodes set revealed_at = coalesce(revealed_at, now()), visibility = 'public' where id = any($1)`, [[first.id, between.id]]);
+    expect((await check(first.id, creator)).body.next_date_number).toBe(3);
+
+    scriptOutcome({ ending: "second_date", sides: [side(true), side(true)] });
+    scriptDate();
+    const booked = await plan(first.id, creator);
+    expect(booked.status).toBe(200);
+    const setup = (await t.db.query<Any>(`select setup from episodes where id = $1`, [booked.body.id])).rows[0].setup;
+    expect(setup.date_number).toBe(3);
+  });
+
   it("a second date is never more public than the date it follows", async () => {
     const { creator, character, first } = await mutualHouseDate();
     await api.setVisibility(first.id, "private", creator);

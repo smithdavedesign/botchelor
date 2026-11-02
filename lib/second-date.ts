@@ -9,7 +9,7 @@
  * win. One second date per date (episodes.followup_of is unique).
  */
 import type { Db } from "./db";
-import { dateNumberSql } from "./date-number";
+import { dateNumberSql, publicDateSql } from "./date-number";
 import { takenWith } from "./partners";
 import { loadRelationship } from "./relationships";
 import { DELETED_OWNER } from "./rules";
@@ -32,6 +32,12 @@ type DateRow = {
   blocked: boolean;
   /** Which date this one was for the couple (1 for a first date). */
   date_number: number;
+  /**
+   * The number its follow-up gets: this date's plus one, or more when the pair has dated since (#1254: a roleplay own
+   * date after their first, then a second date planned from the first, was booked as "Date 2" a second time). Counted
+   * the way every other booking is (lib/date-number.ts nextDateNumber: 1 + the pair's public dates).
+   */
+  next_number: number;
 };
 
 async function loadDate(db: Db, episodeId: string): Promise<DateRow | null> {
@@ -40,6 +46,11 @@ async function loadDate(db: Db, episodeId: string): Promise<DateRow | null> {
             a.owner_id as a_owner, b.owner_id as b_owner, a.open_to_dates as a_open, b.open_to_dates as b_open,
             (select f.id from episodes f where f.followup_of = e.id limit 1) as planned,
             coalesce(${dateNumberSql("e")}, 1) as date_number,
+            greatest(coalesce(${dateNumberSql("e")}, 1) + 1,
+                     (select count(*)::int + 1 from episodes p
+                       where ((p.character_a = e.character_a and p.character_b = e.character_b)
+                           or (p.character_a = e.character_b and p.character_b = e.character_a))
+                         and ${publicDateSql("p")})) as next_number,
             exists (select 1 from blocks bl
                      where a.owner_id is not null and b.owner_id is not null
                        and ((bl.blocker_id = a.owner_id and bl.blocked_id = b.owner_id)
@@ -127,7 +138,7 @@ export async function secondDateState(db: Db, episodeId: string, userId: string,
     partner_character_id: d[`${theirs}_id`],
     partner_name: d[`${theirs}_name`],
     plan: (rel?.plans ?? []).filter((p) => p.episode_id === episodeId).map((p) => p.text),
-    next_date_number: d.date_number + 1,
+    next_date_number: d.next_number,
     free: reason === null && (await secondDateFreeNow(db, userId).catch(() => false)),
   };
 }
@@ -184,5 +195,5 @@ export async function checkSecondDate(
     const yes = (await db.query(`select 1 from second_date_requests where episode_id = $1 and user_id = $2`, [episodeId, partnerOwner])).rows.length > 0;
     if (!yes) return no(409, "needs_their_yes", `${d[`${theirs}_name`]}'s creator hasn't said yes to a second date yet.`);
   }
-  return { ok: true, followupOf: episodeId, visibility: stricter(requested ?? d.visibility, d.visibility), dateNumber: d.date_number + 1 };
+  return { ok: true, followupOf: episodeId, visibility: stricter(requested ?? d.visibility, d.visibility), dateNumber: d.next_number };
 }
