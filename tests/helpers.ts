@@ -184,6 +184,8 @@ export async function startTestDb() {
         // Tonight's situation (lib/situations.ts): the house cast outlives a reset, so its nights would too.
         "situation_votes",
         "situation_nights",
+        // Backings (lib/backing.ts) hang off the house cast too.
+        "cast_backings",
         // A season's finale (lib/season-recap.ts): frozen once, so a reset must forget it.
         "season_recaps",
         // This season's cast secrets (lib/cast-secrets.ts) hang off the house cast, which outlives a reset.

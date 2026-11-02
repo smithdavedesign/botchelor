@@ -59,6 +59,8 @@ export type AccountExport = {
   arc_predictions: Record<string, unknown>[];
   /** Their votes on tonight's situation (lib/situations.ts). */
   situation_votes: Record<string, unknown>[];
+  /** The cast members they backed by season (lib/backing.ts), and how each pick ended. */
+  cast_backings: Record<string, unknown>[];
   notifications: Record<string, unknown>[];
   push_subscriptions: Record<string, unknown>[];
   /** Email notifications: the address, whether it's on, and how many emails were sent (lib/email.ts). */
@@ -198,6 +200,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
     couple_follows: await q("select character_lo, character_hi, created_at from couple_follows where user_id = $1", [userId]),
     arc_predictions: await q("select character_lo, character_hi, target, pick, created_at, resolved_at, outcome from arc_predictions where user_id = $1", [userId]),
     situation_votes: await q("select day, pick, created_at, updated_at from situation_votes where user_id = $1 order by day", [userId]),
+    cast_backings: await q("select season_id, character_id, created_at, updated_at, won, settled_at from cast_backings where user_id = $1 order by season_id", [userId]),
     notifications: await q("select kind, title, body, link, created_at, read_at from notifications where user_id = $1 order by created_at", [userId]),
     push_subscriptions: await q("select split_part(endpoint, '/', 3) as push_service, created_at from push_subscriptions where user_id = $1", [userId]),
     email: await q(
@@ -428,6 +431,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   await run("delete from couple_follows where user_id = $1", [userId]);
   await run("delete from arc_predictions where user_id = $1", [userId]);
   await run("delete from situation_votes where user_id = $1", [userId]);
+  await run("delete from cast_backings where user_id = $1", [userId]);
   await run("delete from nudges where user_id = $1", [userId]);
   await run("delete from second_date_requests where user_id = $1", [userId]);
   await run("delete from date_proposals where from_user = $1 or to_user = $1", [userId]);

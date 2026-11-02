@@ -3054,6 +3054,22 @@ create table if not exists season_recaps (
   narrative_by text,
   frozen_at timestamptz
 );
+
+-- Back a cast member (lib/backing.ts; docs/ideas.md "Bringing viewers back", idea 3): one pick per viewer per season,
+-- changeable until mid-month. Settled once when the season closes (won = ended the season publicly coupled): points
+-- (lib/game.ts) and a season badge (the won row itself).
+create table if not exists cast_backings (
+  season_id text not null,
+  user_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  won boolean,
+  settled_at timestamptz,
+  primary key (season_id, user_id)
+);
+create index if not exists cast_backings_character_idx on cast_backings (season_id, character_id);
+create index if not exists cast_backings_user_idx on cast_backings (user_id);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

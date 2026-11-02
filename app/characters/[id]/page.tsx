@@ -43,6 +43,9 @@ import OwnerControls from "./OwnerControls";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import { partnerStyleOf } from "@/lib/partners";
 import { whileAwayOf } from "@/lib/activity";
+import { backingBoard } from "@/lib/backing";
+import { BackThem } from "@/app/BackCast";
+import { isOnSeasonCast } from "@/lib/season-cast";
 import LearnedPanel from "./LearnedPanel";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
@@ -190,6 +193,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const away = c.house
     ? null
     : ((await db.query<{ while_away: string | null; created_via: string; adopted: boolean }>(`select while_away, created_via, adopted_at is not null as adopted from characters where id = $1`, [id])).rows[0] ?? null);
+  // Back them for the month (lib/backing.ts): only a season cast member's page carries the stake.
+  const backing = c.house && isOnSeasonCast(id) ? await backingBoard(db, viewerId).catch(() => null) : null;
   // Who made them (lib/origin.ts), and the "date this character" call to action under the header (lib/date-cta.ts).
   const origin = (await originsOf(db, [id])).get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
   // Back to the tab they're on (the cast, people's, agents'), for the kicker and the breadcrumb.
@@ -325,6 +330,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
       <AiFiction />
       <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} />
+      {backing && <BackThem characterId={c.id} name={shortName(c.name)} board={backing} />}
 
       {ratings.is_owner && c.pg_flags.length > 0 && (
         // A public field saved before the sheet's PG check (lib/pg-public.ts): everyone sees it hidden until it's edited.
