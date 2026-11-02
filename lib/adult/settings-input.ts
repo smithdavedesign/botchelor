@@ -44,6 +44,8 @@ export const AdultSettingsInput = z.object({
   replicate_picture_model: replicateModel.optional(),
   replicate_keyframe_model: replicateModel.optional(),
   replicate_video_model: replicateModel.optional(),
+  // "off": shots with a line on the silent video model, the line said beside them (as before 2026-11-01).
+  replicate_talk_model: z.union([z.literal("off"), replicateModel]).optional(),
   replicate_voice_model: replicateModel.optional(),
   voice_model: z.enum(VOICE_MODELS).optional(),
   presence_loop_model: z.string().trim().max(120).regex(/^$|^[a-z0-9][a-z0-9._-]*$/i).optional(),
