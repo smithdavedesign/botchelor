@@ -6,12 +6,15 @@
  *
  *  - The dared side is dealt from the day, like the pair and the choices, so every page and the job agree ($0 stored).
  *  - One vote a viewer a day, changeable until the vote closes at UTC midnight (the situation's clock).
- *  - Whether they went through with it is the engine's own note_followed for that side (episodes.sides, decided before a
- *    word is written): attempted or chickened out, $0, no extra model call. The episode page reveals it once the date airs.
+ *  - Whether they went through with it is read from the date itself (wave 2, lib/dare-verdict.ts): one cheap check of the
+ *    dared side's lines against the dare — went through, sort of, or chickened out — stored once on dare_nights. Older
+ *    nights, and a check that failed, use the engine's note_followed roll for that side. The episode page reveals it once
+ *    the date airs.
  *  - A day with dare votes but no situation votes still makes the night's date (the dare is the premise enough); a day
  *    with neither makes none, so an idle day costs nothing.
  *  - The dares are a fixed, PG, producer-voiced pool (tests hold them to the show's content checks).
  */
+import { DARE_VERDICTS, followedOf, verdictFromRoll, type DareVerdict } from "./dare-words";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { situationPair, utcDay } from "./situations";
@@ -102,7 +105,15 @@ export function dareWinnerOf(choices: readonly DareDef[], tally: Map<string, num
   return best;
 }
 
-/** How the dared side's engine run answered its note (episodes.sides note_followed): did they go through with it? */
+export { DARE_VERDICTS, followedOf, VERDICT_WORDS, verdictFromRoll, type DareVerdict } from "./dare-words";
+
+/** A night's verdict: the stored one (lib/dare-verdict.ts), else the engine's roll. */
+async function verdictOf(db: Db, stored: string | null, episodeId: string, characterId: string): Promise<DareVerdict | null> {
+  if (stored && (DARE_VERDICTS as readonly string[]).includes(stored)) return stored as DareVerdict;
+  return verdictFromRoll(await dareFollowed(db, episodeId, characterId));
+}
+
+/** How the dared side's engine run answered its note (episodes.sides note_followed): the roll, before verdicts were read. */
 export async function dareFollowed(db: Db, episodeId: string, characterId: string): Promise<boolean | null> {
   const row = (
     await db.query<{ sides: { note_followed: boolean | null }[] | null; is_a: boolean }>(
@@ -114,20 +125,21 @@ export async function dareFollowed(db: Db, episodeId: string, characterId: strin
   return row.sides[row.is_a ? 0 : 1]?.note_followed ?? null;
 }
 
-export type DareReveal = { character_id: string; name: string; text: string; followed: boolean | null };
+export type DareReveal = { character_id: string; name: string; text: string; verdict: DareVerdict | null; followed: boolean | null };
 
 /** The episode page's reveal, once the date has aired: who was dared, to do what, and whether they went through with it. */
 export async function dareReveal(db: Db, episodeId: string): Promise<DareReveal | null> {
   const row = (
-    await db.query<{ character_id: string; dare_id: string; name: string }>(
-      `select n.character_id, n.dare_id, c.name from dare_nights n join characters c on c.id = n.character_id
+    await db.query<{ character_id: string; dare_id: string; name: string; verdict: string | null }>(
+      `select n.character_id, n.dare_id, c.name, n.verdict from dare_nights n join characters c on c.id = n.character_id
         where n.episode_id = $1`,
       [episodeId],
     )
   ).rows[0];
   const def = row ? dareById(row.dare_id) : undefined;
   if (!row || !def) return null;
-  return { character_id: row.character_id, name: row.name, text: def.text, followed: await dareFollowed(db, episodeId, row.character_id) };
+  const verdict = await verdictOf(db, row.verdict, episodeId, row.character_id);
+  return { character_id: row.character_id, name: row.name, text: def.text, verdict, followed: followedOf(verdict) };
 }
 
 export type DareChoice = { id: string; text: string; votes: number };
@@ -142,7 +154,18 @@ export type DareBoard = {
   my_pick: string | null;
   total: number;
   /** The last dare that made a date: who was dared to do what, whether they went through with it (null until it airs). */
-  last: { day: string; name: string; text: string; episode_path: string | null; followed: boolean | null; aired: boolean; my_pick: string | null; won: boolean } | null;
+  last: {
+    day: string;
+    name: string;
+    text: string;
+    episode_path: string | null;
+    /** Null until it airs. */
+    verdict: DareVerdict | null;
+    followed: boolean | null;
+    aired: boolean;
+    my_pick: string | null;
+    won: boolean;
+  } | null;
 };
 
 /** The dare card's data for one viewer. Null when the season has no cast to deal from. */
@@ -157,8 +180,8 @@ export async function dareBoard(db: Db, viewerId: string | null, now: Date = new
     viewerId
       ? db.query<{ pick: string }>(`select pick from dare_votes where day = $1 and user_id = $2`, [day, viewerId])
       : Promise.resolve({ rows: [] as { pick: string }[] }),
-    db.query<{ day: string; character_id: string; dare_id: string; episode_id: string | null; name: string; revealed: boolean }>(
-      `select n.day, n.character_id, n.dare_id, n.episode_id, c.name, (e.revealed_at is not null) as revealed
+    db.query<{ day: string; character_id: string; dare_id: string; episode_id: string | null; name: string; revealed: boolean; verdict: string | null }>(
+      `select n.day, n.character_id, n.dare_id, n.episode_id, c.name, (e.revealed_at is not null) as revealed, n.verdict
          from dare_nights n
          join characters c on c.id = n.character_id
          left join episodes e on e.id = n.episode_id
@@ -176,12 +199,15 @@ export async function dareBoard(db: Db, viewerId: string | null, now: Date = new
     const myLast = viewerId
       ? ((await db.query<{ pick: string }>(`select pick from dare_votes where day = $1 and user_id = $2`, [lr.day, viewerId])).rows[0]?.pick ?? null)
       : null;
+    // The verdict waits for the air: before it, the card says nothing about how it went.
+    const lastVerdict = lr.episode_id && lr.revealed ? await verdictOf(db, lr.verdict, lr.episode_id, lr.character_id) : null;
     last = {
       day: lr.day,
       name: lr.name,
       text: lastDef.text,
       episode_path: lr.episode_id ? `/episodes/${lr.episode_id}` : null,
-      followed: lr.episode_id && lr.revealed ? await dareFollowed(db, lr.episode_id, lr.character_id) : null,
+      verdict: lastVerdict,
+      followed: followedOf(lastVerdict),
       aired: lr.revealed,
       my_pick: myLast,
       won: myLast === lr.dare_id,

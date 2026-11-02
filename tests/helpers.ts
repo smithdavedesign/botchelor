@@ -47,6 +47,7 @@ import { setAfterglowEnabledForTests } from "@/lib/afterglow";
 import { setMixerVoiceEnabledForTests } from "@/lib/mixer-voice";
 import { setSeasonRecapVoiceEnabledForTests } from "@/lib/season-recap";
 import { setEpisodeTitleVoiceEnabledForTests } from "@/lib/episode-title";
+import { setDareJudgeEnabledForTests } from "@/lib/dare-verdict";
 import { setCastChatVoiceEnabledForTests } from "@/lib/cast-chat";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
@@ -127,6 +128,8 @@ export async function startTestDb() {
   // Episode titles (lib/episode-title.ts) are written at air time; off by default for the same reason (episode
   // tests script only the date's model). tests/episode-title.test.ts turns it on with a model of its own.
   setEpisodeTitleVoiceEnabledForTests(false);
+  // A dare night's verdict check (lib/dare-verdict.ts) takes the roll here; tests/dare-verdict.test.ts passes a model.
+  setDareJudgeEnabledForTests(false);
   // The cast group chat (lib/cast-chat.ts) writes from templates here; tests/cast-chat.test.ts passes a model.
   setCastChatVoiceEnabledForTests(false);
   // A new match's opening chat (lib/swipes.ts) is the swipe tests' to drive, with their own model.

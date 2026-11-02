@@ -5,6 +5,7 @@ import Avatar from "./Avatar";
 import { requestJson } from "./request";
 import { useAction } from "./useAction";
 import type { DareBoard } from "@/lib/dares";
+import { VERDICT_WORDS } from "@/lib/dare-words";
 
 /**
  * Tonight's dare (lib/dares.ts): the ballot's second lane. Viewers back one of three producer dares; the winner is
@@ -65,7 +66,7 @@ export default function DareVote({ board }: { board: DareBoard }) {
           {board.last.my_pick ? (board.last.won ? " (your dare)" : " (not yours this time)") : ""}{" "}
           {board.last.aired ? (
             <>
-              — {board.last.followed === true ? "they went through with it." : board.last.followed === false ? "they chickened out." : "did they go through with it? You decide."}{" "}
+              — {board.last.verdict ? VERDICT_WORDS[board.last.verdict] : "did they go through with it? You decide."}{" "}
               {board.last.episode_path && <Link href={board.last.episode_path}>See the date →</Link>}
             </>
           ) : (

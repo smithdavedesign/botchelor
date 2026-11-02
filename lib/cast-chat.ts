@@ -121,7 +121,8 @@ export async function chatFacts(db: Db, day: string, now: Date = new Date()): Pr
       ? {
           name: shortName(reveal.name),
           text: reveal.text,
-          outcome: reveal.followed === true ? "went through with it" : reveal.followed === false ? "chickened out" : "sort of did it",
+          // The verdict read from the date (lib/dare-verdict.ts); a night without one isn't gossip about the dare's ending.
+          outcome: reveal.verdict === "went_through" ? "went through with it" : reveal.verdict === "chickened_out" ? "chickened out" : reveal.verdict === "sort_of" ? "sort of did it" : "kept everyone guessing",
         }
       : null,
     recoupling: night
