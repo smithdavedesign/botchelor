@@ -65,6 +65,11 @@ export type Turn = {
   /** More endings (lib/ending-detail.ts): on this line the speaker walked out, and the date ended there. Stored. */
   walked_out?: true;
   /**
+   * The show ran out of time (simulateConversation's deadline, #1253): the date wrapped up on this line, short of its
+   * planned length, and nobody chose to leave. Stored, so the finished date can say why it ended early (lib/own-date.ts).
+   */
+  time_up?: true;
+  /**
    * Living dates (lib/inner-life.ts): this line's private feeling toward the other, the speaker's thought and what it
    * noted the other claiming. Only while the date is written: lib/pipeline.ts takes it off every line before anything is
    * saved or played (episodes.inner_life keeps it), and only the speaker's own prompt ever reads it back.
@@ -725,6 +730,12 @@ export async function simulateConversation(
     // when they've landed rather than run to a fixed length). Keeps the engine's decided ending — short dates
     // happen only when the actor says so, where the ending is being landed. settleLine drops it on a move.
     if (turn.done && shape.closing) break;
+  }
+  // #1253: the time wrap-up cut the date short of its plan (a slow model can leave a 12-line date at 3): its last line
+  // says so, so the finished date doesn't read as a goodbye nobody wrote. A walk-out ended it, not the clock.
+  const last = transcript.at(-1);
+  if (endBy !== undefined && last && !last.walked_out && transcript.length < dateShape(transcript, venueId, turns, { moves }).total) {
+    transcript[transcript.length - 1] = { ...last, time_up: true };
   }
   return transcript;
 }

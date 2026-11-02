@@ -103,6 +103,7 @@ Rules:
 - The date starts at the place given in "date_location", and your "setting" names only that place (it's shown before the date airs, so it never gives away where they end up). If "the_date_as_it_happened" shows them going somewhere else ("— They go to … —"), the scenes follow them there; otherwise never move them.
 - "show_format" sets the format this date is filmed in. Honour its framing throughout; it changes only the flavour, never who likes whom or how it ends.
 - If "the_date_as_it_happened" is given, that IS the date: the two characters already played it out line by line. Your scenes must faithfully recap what was actually said and done in each act (quote a few words where it helps), your twist and finale must match it, "best_line" must be copied exactly from one of its lines, and the confessionals must reflect real moments from it. Keep who said and did what exactly as it happened: who asked whom, whose story is whose, who said the line. Before you write each confessional, check in the date which of the two told each story you mention: a story the other character told is "their story about…", never the speaker's own. Refer to each character with their pronouns, in the confessionals too: each confessional is that character speaking about the OTHER one, with the other's pronouns.
+- If "cut_short" is given, the date was only that long: keep each scene to what those lines show (a scene can be a sentence), let the finale say it ended early, and never invent moments past the last line.
 
 Write the date as three acts, one scene each, a few sentences per scene:
   1. ${DATE_ACTS[0]}: they meet and size each other up.
@@ -190,6 +191,8 @@ export function buildMessages(
           ]),
         }
       : {}),
+    // #1253: a date the show's time limit cut short is only those lines; the recap mustn't write the rest of the plan.
+    ...(story?.transcript.at(-1)?.time_up ? { cut_short: `The show ran out of time: the date ended after these ${story.transcript.length} lines.` } : {}),
   };
   return [
     { role: "system", content: SYSTEM_PROMPT },
