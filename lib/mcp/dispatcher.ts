@@ -4567,7 +4567,18 @@ function chainMarker(item: Exclude<ChainItem, ChainText>): Record<string, unknow
       number: item.number, venue: venueShown(item.venue), ending: item.ending_label, aired: item.aired, episode_id: item.episode_id, day: item.day,
     };
   }
-  return { id: item.id, kind: item.event, from: "show", text: item.event === "matched" ? "💘 They matched" : "📅 Both said yes to a date", at: item.at, day: item.day };
+  const text =
+    item.event === "matched"
+      ? "💘 They matched"
+      : item.event === "date_agreed"
+        ? "📅 Both said yes to a date"
+        : item.event === "afterglow_held"
+          ? `🌅 ${item.count ?? 0} morning-after text(s), shown once the date airs`
+          : "👻 One of them never replied to the morning-after texts";
+  return {
+    id: item.id, kind: item.event, from: "show", text, at: item.at, day: item.day,
+    ...(item.episode_id ? { episode_id: item.episode_id } : {}),
+  };
 }
 /** Why items is empty (2.4.3, #556): nothing new since the cursor, or a thread with nothing in it. */
 const ITEMS_NOTHING_NEW = "Nothing new since your cursor (after): the thread has more, earlier.";

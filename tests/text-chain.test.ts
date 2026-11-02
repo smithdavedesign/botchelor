@@ -8,7 +8,7 @@ import { listNotifications } from "@/lib/notifications";
 import { pairKey, type End } from "@/lib/relationships";
 import { ENDING_LABELS, REPORT_HIDE_THRESHOLD } from "@/lib/rules";
 import { CHAIN_PAGE, chainPage, loadChain, PUBLIC_VIEWER, type ChainItem } from "@/lib/text-chain";
-import { dayLabel, isText } from "@/lib/text-chain-shared";
+import { DECIDE_AFTER_TEXTS_MS, dayLabel, decisionShown, decisionShownAt, isText, type ChainEvent } from "@/lib/text-chain-shared";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -110,6 +110,49 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
       await t.db.query(`insert into reports (episode_id, reporter_id) values ($1, $2)`, [aired.id, `reporter-${i}`]);
     }
     expect(await loadChain(t.db, character.id, HOUSE_PARTNER_ID, PUBLIC_VIEWER)).toEqual([]);
+  });
+
+  it("says when a date's morning after is held for the air, and labels a morning after one of them never answered", async () => {
+    const { creator, userId, character, me, them } = await owner();
+    const held = await date(creator, character.id, "2026-10-10T19:00:00Z", [
+      { side: "a", text: "Still thinking about it." },
+      { side: "b", text: "Me too." },
+    ], { air: false });
+    const ghosted = await date(creator, character.id, "2026-10-11T19:00:00Z", [
+      { side: "a", text: "Hey, last night was something." },
+      { side: "a", text: "No pressure. Just saying." },
+    ]);
+    const once = await date(creator, character.id, "2026-10-12T19:00:00Z", [{ side: "a", text: "Thanks for tonight." }]);
+    const shown = await loadChain(t.db, character.id, HOUSE_PARTNER_ID, { userId, owner: true });
+    const events = shown.filter((i): i is ChainEvent => i.kind === "event");
+    // David, 2026-11-02: the texts are held until the date airs (#981), but the thread says they're coming.
+    expect(events.find((e) => e.event === "afterglow_held")).toMatchObject({ episode_id: held.id, count: 2 });
+    expect(texts(shown)).not.toContain("Still thinking about it.");
+    // Two texts, no answer: ghosted, the quiet end named. One text and no answer isn't ghosting.
+    expect(events.filter((e) => e.event === "ghosted")).toEqual([expect.objectContaining({ episode_id: ghosted.id, who: them })]);
+    const at = shown.findIndex((i) => i.kind === "event" && i.event === "ghosted");
+    expect(shown[at - 1]).toMatchObject({ kind: "text", who: me, text: "No pressure. Just saying." });
+    // The ghosted ending (lib/ending-detail.ts) labels it even after one text.
+    await t.db.query(`update episodes set ending_detail = 'ghosted' where id = $1`, [once.id]);
+    const after = await loadChain(t.db, character.id, HOUSE_PARTNER_ID, { userId, owner: true });
+    expect(after.filter((i) => i.kind === "event" && i.event === "ghosted").map((e) => (e as ChainEvent).episode_id)).toEqual([ghosted.id, once.id]);
+    // The show's own read has the held texts, and no placeholder.
+    const usable = await loadChain(t.db, character.id, HOUSE_PARTNER_ID, { usableBy: userId });
+    expect(texts(usable)).toContain("Still thinking about it.");
+    expect(usable.some((i) => i.kind === "event" && i.event === "afterglow_held")).toBe(false);
+  });
+
+  it("talk, then decide: a match's answer shows once both have texted, or after the wait", () => {
+    const matched = "2026-11-02T10:00:00.000Z";
+    const between = (who: End, at: string): ChainItem => ({ kind: "text", id: `${at}#001#t`, at, day: at.slice(0, 10), who, text: "hi", source: "between", episode_id: null });
+    const wait = new Date(Date.parse(matched) + DECIDE_AFTER_TEXTS_MS).toISOString();
+    expect(decisionShownAt(matched, [])).toBe(wait);
+    expect(decisionShownAt(matched, [between("lo", "2026-11-02T10:01:00.000Z")])).toBe(wait);
+    // A text from before the match doesn't count.
+    expect(decisionShownAt(matched, [between("hi", "2026-11-01T09:00:00.000Z"), between("lo", "2026-11-02T10:01:00.000Z")])).toBe(wait);
+    expect(decisionShownAt(matched, [between("lo", "2026-11-02T10:01:00.000Z"), between("hi", "2026-11-02T10:03:00.000Z")])).toBe("2026-11-02T10:03:00.000Z");
+    expect(decisionShown(matched, [], Date.parse(matched) + 60_000)).toBe(false);
+    expect(decisionShown(matched, [], Date.parse(wait))).toBe(true);
   });
 
   it("pages from the newest back to the start, and a cursor whose text has gone still pages from the right place", () => {

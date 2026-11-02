@@ -19,10 +19,11 @@ import type { AfterglowLine } from "./afterglow";
 import type { Db } from "./db";
 import { pairKey, timelineLabel, usableFor, visibleTo, type End, type Viewer } from "./relationships";
 import { REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
-import { CHAIN_PAGE, isText, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
+import { airWindowMinutes } from "./air";
+import { CHAIN_PAGE, decisionShownAt, isText, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
 import { venueName, type PlaceId } from "./venues";
 
-export { CHAIN_PAGE, isText, TEXT_MAX, type ChainDate, type ChainEvent, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
+export { CHAIN_PAGE, decisionShown, decisionShownAt, isText, TEXT_MAX, type ChainDate, type ChainEvent, type ChainItem, type ChainPage, type ChainText } from "./text-chain-shared";
 
 /** Anyone who isn't an owner: the public layer (aired, public, unhidden dates). */
 export const PUBLIC_VIEWER: Viewer = { userId: null, owner: false };
@@ -55,12 +56,14 @@ type ChainEpisode = {
   character_a: string;
   ending: Ending;
   afterglow: AfterglowLine[] | null;
+  ending_detail: string | null;
+  air_after: string | Date | null;
   venue: PlaceId | null;
   followup_of: string | null;
 };
 
 const CHAIN_EPISODES = `
-  select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.partner_performer, e.character_a, e.ending, e.afterglow,
+  select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.partner_performer, e.character_a, e.ending, e.afterglow, e.ending_detail, e.air_after,
          e.setup->>'venue' as venue, e.followup_of,
          (select count(*)::int from reports r where r.episode_id = e.id) >= $3 as hidden
     from episodes e
@@ -115,24 +118,43 @@ export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer)
     // #981 (two visitors: "a house character's text gave away the ending before the date aired"): held until the date
     // airs. A private one never airs, so its texts come at once. Only as shown: the show's own reads (usableBy: what the
     // characters remember, the plans they texted) still have them.
-    if (!("usableBy" in layer) && e.revealed_at === null && e.visibility !== "private") return;
-    (e.afterglow ?? []).forEach((line, n) => {
+    // David, 2026-11-02 ("the texts from afterglow don't show in the text thread"): held, but the thread says so.
+    const lines = e.afterglow ?? [];
+    if (!("usableBy" in layer) && e.revealed_at === null && e.visibility !== "private") {
+      if (lines.length) {
+        const airs = iso(e.air_after ?? new Date(new Date(e.created_at).getTime() + airWindowMinutes() * 60_000));
+        items.push({ kind: "event", id: chainId(at, 1, `h:${e.id}`), at, day, event: "afterglow_held", count: lines.length, airs, episode_id: e.id });
+      }
+      return;
+    }
+    const sides = new Set<End>();
+    lines.forEach((line, n) => {
       const who: End = (line.side === "a") === (e.character_a === lo) ? "lo" : "hi";
+      sides.add(who);
       items.push({ kind: "text", id: chainId(at, n + 1, `a:${e.id}`), at, day, who, text: line.text, source: "afterglow", episode_id: e.id });
     });
+    // "I know she ghosted her but we should at least see the texts and then maybe a label saying ghosted": one of them
+    // texted the morning after and the other never answered (the ghosted ending, lib/ending-detail.ts, or a run of 2+).
+    if (sides.size === 1 && (e.ending_detail === "ghosted" || lines.length >= 2)) {
+      const quiet: End = sides.has("lo") ? "hi" : "lo";
+      items.push({ kind: "event", id: chainId(at, lines.length + 1, `g:${e.id}`), at, day, event: "ghosted", who: quiet, episode_id: e.id });
+    }
   });
   for (const t of texts.rows) items.push(betweenText(t));
-  // How they met, when it was the swipe deck (lib/swipes.ts): the match, and when both said yes to a date.
+  // How they met, when it was the swipe deck (lib/swipes.ts): the match, and when both said yes to a date: after
+  // they've texted (decisionShownAt: talk, then decide), not before.
   const m = match.rows[0];
+  const sorted = () => items.sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
   if (m) {
     const at = iso(m.matched_at);
     items.push({ kind: "event", id: chainId(at, 0, "m:matched"), at, day: at.slice(0, 10), event: "matched" });
     if (m.agreed_at) {
-      const agreed = iso(m.agreed_at);
-      items.push({ kind: "event", id: chainId(agreed, 999, "m:agreed"), at: agreed, day: agreed.slice(0, 10), event: "date_agreed" });
+      const shown = decisionShownAt(at, sorted());
+      const agreed = iso(m.agreed_at) > shown ? iso(m.agreed_at) : shown;
+      if (new Date(agreed).getTime() <= Date.now()) items.push({ kind: "event", id: chainId(agreed, 999, "m:agreed"), at: agreed, day: agreed.slice(0, 10), event: "date_agreed" });
     }
   }
-  return items.sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
+  return sorted();
 }
 
 /** One page of the chain: the `limit` items just before `before` (an item's id), or the newest when it's null. */

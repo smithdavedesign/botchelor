@@ -172,10 +172,16 @@ describe("what's next for a pair (the thread's action bar)", () => {
     const [lo, hi] = pairKey(me.id, bo.id);
     await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi) values ($1, $2, true, true)`, [lo, hi]);
     await text(me.id, cy.id, cy.id, "Hi.");
+    // Talk, then decide: until each has texted (or two hours have gone by), they're getting to know each other.
+    expect((await listThreads(t.db, me.userId, me.id))!.fresh.find((x) => x.with.id === bo.id)?.next).toEqual({ kind: "talking" });
+    expect(await (await loadThread(t.db, me.userId, me.id, bo.id))!.nextFor(me.id)).toEqual({ kind: "talking" });
+    await text(me.id, bo.id, me.id, "Hi Bo.");
+    await text(me.id, bo.id, bo.id, "Hi Ada.");
     const inbox = (await listThreads(t.db, me.userId, me.id))!;
-    expect(inbox.fresh.find((x) => x.with.id === bo.id)?.next).toEqual({ kind: "book" });
+    expect(inbox.conversations.concat(inbox.fresh).find((x) => x.with.id === bo.id)?.next).toEqual({ kind: "book" });
     const withBo = (await loadThread(t.db, me.userId, me.id, bo.id))!;
     expect(withBo.hasStory).toBe(true);
+    expect(withBo.decided).toBe(true);
     expect(await withBo.nextFor(me.id)).toEqual({ kind: "book" });
     const withCy = (await loadThread(t.db, me.userId, me.id, cy.id))!;
     expect(withCy.hasStory).toBe(false);
@@ -202,7 +208,8 @@ describe("what's next for a pair (the thread's action bar)", () => {
     const cy = await character("Cy Marr");
     for (const [other, yes] of [[bo.id, true], [cy.id, false]] as const) {
       const [lo, hi] = pairKey(me.id, other);
-      await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi) values ($1, $2, $3, $3)`, [lo, hi, yes]);
+      // Matched three hours ago: past the wait for texts, so their answers show (talk, then decide).
+      await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi, matched_at) values ($1, $2, $3, $3, now() - interval '3 hours')`, [lo, hi, yes]);
     }
     const inbox = (await listThreads(t.db, userId, me.id))!;
     expect(inbox.fresh.find((x) => x.with.id === bo.id)?.over).toBe(false);

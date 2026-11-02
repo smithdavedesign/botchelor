@@ -172,7 +172,7 @@ describe("a crowd pass against the app", () => {
     expect(matches).toHaveLength(2);
 
     const s2 = await runCrowdPass({ transport, roster, state, ledger, brain, now: T0 + 15 * 60_000, awake, nightHourUtc: 25 });
-    expect(s2.answers).toBe(2);
+    expect(s2.answers).toBe(0); // talk, then decide: nobody has texted yet
     expect(s2.openers).toBe(2);
     expect(ledger.map((e) => e.dimension)).toEqual(["opener", "opener"]);
     expect(ledger.every((e) => P.VARIANTS.opener.some((v: Any) => v.id === e.variant) && e.outcome === null)).toBe(true);
@@ -181,6 +181,7 @@ describe("a crowd pass against the app", () => {
     await call("send_text", { character_id: visitor.id, to: bots[0].id, text: "Ha, a hero indeed. What's next on the list?" }, visitor.ctx);
     const s3 = await runCrowdPass({ transport, roster, state, ledger, brain, now: T0 + 30 * 60_000, awake, nightHourUtc: 25 });
     expect(s3.texts).toBe(1);
+    expect(s3.answers).toBe(2); // the openers went out last pass
     expect(ledger.find((e) => e.partner_id === visitor.id && e.dimension === "opener").outcome).toBe(1);
     expect(ledger.some((e) => e.partner_id === visitor.id && e.dimension === "length")).toBe(true);
     // Never a second text into a quiet thread past the cap, never a like on a person who didn't like first, never a vote.

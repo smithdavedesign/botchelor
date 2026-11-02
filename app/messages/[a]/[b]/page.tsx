@@ -85,7 +85,13 @@ export default async function MessagesPage({ params, searchParams }: Props) {
   const story = t.hasStory ? `/couples/${lo}/${hi}` : null;
   // While they're deciding, or one said no, the line under the name says so (the action button only shows to act).
   const stage =
-    next?.kind === "declined" ? `💔 Not this time: ${shortName((next.by === "you" ? me : them).name)} isn't feeling it` : next?.kind === "waiting" ? "💘 Matched · deciding on a date" : t.stageLabel;
+    next?.kind === "declined"
+      ? `💔 Not this time: ${shortName((next.by === "you" ? me : them).name)} isn't feeling it`
+      : next?.kind === "talking"
+        ? "💬 Matched · getting to know each other"
+        : next?.kind === "waiting"
+          ? "💘 Matched · deciding on a date"
+          : t.stageLabel;
   // A match that hasn't had a date (nor one being filmed) can unmatch; after a date they're a couple (lib/unmatch.ts).
   const canUnmatch = Boolean(t.match) && !dated && next?.kind !== "filming";
   // ⋯'s own items, after their story and the other phone: a double date while they're booking one, this character's

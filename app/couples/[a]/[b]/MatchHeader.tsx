@@ -10,16 +10,20 @@ type Props = {
   /** Each one's answer about a date (null: not given yet: an agent's character, waiting for its agent). */
   mineYes: boolean | null;
   themYes: boolean | null;
+  /** Still getting to know each other: nobody's answer shows until they've texted (lib/text-chain-shared.ts decisionShown). */
+  talking?: boolean;
 };
 
 /**
  * Where a swipe-deck match stands (lib/swipes.ts), for its owners: both want a date (book it, 1 date like any other),
  * one isn't feeling it, or one hasn't answered yet. The characters decide; the owner books.
  */
-export default function MatchHeader({ mine, them, mineYes, themYes }: Props) {
+export default function MatchHeader({ mine, them, mineYes, themYes, talking = false }: Props) {
   const { ask, busy, sheet } = useBookDate(mine, them);
   const a = shortName(mine.name);
   const b = shortName(them.name);
+
+  if (talking) return <p className="match-state muted">💬 Getting to know each other: they&apos;ll decide about a date once they&apos;ve texted. Their texts are below.</p>;
 
   // One display line on the page (C8): the match's own ("💘 Matched"); where the yes stands is a plain line under it.
   if (mineYes === true && themYes === true) {

@@ -35,14 +35,45 @@ export type ChainText = {
   photo?: string;
 };
 
-/** A moment in their story that isn't a text or a date: they matched in the swipe deck, or both said yes to a date. */
+/**
+ * A moment in their story that isn't a text or a date: they matched in the swipe deck, both said yes to a date, a date's
+ * morning-after texts are waiting for it to air (`count` of them, `airs` about when), or one side never answered them
+ * (`who` went quiet: ghosted).
+ */
 export type ChainEvent = {
   kind: "event";
   id: string;
   at: string;
   day: string;
-  event: "matched" | "date_agreed";
+  event: "matched" | "date_agreed" | "afterglow_held" | "ghosted";
+  count?: number;
+  airs?: string;
+  who?: "lo" | "hi";
+  episode_id?: string;
 };
+
+/** Talk, then decide: how long a match's answer can wait on the first texts before it shows anyway. */
+export const DECIDE_AFTER_TEXTS_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * When a match's answers about a date show (David, 2026-11-02: "after a match it says they agreed to a date or wasn't
+ * feeling it, but there aren't any texts exchanged before they make the decision"): once each of them has texted since
+ * they matched, or DECIDE_AFTER_TEXTS_MS after the match if one never does. The answers themselves are decided as
+ * before (lib/swipes.ts); this is when anyone sees them.
+ */
+export function decisionShownAt(matchedAt: string, items: readonly ChainItem[]): string {
+  const since = new Date(matchedAt).getTime();
+  const first = (who: "lo" | "hi") => items.find((i): i is ChainText => i.kind === "text" && i.source === "between" && i.who === who && new Date(i.at).getTime() >= since)?.at;
+  const lo = first("lo");
+  const hi = first("hi");
+  const fallback = new Date(since + DECIDE_AFTER_TEXTS_MS).toISOString();
+  if (!lo || !hi) return fallback;
+  const both = lo > hi ? lo : hi;
+  return both < fallback ? both : fallback;
+}
+
+/** Whether a match's answers show yet (decisionShownAt). */
+export const decisionShown = (matchedAt: string, items: readonly ChainItem[], now = Date.now()): boolean => new Date(decisionShownAt(matchedAt, items)).getTime() <= now;
 
 export type ChainItem = ChainDate | ChainText | ChainEvent;
 
