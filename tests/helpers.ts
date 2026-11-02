@@ -47,6 +47,7 @@ import { setAfterglowEnabledForTests } from "@/lib/afterglow";
 import { setMixerVoiceEnabledForTests } from "@/lib/mixer-voice";
 import { setSeasonRecapVoiceEnabledForTests } from "@/lib/season-recap";
 import { setEpisodeTitleVoiceEnabledForTests } from "@/lib/episode-title";
+import { setCastChatVoiceEnabledForTests } from "@/lib/cast-chat";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setLookAlikeGateForTests } from "@/lib/originality";
@@ -126,6 +127,8 @@ export async function startTestDb() {
   // Episode titles (lib/episode-title.ts) are written at air time; off by default for the same reason (episode
   // tests script only the date's model). tests/episode-title.test.ts turns it on with a model of its own.
   setEpisodeTitleVoiceEnabledForTests(false);
+  // The cast group chat (lib/cast-chat.ts) writes from templates here; tests/cast-chat.test.ts passes a model.
+  setCastChatVoiceEnabledForTests(false);
   // A new match's opening chat (lib/swipes.ts) is the swipe tests' to drive, with their own model.
   setMatchChatEnabledForTests(false);
   // The swipe gate (lib/swipe-gate.ts) is off in tests by default, so the suites written before it keep asking
@@ -198,6 +201,7 @@ export async function startTestDb() {
         "season_recaps",
         // This season's cast secrets (lib/cast-secrets.ts) hang off the house cast, which outlives a reset.
         "cast_secrets",
+        "cast_chats",
         "adult_invites",
         "adult_monologues",
         "adult_short_calls",

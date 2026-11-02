@@ -3130,6 +3130,17 @@ create table if not exists cast_backings (
 );
 create index if not exists cast_backings_character_idx on cast_backings (season_id, character_id);
 create index if not exists cast_backings_user_idx on cast_backings (user_id);
+
+-- Leaked from the cast group chat (lib/cast-chat.ts; docs/ideas.md idea 14): one row a UTC day, written once the day
+-- ends from what aired publicly that day. lines: [{character_id, text}], every one PG-checked. source: 'model',
+-- 'template', 'quiet' (nothing aired: no chat) or 'pending' (claimed, being written).
+create table if not exists cast_chats (
+  day text primary key,
+  lines jsonb not null default '[]'::jsonb,
+  source text not null,
+  created_at timestamptz not null default now(),
+  written_at timestamptz
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

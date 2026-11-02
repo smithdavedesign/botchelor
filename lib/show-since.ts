@@ -16,6 +16,7 @@
  *  - A season that closed since (lib/season-ref.ts): its finale, /seasons/<month-year>.
  */
 import { backingSince, type BackingSince } from "./backing";
+import { latestCastChat } from "./cast-chat";
 import { newestOwnSlip, newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
@@ -63,6 +64,8 @@ export type ShowSince = {
   season: SeasonRef | null;
   /** The twist week that began since their last visit (lib/season-format.ts): "This week on Botchelor". */
   twist: { label: string; tease: string } | null;
+  /** The cast group chat leaked since (lib/cast-chat.ts): its first message, and how many more on /watch. */
+  chat: { code: string | null; name: string; text: string; more: number } | null;
 };
 
 /** When this person's last visit was, or null for a first visit (or one too recent to count as a return). */
@@ -162,9 +165,11 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     backing,
     season: seasonClosedSince(since, now),
     twist: await twistSince(db, since, now),
+    chat: await chatSince(db, since, now),
   };
   // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
-  // Nor is the week's twist: most weeks have one, so it rides along but never summons the card.
+  // Nor is the week's twist: most weeks have one, so it rides along but never summons the card. The cast chat is daily
+  // too (and only ever about dates that aired, which already count above), so it rides along the same way.
   const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret || card.backing || card.season;
   return anything ? card : null;
 }
@@ -176,4 +181,12 @@ async function twistSince(db: Db, since: Date, now: Date): Promise<{ label: stri
   if (twistWeekStart(def, now) <= since) return null;
   const twist = twistOf(def, now);
   return { label: twist.label, tease: twist.tease };
+}
+
+/** The newest cast group chat, when it was written after their last visit; otherwise null. */
+async function chatSince(db: Db, since: Date, now: Date): Promise<ShowSince["chat"]> {
+  const chat = await latestCastChat(db, now).catch(() => null);
+  if (!chat || new Date(chat.written_at) <= since) return null;
+  const first = chat.lines[0];
+  return { code: chat.code, name: first.name, text: first.text, more: chat.lines.length - 1 };
 }
