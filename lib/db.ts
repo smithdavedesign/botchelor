@@ -3033,6 +3033,14 @@ create table if not exists situation_nights (
   created_at timestamptz not null default now()
 );
 
+-- Which format a season runs in (lib/season-format.ts; docs/ideas.md F "An island season"): one row a season, written
+-- from /admin/season. No row = 'classic', the show exactly as it was before formats existed.
+create table if not exists season_formats (
+  season_id text primary key,
+  slug text not null,
+  created_at timestamptz not null default now()
+);
+
 -- A season's finale (lib/season-recap.ts; David 2026-11-01): the recap of a closed season, frozen on its first read
 -- after the season ends. One row a season: the first reader claims it (claimed_at), writes data (the recap's facts, as
 -- shown) and the "Previously on" narrative (narrative_by: 'model' or 'template'), and it never changes afterwards.

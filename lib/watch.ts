@@ -26,7 +26,10 @@ import { getDirectorModel, getModel, paidDefaultOn } from "./model";
 import { generateDate } from "./pipeline";
 import { ensureHotTakes } from "./hot-takes";
 import { recordSlips } from "./cast-secrets";
-import { DEFAULT_FORMAT, formatContextOf } from "./formats";
+import { DEFAULT_FORMAT, formatContextOf, type FormatId } from "./formats";
+import { twistOf } from "./season-format";
+import { seasonFormatNow } from "./season-format-store";
+import { seasonIdOf } from "./season-window";
 import { getProfileName } from "./people";
 import {
   DATE_ACTS,
@@ -55,6 +58,7 @@ import {
   type DramaAnswer,
   type DramaQuestion,
   type Ending,
+  type ProducerId,
   type WatchPhaseId,
   type WatchPoll,
 } from "./rules";
@@ -68,7 +72,7 @@ import { ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, type Turn } from "./conversation";
 import type { DateRoleplay } from "./roleplays";
 import { generationPaused, PAUSED_MESSAGE } from "./compute";
-import { placeAt, venueName, type PlaceId } from "./venues";
+import { placeAt, venueName, type PlaceId, type VenueId } from "./venues";
 
 /** House-vs-house template episodes have no human creator: this fixed id never matches a real user's. */
 export const SYSTEM_CREATOR_ID = "system";
@@ -807,7 +811,14 @@ export async function createTemplateParty(
   aId: string,
   bId: string,
   // The situation the viewers voted for (lib/situations.ts): the date plays it as a roleplay the show agreed to.
-  opts: { roleplay?: DateRoleplay | null } = {},
+  // The season format's thumbs (lib/season-format.ts): this week's twist format and producer event, and the format's
+  // venue pool. Passed by refreshLobby only; left out, the date is built exactly as before.
+  opts: {
+    roleplay?: DateRoleplay | null;
+    format?: FormatId;
+    producer?: ProducerId;
+    venuePool?: readonly VenueId[];
+  } = {},
 ): Promise<CreatePartyResult | null> {
   if (generationPaused()) return { ok: false, status: 503, error: "generation_paused", message: PAUSED_MESSAGE };
   const rows = (
@@ -826,9 +837,13 @@ export async function createTemplateParty(
   // Hot takes for a character with none yet, derived once on the free model (lib/hot-takes.ts). Never fails the room.
   await ensureHotTakes(db, [a.id, b.id], getModel("minimal", false)).catch(() => {});
   // A house room has no owner: its characters bring in only their public history together.
-  const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST, undefined, undefined, {
+  // The season format's thumbs are cosmetic framing like any format (lib/formats.ts): the engine never reads them.
+  const req = opts.format ? { ...DEFAULT_DATE_REQUEST, format: opts.format } : DEFAULT_DATE_REQUEST;
+  const built = await buildDate(db, episodeId, forDate(a), forDate(b), req, undefined, undefined, {
     creatorId: PUBLIC_ONLY,
     roleplay: opts.roleplay ?? null,
+    venuePool: opts.venuePool ?? null,
+    producerPick: opts.producer ?? null,
   });
   built.setup.met_via = "show"; // how it came about (data plan Tier 2): the show set it up for the lobby
   const { outcome: decided, trace } = decideTraced(built.input, built.seed, built.setup.engine_version);
@@ -972,10 +987,27 @@ export async function refreshLobby(
 
   // Paired from this season's house cast only (lib/season-cast.ts): the rest of the roster sits the season out.
   const cast = seasonCastIds(now);
+  // The season's format and this week's twist (lib/season-format.ts): a thumb on the house's own dates — the twist's
+  // show format or producer event, the format's venue pool, and on newcomer week one side who joined this season.
+  // A classic week with no twist passes nothing, and the date is built exactly as before.
+  const def = await seasonFormatNow(db, now).catch(() => null);
+  const twist = def ? twistOf(def, now) : null;
+  const thumbs = {
+    ...(twist?.format ? { format: twist.format } : {}),
+    ...(twist?.producer ? { producer: twist.producer } : {}),
+    ...(def?.venues ? { venuePool: def.venues } : {}),
+  };
+  const fresh =
+    twist?.pairing === "newcomer"
+      ? (await db.query<{ character_id: string }>(`select character_id from season_casts where season_id = $1 and source = 'new'`, [seasonIdOf(now)])).rows
+          .map((r) => r.character_id)
+          .filter((id) => cast.includes(id))
+      : [];
   for (let attempt = 0; attempt < 2; attempt++) {
-    const i = seedFrom("lobby-a", day, attempt + 2 * round) % cast.length;
+    const dealt = seedFrom("lobby-a", day, attempt + 2 * round);
+    const i = fresh.length ? cast.indexOf(fresh[dealt % fresh.length]) : dealt % cast.length;
     const j = (i + 1 + (seedFrom("lobby-b", day, attempt + 2 * round) % (cast.length - 1))) % cast.length;
-    const result = await createTemplateParty(db, cast[i], cast[j]);
+    const result = await createTemplateParty(db, cast[i], cast[j], thumbs);
     if (!result || !result.ok) continue;
     const { rows } = await db.query<{ n: number }>(
       `select jsonb_array_length(e.transcript)::int as n from watch_parties w join episodes e on e.id = w.episode_id where w.id = $1`,

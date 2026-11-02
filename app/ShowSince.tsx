@@ -24,6 +24,14 @@ function Items({ card }: { card: ShowSinceData }) {
           <span aria-hidden="true">📺</span> <Link href="/watch#latest">{plural(card.aired, "date aired", "dates aired")}</Link>
         </li>
       )}
+      {card.twist && (
+        <li>
+          <span aria-hidden="true">📣</span> This week on Botchelor: <strong>{card.twist.label}</strong> —{" "}
+          <Link href="/watch#this-week" data-track="since-this-week">
+            see what&apos;s on
+          </Link>
+        </li>
+      )}
       {card.situation && (
         <li>
           <span aria-hidden="true">{card.situation.icon}</span> The viewers picked <strong>{card.situation.title}</strong>:{" "}
