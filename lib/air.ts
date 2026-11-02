@@ -20,7 +20,14 @@ import { refreshAndAnnounce } from "./relationship-events";
 import { markResourceUpdated } from "./mcp-subscriptions";
 import { pairNames } from "./names";
 import { notify, notifyAll } from "./notifications";
-import { ENDING_DETAIL_LABELS, endingDetailOf, ENDING_LABELS, predictionPoints, REPORT_HIDE_THRESHOLD, WRITE_TIME } from "./rules";
+import { ENDING_DETAIL_LABELS, endingDetailOf, ENDING_LABELS, predictionPoints, REPORT_HIDE_THRESHOLD, WATCH_DECISION_INDEX, WATCH_PHASES, WRITE_TIME } from "./rules";
+
+/**
+ * How long after a watch party room starts its decision lands (lib/watch.ts syncRoom airs it then, for whoever is in the
+ * room). Past that, the date airs like any other (DUE): the 2026-11-02 premiere nobody came back to never aired, so its
+ * morning-after texts, its memory and its predictions all waited on a room nobody opened.
+ */
+export const WATCH_DECISION_SECONDS = WATCH_PHASES[WATCH_DECISION_INDEX].at;
 
 /** ": a slow burn" after the ending, when it had a kind (lib/ending-detail.ts), else "". */
 const kindOf = (detail: string | null, ending: Ending): string => {
@@ -169,8 +176,8 @@ export async function airsFrom(db: Db, id: string, env: Record<string, string | 
  *  - when_ready: still being written or performed; it airs once it's finished, no sooner than airs_at;
  *  - watch_party: it premieres in its watch party room, at airs_at when the room has a start time.
  * minutes_left is rounded up; seconds_left (MCP 2.10.1, #673: "minutes_left: 1 with about 10 seconds left") is to the second.
- * A watch party's date airs only when its room is opened, so one with no start time, or whose start time has passed
- * (#839: listed at airs_at yesterday, seconds_left 0, still taking picks), says so in airs_note.
+ * A watch party's room with no start time airs only when someone opens it, and says so in airs_note. One whose decision
+ * has passed (#839: listed at airs_at yesterday, seconds_left 0, still taking picks) is due like any other date.
  */
 export type AirTiming = {
   airs_at: string | null;
@@ -183,12 +190,8 @@ export type AirTiming = {
 
 export const WATCH_PARTY_UNSTARTED_NOTE =
   "No start time: it premieres only when someone opens its watch party on /watch, so a pick on it may wait a long while.";
-export const WATCH_PARTY_PAST_NOTE =
-  "Its listed time has passed and it hasn't aired: it premieres only when someone opens its watch party on /watch, so a pick on it may wait a long while. Predictions stay open until then.";
-
-/** A watch party's date that won't air on its own any time soon: no start time, or one that has passed. */
-export const waitsOnRoom = (t: AirTiming, now: Date = new Date()): boolean =>
-  t.airs === "watch_party" && (!t.airs_at || new Date(t.airs_at).getTime() <= now.getTime());
+/** A watch party's date that won't air on its own any time soon: its room has no start time. */
+export const waitsOnRoom = (t: AirTiming): boolean => t.airs === "watch_party" && !t.airs_at;
 
 export async function airTimings(db: Db, ids: string[], now: Date = new Date(), env: Record<string, string | undefined> = process.env): Promise<Map<string, AirTiming>> {
   if (!ids.length) return new Map();
@@ -204,10 +207,9 @@ export async function airTimings(db: Db, ids: string[], now: Date = new Date(), 
   const out = new Map<string, AirTiming>();
   for (const r of rows) {
     const close = "when_it_airs" as const;
-    if (r.party) {
-      const at = r.party_at ? new Date(r.party_at) : null;
-      const note = !at ? WATCH_PARTY_UNSTARTED_NOTE : at.getTime() <= now.getTime() ? WATCH_PARTY_PAST_NOTE : null;
-      out.set(r.id, { airs_at: at ? at.toISOString() : null, ...left(at), airs: "watch_party", predictions_close: close, ...(note ? { airs_note: note } : {}) });
+    const at = r.party_at ? new Date(r.party_at) : null;
+    if (r.party && (!at || at.getTime() + WATCH_DECISION_SECONDS * 1000 > now.getTime())) {
+      out.set(r.id, { airs_at: at ? at.toISOString() : null, ...left(at), airs: "watch_party", predictions_close: close, ...(at ? {} : { airs_note: WATCH_PARTY_UNSTARTED_NOTE }) });
       continue;
     }
     const scheduled = r.air_after ? new Date(r.air_after) : new Date(new Date(r.created_at).getTime() + airWindowMinutes(env) * 60_000);
@@ -226,7 +228,7 @@ export async function airTimings(db: Db, ids: string[], now: Date = new Date(), 
 /** What airs_at, minutes_left and seconds_left mean, said wherever they're listed. */
 export const AIR_TIMING_NOTE =
   "airs_at is when it airs on its own; minutes_left is how long from now, rounded up, and seconds_left the same to the second. Predictions stay open until it actually airs (predictions_close: when_it_airs). " +
-  "airs: scheduled (at airs_at), due (its time has come: it airs on the next call anyone makes), when_ready (still being written: no sooner than airs_at), watch_party (it premieres in its room, which someone has to open: past its airs_at it can still be open, and airs_note says so).";
+  "airs: scheduled (at airs_at), due (its time has come: it airs on the next call anyone makes), when_ready (still being written: no sooner than airs_at), watch_party (it premieres in its room at airs_at; a room with no start time waits for someone to open it, and airs_note says so).";
 
 /** Marks a date to air itself once its window closes. */
 export async function scheduleAir(db: Db, id: string, hostId: string, at: Date): Promise<boolean> {
@@ -239,12 +241,14 @@ export async function scheduleAir(db: Db, id: string, hostId: string, at: Date):
 
 /**
  * The dates that air now ($1 is the window in minutes): ready and unaired, either scheduled and due, or (by default)
- * public or unlisted and past the window. Never a private ("offline") date nobody scheduled, nor a watch party's.
+ * public or unlisted and past the window. Never a private ("offline") date nobody scheduled, nor a watch party's until
+ * its room's decision has passed (a room nobody has started holds its date).
  */
 const DUE = `e.status = 'ready' and e.revealed_at is null and e.creator_id is not null
   and ((e.air_after is not null and e.air_after <= now())
        or (e.air_after is null and e.visibility <> 'private' and e.created_at <= now() - $1 * interval '1 minute'))
-  and not exists (select 1 from watch_parties w where w.episode_id = e.id)`;
+  and not exists (select 1 from watch_parties w where w.episode_id = e.id
+                   and (w.starts_at is null or w.starts_at > now() - ${WATCH_DECISION_SECONDS} * interval '1 second'))`;
 
 /** Airs one date if it's due (an episode being opened airs it, so nobody waits for the hourly job). */
 export async function airIfDue(db: Db, id: string, env: Record<string, string | undefined> = process.env): Promise<Aired | null> {

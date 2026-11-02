@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { airTimings } from "@/lib/air";
+import { airDueDates, airTimings, WATCH_DECISION_SECONDS } from "@/lib/air";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
@@ -37,29 +37,28 @@ async function booked(host: { ctx: McpContext; id: string }) {
   return (await call("go_on_date", { character_id: host.id, partner_id: HOUSE_PARTNER_ID }, host.ctx)).structuredContent.episode.id as string;
 }
 
-it("a watch party past its start time says it waits on its room, in browse_episodes and predict, and lists after dates that air on their own", async () => {
+it("a watch party past its decision is due like any other date: the hourly job airs it, and nothing says it waits on a room", async () => {
+  // 2026-11-02: a premiere nobody came back to never aired (its morning-after texts, memory and picks all waited on it).
   const party = await booked(await agent("Ada Lumen"));
-  const plain = await booked(await agent("Cy Marlow"));
+  const live = await booked(await agent("Cy Marlow"));
+  await t.db.query(`update episodes set created_at = now() - interval '1 day' where id = any($1)`, [[party, live]]);
   const past = new Date(Date.now() - 24 * 3600_000);
-  await t.db.query(`insert into watch_parties (id, episode_id, kind, starts_at) values ('wp-839', $1, 'premiere', $2)`, [party, past.toISOString()]);
+  const justStarted = new Date(Date.now() - 60_000);
+  await t.db.query(`insert into watch_parties (id, episode_id, kind, starts_at) values ('wp-839', $1, 'premiere', $2), ('wp-live', $3, 'premiere', $4)`, [
+    party, past.toISOString(), live, justStarted.toISOString(),
+  ]);
 
-  const timing = (await airTimings(t.db, [party])).get(party)!;
-  expect(timing).toMatchObject({ airs: "watch_party", airs_at: past.toISOString(), seconds_left: 0 });
-  expect(timing.airs_note).toMatch(/listed time has passed/);
-  expect(timing.airs_note).toMatch(/opens its watch party/);
+  const timing = (await airTimings(t.db, [party, live]));
+  expect(timing.get(party)).toMatchObject({ airs: "due", seconds_left: 0 });
+  expect(timing.get(party)!.airs_note).toBeUndefined();
+  // A room still before its decision keeps its date for whoever is watching.
+  expect(timing.get(live)).toMatchObject({ airs: "watch_party", airs_at: justStarted.toISOString() });
+  expect(timing.get(live)!.airs_note).toBeUndefined();
 
-  const viewer = await agent("Bo Quill");
-  const r = (await call("browse_episodes", { open: true }, viewer.ctx)).structuredContent;
-  const ids = r.episodes.map((e: Any) => e.id);
-  expect(ids.indexOf(plain)).toBeLessThan(ids.indexOf(party));
-  expect(r.episodes.find((e: Any) => e.id === party).airs_note).toMatch(/listed time has passed/);
-  expect(r.episodes.find((e: Any) => e.id === plain).airs_note).toBeUndefined();
-  expect(r.next_calls[0].args.episode_id).toBe(plain);
-
-  const pick = (await call("predict", { episode_id: party, pick: "friends" }, viewer.ctx)).structuredContent;
-  expect(pick.note).toMatch(/only when someone opens its watch party room/);
-  expect(pick.note).toMatch(/has passed/);
-  expect(pick.airs_note).toMatch(/listed time has passed/);
+  expect((await airDueDates(t.db)).map((a) => a.id)).toEqual([party]);
+  const aired = (await t.db.query(`select id from episodes where revealed_at is not null`)).rows.map((r) => r.id);
+  expect(aired).toEqual([party]);
+  expect(WATCH_DECISION_SECONDS).toBeGreaterThan(60);
 });
 
 it("a watch party with a start time still ahead has no airs_note; one with none says so", async () => {
