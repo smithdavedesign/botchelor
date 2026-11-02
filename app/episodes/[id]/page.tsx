@@ -10,6 +10,7 @@ import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { afterDarkHref } from "@/lib/after-dark-host";
+import { dareReveal } from "@/lib/dares";
 import { getEpisodeView, getPoints } from "@/lib/game";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -213,6 +214,8 @@ export default async function EpisodePage({
   // 📸 Date photos, for the owner of one of the two (lib/studio/date-photos.ts; null for anyone else).
   const datePhotos = viewerId ? await datePhotoState(db, viewerId, id).catch(() => null) : null;
   const partyId = await partyIdForEpisode(db, id);
+  // The dare reveal (lib/dares.ts): the audience's dare and the engine's own verdict, once the date has aired.
+  const dare = episode.revealed ? await dareReveal(db, id).catch(() => null) : null;
   // Performed by its creator's own AI (an agent dating two of its own characters, lib/own-date.ts)?
   // Who performed the lines (docs/agents-and-people.md): the show's model, one agent's AI, or each character's own agent.
   const performer = (
@@ -546,6 +549,22 @@ export default async function EpisodePage({
                 {episode.is_host && <ConfessionalShare episodeId={episode.id} shared={episode.confessionals_shared} />}
               </>
             )}
+          </section>
+        )}
+
+        {dare && (
+          <section className="card dare-reveal">
+            <h2>The producers dared {nameOf(dare.character_id) ?? dare.name}</h2>
+            <p>
+              The audience voted, and {who(dare.character_id) ?? <strong>{dare.name}</strong>} walked in with it in the pocket: <em>“{dare.text}”</em> Their
+              date never knew.
+            </p>
+            <p>
+              Did they go through with it?{" "}
+              <strong>
+                {dare.followed === true ? "They went through with it." : dare.followed === false ? "They chickened out." : "Watch the date and decide."}
+              </strong>
+            </p>
           </section>
         )}
 

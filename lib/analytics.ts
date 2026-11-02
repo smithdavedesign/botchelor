@@ -15,6 +15,7 @@ export type AnalyticsEvent =
   | "prediction_submitted"
   | "situation_vote" // a vote on tonight's situation (lib/situations.ts)
   | "cast_backed" // a viewer backed a cast member for the month (lib/backing.ts)
+  | "dare_vote" // a vote on tonight's dare (lib/dares.ts)
   | "purchase_completed"
   | "purchase_refunded" // a full refund made in Stripe took the pack's unused dates back
   | "content_reported"

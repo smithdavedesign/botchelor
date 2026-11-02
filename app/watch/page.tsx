@@ -9,6 +9,7 @@ import { getDb } from "@/lib/db";
 import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
 import { callersBoard, callRecord } from "@/lib/streaks";
 import BackCast from "@/app/BackCast";
+import DareVote from "@/app/DareVote";
 import SituationVote from "@/app/SituationVote";
 import SeasonBanner from "@/app/SeasonBanner";
 import ShowSince from "@/app/ShowSince";
@@ -19,6 +20,7 @@ import ChemistryShiftsPanel from "@/app/ChemistryShifts";
 import { chemistryShifts } from "@/lib/chemistry-shifts";
 import { showSince } from "@/lib/show-since";
 import { backingBoard } from "@/lib/backing";
+import { dareBoard } from "@/lib/dares";
 import { situationBoard } from "@/lib/situations";
 import { listAiredPage, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
@@ -159,7 +161,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const page = parsePage((await searchParams).page);
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, backing, record, callers, showNews, shifts, seasonDef] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef] = await Promise.all([
     listLobby(db),
     countRecentPrivateDates(db),
     listAiringSoon(db, viewerId, airWindowMinutes()),
@@ -168,6 +170,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     getProfileName(db, viewerId),
     getReunion(db),
     situationBoard(db, viewerId).catch(() => null),
+    dareBoard(db, viewerId).catch(() => null),
     backingBoard(db, viewerId).catch(() => null),
     callRecord(db, viewerId).catch(() => null),
     callersBoard(db, viewerId).catch(() => null),
@@ -265,6 +268,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       </section>
 
       {situation && <SituationVote board={situation} now={now} />}
+
+      {dares && <DareVote board={dares} />}
 
       {backing && <BackCast board={backing} />}
 

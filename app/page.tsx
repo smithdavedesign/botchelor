@@ -23,6 +23,7 @@ import BotReviews from "./BotReviews";
 import { CallsLine } from "./YourCalls";
 import { airWindowMinutes } from "@/lib/air";
 import { callRecord } from "@/lib/streaks";
+import DareVote from "./DareVote";
 import SituationVote from "./SituationVote";
 import TonightBand from "./TonightBand";
 import EpisodeShelf from "./EpisodeShelf";
@@ -30,6 +31,7 @@ import { listLobby } from "@/lib/watch";
 import SeasonBanner from "./SeasonBanner";
 import ShowSince from "./ShowSince";
 import { showSince } from "@/lib/show-since";
+import { dareBoard } from "@/lib/dares";
 import { situationBoard } from "@/lib/situations";
 import { getProfileName } from "@/lib/people";
 
@@ -93,10 +95,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const profileName = db && viewerId ? await getProfileName(db, viewerId).catch(() => null) : null;
   const showNews = db && viewerId ? await showSince(db, viewerId).catch(() => null) : null;
   const shared = db ?? (await getDb());
-  const [aired, sky, situation, record, airing, rooms] = await Promise.all([
+  const [aired, sky, situation, dares, record, airing, rooms] = await Promise.all([
     listAiredPage(shared, viewerId, 1, 6).catch(() => null),
     cachedConstellation(shared).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
     situationBoard(shared, viewerId).catch(() => null),
+    dareBoard(shared, viewerId).catch(() => null),
     // Your calls (lib/streaks.ts): your record and run, and how many dates you could still call.
     callRecord(shared, viewerId).catch(() => null),
     listAiringSoon(shared, viewerId, airWindowMinutes()).catch(() => []),
@@ -205,6 +208,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       </section>
 
       {situation && <SituationVote board={situation} now={Date.now()} />}
+      {dares && <DareVote board={dares} />}
       {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} />}
 
       {aired && aired.episodes.length > 0 && (

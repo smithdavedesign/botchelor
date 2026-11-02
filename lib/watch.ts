@@ -64,7 +64,7 @@ import {
 } from "./rules";
 import { PUBLIC_ONLY } from "./relationships";
 import { refreshAndAnnounce } from "./relationship-events";
-import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
+import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { updateCharacterMemory } from "./memory";
 import { titleEpisodeOnAir } from "./episode-title";
 import { mixerQuietUsers, notifyNightAired, siblingCharacters } from "./group-dates";
@@ -814,10 +814,13 @@ export async function createTemplateParty(
   aId: string,
   bId: string,
   // The situation the viewers voted for (lib/situations.ts): the date plays it as a roleplay the show agreed to.
+  // `dare` (lib/dares.ts): the producers' note slipped to side A ONLY — it rides that side's private note
+  // (lib/simulation.ts), so the other side never sees it, and the engine's note_followed says if they went through.
   // The season format's thumbs (lib/season-format.ts): this week's twist format and producer event, and the format's
   // venue pool. Passed by refreshLobby only; left out, the date is built exactly as before.
   opts: {
     roleplay?: DateRoleplay | null;
+    dare?: string | null;
     format?: FormatId;
     producer?: ProducerId;
     venuePool?: readonly VenueId[];
@@ -841,7 +844,12 @@ export async function createTemplateParty(
   await ensureHotTakes(db, [a.id, b.id], getModel("minimal", false)).catch(() => {});
   // A house room has no owner: its characters bring in only their public history together.
   // The season format's thumbs are cosmetic framing like any format (lib/formats.ts): the engine never reads them.
-  const req = opts.format ? { ...DEFAULT_DATE_REQUEST, format: opts.format } : DEFAULT_DATE_REQUEST;
+  // The dare (lib/dares.ts) rides side A's private note; both can apply to one night.
+  const req: DateRequest = {
+    ...DEFAULT_DATE_REQUEST,
+    ...(opts.format ? { format: opts.format } : {}),
+    ...(opts.dare ? { note: opts.dare } : {}),
+  };
   const built = await buildDate(db, episodeId, forDate(a), forDate(b), req, undefined, undefined, {
     creatorId: PUBLIC_ONLY,
     roleplay: opts.roleplay ?? null,
