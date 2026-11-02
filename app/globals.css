@@ -13241,17 +13241,20 @@ button.thread-menu-item:hover:not(:disabled) {
 }
 
 /* Secrets as intrigue (docs/show-style.md): the one card on a cast page that goes dark, locks glowing. */
-.cast-secrets.card {
+.cast-secrets.card,
+.cast-date-won.card {
   border-color: transparent;
   background:
     radial-gradient(120% 150% at 15% -30%, rgba(122, 54, 201, 0.35), transparent 60%),
     linear-gradient(160deg, #241131, #140a1e 70%);
   color: rgba(255, 255, 255, 0.92);
 }
-.cast-secrets.card :is(h2, strong) {
+.cast-secrets.card :is(h2, strong),
+.cast-date-won.card :is(h2, strong) {
   color: #fff;
 }
-.cast-secrets.card .muted {
+.cast-secrets.card .muted,
+.cast-date-won.card .muted {
   color: rgba(255, 255, 255, 0.62);
 }
 .cast-secrets.card .cast-secrets-list li {
