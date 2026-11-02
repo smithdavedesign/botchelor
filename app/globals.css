@@ -6615,6 +6615,22 @@ button.table-more {
   }
 }
 
+/* Go deeper (app/create/DeeperStep.tsx): a row is one line and its Remove, at every width. */
+.deeper .fact-row.deeper-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.deeper .fact-row.deeper-row .detail-field {
+  grid-column: auto;
+}
+.deeper-group .chips {
+  margin: 0.4rem 0;
+}
+.deeper-group textarea {
+  width: 100%;
+}
+
 .swipe-facts {
   margin: 0.5rem 0;
   padding-left: 1.1rem;

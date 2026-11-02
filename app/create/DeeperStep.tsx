@@ -100,7 +100,7 @@ export default function DeeperStep({
         placeholder="e.g. Someone who's kind to the waiter."
       />
 
-      <fieldset className="deeper-group">
+      <fieldset className="deeper-group drawn-to">
         <legend>🎲 Here for fun, or taking it seriously?</legend>
         <p className="muted small">How {who} plays a date. When the other person plays it the other way, the date makes something of it. On their card.</p>
         <ul className="chips">

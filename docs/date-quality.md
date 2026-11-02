@@ -821,3 +821,26 @@ half offer the walk-out (whether a side takes it is up to the line); about half 
 maybe-against-no answers become ghosting. On the 20-date eval's answers (shipped arm, 12 of its 20 dates disasters), 8 were a
 no against a yes or a maybe, so about 4 in 20 would be ghosted and 1 one-sided; a slow burn needs the morning-after texts, which
 the eval didn't run.
+
+## Round: go deeper (2026-11-01)
+
+The create wizard has a new optional step, "Go deeper", between "More about them" and "Inner life". The edit page and
+MCP (`create_character` / `update_character`: `hiding`, plus extras `hot_takes`, `baggage`, `wins_them_over`, `mood`)
+have the same fields. Each field is used on the character's dates, only through its own side:
+
+| Field | Where it lives | Who sees it | What it does on a date |
+|---|---|---|---|
+| Hot takes | `extras.hot_takes` (≤5 × 120) | public (they'd say them) | Living dates' hot takes, now in the creator's own words instead of derived ones. Two that collide become the director's friction. |
+| What they're hiding | `cast_secrets`, season `own`, source `owner` (≤3 × 120) | private until one slips | The cast-secrets mechanism, not a second store. `secretsForDate` carries them for any character, the actor guards or hints at them (YOUR SECRETS), a slip is recorded (`recordSlips`), and it counts as out once that date airs publicly. Their page shows "N of M out", with no schedule. An edit replaces the rest, and one that has slipped stays. |
+| Their last relationship | `extras.baggage` (≤160) | private (`publicExtras` drops it) | `your_last_relationship` in its own details, plus WHAT GOES DEEPER: it shapes how fast they open up, and comes out only if the date earns it. The director is told only that it exists. |
+| What really wins them over | `extras.wins_them_over` (≤160) | private | `what_really_wins_you_over`: it lands when the other does it, and they never ask for it. It also weighs on their own "see them again?" (`weigh_this` in lib/choices.ts). |
+| Fun or serious | `extras.mood`: playful, balanced or earnest | on the card ("🎲 Dates") | `how_you_date` in its own prompt. When one is playful and the other earnest, the director plans a moment where the difference shows. |
+
+The WHAT GOES DEEPER section and the `weigh_this` line appear only on a side that has one of these fields, so every
+other prompt is unchanged. The same content checks as the sheet apply (`checkFieldsAnyLanguage`, the field is named
+`hiding`). Catalog names are untouched, so the currency-word guardrail is unaffected.
+
+Also in this round, the diary cam's confessionals come back in the right order (`orderConfessionals` in
+lib/showrunner.ts). On 2026-11-02, Juniper's to-camera line read "She is hard to read…", about herself. The model had
+handed back the pair swapped. When the two sides have different he/she pronouns and each line speaks only of its own
+speaker, the pair is swapped back.

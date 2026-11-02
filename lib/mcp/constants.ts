@@ -59,8 +59,7 @@ export { AGENT_ID, PREVIEW, str };
 
 // ─── SHEET_PROPS: the character fields create_character, update_character and check_originality share ───
 import { PRONOUNS } from "../rules";
-import { BAGGAGE_MAX, HOT_TAKE_CHARS, MAX_HOBBIES, MAX_HOT_TAKES, MOOD_IDS, PROFILE_PROMPTS, SAMPLE_LINE_MAX, TEXT_DETAIL_KEYS, TEXT_DETAILS, WINS_THEM_OVER_MAX } from "../extras";
-import { OWN_SECRETS_MAX, SECRET_MAX } from "../cast-secrets";
+import { BAGGAGE_MAX, HIDING_CHARS, HOT_TAKE_CHARS, MAX_HIDING, MAX_HOBBIES, MAX_HOT_TAKES, MOOD_IDS, PROFILE_PROMPTS, SAMPLE_LINE_MAX, TEXT_DETAIL_KEYS, TEXT_DETAILS, WINS_THEM_OVER_MAX } from "../extras";
 
 /** "≤60 occupation, hometown…; ≤80 style…": the text details grouped by their limit. */
 function detailsByMax(): string {
@@ -102,8 +101,7 @@ export const SHEET_PROPS = {
       `Optional details (public, except private facts). Text keys: ${detailsByMax()}. Also star_sign, ` +
       "love_language, language (es, fr, ja…: what they speak on dates; unset is their sheet's language, else English), kind, kind_label (with kind other), archetype, here_for, drawn_to (≤4 kinds), hobbies (up to " + MAX_HOBBIES + ", 30 characters each), prompts ([{id, answer}], two for the swipe deck, answers up to " + PROMPT_ANSWER_MAX + "; id one of " + PROFILE_PROMPTS.map((p) => p.id).join(", ") + "), lines ({hello, dodge, flirt, upset}, ≤" + SAMPLE_LINE_MAX + " each), " +
       "tells ({nervous, smitten, bored, annoyed}), never_says (list), facts ([{label, value, private?}], up to 20), " +
-      `hot_takes (up to ${MAX_HOT_TAKES} opinions they really hold, ≤${HOT_TAKE_CHARS} each: they argue for them on dates), ` +
-      `and Go deeper's: baggage (≤${BAGGAGE_MAX}, private: what they carry from their last relationship), wins_them_over (≤${WINS_THEM_OVER_MAX}, private: what really wins them over), mood (${MOOD_IDS.join(" | ")}: here for fun, a bit of both, takes it seriously). ` +
+      `hot_takes (≤${MAX_HOT_TAKES}, ≤${HOT_TAKE_CHARS} each), private baggage and wins_them_over (≤${Math.max(BAGGAGE_MAX, WINS_THEM_OVER_MAX)}), mood (${MOOD_IDS.join("|")}). ` +
       "Exact shape: botchelor://schema/character.",
   },
   temperament: {
@@ -122,11 +120,9 @@ export const SHEET_PROPS = {
   },
   hiding: {
     type: "array",
-    items: str(SECRET_MAX),
-    maxItems: OWN_SECRETS_MAX,
-    description:
-      `Optional and private: up to ${OWN_SECRETS_MAX} things they're hiding ("still sleeps with the light on"). Their side of each date carries them, to guard or hint at; ` +
-      "when a date draws one out it slips, and it shows on their page as out once that date airs. On update, the list replaces theirs ([] clears the ones not out yet).",
+    items: str(HIDING_CHARS),
+    maxItems: MAX_HIDING,
+    description: "Optional, private: things they're hiding. Dates guard them; one a date draws out slips, shown once it airs. Update replaces the list.",
   },
   this_week: str(100, "Optional: what's new in their life this week (\"just adopted a very old cat\"). Lasts until Monday; without one the show deals one. On update, null hands it back to the show."),
 } as const;

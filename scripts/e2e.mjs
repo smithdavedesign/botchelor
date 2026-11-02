@@ -178,6 +178,13 @@ async function main() {
       await page.locator('input[name="fact_value_1"]').fill("hotel soap");
       await page.locator('input[name="fact_private_1"]').check();
       await page.getByText("2 of 20").waitFor();
+      // Go deeper: a hot take and a secret from the idea chips, how they date, and what wins them over typed in.
+      await page.getByRole("button", { name: "Next: Go deeper" }).click();
+      await page.locator("legend", { hasText: "Go deeper (optional)" }).waitFor();
+      await page.getByRole("button", { name: "+ Brunch is just a late breakfast with a markup." }).click();
+      await page.getByRole("button", { name: "+ Still sleeps with a night light on" }).click();
+      await page.locator('textarea[name="wins_them_over"]').fill("Someone who asks how the lighthouse works, and listens.");
+      await page.getByRole("button", { name: "Takes it seriously" }).click();
       await page.getByRole("button", { name: "Next: Inner life" }).click();
       await page.getByText("The inner life (optional)").waitFor();
       await page.locator('input[name="soul_values"]').fill("Steady, inventive, allergic to goodbyes.");
