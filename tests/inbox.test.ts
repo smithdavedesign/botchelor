@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { characterToOpen, listThreads, loadThread, markPairNoticesRead, markTextsRead, newsByCharacter, nextStep, textedLinks, unreadTexts } from "@/lib/inbox";
+import { characterToOpen, didntWorkOut, listThreads, loadThread, markPairNoticesRead, markTextsRead, newsByCharacter, nextStep, textedLinks, unreadTexts } from "@/lib/inbox";
 import { pairKey } from "@/lib/relationships";
 import { api, HOUSE_PARTNER_ID, newUserCookie, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -180,6 +180,33 @@ describe("what's next for a pair (the thread's action bar)", () => {
     const withCy = (await loadThread(t.db, me.userId, me.id, cy.id))!;
     expect(withCy.hasStory).toBe(false);
     expect(await withCy.nextFor(me.id)).toBeNull();
+  });
+
+  it("marks the ones that didn't work out: a pass, or a date that aired as a disaster (not one still unwatched)", async () => {
+    expect(didntWorkOut({ kind: "declined", by: "them" }, null)).toBe(true);
+    expect(didntWorkOut({ kind: "declined", by: "you" }, null)).toBe(true);
+    expect(didntWorkOut({ kind: "waiting", on: "them" }, null)).toBe(false);
+    expect(didntWorkOut({ kind: "dated", episode_id: "e", aired: true }, { ending: "disaster" })).toBe(true);
+    expect(didntWorkOut({ kind: "dated", episode_id: "e", aired: false }, { ending: "disaster" })).toBe(false);
+    expect(didntWorkOut({ kind: "dated", episode_id: "e", aired: true }, { ending: "friends" })).toBe(false);
+
+    const { creator, character: me, episode } = await setupEpisode("disaster");
+    const userId = userIdOf(creator);
+    const thread = async () => (await listThreads(t.db, userId, me.id))!.fresh.find((x) => x.with.id === HOUSE_PARTNER_ID)!;
+    await t.db.query(`update episodes set revealed_at = null where id = $1`, [episode.id]);
+    expect((await thread()).over).toBe(false);
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [episode.id]);
+    expect((await thread()).over).toBe(true);
+
+    const bo = await character("Bo Quill");
+    const cy = await character("Cy Marr");
+    for (const [other, yes] of [[bo.id, true], [cy.id, false]] as const) {
+      const [lo, hi] = pairKey(me.id, other);
+      await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi) values ($1, $2, $3, $3)`, [lo, hi, yes]);
+    }
+    const inbox = (await listThreads(t.db, userId, me.id))!;
+    expect(inbox.fresh.find((x) => x.with.id === bo.id)?.over).toBe(false);
+    expect(inbox.fresh.find((x) => x.with.id === cy.id)?.over).toBe(true);
   });
 
   it("someone else's private date with your character isn't offered", async () => {

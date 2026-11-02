@@ -9,6 +9,7 @@ import type { Db } from "./db";
 import { getPublicCharacter } from "./game";
 import { markPairNotices, pairNoticeLinks } from "./notifications";
 import { loadRelationship, pairKey, viewRelationship } from "./relationships";
+import type { Ending } from "./rules";
 import { matchView } from "./swipes";
 import { chainPage, loadChain, type ChainItem, type ChainText } from "./text-chain";
 import { unmatchedSql } from "./unmatch";
@@ -33,6 +34,8 @@ export type Thread = {
   at: string;
   /** What happens next: book the date they both want, watch the one being filmed, and so on. */
   next: NextStep | null;
+  /** It didn't work out (didntWorkOut): Matches leaves it out of the character's main list unless asked. */
+  over: boolean;
 };
 
 /**
@@ -47,7 +50,7 @@ export type NextStep =
   | { kind: "filming"; episode_id: string }
   | { kind: "dated"; episode_id: string; aired: boolean };
 
-type LatestDate = { id: string; status: string; created_at: string | Date; revealed_at: string | Date | null };
+type LatestDate = { id: string; status: string; created_at: string | Date; revealed_at: string | Date | null; ending?: Ending | null };
 
 export function nextStep(match: { matched_at: string; you: boolean | null; them: boolean | null } | null, latest: LatestDate | null): NextStep | null {
   if (latest && (!match || new Date(latest.created_at).getTime() >= new Date(match.matched_at).getTime())) {
@@ -60,12 +63,22 @@ export function nextStep(match: { matched_at: string; you: boolean | null; them:
 }
 
 /**
+ * A pair that didn't work out (David, 2026-11-01: "by default we don't show matches that were not feeling it, or their
+ * date ended badly"): one of them passed on a date (the swipe deck's no, with no date since), or their newest date ended
+ * in a disaster once it aired (one not watched yet isn't given away).
+ */
+export function didntWorkOut(next: NextStep | null, latest: Pick<LatestDate, "ending"> | null): boolean {
+  if (next?.kind === "declined") return true;
+  return next?.kind === "dated" && next.aired && latest?.ending === "disaster";
+}
+
+/**
  * The newest date each of this character's pairs has that the viewer may open: being filmed or ready, not a Sliding
  * Doors replay, and not someone else's private date. Keyed by the other character.
  */
 async function latestDates(db: Db, viewerId: string, characterId: string, otherId?: string): Promise<Map<string, LatestDate>> {
   const { rows } = await db.query<LatestDate & { other: string }>(
-    `select id, status, created_at, revealed_at, case when character_a = $1 then character_b else character_a end as other
+    `select id, status, created_at, revealed_at, ending, case when character_a = $1 then character_b else character_a end as other
        from episodes
       where $1 in (character_a, character_b) and ($3::text is null or $3 in (character_a, character_b))
         and status in ('generating', 'ready') and varies_episode_id is null
@@ -261,6 +274,8 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
       const notices = textedLinks(lo, hi).reduce((n, l) => n + (unreadBy.get(l) ?? 0), 0);
       const { unread, mark } = threadUnread(texts, self, readAt.get(`${lo}/${hi}`), notices);
       if (mark && texts.length) await setThreadRead(db, userId, lo, hi, mark);
+      const newest = latest.get(p.id) ?? null;
+      const next = nextStep(match, newest);
       return {
         with: { id: p.id, name: p.name, house: p.made_by === "house", made_by: p.made_by, portrait: p.portrait, hue: p.hue },
         pair: [lo, hi],
@@ -271,7 +286,8 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
         unread,
         new_match: pairNoticeLinks(lo, hi).some((l) => newMatchLinks.has(l)),
         at,
-        next: nextStep(match, latest.get(p.id) ?? null),
+        next,
+        over: didntWorkOut(next, newest),
       };
     }),
   );
