@@ -25,7 +25,11 @@ describe("the sheet check", () => {
     expect(checkSheetText({ dealbreaker: CHUD.dealbreaker })).toMatchObject({ ok: false, reason: "innuendo", field: "dealbreaker" });
     expect(checkSheetText({ bio: "Fine.", want: CHUD.want })).toMatchObject({ ok: false, reason: "innuendo", field: "want" });
     expect(sheetPgIssue(CHUD.quirk)).toBe("innuendo");
-    for (const s of ["Good in bed, or so he says", "Looking for a hookup", "Wants to hook up with someone tall", "A sultry voice", "Seductive and knows it", "Would take you to bed on the first date"]) {
+    for (const s of ["Good in bed, or so he says", "Looking for a hookup", "Wants to hook up with someone tall", "A sultry voice", "Seductive and knows it", "Would take you to bed on the first date",
+      // The same sheet's details, found on the live check.
+      "satisfying women at all costs", "eating ass", "making you moan", "try and sleep with their date",
+      "drinks, fun, and straight back to my place for hooking up", "Let's take this conversation back to my place", "prudes",
+      "you handling my sausage tonight gif"]) {
       expect(sheetPgIssue(s), s).toBe("innuendo");
     }
     // Explicit words still read as sexual.
@@ -44,6 +48,12 @@ describe("the sheet check", () => {
       "A passionate cook who burns everything",
       "Wild about hiking and first nights at the opera",
       "Dominant at chess, terrible at losing",
+      "Graduated magna cum laude, never mentions it",
+      "Hooking up the TV is their love language",
+      "Sleeps with the window open, even in winter",
+      "Grandma's sausage rolls, still warm",
+      "Makes you laugh until you snort",
+      "Satisfying a craving for dumplings at 2am",
     ]) {
       expect(sheetPgIssue(s), s).toBeNull();
     }
