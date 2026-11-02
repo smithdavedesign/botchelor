@@ -177,7 +177,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
       <JsonLd data={itemListJsonLd("The Botchelor cast", season.map((e) => ({ name: e.name, path: `/characters/${e.id}` })))} />
       {/* The weekly earned slot's winner (lib/cast-date.ts): their banner, for a week. */}
       {castDateWin && (
-        <section className="card notice" data-track-area="cast-date-won">
+        <section className="card notice cast-date-won" data-track-area="cast-date-won">
           <h2>The producers were watching</h2>
           <p>
             You were one of last week&apos;s most active viewers, so this week&apos;s earned slot is yours: one date between your character and a season

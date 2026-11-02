@@ -223,6 +223,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       )}
 
       <section className="watch-section">
+        {/* The schedule block reads as tonight's listings (docs/show-style.md). */}
+        <p className="watch-tonight-kicker">Tonight on Botchelor</p>
         {live.length ? (
           <>
             <h2>

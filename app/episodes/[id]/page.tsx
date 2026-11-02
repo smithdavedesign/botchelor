@@ -143,7 +143,8 @@ function EpisodeHero({
         <p className="episode-hero-kicker">
           <span>Botchelor</span>
           {code && <span>{code}</span>}
-          {venue && <span>{venueName(venue)}</span>}
+          {/* The venue names the card only until there's a title: with one, the title and the setting carry the place. */}
+          {venue && !title && <span>{venueName(venue)}</span>}
         </p>
         <div className="episode-hero-cast" aria-hidden="true">
           <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={84} />

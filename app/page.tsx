@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
-import EpisodeItem from "@/app/EpisodeItem";
 import { pageMetadata, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/seo";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { PACK_5 } from "@/lib/catalog";
@@ -26,6 +25,9 @@ import { airWindowMinutes } from "@/lib/air";
 import { callRecord } from "@/lib/streaks";
 import DareVote from "./DareVote";
 import SituationVote from "./SituationVote";
+import TonightBand from "./TonightBand";
+import EpisodeShelf from "./EpisodeShelf";
+import { listLobby } from "@/lib/watch";
 import SeasonBanner from "./SeasonBanner";
 import ShowSince from "./ShowSince";
 import { showSince } from "@/lib/show-since";
@@ -93,7 +95,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const profileName = db && viewerId ? await getProfileName(db, viewerId).catch(() => null) : null;
   const showNews = db && viewerId ? await showSince(db, viewerId).catch(() => null) : null;
   const shared = db ?? (await getDb());
-  const [aired, sky, situation, dares, record, airing] = await Promise.all([
+  const [aired, sky, situation, dares, record, airing, rooms] = await Promise.all([
     listAiredPage(shared, viewerId, 1, 6).catch(() => null),
     cachedConstellation(shared).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
     situationBoard(shared, viewerId).catch(() => null),
@@ -101,6 +103,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     // Your calls (lib/streaks.ts): your record and run, and how many dates you could still call.
     callRecord(shared, viewerId).catch(() => null),
     listAiringSoon(shared, viewerId, airWindowMinutes()).catch(() => []),
+    // The tonight band's live rooms (lib/watch.ts): what's on the air right now.
+    listLobby(shared).catch(() => []),
   ]);
 
   // This season's handful of house characters (lib/season-cast.ts), plus any premium one this viewer owns.
@@ -120,6 +124,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
   return (
     <div className="home">
+      {/* The show is on, before anything else (docs/show-style.md: lead with tonight). */}
+      <TonightBand rooms={rooms} airing={airing} situation={situation} latest={aired?.episodes[0] ?? null} now={Date.now()} />
       {/* The first week of a month: last season's finale (lib/season-ref.ts). */}
       <SeasonBanner />
       {myCharacters.length === 0 && showNews && <ShowSince card={showNews} />}
@@ -211,11 +217,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             <h2>Just aired</h2>
             <Link href="/watch">Watch more →</Link>
           </div>
-          <ul className="list watch-latest-list">
-            {aired.episodes.map((episode) => (
-              <EpisodeItem key={episode.id} episode={episode} />
-            ))}
-          </ul>
+          {/* A shelf of small title cards, not rows (docs/show-style.md: faces first). */}
+          <EpisodeShelf episodes={aired.episodes.slice(0, 6)} />
         </section>
       )}
 
@@ -241,25 +244,15 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         <p className="muted">
           A handful a month. Date one now, or <Link href="/swipe">swipe</Link> to match with another creator&apos;s character.
         </p>
-        <ul className="gallery gallery-pairs home-cast">
+        <ul className="home-cast-faces">
           {cast.slice(0, HOME_CAST_SHOWN).map((p) => (
-            <li key={p.id} className="card tap-card">
-              <div className="char">
-                <Avatar seed={p.id} name={p.name} house size={44} />
-                <div className="meta">
-                  <Link className="stretch" href={`/characters/${p.id}`}>
-                    <strong>{p.name}</strong>
-                  </Link>
-                  {p.premium && <span className="badge">Premium</span>}
-                </div>
-              </div>
-              <ul className="chips">
-                {p.traits.map((t) => (
-                  <li className="chip" key={t}>
-                    {t}
-                  </li>
-                ))}
-              </ul>
+            <li key={p.id} className="card tap-card home-cast-tile">
+              <Avatar seed={p.id} name={p.name} house size={72} />
+              <Link className="stretch home-cast-name" href={`/characters/${p.id}`}>
+                <strong>{p.name}</strong>
+              </Link>
+              {p.premium && <span className="badge">Premium</span>}
+              <span className="home-cast-traits">{p.traits.slice(0, 2).join(" · ")}</span>
             </li>
           ))}
         </ul>
