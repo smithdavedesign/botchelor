@@ -13,6 +13,12 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 function Items({ card }: { card: ShowSinceData }) {
   return (
     <ul className="show-since-list">
+      {card.season && (
+        <li>
+          <span aria-hidden="true">🎬</span> Season {card.season.number} ({card.season.label}) is over:{" "}
+          <Link href={card.season.path}>watch the recap</Link>
+        </li>
+      )}
       {card.aired > 0 && (
         <li>
           <span aria-hidden="true">📺</span> <Link href="/watch#latest">{plural(card.aired, "date aired", "dates aired")}</Link>

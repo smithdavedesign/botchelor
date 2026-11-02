@@ -48,7 +48,9 @@ describe("the show since your last visit", () => {
     expect(await showSince(t.db, null)).toBeNull();
     expect(await showSince(t.db, "nobody")).toBeNull();
     await visited("quiet", 30);
-    expect(await showSince(t.db, "quiet")).toBeNull();
+    // A season closing since is news of its own (tests/season-recap.test.ts): in a month's first 30 hours it's all there is.
+    const quiet = await showSince(t.db, "quiet");
+    expect(quiet === null || (quiet.season !== null && !quiet.aired && !quiet.moves.length && !quiet.calls && !quiet.followed && !quiet.situation)).toBe(true);
   });
 
   it("counts the public dates that aired and your calls on them", async () => {

@@ -44,6 +44,7 @@ import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setConversationEnabledForTests } from "@/lib/conversation";
 import { setAfterglowEnabledForTests } from "@/lib/afterglow";
 import { setMixerVoiceEnabledForTests } from "@/lib/mixer-voice";
+import { setSeasonRecapVoiceEnabledForTests } from "@/lib/season-recap";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setLookAlikeGateForTests } from "@/lib/originality";
@@ -117,6 +118,7 @@ export async function startTestDb() {
   // model). The afterglow module is tested directly in tests/afterglow.test.ts.
   setAfterglowEnabledForTests(false);
   setMixerVoiceEnabledForTests(false);
+  setSeasonRecapVoiceEnabledForTests(false);
   // A new match's opening chat (lib/swipes.ts) is the swipe tests' to drive, with their own model.
   setMatchChatEnabledForTests(false);
   // The swipe gate (lib/swipe-gate.ts) is off in tests by default, so the suites written before it keep asking
@@ -170,6 +172,8 @@ export async function startTestDb() {
         // Tonight's situation (lib/situations.ts): the house cast outlives a reset, so its nights would too.
         "situation_votes",
         "situation_nights",
+        // A season's finale (lib/season-recap.ts): frozen once, so a reset must forget it.
+        "season_recaps",
         "adult_invites",
         "adult_monologues",
         "adult_short_calls",

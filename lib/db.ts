@@ -2991,6 +2991,18 @@ create table if not exists situation_nights (
   party_id text,
   created_at timestamptz not null default now()
 );
+
+-- A season's finale (lib/season-recap.ts; David 2026-11-01): the recap of a closed season, frozen on its first read
+-- after the season ends. One row a season: the first reader claims it (claimed_at), writes data (the recap's facts, as
+-- shown) and the "Previously on" narrative (narrative_by: 'model' or 'template'), and it never changes afterwards.
+create table if not exists season_recaps (
+  season_id text primary key,
+  claimed_at timestamptz not null default now(),
+  data jsonb,
+  narrative text,
+  narrative_by text,
+  frozen_at timestamptz
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

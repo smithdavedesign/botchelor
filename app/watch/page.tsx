@@ -9,6 +9,7 @@ import { getDb } from "@/lib/db";
 import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
 import { callersBoard, callRecord } from "@/lib/streaks";
 import SituationVote from "@/app/SituationVote";
+import SeasonBanner from "@/app/SeasonBanner";
 import ShowSince from "@/app/ShowSince";
 import { showSince } from "@/lib/show-since";
 import { situationBoard } from "@/lib/situations";
@@ -186,6 +187,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         <a href="#how-it-works">How it works</a>
       </p>
 
+      <SeasonBanner />
       {showNews && <ShowSince card={showNews} />}
 
       {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} />}

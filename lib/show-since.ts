@@ -11,11 +11,13 @@
  *  - $0: counts and names from rows the show already has, no model call, nothing generated or stored.
  *  - Public only, like the graph's public layer: public dates, public stage moves between public characters.
  *  - Looks back at most LOOKBACK_DAYS, and shows nothing when nothing happened.
+ *  - A season that closed since (lib/season-ref.ts): its finale, /seasons/<month-year>.
  */
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
 import { STAGE_LABELS, type Stage } from "./relationships";
 import { DATE_ROLEPLAYS } from "./roleplays";
+import { seasonClosedSince, type SeasonRef } from "./season-ref";
 import { callRecord } from "./streaks";
 
 /** The furthest back the card counts from. */
@@ -38,6 +40,8 @@ export type ShowSince = {
   followed: number;
   /** The newest date the viewers picked the situation for (lib/situations.ts), made since. */
   situation: { title: string; icon: string; room_path: string } | null;
+  /** A season that closed since: its finale page. */
+  season: SeasonRef | null;
 };
 
 /** When this person's last visit was, or null for a first visit (or one too recent to count as a return). */
@@ -105,7 +109,8 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
     calls: c && c.called > 0 ? { called: c.called, right: c.hits, streak: (await callRecord(db, viewerId)).streak } : null,
     followed: followed.rows[0]?.n ?? 0,
     situation: n && def ? { title: def.title, icon: def.icon, room_path: `/watch/${n.party_id}` } : null,
+    season: seasonClosedSince(since, now),
   };
-  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation;
+  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.season;
   return anything ? card : null;
 }
