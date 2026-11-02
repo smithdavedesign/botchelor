@@ -60,7 +60,7 @@ import {
 } from "./rules";
 import { PUBLIC_ONLY } from "./relationships";
 import { refreshAndAnnounce } from "./relationship-events";
-import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
+import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate, type DateRequest } from "./simulation";
 import { updateCharacterMemory } from "./memory";
 import { mixerQuietUsers, notifyNightAired, siblingCharacters } from "./group-dates";
 import { notifyOwnersAired, notifyPredictors } from "./air";
@@ -807,7 +807,9 @@ export async function createTemplateParty(
   aId: string,
   bId: string,
   // The situation the viewers voted for (lib/situations.ts): the date plays it as a roleplay the show agreed to.
-  opts: { roleplay?: DateRoleplay | null } = {},
+  // `dare` (lib/dares.ts): the producers' note slipped to side A ONLY — it rides that side's private note
+  // (lib/simulation.ts), so the other side never sees it, and the engine's note_followed says if they went through.
+  opts: { roleplay?: DateRoleplay | null; dare?: string | null } = {},
 ): Promise<CreatePartyResult | null> {
   if (generationPaused()) return { ok: false, status: 503, error: "generation_paused", message: PAUSED_MESSAGE };
   const rows = (
@@ -826,7 +828,8 @@ export async function createTemplateParty(
   // Hot takes for a character with none yet, derived once on the free model (lib/hot-takes.ts). Never fails the room.
   await ensureHotTakes(db, [a.id, b.id], getModel("minimal", false)).catch(() => {});
   // A house room has no owner: its characters bring in only their public history together.
-  const built = await buildDate(db, episodeId, forDate(a), forDate(b), DEFAULT_DATE_REQUEST, undefined, undefined, {
+  const req: DateRequest = opts.dare ? { ...DEFAULT_DATE_REQUEST, note: opts.dare } : DEFAULT_DATE_REQUEST;
+  const built = await buildDate(db, episodeId, forDate(a), forDate(b), req, undefined, undefined, {
     creatorId: PUBLIC_ONLY,
     roleplay: opts.roleplay ?? null,
   });

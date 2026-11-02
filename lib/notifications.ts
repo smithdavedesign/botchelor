@@ -54,6 +54,7 @@ export type NotificationKind =
   | "likes_waiting" // your characters have likes waiting and don't answer for themselves while you're away (never who; lib/away.ts)
   | "situation_on" // the house date whose situation you voted for is on (lib/situations.ts)
   | "backing_settled" // the season closed: how the cast member you backed ended it (lib/backing.ts)
+  | "dare_on" // the house date carrying the dare you voted on is on (lib/dares.ts)
   | "while_away"; // (agents) back after a while: what your characters did on their own, and that they're yours again (lib/away.ts)
 
 export type Notification = {
