@@ -27,6 +27,8 @@ import { hasJobKey } from "@/lib/connections";
 import { CLIP_TOKEN_COST, episodeAllowance } from "@/lib/allowance";
 import { loadCharacter } from "@/lib/character";
 import { thisWeek } from "@/lib/life";
+import { castSecrets } from "@/lib/cast-secrets";
+import { Secrets } from "./Secrets";
 import { describeTemperament } from "@/lib/temperament";
 import { connections, describeDrift, describeForgets, loadCharacterMemory, loadForgets, stageFor } from "@/lib/memory";
 import { getCharacterRatings } from "@/lib/ratings";
@@ -102,12 +104,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       </article>
     );
   }
-  const [{ dates: episodes, record, page: datesPage, pages: datesPages }, ratings, memory, dating, reviews] = await Promise.all([
+  const [{ dates: episodes, record, page: datesPage, pages: datesPages }, ratings, memory, dating, reviews, secrets] = await Promise.all([
     getCharacterDatesPage(db, id, viewerId, parsePage(sp.dates)),
     getCharacterRatings(db, id, viewerId),
     loadCharacterMemory(db, id),
     getDatingProfile(db, id),
     reviewSummary(db, id, viewerId),
+    // This season's cast only (lib/cast-secrets.ts); a failed read just leaves the card off.
+    castSecrets(db, id).catch(() => null),
   ]);
   const week = thisWeek(c.id, c.this_week);
   // The owner also sees its private facts (marked as theirs alone); everyone else gets the public card.
@@ -400,6 +404,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {/* Where each part of a long page is, in one row (2026-10-31 UX audit, C4: ~5 phone screens of cards). */}
       <nav className="page-jumps" aria-label="On this page">
         <a href="#profile">Profile</a>
+        {secrets && <a href="#secrets">Secrets</a>}
         <a href="#audience">Audience</a>
         {memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && <a href="#story">Story</a>}
         <a href="#date-record">Dates</a>
@@ -484,6 +489,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       </section>
 
       {hasExtras(shownExtras) && <ProfileDetails extras={shownExtras} owner={ratings.is_owner} />}
+
+      {secrets && <Secrets name={shortName(c.name)} secrets={secrets} />}
 
       {photos.length > 0 && (
         <section className="card profile-photos" aria-label="Photos">

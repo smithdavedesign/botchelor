@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-type Props = { searchParams: Promise<{ character?: string; page?: string | string[] }> };
+type Props = { searchParams: Promise<{ character?: string; page?: string | string[]; all?: string }> };
 
 /** The conversations: this many a page (?page=N). The new-match faces above are a row, not paged. */
 const CONVERSATIONS_PAGE = 10;
@@ -41,7 +41,8 @@ function dateBadge(t: Thread, short = false): string | null {
     case "filming":
       return "🎬 On now";
     case "dated":
-      return t.next.aired ? null : short ? "🎬 Ready" : "🎬 Date ready";
+      // Shown with the ones that didn't work out (?all=1): their last date was a disaster.
+      return t.next.aired ? (t.over ? (short ? "Over" : "Didn't work out") : null) : short ? "🎬 Ready" : "🎬 Date ready";
     case "declined":
       return short ? "Passed" : "Not this time";
     default:
@@ -55,7 +56,7 @@ function dateBadge(t: Thread, short = false): string | null {
  * nothing else (/messages). A swipe match and anyone it has dated both count: they all text.
  */
 export default async function MatchesPage({ searchParams }: Props) {
-  const { character, page } = await searchParams;
+  const { character, page, all } = await searchParams;
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
   const mine = viewerId ? await listMyDatingProfiles(db, viewerId) : [];
@@ -78,7 +79,13 @@ export default async function MatchesPage({ searchParams }: Props) {
   const ids = mine.map((c) => c.id);
   const [news, taken] = await Promise.all([newsByCharacter(db, viewerId, ids), takenWith(db, ids)]);
   const me = mine.find((c) => c.id === character) ?? characterToOpen(mine, news) ?? mine[0];
-  const inbox = (await listThreads(db, viewerId, me.id)) ?? { fresh: [], conversations: [] };
+  const everyone = (await listThreads(db, viewerId, me.id)) ?? { fresh: [], conversations: [] };
+  // The ones that didn't work out (someone passed, or the date was a disaster) stay out of the main list unless asked
+  // for (?all=1; David, 2026-11-01).
+  const showAll = all === "1";
+  const over = [...everyone.fresh, ...everyone.conversations].filter((t) => t.over).length;
+  const inbox = showAll ? everyone : { fresh: everyone.fresh.filter((t) => !t.over), conversations: everyone.conversations.filter((t) => !t.over) };
+  const params = { character: me.id, all: showAll ? "1" : undefined };
   const first = shortName(me.name);
   const convos = pageOf(inbox.conversations, parsePage(page), CONVERSATIONS_PAGE);
   const thread = (t: Thread) => `${t.link}?as=${encodeURIComponent(me.id)}`;
@@ -162,13 +169,22 @@ export default async function MatchesPage({ searchParams }: Props) {
             })}
           </ul>
         ) : null}
-        <Pager page={convos.page} pages={convos.pages} label="Messages pages" href={(n) => pageHref("/matches", { character: me.id }, "page", n, "messages-title")} prev="Newer" next="Older" scroll={false} />
+        <Pager page={convos.page} pages={convos.pages} label="Messages pages" href={(n) => pageHref("/matches", params, "page", n, "messages-title")} prev="Newer" next="Older" scroll={false} />
         {inbox.conversations.length ? null : (
           <p className="muted matches-empty">
             {inbox.fresh.length
               ? `No texts yet. ${first}'s matches text each other soon after they match.`
-              : `No matches yet. Swipe for ${first}: a like both ways is a match, and the two start texting.`}{" "}
+              : over
+                ? `Nothing open right now. Swipe for ${first}: a like both ways is a match, and the two start texting.`
+                : `No matches yet. Swipe for ${first}: a like both ways is a match, and the two start texting.`}{" "}
             <Link href={`/swipe?character=${encodeURIComponent(me.id)}`}>Swipe for {first}</Link>
+          </p>
+        )}
+        {over > 0 && (
+          <p className="muted small matches-over">
+            <Link href={pageHref("/matches", { character: me.id, all: showAll ? undefined : "1" }, "page", 1, "messages-title")} scroll={false}>
+              {showAll ? `Hide the ${over} that didn't work out` : `Show ${over} that didn't work out`}
+            </Link>
           </p>
         )}
       </section>
