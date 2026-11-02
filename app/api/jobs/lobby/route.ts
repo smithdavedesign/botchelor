@@ -1,6 +1,7 @@
+import { after } from "next/server";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
-import { internalJobAuthorized } from "@/lib/jobs";
+import { internalJobAuthorized, runQueuedJobs } from "@/lib/jobs";
 import { refreshLobby } from "@/lib/watch";
 import { airDueDates } from "@/lib/air";
 import { autoplayQuietOwnDates } from "@/lib/own-date";
@@ -16,6 +17,8 @@ import { ensureCastSecrets } from "@/lib/cast-secrets";
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
+/** Stuck generations the hourly job runs again, at most (each is a whole date, ~10–20 model calls). */
+const STUCK_PER_HOUR = 5;
 
 /**
  * The hourly lobby job (a DigitalOcean scheduled job in .do/app.yaml calls it, since Vercel's free plan runs cron only
@@ -50,7 +53,19 @@ async function run(req: Request): Promise<Response> {
   const recoupling = await runDueRecoupling(db).catch(() => null);
   // This season's cast secrets (lib/cast-secrets.ts): written once a season each on the show's cheap model; a no-op after.
   const secrets = await ensureCastSecrets(db).catch(() => null);
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, dare_verdicts: dareVerdicts.length, recoupling, secrets, aired, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  // Dates whose generation died (a deploy swapped the container mid-date: the 2026-11-02 20:20 mixer's five sat
+  // "generating" for hours): run again after the response, so the scheduler's call doesn't wait on the model. Only
+  // the daily job did this before.
+  const stuck = (await db.query<{ n: number }>(`select count(*)::int as n from generation_jobs where status = 'queued' or (status = 'running' and leased_until < now())`).catch(() => ({ rows: [{ n: 0 }] }))).rows[0]?.n ?? 0;
+  if (stuck) {
+    const rerun = () => runQueuedJobs(db, new Date(), STUCK_PER_HOUR).catch(() => 0);
+    try {
+      after(rerun);
+    } catch {
+      void rerun(); // outside a request (a test): just run it
+    }
+  }
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, dare_verdicts: dareVerdicts.length, recoupling, secrets, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);
