@@ -10392,6 +10392,71 @@ main:has(> .episode-page) {
   color: #fff;
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
 }
+/* The title card's own pieces (docs/show-style.md): the episode's title, and the cold open above the card. */
+.episode-hero-title {
+  margin: 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: var(--text-xl);
+  color: rgba(255, 255, 255, 0.94);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
+  text-wrap: balance;
+}
+.episode-prev {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.75rem;
+  /* On a phone it takes the page-top compensation the hero would otherwise take; the two sit flush. */
+  margin: calc(-1 * 1.25rem) calc(-1 * var(--gutter)) 1.25rem;
+  padding: 0.65rem var(--gutter);
+  background: #140a1e;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: var(--text-sm);
+}
+.episode-prev p {
+  margin: 0;
+}
+.episode-prev a {
+  color: rgba(255, 255, 255, 0.92);
+}
+.episode-prev-label {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+}
+@media (min-width: 761px) {
+  .episode-prev {
+    margin: 0 0 var(--space-3);
+    border-radius: 14px;
+  }
+}
+/* An episode's title on a list row: the billing, not another badge. */
+.episode-item-title {
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+/* The ending, staged as the episode's final beat rather than a trailing metadata line. */
+.ending-beat {
+  margin-top: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    var(--grad) border-box;
+  text-align: center;
+}
+.ending-beat .ending {
+  margin: 0;
+  font-size: var(--text-lg);
+}
 .episode-hero-setting {
   margin: 0;
   max-width: 38rem;

@@ -11,6 +11,7 @@
  * private ("offline"), which it then stays. A watch party's premiere airs live in its room instead.
  */
 import { callRecord, NO_CALLS, runNote } from "./streaks";
+import { titleEpisodeOnAir } from "./episode-title";
 import type { Db } from "./db";
 import type { DramaAnswer, Ending } from "./rules";
 import { updateCharacterMemory } from "./memory";
@@ -57,6 +58,10 @@ export async function airEpisode(db: Db, id: string, hostId: string, opts: { air
     )
   ).rows[0];
   if (!revealed) return null;
+  // Its episode title (docs/show-style.md), written once by the free model. Fire-and-forget: airing often happens on a
+  // page open (airIfDue), which must never wait on a model call; the template stands in if the call fails or the
+  // process dies first (lib/episode-title.ts falls back at read time wherever no stored title exists).
+  void titleEpisodeOnAir(db, id).catch(() => {});
   // M14: fold it into both characters' learned memory (deterministic, $0, best-effort)...
   await updateCharacterMemory(db, revealed.character_a).catch(() => {});
   await updateCharacterMemory(db, revealed.character_b).catch(() => {});

@@ -1,0 +1,16 @@
+import type { ThisWeekCard } from "@/lib/season-format";
+
+/**
+ * "This week on Botchelor" (lib/season-format.ts): the season's announcement on week 1, and this week's twist, in
+ * producer voice. $0: every line is a template from the season format's calendar.
+ */
+export default function ThisWeek({ card }: { card: ThisWeekCard }) {
+  return (
+    <section className="card watch-this-week" id="this-week" aria-labelledby="this-week-head" data-track-area="this-week">
+      <p className="kicker">This week on Botchelor</p>
+      <h2 id="this-week-head">{card.label}</h2>
+      {card.announce && <p>{card.announce}</p>}
+      <p className="muted small">{card.tease}</p>
+    </section>
+  );
+}
