@@ -129,6 +129,57 @@ export const FACT_IDEAS = [
 export const MAX_HOT_TAKES = 5;
 export const HOT_TAKE_CHARS = 120;
 
+/**
+ * "Go deeper" (the create wizard's optional step, David 2026-11-01): what they carry from their last relationship, what
+ * really wins them over, and whether they date for fun or take it seriously. The first two are private like a private
+ * fact (only the character itself, on its dates: publicExtras drops them); how they date is on the card. What they're
+ * hiding isn't here: it's kept as their own secrets (lib/cast-secrets.ts ownSecrets), which can slip out on a date.
+ */
+export const BAGGAGE_MAX = 160;
+export const WINS_THEM_OVER_MAX = 160;
+export const MOODS = [
+  { id: "playful", label: "Here for fun", prompt: "You're here to have fun: tease, play, keep it light, and you'd rather laugh than have a deep talk tonight." },
+  { id: "balanced", label: "A bit of both", prompt: "You like a laugh and you like a real conversation; you go where the date goes." },
+  { id: "earnest", label: "Takes it seriously", prompt: "You take dating seriously: you ask real questions, you want to know who they are, and too much joking wears on you." },
+] as const;
+export type MoodId = (typeof MOODS)[number]["id"];
+export const MOOD_IDS = MOODS.map((m) => m.id) as unknown as readonly [MoodId, ...MoodId[]];
+export const moodLabel = (id: string | null | undefined): string | null => MOODS.find((m) => m.id === id)?.label ?? null;
+/** What they're hiding: up to MAX_HIDING lines, kept as their own secrets (lib/cast-secrets.ts), not in extras. */
+export const MAX_HIDING = 3;
+export const HIDING_CHARS = 120;
+/** Ideas for the Go deeper step's chips (only ever into blank fields). */
+export const HOT_TAKE_IDEAS = [
+  "Brunch is just a late breakfast with a markup.",
+  "A first date should never be at a bar.",
+  "Texting back fast isn't keen, it's polite.",
+  "Board games are a test of character.",
+  "The book is always better.",
+  "Pineapple belongs on pizza.",
+  "Being early is the only way to be on time.",
+  "Dogs are better judges of character than people.",
+] as const;
+export const HIDING_IDEAS = [
+  "Still sleeps with a night light on",
+  "Has a spreadsheet rating every date they've been on",
+  "Cried at a supermarket advert last week",
+  "Can't actually swim, and has lied about it for years",
+  "Writes poems they've never shown anyone",
+  "Practised this date's small talk in the mirror",
+] as const;
+export const BAGGAGE_IDEAS = [
+  "Their ex left a note on the fridge and moved to Lisbon. They still don't own a fridge magnet.",
+  "Engaged once, for eleven days. They still have the ring box, empty, in a drawer.",
+  "A long, kind relationship that just faded. They worry that's what love always does.",
+  "Never really had one: they've been busy, they say, and they half believe it.",
+] as const;
+export const WINS_THEM_OVER_IDEAS = [
+  "Someone who remembers a small thing they said and brings it up later.",
+  "Being out-argued, fairly, about something that matters to them.",
+  "A person who's kind to the waiter when they think nobody's watching.",
+  "Someone who laughs first at their own bad joke.",
+] as const;
+
 /** Words or phrases the character would never say: the critic sends a line that uses one back. */
 export const MAX_NEVER_SAYS = 5;
 export const NEVER_SAY_MAX = 40;
@@ -176,6 +227,12 @@ export const ExtrasInput = z
     looks: LooksInput.optional(),
     /** Opinions they really hold (lib/hot-takes.ts): carried onto their dates, where they're allowed to cause friction. */
     hot_takes: z.array(z.string().trim().min(1, "A hot take can't be empty.").max(HOT_TAKE_CHARS, `At most ${HOT_TAKE_CHARS} characters each.`)).max(MAX_HOT_TAKES, `At most ${MAX_HOT_TAKES}.`).optional(),
+    /** Go deeper: what they carry from their last relationship (private). */
+    baggage: opt(BAGGAGE_MAX),
+    /** Go deeper: what really wins them over (private). */
+    wins_them_over: opt(WINS_THEM_OVER_MAX),
+    /** Go deeper: whether they date for fun or take it seriously. */
+    mood: z.enum(MOOD_IDS).optional(),
   })
   .strict();
 export type ExtrasInputType = z.infer<typeof ExtrasInput>;
@@ -206,6 +263,11 @@ export type CharacterExtras = Partial<Record<TextDetail, string>> & {
   looks?: Looks;
   /** Opinions they really hold (lib/hot-takes.ts). Public: they'd say them. */
   hot_takes?: string[];
+  /** Go deeper (see BAGGAGE_MAX): private, like a private fact. */
+  baggage?: string;
+  wins_them_over?: string;
+  /** Go deeper: how they date (MOODS). On the card. */
+  mood?: MoodId;
 };
 
 /** Keeps only the filled entries of a keyed group; undefined when none are. */
@@ -262,6 +324,11 @@ export function normaliseExtras(input: ExtrasInputType | null | undefined): Char
   const takeSeen = new Set<string>();
   const takes = (input.hot_takes ?? []).map((t) => t.trim()).filter((t) => t && !takeSeen.has(t.toLowerCase()) && takeSeen.add(t.toLowerCase()));
   if (takes.length) out.hot_takes = takes;
+  const baggage = input.baggage?.trim();
+  if (baggage) out.baggage = baggage;
+  const wins = input.wins_them_over?.trim();
+  if (wins) out.wins_them_over = wins;
+  if (input.mood) out.mood = input.mood;
   return out;
 }
 
@@ -275,6 +342,11 @@ export const factLine = (f: Pick<CharacterFact, "label" | "value">): string => `
  */
 export function publicExtras(e: CharacterExtras | null | undefined): CharacterExtras {
   if (!e) return {};
+  // Go deeper's private two: only the character itself, on its dates (and its owner).
+  if (e.baggage !== undefined || e.wins_them_over !== undefined) {
+    const { baggage: _b, wins_them_over: _w, ...rest } = e;
+    return publicExtras(rest);
+  }
   if (e.looks?.after_dark) {
     const { looks, ...rest } = e;
     const shown = publicLooks(looks);
@@ -314,6 +386,8 @@ export function extrasFields(e: CharacterExtras): Record<string, string | readon
     never_says: e.never_says,
     facts: e.facts?.flatMap((f) => [f.label, f.value]),
     hot_takes: e.hot_takes,
+    baggage: e.baggage,
+    wins_them_over: e.wins_them_over,
   };
 }
 
@@ -339,6 +413,11 @@ export function extrasForPrompt(e: CharacterExtras): Record<string, unknown> {
   if (e.here_for) out.here_for = goalLabel(e.here_for);
   if (e.hobbies?.length) out.hobbies = e.hobbies;
   if (e.prompts?.length) out.profile_answers = e.prompts.map((p) => `${promptLabel(p.id)} ${p.answer}`);
+  // Go deeper: private to the character itself (its own prompts only: the other side reads publicExtras).
+  if (e.baggage) out.your_last_relationship = e.baggage;
+  if (e.wins_them_over) out.what_really_wins_you_over = e.wins_them_over;
+  const mood = MOODS.find((m) => m.id === e.mood);
+  if (mood) out.how_you_date = mood.prompt;
   return out;
 }
 
@@ -486,6 +565,17 @@ export function extrasJsonSchema(): Record<string, unknown> {
           },
         },
       },
+      baggage: {
+        type: "string",
+        maxLength: BAGGAGE_MAX,
+        description: "Private: what they carry from their last relationship. It colours how they open up when a date gets personal; never shown on the card.",
+      },
+      wins_them_over: {
+        type: "string",
+        maxLength: WINS_THEM_OVER_MAX,
+        description: "Private: what really wins them over. When the other does it, it lands, and it weighs in their own see-them-again answer.",
+      },
+      mood: { type: "string", enum: [...MOOD_IDS], description: "How they date: playful (here for fun), balanced, or earnest (takes it seriously). Sets their tone on dates; two that don't match make friction." },
       hot_takes: {
         type: "array",
         maxItems: MAX_HOT_TAKES,

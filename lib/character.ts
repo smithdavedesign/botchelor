@@ -22,7 +22,7 @@ import { loadSoul, soulText, type StoredSoul } from "./souls";
 import { characterPortrait } from "./portraits";
 import { loadCharacterMemory, MEMORY_SIGNAL_CAP, type CharacterMemory } from "./memory";
 import { getCharacterHistory, type CharacterRecord } from "./game";
-import { extrasForPrompt, extrasVisible, hasExtras, voiceExamples, type CharacterExtras } from "./extras";
+import { extrasForPrompt, extrasVisible, hasExtras, publicExtras, voiceExamples, type CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { baseSignals, sheetSignals } from "./temperament";
 import type { PromptTexts } from "./text-chain";
@@ -293,7 +293,8 @@ export function characterPublicView(c: Character): Record<string, unknown> {
     traits: c.persona.traits,
     ...(c.look.appearance ? { appearance: c.look.appearance } : {}),
     ...(c.pronouns ? { pronouns: c.pronouns } : {}),
-    ...(hasExtras(c.extras) && Object.keys(extrasForPrompt(c.extras)).length ? { details: extrasForPrompt(c.extras) } : {}),
+    // Public details only: Go deeper's private two (baggage, what wins them over) stay with the character (publicExtras).
+    ...(hasExtras(publicExtras(c.extras)) && Object.keys(extrasForPrompt(publicExtras(c.extras))).length ? { details: extrasForPrompt(publicExtras(c.extras)) } : {}),
     ...(c.thisWeek ? { this_week: c.thisWeek } : {}),
   };
 }

@@ -10,6 +10,7 @@ import { weekIdOf as seasonIdAt } from "@/lib/season-window";
 import { authFromCookieStore } from "@/lib/http";
 import { builderLooks } from "@/lib/looks-draw";
 import { loadSoul } from "@/lib/souls";
+import { ownSecrets } from "@/lib/cast-secrets";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Edit character · Botchelor", robots: { index: false, follow: false } };
@@ -50,7 +51,7 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
   ).rows[0];
   if (!row) notFound(); // not yours (or not there): no hint which
 
-  const [soul, portraitId] = await Promise.all([loadSoul(db, id), approvedPortraitId(db, id)]);
+  const [soul, portraitId, hiding] = await Promise.all([loadSoul(db, id), approvedPortraitId(db, id), ownSecrets(db, id).catch(() => [])]);
   const initial: EditInitial = {
     name: row.name,
     age: row.age,
@@ -82,6 +83,8 @@ export default async function EditCharacterPage({ params }: { params: Promise<{ 
     thisWeek: isOwnUpdate(row.this_week) ? row.this_week!.text : null,
     thisWeekDealt: dealtEvent(id, seasonIdAt(new Date())),
     signedIn: auth?.authenticated ?? false,
+    // Go deeper's what they're hiding (lib/cast-secrets.ts own secrets): one that already slipped on a date stays either way.
+    hiding: hiding.map((h) => h.secret),
   };
   const looks = await builderLooks(db, auth);
   return <CreateWizard edit={{ id, initial }} lookTiles={looks.tiles} afterDark={looks.afterDark} />;

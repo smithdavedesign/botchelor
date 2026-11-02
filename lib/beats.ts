@@ -214,6 +214,15 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
   } else if (takes[0].length && takes[1].length) {
     facts.push("Each of them holds strong opinions (their hot_takes). Let at least one come up, and let the other push back if they would.");
   }
+  // Go deeper (lib/extras.ts, the create wizard): how each dates, and what one carries from their last relationship.
+  const moods = [characters[0].extras?.mood, characters[1].extras?.mood] as const;
+  if (moods[0] && moods[1] && moods[0] !== moods[1] && moods.includes("playful") && moods.includes("earnest")) {
+    const fun = moods[0] === "playful" ? 0 : 1;
+    facts.push(`${names[fun]} is here for fun and ${names[1 - fun]} takes dating seriously: give them a moment where that difference shows (a joke that lands wrong, a real question dodged), and let it matter.`);
+  }
+  ([0, 1] as const).forEach((s) => {
+    if (characters[s].extras?.baggage) facts.push(`${names[s]} carries something from their last relationship (their own details say what): when the date gets personal, let it show in one moment of theirs, never the whole story.`);
+  });
   // A rematch: the pair has aired dates before, so they aren't strangers and tonight picks up from last time.
   const met = characters[0].memory?.people?.find((p) => p.id === characters[1].id) ?? characters[1].memory?.people?.find((p) => p.id === characters[0].id);
   if (met) {

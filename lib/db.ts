@@ -3015,6 +3015,9 @@ create table if not exists cast_secrets (
 -- Living dates: a secret that slipped out on a date (lib/cast-secrets.ts recordSlips), counted out once that date airs.
 alter table cast_secrets add column if not exists revealed_episode text;
 alter table cast_secrets add column if not exists revealed_line integer;
+-- Go deeper: a creator's own "what they're hiding" for their character, in the same table under season 'own' (source 'owner').
+alter table cast_secrets drop constraint if exists cast_secrets_source_check;
+alter table cast_secrets add constraint cast_secrets_source_check check (source in ('model', 'pool', 'owner'));
 create table if not exists situation_nights (
   day text primary key,
   a_id text not null,

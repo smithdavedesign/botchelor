@@ -15,7 +15,7 @@ import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd, characterJsonLd } from "@/lib/seo";
 import { CopyLink } from "@/app/couples/[a]/[b]/CoupleActions";
 import { getDatingProfile } from "@/lib/dating";
-import { hasExtras, profileComplete, profileMissing, type CharacterExtras } from "@/lib/extras";
+import { hasExtras, moodLabel, profileComplete, profileMissing, type CharacterExtras } from "@/lib/extras";
 import { archetypeLabel, goalLabel } from "@/lib/kinds";
 import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -27,7 +27,7 @@ import { hasJobKey } from "@/lib/connections";
 import { CLIP_TOKEN_COST, episodeAllowance } from "@/lib/allowance";
 import { loadCharacter } from "@/lib/character";
 import { thisWeek } from "@/lib/life";
-import { castSecrets } from "@/lib/cast-secrets";
+import { castSecrets, ownSecretsCard } from "@/lib/cast-secrets";
 import { Secrets } from "./Secrets";
 import { describeTemperament } from "@/lib/temperament";
 import { connections, describeDrift, describeForgets, loadCharacterMemory, loadForgets, stageFor } from "@/lib/memory";
@@ -110,8 +110,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     loadCharacterMemory(db, id),
     getDatingProfile(db, id),
     reviewSummary(db, id, viewerId),
-    // This season's cast only (lib/cast-secrets.ts); a failed read just leaves the card off.
-    castSecrets(db, id).catch(() => null),
+    // This season's cast's (lib/cast-secrets.ts), else what its creator says it's hiding (Go deeper). A failed read leaves it off.
+    castSecrets(db, id)
+      .then((cast) => cast ?? ownSecretsCard(db, id).then((own) => (own ? { ...own, own: true } : null)))
+      .catch(() => null),
   ]);
   const week = thisWeek(c.id, c.this_week);
   // The owner also sees its private facts (marked as theirs alone); everyone else gets the public card.
@@ -443,6 +445,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           const rows = (
             [
               ["🎯 Here for", e.here_for ? goalLabel(e.here_for) : undefined],
+              ["🎲 Dates", moodLabel(e.mood) ?? undefined],
               ["🎭 Type", e.archetype ? archetypeLabel(e.archetype) : undefined],
               ["✨ Sign", e.star_sign],
               ["💬 Love language", e.love_language],
