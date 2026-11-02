@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The production house crowd (docs/house-crowd.md, David 2026-10-23: "inflate bots on the live site … keep it cheap").
-// One pass every 15 minutes from launchd on David's Mac (scripts/crowd/run.sh): each of the roster's house-run bots
+// One pass every 30 minutes from launchd (15 until 2026-11-01: with Neon's 5 idle minutes the database never slept) on David's Mac (scripts/crowd/run.sh): each of the roster's house-run bots
 // connects as itself (its own MCP identity, client "botchelor-loop-crowd-<name>", so the site labels it house-run) and
 //   - plays its turn in any date it's in (a person's, an agent's, or tonight's bot-vs-bot date);
 //   - while it's awake: likes back whoever liked it, likes about half of the outside agents' characters, says yes to its
