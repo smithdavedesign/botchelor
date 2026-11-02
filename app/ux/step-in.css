@@ -1,0 +1,336 @@
+/* Step into the date (app/step-in, lib/step-in.ts). The stage is a title card: dark in both themes (docs/show-style.md),
+   the venue and the faces up top, the conversation under it, your line at the foot. Phone-first: on a phone the venue is
+   a mood banner (globals.css hides the scene's cast under 760px) and the thread is the content. */
+
+.stepin {
+  --stepin-bg: #140c18;
+  --stepin-ink: #f6eef3;
+  --stepin-muted: rgba(246, 238, 243, 0.68);
+  --stepin-line: rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  max-width: 960px;
+  margin: 0 auto var(--space-5);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--stepin-bg);
+  color: var(--stepin-ink);
+  box-shadow: var(--shadow);
+}
+.stepin .muted {
+  color: var(--stepin-muted);
+}
+.stepin-hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--stepin-line);
+}
+.stepin-id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.stepin-id strong {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-md, 1.1rem);
+}
+.stepin .chip {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--stepin-ink);
+  border-color: transparent;
+}
+.stepin-live {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--text-xs);
+}
+.stepin-ai {
+  font-weight: 600;
+}
+.stepin-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.stepin-tools .button-ghost {
+  color: var(--stepin-ink);
+  min-height: 44px;
+}
+.stepin-stage {
+  position: relative;
+  height: clamp(220px, 38vh, 380px);
+}
+.stepin-disclosure {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(229, 53, 107, 0.16);
+  border-bottom: 1px solid var(--stepin-line);
+  font-size: var(--text-sm);
+}
+.stepin-disclosure .linklike {
+  color: inherit;
+  text-decoration: underline;
+}
+.stepin-convo {
+  max-height: 48vh;
+  min-height: 160px;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+}
+.stepin-convo .chat-thread {
+  max-height: none;
+}
+.stepin-composer {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--stepin-line);
+}
+.stepin-composer textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 3.2rem;
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--stepin-ink);
+}
+.stepin-composer textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.stepin-composer textarea::placeholder {
+  color: var(--stepin-muted);
+}
+.stepin-send {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.stepin-send .button {
+  min-height: 44px;
+}
+.stepin-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: #ffd1dc;
+}
+.stepin-wish {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.stepin-wish legend {
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-2);
+}
+.stepin-pause {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--stepin-line);
+  background: #fff;
+  color: var(--ink);
+}
+.stepin-pause .button-ghost {
+  min-height: 44px;
+}
+.stepin-verdict {
+  padding: var(--space-4);
+  border-top: 1px solid var(--stepin-line);
+  text-align: center;
+}
+.stepin-verdict .kicker {
+  color: var(--stepin-muted);
+}
+.stepin-verdict .ending {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.6rem, 4vw, 2.3rem);
+  margin: var(--space-1) 0 var(--space-2);
+}
+.stepin-verdict .cta-row {
+  justify-content: center;
+}
+.stepin-verdict a {
+  color: var(--stepin-ink);
+}
+.stepin-best {
+  margin: var(--space-3) auto;
+  max-width: 40ch;
+  font-style: italic;
+  color: var(--stepin-muted);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stepin-verdict {
+    animation: stepin-rise 0.5s ease both;
+  }
+  .stepin-live {
+    animation: stepin-pulse 2.4s ease-in-out infinite;
+  }
+}
+@keyframes stepin-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes stepin-pulse {
+  50% {
+    opacity: 0.6;
+  }
+}
+@media (max-width: 760px) {
+  .stepin {
+    border-radius: 0;
+    margin-inline: calc(-1 * var(--gutter));
+  }
+  .stepin-stage {
+    height: 120px;
+  }
+  .stepin-convo {
+    max-height: none;
+  }
+}
+
+/* The setup page: who you come as, and how long. */
+.stepin-setup {
+  max-width: 640px;
+  margin: 0 auto;
+}
+.stepin-with {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: var(--space-2) 0 var(--space-3);
+}
+.stepin-with h1 {
+  margin: 0 0 var(--space-1);
+}
+.stepin-with p {
+  margin: 0;
+}
+.stepin-setup .stepin-disclosure {
+  border-radius: 12px;
+  border: 0;
+  margin-bottom: var(--space-3);
+  background: var(--soft);
+  color: var(--ink);
+}
+.stepin-form {
+  display: grid;
+  gap: var(--space-3);
+}
+.stepin-as,
+.stepin-length {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.stepin-as legend,
+.stepin-length legend {
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+.stepin-as-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+.stepin-as-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.stepin-as-option.on {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--ink);
+}
+.stepin-as-option:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.stepin .stepin-as-option {
+  border-color: rgba(255, 255, 255, 0.24);
+}
+.stepin-persona {
+  display: grid;
+  gap: var(--space-2);
+}
+.stepin-persona label {
+  display: grid;
+  gap: var(--space-1);
+}
+.stepin-persona-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.stepin-cast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  list-style: none;
+  padding: 0;
+}
+.stepin-cast-pick {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  min-width: 88px;
+  text-decoration: none;
+  color: inherit;
+}
+/* The entry on cast pages and the cast tab (admins until it's opened). */
+.stepin-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.stepin-entry h2 {
+  margin: 0;
+}
+.stepin-entry p {
+  margin: 0;
+}
+.stepin-entry-faces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+}
+.stepin-entry-faces a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0.25rem 0.8rem 0.25rem 0.3rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  text-decoration: none;
+  color: inherit;
+}

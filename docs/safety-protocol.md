@@ -32,6 +32,8 @@ call your local emergency number.
 | After Dark steer / whisper (`POST /api/admin/after-dark`) | `after_dark_steer`, `after_dark_whisper` | Under the scene, and in the theater (`SceneWriter.tsx`) |
 | MCP `send_text` | `mcp_send_text` | `crisis_resources` in the reply (in `details` on an error) |
 | MCP `after_dark_write` `direction` | `mcp_after_dark` | The same |
+| A line on a step-in date (`POST /api/step-in/:id`, `line`) | `step_in_line` | The date **pauses** (nothing in character) until they carry on or leave ([step-into-the-date.md](step-into-the-date.md)) |
+| The "about you" line before a step-in date (`POST /api/step-in`) | `step_in_about` | The date doesn't start; the resources show |
 
 - The route wrapper `crisisAware` reads the request body from a copy and adds `crisis_resources` to whatever the route
   answers, errors included.
@@ -40,6 +42,10 @@ call your local emergency number.
   mission", "die of embarrassment"). A miss is covered by the crisis links in every page's footer.
 - Nothing about the person is stored: `track("crisis_notice_shown", { surface })` is the only record, with no user id
   and no words.
+
+Step-in dates go further, since a person is in a live conversation with a character: maybes checked on a cheap model
+call (failing closed), the cast's own lines checked too, and a durable count (`crisis_referrals`, day and surface only).
+See [step-into-the-date.md](step-into-the-date.md).
 
 ## Not done (yet)
 

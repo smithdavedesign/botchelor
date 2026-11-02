@@ -468,7 +468,7 @@ const err = (status: number, error: string, message: string): Extract<OwnDateRes
  * `{at: null, by: null}` (not known) for any it lacks (a JSON null, or a date from before turn_meta); then the new
  * line's, by `by`. So turn_meta always has as many entries as the transcript, whatever it held before.
  */
-const nextTurnMeta = (by: "show" | "agent") =>
+export const nextTurnMeta = (by: "show" | "agent") =>
   `(select coalesce(jsonb_agg(case when jsonb_typeof(turn_meta) = 'array' and i < jsonb_array_length(turn_meta) then turn_meta -> i
                                    else '{"at": null, "by": null}'::jsonb end order by i), '[]'::jsonb)
       from generate_series(0, $3::int - 1) as i) || jsonb_build_array(jsonb_build_object('at', now(), 'by', '${by}'))`;
@@ -895,6 +895,18 @@ export async function startOwnDate(
 
 /* ------------------------------------------------ the steps ------------------------------------------------ */
 
+/** A self-performed date's row, for its creator or the agent performing its other side (lib/step-in.ts reads it too). */
+export type OwnDateRow = Row;
+export async function loadOwnDate(db: Db, userId: string, episodeId: string): Promise<Row | null> {
+  return load(db, userId, episodeId);
+}
+
+/**
+ * Step into the date (lib/step-in.ts): a person plays side a and the show's model side b, a line at a time, through the
+ * show's own conversation loop. lib/step-in.ts drives the show's lines and the recap, so getOwnDateStep leaves them be.
+ */
+export const isStepIn = (row: Pick<Row, "setup">): boolean => row.setup?.met_via === "step_in";
+
 async function load(db: Db, userId: string, episodeId: string): Promise<Row | null> {
   const { rows } = await db.query<Row>(
     `select e.id, e.creator_id, e.partner_performer, e.status, e.seed::text as seed, e.setup, e.note, e.transcript, e.reflections,
@@ -913,6 +925,7 @@ async function load(db: Db, userId: string, episodeId: string): Promise<Row | nu
 }
 
 /** Rebuild the date exactly as it was dealt: same seed, same signals snapshot, same engine calibration. */
+export const rebuildOwnDate = (db: Db, row: Row) => rebuild(db, row);
 async function rebuild(db: Db, row: Row) {
   const formatId = (row.setup?.format ?? DEFAULT_FORMAT) as FormatId;
   const request: DateRequest = {
@@ -1150,6 +1163,7 @@ export async function episodeLines(db: Db, episodeId: string): Promise<DateLines
 }
 
 /** Where an agent's date stands (lib/moves.ts): its length grows with each move, and its acts follow. */
+export const ownDateShape = (built: BuiltDate, formatId: FormatId, transcript: readonly Turn[]): DateShape => shapeFor(built, formatId, transcript);
 const shapeFor = (built: BuiltDate, formatId: FormatId, transcript: readonly Turn[]): DateShape =>
   dateShape(transcript, built.setup.venue, totalTurns(formatId), {
     moves: built.setup.moves === true && showFormat(formatId).moves !== false,
@@ -1508,7 +1522,9 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
   const step = stepFor(episodeId, built, decided, formatId, transcript, ids);
   // A two-agent date whose last turn is in: the show writes the recap now (or retries it, if it failed before).
   // …and an auto-played date (the show performed both sides), whose recap the show writes too.
-  if (step.stage === "recap" && (twoAgent || row.autoplay) && (await finishOnShowModel(db, row, built, decided, formatId, transcript, userId))) {
+  // A step-in date's show side and recap are lib/step-in.ts's to play (isStepIn).
+  const stepIn = isStepIn(row);
+  if (!stepIn && step.stage === "recap" && (twoAgent || row.autoplay) && (await finishOnShowModel(db, row, built, decided, formatId, transcript, userId))) {
     const fresh = await load(db, userId, episodeId);
     if (fresh?.status === "ready") return { ok: true, step: await doneStep(db, userId, fresh, built, decided, formatId, transcript) };
   }
@@ -1522,7 +1538,7 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
     }
   }
   // The show's model has this side (the other agent went quiet): it performs the turn now, then it's someone else's.
-  if (step.stage === "turn" && performersOf(row)[step.side] === SHOW) {
+  if (!stepIn && step.stage === "turn" && performersOf(row)[step.side] === SHOW) {
     const done = await showTurn(db, row, step.side, step.act_index, step.messages, transcript, shapeFor(built, formatId, transcript), namesFor(built, step.side), decided.ending, speaksOtherThanEnglish(...built.characters));
     if (done) return getOwnDateStep(db, userId, episodeId);
   }

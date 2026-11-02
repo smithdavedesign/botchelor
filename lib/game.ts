@@ -70,7 +70,7 @@ export type CreatorRef = { character_id: string; name: string };
 
 /** The per-date settings the owner chose (PRD budget & autonomy). Stored as episodes.setup (jsonb). */
 /** How a date came about (DateSetup.met_via). */
-export const MET_VIA = ["blind", "match", "proposal", "chosen", "second_date", "own_date", "show"] as const;
+export const MET_VIA = ["blind", "match", "proposal", "chosen", "second_date", "own_date", "show", "step_in"] as const;
 export type MetVia = (typeof MET_VIA)[number];
 
 export type DateSetup = {
@@ -177,6 +177,20 @@ export type DateSetup = {
    * one, and a used agreement is the one a date's snapshot names (lib/date-roleplays.ts). Framing only, never the engine.
    */
   roleplay?: DateRoleplay;
+  /** Step into the date (lib/step-in.ts): a person plays side a, the show's model side b. Server-side only. */
+  step_in?: StepInSetup;
+};
+
+/**
+ * A step-in date's own bookkeeping (lib/step-in.ts): how the person came (one of their characters, or as themselves), how
+ * the date was paid for, a crisis pause, and what the show's side has cost so far (model tokens, never words).
+ */
+export type StepInSetup = {
+  mode: "own" | "you";
+  charge: "admin" | "daily_free" | "free" | "pack";
+  /** The person's lines tripped the self-harm check: the date waits until they choose to go on (lib/crisis.ts). */
+  paused?: boolean;
+  cost?: { calls: number; input_tokens: number; output_tokens: number; cost_usd: number };
 };
 
 export type BoxScore = Record<DateVariable, VariableArc>;

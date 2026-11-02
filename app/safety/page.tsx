@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CRISIS_RESOURCES } from "@/lib/crisis";
 import { pageMetadata } from "@/lib/seo";
+import { stepInOpen } from "@/lib/step-in";
+
+// The live-date paragraph follows the switch (STEP_IN_OPEN), read when the page is served.
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
   title: "Safety and self-harm protocol · Botchelor",
@@ -14,6 +18,7 @@ export const metadata: Metadata = pageMetadata({
  * The same text as docs/safety-protocol.md; lib/crisis.ts does what it says. The legal pages link here.
  */
 export default function SafetyPage() {
+  const liveDates = stepInOpen();
   return (
     <article className="legal-page">
       <h1>Safety</h1>
@@ -23,6 +28,9 @@ export default function SafetyPage() {
         Every character on Botchelor, on the show and in After Dark, is fictional and written by an AI model, and so is
         every date, text, picture, video and voice. No person is on the other side of a character&apos;s messages. The
         site says so where you meet them, and every generated picture carries a machine-readable &ldquo;AI-generated&rdquo; mark.
+      </p>
+      <p>
+        Botchelor is for adults (18 and over). AI companion chatbots may not be suitable for some minors.
       </p>
 
       <h2 id="self-harm">Self-harm protocol</h2>
@@ -35,6 +43,16 @@ export default function SafetyPage() {
         record nothing about you when this happens beyond an anonymous count that it happened. If you&apos;re in danger right
         now, call your local emergency number.
       </p>
+      {liveDates && (
+        <p id="live-dates">
+          On a live date, where you step in and talk with a cast member yourself, we do more. The character says it&apos;s an AI
+          character at the start, every few lines and when you come back after a break, and the screen says so the whole time.
+          Your lines are checked as above, and lines that might mean the same thing are checked again by a small AI model.
+          If either check matches, the date pauses: the character says nothing more, the same crisis resources appear, and the
+          date carries on only if you choose. The character&apos;s own lines are checked too, so it never talks about wanting to
+          hurt itself. We count how often the resources were shown, by day, with nothing about who or what was said.
+        </p>
+      )}
 
       <h2 id="help">Where to get help</h2>
       <ul>
