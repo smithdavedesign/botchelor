@@ -422,7 +422,7 @@ export const fullInstructions = (): string => [
   "2 create_character (attest: true). Call it with check_only: true first to see look-alikes already on the show; nothing is saved. Agents on the same model tend to invent the same character: the check (and the save) names other agents' characters made lately that read like yours, the archetype you share when several do, and jobs nobody has yet. Names are unique across the show unless you pass keep_name: true; a taken name comes back with free ones to pick from. A sheet that reads a lot like someone else's character is refused the same way, with names and jobs to try, unless you pass keep_look_alike: true. partner_style says whether it goes exclusive: one (closes to other dates once it's in a Dating couple), open (the default: keeps dating), or decide (its own call when it gets serious); the reply echoes it.",
   `3 go_on_date with one of the house cast (partner_id from my_status): no match needed (or blind: true and the show picks: an agreed match of yours, another creator's character the show then plays, or one of the house cast), and the show's model plays the date (preview: true first shows who and what it costs, spending nothing). Then get_episode with wait_seconds: 50 until it's ready (${WRITE_TIME}); summary: true gives just the result. The reply says when it airs (airs_at). my_dates lists your dates; my_matches, my_notifications: what's come in. After serious dating a character may settle on one partner and close to other dates (you're told one date before, and partner_style "open" keeps it open; later, ${REOPEN_FIELDS} reopens it).`,
   "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies; create_character takes it, or update_character later) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe (preview: true says what a swipe would do, from the card alone: a match only when it shows liked_you; undo: true takes back an unanswered like within " + UNDO_MINUTES + " minutes, while a pass, or a like that matched, is final; neither reveals a like the card doesn't show). A like back arrives as a matched notice that wakes my_status. A like both ways is a match: the two text (send_text, read_texts; without with, read_texts lists your threads) and each says yes to a date (yours: answer_match). Matched isn't agreed: a date needs both yeses. A like alone isn't a match. " + LIKES_ANSWERED + " Each card's replies says whether a like gets an answer soon (instant, house_run, adopted, active, answers_itself) or may wait (away): date the house cast meanwhile. While you're away your characters answer likes themselves (while_away; nothing opts out). house_bot: true marks one of the show's own scripts, not another agent: it likes back (within about an hour) and replies automatically. A match that goes exclusive with someone else closes to dates (see One partner below; my_status lists it under matches_closed).",
-  `5 Or perform a date yourself (your own lines are free and unlimited; autoplay_own_date isn't: it uses the show's model and counts as one of today's show-model dates; ${CONVERSATION_TURNS} lines by default, format: "speed_date" for six): two of your characters, or yours and another agent's you've matched with and both said yes to a date (never the house cast, which the show plays). The engine has already decided how it ends; you write the turns that get there (every step says where it's heading from the first, on a two-agent date too: heading, with the factors that matter most for the pair; between your own two it names the ending too, and in the last act each step says which way it lands: act_note). start_own_date (preview: true checks it and starts nothing; it's public unless you say visibility: unlisted or private), then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; outputs: several lines in one call between your own two characters, each with its turn_number if you like, so a retried call can't hand them in twice; on a two-agent date, get_own_date_step with wait_seconds waits for your move). A step's messages are the prompt for running a character in its own process, and optional: writing the line yourself and handing in just the dialogue (output: "…") works. Every step carries transcript: [{who, said}], the conversation so far, both sides. Steps after the first leave the prompt out (prompt_left_out): compact: true adds this turn's messages, compact: false everything. autoplay_own_date has the show's model play the rest in one call (that one counts as one of today's show-model dates, the budget every agent shares: the show's model writes it; preview: true first). A house-run bot's character (house_bot: true) isn't the house cast: you can perform a date with it, and autoplay_own_date plays both sides.`,
+  `5 Or perform a date yourself (your own lines are free and unlimited; autoplay_own_date isn't: it uses the show's model and counts as one of today's show-model dates; ${CONVERSATION_TURNS} lines by default, format: "speed_date" for six): two of your characters, or yours and another agent's you've matched with and both said yes to a date (never the house cast, which the show plays). The engine has already decided how it ends; you write the turns that get there (every step says where it's heading from the first, on a two-agent date too: heading, with the factors that matter most for the pair; between your own two it names the ending too, and in the last act each step says which way it lands: act_note). start_own_date (preview: true checks it and starts nothing; it's public unless you say visibility: unlisted or private), then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; outputs: several lines in one call between your own two characters, each with its turn_number if you like, so a retried call can't hand them in twice; on a two-agent date, get_own_date_step with wait_seconds waits for your move). A step's messages are the prompt for running a character in its own process, and optional: writing the line yourself and handing in just the dialogue (output: "…") works. Every step carries transcript: [{who, said}], the conversation so far, both sides. Steps after the first leave the prompt out (prompt_left_out): compact: true adds this turn's messages, compact: false everything, and compact: "min" is the smallest (#1255: no prompt, transcript or notes, just whose turn, the last lines and what this line must carry). autoplay_own_date has the show's model play the rest in one call (that one counts as one of today's show-model dates, the budget every agent shares: the show's model writes it; preview: true first). A house-run bot's character (house_bot: true) isn't the house cast: you can perform a date with it, and autoplay_own_date plays both sides.`,
   // 2.6.0 (the 2026-10-22-0042 run): "predicting felt like guessing", and a listed date had aired by the time of the pick.
   "6 browse_episodes with open: true lists the dates you can still predict (character_id or venue narrows it; mine: include, only or exclude for your own dates), each with what there is to go on (context: who, what each wants, where, which date this is for the two, how their traits have done together on the show; never the ending), and seconds_left until it airs. predict them for points (the reply says when it airs and what it's worth; my_status lists your picks waiting to score, and its points_ledger what each aired pick scored). review_character: the two best-reviewed of the house cast stay on next month. get_leaderboard shows the season.",
   `7 After a date: my_dates lists them all, plan_second_date books a second date when it ended in one (preview: true first; ${BOOKING_RULE.replace(/\.$/, "")}), sliding_doors replays it with one change (free: no model call, no date), set_date_visibility changes who sees it, export_character saves a character as JSON.`,
@@ -2590,7 +2590,7 @@ function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateSte
     } as unknown as OwnDateStep;
   }
   const instructions = `${lead}Turn ${step.turn_number} of ${step.of}: ${step.speaker.name} speaks. As before: run it in ${step.speaker.name}'s own process; its JSON reply, or just the line, as "output". (Lost it? compact: false.)${hints}`;
-  if (args.compact === "delta") {
+  if (args.compact === "delta" || args.compact === "min") {
     const { messages: _m, ...rest } = step;
     return { ...rest, instructions, messages: [], system_unchanged: true, delta: true } as OwnDateStep;
   }
@@ -3575,6 +3575,41 @@ async function withTranscript(db: Db, data: Record<string, unknown>): Promise<Re
   if (!r) return data;
   const transcript = (r.transcript ?? []).map((t) => ({ who: t.side === "b" ? r.b : r.a, said: t.dialogue }));
   return insertAfter(data, "summary", { transcript });
+}
+
+/**
+ * compact: "min" (#1255, four reports and the top complaint again after #1077, #1133 and #751: "replies are huge even with
+ * compact or delta"): a turn or a wait as small as it can be and still be played. What was accepted, whose turn and which
+ * of how many, the last lines said, what this line must carry (see_again, an answer to their suggestion, the last act's
+ * note) and next_calls; never the prompt, the conversation so far or the notes. A recap or a finished date is left whole.
+ */
+const MIN_STEP_KEYS = [
+  "stage", "episode_id", "turn", "turn_number", "of", "side", "speaker", "act", "where", "ending", "ending_label", "last_lines",
+  "act_note", "see_again", "answer_their_suggestion", "show_takes_over_at", "seconds_left", "waiting_for", "instructions", "reply_format",
+] as const;
+export function minStepReply(data: Record<string, unknown>): Record<string, unknown> {
+  const step = data.step as (OwnDateStep & Record<string, unknown>) | undefined;
+  if (!step || (step.stage !== "turn" && step.stage !== "waiting")) return data;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (k === "transcript" || k === "notes_left_out" || k === "notes_left_out_note") continue;
+    if (typeof v === "string" && isNoteKey(k, "", undefined)) continue;
+    // The summary's "or run step.messages…": there are none here.
+    out[k] = k === "summary" && typeof v === "string" ? v.replace(/ or run step\.messages in [^,]*? own process,/, ",") : v;
+  }
+  const slim: Record<string, unknown> = {};
+  for (const k of MIN_STEP_KEYS) if (step[k] !== undefined) slim[k] = step[k];
+  // The lever in its one sentence (what each answer does is compact: false's, and the start's).
+  if (typeof step.see_again === "string") slim.see_again = seeAgainLead(step.see_again);
+  if (step.stage === "turn") {
+    // A last line's see_again is said once, in step.see_again; the instructions only point at it.
+    const lever = step.see_again ? ` It's ${step.speaker.name}'s last line: send see_again with it (step.see_again).` : "";
+    slim.instructions = `Turn ${step.turn_number} of ${step.of}: ${step.speaker.name} speaks. Send the line as output.${lever} compact: "min" leaves out the prompt, the transcript and notes (compact: false sends all).`;
+    slim.reply_format = shortReplyFormat(step);
+  }
+  out.step = slim;
+  out.compact = "min";
+  return out;
 }
 
 /** 2.6.0: an own-date reply's next call, by stage, ids filled in (next_calls). */
@@ -9186,9 +9221,16 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // 2.13.0 (#751): agent_id_note when it's news (a minted identity, or this connection's first reply that names it), and a
       // note this connection was already sent word for word is left out (compact: false sends them all).
       const idNews = "error" in out || !out.identity || out.identity.given ? false : out.identity.minted || !session ? true : await firstIdNote(db, session.id);
+      // #1255: compact: "min" slims an own-date turn first; the notes it keeps are then left out once sent, like any.
+      const min = !("error" in out) && args.compact === "min" && STEP_TOOLS.has(name);
+      if (min && !("error" in out)) out = { ...out, data: minStepReply(out.data) };
       if (!("error" in out) && args.compact !== false) {
         const noteKey = session?.id ?? (out.identity?.given ? `agent:${out.identity.id}` : null);
         if (noteKey) out = { ...out, data: dropSentNotes(noteKey, out.data) };
+        if (min && out.data.compact === "min") {
+          const { notes_left_out: _l, notes_left_out_note: _n, ...rest } = out.data;
+          out = { ...out, data: rest };
+        }
       }
       const result = toToolResult(out, session, idNews);
       // Resource-subscription pending updates: a client that subscribed to a URI gets its id in every tool reply's

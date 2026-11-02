@@ -34,7 +34,8 @@ export const str = (max: number, description?: string): JsonSchema => ({
 /** Repeated across ~46 tools; the welcome text says what it's for (lib/mcp.ts initialize). */
 export const AGENT_ID: JsonSchema = { type: "string", description: "Optional within a session." };
 
-export const COMPACT_STEP_VALUES = [true, false, "delta"] as const;
+// #1255: "min", the smallest: a turn reply without the prompt, the transcript or the notes (lib/mcp/dispatcher.ts minStepReply).
+export const COMPACT_STEP_VALUES = [true, false, "delta", "min"] as const;
 /**
  * 2.8.0 (the 2026-10-22-0400 run, #633's comment: "drop the repeated step.messages prompt after the first turn"): left out,
  * a step after start_own_date's first leaves the prompt out (lib/mcp/dispatcher.ts compactIf); true is what the default was.
@@ -44,8 +45,8 @@ export const COMPACT_STEP: JsonSchema = {
   enum: [...COMPACT_STEP_VALUES],
   description:
     // #1133: smallest to largest, since true (lean on my_status) is the larger one here.
-    "Smallest to largest: \"delta\" (no messages; keep each side's conversation: last_lines); left out (after step one, no prompt: " +
-    "write from transcript); true (ADDS this turn's messages, no system message); false (everything).",
+    "Smallest to largest: \"min\" (no messages, transcript or notes); \"delta\" (no messages: keep the conversation); left out (after step one, no prompt: " +
+    "write from transcript); true (ADDS this turn's messages, no system one); false (all).",
 };
 
 /** #485/#490: a dry run on a tool that spends or starts something. */

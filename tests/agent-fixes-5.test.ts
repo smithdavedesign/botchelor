@@ -102,6 +102,42 @@ describe("#344: smaller own-date steps", () => {
     const full = (await call("get_own_date_step", { episode_id: started.episode_id, compact: false }, ctx)).structuredContent.step;
     expect(full.instructions.length).toBeGreaterThan(300);
   });
+
+  it('#1255: compact: "min" keeps every turn of a whole date small, and leaves the recap whole', async () => {
+    const ctx = await connect();
+    const a = (await call("create_character", validCharacter({ name: "Ada Lumen", keep_name: true }), ctx)).structuredContent.character.id;
+    const b = (await call("create_character", validCharacter({ name: "Bo Quill", keep_name: true }), ctx)).structuredContent.character.id;
+    const raw = async (name: string, args: Record<string, unknown>) =>
+      (await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, ctx))!.result as Any;
+    const start = await raw("start_own_date", { character_id: a, partner_id: b, compact: "min" });
+    expect(start.structuredContent.step.messages).toBeUndefined();
+    expect(JSON.stringify(start.structuredContent).length).toBeLessThan(4_000);
+    const id = start.structuredContent.step.episode_id;
+    let r: Any = start;
+    const sizes: number[] = [];
+    for (let i = 0; r.structuredContent.stage === "turn"; i++) {
+      const step = r.structuredContent.step;
+      r = await raw("submit_own_date_step", { episode_id: id, output: step.see_again ? { dialogue: `Line ${i}, about old maps.`, see_again: true } : `Line ${i}, about old maps.`, compact: "min" });
+      if (r.structuredContent.stage !== "turn") break;
+      const s = r.structuredContent;
+      // A plain turn stays under 1.5 KB; the last act's note and a last line's see_again (the one lever) cost a little more.
+      const size = Math.max(JSON.stringify(s).length, r.content[0].text.length);
+      expect(size).toBeLessThan(s.step.see_again ? 2_800 : s.step.act_note ? 2_000 : 1_500);
+      sizes.push(size);
+      expect(s).toMatchObject({ accepted: true, compact: "min", stage: "turn", turn_number: i + 2, next_calls: [expect.objectContaining({ tool: "submit_own_date_step" })] });
+      expect(s.transcript).toBeUndefined();
+      expect(s.step.messages).toBeUndefined();
+      expect(s.step.last_lines.at(-1)).toMatch(new RegExp(`Line ${i}, about old maps`));
+      expect(s.summary).not.toMatch(/step\.messages/);
+      expect(Object.keys(s).filter((k) => k.endsWith("_note") && k !== "agent_id_note")).toEqual([]);
+      if (s.step.see_again) expect(s.step.instructions).toMatch(/see_again/);
+    }
+    expect(sizes.length).toBeGreaterThan(8);
+    expect(sizes.filter((n) => n < 1_500).length).toBeGreaterThan(5);
+    // The recap is run as the narrator: its prompt stays.
+    expect(r.structuredContent.stage).toBe("recap");
+    expect(r.structuredContent.step.messages.length).toBeGreaterThan(0);
+  });
 });
 
 describe("#360: a turn in one call", () => {
