@@ -12664,6 +12664,48 @@ button.thread-menu-item:hover:not(:disabled) {
   }
 }
 
+/* "Put my name on the board" (app/BoardName.tsx): the best-callers board's display-name form. */
+.board-name {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 24rem;
+  margin-top: var(--space-3);
+}
+.board-name p {
+  margin: 0;
+}
+.calls-line .board-name {
+  margin-top: var(--space-2);
+}
+
+/* The diary cam (app/episodes/[id]/DiaryCam.tsx): each side's take to camera after the date. */
+.diary-cam summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: var(--text-lg);
+}
+.diary-cam-list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.diary-cam-list li {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.diary-cam-list blockquote {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.diary-cam-list blockquote p {
+  margin: 0 0 var(--space-1);
+  font-style: italic;
+}
+
 /* The week's biggest chemistry shifts (app/ChemistryShifts.tsx): warming up and cooling off, side by side from tablet width. */
 .chem-shifts {
   display: grid;

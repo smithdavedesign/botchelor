@@ -31,9 +31,10 @@
  *  - The price: `reel_tokens` bought tokens (After Dark's settings), admins free.
  *  - On Replicate, the backup (`media_provider`, David 2026-10-22; lib/adult/replicate.ts): the keyframe is Qwen-Image-
  *    Edit's, the shot Wan 2.2's, both with Replicate's safety checker off and both through the same Hive check. Wan
- *    2.2 is silent, so once a shot is kept its line is said by the character's stock Kokoro voice, stored beside it
- *    (an adult_images 'audio', `audio_id`) and played with it. A shot keeps who makes it (`provider`), so a reel
- *    started on one finishes there.
+ *    2.2 is silent, so a shot with a line goes to the talk model instead (`replicate_talk_model`, Wan 2.6 since
+ *    2026-11-01), which says the line itself (`speaks`). One the talk model can't make goes back to Wan 2.2, its line
+ *    then said by the character's stock Kokoro voice, stored beside it (an adult_images 'audio', `audio_id`) and played
+ *    with it. A shot keeps who makes it (`provider`), so a reel started on one finishes there.
  *
  * The keyframes are drawn, checked and queued when the reel starts. Shots take minutes on Venice, so a reel is then
  * advanced by whoever's watching (GET polls advanceReel).
@@ -155,6 +156,13 @@ export type ReelShot = {
   /** On Replicate: the stock voice that says the line, and once the shot is in, that line (an adult_images 'audio'). */
   voice?: string;
   audio_id?: string;
+  /** On Replicate: made by the talk model, which says the line itself (its own sound, no `audio_id`). */
+  speaks?: boolean;
+  /**
+   * While a talking shot is queued: the silent model's prediction to queue in its place if the talk model can't make it
+   * (fails, refuses or is cancelled), its line then said beside it as before. Never shown to the reel's viewer.
+   */
+  silent_retry?: { model: string; input: Record<string, unknown> };
   /** The keyframe it started from, once that passed the check (an adult_images 'frame'): what Keep going carries on from. */
   frame_id?: string;
   /**
@@ -939,6 +947,24 @@ export function replicateShotInput(cast: readonly [ReelPerson, ReelPerson], s: P
   };
 }
 
+/**
+ * A shot that says its line itself, on Replicate's Wan 2.5 to 2.7 (they make the sound with the picture): its keyframe,
+ * the line quoted in the prompt with who says it, long enough for the line (5 or 10 s; Wan 2.7 takes any 2 to 15), 720p.
+ * No safety checker to turn off on these (Alibaba's own runs on every one): what comes back still passes Hive.
+ */
+export function talkShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera">, image: string, model: string, avoid?: string): Record<string, unknown> {
+  const seconds = s.text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND + BREATH_S;
+  const anyLength = /wan-2\.7/.test(model);
+  return {
+    [anyLength ? "first_frame" : "image"]: image,
+    prompt: shotPrompt(cast, s, false),
+    negative_prompt: avoid ? `${SHOT_NEGATIVE}, ${avoid}` : SHOT_NEGATIVE,
+    duration: anyLength ? Math.min(15, Math.max(5, Math.ceil(seconds))) : seconds <= 5 ? 5 : 10,
+    resolution: "720p",
+    enable_prompt_expansion: false,
+  };
+}
+
 /** A shot's line in its character's stock voice, on Replicate's Kokoro. */
 export const replicateVoiceInput = (s: Pick<ReelShot, "text" | "voice">): Record<string, unknown> => ({
   text: s.text,
@@ -1115,8 +1141,8 @@ const MAX_PICTURE_BYTES = 40 * 1024 * 1024;
 const MAX_SHOT_BYTES = 100 * 1024 * 1024;
 const MAX_VOICE_BYTES = 20 * 1024 * 1024;
 
-/** A reel made on Replicate: its token, the keyframe and video models, and the video LoRA. */
-export type ReplicateMedia = { token: string; keyframe: string; video: string; videoLora: string | null };
+/** A reel made on Replicate: its token, the keyframe and video models, the video LoRA, and the talk model (unset: none). */
+export type ReplicateMedia = { token: string; keyframe: string; video: string; videoLora: string | null; talk?: string | null };
 
 export type ShotContext = {
   pair: [string, string];
@@ -1154,10 +1180,22 @@ export async function drawReplicateKeyframe(r: ReplicateMedia, prompt: string, i
   return file;
 }
 
-/** Queues one shot's video on Replicate from its keyframe: the prediction's id is the shot's queue id. */
-async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "replicate">, s: ReelShot): Promise<void> {
+/**
+ * Queues one shot's video on Replicate from its keyframe: the prediction's id is the shot's queue id. A shot with a line
+ * goes to the talk model, which says it; the silent model's input is kept on it for when the talk model can't
+ * (collectReplicateShot), its keyframe link signed to last until that shot's latest end (cancelled at 30 min) and some.
+ */
+async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "replicate" | "avoid">, s: ReelShot): Promise<void> {
   const r = ctx.replicate!;
   s.voice = replicateVoice(voiceFor(ctx.cast[s.who === "a" ? 0 : 1]));
+  delete s.speaks;
+  delete s.silent_retry;
+  if (r.talk && s.text.trim()) {
+    const later = signedMediaUrl(s.media_id!, ctx.baseUrl, Date.now() + 30 * 60 * 1000);
+    const p = await createPrediction(r.token, r.talk, talkShotInput(ctx.cast, s, signedMediaUrl(s.media_id!, ctx.baseUrl), r.talk, ctx.avoid), { cancelAfter: "30m" });
+    Object.assign(s, { queue_id: p.id, model: r.talk, speaks: true, silent_retry: { model: r.video, input: replicateShotInput(ctx.cast, s, later, r.videoLora) } });
+    return;
+  }
   // Stopped if it's still going in half an hour: nobody will collect it by then.
   const p = await createPrediction(r.token, r.video, replicateShotInput(ctx.cast, s, signedMediaUrl(s.media_id!, ctx.baseUrl), r.videoLora), { cancelAfter: "30m" });
   s.queue_id = p.id;
@@ -1488,9 +1526,12 @@ async function assembleShots(db: Db, ownerId: string, a: string, b: string, line
   return { ca, cb, cast, places, stages, shots, scope: whole ? "night" : "chapter", chapters: night?.chapters ?? null };
 }
 
+/** The talk model for shots with a line, or null when it's turned off ("off"). */
+export const talkModel = (settings: Pick<Settings, "replicate_talk_model">): string | null => (settings.replicate_talk_model === "off" ? null : settings.replicate_talk_model);
+
 /** Both providers' details when both keys are set up, for runMedia's fallback; null when there's no Replicate token. */
 const replicateMedia = (keys: Awaited<ReturnType<typeof adultKeys>>, settings: Settings): ReplicateMedia | null =>
-  keys.replicate ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora } : null;
+  keys.replicate ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora, talk: talkModel(settings) } : null;
 
 /** Sparse place/stage arrays keyed by each shot's night-line index, rebuilt from a draft's stored shots. */
 function shotGrids(shots: readonly ReelShot[]): { places: (string | null)[]; stages: number[] } {
@@ -1745,8 +1786,9 @@ const failShot = (s: ReelShot, reason: string) => Object.assign(s, { status: "fa
 
 /**
  * Collects one Replicate shot once its prediction is done: the video downloaded at once (Replicate deletes it within
- * the hour), checked by Hive, and only then stored; then its line said by the character's stock voice (Wan 2.2 is
- * silent), stored beside it. "checked": it went to Hive; "busy": Hive couldn't check it (it's asked again later);
+ * the hour), checked by Hive, and only then stored; then, unless the talk model said it, its line said by the
+ * character's stock voice (Wan 2.2 is silent), stored beside it. A talking shot the talk model couldn't make is queued
+ * on the silent model instead. "checked": it went to Hive; "busy": Hive couldn't check it (it's asked again later);
  * "waiting": still being made, or failed without reaching Hive.
  */
 async function collectReplicateShot(
@@ -1771,6 +1813,21 @@ async function collectReplicateShot(
   }
   if (!isDone(p)) return "waiting";
   const missing = noOutput(p);
+  if (missing && s.silent_retry && p.status !== "succeeded") {
+    // The talk model couldn't make it (refused the picture, failed, ran out of time): the silent model makes it instead,
+    // its line said beside it. Asked again next poll if that can't be queued just now.
+    try {
+      const retry = await createPrediction(keys.replicate, s.silent_retry.model, s.silent_retry.input, { cancelAfter: "30m" });
+      Object.assign(s, { queue_id: retry.id, model: s.silent_retry.model, reason: `${missing} (made without its own voice instead)`.slice(0, 200) });
+      delete s.speaks;
+      delete s.silent_retry;
+    } catch (err) {
+      const status = err instanceof ReplicateError ? err.status : undefined;
+      if (status === undefined || status === 429 || status >= 500) return "waiting";
+      failShot(s, err instanceof Error ? err.message : "error");
+    }
+    return "waiting";
+  }
   if (missing) {
     failShot(s, missing);
     return "waiting";
@@ -1806,9 +1863,10 @@ async function collectReplicateShot(
   s.media_id = mediaId;
   delete s.request;
   delete s.retry_at;
+  delete s.silent_retry;
   delete s.reason;
-  // A clip with no line in it (an act from the menu) stays silent.
-  if (!s.text.trim()) return "checked";
+  // A clip with no line in it (an act from the menu) stays silent; a talking shot said its line itself.
+  if (!s.text.trim() || s.speaks) return "checked";
   // Its line, in their voice: the words were held to the two lines when the reel started (makeReel). A voice that
   // doesn't come leaves the shot silent, with its caption, rather than losing it.
   try {
@@ -1969,7 +2027,7 @@ const reelOf = (r: ReelRow): Reel => ({
   status: r.status,
   tokens: r.tokens,
   // What a queued shot sent is for admins (its video row's request), never the reel's viewer.
-  shots: r.shots.map(({ request: _sent, ...shot }) => shot),
+  shots: r.shots.map(({ request: _sent, silent_retry: _retry, ...shot }) => shot),
   created_at: new Date(r.created_at).toISOString(),
   kind: r.kind === "clip" ? "clip" : "night",
   clip: r.clip ?? null,

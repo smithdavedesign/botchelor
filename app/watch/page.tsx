@@ -191,12 +191,12 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
 
       {showNews && <ShowSince card={showNews} />}
 
-      {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} />}
+      {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} />}
 
       {airing.length > 0 && (
         <section className="watch-section" aria-labelledby="airing-soon">
           <h2 id="airing-soon">Airing soon: call it before it airs</h2>
-          {record && record.called > 0 && <CallsLine record={record} airing={0} />}
+          {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} />}
           <ul className="watch-airing">
             {airing.map((episode) => (
               <AiringCard key={episode.id} episode={episode} now={now} />
@@ -302,7 +302,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
 
       {shifts && <ChemistryShiftsPanel shifts={shifts} />}
 
-      {callers && <CallersBoardPanel board={callers} />}
+      {callers && <CallersBoardPanel board={callers} nameless={viewerId !== null && profileName === null} />}
 
       <section className="watch-section" id="leagues">
         {leagues.length > 0 && <h2>Your leagues</h2>}

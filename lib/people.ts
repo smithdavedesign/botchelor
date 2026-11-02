@@ -31,6 +31,12 @@ export function assertSafeName(value: string, field = "name"): void {
   }
 }
 
+/** Whether another person already goes by this display name (trimmed, case-blind). */
+export async function profileNameTaken(db: Db, name: string, userId: string): Promise<boolean> {
+  const { rows } = await db.query(`select 1 from profiles where lower(trim(name)) = lower(trim($1)) and user_id <> $2 limit 1`, [name, userId]);
+  return rows.length > 0;
+}
+
 export async function getProfileName(db: Db, userId: string | null): Promise<string | null> {
   if (!userId) return null;
   const { rows } = await db.query<{ name: string }>("select name from profiles where user_id = $1", [userId]);

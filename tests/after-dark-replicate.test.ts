@@ -71,6 +71,7 @@ const MP4 = new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]);
 const WAV = new Uint8Array([82, 73, 70, 70, 36, 0, 0, 0, 87, 65, 86, 69]);
 const KEYFRAME = "qwen/qwen-image-edit-2511";
 const VIDEO = "wan-video/wan-2.2-i2v-fast";
+const TALK = "wan-video/wan-2.6-i2v";
 const VOICE_VERSION = DEFAULT_REPLICATE_VOICE_MODEL.split(":")[1];
 
 type Seen = { method: string; url: string; headers: Record<string, string>; body: Record<string, unknown> | undefined };
@@ -99,7 +100,7 @@ function fakeReplicate(opts: { create?: (model: string) => Response | null; done
       if (refused) return refused;
       const id = `p${++n}`;
       made.set(id, model);
-      if (model === VIDEO) return Response.json({ id, status: "starting" }, { status: 201 });
+      if (model === VIDEO || model === TALK) return Response.json({ id, status: "starting" }, { status: 201 });
       const output = model === VOICE_VERSION ? `https://replicate.delivery/xe/${id}/output.wav` : [`https://replicate.delivery/xe/${id}/out-0.png`];
       return Response.json({ id, status: "succeeded", output }, { status: 201 });
     }
@@ -247,6 +248,7 @@ describe("the settings", () => {
       replicate_picture_model: "qwen/qwen-image",
       replicate_keyframe_model: KEYFRAME,
       replicate_video_model: VIDEO,
+      replicate_talk_model: TALK,
       replicate_voice_model: DEFAULT_REPLICATE_VOICE_MODEL,
       replicate_video_lora: null,
       replicate_last4: null,
@@ -261,6 +263,9 @@ describe("the settings", () => {
     expect((await adultKeys(t.db)).replicate).toBe("placeholder-replicate-RPLC");
     // A model has to be one (owner/name, or with its version); a LoRA, https links; "" puts the default back.
     expect((await settings({ replicate_video_model: "not a model" }, cookie)).status).toBe(422);
+    expect((await settings({ replicate_talk_model: "not a model" }, cookie)).status).toBe(422);
+    expect((await (await settings({ replicate_talk_model: "off" }, cookie)).json()).settings.replicate_talk_model).toBe("off");
+    expect((await (await settings({ replicate_talk_model: "" }, cookie)).json()).settings.replicate_talk_model).toBe(TALK);
     expect((await settings({ replicate_video_lora: "http://insecure.example/lora.safetensors" }, cookie)).status).toBe(422);
     expect((await settings({ replicate_picture_model: "adirik/realvisxl-v4.0:85a58cc71587cc27539b7c83eb1ce4aea02feedfb9a9fae0598cebc110a3d695" }, cookie)).status).toBe(200);
     expect((await (await settings({ replicate_picture_model: "" }, cookie)).json()).settings.replicate_picture_model).toBe("qwen/qwen-image");
@@ -336,7 +341,7 @@ describe("pictures on Replicate", () => {
 describe("the video of the night on Replicate", () => {
   const night = Array.from({ length: 12 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*leans closer* Line number ${i} says something rather vivid here.` }));
   async function ready(cookie: string, ownerId: string, extra: Record<string, unknown> = {}) {
-    await settings({ enabled: true, openrouter_key: "placeholder-text-ABCD", replicate_key: "placeholder-replicate-RPLC", hive_key: "placeholder-hive", media_provider: "replicate", reel_shots: 3, ...extra }, cookie);
+    await settings({ enabled: true, openrouter_key: "placeholder-text-ABCD", replicate_key: "placeholder-replicate-RPLC", hive_key: "placeholder-hive", media_provider: "replicate", reel_shots: 3, replicate_talk_model: "off", ...extra }, cookie);
     for (const [pid, c] of [["base-a", CAST_A], ["base-b", CAST_B]]) {
       await t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data) values ($1, $2, $3, 'baseline', 'p', 'image/png', $4)`, [pid, ownerId, c, Buffer.from(PNG)]);
     }
@@ -445,6 +450,54 @@ describe("the video of the night on Replicate", () => {
     expect((await media(line2.audio_id!)).status).toBe(404);
     const gallery = (await (await GET(new Request(`${BASE_URL}/api/admin/after-dark?a=${CAST_A}&b=${CAST_B}`, { headers: { cookie } }))).json()).gallery as { kind: string }[];
     expect(gallery.some((g) => g.kind === "audio" || g.kind === "frame")).toBe(false);
+    expect(venice).toEqual([]);
+  });
+
+  it("films a shot with a line on the talk model, which says it itself, and one it can't make on Wan 2.2 with the voice beside it", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id, { replicate_talk_model: "", replicate_video_lora: "https://huggingface.co/x/y/resolve/main/both.safetensors" });
+    const venice = noVenice();
+    fakeHive();
+    // The keyframes are p1 to p3, the talking shots p4 to p6: p4's is refused, so it's filmed again on Wan 2.2 (p7).
+    const replicate = fakeReplicate({ done: (pid) => (pid === "p4" ? { status: "failed", error: "The input image may contain inappropriate content." } : null) });
+    threeShots();
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    expect(started.shots.every((s) => s.status === "queued" && s.model === TALK && s.speaks === true)).toBe(true);
+    // What it would be filmed with instead stays on the server.
+    expect(started.shots.some((s) => "silent_retry" in s)).toBe(false);
+    const talks = replicate.creates(TALK);
+    expect(talks).toHaveLength(3);
+    for (const v of talks) {
+      expect(v.headers).toMatchObject({ "cancel-after": "30m" });
+      const input = v.body!.input as Record<string, unknown>;
+      expect(input).toMatchObject({ duration: 5, resolution: "720p", enable_prompt_expansion: false, negative_prompt: expect.stringMatching(/^child, teen, minor/) });
+      expect(input).not.toHaveProperty("disable_safety_checker");
+      expect(mediaOf(input.image)).toBeTruthy();
+      // The line itself, quoted (the action written as what they do), with who says it.
+      expect(String(input.prompt)).toMatch(/The (man|woman), in .+, says: "Line number \d+ says something rather vivid here\."$/);
+    }
+    expect(replicate.creates(VIDEO)).toHaveLength(0);
+
+    // p4 refused: queued again on Wan 2.2, from the same keyframe, with the LoRA; the other two still being made.
+    const first = await advance(started.id, cookie);
+    const retried = first.shots.find((s) => s.queue_id === "p7")!;
+    expect(retried).toMatchObject({ status: "queued", model: VIDEO, reason: expect.stringMatching(/inappropriate content.*without its own voice/) });
+    expect(retried.speaks).toBeUndefined();
+    const silent = replicate.creates(VIDEO);
+    expect(silent).toHaveLength(1);
+    expect(silent[0].body!.input).toMatchObject({ num_frames: 81, disable_safety_checker: true, lora_weights_transformer: "https://huggingface.co/x/y/resolve/main/both.safetensors" });
+    expect(mediaOf((silent[0].body!.input as { image: string }).image)).toBe(mediaOf((talks[0].body!.input as { image: string }).image));
+
+    for (let i = 0; i < 4; i++) await advance(started.id, cookie);
+    const done = await advance(started.id, cookie);
+    expect(done.status).toBe("ready");
+    expect(done.shots.every((s) => s.status === "ready")).toBe(true);
+    // The talking shots carry their own sound; only the Wan 2.2 one has its line said beside it.
+    expect(done.shots.filter((s) => s.speaks).map((s) => s.audio_id)).toEqual([undefined, undefined]);
+    expect(done.shots.find((s) => !s.speaks)!.audio_id).toBeTruthy();
+    expect(replicate.creates(VOICE_VERSION)).toHaveLength(1);
+    const made = (await t.db.query<{ model: string }>(`select model from adult_images where kind = 'video' order by model`)).rows.map((r) => r.model);
+    expect(made).toEqual([VIDEO, TALK, TALK]);
     expect(venice).toEqual([]);
   });
 

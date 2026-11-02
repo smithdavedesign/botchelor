@@ -108,6 +108,12 @@ export type MediaProvider = (typeof MEDIA_PROVIDERS)[number];
 export const DEFAULT_REPLICATE_PICTURE_MODEL = "qwen/qwen-image";
 export const DEFAULT_REPLICATE_KEYFRAME_MODEL = "qwen/qwen-image-edit-2511";
 export const DEFAULT_REPLICATE_VIDEO_MODEL = "wan-video/wan-2.2-i2v-fast";
+/**
+ * A reel shot with a line in it, on Replicate: a model that says the line itself, lips and voice together. The bake-off
+ * of 2026-11-01 (every model, one keyframe, one line): Wan 2.6 said it best for its price (~$0.50 for 5 s at 720p);
+ * Wan 2.2 with a stock voice laid over it (~$0.11) barely moves the lips. Shots it can't make fall back to Wan 2.2.
+ */
+export const DEFAULT_REPLICATE_TALK_MODEL = "wan-video/wan-2.6-i2v";
 export const DEFAULT_REPLICATE_VOICE_MODEL = "jaaari/kokoro-82m:f559560eb822dc509045f3921a1921234918b91739db4bf3daab2169b71c7a13";
 
 /**
@@ -171,6 +177,7 @@ export type AdultSettings = {
   replicate_picture_model: string;
   replicate_keyframe_model: string;
   replicate_video_model: string;
+  replicate_talk_model: string;
   replicate_voice_model: string;
   /** Who voices a night's lines on Venice (VOICE_MODELS), and the living portrait's video model (lib/adult/presence.ts). */
   voice_model: VoiceModel;
@@ -256,6 +263,7 @@ type Row = {
   replicate_picture_model: string | null;
   replicate_keyframe_model: string | null;
   replicate_video_model: string | null;
+  replicate_talk_model: string | null;
   replicate_voice_model: string | null;
   voice_model: string | null;
   presence_loop_model: string | null;
@@ -323,6 +331,7 @@ export async function getAdultSettings(db: Db, env: Record<string, string | unde
     replicate_picture_model: r?.replicate_picture_model || DEFAULT_REPLICATE_PICTURE_MODEL,
     replicate_keyframe_model: r?.replicate_keyframe_model || DEFAULT_REPLICATE_KEYFRAME_MODEL,
     replicate_video_model: r?.replicate_video_model || DEFAULT_REPLICATE_VIDEO_MODEL,
+    replicate_talk_model: r?.replicate_talk_model || DEFAULT_REPLICATE_TALK_MODEL,
     replicate_voice_model: r?.replicate_voice_model || DEFAULT_REPLICATE_VOICE_MODEL,
     voice_model: (VOICE_MODELS as readonly string[]).includes(r?.voice_model ?? "") ? (r!.voice_model as VoiceModel) : "kokoro",
     presence_loop_model: r?.presence_loop_model || DEFAULT_PRESENCE_LOOP_MODEL,
@@ -424,6 +433,7 @@ export type SettingsPatch = {
   replicate_picture_model?: string;
   replicate_keyframe_model?: string;
   replicate_video_model?: string;
+  replicate_talk_model?: string;
   replicate_voice_model?: string;
   replicate_video_lora?: string;
   replicate_key?: string;
@@ -469,6 +479,7 @@ export const HISTORY_FIELDS = [
   "replicate_picture_model",
   "replicate_keyframe_model",
   "replicate_video_model",
+  "replicate_talk_model",
   "replicate_voice_model",
   "voice_model",
   "presence_loop_model",
@@ -523,7 +534,7 @@ export async function saveAdultSettings(db: Db, patch: SettingsPatch, by: string
   for (const k of ["reel_shots", "reel_tokens", "clip_tokens", "included_clips", "menu_picture_tokens", "chapter_tokens", "pictures_per_chapter", "draw_ahead_tokens", "draw_ahead_pictures"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_temperature", "frequency_penalty", "presence_penalty", "repetition_penalty"] as const) if (patch[k] !== undefined) put(k, patch[k]);
   for (const k of ["text_model", "image_model", "video_model", "image_base", "venice_image_model", "reel_model"] as const) if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
-  for (const k of ["replicate_picture_model", "replicate_keyframe_model", "replicate_video_model", "replicate_voice_model", "replicate_video_lora", "presence_loop_model", "place_sound_model", "talk_model"] as const) {
+  for (const k of ["replicate_picture_model", "replicate_keyframe_model", "replicate_video_model", "replicate_talk_model", "replicate_voice_model", "replicate_video_lora", "presence_loop_model", "place_sound_model", "talk_model"] as const) {
     if (patch[k] !== undefined) put(k, patch[k]!.trim() || null);
   }
   if (patch.voice_model !== undefined) put("voice_model", (VOICE_MODELS as readonly string[]).includes(patch.voice_model) ? patch.voice_model : "kokoro");
