@@ -125,7 +125,7 @@ $12.99 a month (`AD_SUBSCRIPTION_PRICE_USD`; about $11.40 after an adult process
 
 So a subscriber who uses every bit of it costs us about $4.50 to $6.30 against about $11.40 in: the rest pays hosting
 and the free trials until adoption is higher. Extras are at about cost: a clip past the 3 is **1 token** (about $0.68 in
-against $0.16 to $0.70), the video of the night **7 tokens** (about $4.75 in against $4.25 to $5.50). Code:
+against $0.16 to $0.70), the video of the night **8 tokens** (about $5.45 in against $3.25 to $6.40; 7 before 2026-11-01). Code:
 `lib/adult/pricing.ts`; labels say "included" (`lib/adult/price-words.ts`).
 
 ## Tokens: what we charge
@@ -165,7 +165,7 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 - Hive checks every shot before it's kept. A discarded shot gives back its share of the tokens.
 - The shots play in order, with each line as a caption.
 
-**Settings:** the model, the number of shots and the price (`reel_model`, `reel_shots`, `reel_tokens`). The defaults are Wan 3.0, 6 shots (about 30 s) and 7 tokens (15 before #1005, 2026-10-30).
+**Settings:** the model, the number of shots and the price (`reel_model`, `reel_shots`, `reel_tokens`). The defaults are Wan 3.0, 6 shots (about 30 s) and 8 tokens (7 from #1005 on 2026-10-30, 15 before).
 
 | Default video (6 shots, Wan 3.0, about 30 s) | Cost |
 |---|---|
@@ -175,7 +175,14 @@ Paid extras take **bought** tokens only. The weekly free tokens stay for dates. 
 | Hive moderation on each shot, and the age check on each keyframe (since 2026-10-23 a keyframe has no moderation of its own: 6 fewer requests, about $0.02) | about $0.08 to $0.23 |
 | **Total** | **about $4.25 to $5.50** |
 
-At **7 tokens** (since #1005, 2026-10-30: break even) we take in about $5.05 after Stripe's fee (about $4.75 with an adult processor), so a video about breaks even (from about $0.50 kept to about $0.75 lost on a long one). At the old 15 we kept about $5.30 to $6.50. Test B's route (Wan 2.6 with our own voices) would cost about $3.50, but it lip-syncs the wrong face in a two-person shot.
+**On Replicate (the provider until Venice signs), since 2026-11-01 (#1240):** shots with a line say it on Wan 2.6, about
+$0.10 a second at 720p: 6 × $0.50 (5 s) to $1.00 (10 s, a line over 13 words), plus 6 keyframes × $0.03 and Hive, so
+**about $3.25 to $6.40** a video. A shot Wan 2.6 refuses is made again on Wan 2.2 with a Kokoro voice (about $0.13). So the
+price went to **8 tokens** (David, 2026-11-01: "update the token cost"): about $5.75 in after Stripe's fee, about $5.45
+with an adult processor, which about breaks even on a mix of short and long lines. Someone filming on their own key
+(Connections, After Dark videos, #1244) pays no tokens.
+
+At **7 tokens** (#1005, 2026-10-30 to 2026-11-01: break even on Venice) we take in about $5.05 after Stripe's fee (about $4.75 with an adult processor), so a video about breaks even (from about $0.50 kept to about $0.75 lost on a long one). At the old 15 we kept about $5.30 to $6.50. Test B's route (Wan 2.6 with our own voices) would cost about $3.50, but it lip-syncs the wrong face in a two-person shot.
 
 **Hive's limit:** self-serve allows 100 visual-moderation requests a day, and the only way to raise it is to contact Hive Sales. That's needed before real volume. A video asks for one per shot: **6 for a 6-shot video** (and a clip 1). Until 2026-10-23 it was 12, because each keyframe had its own as well. Now a keyframe gets the age check only, and its moderation is its shot's: Hive's video moderation samples the shot's frames, the first of them the keyframe, and a keyframe is never shown on its own until its shot has passed (docs/after-dark.md, "Hive's daily limit"). So the 100 a day are about 16 six-shot videos, not 8. A picture shown as a still (a baseline, a scene or menu picture) still asks for one moderation request and one age check. The vision-language model (the age check) has no listed limit and costs $0.50 per million input tokens and $2.50 per million output, about $0.001 a check.
 

@@ -100,7 +100,7 @@ export default function SceneWriter({
   characters,
   nights = [],
   reels = [],
-  reelTokens = 7,
+  reelTokens = 8,
   chapterTokens = 0,
   chapterIncluded = false,
   readiness = [],

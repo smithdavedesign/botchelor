@@ -53,7 +53,7 @@ describe("#1173: After Dark's tokens page", () => {
     expect(html).toMatch(/Your subscription covers the nights themselves/);
     expect(html).toMatch(/Scene steps this month: 300 of 300 left/);
     expect(html).toMatch(/A chapter of a night[^<]*<\/td><td><strong>included/);
-    expect(html).toMatch(/The video of the night<\/td><td><strong>7 tokens/);
+    expect(html).toMatch(/The video of the night<\/td><td><strong>8 tokens/);
     expect(html).toMatch(/Taking them somewhere else mid-night<\/td><td><strong>1 token</);
     expect(html).toMatch(/sold on the show&#x27;s shop as packs of <strong>dates<\/strong>: one date bought there is one token here/);
   });

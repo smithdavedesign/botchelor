@@ -234,7 +234,7 @@ export default function AfterDarkTheater({
   onPlanVideo,
   writer = null,
   videoChapters = [],
-  videoTokens = 7,
+  videoTokens = 8,
   chapterTokens = 0,
   chapterIncluded = false,
   readiness = [],

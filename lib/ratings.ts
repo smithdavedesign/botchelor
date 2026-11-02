@@ -92,17 +92,21 @@ export async function getCharacterRatings(
 
 export type TopRated = { id: string; name: string; house: boolean; hue: number | null; portrait: string | null; count: number };
 
-/** The top-rated characters in a category, for the cast leaderboard. Ties break by name. */
-export async function topRatedCharacters(db: Db, category: RatingCategory, limit = 5): Promise<TopRated[]> {
+/**
+ * The top-rated characters in a category, for the cast leaderboard. Ties break by name. `within`: only the ratings given
+ * in that window (a season's awards, lib/reunion.ts); without it, all time.
+ */
+export async function topRatedCharacters(db: Db, category: RatingCategory, limit = 5, within?: { start: Date; end: Date }): Promise<TopRated[]> {
   const { rows } = await db.query<TopRated>(
     `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, count(*)::int as count
        from character_ratings r
        join characters c on c.id = r.character_id
       where r.category = $1
+        and ($3::timestamptz is null or r.created_at >= $3::timestamptz) and ($4::timestamptz is null or r.created_at < $4::timestamptz)
       group by c.id, c.name, c.is_house, c.avatar_hue
       order by count desc, c.name
       limit $2`,
-    [category, limit],
+    [category, limit, within?.start.toISOString() ?? null, within?.end.toISOString() ?? null],
   );
   return rows;
 }

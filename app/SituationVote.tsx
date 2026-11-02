@@ -22,7 +22,7 @@ export default function SituationVote({ board, now }: { board: SituationBoard; n
   const voted = board.my_pick !== null;
   const vote = (pick: string) => run(() => requestJson("/api/situation", { pick }));
   return (
-    <section className="card situation" aria-labelledby="situation-head">
+    <section id="situation" className="card situation" aria-labelledby="situation-head">
       <div className="situation-head">
         <span className="situation-avatars" aria-hidden="true">
           <Avatar seed={a.id} name={a.name} hue={a.hue} house size={40} decorative />

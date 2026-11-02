@@ -39,11 +39,17 @@ export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
           <span className="episode-item-meta">
             {plainAired ? <span className="episode-item-status">Aired</span> : <span className="badge">{status}</span>}
             {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
-            {episode.double && (
-              <span className="badge" title="One table of a group night: the episode links the rest of it.">
-                💞💞 Group night
-              </span>
-            )}
+            {/* David, 2026-11-01: "Group night" read as a date of several people; it's one pairing of the night. */}
+            {episode.double &&
+              (episode.group_kind === "double" ? (
+                <span className="badge" title="Two couples at one table: this is one couple's date, and the episode links the other's.">
+                  💞💞 Double date
+                </span>
+              ) : (
+                <span className="badge" title="One of the pairings at a mixer: just these two, and the episode links the rest of the night.">
+                  💞 Mixer
+                </span>
+              ))}
             {episode.followup_of && <span className="badge">{dateLabel(episode.date_number ?? 2)}</span>}
             {(a.agent || b.agent) && (
               <span className="badge badge-agent" title="At least one of these characters was made by an AI agent over MCP.">

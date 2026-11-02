@@ -16,7 +16,7 @@ import { newUserCookie, startTestDb, userIdOf } from "./helpers";
 describe("After Dark's prices (#1005)", () => {
   it("defaults: chapters, menu pictures and Draw ahead included, 3 clips a month, extras at about cost", () => {
     expect({ reel: DEFAULT_REEL_TOKENS, clip: DEFAULT_CLIP_TOKENS, included: DEFAULT_INCLUDED_CLIPS, pictures: DEFAULT_CAPS.pictures, writes: DEFAULT_CAPS.writes }).toEqual({
-      reel: 7,
+      reel: 8,
       clip: 1,
       included: 3,
       pictures: 60,
@@ -56,8 +56,8 @@ describe("After Dark's prices (#1005)", () => {
     expect(drawAheadNote({ price: 1, pictures: 4 })).toContain("1 token a chapter");
   });
 
-  it("the subscribe page's plan: 300 scene steps, 60 pictures and 3 clips a month; extra clips 1 token, the video 7", () => {
-    expect(includedPlan(null)).toEqual({ steps: 300, pictures: 60, clips: 3, clipTokens: 1, reelTokens: 7 });
+  it("the subscribe page's plan: 300 scene steps, 60 pictures and 3 clips a month; extra clips 1 token, the video 8", () => {
+    expect(includedPlan(null)).toEqual({ steps: 300, pictures: 60, clips: 3, clipTokens: 1, reelTokens: 8 });
   });
 });
 
@@ -78,9 +78,9 @@ describe("who pays what (lib/adult/pricing.ts)", () => {
     return id;
   };
 
-  it("a fresh database has the new defaults: the video at 7, 3 included clips, 60 pictures a month", async () => {
-    expect(await getAdultSettings(t.db)).toMatchObject({ reel_tokens: 7, clip_tokens: 1, included_clips: 3, chapter_tokens: 1, caps: { pictures: 60, writes: 300 } });
-    expect(includedPlan(await getAdultSettings(t.db))).toEqual({ steps: 300, pictures: 60, clips: 3, clipTokens: 1, reelTokens: 7 });
+  it("a fresh database has the new defaults: the video at 8, 3 included clips, 60 pictures a month", async () => {
+    expect(await getAdultSettings(t.db)).toMatchObject({ reel_tokens: 8, clip_tokens: 1, included_clips: 3, chapter_tokens: 1, caps: { pictures: 60, writes: 300 } });
+    expect(includedPlan(await getAdultSettings(t.db))).toEqual({ steps: 300, pictures: 60, clips: 3, clipTokens: 1, reelTokens: 8 });
   });
 
   it("includes a chapter, a menu picture and Draw ahead for a subscriber or a reviewer; an admin is free; anyone else pays", async () => {

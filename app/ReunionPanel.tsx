@@ -31,8 +31,11 @@ export default function ReunionPanel({
   couplesPage = 1,
   couplesHref,
   hidden,
+  season,
 }: {
   reunion: Reunion;
+  /** The season it's for ("Season 2 · November 2026"), in the kicker; the Reunion is this season's (lib/reunion.ts). */
+  season?: string;
   heading?: "h1" | "h2";
   /** The couples board's page, and where each page is (?couples=N on /reunion); without an href, it isn't paged. */
   couplesPage?: number;
@@ -106,10 +109,10 @@ export default function ReunionPanel({
 
   return (
     <section className="reunion-panel">
-      <p className="kicker">Season special</p>
+      <p className="kicker">{season ?? "Season special"}</p>
       <Title>The Reunion</Title>
       <p className="muted reunion-stats">
-        The cast back under the lights. <strong>{reunion.stats.aired}</strong> dates aired ·{" "}
+        The cast back under the lights{season ? ", this season so far" : ""}. <strong>{reunion.stats.aired}</strong> dates aired ·{" "}
         <strong>{reunion.stats.couples}</strong> {reunion.stats.couples === 1 ? "pairing" : "pairings"} ·{" "}
         <strong>{reunion.stats.second_dates}</strong> second dates
       </p>
