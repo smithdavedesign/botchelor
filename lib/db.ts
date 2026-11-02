@@ -3035,6 +3035,14 @@ create table if not exists situation_nights (
   created_at timestamptz not null default now()
 );
 
+-- Which format a season runs in (lib/season-format.ts; docs/ideas.md F "An island season"): one row a season, written
+-- from /admin/season. No row = 'classic', the show exactly as it was before formats existed.
+create table if not exists season_formats (
+  season_id text primary key,
+  slug text not null,
+  created_at timestamptz not null default now()
+);
+
 -- A season's finale (lib/season-recap.ts; David 2026-11-01): the recap of a closed season, frozen on its first read
 -- after the season ends. One row a season: the first reader claims it (claimed_at), writes data (the recap's facts, as
 -- shown) and the "Previously on" narrative (narrative_by: 'model' or 'template'), and it never changes afterwards.
@@ -3046,6 +3054,22 @@ create table if not exists season_recaps (
   narrative_by text,
   frozen_at timestamptz
 );
+
+-- Back a cast member (lib/backing.ts; docs/ideas.md "Bringing viewers back", idea 3): one pick per viewer per season,
+-- changeable until mid-month. Settled once when the season closes (won = ended the season publicly coupled): points
+-- (lib/game.ts) and a season badge (the won row itself).
+create table if not exists cast_backings (
+  season_id text not null,
+  user_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  won boolean,
+  settled_at timestamptz,
+  primary key (season_id, user_id)
+);
+create index if not exists cast_backings_character_idx on cast_backings (season_id, character_id);
+create index if not exists cast_backings_user_idx on cast_backings (user_id);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

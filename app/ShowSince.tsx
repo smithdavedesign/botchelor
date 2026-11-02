@@ -24,6 +24,14 @@ function Items({ card }: { card: ShowSinceData }) {
           <span aria-hidden="true">📺</span> <Link href="/watch#latest">{plural(card.aired, "date aired", "dates aired")}</Link>
         </li>
       )}
+      {card.twist && (
+        <li>
+          <span aria-hidden="true">📣</span> This week on Botchelor: <strong>{card.twist.label}</strong> —{" "}
+          <Link href="/watch#this-week" data-track="since-this-week">
+            see what&apos;s on
+          </Link>
+        </li>
+      )}
       {card.situation && (
         <li>
           <span aria-hidden="true">{card.situation.icon}</span> The viewers picked <strong>{card.situation.title}</strong>:{" "}
@@ -60,6 +68,12 @@ function Items({ card }: { card: ShowSinceData }) {
       {card.followed > 0 && (
         <li>
           <span aria-hidden="true">👀</span> Couples you follow went on {plural(card.followed, "date", "dates")}
+        </li>
+      )}
+      {card.backing && (
+        <li>
+          <span aria-hidden="true">🏅</span> Your cast pick <Link href={`/characters/${card.backing.character_id}`}>{card.backing.name}</Link> went on{" "}
+          {plural(card.backing.aired, "date", "dates")}
         </li>
       )}
       {card.shift && (

@@ -8,12 +8,17 @@ import { airWindowMinutes } from "@/lib/air";
 import { getDb } from "@/lib/db";
 import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
 import { callersBoard, callRecord } from "@/lib/streaks";
+import BackCast from "@/app/BackCast";
 import SituationVote from "@/app/SituationVote";
 import SeasonBanner from "@/app/SeasonBanner";
 import ShowSince from "@/app/ShowSince";
+import ThisWeek from "./ThisWeek";
+import { thisWeekOn } from "@/lib/season-format";
+import { seasonFormatNow } from "@/lib/season-format-store";
 import ChemistryShiftsPanel from "@/app/ChemistryShifts";
 import { chemistryShifts } from "@/lib/chemistry-shifts";
 import { showSince } from "@/lib/show-since";
+import { backingBoard } from "@/lib/backing";
 import { situationBoard } from "@/lib/situations";
 import { listAiredPage, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
@@ -154,7 +159,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const page = parsePage((await searchParams).page);
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, record, callers, showNews, shifts] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, backing, record, callers, showNews, shifts, seasonDef] = await Promise.all([
     listLobby(db),
     countRecentPrivateDates(db),
     listAiringSoon(db, viewerId, airWindowMinutes()),
@@ -163,10 +168,12 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     getProfileName(db, viewerId),
     getReunion(db),
     situationBoard(db, viewerId).catch(() => null),
+    backingBoard(db, viewerId).catch(() => null),
     callRecord(db, viewerId).catch(() => null),
     callersBoard(db, viewerId).catch(() => null),
     showSince(db, viewerId).catch(() => null),
     chemistryShifts(db).catch(() => null),
+    seasonFormatNow(db).catch(() => null),
   ]);
   const feed = latest.episodes;
   const now = Date.now();
@@ -191,6 +198,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       </p>
 
       <SeasonBanner />
+      {seasonDef && <ThisWeek card={thisWeekOn(seasonDef, new Date(now))} />}
       {showNews && <ShowSince card={showNews} />}
 
       {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} />}
@@ -257,6 +265,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       </section>
 
       {situation && <SituationVote board={situation} now={now} />}
+
+      {backing && <BackCast board={backing} />}
 
       <section className="watch-section" id="latest">
         <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>

@@ -441,7 +441,11 @@ export async function getSeasonRecap(db: Db, seasonId: string, opts: { now?: Dat
       [seasonId, JSON.stringify(data), narrative, by],
     )
   ).rows[0];
-  if (saved) return { status: "closed", recap: asRecap(saved)! };
+  if (saved) {
+    // The season's backings settle with its finale (lib/backing.ts): same close, same public record. Never the page.
+    await import("./backing").then(({ settleSeasonBackings }) => settleSeasonBackings(db, seasonId)).catch(() => {});
+    return { status: "closed", recap: asRecap(saved)! };
+  }
   // Someone else's stale-claim takeover landed first: theirs is the season's.
   const theirs = (await db.query<RecapRow>(`select * from season_recaps where season_id = $1`, [seasonId])).rows[0];
   return { status: "closed", recap: (theirs && asRecap(theirs)) ?? { data, narrative, narrative_by: by, frozen_at: null } };

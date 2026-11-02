@@ -15,11 +15,14 @@
  *  - Looks back at most LOOKBACK_DAYS, and shows nothing when nothing happened.
  *  - A season that closed since (lib/season-ref.ts): its finale, /seasons/<month-year>.
  */
+import { backingSince, type BackingSince } from "./backing";
 import { newestOwnSlip, newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
 import { STAGE_LABELS, type Stage } from "./relationships";
 import { DATE_ROLEPLAYS } from "./roleplays";
+import { twistOf, twistWeekStart } from "./season-format";
+import { seasonFormatNow } from "./season-format-store";
 import { seasonClosedSince, type SeasonRef } from "./season-ref";
 import { callRecord } from "./streaks";
 import { chemistryShifts, type ChemistryShift } from "./chemistry-shifts";
@@ -54,8 +57,12 @@ export type ShowSince = {
   shift: ChemistryShift | null;
   /** The newest secret to come out since: a cast member's, or a creator's own that slipped on a date you may see (lib/cast-secrets.ts). */
   secret: SecretOut | null;
+  /** The cast member you're backing this month (lib/backing.ts): their dates that aired since. */
+  backing: BackingSince | null;
   /** A season that closed since: its finale page. */
   season: SeasonRef | null;
+  /** The twist week that began since their last visit (lib/season-format.ts): "This week on Botchelor". */
+  twist: { label: string; tease: string } | null;
 };
 
 /** When this person's last visit was, or null for a first visit (or one too recent to count as a return). */
@@ -126,9 +133,10 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
   ]);
   // The newest secret out: a cast member's on the schedule or a slip, or a creator's own that slipped on a date this
   // viewer may see (lib/cast-secrets.ts newestOwnSlip). Whichever came out last.
-  const [castSecret, ownSlip] = await Promise.all([
+  const [castSecret, ownSlip, backing] = await Promise.all([
     newestSecretOut(db, since, now).catch(() => null),
     newestOwnSlip(db, since, viewerId, now).catch(() => null),
+    backingSince(db, viewerId, at, now).catch(() => null),
   ]);
   const secret = castSecret && ownSlip ? (ownSlip.at > castSecret.at ? ownSlip : castSecret) : (castSecret ?? ownSlip);
   const d = diaryRows.rows[0];
@@ -151,9 +159,21 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
         : null,
     shift: [...shifts.up, ...shifts.down].sort((x, y) => Math.abs(y.shift) - Math.abs(x.shift))[0] ?? null,
     secret,
+    backing,
     season: seasonClosedSince(since, now),
+    twist: await twistSince(db, since, now),
   };
   // The week's shift alone isn't news since a visit (it can predate it), so it never shows the card by itself.
-  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret || card.season;
+  // Nor is the week's twist: most weeks have one, so it rides along but never summons the card.
+  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret || card.backing || card.season;
   return anything ? card : null;
+}
+
+/** This week's twist ("This week on Botchelor"), when its week began after their last visit; otherwise null. */
+async function twistSince(db: Db, since: Date, now: Date): Promise<{ label: string; tease: string } | null> {
+  const def = await seasonFormatNow(db, now).catch(() => null);
+  if (!def) return null;
+  if (twistWeekStart(def, now) <= since) return null;
+  const twist = twistOf(def, now);
+  return { label: twist.label, tease: twist.tease };
 }

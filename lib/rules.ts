@@ -369,6 +369,9 @@ export const ratingCategory = (id: RatingCategory): (typeof RATING_CATEGORIES)[n
 /** The owner earns a little each time another viewer rates their OC — a side-game point, like a dealbreaker guess. */
 export const POINTS_PER_RATING_RECEIVED = 2;
 
+/** Backing a cast member who ends the season coupled (lib/backing.ts): a month-long stake, worth more than one call. */
+export const POINTS_PER_BACKING = 25;
+
 /** Sliding doors (PRD): the bounded one-thing-changed replays an owner can run. Client-safe labels. */
 export const SLIDING_DOOR_CHANGES = [
   { id: "bolder", label: "More unpredictable" },
