@@ -78,7 +78,7 @@ describe("my_status (round 3)", () => {
     const { mine } = await showDate(ctx);
     // 2.11.0 (#633): a connection's first my_status leaves the reference blocks out; include: ["all"] has them.
     const s = (await call("my_status", { include: ["all"] }, ctx)).structuredContent;
-    expect(s.points_from).toEqual({ predictions: 0, dealbreaker_guesses: 0, matchmaking: 0, ratings_received: 0, arc_calls: 0 });
+    expect(s.points_from).toEqual({ predictions: 0, dealbreaker_guesses: 0, matchmaking: 0, ratings_received: 0, arc_calls: 0, backings: 0 });
     expect(s.points_note).toMatch(/for calling a public date's ending/);
     expect(s.characters.find((c: Any) => c.id === mine)).toMatchObject({ dates: 0, all_dates: 1 });
     expect(s.dates_note).toMatch(/aired public dates/);
