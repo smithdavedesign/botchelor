@@ -12664,6 +12664,20 @@ button.thread-menu-item:hover:not(:disabled) {
   }
 }
 
+/* "Put my name on the board" (app/BoardName.tsx): the best-callers board's display-name form. */
+.board-name {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 24rem;
+  margin-top: var(--space-3);
+}
+.board-name p {
+  margin: 0;
+}
+.calls-line .board-name {
+  margin-top: var(--space-2);
+}
+
 /* The diary cam (app/episodes/[id]/DiaryCam.tsx): each side's take to camera after the date. */
 .diary-cam summary {
   cursor: pointer;

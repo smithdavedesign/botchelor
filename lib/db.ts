@@ -2979,6 +2979,8 @@ create table if not exists situation_votes (
   updated_at timestamptz not null default now(),
   primary key (day, user_id)
 );
+-- Display names are one person's each (app/api/profile, #1238): the check reads this.
+create index if not exists profiles_name_lower on profiles (lower(trim(name)));
 create table if not exists situation_nights (
   day text primary key,
   a_id text not null,
