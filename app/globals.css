@@ -12585,6 +12585,7 @@ button.thread-menu-item:hover:not(:disabled) {
   gap: var(--space-1);
   width: 100%;
   min-height: 100%;
+  margin: 0;
   padding: var(--space-3);
   text-align: left;
   white-space: normal;
