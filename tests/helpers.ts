@@ -46,6 +46,7 @@ import { setConversationEnabledForTests } from "@/lib/conversation";
 import { setAfterglowEnabledForTests } from "@/lib/afterglow";
 import { setMixerVoiceEnabledForTests } from "@/lib/mixer-voice";
 import { setSeasonRecapVoiceEnabledForTests } from "@/lib/season-recap";
+import { setEpisodeTitleVoiceEnabledForTests } from "@/lib/episode-title";
 import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setLookAlikeGateForTests } from "@/lib/originality";
@@ -122,6 +123,9 @@ export async function startTestDb() {
   setAfterglowEnabledForTests(false);
   setMixerVoiceEnabledForTests(false);
   setSeasonRecapVoiceEnabledForTests(false);
+  // Episode titles (lib/episode-title.ts) are written at air time; off by default for the same reason (episode
+  // tests script only the date's model). tests/episode-title.test.ts turns it on with a model of its own.
+  setEpisodeTitleVoiceEnabledForTests(false);
   // A new match's opening chat (lib/swipes.ts) is the swipe tests' to drive, with their own model.
   setMatchChatEnabledForTests(false);
   // The swipe gate (lib/swipe-gate.ts) is off in tests by default, so the suites written before it keep asking

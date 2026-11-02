@@ -37,6 +37,8 @@ export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
             </strong>
           </Link>
           <span className="episode-item-meta">
+            {/* The episode's own title (lib/episode-title.ts), once one was written at air time; lists stay quiet otherwise. */}
+            {episode.title && <span className="episode-item-title">“{episode.title}”</span>}
             {plainAired ? <span className="episode-item-status">Aired</span> : <span className="badge">{status}</span>}
             {episode.format && <span className="badge badge-format">{formatLabel(episode.format)}</span>}
             {/* David, 2026-11-01: "Group night" read as a date of several people; it's one pairing of the night. */}
