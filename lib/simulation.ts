@@ -52,7 +52,7 @@ import {
   type SlidingDoorChange,
   type Strategy,
 } from "./rules";
-import { pickVenueAvoiding, type PlaceId } from "./venues";
+import { pickVenueFrom, type PlaceId, type VenueId } from "./venues";
 import { DEFAULT_FORMAT, format as showFormat, type FormatId } from "./formats";
 import { fillPremise, roleplayForActor, rolesLine, type DateRoleplay } from "./roleplays";
 import { HOUSE_CHARACTERS } from "./house";
@@ -185,6 +185,17 @@ export type DateParts = {
   /** Each cast member's own secrets still hidden this season (lib/cast-secrets.ts secretsForDate). Private to its side. */
   secretsA?: DateSecret[];
   secretsB?: DateSecret[];
+  /**
+   * The season format's venue pool (lib/season-format.ts): the lobby's house dates deal from it when the season has
+   * one (the island month's villa). Null/omitted deals from the whole library, exactly as before.
+   */
+  venuePool?: readonly VenueId[] | null;
+  /**
+   * This week's twist leans the lobby's house dates toward one producer event (lib/season-format.ts). Omitted, the
+   * event is dealt from the seed as ever. Only template rooms pass it: they store their whole date at creation and are
+   * never rebuilt, so the stored setup stays the one true record.
+   */
+  producerPick?: ProducerId | null;
 };
 
 /**
@@ -281,8 +292,8 @@ export function assembleDate(p: DateParts): BuiltDate {
     agenda_b: agendaB,
     game_budget_a: req.gameBudget,
     game_budget_b: DEFAULT_GAME_BUDGET,
-    producer: pickProducer(seedFrom(seed, "producer")),
-    venue: p.venueOverride ?? plannedVenue ?? pickVenueAvoiding(seedFrom(seed, "venue"), p.avoidVenues ?? []),
+    producer: p.producerPick ?? pickProducer(seedFrom(seed, "producer")),
+    venue: p.venueOverride ?? plannedVenue ?? pickVenueFrom(seedFrom(seed, "venue"), p.venuePool, p.avoidVenues ?? []),
     ...(p.avoidVenues?.length ? { avoid_venues: p.avoidVenues } : {}),
     // They carried an After Dark memory into this date (lib/adult/memory.ts): its page shows 🌙 to whoever After Dark is open to.
     ...(p.afterDark?.a || p.afterDark?.b ? { after_dark: true } : {}),
@@ -391,6 +402,10 @@ export async function buildDate(
     table?: string | null;
     /** The roleplay the date plays (lib/date-roleplays.ts roleplayForBooking); a rebuild passes the setup's snapshot. */
     roleplay?: DateRoleplay | null;
+    /** The season format's venue pool (lib/season-format.ts), for the lobby's house dates only. */
+    venuePool?: readonly VenueId[] | null;
+    /** This week's twist producer event (lib/season-format.ts), for the lobby's house dates only. */
+    producerPick?: ProducerId | null;
   } = {},
 ): Promise<BuiltDate> {
   const [soulA, soulB, memoryA, memoryB, relationship, ex, extras, nudges, seeingA, seeingB] = await Promise.all([
@@ -455,6 +470,7 @@ export async function buildDate(
     relationship, creatorId: opts.creatorId, followupOf: opts.followupOf ?? null,
     dateNumber: opts.dateNumber !== undefined ? opts.dateNumber : opts.followupOf ? null : ((await nextDateNumber(db, a.id, b.id, episodeId)) ?? 1),
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
+    venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,
     claimsA, claimsB, secretsA, secretsB,

@@ -4,6 +4,8 @@ import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
 import { ensureSeasonCast } from "@/lib/season-cast";
+import { SEASON_FORMAT_SLUGS, SEASON_FORMATS } from "@/lib/season-format";
+import { seasonFormatSlug, setSeasonFormat } from "@/lib/season-format-store";
 import { generateCandidates, GENERATE_FROM_DAY, listCandidates, makePortrait, reviewCandidate } from "@/lib/season-gen";
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 
@@ -32,14 +34,18 @@ async function view() {
   const portraits = new Map(
     (await db.query<{ id: string; url: string | null }>(`select id, url from character_assets where id = any($1)`, [candidates.map((c) => c.portrait_asset).filter(Boolean)])).rows.map((r) => [r.id, r.url]),
   );
+  const [thisFormat, nextFormat] = await Promise.all([seasonFormatSlug(db, thisId), seasonFormatSlug(db, nextId)]);
   return {
-    this_season: { id: thisId, label: seasonLabel(thisId), cast: cast.map((c) => ({ ...c, name: names.get(c.character_id) ?? c.character_id })) },
+    this_season: { id: thisId, label: seasonLabel(thisId), format: thisFormat, cast: cast.map((c) => ({ ...c, name: names.get(c.character_id) ?? c.character_id })) },
     next_season: {
       id: nextId,
       label: seasonLabel(nextId),
+      format: nextFormat,
       generate_from_day: GENERATE_FROM_DAY,
       candidates: candidates.map((c) => ({ ...c, portrait: c.portrait_asset ? portraits.get(c.portrait_asset) ?? null : null })),
     },
+    // The formats a season can run in (lib/season-format.ts): classic is the default; the island month is picked here.
+    formats: SEASON_FORMATS.map((f) => ({ slug: f.slug, label: f.label })),
   };
 }
 
@@ -53,9 +59,10 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("reject"), character_id: z.string().min(1).max(80) }),
   z.object({ action: z.literal("portrait"), character_id: z.string().min(1).max(80) }),
   z.object({ action: z.literal("generate") }),
+  z.object({ action: z.literal("format"), season_id: z.string().min(4).max(10), slug: z.enum(SEASON_FORMAT_SLUGS) }),
 ]);
 
-/** Approve or reject a candidate, redo one's portrait, or write next month's candidates now (tops up to three). */
+/** Approve or reject a candidate, redo a portrait, write next month's candidates, or pick a season's format. */
 export const POST = handle(async (req: Request) => {
   if (!(await authorized(req))) return json(NOT_AUTHORIZED, 403);
   const input = parseBody(Input, await readJson(req), "invalid_request");
@@ -63,6 +70,13 @@ export const POST = handle(async (req: Request) => {
   let note: string | null = null;
   if (input.action === "approve" || input.action === "reject") {
     if (!(await reviewCandidate(db, input.character_id, input.action === "approve" ? "approved" : "rejected"))) return json({ error: "not_found", message: "No such candidate." }, 404);
+  } else if (input.action === "format") {
+    // Only the running season or the next can change: a closed season's format is part of its record.
+    const now = new Date();
+    const allowed = [seasonIdOf(now), seasonIdOf(nextSeasonStart(now))];
+    if (!allowed.includes(input.season_id)) return json({ error: "season_closed", message: "Only this season or the next can change format." }, 400);
+    await setSeasonFormat(db, input.season_id, input.slug);
+    note = `${seasonLabel(input.season_id)} runs as ${SEASON_FORMATS.find((f) => f.slug === input.slug)?.label ?? input.slug}.`;
   } else if (input.action === "portrait") {
     note = await makePortrait(db, input.character_id);
   } else {
