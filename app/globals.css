@@ -12663,3 +12663,46 @@ button.thread-menu-item:hover:not(:disabled) {
     font-size: var(--text-lg);
   }
 }
+
+/* The week's biggest chemistry shifts (app/ChemistryShifts.tsx): warming up and cooling off, side by side from tablet width. */
+.chem-shifts {
+  display: grid;
+  gap: var(--space-3);
+}
+@media (min-width: 720px) {
+  .chem-shifts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.chem-shifts h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+}
+.chem-shifts ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.chem-shifts li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  background: var(--card);
+  overflow-wrap: anywhere;
+}
+.chem-shift-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.chem-shift-num.up {
+  color: var(--ok-text);
+}
+.chem-shift-num.down {
+  color: var(--muted);
+}

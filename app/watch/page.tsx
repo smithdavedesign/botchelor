@@ -10,6 +10,8 @@ import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
 import { callersBoard, callRecord } from "@/lib/streaks";
 import SituationVote from "@/app/SituationVote";
 import ShowSince from "@/app/ShowSince";
+import ChemistryShiftsPanel from "@/app/ChemistryShifts";
+import { chemistryShifts } from "@/lib/chemistry-shifts";
 import { showSince } from "@/lib/show-since";
 import { situationBoard } from "@/lib/situations";
 import { listAiredPage, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
@@ -151,7 +153,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const page = parsePage((await searchParams).page);
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, record, callers, showNews] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, record, callers, showNews, shifts] = await Promise.all([
     listLobby(db),
     countRecentPrivateDates(db),
     listAiringSoon(db, viewerId, airWindowMinutes()),
@@ -163,6 +165,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     callRecord(db, viewerId).catch(() => null),
     callersBoard(db, viewerId).catch(() => null),
     showSince(db, viewerId).catch(() => null),
+    chemistryShifts(db).catch(() => null),
   ]);
   const feed = latest.episodes;
   const now = Date.now();
@@ -296,6 +299,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           </StripPager>
         </details>
       )}
+
+      {shifts && <ChemistryShiftsPanel shifts={shifts} />}
 
       {callers && <CallersBoardPanel board={callers} />}
 
