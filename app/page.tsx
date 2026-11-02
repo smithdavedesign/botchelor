@@ -25,6 +25,7 @@ import { CallsLine } from "./YourCalls";
 import { airWindowMinutes } from "@/lib/air";
 import { callRecord } from "@/lib/streaks";
 import SituationVote from "./SituationVote";
+import SeasonBanner from "./SeasonBanner";
 import ShowSince from "./ShowSince";
 import { showSince } from "@/lib/show-since";
 import { situationBoard } from "@/lib/situations";
@@ -116,6 +117,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
   return (
     <div className="home">
+      {/* The first week of a month: last season's finale (lib/season-ref.ts). */}
+      <SeasonBanner />
       {myCharacters.length === 0 && showNews && <ShowSince card={showNews} />}
       {myCharacters.length > 0 && (
         <section id="start" className="card start-card since-card" aria-labelledby="since-title">
