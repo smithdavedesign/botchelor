@@ -13,6 +13,7 @@ import { playVotedSituation } from "@/lib/situations";
 import { judgePendingDares } from "@/lib/dare-verdict";
 import { runDueRecoupling } from "@/lib/recoupling";
 import { ensureCastSecrets } from "@/lib/cast-secrets";
+import { ensureCastChat } from "@/lib/cast-chat";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -53,6 +54,8 @@ async function run(req: Request): Promise<Response> {
   const recoupling = await runDueRecoupling(db).catch(() => null);
   // This season's cast secrets (lib/cast-secrets.ts): written once a season each on the show's cheap model; a no-op after.
   const secrets = await ensureCastSecrets(db).catch(() => null);
+  // Leaked from the cast group chat (lib/cast-chat.ts): yesterday's, written once, the first pass after midnight UTC.
+  const castChat = await ensureCastChat(db).catch(() => null);
   // Dates whose generation died (a deploy swapped the container mid-date: the 2026-11-02 20:20 mixer's five sat
   // "generating" for hours): run again after the response, so the scheduler's call doesn't wait on the model. Only
   // the daily job did this before.
@@ -65,7 +68,7 @@ async function run(req: Request): Promise<Response> {
       void rerun(); // outside a request (a test): just run it
     }
   }
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, dare_verdicts: dareVerdicts.length, recoupling, secrets, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, dare_verdicts: dareVerdicts.length, recoupling, secrets, cast_chat: castChat, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

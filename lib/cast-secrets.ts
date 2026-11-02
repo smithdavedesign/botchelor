@@ -175,6 +175,17 @@ export async function castSecrets(db: Db, characterId: string, now: Date = new D
   };
 }
 
+/**
+ * A cast member's secrets this season that are NOT out yet (stored, or the pool's when none are stored): what anything
+ * the show writes about them in public (the cast group chat, lib/cast-chat.ts) must never give away.
+ */
+export async function hiddenCastSecrets(db: Db, characterId: string, now: Date = new Date()): Promise<string[]> {
+  if (!seasonCastIds(now).includes(characterId)) return [];
+  const [all, status] = await Promise.all([secretsFor(db, characterId, seasonIdOf(now), now), castSecrets(db, characterId, now)]);
+  const out = new Set((status?.out ?? []).map((o) => o.secret));
+  return all.map((s) => s.secret).filter((s) => !out.has(s));
+}
+
 /** One secret a side carries onto a date: which it is (to record a slip) and its words. */
 export type DateSecret = { season_id: string; idx: number; secret: string };
 
