@@ -13,6 +13,7 @@
  *  - Public only, like the graph's public layer: public dates, public stage moves between public characters.
  *  - Looks back at most LOOKBACK_DAYS, and shows nothing when nothing happened.
  */
+import { newestSecretOut, type SecretOut } from "./cast-secrets";
 import type { Db } from "./db";
 import { RETURN_GAP_HOURS } from "./activity";
 import { STAGE_LABELS, type Stage } from "./relationships";
@@ -45,6 +46,8 @@ export type ShowSince = {
   situation: { title: string; icon: string; room_path: string } | null;
   /** The newest diary cam take from a public date that aired since: who said it, about whom, and the episode. */
   diary: { name: string; partner: string; line: string; episode_path: string } | null;
+  /** The newest of this season's cast secrets to come out since (lib/cast-secrets.ts). */
+  secret: SecretOut | null;
 };
 
 /** When this person's last visit was, or null for a first visit (or one too recent to count as a return). */
@@ -112,6 +115,7 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
       [at, REPORT_HIDE_THRESHOLD],
     ),
   ]);
+  const secret = await newestSecretOut(db, since, now).catch(() => null);
   const d = diaryRows.rows[0];
   const side = d ? ([0, 1] as const).find((i) => (i === 0 ? d.a_ok : d.b_ok) && d.lines?.[i]?.trim()) : undefined;
   const c = calls.rows[0];
@@ -130,7 +134,8 @@ export async function showSince(db: Db, viewerId: string | null, now: Date = new
       d && side !== undefined
         ? { name: side === 0 ? d.a : d.b, partner: side === 0 ? d.b : d.a, line: clipBody(d.lines[side].trim(), DIARY_SHOWN_MAX), episode_path: `/episodes/${d.id}` }
         : null,
+    secret,
   };
-  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary;
+  const anything = card.aired || card.moves.length || card.calls || card.followed || card.situation || card.diary || card.secret;
   return anything ? card : null;
 }
