@@ -42,6 +42,11 @@ type Props = {
    * pane is one long act, so after its first two lines nobody was named).
    */
   nameEvery?: boolean;
+  /**
+   * Living dates (lib/inner-life.ts): each line's private thought, aligned with `turns`, on an aired date only (the episode
+   * gives none before). Folded under the bubble: a 💭 to tap, so reading along doesn't spoil the next line.
+   */
+  thoughts?: readonly (string | null)[] | null;
 };
 
 const NEAR_BOTTOM_PX = 80;
@@ -76,7 +81,7 @@ export function LineVoteButtons({ index, vote, name, onVote }: { index: number; 
  * replay, the episode replay and the episode page's record of the date. With `feedback`, each line gets a quiet 👍/👎
  * (David, 2026-10-21: real-user signals) beside its caption.
  */
-export default function ChatThread({ characters, turns, typing = null, challenge, tone = "light", follow = false, meta = true, empty, feedback = null, dividers = [], nameEvery = false }: Props) {
+export default function ChatThread({ characters, turns, typing = null, challenge, tone = "light", follow = false, meta = true, empty, feedback = null, dividers = [], nameEvery = false, thoughts = null }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const lineVotes = useLineVotes(feedback);
@@ -145,6 +150,14 @@ export default function ChatThread({ characters, turns, typing = null, challenge
                   </div>
                 ) : (
                   caption && <span className="chat-meta">{caption}</span>
+                )}
+                {thoughts?.[i] && (
+                  <details className="chat-thought">
+                    <summary aria-label={`What ${c.name.split(/\s+/)[0]} was thinking`} title="What they were thinking">
+                      💭
+                    </summary>
+                    <p>{thoughts[i]}</p>
+                  </details>
                 )}
               </div>
             </div>

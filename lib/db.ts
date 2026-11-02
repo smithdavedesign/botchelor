@@ -998,6 +998,11 @@ alter table episodes add column if not exists autoplay boolean not null default 
 -- what a performer said (see_again); once the last line is in, both wishes as they counted and the engine's own ending.
 -- Never in a view: only a tip is told, with the ending.
 alter table episodes add column if not exists wishes jsonb;
+-- Living dates (lib/inner-life.ts): each line's private feeling, thought and note, and each side's own "see them again?"
+-- answer (lib/choices.ts). Never on a stored line and never in a view before the date airs (lib/game.ts innerForViewer).
+alter table episodes add column if not exists inner_life jsonb;
+-- Hot takes the show derived once for a character with none of its own (lib/hot-takes.ts ensureHotTakes): {takes, source, at}.
+alter table characters add column if not exists hot_takes jsonb;
 create index if not exists episodes_air_after_idx on episodes (air_after) where air_after is not null and revealed_at is null;
 create index if not exists episodes_partner_performer_idx on episodes (partner_performer) where partner_performer is not null and status = 'generating';
 -- Who may ask a character out by name when it's open to dates (lib/audience.ts): every character, only characters made

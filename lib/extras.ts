@@ -125,6 +125,10 @@ export const FACT_IDEAS = [
   "Best memory", "Biggest regret", "Would never", "Lucky number", "Childhood nickname", "Hates the sound of", "Dream job",
 ] as const;
 
+/** Hot takes: opinions they really hold (lib/hot-takes.ts). Up to MAX_HOT_TAKES, each up to HOT_TAKE_CHARS. */
+export const MAX_HOT_TAKES = 5;
+export const HOT_TAKE_CHARS = 120;
+
 /** Words or phrases the character would never say: the critic sends a line that uses one back. */
 export const MAX_NEVER_SAYS = 5;
 export const NEVER_SAY_MAX = 40;
@@ -170,6 +174,8 @@ export const ExtrasInput = z
       .optional(),
     /** The looks builder's picks (lib/looks.ts). */
     looks: LooksInput.optional(),
+    /** Opinions they really hold (lib/hot-takes.ts): carried onto their dates, where they're allowed to cause friction. */
+    hot_takes: z.array(z.string().trim().min(1, "A hot take can't be empty.").max(HOT_TAKE_CHARS, `At most ${HOT_TAKE_CHARS} characters each.`)).max(MAX_HOT_TAKES, `At most ${MAX_HOT_TAKES}.`).optional(),
   })
   .strict();
 export type ExtrasInputType = z.infer<typeof ExtrasInput>;
@@ -198,6 +204,8 @@ export type CharacterExtras = Partial<Record<TextDetail, string>> & {
   facts?: CharacterFact[];
   /** The looks builder's picks (lib/looks.ts); `looks.after_dark` is private like a private fact. */
   looks?: Looks;
+  /** Opinions they really hold (lib/hot-takes.ts). Public: they'd say them. */
+  hot_takes?: string[];
 };
 
 /** Keeps only the filled entries of a keyed group; undefined when none are. */
@@ -251,6 +259,9 @@ export function normaliseExtras(input: ExtrasInputType | null | undefined): Char
   if (facts.length) out.facts = facts;
   const looks = normaliseLooks(input.looks);
   if (looks) out.looks = looks;
+  const takeSeen = new Set<string>();
+  const takes = (input.hot_takes ?? []).map((t) => t.trim()).filter((t) => t && !takeSeen.has(t.toLowerCase()) && takeSeen.add(t.toLowerCase()));
+  if (takes.length) out.hot_takes = takes;
   return out;
 }
 
@@ -302,6 +313,7 @@ export function extrasFields(e: CharacterExtras): Record<string, string | readon
     tells: e.tells ? Object.values(e.tells) : undefined,
     never_says: e.never_says,
     facts: e.facts?.flatMap((f) => [f.label, f.value]),
+    hot_takes: e.hot_takes,
   };
 }
 
@@ -473,6 +485,12 @@ export function extrasJsonSchema(): Record<string, unknown> {
             private: { type: "boolean", description: "true: only the character and its owner ever see it." },
           },
         },
+      },
+      hot_takes: {
+        type: "array",
+        maxItems: MAX_HOT_TAKES,
+        items: { type: "string", maxLength: HOT_TAKE_CHARS },
+        description: "Opinions they really hold (\"brunch is a scam\"). Each date carries them, and they don't fold to be agreeable: a clash with the other's can become friction on the date.",
       },
       looks: {
         type: "object",

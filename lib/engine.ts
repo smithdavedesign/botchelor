@@ -150,9 +150,14 @@ export type Outcome = {
  *      (STRATEGY_WEIGHTS_V4): 44/33/23 over the same spread (43/34/23 with every agent character soul-less), every strategy within a few points of it, and a tripped
  *      dealbreaker ends in a disaster about three times in five. On a date agents perform, both sides' wishes also count
  *      for more (lib/wishes.ts). v1 to v3 replay exactly as they were.
+ *   v5 (2026-11-01, living dates): the numbers are v4's to the decimal (the same ending, margin and trace for every
+ *      input), and what changes is who has the last word. Once a show-model date's lines are in, each side answers
+ *      privately "see them again?" (yes / maybe / no, with a reason), and the two answers decide the ending within one
+ *      step of the engine's (lib/choices.ts choiceEnding): the engine is the guardrail on the mix, not the author of
+ *      every ending. v4 dates keep the old 40% wish roll, so they replay exactly as they were.
  */
-export type EngineVersion = 1 | 2 | 3 | 4;
-export const CURRENT_ENGINE_VERSION: EngineVersion = 4;
+export type EngineVersion = 1 | 2 | 3 | 4 | 5;
+export const CURRENT_ENGINE_VERSION: EngineVersion = 5;
 
 export interface Engine {
   decide(input: DateInput, seed: number, version?: EngineVersion): Outcome;

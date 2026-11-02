@@ -41,6 +41,7 @@ import { factsForAct } from "./extras";
 import { dateShape, moveProblem, settleLine, type DateShape, type MoveReply } from "./moves";
 import { textsForPrompt } from "./text-chain";
 import { venue, venuePhrase, type PlaceId } from "./venues";
+import { claimsSoFar, feelingSoFar, FEELINGS, readInner, trustStance, type LineInner } from "./inner-life";
 
 /** One line of the date. `side` is "a"/"b"; `act` indexes DATE_ACTS. emotion is flavour; interest, see Turn.interest. */
 export type Turn = {
@@ -60,6 +61,12 @@ export type Turn = {
   move?: { say: string; to: PlaceId };
   /** This line said yes to the other's proposal: the date goes there after it (lib/moves.ts). */
   moved_to?: PlaceId;
+  /**
+   * Living dates (lib/inner-life.ts): this line's private feeling toward the other, the speaker's thought and what it
+   * noted the other claiming. Only while the date is written: lib/pipeline.ts takes it off every line before anything is
+   * saved or played (episodes.inner_life keeps it), and only the speaker's own prompt ever reads it back.
+   */
+  inner?: LineInner;
 };
 
 export class ConversationError extends Error {
@@ -113,6 +120,11 @@ const TurnOutput = z.object({
   see_again: flag,
   /** A date in another language (lib/character.ts speaks): the line in English, for the show's checks. Never on the line. */
   english: z.unknown().optional().transform((v) => (typeof v === "string" && v.trim() ? v.trim() : undefined)),
+  /** Living dates (lib/inner-life.ts readInner): how it really feels about them, how strongly, its thought, their claim. */
+  feeling: z.unknown().optional(),
+  feeling_strength: z.unknown().optional(),
+  thought: z.unknown().optional(),
+  they_claimed: z.unknown().optional(),
 });
 
 /** Shortens text to `max` characters at the last sentence end (else the last space) inside the limit. */
@@ -145,6 +157,11 @@ WHERE THIS ACT TAKES YOU
 HOW TO LISTEN
 Each line does one real thing: answer the specific thing they just said, OR ask something you actually want to know (and follow up when they answer), OR share one concrete thing from your own life — a place, your work, a habit, a small story grown from your sheet. Vary length. Not every line is a joke; let some be awkward, sincere or quiet. Most lines need no action at all. Avoid long metaphors: use an image once at most, then talk about something real.
 
+WHAT YOU HOLD, NOTICE AND FEEL
+"you.hot_takes" are opinions you really hold. Bring one up when the moment invites it. If they disagree, don't fold to be agreeable: defend it, tease them about theirs, or agree to disagree. Friction is allowed, and a good argument can be the best part of a date.
+"what_theyve_told_you" is what they've claimed about themselves, tonight and (if you've met) before. "how_you_trust" is how quickly you take them at their word. When something they say doesn't fit what they said earlier, you can doubt it or call it out, lightly or sharply, the way you would ("you said you hate dogs, and now you've got three?"). Like anyone on a date, you might polish a story of your own, and they might notice.
+"how_you_feel_about_them" is how you've felt toward them so far tonight. Feelings carry: a sting or an irritation doesn't vanish on the next line, and a spark builds. It changes only when something they say or do changes it, and your lines show where it is.
+
 WHAT THEY SEE AND WHAT THEY DON'T
 You only know what you can see about them ("them.what_you_can_see"), what they've said, and (if you've met before) what you remember together. Never label them with a trait they haven't shown, and never bring up a fact they haven't told you. Call them "you"; use their name sparingly; use their pronouns. Your "dialogue" and "action" are yours alone: never state what they did, said or felt beyond the lines already on the page (no "you fired a shot", no "you blush"), and never narrate for them.
 
@@ -154,11 +171,15 @@ Other blocks ("what_you_remember_about_them", "tonight_is_the_plan_you_made", "w
 HARD RULES
 Adults only; no children or anyone under 18, even in comparison. No sexual content, nudity or innuendo (at most a hug or a kiss on the cheek). No graphic violence. No real people or celebrities. Anyone you mention who isn't here (a sister, an ex, a friend) gets a first name that is neither yours nor theirs, nor anyone else's on the show: pick an uncommon one.`;
 
+/** The living-dates fields in the actor's JSON (lib/inner-life.ts), said once for both prompts. */
+const INNER_JSON_NOTE = `"feeling" is one of: ${FEELINGS.join(", ")}; "feeling_strength" 0..1 how strongly. "thought" is one short private sentence in your own voice they never hear (viewers may read it after the episode airs, so keep it PG). "they_claimed" is anything new they just claimed about themselves, in a few words, or "" when they didn't.`;
+
 const SYSTEM_PROMPT = `${SYSTEM_PROMPT_HEAD}
 
 JSON
 Reply with ONLY one JSON object (no markdown):
-{"dialogue":"what you say (under ${TURN_DIALOGUE_MAX} chars)","action":"what you do, 1-5 words, or \\"\\" for nothing","emotion":"one word for how you feel","interest_signal":0.0,"done":false}
+{"dialogue":"what you say (under ${TURN_DIALOGUE_MAX} chars)","action":"what you do, 1-5 words, or \\"\\" for nothing","emotion":"one word for how you come across","feeling":"how you really feel about them right now","feeling_strength":0.0,"thought":"what you privately think right now","they_claimed":"","interest_signal":0.0,"done":false}
+${INNER_JSON_NOTE}
 interest_signal is 0..1: how interested in them you are right now (let it move gradually). Set "done": true only in the final act, once the date has landed and your next line would only be a goodbye — the show will respect it then.`;
 
 /**
@@ -172,7 +193,8 @@ Most dates stay where they started. If the two of you would really take it somew
 
 JSON
 Reply with ONLY one JSON object (no markdown):
-{"dialogue":"what you say (under ${TURN_DIALOGUE_MAX} chars)","action":"what you do, 1-5 words, or \\"\\" for nothing","emotion":"one word for how you feel","interest_signal":0.0,"done":false,"move":"","accept_move":false}
+{"dialogue":"what you say (under ${TURN_DIALOGUE_MAX} chars)","action":"what you do, 1-5 words, or \\"\\" for nothing","emotion":"one word for how you come across","feeling":"how you really feel about them right now","feeling_strength":0.0,"thought":"what you privately think right now","they_claimed":"","interest_signal":0.0,"done":false,"move":"","accept_move":false}
+${INNER_JSON_NOTE}
 interest_signal is 0..1: how interested in them you are right now (let it move gradually). "move" stays "" on almost every line: it's a place only on the line where you say you want to go there; "accept_move" only counts when they've just suggested a move. Set "done": true only once the date has landed and your next line would only be a goodbye ("how_you_say_goodbye" is there by then) — the show will respect it then.`;
 
 /**
@@ -307,6 +329,18 @@ export function buildTurnMessages(
     // A double date (lib/group-dates.ts): the other couple shares the table. Their names can come up; their date is theirs.
     ...(meChar.table ? { also_at_your_table: meChar.table } : {}),
     your_intention: side === "a" ? beat.a : beat.b,
+    // Living dates (lib/inner-life.ts): how this side has felt about them so far, what they've claimed, how it trusts.
+    // Only this side's own earlier lines and notes, never the other's inner life.
+    ...(() => {
+      const felt = feelingSoFar(transcript, side);
+      const tonight = claimsSoFar(transcript, side);
+      const before = meChar.claimsBefore ?? [];
+      return {
+        ...(felt ? { how_you_feel_about_them: felt } : {}),
+        ...(tonight.length || before.length ? { what_theyve_told_you: { ...(tonight.length ? { tonight } : {}), ...(before.length ? { on_your_earlier_dates: before } : {}) } } : {}),
+        how_you_trust: trustStance(me.signals),
+      };
+    })(),
     ...(tell ? { your_tell_right_now: tell } : {}),
     ...(shape?.enabled ? movesNote(shape, shortName(themChar.name)) : {}),
     conversation_so_far: transcript.map((t) => ({ who: names[t.side === "a" ? 0 : 1], said: t.dialogue, ...(t.action ? { did: t.action } : {}) })),
@@ -378,7 +412,7 @@ export function parseTurnResult(
   /** `english`: the date is in another language (languageBlock), so a line that isn't English must carry its translation. */
   opts: { english?: boolean } = {},
 ):
-  | { turn: Turn; reply: MoveReply; wish?: boolean; /** The line in English (a date in another language), for the checks only. */ english?: string }
+  | { turn: Turn; reply: MoveReply; wish?: boolean; /** The line in English (a date in another language), for the checks only. */ english?: string; /** Its private feeling, thought and note (lib/inner-life.ts). */ inner?: LineInner }
   | { rejected: TurnRejection; /** Which content rule a filtered line broke (#474). */ reason?: RejectReason } {
   const trimmed = raw.trim();
   const unfenced = CODE_FENCE.exec(trimmed)?.[1] ?? trimmed;
@@ -416,6 +450,11 @@ export function parseTurnResult(
     reply: { ...(parsed.data.move ? { move: parsed.data.move } : {}), ...(parsed.data.accept_move !== undefined ? { accept: parsed.data.accept_move } : {}) },
     // Kept off the turn (the transcript is what both sides and the creator read), so it stays private.
     ...(parsed.data.see_again !== undefined ? { wish: parsed.data.see_again } : {}),
+    // So is its inner life: simulateConversation puts it on the line in memory only (lib/pipeline.ts strips it).
+    ...(() => {
+      const inner = readInner(parsed.data);
+      return Object.keys(inner).length ? { inner } : {};
+    })(),
   };
 }
 
@@ -569,8 +608,8 @@ export async function simulateConversation(
     const messages = suggestion ? [...built.messages, { role: "user" as const, content: suggestionNote(suggestion.to) }] : built.messages;
     const names = side === "a" ? { self: characters[0].name, other: characters[1].name } : { self: characters[1].name, other: characters[0].name };
     const turnModel = actorForSide?.(side) ?? model;
-    let line: { turn: Turn; reply: MoveReply; english?: string } | null = null;
-    let draft: { turn: Turn; reply: MoveReply; english?: string } | null = null; // a parsed line the critic sent back: kept if the revision doesn't work out
+    let line: { turn: Turn; reply: MoveReply; english?: string; inner?: LineInner } | null = null;
+    let draft: { turn: Turn; reply: MoveReply; english?: string; inner?: LineInner } | null = null; // a parsed line the critic sent back: kept if the revision doesn't work out
     let draftNotes = "";
     let prompt = messages;
     for (let attempt = 0; attempt < TURN_ATTEMPTS && !line; attempt++) {
@@ -619,6 +658,7 @@ export async function simulateConversation(
       await opts.onSuggestionProposed?.(suggestion.id).catch(() => {});
     }
     glosses[transcript.length] = line.english;
+    if (line.inner) turn.inner = line.inner;
     transcript.push(turn);
     if (onTurn) await Promise.resolve().then(() => onTurn([...transcript])).catch(() => {});
     // The actor's own "I'm done" signal, respected only in the goodbye stretch (David 2026-10-18: let dates close

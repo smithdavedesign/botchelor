@@ -32,13 +32,16 @@ import { narrateEpisode, type EpisodeDraft } from "./showrunner";
 import type { BuiltDate } from "./simulation";
 import { venue, type PlaceId } from "./venues";
 import { applyWishes, resolveWishes, settledWishes, type StoredWishes } from "./wishes";
+import { applyChoices, askChoices, CHOICE_ENGINE_VERSION, choiceWish } from "./choices";
+import { getEngine } from "./engine";
+import { innerOf, outerLine, type StoredInner } from "./inner-life";
 
 /**
  * The version of the date's prompts (the actor, director, narrator, reflection and afterglow prompts, and what each
  * is handed). Recorded on every generated date with the models that wrote it, so a change in quality can be traced
  * to a prompt or a model. Bump it whenever a prompt or its data changes.
  */
-export const PROMPT_VERSION = "2026-10-22.ending-label";
+export const PROMPT_VERSION = "2026-11-01.living-dates";
 
 /** Which models wrote a date, by role (whichever actually answered, fallbacks included), and with which prompts. */
 export type GeneratedWith = { actor: string[]; director: string[]; byok: string[]; prompts: string };
@@ -73,8 +76,14 @@ export type GenerateOptions = {
   /** Set the scene (lib/scene-suggestions.ts): the creator's paid place, proposed on the next line that can. */
   suggestion?: () => Promise<{ id: string; to: PlaceId } | null>;
   onSuggestionProposed?: (id: string) => Promise<void>;
-  /** Let the two characters' wishes weigh in on the ending (lib/wishes.ts): a show date's job, not the evals. */
+  /**
+   * Let the two characters' wishes weigh in on the ending: a show date's job. Under engine v5+ (`engineVersion`) each side
+   * answers "see them again?" itself and the answers decide, with the engine as the guardrail (lib/choices.ts); before
+   * v5, each side's last interest is its wish and the old roll applies (lib/wishes.ts).
+   */
   wishes?: boolean;
+  /** The engine version the date was decided with (setup.engine_version as booked; 1 when it has none). */
+  engineVersion?: number | null;
   /** Critic-rejected drafts, as they're replaced (lib/conversation.ts onDraft; stored as turn_drafts by the job). */
   onDraft?: (d: { turn_index: number; side: "a" | "b"; reason: string; rejected: string }) => void;
 };
@@ -84,6 +93,12 @@ export type GeneratedDate = {
   outcome: Outcome;
   /** How the wishes counted (for episodes.wishes); null when they weren't weighed. */
   wishes: StoredWishes | null;
+  /**
+   * Living dates (lib/inner-life.ts): each line's private feeling, thought and note, and each side's own see-again
+   * answer, for episodes.inner_life (shown only once the date airs). Null when no line carried any. The lines in
+   * `transcript` never carry it.
+   */
+  inner: StoredInner | null;
   draft: EpisodeDraft;
   transcript: Turn[];
   afterglow: AfterglowLine[];
@@ -160,6 +175,8 @@ export async function generateDate(
   const characters: [Character, Character] = built.characters;
   const { producer, venue: venueId } = built.setup;
 
+  // The theater plays each line as it's written, never its inner life (lib/inner-life.ts: it's kept for after the date airs).
+  const onTurn = opts.onTurn ? (lines: Turn[]) => opts.onTurn!(lines.map(outerLine)) : undefined;
   let plan: DatePlan | null = null;
   let transcript: Turn[] = [];
   let conversationError: unknown = null;
@@ -168,7 +185,7 @@ export async function generateDate(
     // A director that is down (a stronger free model at its quota) costs nothing: planDate falls back to rules.
     plan = await planDate(director.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.formatCtx);
     const converse = (from?: Turn[]) =>
-      simulateConversation(actor.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan ?? undefined, keyForSide, opts.onTurn, {
+      simulateConversation(actor.model, built.input, decided, characters, producer, venueId, opts.formatId, opts.talk?.date, opts.formatCtx, plan ?? undefined, keyForSide, onTurn, {
         moves: opts.moves,
         moveCutoff: opts.moveCutoff,
         deadline: opts.deadline,
@@ -194,13 +211,28 @@ export async function generateDate(
     }
   }
 
-  // Each character's own last read of the other weighs in (lib/wishes.ts); everything after follows where it ends.
+  // Living dates: what each line carried privately, kept apart; from here on every line is only what was said and done.
+  let inner = innerOf(transcript);
+  const lived = transcript;
+  transcript = transcript.map(outerLine);
+  partialTranscript = partialTranscript.map(outerLine);
+
+  // Each character's own say in how it ends; everything after follows where it ends.
   let outcome = decided;
   let wishes: StoredWishes | null = null;
   if (opts.wishes && transcript.length) {
-    const read = resolveWishes(null, transcript);
-    outcome = applyWishes(decided, read, built.seed);
-    wishes = settledWishes(read, decided.ending);
+    if ((opts.engineVersion ?? 1) >= CHOICE_ENGINE_VERSION) {
+      // Engine v5 (lib/choices.ts): each side answers "see them again?" itself, and the answers decide within a step of
+      // the engine's ending. A test's forced outcome stands exactly as given.
+      const choices = await askChoices(actor.model, characters, lived, keyForSide);
+      outcome = getEngine().exact ? decided : applyChoices(decided, choices);
+      wishes = { ...settledWishes({ a: choiceWish(choices.a), b: choiceWish(choices.b) }, decided.ending), choices: { a: choices.a.see_again, b: choices.b.see_again } };
+      inner = { ...(inner ?? { v: 1 as const, lines: transcript.map(() => null) }), choices };
+    } else {
+      const read = resolveWishes(null, transcript);
+      outcome = applyWishes(decided, read, built.seed);
+      wishes = settledWishes(read, decided.ending);
+    }
   }
 
   // The recap: on the director, from what was actually said; on the actor's model if the director can't.
@@ -241,7 +273,7 @@ export async function generateDate(
     byok: [...byokServed],
     prompts: PROMPT_VERSION,
   };
-  return { outcome, wishes, draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, partialTranscript, afterglowError };
+  return { outcome, wishes, inner, draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, partialTranscript, afterglowError };
 }
 
 /** What the quality checks treat as shared (the venue, the recap's setting) and as each side's private notes. */

@@ -49,6 +49,8 @@ import { setMatchChatEnabledForTests } from "@/lib/swipes";
 import { setSwipeGateForTests } from "@/lib/swipe-gate";
 import { setLookAlikeGateForTests } from "@/lib/originality";
 import { setReflectionEnabledForTests } from "@/lib/reflection";
+import { setChoicesAskedForTests } from "@/lib/choices";
+import { setHotTakesDerivingForTests } from "@/lib/hot-takes";
 import { setInlineGenerationForTests } from "@/lib/jobs";
 import { setPublicLaunchDayForTests } from "@/lib/our-traffic";
 import { setPlaceForTests } from "@/lib/place";
@@ -129,6 +131,10 @@ export async function startTestDb() {
   // The post-date reflection path is off in tests by default too (same reason). The reflection module is
   // tested directly in tests/reflection.test.ts.
   setReflectionEnabledForTests(false);
+  // Living dates: each side's "see them again?" answer is read from the date, not asked of the model, and no hot takes are
+  // derived, so suites that script a date's model calls in order keep their order. Their own tests turn them on.
+  setChoicesAskedForTests(false);
+  setHotTakesDerivingForTests(false);
   // M10 part 2: run generation inline (no Next after() lifecycle in unit tests), so an episode is ready
   // by the time POST returns — the same observable behaviour the suite was written against.
   setInlineGenerationForTests(true);

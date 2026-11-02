@@ -19,6 +19,7 @@
  * beat or scene that carries the other side's private words (soul, secret agenda, the owner's note,
  * dealbreaker) and uses the rules version instead — so the guarantee doesn't rest on the model obeying.
  */
+import { collidingTakes } from "./hot-takes";
 import { z } from "zod";
 import { characterSelfView, type Character } from "./character";
 import { UNREMARKABLE_SIGNALS, type DateInput, type Outcome, type SideSetup, type SoulSignals } from "./engine";
@@ -205,6 +206,14 @@ export function dateFacts(input: DateInput, outcome: Outcome, characters: [Chara
     if (so.note_followed !== null) facts.push(`${names[s]} ${so.note_followed ? "takes" : "ignores"} their creator's advice.`);
     facts.push(wantsFact(outcome, s, names, input.date_number));
   });
+  // Living dates (lib/hot-takes.ts): opinions each really holds. Two that collide are friction the date can use.
+  const takes: [readonly string[], readonly string[]] = [characters[0].hotTakes ?? [], characters[1].hotTakes ?? []];
+  const clash = collidingTakes(takes[0], takes[1]);
+  if (clash) {
+    facts.push(`Their opinions collide: ${names[0]} holds "${clash[0]}" and ${names[1]} holds "${clash[1]}". Let it come up and cause real friction (neither folds to be nice), whichever way the night ends.`);
+  } else if (takes[0].length && takes[1].length) {
+    facts.push("Each of them holds strong opinions (their hot_takes). Let at least one come up, and let the other push back if they would.");
+  }
   // A rematch: the pair has aired dates before, so they aren't strangers and tonight picks up from last time.
   const met = characters[0].memory?.people?.find((p) => p.id === characters[1].id) ?? characters[1].memory?.people?.find((p) => p.id === characters[0].id);
   if (met) {
