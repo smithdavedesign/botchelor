@@ -29,7 +29,7 @@ export function CallsLine({ record, airing, href }: { record: CallRecord; airing
   );
 }
 
-/** This week's best callers, by display name; you're marked, and told your place when you're off the list. */
+/** This week's best callers, by display name or "A viewer"; you're marked, and told your place when you're off the list. */
 export function CallersBoardPanel({ board }: { board: CallersBoard }) {
   if (!board.top.length) return null;
   const listed = board.top.some((e) => e.mine);
@@ -41,7 +41,7 @@ export function CallersBoardPanel({ board }: { board: CallersBoard }) {
           <li key={`${i}-${e.name}`} className={e.mine ? "mine" : undefined}>
             <span className="callers-rank">{i + 1}</span>
             <span className="callers-name">
-              {e.name}
+              {e.name ?? <span className="muted">A viewer</span>}
               {e.mine && <span className="chip">You</span>}
             </span>
             <span className="callers-score">
@@ -51,8 +51,8 @@ export function CallersBoardPanel({ board }: { board: CallersBoard }) {
         ))}
       </ol>
       <p className="muted small">
-        Right endings on public dates that aired in the last {BOARD_DAYS} days. Only people with a display name are listed
-        {board.unnamed > 0 ? ` (${board.unnamed} more called one right without one)` : ""}; joining a{" "}
+        Right endings on public dates that aired in the last {BOARD_DAYS} days ({board.callers}{" "}
+        {board.callers === 1 ? "caller" : "callers"}). Names show only for people with a display name; joining a{" "}
         <Link href="#leagues">league</Link> gives you one.
         {board.my_rank && !listed ? ` You're number ${board.my_rank} this week.` : ""}
       </p>
