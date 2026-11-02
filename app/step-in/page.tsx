@@ -68,7 +68,7 @@ export default async function StepInPage({ searchParams }: { searchParams: Promi
   const cost = day.admin
     ? "On the house (you're an admin)."
     : day.free_today
-      ? "Today's first date stepped into is on the show."
+      ? "Your first step-in today is free."
       : dates.left > 0
         ? `It costs one of your dates (${dates.left} left).`
         : "Today's free one is used, and you've no dates left this week.";
