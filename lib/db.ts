@@ -3022,6 +3022,8 @@ alter table cast_secrets add column if not exists revealed_line integer;
 -- Go deeper: a creator's own "what they're hiding" for their character, in the same table under season 'own' (source 'owner').
 alter table cast_secrets drop constraint if exists cast_secrets_source_check;
 alter table cast_secrets add constraint cast_secrets_source_check check (source in ('model', 'pool', 'owner'));
+-- The show feel (docs/show-style.md): an episode's display title, written once at air time (lib/episode-title.ts).
+alter table episodes add column if not exists title text;
 create table if not exists situation_nights (
   day text primary key,
   a_id text not null,

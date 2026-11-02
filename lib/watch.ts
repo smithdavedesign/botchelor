@@ -62,6 +62,7 @@ import { PUBLIC_ONLY } from "./relationships";
 import { refreshAndAnnounce } from "./relationship-events";
 import { buildDate, chaosReplay, DEFAULT_DATE_REQUEST, rememberDate, type CharacterForDate } from "./simulation";
 import { updateCharacterMemory } from "./memory";
+import { titleEpisodeOnAir } from "./episode-title";
 import { mixerQuietUsers, notifyNightAired, siblingCharacters } from "./group-dates";
 import { notifyOwnersAired, notifyPredictors } from "./air";
 import { ShowrunnerError, type CharacterSheet } from "./showrunner";
@@ -596,6 +597,8 @@ export async function syncRoom(
     ).rows[0];
     // M14: the date just aired — recompute both characters' learned memory from their aired dates ($0).
     if (aired) {
+      // Its episode title (docs/show-style.md), best-effort and fire-and-forget (lib/episode-title.ts).
+      void titleEpisodeOnAir(db, exists.episode_id).catch(() => {});
       await updateCharacterMemory(db, aired.character_a).catch(() => {});
       await updateCharacterMemory(db, aired.character_b).catch(() => {});
       // A double date's other table (lib/group-dates.ts): they met this couple too.
