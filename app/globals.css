@@ -12749,6 +12749,21 @@ button.thread-menu-item:hover:not(:disabled) {
   font-style: italic;
   overflow-wrap: anywhere;
 }
+.diary-thoughts {
+  margin-top: var(--space-2);
+  font-style: normal;
+}
+.diary-thoughts summary {
+  cursor: pointer;
+  min-height: 32px;
+  color: var(--muted);
+}
+.diary-thoughts ol {
+  margin: var(--space-1) 0 0;
+  padding-left: 1.2rem;
+  font-style: italic;
+  color: var(--muted);
+}
 .chat-thought-hint {
   margin: 0 0 var(--space-2);
 }

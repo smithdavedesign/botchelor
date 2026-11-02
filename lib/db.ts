@@ -3012,6 +3012,9 @@ create table if not exists cast_secrets (
   created_at timestamptz not null default now(),
   primary key (character_id, season_id, idx)
 );
+-- Living dates: a secret that slipped out on a date (lib/cast-secrets.ts recordSlips), counted out once that date airs.
+alter table cast_secrets add column if not exists revealed_episode text;
+alter table cast_secrets add column if not exists revealed_line integer;
 create table if not exists situation_nights (
   day text primary key,
   a_id text not null,

@@ -109,6 +109,9 @@ async function generate(): Promise<void> {
   // The living-dates arm derives each character's hot takes once (lib/hot-takes.ts), cached across runs; an arm from
   // before it has no such module and plays without.
   const takes = await import("@/lib/hot-takes").catch(() => null);
+  // ...and a house character carries this season's secrets, to guard or let slip (lib/cast-secrets.ts): the pool's.
+  const secrets = await import("@/lib/cast-secrets").catch(() => null);
+  const carriesSecrets = Boolean(secrets && "secretsForDate" in secrets);
   const takesFile = join(OUT, "hot-takes.json");
   const cache: Record<string, string[]> = existsSync(takesFile) ? JSON.parse(readFileSync(takesFile, "utf8")) : {};
   const results = await pool(cases, CONCURRENCY, async (c) => {
@@ -117,6 +120,11 @@ async function generate(): Promise<void> {
       for (const ch of built.characters as Character[]) {
         if (!cache[ch.id]) cache[ch.id] = (await takes.deriveHotTakes(paid(MODEL), ch).catch(() => null)) ?? takes.fallbackHotTakes(ch);
         ch.hotTakes = cache[ch.id];
+      }
+    }
+    if (carriesSecrets && secrets) {
+      for (const ch of built.characters as Character[]) {
+        if (ch.house) (ch as Character & { secrets?: unknown }).secrets = secrets.dealtSecrets(ch.id, "eval").map((secret, idx) => ({ season_id: "eval", idx, secret }));
       }
     }
     const version = built.setup.engine_version;
@@ -144,6 +152,7 @@ async function generate(): Promise<void> {
       detail: (gen.outcome as { detail?: string }).detail ?? null,
       transcript: gen.transcript.map((t) => ({ side: t.side, act: t.act, dialogue: t.dialogue, action: t.action, emotion: t.emotion })),
       inner: g.inner ?? null,
+      slips: g.slips ?? [],
       afterglow: gen.afterglow,
       recap: { setting: gen.draft.setting, best_line: gen.draft.best_line },
       genuineness: metrics.index ?? null,
@@ -170,6 +179,9 @@ async function generate(): Promise<void> {
     mean_genuineness: mean(results.map((r) => Number(r.genuineness)).filter(Number.isFinite)),
     engine_mix: mix("engine_ending"),
     final_mix: mix("ending"),
+    secrets_slipped: results.reduce((n, r) => n + ((r.slips as unknown[]) ?? []).length, 0),
+    with_thoughts: results.filter((r) => (r.inner as { lines?: ({ thought?: string } | null)[] } | null)?.lines?.some((l) => l?.thought)).length,
+    choices: results.map((r) => (r.inner as { choices?: { a: { see_again: string }; b: { see_again: string } } } | null)?.choices).filter(Boolean).map((c) => `${c!.a.see_again}/${c!.b.see_again}`),
     details: Object.fromEntries([...new Set(results.map((r) => r.detail ?? "none"))].map((d) => [d, results.filter((r) => (r.detail ?? "none") === d).length])),
     spent_usd: Math.round(spent * 1e4) / 1e4,
   };

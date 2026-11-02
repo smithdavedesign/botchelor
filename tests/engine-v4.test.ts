@@ -35,7 +35,7 @@ const mix = (version: 1 | 2 | 3 | 4, sample = SAMPLE) => mixOf(sample, (input, s
 
 describe("engine v4: the mix", () => {
   it("new dates are decided with v4", () => {
-    expect(CURRENT_ENGINE_VERSION).toBe(4);
+    expect(CURRENT_ENGINE_VERSION).toBe(5); // v5 (living dates) decides with these same numbers
     expect([V4_FRIENDS_REL, V4_SECOND_DATE_REL]).toEqual([11, 16]);
   });
 
@@ -292,7 +292,7 @@ describe("engine v4 in the live flow: your own two characters", () => {
     setEngineForTests(fixedEngine({ ending: "disaster" }, { wishes: true }));
     const { ctx, a, b } = await pair();
     const r = await playTo(ctx, a, b, { a: true, b: true });
-    expect(r.row.v).toBe("4");
+    expect(r.row.v).toBe("5");
     expect(r.first.heading.says.startsWith("heading for a disaster unless you both want to see each other again: both say see_again: true on your last lines and it lifts")).toBe(true);
     expect(r.recap.ending).toBe("friends");
     expect(r.row).toMatchObject({ ending: "friends", wishes: { a: true, b: true, engine: "disaster" } });

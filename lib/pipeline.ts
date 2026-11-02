@@ -35,6 +35,7 @@ import { applyWishes, resolveWishes, settledWishes, type StoredWishes } from "./
 import { applyChoices, askChoices, CHOICE_ENGINE_VERSION, choiceWish } from "./choices";
 import { getEngine } from "./engine";
 import { innerOf, outerLine, type StoredInner } from "./inner-life";
+import type { SecretSlip } from "./cast-secrets";
 
 /**
  * The version of the date's prompts (the actor, director, narrator, reflection and afterglow prompts, and what each
@@ -99,6 +100,8 @@ export type GeneratedDate = {
    * `transcript` never carry it.
    */
   inner: StoredInner | null;
+  /** Cast secrets the date let slip (lib/cast-secrets.ts), for the caller to record once the date is saved. */
+  slips: SecretSlip[];
   draft: EpisodeDraft;
   transcript: Turn[];
   afterglow: AfterglowLine[];
@@ -214,6 +217,9 @@ export async function generateDate(
   // Living dates: what each line carried privately, kept apart; from here on every line is only what was said and done.
   let inner = innerOf(transcript);
   const lived = transcript;
+  const slips: SecretSlip[] = lived.flatMap((t, i) =>
+    t.inner?.secret ? [{ character_id: characters[t.side === "a" ? 0 : 1].id, season_id: t.inner.secret.season_id, idx: t.inner.secret.idx, line: i }] : [],
+  );
   transcript = transcript.map(outerLine);
   partialTranscript = partialTranscript.map(outerLine);
 
@@ -273,7 +279,7 @@ export async function generateDate(
     byok: [...byokServed],
     prompts: PROMPT_VERSION,
   };
-  return { outcome, wishes, inner, draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, partialTranscript, afterglowError };
+  return { outcome, wishes, inner, slips, draft, transcript, afterglow, reflections, plan, quality, modelCalls, usage, generatedWith, conversationError, partialTranscript, afterglowError };
 }
 
 /** What the quality checks treat as shared (the venue, the recap's setting) and as each side's private notes. */

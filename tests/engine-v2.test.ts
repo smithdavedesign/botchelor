@@ -42,7 +42,7 @@ function distribution(version: 1 | 2, strategy: Strategy = "genuine_chemistry", 
 
 describe("engine v2 — calibrated endings (versioned)", () => {
   it("new dates are decided with v4 (#728: tests/engine-v4.test.ts)", () => {
-    expect(CURRENT_ENGINE_VERSION).toBe(4);
+    expect(CURRENT_ENGINE_VERSION).toBe(5); // v5 (living dates) decides with v4's numbers; tests/living-dates.test.ts
   });
 
   it("v3 changes only repeat dates: a first date decides exactly as under v2", () => {

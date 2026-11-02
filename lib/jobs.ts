@@ -19,6 +19,7 @@ import { isAfterglowEnabled } from "./afterglow";
 import { isReflectionEnabled } from "./reflection";
 import { generateDate } from "./pipeline";
 import { ensureHotTakes } from "./hot-takes";
+import { recordSlips } from "./cast-secrets";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
 
@@ -342,6 +343,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     if (saved.rows.length) {
       for (const d of drafts) await logTurnDraft(db, { episodeId, turnIndex: d.turn_index, side: d.side, source: "critic", reason: d.reason, rejected: d.rejected });
       await rememberDate(db, row.a_id, row.b_id).catch(() => {});
+      // A cast secret a line let slip (living dates): out once this date airs publicly (lib/cast-secrets.ts).
+      if (!partial && gen.slips.length) await recordSlips(db, episodeId, gen.slips).catch(() => {});
       await logSceneRequests(db, episodeId, built.setup, transcript);
       await settleSuggestions(db, episodeId, transcript);
       trackMoves(episodeId, transcript, "show");

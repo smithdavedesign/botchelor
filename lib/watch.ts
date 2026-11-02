@@ -25,6 +25,7 @@ import { claimPaidDate } from "./limits";
 import { getDirectorModel, getModel, paidDefaultOn } from "./model";
 import { generateDate } from "./pipeline";
 import { ensureHotTakes } from "./hot-takes";
+import { recordSlips } from "./cast-secrets";
 import { DEFAULT_FORMAT, formatContextOf } from "./formats";
 import { getProfileName } from "./people";
 import {
@@ -913,6 +914,7 @@ export async function createTemplateParty(
       gen.inner ? JSON.stringify(gen.inner) : null,
     ],
   );
+  if (gen.slips.length) await recordSlips(db, episodeId, gen.slips).catch(() => {});
   await rememberDate(db, a.id, b.id).catch(() => {});
   // M14: learned memory is recomputed when the room airs the date (below), not now — a template date is
   // unrevealed until its clock reaches the decision, and its arc is public, so counting it early would spoil.

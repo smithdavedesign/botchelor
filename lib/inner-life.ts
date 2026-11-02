@@ -55,7 +55,16 @@ export function feelingName(raw: unknown): FeelingName | null {
 }
 
 /** What one line carries privately. All optional: a reply without them is still a line. */
-export type LineInner = { feeling?: FeelingName; strength?: number; thought?: string; claim?: string };
+export type LineInner = {
+  feeling?: FeelingName;
+  strength?: number;
+  thought?: string;
+  claim?: string;
+  /** Which of its own secrets (lib/cast-secrets.ts) the speaker says this line lets slip, 1-based, as it was told them. */
+  slip?: number;
+  /** That slip, checked against the line's words (lib/cast-secrets.ts slipped): which secret came out. */
+  secret?: { season_id: string; idx: number };
+};
 
 export const THOUGHT_MAX = 140;
 export const CLAIM_MAX = 100;
@@ -70,7 +79,7 @@ const short = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, m
  * claim that pass the show's content filter (a thought is shown after airing; one that doesn't pass is dropped, never
  * the line). Empty when the reply had none.
  */
-export function readInner(raw: { feeling?: unknown; feeling_strength?: unknown; thought?: unknown; they_claimed?: unknown }): LineInner {
+export function readInner(raw: { feeling?: unknown; feeling_strength?: unknown; thought?: unknown; they_claimed?: unknown; let_slip?: unknown }): LineInner {
   const out: LineInner = {};
   const f = feelingName(raw.feeling);
   if (f) {
@@ -83,6 +92,8 @@ export function readInner(raw: { feeling?: unknown; feeling_strength?: unknown; 
   if (thought && checkShowText({ thought }).ok) out.thought = thought;
   const claim = text(raw.they_claimed, CLAIM_MAX);
   if (claim && !/^(none|nothing|n\/a|-)\.?$/i.test(claim) && checkShowText({ claim }).ok) out.claim = claim;
+  const slip = Number(raw.let_slip);
+  if (Number.isInteger(slip) && slip >= 1 && slip <= 5) out.slip = slip;
   return out;
 }
 

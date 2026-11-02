@@ -58,6 +58,7 @@ import { fillPremise, roleplayForActor, rolesLine, type DateRoleplay } from "./r
 import { HOUSE_CHARACTERS } from "./house";
 import { hotTakesOf, type StoredHotTakes } from "./hot-takes";
 import { CLAIMS_KEPT, type StoredInner } from "./inner-life";
+import { secretsForDate, type DateSecret } from "./cast-secrets";
 
 export type CharacterForDate = { id: string; sheet: CharacterSheet };
 
@@ -181,6 +182,9 @@ export type DateParts = {
   /** What each side noted the other claiming on their earlier dates (lib/inner-life.ts), its own notes only. */
   claimsA?: string[];
   claimsB?: string[];
+  /** Each cast member's own secrets still hidden this season (lib/cast-secrets.ts secretsForDate). Private to its side. */
+  secretsA?: DateSecret[];
+  secretsB?: DateSecret[];
 };
 
 /**
@@ -202,6 +206,8 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (takesB.length) charB.hotTakes = takesB;
   if (p.claimsA?.length) charA.claimsBefore = p.claimsA;
   if (p.claimsB?.length) charB.claimsBefore = p.claimsB;
+  if (p.secretsA?.length) charA.secrets = p.secretsA;
+  if (p.secretsB?.length) charB.secrets = p.secretsB;
   // The plan they agreed to by text is tonight (David, 2026-10-18: "honoring their discussion in the texting"): it's
   // where the date happens, and each side knows it kept the plan. One plan per date: with it, a second date's older
   // plan (from its morning after) stays out of the prompts, so the venue and the premise can't come from two plans.
@@ -425,6 +431,8 @@ export async function buildDate(
     opts.creatorId !== undefined && opts.creatorId !== PUBLIC_ONLY
       ? await Promise.all([pairClaims(db, a.id, b.id, opts.creatorId, episodeId), pairClaims(db, b.id, a.id, opts.creatorId, episodeId)]).catch(() => [[], []])
       : [[], []];
+  // A cast member's own secrets still hidden this season, to guard or let slip (living dates, lib/cast-secrets.ts).
+  const [secretsA, secretsB] = await Promise.all([secretsForDate(db, a.id).catch(() => []), secretsForDate(db, b.id).catch(() => [])]);
   const [lo] = pairKey(a.id, b.id);
   const texts = chain.some(isText) ? { a: promptTexts(chain, a.id === lo ? "lo" : "hi"), b: promptTexts(chain, b.id === lo ? "lo" : "hi") } : undefined;
   const names: Record<End, string> = a.id === lo ? { lo: a.sheet.name, hi: b.sheet.name } : { lo: b.sheet.name, hi: a.sheet.name };
@@ -449,7 +457,7 @@ export async function buildDate(
     nudges, alsoSeeing: { a: seeingA, b: seeingB }, texts, afterDark, table: opts.table ?? null, roleplay: opts.roleplay ?? null,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,
-    claimsA, claimsB,
+    claimsA, claimsB, secretsA, secretsB,
     overusedA, overusedB,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });

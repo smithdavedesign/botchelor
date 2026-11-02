@@ -545,8 +545,17 @@ export default async function EpisodePage({
 
       {/* The diary cam: each side's take to camera, once the date has aired (never before the ending is out). */}
       {/* ...with each side's own answer to "see them again?" (living dates, lib/choices.ts), once it has aired. */}
-      {(episode.diary || episode.inner?.choices.length) && (
-        <DiaryCam diary={episode.diary ?? []} choices={episode.inner?.choices ?? []} characters={episode.characters} folded={hasTheater} />
+      {(episode.diary || episode.inner) && (
+        <DiaryCam
+          diary={episode.diary ?? []}
+          choices={episode.inner?.choices ?? []}
+          thoughts={episode.characters.map((c, i) => ({
+            character_id: c.id,
+            thoughts: (episode.transcript ?? []).flatMap((t, n) => (t.side === (i === 0 ? "a" : "b") && episode.inner?.thoughts[n] ? [episode.inner.thoughts[n]!] : [])),
+          }))}
+          characters={episode.characters}
+          folded={hasTheater}
+        />
       )}
 
       {episode.afterglow && (

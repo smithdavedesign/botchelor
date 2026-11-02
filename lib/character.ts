@@ -105,6 +105,11 @@ export type Character = {
    * (episodes.inner_life, lib/inner-life.ts pairClaims), so it can notice a story that changed. Its own notes only.
    */
   claimsBefore?: string[];
+  /**
+   * Set only on a date's characters: this cast member's own secrets still hidden this season (lib/cast-secrets.ts
+   * secretsForDate), to guard, hint at or let slip. Private: only its own turn prompt carries them (never the director's).
+   */
+  secrets?: { season_id: string; idx: number; secret: string }[];
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));

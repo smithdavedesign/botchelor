@@ -14,15 +14,18 @@ export default function DiaryCam({
   characters,
   folded,
   choices = [],
+  thoughts = [],
 }: {
   diary: { character_id: string; line: string }[];
   characters: CharacterRef[];
   folded: boolean;
   /** Living dates (lib/choices.ts): each side's private answer to "see them again?", with its reason when it may be shown. */
   choices?: { character_id: string; see_again: SeeAgain; reason: string | null }[];
+  /** Living dates: each character's private thoughts through the date, in order (the ones that may be shown). */
+  thoughts?: { character_id: string; thoughts: string[] }[];
 }) {
   // One entry per character: what it told the camera, and what it answered when asked privately.
-  const ids = [...new Set([...diary.map((d) => d.character_id), ...choices.map((c) => c.character_id)])];
+  const ids = [...new Set([...diary.map((d) => d.character_id), ...choices.map((c) => c.character_id), ...thoughts.filter((t) => t.thoughts.length).map((t) => t.character_id)])];
   return (
     <details className="card diary-cam" open={!folded}>
       <summary>
@@ -34,6 +37,7 @@ export default function DiaryCam({
           if (!c) return null;
           const d = diary.find((x) => x.character_id === id);
           const choice = choices.find((x) => x.character_id === id);
+          const thought = thoughts.find((x) => x.character_id === id)?.thoughts ?? [];
           return (
             <li key={id}>
               <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={44} />
@@ -46,6 +50,18 @@ export default function DiaryCam({
                   </p>
                 )}
                 <footer className="muted small">{c.name}, to camera</footer>
+                {thought.length > 0 && (
+                  <details className="diary-thoughts">
+                    <summary>
+                      <span aria-hidden="true">💭</span> What {c.name.split(/\s+/)[0]} was thinking ({thought.length})
+                    </summary>
+                    <ol>
+                      {thought.map((t, i) => (
+                        <li key={i}>{t}</li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
               </blockquote>
             </li>
           );

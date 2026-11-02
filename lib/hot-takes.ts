@@ -129,13 +129,16 @@ export async function ensureHotTakes(db: Db, ids: readonly string[], model: Mode
   }
 }
 
+const OPINION_WORDS = new Set(["best", "worst", "better", "worse", "always", "never", "every", "everyone", "anyone", "nobody", "should", "really", "only", "overrated", "underrated", "honestly", "fight", "hill", "die", "time", "thing", "people", "week", "life"]);
+
 /**
  * Two hot takes that collide (the same subject, both held strongly): the first pair whose meaningful words overlap, as
  * [a's, b's], for the director to plan the friction. Null when nothing overlaps (the date may still find one).
  */
 export function collidingTakes(a: readonly string[], b: readonly string[]): [string, string] | null {
   const fold = (w: string) => (w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w);
-  const words = (t: string) => new Set(contentWords(t, 4).map(fold));
+  // The words every opinion uses ("the best weather", "the best meal") aren't a shared subject.
+  const words = (t: string) => new Set(contentWords(t, 4).map(fold).filter((w) => !OPINION_WORDS.has(w)));
   for (const x of a) {
     const wx = words(x);
     for (const y of b) if ([...words(y)].some((w) => wx.has(w))) return [x, y];
