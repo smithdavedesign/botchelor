@@ -42,6 +42,10 @@ export type AnalyticsEvent =
   | "date_moved" // a finished date moved somewhere else by both characters' agreement (lib/moves.ts): how many times, and who performed it
   | "relationship_metrics" // the daily snapshot of the long game (lib/relationship-metrics.ts): counts only
   | "crisis_notice_shown" // a person's own words tripped the self-harm check (lib/crisis.ts): the surface only, never who or what
+  | "step_in_started" // a person stepped into a date with a cast member (lib/step-in.ts): the episode, how it was paid, as which kind of character
+  | "step_in_finished" // a step-in date's last line and recap are in: the episode, its ending, its lines and what the show's side cost
+  | "step_in_aired" // the person chose to air their step-in date (it was private until then)
+  | "step_in_line_withheld" // a cast line on a step-in date was never said (it voiced self-harm): the episode and why
   | "data_pruned"; // the daily job's retention prune (lib/retention.ts): rows removed per table
 
 type Props = Record<string, string | number | boolean | null | undefined>;
@@ -65,7 +69,7 @@ export function track(event: AnalyticsEvent, props: Props = {}): void {
  */
 export function trackEpisodeCost(props: {
   episode_id: string;
-  where?: "job" | "template" | "template_retake" | "backfill";
+  where?: "job" | "template" | "template_retake" | "backfill" | "step_in";
   model: "free" | "frontier";
   model_calls: number;
   ms: number;

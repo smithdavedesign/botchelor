@@ -8,7 +8,9 @@ import JsonLd from "@/app/JsonLd";
 import OriginBadge from "@/app/OriginBadge";
 import { getDb } from "@/lib/db";
 import { directoryEntries, listTab, offSeasonHouse, privateAmong, tabCounts, type DirectoryEntry } from "@/lib/directory";
-import { userIdFromCookieStore } from "@/lib/http";
+import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
+import { stepInAllowed } from "@/lib/step-in";
+import { shortName } from "@/lib/names";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
 import { parseTab, TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
 import { topRatedCharacters } from "@/lib/ratings";
@@ -148,6 +150,8 @@ export default async function CharactersPage({ searchParams }: Props) {
 async function castTab({ season, thisId, castIds, now, pairsPage }: { season: DirectoryEntry[]; thisId: string; castIds: string[]; now: Date; pairsPage: number }) {
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
+  // Step into the date (lib/step-in.ts): for whoever it's open to (admins until STEP_IN_OPEN).
+  const stepIn = await stepInAllowed(db, authFromCookieStore(await cookies())).catch(() => false);
   const nextId = seasonIdOf(nextSeasonStart(now));
   const candidates = (await listCandidates(db, nextId)).filter((c) => c.status !== "rejected");
   const candidateIds = candidates.map((c) => c.character_id);
@@ -194,6 +198,22 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
           ))}
         </ul>
       </section>
+      {stepIn && season.length > 0 && (
+        <section className="card stepin-entry-card" aria-labelledby="stepin-cast-title">
+          <h2 id="stepin-cast-title">🎬 Step into the date</h2>
+          <p className="muted small">Go on a date with one of them yourself, live, line by line. They&apos;re AI characters on a show.</p>
+          <ul className="stepin-entry-faces">
+            {season.map((e) => (
+              <li key={e.id}>
+                <Link href={`/step-in?with=${e.id}`} data-track="step-in" data-track-from="cast-tab">
+                  <Avatar seed={e.id} name={e.name} hue={e.hue} house portraitSrc={e.portrait} size={36} />
+                  {shortName(e.name)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Shown once there are candidates (2026-10-31 UX audit, A4: for most of the month it only said "check back"). */}
       {upcoming.length > 0 && (

@@ -219,9 +219,14 @@ export default async function EpisodePage({
   // Performed by its creator's own AI (an agent dating two of its own characters, lib/own-date.ts)?
   // Who performed the lines (docs/agents-and-people.md): the show's model, one agent's AI, or each character's own agent.
   const performer = (
-    await db.query<{ performed_by: string; two_agent: boolean }>(`select performed_by, partner_performer is not null as two_agent from episodes where id = $1`, [id])
+    await db.query<{ performed_by: string; two_agent: boolean; step_in: boolean }>(
+      `select performed_by, partner_performer is not null as two_agent, coalesce(setup->>'met_via' = 'step_in', false) as step_in from episodes where id = $1`,
+      [id],
+    )
   ).rows[0];
-  const selfPerformed = performer?.performed_by === "agent";
+  // Step into the date (lib/step-in.ts): a person played one side live, the show's model the cast member's.
+  const steppedIn = performer?.step_in === true;
+  const selfPerformed = performer?.performed_by === "agent" && !steppedIn;
   const twoAgent = selfPerformed && performer?.two_agent === true;
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
@@ -248,6 +253,17 @@ export default async function EpisodePage({
           )}
         </EpisodeHero>
         <div className="episode-body">
+          {steppedIn && (
+            <p className="muted">
+              {episode.is_creator ? (
+                <>
+                  🎬 You&apos;re on this date. <Link href={`/step-in/${episode.id}`}>Back to it</Link>
+                </>
+              ) : (
+                "🎬 A viewer stepped into this date and is playing it live. The ending is already decided."
+              )}
+            </p>
+          )}
           {selfPerformed && (
             <p className="muted">
               {twoAgent
@@ -257,7 +273,7 @@ export default async function EpisodePage({
           )}
           <GeneratingPoller
             episodeId={episode.id}
-            stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null, canSetScene: !selfPerformed } : undefined}
+            stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null, canSetScene: !selfPerformed && !steppedIn } : undefined}
           />
           {!episode.is_creator && <MakeYourOwn />}
           <footer className="episode-foot">
@@ -342,6 +358,7 @@ export default async function EpisodePage({
           sibling ? "💞💞 A double date" : null,
           mixer ? `🍸 Mixer · round ${mixer.round} of ${mixer.rounds}` : null,
           selfPerformed ? (twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI") : null,
+          steppedIn ? "🎬 A viewer stepped in" : null,
         ]}
       >
         <div className="episode-hero-cta">

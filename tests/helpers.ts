@@ -294,6 +294,8 @@ export async function startTestDb() {
         "badges",
         "seasons",
         "free_episode_usage",
+        "step_in_usage",
+        "crisis_referrals",
         "pack_episode_usage",
         "league_members",
         "leagues",
