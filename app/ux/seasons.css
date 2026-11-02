@@ -31,18 +31,29 @@
 .season-page h1 {
   margin-top: 0;
 }
+/* The finale's cold open (docs/show-style.md): the narrator's card goes dark in both themes, like the title cards. */
 .season-previously {
   margin: var(--space-3) 0 var(--space-4);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-color: transparent;
+  background:
+    radial-gradient(120% 160% at 85% -30%, rgba(229, 53, 107, 0.22), transparent 60%),
+    linear-gradient(160deg, #241131, #140a1e 70%);
+  color: rgba(255, 255, 255, 0.94);
 }
 .season-previously h2 {
   margin: 0 0 var(--space-2);
-  font-size: var(--text-lg);
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
 }
 .season-narrative {
   margin: 0;
+  font-family: "Fraunces", Georgia, serif;
   font-size: var(--text-md);
-  line-height: 1.6;
+  line-height: 1.7;
 }
 .season-numbers {
   display: grid;
