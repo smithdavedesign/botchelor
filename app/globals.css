@@ -13338,3 +13338,60 @@ button.thread-menu-item:hover:not(:disabled) {
   color: var(--accent-ink);
   font-weight: 700;
 }
+
+/* Leaked from the cast group chat (lib/cast-chat.ts, app/CastChat.tsx): a phone thread, faces first. The bubbles sit
+   on the warm paper in light and on the dark stage in dark; the name is the small-caps label. */
+.cast-chat-thread {
+  list-style: none;
+  margin: var(--space-3) 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.cast-chat-line {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.cast-chat-face {
+  flex: none;
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: flex-end;
+}
+.cast-chat-bubble {
+  display: grid;
+  gap: 2px;
+  max-width: min(32rem, 100%);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 18px 18px 18px 6px;
+  background: var(--paper-2);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cast-chat-line:nth-child(even) .cast-chat-bubble {
+  background: color-mix(in srgb, var(--accent) 12%, var(--paper));
+}
+.cast-chat-name {
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cast-chat-line {
+    animation: cast-chat-in 0.4s ease-out both;
+  }
+  .cast-chat-line:nth-child(2) { animation-delay: 0.08s; }
+  .cast-chat-line:nth-child(3) { animation-delay: 0.16s; }
+  .cast-chat-line:nth-child(4) { animation-delay: 0.24s; }
+  .cast-chat-line:nth-child(5) { animation-delay: 0.32s; }
+  .cast-chat-line:nth-child(6) { animation-delay: 0.4s; }
+}
+@keyframes cast-chat-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+

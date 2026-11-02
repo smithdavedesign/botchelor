@@ -9,6 +9,8 @@ import { getDb } from "@/lib/db";
 import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
 import { callersBoard, callRecord } from "@/lib/streaks";
 import BackCast from "@/app/BackCast";
+import CastChat from "@/app/CastChat";
+import { latestCastChat } from "@/lib/cast-chat";
 import DareVote from "@/app/DareVote";
 import SituationVote from "@/app/SituationVote";
 import SeasonBanner from "@/app/SeasonBanner";
@@ -167,7 +169,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
   const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat] = await Promise.all([
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
@@ -184,6 +186,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     shared("watch:shifts", () => chemistryShifts(db)).catch(() => null),
     shared("watch:season-format", () => seasonFormatNow(db)).catch(() => null),
     mine("watch:recoupling", () => recouplingBoard(db, viewerId)).catch(() => null),
+    // The cast group chat (lib/cast-chat.ts): the same for everyone.
+    shared("watch:cast-chat", () => latestCastChat(db)).catch(() => null),
   ]);
   const feed = latest.episodes;
   const now = Date.now();
@@ -274,6 +278,9 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           </>
         )}
       </section>
+
+      {/* Yesterday's cast group chat (lib/cast-chat.ts): only ever about what has aired. */}
+      {castChat && <CastChat chat={castChat} />}
 
       {situation && <SituationVote board={situation} now={now} />}
 

@@ -12,6 +12,7 @@ import { playVotedSituation } from "@/lib/situations";
 import { judgePendingDares } from "@/lib/dare-verdict";
 import { runDueRecoupling } from "@/lib/recoupling";
 import { ensureCastSecrets } from "@/lib/cast-secrets";
+import { ensureCastChat } from "@/lib/cast-chat";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -50,7 +51,9 @@ async function run(req: Request): Promise<Response> {
   const recoupling = await runDueRecoupling(db).catch(() => null);
   // This season's cast secrets (lib/cast-secrets.ts): written once a season each on the show's cheap model; a no-op after.
   const secrets = await ensureCastSecrets(db).catch(() => null);
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, dare_verdicts: dareVerdicts.length, recoupling, secrets, aired, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  // Leaked from the cast group chat (lib/cast-chat.ts): yesterday's, written once, the first pass after midnight UTC.
+  const castChat = await ensureCastChat(db).catch(() => null);
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, dare_verdicts: dareVerdicts.length, recoupling, secrets, cast_chat: castChat, aired, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

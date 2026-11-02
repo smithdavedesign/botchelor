@@ -3159,6 +3159,17 @@ alter table dare_nights add column if not exists verdict_source text;
 alter table cast_date_weeks add column if not exists expires_at timestamptz;
 alter table cast_date_weeks add column if not exists redeemed_at timestamptz;
 alter table cast_date_weeks add column if not exists episode_id text;
+
+-- Leaked from the cast group chat (lib/cast-chat.ts; docs/ideas.md idea 14): one row a UTC day, written once the day
+-- ends from what aired publicly that day. lines: [{character_id, text}], every one PG-checked. source: 'model',
+-- 'template', 'quiet' (nothing aired: no chat) or 'pending' (claimed, being written).
+create table if not exists cast_chats (
+  day text primary key,
+  lines jsonb not null default '[]'::jsonb,
+  source text not null,
+  created_at timestamptz not null default now(),
+  written_at timestamptz
+);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
