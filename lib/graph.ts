@@ -270,6 +270,7 @@ const COARSE_MET: Record<string, MetVia> = {
   proposal: "asked",
   chosen: "asked",
   own_date: "asked",
+  step_in: "asked",
   second_date: "asked",
 };
 export const coarseMetVia = (raw: string | null | undefined): MetVia | null => (raw ? (COARSE_MET[raw] ?? null) : null);

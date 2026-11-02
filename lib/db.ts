@@ -1001,6 +1001,23 @@ alter table episodes add column if not exists wishes jsonb;
 -- Living dates (lib/inner-life.ts): each line's private feeling, thought and note, and each side's own "see them again?"
 -- answer (lib/choices.ts). Never on a stored line and never in a view before the date airs (lib/game.ts innerForViewer).
 alter table episodes add column if not exists inner_life jsonb;
+-- Step into the date (lib/step-in.ts; docs/step-into-the-date.md): how many dates a person stepped into on a UTC day,
+-- and whether the day's free one is used. A row per person a day; dates (not rows) so a date called off still counts.
+create table if not exists step_in_usage (
+  user_id text not null,
+  day text not null,
+  dates integer not null default 0,
+  free_used boolean not null default false,
+  primary key (user_id, day)
+);
+-- The self-harm protocol's referrals, counted (lib/step-in.ts countCrisis; California SB 243 asks for a yearly count
+-- from July 2027): how many times the crisis resources were shown, a day and a surface. Never who, never the words.
+create table if not exists crisis_referrals (
+  day text not null,
+  surface text not null,
+  n integer not null default 0,
+  primary key (day, surface)
+);
 -- Hot takes the show derived once for a character with none of its own (lib/hot-takes.ts ensureHotTakes): {takes, source, at}.
 alter table characters add column if not exists hot_takes jsonb;
 -- More endings (lib/ending-detail.ts): which kind of its ending a date had (one_sided, slow_burn, walked_out, ghosted,
@@ -3135,6 +3152,13 @@ create index if not exists cast_backings_user_idx on cast_backings (user_id);
 -- with where it came from ('model', or 'roll': the engine's note_followed when the check failed). Null: not judged yet.
 alter table dare_nights add column if not exists verdict text;
 alter table dare_nights add column if not exists verdict_source text;
+
+-- The weekly prize is a date WITH THE CAST (lib/cast-date.ts, wave 2): the claim row is redeemable once before
+-- expires_at for a date with a season cast member (redeemed_at when claimed, episode_id once booked). Weeks won before
+-- this have expires_at null: they got a token_grants date instead.
+alter table cast_date_weeks add column if not exists expires_at timestamptz;
+alter table cast_date_weeks add column if not exists redeemed_at timestamptz;
+alter table cast_date_weeks add column if not exists episode_id text;
 
 -- Leaked from the cast group chat (lib/cast-chat.ts; docs/ideas.md idea 14): one row a UTC day, written once the day
 -- ends from what aired publicly that day. lines: [{character_id, text}], every one PG-checked. source: 'model',

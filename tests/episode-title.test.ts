@@ -86,7 +86,11 @@ describe("titling at air time", () => {
     expect((await getEpisodeView(t.db, episode.id, null))?.title).toBeUndefined();
     expect(await titleEpisodeOnAir(t.db, episode.id)).toBeNull();
     const stored = await titleEpisodeOnAir(t.db, episode.id, { model: model([new Error("down")]) });
-    expect(stored).toMatch(/^First date/);
+    // The template from the episode's own venue: "First date at …", or the venue alone when that's too long for a title
+    // card (the dealt venue varies run to run, so asserting "First date" alone failed about one run in three).
+    const venue = (await t.db.query<{ venue: string | null }>(`select setup->>'venue' as venue from episodes where id = $1`, [episode.id])).rows[0].venue;
+    expect(stored).toBe(templateEpisodeTitle({ venue, dateNumber: null }));
+    expect(stored!.length).toBeLessThanOrEqual(EPISODE_TITLE_MAX);
   });
 
   it("an unaired episode never shows a title or an aired_at", async () => {

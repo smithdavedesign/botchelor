@@ -211,12 +211,12 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       {recoupling && <RecouplingCard board={recoupling} now={now} />}
       {showNews && <ShowSince card={showNews} />}
 
-      {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} />}
+      {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} where="watch" />}
 
       {airing.length > 0 && (
         <section className="watch-section" aria-labelledby="airing-soon">
           <h2 id="airing-soon">Airing soon: call it before it airs</h2>
-          {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} />}
+          {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} where="watch" />}
           <ul className="watch-airing">
             {airing.map((episode) => (
               <AiringCard key={episode.id} episode={episode} now={now} />

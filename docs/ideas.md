@@ -116,6 +116,8 @@ David asked whether to expand: let a person date a character themselves, and add
 
 **How to measure it:** add a `data-track` to the entry point. Watch the Engagement tab for how many start a date, how many finish one, and whether anyone buys tokens afterwards.
 
+**Status (2026-11-02):** built, admins only until `STEP_IN_OPEN=1` ([step-into-the-date.md](step-into-the-date.md): the SB 243 safety pass, costs ~0.3–0.6¢ a date, and what's open for counsel).
+
 ### F. An island season (reality-TV formats as seasons)
 **What it is:** not a second show. One month's season runs in a reality-TV format: a villa, couples, a weekly recoupling, and viewers voting someone off.
 

@@ -8,13 +8,16 @@ import JsonLd from "@/app/JsonLd";
 import OriginBadge from "@/app/OriginBadge";
 import { getDb } from "@/lib/db";
 import { directoryEntries, listTab, offSeasonHouse, privateAmong, tabCounts, type DirectoryEntry } from "@/lib/directory";
-import { userIdFromCookieStore } from "@/lib/http";
+import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
+import { stepInAllowed } from "@/lib/step-in";
+import { shortName } from "@/lib/names";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
 import { parseTab, TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
 import { topRatedCharacters } from "@/lib/ratings";
 import { endingLabel, RATING_CATEGORIES } from "@/lib/rules";
 import { seasonCastIds } from "@/lib/season-cast";
-import { castDateBanner } from "@/lib/cast-date";
+import { castDatePrize } from "@/lib/cast-date";
+import CastDatePrize from "@/app/CastDatePrize";
 import { listCandidates } from "@/lib/season-gen";
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 import { itemListJsonLd, pageMetadata } from "@/lib/seo";
@@ -148,6 +151,8 @@ export default async function CharactersPage({ searchParams }: Props) {
 async function castTab({ season, thisId, castIds, now, pairsPage }: { season: DirectoryEntry[]; thisId: string; castIds: string[]; now: Date; pairsPage: number }) {
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
+  // Step into the date (lib/step-in.ts): for whoever it's open to (admins until STEP_IN_OPEN).
+  const stepIn = await stepInAllowed(db, authFromCookieStore(await cookies())).catch(() => false);
   const nextId = seasonIdOf(nextSeasonStart(now));
   const candidates = (await listCandidates(db, nextId)).filter((c) => c.status !== "rejected");
   const candidateIds = candidates.map((c) => c.character_id);
@@ -158,7 +163,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
     listRelationshipEdges(db),
     viewerId ? listMyProposals(db, viewerId) : Promise.resolve([]),
     Promise.all(RATING_CATEGORIES.map((c) => topRatedCharacters(db, c.id))),
-    castDateBanner(db, viewerId).catch(() => null),
+    castDatePrize(db, viewerId).catch(() => null),
   ]);
   const statusOf = new Map(candidates.map((c) => [c.character_id, c.status]));
   // The matchmaker picks from public characters only: a private one stays its creator's.
@@ -175,16 +180,8 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
   return (
     <>
       <JsonLd data={itemListJsonLd("The Botchelor cast", season.map((e) => ({ name: e.name, path: `/characters/${e.id}` })))} />
-      {/* The weekly earned slot's winner (lib/cast-date.ts): their banner, for a week. */}
-      {castDateWin && (
-        <section className="card notice cast-date-won" data-track-area="cast-date-won">
-          <h2>The producers were watching</h2>
-          <p>
-            You were one of last week&apos;s most active viewers, so this week&apos;s earned slot is yours: one date between your character and a season
-            cast member of your choosing, on the show. Pick your cast member below and <strong>ask them out</strong> — the date&apos;s already covered.
-          </p>
-        </section>
-      )}
+      {/* The weekly earned slot's winner (lib/cast-date.ts): their prize, a date with the cast to book here. */}
+      {castDateWin && <CastDatePrize prize={castDateWin} />}
       <section>
         <h2>This season: {seasonLabel(thisId)}</h2>
         <p className="muted">The show&apos;s own. Each month the two best-reviewed stay and two newcomers join.</p>
@@ -194,6 +191,22 @@ async function castTab({ season, thisId, castIds, now, pairsPage }: { season: Di
           ))}
         </ul>
       </section>
+      {stepIn && season.length > 0 && (
+        <section className="card stepin-entry-card" aria-labelledby="stepin-cast-title">
+          <h2 id="stepin-cast-title">🎬 Step into the date</h2>
+          <p className="muted small">Go on a date with one of them yourself, live, line by line. They&apos;re AI characters on a show.</p>
+          <ul className="stepin-entry-faces">
+            {season.map((e) => (
+              <li key={e.id}>
+                <Link href={`/step-in?with=${e.id}`} data-track="step-in" data-track-from="cast-tab">
+                  <Avatar seed={e.id} name={e.name} hue={e.hue} house portraitSrc={e.portrait} size={36} />
+                  {shortName(e.name)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Shown once there are candidates (2026-10-31 UX audit, A4: for most of the month it only said "check back"). */}
       {upcoming.length > 0 && (

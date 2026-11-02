@@ -384,6 +384,12 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   // kept as a tombstone with its row.
   await deleteAdultProfile(db, userId);
 
+  // Step into the date (lib/step-in.ts forgetPersonas): someone's "you" is them, not a fictional sheet. Anonymized, and
+  // every date it was on taken offline (their own words are in the lines). Owned by "you:<id>", so steps 2-3 never see it.
+  await run(`update episodes set visibility = 'private' where character_a in (select id from characters where owner_id = 'you:' || $1) or character_b in (select id from characters where owner_id = 'you:' || $1)`, [userId]);
+  await run(`delete from souls where character_id in (select id from characters where owner_id = 'you:' || $1)`, [userId]);
+  await run(`update characters set owner_id = $2, name = 'A former viewer', bio = 'Someone who stepped into a date.', pronouns = null where owner_id = 'you:' || $1`, [userId, DELETED_OWNER]);
+
   // 2. Characters never used in an episode: hard delete (cascades assets, relationships, proposals).
   const charactersDeleted = await returning(
     `delete from characters

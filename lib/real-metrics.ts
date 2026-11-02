@@ -165,7 +165,9 @@ export async function loadFacts(db: Db, sinceDays: number, now = new Date()): Pr
 
   const dates = (
     await db.query<{ creator: string; partner: string | null; performed_by: string; via: string; at: Date | string }>(
-      `select e.creator_id as creator, e.partner_performer as partner, e.performed_by, e.created_via as via, e.created_at as at
+      // A step-in date (lib/step-in.ts) is stored as self-performed, but a person played it: never an agent's own date.
+      `select e.creator_id as creator, e.partner_performer as partner,
+              case when e.setup->>'met_via' = 'step_in' then 'person' else e.performed_by end as performed_by, e.created_via as via, e.created_at as at
          from episodes e where e.created_at >= $1 and ${notDeleted}`,
       [since],
     )

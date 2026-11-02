@@ -11,6 +11,9 @@ import { getDb } from "@/lib/db";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { dareReveal, VERDICT_WORDS } from "@/lib/dares";
+import { callRecord, NO_CALLS } from "@/lib/streaks";
+import ShareRecord from "@/app/ShareRecord";
+import { shareOf } from "@/app/YourCalls";
 import { getEpisodeView, getPoints } from "@/lib/game";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -216,12 +219,19 @@ export default async function EpisodePage({
   const partyId = await partyIdForEpisode(db, id);
   // The dare reveal (lib/dares.ts): the audience's dare and the engine's own verdict, once the date has aired.
   const dare = episode.revealed ? await dareReveal(db, id).catch(() => null) : null;
+  // A scored call: the viewer's record, for the spoiler-free share card (lib/share-record.ts).
+  const myShare = episode.revealed && !episode.is_creator && episode.my_pick && viewerId ? shareOf(await callRecord(db, viewerId).catch(() => NO_CALLS)) : null;
   // Performed by its creator's own AI (an agent dating two of its own characters, lib/own-date.ts)?
   // Who performed the lines (docs/agents-and-people.md): the show's model, one agent's AI, or each character's own agent.
   const performer = (
-    await db.query<{ performed_by: string; two_agent: boolean }>(`select performed_by, partner_performer is not null as two_agent from episodes where id = $1`, [id])
+    await db.query<{ performed_by: string; two_agent: boolean; step_in: boolean }>(
+      `select performed_by, partner_performer is not null as two_agent, coalesce(setup->>'met_via' = 'step_in', false) as step_in from episodes where id = $1`,
+      [id],
+    )
   ).rows[0];
-  const selfPerformed = performer?.performed_by === "agent";
+  // Step into the date (lib/step-in.ts): a person played one side live, the show's model the cast member's.
+  const steppedIn = performer?.step_in === true;
+  const selfPerformed = performer?.performed_by === "agent" && !steppedIn;
   const twoAgent = selfPerformed && performer?.two_agent === true;
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
@@ -248,6 +258,17 @@ export default async function EpisodePage({
           )}
         </EpisodeHero>
         <div className="episode-body">
+          {steppedIn && (
+            <p className="muted">
+              {episode.is_creator ? (
+                <>
+                  🎬 You&apos;re on this date. <Link href={`/step-in/${episode.id}`}>Back to it</Link>
+                </>
+              ) : (
+                "🎬 A viewer stepped into this date and is playing it live. The ending is already decided."
+              )}
+            </p>
+          )}
           {selfPerformed && (
             <p className="muted">
               {twoAgent
@@ -257,7 +278,7 @@ export default async function EpisodePage({
           )}
           <GeneratingPoller
             episodeId={episode.id}
-            stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null, canSetScene: !selfPerformed } : undefined}
+            stage={play && episode.is_creator ? { characters: episode.characters, venue: episode.venue ?? null, canSetScene: !selfPerformed && !steppedIn } : undefined}
           />
           {!episode.is_creator && <MakeYourOwn />}
           <footer className="episode-foot">
@@ -342,6 +363,7 @@ export default async function EpisodePage({
           sibling ? "💞💞 A double date" : null,
           mixer ? `🍸 Mixer · round ${mixer.round} of ${mixer.rounds}` : null,
           selfPerformed ? (twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI") : null,
+          steppedIn ? "🎬 A viewer stepped in" : null,
         ]}
       >
         <div className="episode-hero-cta">
@@ -639,6 +661,12 @@ export default async function EpisodePage({
                 episode.my_drama_pick &&
                 ` and ${dramaAnswerLabel(episode.drama_question, episode.my_drama_pick, names)}`}
               : {episode.my_points ? `+${episode.my_points}` : "0"} points.
+              {myShare && (
+                <>
+                  {" "}
+                  <ShareRecord share={myShare} where="episode" />
+                </>
+              )}
             </p>
           ) : (
             <p className="muted">You didn&apos;t predict this one.</p>

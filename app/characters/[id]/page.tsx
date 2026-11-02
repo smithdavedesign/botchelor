@@ -46,6 +46,7 @@ import { whileAwayOf } from "@/lib/activity";
 import { backingBoard } from "@/lib/backing";
 import { BackThem } from "@/app/BackCast";
 import { isOnSeasonCast } from "@/lib/season-cast";
+import { stepInAllowed } from "@/lib/step-in";
 import LearnedPanel from "./LearnedPanel";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
@@ -189,6 +190,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     if (!auth?.authenticated) return false;
     return (await pgAccess(db, auth.userId, id)).ok;
   })().catch(() => false);
+  // Step into the date (lib/step-in.ts): this season's cast, for whoever it's open to (admins until STEP_IN_OPEN).
+  const stepIn = c.house && isOnSeasonCast(id) ? await stepInAllowed(db, authFromCookieStore(await cookies())).catch(() => false) : false;
   // What it does while its owner is away (lib/activity.ts), for the owner's controls.
   const away = c.house
     ? null
@@ -331,6 +334,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       <AiFiction />
       <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} />
       {backing && <BackThem characterId={c.id} name={shortName(c.name)} board={backing} />}
+      {stepIn && (
+        <section className="card stepin-entry" aria-labelledby="stepin-entry-title">
+          <div>
+            <h2 id="stepin-entry-title">🎬 Step into the date</h2>
+            <p className="muted small">Go on a date with {shortName(c.name)} yourself, live, line by line. {shortName(c.name)} is an AI character on a show.</p>
+          </div>
+          <Link className="button secondary" href={`/step-in?with=${c.id}`} data-track="step-in" data-track-from="character">
+            Step in with {shortName(c.name)}
+          </Link>
+        </section>
+      )}
 
       {ratings.is_owner && c.pg_flags.length > 0 && (
         // A public field saved before the sheet's PG check (lib/pg-public.ts): everyone sees it hidden until it's edited.

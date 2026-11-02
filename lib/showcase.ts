@@ -105,7 +105,7 @@ export type Post = {
   liked: boolean;
   /** Whether its character can be asked on a date by name (the house cast, or open to dates): the reels' 💘. */
   dateable?: boolean;
-  /** A clip with a still to show before it plays (the picture it was filmed from): its `?size=` copy. Without one, its first frame. */
+  /** A clip with a still to show before it plays (the picture it was filmed from, or its first frame kept by lib/showcase-posters.ts): its `?size=` copy. */
   poster?: boolean;
   /** Where its file is fetched (mediaHref): the show's media route, or After Dark's host when the file lives there. */
   media?: string;
@@ -416,7 +416,9 @@ export async function listShowcase(
             cp.handle, cp.display_name, p.character_id, c.name as character_name, p.character_b, cb.name as partner_name, (c.is_house or c.open_to_dates) as dateable,
             coalesce((select i.mime from adult_images i where p.source = 'after_dark' and i.id = p.media_id and i.status = 'ready'),
                      (select g.mime from studio_pg_pictures g where p.source = 'pg' and g.id = p.media_id)) as mime,
-            exists (select 1 from adult_images i where p.source = 'after_dark' and i.id = p.media_id and i.source_image is not null) as poster,
+            exists (select 1 from adult_images i where p.source = 'after_dark' and i.id = p.media_id
+                       and (i.source_image is not null
+                            or (i.mime like 'video/%' and exists (select 1 from showcase_thumbs t where t.post_id = p.id and t.size = 'screen')))) as poster,
             (select count(*)::int from showcase_likes l where l.post_id = p.id) as likes,
             exists (select 1 from showcase_likes l where l.post_id = p.id and l.user_id = $${n}) as liked
        ${FROM} ${mixed} ${seen}

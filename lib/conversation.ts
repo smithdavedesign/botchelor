@@ -596,6 +596,13 @@ export type ConversationOptions = {
   from?: Turn[];
   /** More endings (lib/ending-detail.ts walkOutSide): the side that may walk out of this disaster, if any. */
   walkOut?: "a" | "b" | null;
+  /**
+   * Stop once this many new lines are written (after `from`). Step into the date (lib/step-in.ts): the show plays one side
+   * a line at a time, between a person's lines, through this same loop (its critic, inner life and slips).
+   */
+  stopAfter?: number;
+  /** A goodbye already said in the closing stretch (lib/own-date.ts end_by): the date ends at this line count. */
+  endBy?: number;
 };
 
 /** The producer's note to the next speaker when the creator has set the scene. */
@@ -635,14 +642,21 @@ export async function simulateConversation(
   const inEnglish = (t: Turn, i: number): Turn => (glosses[i] ? { ...t, dialogue: glosses[i]! } : t);
   const beats = plan ?? rulesPlan(input, outcome, characters, producer, venueId);
   const moves = Boolean(opts.moves) && format(formatId).moves !== false;
-  let endBy: number | undefined;
+  let endBy: number | undefined = opts.endBy;
+  const startedAt = transcript.length;
+  // The show's time limit set endBy (not a goodbye): the last line then says so (time_up).
+  let clockEnd = false;
   // Bounded however the date moves: the base length, a fresh stretch per move, and the two-line wrap-up.
   for (let guard = 0; guard < 500; guard++) {
     const now = Date.now();
-    if (opts.deadline !== undefined && endBy === undefined && now >= opts.deadline) endBy = transcript.length + 2;
+    if (opts.deadline !== undefined && !clockEnd && now >= opts.deadline) {
+      endBy = Math.min(endBy ?? Infinity, transcript.length + 2);
+      clockEnd = true;
+    }
     const shape = dateShape(transcript, venueId, turns, { moves, noNewMoves: opts.moveCutoff !== undefined && now >= opts.moveCutoff, endBy });
     const i = transcript.length;
     if (i >= shape.total) break;
+    if (opts.stopAfter !== undefined && i - startedAt >= opts.stopAfter) break;
     // A place the creator set (paid): only when this line could propose a move, and it's somewhere else.
     const canPropose = moves && shape.movesLeft > 0 && !shape.pending && !shape.closing && !shape.wrapping;
     const suggested = canPropose ? await opts.suggestion?.().catch(() => null) : null;
@@ -734,7 +748,7 @@ export async function simulateConversation(
   // #1253: the time wrap-up cut the date short of its plan (a slow model can leave a 12-line date at 3): its last line
   // says so, so the finished date doesn't read as a goodbye nobody wrote. A walk-out ended it, not the clock.
   const last = transcript.at(-1);
-  if (endBy !== undefined && last && !last.walked_out && transcript.length < dateShape(transcript, venueId, turns, { moves }).total) {
+  if (clockEnd && last && !last.walked_out && transcript.length < dateShape(transcript, venueId, turns, { moves }).total) {
     transcript[transcript.length - 1] = { ...last, time_up: true };
   }
   return transcript;
