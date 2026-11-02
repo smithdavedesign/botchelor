@@ -8,6 +8,8 @@ import { airWindowMinutes } from "@/lib/air";
 import { getDb } from "@/lib/db";
 import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
 import { callersBoard, callRecord } from "@/lib/streaks";
+import SituationVote from "@/app/SituationVote";
+import { situationBoard } from "@/lib/situations";
 import { listAiredPage, listAiringSoon, parsePage, type AiringSoon } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
 import { listMyLeagues } from "@/lib/leagues";
@@ -147,7 +149,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const page = parsePage((await searchParams).page);
   const db = await getDb();
   const viewerId = userIdFromCookieStore(await cookies());
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, record, callers] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, record, callers] = await Promise.all([
     listLobby(db),
     countRecentPrivateDates(db),
     listAiringSoon(db, viewerId, airWindowMinutes()),
@@ -155,6 +157,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     viewerId ? listMyLeagues(db, viewerId) : Promise.resolve([]),
     getProfileName(db, viewerId),
     getReunion(db),
+    situationBoard(db, viewerId).catch(() => null),
     callRecord(db, viewerId).catch(() => null),
     callersBoard(db, viewerId).catch(() => null),
   ]);
@@ -240,6 +243,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           </>
         )}
       </section>
+
+      {situation && <SituationVote board={situation} now={now} />}
 
       <section className="watch-section" id="latest">
         <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>

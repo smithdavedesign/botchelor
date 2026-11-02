@@ -332,6 +332,8 @@ async function main() {
     const routes = [
       { name: "gate", path: "/watch", as: "visitor" },
       { name: "home", path: "/" },
+      // A returning creator: "Since you were here" first (lib/since.ts, J4).
+      { name: "home-owner", path: "/", as: "owner" },
       { name: "cast", path: "/cast" },
       { name: "watch-lobby", path: "/watch" },
       { name: "watch-room", path: `/watch/${data.templates[0]}` },

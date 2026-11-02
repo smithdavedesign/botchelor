@@ -4843,14 +4843,29 @@ details.recap-toggle[open] > summary {
 .start-card {
   border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
 }
-.start-mine {
+/* "Since you were here" (lib/since.ts): a face, what happened, and the one thing to do about it. */
+.since-list {
   margin: 0.5rem 0;
 }
-.start-mine .char {
-  margin: 0.4rem 0;
+.since-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
 }
-.start-mine .button-ghost {
+.since-text {
+  display: grid;
+  min-width: 0;
+}
+.since-text > * {
+  overflow-wrap: anywhere;
+}
+.since-row .button-ghost {
   margin-top: 0;
+}
+.since-foot {
+  margin-bottom: 0;
 }
 
 /* ---------------- watch: the private-dates teaser (a real count; hidden at zero) ---------------- */
@@ -12439,6 +12454,104 @@ button.thread-menu-item:hover:not(:disabled) {
 }
 .mixer-closing p {
   margin: 0;
+}
+
+/* Tonight's situation (app/SituationVote.tsx, lib/situations.ts): two of the house cast and three situations to vote
+   between. Each choice is a full-width button (a big tap target on a phone), side by side from tablet width. */
+.situation {
+  margin-top: var(--space-4);
+}
+.situation-head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.situation-head h2 {
+  margin: 0 0 var(--space-1);
+  overflow-wrap: anywhere;
+}
+.situation-head .kicker {
+  margin: 0;
+}
+.situation-avatars {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-1);
+}
+.situation-choices {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+@media (min-width: 720px) {
+  .situation-choices {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.situation-choices li {
+  display: flex;
+}
+.situation .situation-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 100%;
+  padding: var(--space-3);
+  text-align: left;
+  white-space: normal;
+  color: inherit;
+  background: var(--card);
+  border: var(--control-border) solid var(--line);
+  border-radius: var(--control-radius);
+  font-weight: 400;
+  box-shadow: none;
+}
+.situation .situation-choice:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.situation .situation-choice.mine {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+}
+.situation-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 700;
+}
+.situation-premise {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  line-height: 1.4;
+}
+.situation-bar {
+  position: relative;
+  display: block;
+  height: 1.25rem;
+  margin-top: auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 70%, transparent);
+  overflow: hidden;
+}
+.situation-bar span {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.situation-bar em {
+  position: absolute;
+  inset: 0 var(--space-2) 0 auto;
+  font-style: normal;
+  font-size: var(--text-sm);
+  line-height: 1.25rem;
+}
+.situation-last {
+  margin: var(--space-3) 0 0;
 }
 
 /* Your calls (app/YourCalls.tsx, lib/streaks.ts): the record line on home and /watch, and this week's best callers. */

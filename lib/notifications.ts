@@ -52,6 +52,7 @@ export type NotificationKind =
   | "key_capped" // your own key's job reached its monthly cap: the free model stands in, or it waits
   | "key_failed" // your own key stopped working (invalid, out of credit): what to do, and what happens meanwhile
   | "likes_waiting" // your characters have likes waiting and don't answer for themselves while you're away (never who; lib/away.ts)
+  | "situation_on" // the house date whose situation you voted for is on (lib/situations.ts)
   | "while_away"; // (agents) back after a while: what your characters did on their own, and that they're yours again (lib/away.ts)
 
 export type Notification = {

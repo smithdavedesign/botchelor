@@ -42,6 +42,8 @@ import SafetyActions from "./SafetyActions";
 import SlidingDoors from "./SlidingDoors";
 import WatchPartyLaunch from "./WatchPartyLaunch";
 import GeneratingPoller from "./GeneratingPoller";
+import PushToggle from "@/app/notifications/PushToggle";
+import { pushKeys } from "@/lib/push";
 import { withoutLeadName } from "./lead-name";
 
 export const dynamic = "force-dynamic";
@@ -256,6 +258,7 @@ export default async function EpisodePage({
   }
 
   const base = siteUrl();
+  const push = pushKeys();
   // The theater can play it (the ending is known and there are lines), so the written recap folds behind a toggle.
   const hasTheater = Boolean(episode.ending && episode.transcript && episode.transcript.length > 0);
   // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
@@ -422,6 +425,10 @@ export default async function EpisodePage({
             lately={lately}
           />
         </div>
+        {/* J3: a creator's finished date is when they want to hear what happens next (gone once notifications are on). */}
+        {episode.is_creator && episode.status === "ready" && push && (
+          <PushToggle publicKey={push.publicKey} prompt emailFallback title="Tell me when they text" body="They text each other after a date. Hear it as it happens, even with the site closed." />
+        )}
 
         {episode.transcript && episode.transcript.length > 0 && (
           // The theater is the way to watch; the line-by-line read folds away under it (open when there's no theater).
