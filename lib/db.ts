@@ -3080,6 +3080,15 @@ create index if not exists dare_nights_episode_idx on dare_nights (episode_id) w
 -- A night can now be made by the dare lane alone: its situation pick is then null.
 alter table situation_nights alter column pick drop not null;
 
+-- Your character meets the cast (lib/cast-date.ts; docs/ideas.md "Bringing viewers back", idea 15): the weekly earned
+-- slot. One row per completed week (the claim), naming the winner; the prize itself is a token_grants row.
+create table if not exists cast_date_weeks (
+  week_id text primary key,
+  user_id text not null,
+  granted_at timestamptz not null default now()
+);
+create index if not exists cast_date_weeks_user_idx on cast_date_weeks (user_id, granted_at);
+
 -- Back a cast member (lib/backing.ts; docs/ideas.md "Bringing viewers back", idea 3): one pick per viewer per season,
 -- changeable until mid-month. Settled once when the season closes (won = ended the season publicly coupled): points
 -- (lib/game.ts) and a season badge (the won row itself).
