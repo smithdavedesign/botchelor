@@ -10,7 +10,7 @@ import { siteUrl } from "@/lib/site";
 import { getDb } from "@/lib/db";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { afterDarkHref } from "@/lib/after-dark-host";
-import { dareReveal } from "@/lib/dares";
+import { dareReveal, VERDICT_WORDS } from "@/lib/dares";
 import { callRecord, NO_CALLS } from "@/lib/streaks";
 import ShareRecord from "@/app/ShareRecord";
 import { shareOf } from "@/app/YourCalls";
@@ -567,7 +567,7 @@ export default async function EpisodePage({
             <p>
               Did they go through with it?{" "}
               <strong>
-                {dare.followed === true ? "They went through with it." : dare.followed === false ? "They chickened out." : "Watch the date and decide."}
+                {dare.verdict ? VERDICT_WORDS[dare.verdict].charAt(0).toUpperCase() + VERDICT_WORDS[dare.verdict].slice(1) : "Watch the date and decide."}
               </strong>
             </p>
           </section>

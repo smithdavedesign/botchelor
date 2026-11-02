@@ -152,12 +152,29 @@ export function roomOpening(nightId: string, venue: string, names: readonly stri
  * The room's closing beat (who leaves with whom), from each table's ending. Only once every table has aired: the page
  * never shows it earlier, because it would spoil the endings viewers predict.
  */
+/**
+ * Who leaves a night together: the second-date tables in the order given, each person once (the first table that wants
+ * them both takes them). The closing's "leave together" lines, and the backing settle's "coupled after the recoupling"
+ * (lib/backing.ts), both read this, so the page and the points never disagree.
+ */
+export function leftTogether(tables: readonly { a: string; b: string; ending: Ending }[]): [string, string][] {
+  const gone = new Set<string>();
+  const out: [string, string][] = [];
+  for (const t of tables) {
+    if (t.ending !== "second_date" || gone.has(t.a) || gone.has(t.b)) continue;
+    out.push([t.a, t.b]);
+    gone.add(t.a).add(t.b);
+  }
+  return out;
+}
+
 export function roomClosing(venue: string, tables: readonly { a: string; b: string; ending: Ending }[], names: ReadonlyMap<string, string>, seatIds: readonly string[]): string {
   const nm = (id: string) => shortName(names.get(id) ?? "someone");
   const gone = new Set<string>();
   const lines: string[] = [];
   for (const t of tables.filter((x) => x.ending === "second_date")) {
     if (!gone.has(t.a) && !gone.has(t.b)) {
+      // The same pairing as leftTogether (above), told as the night's closing.
       lines.push(`${nm(t.a)} and ${nm(t.b)} leave together.`);
       gone.add(t.a).add(t.b);
     } else {
