@@ -234,6 +234,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
         replicate_picture_model: { type: "string", maxLength: 160, description: "owner/name or owner/name:version, or \"\" for the default; so are the other replicate_*_model." },
         replicate_keyframe_model: { type: "string", maxLength: 160 },
         replicate_video_model: { type: "string", maxLength: 160 },
+        replicate_talk_model: { type: "string", maxLength: 160, description: "Reel shots with a line: a model that says it itself (default wan-video/wan-2.6-i2v), or \"off\" for the silent model with a voice beside it." },
         replicate_voice_model: { type: "string", maxLength: 160 },
         replicate_video_lora: { type: "string", maxLength: 1000, description: "Wan's LoRA: one or two https URLs, or \"\" for none." },
         voice_model: { type: "string", enum: [...VOICE_MODELS] },

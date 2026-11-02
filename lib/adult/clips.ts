@@ -55,6 +55,7 @@ import {
   reelMadeOn,
   startShots,
   stillOf,
+  talkModel,
   withoutNames,
   type ClipMeta,
   type MakeReelResult,
@@ -530,7 +531,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     stages[plan.shot.line] = plan.stage;
     // Both providers' details when both are set up: the shot goes to the other when the configured one is limited.
     const replicate = keys.replicate
-      ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora }
+      ? { token: keys.replicate, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora, talk: talkModel(settings) }
       : null;
     await startShots(db, ownerId, shots, {
       pair: [a, b],
