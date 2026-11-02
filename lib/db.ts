@@ -3135,6 +3135,13 @@ create index if not exists cast_backings_user_idx on cast_backings (user_id);
 -- with where it came from ('model', or 'roll': the engine's note_followed when the check failed). Null: not judged yet.
 alter table dare_nights add column if not exists verdict text;
 alter table dare_nights add column if not exists verdict_source text;
+
+-- The weekly prize is a date WITH THE CAST (lib/cast-date.ts, wave 2): the claim row is redeemable once before
+-- expires_at for a date with a season cast member (redeemed_at when claimed, episode_id once booked). Weeks won before
+-- this have expires_at null: they got a token_grants date instead.
+alter table cast_date_weeks add column if not exists expires_at timestamptz;
+alter table cast_date_weeks add column if not exists redeemed_at timestamptz;
+alter table cast_date_weeks add column if not exists episode_id text;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

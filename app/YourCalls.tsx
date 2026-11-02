@@ -1,5 +1,7 @@
 import Link from "next/link";
 import BoardName from "./BoardName";
+import ShareRecord from "./ShareRecord";
+import { tonightOf, type RecordShare } from "@/lib/share-record";
 import { recordLine, BOARD_DAYS, type CallRecord, type CallersBoard } from "@/lib/streaks";
 
 /**
@@ -7,7 +9,20 @@ import { recordLine, BOARD_DAYS, type CallRecord, type CallersBoard } from "@/li
  * shows it under tonight's vote, pointing at the dates you can still call; /watch shows it under "Airing soon".
  */
 /** `nameless`: a viewer with calls and no display name gets "Put my name on the board" (app/BoardName.tsx). */
-export function CallsLine({ record, airing, href, nameless = false }: { record: CallRecord; airing: number; href?: string; nameless?: boolean }) {
+export function CallsLine({
+  record,
+  airing,
+  href,
+  nameless = false,
+  where = "calls-line",
+}: {
+  record: CallRecord;
+  airing: number;
+  href?: string;
+  nameless?: boolean;
+  /** data-track-where on the Share button. */
+  where?: string;
+}) {
   const open = airing > 0 ? `${airing} ${airing === 1 ? "date" : "dates"} airing soon` : null;
   const lead =
     record.called > 0 ? (
@@ -33,8 +48,21 @@ export function CallsLine({ record, airing, href, nameless = false }: { record: 
           <BoardName folded />
         </>
       )}
+      {/* The spoiler-free share card (lib/share-record.ts): squares only, never which date or how it ended. */}
+      {shareOf(record) && (
+        <>
+          {" "}
+          <ShareRecord share={shareOf(record)!} where={where} />
+        </>
+      )}
     </div>
   );
+}
+
+/** The share card's numbers from a record that has its recent calls; null with nothing called yet. */
+export function shareOf(record: CallRecord, now: Date = new Date()): RecordShare | null {
+  if (!record.called || !record.recent?.length) return null;
+  return { recent: record.recent, right: record.right, called: record.called, streak: record.streak, best: record.best, ...tonightOf(now) };
 }
 
 /** This week's best callers, by display name or "A viewer"; you're marked, and told your place when you're off the list. */

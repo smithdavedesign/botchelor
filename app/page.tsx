@@ -209,7 +209,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
       {situation && <SituationVote board={situation} now={Date.now()} />}
       {dares && <DareVote board={dares} />}
-      {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} />}
+      {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} where="home" />}
 
       {aired && aired.episodes.length > 0 && (
         <section className="home-aired">
