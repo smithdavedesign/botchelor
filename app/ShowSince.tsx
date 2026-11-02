@@ -24,6 +24,12 @@ function Items({ card }: { card: ShowSinceData }) {
           <Link href={card.situation.room_path}>watch how it went</Link>
         </li>
       )}
+      {card.diary && (
+        <li>
+          <span aria-hidden="true">📹</span> {card.diary.name}, after the date with {card.diary.partner}: <em>“{card.diary.line}”</em>{" "}
+          <Link href={card.diary.episode_path}>watch it</Link>
+        </li>
+      )}
       {card.moves.map((m) => (
         <li key={`${m.lo}-${m.hi}`}>
           <span aria-hidden="true">💫</span>{" "}

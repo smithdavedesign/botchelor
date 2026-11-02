@@ -260,6 +260,12 @@ export type EpisodeJson = {
   producer?: string;
   /** Approved confessionals: to the creators always, to spectators only after the finale airs. */
   confessionals?: { character_id: string; line: string }[];
+  /**
+   * The diary cam (docs/ideas.md "Bringing viewers back", idea 7): each side's confessional as a to-camera take, to
+   * everyone, once the finale has aired. A house character's is the show's own, so it's always there; a person's
+   * character's only when the host shared the confessionals (the PRD's approval). Never before the ending is out.
+   */
+  diary?: { character_id: string; line: string }[];
   // Only present once every creator of the episode has consented (POST /api/reveal).
   creators?: CreatorRef[];
 };
@@ -315,6 +321,8 @@ type EpisodeJsonOpts = {
   full: boolean;
   showConfessionals: boolean;
   creators?: CreatorRef[];
+  /** Which sides' confessionals may be a public diary cam once it airs: [a, b] (see EpisodeJson.diary). */
+  diarySides?: [boolean, boolean];
   /** #469: both characters are the viewer's, so the cue that tripped a dealbreaker can be said (never across owners). */
   dealbreakers?: [string | null, string | null];
 };
@@ -403,6 +411,12 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
       { character_id: a.id, line: ep.confessionals[0] },
       { character_id: b.id, line: ep.confessionals[1] },
     ];
+  }
+  if (ep.revealed && ep.confessionals && opts.diarySides) {
+    const diary = [a, b]
+      .map((c, i) => ({ character_id: c.id, line: ep.confessionals![i]?.trim() ?? "" }))
+      .filter((d, i) => opts.diarySides![i] && d.line);
+    if (diary.length) json.diary = diary;
   }
   if (opts.creators) json.creators = opts.creators;
   return json;
@@ -561,6 +575,7 @@ function toView(row: EpisodeRow): EpisodeView {
     {
       full,
       showConfessionals: row.is_creator || (row.revealed && row.confessionals_shared),
+      diarySides: [row.a_house || row.confessionals_shared, row.b_house || row.confessionals_shared],
       creators,
       ...(row.owns_both ? { dealbreakers: [row.setup?.sheet_a?.dealbreaker ?? null, row.setup?.sheet_b?.dealbreaker ?? null] } : {}),
     },
