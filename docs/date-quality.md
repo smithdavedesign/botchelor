@@ -884,10 +884,13 @@ David approved five follow-ups to living dates and Go deeper.
   checks. Rows saved before this aren't rewritten: `pgPublic` (lib/pg-public.ts) shows a flagged field as "(Hidden for
   now: this part doesn't fit the show's PG rules yet.)", leaves out a flagged trait or detail, on the character page,
   dating profiles, search, swipes and the date invite. The dealbreaker quiz skips a flagged dealbreaker, as the answer
-  and as a decoy. The owner's own page names the flagged fields and links to the edit page. A read-only count on prod
-  (239 characters, 2026-11-02) found 4 with a flagged public field, all public: Chud (want, dealbreaker, and the quirk
-  "trys to manipulate you into sleeping with him"), two with a flagged trait ("naughty", "sensual"), one with a flagged
-  voice ("Smooth sensual and teasing"). None of the house cast.
+  and as a decoy. The owner's own page names the flagged fields and links to the edit page. The live check after #1257
+  showed Chud's details still saying the rest in plainer words ("making you moan", "satisfying women", "eating ass",
+  "straight back to my place for hooking up"), so a second pass widened `SHEET_SUGGESTIVE` (crude words, "sleep with
+  their date", "take this conversation back to my place", "hooking up" but not "hooking up the TV", "cum" but not
+  "magna cum laude"). A read-only count on prod (239 characters, 2026-11-02) then found 5 with a flagged public field,
+  all public: Chud (want, dealbreaker and 10 details), one with an explicit dealbreaker and quirk, two with a flagged
+  trait ("naughty", "sensual"), one with a flagged voice ("Smooth sensual and teasing"). None of the house cast.
 
 **Go deeper, 20 dates (2026-11-02, OPENROUTER_LOOP_KEY only).** The same harness as the six-date run, on all 20 fixed
 cases (Haiku 5.5, morning-after texts on), judged blind in both orders by Gemini 3.7 Flash. Better: deeper 10, plain 7,

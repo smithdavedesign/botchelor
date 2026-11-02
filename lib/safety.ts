@@ -353,6 +353,17 @@ const SHEET_SUGGESTIVE = [
   / (?:sensual|sultry|seductive|seduce|seduces|seducing|seduction|lustful|frisky|foreplay|lingerie|topless|undress|undressing|submissive) /,
   / naughty (?!or nice|list)/,
   / (?:take|takes|taking|took) (?:you|me|her|him|them) to bed /,
+  // 2026-11-02, after the live check: the same sheet's details said the rest in plainer words ("making you moan",
+  // "satisfying women", "try and sleep with their date", "straight back to my place for hooking up").
+  / (?:make|makes|making|made) (?:you|me|her|him|them|women|girls|men|guys) (?:moan|moaning) /,
+  / satisf(?:y|ying|ies|ied) (?:women|girls|ladies|men|guys) /,
+  / (?:sleep|sleeps|sleeping|slept) with (?:their|your|my|his|her|a|the) (?:date|dates|partner|partners|girl|girls|guy|guys|woman|women|man|men|match|matches) /,
+  / hook(?:s|ed|ing)? up (?!(?:the|a|an|my|your|his|her|their|our|to|wires|speakers|cables|lights|lamps|tv|console|printer) )/,
+  / (?:take|takes|taking|took) (?:this|it|things|the conversation|this conversation) back to (?:my|his|her|your|their) (?:place|apartment|flat|room) /,
+  / (?:eat|eats|eating|ate) (?:ass|booty|pussy) /,
+  / (?:handl|grab|touch|suck|lick|ride|riding|stroke|strok)\w* (?:my|his|your) (?:sausage|meat|package|junk|rod|member|banana|eggplant) /,
+  / (?:pussy|pussies|cock|cocks|tits|titties|anal|blowjobs?|handjobs?|cumming|creampie|deepthroat|69ing|dtf|get laid|getting laid|got laid|prude|prudes|prudish) /,
+  / (?<!summa |magna )cum (?!laude )/,
 ];
 
 /**
