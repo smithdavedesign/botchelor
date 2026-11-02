@@ -13258,3 +13258,13 @@ button.thread-menu-item:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.07);
   border-color: rgba(255, 255, 255, 0.14);
 }
+
+/* The TV-guide eyebrow over tonight's schedule on /watch. */
+.watch-tonight-kicker {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
