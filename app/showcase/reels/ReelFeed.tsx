@@ -8,7 +8,7 @@ import type { Post } from "@/lib/showcase";
 import { shortName } from "@/lib/names";
 import LikeButton from "../LikeButton";
 import MadeWith from "../MadeWith";
-import { feedOf, motionOf, type ReelCard } from "./reel-shared";
+import { feedOf, loads, motionOf, type ReelCard } from "./reel-shared";
 import styles from "./reels.module.css";
 
 type Props = {
@@ -26,9 +26,9 @@ type Props = {
   back: string;
 };
 
-const src = (p: Post) => `/api/showcase/${p.id}/media`;
-/** A still at a phone screen's size (lib/showcase-thumbs.ts); its blurred backdrop needs no more than a tile's. */
-const still = (p: Post, size: "tile" | "screen") => `${src(p)}?size=${size}`;
+/** The show's own media route: always works, one redirect more than `p.media` for a file After Dark keeps. */
+const route = (p: Post) => `/api/showcase/${p.id}/media`;
+const withSize = (url: string, size: "tile" | "screen") => `${url}${url.includes("?") ? "&" : "?"}size=${size}`;
 const isClip = (x: ReturnType<typeof feedOf<Post>>[number] | undefined) => x?.kind === "post" && x.post.mime.startsWith("video/");
 const cta = (name: "date" | "see_all" | "after_dark" | "create") => () => trackConversion("reel_cta", { cta: name });
 
@@ -43,8 +43,10 @@ const cta = (name: "date" | "see_all" | "after_dark" | "create") => () => trackC
  *   opens). Every few posts a card: make your own character (the first dates free), or After Dark. No countdowns, no
  *   streaks, nothing locked that's on the showcase already.
  * - After Dark's side (whoever may see it): blurred until a tap says to show it.
- * - Loading: the clip on screen first, the next one only once it can play through (with a poster meanwhile), the one
- *   before kept; a still loads eagerly near the screen, lazily further off.
+ * - Loading (reel-shared.ts loads): the clip on screen and the next one, then, once the one on screen can play through,
+ *   the next AHEAD, whole clips rather than just their headers, so a swipe plays at once; the one before is kept,
+ *   anything further let go. Each from where its file is (Post.media: After Dark's host straight away, not via the show's
+ *   redirect), back to the show's route if that fails (a grant outlived by a long-open feed).
  * - A post on screen a moment is seen: this browser's next feed has it at the back (lib/showcase.ts markSeen).
  */
 export default function ReelFeed(props: Props) {
@@ -225,7 +227,7 @@ export default function ReelFeed(props: Props) {
               i={i}
               post={x.post}
               active={i === active}
-              near={i === active || i === active - 1 || (i === active + 1 && (ready === active || !isClip(feed[active])))}
+              near={loads(i, active, ready === active || !isClip(feed[active]))}
               moving={i === active && shown && !reduced}
               veiled={!shown}
               locked={props.explicit ? 0 : (locked[x.post.character.id] ?? 0)}
@@ -302,29 +304,35 @@ function Slide({
   onReady: () => void;
 }) {
   const video = p.mime.startsWith("video/");
+  // Where the file comes from; the show's own route once that fails.
+  const [fallback, setFallback] = useState(false);
+  const file = fallback || !p.media ? route(p) : p.media;
+  const still = (size: "tile" | "screen") => withSize(file, size);
+  const failed = fallback || !p.media || p.media === route(p) ? undefined : () => setFallback(true);
   const first = shortName(p.character.name);
   const who = `${p.character.name}${p.partner ? ` and ${p.partner.name}` : ""}, by @${p.creator.handle}`;
   return (
     <section className={styles.slide} data-i={i} aria-label={who} aria-current={active ? "true" : undefined}>
       {/* The same picture, blurred, filling a wide screen's sides. */}
-      {!video && near && <img className={styles.backdrop} src={still(p, "tile")} alt="" aria-hidden="true" />}
+      {!video && near && <img className={styles.backdrop} src={still("tile")} alt="" aria-hidden="true" onError={failed} />}
       <div className={`${styles.frame}${veiled ? ` ${styles.veiled}` : ""}`}>
         {video ? (
           // Its first frame shows while it loads (the picture it was filmed from, when there is one).
           <video
             data-v={i}
-            src={near ? src(p) : undefined}
-            poster={near && p.poster ? still(p, "screen") : undefined}
+            src={near ? file : undefined}
+            poster={near && p.poster ? still("screen") : undefined}
             muted
             loop
             playsInline
-            preload={active ? "auto" : near ? "metadata" : "none"}
+            preload={near ? "auto" : "none"}
+            onError={failed}
             onCanPlayThrough={active ? onReady : undefined}
             aria-label={who}
           />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element -- served by the showcase's own gate, not next/image
-          <img src={still(p, "screen")} alt={who} loading={near ? "eager" : "lazy"} className={moving ? styles[motionOf(i)] : undefined} />
+          <img src={still("screen")} alt={who} loading={near ? "eager" : "lazy"} className={moving ? styles[motionOf(i)] : undefined} onError={failed} />
         )}
         <div className={styles.shade} aria-hidden="true" />
         <div className={styles.info}>

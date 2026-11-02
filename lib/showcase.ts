@@ -15,6 +15,8 @@
  *    place, first person, from a date or the Studio, shape.
  */
 import { isAdmin } from "./admins";
+import { afterDarkElsewhere } from "./after-dark-host";
+import { signMediaGrant } from "./auth";
 import { adultViewer } from "./adult/mode";
 import { mediaAllowedFor } from "./adult/place";
 import { getAdultSettings } from "./adult/settings";
@@ -105,6 +107,8 @@ export type Post = {
   dateable?: boolean;
   /** A clip with a still to show before it plays (the picture it was filmed from): its `?size=` copy. Without one, its first frame. */
   poster?: boolean;
+  /** Where its file is fetched (mediaHref): the show's media route, or After Dark's host when the file lives there. */
+  media?: string;
 };
 
 type SourceRow = {
@@ -341,6 +345,21 @@ const FROM = `from showcase_posts p
   join characters c on c.id = p.character_id
   left join characters cb on cb.id = p.character_b`;
 
+/**
+ * Where a post's file is fetched from: the show's media route (app/api/showcase/[id]/media), or, for a file kept by After
+ * Dark on its own host, that host's route straight away, with the grant the show's route would have added. The show's
+ * redirect costs a round trip a clip, most of the wait between reels (2026-11-02: 0.1–0.6 s, uncached at the CDN).
+ * `size`: a sized copy (lib/showcase-thumbs.ts).
+ */
+export function mediaHref(p: Pick<Post, "id" | "source" | "rating">, size?: "tile" | "screen", env?: Record<string, string | undefined>): string {
+  const q = new URLSearchParams();
+  if (size) q.set("size", size);
+  const elsewhere = p.source === "after_dark" ? afterDarkElsewhere(env) : null;
+  const grant = elsewhere && p.rating !== "pg" ? signMediaGrant(p.id, env) : null;
+  if (grant) q.set("g", grant);
+  return `${elsewhere ?? ""}/api/showcase/${encodeURIComponent(p.id)}/media${q.size ? `?${q}` : ""}`;
+}
+
 /** How many of one character's posts the reels show together before the next creator's (listShowcase mix). */
 export const MIX_RUN = 3;
 
@@ -414,6 +433,7 @@ export async function listShowcase(
       creator: { handle: r.handle, display_name: r.display_name }, character: { id: r.character_id, name: r.character_name },
       partner: r.character_b ? { id: r.character_b, name: r.partner_name ?? "" } : null, mine: Boolean(v.id && r.owner_id === v.id),
       likes: r.likes, liked: r.liked, remixable: r.remixable, dateable: r.dateable, poster: r.poster,
+      media: mediaHref({ id: r.id, source: r.source, rating: r.rating }),
     }));
   return { posts: posts.slice(0, size), more: rows.length > size };
 }

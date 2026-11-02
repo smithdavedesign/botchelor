@@ -1,5 +1,13 @@
 /** The reels' page: small, so the next one loads while the last few are watched (app/showcase/reels/ReelFeed.tsx). */
 export const REEL_PAGE = 8;
+/** How many screens ahead load before they're reached (David, 2026-11-02: "preload 4 in advance", it was a 2 s wait). */
+export const AHEAD = 4;
+/**
+ * Whether screen `i` loads its file now, with `active` on screen: the one before it, it and the next one at once; the
+ * rest of the AHEAD once the one on screen can play through (`ready`), so the clip being watched never waits behind them.
+ */
+export const loads = (i: number, active: number, ready: boolean): boolean => i >= active - 1 && (i <= active + 1 || (ready && i <= active + AHEAD));
+
 /** After how many posts a card comes (making a character, After Dark's list), never two in a row. */
 export const CARD_EVERY = 6;
 

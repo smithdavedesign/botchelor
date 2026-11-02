@@ -10,9 +10,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Post } from "@/lib/showcase";
 import { actLabel, placeLabel } from "@/lib/showcase-labels";
 
-const src = (p: Post) => `/api/showcase/${p.id}/media`;
+const route = (p: Post) => `/api/showcase/${p.id}/media`;
+/** Where its file is (Post.media: After Dark's host straight away when the file is there), else the show's route. */
+const src = (p: Post) => p.media ?? route(p);
+const sized = (url: string) => `${url}${url.includes("?") ? "&" : "?"}size=tile`;
 /** A tile's picture: a smaller copy (lib/showcase-thumbs.ts); the viewer gets the original. */
-const tileSrc = (p: Post) => `${src(p)}?size=tile`;
+const tileSrc = (p: Post) => sized(src(p));
+/** Once, back to the show's own route when the direct link fails (its grant outlived by a page left open). */
+const fallBack = (p: Post, tile: boolean) => (e: { currentTarget: HTMLImageElement | HTMLVideoElement }) => {
+  const el = e.currentTarget;
+  if (el.dataset.fb || !p.media || p.media === route(p)) return;
+  el.dataset.fb = "1";
+  el.src = tile ? sized(route(p)) : route(p);
+};
 
 /**
  * The showcase's grid and its viewer (lib/showcase.ts): a masonry of pictures and clips in their own shapes (clips play
@@ -76,11 +86,12 @@ export default function ShowcaseGrid({ posts, admin = false, reels = "" }: { pos
         autoPlay={big}
         preload="metadata"
         controls={big}
+        onError={fallBack(p, false)}
         aria-label={describe(p)}
       />
     ) : (
       // eslint-disable-next-line @next/next/no-img-element -- served by the showcase's own gate, not next/image
-      <img src={big ? src(p) : tileSrc(p)} alt={describe(p)} loading="lazy" />
+      <img src={big ? src(p) : tileSrc(p)} alt={describe(p)} loading="lazy" onError={fallBack(p, !big)} />
     );
   const p = open === null ? null : posts[open];
   return (
