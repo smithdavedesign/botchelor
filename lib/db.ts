@@ -2923,6 +2923,10 @@ alter table adult_scenes add column if not exists writing_since timestamptz;
 -- taking the face or body away and setting up again costs tokens like any redraw. Null: not taken yet.
 alter table adult_identity add column if not exists free_setup_at timestamptz;
 
+-- Reel shots that speak (David, 2026-11-01: "the best reasonable price model"): on Replicate, a shot with a line goes to
+-- a model that says the line itself (lib/adult/reels.ts talkShotInput); null: DEFAULT_REPLICATE_TALK_MODEL.
+alter table adult_settings add column if not exists replicate_talk_model text;
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

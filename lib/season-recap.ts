@@ -11,7 +11,7 @@
  *    taken over by the next read. A reader that loses the race shows the recap computed for itself, with the template
  *    narrative, until the stored one lands.
  *  - Public only: dates that aired publicly (lib/date-number.ts publicDateSql) between public characters, the
- *    confessionals their creators shared (or a house × house date's, which nobody else owns), the public stage moves.
+ *    takes the diary cam shows (a house character's own, or a shared one), the public stage moves.
  *  - Money: the narrative is one call a season on the show's default model with no paid upgrade (getModel(…, false),
  *    as the mixer's room lines, lib/mixer-voice.ts), checked (content filter, English, length, the golden couple named),
  *    with a fixed-text fallback stored the same way. About 1¢ a season, never per page view.
@@ -169,8 +169,8 @@ async function castOf(db: Db, seasonId: string, nextId: string, start: Date, end
     const character: RecapChar = { id: r.id, name: r.name, house: r.house, hue: r.hue, portrait: r.portrait };
     let goodbye: RecapCastMember["goodbye"] = null;
     if (!r.stayed) {
-      // Their own line from their last date this season whose confessionals may be shown: shared by its creator, or a
-      // date between two house characters (nobody else's to share).
+      // Their own line from their last date this season whose take may be shown: the diary cam's rule (lib/game.ts), a
+      // house character's own take, or either side's when the host shared them.
       const last = (
         await db.query<{ id: string; line: string | null }>(
           `select e.id, e.confessionals ->> (case when e.character_a = $3 then 0 else 1 end) as line
@@ -179,7 +179,7 @@ async function castOf(db: Db, seasonId: string, nextId: string, start: Date, end
              join characters b on b.id = e.character_b
             where (e.character_a = $3 or e.character_b = $3) and ${inSpanSql("e")}
               and e.confessionals is not null and jsonb_array_length(e.confessionals) = 2
-              and (e.confessionals_shared or (a.is_house and b.is_house))
+              and (e.confessionals_shared or (case when e.character_a = $3 then a.is_house else b.is_house end))
             order by e.revealed_at desc limit 1`,
           [start.toISOString(), end.toISOString(), r.id],
         )

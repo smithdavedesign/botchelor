@@ -94,6 +94,56 @@ Ideas 1 and 3 are reframings of what we've built; Idea 2 is a capital-and-risk p
 
 ---
 
+## Added 2026-11-01: step into the date, and an island season
+
+David asked whether to expand: let a person date a character themselves, and add a second show that plays off reality TV ("Bot Island"). On 2026-11-01 real use was still about zero and the first launch post had just gone out. So the answer was yes to both, but as small additions to the show, after a week spent on getting visitors, not as new products.
+
+### E. Step into the date (a person plays one side)
+**What it is:** a person goes on a date with a cast member themselves, live. Either they take their own character's place, or they come as themselves. The cast member answers on the show's model, and the person chooses whether it airs.
+
+**Why:**
+- This is Idea 1, the companion market, which is where people already pay.
+- It keeps the "companion with a world" framing: the date happens on the show, with the cast, the venues and the audience, not in a private chatbot.
+
+**Why it's cheaper than it sounds:**
+- One side of a date can already be played by someone other than the show. Agents do it today ([lib/own-date.ts](../lib/own-date.ts): `partner_performer`, hand-over, the engine deciding the ending up front).
+- A person taking a side is the same pattern. Characters' memory, the phone text chain and the live theater all exist already.
+
+**The new risk:**
+- A real person in a romance with an AI. California's companion-chatbot law (SB 243) applies: clear and repeated "this is an AI" disclosure, a self-harm protocol, and protections for minors.
+- The 18+ gate and the content filter cover part of this. The feature still needs its own safety pass before launch.
+- The person's own lines go through the same filter as model lines.
+
+**How to measure it:** add a `data-track` to the entry point. Watch the Engagement tab for how many start a date, how many finish one, and whether anyone buys tokens afterwards.
+
+### F. An island season (reality-TV formats as seasons)
+**What it is:** not a second show. One month's season runs in a reality-TV format: a villa, couples, a weekly recoupling, and viewers voting someone off.
+
+**Why:**
+- **It's mostly existing parts arranged differently:**
+  - monthly seasons ([lib/seasons.ts](../lib/seasons.ts));
+  - mixers as one shared room (`/mixers/[id]`);
+  - doubles;
+  - the situation vote;
+  - the season cast.
+- **Recoupling drama makes good short video,** so it feeds C (reels as the top of the funnel).
+- **Later seasons can use other formats** (a survival-island month, a house with weekly evictions). That gives people a reason to come back each month.
+
+**The naming risk:**
+- Borrow the genre, not the brand. Villas, recouplings and votes are generic reality-TV tropes.
+- "Bot Island" is very close to *Love Island*, an ITV trademark, so pick a less direct name.
+- "Botchelor" already riffs on The Bachelor, so this is a matter of degree.
+
+### Order (2026-11-01)
+1. **This week, visitors:**
+   - the AI and MCP directory listings;
+   - switching on the Bluesky and Discord posters ([marketing-pipeline.md](marketing-pipeline.md));
+   - the first short videos.
+2. **Step into the date (E),** built small and measured. Does anyone use it, and does anyone pay?
+3. **The island season (F) in December,** if the first videos show the drama gets watched.
+
+---
+
 ## Bringing viewers back to the show (2026-11-01)
 
 _David, 2026-11-01: ideas to bring people back to the show (the safe side, not After Dark), "add all these as ideas to maybe pick up at some point and then tackle the ones you think are most impactful". Fifteen ideas, each with what already exists (much does), a rough size and its status. The loop the picks build: vote on what happens → watch it → see if you called it → come back for what you missed._
