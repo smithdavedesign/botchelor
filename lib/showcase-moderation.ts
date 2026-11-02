@@ -4,6 +4,7 @@
  * real person, non-consent, an intimate image) holds the post out of sight at once until an admin looks; the admin
  * releases it, or removes it for good (it can't be published again).
  */
+import { clearSharedCache } from "./shared-cache";
 import { isUrgent, type ContentReportCategory } from "./content-reports-shared";
 import { saveContentReport } from "./content-reports";
 import type { Db } from "./db";
@@ -48,6 +49,8 @@ export async function decidePost(db: Db, adminId: string, postId: string, decisi
       ? await db.query(`update showcase_posts set held = false where id = $1 and status <> 'removed' returning id`, [postId])
       : await db.query(`update showcase_posts set status = 'removed', held = false where id = $1 returning id`, [postId]);
   if (!r.rows.length) return false;
+  // Off the signed-out pages' shared copies at once (lib/shared-cache.ts).
+  clearSharedCache();
   await db.query(`update content_reports set status = 'resolved', decided_at = now(), decided_by = $1, note = $2 where target = $3 and status = 'open'`, [adminId, `showcase: ${decision}`, `/showcase?post=${postId}`]);
   return true;
 }

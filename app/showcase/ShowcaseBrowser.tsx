@@ -4,6 +4,7 @@ import { listShowcase, MEDIUM_LABEL, MEDIUMS, seenFilters, showcaseFacets, sideO
 import { actLabel, placeLabel, shapeLabel } from "@/lib/showcase-labels";
 import FilterForm from "./FilterForm";
 import ShowcaseGrid from "./ShowcaseGrid";
+import { shared } from "@/lib/shared-cache";
 
 type Key = keyof Omit<Filters, "page">;
 
@@ -21,7 +22,10 @@ const FROM_LABEL: Record<string, string> = { date: "From dates", studio: "From t
 export default async function ShowcaseBrowser({ db, viewer, base, filters: asked, fixed = {} }: { db: Db; viewer: ShowcaseViewer; base: string; filters: Filters; fixed?: Filters }) {
   const filters = seenFilters(viewer, asked);
   const f = { ...filters, ...fixed };
-  const [{ posts, more }, facets] = await Promise.all([listShowcase(db, viewer, f), showcaseFacets(db, viewer, { ...f, page: undefined })]);
+  // Someone signed out sees what everyone with the same ratings does: from a few seconds' shared copy (lib/shared-cache.ts).
+  const alike = viewer.id || viewer.admin ? null : `showcase:${viewer.ratings.join(",")}:${viewer.adult ? 1 : 0}:${viewer.bot ? 1 : 0}:${JSON.stringify(f)}`;
+  const load = () => Promise.all([listShowcase(db, viewer, f), showcaseFacets(db, viewer, { ...f, page: undefined })]);
+  const [{ posts, more }, facets] = await (alike ? shared(alike, load) : load());
   const query = (patch: Partial<Record<Key | "page", string | number | boolean | undefined>>, keep: Filters = filters, skipFixed = true) => {
     const q = new URLSearchParams();
     const next: Record<string, unknown> = { ...keep, page: undefined, ...patch };
