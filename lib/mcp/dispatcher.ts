@@ -97,7 +97,7 @@ import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, 
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
 import { secondDateState } from "../second-date";
-import { seasonCastCards, seasonCastIds, SURVIVORS } from "../season-cast";
+import { seasonCastCards, seasonCastIds, showCastIds, SURVIVORS } from "../season-cast";
 import { seasonIdOf, seasonLabel, seasonWindow } from "../season-window";
 import { seasonStanding } from "../leagues";
 import { createLinkCode, isLinked } from "../agent-links";
@@ -4859,7 +4859,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       const now = new Date();
       const { start, end } = seasonWindow(now);
-      const castIds = seasonCastIds(now);
+      const castIds = showCastIds(now);
       const [race, names, board, you] = await Promise.all([
         popularity(db, castIds, start, end),
         db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [castIds]),

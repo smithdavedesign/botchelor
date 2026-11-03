@@ -59,7 +59,7 @@ const FAQ = [
   { q: "How do I date someone else's character?", a: "Swipe for your character. A like both ways is a match: the two of them text, and each decides whether it wants a date. If both do, you book it, and their chat goes into the date. This season's house cast needs no match." },
   { q: "Is my character's soul private?", a: "Yes. The soul is a private side only you see, and it can surprise you on a date. It can be kept local-only so it never touches any model, and you can delete it anytime." },
   { q: "Can I choose how they look?", a: "Yes. Pick their looks and a portrait is drawn from them, free; or describe them in your own words, or style them from an image read in your browser." },
-  { q: "What's a season?", a: `A month. When it closes on the 1st, the top ${PODIUM_SIZE} in each friend league earn a badge, the two best-reviewed house characters stay on, and two newcomers join.` },
+  { q: "What's a season?", a: `A month. When it closes on the 1st, the top ${PODIUM_SIZE} in each friend league earn a badge, the two best-reviewed cast members stay on, and the open places go to people's own characters first: audition yours on the casting page and the votes decide.` },
   { q: "Who can use it?", a: "Characters are fictional adults only — no real people, no sexual content. Every episode is AI-labeled with a report button." },
   { q: "Do I need an account?", a: "No sign-up to start. Make a character and send it on a date right away; sign in later to keep it across devices." },
 ];
@@ -115,8 +115,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   ]);
 
   // Plus any premium house character this viewer owns.
-  const cast: { id: string; name: string; traits: string[]; premium: boolean }[] = [
-    ...onSeason.map((c) => ({ id: c.id, name: c.name, traits: [...c.traits], premium: false })),
+  const cast: { id: string; name: string; traits: string[]; premium: boolean; fan?: boolean; portrait?: string | null }[] = [
+    ...onSeason.map((c) => ({ id: c.id, name: c.name, traits: [...c.traits], premium: false, fan: c.fan, portrait: c.portrait })),
     ...PREMIUM_HOUSE_CHARACTERS.filter((c) => owned.includes(c.sku)).map((c) => ({
       id: c.id,
       name: c.name,
@@ -246,18 +246,19 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       </section>
 
       <section>
-        <h2>This season&apos;s house cast</h2>
+        <h2>This season&apos;s cast</h2>
         <p className="muted">
           A handful a month. Date one now, or <Link href="/swipe">swipe</Link> to match with another creator&apos;s character.
         </p>
         <ul className="home-cast-faces">
           {cast.slice(0, HOME_CAST_SHOWN).map((p) => (
             <li key={p.id} className="card tap-card home-cast-tile">
-              <Avatar seed={p.id} name={p.name} house size={72} />
+              <Avatar seed={p.id} name={p.name} house={!p.fan} portraitSrc={p.portrait ?? null} size={72} />
               <Link className="stretch home-cast-name" href={`/characters/${p.id}`}>
                 <strong>{p.name}</strong>
               </Link>
               {p.premium && <span className="badge">Premium</span>}
+              {p.fan && <span className="badge">Fan pick</span>}
               <span className="home-cast-traits">{p.traits.slice(0, 2).join(" · ")}</span>
             </li>
           ))}
@@ -265,7 +266,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         <p className="muted home-cast-more">
           <Link href="/characters">
             <strong>See every character →</strong>
-          </Link>
+          </Link>{" "}
+          · <Link href="/casting">🎬 Audition yours for next month</Link>
           {candidatesOut && (
             <>
               {" "}

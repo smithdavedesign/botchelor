@@ -18,7 +18,7 @@ import { dateNumberSql } from "./date-number";
 import { decideTraced, seedFrom } from "./engine";
 import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
 import { failureReason } from "./jobs";
-import { seasonCastIds } from "./season-cast";
+import { showCastIds } from "./season-cast";
 import type { BoxScore, CharacterRef, DateSetup } from "./game";
 import { portraitPathSql } from "./assets";
 import { claimPaidDate } from "./limits";
@@ -999,8 +999,9 @@ export async function refreshLobby(
   // Today's later rooms deal a different pairing from the first one.
   const round = today.rows.length;
 
-  // Paired from this season's house cast only (lib/season-cast.ts): the rest of the roster sits the season out.
-  const cast = seasonCastIds(now);
+  // Paired from this season's cast (lib/season-cast.ts): the house cast and the fan picks; the rest of the roster sits
+  // the season out.
+  const cast = showCastIds(now);
   // The season's format and this week's twist (lib/season-format.ts): a thumb on the house's own dates — the twist's
   // show format or producer event, the format's venue pool, and on newcomer week one side who joined this season.
   // A classic week with no twist passes nothing, and the date is built exactly as before.
@@ -1013,7 +1014,7 @@ export async function refreshLobby(
   };
   const fresh =
     twist?.pairing === "newcomer"
-      ? (await db.query<{ character_id: string }>(`select character_id from season_casts where season_id = $1 and source = 'new'`, [seasonIdOf(now)])).rows
+      ? (await db.query<{ character_id: string }>(`select character_id from season_casts where season_id = $1 and source in ('new', 'fan')`, [seasonIdOf(now)])).rows
           .map((r) => r.character_id)
           .filter((id) => cast.includes(id))
       : [];

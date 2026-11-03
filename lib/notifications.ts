@@ -57,6 +57,7 @@ export type NotificationKind =
   | "backing_settled" // the season closed: how the cast member you backed ended it (lib/backing.ts)
   | "dare_on" // the house date carrying the dare you voted on is on (lib/dares.ts)
   | "dare_settled" // the dare you voted for aired: whether they went through with it, and what your vote earned (lib/dare-points.ts)
+  | "audition" // your character's audition for next month's cast was shortlisted or not, or it made the cast (lib/auditions.ts)
   | "cast_date_won" // the weekly earned slot: a date between your character and a cast member, on the show (lib/cast-date.ts)
   | "while_away"; // (agents) back after a while: what your characters did on their own, and that they're yours again (lib/away.ts)
 

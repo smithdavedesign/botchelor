@@ -47,6 +47,7 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/watch": meta(() => import("@/app/watch/page")),
   "/reunion": meta(() => import("@/app/reunion/page")),
   "/graph": meta(() => import("@/app/graph/page")),
+  "/casting": meta(() => import("@/app/casting/page")),
   "/characters": meta(() => import("@/app/characters/page")),
   "/characters?tab=people": meta(() => import("@/app/characters/page"), { tab: "people" }),
   "/characters?tab=agents": meta(() => import("@/app/characters/page"), { tab: "agents" }),

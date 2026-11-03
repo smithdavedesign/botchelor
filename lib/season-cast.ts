@@ -10,7 +10,15 @@
  * the shuffle stands in. BOTCHELOR_SEASON_CAST (comma-separated house ids) pins a hand-picked cast instead, and
  * BOTCHELOR_SEASON_CAST_SIZE changes how many there are. Premium house characters are separate: whoever
  * bought one keeps them, every season.
+ *
+ * Fan picks (lib/auditions.ts; David, 2026-11-03: "ideally real people's characters instead of bots"): people's own
+ * characters that auditioned and were shortlisted take the open places after the survivors, by votes, before any
+ * generated newcomer, leaving the house at least HOUSE_MIN places. seasonCastIds stays the HOUSE cast (After Dark,
+ * Shorts, step-in, the blind-date fallback and the recoupling run on house characters only); seasonFanCastIds is the
+ * fan picks still on (not withdrawn, still public and open to dates, still their owner's); showCastIds is both, for
+ * what the audience sees and plays with: the cast cards, the lobby's dates, backing and the group chat.
  */
+import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
 import { HOUSE_CHARACTERS, type HouseCharacter } from "./house";
@@ -18,6 +26,8 @@ import { popularity } from "./reviews";
 import { MONTHLY_FROM, previousSeasonStart, seasonIdOf, seasonWindow } from "./season-window";
 
 export const DEFAULT_SEASON_CAST_SIZE = 4;
+/** The house places a season always keeps, whatever the auditions: the lobby and the blind-date fallback need two. */
+export const HOUSE_MIN = 2;
 
 /** The season's id: the day it starts, YYYY-MM-DD (UTC). The same value as seasonAt(now).id in lib/seasons.ts. */
 export function seasonIdAt(now: Date): string {
@@ -25,9 +35,11 @@ export function seasonIdAt(now: Date): string {
 }
 
 let override: string[] | null = null;
-/** Tests pin the cast (null = the real rotation). */
-export function setSeasonCastForTests(ids: string[] | null): void {
+let fanOverride: string[] | null = null;
+/** Tests pin the cast (null = the real rotation), and the fan picks with it (none unless given). */
+export function setSeasonCastForTests(ids: string[] | null, fans: string[] | null = null): void {
   override = ids;
+  fanOverride = fans;
 }
 
 const ROSTER = HOUSE_CHARACTERS.map((c) => c.id);
@@ -48,11 +60,11 @@ function dealt(season: string, size: number): string[] {
   return ids.slice(0, size);
 }
 
-/** The stored cast this instance has loaded, and when (refreshSeasonCast). */
-let stored: { season: string; ids: string[]; at: number } | null = null;
+/** The stored cast this instance has loaded, and when (refreshSeasonCast): the house ids and the fan picks still on. */
+let stored: { season: string; ids: string[]; fans: string[]; at: number } | null = null;
 const FRESH_MS = 60_000;
 
-/** The house ids on this season's show, in billing order. */
+/** The house ids on this season's show, in billing order (the fan picks: seasonFanCastIds). */
 export function seasonCastIds(now: Date = new Date(), env: Record<string, string | undefined> = process.env): string[] {
   if (override) return override;
   const pinned = (env.BOTCHELOR_SEASON_CAST ?? "")
@@ -65,10 +77,38 @@ export function seasonCastIds(now: Date = new Date(), env: Record<string, string
   return dealt(season, seasonCastSize(env));
 }
 
+/** People's characters on this season's show (lib/auditions.ts), still on: withdrawn or gone private, they're off. */
+export function seasonFanCastIds(now: Date = new Date()): string[] {
+  if (override) return fanOverride ?? [];
+  const season = seasonIdAt(now);
+  return stored?.season === season ? stored.fans : [];
+}
+
+/** Everyone on this season's show as the audience meets them: the house cast, then the fan picks. */
+export function showCastIds(now: Date = new Date()): string[] {
+  return [...seasonCastIds(now), ...seasonFanCastIds(now)];
+}
+
+export function isFanCast(id: string, now: Date = new Date()): boolean {
+  return seasonFanCastIds(now).includes(id);
+}
+
 /** How many of a season's cast stay on for the next (David: "top 2 survive a new season"). */
 export const SURVIVORS = 2;
 
-export type CastSlot = { character_id: string; slot: number; source: "dealt" | "survivor" | "new" };
+export type CastSlot = { character_id: string; slot: number; source: "dealt" | "survivor" | "new" | "fan" };
+
+/** A season's stored cast by who's who: house characters, and the fan picks still on. */
+async function castKinds(db: Db, season: string): Promise<{ house: string[]; fans: string[] }> {
+  const { rows } = await db.query<{ character_id: string; is_house: boolean; is_on: boolean }>(
+    `select s.character_id, c.is_house,
+            (s.withdrawn_at is null and c.visibility = 'public' and c.open_to_dates and c.owner_id is distinct from 'deleted') as is_on
+       from season_casts s join characters c on c.id = s.character_id
+      where s.season_id = $1 order by s.slot`,
+    [season],
+  );
+  return { house: rows.filter((r) => r.is_house).map((r) => r.character_id), fans: rows.filter((r) => !r.is_house && r.is_on).map((r) => r.character_id) };
+}
 
 async function storedCast(db: Db, season: string): Promise<CastSlot[]> {
   return (await db.query<CastSlot>(`select character_id, slot::int as slot, source from season_casts where season_id = $1 order by slot`, [season])).rows;
@@ -88,21 +128,30 @@ async function newcomers(db: Db, season: string, places: number, last: string[],
   return [...generated, ...fresh, ...rest].slice(0, places);
 }
 
-/** Picks a season's cast: the first monthly season keeps its dealt cast; after it, two survivors and newcomers. */
+/**
+ * Picks a season's cast: the first monthly season keeps its dealt cast; after it, two survivors, then the shortlisted
+ * auditions by votes (lib/auditions.ts) up to what leaves the house HOUSE_MIN places, then house newcomers.
+ */
 async function pickCast(db: Db, now: Date, size: number): Promise<CastSlot[]> {
   const { start } = seasonWindow(now);
   const season = seasonIdOf(now);
   if (start.getTime() <= MONTHLY_FROM) return dealt(season, size).map((character_id, slot) => ({ character_id, slot, source: "dealt" }));
   const lastStart = previousSeasonStart(now);
   const lastId = seasonIdOf(lastStart);
-  const lastCast = (await storedCast(db, lastId)).map((c) => c.character_id);
+  const lastKinds = await castKinds(db, lastId);
+  const lastCast = [...lastKinds.house, ...lastKinds.fans];
   const last = lastCast.length ? lastCast : dealt(lastId, size);
   const ranked = await popularity(db, last, lastStart, start);
   const survivors = ranked.slice(0, Math.min(SURVIVORS, size)).map((p) => p.id);
-  const added = await newcomers(db, season, size - survivors.length, last, survivors);
+  const fanSurvivors = survivors.filter((id) => lastKinds.fans.includes(id)).length;
+  const { shortlist } = await import("./auditions");
+  const fans = (await shortlist(db, season)).filter((id) => !survivors.includes(id)).slice(0, Math.max(0, size - HOUSE_MIN - fanSurvivors));
+  const taken = [...survivors, ...fans];
+  const added = await newcomers(db, season, size - taken.length, last, taken);
   return [
     ...survivors.map((character_id, slot) => ({ character_id, slot, source: "survivor" as const })),
-    ...added.map((character_id, i) => ({ character_id, slot: survivors.length + i, source: "new" as const })),
+    ...fans.map((character_id, i) => ({ character_id, slot: survivors.length + i, source: "fan" as const })),
+    ...added.map((character_id, i) => ({ character_id, slot: taken.length + i, source: "new" as const })),
   ];
 }
 
@@ -121,6 +170,8 @@ export async function ensureSeasonCast(db: Db, now: Date = new Date(), env: Reco
   for (const p of picks) {
     await db.query(`insert into season_casts (season_id, character_id, slot, source) values ($1, $2, $3, $4) on conflict do nothing`, [season, p.character_id, p.slot, p.source]);
   }
+  const { tellCastOwners } = await import("./auditions");
+  await tellCastOwners(db, season, picks).catch(() => {});
   return picks;
 }
 
@@ -128,22 +179,39 @@ export async function ensureSeasonCast(db: Db, now: Date = new Date(), env: Reco
 export async function refreshSeasonCast(db: Db, now: Date = new Date()): Promise<void> {
   const season = seasonIdOf(now);
   if (stored?.season === season && Date.now() - stored.at < FRESH_MS) return;
-  const cast = await ensureSeasonCast(db, now);
-  stored = { season, ids: cast.map((c) => c.character_id), at: Date.now() };
+  await ensureSeasonCast(db, now);
+  const { house, fans } = await castKinds(db, season);
+  stored = { season, ids: house, fans, at: Date.now() };
 }
 
-/** Tests: forget the loaded cast. */
+/** Forget the loaded cast, so the next getDb loads it again (a fan pick that left the cast leaves at once here). */
 export function resetStoredSeasonCastForTests(): void {
   stored = null;
 }
+export const forgetLoadedSeasonCast = resetStoredSeasonCastForTests;
 
-export type CastCard = { id: string; name: string; age: number; bio: string; traits: readonly string[]; archetype: string; hue: number };
+export type CastCard = {
+  id: string;
+  name: string;
+  age: number;
+  bio: string;
+  traits: readonly string[];
+  archetype: string;
+  hue: number;
+  fan: boolean;
+  /** Its generated portrait's path, when it has one (a house character's face is a file: lib/portraits.ts). */
+  portrait: string | null;
+};
 
-/** This season's house cast as cards, from the database, so a generated newcomer (lib/season-gen.ts) shows too. */
+/**
+ * This season's cast as cards, from the database, so a generated newcomer (lib/season-gen.ts) shows too, and the
+ * fan picks after the house (`fan`: a person's own character, lib/auditions.ts).
+ */
 export async function seasonCastCards(db: Db, now: Date = new Date()): Promise<CastCard[]> {
-  const ids = seasonCastIds(now);
-  const { rows } = await db.query<{ id: string; name: string; age: number; bio: string; traits: string[]; hue: number | null; archetype: string | null }>(
-    `select c.id, c.name, c.age, c.bio, c.traits, c.avatar_hue as hue, sc.archetype
+  const fans = seasonFanCastIds(now);
+  const ids = [...seasonCastIds(now), ...fans];
+  const { rows } = await db.query<{ id: string; name: string; age: number; bio: string; traits: string[]; hue: number | null; archetype: string | null; portrait: string | null }>(
+    `select c.id, c.name, c.age, c.bio, c.traits, c.avatar_hue as hue, sc.archetype, ${portraitPathSql("c")} as portrait
        from characters c left join season_candidates sc on sc.character_id = c.id
       where c.id = any($1)`,
     [ids],
@@ -153,7 +221,8 @@ export async function seasonCastCards(db: Db, now: Date = new Date()): Promise<C
     const r = byId.get(id);
     if (!r) return [];
     const house = HOUSE_CHARACTERS.find((c) => c.id === id);
-    return [{ id, name: r.name, age: r.age, bio: r.bio, traits: r.traits, archetype: house?.archetype ?? r.archetype ?? "The newcomer", hue: r.hue ?? house?.hue ?? 200 }];
+    const fan = fans.includes(id);
+    return [{ id, name: r.name, age: r.age, bio: r.bio, traits: r.traits, archetype: house?.archetype ?? r.archetype ?? (fan ? "Fan pick" : "The newcomer"), hue: r.hue ?? house?.hue ?? 200, fan, portrait: r.portrait }];
   });
 }
 

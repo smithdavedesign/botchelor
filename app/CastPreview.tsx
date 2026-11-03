@@ -18,7 +18,7 @@ export default async function CastPreview({ line }: { line: string }) {
         {cast.map((c) => (
           <li key={c.id}>
             <Link href={`/characters/${c.id}`} title={c.name}>
-              <Avatar seed={c.id} name={c.name} hue={c.hue} house size={48} />
+              <Avatar seed={c.id} name={c.name} hue={c.hue} house={!c.fan} portraitSrc={c.portrait} size={48} />
               <span className="small">{shortName(c.name)}</span>
             </Link>
           </li>
