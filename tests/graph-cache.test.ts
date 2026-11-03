@@ -1,14 +1,16 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setDbForTests } from "@/lib/db";
-import { cachedConstellation, cachedPairTimeline, GRAPH_TAG, GRAPH_TTL_SECONDS } from "@/lib/graph-cache";
+import { cachedConstellation, cachedPairTimeline, GRAPH_STALE_SECONDS, GRAPH_TAG, GRAPH_TTL_SECONDS } from "@/lib/graph-cache";
+import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { reviewReports } from "@/lib/moderation";
 import { REPORT_HIDE_THRESHOLD } from "@/lib/rules";
 import { POST as removeCharacters } from "@/app/api/admin/characters/route";
-import { api, jsonRequest, newUserCookie, startTestDb, userIdOf } from "./helpers";
+import { api, jsonRequest, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
-// The Constellation's payload is cached for a minute (lib/graph-cache.ts, Next's data cache), and anything that takes
+// The Constellation's payload is fresh for a minute and served up to ten while it refreshes (lib/graph-cache.ts, Next's
+// data cache), and anything that takes
 // something off the public sky drops it at once. Next's cache doesn't exist under vitest, so this file stands in a
-// faithful little one: entries keyed like unstable_cache's, dropped by revalidateTag.
+// faithful little one: entries keyed like unstable_cache's, dropped by revalidateTag (no background refresh).
 
 const cache = vi.hoisted(() => ({ entries: new Map<string, unknown>(), dropped: [] as string[] }));
 vi.mock("next/cache", () => ({
@@ -84,13 +86,28 @@ describe("lib/graph-cache: a minute's cache that a privacy change drops at once"
     expect(cache.dropped).toEqual([]);
   });
 
-  it("never serves an entry older than the window, even once", async () => {
+  it("serves a build past the fresh minute at once (Next refreshes it behind), never one past the stale cap", async () => {
     await pair();
     const start = Date.now();
     await ana();
     await t.db.query(`update characters set visibility = 'private' where id = 'cache-a-ana'`);
     vi.spyOn(Date, "now").mockReturnValue(start + (GRAPH_TTL_SECONDS + 1) * 1000);
+    expect(await ana()).toMatchObject({ private: false }); // no wait for a rebuild
+    vi.spyOn(Date, "now").mockReturnValue(start + (GRAPH_STALE_SECONDS + 1) * 1000);
     expect(await ana()).toMatchObject({ private: true, kind: null });
+  });
+
+  it("an agent's delete over MCP leaves at once too", async () => {
+    const ctx: McpContext = {};
+    await handleMcpMessage({ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "cache-test" }, capabilities: {} } }, ctx);
+    const session: McpContext = { sessionId: ctx.issuedSessionId };
+    const call = async (name: string, args: Record<string, unknown>) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, session))!.result as any);
+    const id = (await call("create_character", validCharacter({ name: "Cass Wren" }))).structuredContent.character.id;
+    const r = await call("delete_character", { character_id: id, confirm: true });
+    expect(r.isError).toBeFalsy();
+    expect(cache.dropped).toEqual([GRAPH_TAG]);
   });
 
   it("a character made private by its owner (the API, and MCP update_character through it) leaves at once", async () => {
