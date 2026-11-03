@@ -364,3 +364,45 @@ export async function checkRating(db: Db, media: Checkable, opts: { beach?: bool
     return { ok: false, reason: `the PG check couldn't run (${err instanceof Error ? err.message.slice(0, 120) : "error"})`, checked: false };
   }
 }
+
+/** What a "does it show them as …" check asks: the picture alone, by what's visible. */
+export const roleQuestion = (role: string): string =>
+  `Look at this image. Does it clearly show ${role.trim().replace(/[.\s]+$/, "")}, so a stranger would recognise it at a glance from the clothing, props and setting alone? Reply with JSON only: {"answer": "YES" | "NO"}.`;
+const ROLE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "role_check",
+    schema: { type: "object", properties: { answer: { type: "string", enum: ["YES", "NO"] } }, required: ["answer"], additionalProperties: false },
+    strict: true,
+  },
+} as const;
+
+/**
+ * Whether a picture reads as who it's meant to be (the recast, David 2026-11-02: "a teacher reads as a teacher, a pirate
+ * captain as a pirate"): one call to the moderation settings' vision model on Venice. True or false; null when it couldn't
+ * run (no Venice key, an error, no answer). Never throws. Not a safety check: the PG checks still decide what's kept.
+ */
+export async function showsRole(db: Db, media: Checkable, role: string): Promise<boolean | null> {
+  const m = (await getAdultSettings(db)).moderation;
+  const keys = await adultKeys(db);
+  if (!keys.venice) return null;
+  try {
+    const res = await doFetch(VENICE_CHAT, {
+      method: "POST",
+      headers: { authorization: `Bearer ${keys.venice}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        model: m.vlm_model,
+        temperature: 0,
+        max_tokens: 16,
+        response_format: ROLE_FORMAT,
+        venice_parameters: { include_venice_system_prompt: false },
+        messages: [{ role: "user", content: [{ type: "text", text: roleQuestion(role) }, { type: "image_url", image_url: { url: dataUri(media) } }] }],
+      }),
+    });
+    if (!res.ok) return null;
+    const answer = vlmAnswer(await res.json());
+    return answer === "YES" ? true : answer === "NO" ? false : null;
+  } catch {
+    return null;
+  }
+}

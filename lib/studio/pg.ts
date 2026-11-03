@@ -257,7 +257,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
 
 /* ------------------------------------------------- a shoot ------------------------------------------------- */
 
-export type PgShootResult = { ok: true; shoot: PgShoot; pictures: PgPicture[]; refunded: boolean; message: string | null } | PgFail;
+export type PgShootResult = { ok: true; shoot: PgShoot; pictures: PgPicture[]; refunded: boolean; message: string | null; misses?: number } | PgFail;
 
 let pauses = true;
 /** Tests skip the pause between checks. */
@@ -374,7 +374,14 @@ export async function pgIdentityPack(db: Db, viewer: string | null, characterId:
  * no monthly cap, whatever the Studio's opening). `outfit`: what they wear in it (their costume), in the show's PG words.
  * The caller (an admin route) decides who may ask.
  */
-export async function showIdentityViews(db: Db, characterId: string, views: IdentityViewId[], baseUrl: string, outfit: string | null = null): Promise<PgShootResult> {
+export async function showIdentityViews(
+  db: Db,
+  characterId: string,
+  views: IdentityViewId[],
+  baseUrl: string,
+  outfit: string | null = null,
+  opts: { accept?: IdentityAccept; keepOnMiss?: boolean } = {},
+): Promise<PgShootResult> {
   const c = await loadCharacter(db, characterId);
   if (!c || c.house || !c.ownerId) return fail(404, "not_found", "No owned character with that id.");
   const wanted = IDENTITY_VIEW_IDS.filter((v) => views.includes(v));
@@ -386,18 +393,37 @@ export async function showIdentityViews(db: Db, characterId: string, views: Iden
   const keys = await adultKeys(db);
   if (!keys.venice) return fail(409, "not_set_up", "The Studio needs a Venice key in the settings.");
   const config = (await getAdultSettings(db)).studio.pg;
-  return drawIdentityViews(db, { owner: c.ownerId, c, config, venice: keys.venice, face, views: wanted, tokens: 0, outfit: worn, pgOnly: true });
+  return drawIdentityViews(db, { owner: c.ownerId, c, config, venice: keys.venice, face, views: wanted, tokens: 0, outfit: worn, pgOnly: true, ...opts });
 }
+
+/**
+ * A further test a view must pass to be kept (the recast's "does it read as them?"): true passes, false misses, null
+ * couldn't tell (kept). `keepOnMiss` keeps a miss anyway and only counts it (the last try, flagged for review).
+ */
+export type IdentityAccept = (file: { bytes: Buffer; mime: string }) => Promise<boolean | null>;
 
 /** Draws, checks and keeps identity views (the pack's core): `tokens` were already taken, and are given back if none come through. */
 async function drawIdentityViews(
   db: Db,
-  args: { owner: string; c: Character; config: PgConfig; venice: string; face: string; views: IdentityViewId[]; tokens: number; outfit?: string | null; pgOnly?: boolean },
+  args: {
+    owner: string;
+    c: Character;
+    config: PgConfig;
+    venice: string;
+    face: string;
+    views: IdentityViewId[];
+    tokens: number;
+    outfit?: string | null;
+    pgOnly?: boolean;
+    accept?: IdentityAccept;
+    keepOnMiss?: boolean;
+  },
 ): Promise<PgShootResult> {
   const { owner, c, config, face, views, tokens } = args;
   const keys = { venice: args.venice };
   const asked = views.length;
   const subject = pgSubject(c);
+  let misses = 0;
   const from = faceKey(face);
   const id = crypto.randomUUID();
   await db.query(
@@ -434,6 +460,13 @@ async function drawIdentityViews(
       lastError = "the PG check rated it suggestive";
       continue;
     }
+    if (args.accept && (await args.accept(d.file)) === false) {
+      misses += 1;
+      if (!args.keepOnMiss) {
+        lastError = "it doesn't read as them";
+        continue;
+      }
+    }
     const pid = crypto.randomUUID();
     const store = await keepBytes("studio-pg", pid, d.file.bytes, d.file.mime);
     await db.query(
@@ -461,6 +494,7 @@ async function drawIdentityViews(
     pictures: kept,
     refunded,
     message,
+    ...(args.accept ? { misses } : {}),
   };
 }
 
