@@ -2,6 +2,7 @@ import Link from "next/link";
 import BoardName from "./BoardName";
 import ShareRecord from "./ShareRecord";
 import { tonightOf, type RecordShare } from "@/lib/share-record";
+import { signShare, type Sharer } from "@/lib/share-record-name";
 import { recordLine, BOARD_DAYS, type CallRecord, type CallersBoard } from "@/lib/streaks";
 
 /**
@@ -14,15 +15,19 @@ export function CallsLine({
   airing,
   href,
   nameless = false,
+  sharer = null,
   where = "calls-line",
 }: {
   record: CallRecord;
   airing: number;
   href?: string;
   nameless?: boolean;
+  /** The viewer's own display name (lib/share-record-name.ts sharerOf): their shared link says whose calls they are. */
+  sharer?: Sharer | null;
   /** data-track-where on the Share button. */
   where?: string;
 }) {
+  const share = shareOf(record, new Date(), sharer);
   const open = airing > 0 ? `${airing} ${airing === 1 ? "date" : "dates"} airing soon` : null;
   const lead =
     record.called > 0 ? (
@@ -49,20 +54,23 @@ export function CallsLine({
         </>
       )}
       {/* The spoiler-free share card (lib/share-record.ts): squares only, never which date or how it ended. */}
-      {shareOf(record) && (
+      {share && (
         <>
           {" "}
-          <ShareRecord share={shareOf(record)!} where={where} />
+          <ShareRecord share={share} where={where} />
         </>
       )}
     </div>
   );
 }
 
-/** The share card's numbers from a record that has its recent calls; null with nothing called yet. */
-export function shareOf(record: CallRecord, now: Date = new Date()): RecordShare | null {
+/**
+ * The share card's numbers from a record that has its recent calls; null with nothing called yet. With a sharer (a
+ * display name that's theirs alone), the link carries it, signed (lib/share-record-name.ts).
+ */
+export function shareOf(record: CallRecord, now: Date = new Date(), sharer: Sharer | null = null): RecordShare | null {
   if (!record.called || !record.recent?.length) return null;
-  return { recent: record.recent, right: record.right, called: record.called, streak: record.streak, best: record.best, ...tonightOf(now) };
+  return signShare({ recent: record.recent, right: record.right, called: record.called, streak: record.streak, best: record.best, ...tonightOf(now) }, sharer);
 }
 
 /** This week's best callers, by display name or "A viewer"; you're marked, and told your place when you're off the list. */

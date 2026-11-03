@@ -103,7 +103,7 @@ import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
 import { compatibility, loadTraitStats, MIN_EVIDENCE } from "../compatibility";
-import { AGENDA_IDS, AUTONOMY_LEVELS, dateNumberOf, DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, endingLabel, ENDINGS, FREE_EPISODES_PER_SEASON, WRITE_TIME, GAME_BUDGETS, STRATEGIES, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory, WISH_NO_AT, WISH_YES_AT, writingEta } from "../rules";
+import { AGENDA_IDS, AUTONOMY_LEVELS, dateNumberOf, DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, endingLabel, ENDINGS, FREE_EPISODES_PER_SEASON, WRITE_TIME, GAME_BUDGETS, STRATEGIES, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DARE, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory, WISH_NO_AT, WISH_YES_AT, writingEta } from "../rules";
 import { AUDIENCES } from "../audience";
 import { type DecidedStyle, type PartnerStyle, PARTNER_STYLES, REOPEN_FIELDS, takenMessage } from "../partners-shared";
 import { TALK_LEVELS } from "../talk";
@@ -5500,7 +5500,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(ledger.length ? { points_ledger: ledger } : {}),
           points_note:
             `${POINTS_NOTE} Also ${POINTS_PER_RATING_RECEIVED} each time someone rates one of your characters, ${POINTS_PER_ARC} for a right arc call, ` +
-            `${POINTS_PER_DEALBREAKER_PICK} for a right dealbreaker guess (also when the date airs, public dates only), and a few for matchmaking. ` +
+            `${POINTS_PER_DEALBREAKER_PICK} for a right dealbreaker guess (also when the date airs, public dates only), a few for matchmaking, and up to ${POINTS_PER_DARE.went_through} when the dare you voted for wins the night and they go through with it. ` +
             "points_ledger says what each aired pick scored, newest first; points_from adds them up by source.",
           ...(predictions ? { predictions } : {}),
           ...(rematch ? { second_date_ready: { episode_id: rematch.id, date: `${rematch.a} × ${rematch.b}`, note: `It ended in ${endingLabel("second_date", rematch.date_number).toLowerCase()}: plan_second_date (episode_id, preview: true) says whether it can be booked and the cost; without preview it books.` } } : {}),

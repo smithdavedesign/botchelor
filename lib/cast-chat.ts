@@ -13,6 +13,11 @@
  *  - Every message is checked: it must come from a cast member, pass the PG checks (lib/safety.ts checkSheetText and
  *    checkShowText), read in English, and never give away a secret that isn't out yet (lib/cast-secrets.ts
  *    hiddenCastSecrets, matched like a date's slip). The writer is never shown a hidden secret in the first place.
+ *  - Nobody claims a date they weren't on (polish, 2026-11-02: "Dex actually had the nerve. I gave a polite seven." from
+ *    Sable, on Dex and Nell's date). A message that puts its speaker on a date — I gave / rated, my date, we left, asked
+ *    me — must match the aired facts the writer was given: the speaker was on one of that day's dates, and anyone it
+ *    names from those dates (or any venue it names) is from the speaker's own. A message that doesn't is dropped, as is
+ *    one in meme-speak ("my Roman Empire"); too few left and the template stands in. Deterministic, no extra call.
  *  - A quiet day (nothing aired) writes nothing; the page keeps showing the last chat while it's recent.
  */
 import { dateNumberSql } from "./date-number";
@@ -28,7 +33,7 @@ import { portraitPathSql } from "./assets";
 import { dateLabel, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { checkSheetText, checkShowText } from "./safety";
 import { seasonCastIds } from "./season-cast";
-import { venuePhrase } from "./venues";
+import { venueName, venuePhrase } from "./venues";
 
 export const CHAT_MIN = 3;
 export const CHAT_MAX = 6;
@@ -147,6 +152,8 @@ const SYSTEM =
   "Each person sounds like themselves (use their bio for voice, not as a topic). Dry and playful, never cruel. " +
   "PG, adults, no real people or brands, no hashtags, at most one emoji in the whole chat. " +
   "React ONLY to the facts given: never invent how any other date went, never predict an ending, never mention any secret except the ones listed as out. " +
+  "Only someone the facts put on a date talks about it as theirs (I, we, my date, they asked me); everyone else is gossiping from the outside and never claims to have been there, rated anyone or taken part. " +
+  'Plain, specific words, not internet memes or stock phrases: no "my Roman Empire", "main character energy", "it\'s giving", "the ick", "living rent-free", "understood the assignment". ' +
   'The tone, not the content: "Goat yoga. On a first date. Who signed off on this?" / "I did. Best idea I\'ve had all month." / "The goat looked happier than either of you." ' +
   'Reply with JSON only: {"messages": [{"from": "<first name>", "text": "..."}]}';
 
@@ -176,6 +183,61 @@ export function checkChatLine(raw: { from?: unknown; text?: unknown }, cast: rea
   return { character_id: member.id, text };
 }
 
+/** Words that put the speaker on a date: rating someone on it, being there, "my date", "we" doing date things, "asked me". */
+const ON_A_DATE: readonly RegExp[] = [
+  /\bI\s+(?:gave|rated|scored)\b/i,
+  /\b(?:my|our)\s+(?:(?:first|second|third|fourth|last|blind|own)\s+)?date\b/i,
+  /\bI\s+(?:went|showed up|turned up|walked out|left early|kissed|hugged|danced with|asked (?:him|her|them) out)\b/i,
+  /\bI\s+was\s+(?:there|at the|on (?:the|that|my) date)\b/i,
+  /\bwe\s+(?:went|left|kissed|hugged|danced|ordered|split|shared|matched|both wanted|parted)\b/i,
+  /\b(?:asked|told|kissed|hugged|rated|took|ditched|stood up)\s+me\b/i,
+  /\b(?:with|across from|next to)\s+me\s+(?:at|on|last night)\b/i,
+  /\bme\s+and\s+\p{Lu}\p{Ll}+|\b\p{Lu}\p{Ll}+\s+and\s+(?:I|me)\b/u,
+];
+
+/** Meme-speak the prompt asks the writer to skip; a message that uses it anyway is dropped. */
+const MEME =
+  /\b(?:(?:my|their|his|her) roman empire|main character(?: energy)?|it'?s giving|the ick|rent[- ]free|understood the assignment|no crumbs|caught in 4k|delulu|rizz|vibe check|tell me you\b.*\bwithout telling me|it'?s the \w+ for me)\b/i;
+
+export const isMemeSpeak = (text: string): boolean => MEME.test(text);
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const mentions = (text: string, word: string): boolean => word.length > 1 && new RegExp(`(?<![\\p{L}])${escapeRe(word)}(?![\\p{L}])`, "u").test(text);
+/** A venue's name as a gossip would say it, or null when it's a long one-off place nobody would quote. */
+const venueWords = (v: string | null): string | null => {
+  if (!v) return null;
+  // "Goat yoga (one goat has a favourite)" → "goat yoga"; "A comedy open mic, front row" → "comedy open mic".
+  const name = venueName(v).toLowerCase().replace(/\s*\(.*?\)/g, "").split(",")[0].replace(/^(?:a|an|the)\s+/, "").trim();
+  return name && name.length <= 30 ? name : null;
+};
+
+/**
+ * Whether a message claims its speaker was on a date the facts don't put them on: it says or implies they were there
+ * (ON_A_DATE), and either they were on none of the day's aired dates, or it names someone from those dates who wasn't
+ * their date (and none who was), or a venue that wasn't theirs. A message that claims nothing is never misattributed.
+ */
+export function misattributed(line: ChatLine, f: Pick<ChatFacts, "dates">): boolean {
+  if (!ON_A_DATE.some((re) => re.test(line.text))) return false;
+  const own = f.dates.filter((d) => d.a === line.character_id || d.b === line.character_id);
+  if (!own.length) return true;
+  const partners = new Set(own.map((d) => (d.a === line.character_id ? d.b : d.a)));
+  // Everyone on the day's dates, by first name (and full name), except the speaker.
+  const named = new Set<string>();
+  for (const d of f.dates) {
+    for (const [id, name] of [
+      [d.a, d.a_name],
+      [d.b, d.b_name],
+    ] as const) {
+      if (id !== line.character_id && (mentions(line.text, shortName(name)) || mentions(line.text, name))) named.add(id);
+    }
+  }
+  if (named.size && ![...named].some((id) => partners.has(id))) return true;
+  const text = line.text.toLowerCase();
+  const venues = f.dates.map((d) => ({ words: venueWords(d.venue), own: own.includes(d) })).filter((v) => v.words && text.includes(v.words));
+  if (venues.length && !venues.some((v) => v.own)) return true;
+  return false;
+}
+
 /** The model's chat, checked line by line; null when the call fails or fewer than CHAT_MIN messages pass. */
 export async function writeChat(model: Model, f: ChatFacts, hidden: readonly string[]): Promise<ChatLine[] | null> {
   let raw: string;
@@ -202,6 +264,8 @@ export async function writeChat(model: Model, f: ChatFacts, hidden: readonly str
     .slice(0, CHAT_MAX + 2)
     .map((m) => (m && typeof m === "object" ? checkChatLine(m as { from?: unknown; text?: unknown }, f.cast, hidden) : null))
     .filter((l): l is ChatLine => l !== null)
+    // Nobody claims a date they weren't on, and nobody talks in memes.
+    .filter((l) => !misattributed(l, f) && !isMemeSpeak(l.text))
     .slice(0, CHAT_MAX);
   if (lines.length < CHAT_MIN || new Set(lines.map((l) => l.character_id)).size < 2) return null;
   return lines;

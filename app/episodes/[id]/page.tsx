@@ -14,6 +14,7 @@ import { dareReveal, VERDICT_WORDS } from "@/lib/dares";
 import { callRecord, NO_CALLS } from "@/lib/streaks";
 import ShareRecord from "@/app/ShareRecord";
 import { shareOf } from "@/app/YourCalls";
+import { sharerOf } from "@/lib/share-record-name";
 import { getEpisodeView, getPoints } from "@/lib/game";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -220,7 +221,7 @@ export default async function EpisodePage({
   // The dare reveal (lib/dares.ts): the audience's dare and the engine's own verdict, once the date has aired.
   const dare = episode.revealed ? await dareReveal(db, id).catch(() => null) : null;
   // A scored call: the viewer's record, for the spoiler-free share card (lib/share-record.ts).
-  const myShare = episode.revealed && !episode.is_creator && episode.my_pick && viewerId ? shareOf(await callRecord(db, viewerId).catch(() => NO_CALLS)) : null;
+  const myShare = episode.revealed && !episode.is_creator && episode.my_pick && viewerId ? shareOf(await callRecord(db, viewerId).catch(() => NO_CALLS), new Date(), await sharerOf(db, viewerId).catch(() => null)) : null;
   // Performed by its creator's own AI (an agent dating two of its own characters, lib/own-date.ts)?
   // Who performed the lines (docs/agents-and-people.md): the show's model, one agent's AI, or each character's own agent.
   const performer = (

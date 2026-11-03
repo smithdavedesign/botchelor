@@ -13,6 +13,12 @@
  * invites the reader to call tonight's endings; it carries only these numbers, parsed strictly, so nobody can put words
  * on the card.
  *
+ * The sharer's display name (polish, 2026-11-02): when they have one that's theirs alone (#1238's one person per display
+ * name, the name the best-callers board shows), the link carries it as `by`, with `k`, a server signature over that
+ * person, the name and these numbers (lib/share-record-name.ts). /calls shows "<name>'s calls" only when the signature
+ * checks out for the one person who goes by that name now; anything else, a rename or an edited number, reads
+ * "Someone's calls". No id ever rides the link: the name, which is already public on the board, and an opaque check.
+ *
  * Pure and client-safe (the Share button builds the text in the browser): no server imports, no model call, $0.
  */
 import { seasonNumber } from "./season-ref";
@@ -36,6 +42,9 @@ export type RecordShare = {
   /** Today's season and night ("S1 · Night 2"), or null outside the monthly seasons. */
   season: number | null;
   night: number | null;
+  /** The sharer's display name and its signature (lib/share-record-name.ts), when they have a name of their own. */
+  by?: string;
+  k?: string;
 };
 
 /** Today's "S1 · Night 2" as numbers (a monthly season is a month; its night is the UTC day of it). */
@@ -69,6 +78,10 @@ export function recordSharePath(s: RecordShare): string {
     b: String(s.best),
   });
   if (s.season && s.night) q.set("n", `${s.season}-${s.night}`);
+  if (s.by && s.k) {
+    q.set("by", s.by);
+    q.set("k", s.k);
+  }
   q.set("ref", RECORD_SHARE_REF);
   return `/calls?${q.toString()}`;
 }
@@ -99,4 +112,24 @@ export function parseRecordShare(params: Record<string, string | string[] | unde
   const season = n ? Number(n[1]) : null;
   const night = n && Number(n[2]) >= 1 && Number(n[2]) <= 31 ? Number(n[2]) : null;
   return { recent: [...g].map((c) => c === "1"), right, called, streak, best, season: season && night ? season : null, night: season && night ? night : null };
+}
+
+/** The numbers a share's signature covers, in one fixed order (lib/share-record-name.ts signs and checks this). */
+export function recordShareKey(s: RecordShare): string {
+  const g = s.recent
+    .slice(-SHARE_SQUARES)
+    .map((h) => (h ? "1" : "0"))
+    .join("");
+  return [g, s.right, s.called, s.streak, s.best, s.season && s.night ? `${s.season}-${s.night}` : ""].join("|");
+}
+
+/** The longest display name a link may carry (lib/people.ts PROFILE_NAME_MAX). */
+const BY_MAX = 30;
+const SIGNATURE = /^[A-Za-z0-9_-]{22}$/;
+
+/** A shared link's claimed name and signature, shape-checked only: lib/share-record-name.ts decides whether it's true. */
+export function sharedByOf(params: Record<string, string | string[] | undefined>): { by: string; k: string } | null {
+  const by = typeof params.by === "string" ? params.by.trim() : "";
+  const k = typeof params.k === "string" ? params.k : "";
+  return by && by.length <= BY_MAX && SIGNATURE.test(k) ? { by, k } : null;
 }

@@ -3170,6 +3170,12 @@ create table if not exists cast_chats (
   created_at timestamptz not null default now(),
   written_at timestamptz
 );
+
+-- A winning dare pays its voters (lib/dare-points.ts): once the date airs, each vote for the dare that won the night
+-- settles once with what the verdict earns (went through 5, sort of 2, chickened out 0). settled_at null: not yet.
+alter table dare_votes add column if not exists points integer;
+alter table dare_votes add column if not exists settled_at timestamptz;
+create index if not exists dare_votes_user_settled_idx on dare_votes (user_id) where settled_at is not null;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

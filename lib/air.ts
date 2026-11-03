@@ -20,6 +20,7 @@ import { refreshAndAnnounce } from "./relationship-events";
 import { markResourceUpdated } from "./mcp-subscriptions";
 import { pairNames } from "./names";
 import { notify, notifyAll } from "./notifications";
+import { settleDareForEpisode } from "./dare-points";
 import { ENDING_DETAIL_LABELS, endingDetailOf, ENDING_LABELS, predictionPoints, REPORT_HIDE_THRESHOLD, WATCH_DECISION_INDEX, WATCH_PHASES, WRITE_TIME } from "./rules";
 
 /**
@@ -83,6 +84,8 @@ export async function airEpisode(db: Db, id: string, hostId: string, opts: { air
   // 2.9.0 (#654): botchelor://feed/airing moved on (it left next and joined just_aired): tell its subscribers.
   markResourceUpdated("botchelor://feed/airing");
   await notifyPredictors(db, id).catch(() => {});
+  // A dare rode this date (lib/dare-points.ts): its winning voters score by the verdict, once.
+  await settleDareForEpisode(db, id).catch(() => null);
   // #1032: its host and both characters' owners hear it aired (unless they aired it in this very call, or just heard of a step up).
   await notifyOwnersAired(db, id, [opts.airedBy, ...toldStage, ...quiet]).catch(() => {});
   const tally = (
