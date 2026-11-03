@@ -14,7 +14,7 @@
  *    with neither makes none, so an idle day costs nothing.
  *  - The dares are a fixed, PG, producer-voiced pool (tests hold them to the show's content checks).
  */
-import { portraitPathSql } from "./assets";
+import { portraitPathSql } from "./portrait-sql";
 import { DARE_VERDICTS, followedOf, verdictFromRoll, type DareVerdict } from "./dare-words";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";

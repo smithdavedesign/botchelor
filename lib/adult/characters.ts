@@ -5,7 +5,7 @@
  * switches never change anyone else's after dark.
  */
 import type { Db } from "../db";
-import { portraitPathSql } from "../assets";
+import { portraitPathSql } from "../portrait-sql";
 import { lastSeasonOn, seasonCastIds, seasonMonth } from "../season-cast";
 
 export type Switchable = { id: string; name: string; house: boolean; portrait: string | null; on: boolean; season: boolean };

@@ -9,7 +9,7 @@
  * access to the account. Unlinking (Account) ends it.
  */
 import { createHash, randomBytes } from "node:crypto";
-import { portraitPathSql } from "./assets";
+import { portraitPathSql } from "./portrait-sql";
 import type { Db } from "./db";
 
 /** How long a link works. */

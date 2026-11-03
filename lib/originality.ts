@@ -11,7 +11,7 @@
  * One exception to "never a gate" (#1154, 2026-11-01): an agent's create_character refuses a sheet that reads a lot like
  * someone else's character unless it passes keep_look_alike: true (lib/mcp/dispatcher.ts). The web builder isn't gated.
  */
-import { withPortraits } from "./assets";
+import { withPortraits } from "./portrait-sql";
 import type { Db } from "./db";
 import { publicExtras, type CharacterExtras } from "./extras";
 import { contentWords, EVERYDAY_WORDS } from "./quality";

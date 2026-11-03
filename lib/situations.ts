@@ -16,7 +16,7 @@
  *  - Cost: one lobby date a day, on the show's default model like every lobby room (it counts toward
  *    FRESH_ROOMS_PER_DAY, so a busy day makes no more rooms than before): at most ~5¢ a day, under $1.50 a month.
  */
-import { portraitPathSql } from "./assets";
+import { portraitPathSql } from "./portrait-sql";
 import { dareChoices, dareCounts, daredOf, dareWinnerOf, producerDareNote } from "./dares";
 import { judgeDare } from "./dare-verdict";
 import type { Db } from "./db";
