@@ -347,6 +347,8 @@ export async function findMatches(
   viewerId: string,
   characterId: string,
   limit = 5,
+  // The deck, the API and MCP show at most 20; the admin recast route ranks the whole pool (up to 200).
+  max = 20,
 ): Promise<{ for: { id: string; name: string }; matches: Match[] } | null> {
   const mine = (
     await db.query<ProfileRow>(`select ${PUBLIC_COLUMNS} from characters c where c.id = $1 and c.owner_id = $2 and not c.is_house`, [characterId, viewerId])
@@ -356,7 +358,7 @@ export async function findMatches(
   // Only characters open to one like this one (lib/audience.ts): house characters are open to everyone.
   const pool = (await candidates(db, viewerId, true, true)).filter((r) => r.is_house || audienceAllows(r.open_audience, mine.created_via)).map((r) => toProfile(r));
   const matches = await rankFor(db, viewerId, me, pool);
-  return { for: { id: me.id, name: me.name }, matches: matches.slice(0, Math.max(1, Math.min(20, limit))) };
+  return { for: { id: me.id, name: me.name }, matches: matches.slice(0, Math.max(1, Math.min(max, limit))) };
 }
 
 /**

@@ -3,6 +3,7 @@ import { POST } from "@/app/api/admin/recast/route";
 import { setMediaFetchForTests } from "@/lib/adult/media";
 import { setModerationFetchForTests } from "@/lib/adult/moderation";
 import { saveAdultSettings } from "@/lib/adult/settings";
+import { findMatches } from "@/lib/dating";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { RECAST_PORTRAIT_MODEL } from "@/lib/recast";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -204,7 +205,12 @@ describe("the recast (POST /api/admin/recast)", () => {
     const ranked = await (await call({ action: "rank", character_id: a.id })).json();
     expect(ranked.matches.map((m: { id: string }) => m.id)).toContain(b.id);
     // Deep enough to see the whole deck (house cast and people's characters past the agents' top 20); no further.
-    expect((await call({ action: "rank", character_id: a.id, limit: 200 })).status).toBe(200);
+    // The deck stops at 20; the recast sees past it.
+    const NAMES = ["Ash", "Bly", "Cato", "Dara", "Ezra", "Fen", "Gale", "Hale", "Ivo", "Jory", "Kit", "Lark", "Moss", "Nico", "Oren", "Pell", "Quin", "Rhys", "Sol", "Tam", "Uma", "Vale"];
+    for (const n of NAMES) await agentCharacter(`${n} Pinecroft`);
+    const deep = await (await call({ action: "rank", character_id: a.id, limit: 200 })).json();
+    expect(deep.matches.length).toBeGreaterThan(20);
+    expect((await findMatches(t.db, a.owner, a.id, 200))!.matches).toHaveLength(20);
     expect((await call({ action: "rank", character_id: a.id, limit: 201 })).status).toBe(422);
     const liked = await call({ action: "like", character_id: a.id, target_id: b.id });
     expect(liked.status).toBe(200);
