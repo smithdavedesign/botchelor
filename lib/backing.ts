@@ -18,7 +18,7 @@ import type { Db } from "./db";
 import { leftTogether } from "./mixer-room";
 import { notify } from "./notifications";
 import { POINTS_PER_BACKING, type Ending } from "./rules";
-import { isOnSeasonCast, seasonCastIds } from "./season-cast";
+import { showCastIds } from "./season-cast";
 import { seasonPath } from "./season-ref";
 import { seasonIdOf, seasonLabel, seasonWindow } from "./season-window";
 
@@ -37,7 +37,8 @@ export const PICKS_CLOSED_MESSAGE = "The producers closed the book at mid-month.
 
 /** One viewer's pick for the season. After mid-month nothing changes: no new picks, no take-backs. */
 export async function backCastMember(db: Db, userId: string, characterId: string, now: Date = new Date()): Promise<BackResult> {
-  if (!isOnSeasonCast(characterId, now)) {
+  // The whole show cast, fan picks too (lib/season-cast.ts showCastIds).
+  if (!showCastIds(now).includes(characterId)) {
     return { ok: false, status: 400, error: "not_on_the_cast", message: "They're not on this season's cast." };
   }
   const season = seasonIdOf(now);
@@ -73,7 +74,7 @@ export type BackingBoard = {
 
 /** The card's data for one viewer: the cast with backer counts, their pick, and the lock. Null without a cast. */
 export async function backingBoard(db: Db, viewerId: string | null, now: Date = new Date()): Promise<BackingBoard | null> {
-  const ids = seasonCastIds(now);
+  const ids = showCastIds(now);
   if (ids.length < 2) return null;
   const season = seasonIdOf(now);
   const [chars, counts, mine] = await Promise.all([

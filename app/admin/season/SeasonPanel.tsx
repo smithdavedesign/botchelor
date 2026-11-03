@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 
-type Slot = { character_id: string; name: string; slot: number; source: "dealt" | "survivor" | "new" };
+type Slot = { character_id: string; name: string; slot: number; source: "dealt" | "survivor" | "new" | "fan" };
 type Candidate = {
   character_id: string;
   name: string;
@@ -13,14 +13,15 @@ type Candidate = {
   portrait: string | null;
   check_note: string | null;
 };
+type Audition = { character_id: string; name: string; status: "open" | "approved" | "rejected"; votes: number; aired: number; portrait: string | null };
 type View = {
   this_season: { id: string; label: string; format: string; cast: Slot[] };
-  next_season: { id: string; label: string; format: string; generate_from_day: number; candidates: Candidate[] };
+  next_season: { id: string; label: string; format: string; generate_from_day: number; candidates: Candidate[]; auditions: Audition[] };
   formats: { slug: string; label: string }[];
   note?: string | null;
 };
 
-const SOURCE: Record<Slot["source"], string> = { dealt: "dealt", survivor: "stayed on", new: "new" };
+const SOURCE: Record<Slot["source"], string> = { dealt: "dealt", survivor: "stayed on", new: "new", fan: "fan pick" };
 
 /** The review queue: next month's candidates with their portraits, and this month's cast. Admin account or password. */
 export default function SeasonPanel() {
@@ -109,6 +110,43 @@ export default function SeasonPanel() {
             {busy === "generate" ? "Writing… (a minute or two)" : live.length ? "Write replacements" : "Write the candidates now"}
           </button>
         </p>
+      </section>
+      <section className="card">
+        <h2>Auditions for {view.next_season.label}</h2>
+        <p className="muted small">
+          People&apos;s own characters (lib/auditions.ts). Approved ones take the open places by votes, before the
+          candidates above. Owners hear either way. <Link href="/casting">The public page</Link>.
+        </p>
+        {view.next_season.auditions.length === 0 && <p className="muted">No auditions yet.</p>}
+        <ul className="season-candidates">
+          {view.next_season.auditions.map((a) => (
+            <li key={a.character_id} className={`season-candidate is-${a.status === "open" ? "pending" : a.status}`}>
+              {a.portrait ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={a.portrait} alt={`Portrait of ${a.name}`} />
+              ) : (
+                <p className="muted small">No portrait</p>
+              )}
+              <p>
+                <Link href={`/characters/${a.character_id}`}>
+                  <strong>{a.name}</strong>
+                </Link>{" "}
+                <span className="muted">
+                  {a.votes} vote{a.votes === 1 ? "" : "s"} · {a.aired} dates
+                </span>{" "}
+                <span className="badge">{a.status === "open" ? "waiting" : a.status}</span>
+              </p>
+              <p>
+                <button type="button" className="primary small" disabled={busy !== null || a.status === "approved"} onClick={() => act(`aa-${a.character_id}`, { action: "audition", character_id: a.character_id, verdict: "approved" })}>
+                  Approve
+                </button>{" "}
+                <button type="button" className="button-ghost small" disabled={busy !== null || a.status === "rejected"} onClick={() => act(`ar-${a.character_id}`, { action: "audition", character_id: a.character_id, verdict: "rejected" })}>
+                  Turn down
+                </button>
+              </p>
+            </li>
+          ))}
+        </ul>
       </section>
       <section className="card">
         <h2>This season: {view.this_season.label}</h2>

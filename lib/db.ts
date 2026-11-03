@@ -3176,6 +3176,34 @@ create table if not exists cast_chats (
 alter table dare_votes add column if not exists points integer;
 alter table dare_votes add column if not exists settled_at timestamptz;
 create index if not exists dare_votes_user_settled_idx on dare_votes (user_id) where settled_at is not null;
+
+-- Auditions (lib/auditions.ts; David, 2026-11-03): a person puts one of their own characters up for next month's cast.
+-- status: open (waiting on the admin), approved (shortlisted: the votes decide), rejected, withdrawn (by its owner).
+-- One in play per owner per season. audition_votes: one vote a viewer a season, moved by voting again.
+create table if not exists cast_auditions (
+  season_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  owner_id text not null,
+  status text not null default 'open' check (status in ('open', 'approved', 'rejected', 'withdrawn')),
+  created_at timestamptz not null default now(),
+  decided_at timestamptz,
+  primary key (season_id, character_id)
+);
+create unique index if not exists cast_auditions_one_each on cast_auditions (season_id, owner_id) where status <> 'withdrawn';
+create table if not exists audition_votes (
+  season_id text not null,
+  voter_id text not null,
+  character_id text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (season_id, voter_id)
+);
+create index if not exists audition_votes_character_idx on audition_votes (season_id, character_id);
+-- A season's cast can hold people's characters now: 'fan', an audition that won a place (lib/season-cast.ts). Its owner
+-- can take it off the show mid-season: withdrawn_at, and it's off at once (the row stays, for the record).
+alter table season_casts drop constraint if exists season_casts_source_check;
+alter table season_casts add constraint season_casts_source_check check (source in ('dealt', 'survivor', 'new', 'fan'));
+alter table season_casts add column if not exists withdrawn_at timestamptz;
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

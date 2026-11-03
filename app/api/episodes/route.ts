@@ -36,7 +36,7 @@ import {
 import { checkFields } from "@/lib/safety";
 import { coupledSql, currentPartners, settleCharacter, takenSql } from "@/lib/partners";
 import { takenMessage } from "@/lib/partners-shared";
-import { seasonCastIds } from "@/lib/season-cast";
+import { seasonCastIds, seasonFanCastIds } from "@/lib/season-cast";
 import { weekAt } from "@/lib/seasons";
 import { checkSecondDate } from "@/lib/second-date";
 import { acceptableProposal, markAccepted } from "@/lib/date-proposals";
@@ -307,20 +307,22 @@ export const POST = crisisAware("date_note", (body) => [str(body.note)], handle(
     // couple can always meet again), or someone else's OC that's open to dates (or the partner your character is
     // with, or whose owner proposed this date, or one it matched with where both said yes) — never your own, never
     // across a block. Behind the swipe gate (lib/swipe-gate.ts, $6), open to dates is enough only for a couple that's
-    // dated before: a first date with someone else's character takes a match.
+    // dated before: a first date with someone else's character takes a match, except with this month's fan picks
+    // ($7, lib/auditions.ts), whose owners agreed that anyone can date them by name while they're on the cast.
     partner = (
       await db.query<CharacterRow>(
         `select ${CHARACTER_COLUMNS} from characters c
           where c.id = $1 and not ${unmatchedSql("c.id", "$4::text")}
             and ((c.is_house and (c.premium_sku is not null or c.id = any($3) or ${agreedMatchSql("c", "$4")} or ${datedSql("c", "$4")}))
                  or (((c.open_to_dates and ${audienceAllowsSql("c", "(select o.created_via from characters o where o.id = $4)")}
-                       and (not $6::boolean or ${datedSql("c", "$4")}))
+                       and (not $6::boolean or ${datedSql("c", "$4")} or c.id = any($7)))
                       or ${coupledSql("c", "$4")} or c.id = $5::text or ${agreedMatchSql("c", "$4")}) and c.owner_id <> $2 and not ${takenSql("c", "$4")}
                      and not exists (
                        select 1 from blocks bl
                         where (bl.blocker_id = $2 and bl.blocked_id = c.owner_id)
                            or (bl.blocker_id = c.owner_id and bl.blocked_id = $2))))`,
-        [input.partner_id, sess.userId, seasonCastIds(), own.id, input.proposal_id ? (input.partner_id ?? null) : null, swipeGateOn()],
+        // $7: this month's fan picks (lib/auditions.ts): on the cast, anyone can date them by name, no match needed.
+        [input.partner_id, sess.userId, seasonCastIds(), own.id, input.proposal_id ? (input.partner_id ?? null) : null, swipeGateOn(), seasonFanCastIds()],
       )
     ).rows[0];
     if (!partner && input.partner_id && !(await db.query(`select 1 from characters where id::text = $1`, [input.partner_id])).rows.length) {

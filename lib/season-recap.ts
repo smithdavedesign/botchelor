@@ -160,7 +160,8 @@ async function castOf(db: Db, seasonId: string, nextId: string, start: Date, end
     `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait,
             exists (select 1 from season_casts n where n.season_id = $2 and n.character_id = c.id) as stayed
        from season_casts s join characters c on c.id = s.character_id
-      where s.season_id = $1
+      -- A fan pick (a person's own character, lib/auditions.ts) only while it's public; the house always.
+      where s.season_id = $1 and (c.is_house or c.visibility = 'public')
       order by s.slot`,
     [seasonId, nextId],
   );

@@ -40,12 +40,14 @@ import RatingButtons from "./RatingButtons";
 import Reviews from "./Reviews";
 import { reviewableNow, reviewSummary } from "@/lib/reviews";
 import OwnerControls from "./OwnerControls";
+import AuditionPanel from "./AuditionPanel";
+import { myAudition } from "@/lib/auditions";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import { partnerStyleOf } from "@/lib/partners";
 import { whileAwayOf } from "@/lib/activity";
 import { backingBoard } from "@/lib/backing";
 import { BackThem } from "@/app/BackCast";
-import { isOnSeasonCast } from "@/lib/season-cast";
+import { isFanCast, isOnSeasonCast, seasonIdAt, seasonMonth, showCastIds } from "@/lib/season-cast";
 import { stepInAllowed } from "@/lib/step-in";
 import LearnedPanel from "./LearnedPanel";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
@@ -196,8 +198,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const away = c.house
     ? null
     : ((await db.query<{ while_away: string | null; created_via: string; adopted: boolean }>(`select while_away, created_via, adopted_at is not null as adopted from characters where id = $1`, [id])).rows[0] ?? null);
+  // Next month's casting (lib/auditions.ts): only a person's own character made on the site can audition.
+  const auditionNow =
+    ratings.is_owner && !c.house && away?.created_via === "web" && viewerId
+      ? await myAudition(db, authFromCookieStore(await cookies()) ?? { userId: viewerId, authenticated: false }, id).catch(() => null)
+      : null;
   // Back them for the month (lib/backing.ts): only a season cast member's page carries the stake.
-  const backing = c.house && isOnSeasonCast(id) ? await backingBoard(db, viewerId).catch(() => null) : null;
+  const backing = showCastIds().includes(id) ? await backingBoard(db, viewerId).catch(() => null) : null;
   // Who made them (lib/origin.ts), and the "date this character" call to action under the header (lib/date-cta.ts).
   const origin = (await originsOf(db, [id])).get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
   // Back to the tab they're on (the cast, people's, agents'), for the kicker and the breadcrumb.
@@ -295,6 +302,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               <OriginBadge origin={origin} />
             )}
             {c.house && dating && !dating.can_ask_out && !PREMIUM_IDS.has(c.id) && <span className="badge">Off this season</span>}
+            {!c.house && isFanCast(c.id) && (
+              <Link href="/casting" className="badge badge-open">
+                🎬 On {seasonMonth(seasonIdAt(new Date()))}&apos;s cast
+              </Link>
+            )}
             {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
             {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">
                 💍 With <CharacterName character={partnerStyle.partners[0]} label={shortName(partnerStyle.partners[0].name)} size={18} />
@@ -431,6 +443,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {/* Adopted while its agent is away (lib/away.ts): said to everyone, so nobody takes the show's answers for its agent's. */}
       {away?.adopted && <p className="muted small character-adopted">🎭 House cast while its agent is away: played by the show, it always likes back and texts back. Its agent gets it back the moment they return.</p>}
       {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} whileAway={away ? { mode: whileAwayOf(away), adopted: away.adopted } : undefined} />}
+      {auditionNow && <AuditionPanel id={c.id} name={shortName(c.name)} audition={auditionNow} />}
       {plays && (
         <p className="muted small owner-temperament">
           🔒 How {shortName(c.name)} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}

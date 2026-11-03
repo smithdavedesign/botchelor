@@ -5,6 +5,8 @@ import { z } from "zod";
 import { TALK_LEVELS } from "@/lib/talk";
 import { PARTNER_STYLES, takenSql } from "@/lib/partners";
 import { deleteCharacter } from "@/lib/account";
+import { onFanCast } from "@/lib/auditions";
+import { forgetLoadedSeasonCast } from "@/lib/season-cast";
 import { hasJobKey } from "@/lib/connections";
 import { getDb } from "@/lib/db";
 import { invalidateGraph } from "@/lib/graph-cache";
@@ -126,6 +128,9 @@ const COLUMN: Record<string, (v: Record<string, unknown>) => unknown> = {
 const JSONB_COLUMNS = new Set(["traits", "extras", "this_week"]);
 
 /** Edit your own character. Owner-only; a character you don't own (or a house one) is "not found". */
+/** What a fan pick on the cast can't change until the month ends (its switches it can). */
+const SHEET_LOCKED = ["name", "age", "bio", "traits", "want", "dealbreaker", "appearance", "pronouns", "voice", "soul", "extras", "hiding"] as const;
+
 export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const sess = session(req);
@@ -134,6 +139,20 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
 
   const raw = await readJson(req);
   const input = parseBody(CharacterPatch, raw, "invalid_character") as Record<string, unknown>;
+  // On this month's cast as a fan pick (lib/auditions.ts), its sheet is locked until the month ends: the show and its
+  // audience cast THIS character. Its switches stay its owner's; going private or closing to dates takes it off the show.
+  const onCast = await onFanCast(db, id);
+  if (onCast) {
+    const locked = SHEET_LOCKED.filter((k) => k in input);
+    if (locked.length) {
+      return json(
+        { error: "on_the_cast", field: locked[0], message: "It's on this month's cast, so its sheet is locked until the month ends. Take it off the show from its page to edit it." },
+        409,
+        sess,
+      );
+    }
+    if ("visibility" in input || "open_to_dates" in input) forgetLoadedSeasonCast();
+  }
   // #1188: as on create, a soul of unknown keys is refused before anything is written, and the rest are named.
   const soulKeys = unknownSoulKeys((raw as { soul?: unknown } | null)?.soul);
   if (soulKeys.refusal) return json({ error: "invalid_soul", field: "soul", message: soulKeys.refusal }, 422, sess);

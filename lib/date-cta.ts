@@ -13,6 +13,7 @@
 import type { Db } from "./db";
 import { takenWith } from "./partners";
 import { agreedMatchSql } from "./swipes";
+import { isFanCast } from "./season-cast";
 import { datedSql, swipeGateOn } from "./swipe-gate";
 
 /** `taken`: with someone else and wanting only them (lib/partners.ts), so it can't go: that partner's name. */
@@ -46,7 +47,8 @@ export function dateCta(i: {
 /** The viewer's characters, and whether each can book a date with `targetId` now or has to match first. */
 export async function ctaMine(db: Db, viewerId: string | null, target: { id: string; house: boolean }): Promise<CtaMine[]> {
   if (!viewerId) return [];
-  const gated = !target.house && swipeGateOn();
+  // A fan pick on this month's cast (lib/auditions.ts) books by name like the house cast: no match needed.
+  const gated = !target.house && !isFanCast(target.id) && swipeGateOn();
   const { rows } = await db.query<{ id: string; name: string; ready: boolean }>(
     `select c.id, c.name, (not $3::boolean or ${datedSql("c", "$2")} or ${agreedMatchSql("c", "$2")}) as ready
        from characters c

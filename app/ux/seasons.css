@@ -193,3 +193,43 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ---------------- casting: next month's auditions (app/casting) and the owner's panel (app/characters/[id]/AuditionPanel.tsx) ---------------- */
+.casting-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+.casting-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+.casting-card.is-voted {
+  border-color: var(--accent);
+}
+.casting-face {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: inherit;
+  text-decoration: none;
+}
+.casting-bio {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+}
+.casting-card button {
+  margin-top: auto;
+  align-self: flex-start;
+}
+.audition-panel {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}

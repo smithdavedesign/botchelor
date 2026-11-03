@@ -32,7 +32,7 @@ import { dareReveal } from "./dares";
 import { portraitPathSql } from "./assets";
 import { dateLabel, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { checkSheetText, checkShowText } from "./safety";
-import { seasonCastIds } from "./season-cast";
+import { showCastIds } from "./season-cast";
 import { venueName, venuePhrase } from "./venues";
 
 export const CHAT_MIN = 3;
@@ -82,7 +82,7 @@ function endedWords(d: AiredDate): string {
 export async function chatFacts(db: Db, day: string, now: Date = new Date()): Promise<ChatFacts> {
   const from = dayStart(day);
   const to = new Date(from.getTime() + DAY_MS);
-  const castIds = seasonCastIds(from);
+  const castIds = showCastIds(from);
   const [cast, dates, nights] = await Promise.all([
     db.query<CastMember>(`select id, name, bio from characters where id = any($1) and visibility = 'public'`, [castIds]),
     db.query<AiredDate>(

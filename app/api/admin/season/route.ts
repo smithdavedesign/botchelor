@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isSignedInAdmin } from "@/lib/admins";
+import { listAuditions, reviewAudition } from "@/lib/auditions";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
@@ -35,7 +36,7 @@ async function view() {
   const portraits = new Map(
     (await db.query<{ id: string; url: string | null }>(`select id, url from character_assets where id = any($1)`, [candidates.map((c) => c.portrait_asset).filter(Boolean)])).rows.map((r) => [r.id, r.url]),
   );
-  const [thisFormat, nextFormat] = await Promise.all([seasonFormatSlug(db, thisId), seasonFormatSlug(db, nextId)]);
+  const [thisFormat, nextFormat, auditions] = await Promise.all([seasonFormatSlug(db, thisId), seasonFormatSlug(db, nextId), listAuditions(db, nextId)]);
   return {
     this_season: { id: thisId, label: seasonLabel(thisId), format: thisFormat, cast: cast.map((c) => ({ ...c, name: names.get(c.character_id) ?? c.character_id })) },
     next_season: {
@@ -44,6 +45,8 @@ async function view() {
       format: nextFormat,
       generate_from_day: GENERATE_FROM_DAY,
       candidates: candidates.map((c) => ({ ...c, portrait: c.portrait_asset ? portraits.get(c.portrait_asset) ?? null : null })),
+      // People's characters up for the cast (lib/auditions.ts): approved ones take the open places before candidates.
+      auditions,
     },
     // The formats a season can run in (lib/season-format.ts): classic is the default; the island month is picked here.
     formats: SEASON_FORMATS.map((f) => ({ slug: f.slug, label: f.label })),
@@ -62,9 +65,10 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("generate") }),
   z.object({ action: z.literal("format"), season_id: z.string().min(4).max(10), slug: z.enum(SEASON_FORMAT_SLUGS) }),
   z.object({ action: z.literal("recoupling") }),
+  z.object({ action: z.literal("audition"), character_id: z.string().min(1).max(80), verdict: z.enum(["approved", "rejected"]) }),
 ]);
 
-/** Approve or reject a candidate, redo a portrait, write next month's candidates, or pick a season's format. */
+/** Approve or reject a candidate or an audition, redo a portrait, write next month's candidates, or pick a season's format. */
 export const POST = handle(async (req: Request) => {
   if (!(await authorized(req))) return json(NOT_AUTHORIZED, 403);
   const input = parseBody(Input, await readJson(req), "invalid_request");
@@ -72,6 +76,8 @@ export const POST = handle(async (req: Request) => {
   let note: string | null = null;
   if (input.action === "approve" || input.action === "reject") {
     if (!(await reviewCandidate(db, input.character_id, input.action === "approve" ? "approved" : "rejected"))) return json({ error: "not_found", message: "No such candidate." }, 404);
+  } else if (input.action === "audition") {
+    if (!(await reviewAudition(db, input.character_id, input.verdict))) return json({ error: "not_found", message: "No such audition." }, 404);
   } else if (input.action === "format") {
     // Only the running season or the next can change: a closed season's format is part of its record.
     const now = new Date();
