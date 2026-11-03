@@ -5,6 +5,7 @@ import { findMatches } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, sessionCookies } from "@/lib/http";
 import { drawRecastBody, drawRecastPortrait, PROPS_MAX, RECAST_LOOK_MAX, recastOwner, ROLE_MAX, SCENE_MAX, KIND_MAX, type RecastRole } from "@/lib/recast";
+import { DELETED_OWNER } from "@/lib/rules";
 import { answerMatch, swipe } from "@/lib/swipes";
 
 export const dynamic = "force-dynamic";
@@ -30,11 +31,15 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("like"), character_id: id, target_id: id }),
   // Their answer to a match, as their owner's agent gives it.
   z.object({ action: z.literal("answer"), character_id: id, with_id: id, yes: z.boolean() }),
+  // A like TO a recast character from any owned one (a person's included), as its owner swipes it (David, 2026-11-03:
+  // "have my characters ... like all of the new agent characters"). Likes only: never a pass or an answer, and a
+  // person's character still answers a match for itself (lib/swipes.ts personAnswers).
+  z.object({ action: z.literal("owner_like"), character_id: id, target_id: id }),
 ]);
 
 /**
  * Admin only (the admin password or a signed-in admin): the recast of the show's own agent-made characters (lib/recast.ts).
- * Each action acts on one agent-made character, as its owner, through the same code an owner's edit, swipe or answer
+ * Each action acts on one agent-made character (owner_like: a like to one, from any owned character), as its owner, through the same code an owner's edit, swipe or answer
  * runs; never a person's character, a house one, or one kept only for its old dates. Pictures given a `role` must read as
  * it (lib/recast.ts: one pushed redraw at most, then flagged with role_ok false).
  */
@@ -45,6 +50,16 @@ export const POST = handle(async (req: Request) => {
   if (!(await adminAuthorized(req))) return json(NOT_AUTHORIZED, 403);
   const input = parseBody(Input, await readJson(req), "invalid_request");
   const db = await getDb();
+  if (input.action === "owner_like") {
+    if (!(await recastOwner(db, input.target_id))) return json({ error: "target_not_recast", message: "The like goes to one of the show's own agent-made characters." }, 404);
+    const liker = (
+      await db.query<{ owner_id: string }>(`select owner_id from characters where id = $1 and not is_house and owner_id is not null and owner_id <> $2`, [input.character_id, DELETED_OWNER])
+    ).rows[0]?.owner_id;
+    // The house cast has no owner to swipe for it (it likes back whoever likes it: lib/swipes.ts swipe).
+    if (!liker) return json({ error: "character_not_found", message: "No owned character with that id." }, 404);
+    const r = await swipe(db, liker, input.character_id, input.target_id, true);
+    return json(r, r.ok ? 200 : r.status);
+  }
   const owner = await recastOwner(db, input.character_id);
   if (!owner) return json({ error: "character_not_found", message: "No agent-made character on the show with that id." }, 404);
 

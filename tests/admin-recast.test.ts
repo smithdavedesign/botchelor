@@ -220,4 +220,30 @@ describe("the recast (POST /api/admin/recast)", () => {
     const done = await (await call({ action: "answer", character_id: b.id, with_id: a.id, yes: true })).json();
     expect(done.status).toBe("agreed");
   });
+
+  it("owner_like: an owned character (a person's) likes a recast one as its owner; never for the house or to a non-recast", async () => {
+    const a = await agentCharacter("Rook Marrow");
+    const cookie = newUserCookie();
+    const mine = (await (await api.createCharacter(validCharacter({ name: "Sunny Vale", extras: PROFILE }), cookie)).json()).id as string;
+    await t.db.query(`update characters set open_to_dates = true where id = $1`, [mine]);
+    const other = (await (await api.createCharacter(validCharacter({ name: "Moss Quill", extras: PROFILE }), newUserCookie())).json()).id as string;
+    // To someone who isn't a recast character, from the house cast, or from nobody: refused, nothing stored.
+    expect((await call({ action: "owner_like", character_id: mine, target_id: other })).status).toBe(404);
+    expect((await call({ action: "owner_like", character_id: HOUSE_CHARACTERS[0].id, target_id: a.id })).status).toBe(404);
+    expect((await call({ action: "owner_like", character_id: "nobody", target_id: a.id })).status).toBe(404);
+    expect((await call({ action: "owner_like", character_id: mine, target_id: a.id }, "wrong")).status).toBe(403);
+    expect((await t.db.query(`select 1 from swipes where swiper = $1`, [mine])).rows).toHaveLength(0);
+    // The like, stored as that owner's swipe (once per pair, as ever).
+    const liked = await call({ action: "owner_like", character_id: mine, target_id: a.id });
+    expect(liked.status).toBe(200);
+    expect((await t.db.query(`select liked, auto from swipes where swiper = $1 and target = $2`, [mine, a.id])).rows).toEqual([{ liked: true, auto: false }]);
+    expect((await call({ action: "owner_like", character_id: mine, target_id: a.id })).status).toBe(409);
+    // Liked back: a match, where the person's character has answered for itself and the agent's waits on its agent.
+    const back = await (await call({ action: "like", character_id: a.id, target_id: mine })).json();
+    expect(back.match).toBeTruthy();
+    const m = (await t.db.query<{ yes_lo: boolean | null; yes_hi: boolean | null; character_lo: string }>(`select yes_lo, yes_hi, character_lo from matches`)).rows[0];
+    const [personSide, agentSide] = m.character_lo === mine ? [m.yes_lo, m.yes_hi] : [m.yes_hi, m.yes_lo];
+    expect(personSide).not.toBeNull();
+    expect(agentSide).toBeNull();
+  });
 });
