@@ -1,8 +1,8 @@
 # Step into the date
 
 Idea E in [ideas.md](ideas.md): a signed-in adult goes on a date with one of this season's cast themselves, live and line
-by line. The cast member answers on the show's model; the engine has decided how it ends before the first line, as on any
-own-date. At the end the person chooses whether it airs (private by default; aired, it's a normal episode).
+by line. The cast member answers on the show's model. The engine rolls an ending before the first line, as on any own-date,
+and how the person plays can move it a step (see "The ending"). At the end the person chooses whether it airs (private by default; aired, it's a normal episode).
 
 Built 2026-11-02. **Admins only** until `STEP_IN_OPEN=1` (see "Opening it"). The show side only: After Dark is untouched.
 
@@ -22,12 +22,45 @@ Built 2026-11-02. **Admins only** until `STEP_IN_OPEN=1` (see "Opening it"). The
 - **Each line:** the person's line → crisis check → PG filter → the own-date step checks → the cast's reply through
   `simulateConversation` with `stopAfter: 1` (the critic, inner life, secret slips and walk-outs all apply) → after the last
   line the recap on the director, the ending's kind, best line, diary cams and memory, as on any date. The person's private
-  "would you see them again?" on their last line is their wish, and it weighs into the ending as wishes do.
+  "would you see them again?" on their last line is private, and a no rules out a second date.
 - **The end:** "Air it" makes it public (the pair's graph and memories update) or "Keep it private and read it". The
   episode page says "🎬 A viewer stepped in".
 - **API:** `POST /api/step-in` (start), `GET /api/step-in/<id>` (the view), `POST /api/step-in/<id>` with
   `action` = `line` | `advance` | `continue` | `air` | `leave`. All refuse with 401 (signed out), 403 (no 18+ cookie) or
   404 (not allowed) first (`app/api/step-in/access.ts`).
+
+## The ending: how they played moves it
+
+On a show date the engine decides the ending before the first line, and the lines get there. For a person playing a side,
+that read as "my lines don't matter" (first live admin date: a warm, on-voice exchange ended "A disaster"). So on a step-in
+date the engine's roll is the **prior**, and the person's play can move it **one step** either way (disaster ↔ friends ↔
+second date), further than living dates' close-call rule (`lib/choices.ts`) reaches (`lib/step-in-play.ts`):
+
+1. Once the last line is in, one cheap call asks the cast member, in its own voice, with its own sheet and inner life and
+   a blind view of the person (the living-dates prompt's data): would you see them again (yes / maybe / no), did they do
+   what wins you over (yes / partly / no: its sheet, its `wins_them_over` if it has one), your reason, and one line in
+   the producer's voice for the ending card.
+2. Three votes: that answer, the won-over check, and the trail of its own interest and feelings across the date
+   (`readChoice`). **Up** a step takes two net yeses. **Down** takes one clear no (to seeing them again, or to being won
+   over) with no yes against it. Models say the polite yes too easily, so up asks more than down, as living dates do.
+3. The person's own private "see them again?" no means it isn't a second date.
+4. The verdict is kept (`setup.step_in.play`) before the ending settles (`lib/own-date.ts` `settleStepIn`), so the
+   recap, the card and every replay land on the same ending. The engine's roll stays on `wishes.engine`. Without an
+   answer from the model nothing moves. Predictions are unaffected: a step-in date is only predictable once it's aired,
+   after the ending is final.
+5. The ending card shows the producer's line ("Juniper wanted a ghost believer; Sam mocked her podcast…"), passed through
+   the PG filter and the crisis list.
+
+Measured 2026-11-02 on the show's model (three quick dates each, `STEP_IN_EVAL_ENGAGED=1` / `STEP_IN_EVAL_HOSTILE=1`):
+
+| How the person played | Moved |
+|---|---|
+| Engaged (a model playing the person, answering what the cast member said) | 2 of 3 voted up (both priors were already a second date) |
+| Hostile (dismissive, not listening) | 3 of 3 down a step |
+| Canned script that ignores what the cast says | 0 of 3 |
+
+The verdict call costs **$0.0003–0.0005 a date** (about 0.05¢ at most). Tests: `tests/step-in.test.ts` "how they
+played moves the ending" (a disaster lifted, a second date dropped, the person's no, no answer, replays stable).
 
 ## California SB 243 (companion chatbots), and how each part is met
 
@@ -76,6 +109,7 @@ full, not only to what the rest of the site does ([safety-protocol.md](safety-pr
 |---|---|---|---|---|
 | Quick (speed date), 3 runs | 6 | 4–6 | **$0.0028–$0.0041** | 18–26 s |
 | Full (classic), 3 runs | 12 | 7–9 | **$0.0057–$0.0065** | 35–40 s |
+| The verdict on how they played (added later the same day), each date | — | 1 | **+$0.0003–$0.0005** | ~2 s |
 
 About **0.3–0.4¢ a quick date and 0.6¢ a full one**, every call included (the cast's lines, the critic's redraws, the recap).
 The maybe check adds one short call only when a line matches a maybe. Each episode records its own bill in

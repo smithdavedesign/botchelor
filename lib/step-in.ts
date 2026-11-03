@@ -18,6 +18,7 @@
  * after that it's one of their dates (this week's free ones, then pack dates: lib/allowance.ts), and STEP_IN_MAX_PER_DAY
  * caps a day whatever they hold. Admins step in free.
  */
+import { judgePlay, type StepInPlay } from "./step-in-play";
 import { isAdmin } from "./admins";
 import { track, trackEpisodeCost } from "./analytics";
 import { portraitPathSql } from "./assets";
@@ -430,7 +431,7 @@ async function viewOf(db: Db, row: StepRow): Promise<StepInView> {
     paused: row.setup?.step_in?.paused === true,
     format: showFormat(formatId).label,
     visibility: row.visibility,
-    ...(row.status === "ready" ? { ending: { label: endingLabel(row.ending, built.input.date_number), kind: kind ? ENDING_DETAIL_LABELS[kind] : null, best_line: row.best_line } } : {}),
+    ...(row.status === "ready" ? { ending: { label: endingLabel(row.ending, built.input.date_number), kind: kind ? ENDING_DETAIL_LABELS[kind] : null, best_line: row.best_line, why: row.setup?.step_in?.play?.why ?? null } } : {}),
     episode_path: `/episodes/${row.id}`,
   };
 }
@@ -576,18 +577,39 @@ async function finish(db: Db, row: StepRow): Promise<boolean> {
     ...(cost ? { usage: { calls: cost.calls, input_tokens: cost.input_tokens, cached_input_tokens: 0, output_tokens: cost.output_tokens, thinking_tokens: 0, cost_usd: Number(cost.cost_usd), models: usage.models } } : {}),
   });
   const quality = transcript.length ? transcriptQuality(transcript, built.characters, qualityContext(built, draft.setting)) : null;
-  track("step_in_finished", { episode_id: row.id, ending: decided.ending, lines: transcript.length, cost_usd: cost ? Number(cost.cost_usd) : null, quality: quality?.index ?? null });
+  const play = row.setup?.step_in?.play;
+  track("step_in_finished", { episode_id: row.id, ending: decided.ending, prior: row.wishes?.engine ?? null, shift: play?.shift ?? null, play_score: play?.score ?? null, lines: transcript.length, cost_usd: cost ? Number(cost.cost_usd) : null, quality: quality?.index ?? null });
   return true;
 }
 
-/** Plays whatever the show owes: the cast member's line, then the recap once the lines are in. Nothing while paused. */
+/**
+ * The last line is in: the cast member's verdict on how the person played (lib/step-in-play.ts), kept on the episode
+ * before the ending settles, so the recap, the card and every replay land on the same ending. One cheap call.
+ */
+async function judge(db: Db, row: StepRow): Promise<boolean> {
+  const { built } = await rebuildOwnDate(db, row);
+  const counting = countingModel(getModel());
+  const play = await judgePlay(counting.model, built.characters, withInner(row.transcript ?? [], row.inner_life));
+  const saved = await db.query(
+    `update episodes set setup = jsonb_set(setup, '{step_in,play}', $2::jsonb)
+      where id = $1 and status = 'generating' and setup #> '{step_in,play}' is null returning id`,
+    [row.id, JSON.stringify(play)],
+  );
+  await addCost(db, row.id, usageOf(counting.usage(), counting.calls())).catch(() => {});
+  return saved.rows.length > 0 || Boolean((await loadPlay(db, row.id)));
+}
+
+const loadPlay = async (db: Db, id: string): Promise<StepInPlay | null> =>
+  (await db.query<{ play: StepInPlay | null }>(`select setup #> '{step_in,play}' as play from episodes where id = $1`, [id])).rows[0]?.play ?? null;
+
+/** Plays whatever the show owes: the cast member's line, the verdict, then the recap once the lines are in. Nothing while paused. */
 async function catchUp(db: Db, userId: string, episodeId: string): Promise<StepRow | null> {
   let row = await loadStep(db, userId, episodeId);
-  for (let guard = 0; row && row.status === "generating" && !row.setup?.step_in?.paused && guard < 3; guard++) {
+  for (let guard = 0; row && row.status === "generating" && !row.setup?.step_in?.paused && guard < 4; guard++) {
     const { built, decided, formatId } = await rebuildOwnDate(db, row);
     const next = nextSide(built, decided, formatId, row.transcript ?? []);
     if (next?.side === "a") break;
-    const moved = next ? await castLine(db, row) : await finish(db, row);
+    const moved = next ? await castLine(db, row) : row.setup?.step_in?.play ? await finish(db, row) : await judge(db, row);
     row = await loadStep(db, userId, episodeId);
     if (!moved) break;
   }

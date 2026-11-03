@@ -260,6 +260,7 @@ export default function StepInStage({ initial, initialCrisis }: { initial: StepI
             {view.ending.label}
           </h2>
           {view.ending.kind && <p className="chip">{view.ending.kind}</p>}
+          {view.ending.why && <p className="stepin-why">{view.ending.why}</p>}
           {view.ending.best_line && <blockquote className="stepin-best">“{view.ending.best_line}”</blockquote>}
           {view.visibility === "private" ? (
             <>

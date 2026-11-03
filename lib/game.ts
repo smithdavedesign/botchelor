@@ -191,6 +191,8 @@ export type StepInSetup = {
   /** The person's lines tripped the self-harm check: the date waits until they choose to go on (lib/crisis.ts). */
   paused?: boolean;
   cost?: { calls: number; input_tokens: number; output_tokens: number; cost_usd: number };
+  /** How they played, in the cast member's eyes (lib/step-in-play.ts): kept before the ending settles, so it moves it once. */
+  play?: import("./step-in-play").StepInPlay;
 };
 
 export type BoxScore = Record<DateVariable, VariableArc>;
