@@ -203,6 +203,9 @@ describe("the recast (POST /api/admin/recast)", () => {
     const b = await agentCharacter("Wren Dusk");
     const ranked = await (await call({ action: "rank", character_id: a.id })).json();
     expect(ranked.matches.map((m: { id: string }) => m.id)).toContain(b.id);
+    // Deep enough to see the whole deck (house cast and people's characters past the agents' top 20); no further.
+    expect((await call({ action: "rank", character_id: a.id, limit: 200 })).status).toBe(200);
+    expect((await call({ action: "rank", character_id: a.id, limit: 201 })).status).toBe(422);
     const liked = await call({ action: "like", character_id: a.id, target_id: b.id });
     expect(liked.status).toBe(200);
     const back = await (await call({ action: "like", character_id: b.id, target_id: a.id })).json();
