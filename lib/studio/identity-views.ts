@@ -38,7 +38,8 @@ export function identityViewPrompt(view: IdentityViewId, subject: ViewSubject, o
     `${v.words[0].toUpperCase()}${v.words.slice(1)}, against a plain light-grey studio backdrop, soft even light, sharp focus on the face.`,
     worn,
     "One person only.",
-    opts.pg ? "Fully clothed, tasteful and everyday, safe for work. Photorealistic. Everyone shown is an adult." : "Photorealistic. Everyone shown is an adult.",
+    // A given outfit is worn as described: "everyday" toned costumes down (the recast's pirates came out in plain clothes).
+    opts.pg ? `Fully clothed, tasteful${opts.outfit ? "" : " and everyday"}, safe for work. Photorealistic. Everyone shown is an adult.` : "Photorealistic. Everyone shown is an adult.",
   ].join(" ");
 }
 

@@ -51,6 +51,9 @@ describe("the identity pack's views", () => {
     expect(identityViewPrompt("full_body", { noun: "man", age: 30, look: "" }, { body: true })).toContain("from Picture 1, with the body from Picture 2");
     expect(identityViewPrompt("front", { noun: "man", age: 30, look: "" }, { body: true })).not.toContain("Picture 2");
     expect(identityViewPrompt("front", { noun: "man", age: 30, look: "" }, { outfit: "a navy suit" })).toContain("Wearing a navy suit.");
+    expect(identityViewPrompt("front", { noun: "man", age: 30, look: "" }, { pg: true })).toContain("Fully clothed, tasteful and everyday, safe for work.");
+    const costume = identityViewPrompt("full_body", { noun: "man", age: 30, look: "" }, { pg: true, outfit: "a pirate captain's long coat and tricorn hat" });
+    expect(costume).toContain("Wearing a pirate captain's long coat and tricorn hat. One person only. Fully clothed, tasteful, safe for work.");
   });
 
   it("pick the view for a picture's angle, the nearest one when it's missing, and price a redraw at its share", () => {
