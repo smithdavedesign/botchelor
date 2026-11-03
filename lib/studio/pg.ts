@@ -365,6 +365,38 @@ export async function pgIdentityPack(db: Db, viewer: string | null, characterId:
   if (!admin && used + asked > config.monthly_cap) return fail(429, "over_cap", `That's ${asked} and ${Math.max(0, config.monthly_cap - used)} are left this month. They reset on the 1st.`);
   const tokens = admin ? 0 : identityPrice(config.identity_price, asked);
   if (tokens > 0 && !(await spendBoughtTokens(db, owner, tokens))) return fail(402, "needs_tokens", `That's ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the shop page.`);
+  return drawIdentityViews(db, { owner, c, config, venice: keys.venice, face, views, tokens });
+}
+
+/**
+ * The show's own identity views of an agent-made character (the recast, 2026-11-02: every recast character gets a
+ * full-body reference): the pack's drawing and check exactly, kept as its owner's pictures, but the show pays (no tokens,
+ * no monthly cap, whatever the Studio's opening). `outfit`: what they wear in it (their costume), in the show's PG words.
+ * The caller (an admin route) decides who may ask.
+ */
+export async function showIdentityViews(db: Db, characterId: string, views: IdentityViewId[], baseUrl: string, outfit: string | null = null): Promise<PgShootResult> {
+  const c = await loadCharacter(db, characterId);
+  if (!c || c.house || !c.ownerId) return fail(404, "not_found", "No owned character with that id.");
+  const wanted = IDENTITY_VIEW_IDS.filter((v) => views.includes(v));
+  if (!wanted.length) return fail(422, "unknown_view", "Pick the views to draw.");
+  const worn = outfit?.trim() || null;
+  if (worn && !checkPgPictureText({ outfit: worn }).ok) return fail(422, "content_rejected", "The outfit's words don't pass the show's PG check.");
+  const face = await faceReference(db, c, baseUrl);
+  if (!face) return fail(409, "no_face", "Give them a portrait first: the pack is drawn from their face.");
+  const keys = await adultKeys(db);
+  if (!keys.venice) return fail(409, "not_set_up", "The Studio needs a Venice key in the settings.");
+  const config = (await getAdultSettings(db)).studio.pg;
+  return drawIdentityViews(db, { owner: c.ownerId, c, config, venice: keys.venice, face, views: wanted, tokens: 0, outfit: worn, pgOnly: true });
+}
+
+/** Draws, checks and keeps identity views (the pack's core): `tokens` were already taken, and are given back if none come through. */
+async function drawIdentityViews(
+  db: Db,
+  args: { owner: string; c: Character; config: PgConfig; venice: string; face: string; views: IdentityViewId[]; tokens: number; outfit?: string | null; pgOnly?: boolean },
+): Promise<PgShootResult> {
+  const { owner, c, config, face, views, tokens } = args;
+  const keys = { venice: args.venice };
+  const asked = views.length;
   const subject = pgSubject(c);
   const from = faceKey(face);
   const id = crypto.randomUUID();
@@ -375,7 +407,7 @@ export async function pgIdentityPack(db: Db, viewer: string | null, characterId:
   const drawn: ({ view: IdentityViewId; prompt: string } & ({ file: { bytes: Buffer; mime: string } } | { error: string }))[] = [];
   for (let i = 0; i < views.length; i += 4) {
     const batch = views.slice(i, i + 4).map((view) => {
-      const prompt = identityViewPrompt(view, subject, { pg: true });
+      const prompt = identityViewPrompt(view, subject, { pg: true, outfit: args.outfit ?? null });
       return drawPg(keys.venice!, config, prompt, [face]).then(
         (file) => ({ view, prompt, file }),
         (err: unknown) => ({ view, prompt, error: err instanceof Error ? err.message.slice(0, 200) : "error" }),
@@ -395,6 +427,11 @@ export async function pgIdentityPack(db: Db, viewer: string | null, characterId:
     const v = await checkRating(db, { base64: d.file.bytes.toString("base64"), mime: d.file.mime }, { beach: false });
     if (!v.ok) {
       lastError = v.reason;
+      continue;
+    }
+    // The show's own views (showIdentityViews) are references for its PG pictures: clothed only.
+    if (args.pgOnly && v.rating !== "pg") {
+      lastError = "the PG check rated it suggestive";
       continue;
     }
     const pid = crypto.randomUUID();
