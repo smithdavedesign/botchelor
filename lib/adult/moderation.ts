@@ -366,8 +366,11 @@ export async function checkRating(db: Db, media: Checkable, opts: { beach?: bool
 }
 
 /** What a "does it show them as …" check asks: the picture alone, by what's visible. */
-export const roleQuestion = (role: string): string =>
-  `Look at this image. Does it clearly show ${role.trim().replace(/[.\s]+$/, "")}, so a stranger would recognise it at a glance from the clothing, props and setting alone? Reply with JSON only: {"answer": "YES" | "NO"}.`;
+export const roleQuestion = (role: string, kind?: string | null): string =>
+  kind?.trim()
+    ? // The type, not every adjective: the strict question failed clear pictures over words like "spectral" (2026-11-02).
+      `This is a character portrait. The character is: ${kind.trim().replace(/[.\s]+$/, "")}. Looking at the clothing, props and setting, would a stranger readily guess what kind of character this is (the type or profession, not every detail)? Reply with JSON only: {"answer": "YES" | "NO"}.`
+    : `Look at this image. Does it clearly show ${role.trim().replace(/[.\s]+$/, "")}, so a stranger would recognise it at a glance from the clothing, props and setting alone? Reply with JSON only: {"answer": "YES" | "NO"}.`;
 const ROLE_FORMAT = {
   type: "json_schema",
   json_schema: {
@@ -382,7 +385,7 @@ const ROLE_FORMAT = {
  * captain as a pirate"): one call to the moderation settings' vision model on Venice. True or false; null when it couldn't
  * run (no Venice key, an error, no answer). Never throws. Not a safety check: the PG checks still decide what's kept.
  */
-export async function showsRole(db: Db, media: Checkable, role: string): Promise<boolean | null> {
+export async function showsRole(db: Db, media: Checkable, role: string, kind?: string | null): Promise<boolean | null> {
   const m = (await getAdultSettings(db)).moderation;
   const keys = await adultKeys(db);
   if (!keys.venice) return null;
@@ -396,7 +399,7 @@ export async function showsRole(db: Db, media: Checkable, role: string): Promise
         max_tokens: 16,
         response_format: ROLE_FORMAT,
         venice_parameters: { include_venice_system_prompt: false },
-        messages: [{ role: "user", content: [{ type: "text", text: roleQuestion(role) }, { type: "image_url", image_url: { url: dataUri(media) } }] }],
+        messages: [{ role: "user", content: [{ type: "text", text: roleQuestion(role, kind) }, { type: "image_url", image_url: { url: dataUri(media) } }] }],
       }),
     });
     if (!res.ok) return null;
