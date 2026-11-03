@@ -68,6 +68,7 @@ import { loadChain } from "./text-chain";
 import { pairKey } from "./relationships";
 import { dateShape, moveCost, moveProblem, placesOf, segmentBudget, settleLine, type DateShape } from "./moves";
 import { venueName, venuePhrase, type PlaceId } from "./venues";
+import { applyPlay } from "./step-in-play";
 import { applyWishes, resolveWishes, settledWishes, type StoredWishes, wishReport, wishRule } from "./wishes";
 import { dateHeading, forTwoAgents, headingLine, nearSecondDate, type Heading } from "./heading";
 
@@ -969,6 +970,7 @@ async function rebuild(db: Db, row: Row) {
  * after: the wishes are frozen with the last line, and the roll is seeded by the date.
  */
 async function settleEnding(db: Db, row: Row, decided: Outcome, seed: number): Promise<Outcome> {
+  if (isStepIn(row)) return settleStepIn(db, row, decided);
   const transcript = row.transcript ?? [];
   // #728: on a date agents perform under engine v4+, the wishes are a rule (lib/wishes.ts liftEnding), not a roll.
   const rule = wishRule(true, row.setup?.engine_version, decided.margin);
@@ -977,6 +979,29 @@ async function settleEnding(db: Db, row: Row, decided: Outcome, seed: number): P
   if (!row.wishes?.engine && row.status === "generating") {
     // 2.10.0: which sides sent see_again (before settling, row.wishes holds only those), so the finished date can say.
     const kept = settledWishes(wishes, decided.ending, { a: typeof row.wishes?.a === "boolean", b: typeof row.wishes?.b === "boolean" });
+    await db.query(
+      `update episodes set ending = $2, drama_question = $3, drama_answer = $4, sides = $5::jsonb, wishes = $6::jsonb
+        where id = $1 and status = 'generating' and jsonb_array_length(transcript) = $7`,
+      [row.id, final.ending, final.drama_question, final.drama_answer, JSON.stringify(final.sides), JSON.stringify(kept), transcript.length],
+    );
+    row.wishes = kept;
+    row.ending = final.ending;
+  }
+  return final;
+}
+
+/**
+ * A step-in date's ending (lib/step-in-play.ts): the engine's roll moved by how the person played, once the cast member's
+ * verdict is kept (lib/step-in.ts judges it before the recap). Until then it's the engine's, and nothing is kept.
+ */
+async function settleStepIn(db: Db, row: Row, decided: Outcome): Promise<Outcome> {
+  const play = row.setup?.step_in?.play;
+  if (!play) return decided;
+  const transcript = row.transcript ?? [];
+  const personWish = typeof row.wishes?.a === "boolean" ? row.wishes.a : null;
+  const final = applyPlay(decided, play, personWish);
+  if (!row.wishes?.engine && row.status === "generating") {
+    const kept: StoredWishes = { ...(personWish === null ? {} : { a: personWish }), engine: decided.ending, sent: { a: personWish !== null, b: false } };
     await db.query(
       `update episodes set ending = $2, drama_question = $3, drama_answer = $4, sides = $5::jsonb, wishes = $6::jsonb
         where id = $1 and status = 'generating' and jsonb_array_length(transcript) = $7`,

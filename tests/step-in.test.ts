@@ -2,6 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { POST as startRoute } from "@/app/api/step-in/route";
 import { GET as viewRoute, POST as actRoute } from "@/app/api/step-in/[id]/route";
 import { deleteAccount } from "@/lib/account";
+import { loadOwnDate, rebuildOwnDate } from "@/lib/own-date";
+import { playEnding, playShift } from "@/lib/step-in-play";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -27,7 +29,9 @@ const OFF_CAST = HOUSE_CHARACTERS[2];
 let risk: "true" | "false" | "throw" = "false";
 /** Lines the cast says next, before the usual ones (to test a line that must never be said). */
 let castNext: string[] = [];
-let calls: { kind: "turn" | "recap" | "crisis" | "other"; messages: ChatMessage[] }[] = [];
+let calls: { kind: "turn" | "recap" | "crisis" | "play" | "other"; messages: ChatMessage[] }[] = [];
+/** The cast member's verdict on how the person played (lib/step-in-play.ts): neutral unless a test says. */
+let playReply: string | "throw" = JSON.stringify({ see_again: "maybe", won_over: "partly", reason: "Nice enough.", why: "It never quite caught." });
 const CAST_LINES = [
   "You found the one table that wobbles. I respect that.",
   "So what brings someone like you to a place like this on a weeknight?",
@@ -52,6 +56,11 @@ function routedModel() {
         if (risk === "throw") throw new Error("model down");
         return `{"risk": ${risk}}`;
       }
+      if (system.startsWith("You have just finished a date")) {
+        calls.push({ kind: "play", messages });
+        if (playReply === "throw") throw new Error("model down");
+        return playReply;
+      }
       if (system.startsWith("You are the showrunner")) {
         calls.push({ kind: "recap", messages });
         return episodeJson();
@@ -75,6 +84,7 @@ beforeEach(async () => {
   scriptOutcome({ ending: "friends" });
   risk = "false";
   castNext = [];
+  playReply = JSON.stringify({ see_again: "maybe", won_over: "partly", reason: "Nice enough.", why: "It never quite caught." });
   calls = [];
   routedModel();
 });
@@ -346,5 +356,83 @@ describe("account deletion", () => {
     await deleteAccount(t.db, admin.id);
     const ep = (await t.db.query<Any>(`select e.visibility, c.name, c.owner_id from episodes e join characters c on c.id = e.character_a where e.id = $1`, [body.episode_id])).rows[0];
     expect(ep).toEqual({ visibility: "private", name: "A former viewer", owner_id: "deleted" });
+  });
+});
+
+describe("how they played moves the ending", () => {
+  const verdict = (see_again: string, won_over: string, why: string) => JSON.stringify({ see_again, won_over, reason: "Honestly.", why });
+  async function played(prior: "second_date" | "friends" | "disaster", reply: string | "throw", seeAgain?: boolean) {
+    scriptOutcome({ ending: prior });
+    playReply = reply;
+    const admin = await person({ admin: true });
+    const id = (await start(admin.cookie)).body.episode_id as string;
+    const done = await playThrough(admin.cookie, id, seeAgain);
+    expect(done.body.view.state).toBe("done");
+    const ep = (await t.db.query<Any>(`select ending, wishes, setup from episodes where id = $1`, [id])).rows[0];
+    return { admin, id, done, ep };
+  }
+
+  it("scores three votes and moves at most one step", () => {
+    expect(playShift("yes", "yes", "maybe")).toEqual({ score: 2, shift: 1 });
+    expect(playShift("yes", "partly", "maybe")).toEqual({ score: 1, shift: 0 });
+    expect(playShift("no", "no", "no")).toEqual({ score: -3, shift: -1 });
+    // Down needs only a clear no with no yes against it (models say the polite yes too easily).
+    expect(playShift("maybe", "no", "maybe")).toEqual({ score: -1, shift: -1 });
+    expect(playShift("no", "partly", "yes")).toEqual({ score: 0, shift: 0 });
+    expect(playShift("maybe", "partly", "no")).toEqual({ score: -1, shift: 0 });
+    expect(playEnding("disaster", { shift: 1 }, null)).toBe("friends");
+    expect(playEnding("second_date", { shift: 1 }, null)).toBe("second_date");
+    expect(playEnding("disaster", { shift: -1 }, null)).toBe("disaster");
+    expect(playEnding("friends", { shift: 1 }, false)).toBe("friends");
+  });
+
+  it("an engaged, on-sheet exchange lifts a disaster to friends, and the card says why", async () => {
+    const { done, ep } = await played("disaster", verdict("yes", "yes", "Juniper liked the ghost talk; the gull bit nearly lost her."));
+    expect(ep.ending).toBe("friends");
+    expect(ep.wishes.engine).toBe("disaster");
+    expect(ep.setup.step_in.play).toMatchObject({ see_again: "yes", won_over: "yes", shift: 1 });
+    expect(done.body.view.ending.why).toBe("Juniper liked the ghost talk; the gull bit nearly lost her.");
+    expect(calls.filter((c) => c.kind === "play")).toHaveLength(1);
+    // The verdict call is the cast member's own: its sheet, a blind view of the person, the lines both heard.
+    const asked = JSON.stringify(calls.find((c) => c.kind === "play")!.messages);
+    expect(asked).toContain("old maps of cities that never existed");
+    // The recap is written after, on the ending it moved to.
+    const recap = calls.findIndex((c) => c.kind === "recap");
+    expect(recap).toBeGreaterThan(calls.findIndex((c) => c.kind === "play"));
+  });
+
+  it("a hostile exchange drops a second date to friends", async () => {
+    const { ep, done } = await played("second_date", verdict("no", "no", "Juniper wanted ghosts; she got a lecture on why ghosts aren't real."));
+    expect(ep.ending).toBe("friends");
+    expect(ep.wishes.engine).toBe("second_date");
+    expect(ep.setup.step_in.play.shift).toBe(-1);
+    expect(done.body.view.ending.label).toBeTruthy();
+  });
+
+  it("never a second date the person said no to", async () => {
+    const { ep } = await played("friends", verdict("yes", "yes", "Juniper was smitten."), false);
+    expect(ep.ending).toBe("friends");
+    expect(ep.wishes).toMatchObject({ a: false, engine: "friends" });
+  });
+
+  it("no answer from the model: the engine's ending stands", async () => {
+    const { ep, done } = await played("disaster", "throw");
+    expect(ep.ending).toBe("disaster");
+    expect(ep.setup.step_in.play).toMatchObject({ shift: 0, read: true, why: null });
+    expect(done.body.view.ending.why).toBeNull();
+  });
+
+  it("replays read the same ending: the verdict is asked once and kept", async () => {
+    const { admin, id, ep } = await played("disaster", verdict("yes", "yes", "Sam found the ghost stories."));
+    expect(ep.ending).toBe("friends");
+    // Whatever the model would say now, the kept verdict decides.
+    playReply = verdict("no", "no", "Changed my mind.");
+    const row = await loadOwnDate(t.db, admin.id, id);
+    const again = await rebuildOwnDate(t.db, row!);
+    expect(again.decided.ending).toBe("friends");
+    const view = await viewRoute(req(`/api/step-in/${id}`, null, admin.cookie, "GET"), ctx(id));
+    expect(((await view.json()) as Any).view.ending.why).toBe("Sam found the ghost stories.");
+    expect(calls.filter((c) => c.kind === "play")).toHaveLength(1);
+    expect((await t.db.query<Any>(`select ending from episodes where id = $1`, [id])).rows[0].ending).toBe("friends");
   });
 });

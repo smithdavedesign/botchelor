@@ -38,6 +38,7 @@ export type StepInView = {
   format: string;
   visibility: string;
   /** Once it's done: how it ended (the reveal) and where it lives. */
-  ending?: { label: string; kind: string | null; best_line: string | null };
+  /** why: the producer's one line on how they played (lib/step-in-play.ts), when the cast member gave one. */
+  ending?: { label: string; kind: string | null; best_line: string | null; why?: string | null };
   episode_path: string;
 };

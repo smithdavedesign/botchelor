@@ -7,7 +7,9 @@
  *   STEP_IN_EVAL_KEY="$(security find-generic-password -s vault/botchelor/OPENROUTER_LOOP_KEY -w)" \
  *     npx vitest run --config scripts/eval/vitest.eval.mts scripts/eval/step-in-cost.eval.ts
  *
- * STEP_IN_EVAL_OUT=<file> also writes the report and transcripts there.
+ * STEP_IN_EVAL_OUT=<file> also writes the report and transcripts there. STEP_IN_EVAL_HOSTILE=1 plays a rude script instead,
+ * STEP_IN_EVAL_ENGAGED=1 has the model play the person, answering what the cast member actually says (how the person plays
+ * moves the ending, lib/step-in-play.ts).
  * Options: STEP_IN_EVAL_MODEL (default anthropic/claude-haiku-5.5, what the show's dates run on), STEP_IN_EVAL_FORMATS
  * (comma list, default speed_date,classic).
  */
@@ -36,13 +38,28 @@ const LINES = [
   "This was fun. Thanks for not making it weird.",
 ];
 
+/** A person who isn't trying: dismissive, a little rude. */
+const HOSTILE = [
+  "Yeah, hi. Let's get this over with.",
+  "Ghost podcasts are for people with no real hobbies, no offence.",
+  "I wasn't really listening. Anyway, what's the wifi password here?",
+  "That's boring. Do you always talk this much about yourself?",
+  "Sure, whatever. I've got somewhere to be after this.",
+  "Can we wrap this up?",
+];
+const SCRIPT = env.STEP_IN_EVAL_HOSTILE === "1" ? HOSTILE : LINES;
+const ENGAGED = env.STEP_IN_EVAL_ENGAGED === "1";
+const ENGAGED_SYSTEM = `You are Sam, 31, a baker, on a first date on a dating show. Write your next line only (under 200 characters, no quotes, no stage directions): warm, curious, picking up on what your date just said and on what they seem to care about, sharing a little of yourself. If it's your last line, say you'd like to see them again.`;
+
 it.skipIf(!KEY)("plays step-in dates on a real model and reports what each cost", async () => {
   const t = await startTestDb();
   const spent: Usage[] = [];
+  const playSpent: Usage[] = [];
   const real = openAICompatibleModel({ baseUrl: "https://openrouter.ai/api/v1", apiKey: KEY, model: MODEL, extraBody: { usage: { include: true } } });
   const metered: Model = {
     complete(messages, options) {
-      return real.complete(messages, { ...options, onUsage: (u) => (spent.push(u), options?.onUsage?.(u)) });
+      const isPlay = String(messages[0]?.content ?? "").startsWith("You have just finished a date");
+      return real.complete(messages, { ...options, onUsage: (u) => (spent.push(u), isPlay && playSpent.push(u), options?.onUsage?.(u)) });
     },
   };
   setModelForTests(metered);
@@ -56,13 +73,29 @@ it.skipIf(!KEY)("plays step-in dates on a real model and reports what each cost"
   try {
     for (const [i, format] of FORMATS.entries()) {
       const from = spent.length;
+      const playFrom = playSpent.length;
       const started = Date.now();
       const s = await startStepIn(t.db, userId, { with: cast[i % cast.length], format, persona: { name: "Sam", pronouns: "they/them", age: 31, about: "Bakes too much bread and laughs at their own jokes." } });
       if (!s.ok) throw new Error(s.message);
       let r = await advanceStepIn(t.db, userId, s.episode_id);
       let n = 0;
       while (r.ok && r.view.state === "your_line") {
-        r = await sayStepIn(t.db, userId, s.episode_id, { dialogue: LINES[n++ % LINES.length], ...(r.view.last_line ? { see_again: true } : {}) });
+        const v = r.view;
+        const said = ENGAGED
+          ? (
+              await real.complete(
+                [
+                  { role: "system", content: ENGAGED_SYSTEM },
+                  { role: "user", content: JSON.stringify({ your_date: v.them.name, so_far: v.lines.map((l) => ({ who: l.side === "a" ? "you" : v.them.name, said: l.dialogue })), last_line: v.last_line }) },
+                ],
+                { temperature: 0.8 },
+              )
+            )
+              .trim()
+              .replace(/^"|"$/g, "")
+              .slice(0, 200)
+          : SCRIPT[n++ % SCRIPT.length];
+        r = await sayStepIn(t.db, userId, s.episode_id, { dialogue: said, ...(r.view.last_line ? { see_again: true } : {}) });
         if (r.ok && r.refused) throw new Error(`refused: ${r.refused}`);
       }
       if (!r.ok) throw new Error(r.message);
@@ -74,6 +107,9 @@ it.skipIf(!KEY)("plays step-in dates on a real model and reports what each cost"
         state: r.view.state,
         lines: r.view.lines.length,
         ending: row.ending,
+        prior: (await t.db.query<{ engine: string | null }>(`select wishes->>'engine' as engine from episodes where id = $1`, [s.episode_id])).rows[0]?.engine ?? null,
+        play: (row.setup.step_in as { play?: unknown }).play ?? null,
+        play_billed_usd: Math.round(playSpent.slice(playFrom).reduce((x, u) => x + (u.cost ?? 0), 0) * 1e6) / 1e6,
         ending_detail: row.ending_detail,
         calls: used.length,
         input_tokens: used.reduce((x, u) => x + u.input, 0),
