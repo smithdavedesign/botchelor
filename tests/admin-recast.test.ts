@@ -56,7 +56,8 @@ async function agentCharacter(name: string, opts: { open?: boolean } = {}) {
 }
 
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-function fakes(clothing = "CLOTHED") {
+/** `roles`: the "does it read as them?" answers in order (then YES). */
+function fakes(clothing = "CLOTHED", roles: ("YES" | "NO")[] = []) {
   const asked: string[] = [];
   setMediaFetchForTests(async (_input: RequestInfo | URL, init?: RequestInit) => {
     asked.push(String(JSON.parse(String(init?.body ?? "{}")).prompt ?? ""));
@@ -68,8 +69,12 @@ function fakes(clothing = "CLOTHED") {
   });
   // The show's check answers SAFE/UNSAFE; the rating check names the clothing.
   setModerationFetchForTests(async (_input: RequestInfo | URL, init?: RequestInit) => {
-    const showCheck = String(init?.body ?? "").includes("pg_check");
-    const content = showCheck ? { answer: clothing === "NUDITY" ? "UNSAFE" : "SAFE" } : { clothing, age: "ADULTS" };
+    const body = String(init?.body ?? "");
+    const content = body.includes("role_check")
+      ? { answer: roles.shift() ?? "YES" }
+      : body.includes("pg_check")
+        ? { answer: clothing === "NUDITY" ? "UNSAFE" : "SAFE" }
+        : { clothing, age: "ADULTS" };
     return Response.json({ choices: [{ message: { content: JSON.stringify(content) } }] });
   });
   return asked;
@@ -132,6 +137,33 @@ describe("the recast (POST /api/admin/recast)", () => {
     fakes("NUDITY");
     expect((await call({ action: "portrait", character_id: a.id })).status).toBe(422);
     expect((await t.db.query(`select 1 from character_assets where character_id = $1`, [a.id])).rows).toHaveLength(1);
+  });
+
+  it("draws them as who they are, and redraws once with the props pushed when the picture doesn't read as it", async () => {
+    const a = await agentCharacter("Rook Marrow");
+    const role = { role: "a pirate captain", props: "a red tricorn hat and a brass telescope", scene: "the deck of a tall ship" };
+    let asked = fakes("CLOTHED", ["YES"]);
+    let out = await (await call({ action: "portrait", character_id: a.id, look: "a weathered woman in her forties", ...role })).json();
+    expect(out).toMatchObject({ ok: true, role_ok: true, tries: 1 });
+    expect(asked[0]).toContain("They are a pirate captain, with a red tricorn hat and a brass telescope. Behind them, the deck of a tall ship.");
+    // A miss, then a pass: the pushed one is kept.
+    asked = fakes("CLOTHED", ["NO", "YES"]);
+    out = await (await call({ action: "portrait", character_id: a.id, ...role })).json();
+    expect(out).toMatchObject({ ok: true, role_ok: true, tries: 2 });
+    expect(asked[1]).toContain("unmistakable at a glance that they are a pirate captain");
+    // Two misses: kept, flagged, never a third try.
+    asked = fakes("CLOTHED", ["NO", "NO"]);
+    out = await (await call({ action: "portrait", character_id: a.id, ...role })).json();
+    expect(out).toMatchObject({ ok: true, role_ok: false, tries: 2 });
+    expect(asked).toHaveLength(2);
+    // The body: a miss isn't kept, the pushed one is, flagged.
+    asked = fakes("CLOTHED", ["NO", "NO"]);
+    const body = await (await call({ action: "body", character_id: a.id, outfit: "a long navy coat and boots", ...role })).json();
+    expect(body).toMatchObject({ ok: true, made: 1, role_ok: false, tries: 2 });
+    expect(asked[1]).toContain("unmistakably a pirate captain");
+    expect((await t.db.query(`select 1 from studio_pg_pictures where character_id = $1`, [a.id])).rows).toHaveLength(1);
+    // Words that aren't PG in the role are refused before anything is drawn.
+    expect((await call({ action: "portrait", character_id: a.id, role: "a pirate captain", props: "a lacy corset" })).status).toBe(422);
   });
 
   it("draws their full body from that face, in their costume, kept as their owner's picture and paid by the show", async () => {
