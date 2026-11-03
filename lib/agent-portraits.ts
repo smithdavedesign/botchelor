@@ -48,12 +48,16 @@ export function strictPortraitPrompt(look: string, age: number): string {
 /** A first try the check didn't call PG (suggestive or nude): those get one stricter try. */
 const SECOND_TRY = `t.note ~ '(suggestive|nudity|sexual)' and t.note not like 'second try:%'`;
 
-/** The public agent-made characters with no portrait at all: none tried yet, or due their second, stricter try. */
-export async function portraitTargets(db: Db, limit = 1000): Promise<string[]> {
+/**
+ * The characters with no portrait at all: none tried yet, or due their second, stricter try. By default the public
+ * agent-made ones (the admin's batch); `all` is every character on the site but the house cast (lib/default-portraits.ts,
+ * David 2026-11-03: every character has a headshot, whoever made it).
+ */
+export async function portraitTargets(db: Db, limit = 1000, opts: { all?: boolean } = {}): Promise<string[]> {
   return (
     await db.query<{ id: string }>(
       `select ch.id from characters ch
-        where ch.created_via = 'mcp' and ch.visibility = 'public' and not ch.is_house
+        where ${opts.all ? "true" : "ch.created_via = 'mcp' and ch.visibility = 'public'"} and not ch.is_house
           -- Never one taken off the show (lib/account.ts adminRemoveCharacters, or its owner's delete).
           and ch.owner_id is distinct from '${DELETED_OWNER}'
           and not exists (select 1 from character_assets a where a.character_id = ch.id and a.kind = 'portrait')
@@ -106,9 +110,9 @@ export async function drawShowPortrait(db: Db, characterId: string): Promise<Por
 }
 
 /** The next few portraits. `left`: how many are still to try after these. */
-export async function portraitBatch(db: Db, size = PORTRAIT_BATCH): Promise<{ ok: true; results: PortraitTry[]; left: number }> {
-  const todo = await portraitTargets(db, size);
+export async function portraitBatch(db: Db, size = PORTRAIT_BATCH, opts: { all?: boolean } = {}): Promise<{ ok: true; results: PortraitTry[]; left: number }> {
+  const todo = await portraitTargets(db, size, opts);
   const results: PortraitTry[] = [];
   for (let i = 0; i < todo.length; i += AT_ONCE) results.push(...(await Promise.all(todo.slice(i, i + AT_ONCE).map((id) => drawShowPortrait(db, id)))));
-  return { ok: true, results, left: (await portraitTargets(db)).length };
+  return { ok: true, results, left: (await portraitTargets(db, 1000, opts)).length };
 }
