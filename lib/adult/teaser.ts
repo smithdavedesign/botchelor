@@ -6,7 +6,7 @@
  * wrote): one person's private scenes are never even hinted at to anyone else.
  */
 import type { Db } from "../db";
-import { portraitPathSql } from "../assets";
+import { portraitPathSql } from "../portrait-sql";
 import { pairKey } from "../relationships";
 
 export type Teaser = { a: { id: string; name: string; portrait: string | null }; b: { id: string; name: string; portrait: string | null }; lines: number; path: string };

@@ -19,7 +19,7 @@
  */
 import { isAdmin } from "../admins";
 import type { Db } from "../db";
-import { portraitPathSql } from "../assets";
+import { portraitPathSql } from "../portrait-sql";
 import { pairKey } from "../relationships";
 import { checkAdultText, checkShowText } from "../safety";
 import { lastSeasonOn, seasonCastIds } from "../season-cast";

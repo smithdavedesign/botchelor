@@ -23,7 +23,7 @@
  * Read-only. Nothing here touches money: no orders, no prices, no amounts (the owner's rule).
  */
 import { addDays, dayDiff, daysBetween, isDay, isoDay, weekOf } from "./chart";
-import { portraitPathSql } from "./assets";
+import { portraitPathSql } from "./portrait-sql";
 import type { Db } from "./db";
 import { loadOurIds, OUR_TRAFFIC, peopleCountedFrom, SYSTEM_ID } from "./our-traffic";
 import { PEOPLE_ACTS_SQL } from "./people-acts";

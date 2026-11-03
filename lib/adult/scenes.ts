@@ -51,7 +51,7 @@ import { scenarioById, type Scenario } from "./scenarios";
 import { venueSituation } from "./scene-catalog";
 import { carryDoing, cleanDoing } from "./doing";
 import { FACES, isFace, type Face } from "./faces";
-import { portraitPathSql } from "../assets";
+import { portraitPathSql } from "../portrait-sql";
 import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
 import { picturesBlocked } from "./readiness";
 import { pictureNoteKind } from "./picture-notes";
