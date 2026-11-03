@@ -564,15 +564,13 @@ export default function CreateWizard({
       });
       if (status === 201) {
         trackConversion("character_created", { open_to_dates: openToDates });
-        const looksPicked = Boolean(normaliseExtras(extras).looks?.gender);
-        setCreated({ id: String(data.id), name: String(data.name), hue: typeof data.hue === "number" ? data.hue : null, drawing: looksPicked });
+        setCreated({ id: String(data.id), name: String(data.name), hue: typeof data.hue === "number" ? data.hue : null });
         // The site's nav is in the root layout, which a client-side link keeps: refresh it so it becomes the owner's
         // (Swipe, Matches) now that there's a character.
         router.refresh();
         // The next screen starts at the top ("Who should … meet?", and the way back), not where the form ended.
         window.scrollTo({ top: 0 });
-        // Looks picked: draw their portrait from them in the background (free, capped; lib/looks-draw.ts).
-        if (looksPicked) void fetch(`/api/characters/${String(data.id)}/looks-portrait`, { method: "POST" }).catch(() => {});
+        // Their portrait is drawn by the server after the save (lib/default-portraits.ts): from the looks picked, else their bio.
         try {
           localStorage.removeItem(DRAFT_KEY);
         } catch {
@@ -1407,9 +1405,8 @@ function reviewExtras(extras: CharacterExtras): Record<"voice" | "look" | "profi
 /* ------------------------------- phase two: send on a date ------------------------------- */
 
 type SendProps = {
-  /** `taken`: their partner when they're with someone and want only them; then only that date is on offer. `drawing`:
-   *  just created with looks picked, so their free portrait is being drawn. */
-  character: { id: string; name: string; hue?: number | null; portrait?: string | null; taken?: { id: string; name: string } | null; drawing?: boolean };
+  /** `taken`: their partner when they're with someone and want only them; then only that date is on offer. */
+  character: { id: string; name: string; hue?: number | null; portrait?: string | null; taken?: { id: string; name: string } | null };
   partners: Partner[];
   openCharacters: OpenCharacter[];
   swipeGate: boolean;
@@ -1800,16 +1797,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
       {/* Their picture in a line, last (2026-10-31 UX audit: a "✨ Pro Portrait" card here contradicted the free portrait
           being drawn). The portrait on your own key stays on their edit page. */}
       {!character.portrait && (
-        <p className="muted send-portrait">
-          {character.drawing ? (
-            `📸 ${first}'s portrait is being drawn from their looks, free. It shows on their card when it's ready.`
-          ) : (
-            <>
-              📸 Pick {first}&apos;s looks on <Link href={`/characters/${character.id}/edit`}>their edit page</Link> and their portrait
-              is drawn from them, free.
-            </>
-          )}
-        </p>
+        <p className="muted send-portrait">📸 {first}&apos;s portrait is being drawn, free. It shows on their card when it&apos;s ready.</p>
       )}
     </article>
   );

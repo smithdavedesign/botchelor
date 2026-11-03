@@ -9,6 +9,7 @@ import { runDueScheduledDates } from "@/lib/scheduled-dates";
 import { runDueMixers } from "@/lib/group-dates-run";
 import { drawQueuedSets, retryDueSets } from "@/lib/sets";
 import { runWhileAway } from "@/lib/away";
+import { portraitSweep } from "@/lib/default-portraits";
 import { playVotedSituation } from "@/lib/situations";
 import { judgePendingDares } from "@/lib/dare-verdict";
 import { settleDueDares } from "@/lib/dare-points";
@@ -30,6 +31,7 @@ const STUCK_PER_HOUR = 5;
  */
 async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
+  const started = Date.now();
   const db = await getDb();
   // Agents' dates whose prediction window has closed (lib/air.ts) air here, if their host didn't come back for them.
   const aired = (await airDueDates(db).catch(() => [])).length;
@@ -71,7 +73,11 @@ async function run(req: Request): Promise<Response> {
       void rerun(); // outside a request (a test): just run it
     }
   }
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, secrets, cast_chat: castChat, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  const lobby = await refreshLobby(db, new Date(), { ensureFresh: true });
+  // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
+  // unless the run is already long (a template date above takes most of the 300 s).
+  const portraits = Date.now() - started > 150_000 ? { drawn: 0, failed: 0, left: -1 } : await portraitSweep(db).catch(() => ({ drawn: 0, failed: 0, left: -1 }));
+  return json({ ...lobby, portraits, situation, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, secrets, cast_chat: castChat, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

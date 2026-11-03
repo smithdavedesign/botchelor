@@ -6,6 +6,7 @@ import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
 import { ExtrasInput, extrasFields, normaliseExtras } from "@/lib/extras";
 import { cleanOwnSecrets, HidingInput, setOwnSecrets } from "@/lib/cast-secrets";
 import { scheduleWelcome } from "@/lib/welcome";
+import { schedulePortrait } from "@/lib/default-portraits";
 import { recordLanguage } from "@/lib/language-seen";
 import { scheduleConceptEmbedding } from "@/lib/originality-concept";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
@@ -172,6 +173,8 @@ export const POST = handle(async (req) => {
   if (hiding.length) await setOwnSecrets(db, id, hiding);
   // Its concept embedding, after the response (lib/originality-concept.ts; off unless enabled).
   await scheduleConceptEmbedding(db, id);
+  // Every character has a headshot (lib/default-portraits.ts), drawn after the response whoever made it.
+  await schedulePortrait(db, id);
   // A person's character, swipe-ready: the welcome experiment (lib/welcome.ts), after the response. Never an agent's.
   if (!isMcpCall(req)) await scheduleWelcome(db, id);
 
