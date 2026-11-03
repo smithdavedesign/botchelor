@@ -90,6 +90,7 @@ import { isLogistics } from "../memory";
 import { describeTemperament, temperamentWords } from "../temperament";
 import { loadSoul, ownsCharacter } from "../souls";
 import { deleteCharacter } from "../account";
+import { invalidateGraph } from "../graph-cache";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
 import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, roleplayPlaceNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
@@ -5949,6 +5950,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         }
       }
       const r = await deleteCharacter(db, who.id, id);
+      invalidateGraph(); // off the Constellation now, as the web delete does
       return {
         data: {
           character_id: id,

@@ -6,8 +6,9 @@
  * (lib/directory.ts): a private character keeps its name and id only (no portrait, hue or origin), an edge touching one
  * keeps the pair's existence only (the cast tab already lists those by name), and a deleted account's characters vanish.
  *
- * The page reads it through lib/graph-cache.ts (60 s, dropped on a visibility change, a report or moderation). A pair's
- * timeline isn't in the payload: the panel asks for it (`pairTimeline`, /api/graph/[a]/[b]) when someone opens it.
+ * The page reads it through lib/graph-cache.ts (fresh for 60 s, served up to 10 min while it refreshes, dropped on a
+ * visibility change, a deletion, a report or moderation). A pair's timeline isn't in the payload: the panel asks for it
+ * (`pairTimeline`, /api/graph/[a]/[b]) when someone opens it.
  */
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";

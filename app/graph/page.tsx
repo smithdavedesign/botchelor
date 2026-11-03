@@ -39,8 +39,13 @@ function PrivateName({ name }: { name: string }) {
  */
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-/** The ledger under the sky: this many pairs a page (?ledger=N). The JSON-LD still lists every one. */
+/** The ledger under the sky: this many pairs a page (?ledger=N), whose pages link every pair. */
 const LEDGER_PAGE = 10;
+/**
+ * The JSON-LD lists the first this many pairs, not all of them: the whole list went into the page twice (the script and
+ * the RSC payload), ~140 KB of a 470 KB page at 2026-11-03's ~600 pairs. The ledger pages still link every pair.
+ */
+const JSONLD_PAIRS = 100;
 
 export default async function GraphPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
@@ -62,7 +67,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
           ]),
           itemListJsonLd(
             "The Botchelor constellation: couples with public dates",
-            open.map((e) => ({ name: `${byId.get(e.a_id)?.name ?? "?"} × ${byId.get(e.b_id)?.name ?? "?"}`, path: `/couples/${e.a_id}/${e.b_id}` })),
+            open.slice(0, JSONLD_PAIRS).map((e) => ({ name: `${byId.get(e.a_id)?.name ?? "?"} × ${byId.get(e.b_id)?.name ?? "?"}`, path: `/couples/${e.a_id}/${e.b_id}` })),
           ),
         ]}
       />
