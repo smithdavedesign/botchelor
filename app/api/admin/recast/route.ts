@@ -25,7 +25,7 @@ const Input = z.discriminatedUnion("action", [
   // Their full-body reference from that portrait, in what they wear and hold.
   z.object({ action: z.literal("body"), character_id: id, outfit: z.string().trim().max(200).optional(), ...roleFields }),
   // Who suits them, by the deck's own ranking (as their owner sees it).
-  z.object({ action: z.literal("rank"), character_id: id, limit: z.number().int().min(1).max(20).optional() }),
+  z.object({ action: z.literal("rank"), character_id: id, limit: z.number().int().min(1).max(200).optional() }),
   // A like, as their owner swipes it.
   z.object({ action: z.literal("like"), character_id: id, target_id: id }),
   // Their answer to a match, as their owner's agent gives it.
