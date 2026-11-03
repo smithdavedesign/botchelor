@@ -5,9 +5,10 @@
  * switches never change anyone else's after dark.
  */
 import type { Db } from "../db";
+import { portraitPathSql } from "../assets";
 import { lastSeasonOn, seasonCastIds, seasonMonth } from "../season-cast";
 
-export type Switchable = { id: string; name: string; house: boolean; on: boolean; season: boolean };
+export type Switchable = { id: string; name: string; house: boolean; portrait: string | null; on: boolean; season: boolean };
 
 /** Everyone who can be in this person's scenes: the season's cast and the characters they've switched on. */
 export async function eligibleIds(db: Db, ownerId: string): Promise<Set<string>> {
@@ -117,18 +118,18 @@ export async function setAdultSwitch(db: Db, ownerId: string, characterId: strin
 /** The person's own characters and the house characters they've dated, with each switch. */
 export async function listSwitchable(db: Db, ownerId: string): Promise<Switchable[]> {
   const season = new Set(seasonCastIds());
-  const { rows } = await db.query<{ id: string; name: string; is_house: boolean; on: boolean }>(
+  const { rows } = await db.query<{ id: string; name: string; is_house: boolean; portrait: string | null; on: boolean }>(
     `with mine as (select id from characters where owner_id = $1),
           dated as (
             select case when e.character_a in (select id from mine) then e.character_b else e.character_a end as id
               from episodes e
              where e.status = 'ready' and (e.character_a in (select id from mine) or e.character_b in (select id from mine))
           )
-     select c.id, c.name, c.is_house, exists (select 1 from adult_switches a where a.owner_id = $1 and a.character_id = c.id) as on
+     select c.id, c.name, c.is_house, ${portraitPathSql("c")} as portrait, exists (select 1 from adult_switches a where a.owner_id = $1 and a.character_id = c.id) as on
        from characters c
       where c.id in (select id from mine) or (c.is_house and c.id in (select id from dated))
       order by c.is_house, c.name`,
     [ownerId],
   );
-  return rows.map((r) => ({ id: r.id, name: r.name, house: r.is_house, on: r.on || season.has(r.id), season: season.has(r.id) }));
+  return rows.map((r) => ({ id: r.id, name: r.name, house: r.is_house, portrait: r.portrait, on: r.on || season.has(r.id), season: season.has(r.id) }));
 }

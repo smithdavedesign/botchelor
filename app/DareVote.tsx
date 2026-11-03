@@ -20,7 +20,7 @@ export default function DareVote({ board }: { board: DareBoard }) {
     <section id="dare" className="card situation dare" aria-labelledby="dare-head">
       <div className="situation-head">
         <span className="situation-avatars" aria-hidden="true">
-          <Avatar seed={board.target.id} name={board.target.name} hue={board.target.hue} house size={40} decorative />
+          <Avatar seed={board.target.id} name={board.target.name} hue={board.target.hue} house portraitSrc={board.target.portrait} size={40} decorative />
         </span>
         <div>
           <p className="kicker">Tonight&apos;s dare · you pick</p>

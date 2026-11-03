@@ -14,6 +14,7 @@
  *    with neither makes none, so an idle day costs nothing.
  *  - The dares are a fixed, PG, producer-voiced pool (tests hold them to the show's content checks).
  */
+import { portraitPathSql } from "./assets";
 import { DARE_VERDICTS, followedOf, verdictFromRoll, type DareVerdict } from "./dare-words";
 import type { Db } from "./db";
 import { seedFrom } from "./engine";
@@ -149,7 +150,7 @@ export type DareBoard = {
   day: string;
   closes_at: string;
   /** Who the producers will slip the winning dare to (their date won't know). */
-  target: { id: string; name: string; hue: number | null };
+  target: { id: string; name: string; hue: number | null; portrait: string | null };
   choices: DareChoice[];
   my_pick: string | null;
   total: number;
@@ -175,7 +176,7 @@ export async function dareBoard(db: Db, viewerId: string | null, now: Date = new
   if (!pair) return null;
   const dared = daredOf(day, pair);
   const [chars, tally, mine, lastRow] = await Promise.all([
-    db.query<{ id: string; name: string; hue: number | null }>(`select id, name, avatar_hue as hue from characters where id = $1`, [dared]),
+    db.query<{ id: string; name: string; hue: number | null; portrait: string | null }>(`select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c where c.id = $1`, [dared]),
     dareCounts(db, day),
     viewerId
       ? db.query<{ pick: string }>(`select pick from dare_votes where day = $1 and user_id = $2`, [day, viewerId])
@@ -216,7 +217,7 @@ export async function dareBoard(db: Db, viewerId: string | null, now: Date = new
   return {
     day,
     closes_at: new Date(Date.parse(`${day}T00:00:00Z`) + 24 * 60 * 60 * 1000).toISOString(),
-    target: { id: target.id, name: target.name, hue: target.hue },
+    target: { id: target.id, name: target.name, hue: target.hue, portrait: target.portrait },
     choices: dareChoices(day).map((d) => ({ id: d.id, text: d.text, votes: tally.get(d.id) ?? 0 })),
     my_pick: mine.rows[0]?.pick ?? null,
     total: [...tally.values()].reduce((s, n) => s + n, 0),

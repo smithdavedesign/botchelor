@@ -23,6 +23,7 @@
  * Read-only. Nothing here touches money: no orders, no prices, no amounts (the owner's rule).
  */
 import { addDays, dayDiff, daysBetween, isDay, isoDay, weekOf } from "./chart";
+import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 import { loadOurIds, OUR_TRAFFIC, peopleCountedFrom, SYSTEM_ID } from "./our-traffic";
 import { PEOPLE_ACTS_SQL } from "./people-acts";
@@ -380,6 +381,7 @@ export type CharacterRow = {
   name: string;
   kind: "house" | "people" | "agents";
   private: boolean;
+  portrait: string | null;
   dates: number;
   aired: number;
   first_aired: number;
@@ -407,7 +409,7 @@ export async function topCharacters(db: Db, q: InsightsQuery, ours: readonly str
               count(*) filter (where followup_of is null and followed)::int as followed
          from sides group by id
      )
-     select c.id, c.name, c.is_house, c.created_via, c.visibility, per.dates, per.aired, per.first_aired, per.followed,
+     select c.id, c.name, c.is_house, c.created_via, c.visibility, ${portraitPathSql("c")} as portrait, per.dates, per.aired, per.first_aired, per.followed,
             coalesce(r.reviews, 0)::int as reviews, r.stars
        from per join characters c on c.id = per.id
        left join (select character_id, count(*)::int as reviews, avg(stars)::float8 as stars
@@ -422,6 +424,7 @@ export async function topCharacters(db: Db, q: InsightsQuery, ours: readonly str
     name: r.name,
     kind: r.is_house ? "house" : r.created_via === "mcp" ? "agents" : "people",
     private: r.visibility === "private",
+    portrait: r.portrait,
     dates: r.dates,
     aired: r.aired,
     first_aired: r.first_aired,

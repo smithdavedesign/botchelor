@@ -92,8 +92,8 @@ export default async function ShortsPage() {
                     <img className={styles.cover} src={s.cover} alt={`The cover of ${s.title}`} loading="lazy" />
                   ) : (
                     <span className={styles.faces} aria-hidden="true">
-                      <Avatar seed={s.a.id} name={s.a.name} house size={64} decorative />
-                      <Avatar seed={s.b.id} name={s.b.name} house size={64} decorative />
+                      <Avatar seed={s.a.id} name={s.a.name} house portraitSrc={s.a.portrait} size={64} decorative />
+                      <Avatar seed={s.b.id} name={s.b.name} house portraitSrc={s.b.portrait} size={64} decorative />
                     </span>
                   )}
                   <span className={styles.title}>{s.title}</span>

@@ -210,6 +210,21 @@ export async function approvedPortraitDataUrl(db: Db, characterId: string): Prom
  */
 export const portraitPathSql = (alias: string): string => `('/api/assets/' || (${approvedPortraitSelect(`${alias}.id`)}))`;
 
+/**
+ * Each character in a list already loaded, with its portrait (portraitPathSql) in one query: for lists built from
+ * stored data or scored in code, where the portrait can't ride in the statement that found them (2026-11-03: these
+ * showed initials). A private character's stays null unless `private` (the owner's or an admin's own view).
+ */
+export async function withPortraits<T extends { id: string }>(db: Db, items: T[], opts: { private?: boolean } = {}): Promise<(T & { portrait: string | null })[]> {
+  if (!items.length) return [];
+  const { rows } = await db.query<{ id: string; portrait: string | null }>(
+    `select c.id, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1) and ($2 or c.visibility = 'public')`,
+    [[...new Set(items.map((i) => i.id))], Boolean(opts.private)],
+  );
+  const byId = new Map(rows.map((r) => [r.id, r.portrait]));
+  return items.map((i) => ({ ...i, portrait: byId.get(i.id) ?? null }));
+}
+
 /** A character's newest clip asset in ANY state (for the owner's status poll), or null. */
 export async function latestClip(db: Db, characterId: string): Promise<CharacterAsset | null> {
   const { rows } = await db.query<CharacterAsset>(

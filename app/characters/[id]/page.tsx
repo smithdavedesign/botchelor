@@ -11,7 +11,7 @@ import CharacterName from "@/app/CharacterName";
 import { characterPortrait } from "@/lib/portraits";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
-import { portraitPathSql } from "@/lib/assets";
+import { portraitPathSql, withPortraits } from "@/lib/assets";
 import JsonLd from "@/app/JsonLd";
 import { breadcrumbJsonLd, characterJsonLd } from "@/lib/seo";
 import { CopyLink } from "@/app/couples/[a]/[b]/CoupleActions";
@@ -267,9 +267,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             },
           ],
           drift: describeDrift(memory.signal_delta),
-          people: (memory.people ?? [])
-            .filter((p) => p.wanted_more !== null || p.they_said)
-            .map((p) => ({ ...p, from: p.last_episode_id ? [{ episode_id: p.last_episode_id, with: p.name, at: p.last_at }] : [] })),
+          people: await withPortraits(
+            db,
+            (memory.people ?? [])
+              .filter((p) => p.wanted_more !== null || p.they_said)
+              .map((p) => ({ ...p, from: p.last_episode_id ? [{ episode_id: p.last_episode_id, with: p.name, at: p.last_at }] : [] })),
+          ),
           forgotten: await describeForgets(db, id, await loadForgets(db, id)),
         }
       : null;
