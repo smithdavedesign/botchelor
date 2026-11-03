@@ -4,6 +4,7 @@ import { setMediaFetchForTests } from "@/lib/adult/media";
 import { setModerationFetchForTests } from "@/lib/adult/moderation";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { RECAST_PORTRAIT_MODEL } from "@/lib/recast";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { setPgStudioFetchForTests } from "@/lib/studio/pg";
 import { api, BASE_URL, newUserCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
@@ -56,11 +57,17 @@ async function agentCharacter(name: string, opts: { open?: boolean } = {}) {
 }
 
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+/** What the last fakes() saw: the image models asked for and the role-check questions. */
+const seen = { models: [] as string[], questions: [] as string[] };
 /** `roles`: the "does it read as them?" answers in order (then YES). */
 function fakes(clothing = "CLOTHED", roles: ("YES" | "NO")[] = []) {
   const asked: string[] = [];
+  seen.models = [];
+  seen.questions = [];
   setMediaFetchForTests(async (_input: RequestInfo | URL, init?: RequestInit) => {
-    asked.push(String(JSON.parse(String(init?.body ?? "{}")).prompt ?? ""));
+    const sent = JSON.parse(String(init?.body ?? "{}"));
+    asked.push(String(sent.prompt ?? ""));
+    seen.models.push(String(sent.model ?? ""));
     return Response.json({ images: [PNG.toString("base64")] });
   });
   setPgStudioFetchForTests(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -70,6 +77,7 @@ function fakes(clothing = "CLOTHED", roles: ("YES" | "NO")[] = []) {
   // The show's check answers SAFE/UNSAFE; the rating check names the clothing.
   setModerationFetchForTests(async (_input: RequestInfo | URL, init?: RequestInit) => {
     const body = String(init?.body ?? "");
+    if (body.includes("role_check")) seen.questions.push(String(JSON.parse(body).messages?.[0]?.content?.[0]?.text ?? ""));
     const content = body.includes("role_check")
       ? { answer: roles.shift() ?? "YES" }
       : body.includes("pg_check")
@@ -146,6 +154,14 @@ describe("the recast (POST /api/admin/recast)", () => {
     let out = await (await call({ action: "portrait", character_id: a.id, look: "a weathered woman in her forties", ...role })).json();
     expect(out).toMatchObject({ ok: true, role_ok: true, tries: 1 });
     expect(asked[0]).toContain("They are a pirate captain, with a red tricorn hat and a brass telescope. Behind them, the deck of a tall ship.");
+    expect(seen.models).toEqual([RECAST_PORTRAIT_MODEL]); // a model that draws the props, not the settings' default
+    expect(seen.questions[0]).toContain("Does it clearly show a pirate captain");
+    // With a kind, the check asks about the type, not every adjective in the role.
+    fakes("CLOTHED", ["YES"]);
+    out = await (await call({ action: "portrait", character_id: a.id, ...role, role: "the spectral captain of a ghost ship", kind: "a ghost-ship captain" })).json();
+    expect(out).toMatchObject({ ok: true, role_ok: true, tries: 1 });
+    expect(seen.questions[0]).toContain("The character is: a ghost-ship captain.");
+    expect(seen.questions[0]).toContain("the type or profession, not every detail");
     // A miss, then a pass: the pushed one is kept.
     asked = fakes("CLOTHED", ["NO", "YES"]);
     out = await (await call({ action: "portrait", character_id: a.id, ...role })).json();

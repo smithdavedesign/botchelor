@@ -4,7 +4,7 @@ import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { findMatches } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, sessionCookies } from "@/lib/http";
-import { drawRecastBody, drawRecastPortrait, PROPS_MAX, RECAST_LOOK_MAX, recastOwner, ROLE_MAX, SCENE_MAX, type RecastRole } from "@/lib/recast";
+import { drawRecastBody, drawRecastPortrait, PROPS_MAX, RECAST_LOOK_MAX, recastOwner, ROLE_MAX, SCENE_MAX, KIND_MAX, type RecastRole } from "@/lib/recast";
 import { answerMatch, swipe } from "@/lib/swipes";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +15,7 @@ const roleFields = {
   role: z.string().trim().min(1).max(ROLE_MAX).optional(),
   props: z.string().trim().max(PROPS_MAX).optional(),
   scene: z.string().trim().max(SCENE_MAX).optional(),
+  kind: z.string().trim().max(KIND_MAX).optional(),
 };
 const Input = z.discriminatedUnion("action", [
   // The owner's own edit, as the owner (the PATCH body: every check of an ordinary edit applies).
@@ -37,7 +38,8 @@ const Input = z.discriminatedUnion("action", [
  * runs; never a person's character, a house one, or one kept only for its old dates. Pictures given a `role` must read as
  * it (lib/recast.ts: one pushed redraw at most, then flagged with role_ok false).
  */
-const roleOf = (i: { role?: string; props?: string; scene?: string }): RecastRole | null => (i.role ? { role: i.role, props: i.props ?? null, scene: i.scene ?? null } : null);
+const roleOf = (i: { role?: string; props?: string; scene?: string; kind?: string }): RecastRole | null =>
+  i.role ? { role: i.role, props: i.props ?? null, scene: i.scene ?? null, kind: i.kind ?? null } : null;
 
 export const POST = handle(async (req: Request) => {
   if (!(await adminAuthorized(req))) return json(NOT_AUTHORIZED, 403);

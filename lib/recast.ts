@@ -45,8 +45,15 @@ export async function recastOwner(db: Db, characterId: string): Promise<string |
  * Who the picture must show them as (David, 2026-11-02: "a teacher reads as a teacher, a president as a president"):
  * `role` names it ("a ghost-ship captain"), `props` what they wear and hold that says so, `scene` where they are.
  */
-export type RecastRole = { role: string; props?: string | null; scene?: string | null };
+export type RecastRole = { role: string; props?: string | null; scene?: string | null; kind?: string | null };
 export const ROLE_MAX = 80;
+/** `kind`: the short type the check asks about ("a pirate captain"), so it judges the profession, not every adjective. */
+export const KIND_MAX = 120;
+/**
+ * Recast portraits are drawn on a model that follows the props and setting (2026-11-02 A/B: the settings' lustify-v8 drew
+ * a face and dropped the props; qwen-image-2-1-turbo drew the jukebox, the lamp, the desert arch), $0.02 a picture.
+ */
+export const RECAST_PORTRAIT_MODEL = "qwen-image-2-1-turbo";
 export const PROPS_MAX = 200;
 export const SCENE_MAX = 160;
 
@@ -80,7 +87,7 @@ export function recastOutfit(outfit: string | null | undefined, r: RecastRole | 
 /** The role's words, held to the show's PG picture words; a refusal names the field. */
 export function roleWordsRefusal(r: RecastRole | null): string | null {
   if (!r) return null;
-  const v = checkPgPictureText({ role: r.role, props: r.props ?? undefined, scene: r.scene ?? undefined });
+  const v = checkPgPictureText({ role: r.role, props: r.props ?? undefined, scene: r.scene ?? undefined, kind: r.kind ?? undefined });
   return v.ok ? null : `the ${v.field}'s words don't pass the show's PG picture words`;
 }
 
@@ -97,7 +104,7 @@ async function drawOnce(db: Db, prompt: string, r: RecastRole | null): Promise<D
   if (!gate.ok) return { ok: false, reason: gate.reason, again: true };
   let pic: { bytes: Buffer; mime: string };
   try {
-    pic = await venicePicture(db, prompt, { safe: true });
+    pic = await venicePicture(db, prompt, { safe: true, model: RECAST_PORTRAIT_MODEL });
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message.slice(0, 160) : "error", again: true };
   }
@@ -108,7 +115,7 @@ async function drawOnce(db: Db, prompt: string, r: RecastRole | null): Promise<D
   const rated = await checkRating(db, media);
   if (!rated.ok) return { ok: false, reason: rated.reason, again: !rated.checked };
   if (rated.rating !== "pg") return { ok: false, reason: "the PG check rated it suggestive", again: false };
-  const role_ok = r?.role ? await showsRole(db, media, r.role) : null;
+  const role_ok = r?.role ? await showsRole(db, media, r.role, r.kind) : null;
   return { ok: true, pic, prompt, via: verdict.via ?? [], role_ok };
 }
 
@@ -170,7 +177,7 @@ export async function drawRecastBody(db: Db, characterId: string, baseUrl: strin
   if (roleRefusal) return { ok: false, status: 422, error: "content_rejected", message: roleRefusal };
   const r = role?.role ? role : null;
   let verdict: boolean | null = null;
-  const accept = r ? async (file: { bytes: Buffer; mime: string }) => (verdict = await showsRole(db, { base64: file.bytes.toString("base64"), mime: file.mime }, r.role)) : undefined;
+  const accept = r ? async (file: { bytes: Buffer; mime: string }) => (verdict = await showsRole(db, { base64: file.bytes.toString("base64"), mime: file.mime }, r.role, r.kind)) : undefined;
   const first = await showIdentityViews(db, characterId, ["full_body"], baseUrl, recastOutfit(outfit, r), { accept });
   if (!first.ok) return first;
   if (first.pictures.length) return { ok: true, made: first.pictures.length, role_ok: verdict, tries: 1 };
