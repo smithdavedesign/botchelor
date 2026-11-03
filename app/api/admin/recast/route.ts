@@ -69,7 +69,7 @@ export const POST = handle(async (req: Request) => {
       return json(r, r.ok ? 200 : r.status);
     }
     case "rank": {
-      const r = await findMatches(db, owner, input.character_id, input.limit ?? 10);
+      const r = await findMatches(db, owner, input.character_id, input.limit ?? 10, 200);
       return json({ ok: true, matches: (r?.matches ?? []).map((m) => ({ id: m.id, name: m.name, made_by: m.made_by, can_ask_out: m.can_ask_out, score: m.score, why: m.why, relationship: m.relationship ?? null })) });
     }
     case "like": {
