@@ -25,8 +25,8 @@ export default function SituationVote({ board, now }: { board: SituationBoard; n
     <section id="situation" className="card situation" aria-labelledby="situation-head">
       <div className="situation-head">
         <span className="situation-avatars" aria-hidden="true">
-          <Avatar seed={a.id} name={a.name} hue={a.hue} house size={40} decorative />
-          <Avatar seed={b.id} name={b.name} hue={b.hue} house size={40} decorative />
+          <Avatar seed={a.id} name={a.name} hue={a.hue} house portraitSrc={a.portrait} size={40} decorative />
+          <Avatar seed={b.id} name={b.name} hue={b.hue} house portraitSrc={b.portrait} size={40} decorative />
         </span>
         <div>
           <p className="kicker">Tonight&apos;s situation · you pick</p>

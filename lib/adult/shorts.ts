@@ -19,6 +19,7 @@
  */
 import { isAdmin } from "../admins";
 import type { Db } from "../db";
+import { portraitPathSql } from "../assets";
 import { pairKey } from "../relationships";
 import { checkAdultText, checkShowText } from "../safety";
 import { lastSeasonOn, seasonCastIds } from "../season-cast";
@@ -342,8 +343,8 @@ export async function setShortPublished(db: Db, adminId: string, id: string, pub
 export type ShortCard = {
   id: string;
   title: string;
-  a: { id: string; name: string };
-  b: { id: string; name: string };
+  a: { id: string; name: string; portrait: string | null };
+  b: { id: string; name: string; portrait: string | null };
   lines: number;
   video: boolean;
   /** The cover's address (the Short's own media route), for an entitled viewer; null without one. */
@@ -361,9 +362,9 @@ export type ShortTeaser = Omit<ShortCard, "cover" | "video">;
 
 export const shortMediaUrl = (shortId: string, mediaId: string) => `/api/admin/after-dark/shorts/${encodeURIComponent(shortId)}/media/${encodeURIComponent(mediaId)}`;
 
-type CardRow = ShortRow & { an: string; bn: string; lines: number };
+type CardRow = ShortRow & { an: string; bn: string; ap: string | null; bp: string | null; lines: number };
 const CARD_SELECT = `select s.id, s.owner_id, s.character_a, s.character_b, s.night_id, s.night_ids, s.title, s.cover_id, s.reel_ids, s.published_at, s.created_at,
-         ca.name as an, cb.name as bn,
+         ca.name as an, cb.name as bn, ${portraitPathSql("ca")} as ap, ${portraitPathSql("cb")} as bp,
          coalesce((select sum(jsonb_array_length(n.lines)) from adult_nights n where n.id in (select jsonb_array_elements_text(s.night_ids))), 0)::int as lines
     from adult_shorts s
     join characters ca on ca.id = s.character_a
@@ -372,8 +373,8 @@ const CARD_SELECT = `select s.id, s.owner_id, s.character_a, s.character_b, s.ni
 const cardOf = (r: CardRow): ShortCard => ({
   id: r.id,
   title: r.title,
-  a: { id: r.character_a, name: r.an },
-  b: { id: r.character_b, name: r.bn },
+  a: { id: r.character_a, name: r.an, portrait: r.ap },
+  b: { id: r.character_b, name: r.bn, portrait: r.bp },
   lines: r.lines,
   video: (r.reel_ids ?? []).length > 0,
   cover: r.cover_id ? shortMediaUrl(r.id, r.cover_id) : null,

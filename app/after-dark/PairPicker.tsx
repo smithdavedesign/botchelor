@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 import type { CastPair } from "@/lib/adult/scenes";
 
-type Who = { id: string; name: string; photo?: string | null };
+type Who = { id: string; name: string; portrait?: string | null; photo?: string | null };
 type Pair = CastPair;
 
 const first = (n: string) => n.split(/\s+/)[0];

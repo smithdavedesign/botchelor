@@ -11,6 +11,7 @@
  * One exception to "never a gate" (#1154, 2026-11-01): an agent's create_character refuses a sheet that reads a lot like
  * someone else's character unless it passes keep_look_alike: true (lib/mcp/dispatcher.ts). The web builder isn't gated.
  */
+import { withPortraits } from "./assets";
 import type { Db } from "./db";
 import { publicExtras, type CharacterExtras } from "./extras";
 import { contentWords, EVERYDAY_WORDS } from "./quality";
@@ -31,7 +32,7 @@ export type Cliche = { field: "bio" | "traits" | "want" | "dealbreaker"; phrase:
  * `kind`: "concept" reads like the same character; "name" only shares a first name (a lighter nudge). `recent`: made in
  * the last RECENT_HOURS (2.4.3); `name_and_job`: a close name doing the same job, the case that gets a suggestion.
  */
-export type Lookalike = { id: string; name: string; why: string; kind?: "concept" | "name"; recent?: true; name_and_job?: true };
+export type Lookalike = { id: string; name: string; portrait?: string | null; why: string; kind?: "concept" | "name"; recent?: true; name_and_job?: true };
 /** 2.4.3: what to change when a name and a job are too close to a recent character's: a different name or job, concretely. */
 export type RenameSuggestion = { text: string; names: string[]; jobs: string[] };
 export type OriginalityReport = {
@@ -697,7 +698,8 @@ async function lookalikesWithRecent(db: Db, sheet: SheetDraft, excludeId: string
   });
   const sorted = found.sort((x, y) => y.score - x.score);
   return {
-    found: sorted.slice(0, limit).map(({ score: _s, shared: _t, row: _r, ...l }) => l),
+    // Their portrait for the panel's face, only when they have one (the API and MCP shape stays as it was otherwise).
+    found: (await withPortraits(db, sorted.slice(0, limit).map(({ score: _s, shared: _t, row: _r, ...l }) => l))).map(({ portrait, ...l }) => (portrait ? { ...l, portrait } : l)),
     recent: rows.filter((r) => r.recent),
     rows,
     all: sorted,

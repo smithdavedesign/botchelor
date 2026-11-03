@@ -47,7 +47,7 @@ export default function LearnedPanel({
   name: string;
   sections: { title: string; items: LearnedItem[]; quote?: boolean }[];
   drift: string[];
-  people: (PersonMemory & { from: Source[] })[];
+  people: (PersonMemory & { from: Source[]; portrait?: string | null })[];
   forgotten: { kind: ForgetKind; item: string; label: string }[];
 }) {
   const router = useRouter();

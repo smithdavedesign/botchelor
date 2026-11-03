@@ -95,7 +95,7 @@ function CharactersTable({ rows, minN }: { rows: CharacterRow[]; minN: number })
       className: "wrap",
       render: (r) => (
         <>
-          <CharacterName character={{ id: r.id, name: r.name }} />
+          <CharacterName character={{ id: r.id, name: r.name, portrait: r.portrait }} />
           {r.private && <span className="muted small"> (private)</span>}
         </>
       ),

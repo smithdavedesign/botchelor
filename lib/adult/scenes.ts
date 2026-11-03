@@ -51,6 +51,7 @@ import { scenarioById, type Scenario } from "./scenarios";
 import { venueSituation } from "./scene-catalog";
 import { carryDoing, cleanDoing } from "./doing";
 import { FACES, isFace, type Face } from "./faces";
+import { portraitPathSql } from "../assets";
 import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
 import { picturesBlocked } from "./readiness";
 import { pictureNoteKind } from "./picture-notes";
@@ -290,8 +291,8 @@ export async function eligiblePair(db: Db, ownerId: string, x: string, y: string
 /** Every pair of the characters who can be in after dark, with how far each pair's scene has gone for this admin. */
 /** One pair on the hub: who, how far their night has got, and (under way) where it was left. */
 export type CastPair = {
-  a: { id: string; name: string; photo?: string | null };
-  b: { id: string; name: string; photo?: string | null };
+  a: { id: string; name: string; portrait: string | null; photo?: string | null };
+  b: { id: string; name: string; portrait: string | null; photo?: string | null };
   lines: number;
   path: string;
   /** Under way: the night's last line ("Sweet: …", its action out), its chapter, and when it was last played. */
@@ -313,9 +314,12 @@ export async function listCastPairs(db: Db, adminId: string): Promise<CastPair[]
   const cast = [...eligible];
   const kept = await keptPairs(db, adminId, { eligible });
   const everyone = [...new Set([...cast, ...kept.flatMap((k) => k.gone)])];
-  const names = new Map(
-    (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [everyone])).rows.map((r) => [r.id, r.name]),
-  );
+  // Their approved PG portrait too (2026-11-03: the hub showed initials for everyone without an After Dark face).
+  const people = (
+    await db.query<{ id: string; name: string; portrait: string | null }>(`select c.id, c.name, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1)`, [everyone])
+  ).rows;
+  const names = new Map(people.map((r) => [r.id, r.name]));
+  const portraits = new Map(people.map((r) => [r.id, r.portrait]));
   type Row = { character_a: string; character_b: string; n: number; chapter: number; updated_at: Date | string | null; last: { who?: string; text?: string } | null };
   const scenes = new Map(
     (
@@ -341,7 +345,7 @@ export async function listCastPairs(db: Db, adminId: string): Promise<CastPair[]
     // Under way: lines in this chapter, or chapters filed (a new chapter starts empty). A kept pair always is: its nights
     // may all be saved (Start over), and it's listed only because there are some.
     const going = Boolean(earlier) || lines > 0 || (row?.chapter ?? 1) > 1;
-    const who = (id: string) => ({ id, name: names.get(id) ?? id, ...(going ? { photo: faces.get(id) ?? null } : {}) });
+    const who = (id: string) => ({ id, name: names.get(id) ?? id, portrait: portraits.get(id) ?? null, ...(going ? { photo: faces.get(id) ?? null } : {}) });
     const said = row?.last?.text ? row.last.text.replace(/\*[^*]*\*/g, " ").replace(/\s+/g, " ").trim() : "";
     return {
       a: who(a),

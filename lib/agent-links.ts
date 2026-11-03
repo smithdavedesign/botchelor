@@ -9,6 +9,7 @@
  * access to the account. Unlinking (Account) ends it.
  */
 import { createHash, randomBytes } from "node:crypto";
+import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
 
 /** How long a link works. */
@@ -32,12 +33,12 @@ export async function isLinked(db: Db, agentId: string): Promise<boolean> {
   return (await db.query(`select 1 from agent_links where agent_id = $1`, [agentId])).rows.length > 0;
 }
 
-export type AgentCharacter = { id: string; name: string; open_to_dates: boolean };
+export type AgentCharacter = { id: string; name: string; open_to_dates: boolean; portrait: string | null };
 
 /** An agent's characters, newest first: what its person sees. */
 async function charactersOf(db: Db, agentId: string): Promise<AgentCharacter[]> {
   const { rows } = await db.query<AgentCharacter>(
-    `select id, name, open_to_dates from characters where owner_id = $1 and not is_house order by created_at desc, id limit 50`,
+    `select c.id, c.name, c.open_to_dates, ${portraitPathSql("c")} as portrait from characters c where c.owner_id = $1 and not c.is_house order by c.created_at desc, c.id limit 50`,
     [agentId],
   );
   return rows;

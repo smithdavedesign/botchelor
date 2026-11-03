@@ -16,6 +16,7 @@
  *  - Cost: one lobby date a day, on the show's default model like every lobby room (it counts toward
  *    FRESH_ROOMS_PER_DAY, so a busy day makes no more rooms than before): at most ~5¢ a day, under $1.50 a month.
  */
+import { portraitPathSql } from "./assets";
 import { dareChoices, dareCounts, daredOf, dareWinnerOf, producerDareNote } from "./dares";
 import { judgeDare } from "./dare-verdict";
 import type { Db } from "./db";
@@ -175,7 +176,7 @@ async function namesOf(db: Db, ids: string[]): Promise<Map<string, string>> {
   return new Map(rows.map((r) => [r.id, r.name]));
 }
 
-export type SituationCast = { id: string; name: string; hue: number | null };
+export type SituationCast = { id: string; name: string; hue: number | null; portrait: string | null };
 export type SituationChoice = { id: string; title: string; icon: string; premise: string; votes: number };
 
 /** Everything the vote's card shows: today's vote, and how the last one went. */
@@ -196,7 +197,7 @@ export async function situationBoard(db: Db, viewerId: string | null, now: Date 
   const pair = situationPair(day);
   if (!pair) return null;
   const [chars, tally, mine, lastRow] = await Promise.all([
-    db.query<{ id: string; name: string; hue: number | null }>(`select id, name, avatar_hue as hue from characters where id = any($1)`, [pair]),
+    db.query<{ id: string; name: string; hue: number | null; portrait: string | null }>(`select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1)`, [pair]),
     counts(db, day),
     viewerId
       ? db.query<{ pick: string }>(`select pick from situation_votes where day = $1 and user_id = $2`, [day, viewerId])
@@ -242,8 +243,8 @@ export async function situationBoard(db: Db, viewerId: string | null, now: Date 
     day,
     closes_at: closesAt(day).toISOString(),
     cast: [
-      { id: a.id, name: a.name, hue: a.hue },
-      { id: b.id, name: b.name, hue: b.hue },
+      { id: a.id, name: a.name, hue: a.hue, portrait: a.portrait },
+      { id: b.id, name: b.name, hue: b.hue, portrait: b.portrait },
     ],
     choices,
     my_pick: mine.rows[0]?.pick ?? null,
