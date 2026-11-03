@@ -8,6 +8,7 @@ import { airWindowMinutes } from "@/lib/air";
 import { getDb } from "@/lib/db";
 import { CallersBoardPanel, CallsLine } from "@/app/YourCalls";
 import { callersBoard, callRecord } from "@/lib/streaks";
+import { sharerOf } from "@/lib/share-record-name";
 import BackCast from "@/app/BackCast";
 import CastChat from "@/app/CastChat";
 import { latestCastChat } from "@/lib/cast-chat";
@@ -189,6 +190,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     // The cast group chat (lib/cast-chat.ts): the same for everyone.
     shared("watch:cast-chat", () => latestCastChat(db)).catch(() => null),
   ]);
+  // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
+  const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
   const feed = latest.episodes;
   const now = Date.now();
   const live = rooms.filter((r) => r.status === "live");
@@ -216,12 +219,12 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       {recoupling && <RecouplingCard board={recoupling} now={now} />}
       {showNews && <ShowSince card={showNews} />}
 
-      {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} where="watch" />}
+      {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
 
       {airing.length > 0 && (
         <section className="watch-section" aria-labelledby="airing-soon">
           <h2 id="airing-soon">Airing soon: call it before it airs</h2>
-          {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} where="watch" />}
+          {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
           <ul className="watch-airing">
             {airing.map((episode) => (
               <AiringCard key={episode.id} episode={episode} now={now} />

@@ -69,6 +69,7 @@ import { updateCharacterMemory } from "./memory";
 import { titleEpisodeOnAir } from "./episode-title";
 import { mixerQuietUsers, notifyNightAired, siblingCharacters } from "./group-dates";
 import { notifyOwnersAired, notifyPredictors } from "./air";
+import { settleDareForEpisode } from "./dare-points";
 import { ShowrunnerError, type CharacterSheet } from "./showrunner";
 import { isConversationEnabled, type Turn } from "./conversation";
 import type { DateRoleplay } from "./roleplays";
@@ -613,6 +614,8 @@ export async function syncRoom(
       const quiet = await mixerQuietUsers(db, exists.episode_id).catch(() => [] as string[]);
       const toldStage = await refreshAndAnnounce(db, aired.character_a, aired.character_b, { episodeId: exists.episode_id, quiet }).catch(() => new Set<string>());
       await notifyPredictors(db, exists.episode_id).catch(() => {});
+      // The night's dare, if one rode this date (lib/dare-points.ts): its winning voters score by the verdict, once.
+      await settleDareForEpisode(db, exists.episode_id).catch(() => null);
       // #1032: its host and owners hear it premiered (not the viewer whose arrival aired it: they're watching it).
       await notifyOwnersAired(db, exists.episode_id, [viewerId, ...toldStage, ...quiet]).catch(() => {});
     }

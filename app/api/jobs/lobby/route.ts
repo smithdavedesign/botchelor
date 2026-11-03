@@ -11,6 +11,7 @@ import { drawQueuedSets, retryDueSets } from "@/lib/sets";
 import { runWhileAway } from "@/lib/away";
 import { playVotedSituation } from "@/lib/situations";
 import { judgePendingDares } from "@/lib/dare-verdict";
+import { settleDueDares } from "@/lib/dare-points";
 import { runDueRecoupling } from "@/lib/recoupling";
 import { ensureCastSecrets } from "@/lib/cast-secrets";
 import { ensureCastChat } from "@/lib/cast-chat";
@@ -50,6 +51,8 @@ async function run(req: Request): Promise<Response> {
   const situation = await playVotedSituation(db).catch(() => null);
   // A dare night whose verdict didn't land when its date was made (lib/dare-verdict.ts): judged now, once.
   const dareVerdicts = await judgePendingDares(db).catch(() => []);
+  // An aired dare night whose winning voters haven't scored yet (lib/dare-points.ts): settled now, once.
+  const darePoints = await settleDueDares(db).catch(() => []);
   // The recoupling night (lib/recoupling.ts): opens the vote when a night is close, runs it at the fill hour.
   const recoupling = await runDueRecoupling(db).catch(() => null);
   // This season's cast secrets (lib/cast-secrets.ts): written once a season each on the show's cheap model; a no-op after.
@@ -68,7 +71,7 @@ async function run(req: Request): Promise<Response> {
       void rerun(); // outside a request (a test): just run it
     }
   }
-  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, dare_verdicts: dareVerdicts.length, recoupling, secrets, cast_chat: castChat, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...(await refreshLobby(db, new Date(), { ensureFresh: true })), situation, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, secrets, cast_chat: castChat, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

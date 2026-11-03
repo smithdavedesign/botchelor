@@ -372,6 +372,12 @@ export const POINTS_PER_RATING_RECEIVED = 2;
 /** Backing a cast member who ends the season coupled (lib/backing.ts): a month-long stake, worth more than one call. */
 export const POINTS_PER_BACKING = 25;
 
+/**
+ * Voting for the dare that won the night (lib/dare-points.ts), once its date airs, by the verdict read from the date
+ * (lib/dare-verdict.ts): the dared one went through with it, sort of did, or chickened out.
+ */
+export const POINTS_PER_DARE = { went_through: 5, sort_of: 2, chickened_out: 0 } as const;
+
 /** Sliding doors (PRD): the bounded one-thing-changed replays an owner can run. Client-safe labels. */
 export const SLIDING_DOOR_CHANGES = [
   { id: "bolder", label: "More unpredictable" },

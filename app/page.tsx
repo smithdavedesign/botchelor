@@ -23,6 +23,7 @@ import BotReviews from "./BotReviews";
 import { CallsLine } from "./YourCalls";
 import { airWindowMinutes } from "@/lib/air";
 import { callRecord } from "@/lib/streaks";
+import { sharerOf } from "@/lib/share-record-name";
 import DareVote from "./DareVote";
 import SituationVote from "./SituationVote";
 import TonightBand from "./TonightBand";
@@ -94,6 +95,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   // a spectator. Nothing on a first visit.
   // Your calls line offers "Put my name on the board" to someone with no display name yet (app/BoardName.tsx).
   const profileName = db && viewerId ? await getProfileName(db, viewerId).catch(() => null) : null;
+  // Their shared calls link carries that name when it's theirs alone (lib/share-record-name.ts).
+  const sharer = db && viewerId && profileName ? await sharerOf(db, viewerId).catch(() => null) : null;
   const showNews = db && viewerId ? await showSince(db, viewerId).catch(() => null) : null;
   const conn = db ?? (await getDb());
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts).
@@ -212,7 +215,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
       {situation && <SituationVote board={situation} now={Date.now()} />}
       {dares && <DareVote board={dares} />}
-      {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} where="home" />}
+      {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} sharer={sharer} where="home" />}
 
       {aired && aired.episodes.length > 0 && (
         <section className="home-aired">

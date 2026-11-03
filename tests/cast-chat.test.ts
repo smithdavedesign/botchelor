@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { chatDayOf, chatFacts, chatPrompt, checkChatLine, ensureCastChat, latestCastChat, templateChat, CHAT_MIN } from "@/lib/cast-chat";
+import { chatDayOf, chatFacts, chatPrompt, checkChatLine, ensureCastChat, isMemeSpeak, latestCastChat, misattributed, templateChat, writeChat, CHAT_MIN, type ChatFacts } from "@/lib/cast-chat";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import type { ChatMessage, Model } from "@/lib/model";
 import { checkShowText, checkSheetText } from "@/lib/safety";
@@ -155,4 +155,74 @@ describe("the cast group chat (lib/cast-chat.ts)", () => {
     expect(card?.chat).toMatchObject({ code: "S2 · Night 2" });
     expect(card!.chat!.more).toBeGreaterThanOrEqual(CHAT_MIN - 1);
   });
+
+  describe("nobody claims a date they weren't on", () => {
+    // The real wave-2 test run (2026-11-02): Dex and Nell's goat yoga second date; Sable's own date was with Sweet.
+    const H = (id: string) => HOUSE_CHARACTERS.find((c) => c.id === id)!;
+    const [sable, juniper, nell, dex] = ["house-sable", "house-juniper", "house-nell", "house-dex"].map(H);
+    const sweet = { id: "oc-sweet", name: "Sweet Pea" };
+    const date = (a: { id: string; name: string }, b: { id: string; name: string }, ending: "second_date" | "friends" | "disaster", venue: string) =>
+      ({ a: a.id, b: b.id, a_name: a.name, b_name: b.name, ending, venue, date_number: 1, episode_id: `ep-${a.id}-${b.id}` }) as ChatFacts["dates"][number];
+    const facts: ChatFacts = {
+      day: DAY,
+      code: null,
+      cast: [sable, juniper, nell, dex].map((c) => ({ id: c.id, name: c.name, bio: c.bio })),
+      dates: [date(dex, nell, "second_date", "goat_yoga"), date(sweet, sable, "friends", "comedy_club")],
+      dare: null,
+      recoupling: null,
+      secrets: [],
+    };
+    const said = (who: { id: string }, text: string) => ({ character_id: who.id, text });
+
+    it("drops the real misattribution: Sable 'gave a polite seven' on Dex's date", () => {
+      expect(misattributed(said(sable, "Dex actually had the nerve. I gave a polite seven."), facts)).toBe(true);
+      // On her own date it's hers to rate; Dex's date partner may talk about it as theirs.
+      expect(misattributed(said(sable, "Sweet actually had the nerve. I gave a polite seven."), facts)).toBe(false);
+      expect(misattributed(said(nell, "Dex asked me to rate the date to his face. I gave a polite seven."), facts)).toBe(false);
+      // Gossip from the outside claims nothing, so it stands.
+      expect(misattributed(said(juniper, "Dex actually asked Nell for a rating out of ten. To her face."), facts)).toBe(false);
+      expect(misattributed(said(sable, "Front row at an open mic is a hostage situation, not a date."), facts)).toBe(false);
+      // Someone on no date that day can't have been on one; nor can someone claim a venue that wasn't theirs.
+      expect(misattributed(said(juniper, "My date went fine, thanks for asking."), facts)).toBe(true);
+      expect(misattributed(said(sable, "We left the goat yoga early. Worth it."), facts)).toBe(true);
+      expect(misattributed(said(nell, "We left the goat yoga early. Worth it."), facts)).toBe(false);
+    });
+
+    it("the writer's chat loses the line; too few left and the template stands in", async () => {
+      // Run 2 of the real test, word for word.
+      const run2 = [
+        { from: "Barnaby", text: "Wetsuits do not suit my temperament or my posture." }, // not on this cast: dropped anyway
+        { from: first0(juniper), text: "Arcade acoustics are worse than a foghorn at close range." },
+        { from: first0(nell), text: "Did anyone else get asked for a numerical rating?" },
+        { from: first0(sable), text: "Dex actually had the nerve. I gave a polite seven." },
+        { from: first0(dex), text: "Goat yoga. Second date. I regret nothing." },
+      ];
+      const lines = (await writeChat(answering(JSON.stringify({ messages: run2 })).model, facts, []))!;
+      expect(lines.map((l) => l.text)).toEqual([
+        "Arcade acoustics are worse than a foghorn at close range.",
+        "Did anyone else get asked for a numerical rating?",
+        "Goat yoga. Second date. I regret nothing.",
+      ]);
+      // Only two survive the check: the call's chat is refused, so ensureCastChat falls back to the template.
+      const thin = run2.filter((m) => m.from !== first0(dex));
+      expect(await writeChat(answering(JSON.stringify({ messages: thin })).model, facts, [])).toBeNull();
+    });
+
+    it("drops meme-speak, and the writer's prompt asks for neither", async () => {
+      expect(isMemeSpeak("Trivia night is officially my Roman Empire.")).toBe(true);
+      expect(isMemeSpeak("That goat has main character energy.")).toBe(true);
+      expect(isMemeSpeak("It's giving second date.")).toBe(true);
+      expect(isMemeSpeak("The goat looked happier than either of you.")).toBe(false);
+      expect(isMemeSpeak("A Roman history buff on a first date. Bold.")).toBe(false);
+      const m = answering("{}");
+      await writeChat(m.model, facts, []);
+      const system = m.calls[0][0].content;
+      expect(system).toContain('no "my Roman Empire"');
+      expect(system).toMatch(/never claims to have been there/);
+      expect(m.calls[0][1].content).toContain(`${first0(dex)} and ${first0(nell)}`);
+    });
+  });
 });
+
+const first0 = (c: { name: string }) => shortName(c.name);
+

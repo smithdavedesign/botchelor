@@ -6,6 +6,7 @@ import { requestJson } from "./request";
 import { useAction } from "./useAction";
 import type { DareBoard } from "@/lib/dares";
 import { VERDICT_WORDS } from "@/lib/dare-words";
+import { POINTS_PER_DARE } from "@/lib/rules";
 
 /**
  * Tonight's dare (lib/dares.ts): the ballot's second lane. Viewers back one of three producer dares; the winner is
@@ -26,7 +27,8 @@ export default function DareVote({ board }: { board: DareBoard }) {
           <h2 id="dare-head">Dare {board.target.name} to…</h2>
           <p className="muted small">
             The producers slip the winning dare to {board.target.name} — their date won&apos;t know.{" "}
-            {voted ? `${board.total} ${board.total === 1 ? "vote" : "votes"} so far.` : "Vote to see how it's going."}
+            {voted ? `${board.total} ${board.total === 1 ? "vote" : "votes"} so far.` : "Vote to see how it's going."} If your dare wins, you
+            score when it airs: +{POINTS_PER_DARE.went_through} if they go through with it, +{POINTS_PER_DARE.sort_of} if they sort of do.
           </p>
         </div>
       </div>
@@ -66,7 +68,8 @@ export default function DareVote({ board }: { board: DareBoard }) {
           {board.last.my_pick ? (board.last.won ? " (your dare)" : " (not yours this time)") : ""}{" "}
           {board.last.aired ? (
             <>
-              — {board.last.verdict ? VERDICT_WORDS[board.last.verdict] : "did they go through with it? You decide."}{" "}
+              — {board.last.verdict ? VERDICT_WORDS[board.last.verdict] : "did they go through with it? You decide."}
+              {board.last.won && board.last.verdict && POINTS_PER_DARE[board.last.verdict] > 0 ? ` Your vote: +${POINTS_PER_DARE[board.last.verdict]} points.` : ""}{" "}
               {board.last.episode_path && <Link href={board.last.episode_path}>See the date →</Link>}
             </>
           ) : (

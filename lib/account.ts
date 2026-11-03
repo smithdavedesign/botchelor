@@ -207,7 +207,7 @@ export async function exportAccount(db: Db, userId: string): Promise<AccountExpo
     situation_votes: await q("select day, pick, created_at, updated_at from situation_votes where user_id = $1 order by day", [userId]),
     recoupling_votes: await q("select night_at, pick, created_at, updated_at from recoupling_votes where user_id = $1 order by night_at", [userId]),
     cast_backings: await q("select season_id, character_id, created_at, updated_at, won, settled_at from cast_backings where user_id = $1 order by season_id", [userId]),
-    dare_votes: await q("select day, pick, created_at, updated_at from dare_votes where user_id = $1 order by day", [userId]),
+    dare_votes: await q("select day, pick, points, settled_at, created_at, updated_at from dare_votes where user_id = $1 order by day", [userId]),
     cast_date_weeks: await q("select week_id, granted_at from cast_date_weeks where user_id = $1 order by week_id", [userId]),
     notifications: await q("select kind, title, body, link, created_at, read_at from notifications where user_id = $1 order by created_at", [userId]),
     push_subscriptions: await q("select split_part(endpoint, '/', 3) as push_service, created_at from push_subscriptions where user_id = $1", [userId]),

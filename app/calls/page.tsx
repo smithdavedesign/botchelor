@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { nightCode, parseRecordShare, recordGrid, recordWords } from "@/lib/share-record";
+import { getDb } from "@/lib/db";
+import { nightCode, parseRecordShare, recordGrid, recordWords, sharedByOf, type RecordShare } from "@/lib/share-record";
+import { verifiedSharerName } from "@/lib/share-record-name";
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -11,10 +13,22 @@ const cardPath = (q: Record<string, string | string[] | undefined>) => {
   return `/api/og/record?${p.toString()}`;
 };
 
+/** The sharer's display name, when the link's signature checks out for the one person who goes by it (else null). */
+async function sharerName(share: RecordShare | null, q: Record<string, string | string[] | undefined>): Promise<string | null> {
+  const claim = share ? sharedByOf(q) : null;
+  if (!share || !claim) return null;
+  try {
+    return await verifiedSharerName(await getDb(), share, claim);
+  } catch {
+    return null;
+  }
+}
+
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const q = await searchParams;
   const share = parseRecordShare(q);
-  const title = share ? `Called ${share.right} of ${share.called} on Botchelor` : "Call the ending · Botchelor";
+  const name = await sharerName(share, q);
+  const title = share ? `${name ? `${name} called` : "Called"} ${share.right} of ${share.called} on Botchelor` : "Call the ending · Botchelor";
   const description = "AI characters go on blind dates nobody steers. Call how each one ends before it airs. No spoilers here.";
   return {
     title,
@@ -31,14 +45,17 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
  * the invitation to call tonight's endings yourself. A link with numbers that don't parse just shows the invitation.
  */
 export default async function CallsPage({ searchParams }: Props) {
-  const share = parseRecordShare(await searchParams);
+  const q = await searchParams;
+  const share = parseRecordShare(q);
   const code = share ? nightCode(share) : null;
+  // "Sam's calls" when the link is signed for the one person who goes by Sam; anyone else's link stays "Someone's".
+  const name = await sharerName(share, q);
   return (
     <article className="calls-share-page">
       <p className="kicker">{code ? `Botchelor · ${code}` : "Botchelor"}</p>
       {share ? (
         <>
-          <h1>Someone&apos;s calls</h1>
+          <h1>{name ? `${name}'s calls` : "Someone's calls"}</h1>
           <p className="calls-share-grid" aria-label={recordWords(share)}>
             {recordGrid(share.recent)}
           </p>
