@@ -28,7 +28,7 @@ import Reels, { stopReel } from "./Reels";
 import Storyboard from "./Storyboard";
 import MediaMenu from "./MediaMenu";
 import type { BusyReel, Reel, ReelScope } from "@/lib/adult/reels";
-import { byFiling, groupNights, nightNumbers, runningNight } from "@/lib/adult/nights";
+import { byFiling, groupNights, makingNote, nightNumbers, runningNight, videoNight } from "@/lib/adult/nights";
 import { autoplayStop } from "@/lib/adult/autoplay";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
@@ -565,6 +565,9 @@ export default function SceneWriter({
   const nightGroups = useMemo(() => [...oldestFirst].reverse(), [oldestFirst]);
   // Each night's number, and tonight's (lib/adult/nights.ts nightNumbers): the theater's 📖 and the Nights list say both.
   const numbers = useMemo(() => nightNumbers(oldestFirst), [oldestFirst]);
+  // Which night each video filmed (lib/adult/nights.ts videoNight), and the one being made, for a line wherever they are.
+  const nightOfVideo = useCallback((r: Reel) => videoNight(r, oldestFirst, numbers), [oldestFirst, numbers]);
+  const beingMade = reelList.find((r) => r.status === "making");
   const nightLines = (g: (typeof nightGroups)[number]) => g.rows.reduce((t, n) => t + n.lines.length, 0);
   const nightVideo = (g: (typeof nightGroups)[number]) => void planVideo(g.rows.length > 1 ? "night" : "chapter", g.rows[0].id);
   // The night that just ended, while the new one hasn't started: the start card says where it went.
@@ -682,7 +685,7 @@ export default function SceneWriter({
             chapterTokens={chapterTokens}
             chapterIncluded={chapterIncluded}
             readiness={readiness}
-            videoNote={reelNote?.text ?? null}
+            videoNote={reelNote?.error || reelNote?.busy ? reelNote.text : beingMade ? `${makingNote(beingMade)}: it appears under Videos.` : (reelNote?.text ?? null)}
             mediaPaused={mediaPaused}
             feedbackRef={scene.id}
             steps={{
@@ -846,7 +849,7 @@ export default function SceneWriter({
             />
           ) : mediaTab === "videos" ? (
             reelList.length ? (
-              <Reels reels={reelList} onChange={putReel} onMedia={(m) => setGallery((g) => [m, ...g.filter((x) => x.id !== m.id)])} />
+              <Reels reels={reelList} nightOf={nightOfVideo} onChange={putReel} onMedia={(m) => setGallery((g) => [m, ...g.filter((x) => x.id !== m.id)])} />
             ) : (
               <p className="muted small">No videos yet: 🎬 Video in the theater&apos;s top bar makes one of tonight, and each night under Nights has its own, from a storyboard you check first.</p>
             )
@@ -880,6 +883,22 @@ export default function SceneWriter({
                           🎬 {many ? "Video of the night" : "Video"} · {videoPrice(reelTokens)}
                         </button>
                       </p>
+                      {(() => {
+                        // Its videos, so one being made shows here too, not only under Videos (David, 2026-11-04).
+                        const n = numbers.night.get(g.id);
+                        const its = reelList.filter((r) => r.kind !== "clip" && nightOfVideo(r) === n);
+                        const now = its.find((r) => r.status === "making");
+                        const ready = its.filter((r) => r.status === "ready").length;
+                        if (!now && !ready) return null;
+                        return (
+                          <p className="muted small ad-night-videos" role="status">
+                            {now ? makingNote(now) : `🎬 ${ready} video${ready === 1 ? "" : "s"}`}{" "}
+                            <button type="button" className="linklike" onClick={() => setMediaTab("videos")}>
+                              {now ? "See it" : "Play"}
+                            </button>
+                          </p>
+                        );
+                      })()}
                       {many && (
                         <details className="ad-night-chapters">
                           <summary>Its chapters, one at a time</summary>

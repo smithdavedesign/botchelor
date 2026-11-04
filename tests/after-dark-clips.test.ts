@@ -98,7 +98,7 @@ function fakeVenice(opts: { keyframe?: () => Response; queue?: () => Response } 
   });
   return seen;
 }
-const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+)/)?.[1];
+const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+?)(?:\.png)?(?:\?|$)/)?.[1];
 const night = (n: number, stage: number) =>
   Array.from({ length: n }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*leans closer* Line number ${i} is said quite softly here.`, stage }));
 

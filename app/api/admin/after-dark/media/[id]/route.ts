@@ -1,6 +1,6 @@
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
-import { getMediaThumb, keepMediaThumb, mediaBytes, mediaLink, mediaLinkValid, mediaRef } from "@/lib/adult/media";
+import { getMediaThumb, keepMediaThumb, mediaBytes, mediaIdOf, mediaLink, mediaLinkValid, mediaRef } from "@/lib/adult/media";
 import { resizedWebp, thumbWidth } from "@/lib/thumbs";
 import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
 import { getDb } from "@/lib/db";
@@ -22,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const refused = await mediaRefusal(db, admin);
     if (refused) return refused;
   }
-  const { id } = await params;
+  const id = mediaIdOf((await params).id);
   // Or a picture's short-lived signed link (lib/adult/media.ts signedMediaUrl): a video provider fetching a start frame.
   const q = new URL(req.url).searchParams;
   const linked = !admin && mediaLinkValid(id, q.get("until"), q.get("sig"));

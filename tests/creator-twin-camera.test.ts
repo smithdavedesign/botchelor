@@ -129,7 +129,7 @@ describe("the SFW twin", () => {
     expect(out).toMatchObject({ where: "pg", character_id: character, original: "pic-1", picture: { rating: "pg" } });
     expect(drawn).toHaveLength(1);
     expect(drawn[0].body).toMatchObject({ safe_mode: true, aspect_ratio: "4:5" });
-    expect(String((drawn[0].body.images as string[])[0])).toContain("/media/pic-1?until=");
+    expect(String((drawn[0].body.images as string[])[0])).toContain("/media/pic-1.png?until=");
     const row = (await t.db.query<{ twin_of: string; content_rating: string; aspect: string }>(`select twin_of, content_rating, aspect from studio_pg_pictures where id = $1`, [out.picture.id])).rows[0];
     expect(row).toEqual({ twin_of: "pic-1", content_rating: "pg", aspect: "4:5" });
     expect(await used(owner)).toBe(1);

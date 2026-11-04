@@ -87,3 +87,28 @@ export function chaptersLabel(chapters: readonly Pick<NightChapter, "chapter">[]
   if (chapters.length > 1) return nums.length ? `Whole night, chapters ${Math.min(...nums)}–${Math.max(...nums)}` : "Whole night";
   return nums.length ? `Chapter ${nums[0]}` : "The night";
 }
+
+/**
+ * Which night a video filmed (David, 2026-11-04: a new night's video read as part of the night before's film): the
+ * night of the first saved chapter it covers; one of only the scene being written then is that night's chapter 1 (the
+ * night after the ones begun before it) or carries on the latest. Null for a video from before chapters were recorded.
+ */
+export function videoNight(
+  video: { chapters?: readonly Pick<NightChapter, "chapter" | "night_id">[] | null; created_at: string | Date },
+  groups: readonly NightGroupOf<NightKey>[],
+  numbers: { byRow: ReadonlyMap<string, number> },
+): number | null {
+  if (!video.chapters?.length) return null;
+  const saved = video.chapters.find((c) => c.night_id && numbers.byRow.has(c.night_id));
+  if (saved) return numbers.byRow.get(saved.night_id!)!;
+  const at = new Date(video.created_at).getTime();
+  const begun = groups.filter((g) => new Date(g.rows[0].created_at).getTime() <= at).length;
+  return (video.chapters[0].chapter ?? 1) > 1 ? Math.max(1, begun) : begun + 1;
+}
+
+/** A video being made, as one line: how many of its shots are in. */
+export function makingNote(video: { kind?: string | null; shots: readonly { status: string }[] }): string {
+  if (video.kind === "clip") return "🎬 Making the clip…";
+  const done = video.shots.filter((s) => s.status !== "queued" && s.status !== "frame_ready").length;
+  return `🎬 Making the video: ${done} of ${video.shots.length} shots done`;
+}

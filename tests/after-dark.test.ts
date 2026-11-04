@@ -978,7 +978,7 @@ describe("the video of the night", () => {
   }
   const make = (cookie: string, body: Record<string, unknown> = {}) => call(reelPost, "/api/admin/after-dark/reel", { a: CAST_A, b: CAST_B, ...body }, cookie);
   const advance = async (id: string, cookie: string) => (await (await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${id}`, { headers: { cookie } }))).json()).reel as Reel;
-  const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+)/)?.[1];
+  const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+?)(?:\.png)?(?:\?|$)/)?.[1];
   const threeShots = (shots = [{ line: 2 }, { line: 5 }, { line: 9 }]) => scripted(JSON.stringify({ shots: shots.map((s) => ({ frame: "", motion: "", ...s })) }));
 
   it("films the two of them together: every shot starts from a keyframe of both, made from their own two baselines (David, 2026-10-22)", async () => {

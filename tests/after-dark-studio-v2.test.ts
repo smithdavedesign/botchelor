@@ -193,7 +193,7 @@ describe("a shoot together", () => {
     const res = await post({ action: "pair", character_id: me.character, partner: house, act: "face_to_face", outfit: "nude", framing: "medium", place: "bedroom", reference: "date-pic" }, me.cookie);
     expect(res.status).toBe(200);
     expect(edits[0].images).toHaveLength(3);
-    expect(edits[0].images[2]).toMatch(/\/media\/date-pic\?/);
+    expect(edits[0].images[2]).toMatch(/\/media\/date-pic\.png\?/);
     expect(edits[0].prompt).toContain("posed, framed and placed like Picture 3");
     const out = await res.json();
     // What it made is the Studio's (the Studio tab), and still the pair's.
@@ -291,7 +291,7 @@ describe("more like this, and upscale", () => {
     expect(more.shoot).toMatchObject({ kind: "variations", made: 4 });
     const last = edits.at(-1)!;
     expect(last.images).toHaveLength(2);
-    expect(last.images[1]).toContain(`/media/${src}?until=`);
+    expect(last.images[1]).toContain(`/media/${src}.png?until=`);
     expect(last.prompt).toContain("like Picture 2");
     expect(last.prompt).toMatch(/Uncensored, photorealistic/);
     expect(new Set(edits.slice(-4).map((e) => e.prompt)).size).toBe(4);
@@ -502,7 +502,7 @@ describe("v3: setups, face strength and animate", () => {
     expect(await used(me.id)).toBe(5);
     expect(video.queued).toHaveLength(1);
     expect(video.queued[0]).toMatchObject({ model: "wan-3-0-image-to-video", duration: "10s", aspect_ratio: "adaptive" });
-    expect(String(video.queued[0].image_url)).toContain("/media/face-1?until=");
+    expect(String(video.queued[0].image_url)).toContain("/media/face-1.png?until=");
     expect(String(video.queued[0].prompt)).toContain("turns slowly to face the camera");
     expect(String(video.queued[0].negative_prompt)).toContain("a second person");
     expect(out.state.animating).toHaveLength(1);

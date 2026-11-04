@@ -80,7 +80,7 @@ function fakeVenice() {
   });
   return seen;
 }
-const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+)/)?.[1];
+const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+?)(?:\.png)?(?:\?|$)/)?.[1];
 /** After Dark on, both baselines in, and the pair's night at sex in her bedroom. */
 async function ready(cookie: string, ownerId: string, stage = 4) {
   await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD", venice_key: "placeholder-venice", hive_key: "placeholder-hive" }, cookie);

@@ -467,7 +467,7 @@ describe("the storyboard: plan, draw, then film", () => {
     expect(filmed.shots.map((s) => s.status)).toEqual(["queued", "queued", "planned"]);
     expect(seen.filter((x) => x.path === "/video/queue")).toHaveLength(2);
     const queued = seen.filter((x) => x.path === "/video/queue");
-    expect(queued[0].body.image_url).toMatch(/\/media\/theirs-1\?/);
+    expect(queued[0].body.image_url).toMatch(/\/media\/theirs-1\.png\?/);
 
     // Films again only once it's done; then just that shot is queued again from its own start picture.
     expect((await make(cookie, { action: "refilm", id: plan.id, media_id: "theirs-1" })).status).toBe(409);
@@ -483,7 +483,7 @@ describe("the storyboard: plan, draw, then film", () => {
     expect(again.shots[1].status).toBe("ready");
     const requeued = seen.filter((x) => x.path === "/video/queue");
     expect(requeued).toHaveLength(3);
-    expect(requeued[2].body.image_url).toMatch(/\/media\/theirs-1\?/);
+    expect(requeued[2].body.image_url).toMatch(/\/media\/theirs-1\.png\?/);
     let back = await advance();
     for (let k = 0; k < 5 && back.status === "making"; k++) back = await advance();
     expect(back.status).toBe("ready");
@@ -577,7 +577,7 @@ describe("the storyboard: plan, draw, then film", () => {
     expect(drawn.shots[k]).toMatchObject({ status: "frame_ready", ref_id: "pov-pic" });
     const edit = seen.filter((x) => x.path === "/image/multi-edit").at(-1)!;
     expect(edit.body.images as string[]).toHaveLength(3);
-    expect((edit.body.images as string[])[2]).toMatch(/\/media\/pov-pic\?/);
+    expect((edit.body.images as string[])[2]).toMatch(/\/media\/pov-pic\.png\?/);
     expect(String(edit.body.prompt)).toContain("posed, framed and placed like Picture 3");
     // A picture that isn't this pair's can't be drawn like.
     expect((await make(cookie, { action: "redraw", id: plan.id, shot: 0, reference: "nobody's" })).status).toBe(404);

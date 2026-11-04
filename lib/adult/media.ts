@@ -910,8 +910,12 @@ export function signedMediaUrl(id: string, baseUrl: string, now = Date.now(), en
   const secret = env.SESSION_SECRET;
   if (!secret) throw new Error("SESSION_SECRET is not set");
   const until = now + MEDIA_LINK_MS;
-  return `${baseUrl.replace(/\/$/, "")}/api/admin/after-dark/media/${encodeURIComponent(id)}?until=${until}&sig=${mediaMac(id, until, secret)}`;
+  // Named .png (every After Dark picture is one): Replicate's Wan 2.6 refuses a link with no extension ("Invalid image
+  // format ''"), so every talking shot fell back to silent (2026-11-04). The route takes the id with or without it.
+  return `${baseUrl.replace(/\/$/, "")}/api/admin/after-dark/media/${encodeURIComponent(id)}.png?until=${until}&sig=${mediaMac(id, until, secret)}`;
 }
+/** The id a media link names: without the file extension a signed link carries (signedMediaUrl). */
+export const mediaIdOf = (param: string) => param.replace(/\.(?:png|jpe?g|webp)$/i, "");
 /** The same short-lived link for a presence file (lib/adult/presence.ts), scoped so one can't stand in for the other. */
 export function signedPresenceUrl(id: string, baseUrl: string, now = Date.now(), env: Record<string, string | undefined> = process.env): string {
   const secret = env.SESSION_SECRET;

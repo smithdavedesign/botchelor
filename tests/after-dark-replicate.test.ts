@@ -4,7 +4,7 @@ import { GET as mediaGet } from "@/app/api/admin/after-dark/media/[id]/route";
 import { DELETE as reelDelete, GET as reelGet, POST as reelPost } from "@/app/api/admin/after-dark/reel/route";
 import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route";
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
-import { mediaLinkValid, setMediaFetchForTests, setPortraitBaselinesForTests } from "@/lib/adult/media";
+import { mediaIdOf, mediaLinkValid, setMediaFetchForTests, setPortraitBaselinesForTests } from "@/lib/adult/media";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { reelFailureNote } from "@/lib/adult/reel-failure";
 import { replicateTiming, replicateVoice, setReelFetchForTests, setReelPausesForTests, voiceFor, type Reel } from "@/lib/adult/reels";
@@ -361,7 +361,7 @@ describe("the video of the night on Replicate", () => {
   }
   const make = (cookie: string) => call(reelPost, "/api/admin/after-dark/reel", { a: CAST_A, b: CAST_B }, cookie);
   const advance = async (id: string, cookie: string) => (await (await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?id=${id}`, { headers: { cookie } }))).json()).reel as Reel;
-  const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+)/)?.[1];
+  const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+?)(?:\.png)?(?:\?|$)/)?.[1];
   const threeShots = () => scripted(JSON.stringify({ shots: [2, 5, 9].map((line) => ({ line, frame: "", motion: "" })) }));
   const media = (id: string, cookie?: string) => mediaGet(new Request(`${BASE_URL}/api/admin/after-dark/media/${id}`, { headers: cookie ? { cookie } : {} }), { params: Promise.resolve({ id }) });
 
@@ -490,7 +490,7 @@ describe("the video of the night on Replicate", () => {
     expect(mediaOf((silent[0].body!.input as { image: string }).image)).toBe(mediaOf((talks[0].body!.input as { image: string }).image));
     // A link Replicate can fetch now (2026-11-04: one signed half an hour ahead 404'd, and the clip failed).
     const link = new URL((silent[0].body!.input as { image: string }).image);
-    expect(mediaLinkValid(decodeURIComponent(link.pathname.split("/").pop()!), link.searchParams.get("until"), link.searchParams.get("sig"))).toBe(true);
+    expect(mediaLinkValid(mediaIdOf(decodeURIComponent(link.pathname.split("/").pop()!)), link.searchParams.get("until"), link.searchParams.get("sig"))).toBe(true);
 
     for (let i = 0; i < 4; i++) await advance(started.id, cookie);
     const done = await advance(started.id, cookie);

@@ -179,7 +179,7 @@ describe("After Dark's native sizes", () => {
     const out = await (await post({ action: "carousel", character_id: character, image_id: "pic-1" }, cookie)).json();
     expect(out.shoot).toMatchObject({ kind: "carousel", asked: 6, made: 6, tokens: 1 });
     expect(edits).toHaveLength(6);
-    expect(edits.every((e) => e.aspect_ratio === "4:5" && /\/media\/face-1\?until=/.test(e.images[0]) && e.images.at(-1)!.includes("/media/pic-1?until="))).toBe(true);
+    expect(edits.every((e) => e.aspect_ratio === "4:5" && /\/media\/face-1\.png\?until=/.test(e.images[0]) && e.images.at(-1)!.includes("/media/pic-1.png?until="))).toBe(true);
     expect(new Set(edits.map((e) => e.prompt)).size).toBe(6);
     expect(edits[0].prompt).toContain("at the very moment in Picture 2");
     // Its level is the picture's, and it's kept on each.

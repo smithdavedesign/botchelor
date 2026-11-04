@@ -202,7 +202,7 @@ describe("the After Dark identity pack", () => {
     expect(out.shoot).toMatchObject({ kind: "identity", asked: 8, made: 8, tokens: 0 });
     expect(edits).toHaveLength(8);
     expect(most.max).toBeLessThanOrEqual(4);
-    expect(edits.every((e) => /\/media\/face-1\?until=/.test(e.images[0]))).toBe(true);
+    expect(edits.every((e) => /\/media\/face-1\.png\?until=/.test(e.images[0]))).toBe(true);
     expect(edits.map((e) => e.prompt).join(" ")).toContain("looking back over one shoulder");
     const pack = out.state.identity_pack;
     expect(Object.keys(pack).sort()).toEqual([...IDENTITY_VIEW_IDS].sort());
@@ -249,7 +249,7 @@ describe("the After Dark identity pack", () => {
     expect(s.identity_pack.front.stale).toBe(true);
     // The next shoot leads with the new face, not the old anchor.
     await post({ action: "shoot", character_id: character, choices: {} }, cookie);
-    expect(edits.at(-1)!.images[0]).toMatch(/\/media\/face-2\?until=/);
+    expect(edits.at(-1)!.images[0]).toMatch(/\/media\/face-2\.png\?until=/);
     // Redrawn from the new face: used again.
     await post({ action: "face", character_id: character }, cookie);
     s = await studio(cookie, character);
@@ -269,7 +269,7 @@ describe("the After Dark identity pack", () => {
     await post({ action: "shoot", character_id: character, choices: {} }, cookie);
     const last = edits.at(-1)!;
     expect(last.images).toHaveLength(2);
-    expect(last.images[1]).toContain(`/media/${view}?until=`);
+    expect(last.images[1]).toContain(`/media/${view}.png?until=`);
     expect(last.prompt).toContain("Picture 2 is the same woman's face from another angle");
   });
 });
@@ -286,8 +286,8 @@ describe("Fix faces", () => {
     const out = await res.json();
     expect(out.original).toBe(pic);
     expect(edits).toHaveLength(1);
-    expect(edits[0].images[0]).toContain(`/media/${pic}?until=`);
-    expect(edits[0].images[1]).toMatch(/\/media\/face-1\?until=/);
+    expect(edits[0].images[0]).toContain(`/media/${pic}.png?until=`);
+    expect(edits[0].images[1]).toMatch(/\/media\/face-1\.png\?until=/);
     expect(edits[0].prompt).toContain("Make the woman's face the face from Picture 2");
     expect(edits[0].prompt).toContain("exactly as explicit as Picture 1");
     expect(seen).toContain("vlm");
@@ -306,12 +306,12 @@ describe("Fix faces", () => {
     const view = (await studio(cookie, character)).identity_pack.over_shoulder.id as string;
     const behind = await picture(owner, character, null, { prompt: "on the bed from behind, looking back over her shoulder" });
     await fix({ media_id: behind }, cookie);
-    expect(edits.at(-1)!.images[1]).toContain(`/media/${view}?until=`);
+    expect(edits.at(-1)!.images[1]).toContain(`/media/${view}.png?until=`);
     // No view for that angle nearby either: the anchor.
     await t.db.query(`delete from identity_views`);
     const anchor = (await (await post({ action: "face", character_id: character }, cookie)).json()).pictures[0].id as string;
     await fix({ media_id: behind }, cookie);
-    expect(edits.at(-1)!.images[1]).toContain(`/media/${anchor}?until=`);
+    expect(edits.at(-1)!.images[1]).toContain(`/media/${anchor}.png?until=`);
   });
 
   it("fixes the two of them one face at a time, the second from the first's result; through someone's eyes, only the other one", async () => {
@@ -324,16 +324,16 @@ describe("Fix faces", () => {
     const both = await picture(owner, a, b, { level: 3 });
     expect((await fix({ media_id: both }, cookie)).status).toBe(200);
     expect(edits).toHaveLength(2);
-    expect(edits[0].images[0]).toContain(`/media/${both}?until=`);
+    expect(edits[0].images[0]).toContain(`/media/${both}.png?until=`);
     expect(edits[1].images[0]).toMatch(/^data:image\/png;base64,/);
-    expect(new Set([edits[0].images[1], edits[1].images[1]].map((u) => u.match(/media\/([^?]+)/)![1]))).toEqual(new Set(["face-1", "face-h"]));
+    expect(new Set([edits[0].images[1], edits[1].images[1]].map((u) => u.match(/media\/([^?]+?)(?:\.png)?\?/)![1]))).toEqual(new Set(["face-1", "face-h"]));
     // Seen through the first one's eyes (in the pair's order): only the second one's face is in it.
     const pov = await picture(owner, a, b, { level: 3 });
     await t.db.query(`insert into adult_media_tags (media_id, owner_id, kind, value, source) values ($1, $2, 'pov', 'a', 'choice')`, [pov, owner]);
     const n = edits.length;
     expect((await fix({ media_id: pov }, cookie)).status).toBe(200);
     expect(edits.length).toBe(n + 1);
-    expect(edits.at(-1)!.images[1]).toContain(`/media/${b === character ? "face-1" : "face-h"}?until=`);
+    expect(edits.at(-1)!.images[1]).toContain(`/media/${b === character ? "face-1" : "face-h"}.png?until=`);
   });
 
   it("is the owner's alone, a picture's at most a few times, held to the check and the month's pictures", async () => {
