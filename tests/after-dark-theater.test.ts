@@ -166,7 +166,13 @@ describe("#1204: a steer typed while a step is being written", () => {
   it("the box stays open mid-write and says the steer goes when these lines land; Next waits", () => {
     const html = render({ onWrite: async () => {}, busy: true });
     expect(html).toMatch(/<input aria-label="Steer it \(optional\)"(?![^>]*disabled)[^>]*placeholder="Type the next steer: it goes when these lines land…"/);
-    expect(html).toMatch(/<button type="submit" class="primary" disabled=""[^>]*>Writing…<\/button>/);
+    // The house loading mark (app/Loading.tsx) turns in the button, and on the stage once nothing is left to play.
+    expect(html).toMatch(/<button type="submit" class="primary" disabled=""[^>]*><span class="loading loading-sm loading-current"[^>]*>.*?<\/span><\/span> Writing…<\/button>/);
+    expect(html).toMatch(/<span class="loading loading-lg loading-brand ad-stage-writing" role="status"[^>]*>.*Writing the next lines<\/span>/);
+  });
+
+  it("no loading mark when nothing is being written", () => {
+    expect(render({ onWrite: async () => {} })).not.toContain("data-loading");
   });
 
   it("not writing, the box and Next are as they were", () => {

@@ -177,6 +177,76 @@ body {
   border: 0;
 }
 
+/* The loading mark (app/Loading.tsx): two dots in the brand's two colours circle each other, closing in and drawing
+   apart. Under reduced motion the global rule above stops it, and the two dots rest side by side. */
+.loading {
+  --loading-size: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  flex: none;
+}
+.loading-sm {
+  --loading-size: 1.1em;
+}
+.loading-lg {
+  --loading-size: 2.75rem;
+}
+.loading-mark {
+  position: relative;
+  display: block;
+  width: var(--loading-size);
+  height: var(--loading-size);
+}
+.loading-mark::before,
+.loading-mark::after {
+  content: "";
+  position: absolute;
+  top: 32%;
+  left: 32%;
+  width: 36%;
+  height: 36%;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateX(-70%);
+  animation: loading-orbit 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.loading-mark::after {
+  background: var(--accent-2);
+  transform: rotate(180deg) translateX(-70%);
+  animation-name: loading-orbit-b;
+}
+.loading-current .loading-mark::before {
+  background: currentColor;
+}
+.loading-current .loading-mark::after {
+  background: currentColor;
+  opacity: 0.5;
+}
+@keyframes loading-orbit {
+  0% {
+    transform: rotate(0deg) translateX(-75%);
+  }
+  50% {
+    transform: rotate(180deg) translateX(-15%) scale(1.15);
+  }
+  100% {
+    transform: rotate(360deg) translateX(-75%);
+  }
+}
+@keyframes loading-orbit-b {
+  0% {
+    transform: rotate(180deg) translateX(-75%);
+  }
+  50% {
+    transform: rotate(360deg) translateX(-15%) scale(1.15);
+  }
+  100% {
+    transform: rotate(540deg) translateX(-75%);
+  }
+}
+
 /* Keyboard users land here first: a skip link that jumps past the header to the page content. */
 .skip-link {
   position: absolute;
