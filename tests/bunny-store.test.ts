@@ -183,6 +183,22 @@ describe("the Bunny store", () => {
     expect([...files.keys()]).toEqual([`/botchelor-ad/${kept.object_key}`]);
     expect(await readBytes(kept)).toEqual(PNG);
   });
+
+  it("on the show's host with After Dark elsewhere, an After Dark file stays in Postgres, never the show's bucket (2026-11-04)", async () => {
+    for (const [k, v] of Object.entries(S3)) vi.stubEnv(k, v);
+    vi.stubEnv("AFTER_DARK_ORIGIN", "https://ad.botchelor.com");
+    vi.stubEnv("AFTER_DARK_ONLY", "");
+    const r = recorder(() => new Response(null, { status: 200 }));
+    setObjectStoreFetchForTests(r.fetch);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await keepBytes("after-dark", "clip-1", PNG, "image/png")).toMatchObject({ object_key: null });
+    expect(r.seen).toEqual([]);
+    // The show's own files still go in its bucket.
+    expect((await keepBytes("looks", "tile-1", PNG, "image/png")).object_key).toBe(mediaKey("looks", "tile-1", PNG, "image/png"));
+    // On After Dark's own host, its files go in its store as before.
+    vi.stubEnv("AFTER_DARK_ONLY", "1");
+    expect((await keepBytes("after-dark", "clip-2", PNG, "image/png")).object_key).toBe(mediaKey("after-dark", "clip-2", PNG, "image/png"));
+  });
 });
 
 describe("After Dark's media links come from Bunny when it's set", () => {

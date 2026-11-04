@@ -30,6 +30,7 @@
  */
 import { createHash, createHmac } from "node:crypto";
 import { AwsClient } from "aws4fetch";
+import { afterDarkElsewhere } from "./after-dark-host";
 import { markAiImage, markAiVideo } from "./ai-mark";
 import { faststart } from "./mp4-faststart";
 
@@ -275,6 +276,13 @@ export async function keepBytes(area: MediaArea, id: string, original: Buffer, m
     return { data: bytes, object_key: null };
   }
   if (!store) return { data: bytes, object_key: null };
+  // On the show's host with After Dark on its own, an After Dark file never goes in the show's bucket: every link to it
+  // goes to After Dark's host, which reads its own store (Bunny) and 404'd them (2026-11-04: 13 living portraits made
+  // through the show's /api/admin/showcase/animate). Postgres instead, which both hosts read.
+  if (area === "after-dark" && afterDarkElsewhere()) {
+    console.error(`[object-store] kept ${area}/${id} in Postgres: made on the show's host, After Dark's store is elsewhere`);
+    return { data: bytes, object_key: null };
+  }
   const key = mediaKey(area, id, bytes, mime);
   try {
     await store.put(key, bytes, mime);
