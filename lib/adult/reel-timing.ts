@@ -5,5 +5,8 @@
  */
 export const REEL_STALLED_MS = 30 * 60 * 1000;
 
+/** Lines the owner can add to a storyboard at once (David, 2026-11-04: "choose 1 up to 4 lines from the transcript"). */
+export const PICK_LINES_MAX = 4;
+
 /** A video's price as its buttons say it: its tokens, or on the viewer's own key (Connections, After Dark videos: 0). */
 export const videoPrice = (tokens: number): string => (tokens > 0 ? `${tokens} tokens` : "on your key");
