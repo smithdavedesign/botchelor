@@ -62,7 +62,7 @@ import { ensureBaseline, ensureNudeBaseline, lookWords, signedMediaUrl, type Fac
 import { keptDetailWords } from "../looks";
 import { nudeSql } from "./attire";
 import { adultModel } from "./mode";
-import { REEL_STALLED_MS } from "./reel-timing";
+import { PICK_LINES_MAX, REEL_STALLED_MS } from "./reel-timing";
 import { cancelPrediction, createPrediction, downloadOutput, getPrediction, isDone, noOutput, outputUrls, ReplicateError, runModel, type Prediction, type ReplicateFile } from "./replicate";
 import { dropForeignActions, eligiblePair, type SceneLine } from "./scenes";
 import { groupNights, type NightChapter } from "./nights";
@@ -1778,8 +1778,8 @@ export async function planReel(db: Db, ownerId: string, x: string, y: string, li
   }
 }
 
-/** Lines the owner can add to a storyboard at once (David, 2026-11-04: "choose 1 up to 4 lines from the transcript"). */
-export const PICK_LINES_MAX = 4;
+// PICK_LINES_MAX lives in ./reel-timing, which the storyboard page can import (this file can't: it pulls in sharp).
+export { PICK_LINES_MAX } from "./reel-timing";
 /** Shots a storyboard holds at most, the director's and the owner's together (pickShots' own ceiling). */
 const STORYBOARD_MAX = 12;
 

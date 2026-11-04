@@ -4,9 +4,9 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import type { Media } from "@/lib/adult/media";
-import { PICK_LINES_MAX, type Reel, type ReelScope, type ReelShot, type ShotSuggestion } from "@/lib/adult/reels";
+import type { Reel, ReelScope, ReelShot, ShotSuggestion } from "@/lib/adult/reels";
 import { MediaRequest } from "../../MediaRequest";
-import { videoPrice } from "@/lib/adult/reel-timing";
+import { PICK_LINES_MAX, videoPrice } from "@/lib/adult/reel-timing";
 import PickLines from "./PickLines";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
