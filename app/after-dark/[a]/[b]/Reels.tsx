@@ -364,9 +364,17 @@ function ReelPlayer({ reel, onChange, what = "video", price = null, onMedia }: {
   const discarded = reel.shots.filter((s) => s.status === "discarded").length;
   const failed = reel.shots.filter((s) => s.status === "failed").length;
   const archived = reel.shots.filter((s) => s.status === "ready" && s.archived_at).length;
+  // Talking shots the talk model wouldn't make (Alibaba's filter on Wan 2.6, say): made silent, the line played beside them.
+  const voiceless = reel.shots.filter((s) => s.status === "ready" && !s.archived_at && s.voiceless);
   return (
     <>
       <SeamlessPlayer shots={shots} onChange={onChange} price={price} onMedia={onMedia} />
+      {voiceless.length > 0 && (
+        <p className="muted small">
+          🔇 {voiceless.length === shots.length ? "Every shot" : `${voiceless.length} shot(s)`} came from the silent model, their lines played beside them: the talking model didn&apos;t make{" "}
+          {voiceless.length === 1 ? "it" : "them"} ({voiceless[0].voiceless}).
+        </p>
+      )}
       {archived > 0 && <p className="muted small">{archived} shot(s) taken out, in the Archive below.</p>}
       {discarded > 0 && <p className="muted small">{discarded} shot(s) discarded by the check.</p>}
       {failed > 0 && (
