@@ -9,8 +9,11 @@ export const dynamic = "force-dynamic";
 // A batch of living portraits (lib/showcase-loops.ts): a few clips of a minute or so, made together, then checked.
 export const maxDuration = 300;
 
-/** `agents`: the public agent-made characters' portraits too. `owner`: whose, with the admin password only (an admin's). */
-const Input = z.object({ agents: z.boolean().default(false), owner: z.string().min(1).max(64).optional() });
+/**
+ * `agents`: the public agent-made characters' portraits too, or (`characters`) only these ones'. `owner`: whose, with the
+ * admin password only (an admin's).
+ */
+const Input = z.object({ agents: z.boolean().default(false), characters: z.array(z.string().min(1).max(64)).max(500).optional(), owner: z.string().min(1).max(64).optional() });
 
 /** Admin only: the next few living portraits of their safe pictures (and the agent-made characters'). */
 export const POST = handle(async (req: Request) => {
@@ -19,5 +22,5 @@ export const POST = handle(async (req: Request) => {
   const db = await getDb();
   const owner = await adminOwnerOf(db, req, input.owner);
   if (!owner) return json({ error: "not_found", message: "Whose? An admin's own, or an admin's id with the admin password." }, 404);
-  return json(await loopBatch(db, owner, requestBase(req), { agents: input.agents }));
+  return json(await loopBatch(db, owner, requestBase(req), { agents: input.agents, characters: input.characters }));
 });

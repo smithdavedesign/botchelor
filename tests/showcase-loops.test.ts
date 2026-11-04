@@ -97,6 +97,9 @@ describe("living portraits", () => {
     const targets = await loopTargets(t.db, w.me, BASE_URL, { agents: true });
     expect(targets.map((x) => [x.source, x.character_id]).sort()).toEqual([["portrait", w.open], ["post", w.mine], ["post", w.mine]].sort());
     expect((await loopTargets(t.db, w.me, BASE_URL)).every((x) => x.source === "post")).toBe(true);
+    // Named characters (the recast's redo): only their portraits, none of the admin's own pictures.
+    expect((await loopTargets(t.db, w.me, BASE_URL, { agents: true, characters: [w.open] })).map((x) => [x.source, x.character_id])).toEqual([["portrait", w.open]]);
+    expect(await loopTargets(t.db, w.me, BASE_URL, { agents: true, characters: [w.bare] })).toEqual([]);
 
     const asked = fakeReplicate();
     verdict("CLOTHED");

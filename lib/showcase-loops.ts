@@ -51,7 +51,7 @@ export type LoopTarget = { source: "post" | "portrait"; source_id: string; owner
  * What there is still to animate: the owner's live pg pictures, and (`agents`) the show's characters' newest approved
  * pg portrait: every public agent-made character's, and the house cast's (David, 2026-10-29: "do these"). Never one already tried, whatever came of it.
  */
-export async function loopTargets(db: Db, owner: string, baseUrl: string, opts: { agents?: boolean } = {}): Promise<LoopTarget[]> {
+export async function loopTargets(db: Db, owner: string, baseUrl: string, opts: { agents?: boolean; characters?: string[] } = {}): Promise<LoopTarget[]> {
   const posts = (
     await db.query<{ id: string; character_id: string; character_b: string | null; aspect: string | null }>(
       `select p.id, p.character_id, p.character_b, p.aspect from showcase_posts p
@@ -62,6 +62,8 @@ export async function loopTargets(db: Db, owner: string, baseUrl: string, opts: 
     )
   ).rows.map((p): LoopTarget => ({ source: "post", source_id: p.id, owner, character_id: p.character_id, character_b: p.character_b, image: new URL(`/api/showcase/${p.id}/media`, baseUrl).toString(), aspect: p.aspect ?? "3:4" }));
   if (!opts.agents) return posts;
+  // Named characters: only their portraits, not the owner's own pictures.
+  const own = opts.characters ? [] : posts;
   const portraits = (
     await db.query<{ character_id: string; asset_id: string }>(
       `select ch.id as character_id, a.id as asset_id from characters ch
@@ -69,10 +71,13 @@ export async function loopTargets(db: Db, owner: string, baseUrl: string, opts: 
                         and x.content_rating = 'pg' and x.url is not null order by x.created_at desc limit 1) a on true
         where (ch.created_via = 'mcp' or ch.is_house) and ch.visibility = 'public' and ch.owner_id is distinct from '${DELETED_OWNER}'
           and not exists (select 1 from showcase_loops l where l.source = 'portrait' and l.source_id = a.id)
+          -- With characters: only these (2026-11-03: the recast's characters whose living portrait was of their old face).
+          and ($1::text[] is null or ch.id = any($1))
         order by ch.created_at desc`,
+      [opts.characters ?? null],
     )
   ).rows.map((r): LoopTarget => ({ source: "portrait", source_id: r.asset_id, owner: SHOW_CREATOR.user_id, character_id: r.character_id, character_b: null, image: new URL(`/api/assets/${r.asset_id}`, baseUrl).toString(), aspect: "3:4" }));
-  return [...posts, ...portraits];
+  return [...own, ...portraits];
 }
 
 /** The show's creator page, there before its first post. */
@@ -158,7 +163,7 @@ export async function makeLoop(db: Db, t: LoopTarget): Promise<LoopResult> {
 }
 
 /** The next few living portraits, made together. `left`: how many are still to try after these. */
-export async function loopBatch(db: Db, owner: string, baseUrl: string, opts: { agents?: boolean } = {}): Promise<{ ok: true; made: string[]; failed: { source_id: string; error: string }[]; left: number }> {
+export async function loopBatch(db: Db, owner: string, baseUrl: string, opts: { agents?: boolean; characters?: string[] } = {}): Promise<{ ok: true; made: string[]; failed: { source_id: string; error: string }[]; left: number }> {
   const todo = await loopTargets(db, owner, baseUrl, opts);
   const batch = todo.slice(0, LOOP_BATCH);
   const results = await Promise.all(batch.map((t) => makeLoop(db, t)));
