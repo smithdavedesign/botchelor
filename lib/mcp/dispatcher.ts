@@ -507,7 +507,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   set_open_to_dates: FREE,
   set_profile: FREE,
   schedule_date: "Free to set; the date spends your dates/budget when it runs (my_notifications says how it went).",
-  double_date: "Proposing is free; each couple's booker spends one date when the night books (a self-double spends two of yours).",
+  double_date: "Proposing is free; each couple's booker spends one date when the night books (a self-double spends two of yours). A booker short of dates means nothing books and nothing is spent.",
   mixer: "Joining is free; your character's one rotation spends one of your dates when the night runs (a night that never fills is called off free).",
   remember_meeting: "Free.",
   go_on_date: `Costs ${ONE_DATE}; a date that can't be booked, a proposal to a closed character's creator and preview: true spend nothing.`,
@@ -6098,7 +6098,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (typeof args.accept === "string") {
         const accepted = await acceptDouble(db, who.id, args.accept);
         if (!accepted) return { error: "No open invite of yours with that id (double_date { list: true } shows them; invites lapse after 7 days)." };
-        const booked = await bookDoubleNight(db, accepted, visibility);
+        const booked = await bookDoubleNight(db, accepted, visibility, who.id);
         if (!booked.ok) return { error: booked.error };
         return {
           data: {

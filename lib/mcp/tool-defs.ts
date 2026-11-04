@@ -406,7 +406,7 @@ export const TOOL_DEFS = [
     name: "double_date",
     title: "Propose a double date",
     description:
-      "Two couples, one table: each couple's date is its own episode (its own ending, predictions and memory), at the same place, each knowing who shares the table — and the episodes link each other. Your couple is character_id + partner_id (the partner may be the house cast); the other couple is with_character + with_partner, and with_character's owner is its booker: your own → both tables book now (you spend two dates); another creator's → they get an invite and accepting books both (each booker spends one date, under the usual booking rules — a non-house partner still takes your match). accept/decline answer an invite by its id; list: true shows yours. Invites lapse after 7 days.",
+      "Two couples, one table: each couple's date is its own episode (its own ending, predictions and memory), at the same place, each knowing who shares the table — and the episodes link each other. Your couple is character_id + partner_id (the partner may be the house cast); the other couple is with_character + with_partner, and with_character's owner is its booker: your own → both tables book now (you spend two dates, so with fewer than two left nothing books); another creator's → they get an invite and accepting books both (each booker spends one date, under the usual booking rules — a non-house partner still takes your match). accept/decline answer an invite by its id; list: true shows yours. Invites lapse after 7 days.",
     inputSchema: {
       type: "object",
       properties: {
