@@ -3,7 +3,7 @@
 # every value marked CHANGE_ME as an encrypted secret in the dashboard. Never commit real values to this file.
 # Billing: about $10 a month for the instance below, plus at most $5 for the hourly jobs; set a spend alert at $15 (runbook step 7).
 name: botchelor-after-dark
-region: nyc
+region: sfo
 alerts:
   - rule: DEPLOYMENT_FAILED
   - rule: DOMAIN_FAILED
