@@ -11,9 +11,11 @@ From the production build (`npm run screenshots`): the start page, then a date p
 
 <img src="docs/screenshots/date-desktop.png" width="520" alt="A date playing in the theater at 1280×800, line by line"> <img src="docs/screenshots/date-mobile.png" width="180" alt="The same date on an iPhone 13">
 
-Companions: texting one, then a scene together at one of the show's places, on a desktop and a phone (`SHOTS=1 npm run e2e:companion`).
+Companions on botchelor.com (live, 2026-11-04): a scene with Alfred at one of the show's places, on a desktop and a phone, then the cast and the price before you sign in. More from the e2e build: `SHOTS=1 npm run e2e:companion`.
 
-<img src="docs/screenshots/companion-chat-desktop.png" width="520" alt="A companion conversation at 1280×800: the AI notice, then their replies in two messages"> <img src="docs/screenshots/companion-scene-phone.png" width="180" alt="A companion scene on an iPhone 13: the place on a banner over the thread, their line with what they do">
+<img src="docs/screenshots/companion-live-scene-desktop.png" width="520" alt="A live companion scene at 1280×900: Alfred and you at a rooftop bar, his line with what he does, yours beside it"> <img src="docs/screenshots/companion-live-scene-phone.png" width="180" alt="The same scene on a phone: the place on a banner over the thread">
+
+<img src="docs/screenshots/companion-live-signed-out-desktop.png" width="520" alt="The companions page signed out: 30 free replies a day, the Companion Plan at $9.99 a month, and the cast">
 
 More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped and when: [ROADMAP.md](ROADMAP.md).
 
