@@ -4,7 +4,7 @@ import { wishLine, type StoredWishes } from "./wishes";
 import { choiceLine } from "./choices";
 import { innerForViewer, type SeeAgain, type StoredInner } from "./inner-life";
 import type { CharacterSheet, DateHistory, EngineVersion, SideOutcome, SoulSignals, VariableArc } from "./engine";
-import { approvedClipId, approvedClipIsVideo, approvedPortraitId, portraitPathSql } from "./assets";
+import { approvedPortraitSelect, portraitPathSql } from "./portrait-sql";
 import type { Db } from "./db";
 import { publicExtras, type CharacterExtras } from "./extras";
 import { isHouseBotSql } from "./house-bots";
@@ -989,18 +989,33 @@ export type PublicCharacter = {
 
 /** A character's public persona. Its private facts are stripped (lib/extras.ts publicExtras): the owner's page reads them itself. */
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
-  const { rows } = await db.query<Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id" | "clip_is_video" | "pg_flags"> & { dealbreaker: string }>(
-    `select id, name, age, bio, traits, appearance, want, dealbreaker, is_house as house, avatar_hue as hue, pronouns, voice,
-            coalesce(extras, '{}'::jsonb) as extras, this_week, created_via = 'mcp' as made_by_agent,
-            visibility = 'private' as private, owner_id
-       from characters where id = $1`,
+  // One statement, its approved portrait and clip included (approvedPortraitId, approvedClipId, approvedClipIsVideo):
+  // three round trips in a row were most of a character page's first wait (2026-11-04 performance audit).
+  const { rows } = await db.query<
+    Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id" | "clip_is_video" | "pg_flags"> & {
+      dealbreaker: string;
+      portrait_asset_id: string | null;
+      clip_asset_id: string | null;
+      clip_is_video: boolean;
+    }
+  >(
+    `select c.id, c.name, c.age, c.bio, c.traits, c.appearance, c.want, c.dealbreaker, c.is_house as house, c.avatar_hue as hue, c.pronouns, c.voice,
+            coalesce(c.extras, '{}'::jsonb) as extras, c.this_week, c.created_via = 'mcp' as made_by_agent,
+            c.visibility = 'private' as private, c.owner_id,
+            (${approvedPortraitSelect("c.id")}) as portrait_asset_id,
+            clip.id as clip_asset_id, coalesce(clip.url like 'data:video/mp4;%', false) as clip_is_video
+       from characters c
+       left join lateral (
+         select a.id, a.url from character_assets a
+          where a.character_id = c.id and a.kind = 'clip' and a.review_status = 'approved' and a.url is not null and a.content_rating = 'pg'
+          order by a.created_at desc limit 1
+       ) clip on true
+      where c.id = $1`,
     [id],
   );
   if (!rows[0]) return null;
-  const [portrait_asset_id, clip_asset_id] = await Promise.all([approvedPortraitId(db, id), approvedClipId(db, id)]);
-  const clip_is_video = clip_asset_id ? await approvedClipIsVideo(db, clip_asset_id) : false;
   // The dealbreaker is read only for the PG check: it stays the quiz's secret.
-  const { dealbreaker: _quiz, ...row } = rows[0];
+  const { dealbreaker: _quiz, portrait_asset_id, clip_asset_id, clip_is_video, ...row } = rows[0];
   const pg_flags = pgFlags(rows[0]);
   const shown = pgPublic(row);
   return { ...shown, extras: publicExtras(shown.extras), portrait_asset_id, clip_asset_id, clip_is_video, pg_flags };
@@ -1067,6 +1082,32 @@ export async function getCharacterDatesPage(
   per = CHARACTER_DATES_PAGE,
 ): Promise<{ dates: CharacterDate[]; record: CharacterRecord; page: number; pages: number; total: number }> {
   const where = `(e.character_a = $1 or e.character_b = $1) and e.revealed_at is not null and e.visibility = 'public'`;
+  // The page asked for and the tally at once (2026-11-04 performance audit); only a page past the end reads again.
+  const asked = Math.max(1, Math.floor(page) || 1);
+  const pageAt = (n: number) =>
+    db.query<{
+      episode_id: string;
+      ending: Ending;
+      p_id: string;
+      p_name: string;
+      p_house: boolean;
+      p_hue: number | null;
+      p_portrait: string | null;
+      p_private: boolean;
+      date_number: number | null;
+    }>(
+      `select e.id as episode_id, e.ending, ${dateNumberSql("e")} as date_number, p.id as p_id, p.name as p_name, p.is_house as p_house, p.avatar_hue as p_hue,
+              ${portraitPathSql("p")} as p_portrait,
+              (p.visibility = 'private' and p.owner_id is distinct from $2::text) as p_private
+         from episodes e
+         join characters p on p.id = case when e.character_a = $1 then e.character_b else e.character_a end
+        where ${where}
+        order by e.revealed_at desc, e.id
+        limit $3 offset $4`,
+      [id, viewerId, per, (n - 1) * per],
+    );
+  const askedRows = pageAt(asked);
+  askedRows.catch(() => {}); // awaited below; a failed tally mustn't leave it unhandled
   const tally = (
     await db.query<CharacterRecord>(
       `select count(*)::int as dates,
@@ -1078,28 +1119,8 @@ export async function getCharacterDatesPage(
     )
   ).rows[0] ?? { dates: 0, second_dates: 0, friends: 0, disasters: 0 };
   const pages = Math.max(1, Math.ceil(tally.dates / per));
-  const p = Math.min(Math.max(1, Math.floor(page) || 1), pages);
-  const { rows } = await db.query<{
-    episode_id: string;
-    ending: Ending;
-    p_id: string;
-    p_name: string;
-    p_house: boolean;
-    p_hue: number | null;
-    p_portrait: string | null;
-    p_private: boolean;
-    date_number: number | null;
-  }>(
-    `select e.id as episode_id, e.ending, ${dateNumberSql("e")} as date_number, p.id as p_id, p.name as p_name, p.is_house as p_house, p.avatar_hue as p_hue,
-            ${portraitPathSql("p")} as p_portrait,
-            (p.visibility = 'private' and p.owner_id is distinct from $2::text) as p_private
-       from episodes e
-       join characters p on p.id = case when e.character_a = $1 then e.character_b else e.character_a end
-      where ${where}
-      order by e.revealed_at desc, e.id
-      limit $3 offset $4`,
-    [id, viewerId, per, (p - 1) * per],
-  );
+  const p = Math.min(asked, pages);
+  const { rows } = p === asked ? await askedRows : await pageAt(p);
   const dates = rows.map((r) => ({
     episode_id: r.episode_id,
     share_path: `/episodes/${r.episode_id}`,

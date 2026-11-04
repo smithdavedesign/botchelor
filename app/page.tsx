@@ -83,35 +83,43 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   }
   const viewerId = userIdFromCookieStore(await cookies());
   const db = viewerId ? await getDb() : null;
-  const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
-  const tokens = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
-  const myCharacters = db && viewerId ? await listMyCharacters(db, viewerId) : [];
-  // A returning visitor sees what happened first (J4); a first visit is unchanged.
-  const [since, unread] =
-    db && viewerId && myCharacters.length
-      ? await Promise.all([sinceYouWereHere(db, viewerId, myCharacters).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
-      : [[], 0];
-  // What happened on the show since their last visit (lib/show-since.ts): inside that card for an owner, its own card for
-  // a spectator. Nothing on a first visit.
-  // Your calls line offers "Put my name on the board" to someone with no display name yet (app/BoardName.tsx).
-  const profileName = db && viewerId ? await getProfileName(db, viewerId).catch(() => null) : null;
-  // Their shared calls link carries that name when it's theirs alone (lib/share-record-name.ts).
-  const sharer = db && viewerId && profileName ? await sharerOf(db, viewerId).catch(() => null) : null;
-  const showNews = db && viewerId ? await showSince(db, viewerId).catch(() => null) : null;
   const conn = db ?? (await getDb());
-  // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts).
-  const [aired, sky, situation, dares, record, airing, rooms, onSeason] = await Promise.all([
-    forViewer(viewerId, "home:aired", () => listAiredPage(conn, viewerId, 1, 6)).catch(() => null),
-    cachedConstellation(conn).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
-    forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null),
-    forViewer(viewerId, "home:dares", () => dareBoard(conn, viewerId)).catch(() => null),
-    // Your calls (lib/streaks.ts): your record and run, and how many dates you could still call.
-    forViewer(viewerId, "home:calls", () => callRecord(conn, viewerId)).catch(() => null),
-    forViewer(viewerId, "home:airing", () => listAiringSoon(conn, viewerId, airWindowMinutes())).catch(() => []),
-    // The tonight band's live rooms (lib/watch.ts): what's on the air right now.
-    forViewer(viewerId, "lobby", () => listLobby(conn)).catch(() => []),
-    // This season's handful of house characters (lib/season-cast.ts), the same for everyone.
-    shared("season-cast", () => seasonCastCards(conn)),
+  // The viewer's own cards and the show's boards, all at once (2026-11-04 performance audit: one after another they were
+  // eleven database round trips in a row, ~70 ms each from New York to the database in Oregon).
+  const myCharactersP = db && viewerId ? listMyCharacters(db, viewerId) : Promise.resolve<Awaited<ReturnType<typeof listMyCharacters>>>([]);
+  const profileNameP = db && viewerId ? getProfileName(db, viewerId).catch(() => null) : Promise.resolve(null);
+  // A returning visitor sees what happened first (J4); a first visit is unchanged.
+  const sinceP: Promise<[Awaited<ReturnType<typeof sinceYouWereHere>>, number]> = myCharactersP.then((mine) =>
+    db && viewerId && mine.length
+      ? Promise.all([sinceYouWereHere(db, viewerId, mine).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
+      : [[], 0],
+  );
+  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, sky, situation, dares, record, airing, rooms, onSeason]] = await Promise.all([
+    db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
+    db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
+    myCharactersP,
+    sinceP,
+    // Your calls line offers "Put my name on the board" to someone with no display name yet (app/BoardName.tsx).
+    profileNameP,
+    // Their shared calls link carries that name when it's theirs alone (lib/share-record-name.ts).
+    profileNameP.then((name) => (db && viewerId && name ? sharerOf(db, viewerId).catch(() => null) : null)),
+    // What happened on the show since their last visit (lib/show-since.ts): inside that card for an owner, its own card for
+    // a spectator. Nothing on a first visit.
+    db && viewerId ? showSince(db, viewerId).catch(() => null) : null,
+    // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts).
+    Promise.all([
+      forViewer(viewerId, "home:aired", () => listAiredPage(conn, viewerId, 1, 6)).catch(() => null),
+      cachedConstellation(conn).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
+      forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null),
+      forViewer(viewerId, "home:dares", () => dareBoard(conn, viewerId)).catch(() => null),
+      // Your calls (lib/streaks.ts): your record and run, and how many dates you could still call.
+      forViewer(viewerId, "home:calls", () => callRecord(conn, viewerId)).catch(() => null),
+      forViewer(viewerId, "home:airing", () => listAiringSoon(conn, viewerId, airWindowMinutes())).catch(() => []),
+      // The tonight band's live rooms (lib/watch.ts): what's on the air right now.
+      forViewer(viewerId, "lobby", () => listLobby(conn)).catch(() => []),
+      // This season's handful of house characters (lib/season-cast.ts), the same for everyone.
+      shared("season-cast", () => seasonCastCards(conn)),
+    ]),
   ]);
 
   // Plus any premium house character this viewer owns.

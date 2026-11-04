@@ -52,6 +52,10 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
   const { id } = await params;
   const sp = (await searchParams) ?? {};
   const db = await getDb();
+  // Its edges and memory start beside the character itself (2026-11-04 performance audit); a private one discards them.
+  const edgesP = relationshipsOf(db, id);
+  const memoryP = loadCharacterMemory(db, id).catch(() => null);
+  edgesP.catch(() => {}); // awaited below; unused (and so unhandled) for a 404 or a private character
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
   const viewerId = userIdFromCookieStore(await cookies());
@@ -68,7 +72,7 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
       </article>
     );
   }
-  const edges = await relationshipsOf(db, id);
+  const edges = await edgesP;
   const people = new Map(
     (
       await db.query<Person>(
@@ -82,7 +86,7 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
   // The social graph's other edge (lib/group-dates.ts): people this character MET at a group night (a double date's
   // other table, a mixer rotation it wasn't in) without dating. Public, from aired dates; the owner's take is theirs.
   // A private character among them is left out for everyone but its own owner.
-  const metAll = (await loadCharacterMemory(db, id).catch(() => null))?.met ?? [];
+  const metAll = (await memoryP)?.met ?? [];
   const metFaces = new Map(
     metAll.length
       ? (

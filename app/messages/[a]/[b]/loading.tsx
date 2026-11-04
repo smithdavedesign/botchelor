@@ -1,10 +1,6 @@
-import Loading from "@/app/Loading";
+import PageLoading from "@/app/PageLoading";
 
-/** Shown at once while a thread loads, after a tap on a match. */
+/** Shown the moment a link here is tapped, while the page loads (app/PageLoading.tsx). */
 export default function ThreadLoading() {
-  return (
-    <article className="matches-page page-loading">
-      <Loading size="lg" label="Opening the texts" status />
-    </article>
-  );
+  return <PageLoading shape="couple" label="Opening the texts…" />;
 }

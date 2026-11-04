@@ -247,10 +247,155 @@ body {
   }
 }
 
-/* A route's loading.tsx: the mark, centred where the page will be. */
-.page-loading > .loading {
+/* A route's loading screen (app/PageLoading.tsx): what's loading, then a grey outline of the page with a slow shimmer.
+   Under reduced motion the global rule above stills the shimmer. */
+.page-skeleton {
+  padding: var(--space-3) 0;
+}
+.page-skeleton-status {
   display: flex;
-  margin: var(--space-6, 3rem) auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  font-weight: 600;
+}
+.sk {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.sk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--card) 55%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: sk-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes sk-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+.sk-line {
+  height: 0.85rem;
+  margin: 0.55rem 0;
+}
+.sk-title {
+  width: 55%;
+  height: 1.9rem;
+  margin: var(--space-3) 0 var(--space-2);
+}
+.sk-circle {
+  flex: none;
+  border-radius: 50%;
+}
+.sk-face {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+.sk-face-lg {
+  width: 6rem;
+  height: 6rem;
+}
+.sk-head,
+.sk-couple {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.sk-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.sk-card {
+  margin: var(--space-3) 0;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.sk-hero {
+  display: flex;
+  align-items: flex-end;
+  height: clamp(10rem, 32vw, 18rem);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+}
+.sk-hero-faces {
+  display: flex;
+  gap: var(--space-2);
+}
+.sk-hero-faces .sk {
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.sk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-3);
+}
+.sk-tile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .sk-face-lg {
+    width: 4.5rem;
+    height: 4.5rem;
+  }
+}
+
+/* The bar across the top while another page loads (app/NavProgress.tsx): it fades in after a moment, so a quick page
+   never shows it, creeps toward the end, and fills when the page arrives. */
+.nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 3px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.nav-progress-bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.nav-progress[data-state="going"] {
+  animation: nav-progress-show 0.2s ease 0.15s forwards;
+}
+.nav-progress[data-state="going"] .nav-progress-bar {
+  animation: nav-progress-creep 10s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+.nav-progress[data-state="done"] {
+  opacity: 1;
+}
+.nav-progress[data-state="done"] .nav-progress-bar {
+  width: 100%;
+  transition: width 0.15s ease;
+}
+@keyframes nav-progress-show {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes nav-progress-creep {
+  from {
+    width: 0;
+  }
+  to {
+    width: 88%;
+  }
 }
 
 /* Keyboard users land here first: a skip link that jumps past the header to the page content. */

@@ -50,10 +50,14 @@ export type PgAccess = { ok: true; character: Character; admin: boolean; config:
 /** Whether this viewer may open the PG Studio for this character. */
 export async function pgAccess(db: Db, viewer: string | null, characterId: string): Promise<PgAccess> {
   if (!viewer) return fail(401, "sign_in", "Sign in to use the Studio.");
-  const config = (await getAdultSettings(db)).studio.pg;
-  const admin = await isAdmin(db, viewer);
+  // All three at once (2026-11-04 performance audit): the character is read even when the Studio turns out closed.
+  const [settings, admin, c] = await Promise.all([getAdultSettings(db), isAdmin(db, viewer), loadCharacter(db, characterId)]);
+  return pgAccessFor(viewer, settings.studio.pg, admin, c);
+}
+
+/** pgAccess's rules, for a caller that has already read the settings, the viewer's admin flag and the character. */
+export function pgAccessFor(viewer: string, config: PgConfig, admin: boolean, c: Character | null): PgAccess {
   if (config.open_to === "admins" && !admin) return fail(404, "not_found", "The Studio isn't open yet.");
-  const c = await loadCharacter(db, characterId);
   if (!c) return fail(404, "not_found", "No character with that id.");
   if (c.ownerId !== viewer && !(admin && c.house)) return fail(404, "not_found", "The Studio is for your own characters.");
   return { ok: true, character: c, admin, config };

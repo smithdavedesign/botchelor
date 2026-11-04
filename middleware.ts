@@ -133,8 +133,32 @@ export function middleware(req: NextRequest): NextResponse {
   return res;
 }
 
+/**
+ * A pair's page (a couple, their texts) at its one address, the lower id first, as a real 308 before anything renders:
+ * those pages have a loading screen (loading.tsx), and a redirect from a page that's already streaming it can only
+ * happen in the browser (2026-11-04 performance audit). The pages' own permanentRedirect stays as a fallback.
+ */
+export function canonicalPairPath(pathname: string): string | null {
+  const m = /^\/(couples|messages)\/([^/]+)\/([^/]+)$/.exec(pathname);
+  if (!m) return null;
+  let a: string, b: string;
+  try {
+    [a, b] = [decodeURIComponent(m[2]), decodeURIComponent(m[3])];
+  } catch {
+    return null;
+  }
+  return a > b ? `/${m[1]}/${m[3]}/${m[2]}` : null;
+}
+
 function route(req: NextRequest): NextResponse {
   const { pathname, search } = req.nextUrl;
+
+  const pair = canonicalPairPath(pathname);
+  if (pair) {
+    const url = req.nextUrl.clone();
+    url.pathname = pair;
+    return NextResponse.redirect(url, 308);
+  }
 
   const doc = AGENT_DOCS[pathname];
   if (doc) {

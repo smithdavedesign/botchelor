@@ -111,7 +111,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       </article>
     );
   }
-  const [{ dates: episodes, record, page: datesPage, pages: datesPages }, ratings, memory, dating, reviews, secrets] = await Promise.all([
+  // Everything below starts at once (the 2026-11-04 performance audit: one after another, the owner's page waited on 29
+  // database round trips in a row, ~70 ms each from New York to the database in Oregon). The owner is known from the
+  // character itself, so nothing waits on the ratings to find out.
+  const isOwner = Boolean(viewerId) && c.owner_id === viewerId;
+  const auth = authFromCookieStore(await cookies());
+  const firstP = Promise.all([
     getCharacterDatesPage(db, id, viewerId, parsePage(sp.dates)),
     getCharacterRatings(db, id, viewerId),
     loadCharacterMemory(db, id),
@@ -122,15 +127,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       .then((cast) => cast ?? ownSecretsCard(db, id).then((own) => (own ? { ...own, own: true } : null)))
       .catch(() => null),
   ]);
-  const week = thisWeek(c.id, c.this_week);
   // The owner also sees its private facts (marked as theirs alone); everyone else gets the public card.
-  const shownExtras =
-    ratings.is_owner && viewerId
-      ? ((await db.query<{ extras: CharacterExtras | null }>(`select extras from characters where id = $1 and owner_id = $2`, [id, viewerId])).rows[0]?.extras ?? c.extras)
-      : c.extras;
+  const shownExtrasP =
+    isOwner && viewerId
+      ? db.query<{ extras: CharacterExtras | null }>(`select extras from characters where id = $1 and owner_id = $2`, [id, viewerId]).then((r) => r.rows[0]?.extras ?? c.extras)
+      : Promise.resolve(c.extras);
   // Its relationships in the graph (lib/relationships.ts), as this viewer may see them: the public layer, or the
   // owner's (with their own private dates). Strongest tie first.
-  const relationships = await (async () => {
+  const relationshipsP = (async () => {
     const edges = await relationshipsOf(db, id);
     const others = edges.map((r) => (r.lo === id ? r.hi : r.lo));
     // Each one's face and whether it's private to someone else (then: its name only, never linked).
@@ -148,7 +152,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         : [],
     );
     return edges
-      .map((rel) => ({ rel, view: viewRelationship(rel, { userId: viewerId, owner: ratings.is_owner }) }))
+      .map((rel) => ({ rel, view: viewRelationship(rel, { userId: viewerId, owner: isOwner }) }))
       .filter((x) => x.view !== null)
       .map(({ rel, view }) => {
         const otherId = rel.lo === id ? rel.hi : rel.lo;
@@ -158,9 +162,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       .sort((x, y) => y.view.tie - x.view.tie);
   })();
   // The owner's clip panel: admin (no paywall), their bought tokens, and whether they have a Google key.
-  const clip =
-    ratings.is_owner && !c.house && viewerId
-      ? await Promise.all([
+  const clipP =
+    isOwner && !c.house && viewerId
+      ? Promise.all([
           isAdmin(db, viewerId),
           episodeAllowance(db, viewerId),
           hasJobKey(db, viewerId, "video"),
@@ -172,13 +176,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           // Baseline-still gate: Veo drifts without an image anchor, so a clip now needs an approved portrait first.
           hasPortrait: Boolean(c.portrait_asset_id),
         }))
-      : null;
+      : Promise.resolve(null);
   // One partner or more (lib/partners.ts): public as a badge, the setting for the owner.
-  const partnerStyle = c.house ? null : await partnerStyleOf(db, id);
+  const partnerStyleP = c.house ? Promise.resolve(null) : partnerStyleOf(db, id);
   // The After Dark Studio for this character (lib/adult/studio.ts; David, 2026-10-24): its owner (or an admin, for the
   // house cast), where After Dark is open to them and pictures are allowed where they are (lib/jurisdiction.ts).
-  const studio = await (async () => {
-    const auth = authFromCookieStore(await cookies());
+  const studioP = (async () => {
     if (!auth?.authenticated) return null;
     const here = await accessHere(db, auth).catch(() => null);
     if (!here?.entitled.ok || !mediaAllowed(here) || !(await adultAvailable(db))) return null;
@@ -187,32 +190,105 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     return r.error === "not_switched_on" ? { href: afterDarkHref("/after-dark"), ready: false } : null;
   })().catch(() => null);
   // The PG Studio (lib/studio/pg.ts): safe photo shoots, for the owner (or an admin, for the house cast).
-  const pgStudio = await (async () => {
-    const auth = authFromCookieStore(await cookies());
+  const pgStudioP = (async () => {
     if (!auth?.authenticated) return false;
     return (await pgAccess(db, auth.userId, id)).ok;
   })().catch(() => false);
   // Step into the date (lib/step-in.ts): this season's cast, for whoever it's open to (admins until STEP_IN_OPEN).
-  const stepIn = c.house && isOnSeasonCast(id) ? await stepInAllowed(db, authFromCookieStore(await cookies())).catch(() => false) : false;
+  const stepInP = c.house && isOnSeasonCast(id) ? stepInAllowed(db, auth).catch(() => false) : Promise.resolve(false);
   // What it does while its owner is away (lib/activity.ts), for the owner's controls.
-  const away = c.house
-    ? null
-    : ((await db.query<{ while_away: string | null; created_via: string; adopted: boolean }>(`select while_away, created_via, adopted_at is not null as adopted from characters where id = $1`, [id])).rows[0] ?? null);
+  const awayP = c.house
+    ? Promise.resolve(null)
+    : db
+        .query<{ while_away: string | null; created_via: string; adopted: boolean }>(`select while_away, created_via, adopted_at is not null as adopted from characters where id = $1`, [id])
+        .then((r) => r.rows[0] ?? null);
   // Next month's casting (lib/auditions.ts): only a person's own character made on the site can audition.
-  const auditionNow =
-    ratings.is_owner && !c.house && away?.created_via === "web" && viewerId
-      ? await myAudition(db, authFromCookieStore(await cookies()) ?? { userId: viewerId, authenticated: false }, id).catch(() => null)
-      : null;
+  const auditionP = awayP.then((away) =>
+    isOwner && !c.house && away?.created_via === "web" && viewerId ? myAudition(db, auth ?? { userId: viewerId, authenticated: false }, id).catch(() => null) : null,
+  );
   // Back them for the month (lib/backing.ts): only a season cast member's page carries the stake.
-  const backing = showCastIds().includes(id) ? await backingBoard(db, viewerId).catch(() => null) : null;
+  const backingP = showCastIds().includes(id) ? backingBoard(db, viewerId).catch(() => null) : Promise.resolve(null);
   // Who made them (lib/origin.ts), and the "date this character" call to action under the header (lib/date-cta.ts).
-  const origin = (await originsOf(db, [id])).get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
-  // Back to the tab they're on (the cast, people's, agents'), for the kicker and the breadcrumb.
-  const listHref = c.house ? "/characters" : `/characters?tab=${origin === "person" ? "people" : "agents"}`;
+  const originsP = originsOf(db, [id]);
   // An agent-made character links to its maker's public profile — by the agent's public handle (lib/agent-handle),
   // never its agent_id, which is a bearer token. The handle is assigned here the first time it's needed.
-  const makerHandle = origin === "agent" && c.owner_id ? await ensureAgentHandle(db, c.owner_id).catch(() => null) : null;
-  const mine = ratings.is_owner ? [] : await ctaMine(db, viewerId, { id, house: c.house });
+  const makerHandleP = originsP.then((o) => (o.get(id) === "agent" && c.owner_id ? ensureAgentHandle(db, c.owner_id).catch(() => null) : null));
+  const mineP = isOwner ? Promise.resolve([]) : ctaMine(db, viewerId, { id, house: c.house });
+  // Owner only: how much they talk (lib/talk.ts), and whether a text key makes marathon possible.
+  const talkP =
+    isOwner && !c.house && viewerId
+      ? Promise.all([
+          db.query<{ talk: string | null }>("select talk from characters where id = $1", [id]),
+          hasJobKey(db, viewerId, "text"),
+        ]).then(([t, key]) => ({ level: isTalkLevel(t.rows[0]?.talk) ? t.rows[0].talk as TalkLevel : "standard" as TalkLevel, hasTextKey: key }))
+      : Promise.resolve(null);
+  // Their profile photos: PG Studio pictures their owner pinned (lib/studio/profile-photos.ts).
+  const photosP = profilePhotos(db, id);
+  // Their own After Dark pictures of them, as blurred teasers: the owner's page only.
+  const adPhotosP = isOwner && viewerId && !c.house ? afterDarkPhotosOf(c.id, viewerId).catch(() => null) : Promise.resolve(null);
+  // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
+  const playsP = isOwner && !c.house ? loadCharacter(db, id).then((l) => l?.signals ?? null) : Promise.resolve(null);
+  // Owner only: what it's been told to forget.
+  const forgottenP = isOwner && !c.house ? loadForgets(db, id).then((f) => describeForgets(db, id, f)) : Promise.resolve(null);
+  // Owner only: the people it remembers, with their faces.
+  const learnedPeopleP = firstP.then(([, , memory]) =>
+    isOwner && !c.house && memory
+      ? withPortraits(
+          db,
+          (memory.people ?? [])
+            .filter((p) => p.wanted_more !== null || p.they_said)
+            .map((p) => ({ ...p, from: p.last_episode_id ? [{ episode_id: p.last_episode_id, with: p.name, at: p.last_at }] : [] })),
+        )
+      : null,
+  );
+
+  const [
+    [{ dates: episodes, record, page: datesPage, pages: datesPages }, ratings, memory, dating, reviews, secrets],
+    shownExtras,
+    relationships,
+    clip,
+    partnerStyle,
+    studio,
+    pgStudio,
+    stepIn,
+    away,
+    auditionNow,
+    backing,
+    origins,
+    makerHandle,
+    mine,
+    talk,
+    photos,
+    adPhotos,
+    plays,
+    forgotten,
+    learnedPeople,
+  ] = await Promise.all([
+    firstP,
+    shownExtrasP,
+    relationshipsP,
+    clipP,
+    partnerStyleP,
+    studioP,
+    pgStudioP,
+    stepInP,
+    awayP,
+    auditionP,
+    backingP,
+    originsP,
+    makerHandleP,
+    mineP,
+    talkP,
+    photosP,
+    adPhotosP,
+    playsP,
+    forgottenP,
+    learnedPeopleP,
+  ]);
+  const week = thisWeek(c.id, c.this_week);
+  const origin = origins.get(id) ?? originOf({ house: c.house, agent: dating?.made_by === "agent" });
+  // Back to the tab they're on (the cast, people's, agents'), for the kicker and the breadcrumb.
+  const listHref = c.house ? "/characters" : `/characters?tab=${origin === "person" ? "people" : "agents"}`;
   const takenBy = partnerStyle?.taken && !partnerStyle.partners.some((p) => mine.some((m) => m.id === p.id)) ? shortName(partnerStyle.partners[0]?.name ?? "someone") : null;
   const cta = dateCta({
     first: shortName(c.name),
@@ -223,20 +299,6 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     takenBy,
     mine,
   });
-  // Owner only: how much they talk (lib/talk.ts), and whether a text key makes marathon possible.
-  const talk =
-    ratings.is_owner && !c.house && viewerId
-      ? await Promise.all([
-          db.query<{ talk: string | null }>("select talk from characters where id = $1", [id]),
-          hasJobKey(db, viewerId, "text"),
-        ]).then(([t, key]) => ({ level: isTalkLevel(t.rows[0]?.talk) ? t.rows[0].talk as TalkLevel : "standard" as TalkLevel, hasTextKey: key }))
-      : null;
-  // Owner only: how the engine reads it on a date (its effective temperament, learned drift included).
-  // Their profile photos: PG Studio pictures their owner pinned (lib/studio/profile-photos.ts).
-  const photos = await profilePhotos(db, id);
-  // Their own After Dark pictures of them, as blurred teasers: the owner's page only.
-  const adPhotos = ratings.is_owner && viewerId && !c.house ? await afterDarkPhotosOf(c.id, viewerId).catch(() => null) : null;
-  const plays = ratings.is_owner && !c.house ? (await loadCharacter(db, id))?.signals ?? null : null;
   const people = connections(memory);
   const relPage = pageSlice(relationships, parsePage(sp.rel), RELATIONSHIPS_PAGE);
   const here = (key: "rel" | "dates", hash: string) => (n: number) => pageHref(`/characters/${c.id}`, { ...sp }, key, n, hash);
@@ -267,13 +329,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             },
           ],
           drift: describeDrift(memory.signal_delta),
-          people: await withPortraits(
-            db,
-            (memory.people ?? [])
-              .filter((p) => p.wanted_more !== null || p.they_said)
-              .map((p) => ({ ...p, from: p.last_episode_id ? [{ episode_id: p.last_episode_id, with: p.name, at: p.last_at }] : [] })),
-          ),
-          forgotten: await describeForgets(db, id, await loadForgets(db, id)),
+          people: learnedPeople ?? [],
+          forgotten: forgotten ?? [],
         }
       : null;
 
