@@ -4,9 +4,10 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { AiTag } from "@/app/AiLabel";
 import type { Media } from "@/lib/adult/media";
-import type { Reel, ReelScope, ReelShot, ShotSuggestion } from "@/lib/adult/reels";
+import { PICK_LINES_MAX, type Reel, type ReelScope, type ReelShot, type ShotSuggestion } from "@/lib/adult/reels";
 import { MediaRequest } from "../../MediaRequest";
 import { videoPrice } from "@/lib/adult/reel-timing";
+import PickLines from "./PickLines";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -65,6 +66,8 @@ export default function Storyboard({
   // and the one picked in a picker, to use as is or draw like.
   const [suggested, setSuggested] = useState<Record<number, ShotSuggestion[]> | null>(null);
   const [picked, setPicked] = useState<{ shot: number; id: string } | null>(null);
+  // The transcript picker (PickLines): the owner's own moments, added as shots.
+  const [picking, setPicking] = useState(false);
   const first = (name: string) => name.split(/\s+/)[0];
   const choices = pictures.filter((m) => m.kind !== "video" && m.status === "ready");
   // Videos the owner has already made of this pair (clips, studio animations), to drop into a shot as they are.
@@ -97,6 +100,8 @@ export default function Storyboard({
   // Videos the owner dropped in (useShotVideo) are already done, so they count toward having something to make.
   const readyVideos = shots.filter((s) => s.status === "ready" && s.from_video && !s.archived_at).length;
   const canFilm = (kept.length > 0 || readyVideos > 0) && toApprove === 0;
+  // Room for the owner's own shots: a storyboard holds twelve (lib/adult/reels.ts STORYBOARD_MAX).
+  const room = 12 - shots.filter((s) => !s.archived_at).length;
 
   async function call(body: Record<string, unknown>, which: typeof busy): Promise<Reel | null> {
     setBusy(which);
@@ -172,6 +177,18 @@ export default function Storyboard({
     if (await call({ action: "redraw", id: draft.id, shot: i, custom: words || undefined, reference: imageId }, `shot:${i}`)) setOpen(null);
   }
 
+  /** The owner's own lines from the transcript, each a new shot in the night's order (lib/adult/reels.ts addShotLines). */
+  async function addLines(lines: number[]): Promise<boolean> {
+    const r = await call({ action: "add_lines", id: draft.id, lines }, "add");
+    if (!r) return false;
+    // Shots moved to keep the night's order: words typed against the old places would land on the wrong shot.
+    setEdits({});
+    setOpen(null);
+    setSuggested(null);
+    setNote({ text: `${lines.length} shot${lines.length === 1 ? "" : "s"} added from the transcript: draw ${lines.length === 1 ? "it" : "them"} with the rest.` });
+    return true;
+  }
+
   function openPictures(i: number) {
     setPicked(null);
     setOpen(open?.shot === i && open.what === "pictures" ? null : { shot: i, what: "pictures" });
@@ -239,7 +256,7 @@ export default function Storyboard({
                   ) : null}
                   {s.text ? (
                     <p className="ad-shot-line">
-                      <strong>{first(s.who === "a" ? names.a : names.b)}</strong> “{s.text}”
+                      <strong>{first(s.who === "a" ? names.a : names.b)}</strong> “{s.text}”{s.picked ? <span className="small muted"> · your pick</span> : null}
                     </p>
                   ) : null}
                   {s.motion ? <p className="small muted ad-shot-motion">{s.motion}</p> : null}
@@ -364,7 +381,11 @@ export default function Storyboard({
           })}
         </ol>
         {note ? <p className={`small ${note.error ? "ad-storyboard-error" : "ad-storyboard-note"}`}>{note.text}</p> : null}
+        {picking && <PickLines reelId={draft.id} names={names} max={PICK_LINES_MAX} room={room} onAdd={addLines} onClose={() => setPicking(false)} />}
         <div className="ad-storyboard-actions">
+          <button type="button" className="button-ghost" onClick={() => setPicking(true)} disabled={busy !== null || room <= 0} title={room <= 0 ? "The storyboard is full: drop a shot to add another" : "Search the night's lines and add up to four as shots"}>
+            ➕ Add from the transcript
+          </button>
           {planned > 0 ? (
             <button type="button" className="secondary" onClick={() => void draw()} disabled={busy !== null || Boolean(paused)} title={paused ?? undefined}>
               {busy === "draw" ? "Drawing…" : `Draw the pictures (${planned})`}

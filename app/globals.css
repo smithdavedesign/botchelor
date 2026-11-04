@@ -8063,6 +8063,57 @@ a.phone-head-btn {
   align-items: center;
   margin-top: var(--space-3);
 }
+/* The storyboard's transcript picker (PickLines.tsx): above the storyboard, a search and a scrolling list of lines. */
+.ad-pick-backdrop {
+  z-index: 310;
+}
+.ad-pick {
+  width: min(40rem, 100%);
+  display: grid;
+  gap: var(--space-2);
+}
+.ad-pick-search {
+  width: 100%;
+}
+.ad-pick-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(55vh, 32rem);
+  overflow-y: auto;
+  display: grid;
+  gap: 0.25rem;
+}
+.ad-pick-line {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.ad-pick-line:hover {
+  background: rgba(201, 162, 255, 0.08);
+}
+.ad-pick-line.is-on {
+  border-color: #c9a2ff;
+  background: rgba(201, 162, 255, 0.14);
+}
+.ad-pick-line.is-used {
+  cursor: default;
+  opacity: 0.55;
+}
+.ad-pick-line input {
+  flex: none;
+  margin-top: 0.2rem;
+  accent-color: #c9a2ff;
+}
+.ad-pick-tag {
+  display: block;
+}
 /* Nudge or Direct, beside the theater's steer (the page's form has the same choice). */
 .ad-steer-mode {
   display: inline-flex;

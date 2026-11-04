@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
-import { advanceReel, approveShot, archiveShot, drawReelFrames, filmReel, listReels, makeReel, planReel, redrawShot, refilmShot, REEL_SCOPES, reelNight, shotSuggestions, stopReel, useShotPicture, useShotVideo } from "@/lib/adult/reels";
+import { addShotLines, advanceReel, approveShot, archiveShot, draftTranscript, drawReelFrames, PICK_LINES_MAX, filmReel, listReels, makeReel, planReel, redrawShot, refilmShot, REEL_SCOPES, reelNight, shotSuggestions, stopReel, useShotPicture, useShotVideo } from "@/lib/adult/reels";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -25,6 +25,8 @@ const PictureInput = z.object({ action: z.literal("use_picture"), id, shot: z.nu
 // Use one shot as a video of the pair the owner already made — a clip or a studio animation (`video_id`).
 const VideoInput = z.object({ action: z.literal("use_video"), id, shot: z.number().int().min(0).max(50), video_id: id });
 // Film one shot of a finished video again (`media_id`, the shot's video).
+// The owner's own moments: 1 to PICK_LINES_MAX lines of the draft's transcript, each a new shot.
+const AddLinesInput = z.object({ action: z.literal("add_lines"), id, lines: z.array(z.number().int().min(0).max(5000)).min(1).max(PICK_LINES_MAX) });
 const RefilmInput = z.object({ action: z.literal("refilm"), id, media_id: id });
 // One shot of a video (`media_id`, the shot itself) into the Archive, or back out (`archived` false).
 const ArchiveInput = z.object({ id, media_id: id, archived: z.boolean() });
@@ -73,6 +75,11 @@ export const POST = handle(async (req: Request) => {
     const r = await useShotVideo(db, viewer, input.id, input.shot, input.video_id);
     return r.ok ? json({ reel: r.reel }) : fail(r);
   }
+  if (act === "add_lines") {
+    const input = parseBody(AddLinesInput, body, "invalid_request");
+    const r = await addShotLines(db, viewer, input.id, input.lines);
+    return r.ok ? json({ reel: r.reel }) : fail(r);
+  }
   if (act === "refilm") {
     const input = parseBody(RefilmInput, body, "invalid_request");
     const r = await refilmShot(db, viewer, input.id, input.media_id, requestBase(req));
@@ -88,7 +95,7 @@ export const POST = handle(async (req: Request) => {
   return r.ok ? json({ reel: r.reel }) : fail(r);
 });
 
-/** One reel, advanced (?id=), the pair's reels (?a=&b=), or a draft's suggested pictures per shot (?suggest=). */
+/** One reel, advanced (?id=), the pair's reels (?a=&b=), a draft's suggested pictures per shot (?suggest=) or its transcript (?transcript=). */
 export const GET = handle(async (req: Request) => {
   const db = await getDb();
   const viewer = await adultViewer(db, req);
@@ -102,6 +109,12 @@ export const GET = handle(async (req: Request) => {
   if (suggest) {
     const suggestions = await shotSuggestions(db, viewer, suggest);
     return suggestions ? json({ suggestions }) : hidden();
+  }
+  // A draft's transcript, for picking lines to add as shots (?transcript=<id>).
+  const transcript = q.get("transcript");
+  if (transcript) {
+    const lines = await draftTranscript(db, viewer, transcript);
+    return lines ? json({ lines }) : hidden();
   }
   const reelId = q.get("id");
   if (reelId) {
