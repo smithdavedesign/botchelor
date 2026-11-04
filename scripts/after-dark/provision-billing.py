@@ -41,6 +41,9 @@ SETTINGS = {
         ("SEGPAY_PRICE_POINT_ID", "Segpay price point ID for the monthly price (digits)", True, str.isdigit),
         ("SEGPAY_POSTBACK_SECRET", None, True, lambda v: len(v) >= 32),  # ours: generated, never typed
         ("SEGPAY_POSTBACK_IPS", "Segpay's postback IPs, comma-separated (optional: Enter to skip)", False, lambda v: True),
+        # One-time price points for After Dark's token packs (lib/adult/tokens.ts), tokens:id; a pack without one isn't sold on Segpay.
+        ("SEGPAY_TOKEN_PRICE_POINTS", "Token pack price points, e.g. 10:3101,25:3102,50:3103 (optional: Enter to skip)", False,
+         lambda v: all(":" in x and all(y.strip().isdigit() for y in x.split(":")) for x in v.split(","))),
     ],
     "verotel": [
         ("VEROTEL_SHOP_ID", "Verotel shop ID (Control Center; digits)", True, str.isdigit),

@@ -94,13 +94,39 @@ tokens for extras], but since we're brand new just break even overall is the goa
   Studio clips). One taken is recorded on the clip (`clip.included`: its month) and given back when it doesn't come
   through. Each clip after that costs `clip_tokens`.
 - **Extras at about cost:** `clip_tokens` 1 (was 3), `reel_tokens` 7 (was 15); a clip filmed again costs a clip's price.
-  Set the scene (1) and talking moments (`clip_tokens`) are extras too. Bought tokens come in packs from the shop.
+  Set the scene (1) and talking moments (`clip_tokens`) are extras too. Tokens come in After Dark's own packs once a
+  processor sells them, from the show's shop until then ("After Dark's own tokens" below).
 - **Admins** pay nothing, as before. The chapter, menu picture and Draw ahead prices stay in the settings for a viewer
   with no subscription, who can't open After Dark anyway.
 - **Shown everywhere:** Start and Next say "· included", the Make tab, the theater's 🎞 Clip, Keep going and Draw ahead
   say "included" or the tokens, and clips offered say "N of 3 clips left this month". The subscribe page says what
   $12.99 includes, from the settings.
-- **Refunds** (`refundBoughtTokens`) only ever give back what was charged; nothing included is charged.
+- **Refunds** (`refundAdTokens`) only ever give back what was charged; nothing included is charged.
+
+## After Dark's own tokens (2026-11-04)
+
+David, 2026-11-04: "I agree with your price analysis, lets do it." The show's tokens are bought through Stripe, whose
+rules bar paying for adult content, and a video (8 tokens = $6.40 of the show's $4-for-5 pack) cost $3.25–6.40 to make.
+So After Dark's extras get a balance of their own, sold as one-time packs on the adult processors. Code:
+`lib/adult/tokens.ts`; tests in `tests/after-dark-token-packs.test.ts`.
+
+- **Packs** (`AD_TOKEN_PACKS`, default `10:9.99,25:22.99,50:42.99`): about $1 a token, never under ~86¢, so a video
+  covers its worst-case cost even on the biggest pack. The video stays 8 tokens.
+- **On by itself.** The wallet runs once a processor can sell a pack (`adTokensOn`): CCBill and Verotel price each order
+  themselves (CCBill's single-billing FlexForms link, Verotel's `type=purchase`); Segpay needs a one-time price point
+  per pack in its portal (`SEGPAY_TOKEN_PRICE_POINTS`, `10:3101,25:3102,50:3103`). Until then every After Dark spend and
+  refund goes to the show's bought tokens, as before, so the beta keeps working.
+- **The balance:** `adult_token_grants` (a paid pack's, once per order; or an admin's, `POST
+  /api/admin/after-dark/tokens {user_id, tokens}`) not revoked, minus `adult_token_usage`. Every After Dark spend point
+  (`spendAdTokens`/`refundAdTokens`) and the header's count on After Dark's host read it.
+- **Buying:** `/after-dark/tokens` lists the packs; `POST /api/after-dark/tokens {tokens, processor?}` (someone After
+  Dark is open to, signed in, where its media is offered, not flagged) opens an order (`adult_billing_orders.kind
+  'tokens'`, `tokens`) and returns the checkout link; the buyer comes back to `?done=1` / `?declined=1`.
+- **Postbacks** on a pack's order: a first payment grants it (once); a refund or chargeback revokes the grant, caps
+  what was spent at what's left granted (the unspent part goes, spent tokens aren't taken from the next pack) and flags
+  the account like a subscription's; renewals, cancels and expiries are recorded and ignored. The subscription is never
+  touched by a pack.
+- **Deleting an account** deletes its grants and usage; the orders stay unlinked like the subscription's.
 
 ## Billing — CCBill first (2026-10-30), Segpay and Verotel as backups (2026-10-24)
 

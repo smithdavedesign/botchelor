@@ -23,7 +23,7 @@
  */
 import type { CameraMoveId } from "./camera-moves";
 import { isAdmin } from "../admins";
-import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
+import { refundAdTokens, spendAdTokens } from "./tokens";
 import { loadCharacter } from "../character";
 import type { Db } from "../db";
 import { checkAdultText } from "../safety";
@@ -500,8 +500,8 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   const included = pays && (await clipsIncluded(db, ownerId)) ? await takeIncludedClip(db, ownerId, settings.included_clips) : null;
   if (included) plan.meta = { ...plan.meta, included };
   const price = pays && !included ? settings.clip_tokens : 0;
-  if (price > 0 && !(await spendBoughtTokens(db, ownerId, price))) {
-    return refuse(402, "needs_tokens", `A clip costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.`);
+  if (price > 0 && !(await spendAdTokens(db, ownerId, price))) {
+    return refuse(402, "needs_tokens", `A clip costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.`);
   }
   const id = crypto.randomUUID();
   try {
@@ -550,7 +550,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
     const note = plan.cut?.forcedFresh ? `This one starts from a fresh picture of their faces (every third link does, so they keep looking like themselves).` : undefined;
     return { ok: true, reel: await settleIfDone(db, id), ...(note ? { note } : {}) };
   } catch (err) {
-    if (price > 0) await refundBoughtTokens(db, ownerId, price);
+    if (price > 0) await refundAdTokens(db, ownerId, price);
     if (included) await giveBackIncludedClip(db, ownerId, included);
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
 

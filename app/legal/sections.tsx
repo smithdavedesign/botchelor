@@ -325,6 +325,13 @@ export function TermsSections() {
         <li>
           It&apos;s for one adult, signed in, in a place where After Dark is offered. Sharing access isn&apos;t allowed.
         </li>
+        <li>
+          <strong>After Dark tokens</strong> pay for its extras (the video of a night, clips past those included, talking
+          moments, Studio shoots). They&apos;re sold in packs by the same processors, as a one-time charge that never
+          renews, and they&apos;re After Dark&apos;s own: the show&apos;s dates aren&apos;t spent there, and they
+          aren&apos;t spent on the show. Like the show&apos;s, they&apos;re a licence to use a feature, not money, and
+          they don&apos;t expire. Tokens spent on something that doesn&apos;t come through come back by themselves.
+        </li>
       </ul>
 
       <h2 id="refunds">Refunds and cancelling</h2>
@@ -333,6 +340,11 @@ export function TermsSections() {
           <strong>Token packs:</strong> if a pack doesn&apos;t work, or you change your mind within 14 days of buying it,
           email us with your Stripe receipt and we&apos;ll refund you in full. A refunded pack&apos;s dates stop counting,
           and episodes already written stay up.
+        </li>
+        <li>
+          <strong>After Dark token packs:</strong> if a pack doesn&apos;t work, or you change your mind within 14 days of
+          buying it and haven&apos;t spent any of it, email us and we&apos;ll refund you in full. Tokens already spent
+          aren&apos;t refunded. A refunded or charged-back pack&apos;s unspent tokens are removed.
         </li>
         <li>
           <strong>The After Dark subscription:</strong> cancel any time and it stops at the end of the paid period. We

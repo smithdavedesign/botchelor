@@ -50,10 +50,23 @@ export function segpayConfig(env: Env = process.env): SegpayConfig | null {
   return { packageId, pricePointId, postbackSecret, postbackIps };
 }
 
-/** The hosted payment page for one order. */
-export function segpayPayPageUrl(config: SegpayConfig, order: { referenceId: string; successUrl: string; declineUrl: string }): string {
+/**
+ * The one-time price points set up in the portal for After Dark's token packs (lib/adult/tokens.ts), by how many tokens
+ * each buys: SEGPAY_TOKEN_PRICE_POINTS, "10:3001,25:3002,50:3003". A pack without one isn't offered on Segpay.
+ */
+export function segpayTokenPricePoints(env: Env = process.env): Map<number, string> {
+  const points = new Map<number, string>();
+  for (const pair of (env.SEGPAY_TOKEN_PRICE_POINTS ?? "").split(",")) {
+    const m = /^\s*(\d{1,4})\s*:\s*(\d+)\s*$/.exec(pair);
+    if (m && Number(m[1]) > 0) points.set(Number(m[1]), m[2]);
+  }
+  return points;
+}
+
+/** The hosted payment page for one order: the subscription's price point, or a token pack's (`pricePointId`). */
+export function segpayPayPageUrl(config: SegpayConfig, order: { referenceId: string; successUrl: string; declineUrl: string; pricePointId?: string }): string {
   const qs = new URLSearchParams({
-    "x-eticketid": `${config.packageId}:${config.pricePointId}`,
+    "x-eticketid": `${config.packageId}:${order.pricePointId ?? config.pricePointId}`,
     REF1: order.referenceId,
     "x-auth-link": order.successUrl,
     "x-auth-text": "Back to Botchelor",

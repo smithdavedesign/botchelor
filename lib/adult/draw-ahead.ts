@@ -11,7 +11,7 @@
  * over, or it's turned off. A viewer who can't pay for the next chapter has it turned off, and the theater says why
  * (picture_note). Offered while the settings' `draw_ahead` is on.
  */
-import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
+import { refundAdTokens, spendAdTokens } from "./tokens";
 import type { Db } from "../db";
 import { tokensWord } from "./price-words";
 import { includedPrice } from "./pricing";
@@ -76,10 +76,10 @@ export async function aheadBudget(db: Db, sceneId: string, chapter: number): Pro
     [sceneId, chapter, price],
   );
   if (!claimed.rows.length) return (await rowOf(db, sceneId))?.draw_ahead_chapter === chapter ? budget : null;
-  if (price > 0 && !(await spendBoughtTokens(db, r.owner_id, price))) {
+  if (price > 0 && !(await spendAdTokens(db, r.owner_id, price))) {
     await db.query(`update adult_scenes set draw_ahead = false, draw_ahead_chapter = null, draw_ahead_paid = 0, picture_note = $2 where id = $1`, [
       sceneId,
-      `Draw ahead is off: it takes ${tokensWord(price)} a chapter. Get more on the shop page, then turn it on again in ⋯.`,
+      `Draw ahead is off: it takes ${tokensWord(price)} a chapter. Get more on the tokens page, then turn it on again in ⋯.`,
     ]);
     return null;
   }
@@ -107,7 +107,7 @@ export async function settleDrawAhead(db: Db, sceneId: string, chapter: number, 
   );
   const r = back.rows[0];
   if (!r || r.used > 0 || r.paid <= 0) return 0;
-  await refundBoughtTokens(db, r.owner_id, r.paid);
+  await refundAdTokens(db, r.owner_id, r.paid);
   return r.paid;
 }
 
