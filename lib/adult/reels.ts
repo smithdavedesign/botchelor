@@ -1213,6 +1213,9 @@ export async function drawReplicateKeyframe(r: ReplicateMedia, prompt: string, i
   return file;
 }
 
+/** A shot from undressing on (its stage), which a filtered talk model won't make. */
+export const explicitShot = (s: Pick<ReelShot, "stage">): boolean => (s.stage ?? 0) >= UNDRESSED_FROM;
+
 /**
  * Queues one shot's video on Replicate from its keyframe: the prediction's id is the shot's queue id. A shot with a line
  * goes to the talk model, which says it; the silent model's input is kept on it for when the talk model can't
@@ -1224,7 +1227,9 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
   delete s.speaks;
   delete s.silent_retry;
   delete s.voiceless;
-  if (r.talk && s.text.trim()) {
+  // From undressing on, straight to the silent model with the line said beside it: the talk model (Wan 2.6, behind
+  // Alibaba's filter) refused every explicit shot of a night and each waited on that refusal first (2026-11-04).
+  if (r.talk && s.text.trim() && !explicitShot(s)) {
     const link = signedMediaUrl(s.media_id!, ctx.baseUrl);
     const p = await createPrediction(r.token, r.talk, talkShotInput(ctx.cast, s, link, r.talk, ctx.avoid), { cancelAfter: "30m" });
     Object.assign(s, { queue_id: p.id, model: r.talk, speaks: true, silent_retry: { model: r.video, input: replicateShotInput(ctx.cast, s, link, r.videoLora) } });

@@ -454,6 +454,27 @@ describe("the video of the night on Replicate", () => {
     expect(venice).toEqual([]);
   });
 
+  it("films a shot from undressing on straight on Wan 2.2 with its voice beside it: the talk model's filter refuses them (2026-11-04)", async () => {
+    const { id, cookie } = await admin();
+    const scene = await ready(cookie, id, { replicate_talk_model: "" });
+    // The night turns explicit by its last shot (line 9): undressing from line 8.
+    await t.db.query(`update adult_scenes set lines = $2::jsonb where id = $1`, [scene.id, JSON.stringify(night.map((l, i) => ({ ...l, stage: i >= 8 ? 3 : 1 })))]);
+    noVenice();
+    fakeHive();
+    const replicate = fakeReplicate();
+    threeShots();
+    const started = (await (await make(cookie)).json()).reel as Reel;
+    expect(started.shots.map((s) => [s.line, s.model, s.speaks ?? false])).toEqual([
+      [2, TALK, true],
+      [5, TALK, true],
+      [9, VIDEO, false],
+    ]);
+    expect(replicate.creates(TALK)).toHaveLength(2);
+    expect(replicate.creates(VIDEO)).toHaveLength(1);
+    // Not a fallback, so nothing says it lost its own voice.
+    expect(started.shots.some((s) => s.voiceless)).toBe(false);
+  });
+
   it("films a shot with a line on the talk model, which says it itself, and one it can't make on Wan 2.2 with the voice beside it", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id, { replicate_talk_model: "", replicate_video_lora: "https://huggingface.co/x/y/resolve/main/both.safetensors" });
