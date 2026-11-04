@@ -1995,8 +1995,30 @@ a.ad-scenes-make-link {
 .theater-after-dark .scene-cast {
   pointer-events: none;
 }
+/* The cast stands above the steer bar laid over the stage's foot (--ad-bottom: its measured height, AfterDarkTheater),
+   so their names are never under it (2026-11-04). On a phone the bar is below the stage, and nothing moves. */
+@media (min-width: 761px) {
+  .theater-after-dark .theater-stage .scene-cast {
+    bottom: max(clamp(5rem, 12vh, 9rem), calc(var(--ad-bottom, 0px) + var(--space-3)));
+  }
+}
 .theater-after-dark .scene-cast :is(img, video, button, a) {
   pointer-events: auto;
+}
+/* The loading mark on the stage while the next lines are written and nothing is left to play. */
+.theater-after-dark .ad-stage-writing {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  padding: var(--space-3);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.35);
+  pointer-events: none;
+}
+.theater-after-dark .primary .loading {
+  margin-right: 0.15em;
 }
 /* #1053 (the 2026-10-30 ad visitor: "I clicked the DeepSeek button. No picker appeared and my click on 'Richer, slower'
    timed out"): the bar sits at z-index 3, so a menu it opens (✍️ the writer, 📸, ⋯) dropped down under what the stage

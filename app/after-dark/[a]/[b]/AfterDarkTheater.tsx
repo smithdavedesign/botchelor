@@ -26,6 +26,7 @@ import { tokensWord } from "@/lib/adult/price-words";
 import TalkPlayer from "./TalkPlayer";
 import LivingFace from "../../LivingFace";
 import Avatar from "@/app/Avatar";
+import Loading from "@/app/Loading";
 import VideoChoice from "./VideoChoice";
 import type { NightChapter } from "@/lib/adult/nights";
 import type { ReelScope } from "@/lib/adult/reels";
@@ -594,6 +595,20 @@ export default function AfterDarkTheater({
     if ((await onWrite?.(direction.trim())) !== false) setDirection("");
   }
 
+  // The steer bar sits over the stage's foot, and grows with its options and notes: the cast stands on top of it, not
+  // behind it (David, 2026-11-04: the names were under the text box). Its height as --ad-bottom (app/ux/after-dark.css).
+  const stageRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const stage = stageRef.current;
+    const bottom = bottomRef.current;
+    if (!stage || !bottom || typeof ResizeObserver === "undefined") return;
+    const set = () => stage.style.setProperty("--ad-bottom", `${Math.round(bottom.getBoundingClientRect().height)}px`);
+    set();
+    const watch = new ResizeObserver(set);
+    watch.observe(bottom);
+    return () => watch.disconnect();
+  }, []);
   return (
     <div
       className="theater theater-clean theater-after-dark"
@@ -601,6 +616,7 @@ export default function AfterDarkTheater({
       aria-label={`${a.name} and ${b.name}, after dark`}
     >
       <div
+        ref={stageRef}
         className={`theater-stage${convo ? " with-convo" : ""}${mediaShape ? " has-media" : ""}${mediaFull ? " media-full" : ""}`}
         style={mediaShape ? ({ "--ad-media-ar": String(mediaShape) } as CSSProperties) : undefined}
       >
@@ -658,6 +674,8 @@ export default function AfterDarkTheater({
             </p>
           )}
           <BlurHint />
+          {/* While the next lines are written and nothing is left to play, the stage itself says so. */}
+          {busy && caughtUp && !waiting && <Loading size="lg" label="Writing the next lines" status className="ad-stage-writing" />}
           {waiting && (
             <div className="ad-start-card" role="group" aria-label="Before the night starts">
               <p className="kicker">Tonight</p>
@@ -930,7 +948,7 @@ export default function AfterDarkTheater({
           </div>
         </header>
 
-        <div className="ad-theater-bottom">
+        <div className="ad-theater-bottom" ref={bottomRef}>
           {/* Like a video player's controls (David, 2026-10-25): bottom right, over the stage. */}
           <div className="ad-player" role="group" aria-label="Playback">
             <button type="button" className="theater-icon" onClick={replay.restart} aria-label="From the top" title="From the top">
@@ -968,7 +986,11 @@ export default function AfterDarkTheater({
                   {busy
                     ? direction.trim()
                       ? "Queue it"
-                      : "Writing…"
+                      : (
+                          <>
+                            <Loading tone="current" size="sm" /> Writing…
+                          </>
+                        )
                     : whisperTo
                       ? "Whisper"
                       : // #1148: the button stays Next; a typed steer rides with it (it skips to the end of what's playing).
@@ -1033,7 +1055,7 @@ export default function AfterDarkTheater({
               )}
               {(videoNote || note || presenceNote) && (
                 <p className="ad-theater-note" role="status">
-                  {videoNote || note || presenceNote}
+                  {busy && !videoNote && note && <Loading tone="current" size="sm" />} {videoNote || note || presenceNote}
                 </p>
               )}
               {steerAgain && !busy && (
