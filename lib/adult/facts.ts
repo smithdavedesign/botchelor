@@ -566,30 +566,71 @@ export async function rememberFactsChange(db: Db, ownerId: string, a: Character 
   try {
     const incoming = await extractFacts(await adultModel(db), a, b, lines);
     if (!incoming.length) return { added: kept, dropped: removed };
-    const existing = await loadPairFacts(db, ownerId, a.id, b.id);
-    const { added, dropped } = mergeFacts(existing, incoming, () => crypto.randomUUID(), new Date().toISOString());
-    for (const f of added) {
-      await db.query(`insert into adult_facts (id, owner_id, character_id, other_id, kind, fact, quote, source) values ($1, $2, $3, $4, $5, $6, $7, $8)`, [
-        f.id,
-        ownerId,
-        f.character_id,
-        f.other_id,
-        f.kind,
-        f.fact,
-        f.quote,
-        f.source,
-      ]);
-      kept.push(f.id);
-    }
-    if (dropped.length) {
-      await db.query(`delete from adult_facts where id = any($1)`, [dropped]);
-      const gone = new Set(dropped);
-      removed = existing.filter((f) => gone.has(f.id));
-    }
+    removed = await keepFacts(db, ownerId, a.id, b.id, incoming, kept);
     return { added: kept, dropped: removed };
   } catch {
     return { added: kept, dropped: removed };
   }
+}
+
+/**
+ * Keeps new facts for a pair: deduped against what's remembered, the memory held to its cap. Each one kept goes into
+ * `kept` as it's written (so a failure part way can be taken back); returns the ones the cap dropped.
+ */
+async function keepFacts(db: Db, ownerId: string, aId: string, bId: string, incoming: readonly NewFact[], kept: string[]): Promise<AdultFact[]> {
+  const existing = await loadPairFacts(db, ownerId, aId, bId);
+  const { added, dropped } = mergeFacts(existing, incoming, () => crypto.randomUUID(), new Date().toISOString());
+  for (const f of added) {
+    await db.query(`insert into adult_facts (id, owner_id, character_id, other_id, kind, fact, quote, source) values ($1, $2, $3, $4, $5, $6, $7, $8)`, [
+      f.id,
+      ownerId,
+      f.character_id,
+      f.other_id,
+      f.kind,
+      f.fact,
+      f.quote,
+      f.source,
+    ]);
+    kept.push(f.id);
+  }
+  if (!dropped.length) return [];
+  await db.query(`delete from adult_facts where id = any($1)`, [dropped]);
+  const gone = new Set(dropped);
+  return existing.filter((f) => gone.has(f.id));
+}
+
+/**
+ * The two texts of the morning after (lib/adult/monologues.ts, Two sides; David, 2026-11-03: "this should be remembered,
+ * especially if they are texting in the morning"), as what each remembers: the text they got and the one they sent,
+ * quoted. Already held to the two lines when written. Never throws; how many were kept.
+ */
+export async function rememberMorningTexts(db: Db, ownerId: string, a: Character, b: Character, texts: { a: string; b: string }): Promise<number> {
+  const first = (c: Character) => c.name.split(/\s+/)[0];
+  const said = (from: Character, to: Character, text: string): Pick<NewFact, "kind" | "fact" | "quote"> => {
+    const head = `${first(from)} texted ${first(to)} the morning after: “`;
+    const body = text.replace(/\s+/g, " ").trim();
+    const room = FACT_MAX - head.length - 1;
+    return { kind: "said", fact: `${head}${body.length > room ? `${body.slice(0, room - 1)}…` : body}”`, quote: body.slice(0, QUOTE_MAX) };
+  };
+  const incoming: NewFact[] = [];
+  for (const [self, other] of [
+    [a, b],
+    [b, a],
+  ] as const) {
+    for (const [from, to, text] of [
+      [other, self, other === a ? texts.a : texts.b],
+      [self, other, self === a ? texts.a : texts.b],
+    ] as const) {
+      if (text?.trim()) incoming.push({ character_id: self.id, other_id: other.id, ...said(from, to, text) });
+    }
+  }
+  const kept: string[] = [];
+  try {
+    await keepFacts(db, ownerId, a.id, b.id, incoming, kept);
+  } catch {
+    /* what was kept stays */
+  }
+  return kept.length;
 }
 
 /** rememberFactsChange, for callers that only need the count. */

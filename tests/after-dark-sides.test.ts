@@ -12,6 +12,7 @@ import { POST as watchPost } from "@/app/api/admin/after-dark/shorts/[id]/watch/
 import { PATCH as panelPatch } from "@/app/api/admin/after-dark/shorts/route";
 import { GET as sidesGet, POST as sidesPost } from "@/app/api/admin/after-dark/sides/route";
 import { setAdultModelForTests } from "@/lib/adult/mode";
+import { memoryView } from "@/lib/adult/scenes";
 import { crossesLines, holdSides, PAGE_MIN, parseSides, sideLabel, sidesMessages, TEXT_MAX } from "@/lib/adult/monologues";
 import type { Character } from "@/lib/character";
 import type { ChatMessage } from "@/lib/model";
@@ -174,16 +175,46 @@ describe("an owner's own night", () => {
     const p = await pronouns();
     expect(body.written).toBe(true);
     expect(body.sides).toMatchObject({ night_id: "n1", a: { id: A, label: sideLabel(p.get(A)), page: PAGE_A }, b: { id: B, label: sideLabel(p.get(B)), page: PAGE_B } });
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2); // the night's two sides, then their PG note again with the morning texts in it
     // The whole night went in, by who and what: never a line's why, memory or facts.
     for (const l of [...CH1, ...CH2]) expect(prompt()).toContain(l.text);
     for (const secret of ["PRIVATE-WHY", "PRIVATE-MEMORY", "PRIVATE-FACT"]) expect(prompt()).not.toContain(secret);
     const again = await (await write({ night_id: "n1" }, ad.cookie)).json();
     expect(again).toMatchObject({ written: false, sides: { night_id: "n1", a: { page: PAGE_A } } });
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
     expect((await (await read("night_id=n2", ad.cookie)).json()).sides.b.page).toBe(PAGE_B);
     const panel = (await (await read(`a=${A}&b=${B}`, ad.cookie)).json()).panel;
     expect(panel).toEqual({ nights: [{ id: "n1", chapters: 2, lines: CH1.length + CH2.length, filed_at: expect.any(String), complete: true, written: true }], left: null });
+  });
+
+  it("is remembered: the two morning texts become what each keeps, and their PG note picks up from that morning", async () => {
+    const ad = await admin(t.db);
+    await wholeNight(t.db, ad.id);
+    await t.db.query(`update adult_nights set recap = 'Ada and Bo counted ferries, then went up to her flat.' where owner_id = $1`, [ad.id]);
+    replies = [reply(), JSON.stringify({ a: "You and Bo woke up still teasing about who started it.", b: "You and Ada are texting about who asked who up." })];
+    expect((await write({ night_id: "n1" }, ad.cookie)).status).toBe(200);
+    const facts = (await t.db.query<{ character_id: string; kind: string; fact: string; quote: string }>(`select character_id, kind, fact, quote from adult_facts where owner_id = $1 order by fact`, [ad.id])).rows;
+    // Each keeps both texts, the one they got and the one they sent, quoted.
+    expect(facts.filter((f) => f.character_id === A).map((f) => f.quote).sort()).toEqual(["Last night was lovely. You started it, for the record.", "Lovely, yes. But you asked me up. That's starting it."]);
+    expect(facts.filter((f) => f.character_id === B)).toHaveLength(2);
+    expect(facts.every((f) => f.kind === "said" && / texted .* the morning after: “/.test(f.fact))).toBe(true);
+    // The note (what the show's dates and texts carry) is written again with that morning in it.
+    expect(calls).toHaveLength(2);
+    expect(prompt(1)).toContain("The morning after,");
+    expect(prompt(1)).toContain("Lovely, yes. But you asked me up.");
+    const notes = new Map((await t.db.query<{ character_id: string; note: string }>(`select character_id, note from adult_memories where owner_id = $1`, [ad.id])).rows.map((r) => [r.character_id, r.note]));
+    expect(notes.get(A)).toBe("You and Bo woke up still teasing about who started it.");
+    // The memory panel, after Start over: the last saved night's recap when tonight has none.
+    expect((await memoryView(t.db, ad.id, A, B))?.last_night).toBe("Ada and Bo counted ferries, then went up to her flat.");
+  });
+
+  it("keeps the note they have when that morning's rewrite doesn't come through", async () => {
+    const ad = await admin(t.db);
+    await wholeNight(t.db, ad.id);
+    await t.db.query(`insert into adult_memories (character_id, other_id, owner_id, note) values ($1, $2, $3, 'You two shared tea on the harbour.')`, [A, B, ad.id]);
+    replies = [reply()];
+    expect((await write({ night_id: "n1" }, ad.cookie)).status).toBe(200);
+    expect((await t.db.query(`select note from adult_memories where character_id = $1`, [A])).rows[0].note).toBe("You two shared tea on the harbour.");
   });
 
   it("remembers only what they remembered then: a fact or note from a later night stays out", async () => {
@@ -209,7 +240,7 @@ describe("an owner's own night", () => {
     replies = [reply({ b: { side: PAGE_B, text: "Like when I was sixteen." } }), reply()];
     const res = await (await write({ night_id: "n1" }, ad.cookie)).json();
     expect(res.sides.b.text).toBe("Lovely, yes. But you asked me up. That's starting it.");
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(prompt(1)).toContain("Your last reply couldn't be used: a passage crossed one of the lines that never move");
     expect(prompt(1)).not.toContain("sixteen");
 
@@ -252,14 +283,15 @@ describe("an owner's own night", () => {
     expect(capped.status).toBe(429);
     expect((await capped.json()).message).toMatch(/this month's 1 nights told from both sides/);
     expect((await write({ night_id: "s-n1" }, sub.cookie)).status).toBe(200);
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
     expect(await t.db.query(`select monologues from adult_usage where owner_id = $1`, [sub.id]).then((r) => r.rows[0].monologues)).toBe(1);
     // No tokens, and nothing bought.
     expect(await t.count("orders")).toBe(0);
     const ad = await admin(t.db);
     await night(t.db, ad.id, { id: "a-n1", a: A, b: B, lines: CH1, ago: 40 });
     await night(t.db, ad.id, { id: "a-n2", a: A, b: C, lines: CH1, ago: 30 });
-    replies = [reply(), reply()];
+    // Each night's sides, then its PG note again (lib/adult/memory.ts: an unreadable one keeps the note they have).
+    replies = [reply(), "{}", reply(), "{}"];
     expect((await write({ night_id: "a-n1" }, ad.cookie)).status).toBe(200);
     expect((await write({ night_id: "a-n2" }, ad.cookie)).status).toBe(200);
   });

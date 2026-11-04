@@ -22,7 +22,8 @@ import type { Db } from "../db";
 import type { ChatMessage, Usage } from "../model";
 import { checkAdultText } from "../safety";
 import { eligiblePair } from "./scenes";
-import { jsonOf, loadPairFacts } from "./facts";
+import { jsonOf, loadPairFacts, rememberMorningTexts } from "./facts";
+import { rememberAfterDark } from "./memory";
 import { adultModel } from "./mode";
 import { writerChoice } from "./writer";
 import { hasWatched, pairNights, shortLines, type NightGroup, type NightRow } from "./shorts";
@@ -317,7 +318,27 @@ async function sidesOf(db: Db, requester: string, owner: string, pair: [string, 
     return other ? { ok: true, sides: await asSides(db, other), written: false } : refuse(500, "not_kept", "That didn't save. Try again.");
   }
   await countUse(db, requester, "monologues");
+  // Their own night only: a viewer reading a published Short never changes what its characters remember.
+  if (requester === owner) await rememberSides(db, owner, a, b, got, input.recap, until);
   return { ok: true, sides: await asSides(db, stored[0]), written: true };
+}
+
+/**
+ * What they keep of a night's two sides (David, 2026-11-03: "this should be remembered, especially if they are texting in
+ * the morning"): each remembers the two morning-after texts (lib/adult/facts.ts rememberMorningTexts), and, when it's
+ * their latest night, their PG note is written again with those texts in it (lib/adult/memory.ts), so the show's next
+ * date and texts pick up from that morning. The inner pages stay private to the night. Never throws.
+ */
+async function rememberSides(db: Db, owner: string, a: Character, b: Character, got: { a: Side; b: Side }, recap: string | null, until: Date): Promise<void> {
+  const texts = { a: got.a.text, b: got.b.text };
+  await rememberMorningTexts(db, owner, a, b, texts);
+  const later = await db
+    .query(
+      `select 1 from adult_nights where owner_id = $1 and ((character_a = $2 and character_b = $3) or (character_a = $3 and character_b = $2)) and created_at > $4 limit 1`,
+      [owner, a.id, b.id, new Date(until.getTime() + MEMORY_GRACE_MS)],
+    )
+    .catch(() => ({ rows: [{}] }));
+  if (!later.rows.length) await rememberAfterDark(db, owner, a, b, recap, [], texts);
 }
 
 /** A whole night of the owner's own (any of its chapters names it), in their After Dark. */

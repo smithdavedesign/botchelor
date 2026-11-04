@@ -298,6 +298,7 @@ describe("memory you can see and edit", () => {
       notes: { a: "You and Rafe watched the storm from the pier; you owe him a rematch.", b: null },
       facts: [{ id: "f-mine", of: "a", kind: "promise", fact: "Rafe promised Juniper a storm cake", quote: "A storm cake, promise.", uses: 0 }],
       recap: "They watched the storm and argued about cake.",
+      last_night: null,
     });
     expect((await get(other.cookie, "&memory=1")).memory).toMatchObject({ notes: { a: null, b: "Someone else wrote this one." }, facts: [{ id: "f-theirs" }], recap: null });
   });
