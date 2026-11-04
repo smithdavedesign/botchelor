@@ -1321,6 +1321,11 @@ describe("the video of the night", () => {
     expect(picks[0].frame).toBe(`${cast[0].tag[0].toUpperCase()}${cast[0].tag.slice(1)} and ${cast[1].tag}, kissing, their arms around each other, both dressed. Medium shot, both faces visible.`);
     expect(picks[0].motion).toBe(`${cast[0].tag[0].toUpperCase()}${cast[0].tag.slice(1)} leans closer, and the other answers it.`);
     expect(spoken("*whispers* " + "word ".repeat(40)).speech.split(" ")).toHaveLength(24);
+    expect(spoken("*whispers* " + "word ".repeat(40)).speech).toMatch(/word…$/);
+    // A long line ends at its last whole sentence that fits a shot, never mid-sentence.
+    const long = "Come here. I've wanted this since the elevator, since you laughed at my terrible joke about the room mix-up. And now you're finally here with me, and I'm not letting you go.";
+    expect(spoken(long).speech).toBe("Come here. I've wanted this since the elevator, since you laughed at my terrible joke about the room mix-up.");
+    expect(spoken("Short and sweet.").speech).toBe("Short and sweet.");
   });
 
   it("names them by how they look, never by name: by their hair when both are women or both men", async () => {
