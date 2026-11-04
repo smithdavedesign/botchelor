@@ -4,7 +4,14 @@ import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { agentForSubscription, grantOperatorPass, operatorPassOn } from "@/lib/operator-pass";
-import { testEventsGrant, verifyStripeSignature } from "@/lib/stripe";
+import {
+  invoicePeriodEnd,
+  invoiceSubscription,
+  subscriptionEnding,
+  subscriptionPeriodEnd,
+  testEventsGrant,
+  verifyStripeSignature,
+} from "@/lib/stripe";
 
 /** Subscription events are a few KB; anything this big isn't one. */
 const MAX_WEBHOOK_BYTES = 256 * 1024;
@@ -23,18 +30,18 @@ const CheckoutSession = z.object({
   client_reference_id: z.string().nullish(),
   subscription: z.string().nullish(),
 });
-const Invoice = z.object({ id: z.string(), subscription: z.string().nullish(), billing_reason: z.string().nullish() });
-const Subscription = z.object({ id: z.string(), cancel_at_period_end: z.boolean().nullish(), current_period_end: z.number().int().nullish() });
 
 const invalidPayload = () => json({ error: "invalid_payload" }, 400);
-const toDate = (unixSeconds: number | null | undefined): Date | null => (typeof unixSeconds === "number" ? new Date(unixSeconds * 1000) : null);
+const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 
 /**
  * The operator pass's Stripe subscription webhook (docs/PRDs/agent-world.md, Phase 0). Separate from the token-pack
  * webhook (app/api/webhooks/stripe/route.ts) and its own secret (OPERATOR_PASS_WEBHOOK_SECRET). It 404s until the pass
  * is switched on (lib/operator-pass operatorPassOn), so it doesn't exist until the owner provisions it. The signature
  * is checked over the raw text; each Stripe event is applied once (operator_pass_events). A subscription-mode checkout
- * grants the first month; invoice.paid renews; a subscription cancel/delete ends it.
+ * grants the first month; invoice.paid renews to the period it paid for; a subscription cancel/delete ends it. Renewals
+ * and cancels are read through lib/stripe.ts, since the endpoint gets the account's API version and the invoice's
+ * subscription and the period's end moved in 2025-03-31.
  */
 export const POST = handle(async (req) => {
   if (!operatorPassOn()) return json({ error: "not_found" }, 404);
@@ -86,30 +93,30 @@ export const POST = handle(async (req) => {
       outcome = "initial";
     }
   } else if (event.data.type === "invoice.paid") {
-    const inv = Invoice.safeParse(obj);
-    if (inv.success && inv.data.subscription && inv.data.billing_reason === "subscription_cycle") {
-      subId = inv.data.subscription;
+    const invoiceSub = invoiceSubscription(obj);
+    if (invoiceSub && obj.billing_reason === "subscription_cycle") {
+      subId = invoiceSub;
       agentId = await agentForSubscription(db, subId);
       if (agentId) {
-        await grantOperatorPass(db, agentId, "rebill", { provider: "stripe", subscriptionId: subId });
+        await grantOperatorPass(db, agentId, "rebill", { provider: "stripe", subscriptionId: subId, periodEnd: invoicePeriodEnd(obj) });
         outcome = "rebill";
       }
     }
   } else if (event.data.type === "customer.subscription.updated") {
-    const sub = Subscription.safeParse(obj);
-    if (sub.success && sub.data.cancel_at_period_end) {
-      subId = sub.data.id;
-      agentId = await agentForSubscription(db, subId);
+    const id = str(obj.id);
+    if (id && subscriptionEnding(obj)) {
+      subId = id;
+      agentId = await agentForSubscription(db, id);
       if (agentId) {
-        await grantOperatorPass(db, agentId, "cancel", { periodEnd: toDate(sub.data.current_period_end), subscriptionId: subId });
+        await grantOperatorPass(db, agentId, "cancel", { periodEnd: subscriptionPeriodEnd(obj), subscriptionId: subId });
         outcome = "cancel";
       }
     }
   } else if (event.data.type === "customer.subscription.deleted") {
-    const sub = Subscription.safeParse(obj);
-    if (sub.success) {
-      subId = sub.data.id;
-      agentId = await agentForSubscription(db, subId);
+    const id = str(obj.id);
+    if (id) {
+      subId = id;
+      agentId = await agentForSubscription(db, id);
       if (agentId) {
         await grantOperatorPass(db, agentId, "expiry", { subscriptionId: subId });
         outcome = "expiry";

@@ -9,20 +9,8 @@ import { setCompanionModelForTests } from "@/lib/companion";
 import { COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY, companionAllowance, pruneCompanionUsage } from "@/lib/companion-plan";
 import { setEmailSenderForTests, type EmailMessage } from "@/lib/email";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import {
-  grantPlan,
-  invoicePeriodEnd,
-  invoiceSubscription,
-  planLink,
-  planState,
-  plansOn,
-  prunePlanCheckouts,
-  RENEWAL_GRACE_MS,
-  sendPlanReminders,
-  subscriptionEnding,
-  subscriptionOwner,
-  subscriptionPeriodEnd,
-} from "@/lib/paid-plans";
+import { grantPlan, planLink, planState, plansOn, prunePlanCheckouts, sendPlanReminders, subscriptionOwner } from "@/lib/paid-plans";
+import { invoicePeriodEnd, invoiceSubscription, RENEWAL_GRACE_MS, subscriptionEnding, subscriptionPeriodEnd } from "@/lib/stripe";
 import { BASE_URL, FAKE_WEBHOOK_SECRET, signedInCookie, startTestDb, stripeSignature, TEST_SESSION_SECRET } from "./helpers";
 
 vi.mock("@/lib/sets", async (orig) => ({ ...((await orig()) as object), inBackground: () => {} }));

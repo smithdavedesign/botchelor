@@ -86,11 +86,13 @@ was removed from the app on 2026-10-31.
 
 ## botchelor.vercel.app
 
-The old address keeps serving the last deployment Vercel built (older code, the same database) for as long as the
-Vercel project exists. Stripe's webhooks don't use it: both live endpoints already point at botchelor.com
-(`/api/webhooks/stripe` for packs, `/api/webhooks/stripe-operator` for the operator pass; checked through Stripe's API
-on 2026-10-30), so they reach the show app. Agents still connected to `botchelor.vercel.app/api/mcp` keep working on
-the old code until they reconnect.
+Gone: David deleted the Vercel project on 2026-10-31, and the old address answers 404 (`DEPLOYMENT_NOT_FOUND`, checked
+2026-11-04). Agents still set up with `botchelor.vercel.app/api/mcp` have to move to botchelor.com.
+
+Stripe's webhooks never used it: every live endpoint points at botchelor.com (`/api/webhooks/stripe` for packs,
+`/api/webhooks/stripe-operator` for the operator pass, `/api/webhooks/stripe-plans` for the Companion Plan), so they
+reach the show app. None pins an API version, so each gets the account's default (2026-09-30.endive on 2026-11-04);
+`lib/stripe.ts` reads the fields that moved in 2025-03-31 from both places.
 
 ## Going back to Vercel
 

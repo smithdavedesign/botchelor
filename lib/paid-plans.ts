@@ -10,7 +10,7 @@ import type { Db } from "./db";
 import { isProductionDeploy } from "./deploy";
 import { sendAccountEmail } from "./email";
 import { siteUrl } from "./site";
-import { isTestModeLink, paymentLinkUrl } from "./stripe";
+import { isTestModeLink, paymentLinkUrl, RENEWAL_GRACE_MS } from "./stripe";
 
 type Env = Record<string, string | undefined>;
 
@@ -30,12 +30,6 @@ export type PlanSpec = {
 export const PLANS: Record<PlanId, PlanSpec> = {
   companion: { id: "companion", name: "Companion Plan", price: "$9.99 a month", linkEnv: "COMPANION_PLAN_LINK", priceEnv: "COMPANION_PLAN_PRICE" },
 };
-
-/**
- * How late a renewal may land before the plan stops: Stripe bills about an hour after the period ends, and retries a
- * card that fails for days. Only an active plan gets it; a cancelled one ends on its date.
- */
-export const RENEWAL_GRACE_MS = 2 * 24 * 60 * 60 * 1000;
 
 const isPlan = (v: unknown): v is PlanId => (PLAN_IDS as readonly unknown[]).includes(v);
 
@@ -186,40 +180,6 @@ export async function grantPlan(
       if (cur) await put("lapsed", now);
       break;
   }
-}
-
-/* ------------------------------------------- Stripe's event shapes ------------------------------------------- */
-
-type Obj = Record<string, unknown>;
-const obj = (v: unknown): Obj | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : null);
-const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
-const time = (v: unknown): Date | null => (typeof v === "number" && Number.isFinite(v) && v > 0 ? new Date(v * 1000) : null);
-const firstItem = (list: unknown): Obj | null => obj((obj(list)?.data as unknown[] | undefined)?.[0]);
-
-/**
- * An invoice's subscription: `subscription` on older API versions, `parent.subscription_details.subscription` from
- * 2025-03-31 on (the webhook endpoint's version decides which comes).
- */
-export function invoiceSubscription(invoice: Obj): string | null {
-  return str(invoice.subscription) ?? str(obj(obj(invoice.parent)?.subscription_details)?.subscription);
-}
-
-/** When the period an invoice paid for ends: its first line's period. */
-export function invoicePeriodEnd(invoice: Obj): Date | null {
-  return time(obj(firstItem(invoice.lines)?.period)?.end);
-}
-
-/**
- * When a subscription's current period ends: on the subscription itself on older API versions, on its items from
- * 2025-03-31 on. A cancel set for a date (`cancel_at`) ends it then.
- */
-export function subscriptionPeriodEnd(sub: Obj): Date | null {
-  return time(sub.cancel_at) ?? time(sub.current_period_end) ?? time(firstItem(sub.items)?.current_period_end);
-}
-
-/** Whether a subscription is set to end (cancelled at the period's end, or on a date). */
-export function subscriptionEnding(sub: Obj): boolean {
-  return sub.cancel_at_period_end === true || time(sub.cancel_at) !== null;
 }
 
 /* ------------------------------------------- the receipt and the reminder ------------------------------------------- */
