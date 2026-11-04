@@ -84,6 +84,11 @@ export default function Memory({ a, b, onScene }: { a: { id: string; name: strin
             <h3>Tonight so far</h3>
             {memory.recap ? (
               <Item label="Recap" text={memory.recap} max={1200} busy={busy} multiline onSave={(text) => edit({ kind: "recap", text })} />
+            ) : memory.last_night ? (
+              <>
+                <p className="muted small">Nothing yet tonight. Last night, as it was saved:</p>
+                <p className="ad-memory-last-night">{memory.last_night}</p>
+              </>
             ) : (
               <p className="muted small">No recap yet: the night gets one when its first chapter is filed.</p>
             )}

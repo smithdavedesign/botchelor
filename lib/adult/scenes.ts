@@ -3305,13 +3305,26 @@ export type MemoryView = {
   facts: { id: string; of: "a" | "b"; kind: string; fact: string; quote: string | null; uses: number }[];
   /** The night's running recap so far (the prompt's "Earlier tonight"). */
   recap: string | null;
+  /** With none yet tonight (a new night, after Start over): the last saved night's recap, as it was filed. */
+  last_night: string | null;
 };
 
 /** The pair's memory for this viewer: only what their own nights wrote. Null for any pair outside their After Dark. */
 export async function memoryView(db: Db, ownerId: string, x: string, y: string): Promise<MemoryView | null> {
   const scene = await loadScene(db, ownerId, x, y);
   if (!scene) return null;
-  const [notes, facts] = await Promise.all([ownNotes(db, ownerId, scene.a.id, scene.b.id), loadPairFacts(db, ownerId, scene.a.id, scene.b.id)]);
+  const [notes, facts, lastNight] = await Promise.all([
+    ownNotes(db, ownerId, scene.a.id, scene.b.id),
+    loadPairFacts(db, ownerId, scene.a.id, scene.b.id),
+    scene.recap
+      ? Promise.resolve(null)
+      : db
+          .query<{ recap: string | null }>(
+            `select recap from adult_nights where owner_id = $1 and character_a = $2 and character_b = $3 and recap is not null order by created_at desc limit 1`,
+            [ownerId, scene.a.id, scene.b.id],
+          )
+          .then((r) => r.rows[0]?.recap ?? null),
+  ]);
   return {
     notes: { a: notes.find((n) => n.character_id === scene.a.id)?.note ?? null, b: notes.find((n) => n.character_id === scene.b.id)?.note ?? null },
     facts: facts
@@ -3319,6 +3332,7 @@ export async function memoryView(db: Db, ownerId: string, x: string, y: string):
       .reverse()
       .map((f) => ({ id: f.id, of: f.character_id === scene.a.id ? ("a" as const) : ("b" as const), kind: f.kind, fact: f.fact, quote: f.quote, uses: f.uses })),
     recap: scene.recap,
+    last_night: lastNight,
   };
 }
 

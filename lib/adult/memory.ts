@@ -21,9 +21,21 @@ const NOTE_MAX = 300;
 /** The note when the model's can't be used: true, warm and plain. */
 export const FALLBACK_NOTE = (other: string) => `After your last date you and ${other} spent the night together. You're closer now, and neither of you has said much about it.`;
 
-/** Writes (or rewrites) each side's note after a night: from the night's recap, or its last lines. Never throws. */
-export async function rememberAfterDark(db: Db, ownerId: string, a: Character | null, b: Character | null, recap: string | null, lines: SceneLine[]): Promise<void> {
-  if (!a || !b || (!recap && lines.length < 6)) return;
+/**
+ * Writes (or rewrites) each side's note after a night: from the night's recap, or its last lines, and (`morning`) the two
+ * texts they sent the morning after (lib/adult/monologues.ts, Two sides), so their next date and texts pick up from
+ * there. Never throws.
+ */
+export async function rememberAfterDark(
+  db: Db,
+  ownerId: string,
+  a: Character | null,
+  b: Character | null,
+  recap: string | null,
+  lines: SceneLine[],
+  morning?: { a: string; b: string } | null,
+): Promise<void> {
+  if (!a || !b || (!recap && lines.length < 6 && !morning)) return;
   const first = (c: Character) => c.name.split(/\s+/)[0];
   let notes: { a?: unknown; b?: unknown } = {};
   try {
@@ -40,9 +52,12 @@ export async function rememberAfterDark(db: Db, ownerId: string, a: Character | 
           role: "user",
           content:
             (recap ? `What happened:\n${recap}\n\n` : "") +
-            `How it ended:\n${tail}\n\n` +
+            (tail ? `How it ended:\n${tail}\n\n` : "") +
+            (morning ? `The morning after, ${a.name} texted ${first(b)}: "${morning.a}"\n${b.name} texted ${first(a)}: "${morning.b}"\n\n` : "") +
             `Write one short note for each of them, in the second person, as their own memory (1 or 2 sentences, under 45 words): ` +
-            `where they spent the night, how they feel about each other now, and one small detail they'd smile about (a joke, a look, a promise). ` +
+            `where they spent the night, how they feel about each other now, and one small detail they'd smile about (a joke, a look, a promise)` +
+            (morning ? `, and where things stand after this morning's texts, in the show's words.` : `.`) +
+            ` ` +
             `"a" is ${a.name}, "b" is ${b.name}. Reply with a JSON object: {"a": "You and ${first(b)} …", "b": "You and ${first(a)} …"}`,
         },
       ],
@@ -55,12 +70,14 @@ export async function rememberAfterDark(db: Db, ownerId: string, a: Character | 
   }
   const clean = (v: unknown, other: string) => {
     const text = typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, NOTE_MAX) : "";
-    return text && checkShowText({ note: text }).ok ? text : FALLBACK_NOTE(other);
+    // A morning's rewrite that didn't come through keeps the note they have, not the plain fallback.
+    return text && checkShowText({ note: text }).ok ? text : morning ? null : FALLBACK_NOTE(other);
   };
   for (const [self, other, note] of [
     [a, b, clean(notes.a, first(b))],
     [b, a, clean(notes.b, first(a))],
   ] as const) {
+    if (!note) continue;
     await db
       .query(
         `insert into adult_memories (character_id, other_id, owner_id, note) values ($1, $2, $3, $4)
