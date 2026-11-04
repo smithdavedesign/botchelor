@@ -19,6 +19,8 @@ import { authFromCookieStore, type Auth } from "@/lib/http";
 import { billingOn, subscriptionState } from "@/lib/adult/billing";
 import type { Db } from "@/lib/db";
 import CharacterName from "@/app/CharacterName";
+import { companionOpen } from "@/lib/companion-shared";
+import { planState, portalLink } from "@/lib/paid-plans";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +63,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   // Season badges from backing a cast member who ended it coupled (lib/backing.ts).
   const backingWins = viewerId ? await backingBadges(db, viewerId).catch(() => []) : [];
   const afterDark = await afterDarkCard(db, auth);
+  // The Companion Plan (lib/paid-plans.ts): its state and where to cancel, for anyone who ever had it.
+  const companionPlan = auth?.authenticated && companionOpen() ? await planState(db, auth.userId, "companion") : null;
   return (
     <>
       <h1>Your account</h1>
@@ -104,6 +108,26 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
               <Link href="/cancel">How to cancel</Link>
             </p>
           )}
+        </section>
+      )}
+
+      {companionPlan && companionPlan.status !== "none" && (
+        <section className="card" data-companion-plan-card>
+          <h2>💬 Companion Plan</h2>
+          {companionPlan.status === "active" && <p>On: renews monthly{companionPlan.period_end ? `, next on ${day(companionPlan.period_end)}` : ""}.</p>}
+          {companionPlan.status === "cancelled" && <p>Cancelled: no more charges. It runs until {companionPlan.period_end ? day(companionPlan.period_end) : "the end of the month"}.</p>}
+          {companionPlan.status === "lapsed" && <p>Your plan has ended.</p>}
+          <p className="muted small">
+            <Link href="/companion/plan">Your plan</Link>
+            {companionPlan.status !== "lapsed" && portalLink() && (
+              <>
+                {" · "}
+                <a href={portalLink()!} rel="noopener">
+                  {companionPlan.status === "cancelled" ? "Keep it going, or change your card" : "Cancel or change your card"}
+                </a>
+              </>
+            )}
+          </p>
         </section>
       )}
 

@@ -50,6 +50,7 @@ import { BackThem } from "@/app/BackCast";
 import { isFanCast, isOnSeasonCast, seasonIdAt, seasonMonth, showCastIds } from "@/lib/season-cast";
 import { stepInAllowed } from "@/lib/step-in";
 import { companionAllowed, companionEligible } from "@/lib/companion";
+import { companionOpen } from "@/lib/companion-shared";
 import TalkButton from "@/app/companion/TalkButton";
 import LearnedPanel from "./LearnedPanel";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
@@ -199,7 +200,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // Step into the date (lib/step-in.ts): this season's cast, for whoever it's open to (admins until STEP_IN_OPEN).
   const stepInP = c.house && isOnSeasonCast(id) ? stepInAllowed(db, auth).catch(() => false) : Promise.resolve(false);
   // Companions (lib/companion.ts): talk one to one with the house cast, the show's open cast or your own (admins until COMPANION_OPEN).
-  const companionP = (async () => auth?.authenticated && (await companionAllowed(db, auth)) && (await companionEligible(db, auth.userId, id)))().catch(() => false);
+  // "talk", or "signin" for a signed-out visitor once companions are open to everyone (an account comes first).
+  const companionP = (async (): Promise<"talk" | "signin" | false> => {
+    if (!auth?.authenticated) return companionOpen() && (await companionEligible(db, "", id)) ? "signin" : false;
+    return (await companionAllowed(db, auth)) && (await companionEligible(db, auth.userId, id)) ? "talk" : false;
+  })().catch(() => false as const);
   // What it does while its owner is away (lib/activity.ts), for the owner's controls.
   const awayP = c.house
     ? Promise.resolve(null)
@@ -431,7 +436,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               Just the two of you, off the show: {shortName(c.name)} remembers what you tell them, and only you see it. {shortName(c.name)} is an AI character.
             </p>
           </div>
-          <TalkButton characterId={c.id} name={shortName(c.name)} />
+          {companion === "signin" ? (
+            <Link className="button secondary" href={`/account?next=${encodeURIComponent(`/characters/${c.id}`)}`}>
+              Sign in to talk with {shortName(c.name)}
+            </Link>
+          ) : (
+            <TalkButton characterId={c.id} name={shortName(c.name)} />
+          )}
         </section>
       )}
 

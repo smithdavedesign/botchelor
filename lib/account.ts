@@ -413,6 +413,10 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   // 4. Everything else keyed to the user id.
   // Companions (lib/companion.ts): every thread, with its messages and what the character remembered (on delete cascade).
   await run("delete from companion_threads where user_id = $1", [userId]);
+  // A plan's billing record (lib/paid-plans.ts: plan, status, Stripe's subscription id, the address they paid with; nothing
+  // they said) stays while Stripe may still renew it (the yearly reminder is owed); its usage counts and Subscribe clicks go.
+  await run("delete from companion_usage where user_id = $1", [userId]);
+  await run("delete from plan_checkouts where user_id = $1", [userId]);
   await run("delete from league_members where user_id = $1", [userId]);
   await run("delete from leagues where owner_id = $1", [userId]); // cascades its remaining members
   await run("delete from predictions where user_id = $1", [userId]);

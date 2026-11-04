@@ -215,3 +215,39 @@
   display: flex;
   gap: 0.25rem;
 }
+/* The plan (app/companion/plan; lib/companion-plan.ts): the line on the list, the card when the free replies are gone. */
+.companion-plan-line {
+  margin: var(--space-2) 0 0;
+}
+.companion-out {
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.companion-out p {
+  margin: 0 0 var(--space-2);
+}
+.plan-price {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 var(--space-2);
+}
+.plan-card {
+  margin: 0 0 var(--space-4);
+}
+.plan-card ul {
+  margin: 0 0 var(--space-2);
+  padding-left: 1.2rem;
+}
+.plan-checkout .check {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: 0 0 var(--space-2);
+}
+.plan-wait {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  margin: 0 0 var(--space-4);
+}

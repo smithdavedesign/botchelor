@@ -1,6 +1,7 @@
 import { deleteAccount } from "@/lib/account";
 import { accountForUser, googleConfigured, needsSignIn, sessionsSignable } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { PLANS, planPrice, portalLink, renewingPlans } from "@/lib/paid-plans";
 import { invalidateGraph } from "@/lib/graph-cache";
 import { getPoints } from "@/lib/game";
 import { episodeAllowance } from "@/lib/allowance";
@@ -49,6 +50,21 @@ export const DELETE = handle(async (req) => {
   }
   const db = await getDb();
   if (await needsSignIn(db, auth)) return json({ error: "sign_in_required", message: "This is an account: sign in to do that." }, 401);
+  // A plan Stripe still renews (lib/paid-plans.ts): deleting the account doesn't stop its charges and the app can't cancel
+  // it (it holds no Stripe key), so they're told first, and delete anyway only on purpose.
+  const renewing = await renewingPlans(db, auth.userId);
+  if (renewing.length && (body as Record<string, unknown>).plan_renews !== true) {
+    const portal = portalLink();
+    const plans = renewing.map((p) => `${PLANS[p].name} (${planPrice(p)})`).join(" and ");
+    return json(
+      {
+        error: "plan_renews",
+        message: `Your ${plans} still renews, and deleting your account doesn't stop Stripe's charges. Cancel it first${portal ? ` in Stripe's billing portal: ${portal}` : ", with the link in Stripe's receipt email"}. To delete anyway, send {"confirm": true, "plan_renews": true}.`,
+        manage: portal,
+      },
+      409,
+    );
+  }
   const result = await deleteAccount(db, auth.userId);
   invalidateGraph(); // their characters leave the Constellation now
   return json({ deleted: true, ...result });

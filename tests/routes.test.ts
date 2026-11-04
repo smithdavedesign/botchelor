@@ -25,6 +25,9 @@ const PAYMENT_ROUTES = [
   "POST /api/checkout",
   "POST /api/webhooks/stripe",
   "POST /api/webhooks/stripe-operator",
+  // 2026-11-04: the subscription plans (lib/paid-plans.ts), the Companion Plan first: a Subscribe click and its webhook.
+  "POST /api/plans/checkout",
+  "POST /api/webhooks/stripe-plans",
   "POST /api/after-dark/subscribe",
   "GET /api/after-dark/billing/verotel",
   "GET /api/after-dark/billing/segpay",
