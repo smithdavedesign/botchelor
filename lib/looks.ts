@@ -321,6 +321,12 @@ const detailWords = (id: LookDetailId, option: string | undefined): string | und
 const shownDetailWords = (l: Looks): string[] =>
   (["marks", "makeup", "glasses", "piercings", "tattoos"] as const).map((id) => detailWords(id, l[id])).filter((x): x is string => Boolean(x));
 
+/**
+ * The details that stay with them through a picture of the two of them, dressed or not (an edit keeps the face and body
+ * but changes the clothes, and dropped glasses, earrings and tattoos with them: David, 2026-11-03).
+ */
+export const keptDetailWords = (l: Looks | undefined): string[] => (l?.gender ? shownDetailWords(l) : []);
+
 /* ------------------------------------------- what's stored ------------------------------------------- */
 
 const ids = (step: LookStepId, extra: readonly LookOption[] = []) => {

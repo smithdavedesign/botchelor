@@ -2964,6 +2964,12 @@ do $$ begin
   end if;
 end $$;
 
+-- What they wear tonight (David, 2026-11-03: "what they're wearing should be defined at the start of chapter one"):
+-- fixed at the night's first picture, or a roleplay's first for its costume, so a moment drawn ahead can't change clothes
+-- mid-night (lib/adult/beats.ts lockOutfits). Cleared when a night ends; a filed chapter keeps its own copy.
+alter table adult_scenes add column if not exists outfits jsonb;
+alter table adult_nights add column if not exists outfits jsonb;
+
 -- What ensureSchema last applied: a hash of this SQL and the house cast (ensureSchemaCurrent), so a cold start
 -- whose schema is already in place skips the whole thing.
 create table if not exists schema_meta (

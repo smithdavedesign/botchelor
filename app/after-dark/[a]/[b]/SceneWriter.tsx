@@ -377,6 +377,15 @@ export default function SceneWriter({
     }, PICTURE_POLL_MS);
   }
 
+  /** Fetches the gallery once now, adding what's new (a moment drawn in the background just landed on the stage). */
+  async function refreshGallery() {
+    const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    const landed = ((r?.gallery as Media[] | undefined) ?? []).filter((m) => !galleryIds.current.has(m.id));
+    if (!landed.length) return;
+    setGallery((g) => [...landed.filter((m) => !g.some((x) => x.id === m.id)), ...g]);
+    setFreshPictures(new Set(landed.map((m) => m.id)));
+  }
+
   /** Fetches the gallery again a little later (twice: a picture and its checks take a while), adding what's new. */
   function lookForPictures(beatId?: string) {
     for (const ms of [20_000, 60_000, 120_000]) {
@@ -660,6 +669,7 @@ export default function SceneWriter({
             beats={textOnly ? [] : (scene.beats ?? [])}
             onBeat={textOnly ? undefined : (id, answer, guide) => beatAction({ beat: { id, answer, ...(guide?.custom ? { custom: guide.custom } : {}), ...(guide?.edit ? { edit: guide.edit } : {}) } })}
             onPictureNow={(line, guide) => beatAction({ picture_now: { line, ...(guide?.custom ? { custom: guide.custom } : {}), ...(guide?.edit ? { edit: guide.edit } : {}) } })}
+            onPicturesLanded={textOnly ? undefined : () => void refreshGallery()}
             picture={textOnly ? null : picture}
             onMakeVideo={(scope) => planVideo(scope)}
             onPlanVideo={(scope) => planVideo(scope)}

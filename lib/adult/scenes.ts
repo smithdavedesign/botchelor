@@ -2975,8 +2975,8 @@ async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene:
   const recap = await writeRecap(db, a, b, scene.recap, scene.lines, scene);
   const nightId = crypto.randomUUID();
   await db.query(
-    `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap, moves, place_history)
-     values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb)`,
+    `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap, moves, place_history, outfits)
+     values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb, (select outfits from adult_scenes where id = $15))`,
     [
       nightId,
       ownerId,
@@ -2992,6 +2992,7 @@ async function nextChapter<S extends AdultScene>(db: Db, ownerId: string, scene:
       recap,
       JSON.stringify(scene.moves),
       JSON.stringify(scene.place_history),
+      scene.id,
     ],
   );
   // The lines' thumbs (lib/line-feedback.ts) and the steps that wrote them (lib/adult/steps.ts) go with them to the
@@ -3477,8 +3478,9 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
     await rememberFacts(db, adminId, ca, cb, scene.lines);
     const nightId = crypto.randomUUID();
     await db.query(
-      `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap, moves, place_history) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb)`,
-      [nightId, adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place, scene.chapter, scene.recap, JSON.stringify(scene.moves), JSON.stringify(scene.place_history)],
+      `insert into adult_nights (id, owner_id, character_a, character_b, lines, place, stage, date_setting, date_venue, set_place, chapter, recap, moves, place_history, outfits)
+       values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb, (select outfits from adult_scenes where id = $15))`,
+      [nightId, adminId, ...pair, JSON.stringify(scene.lines), scene.place, scene.stage, scene.date?.setting ?? null, scene.date?.venue ?? null, scene.set_place, scene.chapter, scene.recap, JSON.stringify(scene.moves), JSON.stringify(scene.place_history), scene.id],
     );
     // The lines' thumbs (lib/line-feedback.ts) and their steps (lib/adult/steps.ts) go with them to the saved night.
     await moveLineFeedback(db, scene.id, nightId);
@@ -3495,7 +3497,7 @@ export async function resetScene(db: Db, adminId: string, x: string, y: string):
   }
   await db.query(
     `update adult_scenes set lines = '[]'::jsonb, place = null, stage = 0, stage_from = 0, picture_note = null, set_place = null, cut_to = null, chapter = 1, recap = null, prev_tail = '[]'::jsonb, place_history = '[]'::jsonb, moves = '[]'::jsonb,
-            suggestions = '[]'::jsonb, whispers = '{}'::jsonb, undo = '[]'::jsonb, scenario = null, roleplay = null, auto_pictures = '[]'::jsonb, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
+            suggestions = '[]'::jsonb, whispers = '{}'::jsonb, undo = '[]'::jsonb, scenario = null, roleplay = null, auto_pictures = '[]'::jsonb, outfits = null, updated_at = now() where owner_id = $1 and character_a = $2 and character_b = $3`,
     [adminId, ...pair],
   );
 }
