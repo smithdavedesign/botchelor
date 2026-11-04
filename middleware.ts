@@ -58,8 +58,17 @@ function moveForAfterDark(req: NextRequest): NextResponse | null {
   // gets the redirect. Never cached, so a real page load still does. Next takes its `rsc` header off before middleware
   // sees it (#1037 missed that), so it's told by the browser's own: a fetch is `sec-fetch-dest: empty`, a page load
   // `document`.
-  if (req.headers.get("sec-fetch-dest") === "empty" || req.headers.get("rsc") === "1") return new NextResponse("Moved to another host.", { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store", vary: "rsc, sec-fetch-dest" } });
-  return NextResponse.redirect(move.redirect, 307);
+  return fetchAnswer(req) ?? NextResponse.redirect(move.redirect, 307);
+}
+
+/**
+ * A link's client-side fetch (RSC: its prefetch, or the navigation itself) can't follow a redirect to the other host:
+ * the browser blocks it (CORS). A plain answer on this host instead: Next loads the page in full for anything that
+ * isn't its own kind of response, and that load gets the redirect. Never cached, so a real page load still does.
+ */
+function fetchAnswer(req: NextRequest): NextResponse | null {
+  if (req.headers.get("sec-fetch-dest") !== "empty" && req.headers.get("rsc") !== "1") return null;
+  return new NextResponse("Moved to another host.", { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store", vary: "rsc, sec-fetch-dest" } });
 }
 
 /**
@@ -99,6 +108,10 @@ function renewPlace(req: NextRequest): NextResponse | null {
   if (req.cookies.get(ADULT_COOKIE)?.value !== "1") return null; // the 18+ gate comes first
   if (placeCookieFresh(req.cookies.get(PLACE_COOKIE)?.value) || req.cookies.has(PLACE_TRIED_COOKIE)) return null;
   if (detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"))) return null;
+  // The hop goes by the show's host, so a link's fetch gets the full load instead (2026-11-03: David's console, CORS on
+  // every link in After Dark once the hour's place cookie had run out).
+  const fetched = fetchAnswer(req);
+  if (fetched) return fetched;
   const url = req.nextUrl.clone();
   url.pathname = "/api/auth/carry";
   url.search = "";

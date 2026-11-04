@@ -215,6 +215,10 @@ describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
     expect(fingerprint(res)).toBe("200 - next -");
     // Without one, past the 18+ gate, it goes through the sign-in hop for one (2026-10-24, lib/jurisdiction.ts).
     expect(page(`${AD}/after-dark/a/b`, { cookie: "bz_adult=1" })).toBe(`307 ${AD}/api/auth/carry?to=%2Fafter-dark%2Fa%2Fb - -`);
+    // A link's fetch once the place has run out: no hop (it goes by the show's host, and CORS blocks it; David's console
+    // 2026-11-03), a plain answer so Next loads the page in full, and that load makes the hop.
+    const stale = middleware(new NextRequest(`${AD}/after-dark/studio/x`, { headers: { "user-agent": CHROME, cookie: "bz_adult=1", "sec-fetch-dest": "empty", "sec-fetch-mode": "cors" } }));
+    expect([stale.status, stale.headers.get("location"), stale.headers.get("cache-control")]).toEqual([200, null, "private, no-store"]);
     expect(page(`${AD}/after-dark/a/b`, { cookie: "bz_adult=1; bz_place_tried=1" })).toBe("200 - next -");
     expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(page(`${AD}/after-dark`)).toBe(`307 ${AD}/gate?from=%2Fafter-dark - -`); // the gate, here, as on the show
