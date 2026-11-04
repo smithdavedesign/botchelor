@@ -150,8 +150,10 @@ describe("the cast group chat (lib/cast-chat.ts)", () => {
   it("rides along in Since you were here once it's newer than the last visit", async () => {
     await seedDay();
     await ensureCastChat(t.db, NOW, { model: answering(new Error("down")).model });
-    await t.db.query(`insert into owner_activity (user_id, last_seen, prev_seen) values ('fan', now() - interval '30 hours', null)`);
-    const card = await showSince(t.db, "fan");
+    // On NOW's clock, not the wall clock: a visit 30 hours before NOW, so the day's aired date is news since then (on the
+    // wall clock it stopped being news a day after NOW, and the card, chat and all, came back null).
+    await t.db.query(`insert into owner_activity (user_id, last_seen, prev_seen) values ('fan', $1, null)`, [new Date(NOW.getTime() - 30 * 60 * 60_000).toISOString()]);
+    const card = await showSince(t.db, "fan", NOW);
     expect(card?.chat).toMatchObject({ code: "S2 · Night 2" });
     expect(card!.chat!.more).toBeGreaterThanOrEqual(CHAT_MIN - 1);
   });

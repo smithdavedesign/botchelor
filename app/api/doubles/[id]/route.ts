@@ -28,7 +28,7 @@ export const POST = handle(async (req, { params }: Params) => {
   }
   const accepted = await acceptDouble(db, sess.userId, id);
   if (!accepted) return json({ error: "not_open", message: "This invite isn't yours to answer any more (answered, or lapsed after 7 days)." }, 409, sess);
-  const booked = await bookDoubleNight(db, accepted, undefined);
+  const booked = await bookDoubleNight(db, accepted, undefined, sess.userId);
   if (!booked.ok) return json({ error: "double_failed", message: booked.error, ...(booked.episode_a ? { episode_a: booked.episode_a } : {}) }, 422, sess);
   return json({ episode_a: booked.episode_a, episode_b: booked.episode_b }, 200, sess);
 });
