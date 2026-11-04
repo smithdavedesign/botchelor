@@ -1528,6 +1528,17 @@ do $$ begin
     alter table adult_images add constraint adult_images_kind_check check (kind in ('baseline', 'scene', 'video', 'frame', 'audio'));
   end if;
 end $$;
+-- A baseline of an old face (2026-11-04: Carson Vallis's from before the recast) can be 'retired': its file is kept, and
+-- nothing that picks a ready picture picks it, so the next baseline is drawn from the face they have now.
+do $$ begin
+  if exists (
+    select 1 from pg_constraint where conname = 'adult_images_status_check'
+       and pg_get_constraintdef(oid) not like '%retired%'
+  ) then
+    alter table adult_images drop constraint if exists adult_images_status_check;
+    alter table adult_images add constraint adult_images_status_check check (status in ('pending', 'ready', 'failed', 'retired'));
+  end if;
+end $$;
 -- Agents (not the admin's) asking for after dark: the admins see them on the settings page.
 create table if not exists adult_access_requests (
   id text primary key,

@@ -625,8 +625,28 @@ async function baselineFromPortrait(db: Db, ownerId: string, c: Character, url: 
  * A baseline from the show portrait when the character has one and an editor is set (#1158), else from words. A failed
  * edit falls back to words (Hive paused still stops it). `edit`: null forces words; left out, the configured editor.
  */
+/**
+ * The show portrait a baseline starts from: a house character's file, else their newest approved pg portrait that a
+ * model drew (never an uploaded one). Without the second, a people's or recast character's baseline was drawn from words,
+ * a stranger (2026-11-04: Carson Vallis kept his pre-recast face in After Dark).
+ */
+async function showPortrait(db: Db, c: Character): Promise<string | null> {
+  const house = characterPortrait(c.id);
+  if (house) return house;
+  const { rows } = await db
+    .query<{ id: string }>(
+      `select a.id from character_assets a
+        where a.character_id = $1 and a.kind = 'portrait' and a.review_status = 'approved' and a.url is not null
+          and a.content_rating = 'pg' and a.source_type = 'generated'
+        order by a.created_at desc limit 1`,
+      [c.id],
+    )
+    .catch(() => ({ rows: [] as { id: string }[] }));
+  return rows[0] ? `/api/assets/${rows[0].id}` : null;
+}
+
 async function portraitOrWords(db: Db, ownerId: string, c: Character, edit: PortraitEdit | null | undefined, preset?: (typeof PICTURE_PRESETS)[number]): Promise<Media> {
-  const portrait = characterPortrait(c.id);
+  const portrait = await showPortrait(db, c);
   const editor = portrait ? (edit === undefined ? await defaultPortraitEdit(db) : edit) : null;
   if (portrait && editor) {
     try {
