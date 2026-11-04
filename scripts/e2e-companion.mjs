@@ -73,7 +73,9 @@ function startCompanionStub() {
           // A scene's line: what they say out loud and what they do.
           const line = (say, act) => JSON.stringify({ say, do: act });
           content = /Open the scene/.test(last)
-            ? line("Look at this view. Worth every stair?", "leans on the railing")
+            ? /rooftop/.test(last)
+              ? line("Look at this view. Worth every stair?", "leans on the railing")
+              : line("Good pick. I like it here already.", "looks around, smiling")
             : /best thing up here/i.test(last)
               ? line("The quiet. And the company, obviously.", "grins")
               : line("Go on, I'm listening.", "leans closer");
@@ -299,13 +301,16 @@ async function main() {
       await page.getByRole("button", { name: "🎭 Scene" }).click();
       const picker = page.getByRole("region", { name: `Where are you and ${first}?` });
       await picker.waitFor({ timeout: 10_000 });
-      const tile = picker.locator(".place-tile").first();
+      const tile = picker.locator('.place-tile[data-place="rooftop_bar"]');
       place = ((await tile.textContent()) ?? "").trim();
       await tile.click();
       await page.locator(".companion-thread .chat-note-scene").waitFor({ timeout: 15_000 });
       await page.locator(".companion-stage .scene-action", { hasText: "leans on the railing" }).waitFor({ timeout: 15_000 });
       await page.locator(".companion-stage", { hasText: "Worth every stair?" }).waitFor();
       await page.locator(".companion-stage", { hasText: `🎭 ${place}` }).waitFor();
+      const stageBox = await page.locator(".companion-stage").boundingBox();
+      const bubbleBox = await page.locator(".companion-stage .scene-char-a .scene-bubble").boundingBox();
+      assert(stageBox && bubbleBox && bubbleBox.y >= stageBox.y, "their line should be on the stage, not cut off at its top");
       await page.locator(".companion-thread .companion-action", { hasText: "leans on the railing" }).waitFor();
       assert(seen.replyPrompts.at(-1).includes("playing a scene together"), "the scene should reach the model");
       assert((await page.getByRole("button", { name: "Say it" }).count()) === 1, "in a scene the button says Say it");
@@ -353,9 +358,20 @@ async function main() {
         const sendBox = await p.getByRole("button", { name: "Send", exact: true }).boundingBox();
         assert(sendBox && sendBox.y + sendBox.height <= 844, "the send button should be on screen");
         await shot(p, "companion-chat-phone");
+        // On a phone the stage is the place on a banner; their lines, with what they do, are in the thread under it.
         await p.getByRole("button", { name: "🎭 Scene" }).tap();
-        await p.locator(".place-tile").nth(1).tap();
-        await p.locator(".companion-stage .scene-action", { hasText: "leans on the railing" }).waitFor({ timeout: 15_000 });
+        const phoneTile = p.locator('.place-tile:not([data-place="rooftop_bar"])').first();
+        const phonePlace = ((await phoneTile.textContent()) ?? "").trim();
+        await phoneTile.tap();
+        await p.locator(".companion-thread .chat-note-scene").nth(1).waitFor({ timeout: 15_000 });
+        await p.waitForFunction(() => !document.querySelector(".chat-typing"), null, { timeout: 15_000 });
+        assert(await p.locator(".companion-stage .scene-act", { hasText: phonePlace }).isVisible(), "the banner should name the place");
+        assert(((await p.locator(".companion-thread .companion-action").last().textContent()) ?? "").includes("looks around, smiling"), "their opener should say what they do");
+        const textButton = await p.getByRole("button", { name: "📱 Text" }).boundingBox();
+        for (const part of [".companion-head-name strong", ".companion-ai"]) {
+          const box = await p.locator(part).boundingBox();
+          assert(box && textButton && box.x + box.width <= textButton.x, `${part} should end before the header's buttons`);
+        }
         const sceneWide = await p.evaluate(() => document.documentElement.scrollWidth);
         assert(sceneWide <= 391, `the scene should fit the phone (scrollWidth ${sceneWide})`);
         const sayBox = await p.getByRole("button", { name: "Say it" }).boundingBox();

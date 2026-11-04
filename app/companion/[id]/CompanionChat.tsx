@@ -214,15 +214,17 @@ export default function CompanionChat({
         {!paused &&
           (view.scene ? (
             <button type="button" className="button-ghost small" onClick={() => void playScene(null)} disabled={busy} data-track="companion-scene-end">
-              📱 Text
+              📱<span className="companion-head-label"> Text</span>
             </button>
           ) : (
             <button type="button" className="button-ghost small" onClick={() => setPicking((p) => !p)} disabled={busy} aria-expanded={picking} data-track="companion-scene-pick">
-              🎭 Scene
+              🎭<span className="companion-head-label"> Scene</span>
             </button>
           ))}
         <details className="companion-menu">
-          <summary className="button-ghost small">Settings</summary>
+          <summary className="button-ghost small">
+            ⚙️<span className="companion-head-label"> Settings</span>
+          </summary>
           <div className="companion-menu-body">
             <fieldset>
               <legend>How much {first} says</legend>
@@ -289,6 +291,7 @@ export default function CompanionChat({
             lineB={pending ?? onStage.you?.text ?? null}
             actLabel={`🎭 ${venueName(view.scene)}`}
             placeholder={opening ? `${first} is on the way…` : null}
+            faceSize={96}
           />
           {speech.supported && (
             <button type="button" className="button-ghost small companion-voice" onClick={toggleVoice} aria-pressed={speech.on} title="Read their lines aloud in your device's own voice">
