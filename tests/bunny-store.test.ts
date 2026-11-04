@@ -199,6 +199,42 @@ describe("the Bunny store", () => {
     vi.stubEnv("AFTER_DARK_ONLY", "1");
     expect((await keepBytes("after-dark", "clip-2", PNG, "image/png")).object_key).toBe(mediaKey("after-dark", "clip-2", PNG, "image/png"));
   });
+
+  it("on the show's host with Bunny's settings too, an After Dark file goes to Bunny and the show's own to its bucket", async () => {
+    for (const [k, v] of Object.entries({ ...S3, ...BUNNY })) vi.stubEnv(k, v);
+    vi.stubEnv("AFTER_DARK_ORIGIN", "https://ad.botchelor.com");
+    vi.stubEnv("AFTER_DARK_ONLY", "");
+    const files = new Map<string, Buffer>([["br-test-123.storage.c-1.us-east-1.aws.neon.tech/botchelor-media/after-dark/old-1.png", MP4]]);
+    const r = recorder(({ url, method, body }) => {
+      const u = new URL(url);
+      const at = `${u.host}${u.pathname}`;
+      if (method === "PUT") files.set(at, body!);
+      if (method === "DELETE") files.delete(at);
+      if (method === "GET") return files.has(at) ? new Response(new Uint8Array(files.get(at)!)) : new Response(null, { status: 404 });
+      return new Response(null, { status: 201 });
+    });
+    setObjectStoreFetchForTests(r.fetch);
+    const clip = await keepBytes("after-dark", "clip-1", PNG, "image/png");
+    const tile = await keepBytes("looks", "tile-1", PNG, "image/png");
+    expect(clip.object_key).toBe(mediaKey("after-dark", "clip-1", PNG, "image/png"));
+    expect([...files.keys()]).toEqual([
+      "br-test-123.storage.c-1.us-east-1.aws.neon.tech/botchelor-media/after-dark/old-1.png",
+      `ny.storage.bunnycdn.com/botchelor-ad/${clip.object_key}`,
+      `br-test-123.storage.c-1.us-east-1.aws.neon.tech/botchelor-media/${tile.object_key}`,
+    ]);
+    expect(await readBytes(clip)).toEqual(PNG);
+    expect(await readBytes(tile)).toEqual(PNG);
+    // One made before, still only in the bucket, is read from there.
+    expect(await readBytes({ object_key: "after-dark/old-1.png", data: null })).toEqual(MP4);
+    const store = objectStore()!;
+    expect(new URL((await store.presign(clip.object_key!)).url).host).toBe("media.botchelor.com");
+    expect(new URL((await store.presign(tile.object_key!)).url).host).toBe("br-test-123.storage.c-1.us-east-1.aws.neon.tech");
+    await store.remove(clip.object_key!);
+    expect(files.has(`ny.storage.bunnycdn.com/botchelor-ad/${clip.object_key}`)).toBe(false);
+    // After Dark's own host is Bunny for everything, as before.
+    vi.stubEnv("AFTER_DARK_ONLY", "1");
+    expect(new URL((await objectStore()!.presign(tile.object_key!)).url).host).toBe("media.botchelor.com");
+  });
 });
 
 describe("After Dark's media links come from Bunny when it's set", () => {
