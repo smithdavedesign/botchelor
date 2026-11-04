@@ -5,7 +5,7 @@ import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route"
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { runAdultTool } from "@/lib/adult/mcp";
 import { setAdultModelForTests } from "@/lib/adult/mode";
-import { byFiling, chaptersLabel, groupNights, runningNight } from "@/lib/adult/nights";
+import { byFiling, chaptersLabel, groupNights, nightNumbers, runningNight } from "@/lib/adult/nights";
 import { acrossChapters, DIRECTOR_MAX_LINES, listReels, pickShots, reelCast, reelNight, setReelFetchForTests, setReelPausesForTests, settleIfDone, shareOut, type Reel, type ReelShot } from "@/lib/adult/reels";
 import { filmedNight, nightVideos, type NightRow } from "@/lib/adult/shorts";
 import { claimAdmin } from "@/lib/admins";
@@ -196,6 +196,12 @@ describe("a night is every chapter since it began", () => {
     expect(groupNights(byFiling(saved), { chapter: 3 }).map((g) => g.rows.map((r) => r.id))).toEqual([["x1"], ["y1", "y2"]]);
     expect(chaptersLabel([{ chapter: 1 }, { chapter: 2 }])).toBe("Whole night, chapters 1–2");
     expect(chaptersLabel([{ chapter: 2 }])).toBe("Chapter 2");
+    // Each night numbered from the first (David, 2026-11-04): x is night 1, y night 2; on chapter 3, tonight is still 2,
+    // and after Start over it's night 3.
+    const running = nightNumbers(groupNights(byFiling(saved), { chapter: 3 }));
+    expect([running.byRow.get("x1"), running.byRow.get("y1"), running.byRow.get("y2"), running.now]).toEqual([1, 2, 2, 2]);
+    expect(nightNumbers(groupNights(byFiling(saved), { chapter: 1 })).now).toBe(3);
+    expect(nightNumbers([]).now).toBe(1);
   });
 });
 

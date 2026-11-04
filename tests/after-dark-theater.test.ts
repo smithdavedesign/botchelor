@@ -24,6 +24,14 @@ describe("After Dark theater steer (David, 2026-10-21: no direct way to steer fr
   it("a saved night's playback has no steer at all", () => {
     expect(render({})).not.toContain("theater-steer-mode");
   });
+
+  it("the 📖 chip says which night it is, live and in a replay (David, 2026-11-04)", () => {
+    const chapters = [{ id: "n1", chapter: 1, lines: 30, created_at: new Date(0).toISOString(), place: null, night: 1 }];
+    expect(render({ onWrite: async () => {}, night: 2, chapters, onReplayChapter: () => {}, scene: { ...scene, chapter: 1 } })).toMatch(/📖 Night 2 · (<!-- -->)?Chapter 1/);
+    expect(render({ night: 1, chapters, onReplayChapter: () => {}, scene: { ...scene, chapter: 2 } })).toMatch(/📖 Night 1 · (<!-- -->)?Chapter 2 · replay/);
+    // Without a number (no saved nights yet), as before.
+    expect(render({ onWrite: async () => {}, scene: { ...scene, chapter: 1 } })).toMatch(/📖 (<!-- -->)?Chapter 1/);
+  });
 });
 
 describe("the label over the stage: the roleplay and what they're doing, in the writer's words", () => {
