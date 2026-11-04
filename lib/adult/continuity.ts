@@ -56,6 +56,8 @@ const COMPOUNDS: Record<string, string> = {
   "car door": "car",
   "rooftop bar": "rooftop bar",
   "night market": "night market",
+  "bus stop": "bus stop",
+  "bus shelter": "bus stop",
 };
 
 /** One word that names a place, and the place it is ("bed" is the bedroom, "flat" is home). */
@@ -74,7 +76,7 @@ const SYNONYMS: Record<string, string> = {
   bar: "bar", pub: "bar", tavern: "bar", club: "club", nightclub: "club", cafe: "cafe", café: "cafe", coffeeshop: "cafe", diner: "diner", restaurant: "restaurant", bistro: "restaurant",
   street: "street", sidewalk: "street", road: "street", alley: "alley", alleyway: "alley", park: "park", beach: "beach", shore: "beach", garden: "garden", yard: "yard", backyard: "yard", porch: "porch",
   office: "office", library: "library", gym: "gym", cinema: "cinema", theater: "theater", theatre: "theater", museum: "museum", gallery: "gallery", studio: "studio",
-  cabin: "cabin", tent: "tent", boat: "boat", yacht: "boat", lake: "lake", forest: "forest", woods: "forest", field: "field", meadow: "field", garage: "garage", arcade: "arcade", observatory: "observatory", closet: "closet", basement: "basement", attic: "attic",
+  cabin: "cabin", tent: "tent", boat: "boat", yacht: "boat", lake: "lake", forest: "forest", woods: "forest", field: "field", meadow: "field", garage: "garage", arcade: "arcade", observatory: "observatory", closet: "closet", workshop: "workshop", basement: "basement", attic: "attic",
 };
 
 /** The places a set can be: what a move has to go to (a rug, a wall or "the swing" is somewhere in the room). */
@@ -208,7 +210,7 @@ export const HOME_ROOMS: ReadonlySet<string> = new Set(["home", "bedroom", "livi
 /** Places other people are (David, 2026-10-18: "at a cafe… not the right scenario"): past kissing means leaving first. */
 const PUBLIC_PLACES: ReadonlySet<string> = new Set([
   "bar", "club", "cafe", "diner", "restaurant", "street", "alley", "park", "beach", "rooftop bar", "dance floor", "bowling alley", "night market",
-  "lobby", "hotel", "parking lot", "library", "gym", "cinema", "theater", "museum", "gallery", "arcade", "observatory", "elevator",
+  "lobby", "hotel", "parking lot", "library", "gym", "cinema", "theater", "museum", "gallery", "arcade", "observatory", "elevator", "bus stop",
 ]);
 /** Outdoor spots that are public unless they're at one of their homes (a restaurant's terrace, not her balcony). */
 const PUBLIC_UNLESS_HOME: ReadonlySet<string> = new Set(["balcony", "rooftop", "pool", "garden", "yard", "porch", "field", "forest", "lake"]);
@@ -293,15 +295,21 @@ const sentences = (text: string): string[] => text.split(/(?<=[.!?*])\s+/).filte
 /** Whether a line suggests going somewhere: a lead plus a place, or a question naming one ("My place, perhaps?"). */
 export function proposesMove(text: string): boolean {
   if (NOT_GOING.test(text)) return false;
-  return sentences(text).some((s) => NEARBY.test(s) || ((WHERE.test(s) || PLACE_WORD.test(s)) && (GO.test(s) || /\?\s*$/.test(s.trim()))));
+  return sentences(text).some((s) => NEARBY.test(s) || PITCH.test(s) || ((WHERE.test(s) || PLACE_WORD.test(s)) && (GO.test(s) || /\?\s*$/.test(s.trim()))));
 }
+/**
+ * An invitation said as what their own somewhere has that here doesn't: "My workshop has better lighting", "My place has
+ * excellent lighting" (Carson × Dorian, 2026-11-03: "This venue lacks adequate lighting" / "My workshop has better
+ * lighting" / "Let's go test its load-bearing capacity", and the night stayed at the bus shelter all chapter).
+ */
+const PITCH = /\b(?:my|our)\s+(?:[\w-]+\s+)?[\w-]+\s+(?:has|have|'s got)\s+(?:got\s+)?(?:a\s+)?(?:much\s+|far\s+|way\s+)?(?:better|excellent|more|bigger|softer|quieter|warmer|nicer|great|perfect)\b/i;
 /** Any place a set can be, named in a sentence (SYNONYMS): "the bakery", "his workshop". */
 const PLACE_WORD = new RegExp(`\\b(?:${Object.keys(SYNONYMS).join("|")})\\b`, "i");
 /**
  * An invitation said as how close somewhere is: "The bakery is ten minutes from here", "my place is just around the
  * corner" (Star × Rafe, 2026-10-25: no "let's", no question mark, and "Lead the way" agreed to it).
  */
-const NEARBY = /\b(?:is|it's|its|are)\s+(?:only\s+|just\s+|right\s+)?(?:(?:\w+\s+){0,2}(?:minutes?|blocks?)\s+(?:from here|away)|a (?:short )?walk(?: away)?|around the corner|round the corner|down the (?:street|road|block)|nearby|close by|not far)\b/i;
+const NEARBY = /(?:\b(?:is|it's|its|are)|'s)\s+(?:(?:only|just)\s+(?:\w+\s+){0,2}(?:minutes?|blocks?)\b|(?:only\s+|just\s+|right\s+)?(?:\w+\s+){0,2}(?:minutes?|blocks?)\s+(?:from here|away)|a (?:short )?walk(?: away)?|around the corner|round the corner|down the (?:street|road|block)|nearby|close by|not far)\b/i;
 
 /** Whether a line goes along with a suggestion to move: a yes, a nod, following. Never a no. */
 export function agreesToMove(text: string): boolean {
