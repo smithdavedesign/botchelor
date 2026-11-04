@@ -131,6 +131,15 @@ describe("a reply as messages", () => {
     expect(long.endsWith("…")).toBe(true);
   });
 
+  it("reads the JSON answer the model gives in JSON mode, and a cut-off one up to its last whole message", () => {
+    expect(replyBubbles('{"messages":["Nell: Hey you.","*grins* So, the plan?"]}', "Nell Okafor")).toEqual(["Hey you.", "So, the plan?"]);
+    expect(replyBubbles('```json\n{"messages":"Just one."}\n```', "X")).toEqual(["Just one."]);
+    expect(replyBubbles('{"messages":["First \\"quoted\\" one.","Second, cut of', "X")).toEqual(['First "quoted" one.']);
+    expect(replyBubbles("{ }", "X")).toEqual([]);
+    expect(replyBubbles('{"reply":"wrong key"}', "X")).toEqual([]);
+    expect(companionMessages({ ...base, character: character() })[0].content).toContain('Answer only JSON: {"messages":');
+  });
+
   it("is empty when nothing is left", () => {
     expect(replyBubbles("   \n\n  ", "X")).toEqual([]);
     expect(replyBubbles("*waves*", "X")).toEqual([]);

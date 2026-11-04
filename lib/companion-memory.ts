@@ -5,7 +5,7 @@ import type { CompanionFactView } from "./companion-shared";
 import { checkShowText } from "./safety";
 import { crisisIntent } from "./crisis";
 import { maybeCrisis } from "./step-in";
-import { RECENT_TURNS, type PromptFact } from "./companion-prompt";
+import { jsonOf, RECENT_TURNS, type PromptFact } from "./companion-prompt";
 
 /**
  * What a companion remembers about the person (docs/companions.md): short facts drawn from their own words every few
@@ -30,18 +30,6 @@ function overlap(a: Set<string>, b: Set<string>): number {
   let n = 0;
   for (const w of a) if (b.has(w)) n++;
   return n / Math.min(a.size, b.size);
-}
-
-/** A model's JSON answer, from inside a code fence or prose around it. */
-function jsonOf(raw: string): unknown {
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
-  try {
-    return JSON.parse(raw.slice(start, end + 1));
-  } catch {
-    return null;
-  }
 }
 
 type FactRow = { id: string; kind: string; text: string; pinned: boolean; edited_by_user: boolean; uses: number; created_at: string };
@@ -129,7 +117,7 @@ async function capFacts(db: Db, threadId: string): Promise<void> {
 }
 
 const SUMMARY_PROMPT = (name: string) =>
-  `You keep the running notes of a long conversation between a person and ${name}, an AI character they talk with. Given the notes so far and the next stretch of the conversation, write the new notes: what they talked about, what happened, how things stand between them, anything promised or left open. Under 150 words, plain prose, in the third person ("They told ${name} about…"). Answer with the notes only.`;
+  `You keep the running notes of a long conversation between a person and ${name}, an AI character they talk with. Given the notes so far and the next stretch of the conversation, write the new notes: what they talked about, what happened, how things stand between them, anything promised or left open. Under 150 words, plain prose, in the third person ("They told ${name} about…"). Answer only JSON: {"notes":"..."}.`;
 
 /**
  * Redraws the rolling summary when SUMMARY_EVERY messages have fallen out of the prompt's recent turns since the last
@@ -158,7 +146,8 @@ export async function updateSummary(db: Db, threadId: string, name: string, mode
   } catch {
     return false;
   }
-  next = next.replace(/\s+/g, " ").trim().slice(0, 1200);
+  const notes = (jsonOf(next) as { notes?: unknown } | null)?.notes;
+  next = (typeof notes === "string" ? notes : next.trim().startsWith("{") ? "" : next).replace(/\s+/g, " ").trim().slice(0, 1200);
   if (!next || crisisIntent(next)) return false;
   await db.query(`update companion_threads set summary = $2, summary_upto = $3 where id = $1`, [threadId, next, older[older.length - 1].created_at]);
   return true;

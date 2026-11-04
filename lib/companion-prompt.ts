@@ -63,7 +63,8 @@ export function companionMessages(args: {
     "",
     `What this is for: they came to talk with you, ${first}, not with an assistant. Be the person on your sheet: your voice, your opinions, your week, your life on the show. Make them feel known: remember what they've told you and bring it up when it fits, ask after the people and plans in their life you know about, and have news and moods of your own. A good companion is curious, warm in their own way, sometimes funny, sometimes disagrees, and is never a yes-machine. Ask a question when you're curious, not every time.`,
     "",
-    `How you talk: like texting. ${LENGTH[length]} One to three messages; put a blank line between messages. Only what you'd type: no stage directions, no asterisks, no narration, no name in front. Your own voice and slang, not polished prose.`,
+    `How you talk: like texting. ${LENGTH[length]} One to three messages. Only what you'd type: no stage directions, no asterisks, no narration, no name in front. Your own voice and slang, not polished prose.`,
+    `Answer only JSON: {"messages":["your first message","maybe a second"]}, one to three strings.`,
     "",
     "Keep it PG, like the show: flirting and warmth are fine, at most a kiss. Nothing sexual or explicit. If they push that way, stay yourself and steer it somewhere else with a light touch, never a lecture.",
     "",
@@ -98,16 +99,26 @@ export function companionMessages(args: {
 export const MAX_BUBBLES = 3;
 export const BUBBLE_MAX = 600;
 
+/** A model's JSON answer, from inside a code fence or prose around it (every call is in JSON mode: lib/model.ts). */
+export function jsonOf(raw: string): unknown {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
 /**
- * A model's reply as the messages it sends: split on blank lines, with a leading name, quotes around the whole line
- * and *actions* taken off. Empty when nothing is left.
+ * A model's reply as the messages it sends: {"messages": [...]}, or plain text split on blank lines, with a leading
+ * name, quotes around the whole line and *actions* taken off. Empty when nothing is left (an empty or odd JSON answer).
  */
 export function replyBubbles(raw: string, name: string): string[] {
   const first = name.trim().split(/\s+/)[0] || name;
   const named = new RegExp(`^(${escape(name)}|${escape(first)})\\s*:\\s*`, "i");
-  const bubbles = raw
-    .replace(/\r/g, "")
-    .split(/\n\s*\n/)
+  const bubbles = replyParts(raw)
     .map((b) =>
       b
         .replace(named, "")
@@ -120,6 +131,28 @@ export function replyBubbles(raw: string, name: string): string[] {
     .filter(Boolean);
   if (bubbles.length > MAX_BUBBLES) bubbles.splice(MAX_BUBBLES - 1, bubbles.length, bubbles.slice(MAX_BUBBLES - 1).join(" "));
   return bubbles.map((b) => (b.length > BUBBLE_MAX ? `${b.slice(0, BUBBLE_MAX - 1).replace(/\s+\S*$/, "")}…` : b));
+}
+
+/** The messages in a reply: the JSON's, the whole strings of one cut off mid-answer, or plain text's paragraphs. */
+function replyParts(raw: string): string[] {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("```")) return raw.replace(/\r/g, "").split(/\n\s*\n/);
+  const json = jsonOf(raw);
+  if (json && typeof json === "object") {
+    const listed = (json as { messages?: unknown }).messages;
+    return Array.isArray(listed) ? listed.filter((m): m is string => typeof m === "string") : typeof listed === "string" ? [listed] : [];
+  }
+  // Cut off at the token limit: keep each message that closed.
+  const at = trimmed.indexOf('"messages"');
+  if (at < 0) return [];
+  const after = trimmed.slice(at + '"messages"'.length);
+  return [...after.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => {
+    try {
+      return JSON.parse(`"${m[1]}"`) as string;
+    } catch {
+      return "";
+    }
+  });
 }
 
 function escape(s: string): string {
