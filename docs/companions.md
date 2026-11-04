@@ -104,7 +104,9 @@ David, 2026-11-04: "open it up to the public and add the paywall with stripe".
   starts it on `checkout.session.completed`, renews it on `invoice.paid` (subscription_cycle), keeps a cancel to the
   period's end and undoes it on `customer.subscription.updated`, and ends it on `customer.subscription.deleted`. Both
   Stripe payload shapes read (before and after the 2025-03-31 API moved `invoice.subscription` and
-  `current_period_end`). A renewal may land two days late before the plan stops (`RENEWAL_GRACE_MS`).
+  `current_period_end`) by lib/stripe.ts, which the operator pass's webhook shares: our endpoints have no pinned
+  version, so they get the account's default (2026-09-30.endive). A renewal may land two days late before the plan
+  stops (`RENEWAL_GRACE_MS`).
 - **Honest pricing:** the price and the free count on `/companion` before anyone starts and under the message box; when
   the free replies are gone the box gives way to the plan, before a message, never mid-reply. Cancel in Stripe's billing
   portal (`STRIPE_PORTAL_LINK`), linked on the plan page, the account page and the emails.

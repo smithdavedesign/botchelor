@@ -11,7 +11,7 @@
  * grants a bought pass, how an admin comps one, and how the tests drive it.
  */
 import type { Db } from "./db";
-import { isTestModeLink } from "./stripe";
+import { isTestModeLink, RENEWAL_GRACE_MS } from "./stripe";
 import { isProductionDeploy } from "./deploy";
 
 /** Reserved show-model dates a pass gives each month (docs/pricing-and-byok.md). */
@@ -49,20 +49,24 @@ const plusMonth = (from: Date): Date => {
 
 export type PassStatus = "none" | "active" | "lapsed" | "cancelled";
 
-type EntitlementRow = { subscription_status: string; period_end: Date | string | null };
+type EntitlementRow = { subscription_status: string; period_end: Date | string | null; provider: string | null };
 
 async function entitlement(db: Db, agentId: string): Promise<EntitlementRow | null> {
-  return (await db.query<EntitlementRow>(`select subscription_status, period_end from operator_entitlements where user_id = $1`, [agentId])).rows[0] ?? null;
+  return (await db.query<EntitlementRow>(`select subscription_status, period_end, provider from operator_entitlements where user_id = $1`, [agentId])).rows[0] ?? null;
 }
 
-/** Whether this agent has an operator pass that's paid up right now. Short-circuits (no DB read) when the pass is off. */
+/**
+ * Whether this agent has an operator pass that's paid up right now. Short-circuits (no DB read) when the pass is off.
+ * A pass Stripe renews keeps going for RENEWAL_GRACE_MS past its date, while the renewal is billed; a comp ends on it.
+ */
 export async function operatorPassActive(db: Db, agentId: string, now: Date = new Date(), env: Env = process.env): Promise<boolean> {
   if (!operatorPassOn(env)) return false;
   const e = await entitlement(db, agentId);
   if (!e) return false;
   const end = e.period_end ? new Date(e.period_end).getTime() : null;
+  const grace = e.provider === "stripe" ? RENEWAL_GRACE_MS : 0;
   return (
-    (e.subscription_status === "active" && (end === null || end > now.getTime())) ||
+    (e.subscription_status === "active" && (end === null || end + grace > now.getTime())) ||
     (e.subscription_status === "cancelled" && end !== null && end > now.getTime())
   );
 }
