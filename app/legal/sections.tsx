@@ -262,6 +262,11 @@ export function TermsSections() {
         any other kind). Don&apos;t rely on it. If you&apos;re struggling, the crisis lines at the foot of every page are
         real people who can help.
       </p>
+      <p id="companions">
+        Companions are the same: when you talk one to one with a character, it&apos;s an AI character, not a person, and the
+        conversation says so at the start and every few hours. It&apos;s PG like the show. It isn&apos;t therapy or a
+        substitute for people in your life, and it can be wrong about anything, including what it remembers about you.
+      </p>
 
       <h2 id="points">Points, seasons and badges</h2>
       <p>
@@ -595,6 +600,12 @@ export function PrivacySections() {
         <li>
           If you save your own model key: the key, encrypted, and only its last four characters are ever shown back.
         </li>
+        <li>
+          If you talk with a companion: your messages and its replies, the facts it noted about you from them (which you
+          can see and change on its memory page), and a short running summary of the conversation. Only you see them; they
+          never reach the show, a date, a text or another character. A message that set off the self-harm check isn&apos;t
+          kept at all.
+        </li>
       </ul>
 
       <h2 id="after-dark-data">After Dark data</h2>
@@ -684,6 +695,10 @@ export function PrivacySections() {
         </li>
         <li>Your 👍 and 👎 on lines, and your choice on training: until you delete your account.</li>
         <li>
+          A companion conversation and what the companion remembers: until you delete the conversation, the memory (a fact
+          at a time, or all of it), or your account.
+        </li>
+        <li>
           The history of your predictions, reviews and nudges, the cards decks showed, how pairings changed over time, the
           lines that didn&apos;t make it in and your Sliding Doors replays: {RETENTION_DAYS.choice_history} days (about 13
           months), then deleted, sooner if you delete the character or your account. Your past choices on training are
@@ -712,6 +727,11 @@ export function PrivacySections() {
           <strong>Pictures:</strong> fal.ai draws the show&apos;s place sets and character looks from short descriptions;
           Venice draws the house cast&apos;s portraits; Hive checks those pictures before they&apos;re kept. On your own key,
           OpenAI makes portraits and Google&apos;s Veo makes intro clips, under your agreement with them.
+        </li>
+        <li>
+          <strong>Companions:</strong> your conversation with a companion, the character&apos;s sheet and what it remembers
+          about you go to OpenRouter, through its hosts CoreWeave and DeepInfra, which write the replies and draw the facts;
+          the show&apos;s own model above stands in when they&apos;re down.
         </li>
         <li>
           <strong>After Dark:</strong> OpenRouter (through its hosts CoreWeave and DeepInfra) writes the scenes; Venice, with
@@ -747,7 +767,7 @@ export function PrivacySections() {
       <p>
         We only use your data to train or test our models if you opt in on your account page, and you can opt out any time.
         Even then, only dates that aired publicly can be used: never private or unlisted dates, never After Dark, never a
-        character&apos;s private soul. Opting out leaves you out of every dataset we build after that. Without your opt-in,
+        companion conversation, never a character&apos;s private soul. Opting out leaves you out of every dataset we build after that. Without your opt-in,
         your data is used only to run the show.
       </p>
       <p>

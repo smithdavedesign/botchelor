@@ -25,6 +25,7 @@ import { DELETE, READ, SET, WRITE } from "./annotations";
 import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
+import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS } from "../companion-shared";
 
 /**
  * A roleplay for a date (lib/date-roleplays.ts), on go_on_date and start_own_date: terse, both are core tools with a byte
@@ -1201,6 +1202,28 @@ export const TOOL_DEFS = [
       },
     },
     annotations: READ,
+  },
+  {
+    name: "companion",
+    title: "Talk one to one with a character",
+    description: COMPANION_TOOL_DESCRIPTION,
+    inputSchema: {
+      type: "object",
+      required: ["action"],
+      properties: {
+        action: { type: "string", enum: [...COMPANION_ACTIONS], description: "What to do (see the description)." },
+        character_id: str(64, "Who you're talking with (from action list): opens or finds your thread with them."),
+        thread_id: str(64, "Your thread (from open or list), instead of character_id."),
+        text: str(COMPANION_MESSAGE_MAX, "send / edit: your message. remember: a fact for them to keep about you."),
+        length: { type: "string", enum: [...REPLY_LENGTHS], description: "length: how much they say a reply." },
+        message_id: str(64, "report: the reply (an id from reply or messages)."),
+        reason: { type: "string", enum: [...COMPANION_REPORT_REASONS], description: "report: why." },
+        fact_id: str(64, "forget: the fact (an id from memory)."),
+        limit: { type: "integer", minimum: 1, maximum: 50, description: "read: how many of the newest messages (default 20)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
   },
 ] as const;
 

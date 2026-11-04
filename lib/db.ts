@@ -1018,6 +1018,63 @@ create table if not exists crisis_referrals (
   n integer not null default 0,
   primary key (day, surface)
 );
+-- Companions (lib/companion.ts; docs/companions.md): one person talking with one character, one to one, in a thread of
+-- their own. Who may be one: companion_open (house characters and the show's own agent-made cast), or the person's own
+-- character. A thread is only ever theirs: it never flows back into a date, a text or anyone's memory of the show.
+alter table characters add column if not exists companion_open boolean not null default false;
+create table if not exists companion_threads (
+  id text primary key,
+  user_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  last_at timestamptz not null default now(),
+  -- The rolling summary of everything older than the prompt's recent turns, and the newest message it covers.
+  summary text,
+  summary_upto timestamptz,
+  -- The newest message the facts were last drawn from.
+  facts_upto timestamptz,
+  -- short | normal | long: how much the character says a reply.
+  reply_length text not null default 'normal',
+  -- When the "you're talking with an AI" notice was last put in the thread (New York GBL Art. 47: at the start and every
+  -- three hours of talking).
+  notice_at timestamptz,
+  -- Set while the crisis resources are up: nothing more in character until the person carries on.
+  paused_at timestamptz,
+  muted_proactive boolean not null default true,
+  unique (user_id, character_id)
+);
+create index if not exists companion_threads_user_idx on companion_threads (user_id, last_at desc);
+create table if not exists companion_messages (
+  id text primary key,
+  thread_id text not null references companion_threads (id) on delete cascade,
+  role text not null check (role in ('user', 'character', 'system')),
+  text text not null,
+  via text not null default 'text' check (via in ('text', 'voice', 'photo')),
+  media_url text,
+  -- A regenerated reply replaces the one it was drawn again from (that one is kept, hidden, for "the one before").
+  replaced_by text,
+  model text,
+  cost numeric,
+  -- The person's report on a reply: its reason, and when.
+  reported text,
+  reported_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists companion_messages_thread_idx on companion_messages (thread_id, created_at);
+-- What the character knows about the person (lib/companion-memory.ts): drawn from the person's own words, shown on the
+-- memory page, and theirs to edit, pin or delete. An edited one is never written over.
+create table if not exists companion_facts (
+  id text primary key,
+  thread_id text not null references companion_threads (id) on delete cascade,
+  kind text not null default 'other',
+  text text not null,
+  pinned boolean not null default false,
+  edited_by_user boolean not null default false,
+  uses integer not null default 0,
+  last_used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists companion_facts_thread_idx on companion_facts (thread_id);
 -- Hot takes the show derived once for a character with none of its own (lib/hot-takes.ts ensureHotTakes): {takes, source, at}.
 alter table characters add column if not exists hot_takes jsonb;
 -- More endings (lib/ending-detail.ts): which kind of its ending a date had (one_sided, slow_burn, walked_out, ghosted,

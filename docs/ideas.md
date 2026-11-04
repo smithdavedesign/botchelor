@@ -33,6 +33,8 @@ All market figures are from aggregator/secondary sources (no audited filings exi
 
 **Verdict:** highest revenue ceiling, but only worth it as *"companion with a world,"* leaning on our unique assets — not a generic girlfriend app. Decide the show/companion fork on purpose first.
 
+**Decided 2026-11-04 (David): build it, as the companion with a world.** SFW first on Stripe (the Companion Plan, about $9.99/mo), the adult lane later on the same engine once an adult processor is live; the house cast, the show's own agent-made cast and your own characters; voice notes first, calls later. The show stays the show: a companion thread never flows back into it. Plan and phases: [companions.md](companions.md).
+
 ---
 
 ## Idea 2 — Fine-tuned LLM API, trained on user data _(researched for completeness; I'd decline for now)_

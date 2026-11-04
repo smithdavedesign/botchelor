@@ -49,6 +49,8 @@ import { backingBoard } from "@/lib/backing";
 import { BackThem } from "@/app/BackCast";
 import { isFanCast, isOnSeasonCast, seasonIdAt, seasonMonth, showCastIds } from "@/lib/season-cast";
 import { stepInAllowed } from "@/lib/step-in";
+import { companionAllowed, companionEligible } from "@/lib/companion";
+import TalkButton from "@/app/companion/TalkButton";
 import LearnedPanel from "./LearnedPanel";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
@@ -196,6 +198,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   })().catch(() => false);
   // Step into the date (lib/step-in.ts): this season's cast, for whoever it's open to (admins until STEP_IN_OPEN).
   const stepInP = c.house && isOnSeasonCast(id) ? stepInAllowed(db, auth).catch(() => false) : Promise.resolve(false);
+  // Companions (lib/companion.ts): talk one to one with the house cast, the show's open cast or your own (admins until COMPANION_OPEN).
+  const companionP = (async () => auth?.authenticated && (await companionAllowed(db, auth)) && (await companionEligible(db, auth.userId, id)))().catch(() => false);
   // What it does while its owner is away (lib/activity.ts), for the owner's controls.
   const awayP = c.house
     ? Promise.resolve(null)
@@ -251,6 +255,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     studio,
     pgStudio,
     stepIn,
+    companion,
     away,
     auditionNow,
     backing,
@@ -272,6 +277,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     studioP,
     pgStudioP,
     stepInP,
+    companionP,
     awayP,
     auditionP,
     backingP,
@@ -415,6 +421,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           <Link className="button secondary" href={`/step-in?with=${c.id}`} data-track="step-in" data-track-from="character">
             Step in with {shortName(c.name)}
           </Link>
+        </section>
+      )}
+      {companion && (
+        <section className="card stepin-entry" aria-labelledby="companion-entry-title">
+          <div>
+            <h2 id="companion-entry-title">💬 Talk with {shortName(c.name)}</h2>
+            <p className="muted small">
+              Just the two of you, off the show: {shortName(c.name)} remembers what you tell them, and only you see it. {shortName(c.name)} is an AI character.
+            </p>
+          </div>
+          <TalkButton characterId={c.id} name={shortName(c.name)} />
         </section>
       )}
 

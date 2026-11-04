@@ -31,6 +31,15 @@ const NEWCOMER_LINKS = [
   { href: "/account", label: "Account" },
 ] as const;
 
+const COMPANIONS_LINK = { href: "/companion", label: "Companions" } as const;
+/** The links for this viewer: Companions (once open) after Matches, or after Characters for a newcomer. */
+function navLinks(hasCharacter: boolean, companions: boolean): readonly { href: string; label: string }[] {
+  const base = hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS;
+  if (!companions) return base;
+  const after = base.findIndex((l) => l.href === (hasCharacter ? "/matches" : "/characters"));
+  return [...base.slice(0, after + 1), COMPANIONS_LINK, ...base.slice(after + 1)];
+}
+
 /**
  * The site nav: a token meter that's always visible, a hamburger that collapses the links on phones, and
  * the links themselves (a row on desktop, a drop-down panel on mobile). "Tokens" are this viewer's dates
@@ -48,6 +57,7 @@ export default function Nav({
   texts = 0,
   afterDark = false,
   hasCharacter = true,
+  companions = false,
 }: {
   tokens: number;
   /** "tokens" on After Dark's host: bought tokens only, which is all After Dark spends (#1005). */
@@ -58,6 +68,8 @@ export default function Nav({
   unread?: number;
   texts?: number;
   afterDark?: boolean;
+  /** Companions are open to everyone (lib/companion-shared.ts companionOpen): their link after Matches. */
+  companions?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -150,7 +162,7 @@ export default function Nav({
             Make your character
           </Link>
         )}
-        {(hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS).map((l) => (
+        {navLinks(hasCharacter, companions).map((l) => (
           <Link key={l.href} href={l.href} aria-current={pathname === l.href || pathname.startsWith(`${l.href}/`) ? "page" : undefined}>
             {l.label}
             {l.href === "/matches" && texts > 0 && (
