@@ -583,6 +583,62 @@ describe("the storyboard: plan, draw, then film", () => {
     expect((await make(cookie, { action: "redraw", id: plan.id, shot: 0, reference: "nobody's" })).status).toBe(404);
   });
 
+  it("adds the owner's own lines from the transcript as shots, in the night's order, up to four at a time (David, 2026-11-04)", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    await saved(id, "night-ch1", 1, linesOf(1, 6), 30, { place: "the bar", set: "bar", stage: 1 });
+    await sceneAt(id, 2, linesOf(2, 6), { place: "her flat", set: "flat", stage: 3 });
+    const seen = fakeMedia();
+    director([2, 5, 8]);
+    const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
+    expect(plan.shots.map((s) => s.line)).toEqual([2, 5, 8]);
+    // Lines written after planning don't move the transcript the draft was made from.
+    await sceneAt(id, 2, [...linesOf(2, 6), ...linesOf(9, 3)], { place: "her flat", set: "flat", stage: 3 });
+
+    const read = await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?transcript=${plan.id}`, { headers: { cookie } }));
+    const lines = (await read.json()).lines as { i: number; who: string; text: string; chapter: number | null; used: boolean }[];
+    expect(lines).toHaveLength(12);
+    expect(lines.filter((l) => l.used).map((l) => l.i)).toEqual([2, 5, 8]);
+    expect(lines[0]).toMatchObject({ chapter: 1, who: "a" });
+    expect(lines[7]).toMatchObject({ chapter: 2, text: "*nods* Placeholder line 1 of chapter 2 goes here." });
+
+    // Two lines, given out of order (and one already a shot, left out): planned shots in the night's order, each in its
+    // own chapter's place and stage, nothing drawn yet.
+    const added = (await (await make(cookie, { action: "add_lines", id: plan.id, lines: [10, 4, 8] })).json()).reel as Reel;
+    expect(added.shots.map((s) => s.line)).toEqual([2, 4, 5, 8, 10]);
+    const [mine4, mine10] = [added.shots[1], added.shots[4]];
+    expect(mine4).toMatchObject({ status: "planned", picked: true, place: "bar", stage: 1, chapter: 1, night_id: "night-ch1", chapter_line: 4, who: "a" });
+    expect(mine10).toMatchObject({ status: "planned", picked: true, place: "flat", stage: 3, chapter: 2, chapter_line: 4, text: "Placeholder line 4 of chapter 2 goes here." });
+    expect(mine10.before?.length).toBe(5);
+    expect(added.shots.filter((s) => s.picked)).toHaveLength(2);
+    expect(seen).toHaveLength(0);
+    // They draw with the rest.
+    const drawn = (await (await make(cookie, { action: "draw", id: plan.id })).json()).reel as Reel;
+    expect(drawn.shots.every((s) => s.status === "frame_ready")).toBe(true);
+
+    // Refused: five at once, nothing new, or someone else's storyboard.
+    expect((await (await make(cookie, { action: "add_lines", id: plan.id, lines: [0, 1, 3, 6, 7] })).json()).error).toBe("invalid_request");
+    expect((await (await make(cookie, { action: "add_lines", id: plan.id, lines: [2] })).json()).error).toBe("no_lines");
+    const other = await admin();
+    expect((await make(other.cookie, { action: "add_lines", id: plan.id, lines: [0] })).status).toBe(404);
+    expect((await reelGet(new Request(`${BASE_URL}/api/admin/after-dark/reel?transcript=${plan.id}`, { headers: { cookie: other.cookie } }))).status).toBe(404);
+  });
+
+  it("holds twelve shots at most, the owner's and the director's together", async () => {
+    const { id, cookie } = await admin();
+    await ready(cookie, id);
+    await sceneAt(id, 1, linesOf(1, 20), { place: "the harbour", set: "harbour", stage: 2 });
+    fakeMedia();
+    director([1, 3, 5, 7, 9, 11, 13, 15, 17, 19]);
+    await call(settingsPost, "/api/admin/after-dark/settings", { reel_shots: 10 }, cookie);
+    const plan = (await (await make(cookie, { action: "plan" })).json()).reel as Reel;
+    expect(plan.shots).toHaveLength(10);
+    const full = await make(cookie, { action: "add_lines", id: plan.id, lines: [0, 2, 4] });
+    expect(full.status).toBe(409);
+    expect((await full.json()).message).toMatch(/room for 2 more shots/);
+    expect(((await (await make(cookie, { action: "add_lines", id: plan.id, lines: [0, 2] })).json()).reel as Reel).shots).toHaveLength(12);
+  });
+
   it("won't film a draft with no kept picture", async () => {
     const { id, cookie } = await admin();
     await ready(cookie, id);

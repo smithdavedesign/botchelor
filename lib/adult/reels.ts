@@ -172,6 +172,8 @@ export type ReelShot = {
    * every shot of a night's video came back with mouths still, and nothing said the talk model had refused them).
    */
   voiceless?: string;
+  /** Added by the owner from the transcript (addShotLines), not picked by the director. */
+  picked?: true;
   /** The keyframe it started from, once that passed the check (an adult_images 'frame'): what Keep going carries on from. */
   frame_id?: string;
   /**
@@ -1523,6 +1525,43 @@ type ReelBuild = { ca: Loaded; cb: Loaded; cast: [ReelPerson, ReelPerson]; place
  * Each shot is `planned` (or `frame_ready` when it reuses a beat picture) and carries its place and stage so a draft can
  * be drawn and filmed later. `lines` is the night (the running scene, or a saved one); `night` is what reelNight read.
  */
+/**
+ * One planned shot of the night's line `p.line`, or null when its words or directions cross David's lines: what it says
+ * (spoken), where and how far along it was, the lines just before it for the storyboard, and its own chapter's line.
+ */
+function lineShot(
+  lines: readonly SceneLine[],
+  p: ShotPick,
+  places: readonly (string | null)[],
+  stages: readonly number[],
+  whole: Pick<ReelNight, "chapters" | "chapterOf"> | null,
+  starts: readonly number[],
+  onReplicate: boolean,
+): ReelShot | null {
+  const l = lines[p.line];
+  const { speech } = spoken(l.text);
+  // Every word that will be spoken, and every direction, is held to David's lines first.
+  if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok || crossesTaboo(`${speech} ${p.frame} ${p.motion}`)) return null;
+  const k = whole?.chapterOf[p.line];
+  const from = k === undefined ? null : { chapter: whole!.chapters[k].chapter, night_id: whole!.chapters[k].night_id, chapter_line: p.line - starts[k] };
+  // Where in the night it is: the lines just before it, for the storyboard (David, 2026-10-24).
+  const before = lines.slice(Math.max(0, p.line - SHOT_CONTEXT), p.line).map((x) => ({ who: x.who, text: x.text.replace(/\s+/g, " ").slice(0, 240) }));
+  return {
+    line: p.line,
+    who: l.who,
+    text: speech,
+    frame: p.frame,
+    motion: p.motion,
+    status: "planned",
+    place: places[p.line] ?? null,
+    stage: stages[p.line] ?? 0,
+    before,
+    ...(p.eyes ? { eyes: p.eyes } : {}),
+    ...(onReplicate ? { provider: "replicate" as const } : {}),
+    ...(from ?? {}),
+  };
+}
+
 async function assembleShots(db: Db, ownerId: string, a: string, b: string, lines: SceneLine[], opts: ReelOpts, settings: Settings): Promise<ReelBuild> {
   const [ca, cb] = await Promise.all([loadCharacter(db, a), loadCharacter(db, b)]);
   if (!ca || !cb) throw new Error("one of them is missing");
@@ -1541,28 +1580,8 @@ async function assembleShots(db: Db, ownerId: string, a: string, b: string, line
   const starts = (night?.chapters ?? []).map((_, k, all) => all.slice(0, k).reduce((t, c) => t + c.lines, 0));
   const shots: ReelShot[] = [];
   for (const p of picks) {
-    const l = lines[p.line];
-    const { speech } = spoken(l.text);
-    // Every word that will be spoken, and every direction, is held to David's lines first.
-    if (!checkAdultText({ speech, frame: p.frame, motion: p.motion }).ok || crossesTaboo(`${speech} ${p.frame} ${p.motion}`)) continue;
-    const k = whole?.chapterOf[p.line];
-    const from = k === undefined ? null : { chapter: whole!.chapters[k].chapter, night_id: whole!.chapters[k].night_id, chapter_line: p.line - starts[k] };
-    // Where in the night it is: the lines just before it, for the storyboard (David, 2026-10-24).
-    const before = lines.slice(Math.max(0, p.line - SHOT_CONTEXT), p.line).map((x) => ({ who: x.who, text: x.text.replace(/\s+/g, " ").slice(0, 240) }));
-    shots.push({
-      line: p.line,
-      who: l.who,
-      text: speech,
-      frame: p.frame,
-      motion: p.motion,
-      status: "planned",
-      place: places[p.line] ?? null,
-      stage: stages[p.line] ?? 0,
-      before,
-      ...(p.eyes ? { eyes: p.eyes } : {}),
-      ...(onReplicate ? { provider: "replicate" as const } : {}),
-      ...(from ?? {}),
-    });
+    const shot = lineShot(lines, p, places, stages, whole, starts, onReplicate);
+    if (shot) shots.push(shot);
   }
   if (!shots.length) throw new Error("no usable lines");
   // A shot whose moment already has a beat picture starts from it (lib/adult/beats.ts): the video looks like the pictures.
@@ -1752,6 +1771,90 @@ export async function planReel(db: Db, ownerId: string, x: string, y: string, li
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
     return { ok: false, status: 502, error: "not_started", message: `The storyboard couldn't be made (${err instanceof Error ? err.message : "error"}).` };
   }
+}
+
+/** Lines the owner can add to a storyboard at once (David, 2026-11-04: "choose 1 up to 4 lines from the transcript"). */
+export const PICK_LINES_MAX = 4;
+/** Shots a storyboard holds at most, the director's and the owner's together (pickShots' own ceiling). */
+const STORYBOARD_MAX = 12;
+
+/**
+ * The night a draft was planned from, line for line as it was then: its filed chapters as saved, and the running
+ * chapter's lines up to the count it had (lines written since come after, so every shot's `line` still points at its
+ * own). Null when a chapter is gone (the night was started over) or the draft isn't theirs.
+ */
+async function draftNight(db: Db, ownerId: string, reelId: string): Promise<{ night: ReelNight; a: string; b: string; status: string; shots: ReelShot[] } | null> {
+  const r = (
+    await db.query<{ owner_id: string; character_a: string; character_b: string; status: string; shots: ReelShot[]; chapters: ReelChapter[] | null }>(
+      `select owner_id, character_a, character_b, status, shots, chapters from adult_reels where id = $1`,
+      [reelId],
+    )
+  ).rows[0];
+  if (!r || r.owner_id !== ownerId) return null;
+  const base = { a: r.character_a, b: r.character_b, status: r.status, shots: r.shots };
+  if (!r.chapters?.length) {
+    const night = await reelNight(db, ownerId, r.character_a, r.character_b, null, "chapter");
+    return night ? { night, ...base } : null;
+  }
+  const parts: NightPart[] = [];
+  for (const c of r.chapters) {
+    const row = c.night_id
+      ? (await db.query<NightPart>(`select ${PART_COLUMNS} from adult_nights where id = $1 and owner_id = $2`, [c.night_id, ownerId])).rows[0]
+      : (
+          await db.query<NightPart>(
+            `select null as id, lines, place, set_place, place_history, stage, null as date_setting, chapter, updated_at as created_at from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`,
+            [ownerId, r.character_a, r.character_b],
+          )
+        ).rows[0];
+    if (!row || (row.lines ?? []).length < c.lines) return null;
+    parts.push({ ...row, lines: (row.lines ?? []).slice(0, c.lines) });
+  }
+  return { night: stitchNight(parts, parts.length > 1 ? "night" : "chapter"), ...base };
+}
+
+export type TranscriptLine = { i: number; who: "a" | "b"; text: string; chapter: number | null; used: boolean };
+
+/** A draft's transcript for its line picker: every line of the night it was planned from, and which already have a shot. */
+export async function draftTranscript(db: Db, ownerId: string, reelId: string): Promise<TranscriptLine[] | null> {
+  const d = await draftNight(db, ownerId, reelId);
+  if (!d) return null;
+  const used = new Set(d.shots.map((s) => s.line));
+  return d.night.lines.map((l, i) => ({ i, who: l.who, text: l.text.replace(/\s+/g, " "), chapter: d.night.chapters[d.night.chapterOf[i] ?? 0]?.chapter ?? null, used: used.has(i) }));
+}
+
+/**
+ * The owner's own moments (David, 2026-11-04): 1 to PICK_LINES_MAX lines of the night, each a planned shot in the night's
+ * order among the director's, its picture framed by how far the night had gone and its motion from the line's own
+ * action (as the director's spread does), ready to draw, reword or start from a picture like any other. A line that
+ * already has a shot, or whose words cross David's lines, is left out.
+ */
+export async function addShotLines(db: Db, ownerId: string, reelId: string, picked: readonly number[]): Promise<MakeReelResult> {
+  const d = await draftNight(db, ownerId, reelId);
+  if (!d) return { ok: false, status: 404, error: "not_found", message: "That storyboard's night isn't here any more." };
+  if (d.status !== "draft") return { ok: false, status: 409, error: "not_draft", message: "This storyboard has already been filmed." };
+  const { night } = d;
+  const want = [...new Set(picked)].filter((i) => Number.isInteger(i) && i >= 0 && i < night.lines.length && !d.shots.some((s) => s.line === i)).sort((x, y) => x - y);
+  if (!want.length) return { ok: false, status: 422, error: "no_lines", message: "Pick a line that isn't in the storyboard yet." };
+  if (want.length > PICK_LINES_MAX) return { ok: false, status: 422, error: "too_many", message: `Up to ${PICK_LINES_MAX} lines at a time.` };
+  const room = STORYBOARD_MAX - d.shots.filter((s) => !s.archived_at).length;
+  if (want.length > room) return { ok: false, status: 409, error: "full", message: room > 0 ? `The storyboard has room for ${room} more shot${room === 1 ? "" : "s"}: drop one to add more.` : `A storyboard holds ${STORYBOARD_MAX} shots: drop one to add another.` };
+  const [ca, cb] = await Promise.all([loadCharacter(db, d.a), loadCharacter(db, d.b)]);
+  if (!ca || !cb) return { ok: false, status: 404, error: "not_found", message: "One of them is missing." };
+  const cast = reelCast(ca, cb, ownerId);
+  const settings = await getAdultSettings(db);
+  const whole = night.scope === "night" && night.chapters.length > 1 ? night : null;
+  const starts = night.chapters.map((_, k, all) => all.slice(0, k).reduce((t, c) => t + c.lines, 0));
+  const added = want.flatMap((i) => {
+    const pick = { line: i, frame: stillOf(cast, night.stages[i] ?? 0), motion: motionOf(cast, cast[night.lines[i].who === "a" ? 0 : 1], spoken(night.lines[i].text).action) };
+    const shot = lineShot(night.lines, pick, night.places, night.stages, whole, starts, settings.media_provider === "replicate");
+    return shot ? [{ ...shot, picked: true as const }] : [];
+  });
+  if (!added.length) return { ok: false, status: 422, error: "crosses", message: "That line crosses one of the lines After Dark never crosses." };
+  // A moment that already has a beat picture starts from it, as the director's do.
+  await reuseBeatPictures(db, ownerId, [d.a, d.b], added, night, starts, night.places, night.stages);
+  const shots = [...d.shots, ...added].sort((x, y) => x.line - y.line);
+  await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'draft'`, [reelId, JSON.stringify(shots)]);
+  return { ok: true, reel: (await getReel(db, reelId))! };
 }
 
 /**
