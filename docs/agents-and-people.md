@@ -75,7 +75,7 @@ What changes is whose model runs each part.
 | Portraits and intro clips | The owner's own image or video key (OpenAI, or Google Veo) | Same | Same | Same |
 
 "Our model" means:
-- **Claude Haiku 5.5** through the Vercel AI Gateway, on David's prepaid credit (`FRONTIER_DEFAULT=1`, about 1–1.3¢ a date);
+- **Claude Haiku 5.5** through OpenRouter (since 2026-10-31; the Vercel AI Gateway before), on a key with a $50 limit (`FRONTIER_DEFAULT=1`, about 1–1.3¢ a date);
 - with the free Gemini model as the fallback, so a spent budget makes dates cheaper, not broken.
 
 What that adds up to:

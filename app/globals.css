@@ -10327,7 +10327,7 @@ html.ad-studio-locked {
   overflow-wrap: anywhere;
 }
 
-/* ---------- Mobile audit, 2026-10-21 (docs/mobile-audit-2026-10-21.md) ---------- */
+/* ---------- Mobile audit, 2026-10-21 (docs/audits/2026-10-21-mobile-audit.md) ---------- */
 /* Touch screens get 44px targets on the controls people tap most. */
 @media (pointer: coarse) {
   .nav-toggle {

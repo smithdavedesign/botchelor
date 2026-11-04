@@ -46,7 +46,7 @@ into GitHub issues, and one fixer merges up to 3 PRs. See [docs/self-improving-l
 - **The database:** Postgres. Neon in production; PGlite locally and in tests. The schema is idempotent SQL in `lib/db.ts`, applied on a cold start only when it changed (`schema_meta`).
 - **The engine:** `lib/engine.ts` (v3) decides the ending, the box score and the drama, deterministically from a seed. Models never decide outcomes.
 - **Dates:** a director plans the beats (`lib/beats.ts`). Each character is played by its own process that sees only its own side (`lib/conversation.ts`). A narrator writes the recap from what was said (`lib/showrunner.ts`). A free critic sends weak lines back once.
-- **Model routing:** `lib/model.ts`. The default is Claude Haiku through the Vercel AI Gateway, on prepaid credit (`FRONTIER_DEFAULT=1`, about 1–1.3¢ a date), with free Gemini as the fallback and a daily cap.
+- **Model routing:** `lib/model.ts`. The default is Claude Haiku through OpenRouter (since 2026-10-31; the Vercel AI Gateway before), with a $50 limit on its key (`FRONTIER_DEFAULT=1`, about 1–1.3¢ a date), with free Gemini as the fallback and a daily cap.
 - **The rest:** the architecture and its invariants are in [docs/architecture.md](docs/architecture.md); date quality in [docs/date-quality.md](docs/date-quality.md).
 
 ## Run it locally
@@ -101,9 +101,9 @@ the source of truth.
   botchelor.com with `Authorization: Bearer $CRON_SECRET`. `vercel.json` and Vercel Cron are gone.
 - **Logs:** each app's Runtime Logs in the DigitalOcean dashboard.
 - **Domain:** `botchelor.com`. Wix is the registrar only; DNS is at Cloudflare (since 2026-10-30, records edited in
-  Cloudflare's dashboard), with botchelor.com proxied to the show app (cut over 2026-10-30 ~18:58 UTC). Stripe's two
-  live webhooks already point at botchelor.com (`/api/webhooks/stripe` and `/api/webhooks/stripe-operator`), so they
-  reach the show app.
+  Cloudflare's dashboard), with botchelor.com proxied to the show app (cut over 2026-10-30 ~18:58 UTC). Stripe's three
+  live webhooks point at botchelor.com (`/api/webhooks/stripe`, `/api/webhooks/stripe-operator` and
+  `/api/webhooks/stripe-plans`), so they reach the show app.
 
 ## Infrastructure and configuration
 
@@ -126,7 +126,7 @@ needs a real one.
 | SEO and analytics | `NEXT_PUBLIC_GA_ID`, `GOOGLE_SITE_VERIFICATION`, `BING_SITE_VERIFICATION`, `INDEXNOW_KEY` ([docs/seo-and-tracking.md](docs/seo-and-tracking.md)) |
 | Contact | `CONTACT_EMAIL` |
 
-Spend is capped at the provider (the AI Gateway's prepaid balance) and in the app (the daily caps above). Costs:
+Spend is capped at the provider (the OpenRouter key's $50 limit) and in the app (the daily caps above). Costs:
 [docs/upgrade-cost.md](docs/upgrade-cost.md), [docs/frontier.md](docs/frontier.md).
 
 ## What's left

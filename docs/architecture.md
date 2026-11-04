@@ -10,9 +10,11 @@ For product scope and milestones see [ROADMAP.md](../ROADMAP.md); for how to run
 
 One Next.js app (App Router), one Postgres database, one model call per episode. Since 2026-10-30 it runs on
 DigitalOcean App Platform as two apps from the same code, the show and After Dark ([hosting.md](hosting.md)); it ran
-on Vercel before. There is no
-queue, no background worker, no realtime server, no object storage and no image pipeline — every one of
-those was a deliberate "not yet", because the product has to run at **$0 marginal cost** on free models.
+on Vercel before. It started with
+no queue, no background worker, no realtime server, no object storage and no image pipeline, each a deliberate
+"not yet", because the product had to run at **$0 marginal cost** on free models. Pictures and media came later
+(`lib/object-store.ts`, Bunny for After Dark's media, [hosting.md](hosting.md)); there is still no queue or realtime
+server.
 
 ```
 browser

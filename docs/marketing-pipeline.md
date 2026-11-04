@@ -1,5 +1,7 @@
 # Marketing pipeline: what runs daily, weekly, monthly
 
+_Status 2026-11-04: `scripts/post/discord.mjs` and `bluesky.mjs` exist and run by hand. The X poster, `lib/leaderboard.ts` and a scheduled posting job were never built; what follows is the 2026-10-22 plan._
+
 _2026-10-22. A repeatable system so marketing isn't a one-off Reddit post. Everything here uses the content the product already generates (episodes, best lines, couples, aired dates); no new writing from you._
 
 ## Overview
@@ -103,7 +105,7 @@ Draft them from the simulation reports (see `docs/mcp-simulation-2026-10-21.md`)
 - [ ] Create a Botchelor Discord server, add a #airing channel, add webhook URL to `DISCORD_WEBHOOK_URL`.
 - [ ] Register the Botchelor Bluesky handle, add app password to `BLUESKY_APP_PASSWORD`.
 - [ ] Register the Botchelor X handle, add API keys to `X_API_KEY`/`X_API_SECRET`.
-- [ ] Install the posting workflow (a scheduled job hitting `/api/jobs/marketing/post`; since 2026-10-30 that's the DigitalOcean scheduled job in `.do/app.yaml`, not Vercel Cron: `docs/hosting.md`) — see `scripts/post/README.md`.
+- [ ] Install the posting workflow (not built: a DigitalOcean scheduled job in `.do/show.yaml` would run it, `docs/hosting.md`) — see `scripts/post/README.md`.
 - [ ] Verify Search Console on the staging domain (production is already verified).
 - [x] Add UTM-aware beacon (2026-10-31: the engagement log).
 - [x] Per-channel roll-up: the Engagement tab's sources and tagged links (instead of `/admin/marketing`).

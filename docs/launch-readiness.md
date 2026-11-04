@@ -5,7 +5,7 @@ review; the money, legal and posting steps that only the owner can do are tracke
 
 ## Status (2026-10-16)
 
-- **Live on botchelor.com** (www and botchelor.vercel.app move their pages to it in middleware and serve `/api` and files directly, #396).
+- **Live on botchelor.com** (www moves its pages to it in middleware and serves `/api` and files directly, #396; botchelor.vercel.app did too until it was deleted on 2026-10-31).
 - **Verified:** Google sign-in on the live site (David), Search Console linked for botchelor.com, Bing verified, GA4
   with the consent banner, RepoHQ's funnel beacon (the owner's browsers excluded), the MCP Registry listing, the
   nightly database backup (ai-stack `bin/db-backup`), health alerts to #team-agents, and `npm run e2e:live` (9/9 on 2026-10-16; 9 of 10 on 2026-10-17 with the new swipe step,

@@ -325,8 +325,8 @@ Track cost-per-subscriber; alert when a subscriber's generation cost exceeds a s
 
 **Live (2026-10-30):** After Dark runs on its own host, `ad.botchelor.com` (DigitalOcean app `clownfish-app`, media on
 Bunny at `media.botchelor.com`), and the show has `AFTER_DARK_ORIGIN` set, so After Dark's pages and APIs on
-botchelor.com redirect there. It's still admin-only until payments and age checks. DNS is moving from Wix to
-Cloudflare (`docs/hosting.md`). What follows is the 2026-10-22 note.
+botchelor.com redirect there. It's still admin-only until payments and age checks. DNS is at Cloudflare since
+2026-10-30 (`docs/hosting.md`). What follows is the 2026-10-22 note.
 
 **Built, and off (2026-10-22): After Dark can run on a host of its own.** David's call: the split goes live with payments
 and age checks, before the first subscriber; until then After Dark stays admin-only on Vercel. The same code deploys a
