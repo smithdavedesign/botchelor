@@ -46,12 +46,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const video = row.mime.startsWith("video/");
   if (size && (video || row.mime.startsWith("image/"))) {
     const thumb = await thumbFor(db, id, size, async () => {
-      // A clip's start: the picture it was filmed from (a boomerang's source is a clip, which thumbFor turns down).
-      const from = video
-        ? row.source_image
-          ? (await db.query<{ mime: string; data: Buffer | Uint8Array | null; object_key: string | null }>(`select mime, data, object_key from adult_images where id = $1`, [row.source_image])).rows[0]
-          : null
-        : row;
+      // A clip's start: the picture it was filmed from, back through the clips it was cut from (a boomerang's source is a
+      // clip; 2026-11-03, its tile 404'd while the post said it had a poster).
+      let from: { mime: string; data: Buffer | Uint8Array | null; object_key: string | null; source_image: string | null } | null = row;
+      for (let hop = 0; from && from.mime.startsWith("video/") && hop < 4; hop++) {
+        from = from.source_image
+          ? ((await db.query<NonNullable<typeof from>>(`select mime, data, object_key, source_image from adult_images where id = $1`, [from.source_image])).rows[0] ?? null)
+          : null;
+      }
+      if (from?.mime.startsWith("video/")) from = null;
       const data = from ? await readBytes(from) : null;
       return from && data ? { data, mime: from.mime } : null;
     });

@@ -95,6 +95,32 @@ describe("a still for every clip", () => {
     expect((await posterBatch(t.db)).results.map((r) => r.post_id)).toEqual([ids["clip-broken"]]);
   }, 60_000);
 
+  it("a boomerang's poster is the picture its clip was filmed from (2026-11-03: its tile 404'd)", async () => {
+    const raw = newUserCookie();
+    const me = userIdOf(raw);
+    const mara = (await (await api.createCharacter(validCharacter({ name: "Mara Quill" }), raw)).json()).id as string;
+    await saveCreatorProfile(t.db, me, { handle: "mara", display_name: "Mara" });
+    const still = await sharp({ create: { width: 600, height: 800, channels: 3, background: "#c33" } }).png().toBuffer();
+    const item = (id: string, mime: string, data: Buffer, from: string | null) =>
+      t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status, content_rating, source_image) values ($1, $2, $3, $4, 'p', $5, $6, 'ready', 'pg', $7)`, [
+        id, me, mara, mime.startsWith("video/") ? "video" : "scene", mime, data, from,
+      ]);
+    await item("still", "image/png", still, null);
+    await item("clip", "video/mp4", MP4, "still");
+    await item("boomerang", "video/mp4", MP4, "clip");
+    await item("loop-of-nothing", "video/mp4", MP4, "boomerang-gone");
+    const post = async (id: string) => {
+      const r = await publish(t.db, me, { source: "after_dark", media_id: id });
+      if (!r.ok) throw new Error(r.message);
+      return r.post_id;
+    };
+    const res = await get(await post("boomerang"), "?size=tile");
+    expect([res.status, res.headers.get("content-type")]).toEqual([200, "image/webp"]);
+    expect((await sharp(Buffer.from(await res.arrayBuffer())).metadata()).width).toBe(Math.min(600, THUMB_WIDTHS.tile));
+    // A chain that never reaches a picture has no poster, never a clip served as one.
+    expect((await get(await post("loop-of-nothing"), "?size=tile")).status).toBe(404);
+  }, 60_000);
+
   it("comes with the hourly job, and alone with ?posters=1", async () => {
     const ids = await world();
     vi.stubEnv("CRON_SECRET", "cron-placeholder");
