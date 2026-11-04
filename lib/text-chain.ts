@@ -54,6 +54,7 @@ type ChainEpisode = {
   creator_id: string;
   partner_performer: string | null;
   character_a: string;
+  character_b: string;
   ending: Ending;
   afterglow: AfterglowLine[] | null;
   ending_detail: string | null;
@@ -62,13 +63,19 @@ type ChainEpisode = {
   followup_of: string | null;
 };
 
-const CHAIN_EPISODES = `
-  select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.partner_performer, e.character_a, e.ending, e.afterglow, e.ending_detail, e.air_after,
-         e.setup->>'venue' as venue, e.followup_of,
-         (select count(*)::int from reports r where r.episode_id = e.id) >= $3 as hidden
+/** A pair's dates, or one character's (loadChainsFor); `threshold` is the reports-to-hide parameter's placeholder. */
+const chainEpisodes = (threshold: string) => `
+  select e.id, e.created_at, e.revealed_at, e.visibility, e.creator_id, e.partner_performer, e.character_a, e.character_b, e.ending, e.afterglow,
+         e.ending_detail, e.air_after, e.setup->>'venue' as venue, e.followup_of,
+         (select count(*)::int from reports r where r.episode_id = e.id) >= ${threshold} as hidden
     from episodes e
-   where e.status = 'ready' and e.varies_episode_id is null
+   where e.status = 'ready' and e.varies_episode_id is null`;
+const CHAIN_EPISODES = `${chainEpisodes("$3")}
      and ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1))`;
+
+type ChainTextRow = { who: End; text: string; day: string; seq: number; created_at: string | Date; via: string | null; photo: string | null };
+type ChainMatchRow = { matched_at: string | Date; agreed_at: string | Date | null };
+const TEXT_COLUMNS = `who, text, to_char(day, 'YYYY-MM-DD') as day, seq, created_at, via, photo`;
 
 /**
  * The whole chain between two characters, oldest first, with the dates `layer` allows. It doesn't check who's asking:
@@ -78,12 +85,40 @@ export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer)
   const [lo, hi] = pairKey(x, y);
   const [eps, texts, match] = await Promise.all([
     db.query<ChainEpisode>(CHAIN_EPISODES, [lo, hi, REPORT_HIDE_THRESHOLD]),
-    db.query<{ who: End; text: string; day: string; seq: number; created_at: string | Date; via: string | null; photo: string | null }>(
-      `select who, text, to_char(day, 'YYYY-MM-DD') as day, seq, created_at, via, photo from couple_texts where character_lo = $1 and character_hi = $2`,
-      [lo, hi],
-    ),
-    db.query<{ matched_at: string | Date; agreed_at: string | Date | null }>(`select matched_at, agreed_at from matches where character_lo = $1 and character_hi = $2`, [lo, hi]),
+    db.query<ChainTextRow>(`select ${TEXT_COLUMNS} from couple_texts where character_lo = $1 and character_hi = $2`, [lo, hi]),
+    db.query<ChainMatchRow>(`select matched_at, agreed_at from matches where character_lo = $1 and character_hi = $2`, [lo, hi]),
   ]);
+  return buildChain(lo, eps.rows, texts.rows, match.rows[0], layer);
+}
+
+/**
+ * Every chain one character has, keyed by the other character, in three queries for all of them (2026-11-04: Matches
+ * loaded each partner's chain on its own, three round trips a partner, so 150 partners took 450 queries). Each chain is
+ * the same as loadChain's for that pair.
+ */
+export async function loadChainsFor(db: Db, characterId: string, layer: ChainLayer): Promise<Map<string, ChainItem[]>> {
+  const otherOf = (lo: string, hi: string) => (lo === characterId ? hi : lo);
+  const [eps, texts, matches] = await Promise.all([
+    db.query<ChainEpisode>(`${chainEpisodes("$2")} and $1 in (e.character_a, e.character_b)`, [characterId, REPORT_HIDE_THRESHOLD]),
+    db.query<ChainTextRow & { lo: string; hi: string }>(
+      `select character_lo as lo, character_hi as hi, ${TEXT_COLUMNS} from couple_texts where $1 in (character_lo, character_hi)`,
+      [characterId],
+    ),
+    db.query<ChainMatchRow & { lo: string; hi: string }>(`select character_lo as lo, character_hi as hi, matched_at, agreed_at from matches where $1 in (character_lo, character_hi)`, [
+      characterId,
+    ]),
+  ]);
+  const by = new Map<string, { eps: ChainEpisode[]; texts: ChainTextRow[]; match?: ChainMatchRow }>();
+  const of = (other: string) => by.get(other) ?? (by.set(other, { eps: [], texts: [] }), by.get(other)!);
+  for (const e of eps.rows) if (e.character_a !== e.character_b) of(e.character_a === characterId ? e.character_b : e.character_a).eps.push(e);
+  for (const t of texts.rows) of(otherOf(t.lo, t.hi)).texts.push(t);
+  for (const m of matches.rows) of(otherOf(m.lo, m.hi)).match = m;
+  const out = new Map<string, ChainItem[]>();
+  for (const [other, rows] of by) out.set(other, buildChain(pairKey(characterId, other)[0], rows.eps, rows.texts, rows.match, layer));
+  return out;
+}
+
+function buildChain(lo: string, eps: ChainEpisode[], texts: ChainTextRow[], m: ChainMatchRow | undefined, layer: ChainLayer): ChainItem[] {
   const allowed = (e: ChainEpisode) => {
     const h = {
       public: e.revealed_at !== null && e.visibility === "public" && !e.hidden,
@@ -93,7 +128,7 @@ export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer)
     };
     return "usableBy" in layer ? usableFor(h, layer.usableBy) : visibleTo(h, layer);
   };
-  const seen = eps.rows
+  const seen = eps
     .filter(allowed)
     .sort((p, q) => new Date(p.created_at).getTime() - new Date(q.created_at).getTime() || p.id.localeCompare(q.id));
   const ids = new Set(seen.map((e) => e.id));
@@ -140,10 +175,9 @@ export async function loadChain(db: Db, x: string, y: string, layer: ChainLayer)
       items.push({ kind: "event", id: chainId(at, lines.length + 1, `g:${e.id}`), at, day, event: "ghosted", who: quiet, episode_id: e.id });
     }
   });
-  for (const t of texts.rows) items.push(betweenText(t));
+  for (const t of texts) items.push(betweenText(t));
   // How they met, when it was the swipe deck (lib/swipes.ts): the match, and when both said yes to a date: after
   // they've texted (decisionShownAt: talk, then decide), not before.
-  const m = match.rows[0];
   const sorted = () => items.sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
   if (m) {
     const at = iso(m.matched_at);

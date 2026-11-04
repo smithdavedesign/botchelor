@@ -3210,6 +3210,9 @@ create index if not exists audition_votes_character_idx on audition_votes (seaso
 alter table season_casts drop constraint if exists season_casts_source_check;
 alter table season_casts add constraint season_casts_source_check check (source in ('dealt', 'survivor', 'new', 'fan'));
 alter table season_casts add column if not exists withdrawn_at timestamptz;
+-- A pair's dates, and one character's (lib/text-chain.ts loadChain/loadChainsFor, lib/inbox.ts): by either side.
+create index if not exists episodes_pair_idx on episodes (character_a, character_b);
+create index if not exists episodes_b_idx on episodes (character_b);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

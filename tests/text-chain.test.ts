@@ -7,7 +7,7 @@ import type { ChatMessage, Model } from "@/lib/model";
 import { listNotifications } from "@/lib/notifications";
 import { pairKey, type End } from "@/lib/relationships";
 import { ENDING_LABELS, REPORT_HIDE_THRESHOLD } from "@/lib/rules";
-import { CHAIN_PAGE, chainPage, loadChain, PUBLIC_VIEWER, type ChainItem } from "@/lib/text-chain";
+import { CHAIN_PAGE, chainPage, loadChain, loadChainsFor, PUBLIC_VIEWER, type ChainItem } from "@/lib/text-chain";
 import { DECIDE_AFTER_TEXTS_MS, dayLabel, decisionShown, decisionShownAt, isText, type ChainEvent } from "@/lib/text-chain-shared";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -110,6 +110,27 @@ describe("a couple's text chain (lib/text-chain.ts)", () => {
       await t.db.query(`insert into reports (episode_id, reporter_id) values ($1, $2)`, [aired.id, `reporter-${i}`]);
     }
     expect(await loadChain(t.db, character.id, HOUSE_PARTNER_ID, PUBLIC_VIEWER)).toEqual([]);
+  });
+
+  it("loadChainsFor (Matches, 2026-11-04): every partner's chain in one go, each the same as loadChain's for that pair", async () => {
+    const { creator, userId, character, me, them } = await owner();
+    await date(creator, character.id, "2026-10-10T19:00:00Z", [{ side: "a", text: "Last night was fun." }]);
+    await date(creator, character.id, "2026-10-11T19:00:00Z", [{ side: "a", text: "Not aired yet." }], { air: false });
+    await text(character.id, them, "2026-10-12", 1, "Hey you.");
+    await text(character.id, me, "2026-10-12", 2, "Hey yourself.");
+    // A second partner with only a text, and one with only a match.
+    const other = await (await api.createCharacter(validCharacter({ name: "Rowan Pike" }), newUserCookie())).json();
+    const third = await (await api.createCharacter(validCharacter({ name: "Juno Hale" }), newUserCookie())).json();
+    const [lo, hi] = pairKey(character.id, other.id);
+    await t.db.query(`insert into couple_texts (character_lo, character_hi, day, seq, who, text, created_at) values ($1, $2, '2026-10-13', 1, 'lo', 'Hi.', '2026-10-13T10:00:00Z')`, [lo, hi]);
+    const [mlo, mhi] = pairKey(character.id, third.id);
+    await t.db.query(`insert into matches (character_lo, character_hi, matched_at) values ($1, $2, now())`, [mlo, mhi]);
+
+    for (const layer of [{ userId, owner: true }, { usableBy: userId }, PUBLIC_VIEWER]) {
+      const all = await loadChainsFor(t.db, character.id, layer);
+      expect([...all.keys()].sort()).toEqual([HOUSE_PARTNER_ID, other.id, third.id].sort());
+      for (const partner of all.keys()) expect(all.get(partner)).toEqual(await loadChain(t.db, character.id, partner, layer));
+    }
   });
 
   it("says when a date's morning after is held for the air, and labels a morning after one of them never answered", async () => {
