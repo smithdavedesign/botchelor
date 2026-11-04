@@ -193,6 +193,23 @@ describe("the night's place", () => {
     expect((await post({ set_scene: "a hotel suite" }, cookie)).status).toBe(200);
   });
 
+  it("a plan that started a night doesn't start the next one; one texted since does (2026-11-04)", async () => {
+    const cookie = await admin();
+    await textPlan();
+    claimsABar();
+    expect((await post({}, cookie)).status).toBe(200);
+    // The night ends (Start over files it): the next one is theirs to place, a roleplay with it.
+    expect((await post({ reset: true }, cookie)).status).toBe(200);
+    const next = await get(cookie);
+    expect(next).toMatchObject({ planned: null, set_place: null, chapter: 1, lines: [] });
+    expect((await post({ set_scene: "a hotel suite", roleplay: { id: "blind-date", swap: false } }, cookie)).status).toBe(200);
+    // A plan they text after that night ends places the one after it.
+    expect((await post({ reset: true }, cookie)).status).toBe(200);
+    await t.db.query(`update adult_nights set created_at = now() - interval '1 minute'`);
+    await t.db.query(`insert into couple_texts (character_lo, character_hi, day, seq, who, text) values ($1, $2, current_date, 4, 'lo', 'Same pie factory tomorrow?'), ($1, $2, current_date, 5, 'hi', 'Yes. Let''s go back to the pie factory.')`, [CAST_A, CAST_B]);
+    expect((await get(cookie)).planned).toMatchObject({ place: "the pie factory" });
+  });
+
   it("no plan by text: nothing is planned and Set the scene works as before", async () => {
     const cookie = await admin();
     expect((await get(cookie)).planned).toBeNull();
