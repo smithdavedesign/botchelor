@@ -2301,6 +2301,34 @@ async function alreadyBookedSecondDate(db: Db, who: Identity, episodeId: string,
   };
 }
 
+/** One of a pair's dates, as plan_second_date names it when character_id + with picked one (#1319). */
+type PairDate = { episode_id: string; date_number: number; venue: string; visibility: string; booked_at: string; aired_at: string | null };
+
+/**
+ * #1319 (the 2026-11-04-0610 run: with several dates against the same partner, character_id + with picked a private one
+ * another agent's owner had booked, and answered "private, no second date" while a public one could be planned): the
+ * pair's finished dates this agent can see, newest first, never another creator's private one. The newest that isn't
+ * private is the one to follow up (a private date never airs, so it has no second date); a private one of yours only
+ * when it's all there is.
+ */
+async function pairDatesFor(db: Db, userId: string, a: string, b: string): Promise<PairDate[]> {
+  const { rows } = await db.query<{ id: string; date_number: number | null; venue: string | null; visibility: string; created_at: Date | string; revealed_at: Date | string | null }>(
+    `select e.id, ${dateNumberSql("e")} as date_number, e.setup->>'venue' as venue, e.visibility, e.created_at, e.revealed_at from episodes e
+      where e.status = 'ready' and ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1))
+        and (e.visibility <> 'private' or e.creator_id = $3 or e.partner_performer = $3)
+      order by e.created_at desc limit 6`,
+    [a, b, userId],
+  );
+  return rows.map((r) => ({
+    episode_id: r.id,
+    date_number: r.date_number ?? 1,
+    venue: venueName(r.venue),
+    visibility: r.visibility,
+    booked_at: new Date(r.created_at).toISOString(),
+    aired_at: r.revealed_at ? new Date(r.revealed_at).toISOString() : null,
+  }));
+}
+
 /** Books the second date after `episodeId` (plan_second_date, and go_on_date with that couple). */
 async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Record<string, unknown>): Promise<ToolOutcome> {
   // Only an owner of one of the two hears about their dates; anyone else gets the route's own refusal (403), as before.
@@ -7848,16 +7876,29 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "plan_second_date": {
       const who = resolveIdentity(args, session, true)!;
       let resolved: string[] = [];
-      // #506: character_id plus with, like go_on_date: the couple's latest finished date is the one.
+      // Which date character_id + with picked, and the pair's others (#1319): beside every reply below.
+      let picked: { picked_date: PairDate; other_dates?: PairDate[] } | null = null;
+      // #506: character_id plus with, like go_on_date: the couple's latest finished date is the one. #1319: the latest that
+      // isn't private (a private one has no second date), said by id, number, venue and when, with the pair's others.
       if (!args.episode_id && typeof args.character_id === "string" && typeof args.with === "string") {
         if (!(await ownsCharacter(db, args.character_id, who.id))) return { error: `No character of yours with character_id ${args.character_id}: my_status lists yours.` };
-        const last = (await db.query<{ id: string }>(
-          `select id from episodes where status = 'ready' and ((character_a = $1 and character_b = $2) or (character_a = $2 and character_b = $1)) order by created_at desc limit 1`,
-          [args.character_id, args.with],
-        )).rows[0];
-        if (!last) return { error: "Those two haven't been on a date yet, so there's no date to follow up: go_on_date (or start_own_date) first." };
-        args.episode_id = last.id;
-        resolved = [`character_id + with → episode_id ${last.id} (their latest date)`];
+        const dates = await pairDatesFor(db, who.id, args.character_id, args.with);
+        const pick = dates.find((d) => d.visibility !== "private") ?? dates[0];
+        if (!pick) return { error: "Those two haven't been on a date you can follow up yet, so there's no date to follow up: go_on_date (or start_own_date) first." };
+        args.episode_id = pick.episode_id;
+        const others = dates.filter((d) => d !== pick);
+        const which =
+          pick.visibility === "private"
+            ? "their latest date, private like all of theirs you can see"
+            : dates[0] !== pick
+              ? "their latest date that isn't private: a private date never airs, so it has no second date"
+              : "their latest date";
+        const when = pick.aired_at ? `aired ${pick.aired_at}` : `booked ${pick.booked_at}, not aired yet`;
+        resolved = [
+          `character_id + with → episode_id ${pick.episode_id} (${which}; date ${pick.date_number}, ${pick.venue}, ${when})` +
+            (others.length ? `. Their other ${others.length === 1 ? "date is" : `${others.length} dates are`} in other_dates: episode_id picks one.` : ""),
+        ];
+        picked = { picked_date: pick, ...(others.length ? { other_dates: others } : {}) };
       }
       if (!args.episode_id) return { error: '"episode_id" is required (the date to follow up), or character_id and with.' };
       const params = { id: String(args.episode_id ?? "") };
@@ -7928,6 +7969,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               second_date: { ...r.data, can_plan: false, reason: "private", note: "A private date never airs and has no second date. Make it public or unlisted (set_date_visibility) and it can air." },
               ...(await costFor()),
               ...waited,
+              ...(picked ?? {}),
+              ...(resolved.length ? { read_arguments_as: resolved } : {}),
             },
             identity: who,
           };
@@ -7999,6 +8042,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             // The wait's own note joins the one that leads (wait_note keeps its place at the top).
             ...(ranOut ? { wait_note: [ranOut.wait_note, (waited as { wait_note?: string }).wait_note].filter(Boolean).join(" ") } : {}),
             ...(calls.length ? { next_calls: calls } : {}),
+            ...(picked ?? {}),
             ...(resolved.length ? { read_arguments_as: resolved } : {}),
           },
           identity: who,
@@ -8042,6 +8086,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             ...(ranOut?.call_again_at ? { call_again_at: ranOut.call_again_at } : {}),
             ...(timing ? { airs_at: timing.airs_at, airs: timing.airs } : {}),
             ...(secondsLeft !== null ? { seconds_left: secondsLeft } : {}),
+            ...(picked ?? {}),
+            ...(resolved.length ? { read_arguments_as: resolved } : {}),
             next_calls: [
               nextCall(
                 "plan_second_date",
@@ -8055,7 +8101,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         };
       }
       const booked = await bookSecondDate(db, who, params.id, args);
-      return "data" in booked ? { ...booked, data: { ...booked.data, ...waitedFor, ...(resolved.length ? { read_arguments_as: resolved } : {}) } } : booked;
+      return "data" in booked ? { ...booked, data: { ...booked.data, ...waitedFor, ...(picked ?? {}), ...(resolved.length ? { read_arguments_as: resolved } : {}) } } : booked;
     }
     case "propose_date": {
       const who = resolveIdentity(args, session, true)!;

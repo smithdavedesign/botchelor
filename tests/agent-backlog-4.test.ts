@@ -337,6 +337,42 @@ describe("a house date over MCP", () => {
     expect(sd.cost).toMatchObject({ spent: "nothing", agents_shared_daily: "not counted" });
   });
 
+  it("plan_second_date with character_id + with picks the pair's latest date that isn't private, says which, and lists the others (#1319)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const pub = await houseDate(ctx, id);
+    const priv = await houseDate(ctx, id, { visibility: "private", again: true });
+    // Another creator's private date with the same pair: never picked, never listed.
+    await t.db.query(
+      `insert into episodes (id, creator_id, character_a, character_b, setting, goals, scenes, twist, finale, ending, visibility, setup, created_at)
+       values ('ep-theirs-private', 'someone-else', $1, $2, 'a bar', '[]'::jsonb, '[]'::jsonb, 't', 'f', 'friends', 'private', '{"venue":"rooftop_bar"}'::jsonb, now() + interval '1 minute')`,
+      [id, HOUSE_PARTNER_ID],
+    );
+    const r = await call("plan_second_date", { character_id: id, with: HOUSE_PARTNER_ID, preview: true }, ctx);
+    expect(r.isError).toBeUndefined();
+    const out = r.structuredContent;
+    // The public one, not the newer private ones: a private date has no second date.
+    expect(out.second_date.reason).not.toBe("private");
+    expect(out.picked_date).toMatchObject({ episode_id: pub.episode.id, date_number: 1, visibility: "public", venue: expect.any(String), booked_at: expect.any(String) });
+    expect(out.other_dates.map((d: Any) => d.episode_id)).toEqual([priv.episode.id]);
+    expect(out.read_arguments_as[0]).toContain(`episode_id ${pub.episode.id} (their latest date that isn't private`);
+    expect(out.read_arguments_as[0]).toMatch(/Their other date is in other_dates: episode_id picks one/);
+    expect(JSON.stringify(out)).not.toContain("ep-theirs-private");
+    // Naming the private date itself still says it's private.
+    const named = (await call("plan_second_date", { episode_id: priv.episode.id, preview: true }, ctx)).structuredContent;
+    expect(named.second_date).toMatchObject({ can_plan: false, reason: "private" });
+    expect(named.picked_date).toBeUndefined();
+  });
+
+  it("plan_second_date with character_id + with falls back to a private date of yours only when it's all there is (#1319)", async () => {
+    const { ctx, id } = await agentWith("Ada Lumen");
+    const priv = await houseDate(ctx, id, { visibility: "private" });
+    const r = (await call("plan_second_date", { character_id: id, with: HOUSE_PARTNER_ID, preview: true }, ctx)).structuredContent;
+    expect(r.second_date).toMatchObject({ can_plan: false, reason: "private" });
+    expect(r.picked_date).toMatchObject({ episode_id: priv.episode.id, visibility: "private" });
+    expect(r.other_dates).toBeUndefined();
+    expect(r.read_arguments_as[0]).toMatch(/private like all of theirs you can see/);
+  });
+
   it("the leaderboard marks a place held on few reviews as provisional (#488)", async () => {
     const { ctx } = await agentWith("Ada Lumen");
     const race = (await call("get_leaderboard", {}, ctx)).structuredContent;
