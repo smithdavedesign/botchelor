@@ -803,7 +803,8 @@ export default function SceneWriter({
               [
                 ["pictures", `Pictures (${gallery.length})`],
                 ["videos", `Videos (${reelList.length})`],
-                ["nights", `Nights (${nightList.length})`],
+                // Nights, not chapters: a three-chapter night is one (each with its chapters inside it).
+                ["nights", `Nights (${nightGroups.length})`],
               ] as const
             ).map(([id, label]) => (
               <button key={id} type="button" role="tab" aria-selected={mediaTab === id} className={mediaTab === id ? "on" : ""} onClick={() => setMediaTab(id)}>
