@@ -14,6 +14,9 @@ export const REPLY_LENGTH_LABELS: Record<ReplyLength, string> = { short: "Short"
 
 /** The longest message a person can send. */
 export const COMPANION_MESSAGE_MAX = 1000;
+/** The free tier's replies a day across every companion, and the Companion Plan's fair use a month (lib/companion-plan.ts). */
+export const COMPANION_FREE_PER_DAY = 30;
+export const COMPANION_FAIR_USE_PER_MONTH = 3000;
 
 export const COMPANION_REPORT_REASONS = ["sexual", "minor", "hateful", "self_harm", "out_of_character", "other"] as const;
 export type CompanionReportReason = (typeof COMPANION_REPORT_REASONS)[number];

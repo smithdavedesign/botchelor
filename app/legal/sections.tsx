@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
+import { COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY } from "@/lib/companion-shared";
 import {
   AFTER_DARK_BLOCKED_COUNTRIES,
   AFTER_DARK_BLOCKED_US_STATES,
@@ -44,6 +45,7 @@ export const TERMS_HEADINGS = [
   { id: "ai-fiction", title: "It's all AI fiction" },
   { id: "points", title: "Points, seasons and badges" },
   { id: "buy", title: "What you can buy" },
+  { id: "companion-plan", title: "The Companion Plan" },
   { id: "subscription", title: "The After Dark subscription" },
   { id: "refunds", title: "Refunds and cancelling" },
   { id: "where", title: "Where it's available" },
@@ -296,6 +298,31 @@ export function TermsSections() {
         transferred.
       </p>
 
+      <h2 id="companion-plan">The Companion Plan</h2>
+      <p>
+        Companions are free to try: {COMPANION_FREE_PER_DAY} replies a day across every companion. The Companion Plan takes the daily limit away (fair
+        use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} messages a month). These rules apply to it:
+      </p>
+      <ul>
+        <li>
+          <strong>Price first.</strong> The plan page shows the price, that it&apos;s charged every month, that it renews by itself and how to cancel, and
+          you subscribe only by ticking that you understand it. It&apos;s paid on Stripe&apos;s hosted page; we never see your card.
+        </li>
+        <li>
+          <strong>It renews every month until you cancel.</strong> The price you agreed to is charged to the same card each month. If the price ever changes,
+          we tell you first and the new price applies only from the next renewal after that notice; you can cancel before it does.
+        </li>
+        <li>
+          <strong>Cancel any time, online,</strong> in Stripe&apos;s billing portal (linked on the plan page and in your receipt) or by emailing us.
+          Cancelling takes effect at the end of the month you&apos;ve paid for: you keep the plan until then, and you aren&apos;t charged again.
+        </li>
+        <li>
+          <strong>A receipt and a reminder.</strong> We email you when the plan starts, with these terms and how to cancel, and at least once a year while
+          it runs.
+        </li>
+        <li>It&apos;s for one adult with an account. Sharing it isn&apos;t allowed, and fair use is for talking, not for scripts.</li>
+      </ul>
+
       <h2 id="subscription">The After Dark subscription</h2>
       <p>
         After Dark isn&apos;t on sale yet. When it is, these rules apply to it:
@@ -350,6 +377,10 @@ export function TermsSections() {
           <strong>After Dark token packs:</strong> if a pack doesn&apos;t work, or you change your mind within 14 days of
           buying it and haven&apos;t spent any of it, email us and we&apos;ll refund you in full. Tokens already spent
           aren&apos;t refunded. A refunded or charged-back pack&apos;s unspent tokens are removed.
+        </li>
+        <li>
+          <strong>The Companion Plan:</strong> cancel any time and it stops at the end of the month you paid for. We don&apos;t give refunds or credit for
+          part of a month, except where the law requires it. If something we charged was a mistake, email us and we&apos;ll put it right.
         </li>
         <li>
           <strong>The After Dark subscription:</strong> cancel any time and it stops at the end of the paid period. We
@@ -581,6 +612,11 @@ export function PrivacySections() {
           up when you ask us to.
         </li>
         <li>
+          For the Companion Plan: whether it&apos;s on and until when, Stripe&apos;s subscription ID, the email you paid with (for the
+          plan&apos;s receipt and yearly reminder, nothing else) and how many companion replies you had each day. Subscribe sends Stripe a
+          random reference, never your account ID.
+        </li>
+        <li>
           For a waitlist (After Dark&apos;s, for now): your email, where you roleplay if you tell us, and which link brought
           you. We use the email once, to tell you it&apos;s open. We never sell or share it, and we delete it if you ask.
         </li>
@@ -711,6 +747,10 @@ export function PrivacySections() {
           account, your email and the link to you are removed from them.
         </li>
         <li>Payment records: as long as tax and payment rules require (usually several years).</li>
+        <li>
+          The Companion Plan&apos;s record: while it runs, then as a payment record. Your daily reply counts: until the end of the next
+          month. Deleting your account doesn&apos;t cancel the plan with Stripe, so cancel it in the billing portal first.
+        </li>
       </ul>
 
       <h2 id="processors">Who processes it</h2>
@@ -743,7 +783,7 @@ export function PrivacySections() {
           Dark runs on its own host, DigitalOcean hosts it and Bunny (bunny.net) stores and serves its media.
         </li>
         <li>
-          <strong>Payments:</strong> Stripe for token packs; {PROCESSORS.ccbill.name}, {PROCESSORS.segpay.name} or {PROCESSORS.verotel.name} for the
+          <strong>Payments:</strong> Stripe for token packs and the Companion Plan; {PROCESSORS.ccbill.name}, {PROCESSORS.segpay.name} or {PROCESSORS.verotel.name} for the
           After Dark subscription. Each under its own privacy policy.
         </li>
         <li>

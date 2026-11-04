@@ -1075,6 +1075,47 @@ create table if not exists companion_facts (
   created_at timestamptz not null default now()
 );
 create index if not exists companion_facts_thread_idx on companion_facts (thread_id);
+-- Replies drawn per person a UTC day (lib/companion-plan.ts): the free tier's count, the plan's fair use; '*free*' is
+-- every free reply that day, the cap on what the free tier can cost.
+create table if not exists companion_usage (
+  user_id text not null,
+  day date not null,
+  replies integer not null default 0,
+  primary key (user_id, day)
+);
+-- Subscription plans sold on a Stripe Payment Link (lib/paid-plans.ts): one row per person and plan.
+create table if not exists plan_entitlements (
+  user_id text not null,
+  plan text not null,
+  status text not null,
+  period_end timestamptz,
+  provider text not null default 'stripe',
+  stripe_subscription_id text,
+  -- The address they paid with (Stripe's checkout): the receipt and the yearly reminder go there.
+  email text,
+  subscribed_at timestamptz,
+  renewal_reminded_at timestamptz,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, plan)
+);
+create index if not exists plan_entitlements_sub_idx on plan_entitlements (stripe_subscription_id);
+-- A Subscribe click: its random id goes to Stripe as client_reference_id, never the person's id.
+create table if not exists plan_checkouts (
+  id text primary key,
+  user_id text not null,
+  plan text not null,
+  created_at timestamptz not null default now()
+);
+-- Each Stripe event, applied once.
+create table if not exists plan_events (
+  event_id text primary key,
+  type text not null,
+  plan text,
+  user_id text,
+  stripe_subscription_id text,
+  outcome text not null,
+  received_at timestamptz not null default now()
+);
 -- Hot takes the show derived once for a character with none of its own (lib/hot-takes.ts ensureHotTakes): {takes, source, at}.
 alter table characters add column if not exists hot_takes jsonb;
 -- More endings (lib/ending-detail.ts): which kind of its ending a date had (one_sided, slow_burn, walked_out, ghosted,

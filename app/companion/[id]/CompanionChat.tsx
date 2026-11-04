@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import type { CrisisResources } from "@/lib/crisis";
+import type { CompanionAllowance } from "@/lib/companion-plan";
 import {
   COMPANION_MESSAGE_MAX,
   COMPANION_REPORT_LABELS,
@@ -18,16 +19,33 @@ import {
   type ReplyLength,
 } from "@/lib/companion-shared";
 
-type Reply = { view?: CompanionThreadView; message?: string };
+type Reply = { view?: CompanionThreadView; message?: string; allowance?: CompanionAllowance };
+
+/** "in 5 hours", "in 40 minutes": until the free count starts again. */
+function untilReset(iso: string, now = Date.now()): string {
+  const mins = Math.max(1, Math.round((new Date(iso).getTime() - now) / 60000));
+  return mins >= 90 ? `in ${Math.round(mins / 60)} hours` : `in ${mins} minutes`;
+}
 
 /**
  * A companion thread (lib/companion.ts) as a phone-style chat: the character on the left, you on the right, the AI
  * notice as a line in the thread. Draw the last reply again, rewrite your last message, set how much they say, and report
- * any reply. The crisis resources pause the chat until you carry on.
+ * any reply. The crisis resources pause the chat until you carry on. Without the plan, the free replies left today show
+ * under the box, and when they're gone the box gives way to the plan (lib/companion-plan.ts): before a message, never
+ * in the middle of a reply.
  */
-export default function CompanionChat({ initial, initialCrisis }: { initial: CompanionThreadView; initialCrisis: CrisisResources | null }) {
+export default function CompanionChat({
+  initial,
+  initialCrisis,
+  initialAllowance,
+}: {
+  initial: CompanionThreadView;
+  initialCrisis: CrisisResources | null;
+  initialAllowance: CompanionAllowance;
+}) {
   const router = useRouter();
   const [view, setView] = useState(initial);
+  const [allowance, setAllowance] = useState(initialAllowance);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,6 +86,8 @@ export default function CompanionChat({ initial, initialCrisis }: { initial: Com
         return false;
       }
       if (data?.view) setView(data.view);
+      if (data?.allowance) setAllowance(data.allowance);
+      if (res.status === 402) return false;
       if (!res.ok) {
         setNote(data?.message ?? "That didn't work. Try again in a moment.");
         return false;
@@ -116,6 +136,7 @@ export default function CompanionChat({ initial, initialCrisis }: { initial: Com
   }
 
   const paused = view.paused || Boolean(crisis);
+  const outOfReplies = !allowance.unlimited && allowance.left === 0;
 
   return (
     <article className="companion-chat">
@@ -253,7 +274,23 @@ export default function CompanionChat({ initial, initialCrisis }: { initial: Com
         </div>
       )}
 
-      {!paused && (
+      {!paused && outOfReplies && (
+        <div className="companion-out" role="status">
+          <p>
+            <strong>That&apos;s today&apos;s {allowance.per_day} free replies.</strong> They come back {untilReset(allowance.resets_at)}. Your
+            conversation is kept, and {first} will remember it.
+          </p>
+          {allowance.on_sale && (
+            <p className="cta-row">
+              <Link className="button" href="/companion/plan" data-track="companion-plan-upsell">
+                Talk without a limit: {allowance.price}
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
+
+      {!paused && !outOfReplies && (
         <form className="companion-composer" onSubmit={send}>
           <div className="companion-actions">
             {(lastIsCharacter || waitingOnThem) && (
@@ -300,6 +337,18 @@ export default function CompanionChat({ initial, initialCrisis }: { initial: Com
           <div className="companion-send">
             <span className="muted small">
               {draft.length}/{COMPANION_MESSAGE_MAX}
+              {!allowance.unlimited && allowance.left !== null && (
+                <>
+                  {" · "}
+                  {allowance.left} free {allowance.left === 1 ? "reply" : "replies"} left today
+                  {allowance.on_sale && (
+                    <>
+                      {" · "}
+                      <Link href="/companion/plan">No limit with the plan</Link>
+                    </>
+                  )}
+                </>
+              )}
             </span>
             <button type="submit" className="button" disabled={busy || !draft.trim()} data-track="companion-send">
               {editing ? "Send again" : "Send"}

@@ -66,7 +66,7 @@ Never someone else's character or an outside agent's: their makers never agreed 
 - **One way only:** show life flows into a companion; nothing from a companion thread reaches a date, a text, the
   relationship graph or any character's memory.
 - **Pages:** `/companion` (your threads, your characters, the cast), `/companion/:id` (the chat), the memory page, and
-  "Talk with {name}" on a character's page. A Companions nav link shows once `COMPANION_OPEN=1`.
+  "Talk with {name}" on a character's page. A Companions nav link shows once `COMPANION_OPEN=1` (on since 2026-11-04); a signed-out visitor sees the cast and the price and signs in first.
 - **Access** (`app/api/companion/access.ts`): signed in, past the 18+ gate, admins until `COMPANION_OPEN=1`; anyone
   else gets a 404. 150 messages an hour and 800 a day per person (abuse only; the plan sets the real limits).
 - **Privacy:** in the terms (`#companions`) and the privacy notice (what's stored, how long, processors). Never used
@@ -81,13 +81,39 @@ Never someone else's character or an outside agent's: their makers never agreed 
   admin's own agents (the admin key, or an agent linked to an admin account), until `COMPANION_OPEN=1` lists it in
   `?tools=all` and opens it to every agent.
 
+## The plan (P2, built 2026-11-04)
+
+David, 2026-11-04: "open it up to the public and add the paywall with stripe".
+- **Free:** 30 replies a day across every companion (`COMPANION_FREE_PER_DAY`), counted per UTC day in
+  `companion_usage`. A send, an edit and another reply each take one before the reply is drawn; one that never came
+  (the model down, a PG refusal, the crisis pause) is given back; the opener a new conversation starts with is free (so
+  opens are rate-limited: 30 an hour, 100 a day). The free tier as a whole stops at 3,000 replies a day
+  (`COMPANION_FREE_ALL_PER_DAY`, about $3), the most it can cost. Admins aren't counted; agents over MCP keep their own
+  limits.
+- **The Companion Plan, $9.99 a month** (`lib/paid-plans.ts`, `lib/companion-plan.ts`): no daily limit, fair use 3,000
+  messages a month. Sold on a Stripe Payment Link (`COMPANION_PLAN_LINK`, label `COMPANION_PLAN_PRICE`) with no Stripe
+  API key in the app: `/companion/plan` → `POST /api/plans/checkout` (an account, the 18+ gate and both boxes: 18+ and
+  "renews every month until I cancel") makes a random `plan_checkouts` id that rides the link as client_reference_id →
+  the webhook `POST /api/webhooks/stripe-plans` (`STRIPE_PLANS_WEBHOOK_SECRET`, events applied once in `plan_events`)
+  starts it on `checkout.session.completed`, renews it on `invoice.paid` (subscription_cycle), keeps a cancel to the
+  period's end and undoes it on `customer.subscription.updated`, and ends it on `customer.subscription.deleted`. Both
+  Stripe payload shapes read (before and after the 2025-03-31 API moved `invoice.subscription` and
+  `current_period_end`). A renewal may land two days late before the plan stops (`RENEWAL_GRACE_MS`).
+- **Honest pricing:** the price and the free count on `/companion` before anyone starts and under the message box; when
+  the free replies are gone the box gives way to the plan, before a message, never mid-reply. Cancel in Stripe's billing
+  portal (`STRIPE_PORTAL_LINK`), linked on the plan page, the account page and the emails.
+- **California's auto-renewal law:** the terms before paying and agreed to on purpose; the confirmation email (to the
+  address they paid with, `plan_entitlements.email`) with the price, the next charge and how to cancel online; the
+  yearly reminder in the daily job (`sendPlanReminders`). Terms at `/terms#companion-plan`.
+- **Deleting the account** (`DELETE /api/me`) doesn't stop Stripe's charges and the app can't cancel them (no Stripe key),
+  so a plan that still renews answers 409 `plan_renews` with the portal link first; `{"confirm": true, "plan_renews":
+  true}` deletes anyway. The plan's billing record stays (so Stripe's later events and the yearly reminder still find
+  it); the reply counts and Subscribe clicks go. The daily job prunes counts past last month and clicks past a week.
+- `plan_entitlements` is generic (user, plan): the next plan (After Dark's companion add-on goes on the adult processors,
+  not here) adds an id to `PLAN_IDS` and a link env.
+
 ## Still to build
 
-- **P2, the plan (Stripe):** the Companion Plan, $9.99/mo (`COMPANION_PRICE_USD`, Stripe Payment Link in
-  `STRIPE_COMPANION_LINK`; David creates the product, no keys in files), a webhook like the operator pass's,
-  `companion_plans`. Free: 30 messages a day across companions. The plan: unlimited text (fair use 3,000 a month), 20
-  voice notes and 5 selfies a month, then tokens. The price before you start, the counter visible, never a wall
-  mid-reply, cancel in Stripe's portal; `/shop`, the account page and the terms (California auto-renewal consent).
 - **P3, voice notes, selfies, proactive texts:** voice from `lib/adult/voice-lines.ts` generalised into `lib/voice.ts`
   (a fixed voice per character); PG selfies from `lib/studio/date-photos.ts` with the face reference; proactive texts
   at most once a day after 20 hours of quiet, in the person's waking hours, off by default per thread, never into a

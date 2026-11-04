@@ -49,6 +49,8 @@ export async function companionAllowed(
 
 /** A person's messages an hour and a day, across every companion (P2's plan sets the paid limits; this is abuse only). */
 export const COMPANION_LIMITS = { perHour: 150, perDay: 800 };
+/** Conversations opened an hour and a day: each new one draws a free opener (lib/companion-plan.ts doesn't count it). */
+export const COMPANION_OPEN_LIMITS = { perHour: 30, perDay: 100 };
 /** A new session: back after this long, the AI notice goes in again. */
 export const NOTICE_IDLE_MINUTES = 30;
 /** And every this many hours of talking (New York GBL Art. 47 asks for at least every three). */

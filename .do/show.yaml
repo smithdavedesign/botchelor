@@ -84,6 +84,10 @@ services:
       - key: FRONTIER_LLM_MODEL
         value: "anthropic/claude-haiku-5.5"
         scope: RUN_AND_BUILD_TIME
+      # Companions open to everyone, with the Companion Plan (docs/companions.md, 2026-11-04).
+      - key: COMPANION_OPEN
+        value: "1"
+        scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"
@@ -98,6 +102,13 @@ services:
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
       - key: OPERATOR_PASS_LINK
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      # The Companion Plan's Payment Link and Stripe's billing portal login link (keychain provision/botchelor/<NAME>).
+      - key: COMPANION_PLAN_LINK
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: STRIPE_PORTAL_LINK
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
       - key: ORIGINALITY_CONCEPT
@@ -193,6 +204,10 @@ services:
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
       - key: OPERATOR_PASS_WEBHOOK_SECRET
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: STRIPE_PLANS_WEBHOOK_SECRET
         type: SECRET
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME

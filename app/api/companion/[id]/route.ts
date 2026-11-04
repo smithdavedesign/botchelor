@@ -19,6 +19,7 @@ import {
   setReplyLength,
   type CompanionSend,
 } from "@/lib/companion";
+import { companionAllowance, giveBackReply, takeReply } from "@/lib/companion-plan";
 import { companionRefusal } from "../access";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -32,12 +33,14 @@ const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("report"), message_id: z.string().min(1).max(64), reason: z.enum(COMPANION_REPORT_REASONS) }),
 ]);
 
-const reply = (r: CompanionSend, sess: ReturnType<typeof session>) => {
+type Allowance = Awaited<ReturnType<typeof companionAllowance>>;
+
+const reply = (r: CompanionSend, sess: ReturnType<typeof session>, allowance: Allowance) => {
   if (!r.ok) {
     const { ok: _ok, status, ...body } = r;
-    return json(body, status, sess);
+    return json({ ...body, allowance }, status, sess);
   }
-  return json({ view: r.view }, 200, sess);
+  return json({ view: r.view, allowance }, 200, sess);
 };
 
 /** The thread: its messages, its settings, how much the character remembers. */
@@ -47,12 +50,14 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   const db = await getDb();
   const refused = await companionRefusal(db, req, sess);
   if (refused) return refused;
-  return reply(await getThread(db, sess.userId, id), sess);
+  return reply(await getThread(db, sess.userId, id), sess, await companionAllowance(db, sess.userId));
 });
 
 /**
  * One move in a thread: say something (send), draw the last reply again (regenerate), rewrite your last message (edit),
  * set how much the character says (length), carry on after the crisis resources (carry_on), or report a reply (report).
+ * A reply is taken from the free count or the plan's fair use before it's drawn (lib/companion-plan.ts), and given back
+ * when none came.
  */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
@@ -65,6 +70,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   if (talks && (await overLimit(db, "companion", sess.userId, COMPANION_LIMITS))) {
     return json({ error: "rate_limited", message: "That's a lot of talking for now. Take a breather and come back in a bit." }, 429, sess);
   }
+  const ticket = talks ? await takeReply(db, sess.userId) : null;
+  if (ticket && !ticket.ok) return json({ error: ticket.error, message: ticket.message, allowance: ticket.allowance }, ticket.status, sess);
   let r: CompanionSend;
   switch (input.action) {
     case "send":
@@ -86,8 +93,9 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       r = await reportMessage(db, sess.userId, id, input.message_id, input.reason);
       break;
   }
+  if (ticket?.ok && !r.ok) await giveBackReply(db, sess.userId, ticket);
   if (talks && r.ok) inBackground(() => companionFollowUp(db, id));
-  return reply(r, sess);
+  return reply(r, sess, await companionAllowance(db, sess.userId));
 });
 
 /** Deletes the thread, with everything the character remembered of it. */

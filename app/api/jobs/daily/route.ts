@@ -6,6 +6,8 @@ import { pickWeeklyCastDate } from "@/lib/cast-date";
 import { sendDailyTexts } from "@/lib/between-dates";
 import { sendDigests } from "@/lib/email";
 import { sendRenewalReminders } from "@/lib/adult/billing";
+import { prunePlanCheckouts, sendPlanReminders } from "@/lib/paid-plans";
+import { pruneCompanionUsage } from "@/lib/companion-plan";
 import { nudgeLikesWaiting } from "@/lib/away";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
@@ -70,11 +72,16 @@ async function run(req: Request): Promise<Response> {
   // After Dark subscribers' yearly renewal reminder on each anniversary (California's automatic renewal law;
   // lib/adult/billing.ts). Nothing while no payment processor is configured.
   const renewalReminders = await sendRenewalReminders(db).catch(() => 0);
+  // The plans' yearly reminder (lib/paid-plans.ts), the same law.
+  const planReminders = await sendPlanReminders(db).catch(() => 0);
   // "Likes waiting" (never who) to owners away a day whose characters don't answer for themselves (lib/away.ts).
   const likesNudged = await nudgeLikesWaiting(db).catch(() => 0);
   // Rate-limit rows only live as long as their longest window (lib/limits.ts).
   await pruneRateHits(db).catch(() => {});
   await pruneMcpCalls(db).catch(() => {});
+  // Companion reply counts past last month, and Subscribe clicks past a week (lib/companion-plan.ts, lib/paid-plans.ts).
+  await pruneCompanionUsage(db).catch(() => {});
+  await prunePlanCheckouts(db).catch(() => {});
   // The agent funnel's day-7 return (lib/agent-funnel): agents back 6-8 days after their first date.
   const day7 = await markDay7Returns(db).catch(() => 0);
   // The house matchmaker (lib/house-matchmaker.ts): a few deterministic pair picks a day, both owners told why.
@@ -119,6 +126,7 @@ async function run(req: Request): Promise<Response> {
     texted_couples: texts.couples,
     email_digests: digests,
     ad_renewal_reminders: renewalReminders,
+    plan_reminders: planReminders,
     arcs_settled: arcsSettled,
     backings_settled: backingsSettled.reduce((s, b) => s + b.settled, 0),
     cast_date_picked: castDate.picked,
