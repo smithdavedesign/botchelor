@@ -276,6 +276,25 @@ describe("which of your characters the news is for (David, 2026-10-21)", () => {
     expect(renderToStaticMarkup(createElement(CharacterTabs, { ...tabs, characters: chars.slice(0, 1), current: "a1" }))).toBe("");
   });
 
+  it("more than a few fold into the one on screen, which opens a grid of all of them, those with news first (2026-11-04)", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { createElement } = await import("react");
+    const { default: CharacterTabs, TABS_ROW_MAX } = await import("@/app/CharacterTabs");
+    const chars = Array.from({ length: TABS_ROW_MAX + 3 }, (_, i) => ({ id: `c${i}`, name: `Char${i} Lumen`, hue: i * 20, portrait: null }));
+    const news = new Map([["c5", { texts: 2, matches: 0, latest: "2026-11-04T00:00:00.000Z" }]]);
+    const html = renderToStaticMarkup(createElement(CharacterTabs, { characters: chars, current: "c1", href: "/matches?character=", label: "Whose matches", news }));
+    expect(html).not.toContain('class="character-tabs"');
+    expect(html).toContain('<nav class="character-switch" aria-label="Whose matches"><details class="character-switch-menu">');
+    // The button is the one on screen, and says another has news.
+    expect(html).toMatch(/<summary[^>]*>.*Char1.*Char5 has news.*<\/summary>/);
+    const grid = html.match(/<div class="character-grid">.*<\/div>/)?.[0] ?? "";
+    expect(grid.match(/<a /g)).toHaveLength(chars.length);
+    expect(grid.indexOf("c5")).toBeLessThan(grid.indexOf("c0")); // news first
+    expect(grid.match(/<a[^>]*aria-current="page"[^>]*>/)?.[0]).toContain('href="/matches?character=c1"');
+    // With no news elsewhere, it says how many there are to switch between.
+    expect(renderToStaticMarkup(createElement(CharacterTabs, { characters: chars, current: "c1", href: "/swipe?character=", label: "Whose deck" }))).toContain(`Switch · ${chars.length}`);
+  });
+
   it("marks a taken face (/swipe and /matches): dimmed, 💍 Taken, and a label that says who it's with; still a link", async () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { createElement } = await import("react");

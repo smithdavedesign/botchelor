@@ -247,6 +247,12 @@ body {
   }
 }
 
+/* A route's loading.tsx: the mark, centred where the page will be. */
+.page-loading > .loading {
+  display: flex;
+  margin: var(--space-6, 3rem) auto;
+}
+
 /* Keyboard users land here first: a skip link that jumps past the header to the page content. */
 .skip-link {
   position: absolute;
@@ -6710,15 +6716,110 @@ button.table-more {
 
 /* ---------------- Matches, Messages (lib/inbox.ts; David, 2026-10-18) ---------------- */
 
-/* Whose matches or deck, as faces (app/CharacterTabs.tsx, on /matches and /swipe): sideways on a phone, the one on
-   screen marked, a taken one dimmed and tagged. */
+/* Whose matches or deck, as faces (app/CharacterTabs.tsx, on /matches and /swipe): a few wrap as a row; more fold
+   into the one on screen, which opens a grid of every one (2026-11-04: the long sideways scroll). The one on screen
+   marked, a taken one dimmed and tagged. */
 .character-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin: var(--space-2) 0 var(--space-3);
-  padding-bottom: var(--space-1);
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
+}
+.character-switch {
+  position: relative;
+  margin: var(--space-2) 0 var(--space-3);
+}
+.character-switch-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  max-width: 100%;
+}
+.character-switch-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.character-switch-current {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.character-switch-current .character-tab-name {
+  color: var(--accent-text);
+}
+.character-switch-more {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.character-switch-chevron {
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.character-switch-menu[open] .character-switch-chevron {
+  transform: rotate(180deg);
+}
+/* The grid floats over the page, so opening it doesn't push the deck or the inbox down. */
+.character-grid {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.25rem, 1fr));
+  gap: var(--space-2);
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: min(60vh, 28rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 16px);
+  background: var(--card);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+}
+.character-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2) var(--space-1);
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  color: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+.character-tile:hover {
+  background: var(--soft);
+}
+.character-tile .character-tab-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* On the face's corner, whatever the tile's width. */
+.character-tile .nav-count {
+  position: absolute;
+  top: var(--space-1);
+  right: calc(50% - 2rem);
+}
+.character-tile[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent-text);
+}
+.character-tile.is-taken {
+  color: var(--muted);
+}
+.character-tile.is-taken .avatar {
+  opacity: 0.55;
+  filter: grayscale(0.8);
 }
 .character-tab {
   display: inline-flex;
@@ -7022,12 +7123,19 @@ button.table-more {
     gap: 0.5rem;
   }
   /* Whose deck: the faces in their own row under the bar, the full width of the screen (the bar is too narrow for more
-     than two), scrolling sideways inside it when they don't fit. */
+     than two). A few stay one row, scrolling sideways if they must, so the deck keeps its height; more are the switch,
+     whose grid opens over the deck. */
   .swipe-faces {
     display: block;
     flex: none;
   }
   .swipe-faces .character-tabs {
+    flex-wrap: nowrap;
+    margin: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .swipe-faces .character-switch {
     margin: 0;
   }
   .swipe-fullscreen .swipe-deck {
