@@ -45,12 +45,14 @@ export type BriefInput = {
   lines: readonly { who: "a" | "b"; text: string }[];
   names: { a: string; b: string };
   pronouns: { a: string | null; b: string | null };
-  /** What each usually wears (their looks), by name; null when neither has an outfit picked. */
+  /** What each usually wears (their looks; tonight's fixed clothes once they undress: lib/adult/beats.ts lockOutfits), by name. */
   usual: string | null;
   /** Where the night is, and what the place puts them in. */
   place: string;
   /** The chapter's roleplay, its premise and who plays whom, by name; null for none. */
   roleplay: string | null;
+  /** Tonight's scenario (lib/adult/scenarios.ts), its title and premise: where they've come from, what they're in; null for none. */
+  scenario?: string | null;
   /** How far the night has gone at the line, in a few words (beats.ts wearingAt). */
   dressed: string;
   /** What the picture shows (beats.ts beatLabel): "Sex: on top", "Undressing", "This chapter". */
@@ -82,6 +84,7 @@ export function briefMessages(input: BriefInput): { role: "system" | "user"; con
         `The two of them: ${who("a")} and ${who("b")}.`,
         ...(input.usual ? [`What each usually wears: ${input.usual}.`] : []),
         `Where the night is: ${input.place || "not said"}.`,
+        ...(input.scenario ? [`Tonight's scenario: ${input.scenario}`] : []),
         ...(input.roleplay ? [`This chapter's roleplay: ${input.roleplay}`] : []),
         `How far it has gone by the moment: ${input.dressed}.`,
         `The photograph shows: ${input.shows}.`,
@@ -138,7 +141,7 @@ async function briefModel(db: Db): Promise<Model | null> {
 /** What a brief is kept by: everything it read, so the same moment reads the same, and changed lines read again. */
 const keyOf = (input: BriefInput) =>
   createHash("sha256")
-    .update(JSON.stringify([input.owner, input.scene, input.night, input.chapter, input.lines.slice(-BRIEF_LINES), input.usual, input.place, input.roleplay, input.dressed, input.shows, input.acts?.map((a) => a.id) ?? null]))
+    .update(JSON.stringify([input.owner, input.scene, input.night, input.chapter, input.lines.slice(-BRIEF_LINES), input.usual, input.place, input.roleplay, input.scenario ?? null, input.dressed, input.shows, input.acts?.map((a) => a.id) ?? null]))
     .digest("hex")
     .slice(0, 40);
 

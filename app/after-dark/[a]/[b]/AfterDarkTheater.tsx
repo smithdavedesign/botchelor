@@ -247,6 +247,7 @@ export default function AfterDarkTheater({
   beats = [],
   onBeat,
   onPictureNow,
+  onPicturesLanded,
   picture = null,
   onExit,
   pageTabs,
@@ -329,6 +330,8 @@ export default function AfterDarkTheater({
   beats?: readonly PublicBeat[];
   onBeat?: (id: string, answer: "now" | "later", guide?: { custom?: string; edit?: PictureEdit }) => Promise<void>;
   onPictureNow?: (line: number, guide?: { custom?: string; edit?: PictureEdit }) => Promise<void>;
+  /** A moment's picture the stage hadn't seen drawn has landed (Draw ahead's come in the background): the gallery asks again. */
+  onPicturesLanded?: () => void;
   /**
    * #1039 (the 2026-10-30 ad visitor: "after pressing 'Create picture' there was no visible progress"): a picture the
    * viewer asked for is being drawn (said at once, from the press), or has just landed (said for a few seconds).
@@ -435,6 +438,19 @@ export default function AfterDarkTheater({
   // it's drawn, the closest one they already have until then; otherwise the scene's own backdrop.
   const moments = useMomentPictures(a.id, b.id, beats, live);
   const momentOnStage = stagePicture(moments, shown.length - 1);
+  // Pictures drawn in the background (Draw ahead) land on the stage here first; the gallery is told, or they'd only show
+  // up there on the next reload (David, 2026-11-03: "I dont see these images saved to the gallery during the date").
+  const drawnSeen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const drawn = moments.flatMap((m) => (m.status === "drawn" && m.picture_id ? [m.picture_id] : []));
+    if (!drawnSeen.current) {
+      drawnSeen.current = new Set(drawn);
+      return;
+    }
+    const fresh = drawn.filter((id) => !drawnSeen.current?.has(id));
+    for (const id of fresh) drawnSeen.current.add(id);
+    if (fresh.length) onPicturesLanded?.();
+  }, [moments, onPicturesLanded]);
   const backdrop = momentOnStage ? { kind: "image" as const, id: momentOnStage.id } : sceneMedia.backdrop;
   // Draw ahead (lib/adult/draw-ahead.ts): the viewer's choice in ⋯, paid by the chapter. Asked again as the chapter and
   // its moments change (it turns itself off when a chapter can't be paid for).

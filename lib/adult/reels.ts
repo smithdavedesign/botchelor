@@ -59,6 +59,7 @@ import { hiveGate, hivePausedErrorMessage, hivePausedReason, HivePausedError, hi
 import type { PlaceStop } from "./continuity";
 import { beatPictureFor, positionIn } from "./beats";
 import { ensureBaseline, ensureNudeBaseline, lookWords, signedMediaUrl, type FaceEdit } from "./media";
+import { keptDetailWords } from "../looks";
 import { nudeSql } from "./attire";
 import { adultModel } from "./mode";
 import { REEL_STALLED_MS } from "./reel-timing";
@@ -305,6 +306,8 @@ export type ReelPerson = {
   voice: string;
   /** The words of their name, kept out of anything a picture or video model reads. */
   names: string[];
+  /** What they always have on them, dressed or not: glasses, piercings, tattoos, marks, makeup (lib/looks.ts keptDetailWords). */
+  details?: string[];
 };
 
 const nounOf = (pronouns: string | null): ReelPerson["noun"] => (pronouns?.startsWith("she") ? "woman" : pronouns?.startsWith("he") ? "man" : "person");
@@ -406,6 +409,7 @@ export function reelCast(a: Character, b: Character, viewer?: string | null): [R
       tag: tag ?? `the ${noun}`,
       look: lookWords(c, false, viewer),
       voice: voiceWords(noun, c.age),
+      details: keptDetailWords(c.extras?.looks),
       names: c.name
         .split(/[\s-]+/)
         .map((w) => w.replace(/[^\p{L}'’]/gu, ""))
@@ -783,7 +787,7 @@ export function keyframePrompt(
   const dialog = opts.dialog?.trim() ? ` A speech bubble near them reads: "${opts.dialog.trim().replace(/"/g, "'")}".` : "";
   // What they wear: by how far the night had gone, or a picture's chosen outfit (lib/adult/pictures-menu.ts).
   const keep =
-    `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${(opts.clothes ?? clothesAt(stage)).replace(/[.\s]+$/, "")}.` +
+    `Keep each of them as in their own picture, the same face, hair, skin tone and body, but not their clothes: ${(opts.clothes ?? clothesAt(stage)).replace(/[.\s]+$/, "")}.${keptDetails(cast)}` +
     `${opts.reference ? " Take only the pose, the framing and the place from Picture 3: the people in it are the two from Pictures 1 and 2." : withSet ? (opts.light ? " Keep the place and its furniture from Picture 3." : " Keep the place, its furniture and its light from Picture 3.") : ""} Two people only, both faces visible.`;
   // The owner's words on single sections (the Together tab's, "Also — place: …"), on top of what the chips say.
   const extra = opts.extra?.trim() ? ` ${opts.extra.trim()}` : "";
@@ -818,11 +822,20 @@ export function povPrompt(
   const dialog = opts.dialog?.trim() ? ` A speech bubble near them reads: "${opts.dialog.trim().replace(/"/g, "'")}".` : "";
   const extra = opts.extra?.trim() ? ` ${opts.extra.trim()}` : "";
   const keep =
-    `Keep ${shown.tag} as in Picture 1, the same face, hair, skin tone and body, but not their clothes: ${(opts.clothes ?? clothesAt(stage)).replace(/[.\s]+$/, "")}, ${shown.tag}'s face clearly visible.` +
+    `Keep ${shown.tag} as in Picture 1, the same face, hair, skin tone and body, but not their clothes: ${(opts.clothes ?? clothesAt(stage)).replace(/[.\s]+$/, "")}, ${shown.tag}'s face clearly visible.${keptDetails([shown])}` +
     `${withSet && !opts.continueFrom ? " Keep the place, its furniture and its light from Picture 2." : ""}` +
     ` Of ${viewer.tag}, whose eyes these are, only hands, arms, hips or thighs at the edge of the frame, never a face: one person in full.`;
   const steer = opts.steer?.trim() ? `${cap(opts.steer.trim().replace(/[.\s]*$/, ""))}.` : "";
   return fitPrompt([head, opts.older ?? ""], `${custom}${still}${extra}${dialog}`, [where, light, keep, steer, tailAt(stage, opts.explicit ?? true)]);
+}
+
+/**
+ * What each keeps whatever they wear or don't, by their tag (" Keep these too, clothes or not: the woman has thin round
+ * wire-framed glasses and small gold hoop earrings."); "" when neither has any.
+ */
+export function keptDetails(people: readonly ReelPerson[]): string {
+  const each = people.filter((p) => p.details?.length).map((p) => `${p.tag} has ${p.details!.join(" and ")}`);
+  return each.length ? ` Keep these too, clothes or not: ${each.join("; ")}.` : "";
 }
 
 /** Which of them is which picture, when "the woman" and "the man" don't already say it. */
