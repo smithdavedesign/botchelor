@@ -499,6 +499,11 @@ describe("the video of the night on Replicate", () => {
     // The talking shots carry their own sound; only the Wan 2.2 one has its line said beside it.
     expect(done.shots.filter((s) => s.speaks).map((s) => s.audio_id)).toEqual([undefined, undefined]);
     expect(done.shots.find((s) => !s.speaks)!.audio_id).toBeTruthy();
+    // Why it lost its own voice stays on it once it's in (the reel says so), and its log has both requests.
+    expect(done.shots.find((s) => !s.speaks)!.voiceless).toMatch(/inappropriate content/);
+    expect(done.shots.filter((s) => s.voiceless)).toHaveLength(1);
+    const log = (await t.db.query<{ request: { at: string }[] }>(`select request from adult_images where kind = 'video' and model = $1`, [VIDEO])).rows[0].request;
+    expect(log.map((r) => r.at.split("/models/")[1]?.split("/predictions")[0])).toEqual([TALK, VIDEO]);
     expect(replicate.creates(VOICE_VERSION)).toHaveLength(1);
     const made = (await t.db.query<{ model: string }>(`select model from adult_images where kind = 'video' order by model`)).rows.map((r) => r.model);
     expect(made).toEqual([VIDEO, TALK, TALK]);

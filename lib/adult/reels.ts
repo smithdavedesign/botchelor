@@ -167,6 +167,11 @@ export type ReelShot = {
    * (fails, refuses or is cancelled), its line then said beside it as before. Never shown to the reel's viewer.
    */
   silent_retry?: { model: string; input: Record<string, unknown> };
+  /**
+   * Why the talk model didn't make it, when the silent model made it instead and its line plays beside it (2026-11-04:
+   * every shot of a night's video came back with mouths still, and nothing said the talk model had refused them).
+   */
+  voiceless?: string;
   /** The keyframe it started from, once that passed the check (an adult_images 'frame'): what Keep going carries on from. */
   frame_id?: string;
   /**
@@ -1208,6 +1213,7 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
   s.voice = replicateVoice(voiceFor(ctx.cast[s.who === "a" ? 0 : 1]));
   delete s.speaks;
   delete s.silent_retry;
+  delete s.voiceless;
   if (r.talk && s.text.trim()) {
     const link = signedMediaUrl(s.media_id!, ctx.baseUrl);
     const p = await createPrediction(r.token, r.talk, talkShotInput(ctx.cast, s, link, r.talk, ctx.avoid), { cancelAfter: "30m" });
@@ -1900,8 +1906,15 @@ async function collectReplicateShot(
       // so one signed ahead 404'd and one signed at queueing may have run out (2026-11-04, Carson × Dorian's clip).
       const image = s.silent_retry.input.image;
       const input = typeof image === "string" && s.media_id ? { ...s.silent_retry.input, image: signedMediaUrl(s.media_id, new URL(image).origin) } : s.silent_retry.input;
-      const retry = await createPrediction(keys.replicate, s.silent_retry.model, input, { cancelAfter: "30m" });
-      Object.assign(s, { queue_id: retry.id, model: s.silent_retry.model, reason: `${missing} (made without its own voice instead)`.slice(0, 200) });
+      // Sent where an admin's "What made it" shows it, after the talk model's request, so the clip's log isn't only that one.
+      const { value: retry, requests } = await withRequestLog(() => createPrediction(keys.replicate, s.silent_retry!.model, input, { cancelAfter: "30m" }));
+      Object.assign(s, {
+        queue_id: retry.id,
+        model: s.silent_retry.model,
+        reason: `${missing} (made without its own voice instead)`.slice(0, 200),
+        voiceless: missing.slice(0, 200),
+        request: [...(s.request ?? []), ...requests],
+      });
       delete s.speaks;
       delete s.silent_retry;
     } catch (err) {
@@ -2436,7 +2449,7 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
     const ctx = await withSteering(db, ownerId, { pair: [r.character_a, r.character_b], cast: reelCast(ca, cb, ownerId), places, stages, bases, hive: keys.hive!, baseUrl, ...where.media });
     // Back to its start picture, queued again; the reel is being made until it's in.
     Object.assign(shot, { status: "frame_ready" as const, media_id: shot.frame_id, refilm_tokens: price });
-    for (const f of ["queue_id", "reason", "retry_at", "audio_id", "request", "own"] as const) delete shot[f];
+    for (const f of ["queue_id", "reason", "retry_at", "audio_id", "request", "own", "voiceless"] as const) delete shot[f];
     await db.query(`update adult_reels set status = 'making', updated_at = now() where id = $1 and status in ('ready', 'failed')`, [reelId]);
     await queueVideos(db, [shot], ctx);
     if (shot.status !== "queued") throw new Error(shot.reason ?? "it couldn't be queued");
