@@ -80,7 +80,7 @@ import { connections, describeDrift, loadCharacterMemory, loadForgets, noteMeeti
 import { type Character, loadCharacter, pronounWarnings } from "../character";
 import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "../adult/mcp";
 import { runCompanionTool } from "../companion-mcp";
-import { COMPANION_ACTIONS, COMPANION_REPORT_REASONS, companionOpen, REPLY_LENGTHS } from "../companion-shared";
+import { COMPANION_ACTIONS, COMPANION_REPORT_REASONS, companionOpen, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
 import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, unreadTextsByPair } from "../inbox";
 import { rescueStuckJob } from "../jobs";
 import { findLookalikes, type Lookalike, lookAlikeGateOn, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS, unusedJobs } from "../originality";
@@ -227,7 +227,10 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // the waiting step whichever side started the date (partner_bot, played_by: house_bot); start_own_date's place_note names
 // the set a place was dealt as and that a named place wins over the last-two rule; move_ignored on submit_own_date_step
 // when accept_move moved nothing: new fields and values otherwise.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.19.0" } as const;
+// 2.20.0 (David, 2026-11-04: "enable this to go into theater mode"): companion's scene action {place}, playing a scene
+// together at one of the show's places (their replies carry does, what they do; place texting goes back), and remember
+// gets the self-harm check a message gets: a new action and fields, nothing else changed.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.20.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -696,6 +699,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "companion.action": COMPANION_ACTIONS,
   "companion.length": REPLY_LENGTHS,
   "companion.reason": COMPANION_REPORT_REASONS,
+  "companion.place": [...SCENE_PLACES, SCENE_TEXTING],
 };
 /**
  * Tools that work for anyone but are never listed, asked for by name only: request_after_dark until After Dark opens to

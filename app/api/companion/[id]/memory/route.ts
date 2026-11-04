@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
-import { getThread } from "@/lib/companion";
+import { getThread, screenFact } from "@/lib/companion";
 import { editFacts, FACT_MAX, listFacts } from "@/lib/companion-memory";
 import { companionRefusal } from "../../access";
 
@@ -38,6 +38,13 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const o = await ownThreadOr404(req, ctx);
   if ("refused" in o) return o.refused!;
   const input = parseBody(Edit, await readJson(req), "invalid_request");
+  if (input.op === "add" || input.op === "edit") {
+    const crisis = await screenFact(o.db, o.sess.userId, o.id, input.text);
+    if (crisis) {
+      const { ok: _ok, status, ...body } = crisis;
+      return json(body, status, o.sess);
+    }
+  }
   const problem = await editFacts(o.db, o.id, input);
   if (problem) return json({ error: "invalid_request", message: problem }, 400, o.sess);
   return json({ facts: await listFacts(o.db, o.id) }, 200, o.sess);

@@ -5,14 +5,16 @@ import { adultKeys } from "./adult/settings";
 import { track } from "./analytics";
 import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
-import { AVOID_LINES, companionMessages, RECENT_TURNS, replyBubbles, type PromptTurn } from "./companion-prompt";
+import { AVOID_LINES, companionMessages, RECENT_TURNS, replyBubbles, sceneReply, type PromptScene, type PromptTurn } from "./companion-prompt";
 import { factsForPrompt, updateFacts, updateSummary } from "./companion-memory";
 import {
   COMPANION_MESSAGE_MAX,
   COMPANION_REPORT_REASONS,
   companionNotice,
   companionOpen,
+  isScenePlace,
   type CompanionCharacterRef,
+  type CompanionMessageView,
   type CompanionReportReason,
   type CompanionThreadView,
   type ReplyLength,
@@ -25,6 +27,7 @@ import { recordServerError } from "./errors";
 import { DELETED_OWNER } from "./rules";
 import { checkShowText } from "./safety";
 import { countCrisis, lineInCrisis, PG_REDIRECT } from "./step-in";
+import { venue, venueName, type VenueId } from "./venues";
 
 export * from "./companion-shared";
 
@@ -72,7 +75,8 @@ export async function companionModel(db: Db, env: Record<string, string | undefi
     baseUrl: OPENROUTER_BASE_URL,
     apiKey: openrouter,
     model: env.COMPANION_MODEL?.trim() || COMPANION_DEFAULT_MODEL,
-    timeoutMs: 45_000,
+    // With the show's model behind it (25 s, then its own fallback's 25 s), a reply answers inside Cloudflare's 100 s.
+    timeoutMs: 30_000,
     retryDelaysMs: [1_500],
     extraBody: { usage: { include: true }, provider: adultProviderRouting(env) },
   });
@@ -122,6 +126,7 @@ type ThreadRow = {
   paused_at: string | null;
   reply_length: ReplyLength;
   summary: string | null;
+  scene: VenueId | null;
 };
 
 export type CompanionFail = { ok: false; status: number; error: string; message: string; crisis_resources?: CrisisResources };
@@ -130,7 +135,7 @@ const NOT_FOUND = fail(404, "not_found", "Not found.");
 
 async function ownThread(db: Db, userId: string, threadId: string): Promise<ThreadRow | null> {
   const { rows } = await db.query<ThreadRow>(
-    `select id, user_id, character_id, last_at, notice_at, paused_at, reply_length, summary from companion_threads where id = $1 and user_id = $2`,
+    `select id, user_id, character_id, last_at, notice_at, paused_at, reply_length, summary, scene from companion_threads where id = $1 and user_id = $2`,
     [threadId, userId],
   );
   return rows[0] ?? null;
@@ -142,18 +147,13 @@ async function addMessage(
   role: "user" | "character" | "system",
   text: string,
   at: Date,
-  extra: { model?: string | null; cost?: number | null } = {},
+  extra: { model?: string | null; cost?: number | null; scene?: VenueId | null; action?: string | null; marker?: "scene" | "texting" } = {},
 ): Promise<string> {
   const id = randomUUID();
-  await db.query(`insert into companion_messages (id, thread_id, role, text, model, cost, created_at) values ($1, $2, $3, $4, $5, $6, $7)`, [
-    id,
-    threadId,
-    role,
-    text,
-    extra.model ?? null,
-    extra.cost ?? null,
-    at.toISOString(),
-  ]);
+  await db.query(
+    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null],
+  );
   return id;
 }
 
@@ -175,6 +175,16 @@ async function putNotice(db: Db, t: ThreadRow, name: string, now: Date): Promise
 
 const OPENER_CUE =
   "(They've just started talking with you for the first time. Open the conversation your way: say hi like yourself, and something only you would say. Don't ask more than one question.)";
+
+/** A scene's place for the prompt: its name and its stage direction (lib/venues.ts). */
+const promptScene = (place: VenueId | null): PromptScene | null => (place ? { name: venueName(place), prompt: venue(place).prompt } : null);
+
+/** The user turn that has the character open a scene. */
+const sceneCue = (place: VenueId) =>
+  `(You've both just got to ${venue(place).prompt}. Open the scene: what you do and say as you get there, playing off the place. Don't ask more than one question.)`;
+
+/** The user turn that has the character text first once a scene is over (asked for over MCP; the chat waits for the person). */
+const TEXTING_CUE = "(The scene's over and you're both back to texting. Pick the conversation up your way, in a line or two.)";
 
 /**
  * Starts (or finds) this person's thread with a character. A new one opens with the AI notice and the character's
@@ -209,8 +219,8 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   const ref = await characterRef(db, t.character_id, userId);
   if (!ref) return NOT_FOUND;
   const [{ rows: msgs }, { rows: facts }] = await Promise.all([
-    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null }>(
-      `select id, role, text, created_at, reported from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
+    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"] }>(
+      `select id, role, text, created_at, reported, scene, action, marker from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
       [threadId],
     ),
     db.query<{ n: number }>(`select count(*)::int as n from companion_facts where thread_id = $1`, [threadId]),
@@ -220,8 +230,18 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
     view: {
       id: t.id,
       character: ref,
-      messages: msgs.map((m) => ({ id: m.id, role: m.role, text: m.text, at: new Date(m.created_at).toISOString(), reported: Boolean(m.reported) })),
+      messages: msgs.map((m) => ({
+        id: m.id,
+        role: m.role,
+        text: m.text,
+        at: new Date(m.created_at).toISOString(),
+        reported: Boolean(m.reported),
+        scene: isScenePlace(m.scene) ? m.scene : null,
+        action: m.action,
+        marker: m.marker,
+      })),
       reply_length: t.reply_length,
+      scene: isScenePlace(t.scene) ? t.scene : null,
       paused: Boolean(t.paused_at),
       facts: facts[0]?.n ?? 0,
     },
@@ -229,12 +249,12 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
 }
 
 async function characterRef(db: Db, characterId: string, userId: string): Promise<CompanionCharacterRef | null> {
-  const { rows } = await db.query<{ id: string; name: string; portrait: string | null; avatar_hue: number | null; is_house: boolean; owner_id: string | null }>(
-    `select c.id, c.name, ${portraitPathSql("c")} as portrait, c.avatar_hue, c.is_house, c.owner_id from characters c where c.id = $1`,
+  const { rows } = await db.query<{ id: string; name: string; portrait: string | null; avatar_hue: number | null; is_house: boolean; owner_id: string | null; pronouns: CompanionCharacterRef["pronouns"] }>(
+    `select c.id, c.name, ${portraitPathSql("c")} as portrait, c.avatar_hue, c.is_house, c.owner_id, c.pronouns from characters c where c.id = $1`,
     [characterId],
   );
   const r = rows[0];
-  return r ? { id: r.id, name: r.name, portrait: r.portrait, hue: r.avatar_hue, house: r.is_house, yours: r.owner_id === userId } : null;
+  return r ? { id: r.id, name: r.name, portrait: r.portrait, hue: r.avatar_hue, house: r.is_house, yours: r.owner_id === userId, pronouns: r.pronouns ?? null } : null;
 }
 
 export type CompanionListItem = CompanionCharacterRef & { thread_id: string | null; last: string | null; last_at: string | null; bio: string };
@@ -286,13 +306,22 @@ const DEFLECTIONS = [
   "Ha, no, we're keeping this one PG. What's actually on your mind?",
   "I just typed and deleted three things. Let's change the subject: what are you up to later?",
 ];
+/** The same, out loud in a scene. */
+const SCENE_DEFLECTIONS = [
+  "Okay, I'm steering us somewhere else before I say something I can't take back. Tell me one good thing about today.",
+  "Ha, no. We're keeping this one PG. So what's actually on your mind?",
+  "I just started three sentences in my head and dropped all of them. New subject: what are you up to later?",
+];
 
 type SpeakResult = { ok: true; ids: string[]; texts: string[] } | CompanionFail;
 
+/** A reply is drawn again (after a PG or crisis miss) only this soon: past it, the deflection, so the request ends in time. */
+export const REDRAW_WITHIN_MS = 40_000;
+
 /** The recent turns, oldest first (a redrawn reply's earlier draw left out, and the reply being drawn again). */
 async function recentTurns(db: Db, threadId: string, exclude: readonly string[] = []): Promise<{ turns: PromptTurn[]; avoid: string[] }> {
-  const { rows } = await db.query<{ role: "user" | "character"; text: string }>(
-    `select role, text from companion_messages
+  const { rows } = await db.query<{ role: "user" | "character"; text: string; action: string | null }>(
+    `select role, text, action from companion_messages
       where thread_id = $1 and role <> 'system' and replaced_by is null and not (id = any($3::text[]))
       order by created_at desc, id desc limit $2`,
     [threadId, RECENT_TURNS + AVOID_LINES, exclude],
@@ -326,11 +355,14 @@ async function speak(
   const started = Date.now();
   let insteadOf = opts.insteadOf ?? null;
   let bubbles: string[] | null = null;
+  let action: string | null = null;
+  const scene = promptScene(t.scene);
   for (let attempt = 0; attempt < 2 && !bubbles; attempt++) {
+    if (attempt > 0 && Date.now() - started > REDRAW_WITHIN_MS) break;
     let raw: string;
     try {
       raw = await model.complete(
-        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue }),
+        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene }),
         {
           temperature: 0.9,
           frequencyPenalty: 0.3,
@@ -343,21 +375,33 @@ async function speak(
       if (attempt === 0) return fail(503, "model_down", `${character.name.split(/\s+/)[0]} can't answer right now. Try again in a moment.`);
       break;
     }
+    if (scene) {
+      // A scene: one line, with what they do as they say it; both under the PG line and the crisis list.
+      const line = sceneReply(raw, character.name);
+      if (line && checkShowText({ dialogue: line.say, action: line.action ?? "" }).ok && !crisisIntent(line.say) && !crisisIntent(line.action ?? "")) {
+        bubbles = [line.say];
+        action = line.action;
+      } else insteadOf = `${line ? `${line.action ? `(${line.action}) ` : ""}${line.say}` : raw}`.slice(0, 300) + " (keep it PG and kind)";
+      continue;
+    }
     const drawn = replyBubbles(raw, character.name);
     if (drawn.length && drawn.every((b) => checkShowText({ dialogue: b }).ok && !crisisIntent(b))) bubbles = drawn;
     else insteadOf = `${drawn.join(" ").slice(0, 300)} (keep it PG and kind)`;
   }
-  const texts = bubbles ?? [DEFLECTIONS[Math.floor(Math.random() * DEFLECTIONS.length)]];
+  const texts = bubbles ?? [scene ? SCENE_DEFLECTIONS[Math.floor(Math.random() * SCENE_DEFLECTIONS.length)] : DEFLECTIONS[Math.floor(Math.random() * DEFLECTIONS.length)]];
   const cost = usage.reduce((s, u) => s + (u.cost ?? 0), 0);
   const modelId = served ?? usage[0]?.model ?? null;
   const ids: string[] = [];
-  for (const [i, text] of texts.entries()) ids.push(await addMessage(db, t.id, "character", text, tick(now, i), i === 0 ? { model: modelId, cost: cost || null } : {}));
+  for (const [i, text] of texts.entries()) {
+    ids.push(await addMessage(db, t.id, "character", text, tick(now, i), { ...(i === 0 ? { model: modelId, cost: cost || null } : {}), scene: t.scene, action: bubbles ? action : null }));
+  }
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, texts.length).toISOString()]);
   track("companion_reply", { model: modelId ?? undefined, cost: cost || undefined, ms: Date.now() - started, bubbles: texts.length, deflected: bubbles ? undefined : true });
   return { ok: true, ids, texts };
 }
 
-export type CompanionSend = { ok: true; view: CompanionThreadView } | CompanionFail;
+/** `replied: false`: done, but the reply it should have come with didn't (the model was down), so nothing is owed for it. */
+export type CompanionSend = { ok: true; view: CompanionThreadView; replied?: false } | CompanionFail;
 
 /**
  * Checks a person's words before they go in: the self-harm protocol first (it pauses the thread with the resources and
@@ -365,14 +409,28 @@ export type CompanionSend = { ok: true; view: CompanionThreadView } | CompanionF
  */
 async function screen(db: Db, t: ThreadRow, text: string, now: Date, surface: CompanionSurface): Promise<CompanionFail | null> {
   const { crisis } = await lineInCrisis(text, surface, await modelFor(db));
-  if (crisis) {
-    await countCrisis(db, surface, now);
-    await db.query(`update companion_threads set paused_at = $2 where id = $1`, [t.id, now.toISOString()]);
-    return { ...fail(200, "paused", CRISIS_RESOURCES.message), crisis_resources: CRISIS_RESOURCES };
-  }
+  if (crisis) return pauseForCrisis(db, t.id, surface, now);
   const safe = checkShowText({ dialogue: text });
   if (!safe.ok) return fail(422, "refused", PG_REDIRECT[safe.reason]);
   return null;
+}
+
+/** The self-harm protocol's pause: counted (day and surface only), the thread paused until the person carries on. */
+async function pauseForCrisis(db: Db, threadId: string, surface: CompanionSurface, now: Date): Promise<CompanionFail> {
+  await countCrisis(db, surface, now);
+  await db.query(`update companion_threads set paused_at = $2 where id = $1`, [threadId, now.toISOString()]);
+  return { ...fail(200, "paused", CRISIS_RESOURCES.message), crisis_resources: CRISIS_RESOURCES };
+}
+
+/**
+ * The same check on a fact the person writes on the memory page (it goes in every prompt, so it gets what a message
+ * gets): a crisis pauses the thread with the resources, and nothing is kept. Null when it may go on to editFacts.
+ */
+export async function screenFact(db: Db, userId: string, threadId: string, text: string, surface: CompanionSurface = "companion", now: Date = new Date()): Promise<CompanionFail | null> {
+  const t = await ownThread(db, userId, threadId);
+  if (!t) return NOT_FOUND;
+  const { crisis } = await lineInCrisis(text, surface, await modelFor(db));
+  return crisis ? pauseForCrisis(db, t.id, surface, now) : null;
 }
 
 async function loaded(db: Db, userId: string, threadId: string): Promise<{ t: ThreadRow; character: Character } | CompanionFail> {
@@ -401,7 +459,7 @@ export async function sendMessage(db: Db, userId: string, threadId: string, inpu
   const refused = await screen(db, t, text, now, surface);
   if (refused) return refused;
   if (noticeDue(t, now)) await putNotice(db, t, character.name, now);
-  await addMessage(db, t.id, "user", text, tick(now, 1));
+  await addMessage(db, t.id, "user", text, tick(now, 1), { scene: t.scene });
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, 1).toISOString()]);
   const r = await speak(db, t, character, tick(now, 2));
   if (!r.ok) return r;
@@ -418,30 +476,39 @@ export async function regenerate(db: Db, userId: string, threadId: string, now: 
   const { t, character } = l;
   if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
   const last = await lastReply(db, t.id);
-  const r = await speak(db, t, character, now, { insteadOf: last.texts.join(" ") || null, cue: last.afterUser ? undefined : OPENER_CUE, replacing: last.ids });
+  const cue = last.afterUser ? undefined : last.marker ? (t.scene ? sceneCue(t.scene) : TEXTING_CUE) : OPENER_CUE;
+  const r = await speak(db, t, character, now, { insteadOf: last.texts.join(" ") || null, cue, replacing: last.ids });
   if (!r.ok) return r;
   if (last.ids.length) await db.query(`update companion_messages set replaced_by = $2 where id = any($1::text[])`, [last.ids, r.ids[0]]);
   return getThread(db, userId, threadId);
 }
 
-/** The character's messages since the person last spoke (the reply a regenerate replaces), and whether the person has. */
-async function lastReply(db: Db, threadId: string): Promise<{ ids: string[]; texts: string[]; afterUser: boolean }> {
+/**
+ * The character's messages since the person last spoke (the reply a regenerate replaces), and whether the person has. A
+ * scene starting or ending stops it too (marker): what came before belongs to the conversation before.
+ */
+async function lastReply(db: Db, threadId: string): Promise<{ ids: string[]; texts: string[]; afterUser: boolean; marker: boolean }> {
   const { rows } = await db.query<{ id: string; role: string; text: string }>(
-    `select id, role, text from companion_messages where thread_id = $1 and role <> 'system' and replaced_by is null order by created_at desc, id desc limit 8`,
+    `select id, role, text from companion_messages where thread_id = $1 and (role <> 'system' or marker is not null) and replaced_by is null order by created_at desc, id desc limit 8`,
     [threadId],
   );
   const ids: string[] = [];
   const texts: string[] = [];
   let afterUser = false;
+  let marker = false;
   for (const m of rows) {
     if (m.role === "user") {
       afterUser = true;
       break;
     }
+    if (m.role === "system") {
+      marker = true;
+      break;
+    }
     ids.push(m.id);
     texts.unshift(m.text);
   }
-  return { ids, texts, afterUser };
+  return { ids, texts, afterUser, marker };
 }
 
 /** Rewrites the person's last message (only the last one) and has the character answer it again. */
@@ -455,9 +522,10 @@ export async function editLast(db: Db, userId: string, threadId: string, input: 
   if (text.length > COMPANION_MESSAGE_MAX) return fail(400, "too_long", `Keep it under ${COMPANION_MESSAGE_MAX} characters.`);
   const mine = (await db.query<{ id: string }>(`select id from companion_messages where thread_id = $1 and role = 'user' and replaced_by is null order by created_at desc, id desc limit 1`, [t.id])).rows[0];
   if (!mine) return fail(409, "nothing_to_edit", "You haven't said anything yet.");
+  const after = await lastReply(db, t.id);
+  if (after.marker) return fail(409, "nothing_to_edit", t.scene ? "Your last message was before this scene: say something new instead." : "Your last message was in the scene: say something new instead.");
   const refused = await screen(db, t, text, now, surface);
   if (refused) return refused;
-  const after = await lastReply(db, t.id);
   await db.query(`update companion_messages set text = $2 where id = $1`, [mine.id, text]);
   const r = await speak(db, t, character, now, { replacing: after.ids });
   if (!r.ok) return r;
@@ -478,6 +546,35 @@ export async function setReplyLength(db: Db, userId: string, threadId: string, l
   if (!t) return NOT_FOUND;
   await db.query(`update companion_threads set reply_length = $2 where id = $1`, [t.id, length]);
   return getThread(db, userId, threadId);
+}
+
+/**
+ * Starts a scene at one of the show's places (the character opens it: a reply, so it's counted like one), moves it
+ * somewhere else, or goes back to texting (null). Each is a line in the thread. With the model down the scene still
+ * starts, without its opener (replied: false); "Ask them to start" draws it.
+ */
+export async function setScene(db: Db, userId: string, threadId: string, place: VenueId | null, now: Date = new Date()): Promise<CompanionSend> {
+  const l = await loaded(db, userId, threadId);
+  if ("status" in l) return l;
+  const { t, character } = l;
+  if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
+  if (place !== null && !isScenePlace(place)) return fail(400, "invalid_place", "Pick one of the show's places.");
+  if (t.scene === place) {
+    const same = await getThread(db, userId, threadId);
+    return same.ok ? { ...same, replied: false } : same;
+  }
+  if (noticeDue(t, now)) await putNotice(db, t, character.name, now);
+  await db.query(`update companion_threads set scene = $2, last_at = $3 where id = $1`, [t.id, place, tick(now, 1).toISOString()]);
+  t.scene = place;
+  await addMessage(db, t.id, "system", place ? `${venueName(place)}: a scene you're both imagining.` : "Back to texting.", tick(now, 1), { marker: place ? "scene" : "texting", scene: place });
+  track("companion_scene", { place: place ?? "texting" });
+  if (!place) {
+    const view = await getThread(db, userId, threadId);
+    return view.ok ? { ...view, replied: false } : view;
+  }
+  const r = await speak(db, t, character, tick(now, 2), { cue: sceneCue(place) });
+  const view = await getThread(db, userId, threadId);
+  return view.ok && !r.ok ? { ...view, replied: false } : view;
 }
 
 /** A person's report on one of the character's replies (reviewed on the admin reports page). */

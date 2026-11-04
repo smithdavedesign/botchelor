@@ -22,9 +22,9 @@ export function sceneBackground(venue: PlaceId | null, setUrl?: string | null): 
 type SceneProps = {
   characters: [CharacterRef, CharacterRef];
   venue: PlaceId | null;
-  /** The latest line each character has spoken; its bubble stays up until they speak again. */
-  lineA: string | null;
-  lineB: string | null;
+  /** The latest line each character has spoken; its bubble stays up until they speak again (a companion's scene puts what they do in it too). */
+  lineA: ReactNode;
+  lineB: ReactNode;
   actLabel?: string | null;
   /** Shown centred before anyone has spoken (e.g. "The date is about to begin"). */
   placeholder?: string | null;

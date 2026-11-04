@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import { requestJson } from "@/app/request";
 import type { CompanionCharacterRef, CompanionFactView } from "@/lib/companion-shared";
+import type { CrisisResources } from "@/lib/crisis";
 
 const KIND_LABELS: Record<string, string> = {
   name: "Your name",
@@ -29,6 +31,7 @@ export default function CompanionMemory({ threadId, character, initial }: { thre
   const [adding, setAdding] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const first = character.name.split(/\s+/)[0] || character.name;
 
   async function edit(body: Record<string, unknown>): Promise<boolean> {
@@ -36,6 +39,12 @@ export default function CompanionMemory({ threadId, character, initial }: { thre
     setError(null);
     try {
       const { ok, data, message } = await requestJson(`/api/companion/${threadId}/memory`, body);
+      // Words of a crisis are never kept: the resources, and the conversation paused (lib/companion.ts screenFact).
+      const help = crisisFrom(data);
+      if (help) {
+        setCrisis(help);
+        return false;
+      }
       if (ok && Array.isArray(data.facts)) {
         setFacts(data.facts as CompanionFactView[]);
         return true;
@@ -76,6 +85,14 @@ export default function CompanionMemory({ threadId, character, initial }: { thre
         </div>
       </form>
 
+      {crisis && (
+        <div className="crisis-pause">
+          <CrisisNotice resources={crisis} />
+          <p className="small">
+            Nothing you wrote was kept, and your conversation with {first} is paused until you choose to carry on. <Link href={`/companion/${threadId}`}>Back to {first}</Link>
+          </p>
+        </div>
+      )}
       {error && <p className="error">{error}</p>}
 
       {facts.length === 0 ? (

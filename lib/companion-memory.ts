@@ -177,7 +177,12 @@ export async function editFacts(db: Db, threadId: string, e: FactEdit, now: Date
     if (text.length < 2) return "Say what they should remember.";
     if (text.length > FACT_MAX) return `Keep it under ${FACT_MAX} characters.`;
     if (!checkShowText({ fact: text }).ok) return "That can't go in a companion's memory: the show is PG.";
+    // Like the facts it draws, never a note on someone's mental health (the crisis check ran first: screenFact).
+    if (crisisIntent(text) || maybeCrisis(text)) return "That's one a companion doesn't keep notes on. You can still talk with them about it.";
     if (e.op === "add") {
+      // Theirs are never dropped to make room, so they stop at the thread's cap.
+      const n = (await db.query<{ n: number }>(`select count(*)::int as n from companion_facts where thread_id = $1`, [threadId])).rows[0]?.n ?? 0;
+      if (n >= FACTS_PER_THREAD) return `That's ${FACTS_PER_THREAD} things already: forget one first.`;
       await db.query(`insert into companion_facts (id, thread_id, kind, text, edited_by_user, pinned, created_at) values ($1, $2, 'other', $3, true, true, $4)`, [randomUUID(), threadId, text, now.toISOString()]);
       return null;
     }

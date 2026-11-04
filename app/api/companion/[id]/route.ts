@@ -15,10 +15,13 @@ import {
   regenerate,
   reportMessage,
   REPLY_LENGTHS,
+  SCENE_PLACES,
   sendMessage,
   setReplyLength,
+  setScene,
   type CompanionSend,
 } from "@/lib/companion";
+import type { VenueId } from "@/lib/venues";
 import { companionAllowance, giveBackReply, takeReply } from "@/lib/companion-plan";
 import { companionRefusal } from "../access";
 
@@ -29,6 +32,8 @@ const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("regenerate") }),
   z.object({ action: z.literal("edit"), text: z.string().max(COMPANION_MESSAGE_MAX * 2) }),
   z.object({ action: z.literal("length"), length: z.enum(REPLY_LENGTHS) }),
+  // A scene at one of the show's places (they open it), or back to texting (null).
+  z.object({ action: z.literal("scene"), place: z.enum(SCENE_PLACES as [VenueId, ...VenueId[]]).nullable() }),
   z.object({ action: z.literal("carry_on") }),
   z.object({ action: z.literal("report"), message_id: z.string().min(1).max(64), reason: z.enum(COMPANION_REPORT_REASONS) }),
 ]);
@@ -55,9 +60,9 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
 
 /**
  * One move in a thread: say something (send), draw the last reply again (regenerate), rewrite your last message (edit),
- * set how much the character says (length), carry on after the crisis resources (carry_on), or report a reply (report).
- * A reply is taken from the free count or the plan's fair use before it's drawn (lib/companion-plan.ts), and given back
- * when none came.
+ * set how much the character says (length), play a scene somewhere or go back to texting (scene), carry on after the
+ * crisis resources (carry_on), or report a reply (report). A reply is taken from the free count or the plan's fair use
+ * before it's drawn (lib/companion-plan.ts), and given back when none came (a scene's opener included).
  */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
@@ -66,7 +71,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const refused = await companionRefusal(db, req, sess);
   if (refused) return refused;
   const input = parseBody(Action, await readJson(req), "invalid_request");
-  const talks = input.action === "send" || input.action === "regenerate" || input.action === "edit";
+  const talks = input.action === "send" || input.action === "regenerate" || input.action === "edit" || (input.action === "scene" && input.place !== null);
   if (talks && (await overLimit(db, "companion", sess.userId, COMPANION_LIMITS))) {
     return json({ error: "rate_limited", message: "That's a lot of talking for now. Take a breather and come back in a bit." }, 429, sess);
   }
@@ -86,6 +91,9 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     case "length":
       r = await setReplyLength(db, sess.userId, id, input.length);
       break;
+    case "scene":
+      r = await setScene(db, sess.userId, id, input.place);
+      break;
     case "carry_on":
       r = await carryOn(db, sess.userId, id);
       break;
@@ -93,7 +101,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       r = await reportMessage(db, sess.userId, id, input.message_id, input.reason);
       break;
   }
-  if (ticket?.ok && !r.ok) await giveBackReply(db, sess.userId, ticket);
+  if (ticket?.ok && (!r.ok || r.replied === false)) await giveBackReply(db, sess.userId, ticket);
   if (talks && r.ok) inBackground(() => companionFollowUp(db, id));
   return reply(r, sess, await companionAllowance(db, sess.userId));
 });

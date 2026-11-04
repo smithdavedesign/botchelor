@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Avatar from "@/app/Avatar";
-import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
+import { crisisFrom } from "@/app/CrisisNotice";
+import Scene from "@/app/Scene";
+import CrisisPause from "@/app/stage/CrisisPause";
+import PlacePicker from "@/app/stage/PlacePicker";
+import { useSpeech } from "@/app/stage/useSpeech";
 import type { CrisisResources } from "@/lib/crisis";
 import type { CompanionAllowance } from "@/lib/companion-plan";
 import {
@@ -13,11 +17,14 @@ import {
   COMPANION_REPORT_REASONS,
   REPLY_LENGTH_LABELS,
   REPLY_LENGTHS,
+  SCENE_PLACES,
   type CompanionMessageView,
   type CompanionReportReason,
   type CompanionThreadView,
   type ReplyLength,
 } from "@/lib/companion-shared";
+import type { CharacterRef } from "@/lib/game";
+import { venueName, type VenueId } from "@/lib/venues";
 
 type Reply = { view?: CompanionThreadView; message?: string; allowance?: CompanionAllowance };
 
@@ -27,12 +34,21 @@ function untilReset(iso: string, now = Date.now()): string {
   return mins >= 90 ? `in ${Math.round(mins / 60)} hours` : `in ${mins} minutes`;
 }
 
+/** You, on the stage across from them. */
+const YOU: CharacterRef = { id: "you", name: "You", house: false, hue: 210, portrait: null };
+
+const MARK: Record<NonNullable<CompanionMessageView["marker"]> | "notice", string> = { scene: "🎭", texting: "📱", notice: "🤖" };
+
 /**
  * A companion thread (lib/companion.ts) as a phone-style chat: the character on the left, you on the right, the AI
  * notice as a line in the thread. Draw the last reply again, rewrite your last message, set how much they say, and report
- * any reply. The crisis resources pause the chat until you carry on. Without the plan, the free replies left today show
- * under the box, and when they're gone the box gives way to the plan (lib/companion-plan.ts): before a message, never
- * in the middle of a reply.
+ * any reply. The crisis resources pause the chat until you carry on (app/stage/CrisisPause.tsx). Without the plan, the
+ * free replies left today show under the box, and when they're gone the box gives way to the plan
+ * (lib/companion-plan.ts): before a message, never in the middle of a reply.
+ *
+ * A scene (🎭): the two of you at one of the show's places, face to face. The stage (app/Scene.tsx) shows the place,
+ * their latest line with what they do, and yours; the thread keeps every line. Their lines can be read aloud in the
+ * device's own voices (app/stage/useSpeech.ts).
  */
 export default function CompanionChat({
   initial,
@@ -53,14 +69,30 @@ export default function CompanionChat({
   const [crisis, setCrisis] = useState<CrisisResources | null>(initialCrisis);
   const [editing, setEditing] = useState(false);
   const [reporting, setReporting] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [opening, setOpening] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const speech = useSpeech();
   const c = view.character;
   const first = c.name.split(/\s+/)[0] || c.name;
+  const who = { id: c.id, pronouns: c.pronouns ?? null };
 
   const shown = view.messages;
-  const lastUser = [...shown].reverse().find((m) => m.role === "user") ?? null;
-  const lastIsCharacter = shown.length > 0 && shown[shown.length - 1].role === "character";
-  const waitingOnThem = shown.length > 0 && shown[shown.length - 1].role === "user";
+  // A scene starting or ending is a line of its own: what's after the last one is the conversation now.
+  const since = useMemo(() => shown.findLastIndex((m) => m.role === "system" && m.marker !== null), [shown]);
+  const lastUserAt = shown.findLastIndex((m) => m.role === "user");
+  const lastUser = lastUserAt > since ? shown[lastUserAt] : null;
+  const last = shown[shown.length - 1];
+  const lastIsCharacter = last?.role === "character";
+  const waitingOnThem = last?.role === "user";
+  // A scene that started without its opener (the model was down): they can be asked to start it.
+  const sceneWaiting = view.scene !== null && last?.role === "system" && last.marker === "scene";
+  const onStage = useMemo(() => {
+    const here = shown.slice(since + 1);
+    return { them: here.findLast((m) => m.role === "character") ?? null, you: here.findLast((m) => m.role === "user") ?? null };
+  }, [shown, since]);
+  const newest = shown.findLast((m) => m.role === "character") ?? null;
+  const spoken = useRef(newest?.id ?? null);
 
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -72,6 +104,15 @@ export default function CompanionChat({
     const t = setTimeout(() => setNote(null), 8000);
     return () => clearTimeout(t);
   }, [note]);
+
+  // A new line of theirs in a scene is read aloud when the voice is on (never the ones already there on arrival).
+  useEffect(() => {
+    if (!newest || newest.id === spoken.current) return;
+    spoken.current = newest.id;
+    if (newest.scene) speech.say(newest.text, who);
+    // Only when a new line comes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newest?.id]);
 
   async function post(body: Record<string, unknown>): Promise<boolean> {
     setBusy(true);
@@ -119,6 +160,24 @@ export default function CompanionChat({
     setDraft(lastUser.text);
   }
 
+  /** Into a scene somewhere (they open it), or back to texting. The stage shows at once; the server's answer settles it. */
+  async function playScene(place: VenueId | null) {
+    setPicking(false);
+    const before = view.scene;
+    setView((v) => ({ ...v, scene: place }));
+    setOpening(place !== null);
+    const ok = await post({ action: "scene", place });
+    setOpening(false);
+    if (!ok) setView((v) => (v.scene === place ? { ...v, scene: before } : v));
+  }
+
+  function toggleVoice() {
+    const next = !speech.on;
+    speech.setOn(next);
+    // Turned on with a tap, so the line on stage can be read now (Safari speaks only after one).
+    if (next && onStage.them) speech.speak(onStage.them.text, who);
+  }
+
   async function carryOn() {
     if (await post({ action: "carry_on" })) setCrisis(null);
   }
@@ -137,9 +196,10 @@ export default function CompanionChat({
 
   const paused = view.paused || Boolean(crisis);
   const outOfReplies = !allowance.unlimited && allowance.left === 0;
+  const typing = busy && (pending !== null || waitingOnThem || opening);
 
   return (
-    <article className="companion-chat">
+    <article className={`companion-chat${view.scene ? " companion-in-scene" : ""}`}>
       <header className="companion-head">
         <Link href="/companion" className="button-ghost small" aria-label="All companions">
           ←
@@ -151,6 +211,16 @@ export default function CompanionChat({
             🤖 AI character
           </span>
         </div>
+        {!paused &&
+          (view.scene ? (
+            <button type="button" className="button-ghost small" onClick={() => void playScene(null)} disabled={busy} data-track="companion-scene-end">
+              📱 Text
+            </button>
+          ) : (
+            <button type="button" className="button-ghost small" onClick={() => setPicking((p) => !p)} disabled={busy} aria-expanded={picking} data-track="companion-scene-pick">
+              🎭 Scene
+            </button>
+          ))}
         <details className="companion-menu">
           <summary className="button-ghost small">Settings</summary>
           <div className="companion-menu-body">
@@ -158,11 +228,17 @@ export default function CompanionChat({
               <legend>How much {first} says</legend>
               {REPLY_LENGTHS.map((l: ReplyLength) => (
                 <label key={l} className="check">
-                  <input type="radio" name="reply-length" checked={view.reply_length === l} onChange={() => {
+                  <input
+                    type="radio"
+                    name="reply-length"
+                    checked={view.reply_length === l}
+                    onChange={() => {
                       // Shown at once; the server's answer confirms it (or puts it back).
                       setView((v) => ({ ...v, reply_length: l }));
                       void post({ action: "length", length: l });
-                    }} disabled={busy} />
+                    }}
+                    disabled={busy}
+                  />
                   <span>{REPLY_LENGTH_LABELS[l]}</span>
                 </label>
               ))}
@@ -186,13 +262,49 @@ export default function CompanionChat({
         </details>
       </header>
 
-      <div className="companion-scroll" ref={scroller}>
+      {picking && !view.scene && (
+        <PlacePicker
+          places={SCENE_PLACES}
+          current={view.scene}
+          onPick={(p) => void playScene(p)}
+          onClose={() => setPicking(false)}
+          busy={busy}
+          title={`Where are you and ${first}?`}
+        />
+      )}
+
+      {view.scene && (
+        <div className="companion-stage">
+          <Scene
+            characters={[c, YOU]}
+            venue={view.scene}
+            lineA={
+              onStage.them && !opening ? (
+                <>
+                  {onStage.them.action && <em className="scene-action">{onStage.them.action}</em>}
+                  {onStage.them.text}
+                </>
+              ) : null
+            }
+            lineB={pending ?? onStage.you?.text ?? null}
+            actLabel={`🎭 ${venueName(view.scene)}`}
+            placeholder={opening ? `${first} is on the way…` : null}
+          />
+          {speech.supported && (
+            <button type="button" className="button-ghost small companion-voice" onClick={toggleVoice} aria-pressed={speech.on} title="Read their lines aloud in your device's own voice">
+              {speech.on ? "🔊 Voice on" : "🔈 Voice off"}
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="companion-scroll" ref={scroller} hidden={picking && !view.scene}>
         <ol className="chat-thread companion-thread" aria-live="polite">
           {shown.map((m, i) =>
             m.role === "system" ? (
               <li key={m.id} className="chat-item">
-                <p className="chat-note" role="note">
-                  🤖 {m.text}
+                <p className={`chat-note${m.marker ? ` chat-note-${m.marker}` : ""}`} role="note">
+                  {MARK[m.marker ?? "notice"]} {m.text}
                 </p>
               </li>
             ) : (
@@ -205,6 +317,7 @@ export default function CompanionChat({
                       <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={28} />
                     ))}
                   <div className="chat-col">
+                    {m.action && <span className="companion-action">{m.action}</span>}
                     <p className="chat-bubble">{m.text}</p>
                     {m.role === "character" && (
                       <div className="companion-foot">
@@ -242,7 +355,7 @@ export default function CompanionChat({
               </div>
             </li>
           )}
-          {busy && (pending || waitingOnThem) && (
+          {typing && (
             <li className="chat-item" aria-label={`${first} is typing`}>
               <div className="chat-row chat-row-a">
                 <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={28} />
@@ -260,18 +373,18 @@ export default function CompanionChat({
       </div>
 
       {crisis && (
-        <div className="companion-pause">
-          <CrisisNotice resources={crisis} />
-          <p className="small">The conversation is paused. {first} won&apos;t say anything more until you choose to carry on.</p>
-          <p className="cta-row">
-            <button type="button" className="button secondary" onClick={() => void carryOn()} disabled={busy}>
-              Carry on talking
-            </button>
+        <CrisisPause
+          className="companion-pause"
+          resources={crisis}
+          paused={`The conversation is paused. ${first} won't say anything more until you choose to carry on.`}
+          carryOn={{ label: "Carry on talking", onClick: () => void carryOn() }}
+          leave={
             <Link className="button-ghost" href="/companion">
               Leave for now
             </Link>
-          </p>
-        </div>
+          }
+          busy={busy}
+        />
       )}
 
       {!paused && outOfReplies && (
@@ -293,9 +406,9 @@ export default function CompanionChat({
       {!paused && !outOfReplies && (
         <form className="companion-composer" onSubmit={send}>
           <div className="companion-actions">
-            {(lastIsCharacter || waitingOnThem) && (
+            {(lastIsCharacter || waitingOnThem || sceneWaiting) && (
               <button type="button" className="button-ghost small" onClick={() => void post({ action: "regenerate" })} disabled={busy} data-track="companion-regenerate">
-                {waitingOnThem ? `Ask ${first} again` : "↻ Another reply"}
+                {sceneWaiting ? `Ask ${first} to start` : waitingOnThem ? `Ask ${first} again` : view.scene ? "↻ Something else" : "↻ Another reply"}
               </button>
             )}
             {lastUser && !editing && (
@@ -331,7 +444,7 @@ export default function CompanionChat({
             }}
             maxLength={COMPANION_MESSAGE_MAX}
             rows={2}
-            placeholder={editing ? "Rewrite your last message…" : `Message ${first}…`}
+            placeholder={editing ? "Rewrite your last message…" : view.scene ? `Say something to ${first}…` : `Message ${first}…`}
             disabled={busy}
           />
           <div className="companion-send">
@@ -351,7 +464,7 @@ export default function CompanionChat({
               )}
             </span>
             <button type="submit" className="button" disabled={busy || !draft.trim()} data-track="companion-send">
-              {editing ? "Send again" : "Send"}
+              {editing ? "Send again" : view.scene ? "Say it" : "Send"}
             </button>
           </div>
         </form>

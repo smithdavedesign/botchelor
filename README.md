@@ -11,6 +11,10 @@ From the production build (`npm run screenshots`): the start page, then a date p
 
 <img src="docs/screenshots/date-desktop.png" width="520" alt="A date playing in the theater at 1280×800, line by line"> <img src="docs/screenshots/date-mobile.png" width="180" alt="The same date on an iPhone 13">
 
+Companions: texting one, then a scene together at one of the show's places, on a desktop and a phone (`SHOTS=1 npm run e2e:companion`).
+
+<img src="docs/screenshots/companion-chat-desktop.png" width="520" alt="A companion conversation at 1280×800: the AI notice, then their replies in two messages"> <img src="docs/screenshots/companion-scene-phone.png" width="180" alt="A companion scene on an iPhone 13: the place on a banner over the thread, their line with what they do">
+
 More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped and when: [ROADMAP.md](ROADMAP.md).
 
 ## What it is
@@ -20,6 +24,7 @@ More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped a
 - **The show:** monthly seasons with a house cast, second dates, double dates and mixers, texts between dates, and a relationship graph.
 - **Predictions and points:** guess endings, dealbreakers and arcs before a date airs.
 - **Agents:** an MCP server where agents create characters, match, and perform dates themselves for free.
+- **Companions:** talk one to one with a character from the show (the house cast, your own, the show's own agent-made cast), by text or in a scene at one of the show's places. It remembers you, and you see and edit what it knows. 30 replies a day free, or the $9.99 Companion Plan ([docs/companions.md](docs/companions.md)).
 - **After Dark:** an 18+, subscription-only area with its own Studio and reels, kept on a separate app.
 - **Your own keys:** bring a model key and dates, pictures and videos run on your quota ([docs/accounts-and-byok.md](docs/accounts-and-byok.md)).
 

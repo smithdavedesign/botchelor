@@ -251,3 +251,121 @@
   background: var(--card);
   margin: 0 0 var(--space-4);
 }
+
+/* Scenes (lib/companion.ts setScene): the two of them at one of the show's places, on the shared stage (app/Scene.tsx). */
+.companion-stage {
+  position: relative;
+  flex: 0 0 auto;
+  height: clamp(220px, 36vh, 360px);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+.companion-stage .scene-act {
+  top: var(--space-3);
+}
+/* What they do as they say it: before the words, quieter. */
+.scene-action {
+  display: block;
+  margin: 0 0 0.2rem;
+  font-size: var(--text-xs);
+  font-style: italic;
+  opacity: 0.72;
+}
+.companion-voice {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 2;
+  background: rgba(12, 8, 16, 0.55);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.companion-action {
+  display: block;
+  margin: 0 0 0.15rem 0.35rem;
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--muted);
+}
+.companion-thread .chat-note-scene,
+.companion-thread .chat-note-texting {
+  text-align: center;
+  font-weight: 600;
+  color: var(--accent);
+}
+.place-picker {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+}
+.place-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.place-picker-head h2 {
+  margin: 0;
+  font-size: var(--text-lg, 1.2rem);
+}
+.place-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-2);
+}
+.place-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+}
+.place-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.place-tile span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.35rem 0.5rem;
+  background: linear-gradient(transparent, rgba(12, 8, 16, 0.8));
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+}
+.place-tile:hover,
+.place-tile:focus-visible {
+  border-color: var(--accent);
+}
+.place-tile.on {
+  border-color: var(--accent);
+  cursor: default;
+}
+.companion-memory .crisis-pause {
+  margin: var(--space-3) 0;
+}
+@media (max-width: 760px) {
+  /* Phone: the place is a mood banner over the thread (as on the show's theater); the lines are in the thread. */
+  .companion-stage {
+    height: 110px;
+  }
+  .place-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

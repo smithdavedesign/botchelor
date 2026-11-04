@@ -7,8 +7,9 @@
  *   the AI notice and its first message → talks, draws a reply again, edits their last message, sets the reply length,
  *   reports a reply → a PG-breaking message is refused and kept out → a crisis message pauses the chat with the
  *   resources (kept out too) until they carry on → the memory page shows what was drawn, takes an edit, an add and a
- *   forget, and the edit reaches the next reply → the same on a phone, with no sideways scroll → the list shows the
- *   thread → deleting it takes it away.
+ *   forget, and the edit reaches the next reply → a scene: they pick a place, the companion opens it on the stage
+ *   with what they do, they talk out loud, and go back to texting → the same on a phone (a scene too), with no
+ *   sideways scroll → the list shows the thread → deleting it takes it away.
  *
  * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build; SHOTS=1 writes the
  * screenshots to docs/screenshots/ (else .data/e2e-companion/).
@@ -67,6 +68,15 @@ function startCompanionStub() {
           });
         } else if (system.startsWith("You keep the running notes")) {
           content = JSON.stringify({ notes: "They talked about bread and a trip." });
+        } else if (system.startsWith("You are ") && system.includes("playing a scene together")) {
+          seen.replyPrompts.push(system);
+          // A scene's line: what they say out loud and what they do.
+          const line = (say, act) => JSON.stringify({ say, do: act });
+          content = /Open the scene/.test(last)
+            ? line("Look at this view. Worth every stair?", "leans on the railing")
+            : /best thing up here/i.test(last)
+              ? line("The quiet. And the company, obviously.", "grins")
+              : line("Go on, I'm listening.", "leans closer");
         } else if (system.startsWith("You are ") && system.includes("Botchelor")) {
           seen.replyPrompts.push(system);
           // In JSON mode like the real model (lib/model.ts asks every call for a JSON object).
@@ -77,6 +87,8 @@ function startCompanionStub() {
               ? say("Hi! I'm glad you came by.", "I just got off a very strange shift.")
               : /Lisbon/.test(last)
                 ? say("Lisbon! Bring me back a custard tart.")
+                : /back to texts/.test(last)
+                  ? say("Texts it is.", "That view though.")
                 : /sourdough/i.test(last)
                   ? say("Sourdough? Okay, I'm impressed.", "What did you name the starter?")
                   : say("Tell me more.", "I'm listening.");
@@ -282,6 +294,43 @@ async function main() {
       assert(!prompt.includes("They bake sourdough."), "a forgotten fact never does");
     });
 
+    let place = "";
+    await step("plays a scene: picks a place, and they open it on the stage, out loud and with what they do", async () => {
+      await page.getByRole("button", { name: "🎭 Scene" }).click();
+      const picker = page.getByRole("region", { name: `Where are you and ${first}?` });
+      await picker.waitFor({ timeout: 10_000 });
+      const tile = picker.locator(".place-tile").first();
+      place = ((await tile.textContent()) ?? "").trim();
+      await tile.click();
+      await page.locator(".companion-thread .chat-note-scene").waitFor({ timeout: 15_000 });
+      await page.locator(".companion-stage .scene-action", { hasText: "leans on the railing" }).waitFor({ timeout: 15_000 });
+      await page.locator(".companion-stage", { hasText: "Worth every stair?" }).waitFor();
+      await page.locator(".companion-stage", { hasText: `🎭 ${place}` }).waitFor();
+      await page.locator(".companion-thread .companion-action", { hasText: "leans on the railing" }).waitFor();
+      assert(seen.replyPrompts.at(-1).includes("playing a scene together"), "the scene should reach the model");
+      assert((await page.getByRole("button", { name: "Say it" }).count()) === 1, "in a scene the button says Say it");
+      await shot(page, "companion-scene-desktop");
+    });
+
+    await step("talks in the scene, then goes back to texting", async () => {
+      await send("What's the best thing up here?");
+      await page.locator(".companion-stage", { hasText: "And the company, obviously." }).waitFor({ timeout: 15_000 });
+      await page.locator(".companion-stage .scene-action", { hasText: "grins" }).waitFor();
+      await page.locator(".companion-stage", { hasText: "What's the best thing up here?" }).waitFor();
+      const voice = page.locator(".companion-voice");
+      if (await voice.count()) {
+        await voice.click();
+        await page.waitForFunction(() => document.querySelector(".companion-voice")?.getAttribute("aria-pressed") === "true");
+        await voice.click();
+      }
+      await page.getByRole("button", { name: "📱 Text" }).click();
+      await page.locator(".companion-thread .chat-note-texting").waitFor({ timeout: 15_000 });
+      assert((await page.locator(".companion-stage").count()) === 0, "the stage should close");
+      await send("ok, back to texts");
+      await bubble("Texts it is.").waitFor({ timeout: 15_000 });
+      assert(seen.replyPrompts.at(-1).includes("you're texting with them"), "texting again should reach the model");
+    });
+
     await step("on a phone: the same thread, no sideways scroll, and it talks", async () => {
       const phone = await browser.newContext({
         viewport: { width: 390, height: 844 },
@@ -304,6 +353,16 @@ async function main() {
         const sendBox = await p.getByRole("button", { name: "Send", exact: true }).boundingBox();
         assert(sendBox && sendBox.y + sendBox.height <= 844, "the send button should be on screen");
         await shot(p, "companion-chat-phone");
+        await p.getByRole("button", { name: "🎭 Scene" }).tap();
+        await p.locator(".place-tile").nth(1).tap();
+        await p.locator(".companion-stage .scene-action", { hasText: "leans on the railing" }).waitFor({ timeout: 15_000 });
+        const sceneWide = await p.evaluate(() => document.documentElement.scrollWidth);
+        assert(sceneWide <= 391, `the scene should fit the phone (scrollWidth ${sceneWide})`);
+        const sayBox = await p.getByRole("button", { name: "Say it" }).boundingBox();
+        assert(sayBox && sayBox.y + sayBox.height <= 844, "Say it should be on screen");
+        await shot(p, "companion-scene-phone");
+        await p.getByRole("button", { name: "📱 Text" }).tap();
+        await p.locator(".companion-thread .chat-note-texting").nth(1).waitFor({ timeout: 15_000 });
         await p.goto(`${base}${threadPath}/memory`);
         await p.getByRole("heading", { name: `What ${first} knows about you` }).waitFor();
         const memWide = await p.evaluate(() => document.documentElement.scrollWidth);

@@ -1061,6 +1061,17 @@ create table if not exists companion_messages (
   created_at timestamptz not null default now()
 );
 create index if not exists companion_messages_thread_idx on companion_messages (thread_id, created_at);
+-- Scenes (docs/companions.md): the two play a scene at one of the show's places (lib/venues.ts DATE_VENUES), face to
+-- face instead of texting. The thread's scene now (null: texting); each line's scene and what the character does as they
+-- say it; a system line that starts a scene or goes back to texting is marked as such.
+alter table companion_threads add column if not exists scene text;
+alter table companion_messages add column if not exists scene text;
+alter table companion_messages add column if not exists action text;
+alter table companion_messages add column if not exists marker text check (marker is null or marker in ('scene', 'texting'));
+-- A reported reply's review on /admin/reports (lib/companion-reports.ts): when, and fine or a real miss to fix.
+alter table companion_messages add column if not exists report_reviewed_at timestamptz;
+alter table companion_messages add column if not exists report_decision text check (report_decision is null or report_decision in ('fine', 'fix'));
+create index if not exists companion_messages_open_reports_idx on companion_messages (reported_at) where reported is not null and report_reviewed_at is null;
 -- What the character knows about the person (lib/companion-memory.ts): drawn from the person's own words, shown on the
 -- memory page, and theirs to edit, pin or delete. An edited one is never written over.
 create table if not exists companion_facts (
