@@ -416,7 +416,18 @@ async function textedPlan(
     const names = a.id === lo ? { lo: a.name, hi: b.name } : { lo: b.name, hi: a.name };
     // Imported when needed: the show's date engine is a big module, and a night with lines never asks.
     const { planFromChain } = await import("../simulation");
-    const plan = await planFromChain(db, await loadChain(db, a.id, b.id, { usableBy: ownerId }), lo, names);
+    // Only what's said since their last night together ended: a plan from before it (their last date's, or texts before
+    // that night) was that night's, and it started there already (2026-11-04, Carson × Dorian: every new night after the
+    // first was put back at the bus shelter from their date, the place locked).
+    const ended = (
+      await db.query<{ at: Date | string | null }>(
+        `select max(created_at) as at from adult_nights where owner_id = $1 and ((character_a = $2 and character_b = $3) or (character_a = $3 and character_b = $2))`,
+        [ownerId, a.id, b.id],
+      )
+    ).rows[0]?.at;
+    const chain = await loadChain(db, a.id, b.id, { usableBy: ownerId });
+    const since = ended ? chain.filter((item) => new Date(item.at).getTime() > new Date(ended).getTime()) : chain;
+    const plan = await planFromChain(db, since, lo, names);
     if (!plan) return null;
     const place = venuePhrase(plan.place);
     if (!place || !checkAdultText({ place }).ok) return null;
