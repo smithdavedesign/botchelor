@@ -8,7 +8,7 @@ import AfterDarkTheater from "@/app/after-dark/[a]/[b]/AfterDarkTheater";
 import SceneWriter from "@/app/after-dark/[a]/[b]/SceneWriter";
 import { nextShown, type Shown } from "@/app/after-dark/[a]/[b]/useSteadySet";
 import { HIVE_MODERATION, setCheckFetchForTests } from "@/lib/adult/check";
-import { agreedMove, canonicalSet, closestSet, MAX_SCENE_MOVES, pendingMove, repeatOf, samePlace, settlePlace } from "@/lib/adult/continuity";
+import { agreedMove, canonicalSet, closestSet, isPublicPlace, MAX_SCENE_MOVES, pendingMove, proposesMove, repeatOf, samePlace, settlePlace } from "@/lib/adult/continuity";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { observeNight, reportMarkdown, type ObserverInput } from "@/lib/adult/observer";
 import { dropRepeats, type AdultScene } from "@/lib/adult/scenes";
@@ -231,6 +231,44 @@ describe("a move agreed earlier, arrived at now (the model simulation, 2026-10-2
     expect(settlePlace(input)).toMatchObject({ set: "street", moved: null, rejected: { reason: "no_agreement" } });
     // The cap still holds.
     expect(settlePlace({ ...input, fromLines: true, movesThisChapter: MAX_SCENE_MOVES })).toMatchObject({ moved: null, rejected: { reason: "cap" } });
+  });
+});
+
+describe("an invitation said as what somewhere has (Carson × Dorian, 2026-11-03)", () => {
+  const names = { a: "Carson Vallis", b: "Dorian Sol" };
+  // Chapter two stayed at the bus shelter while they walked to his workshop and went in: no "let's", no question mark, and
+  // "workshop" was no place the rules knew, so "Let's go" agreed to nothing.
+  const shelter = [
+    { who: "a" as const, text: "*captures her wrist gently* The inspection protocol requires a controlled environment. This venue lacks adequate lighting." },
+    { who: "b" as const, text: "Mm. You're very particular." },
+  ];
+  const offer = [
+    { who: "a" as const, text: "*stands, offering his hand* My workshop has better lighting. And a much more stable workbench." },
+    { who: "b" as const, text: "Let's go test its load-bearing capacity." },
+    { who: "a" as const, text: "*guides her out into the light rain, his jacket held over both their heads*" },
+  ];
+  const input = (claim: string) => ({
+    current: { place: "A night bus shelter in rain", set: "A night bus shelter in rain" },
+    claimed: { place: claim, set: claim },
+    lines: [...shelter, ...offer],
+    from: shelter.length,
+    movesThisChapter: 0,
+    homeNow: null,
+    names,
+    fromLines: true,
+  });
+
+  it("moves them to the workshop at the yes, whatever the model's place says", () => {
+    expect(agreedMove([...shelter, ...offer], shelter.length)).toMatchObject({ proposal: 2, agree: 3, by: "a" });
+    expect(settlePlace(input("Carson's workshop"))).toMatchObject({ set: "Carson's workshop", moved: { at: 1, to: "Carson's workshop" } });
+    expect(settlePlace(input("A night bus shelter in rain"))).toMatchObject({ set: "workshop", moved: { at: 1, to: "workshop" } });
+  });
+
+  it("a bus shelter is public, and 'the workshop's only a few blocks' is an invitation", () => {
+    expect(isPublicPlace("A night bus shelter in rain")).toBe(true);
+    expect(proposesMove("The workshop's only a few blocks. The rain should keep the streets clear.")).toBe(true);
+    expect(proposesMove("It's been ten minutes and you're still talking about wood grain.")).toBe(false);
+    expect(proposesMove("My heart is racing.")).toBe(false);
   });
 });
 
