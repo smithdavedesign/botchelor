@@ -75,14 +75,24 @@ Found:
   (`lib/companion-reports.ts`), and `/api/health` counts them (`companion_reports`).
 - **Rate limits:** `overLimit` (`lib/limits.ts`, Postgres `rate_hits`) counts and then inserts, so two requests at
   once can both get through; `lib/rate-limit.ts` keeps its counts in memory, per instance. `clientIp` takes the first
-  `x-forwarded-for` address, which the client can set, so a per-IP limit can be dodged; Cloudflare's
-  `cf-connecting-ip` is the one to trust. Step-in lines and memory edits have no limit at all.
+  `x-forwarded-for` address. Only the apex goes through Cloudflare's proxy (`www`, `ad`, `staging` and the
+  `ondigitalocean.app` addresses reach DigitalOcean directly, [hosting.md](hosting.md)), so `cf-connecting-ip` can
+  be forged on those, and whether a made-up `x-forwarded-for` gets past DigitalOcean's edge hasn't been measured.
+  Step-in lines and memory edits have no limit at all.
+- **Where a visitor is, still to measure.** The show reads Cloudflare's `cf-ipcountry` and `cf-region-code`
+  (`GEO_HEADERS=cloudflare`, `lib/place.ts`) and signs After Dark's place cookie from them. `staging` and the
+  `ondigitalocean.app` address reach the show without botchelor's Cloudflare zone, so if DigitalOcean's edge lets a
+  client's own `cf-*` headers through, a visitor can pick the place After Dark's regional rules read.
 
 Next:
-1. The full crisis path everywhere a person types, counted in `crisis_referrals` with a surface per stage.
-2. `clientIp` from `cf-connecting-ip`, `overLimit` as one statement, and limits on step-in lines and memory edits.
-3. Crisis words in the languages people use here (`language_seen`), starting with Spanish, Portuguese and French.
-4. One reports queue for all three stores.
+1. Measure that last one (an admin-only route showing the geo and address headers that arrive, asked on each
+   hostname with made-up ones); if they get through, read the place only on requests that came through the zone.
+2. The full crisis path everywhere a person types, counted in `crisis_referrals` with a surface per stage.
+3. `clientIp` from `do-connecting-ip`, which DigitalOcean's edge sets to the caller's address (its docs point
+   there), after checking a request to the apex shows the visitor there and not Cloudflare; `overLimit` as one
+   statement; limits on step-in lines and memory edits.
+4. Crisis words in the languages people use here (`language_seen`), starting with Spanish, Portuguese and French.
+5. One reports queue for all three stores.
 
 ## Scale
 
