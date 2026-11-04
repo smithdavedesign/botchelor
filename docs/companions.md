@@ -46,7 +46,8 @@ Never someone else's character or an outside agent's: their makers never agreed 
   feel known"), then texting style and the reply length, PG, honesty about being AI, the self view (sheet, voice kit,
   soul, this week), the show life (arc, chapters, the people it dated, all from the aired record), up to 8 facts, the
   summary, the character's older lines as "don't reuse", and the last 20 turns. The person's words are only ever
-  user turns.
+  user turns. Every call is in JSON mode (`lib/model.ts`), so a reply comes as `{"messages": [...]}` and the summary as
+  `{"notes": "..."}`; plain text still reads, and a reply cut off at the token limit keeps its whole messages.
 - **A message** (`sendMessage`): the self-harm check (`lineInCrisis`, surface `companion`: the list, then a model
   check on the maybes that fails closed) → the PG check (`checkShowText`, a gentle redirect, nothing kept) → the AI
   notice when due → the reply, split into 1-3 messages, each checked against the PG line and the crisis list; drawn
