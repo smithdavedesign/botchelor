@@ -2,7 +2,7 @@
 # app (.do/app.yaml). Secrets are CHANGE_ME here: fill them in the dashboard (Encrypt), the same values as before.
 # Never commit real values to this file. Billing: $12 a month for the instance below.
 name: botchelor-show
-region: nyc
+region: sfo
 alerts:
   - rule: DEPLOYMENT_FAILED
   - rule: DOMAIN_FAILED
@@ -54,6 +54,16 @@ services:
         scope: RUN_AND_BUILD_TIME
       - key: MEDIA_S3_REGION
         value: "us-east-1"
+        scope: RUN_AND_BUILD_TIME
+      # After Dark files made here go to its Bunny zone, the show's own stay in the bucket (lib/object-store.ts byArea).
+      - key: MEDIA_BUNNY_ZONE
+        value: "botchelor-ad"
+        scope: RUN_AND_BUILD_TIME
+      - key: MEDIA_BUNNY_REGION
+        value: "ny"
+        scope: RUN_AND_BUILD_TIME
+      - key: MEDIA_BUNNY_CDN_HOST
+        value: "media.botchelor.com"
         scope: RUN_AND_BUILD_TIME
       - key: NEXT_PUBLIC_GA_ID
         value: "G-VHL1LZTPHL"
@@ -150,6 +160,14 @@ services:
         type: SECRET
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
+      - key: MEDIA_BUNNY_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
+      - key: MEDIA_BUNNY_TOKEN_KEY
+        type: SECRET
+        value: "CHANGE_ME"
+        scope: RUN_AND_BUILD_TIME
       - key: RESEND_API_KEY
         type: SECRET
         value: "CHANGE_ME"
@@ -178,5 +196,4 @@ services:
         type: SECRET
         value: "CHANGE_ME"
         scope: RUN_AND_BUILD_TIME
-      # Not set here: ADULT_MODE, AFTER_DARK_ONLY, MEDIA_BUNNY_* (After Dark's host only), GEO_HEADERS (only behind
-      # our own Cloudflare zone: lib/place.ts).
+      # Not set here: ADULT_MODE, AFTER_DARK_ONLY, GEO_HEADERS (only behind our own Cloudflare zone: lib/place.ts).

@@ -138,7 +138,7 @@ the account after four days negative (files are deleted after 60 days disabled).
 2. **Storage zone:** Storage → Add Storage Zone.
    - Name: `botchelor-ad`.
    - Tier: **Standard** (HDD, $0.01/GB a month).
-   - Main region: **New York** (`ny`), next to the Neon database and DigitalOcean's `nyc`. A replica (+$0.01/GB) is
+   - Main region: **New York** (`ny`), where the app first ran (it moved to `sfo` on 2026-11-04; the zone stayed). A replica (+$0.01/GB) is
      optional.
    - Leave S3 compatibility off (it's a preview, and the app uses the HTTP API).
    - Then the zone's **Access** tab → API / HTTP: note the **zone name**, the **password** and the **endpoint**
@@ -205,7 +205,7 @@ Then replace each `CHANGE_ME` secret in the dashboard (Encrypt), and check the s
 3. **Health check:** HTTP, path `/api/health` (200 when the database answers, 503 when it doesn't). Initial delay 20 s,
    period 10 s, timeout 3 s, failure threshold 3.
 4. **Size:** `apps-s-1vcpu-1gb-fixed`, 1 GiB, shared vCPU, **$10 a month**. Or `apps-s-1vcpu-1gb`, **$12**, if you want
-   to add a second instance later (manual scaling). One instance. Region: **New York (`nyc`)**, next to Neon's us-east-1.
+   to add a second instance later (manual scaling). One instance. Region: **San Francisco (`sfo`)**, next to Neon's us-west-2 (`nyc` until 2026-11-04).
 5. **Environment variables** (Settings → App-Level Environment Variables). Scope **"Run and build time"** for all of them:
    the routing and redirects are read when the app is built as well as when it runs. Mark secrets **Encrypt**.
 

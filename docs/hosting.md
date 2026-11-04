@@ -13,6 +13,10 @@ routes), only daily cron jobs, and no commercial use. So the show moved to Digit
 
 The database (Neon) and the show's media bucket (Neon Object Storage) didn't move.
 
+**Both apps run in San Francisco (`sfo`) since 2026-11-04**, next to the database in Oregon (Neon `aws-us-west-2`).
+They started in New York, so every query crossed the country (~40–70 ms each; heavy pages wait on several in a row).
+The move was `region` in each app's spec, at the same price; Bunny's storage zone stayed in New York.
+
 ## What changed in the code
 
 - **Production is `DEPLOY_ENV=production`** off Vercel (`lib/deploy.ts`), as `VERCEL_ENV=production` was on Vercel:
