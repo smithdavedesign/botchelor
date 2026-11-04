@@ -1188,7 +1188,7 @@ export async function drawReplicateKeyframe(r: ReplicateMedia, prompt: string, i
 /**
  * Queues one shot's video on Replicate from its keyframe: the prediction's id is the shot's queue id. A shot with a line
  * goes to the talk model, which says it; the silent model's input is kept on it for when the talk model can't
- * (collectReplicateShot), its keyframe link signed to last until that shot's latest end (cancelled at 30 min) and some.
+ * (collectReplicateShot), which signs its keyframe link again when it sends it.
  */
 async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "replicate" | "avoid">, s: ReelShot): Promise<void> {
   const r = ctx.replicate!;
@@ -1196,9 +1196,9 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
   delete s.speaks;
   delete s.silent_retry;
   if (r.talk && s.text.trim()) {
-    const later = signedMediaUrl(s.media_id!, ctx.baseUrl, Date.now() + 30 * 60 * 1000);
-    const p = await createPrediction(r.token, r.talk, talkShotInput(ctx.cast, s, signedMediaUrl(s.media_id!, ctx.baseUrl), r.talk, ctx.avoid), { cancelAfter: "30m" });
-    Object.assign(s, { queue_id: p.id, model: r.talk, speaks: true, silent_retry: { model: r.video, input: replicateShotInput(ctx.cast, s, later, r.videoLora) } });
+    const link = signedMediaUrl(s.media_id!, ctx.baseUrl);
+    const p = await createPrediction(r.token, r.talk, talkShotInput(ctx.cast, s, link, r.talk, ctx.avoid), { cancelAfter: "30m" });
+    Object.assign(s, { queue_id: p.id, model: r.talk, speaks: true, silent_retry: { model: r.video, input: replicateShotInput(ctx.cast, s, link, r.videoLora) } });
     return;
   }
   // Stopped if it's still going in half an hour: nobody will collect it by then.
@@ -1883,7 +1883,11 @@ async function collectReplicateShot(
     // The talk model couldn't make it (refused the picture, failed, ran out of time): the silent model makes it instead,
     // its line said beside it. Asked again next poll if that can't be queued just now.
     try {
-      const retry = await createPrediction(keys.replicate, s.silent_retry.model, s.silent_retry.input, { cancelAfter: "30m" });
+      // Its keyframe link signed now, for the same host: a link is good for at most MEDIA_LINK_MS from when it's checked,
+      // so one signed ahead 404'd and one signed at queueing may have run out (2026-11-04, Carson × Dorian's clip).
+      const image = s.silent_retry.input.image;
+      const input = typeof image === "string" && s.media_id ? { ...s.silent_retry.input, image: signedMediaUrl(s.media_id, new URL(image).origin) } : s.silent_retry.input;
+      const retry = await createPrediction(keys.replicate, s.silent_retry.model, input, { cancelAfter: "30m" });
       Object.assign(s, { queue_id: retry.id, model: s.silent_retry.model, reason: `${missing} (made without its own voice instead)`.slice(0, 200) });
       delete s.speaks;
       delete s.silent_retry;
