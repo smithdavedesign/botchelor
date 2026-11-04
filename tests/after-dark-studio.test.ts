@@ -327,7 +327,7 @@ describe("a shoot", () => {
     expect(edits).toHaveLength(4);
     expect(edits[0].model).toBe("qwen-edit-uncensored");
     expect(edits[0].images).toHaveLength(1);
-    expect(edits[0].images[0]).toMatch(/\/api\/admin\/after-dark\/media\/face-1\?until=/);
+    expect(edits[0].images[0]).toMatch(/\/api\/admin\/after-dark\/media\/face-1\.png\?until=/);
     expect(edits[0].prompt).toContain("A 21-year-old adult woman");
     expect(seen.filter((x) => x === "vlm")).toHaveLength(4);
     const rows = (await t.db.query<{ kind: string; character_b: string | null; shoot_id: string; model: string; preset: string | null }>(`select kind, character_b, shoot_id, model, preset from adult_images where shoot_id is not null`)).rows;
@@ -340,7 +340,7 @@ describe("a shoot", () => {
       expect(r.request).toHaveLength(1);
       expect(r.request[0].at).toMatch(/\/image\/multi-edit$/);
       expect(r.request[0].body.prompt).toBe(edits[0].prompt);
-      expect(r.request[0].body.images[0]).toMatch(/media\/face-1\?until=\d+&sig=…$/);
+      expect(r.request[0].body.images[0]).toMatch(/media\/face-1\.png\?until=\d+&sig=…$/);
     }
     // An admin sees it on a click of the title; anyone else, not found.
     const look = (cookie: string) => mediaRequestGet(new Request(`${BASE_URL}/api/admin/after-dark/media/${sent[0].id}/request`, { headers: { cookie } }), { params: Promise.resolve({ id: sent[0].id }) });
@@ -425,7 +425,7 @@ describe("a shoot", () => {
     // Before: the shoot leads with the baseline (face-1).
     const first = await (await post({ action: "shoot", character_id: character, choices: {} }, cookie)).json();
     expect(first.state.identity.faceCrop).toBeFalsy();
-    expect(edits[0].images[0]).toMatch(/media\/face-1\?until=/);
+    expect(edits[0].images[0]).toMatch(/media\/face-1\.png\?until=/);
     // Make the anchor: one close-up, checked, set as the face anchor.
     const anchor = await (await post({ action: "face", character_id: character }, cookie)).json();
     expect(anchor.shoot).toMatchObject({ kind: "face", made: 1 });
@@ -433,11 +433,11 @@ describe("a shoot", () => {
     expect(anchor.state.identity.faceCrop).toBe(anchor.pictures[0].id);
     const headshot = edits.at(-1)!;
     expect(headshot.prompt).toContain("head-and-shoulders close-up");
-    expect(headshot.images[0]).toMatch(/media\/face-1\?until=/); // drawn from the baseline
+    expect(headshot.images[0]).toMatch(/media\/face-1\.png\?until=/); // drawn from the baseline
     // After: the shoot leads with the anchor, not the baseline.
     const next = await (await post({ action: "shoot", character_id: character, choices: {} }, cookie)).json();
     expect(next.state.identity.faceCrop).toBe(anchor.pictures[0].id);
-    expect(edits.at(-1)!.images[0]).toContain(`media/${anchor.pictures[0].id}?until=`);
+    expect(edits.at(-1)!.images[0]).toContain(`media/${anchor.pictures[0].id}.png?until=`);
     expect(edits.at(-1)!.images[0]).not.toContain("face-1");
   });
 
@@ -450,7 +450,7 @@ describe("a shoot", () => {
     await post({ action: "strength", character_id: character, strength: "loose" }, cookie);
     const shot = await (await post({ action: "shoot", character_id: character, choices: {} }, cookie)).json();
     expect(shot.state.identity.strength).toBe("loose");
-    expect(edits.at(-1)!.images[0]).toMatch(/media\/face-1\?until=/);
+    expect(edits.at(-1)!.images[0]).toMatch(/media\/face-1\.png\?until=/);
     expect(edits.at(-1)!.images[0]).not.toContain(anchor.pictures[0].id);
   });
 });

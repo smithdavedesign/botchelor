@@ -1469,7 +1469,7 @@ export async function stopReel(db: Db, ownerId: string, id: string, reason = "st
   const row = (await db.query<{ owner_id: string; status: string; shots: ReelShot[] }>(`select owner_id, status, shots from adult_reels where id = $1`, [id])).rows[0];
   if (!row || row.owner_id !== ownerId) return null;
   if (row.status !== "making") return getReel(db, id);
-  const shots = row.shots.map((s) => (s.status === "queued" ? { ...s, status: "failed" as const, reason } : s));
+  const shots = row.shots.map((s) => (stillOut(s) ? { ...s, status: "failed" as const, reason } : s));
   await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'making'`, [id, JSON.stringify(shots)]);
   // A shot still running on Replicate is stopped there too, so it doesn't go on billing for a video nobody collects.
   // One made on their own key is stopped with that key.
@@ -1807,8 +1807,9 @@ export async function filmReel(db: Db, ownerId: string, reelId: string, baseUrl:
     const { places, stages } = shotGrids(row.shots);
     const bases = (await baselines(db, row.a, row.b, ownerId)) ?? (["", ""] as [string, string]);
     const ctx = await withSteering(db, ownerId, { pair: [row.a, row.b], cast: reelCast(ca, cb, ownerId), places, stages, bases, hive: keys.hive!, baseUrl, ...where.media });
-    // The draft becomes a reel being made before anything is queued, so "one video at a time" still holds.
-    await db.query(`update adult_reels set status = 'making', tokens = $2, updated_at = now() where id = $1 and status = 'draft'`, [reelId, pays ? price : 0]);
+    // The draft becomes a reel being made before anything is queued, so "one video at a time" still holds. Its clock
+    // starts now: the waits (REEL_GIVE_UP_MS) count from created_at, and a storyboard can sit for hours before filming.
+    await db.query(`update adult_reels set status = 'making', tokens = $2, created_at = now(), updated_at = now() where id = $1 and status = 'draft'`, [reelId, pays ? price : 0]);
     await queueVideos(db, row.shots, ctx);
     const made = reelMadeOn(row.shots);
     await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [reelId, JSON.stringify(row.shots), made.provider, made.fell_back]);
@@ -1968,6 +1969,10 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
   const row = (await db.query<{ owner_id: string; status: string; shots: ReelShot[]; character_a: string; character_b: string; created_at: string | Date }>(`select owner_id, status, shots, character_a, character_b, created_at from adult_reels where id = $1`, [id])).rows[0];
   if (!row || row.owner_id !== ownerId) return null;
   if (row.status !== "making") return getReel(db, id);
+  // Still being filmed (filmReel is sending its shots): nothing to collect yet, and writing these shots back now would
+  // undo the queued ones it's about to write.
+  const age0 = Date.now() - new Date(row.created_at).getTime();
+  if (row.shots.some((s) => s.status === "frame_ready" && !s.archived_at) && age0 <= REEL_GIVE_UP_MS) return getReel(db, id);
   const keys = await adultKeys(db);
   const shots = row.shots;
   // A couple of finished shots per poll: Hive rate-limits a burst (429), and the next poll takes the rest.
@@ -1975,6 +1980,8 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
   const now = Date.now();
   const age = now - new Date(row.created_at).getTime();
   for (const s of shots) {
+    // Kept to be queued, but filming was cut off before it was (a deploy mid-filmReel): it's never coming either.
+    if (s.status === "frame_ready" && !s.archived_at && age > REEL_GIVE_UP_MS) Object.assign(s, { status: "failed", reason: s.reason ?? "never started" });
     if (s.status !== "queued") continue;
     // Waited long enough: shots still unchecked are given up (their share of tokens comes back), so the reel settles.
     if (age > REEL_GIVE_UP_MS) Object.assign(s, { status: "failed", reason: s.reason ?? "gave up waiting" });
@@ -2064,10 +2071,17 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
   return settleIfDone(db, id);
 }
 
+/**
+ * A shot of a reel being made that isn't in yet: queued, or kept and about to be (filmReel marks the reel making, then
+ * queues its shots). Without the second, a poll landing while the shots were being sent settled the reel as failed with
+ * nothing in, and the shots queued after it were never collected (2026-11-04, a new night's video).
+ */
+const stillOut = (s: ReelShot) => s.status === "queued" || (s.status === "frame_ready" && !s.archived_at);
+
 /** Once no shot is still being made: ready if any came through, and the share of tokens for the ones that didn't, back. */
 export async function settleIfDone(db: Db, id: string): Promise<Reel> {
   const r = (await db.query<{ owner_id: string; status: string; tokens: number; shots: ReelShot[]; kind: string | null; clip: ClipMeta | null }>(`select owner_id, status, tokens, shots, kind, clip from adult_reels where id = $1`, [id])).rows[0];
-  if (r.status === "making" && !r.shots.some((s) => s.status === "queued")) {
+  if (r.status === "making" && !r.shots.some(stillOut)) {
     const good = r.shots.filter((s) => s.status === "ready").length;
     const status = good ? "ready" : "failed";
     // A shot filmed again (refilmShot) settles on its own: its price back if it failed. The reel's own share was settled

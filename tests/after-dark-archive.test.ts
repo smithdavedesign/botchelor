@@ -84,7 +84,7 @@ function fakeVenice() {
   });
   return seen;
 }
-const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+)/)?.[1];
+const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+?)(?:\.png)?(?:\?|$)/)?.[1];
 const lines = Array.from({ length: 8 }, (_, i) => ({ who: (i % 2 ? "b" : "a") as "a" | "b", text: `*leans closer* Line number ${i} is said quite softly here.`, stage: 2 }));
 
 /** After Dark on (Venice and Hive keys), both baselines in, and the pair's scene at kissing. */

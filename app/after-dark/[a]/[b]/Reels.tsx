@@ -35,7 +35,7 @@ const drop = (url: string) => url.startsWith("blob:") && URL.revokeObjectURL(url
  *    and two stacked players swap on each cut, so one shot runs straight into the next;
  *  - "watch the video in theater mode too": a full-screen stage with the line as a caption.
  */
-export default function Reels({ reels, onChange, onMedia }: { reels: Reel[]; onChange: (r: Reel) => void; onMedia?: (m: Media) => void }) {
+export default function Reels({ reels, onChange, onMedia, nightOf }: { reels: Reel[]; onChange: (r: Reel) => void; onMedia?: (m: Media) => void; nightOf?: (r: Reel) => number | null }) {
   const price = useClipPrice(reels.find((r) => r.a && r.b), reels.filter((r) => r.kind === "clip").length);
   // A video being made is asked after from the page (SceneWriter), not here: this list isn't shown while the theater is.
 
@@ -44,32 +44,47 @@ export default function Reels({ reels, onChange, onMedia }: { reels: Reel[]; onC
   // whose every shot went to the Archive is listed there, not here.
   const nights = reels.filter((r) => r.kind !== "clip" && !archivedClip(r));
   const clips = reels.filter((r) => r.kind === "clip");
-  // The whole night: from the bottom of the list (the oldest video) up.
-  const night = [...nights].reverse().flatMap((r) => readyShots(r));
-  const finished = nights.filter((r) => readyShots(r).length).length;
+  // Each night's videos together, newest night first (David, 2026-11-04: a new night's video read as added to the
+  // night before's film): a video from before chapters were recorded goes under Earlier.
+  const byNight = new Map<number | null, Reel[]>();
+  for (const r of nights) {
+    const n = nightOf?.(r) ?? null;
+    byNight.set(n, [...(byNight.get(n) ?? []), r]);
+  }
+  const order = [...byNight.keys()].sort((x, y) => (y ?? 0) - (x ?? 0));
+  const titled = order.length > 1 || order[0] !== null;
   return (
     <section>
       <h2>Their videos</h2>
-      {finished > 1 && (
-        <div className="after-dark-night-film">
-          <h3>
-            The whole night <span className="muted small">· {finished} videos, oldest first · {night.length} shots</span>
-          </h3>
-          <SeamlessPlayer shots={night} onChange={onChange} price={price} onMedia={onMedia} />
-        </div>
-      )}
       {clips.length > 0 && <Clips clips={clips} onChange={onChange} price={price} onMedia={onMedia} />}
-      {nights.length > 0 && (
-        <ul className="after-dark-reels">
-          {nights.map((r) => (
-            <li key={r.id}>
-              {/* What it filmed: "Whole night, chapters 1–2" or "Chapter 2" (not recorded on videos from before). */}
-              {r.chapters?.length ? <p className="muted small ad-reel-covers">🎬 {chaptersLabel(r.chapters)}</p> : null}
-              <ReelPlayer reel={r} onChange={onChange} price={price} onMedia={onMedia} />
-            </li>
-          ))}
-        </ul>
-      )}
+      {order.map((n) => {
+        const these = byNight.get(n)!;
+        // The whole night: from the bottom of the list (its oldest video) up.
+        const night = [...these].reverse().flatMap((r) => readyShots(r));
+        const finished = these.filter((r) => readyShots(r).length).length;
+        return (
+          <div key={n ?? "earlier"} className="ad-reel-night" data-night={n ?? undefined}>
+            {titled && <h3>{n === null ? "Earlier videos" : `Night ${n}`}</h3>}
+            {finished > 1 && (
+              <div className="after-dark-night-film">
+                <h3>
+                  {n === null ? "All of them" : `Night ${n}, all its videos`} <span className="muted small">· {finished} videos, oldest first · {night.length} shots</span>
+                </h3>
+                <SeamlessPlayer shots={night} onChange={onChange} price={price} onMedia={onMedia} />
+              </div>
+            )}
+            <ul className="after-dark-reels">
+              {these.map((r) => (
+                <li key={r.id}>
+                  {/* What it filmed: "Whole night, chapters 1–2" or "Chapter 2" (not recorded on videos from before). */}
+                  {r.chapters?.length ? <p className="muted small ad-reel-covers">🎬 {chaptersLabel(r.chapters)}</p> : null}
+                  <ReelPlayer reel={r} onChange={onChange} price={price} onMedia={onMedia} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
       <Archive reels={reels} onChange={onChange} />
     </section>
   );
@@ -306,7 +321,7 @@ export async function stopReel(id: string): Promise<Reel | null> {
 
 function ReelPlayer({ reel, onChange, what = "video", price = null, onMedia }: { reel: Reel; onChange: (r: Reel) => void; what?: "video" | "clip"; price?: string | null; onMedia?: (m: Media) => void }) {
   const shots = readyShots(reel);
-  const done = reel.shots.filter((s) => s.status !== "queued").length;
+  const done = reel.shots.filter((s) => s.status !== "queued" && s.status !== "frame_ready").length;
   const [stopping, setStopping] = useState(false);
   const [stopFailed, setStopFailed] = useState(false);
   if (reel.status === "making") {

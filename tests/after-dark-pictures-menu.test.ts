@@ -85,7 +85,7 @@ function fakeVenice(keyframe?: () => Response) {
   });
   return seen;
 }
-const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+)/)?.[1];
+const mediaOf = (url: unknown) => String(url).match(/media\/([^?]+?)(?:\.png)?(?:\?|$)/)?.[1];
 
 /** After Dark on (Venice and Hive keys), both baselines in, and the pair's scene at `stage` in `place`. */
 async function ready(cookie: string, ownerId: string, opts: { stage?: number; place?: string; history?: unknown[]; settings?: Record<string, unknown> } = {}) {

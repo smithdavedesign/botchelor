@@ -83,7 +83,7 @@ function fakeVenice() {
     const path = String(input).replace("https://api.venice.ai/api/v1", "");
     const body = JSON.parse(String(init?.body ?? "{}"));
     if (path === "/image/multi-edit") {
-      edits.push({ images: (body.images as string[]).map((u) => String(u).match(/media\/([^?]+)/)?.[1] ?? "?"), prompt: String(body.prompt) });
+      edits.push({ images: (body.images as string[]).map((u) => String(u).match(/media\/([^?]+?)(?:\.png)?(?:\?|$)/)?.[1] ?? "?"), prompt: String(body.prompt) });
       return new Response(new Uint8Array(PNG), { headers: { "content-type": "image/png" } });
     }
     if (path === "/video/queue") return Response.json({ model: body.model, queue_id: `q${++q}` });
