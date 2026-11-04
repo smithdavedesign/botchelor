@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import NavProgress from "./NavProgress";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
+import { adTokenBalance, adTokensOn } from "@/lib/adult/tokens";
 import { afterDarkOnly } from "@/lib/after-dark-host";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
 import { getDb } from "@/lib/db";
@@ -93,7 +94,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // The nav's numbers, all at once (2026-11-04 performance audit: one after another they were five database round trips
   // on every signed-in page load, ~70 ms each from New York to the database in Oregon).
   const db = viewerId ? await getDb() : null;
-  const [, afterDark, dates, unread, texts, hasCharacter] = await Promise.all([
+  // #1005: After Dark spends only bought tokens, never the free weekly dates, so its host counts those, as "tokens":
+  // its own once they're sold (lib/adult/tokens.ts), the show's until then.
+  const adHost = afterDarkOnly();
+  const [, afterDark, dates, unread, texts, hasCharacter, adTokens] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
     // After Dark's link shows only to someone it's open to (lib/adult/entitlement.ts), and only where it's offered
@@ -108,9 +112,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     db && viewerId
       ? db.query(`select 1 from characters where owner_id = $1 and not is_house limit 1`, [viewerId]).then((r) => r.rows.length > 0, () => false)
       : false,
+    db && viewerId && adHost && adTokensOn() ? adTokenBalance(db, viewerId).catch(() => null) : null,
   ]);
-  // #1005: After Dark spends only bought tokens, never the free weekly dates, so its host counts those, as "tokens".
-  const adHost = afterDarkOnly();
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
   const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
   const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, placeFromEdge(await headers())?.country);
@@ -141,7 +144,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>
-          <Nav tokens={adHost && viewerId ? dates.pack_left : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">

@@ -34,7 +34,7 @@ import { adultKeys, getAdultSettings } from "./settings";
 import { claimChapterPicture } from "./chapter-pictures";
 import { aheadBudget, countAhead, settleDrawAhead } from "./draw-ahead";
 import { picturesBlocked } from "./readiness";
-import { refundBoughtTokens } from "../allowance";
+import { refundAdTokens } from "./tokens";
 import { pictureBrief, type Brief } from "./picture-brief";
 import { roleplayById, rolesLine } from "./roleplays";
 import { venueSituation } from "./scene-catalog";
@@ -666,7 +666,7 @@ async function drawBeat(db: Db, beat: BeatRow, baseUrl: string): Promise<{ ok: t
     // One drawn ahead that didn't come doesn't count as drawn ahead: a chapter with none gives its tokens back.
     if (beat.ahead_at) await countAhead(db, beat.scene_id, -1, beat.ahead_at).catch(() => {});
     if (beat.paid > 0) {
-      await refundBoughtTokens(db, beat.owner_id, beat.paid).catch(() => {});
+      await refundAdTokens(db, beat.owner_id, beat.paid).catch(() => {});
       await db.query(`update adult_beats set paid = 0 where id = $1`, [beat.id]);
     }
     // The page says why (PublicBeat.reason); an age refusal also says it on the scene, where the theater shows its problems.

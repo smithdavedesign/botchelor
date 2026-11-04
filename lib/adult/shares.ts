@@ -18,7 +18,7 @@
  * Only the sharer's own characters' pictures (an admin's, the house cast's too): never a picture of someone else's.
  */
 import { isAdmin } from "../admins";
-import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
+import { refundAdTokens, spendAdTokens } from "./tokens";
 import { recordAsset, reviewAsset } from "../assets";
 import { insertText } from "../between-dates";
 import type { Db } from "../db";
@@ -109,7 +109,7 @@ export async function sharePicture(db: Db, viewer: string, input: { image_id: st
   // The share's price (none by default), taken first and given back if it doesn't go.
   const price = config.prices.share;
   const pays = price > 0 && !(await isAdmin(db, viewer));
-  if (pays && !(await spendBoughtTokens(db, viewer, price))) return fail(402, "needs_tokens", `Sharing costs ${price} token${price === 1 ? "" : "s"}.`);
+  if (pays && !(await spendAdTokens(db, viewer, price))) return fail(402, "needs_tokens", `Sharing costs ${price} token${price === 1 ? "" : "s"}.`);
   try {
     const id = crypto.randomUUID();
     if (input.kind === "photo" && photoBytes) {
@@ -154,7 +154,7 @@ export async function sharePicture(db: Db, viewer: string, input: { image_id: st
     }
     return { ok: true, share: { id: row.id, kind: "after_dark", status: row.status, to_character: partner.character_id } };
   } catch (err) {
-    if (pays) await refundBoughtTokens(db, viewer, price);
+    if (pays) await refundAdTokens(db, viewer, price);
     return fail(502, "not_shared", `It couldn't be shared (${err instanceof Error ? err.message.slice(0, 160) : "error"}).`);
   }
 }

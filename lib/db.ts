@@ -1570,6 +1570,27 @@ create table if not exists adult_billing_flags (
   reviewed_at timestamptz,
   reviewed_by text
 );
+-- After Dark's own token packs (lib/adult/tokens.ts, David 2026-11-04: "I agree with your price analysis, lets do it"):
+-- one-time orders on the same processors, about $1 a token. kind says which an order is; tokens, how many it buys.
+alter table adult_billing_orders add column if not exists kind text not null default 'subscription';
+alter table adult_billing_orders add column if not exists tokens integer;
+-- After Dark's token balance, apart from the show's (Stripe never pays for adult extras): a grant per paid pack (order_id,
+-- once) or admin top-up, minus what's been spent (adult_token_usage, one row a person, like pack_episode_usage). A
+-- refund or chargeback revokes its pack's grant. Deleted with the account.
+create table if not exists adult_token_grants (
+  id text primary key,
+  user_id text not null,
+  tokens integer not null check (tokens > 0),
+  order_id text unique,
+  granted_by text not null,
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz
+);
+create index if not exists adult_token_grants_user_idx on adult_token_grants (user_id);
+create table if not exists adult_token_usage (
+  user_id text primary key,
+  used integer not null default 0 check (used >= 0)
+);
 -- When the current run of a subscription began (for California's yearly reminder, on each anniversary) and when that
 -- reminder last went.
 alter table adult_entitlements add column if not exists subscribed_at timestamptz;

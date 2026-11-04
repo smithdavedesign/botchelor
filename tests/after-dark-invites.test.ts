@@ -176,10 +176,10 @@ describe("what a beta pass includes", () => {
     expect((await canAfterDark(t.db, { userId: id, authenticated: true }, later)).ok).toBe(false);
   });
 
-  it("the welcome names the end date and the shop", () => {
+  it("the welcome names the end date and the tokens page", () => {
     const m = welcomeEmail({ base: "https://botchelor.com/", until: new Date("2026-11-30T12:00:00Z"), clipTokens: 2, reelTokens: 7 });
     expect(m.text).toContain("free until November 30, 2026");
     expect(m.text).toContain("Each clip costs 2 tokens");
-    expect(m.text).toContain("Shop: https://botchelor.com/shop");
+    expect(m.text).toContain("Tokens: https://botchelor.com/after-dark/tokens");
   });
 });

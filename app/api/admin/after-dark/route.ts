@@ -30,7 +30,8 @@ import { isAdmin } from "@/lib/admins";
 import { includedPrice } from "@/lib/adult/pricing";
 import { getAdultSettings } from "@/lib/adult/settings";
 import type { Db } from "@/lib/db";
-import { refundBoughtTokens, SET_SCENE_TOKEN_COST, spendBoughtTokens } from "@/lib/allowance";
+import { SET_SCENE_TOKEN_COST } from "@/lib/allowance";
+import { refundAdTokens, spendAdTokens } from "@/lib/adult/tokens";
 import { crisisAware, str, type CrisisSurface } from "@/lib/crisis";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
@@ -140,8 +141,8 @@ async function payChapter(db: Db, viewer: string, a: string, b: string, opts: { 
     const scene = await openScene(db, viewer, a, b);
     if (!scene || scene.lines.length) return { paid: 0 };
   }
-  if (!(await spendBoughtTokens(db, viewer, price))) {
-    return json({ error: "needs_tokens", message: `Each chapter costs ${price} token${price === 1 ? "" : "s"} (up to 120 lines, with its pictures). Get more on the shop page.` }, 402);
+  if (!(await spendAdTokens(db, viewer, price))) {
+    return json({ error: "needs_tokens", message: `Each chapter costs ${price} token${price === 1 ? "" : "s"} (up to 120 lines, with its pictures). Get more on the tokens page.` }, 402);
   }
   return { paid: price };
 }
@@ -159,12 +160,12 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
   if (input.set_scene !== undefined) {
     // Set the scene: 1 bought token (admins don't pay, like clips), given back if the place is refused.
     const pays = !(await isAdmin(db, admin));
-    if (pays && !(await spendBoughtTokens(db, admin, SET_SCENE_TOKEN_COST))) {
-      return json({ error: "needs_tokens", message: `Setting the scene costs ${SET_SCENE_TOKEN_COST} token. Get more on the shop page.` }, 402);
+    if (pays && !(await spendAdTokens(db, admin, SET_SCENE_TOKEN_COST))) {
+      return json({ error: "needs_tokens", message: `Setting the scene costs ${SET_SCENE_TOKEN_COST} token. Get more on the tokens page.` }, 402);
     }
     const moved = await setSceneTo(db, admin, input.a, input.b, input.set_scene);
     if (!moved.ok) {
-      if (pays) await refundBoughtTokens(db, admin, SET_SCENE_TOKEN_COST);
+      if (pays) await refundAdTokens(db, admin, SET_SCENE_TOKEN_COST);
       return json({ error: "not_moved", message: moved.message }, moved.status);
     }
     // The roleplay picked with the place, for the chapter (the picker's second screen).
@@ -180,7 +181,7 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     const pay = await payChapter(db, admin, input.a, input.b, { always: true });
     if (pay instanceof Response) return pay;
     const r = await startScenario(db, admin, input.a, input.b, input.scenario);
-    if (!r.ok && pay.paid) await refundBoughtTokens(db, admin, pay.paid);
+    if (!r.ok && pay.paid) await refundAdTokens(db, admin, pay.paid);
     if (!r.ok) return json({ error: "not_started", message: r.message, ...(r.placed ? { scene: r.placed, nights: await listNights(db, admin, input.a, input.b) } : {}) }, r.status);
     return json({ scene: r.scene, added: r.added, held: r.held, repeats: r.repeats, dropped: r.dropped, pictures: r.pictures, nights: await listNights(db, admin, input.a, input.b) });
   }
@@ -227,12 +228,12 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     // What a picture from the shot menu costs, given back if it doesn't come: free for an admin, included with a
     // subscription (#1005, David 2026-10-30), bounded by the month's pictures.
     const price = (await includedPrice(db, admin, (await getAdultSettings(db)).menu_picture_tokens)).tokens;
-    if (price > 0 && !(await spendBoughtTokens(db, admin, price))) {
-      return json({ error: "needs_tokens", message: `Redrawing a picture costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.` }, 402);
+    if (price > 0 && !(await spendAdTokens(db, admin, price))) {
+      return json({ error: "needs_tokens", message: `Redrawing a picture costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.` }, 402);
     }
     const r = await redrawPicture(db, admin, input.redraw.picture_id, input.redraw.edit, requestBase(req), { ...scene, a: scene.a.id, b: scene.b.id, place: scene.set_place ?? scene.place }, price);
     if (!r.ok) {
-      if (price > 0) await refundBoughtTokens(db, admin, price);
+      if (price > 0) await refundAdTokens(db, admin, price);
       return json({ error: "not_pictured", message: r.message }, r.status);
     }
     return json({ scene: (await openScene(db, admin, input.a, input.b)) ?? scene, beat: r.beat });
@@ -257,7 +258,7 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
   const r = input.redo
     ? await redoScene(db, admin, input.a, input.b)
     : await continueScene(db, admin, input.a, input.b, input.direction ?? null, input.steer_mode ?? "nudge", { whisper: input.whisper ?? null });
-  if (!r.ok && pay.paid) await refundBoughtTokens(db, admin, pay.paid);
+  if (!r.ok && pay.paid) await refundAdTokens(db, admin, pay.paid);
   if (!r.ok) return json({ error: "not_continued", message: r.message }, r.status);
   return json({
     scene: r.scene,

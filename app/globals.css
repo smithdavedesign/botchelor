@@ -8208,6 +8208,22 @@ a.phone-head-btn {
   align-items: center;
   margin-top: var(--space-3);
 }
+/* After Dark's token packs (app/after-dark/tokens/BuyTokens.tsx): a button a pack, side by side, stacking on a phone. */
+.ad-token-packs {
+  list-style: none;
+  margin: var(--space-2) 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-2);
+}
+.ad-token-packs button {
+  width: 100%;
+  display: grid;
+  gap: 0.15rem;
+  justify-items: center;
+  padding: 0.8rem 0.6rem;
+}
 /* The storyboard's transcript picker (PickLines.tsx): above the storyboard, a search and a scrolling list of lines. */
 .ad-pick-backdrop {
   z-index: 310;

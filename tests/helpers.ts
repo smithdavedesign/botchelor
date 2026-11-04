@@ -243,6 +243,8 @@ export async function startTestDb() {
         "adult_billing_events",
         "adult_billing_orders",
         "adult_billing_flags",
+        "adult_token_grants",
+        "adult_token_usage",
         "adult_access_requests",
         "adult_media_thumbs",
         "adult_media_ratings",

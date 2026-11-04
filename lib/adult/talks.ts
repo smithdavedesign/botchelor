@@ -11,7 +11,7 @@
  */
 import { createHash } from "node:crypto";
 import { isAdmin } from "../admins";
-import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
+import { refundAdTokens, spendAdTokens } from "./tokens";
 import type { Db } from "../db";
 import { keepBytes, readBytes } from "../object-store";
 import { mediaBytes, signedPresenceUrl } from "./media";
@@ -86,7 +86,7 @@ export async function makeTalk(db: Db, viewer: string, ask: TalkAsk, baseUrl: st
   const voiceId = voiced.ok ? voiced.voices[0]?.id : null;
   const audio = voiceId ? await mediaBytes(db, voiceId, viewer) : null;
   if (!audio) return fail(502, "no_voice", voiced.ok ? `Their voice for that line couldn't be made (${voiced.voices[0]?.message ?? voiced.voices[0]?.reason ?? "error"}).` : voiced.message);
-  if (price > 0 && !(await spendBoughtTokens(db, viewer, price))) return fail(402, "needs_tokens", `A talking moment costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.`);
+  if (price > 0 && !(await spendAdTokens(db, viewer, price))) return fail(402, "needs_tokens", `A talking moment costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.`);
   const id = crypto.randomUUID();
   const model = (await getAdultSettings(db)).talk_model;
   try {
@@ -106,7 +106,7 @@ export async function makeTalk(db: Db, viewer: string, ask: TalkAsk, baseUrl: st
     );
     return { ok: true, talk: { id, who: line.who, text: line.text, status: "making", error: null }, price };
   } catch (err) {
-    if (price > 0) await refundBoughtTokens(db, viewer, price);
+    if (price > 0) await refundAdTokens(db, viewer, price);
     return fail(502, "not_started", `It couldn't start (${err instanceof Error ? err.message.slice(0, 160) : "error"}). Your tokens are back.`);
   }
 }
@@ -122,7 +122,7 @@ export async function collectTalks(db: Db, viewer: string): Promise<number> {
   if (!keys.venice) return 0;
   const failed = async (r: Row, why: string) => {
     const done = await db.query(`update adult_talks set status = 'failed', error = $2, updated_at = now() where id = $1 and status = 'making' returning id`, [r.id, why.slice(0, 200)]);
-    if (done.rows.length && r.tokens > 0) await refundBoughtTokens(db, r.owner_id, r.tokens);
+    if (done.rows.length && r.tokens > 0) await refundAdTokens(db, r.owner_id, r.tokens);
   };
   let kept = 0;
   for (const r of rows) {

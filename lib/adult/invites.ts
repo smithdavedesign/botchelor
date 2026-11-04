@@ -144,12 +144,12 @@ export function welcomeEmail(opts: { base: string; until: Date; clipTokens: numb
     [
       "You're in: your invite to After Dark on Botchelor is approved.",
       `It's free until ${day(opts.until)}. Every chapter and the pictures are on us, within the month's fair-use limits.`,
-      `Video isn't included: that one's on you. Each clip costs ${tokens(opts.clipTokens)} and the video of the night ${tokens(opts.reelTokens)}. Tokens come in packs from the shop.`,
+      `Video isn't included: that one's on you. Each clip costs ${tokens(opts.clipTokens)} and the video of the night ${tokens(opts.reelTokens)}. Tokens come in packs: the tokens page says what each thing costs and where to get them.`,
       "It's an early beta, so some things may be rough. Reply to this email with anything you notice, or anything you'd like to see.",
     ],
     [
       { label: "Start", href: `${base}/after-dark` },
-      { label: "Shop", href: `${base}/shop` },
+      { label: "Tokens", href: `${base}/after-dark/tokens` },
     ],
   );
   return { subject: "Your Botchelor invite", text, html };
