@@ -44,53 +44,64 @@ const TIMELINE_PAGE = 10;
 /** The pair and what the viewer may see of it: the public layer, or an owner's (their own dates and plans). */
 async function load(a: string, b: string) {
   const db = await getDb();
-  const [ca, cb] = await Promise.all([getPublicCharacter(db, a), getPublicCharacter(db, b)]);
+  // As much at once as each step allows (2026-11-04 performance audit: one after another, an owner's couple page waited
+  // on 25 database round trips in a row, ~70 ms each from New York to the database in Oregon).
+  const [ca, cb, rel] = await Promise.all([getPublicCharacter(db, a), getPublicCharacter(db, b), loadRelationship(db, a, b)]);
   if (!ca || !cb) return null;
   const viewerId = userIdFromCookieStore(await cookies());
-  const owners = (await db.query<{ id: string; owner_id: string | null; is_house: boolean }>(`select id, owner_id, is_house from characters where id = any($1)`, [[a, b]])).rows;
+  // Who owns each, from the characters themselves.
+  const owners = [ca, cb].map((c) => ({ id: c.id, owner_id: c.owner_id, is_house: c.house }));
   const owner = viewerId !== null && owners.some((o) => o.owner_id === viewerId);
-  const rel = await loadRelationship(db, a, b);
   const view = rel ? viewRelationship(rel, { userId: viewerId, owner }) : null;
   if (!view) return null;
-  // Between dates (lib/between-dates.ts): who else each is seeing (public), and for owners their texts and nudges.
-  const [seeingA, seeingB] = await Promise.all([alsoSeeing(db, a, b), alsoSeeing(db, b, a)]);
   const mine = owners.filter((o) => viewerId !== null && o.owner_id === viewerId).map((o) => o.id);
-  // Owners: the couple's whole text chain (lib/text-chain.ts), the newest page first. Nobody owns a house couple's
-  // characters, so nobody texts there; anywhere else a spectator learns the texts are the owners'.
-  const fullChain = owner ? await loadChain(db, a, b, { userId: viewerId, owner: true }) : null;
-  const chain = fullChain ? chainPage(fullChain) : null;
   const texted = owners.some((o) => o.owner_id !== null);
-  const nudges = owner ? await Promise.all(mine.map(async (id) => ({ id, note: await activeNudge(db, id, id === a ? b : a) }))) : [];
   // Spectators: follow the couple, and call their arc (lib/follows.ts, lib/arcs.ts). Public couples only.
   const listed = rel!.public.dates > 0;
-  const [follow, arc] = listed ? await Promise.all([followState(db, viewerId, a, b), arcQuestion(db, viewerId, a, b)]) : [null, null];
-  // Owners: what they can do next for this couple (lib/date-proposals.ts), with the plan they agreed to by text since
-  // their last date, which is where the next date will happen (lib/plans.ts), or else the plan from their latest date.
   const last = view.timeline.at(-1) ?? null;
   const [lo] = pairKey(a, b);
-  const agreed = fullChain ? await planFromChain(db, fullChain, lo, a === lo ? { lo: ca.name, hi: cb.name } : { lo: cb.name, hi: ca.name }).catch(() => null) : null;
-  const plan = agreed
-    ? agreed.texts.map((t) => t.text)
-    : owner && last
-      ? (view.plans ?? []).filter((p) => p.episode_id === last.episode_id).map((p) => p.text)
-      : [];
-  const next = owner ? await nextDate(db, viewerId, a, b, last?.episode_id ?? null, plan, agreed ? venueName(agreed.place) : null) : null;
-  // Owners: a roleplay for their next date (lib/date-roleplays.ts), unless they can't have one (taken, a block); one already
-  // proposed or agreed always shows, so it can be answered or called off.
-  const roleplay = owner ? await roleplayCard(db, viewerId!, owners, next?.option.kind === "unavailable") : null;
+  // Owners: the couple's whole text chain (lib/text-chain.ts), the newest page first. Nobody owns a house couple's
+  // characters, so nobody texts there; anywhere else a spectator learns the texts are the owners'.
+  const chainP = owner ? loadChain(db, a, b, { userId: viewerId, owner: true }) : Promise.resolve(null);
+  // Owners: what they can do next for this couple (lib/date-proposals.ts), with the plan they agreed to by text since
+  // their last date, which is where the next date will happen (lib/plans.ts), or else the plan from their latest date.
+  const nextP = chainP.then(async (fullChain) => {
+    const agreed = fullChain ? await planFromChain(db, fullChain, lo, a === lo ? { lo: ca.name, hi: cb.name } : { lo: cb.name, hi: ca.name }).catch(() => null) : null;
+    const plan = agreed
+      ? agreed.texts.map((t) => t.text)
+      : owner && last
+        ? (view.plans ?? []).filter((p) => p.episode_id === last.episode_id).map((p) => p.text)
+        : [];
+    return owner ? nextDate(db, viewerId, a, b, last?.episode_id ?? null, plan, agreed ? venueName(agreed.place) : null) : null;
+  });
+  const [[seeingA, seeingB], fullChain, nudges, [follow, arc], next, roleplay] = await Promise.all([
+    // Between dates (lib/between-dates.ts): who else each is seeing (public), and for owners their texts and nudges.
+    Promise.all([alsoSeeing(db, a, b), alsoSeeing(db, b, a)]),
+    chainP,
+    owner ? Promise.all(mine.map(async (id) => ({ id, note: await activeNudge(db, id, id === a ? b : a) }))) : [],
+    listed ? Promise.all([followState(db, viewerId, a, b), arcQuestion(db, viewerId, a, b)]) : [null, null],
+    nextP,
+    // Owners: a roleplay for their next date (lib/date-roleplays.ts), unless they can't have one (taken, a block); one
+    // already proposed or agreed always shows, so it can be answered or called off.
+    owner ? roleplayCard(db, viewerId!, owners, nextP.then((n) => n?.option.kind === "unavailable")) : null,
+  ]);
+  const chain = fullChain ? chainPage(fullChain) : null;
   return { ca, cb, view, owner, mine, seeing: { [a]: seeingA, [b]: seeingB } as Record<string, string[]>, chain, texted, nudges, follow, arc, next, roleplay };
 }
 
-/** What the roleplay card needs: the viewer's side (the first of theirs) and the other, whether a choice is agreed at once, and the live one. */
-async function roleplayCard(db: Db, viewerId: string, owners: { id: string; owner_id: string | null; is_house: boolean }[], unavailable: boolean) {
+/**
+ * What the roleplay card needs: the viewer's side (the first of theirs) and the other, whether a choice is agreed at
+ * once, and the live one. `unavailable` (the next date can't happen) may still be settling: the card's reads start first.
+ */
+async function roleplayCard(db: Db, viewerId: string, owners: { id: string; owner_id: string | null; is_house: boolean }[], unavailable: boolean | Promise<boolean>) {
   const me = owners.find((o) => o.owner_id === viewerId && !o.is_house);
   const them = owners.find((o) => o !== me);
   if (!me || !them) return null;
-  const initial = await pairRoleplay(db, viewerId, me.id, them.id).catch(() => null);
-  if (unavailable && !initial) return null;
+  const [initial, auto] = await Promise.all([pairRoleplay(db, viewerId, me.id, them.id).catch(() => null), agreesAtOnce(db, viewerId, them).catch(() => false)]);
+  if ((await unavailable) && !initial) return null;
   // The picker's ✨ Yours is the Create library, accounts only, so it's asked for only when they're signed in.
   const signedIn = authFromCookieStore(await cookies())?.authenticated === true;
-  return { me: me.id, them: them.id, auto: await agreesAtOnce(db, viewerId, them).catch(() => false), initial, signedIn };
+  return { me: me.id, them: them.id, auto, initial, signedIn };
 }
 
 /** A swipe-deck match that hasn't dated yet (lib/swipes.ts): only its owners see it, with their chat and the yes or no. */
@@ -136,6 +147,9 @@ export default async function CouplePage({ params, searchParams }: Props) {
   const sp = (await searchParams) ?? {};
   const [lo, hi] = pairKey(a, b);
   if (a !== lo) permanentRedirect(`/couples/${lo}/${hi}`);
+  // Who made them (lib/origin.ts) is read beside the rest, not after it.
+  const originsP = getDb().then((db) => originsOf(db, [lo, hi]));
+  originsP.catch(() => {}); // awaited below; unused (and so unhandled) when this is a match or a 404
   const data = await load(lo, hi);
   if (!data) {
     const match = await loadMatch(lo, hi);
@@ -148,7 +162,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
   const nameOf = (id: string) => (id === ca.id ? ca.name : cb.name);
   const first = (c: PublicCharacter) => shortName(c.name);
-  const origins = await originsOf(await getDb(), [ca.id, cb.id]);
+  const origins = await originsP;
   // A character private to someone else: its name only, never linked (the private-character rule, #509).
   const viewerId = userIdFromCookieStore(await cookies());
   const hidden = (c: PublicCharacter) => c.private && c.owner_id !== viewerId;

@@ -70,24 +70,15 @@ export async function getCharacterRatings(
   characterId: string,
   viewerId: string | null,
 ): Promise<CharacterRatings> {
-  const counts = await countsFor(db, characterId);
   const mine = Object.fromEntries(RATING_CATEGORY_IDS.map((c) => [c, false])) as RatingMine;
-  let isOwner = false;
-  if (viewerId) {
-    const owner = (
-      await db.query<{ is_owner: boolean }>(
-        `select owner_id = $2 as is_owner from characters where id = $1`,
-        [characterId, viewerId],
-      )
-    ).rows[0];
-    isOwner = owner?.is_owner ?? false;
-    const { rows } = await db.query<{ category: RatingCategory }>(
-      `select category from character_ratings where rater_id = $1 and character_id = $2`,
-      [viewerId, characterId],
-    );
-    for (const r of rows) mine[r.category] = true;
-  }
-  return { counts, mine, is_owner: isOwner };
+  // All three at once (2026-11-04 performance audit): they were three round trips in a row on every character page.
+  const [counts, owner, given] = await Promise.all([
+    countsFor(db, characterId),
+    viewerId ? db.query<{ is_owner: boolean }>(`select owner_id = $2 as is_owner from characters where id = $1`, [characterId, viewerId]) : null,
+    viewerId ? db.query<{ category: RatingCategory }>(`select category from character_ratings where rater_id = $1 and character_id = $2`, [viewerId, characterId]) : null,
+  ]);
+  for (const r of given?.rows ?? []) mine[r.category] = true;
+  return { counts, mine, is_owner: owner?.rows[0]?.is_owner ?? false };
 }
 
 export type TopRated = { id: string; name: string; house: boolean; hue: number | null; portrait: string | null; count: number };

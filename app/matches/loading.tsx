@@ -1,11 +1,6 @@
-import Loading from "@/app/Loading";
+import PageLoading from "@/app/PageLoading";
 
-/** Shown at once while Matches loads (2026-11-04: a tap on Matches, or on one of your characters, seemed to do nothing). */
+/** Shown the moment a link here is tapped, while the page loads (app/PageLoading.tsx). */
 export default function MatchesLoading() {
-  return (
-    <article className="matches-page page-loading">
-      <h1>Matches</h1>
-      <Loading size="lg" label="Loading your matches" status />
-    </article>
-  );
+  return <PageLoading shape="list" label="Loading your matches…" />;
 }
