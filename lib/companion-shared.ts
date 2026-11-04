@@ -1,7 +1,8 @@
 /**
  * Companions' client-safe half (lib/companion.ts is the server's): the shapes a thread page reads, the reply lengths,
- * the report reasons and the AI notice.
+ * the report reasons, the AI notice and the places a scene can be played at.
  */
+import { VENUE_IDS, type VenueId } from "./venues";
 
 /** COMPANION_OPEN=1 opens companions to every signed-in adult; unset (the default) keeps them to admins. */
 export function companionOpen(env: Record<string, string | undefined> = process.env): boolean {
@@ -35,21 +36,48 @@ export const COMPANION_REPORT_LABELS: Record<CompanionReportReason, string> = {
  */
 export const companionNotice = (name: string): string => `${name.trim().split(/\s+/)[0] || name} is an AI character, not a real person.`;
 
+/**
+ * Scenes: instead of texting, the two play a scene at one of the show's places, face to face (lib/companion.ts setScene).
+ * Any of the date venues but the double date (a scene is the two of them); something they both imagine, never a real
+ * meeting.
+ */
+export const SCENE_PLACES: readonly VenueId[] = VENUE_IDS.filter((id) => id !== "double_date");
+export const isScenePlace = (v: unknown): v is VenueId => typeof v === "string" && (SCENE_PLACES as readonly string[]).includes(v);
+/** What MCP's scene action takes to go back to texting, in place of a place. */
+export const SCENE_TEXTING = "texting";
+
 export type CompanionMessageView = {
   id: string;
   role: "user" | "character" | "system";
   text: string;
   at: string;
   reported: boolean;
+  /** The scene it was said in (null: texted). */
+  scene: VenueId | null;
+  /** In a scene, what the character does as they say it. */
+  action: string | null;
+  /** A system line that starts a scene or goes back to texting (null: the AI notice). */
+  marker: "scene" | "texting" | null;
 };
 
-export type CompanionCharacterRef = { id: string; name: string; portrait: string | null; hue: number | null; house: boolean; yours: boolean };
+export type CompanionCharacterRef = {
+  id: string;
+  name: string;
+  portrait: string | null;
+  hue: number | null;
+  house: boolean;
+  yours: boolean;
+  /** For a voice that fits when their lines are read aloud (app/theater/useSpeech.ts). */
+  pronouns?: "she/her" | "he/him" | "they/them" | null;
+};
 
 export type CompanionThreadView = {
   id: string;
   character: CompanionCharacterRef;
   messages: CompanionMessageView[];
   reply_length: ReplyLength;
+  /** The scene they're playing now (null: texting). */
+  scene: VenueId | null;
   /** The crisis resources are up: nothing more in character until the person carries on. */
   paused: boolean;
   /** How many things the character remembers about you (the memory page). */
@@ -60,7 +88,7 @@ export type CompanionFactView = { id: string; kind: string; text: string; pinned
 
 /* ------------------------------------------- companions over MCP (lib/companion-mcp.ts) ------------------------------------------- */
 
-export const COMPANION_ACTIONS = ["list", "open", "send", "read", "regenerate", "edit", "length", "carry_on", "report", "memory", "remember", "forget", "forget_all", "delete"] as const;
+export const COMPANION_ACTIONS = ["list", "open", "send", "read", "regenerate", "edit", "length", "scene", "carry_on", "report", "memory", "remember", "forget", "forget_all", "delete"] as const;
 export type CompanionAction = (typeof COMPANION_ACTIONS)[number];
 
 /** One agent's messages (sends, regenerates and edits) an hour and a day: they're on the show's model. */
@@ -72,6 +100,7 @@ export const COMPANION_TOOL_DESCRIPTION =
   "Free; your messages run on the show's model, up to " + `${COMPANION_AGENT_LIMITS.perHour} an hour and ${COMPANION_AGENT_LIMITS.perDay} a day. ` +
   "The character is an AI character and says so (notice); it's PG like the show, and it remembers what you tell it (memory, yours to change). Nothing said here reaches a date, a text or the show. " +
   "action: list (who you can talk with, and your threads), open {character_id} (starts or finds your thread: its first messages), send {character_id or thread_id, text} (opens the thread if needed; returns reply, the character's new messages), " +
-  "read {thread_id, limit}, regenerate (draw the last reply again), edit {text} (rewrite your last message), length {length: short|normal|long}, report {message_id, reason}, " +
+  "read {thread_id, limit}, regenerate (draw the last reply again), edit {text} (rewrite your last message), length {length: short|normal|long}, " +
+  "scene {place} (play a scene together at one of the show's places, face to face: they answer with what they say and what they do; place texting goes back to texting), report {message_id, reason}, " +
   "memory (what it knows about you), remember {text}, forget {fact_id}, forget_all, carry_on (after crisis resources paused it), delete. Every action but list and open takes thread_id (or character_id).";
 

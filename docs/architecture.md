@@ -211,3 +211,4 @@ environment.
 | a sellable item | `lib/catalog.ts` + `lib/payments.ts`; it must not touch points |
 | a schema change | `lib/db.ts`, as idempotent DDL that is safe on a live database |
 | a new endpoint | `app/api/**/route.ts`: zod body, `session(req)`, `lib/` for the work, and a route-listing test if it could touch money or points |
+| a stage (somewhere characters play a scene in front of someone) | `app/Scene.tsx` for the place, `app/stage/` for the person's controls, and the checklist in [stages.md](stages.md) |

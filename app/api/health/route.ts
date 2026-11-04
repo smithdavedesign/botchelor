@@ -6,6 +6,7 @@ import { paidDatesPerDay, paidDatesToday } from "@/lib/limits";
 import { serverErrorSummary } from "@/lib/errors";
 import { openReportSummary } from "@/lib/moderation";
 import { contentReportSummary } from "@/lib/content-reports";
+import { companionReportSummary } from "@/lib/companion-reports";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,8 @@ const STUCK_AFTER_MINUTES = 15;
  * clock (2026-11-01). Restarting the app wouldn't fix an unreachable database anyway.
  * The system monitor (RepoHQ's collector, hourly) sends the cron secret (Authorization: Bearer $CRON_SECRET): it gets
  * 200 when the app can reach its database, 503 when it can't, and what needs the owner: episodes with open reports,
- * complaints and takedown requests waiting (/report), dates stuck generating, and today's paid-model dates against the
- * cap.
+ * complaints and takedown requests waiting (/report), companion replies reported (lib/companion-reports.ts), dates stuck
+ * generating, and today's paid-model dates against the cap.
  */
 export const GET = handle(async (req: Request) => {
   if (!internalJobAuthorized(req)) {
@@ -36,9 +37,10 @@ export const GET = handle(async (req: Request) => {
   const db = await getDb();
   // The MCP checkers' rows wait for the database to be awake for something else (lib/mcp/probe-log.ts): at least hourly.
   await flushCheckerLog(db).catch(() => 0);
-  const [reports, takedowns, stuck, paidToday, errors] = await Promise.all([
+  const [reports, takedowns, companionReports, stuck, paidToday, errors] = await Promise.all([
     openReportSummary(db),
     contentReportSummary(db),
+    companionReportSummary(db),
     db.query<{ n: number }>(
       `select count(*)::int as n from episodes where status = 'generating' and created_at < now() - make_interval(mins => $1)`,
       [STUCK_AFTER_MINUTES],
@@ -50,6 +52,7 @@ export const GET = handle(async (req: Request) => {
     ok: true,
     reports,
     content_reports: takedowns,
+    companion_reports: companionReports,
     stuck_generating: stuck.rows[0]?.n ?? 0,
     paid_dates: { today: paidToday, cap: paidDatesPerDay() },
     errors,

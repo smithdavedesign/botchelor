@@ -59,8 +59,14 @@
   align-items: center;
   gap: 0.25rem var(--space-2);
 }
+.companion-head-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .companion-ai {
   font-size: var(--text-2xs);
+  white-space: nowrap;
 }
 .companion-menu {
   position: relative;
@@ -250,4 +256,164 @@
   border-radius: var(--radius);
   background: var(--card);
   margin: 0 0 var(--space-4);
+}
+
+/* Scenes (lib/companion.ts setScene): the two of them at one of the show's places, on the shared stage (app/Scene.tsx). */
+.companion-stage {
+  --stage-h: clamp(220px, 36vh, 360px);
+  position: relative;
+  flex: 0 0 auto;
+  height: var(--stage-h);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+/* The place across the top, clear of the voice switch at its right. */
+.companion-stage .scene-act {
+  top: var(--space-3);
+  padding: 0 8rem;
+  font-size: 1.15rem;
+}
+/* No input rail on this stage (the composer is under it), so the two of them stand at its foot, and a long line
+   scrolls in its bubble instead of running off the top (all of it is in the thread too). */
+.companion-stage .scene-cast {
+  bottom: var(--space-3);
+}
+.companion-stage .scene-bubble {
+  max-height: calc(var(--stage-h) - 10rem);
+  overflow-y: auto;
+}
+/* What they do as they say it: before the words, quieter. */
+.scene-action {
+  display: block;
+  margin: 0 0 0.2rem;
+  font-size: var(--text-xs);
+  font-style: italic;
+  opacity: 0.72;
+}
+.companion-voice {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
+  background: rgba(12, 8, 16, 0.55);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.companion-action {
+  display: block;
+  margin: 0 0 0.15rem 0.35rem;
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--muted);
+}
+.companion-thread .chat-note-scene,
+.companion-thread .chat-note-texting {
+  text-align: center;
+  font-weight: 600;
+  color: var(--accent);
+}
+.place-picker {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+}
+.place-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.place-picker-head h2 {
+  margin: 0;
+  font-size: var(--text-lg, 1.2rem);
+}
+.place-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-2);
+}
+.place-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+}
+.place-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.place-tile span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.35rem 0.5rem;
+  background: linear-gradient(transparent, rgba(12, 8, 16, 0.8));
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+}
+.place-tile:hover,
+.place-tile:focus-visible {
+  border-color: var(--accent);
+}
+.place-tile.on {
+  border-color: var(--accent);
+  cursor: default;
+}
+.companion-memory .crisis-pause {
+  margin: var(--space-3) 0;
+}
+@media (max-width: 760px) {
+  /* Phone: the place is a mood banner over the thread (as on the show's theater); the lines are in the thread. */
+  .companion-stage {
+    --stage-h: 110px;
+  }
+  /* Its name on the banner, beside the voice switch (the show's theater hides the act on a phone: it has a title). */
+  .companion-stage .scene-act {
+    display: block;
+    top: auto;
+    bottom: var(--space-2);
+    left: var(--space-3);
+    right: 8.5rem;
+    padding: 0;
+    text-align: left;
+    font-size: 0.95rem;
+    letter-spacing: 0;
+  }
+  .companion-voice {
+    top: auto;
+    bottom: var(--space-2);
+  }
+  /* The header's buttons are their icons (the words stay for screen readers), so the name and "AI character" fit. */
+  .companion-head .button-ghost {
+    padding-inline: 0.7rem;
+  }
+  .companion-head-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .place-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

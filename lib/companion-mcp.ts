@@ -13,8 +13,13 @@ import {
   regenerate,
   reportMessage,
   REPLY_LENGTHS,
+  SCENE_PLACES,
+  SCENE_TEXTING,
+  screenFact,
   sendMessage,
   setReplyLength,
+  setScene,
+  isScenePlace,
   COMPANION_ACTIONS,
   COMPANION_AGENT_LIMITS,
   COMPANION_AGENTS_DAILY,
@@ -28,6 +33,7 @@ import { editFacts, FACT_MAX, listFacts } from "./companion-memory";
 import { CRISIS_RESOURCES } from "./crisis";
 import { overLimit } from "./limits";
 import { inBackground } from "./sets";
+import { venueName } from "./venues";
 
 /**
  * Companions over MCP (docs/companions.md): an agent talks one to one with a character, as itself. Its threads are its
@@ -64,9 +70,18 @@ function compact(view: CompanionThreadView, since?: Set<string>, limit = RECENT)
   return {
     thread_id: view.id,
     character: { id: view.character.id, name: view.character.name, yours: view.character.yours },
-    ...(since ? { reply: fresh.filter((m) => m.role === "character").map((m) => ({ id: m.id, text: m.text })) } : {}),
-    ...(fresh.some((m) => m.role === "system") ? { notice: fresh.find((m) => m.role === "system")!.text } : {}),
-    messages: view.messages.slice(-limit).map((m) => ({ id: m.id, from: m.role === "user" ? "you" : m.role === "character" ? "them" : "notice", text: m.text, at: m.at, ...(m.reported ? { reported: true } : {}) })),
+    ...(since ? { reply: fresh.filter((m) => m.role === "character").map((m) => ({ id: m.id, text: m.text, ...(m.action ? { does: m.action } : {}) })) } : {}),
+    ...(fresh.some((m) => m.role === "system" && !m.marker) ? { notice: fresh.find((m) => m.role === "system" && !m.marker)!.text } : {}),
+    messages: view.messages.slice(-limit).map((m) => ({
+      id: m.id,
+      from: m.role === "user" ? "you" : m.role === "character" ? "them" : m.marker ? "scene" : "notice",
+      text: m.text,
+      ...(m.action ? { does: m.action } : {}),
+      at: m.at,
+      ...(m.reported ? { reported: true } : {}),
+    })),
+    // A scene at one of the show's places (action scene): they answer face to face, with what they do (does).
+    ...(view.scene ? { scene: { place: view.scene, name: venueName(view.scene) } } : {}),
     reply_length: view.reply_length,
     remembers: view.facts,
     ...(view.paused ? { paused: true, crisis_resources: CRISIS_RESOURCES } : {}),
@@ -111,7 +126,8 @@ export async function runCompanionTool(db: Db, agentId: string, args: Record<str
     return { data: { threads: threads.map(card), yours: yours.map(card), cast: cast.slice(0, 40).map(card), note: "open or send with a character_id to talk with one." } };
   }
 
-  const talks = action === "send" || action === "regenerate" || action === "edit";
+  // A scene's start is a reply too (they open it).
+  const talks = action === "send" || action === "regenerate" || action === "edit" || (action === "scene" && args.place !== SCENE_TEXTING);
   if (talks || action === "open") {
     const limited = await talkLimited(db, agentId);
     if (limited) return limited;
@@ -151,6 +167,17 @@ export async function runCompanionTool(db: Db, agentId: string, args: Record<str
       if (!length) return { error: `length is one of: ${REPLY_LENGTHS.join(", ")}.`, code: "invalid_length" };
       return done(await setReplyLength(db, agentId, thread.id, length));
     }
+    case "scene": {
+      const place = args.place === SCENE_TEXTING ? null : isScenePlace(args.place) ? args.place : undefined;
+      if (place === undefined) {
+        return {
+          error: `Say where: place is one of the show's places (an id below), or ${SCENE_TEXTING} to go back to texting.`,
+          code: "invalid_place",
+          details: { places: SCENE_PLACES.map((id) => ({ id, name: venueName(id) })) },
+        };
+      }
+      return done(await setScene(db, agentId, thread.id, place), true);
+    }
     case "carry_on":
       return done(await carryOn(db, agentId, thread.id));
     case "report": {
@@ -165,6 +192,10 @@ export async function runCompanionTool(db: Db, agentId: string, args: Record<str
     case "remember":
     case "forget":
     case "forget_all": {
+      if (action === "remember" && typeof args.text === "string") {
+        const crisis = await screenFact(db, agentId, thread.id, args.text, "mcp_companion");
+        if (crisis) return failed(crisis);
+      }
       const edit =
         action === "remember"
           ? { op: "add" as const, text: (typeof args.text === "string" ? args.text : "").slice(0, FACT_MAX * 2) }

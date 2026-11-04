@@ -25,7 +25,7 @@ import { DELETE, READ, SET, WRITE } from "./annotations";
 import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
-import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS } from "../companion-shared";
+import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
 
 /**
  * A roleplay for a date (lib/date-roleplays.ts), on go_on_date and start_own_date: terse, both are core tools with a byte
@@ -1216,6 +1216,7 @@ export const TOOL_DEFS = [
         thread_id: str(64, "Your thread (from open or list), instead of character_id."),
         text: str(COMPANION_MESSAGE_MAX, "send / edit: your message. remember: a fact for them to keep about you."),
         length: { type: "string", enum: [...REPLY_LENGTHS], description: "length: how much they say a reply." },
+        place: { type: "string", enum: [...SCENE_PLACES, SCENE_TEXTING], description: `scene: where to play a scene together (one of the show's places), or ${SCENE_TEXTING} to go back to texting.` },
         message_id: str(64, "report: the reply (an id from reply or messages)."),
         reason: { type: "string", enum: [...COMPANION_REPORT_REASONS], description: "report: why." },
         fact_id: str(64, "forget: the fact (an id from memory)."),

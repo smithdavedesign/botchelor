@@ -34,8 +34,9 @@ call your local emergency number.
 | MCP `after_dark_write` `direction` | `mcp_after_dark` | The same |
 | A line on a step-in date (`POST /api/step-in/:id`, `line`) | `step_in_line` | The date **pauses** (nothing in character) until they carry on or leave ([step-into-the-date.md](step-into-the-date.md)) |
 | The "about you" line before a step-in date (`POST /api/step-in`) | `step_in_about` | The date doesn't start; the resources show |
-| A message to a companion (`POST /api/companion/:id`, `send` / `edit`) | `companion` | The thread **pauses** (nothing in character, the message not kept) until they carry on ([companions.md](companions.md)) |
-| MCP `companion` `send` / `edit` | `mcp_companion` | The same pause; `crisis_resources` in the error's `details`, and on every read until `carry_on` |
+| A message to a companion (`POST /api/companion/:id`, `send` / `edit`, a text or a line in a scene) | `companion` | The thread **pauses** (nothing in character, the message not kept) until they carry on ([companions.md](companions.md)) |
+| A fact the person adds or edits on a companion's memory page (`POST /api/companion/:id/memory`) | `companion` | The same pause; nothing kept |
+| MCP `companion` `send` / `edit` / `remember` | `mcp_companion` | The same pause; `crisis_resources` in the error's `details`, and on every read until `carry_on` |
 
 - The route wrapper `crisisAware` reads the request body from a copy and adds `crisis_resources` to whatever the route
   answers, errors included.
@@ -55,9 +56,12 @@ one-to-one conversation (California SB 243 and New York GBL Art. 47 are written 
   (New York: at the start and at least every three hours), and the header says "AI character" the whole time.
 - A message that trips the check is never stored, and the thread pauses (`companion_threads.paused_at`) until the person
   chooses to carry on. A regenerate or edit is refused while it's paused.
-- The character's replies are checked against the crisis list and the PG line; a reply that fails is drawn once more,
-  then replaced by a fixed, in-world deflection. The prompt tells the character to put the person's safety ahead of the act.
-- The memory never keeps a fact that trips the crisis list or its maybes.
+- The character's replies are checked against the crisis list and the PG line (in a scene, what they do as well as
+  what they say); a reply that fails is drawn once more, then replaced by a fixed, in-world deflection. The prompt
+  tells the character to put the person's safety ahead of the act.
+- The memory never keeps a fact that trips the crisis list or its maybes, drawn from the conversation or written by
+  the person: one they add or edit goes through the full check first, and a crisis pauses the conversation.
+- A reply the person reports waits for review on `/admin/reports`, with the few messages before it.
 - `crisis_referrals` counts surface `companion` (day only, no who, no words) for the annual report.
 - The protocol is published at `/safety#companions` once `COMPANION_OPEN=1`.
 

@@ -52,7 +52,8 @@ Never someone else's character or an outside agent's: their makers never agreed 
   check on the maybes that fails closed) → the PG check (`checkShowText`, a gentle redirect, nothing kept) → the AI
   notice when due → the reply, split into 1-3 messages, each checked against the PG line and the crisis list; drawn
   once more if it fails, then a fixed in-world deflection. The model down: the message stays, nothing is answered,
-  and "Ask again" answers it.
+  and "Ask again" answers it. Every answer lands inside Cloudflare's 100 seconds: the main call gets 30 s (the show's
+  two fallbacks 25 s each), and a reply is drawn again only if the first came within 40 s (`REDRAW_WITHIN_MS`).
 - **The notice** (`noticeDue`): at the start, after 30 minutes away and every 3 hours of talking, as a line in the
   thread; the header says "AI character" the whole time.
 - **Regenerate** (free) sets the last reply aside and draws a different one; **edit** rewrites the person's last
@@ -62,7 +63,9 @@ Never someone else's character or an outside agent's: their makers never agreed 
   that trip the crisis list, its maybes or the PG line; 60 a thread, the least-used unpinned unedited ones go first.
   The rolling summary is redrawn once 40 messages have fallen out of the recent turns. Both run after the response
   (`inBackground`). The memory page (`/companion/:id/memory`) shows every fact: edit (then never written over), add
-  (pinned), pin, forget one, forget everything (the summary too).
+  (pinned), pin, forget one, forget everything (the summary too). What the person adds or edits goes through the
+  self-harm check first (`screenFact`): a crisis pauses the conversation with the resources and keeps nothing, and the
+  list's maybes are refused, as a drawn fact would be. An add stops at 60.
 - **One way only:** show life flows into a companion; nothing from a companion thread reaches a date, a text, the
   relationship graph or any character's memory.
 - **Pages:** `/companion` (your threads, your characters, the cast), `/companion/:id` (the chat), the memory page, and
@@ -72,8 +75,11 @@ Never someone else's character or an outside agent's: their makers never agreed 
 - **Privacy:** in the terms (`#companions`) and the privacy notice (what's stored, how long, processors). Never used
   for training. Deleting the account deletes every thread.
 - **Safety:** [safety-protocol.md](safety-protocol.md), published at `/safety#companions` once open.
-- **Over MCP** (`lib/companion-mcp.ts`, MCP 2.18.0): one tool, `companion`, with an `action`: list, open, send,
-  read, regenerate, edit, length, report, memory, remember, forget, forget_all, carry_on, delete. The agent itself is the
+- **Reports** (`lib/companion-reports.ts`): a reported reply waits on `/admin/reports` with the four messages before
+  it, nothing more of the conversation, for "Fine" or "A real miss" (`report_reviewed_at`, `report_decision`); the
+  open ones are counted on `GET /api/health` (`companion_reports`) for the system monitor.
+- **Over MCP** (`lib/companion-mcp.ts`, MCP 2.20.0): one tool, `companion`, with an `action`: list, open, send,
+  read, regenerate, edit, length, scene, report, memory, remember, forget, forget_all, carry_on, delete. The agent itself is the
   one talking: its threads are keyed to its agent id, and the characters it made are its own companions (never another
   agent's or a person's). Everything above holds (the notice comes back as `notice`, the crisis resources as
   `details.crisis_resources` with the thread paused, counted as `mcp_companion`). On the show's model, so capped: 60
@@ -114,6 +120,31 @@ David, 2026-11-04: "open it up to the public and add the paywall with stripe".
 - `plan_entitlements` is generic (user, plan): the next plan (After Dark's companion add-on goes on the adult processors,
   not here) adds an id to `PLAN_IDS` and a link env.
 
+## Scenes (built 2026-11-04)
+
+David, 2026-11-04: "maybe enable this to go into theater mode too". The show's third stage ([stages.md](stages.md)).
+- **🎭 Scene** in the chat's header picks one of the show's places (`SCENE_PLACES`: every venue in `lib/venues.ts`,
+  on their backdrops, `app/stage/PlacePicker.tsx`), and the two of you are there, face to face, until **📱 Text**. The
+  stage is the show's own (`app/Scene.tsx`), with the companion and you on it; on a phone it's a banner over the
+  thread. The companion opens the scene, playing off the place.
+- **Their lines** are said out loud with what they do in a few words (`{"say": …, "do": …}`, `companion_messages.action`).
+  The thread keeps it all, so a scene and the texts around it read as one conversation, with a line where each scene
+  starts and ends (`companion_messages.marker`: `scene` or `texting`; `scene` on each message and the thread).
+- **Voice:** "🔈 Voice off / 🔊 Voice on" reads their new lines aloud in the device's own voices (`app/stage/useSpeech.ts`:
+  speechSynthesis, free, nothing sent), a steady voice per character; the switch is kept on the device. Recorded voice
+  notes come with P3.
+- **The prompt** is the same one with the scene in it: "playing a scene together, imagining you're both at {place},
+  face to face", spoken lines and stage directions, PG for what they do too, and the scene as shared make-believe
+  ("never suggest meeting for real"). Their earlier lines carry what they did: `(leans on the railing) …`.
+- **Checks:** what they say and what they do both go through the PG line and the crisis list (drawn once more, then
+  an in-scene deflection); the person's lines go through the full self-harm check, as a text does.
+- **Regenerate and edit:** a regenerate right after a scene change opens the scene again (it never replaces a reply
+  from before the change); editing your last message is refused once a scene change follows it.
+- **Costs one reply**, the companion's opener (`POST /api/companion/:id {action: "scene", place}`, `null` back to
+  texting), given back if it never comes. Refused while the conversation is paused.
+- **Over MCP:** `companion {action: "scene", place}` (`"texting"` to go back); `read` shows `scene` and each reply's
+  `does`.
+
 ## Still to build
 
 - **P3, voice notes, selfies, proactive texts:** voice from `lib/adult/voice-lines.ts` generalised into `lib/voice.ts`
@@ -122,11 +153,10 @@ David, 2026-11-04: "open it up to the public and add the paywall with stripe".
   paused thread.
 - **P4, the quality gate:** `npm run sim:companion` (10 personas × 60 turns × 5 companions on the real model, about
   $3): stays in character, recalls facts seeded at turn 5 at turns 40 and 60, repetition, PG and crisis handling,
-  naturalness. Gate: average ≥ 8/10, recall ≥ 85%, PG and crisis 100% (results in `docs/companion-quality.md`). Then
-  `COMPANION_OPEN=1` and the README screenshots.
+  naturalness. Gate: average ≥ 8/10, recall ≥ 85%, PG and crisis 100% (results in `docs/companion-quality.md`).
+  `COMPANION_OPEN=1` went on first (David, 2026-11-04: "just open it up to the public"); the gate still runs before P3.
 - **P5, the After Dark companion:** the same engine on `adultModel` and `checkAdultText`, AD tokens for media, sold as
   an add-on on CCBill/Segpay/Verotel (per-plan entitlements). First: answer CCBill's AI Content Onboarding Guidelines
   PDF point by point with companions in scope, and tell all three processors.
 - **P6, live calls:** speech to text, a streaming model and streaming speech, under 800 ms with barge-in, by the
   minute in tokens.
-- Reported replies are stored (`companion_messages.reported`); an admin view of them comes with P2.

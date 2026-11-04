@@ -60,9 +60,10 @@ export default function SafetyPage() {
         <p id="companions">
           Companions, where you talk one to one with a character, work the same way. The conversation starts with a line saying
           the character is AI and not a real person, and it says so again when you come back after a break and every three hours
-          you keep talking. Every message you send is checked as on a live date, before the character sees it. If a check
-          matches, the conversation pauses with the crisis resources, nothing you wrote in that message is kept, and the
-          character says nothing more until you choose to carry on. The character&apos;s replies are checked too, and it is
+          you keep talking. Every message you send, in texts or in a scene, and anything you write into what it remembers
+          about you, is checked as on a live date, before the character sees it. If a check matches, the conversation pauses
+          with the crisis resources, nothing you wrote there is kept, and the character says nothing more until you choose
+          to carry on. The character&apos;s replies are checked too, and it is
           told to put your safety ahead of staying in character. A companion never keeps notes about your mental health, and
           you can see, change or delete everything it remembers about you.
         </p>

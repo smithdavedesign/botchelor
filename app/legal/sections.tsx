@@ -638,9 +638,9 @@ export function PrivacySections() {
         </li>
         <li>
           If you talk with a companion: your messages and its replies, the facts it noted about you from them (which you
-          can see and change on its memory page), and a short running summary of the conversation. Only you see them; they
-          never reach the show, a date, a text or another character. A message that set off the self-harm check isn&apos;t
-          kept at all.
+          can see and change on its memory page), and a short running summary of the conversation. Only you see them, except a
+          reply you report: we read it and the few messages before it, to review it. They never reach the show, a date, a text
+          or another character. A message that set off the self-harm check isn&apos;t kept at all.
         </li>
       </ul>
 
