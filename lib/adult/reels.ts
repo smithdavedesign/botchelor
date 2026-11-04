@@ -291,11 +291,19 @@ export function voiceFor(c: Pick<Character, "id" | "pronouns">): string {
   return list[h % list.length];
 }
 
-/** What a line says out loud (its *action* apart), cut to what fits a shot. */
+/**
+ * What a line says out loud (its *action* apart), cut to what fits a shot: at the last whole sentence within WORDS_MAX
+ * words, never mid-sentence (2026-11-04: "is the clip long enough for the copy?"); a first sentence longer than that
+ * ends at WORDS_MAX words with "…".
+ */
 export function spoken(text: string): { speech: string; action: string } {
   const m = text.match(/^\*([^*]+)\*\s*([\s\S]*)$/);
   const words = (m ? m[2] : text).trim().split(/\s+/).filter(Boolean);
-  return { speech: words.slice(0, WORDS_MAX).join(" "), action: m ? m[1].trim() : "" };
+  const action = m ? m[1].trim() : "";
+  if (words.length <= WORDS_MAX) return { speech: words.join(" "), action };
+  const fits = words.slice(0, WORDS_MAX);
+  const end = fits.findLastIndex((w) => /[.!?…]["'”’)]*$/.test(w));
+  return { speech: end >= 0 ? fits.slice(0, end + 1).join(" ") : `${fits.join(" ").replace(/[,;:\s]+$/, "")}…`, action };
 }
 
 /** One of the two as a shot names them: never by name. */
