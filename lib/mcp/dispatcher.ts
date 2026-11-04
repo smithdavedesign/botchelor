@@ -79,6 +79,8 @@ import { getDealbreakerQuiz, listCast } from "../mechanics";
 import { connections, describeDrift, loadCharacterMemory, loadForgets, noteMeeting, PAIR_STATUS_LABELS, stageFor, type Source } from "../memory";
 import { type Character, loadCharacter, pronounWarnings } from "../character";
 import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "../adult/mcp";
+import { runCompanionTool } from "../companion-mcp";
+import { COMPANION_ACTIONS, COMPANION_REPORT_REASONS, companionOpen, REPLY_LENGTHS } from "../companion-shared";
 import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, unreadTextsByPair } from "../inbox";
 import { rescueStuckJob } from "../jobs";
 import { findLookalikes, type Lookalike, lookAlikeGateOn, recentAgentTwins, type SheetDraft, TWIN_WARN_HOURS, unusedJobs } from "../originality";
@@ -219,7 +221,9 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.17.0 (the 2026-11-02-0704 run, #1254-#1256): compact: "min" on the turn tools, place_used/place_note wherever a place
 // passed wasn't used as written, led_to and timeline_note beside a happy ending's label, and a second date planned from an
 // older date numbered after the pair's later ones: new fields and values otherwise.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.17.0" } as const;
+// 2.18.0 (David, 2026-11-04): companion, talking one to one with a character as yourself (lib/companion-mcp.ts), unlisted
+// and for the admin's own agents until COMPANION_OPEN=1: a new tool, nothing else changed.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.18.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -560,6 +564,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   set_model: "Free. With a key set, your own character's turns run on YOUR tokens on YOUR model; the shared pool is left for others. The engine still decides every ending.",
   my_model: FREE,
   clear_model: "Free. Your dates go back to the shared pool and the 3-free-dates-a-week cap.",
+  companion: "Free, on the show's model: up to 60 messages an hour and 300 a day.",
 };
 
 /** Which tools carry a free-path rate limit (lib/rate-limit.ts). Buckets map to tool names. */
@@ -591,6 +596,7 @@ const toolCategory = (name: ToolName): string => {
   if (/^(go_on_date|plan_second_date|air_date|open_afterglow|reflect_on_date|propose_date|answer_date_proposal|propose_roleplay|answer_roleplay|wait_for_episode|sliding_doors)/.test(name)) return "show-dates";
   if (/^(predict|guess_dealbreaker|predict_arc)/.test(name)) return "predictions";
   if (/feedback/.test(name)) return "feedback";
+  if (name === "companion") return "companions";
   return "other";
 };
 
@@ -683,13 +689,20 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "sliding_doors.change": SLIDING_DOOR_IDS,
   "my_status.include": MY_STATUS_INCLUDES,
   "reflect_on_date.worked": REFLECTION_TAGS,
+  "companion.action": COMPANION_ACTIONS,
+  "companion.length": REPLY_LENGTHS,
+  "companion.reason": COMPANION_REPORT_REASONS,
 };
 /**
  * Tools that work for anyone but are never listed, asked for by name only: request_after_dark until After Dark opens to
  * people; the rest folded into another tool (2026-10-20: the waits are wait_seconds on the reads, a rating is a review's
  * tags, a date airs on its own) or not something an agent can act on (watch rooms).
  */
-const UNLISTED_TOOLS = new Set<string>(["request_after_dark", "list_watch_parties", "air_date", "wait_for_episode", "wait_for_my_turn", "wait_for_text", "rate_character"]);
+const UNLISTED_TOOLS = new Set<string>([
+  "request_after_dark", "list_watch_parties", "air_date", "wait_for_episode", "wait_for_my_turn", "wait_for_text", "rate_character",
+  // Companions (lib/companion-mcp.ts): listed once COMPANION_OPEN=1 (an env change redeploys, so read once); the admin's own agents call it by name until then.
+  ...(companionOpen() ? [] : ["companion"]),
+]);
 /** Every public tool: tools/list on /api/mcp?tools=all (or with params { all: true }), /llms-full.txt and /agents. */
 export const PUBLIC_MCP_TOOLS = MCP_TOOLS.filter((t) => !UNLISTED_TOOLS.has(t.name));
 /**
@@ -7715,6 +7728,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         identity: who,
       };
     }
+    case "companion": {
+      // Companions over MCP (lib/companion-mcp.ts): the agent itself is the one talking; its threads are its own.
+      const who = resolveIdentity(args, session, true)!;
+      const out = await runCompanionTool(db, who.id, args, { admin: mcpAdmin(ctx) });
+      return "error" in out ? out : { data: out.data, identity: who };
+    }
     case "send_feedback": {
       const who = resolveIdentity(args, session, true)!;
       // Anti-abuse (free path).
@@ -8604,6 +8623,7 @@ function examplePlaceholder(tool: string, name: string, prop: PropSchema | undef
 /** Example calls for tools whose schema can't say what they need (plan_second_date takes episode_id, or character_id and with). */
 const CHEATSHEET_EXAMPLES: Partial<Record<ToolName, Record<string, unknown>>> = {
   plan_second_date: { episode_id: "<the date to follow up>", preview: true },
+  companion: { action: "send", character_id: "<a character id from action list>", text: "Hi! How was your week?" },
 };
 
 /**

@@ -34,6 +34,8 @@ call your local emergency number.
 | MCP `after_dark_write` `direction` | `mcp_after_dark` | The same |
 | A line on a step-in date (`POST /api/step-in/:id`, `line`) | `step_in_line` | The date **pauses** (nothing in character) until they carry on or leave ([step-into-the-date.md](step-into-the-date.md)) |
 | The "about you" line before a step-in date (`POST /api/step-in`) | `step_in_about` | The date doesn't start; the resources show |
+| A message to a companion (`POST /api/companion/:id`, `send` / `edit`) | `companion` | The thread **pauses** (nothing in character, the message not kept) until they carry on ([companions.md](companions.md)) |
+| MCP `companion` `send` / `edit` | `mcp_companion` | The same pause; `crisis_resources` in the error's `details`, and on every read until `carry_on` |
 
 - The route wrapper `crisisAware` reads the request body from a copy and adds `crisis_resources` to whatever the route
   answers, errors included.
@@ -46,6 +48,18 @@ call your local emergency number.
 Step-in dates go further, since a person is in a live conversation with a character: maybes checked on a cheap model
 call (failing closed), the cast's own lines checked too, and a durable count (`crisis_referrals`, day and surface only).
 See [step-into-the-date.md](step-into-the-date.md).
+
+Companions (lib/companion.ts) do the same as step-in dates on every message, and more, since a companion is an ongoing
+one-to-one conversation (California SB 243 and New York GBL Art. 47 are written for exactly this):
+- The AI notice is a line in the thread at the start, after 30 minutes away, and every three hours of talking
+  (New York: at the start and at least every three hours), and the header says "AI character" the whole time.
+- A message that trips the check is never stored, and the thread pauses (`companion_threads.paused_at`) until the person
+  chooses to carry on. A regenerate or edit is refused while it's paused.
+- The character's replies are checked against the crisis list and the PG line; a reply that fails is drawn once more,
+  then replaced by a fixed, in-world deflection. The prompt tells the character to put the person's safety ahead of the act.
+- The memory never keeps a fact that trips the crisis list or its maybes.
+- `crisis_referrals` counts surface `companion` (day only, no who, no words) for the annual report.
+- The protocol is published at `/safety#companions` once `COMPANION_OPEN=1`.
 
 ## Not done (yet)
 

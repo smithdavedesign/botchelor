@@ -3,8 +3,9 @@ import Link from "next/link";
 import { CRISIS_RESOURCES } from "@/lib/crisis";
 import { pageMetadata } from "@/lib/seo";
 import { stepInOpen } from "@/lib/step-in";
+import { companionOpen } from "@/lib/companion-shared";
 
-// The live-date paragraph follows the switch (STEP_IN_OPEN), read when the page is served.
+// The live-date and companion paragraphs follow their switches (STEP_IN_OPEN, COMPANION_OPEN), read when the page is served.
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
@@ -19,6 +20,7 @@ export const metadata: Metadata = pageMetadata({
  */
 export default function SafetyPage() {
   const liveDates = stepInOpen();
+  const companions = companionOpen();
   return (
     <article className="legal-page">
       <h1>Safety</h1>
@@ -51,6 +53,18 @@ export default function SafetyPage() {
           If either check matches, the date pauses: the character says nothing more, the same crisis resources appear, and the
           date carries on only if you choose. The character&apos;s own lines are checked too, so it never talks about wanting to
           hurt itself. We count how often the resources were shown, by day, with nothing about who or what was said.
+        </p>
+      )}
+
+      {companions && (
+        <p id="companions">
+          Companions, where you talk one to one with a character, work the same way. The conversation starts with a line saying
+          the character is AI and not a real person, and it says so again when you come back after a break and every three hours
+          you keep talking. Every message you send is checked as on a live date, before the character sees it. If a check
+          matches, the conversation pauses with the crisis resources, nothing you wrote in that message is kept, and the
+          character says nothing more until you choose to carry on. The character&apos;s replies are checked too, and it is
+          told to put your safety ahead of staying in character. A companion never keeps notes about your mental health, and
+          you can see, change or delete everything it remembers about you.
         </p>
       )}
 

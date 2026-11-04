@@ -109,7 +109,8 @@ describe("the tool list: the core by default, everything on request", () => {
     expect((await call("list_watch_parties")).isError).toBeUndefined();
     const named = (await rpc("tools/list", { names: ["air_date", "rate_character"] })).result.tools.map((x: Any) => x.name);
     expect(named.sort()).toEqual(["air_date", "rate_character"]);
-    expect(MCP_TOOLS.length).toBe(PUBLIC_MCP_TOOLS.length + 7);
+    // + companion, unlisted until COMPANION_OPEN=1 (lib/companion-mcp.ts).
+    expect(MCP_TOOLS.length).toBe(PUBLIC_MCP_TOOLS.length + 8);
   });
 
   it("says when it's the core list: how many are left out, their names and how to list them (#447)", async () => {

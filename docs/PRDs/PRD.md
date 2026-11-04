@@ -33,7 +33,7 @@ _Added 2026-10-13. A PRD review noted this doc describes several products at onc
 - Real-money betting, prizes of value, point sales, or any way for payment to change odds or rank.
 - Real people, minors, sexual content, or anyone's character imported from elsewhere.
 - Image, voice or video generation.
-- Live chat between a user and an AI character (this keeps it clear of a plain companion chatbot).
+- ~~Live chat between a user and an AI character (this keeps it clear of a plain companion chatbot).~~ Reversed 2026-11-04 (David): companions, "a companion with a world", see [../companions.md](../companions.md).
 - Mobile apps in the MVP; web only.
 
 ## Success metrics

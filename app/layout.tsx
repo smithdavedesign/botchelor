@@ -7,6 +7,7 @@ import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { adTokenBalance, adTokensOn } from "@/lib/adult/tokens";
 import { afterDarkOnly } from "@/lib/after-dark-host";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
+import { companionOpen } from "@/lib/companion-shared";
 import { getDb } from "@/lib/db";
 import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
@@ -39,6 +40,7 @@ import "./ux/studio-media.css";
 import "./ux/showcase.css";
 import "./ux/seasons.css";
 import "./ux/step-in.css";
+import "./ux/companion.css";
 
 const TRACKING = trackingConfig();
 
@@ -144,7 +146,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} companions={!adHost && companionOpen()} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">
