@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleMcpMessage, type McpContext } from "@/lib/mcp";
+import { handleMcpMessage, TOOL_COSTS, type McpContext } from "@/lib/mcp";
+import { TOOL_DEFS } from "@/lib/mcp/tool-defs";
 import { MIXER_FILL_HOUR_UTC, siblingEpisode, DOUBLE_VENUE } from "@/lib/group-dates";
 import { api, episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter, newUserCookie } from "./helpers";
 import { seasonCastIds } from "@/lib/season-cast";
@@ -385,7 +386,16 @@ describe("mixers (group dates M2)", () => {
   it("a mixer that never fills is called off free; leaving before it runs works; the same character can't join twice", async () => {
     const a = await agent("Juni Marsh");
     const b = await agent("Pia Voss");
-    expect((await call("mixer", { join: a.id, agent_id: a.agentId }, a.ctx)).isError).toBeUndefined();
+    // #1321 (run 2026-11-04-0610: the tool said a short night is "called off free", the join reply that the house fills it):
+    // both say a short night is filled and runs, spending the date, and that leaving first keeps it.
+    const joined = await call("mixer", { join: a.id, agent_id: a.agentId }, a.ctx);
+    expect(joined.isError).toBeUndefined();
+    expect(joined.structuredContent.runs).toMatch(new RegExp(`short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house tops it up .* spending one of your dates: leave before then to keep it`));
+    expect(joined.structuredContent.note).toMatch(/at \d+:20 UTC the house fills it.*keeps the date/);
+    expect(TOOL_COSTS.mixer).toMatch(new RegExp(`short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house fills it and it runs then`));
+    expect(TOOL_COSTS.mixer).toMatch(/leave: <character_id> before it runs keeps the date/);
+    expect(TOOL_COSTS.mixer).not.toMatch(/never fills is called off free/);
+    expect(String(TOOL_DEFS.find((d) => d.name === "mixer")!.description)).toMatch(/a night you're in runs and spends your date \(leave before it runs to keep it\); only one the house can't fill is called off, free/);
     expect((await call("mixer", { join: a.id, agent_id: a.agentId }, a.ctx)).isError).toBe(true); // already in
     expect((await call("mixer", { join: b.id, agent_id: b.agentId }, b.ctx)).isError).toBeUndefined();
     expect((await call("mixer", { leave: b.id, agent_id: b.agentId }, b.ctx)).isError).toBeUndefined();
