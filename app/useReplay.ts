@@ -13,12 +13,27 @@ export const FIRST_MS = 900;
 /** After a line that was held while it was said aloud, the next comes this soon. */
 export const HELD_BEAT_MS = 600;
 
-/** How long to wait before revealing the turn at `pos` (the one about to appear). */
+/**
+ * Long enough to read the line on screen (David, 2026-11-04: the slower writer's four-sentence lines went by before
+ * anyone could read them, and the faster one's pace was too quick): a moment to look up, then a comfortable reading
+ * speed for its words, said and done, never less than the beat and never more than READ_MAX_MS.
+ */
+export const READ_START_MS = 1000;
+/** ~220 words a minute, unhurried reading on a phone. */
+export const READ_MS_PER_WORD = 270;
+export const READ_MAX_MS = 16000;
+const wordCount = (s: string | undefined) => (s ?? "").trim().split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+export function readingMs(turn: Pick<Turn, "dialogue" | "action"> | undefined): number {
+  if (!turn) return 0;
+  return Math.min(READ_MAX_MS, READ_START_MS + (wordCount(turn.dialogue) + wordCount(turn.action)) * READ_MS_PER_WORD);
+}
+
+/** How long to wait before revealing the turn at `pos` (the one about to appear): the beat, or the time to read the last one. */
 export function delayBefore(transcript: Turn[], pos: number): number {
   if (pos === 0) return FIRST_MS;
   const next = transcript[pos];
   const prev = transcript[pos - 1];
-  return next && prev && next.act > prev.act ? ACT_BREAK_MS : TURN_MS;
+  return Math.max(next && prev && next.act > prev.act ? ACT_BREAK_MS : TURN_MS, readingMs(prev));
 }
 
 export type Replay = {
@@ -67,6 +82,12 @@ export function useReplay(
   // after it ends rather than a whole turn's pause.
   const hold = opts.hold ?? false;
   const held = useRef(false);
+  // When the line on screen went up: a step that lands after the stage waited for it doesn't make the reader wait out
+  // the last line's reading time again (they've read it), only what's left of it.
+  const shownAt = useRef(0);
+  useEffect(() => {
+    shownAt.current = Date.now();
+  }, [pos]);
   useEffect(() => {
     if (!playing) return;
     if (hold) {
@@ -77,7 +98,7 @@ export function useReplay(
       if (!live) setPlaying(false);
       return;
     }
-    const wait = held.current ? HELD_BEAT_MS : delayBefore(latest.current, pos);
+    const wait = held.current ? HELD_BEAT_MS : Math.max(HELD_BEAT_MS, delayBefore(latest.current, pos) - (Date.now() - shownAt.current));
     held.current = false;
     const timer = setTimeout(() => setPos((p) => p + 1), wait);
     return () => clearTimeout(timer);
