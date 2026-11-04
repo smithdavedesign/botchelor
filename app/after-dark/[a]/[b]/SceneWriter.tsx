@@ -28,7 +28,7 @@ import Reels, { stopReel } from "./Reels";
 import Storyboard from "./Storyboard";
 import MediaMenu from "./MediaMenu";
 import type { BusyReel, Reel, ReelScope } from "@/lib/adult/reels";
-import { byFiling, groupNights, runningNight } from "@/lib/adult/nights";
+import { byFiling, groupNights, nightNumbers, runningNight } from "@/lib/adult/nights";
 import { autoplayStop } from "@/lib/adult/autoplay";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
@@ -552,12 +552,18 @@ export default function SceneWriter({
   // latest is still running while the scene is on its next chapter). David, 2026-11-01: "once the night is over you can't
   // go back and make a video of the night … where are the previous 3 chapter nights stored?": each night is one entry
   // with its own video, its chapters inside it.
-  const nightGroups = useMemo(() => groupNights(byFiling(nightList), { chapter: scene.chapter ?? 1 }).reverse(), [nightList, scene.chapter]);
+  const oldestFirst = useMemo(() => groupNights(byFiling(nightList), { chapter: scene.chapter ?? 1 }), [nightList, scene.chapter]);
+  const nightGroups = useMemo(() => [...oldestFirst].reverse(), [oldestFirst]);
+  // Each night's number, and tonight's (lib/adult/nights.ts nightNumbers): the theater's 📖 and the Nights list say both.
+  const numbers = useMemo(() => nightNumbers(oldestFirst), [oldestFirst]);
   const nightLines = (g: (typeof nightGroups)[number]) => g.rows.reduce((t, n) => t + n.lines.length, 0);
   const nightVideo = (g: (typeof nightGroups)[number]) => void planVideo(g.rows.length > 1 ? "night" : "chapter", g.rows[0].id);
   // The night that just ended, while the new one hasn't started: the start card says where it went.
   const lastEnded = !scene.lines.length && (scene.chapter ?? 1) === 1 && nightGroups[0]?.complete ? nightGroups[0] : null;
-  const chapterList = nightList.map((n) => ({ id: n.id, chapter: n.chapter, lines: n.lines.length, created_at: n.created_at, place: n.place }));
+  // The newest night first, each night's chapters in order.
+  const chapterList = nightGroups.flatMap((g) =>
+    g.rows.map((n) => ({ id: n.id, chapter: n.chapter, lines: n.lines.length, created_at: n.created_at, place: n.place, night: numbers.night.get(g.id) })),
+  );
 
   return (
     // An admin: every media title under it opens what made it (app/after-dark/MediaRequest.tsx).
@@ -680,6 +686,7 @@ export default function SceneWriter({
               onReset: () => void send({ reset: true }),
             }}
             chapters={chapterList}
+            night={numbers.now}
             onReplayChapter={(id) => setWatching(nightList.find((n) => n.id === id) ?? null)}
             lastNight={
               lastEnded
@@ -711,6 +718,7 @@ export default function SceneWriter({
             characters={cast}
             feedbackRef={watching.id}
             chapters={chapterList.filter((c) => c.id !== watching.id)}
+            night={numbers.byRow.get(watching.id)}
             onReplayChapter={(id) => setWatching(nightList.find((n) => n.id === id) ?? null)}
             onExit={() => setWatching(null)}
           />
@@ -840,7 +848,9 @@ export default function SceneWriter({
                   return (
                     <li key={g.id} className="ad-night" data-night={g.id}>
                       <p className="ad-night-head">
-                        <strong>{g.complete ? <LocalTime iso={g.rows[0].created_at} format={NIGHT_DAY} /> : "Tonight, so far"}</strong>
+                        <strong>
+                          Night {numbers.night.get(g.id)} · {g.complete ? <LocalTime iso={g.rows[0].created_at} format={NIGHT_DAY} /> : "tonight, so far"}
+                        </strong>
                         {" · "}
                         {many ? `${g.rows.length} chapters` : g.rows[0].chapter ? `Chapter ${g.rows[0].chapter}` : "1 chapter"} · {lines} lines
                         {g.complete && last.place ? ` · ended ${last.place}` : ""}

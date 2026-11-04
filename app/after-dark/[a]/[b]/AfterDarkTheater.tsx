@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
@@ -43,7 +43,7 @@ import { roleplayById, type Roleplay } from "@/lib/adult/roleplays";
 import { videoPrice } from "@/lib/adult/reel-timing";
 
 /** A saved chapter the 📖 menu can play again (lib/adult/scenes.ts AdultNight, trimmed). */
-export type ChapterEntry = { id: string; chapter: number | null; lines: number; created_at: string; place: string | null };
+export type ChapterEntry = { id: string; chapter: number | null; lines: number; created_at: string; place: string | null; night?: number };
 
 /**
  * A scene line as a date turn: its *actions* apart from what they say. #1040 (the 2026-10-30 ad visitor: "stage
@@ -258,6 +258,7 @@ export default function AfterDarkTheater({
   whispers = null,
   steps = null,
   chapters = [],
+  night,
   onReplayChapter,
   scenes = [],
   myRoleplays = [],
@@ -354,8 +355,10 @@ export default function AfterDarkTheater({
   whispers?: ReactNode;
   /** Rewind, Redo and Start over, in the ⋯ menu: live only. */
   steps?: { canRewind: boolean; redoTitle: string; canReset: boolean; onRewind: () => void; onRedo: () => void; onReset: () => void } | null;
-  /** The saved chapters, newest first, for the 📖 menu: one plays again over the theater. */
+  /** The saved chapters, newest night first, for the 📖 menu: one plays again over the theater. */
   chapters?: readonly ChapterEntry[];
+  /** Which night this is, counted from the pair's first (lib/adult/nights.ts nightNumbers): the 📖 chip says it. */
+  night?: number;
   onReplayChapter?: (id: string) => void;
   /** Every place Set the scene can pick (lib/adult/scene-catalog.ts), and a scenario card's Start this story. */
   scenes?: readonly CatalogScene[];
@@ -609,6 +612,24 @@ export default function AfterDarkTheater({
     watch.observe(bottom);
     return () => watch.disconnect();
   }, []);
+  /** One saved chapter in the 📖 menu: plays it again over the theater. */
+  const chapterItem = (c: ChapterEntry) => (
+    <button
+      key={c.id}
+      type="button"
+      role="menuitem"
+      className="ad-chapter-item"
+      onClick={() => {
+        setChapterMenu(false);
+        onReplayChapter?.(c.id);
+      }}
+    >
+      ↺ {c.chapter ? `Chapter ${c.chapter}` : "A night"}{" "}
+      <span className="muted small">
+        {c.night ? "" : `· ${new Date(c.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} `}· {c.lines} lines{c.place ? ` · ${c.place}` : ""}
+      </span>
+    </button>
+  );
   return (
     <div
       className="theater theater-clean theater-after-dark"
@@ -795,32 +816,35 @@ export default function AfterDarkTheater({
                 title={chapters.length && onReplayChapter ? "Chapters: play an earlier one again" : undefined}
                 onClick={() => setChapterMenu((v) => !v)}
               >
-                📖 {live ? `Chapter ${scene.chapter ?? 1}` : scene.chapter ? `Chapter ${scene.chapter} · replay` : "Replay"}
+                📖 {night ? `Night ${night} · ` : ""}
+                {live ? `Chapter ${scene.chapter ?? 1}` : scene.chapter ? `Chapter ${scene.chapter} · replay` : "Replay"}
                 {chapters.length > 0 && onReplayChapter ? " ▾" : ""}
               </button>
               {chapterMenu && onReplayChapter && (
                 <div className="ad-chapter-menu" role="menu" aria-label="Chapters">
+                  {/* Each night under its own heading, tonight's first, its chapters in order (David, 2026-11-04: "I don't see
+                      a way to see separate nights and their chapters"). */}
+                  {live && night && (
+                    <span className="ad-chapter-night muted small" role="presentation">
+                      Night {night} · tonight
+                    </span>
+                  )}
+                  {(live ? chapters.filter((c) => c.night === night) : []).map(chapterItem)}
                   {live && (
                     <span className="ad-chapter-item on">
                       ▶ Chapter {scene.chapter ?? 1} <span className="muted small">· now · {scene.lines.length} lines</span>
                     </span>
                   )}
-                  {chapters.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      role="menuitem"
-                      className="ad-chapter-item"
-                      onClick={() => {
-                        setChapterMenu(false);
-                        onReplayChapter(c.id);
-                      }}
-                    >
-                      ↺ {c.chapter ? `Chapter ${c.chapter}` : "A night"}{" "}
-                      <span className="muted small">
-                        · {new Date(c.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {c.lines} lines{c.place ? ` · ${c.place}` : ""}
-                      </span>
-                    </button>
+                  {(live ? chapters.filter((c) => c.night !== night) : chapters).map((c, i, list) => (
+                    <Fragment key={c.id}>
+                      {c.night && c.night !== list[i - 1]?.night && (
+                        <span className="ad-chapter-night muted small" role="presentation">
+                          Night {c.night}
+                          {c.night === night ? " · this one" : ` · ${new Date(c.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
+                        </span>
+                      )}
+                      {chapterItem(c)}
+                    </Fragment>
                   ))}
                 </div>
               )}

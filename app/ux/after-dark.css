@@ -1004,6 +1004,19 @@ button.ad-chapter-item:hover {
 .ad-chapter-item.on {
   color: var(--accent);
 }
+/* A night's heading in the 📖 menu: its chapters are under it. */
+.ad-chapter-night {
+  display: block;
+  padding: 0.5rem 0.6rem 0.15rem;
+  color: #b7a8d3;
+  font-size: var(--text-xs, 0.75rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ad-chapter-night:not(:first-child) {
+  margin-top: 0.35rem;
+  border-top: 1px solid #33264d;
+}
 .ad-chapter-item .muted {
   color: #b7a8d3;
 }

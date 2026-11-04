@@ -41,6 +41,22 @@ export function groupNights<R extends NightKey>(rows: readonly R[], running: { c
   return groups;
 }
 
+/**
+ * Which night each saved chapter belongs to, counted from the pair's first (David, 2026-11-04: "I don't see a way to see
+ * separate nights and their chapters"): `night` by a night's id (its first chapter's), `byRow` by any chapter's id, and
+ * `now`, the night the scene is on: the latest one while it's still running, else the next.
+ */
+export function nightNumbers<R extends NightKey>(groups: readonly NightGroupOf<R>[]): { night: Map<string, number>; byRow: Map<string, number>; now: number } {
+  const night = new Map<string, number>();
+  const byRow = new Map<string, number>();
+  groups.forEach((g, i) => {
+    night.set(g.id, i + 1);
+    for (const r of g.rows) byRow.set(r.id, i + 1);
+  });
+  const latest = groups.at(-1);
+  return { night, byRow, now: latest && !latest.complete ? groups.length : groups.length + 1 };
+}
+
 /** Oldest first, as the night was filed: by when, then chapter (an unnumbered one first), then id. */
 export function byFiling<R extends NightKey>(rows: readonly R[]): R[] {
   return [...rows].sort((p, q) => {
