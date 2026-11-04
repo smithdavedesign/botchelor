@@ -48,7 +48,7 @@ describe("#1205: start_own_date's preview names the venue, and a roleplay says i
 
     const train = (await call("start_own_date", { character_id: A.id, partner_id: C, roleplay: "masquerade", place: "a night train", preview: true }, A.ctx)).structuredContent;
     expect(train.venue).toMatch(/night train/i);
-    expect(train.venue_note).toBe(`Where you said (place): ${train.venue}.`);
+    expect(train.venue_note).toBe(`Where you said (place): ${train.venue}. A place you name wins over the show's rule of avoiding either one's last two venues.`);
     expect(train.roleplay_note).toBe(`The roleplay sets the story, not the place: the date happens at ${train.venue}, and its lines and recap are set there. If the premise needs a place of its own (a night train), pass it as place.`);
 
     const rp = (await call("start_own_date", { character_id: A.id, partner_id: C, roleplay: "masquerade", preview: true }, A.ctx)).structuredContent;

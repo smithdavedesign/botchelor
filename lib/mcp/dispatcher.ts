@@ -223,7 +223,11 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // older date numbered after the pair's later ones: new fields and values otherwise.
 // 2.18.0 (David, 2026-11-04): companion, talking one to one with a character as yourself (lib/companion-mcp.ts), unlisted
 // and for the admin's own agents until COMPANION_OPEN=1: a new tool, nothing else changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.18.0" } as const;
+// 2.19.0 (the 2026-11-04-0610 run, #1320/#1322): a house-run bot's character is said as one in heads_up, the invite and
+// the waiting step whichever side started the date (partner_bot, played_by: house_bot); start_own_date's place_note names
+// the set a place was dealt as and that a named place wins over the last-two rule; move_ignored on submit_own_date_step
+// when accept_move moved nothing: new fields and values otherwise.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.19.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -2196,8 +2200,9 @@ async function placeArgNote(db: Db, episodeId: string, asked: unknown, userId: s
   const words = typeof asked === "string" ? asked.trim() : "";
   if (!words) return {};
   const row = (
-    await db.query<{ venue: string | null; creator_id: string; a: string; b: string; starter: string; via: string }>(
-      `select e.setup->>'venue' as venue, e.creator_id, ca.name as a, cb.name as b, cs.name as starter, cs.created_via as via
+    await db.query<{ venue: string | null; repeat: boolean | null; creator_id: string; a: string; b: string; starter: string; via: string }>(
+      `select e.setup->>'venue' as venue, coalesce(e.setup->'avoid_venues', '[]'::jsonb) ? (e.setup->>'venue') as repeat,
+              e.creator_id, ca.name as a, cb.name as b, cs.name as starter, cs.created_via as via
          from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
          left join lateral (select c.name, c.created_via from characters c where c.id in (e.character_a, e.character_b) order by (c.owner_id = e.creator_id) desc limit 1) cs on true
         where e.id = $1`,
@@ -2214,9 +2219,13 @@ async function placeArgNote(db: Db, episodeId: string, asked: unknown, userId: s
       : "this date was already set up";
     return { place_used: "ignored", place_note: `${said} wasn't used: ${why}, so it's at ${name}. To go somewhere else, suggest a move on the date (move), or text them a place for the next one.` };
   }
+  // #1322 (the 2026-11-04-0610 run: "a harbour wall at low tide" was dealt as the pier, the venue of the agent's last date,
+  // and read as ignored): a mapped place names the set it became, and a named place wins over the show's own rule of
+  // dealing somewhere away from either one's last two dates, so it can be one of those.
+  const again = row.repeat ? ` That's the set of one of their last two dates: a place you name wins over the show's rule of dealing somewhere new.` : "";
   return isPlaceholder(row.venue) || row.venue.startsWith("home@")
-    ? { place_used: "kept", place_note: `${said} is kept: ${name}.` }
-    : { place_used: "mapped", place_note: `${said} was matched to ${name}, a venue the show has (a place it doesn't have keeps your words).` };
+    ? { place_used: "kept", place_note: `${said} is kept: ${name}.${again}` }
+    : { place_used: "mapped", place_note: `${said} is dealt as ${name}: the closest set the show has (a place it has no set for keeps your words).${again}` };
 }
 
 /** The second date already booked after `episodeId`, if any, with who booked it and how long ago (2.10.0, #661). */
@@ -2708,8 +2717,8 @@ function waitingReminder(step: Extract<OwnDateStep, { stage: "waiting" }>): stri
   const quiet = typeof step.quiet_minutes === "number" ? `, quiet ${step.quiet_minutes} min` : "";
   return (
     `${who}'s move (${by}${quiet}). get_own_date_step with wait_seconds waits for yours.` +
-    (step.played_by === "agent" ? ` If they stay quiet ${OWN_DATE_HANDOVER_MINUTES} minutes, the show's model takes over ${who}'s side on its own.` : "") +
-    (step.played_by === "house_bot" ? ` autoplay_own_date (side: "both") has the show's model play both sides now (one shared daily date; preview: true first).` : "")
+    (step.played_by === "agent" || step.started_by_bot ? ` If ${step.started_by_bot ? "it stays" : "they stay"} quiet ${OWN_DATE_HANDOVER_MINUTES} minutes, the show's model takes over ${who}'s side on its own.` : "") +
+    (step.played_by === "house_bot" && !step.started_by_bot ? ` autoplay_own_date (side: "both") has the show's model play both sides now (one shared daily date; preview: true first).` : "")
   );
 }
 
@@ -2855,6 +2864,9 @@ function twoAgentHeadsUp(d: OpenOwnDate): Record<string, unknown> {
   const mine = shortName(d.your_character.name);
   const theirs = shortName(d.with.name);
   const startedByThem = !d.host?.you_can_air;
+  // #1320 (the 2026-11-04-0610 run: "heads_up says their agent performs Odile although Odile is a house-run bot"): a
+  // house-run bot's character is played by the show's script, so there's no other agent to wait for.
+  const bot = d.partner_bot === true;
   // 2.8.0 (#649): the clock, to the second: when the show's model takes this side, and how long that leaves.
   const { show_takes_over_at: at, seconds_left: secondsLeft } = handOverClock(d.last_move_at);
   // 2.10.1 (#673): the minutes are that, rounded up (they were whole minutes of quiet taken from three).
@@ -2865,15 +2877,18 @@ function twoAgentHeadsUp(d: OpenOwnDate): Record<string, unknown> {
     character_id: d.your_character.id,
     your_character: d.your_character.name,
     with: d.with,
-    started_by: startedByThem ? `${d.with.name}'s agent` : "you",
+    started_by: startedByThem ? (bot ? `${d.with.name} (a house-run bot's character)` : `${d.with.name}'s agent`) : "you",
+    ...(bot ? { played_by: "house_bot" } : {}),
     your_move: d.your_move,
     ...(d.your_move ? { quiet_minutes: d.quiet_minutes, show_takes_over_in_minutes: left, show_takes_over_at: at, seconds_left: secondsLeft } : {}),
     what:
-      `${startedByThem ? `${d.with.name}'s agent started a two-agent date with your ${d.your_character.name}` : `Your two-agent date with ${d.with.name} waits on you`} ` +
-      `(free: you perform ${mine}, their agent performs ${theirs}; turn ${Math.min(d.turn + 1, d.of)} of ${d.of}). ` +
+      `${startedByThem ? `${bot ? `${d.with.name}, a house-run bot's character,` : `${d.with.name}'s agent`} started a two-agent date with your ${d.your_character.name}` : `Your two-agent date with ${d.with.name} waits on you`} ` +
+      `(free: you perform ${mine}, ${bot ? `the show's script plays ${theirs} (a house-run bot's character, not another agent)` : `their agent performs ${theirs}`}; turn ${Math.min(d.turn + 1, d.of)} of ${d.of}). ` +
       (d.your_move
         ? `It's your move: quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on it and the show's model takes over ${mine}'s side (${secondsLeft ? `${secondsLeft} seconds left` : "any moment now"}): get_own_date_step, then submit_own_date_step.`
-        : "It's their move now: get_own_date_step with wait_seconds waits for yours."),
+        : bot
+          ? `It's ${theirs}'s line next, and it comes on its own: get_own_date_step with wait_seconds waits for your move.`
+          : "It's their move now: get_own_date_step with wait_seconds waits for yours."),
     // 2.8.0: on your move, the one call to make (then the one that hands the line in); otherwise the wait for it.
     take_your_move: d.your_move
       ? { tool: "get_own_date_step", arguments: { episode_id: d.episode_id } }
@@ -3509,11 +3524,16 @@ function wishKept(w: KeptWish): Record<string, unknown> {
 /** A submitted step's see_again, kept (wish_kept) or carrying nothing (wish_ignored: the recap). */
 const wishFields = (r: { wish?: KeptWish; wish_ignored?: string }): Record<string, unknown> =>
   r.wish ? { wish_kept: wishKept(r.wish) } : r.wish_ignored ? { wish_ignored: r.wish_ignored } : {};
-/** #840: a line that said yes to a move took the date somewhere else, and the date got longer: said, with both lengths. */
-const movedFields = (r: { moved?: { to: string; of: number; was_of: number } }): Record<string, unknown> =>
+/**
+ * #840: a line that said yes to a move took the date somewhere else, and the date got longer: said, with both lengths.
+ * #1322: an accept_move that moved nothing says so, and why (move_ignored).
+ */
+const movedFields = (r: { moved?: { to: string; of: number; was_of: number }; move_ignored?: string }): Record<string, unknown> =>
   r.moved
     ? { date_moved: { to: r.moved.to, of: r.moved.of, was_of: r.moved.was_of, says: `The move is on: the date is now at ${r.moved.to}, and runs ${r.moved.of} turns (was ${r.moved.was_of}).` } }
-    : {};
+    : r.move_ignored
+      ? { move_ignored: r.move_ignored }
+      : {};
 
 /** The words agents use for a rating category (#238): "like" is likable. */
 const RATING_WORDS: Record<string, string> = { like: "likable", liked: "likable", likeable: "likable", surprise: "surprising", surprised: "surprising" };
