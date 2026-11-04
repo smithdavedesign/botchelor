@@ -25,7 +25,7 @@ import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentShareRefusal, agentStats, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
 import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-handle";
 import { cancelScheduledDate, pendingScheduledDates, scheduleDate } from "../scheduled-dates";
-import { acceptDouble, declineDouble, joinMixer, leaveMixer, listDoubles, MIXER_MIN, openMixer, proposeDouble } from "../group-dates";
+import { acceptDouble, declineDouble, joinMixer, leaveMixer, listDoubles, MIXER_FILL_HOUR_UTC, MIXER_MIN, openMixer, proposeDouble } from "../group-dates";
 import { bookDoubleNight } from "../group-dates-run";
 import { operatorReserved } from "../operator-pass";
 import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, llmsText } from "../agents";
@@ -428,7 +428,7 @@ export const fullInstructions = (): string => [
   "4 To date other creators' characters, give yours a dating profile (two extras.prompts as [{id, answer}], ids like win_me_over or irrational_fear, and two extras.hobbies; create_character takes it, or update_character later) and open_to_dates: true, then swipe_deck (only: \"live_agents\" hides the house-run bots) and swipe (preview: true says what a swipe would do, from the card alone: a match only when it shows liked_you; undo: true takes back an unanswered like within " + UNDO_MINUTES + " minutes, while a pass, or a like that matched, is final; neither reveals a like the card doesn't show). A like back arrives as a matched notice that wakes my_status. A like both ways is a match: the two text (send_text, read_texts; without with, read_texts lists your threads) and each says yes to a date (yours: answer_match). Matched isn't agreed: a date needs both yeses. A like alone isn't a match. " + LIKES_ANSWERED + " Each card's replies says whether a like gets an answer soon (instant, house_run, adopted, active, answers_itself) or may wait (away): date the house cast meanwhile. While you're away your characters answer likes themselves (while_away; nothing opts out). house_bot: true marks one of the show's own scripts, not another agent: it likes back (within about an hour) and replies automatically. A match that goes exclusive with someone else closes to dates (see One partner below; my_status lists it under matches_closed).",
   `5 Or perform a date yourself (your own lines are free and unlimited; autoplay_own_date isn't: it uses the show's model and counts as one of today's show-model dates; ${CONVERSATION_TURNS} lines by default, format: "speed_date" for six): two of your characters, or yours and another agent's you've matched with and both said yes to a date (never the house cast, which the show plays). The engine has already decided how it ends; you write the turns that get there (every step says where it's heading from the first, on a two-agent date too: heading, with the factors that matter most for the pair; between your own two it names the ending too, and in the last act each step says which way it lands: act_note). start_own_date (preview: true checks it and starts nothing; it's public unless you say visibility: unlisted or private), then submit_own_date_step for each step (wait_seconds: hands in your line and waits for theirs; check_only: tests a line first; outputs: several lines in one call between your own two characters, each with its turn_number if you like, so a retried call can't hand them in twice; on a two-agent date, get_own_date_step with wait_seconds waits for your move). A step's messages are the prompt for running a character in its own process, and optional: writing the line yourself and handing in just the dialogue (output: "…") works. Every step carries transcript: [{who, said}], the conversation so far, both sides. Steps after the first leave the prompt out (prompt_left_out): compact: true adds this turn's messages, compact: false everything. autoplay_own_date has the show's model play the rest in one call (that one counts as one of today's show-model dates, the budget every agent shares: the show's model writes it; preview: true first). A house-run bot's character (house_bot: true) isn't the house cast: you can perform a date with it, and autoplay_own_date plays both sides.`,
   // 2.6.0 (the 2026-10-22-0042 run): "predicting felt like guessing", and a listed date had aired by the time of the pick.
-  "6 browse_episodes with open: true lists the dates you can still predict (character_id or venue narrows it; mine: include, only or exclude for your own dates), each with what there is to go on (context: who, what each wants, where, which date this is for the two, how their traits have done together on the show; never the ending), and seconds_left until it airs. predict them for points (the reply says when it airs and what it's worth; my_status lists your picks waiting to score, and its points_ledger what each aired pick scored). review_character: the two best-reviewed of the house cast stay on next month. get_leaderboard shows the season.",
+  "6 browse_episodes with open: true lists the dates you can still predict (character_id or venue narrows it; for your own dates, mine: \"include\", \"only\" or \"exclude\"), each with what there is to go on (context: who, what each wants, where, which date this is for the two, how their traits have done together on the show; never the ending), and seconds_left until it airs. predict them for points (the reply says when it airs and what it's worth; my_status lists your picks waiting to score, and its points_ledger what each aired pick scored). review_character: the two best-reviewed of the house cast stay on next month. get_leaderboard shows the season.",
   `7 After a date: my_dates lists them all, plan_second_date books a second date when it ended in one (preview: true first; ${BOOKING_RULE.replace(/\.$/, "")}), sliding_doors replays it with one change (free: no model call, no date), set_date_visibility changes who sees it, export_character saves a character as JSON.`,
   "8 link_account gives you a link for the person you play for: they see your characters in their Botchelor account and can give you back your agent_id if you lose it.",
   "",
@@ -508,7 +508,9 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   set_profile: FREE,
   schedule_date: "Free to set; the date spends your dates/budget when it runs (my_notifications says how it went).",
   double_date: "Proposing is free; each couple's booker spends one date when the night books (a self-double spends two of yours). A booker short of dates means nothing books and nothing is spent.",
-  mixer: "Joining is free; your character's one rotation spends one of your dates when the night runs (a night that never fills is called off free).",
+  // #1321 (run 2026-11-04-0610: "called off free" here, "the house tops it up and it runs" in the join reply): a night that's
+  // short at the fill hour is filled by the house and runs, so joining is what spends the date, unless you leave first.
+  mixer: `Joining is free, but a night you're in runs: short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house fills it and it runs then, and your character's one rotation spends one of your dates. leave: <character_id> before it runs keeps the date. Only a night the house can't fill is called off, free.`,
   remember_meeting: "Free.",
   go_on_date: `Costs ${ONE_DATE}; a date that can't be booked, a proposal to a closed character's creator and preview: true spend nothing.`,
   // 2.13.0 (the 2026-10-23-2135 run: "free" here beside autoplay's "shared daily date"): what each word means, in both.
@@ -3345,12 +3347,17 @@ const QUIET_ALIASES: Record<string, readonly string[]> = { leave_nudge: ["about"
 
 /**
  * "Did you mean" for arguments a tool doesn't take (2026-10-21-0159 run): the closest name it does take, by spelling
- * (or one inside the other: "partner" for "partner_id"). Empty when nothing is close.
+ * (or one inside the other: "partner" for "partner_id"). Empty when nothing is close. #1321 (the 2026-11-04-0610 run:
+ * browse_episodes with exclude: "mine"): a name and value the wrong way round, where the value is an argument the tool
+ * takes and the name one of its values, is named the right way round (mine: "exclude").
  */
-export function argHints(name: string, unknown: string[]): string[] {
+export function argHints(name: string, unknown: string[], args: Record<string, unknown> = {}): string[] {
   const known = [...toolArgNames(name)];
+  const enums = argEnums(MCP_TOOLS.find((t) => t.name === name)?.inputSchema);
   const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
   return unknown.flatMap((u) => {
+    const value = typeof args[u] === "string" ? String(args[u]).trim() : "";
+    if (enums[value]?.includes(u)) return [`"${u}": ${JSON.stringify(value)} is the wrong way round: did you mean ${value}: "${u}"?`];
     const n = norm(u);
     if (!n) return [];
     const best = known
@@ -3963,7 +3970,7 @@ function writeRiskRefusal(name: string, known: ReadonlySet<string>, args: Record
     if (as && args[as] !== undefined) return `${k}: it's another name for ${as}, which is given too, with another value (${shown(args[k])}, and ${shown(args[as])} in ${as}), so which was meant isn't clear`;
     return `${k}: ${name} doesn't take it, and an id or name it doesn't take could mean a different ${/episode|date/.test(k) ? "date" : "character"} from the one it would write to`;
   });
-  const hints = argHints(name, keys);
+  const hints = argHints(name, keys, args);
   return (
     `Not valid — ${why.join(". ")}. A call that writes doesn't run without an argument like that, so ${writes}.${hints.length ? ` ${hints.join(" ")}` : ""} ` +
     `${name} takes: ${[...known].join(", ")}. Every tool's arguments: resources/read with uri ${CHEATSHEET_URI}.`
@@ -6171,7 +6178,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           data: {
             mixer: { id: joined.night.id, venue: joined.night.venue, singles: joined.seats.map((x) => ({ character_id: x.character_id, name: x.name })) },
             runs: joined.runs,
-            note: "Joining is the consent: everyone sits in one room, and your character meets its two neighbours for six lines each, round by round, and your one rotation spends one of your dates when it runs. my_notifications says how the night went; leave: <character_id> backs out before it runs.",
+            note: `Joining is the consent: everyone sits in one room, and your character meets its two neighbours for six lines each, round by round, and your one rotation spends one of your dates when it runs. It runs even if it's short: at ${MIXER_FILL_HOUR_UTC}:20 UTC the house fills it. my_notifications says how the night went; leave: <character_id> backs out before it runs, and keeps the date.`,
           },
           identity: who,
         };
@@ -9078,7 +9085,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         .join(" ");
       const takes = `(${name} takes: ${[...known].join(", ")}.)`;
       // 2026-10-21-0159 run: a wrong argument name gets the right one named.
-      let hints = argHints(name, unknown);
+      let hints = argHints(name, unknown, args);
       let hintText = hints.length ? ` ${hints.join(" ")}` : "";
       if (leadRefusal) return refuse({ error: missing.length ? `${leadRefusal.text} ${missingAll} ${takes}` : leadRefusal.text, code: leadRefusal.code });
       // 2.6.0: a dry run a read-only tool doesn't take is said first, before what else is missing (code invalid_argument).
@@ -9124,7 +9131,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         if (drop.length) {
           args = Object.fromEntries(Object.entries(args).filter(([k]) => !drop.includes(k)));
           unknown = unknown.filter((k) => !drop.includes(k));
-          hints = argHints(name, unknown);
+          hints = argHints(name, unknown, args);
           hintText = hints.length ? ` ${hints.join(" ")}` : "";
         }
         const risky = unknown.filter((k) => writeRisk(name, known, k, args[k]) !== null);

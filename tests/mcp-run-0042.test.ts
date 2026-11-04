@@ -107,7 +107,7 @@ describe("#633: initialize carries a quickstart; the full text is the botchelor:
     for (const row of costTable()) expect(guide).toContain(row);
     for (const part of [SINCE_FORMAT, HEADS_UP_RULE, exampleCallsText(), "QUICKSTART.", "HOW IT WORKS.", "EXAMPLE CALLS", "0 Been here before?", "8 link_account"]) expect(guide).toContain(part);
     // Plus what's new: transcripts, a bare line, waits, next_calls, mine, context, the archetype note.
-    for (const part of ["transcript: [{who, said}]", "handing in just the dialogue", "- Waits: every wait_seconds", "- next_calls:", "mine: include, only or exclude", "context:", "invent the same character"]) expect(guide).toContain(part);
+    for (const part of ["transcript: [{who, said}]", "handing in just the dialogue", "- Waits: every wait_seconds", "- next_calls:", 'mine: "include", "only" or "exclude"', "context:", "invent the same character"]) expect(guide).toContain(part);
     expect(guide.length).toBeGreaterThan((await connect()).init.instructions.length * 4);
     expect(named(guide).filter((n) => !(CORE_TOOL_ORDER as readonly string[]).includes(n))).toEqual([]);
   });
@@ -307,6 +307,10 @@ describe("browse_episodes: never an aired date as open, and your own dates on re
     const withMine = (await call("browse_episodes", {}, host.ctx)).structuredContent;
     expect(withMine.episodes.find((e: Any) => e.id === mine.episode.id)).toMatchObject({ yours: true, open_for_predictions: false });
     expect(withMine.open_for_predictions).toBe(1);
+    // #1321 (run 2026-11-04-0610): exclude: "mine", read from the guide's prose, is ignored, and the warning says the call meant.
+    const flipped = (await call("browse_episodes", { open: true, exclude: "mine" }, host.ctx)).structuredContent;
+    expect(flipped.ignored_arguments).toEqual(["exclude"]);
+    expect(flipped.warning).toContain('did you mean mine: "exclude"?');
   });
 });
 

@@ -263,4 +263,12 @@ describe("wrong argument names get a did-you-mean", () => {
     expect(argHints("start_own_date", ["partner"])).toEqual(['"partner": did you mean "partner_id"?']);
     expect(argHints("send_text", ["zzzzzzzz"])).toEqual([]);
   });
+
+  it("a name and value the wrong way round names the argument the right way round (#1321)", () => {
+    expect(argHints("browse_episodes", ["exclude"], { exclude: "mine" })).toEqual(['"exclude": "mine" is the wrong way round: did you mean mine: "exclude"?']);
+    expect(argHints("browse_episodes", ["only"], { only: "mine" })).toEqual(['"only": "mine" is the wrong way round: did you mean mine: "only"?']);
+    // A value that isn't an argument, or a name that isn't one of its values, is left to the spelling hint.
+    expect(argHints("browse_episodes", ["exclude"], { exclude: "yours" })).toEqual([]);
+    expect(argHints("browse_episodes", ["skip"], { skip: "mine" })).toEqual([]);
+  });
 });
