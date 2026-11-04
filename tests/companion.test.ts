@@ -60,12 +60,13 @@ function routedModel() {
       }
       if (system.startsWith("You keep the running notes")) {
         calls.push({ kind: "summary", messages });
-        return "They talked about bread, the new job and Maya's wedding.";
+        return JSON.stringify({ notes: "They talked about bread, the new job and Maya's wedding." });
       }
       if (system.startsWith("You are ")) {
         calls.push({ kind: "reply", messages });
         if (down) throw new Error("model down");
-        return replies.shift() ?? `Reply number ${++n}, in my own voice.\n\nAnd a second thought about it.`;
+        // In JSON mode like the real model (lib/model.ts); a test's own replies are plain text, the fallback.
+        return replies.shift() ?? JSON.stringify({ messages: [`Reply number ${++n}, in my own voice.`, "And a second thought about it."] });
       }
       calls.push({ kind: "other", messages });
       return "{}";
@@ -402,9 +403,11 @@ describe("what a companion remembers", () => {
     const me = await person({ admin: true });
     const { body } = await open(me.cookie);
     const id = body.thread_id as string;
-    const model = { complete: async () => "They talked about bread." };
+    const model = { complete: async () => '{"notes":"They talked about bread."}' };
     expect(await updateSummary(t.db, id, CAST.name, model)).toBe(false);
     for (let i = 0; i < Math.ceil(SUMMARY_EVERY / 3) + 8; i++) await act(me.cookie, id, { action: "send", text: `m${i}` });
+    // An empty JSON answer changes nothing.
+    expect(await updateSummary(t.db, id, CAST.name, { complete: async () => "{ }" })).toBe(false);
     expect(await updateSummary(t.db, id, CAST.name, model)).toBe(true);
     await act(me.cookie, id, { action: "send", text: "and now?" });
     expect(calls.filter((c) => c.kind === "reply").at(-1)!.messages[0].content).toContain("Earlier in your conversation: They talked about bread.");

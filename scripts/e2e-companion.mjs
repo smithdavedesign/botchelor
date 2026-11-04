@@ -66,18 +66,20 @@ function startCompanionStub() {
             ],
           });
         } else if (system.startsWith("You keep the running notes")) {
-          content = "They talked about bread and a trip.";
+          content = JSON.stringify({ notes: "They talked about bread and a trip." });
         } else if (system.startsWith("You are ") && system.includes("Botchelor")) {
           seen.replyPrompts.push(system);
+          // In JSON mode like the real model (lib/model.ts asks every call for a JSON object).
+          const say = (...messages) => JSON.stringify({ messages });
           content = system.includes("say something different instead")
-            ? "Okay, take two.\n\nTell me everything about it."
+            ? say("Okay, take two.", "Tell me everything about it.")
             : /first time/.test(last)
-              ? "Hi! I'm glad you came by.\n\nI just got off a very strange shift."
+              ? say("Hi! I'm glad you came by.", "I just got off a very strange shift.")
               : /Lisbon/.test(last)
-                ? "Lisbon! Bring me back a custard tart."
+                ? say("Lisbon! Bring me back a custard tart.")
                 : /sourdough/i.test(last)
-                  ? "Sourdough? Okay, I'm impressed.\n\nWhat did you name the starter?"
-                  : "Tell me more.\n\nI'm listening.";
+                  ? say("Sourdough? Okay, I'm impressed.", "What did you name the starter?")
+                  : say("Tell me more.", "I'm listening.");
         }
       } catch {
         // An unreadable request gets the empty object.
