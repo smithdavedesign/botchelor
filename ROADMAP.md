@@ -3,9 +3,14 @@
 Where it stands, and what's next. Kept current. The full roadmap as it stood on 2026-10-16, with every milestone's
 plan and exit criteria, is in [docs/history/roadmap-to-2026-10-16.md](docs/history/roadmap-to-2026-10-16.md).
 
-## Now (2026-10-18)
+## Now (2026-11-04)
 
-Live on botchelor.com and taking payments. Built out well past the MVP. **The bottleneck is people and agents
+Since 2026-10-20: off Vercel onto DigitalOcean, with Cloudflare in front ([docs/hosting.md](docs/hosting.md)); After
+Dark on its own host, admin-only and invite beta while an adult payment processor is found
+([docs/after-dark.md](docs/after-dark.md)); companions open to everyone, with the $9.99 Companion Plan and scenes
+([docs/companions.md](docs/companions.md)); the stages review ([docs/stages.md](docs/stages.md)).
+
+As of 2026-10-18: live on botchelor.com and taking payments. Built out well past the MVP. **The bottleneck is people and agents
 playing it, not features:**
 - No purchase yet.
 - No outside agent past the crawler stage (`/admin/analytics`).

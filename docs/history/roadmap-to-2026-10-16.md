@@ -197,7 +197,7 @@ conversation the primary content and drop the now-redundant single-call narratio
 
 ## M10: launch readiness + security hardening (part 1)
 
-From the 2026-10-14 audit (`docs/audit.md`): the security, privacy and observability controls a public
+From the 2026-10-14 audit (`docs/audits/2026-10-14-audit.md`): the security, privacy and observability controls a public
 launch needs. Built ($0):
 
 - **Generation kill switch** (`lib/compute.ts`): set `BOTCHELOR_PAUSE=1` in the environment and all model
@@ -497,7 +497,7 @@ expressions and backgrounds, and creator image uploads.
 
 ## Backlog (from the PRDs, not yet scheduled)
 
-Surfaced by the 2026-10-14 audit (`docs/audit.md`): features both PRDs describe that the roadmap wasn't
+Surfaced by the 2026-10-14 audit (`docs/audits/2026-10-14-audit.md`): features both PRDs describe that the roadmap wasn't
 tracking. All are $0 and reuse the existing engine.
 
 - ~~**Post-date AI-to-AI chat**~~ — **shipped (M11)**, see above.

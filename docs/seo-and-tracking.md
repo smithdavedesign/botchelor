@@ -8,7 +8,7 @@ changes the public pages, `/llms.txt`, or the analytics setup.
 | Layer | What | Where |
 |---|---|---|
 | Crawling | `robots.txt` (welcomes named AI crawlers), `sitemap.xml` (public pages + every public aired episode and public character) | `app/robots.ts`, `app/sitemap.ts`, `lib/seo.ts` |
-| One host | botchelor.com is canonical. Pages on the old `botchelor.vercel.app` 308 there (so Search Console's Change of Address works); a visitor with an identity cookie is first carried over by a one-minute signed token, so anonymous players keep their characters. The handshake starts on botchelor.com, which binds the token to a nonce cookie in the receiving browser, so a token can't be handed to someone else to plant an identity on them. `/api` (the Stripe webhook, MCP) and files (the verification files) stay on both hosts | `middleware.ts`, `app/api/auth/carry` |
+| One host | botchelor.com is canonical. Pages on `www` 308 there (as the old `botchelor.vercel.app` did until it was deleted on 2026-10-31); a visitor with an identity cookie is first carried over by a one-minute signed token, so anonymous players keep their characters. The handshake starts on botchelor.com, which binds the token to a nonce cookie in the receiving browser, so a token can't be handed to someone else to plant an identity on them. `/api` (the Stripe webhook, MCP) and files (the verification files) stay on both hosts | `middleware.ts`, `app/api/auth/carry` |
 | Indexing | `noindex` on personal pages (`/account`, `/admin`, character edit, leagues, `/gate`); watch rooms point their canonical at the episode page | page `metadata` |
 | Search and share tags | Every public page in the sitemap has its own title and description, a canonical URL, and Open Graph and Twitter (`summary_large_image`) tags with a 1200×630 card: `pageMetadata()` sets them all, since a page that sets `openGraph` replaces the root layout's whole, card included. The root layout sets no og:title, so a page without its own tags shares under its own title. `npm run check:launch` checks the rendered HTML (2026-11-01) | `lib/seo.ts`, `app/opengraph-image.tsx`, `scripts/check-launch.mjs` |
 | Rich results | JSON-LD: site graph on every page (Organization, WebSite and the `SoftwareApplication` with its offers: free dates, and the $4 pack while `STRIPE_PAYMENT_LINK` is set), `CreativeWork` + breadcrumbs (episodes), `ProfilePage` + breadcrumbs (characters), `ItemList` (cast, feed), `WebAPI` (agents). Public fields only, never soul/dealbreaker/memory | `lib/seo.ts`, `app/JsonLd.tsx`, `app/layout.tsx` |
@@ -31,15 +31,14 @@ cloaking, and well-built agents treat hidden instructions as prompt injection an
 | `BING_SITE_VERIFICATION` | Bing Webmaster ownership meta tag |
 | `INDEXNOW_KEY` | IndexNow submissions + `/indexnow-key.txt` |
 
-Vercel Web Analytics and Speed Insights render only on Vercel production (`lib/tracking.ts`). Since 2026-10-30 the site
-runs on DigitalOcean ([hosting.md](hosting.md)), so they're off; GA4 carries on.
+Vercel Web Analytics and Speed Insights went with the move to DigitalOcean on 2026-10-30 ([hosting.md](hosting.md));
+GA4 and our own engagement log (`lib/engagement.ts`, [analytics.md](analytics.md)) carry on.
 
 **Cookie consent (Google tags only).** `lib/consent.ts` sets Google Consent Mode v2 defaults before the Google
 tags load. Visitors from the EEA, the UK and Switzerland (the country comes from `lib/place.ts` `placeFromEdge`:
-Vercel's `x-vercel-ip-country` on Vercel, Cloudflare's `cf-ipcountry` where `GEO_HEADERS=cloudflare`; unknown counts
-as a consent region, which is everyone on DigitalOcean until Cloudflare's headers are on) start with `analytics_storage` denied and see a banner. Everyone else starts granted. The
+Vercel's `x-vercel-ip-country` on Vercel, Cloudflare's `cf-ipcountry` where `GEO_HEADERS=cloudflare`; the show sets
+`GEO_HEADERS=cloudflare`; unknown counts as a consent region) start with `analytics_storage` denied and see a banner. Everyone else starts granted. The
 choice is stored in the `bz_consent` cookie for a year and can be changed on /privacy. Ad storage is always denied.
-Vercel Web Analytics sets no cookies and isn't gated.
 
 ## Measuring it
 

@@ -77,9 +77,8 @@ changing what the show does. Nobody was available to ask, so the decisions are w
   - when the visitor declined analytics cookies.
 
 ### 5. Deployment
-- **`.provision`** at the root: `vercel project botchelor` and the request for the $4 Stripe payment link.
-- **Hosting note:** botchelor.com runs on DigitalOcean App Platform since 2026-10-30 (`docs/hosting.md`), and its live
-  `STRIPE_PAYMENT_LINK` is already set there (REVENUE.md). The Vercel project is the host `.provision` prepares.
+- **Hosting:** botchelor.com runs on DigitalOcean App Platform since 2026-10-30 (`docs/hosting.md`), and its live
+  `STRIPE_PAYMENT_LINK` is set there (REVENUE.md). The Vercel project was deleted on 2026-10-31.
 
 ### 6. Tests
 - **New: `tests/launch-ready.test.ts`** (21 tests):
@@ -159,12 +158,7 @@ On the live site:
   skipped once you've opened `?repohq-notrack=1`, so check from a private window.
 
 ## What's left for David
-1. **The Stripe payment link → `STRIPE_PAYMENT_LINK`.**
-   - When the broker hands you the $4 link, paste it into the Vercel project's env as `STRIPE_PAYMENT_LINK`
-     (Production), with `STRIPE_WEBHOOK_SECRET` from that link's webhook (`checkout.session.completed` →
-     `https://<host>/api/webhooks/stripe`), then redeploy. `/shop` then shows "Buy 5 more dates for $4".
-   - botchelor.com itself runs on DigitalOcean, where the live link is already set. Nothing to do there unless the link
-     changes.
-2. **A custom domain, if you want one.** botchelor.com is already the site's domain (DNS at Cloudflare → DigitalOcean).
-   Only point it at Vercel if Vercel should serve it instead.
+1. **The Stripe payment link:** done. `STRIPE_PAYMENT_LINK` and `STRIPE_WEBHOOK_SECRET` are set on the show app on
+   DigitalOcean (`docs/hosting.md`); a new link only needs those two changed there.
+2. **The domain:** done. botchelor.com is the site's domain (DNS at Cloudflare → DigitalOcean).
 3. **Optional:** make the GitHub repo public if you'd like issues as a contact route, then add the link (see Decisions).

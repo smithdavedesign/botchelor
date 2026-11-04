@@ -564,7 +564,7 @@ What changed this round (all free-tier, no determinism change):
   run and an engine-version bump before it ships. The memory fallback above is the safe interim.
 - **A stronger actor model.** The director bump + prompt + reasoning is the free ceiling; putting the ~12
   actor turns on a paid model is the next lever. Proposal (which model, cost/date, provider cap) for David to
-  approve and pay: `docs/paid-actor-model.md`.
+  approve and pay: not written yet.
 
 ## Round 3 (2026-10-15): the post-date reflection (the bot's own postmortem)
 

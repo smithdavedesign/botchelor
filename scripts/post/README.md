@@ -2,11 +2,10 @@
 
 Scripts that take aired episodes and post them to third parties. All are **idempotent**: a second run on the same episode is a no-op (tracked by `last_posted_at` on the episode row). All are **env-gated**: no credentials, no post, no error.
 
-| File | Posts to | Driver | Credentials |
+| File | Posts to | Meant to run | Credentials |
 |---|---|---|---|
 | `discord.mjs` | Discord webhook | Cron every 15 min | `DISCORD_WEBHOOK_URL` |
 | `bluesky.mjs` | Bluesky | Cron every 1 h | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD` |
-| `x.mjs` | X (Twitter) | Cron daily 18:00 UTC | `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET` |
 
 ## Running manually
 
@@ -14,28 +13,15 @@ Scripts that take aired episodes and post them to third parties. All are **idemp
 # From the repo root, with the env in your shell:
 node scripts/post/discord.mjs --limit 5
 node scripts/post/bluesky.mjs --limit 3
-node scripts/post/x.mjs --limit 1
 ```
 
 Each script prints what it posted (or would have posted, with `--dry`), so a cron run is auditable from the app's Runtime Logs (DigitalOcean since 2026-10-30; the Vercel log before).
 
-## Scheduling (Vercel)
+## Scheduling
 
-> 2026-10-30: botchelor is off Vercel, and `vercel.json` and Vercel Cron are gone. Scheduled jobs are the DigitalOcean
-> scheduled job in `.do/app.yaml` (`docs/hosting.md`); a posting job would be added there. The Vercel setup below is
-> kept for reference.
-
-The three paths `/api/jobs/post/discord`, `/api/jobs/post/bluesky`, `/api/jobs/post/x` call these scripts. Vercel cron config in `vercel.json`:
-
-```json
-{ "crons": [
-  { "path": "/api/jobs/post/discord",  "schedule": "*/15 * * * *" },
-  { "path": "/api/jobs/post/bluesky",  "schedule": "7 * * * *"    },
-  { "path": "/api/jobs/post/x",        "schedule": "0 18 * * *"   }
-]}
-```
-
-If a job runs without the matching credentials, it logs "skipped: no credentials" and returns 200 so Vercel doesn't retry.
+Nothing runs these on a schedule yet: they're run by hand. A scheduled job would be added to the show app's spec,
+`.do/show.yaml` ([docs/hosting.md](../../docs/hosting.md)). Without the matching credentials a script logs "skipped: no
+credentials" and exits 0. (An X poster was planned and never built.)
 
 ## What gets posted
 
