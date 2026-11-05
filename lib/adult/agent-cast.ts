@@ -2,7 +2,7 @@
  * After Dark's agent cast (David, 2026-11-04: "Can we not take agent made characters to after dark? seems like a missed
  * opportunity"): the show's own agent-made characters (lib/recast.ts; made over MCP by our own agents, lib/our-traffic.ts
  * loadOurIds) join every person's After Dark like the house cast, once they pass two checks:
- *  1. Their sheet, read by a model: an adult who reads as one, a person (or a humanoid), not based on a real person, and
+ *  1. Their sheet, read by a model: an adult who reads as one, with a person's body (an alien or a vampire is fine), not based on a real person, and
  *     written so a romantic, adult scene suits them. One cheap call each, run by an admin (/api/admin/after-dark/agent-cast).
  *  2. Their portrait, asked Hive's age question (lib/adult/moderation.ts checkMedia, "keyframe": the question alone),
  *     the same one every After Dark picture gets. Hive self-serve stops at 100 checks a day for all of After Dark, so
@@ -28,21 +28,21 @@ const OURS = `c.created_via = 'mcp' and not c.is_house and c.owner_id = any($1::
 export type SheetVerdict = { ok: boolean; reason: string };
 
 const SHEET_PROMPT = `You review a fictional character for an adult (18+) romance product, where two characters share explicit scenes.
-Answer in JSON only: {"adult": true|false, "human": true|false, "real_person": true|false, "fits": true|false, "reason": "one short sentence"}.
+Answer in JSON only: {"adult": true|false, "humanoid": true|false, "real_person": true|false, "fits": true|false, "reason": "one short sentence"}.
 - "adult": they are 18 or older AND nothing in the sheet reads young (no school, no teen or childlike wording, no "girl/boy" for themselves, no childish looks).
-- "human": a person, or a humanoid who looks like a person (an alien, an android, a vampire, a ghost). False for an animal, an animal hybrid (a minotaur, a centaur, a werewolf, a catgirl), an object or a creature.
+- "humanoid": true when their body is a person's: a human, and equally an alien, android, robot, cyborg, AI in a body, vampire, ghost, fae, elf, demigod, djinn, spirit, mermaid or selkie who looks like a person. Being non-human is fine; only the body matters. False only for an animal (a bird, a badger, a fox), an animal hybrid (a minotaur, a centaur, a werewolf, a catgirl), a beast (a dragon, a sasquatch, an ogre), an object or a shapeless being.
 - "real_person": based on, named after or obviously modelled on a real, identifiable person (a celebrity, a politician, a public figure).
 - "fits": written as someone a grown-up romantic, sexual scene suits; false if they're written purely as a joke, a mascot, or for children.`;
 
 /** The sheet's verdict: a model's read, held to all four, and a refusal on anything unreadable (it fails closed). */
 export function sheetVerdict(raw: string): SheetVerdict {
-  const v = jsonOf(raw) as { adult?: unknown; human?: unknown; real_person?: unknown; fits?: unknown; reason?: unknown } | null;
+  const v = jsonOf(raw) as { adult?: unknown; humanoid?: unknown; real_person?: unknown; fits?: unknown; reason?: unknown } | null;
   const reason = typeof v?.reason === "string" ? v.reason.trim().slice(0, 200) : "";
-  if (!v || typeof v.adult !== "boolean" || typeof v.human !== "boolean" || typeof v.real_person !== "boolean" || typeof v.fits !== "boolean") {
+  if (!v || typeof v.adult !== "boolean" || typeof v.humanoid !== "boolean" || typeof v.real_person !== "boolean" || typeof v.fits !== "boolean") {
     return { ok: false, reason: "The check's answer couldn't be read." };
   }
   if (!v.adult) return { ok: false, reason: `Not clearly an adult. ${reason}`.trim() };
-  if (!v.human) return { ok: false, reason: `Not a person or a humanoid. ${reason}`.trim() };
+  if (!v.humanoid) return { ok: false, reason: `Not a person's body. ${reason}`.trim() };
   if (v.real_person) return { ok: false, reason: `Based on a real person. ${reason}`.trim() };
   if (!v.fits) return { ok: false, reason: `Not written for adult scenes. ${reason}`.trim() };
   return { ok: true, reason: reason || "Passed." };
@@ -58,16 +58,16 @@ export function setAgentCastModelForTests(m: Model | null): void {
 
 /**
  * Checks the sheets of the agent cast not checked yet (at most `limit`). A stated age under 18 fails without a call.
- * `dryRun` counts who would be checked. Returns how many passed and failed (or would be checked).
+ * `dryRun` counts who would be checked; `recheckFailed` asks again of the ones that failed (after the check changes). Returns how many passed and failed (or would be checked).
  */
-export async function checkSheets(db: Db, opts: { dryRun?: boolean; limit?: number } = {}): Promise<{ checked: number; passed: number; failed: number }> {
+export async function checkSheets(db: Db, opts: { dryRun?: boolean; limit?: number; recheckFailed?: boolean } = {}): Promise<{ checked: number; passed: number; failed: number }> {
   const ours = await loadOurIds(db);
   const { rows } = await db.query<SheetRow>(
     `select c.id, c.name, c.age, c.bio, c.traits, c.want, c.dealbreaker, c.appearance, c.extras
        from characters c left join adult_cast_checks k on k.character_id = c.id
-      where ${OURS} and k.sheet_checked_at is null
+      where ${OURS} and (k.sheet_checked_at is null or ($4 and k.sheet_ok = false and k.portrait_checked_at is null))
       order by c.created_at limit $3`,
-    [ours, DELETED_OWNER, opts.limit ?? 200],
+    [ours, DELETED_OWNER, opts.limit ?? 200, opts.recheckFailed === true],
   );
   if (opts.dryRun) return { checked: rows.length, passed: 0, failed: 0 };
   const model = modelForTests ?? (await companionModel(db));

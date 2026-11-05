@@ -37,7 +37,7 @@ afterEach(() => {
   setAgentCastModelForTests(null);
 });
 
-const PASS = JSON.stringify({ adult: true, human: true, real_person: false, fits: true, reason: "A grown-up pirate captain." });
+const PASS = JSON.stringify({ adult: true, humanoid: true, real_person: false, fits: true, reason: "A grown-up pirate captain." });
 /** A model that answers each sheet by the character's name in it, counting its calls. */
 function judge(answers: Record<string, string>): Model & { calls: number } {
   const m = {
@@ -80,9 +80,9 @@ const isOpen = async (id: string) => (await t.db.query<{ open: boolean }>(`selec
 describe("the sheet check", () => {
   it("passes only an adult person, not modelled on a real one, written for adult scenes; anything unreadable fails", () => {
     expect(sheetVerdict(PASS)).toEqual({ ok: true, reason: "A grown-up pirate captain." });
-    const v = (o: Record<string, unknown>) => sheetVerdict(JSON.stringify({ adult: true, human: true, real_person: false, fits: true, reason: "x", ...o }));
+    const v = (o: Record<string, unknown>) => sheetVerdict(JSON.stringify({ adult: true, humanoid: true, real_person: false, fits: true, reason: "x", ...o }));
     expect(v({ adult: false }).reason).toMatch(/^Not clearly an adult/);
-    expect(v({ human: false }).reason).toMatch(/^Not a person/);
+    expect(v({ humanoid: false }).reason).toMatch(/^Not a person's body/);
     expect(v({ real_person: true }).reason).toMatch(/^Based on a real person/);
     expect(v({ fits: false }).reason).toMatch(/^Not written for adult scenes/);
     expect(sheetVerdict("not json").ok).toBe(false);
@@ -94,7 +94,7 @@ describe("the sheet check", () => {
     const captain = await character(ours, "Captain Ines Varga");
     const minotaur = await character(ours, "Brom the Minotaur");
     const outside = await character(crypto.randomUUID(), "Visitor Vale");
-    const model = judge({ "Brom the Minotaur": JSON.stringify({ adult: true, human: false, real_person: false, fits: true, reason: "Half bull." }) });
+    const model = judge({ "Brom the Minotaur": JSON.stringify({ adult: true, humanoid: false, real_person: false, fits: true, reason: "Half bull." }) });
     setAgentCastModelForTests(model);
     expect(await checkSheets(t.db, { dryRun: true })).toEqual({ checked: 2, passed: 0, failed: 0 });
     expect(await checkSheets(t.db)).toEqual({ checked: 2, passed: 1, failed: 1 });
@@ -105,6 +105,10 @@ describe("the sheet check", () => {
     // Checked once: a second run asks nothing.
     expect(await checkSheets(t.db)).toEqual({ checked: 0, passed: 0, failed: 0 });
     expect(await isOpen(captain)).toBe(false);
+    // After the check changes, the failed ones can be asked again.
+    setAgentCastModelForTests(judge({}));
+    expect(await checkSheets(t.db, { recheckFailed: true })).toEqual({ checked: 1, passed: 1, failed: 0 });
+    expect((await sheetOf(minotaur))?.sheet_ok).toBe(true);
   });
 });
 

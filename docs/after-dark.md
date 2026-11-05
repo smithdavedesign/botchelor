@@ -1865,8 +1865,11 @@ companions use) now join every person's After Dark like the house cast, once the
 (`lib/adult/agent-cast.ts`):
 
 1. **The sheet**: one model call each (the companion model, temperature 0, JSON). It passes an adult who reads as one,
-   a person or a humanoid (an animal hybrid such as a minotaur or a catgirl fails), not based on a real person, and
-   written so an adult scene suits them. Anything unreadable fails. The table already refuses an age under 18.
+   with a person's body (an alien, android, vampire, ghost or fae is fine; an animal, an animal hybrid such as a minotaur
+   or a werewolf, or a beast such as a dragon fails), not based on a real person, and written so an adult scene suits
+   them. Anything unreadable fails. The table already refuses an age under 18. The first prod run (v1 asked "human")
+   failed 62 of 157, nearly all aliens, androids, vampires and fae; the field became "humanoid", with the body the only
+   test, and `recheck_failed` asked the failed ones again.
 2. **The portrait**: Hive's age question (`checkMedia`, `"keyframe"`) on the newest approved model-drawn PG portrait.
    After Dark's daily job asks `PORTRAITS_PER_DAY` (30) at most, a third of Hive's 100 a day, so the 157 take about six
    days. When Hive can't answer (down, paused, out for the day) the job stops and nothing is recorded.
@@ -1878,7 +1881,7 @@ first need from the show portrait), and curated by admins in Studio. Shorts stay
 character never joins: its maker never agreed to it.
 
 Admin route `/api/admin/after-dark/agent-cast`: GET where it stands (waiting, passed, failed with reasons, open);
-POST `{"action":"check_sheets","dry_run"?,"limit"?}`, `{"action":"check_portraits","max"?}`,
+POST `{"action":"check_sheets","dry_run"?,"recheck_failed"?,"limit"?}`, `{"action":"check_portraits","max"?}`,
 `{"action":"close","character_id"}` (takes one out again; its checks stay on record).
 
 ## Hive's daily limit (2026-10-23)

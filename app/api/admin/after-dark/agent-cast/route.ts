@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const Input = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("check_sheets"), dry_run: z.boolean().optional(), limit: z.number().int().min(1).max(200).optional() }),
+  z.object({ action: z.literal("check_sheets"), dry_run: z.boolean().optional(), recheck_failed: z.boolean().optional(), limit: z.number().int().min(1).max(200).optional() }),
   z.object({ action: z.literal("check_portraits"), max: z.number().int().min(1).max(60).optional() }),
   z.object({ action: z.literal("close"), character_id: z.string().min(1) }),
 ]);
@@ -27,7 +27,7 @@ export const POST = handle(async (req: Request) => {
   if (!(await adminAuthorized(req))) return json(NOT_AUTHORIZED, 403);
   const input = parseBody(Input, await readJson(req), "invalid_request");
   const db = await getDb();
-  if (input.action === "check_sheets") return json(await checkSheets(db, { dryRun: input.dry_run, limit: input.limit }), 200);
+  if (input.action === "check_sheets") return json(await checkSheets(db, { dryRun: input.dry_run, limit: input.limit, recheckFailed: input.recheck_failed }), 200);
   if (input.action === "check_portraits") return json(await checkPortraits(db, { max: input.max }), 200);
   return (await closeAgentCastMember(db, input.character_id)) ? json({ closed: true }, 200) : json({ error: "not_found" }, 404);
 });
