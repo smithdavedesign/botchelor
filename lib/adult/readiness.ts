@@ -43,7 +43,7 @@ export type SetupOffer = {
 };
 
 export async function readinessOf(db: Db, viewer: string, characterId: string): Promise<Readiness | null> {
-  const c = (await db.query<{ id: string; name: string; is_house: boolean; owner_id: string | null }>(`select id, name, is_house, owner_id from characters where id = $1`, [characterId])).rows[0];
+  const c = (await db.query<{ id: string; name: string; is_house: boolean; owner_id: string | null }>(`select id, name, (is_house or after_dark_open) as is_house, owner_id from characters where id = $1`, [characterId])).rows[0];
   if (!c) return null;
   const studio = `/after-dark/studio/${encodeURIComponent(c.id)}`;
   if (c.is_house || c.owner_id !== viewer) {

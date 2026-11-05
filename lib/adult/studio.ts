@@ -44,7 +44,7 @@ import { actById, actMenu, crossesTaboo, FRAMINGS, type Eyes, type Framing, type
 import { framingScores } from "./framing";
 import { levelForStage, modelTagLater, ownWords, tagNow } from "./media-tags";
 import { nudeSql, shownNude } from "./attire";
-import { eligibleIds } from "./characters";
+import { eligibleIds, isShowsOwn } from "./characters";
 import { mediaLimits } from "./clips";
 import type { CheckResult } from "./check";
 import { isPublicPlace } from "./continuity";
@@ -143,7 +143,7 @@ export async function studioAccess(db: Db, viewer: string, characterId: string):
   const c = await loadCharacter(db, characterId);
   if (!c) return fail(404, "not_found", "No character with that id.");
   const own = c.ownerId === viewer;
-  if (!own && !(admin && c.house)) return fail(404, "not_found", "The Studio is for your own characters.");
+  if (!own && !(admin && (c.house || (await isShowsOwn(db, c.id))))) return fail(404, "not_found", "The Studio is for your own characters.");
   if (!(await eligibleIds(db, viewer)).has(c.id)) return fail(409, "not_switched_on", `Switch ${c.name} into After Dark first.`);
   const picked = c.extras?.looks?.gender;
   const noun = nounOf(c);
@@ -1978,7 +1978,7 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
   const keys = await adultKeys(db);
   const checker = await checkReady(db);
   const identity = await identityOf(db, viewer, c.id);
-  const mine = c.ownerId === viewer || (admin && c.house);
+  const mine = c.ownerId === viewer || (admin && (c.house || (await isShowsOwn(db, c.id))));
   const [places, gallery, shootRows, tokens, left, upscalesLeft, partners, shareTo, ownRow, usable] = await Promise.all([
     ownPlaces(db, viewer, c.id),
     listMedia(db, [c.id], viewer),

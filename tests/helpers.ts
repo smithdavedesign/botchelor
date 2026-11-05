@@ -304,6 +304,7 @@ export async function startTestDb() {
         "seasons",
         "free_episode_usage",
         "step_in_usage",
+        "adult_cast_checks",
         "companion_facts",
         "companion_messages",
         "companion_threads",

@@ -37,8 +37,8 @@ export async function adultExportSource(db: Db, viewer: string): Promise<ExportS
     async load(ids) {
       const { rows } = await db.query<Row>(
         `select i.id, i.kind, i.trim, i.captions, ${dataColumn("i")}, i.object_key,
-                ca.name as a_name, ca.owner_id as a_owner, ca.is_house as a_house,
-                i.character_b, cb.name as b_name, cb.owner_id as b_owner, cb.is_house as b_house
+                ca.name as a_name, ca.owner_id as a_owner, (ca.is_house or ca.after_dark_open) as a_house,
+                i.character_b, cb.name as b_name, cb.owner_id as b_owner, (cb.is_house or cb.after_dark_open) as b_house
            from adult_images i left join characters ca on ca.id = i.character_id left join characters cb on cb.id = i.character_b
           where i.id = any($1::text[]) and i.owner_id = $2 and i.status = 'ready' and i.kind in ('scene', 'baseline', 'video')`,
         [ids, viewer],
