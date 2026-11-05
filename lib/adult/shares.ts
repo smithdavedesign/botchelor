@@ -70,7 +70,7 @@ async function ownPicture(db: Db, viewer: string, imageId: string): Promise<Pict
       await db.query<Picture>(
         `select i.id, i.owner_id, i.character_id, i.character_b, i.mime, i.model, i.nsfw_score, ${dataColumn("i")}, i.object_key,
                 (select (s.choices->>'level')::int from adult_studio_shoots s where s.id = i.shoot_id and s.kind in ('shoot', 'variations', 'upscale', 'carousel', 'identity')) as level,
-                (c.owner_id = $2 or (c.is_house and exists (select 1 from admins a where a.user_id = $2))) as mine
+                (c.owner_id = $2 or ((c.is_house or c.after_dark_open) and exists (select 1 from admins a where a.user_id = $2))) as mine
            from adult_images i join characters c on c.id = i.character_id
           where i.id = $1 and i.owner_id = $2 and i.status = 'ready' and i.kind in ('scene', 'baseline')`,
         [imageId, viewer],

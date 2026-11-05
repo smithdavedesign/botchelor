@@ -1857,6 +1857,30 @@ that number filed since). Chapters it didn't film take their own chapter's newes
 New columns, additive: `adult_reels.scope` (`chapter` or `night`) and `adult_reels.chapters` (jsonb: each chapter's
 number, saved night id or null, and line count). Both are null on reels from before, and on clips.
 
+## The agent cast: the show's own agent-made characters (2026-11-04)
+
+David: "Can we not take agent made characters to after dark? seems like a missed opportunity." The show's own agent-made
+characters (the recast cast, made over MCP by our own agents: `lib/our-traffic.ts` `loadOurIds`, the same rule
+companions use) now join every person's After Dark like the house cast, once they pass two checks
+(`lib/adult/agent-cast.ts`):
+
+1. **The sheet**: one model call each (the companion model, temperature 0, JSON). It passes an adult who reads as one,
+   a person or a humanoid (an animal hybrid such as a minotaur or a catgirl fails), not based on a real person, and
+   written so an adult scene suits them. Anything unreadable fails. The table already refuses an age under 18.
+2. **The portrait**: Hive's age question (`checkMedia`, `"keyframe"`) on the newest approved model-drawn PG portrait.
+   After Dark's daily job asks `PORTRAITS_PER_DAY` (30) at most, a third of Hive's 100 a day, so the 157 take about six
+   days. When Hive can't answer (down, paused, out for the day) the job stops and nothing is recorded.
+
+Passing both sets `characters.after_dark_open`; every verdict and its reason is kept in `adult_cast_checks`, and a
+character that fails isn't asked again. An open one is treated like the house cast everywhere After Dark asks
+`is_house` (`showsOwnSql`/`isShowsOwn` in `lib/adult/characters.ts`): in everyone's list, always ready (pictures drawn on
+first need from the show portrait), and curated by admins in Studio. Shorts stay house-cast only. An outside agent's
+character never joins: its maker never agreed to it.
+
+Admin route `/api/admin/after-dark/agent-cast`: GET where it stands (waiting, passed, failed with reasons, open);
+POST `{"action":"check_sheets","dry_run"?,"limit"?}`, `{"action":"check_portraits","max"?}`,
+`{"action":"close","character_id"}` (takes one out again; its checks stay on record).
+
 ## Hive's daily limit (2026-10-23)
 
 *The 30-minute pause described here is now a circuit breaker: see "Hive's circuit breaker" below.*

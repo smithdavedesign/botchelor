@@ -1,3 +1,4 @@
+import { checkPortraits } from "@/lib/adult/agent-cast";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
@@ -15,8 +16,11 @@ export const maxDuration = 300;
  */
 async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
-  const baselines = await ensureCastBaselines(await getDb()).catch(() => ({ made: 0, errors: ["error"] }));
-  return json({ ok: true, cast_baselines_made: baselines.made, errors: baselines.errors });
+  const db = await getDb();
+  const baselines = await ensureCastBaselines(db).catch(() => ({ made: 0, errors: ["error"] }));
+  // The agent cast's portraits, 30 a day of Hive's 100 (lib/adult/agent-cast.ts): each that passes joins After Dark.
+  const portraits = await checkPortraits(db).catch(() => ({ checked: 0, opened: 0, failed: 0, stopped: "error" }));
+  return json({ ok: true, cast_baselines_made: baselines.made, errors: baselines.errors, agent_cast: portraits });
 }
 
 export const GET = handle(run);

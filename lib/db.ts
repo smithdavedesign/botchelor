@@ -1022,6 +1022,18 @@ create table if not exists crisis_referrals (
 -- their own. Who may be one: companion_open (house characters and the show's own agent-made cast), or the person's own
 -- character. A thread is only ever theirs: it never flows back into a date, a text or anyone's memory of the show.
 alter table characters add column if not exists companion_open boolean not null default false;
+-- After Dark's agent cast (lib/adult/agent-cast.ts): the show's own agent-made characters, in every person's After Dark
+-- like the house cast once their sheet and their portrait have passed its checks. Never an outside agent's character.
+alter table characters add column if not exists after_dark_open boolean not null default false;
+create table if not exists adult_cast_checks (
+  character_id text primary key references characters(id) on delete cascade,
+  sheet_ok boolean,
+  sheet_reason text,
+  sheet_checked_at timestamptz,
+  portrait_ok boolean,
+  portrait_reason text,
+  portrait_checked_at timestamptz
+);
 create table if not exists companion_threads (
   id text primary key,
   user_id text not null,

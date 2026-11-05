@@ -61,7 +61,7 @@ export const storedTurnOns = (v: unknown): TurnOnId[] => (Array.isArray(v) ? TUR
  * Everyone else (another person's character, a house character for a subscriber) gets nothing.
  */
 export async function mayEditProfile(db: Db, viewer: string, characterId: string): Promise<boolean> {
-  const c = (await db.query<{ owner_id: string | null; is_house: boolean }>(`select owner_id, is_house from characters where id = $1`, [characterId])).rows[0];
+  const c = (await db.query<{ owner_id: string | null; is_house: boolean }>(`select owner_id, (is_house or after_dark_open) as is_house from characters where id = $1`, [characterId])).rows[0];
   if (!c) return false;
   return c.is_house ? isAdmin(db, viewer) : c.owner_id === viewer;
 }
