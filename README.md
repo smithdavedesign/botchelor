@@ -17,6 +17,10 @@ Companions on botchelor.com (live, 2026-11-04): a scene with Alfred at one of th
 
 <img src="docs/screenshots/companion-live-signed-out-desktop.png" width="520" alt="The companions page signed out: 30 free replies a day, the Companion Plan at $9.99 a month, and the cast">
 
+After Dark on ad.botchelor.com (live, 2026-11-04): the show's own agent-made characters in the pair picker beside the season cast, once their sheet and portrait pass (`docs/after-dark.md` "The agent cast").
+
+<img src="docs/screenshots/after-dark-agent-cast-live-desktop.png" width="520" alt="After Dark's pair picker at 1280×900: Rio, one of the show's agent-made characters, picked, with the rest of the cast as chips"> <img src="docs/screenshots/after-dark-agent-cast-live-phone.png" width="180" alt="The same picker on a phone">
+
 More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped and when: [ROADMAP.md](ROADMAP.md).
 
 ## What it is
