@@ -3078,6 +3078,9 @@ create table if not exists money_entries (
 -- billing page 2026-11-04), so the seeded app bills start in November. Only rows still on the seeded date move.
 update money_entries set starts_on = '2026-11-01', note = 'apps-s-1vcpu-1gb-fixed; October was covered by the signup credit (its invoice was $0)'
   where seed_key in ('do-show', 'do-after-dark') and starts_on = '2026-10-30';
+-- Bunny is prepaid with auto-recharge (its card payments are entered as they happen), so the seeded $1/month guess
+-- would count it twice.
+delete from money_entries where seed_key = 'bunny';
 -- What each provider said about its balance and usage, at most once a day (the latest reading of the day wins).
 create table if not exists spend_snapshots (
   day date not null,
