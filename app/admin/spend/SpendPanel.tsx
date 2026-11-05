@@ -100,8 +100,8 @@ export default function SpendPanel() {
         </div>
         <div className="kpi">
           <span className="kpi-label">Income</span>
-          <span className="kpi-value">{usd(s.income.total)}</span>
-          <span className="kpi-sub">{s.income.ours ? `${usd(s.income.ours)} of it from our own accounts` : "From real buyers"}</span>
+          <span className="kpi-value">{usd(s.income.total - s.income.ours)}</span>
+          <span className="kpi-sub">{s.income.ours ? `From real buyers; ${usd(s.income.ours)} from our own accounts left out` : "From real buyers"}</span>
         </div>
         <div className="kpi">
           <span className="kpi-label">Net</span>
@@ -261,7 +261,9 @@ export default function SpendPanel() {
                   </th>
                 ))}
                 <th className="num">Costs</th>
-                <th className="num">Income</th>
+                <th className="num" title="Our own purchases left out, as in Net">
+                  Income
+                </th>
                 <th className="num">Net</th>
               </tr>
             </thead>
@@ -279,7 +281,7 @@ export default function SpendPanel() {
                     </td>
                   ))}
                   <td className="num">{usd(h.costs.total)}</td>
-                  <td className="num">{usd(h.income.total)}</td>
+                  <td className="num">{usd(h.income.total - h.income.ours)}</td>
                   <td className="num">{usd(h.net)}</td>
                 </tr>
               ))}

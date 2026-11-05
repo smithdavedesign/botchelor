@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/admin/spend/route";
 import { claimAdmin } from "@/lib/admins";
-import { amountIn, KNOWN_COSTS, providerReadings, recordedIncome, summarize, type MoneyEntry } from "@/lib/spend";
+import { amountIn, KNOWN_COSTS, planPriceUsd, providerReadings, recordedIncome, summarize, type MoneyEntry } from "@/lib/spend";
 import { BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -77,6 +77,13 @@ describe("income from the app's records", () => {
     await ad("rebill", "12.99");
     await ad("refund", "12.99");
     await ad("initial", "12.99", "unknown_order");
+    await t.db.query(
+      `insert into plan_events (event_id, type, plan, user_id, outcome, received_at) values
+         ('evt_p1', 'checkout.session.completed', 'companion', $1, 'initial', '2026-10-27T00:00:00Z'),
+         ('evt_p2', 'invoice.paid', 'companion', $2, 'rebill', '2026-10-28T00:00:00Z'),
+         ('evt_p3', 'customer.subscription.updated', 'companion', $1, 'cancel', '2026-10-29T00:00:00Z')`,
+      [buyer, own],
+    );
     await t.db.query(`insert into operator_pass_events (id, event_id, type, user_id, outcome, received_at) values ('p1', 'evt_1', 'invoice.paid', $1, 'initial', '2026-10-26T00:00:00Z')`, [buyer]);
 
     const lines = await recordedIncome(t.db, "2026-10", { OPERATOR_PASS_PRICE_USD: "9" });
@@ -84,6 +91,10 @@ describe("income from the app's records", () => {
     expect(by.orders).toMatchObject({ usd: 8, count: 2, ours_usd: 4 });
     expect(by.after_dark).toMatchObject({ usd: 12.99, count: 3, ours_usd: 0 });
     expect(by.operator_pass).toMatchObject({ usd: 9, count: 1 });
+    // Plans count each payment at the price the page shows; a cancel isn't a payment.
+    expect(by.plans).toMatchObject({ usd: 19.98, count: 2, ours_usd: 9.99 });
+    expect(planPriceUsd("$9.99 a month")).toBe(9.99);
+    expect(planPriceUsd("free")).toBe(0);
   });
 });
 
