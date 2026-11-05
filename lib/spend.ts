@@ -28,14 +28,14 @@ type Fetch = typeof fetch;
 /**
  * The costs docs/costs.md and docs/after-dark-hosting.md record, to fill in with one button. A date the docs don't give
  * exactly is the start of the period they cover, said so in the note. The DigitalOcean apps are the sizes in .do/app.yaml.
+ * Bunny isn't here either: it's prepaid with auto-recharge, so each card payment is entered as it happens.
  * Venice isn't here: its three October receipts ($50, $25, $50) were entered from the email receipts themselves.
  */
 export const KNOWN_COSTS: ReadonlyArray<NewEntry & { seed_key: string }> = [
   { seed_key: "vercel-pro", kind: "cost", category: "infra", provider: "Vercel", label: "Vercel Pro (shared with the other products)", usd: 20, every: "month", starts_on: "2026-10-13", ends_on: "2026-10-30", note: "Hobby (free) since 2026-10-30, when the show moved to DigitalOcean" },
   { seed_key: "neon-launch", kind: "cost", category: "infra", provider: "Neon", label: "Neon Launch (database)", usd: 5, every: "month", starts_on: "2026-10-20", ends_on: null, note: "Usage-billed, about $3–6 a month; correct it from Neon's invoice" },
-  { seed_key: "do-show", kind: "cost", category: "infra", provider: "DigitalOcean", label: "DigitalOcean app: the show", usd: 10, every: "month", starts_on: "2026-10-30", ends_on: null, note: "apps-s-1vcpu-1gb-fixed" },
-  { seed_key: "do-after-dark", kind: "cost", category: "infra", provider: "DigitalOcean", label: "DigitalOcean app: After Dark", usd: 10, every: "month", starts_on: "2026-10-30", ends_on: null, note: "apps-s-1vcpu-1gb-fixed" },
-  { seed_key: "bunny", kind: "cost", category: "infra", provider: "Bunny", label: "Bunny storage and CDN (media)", usd: 1, every: "month", starts_on: "2026-10-30", ends_on: null, note: "Bunny's $1 minimum until media grows" },
+  { seed_key: "do-show", kind: "cost", category: "infra", provider: "DigitalOcean", label: "DigitalOcean app: the show", usd: 10, every: "month", starts_on: "2026-11-01", ends_on: null, note: "apps-s-1vcpu-1gb-fixed; October was covered by the signup credit (its invoice was $0)" },
+  { seed_key: "do-after-dark", kind: "cost", category: "infra", provider: "DigitalOcean", label: "DigitalOcean app: After Dark", usd: 10, every: "month", starts_on: "2026-11-01", ends_on: null, note: "apps-s-1vcpu-1gb-fixed; October was covered by the signup credit (its invoice was $0)" },
   { seed_key: "hive", kind: "cost", category: "api", provider: "Hive", label: "Hive top-up (moderation)", usd: 111, every: "once", starts_on: "2026-10-13", ends_on: null, note: "Date approximate (before 2026-10-22)" },
   { seed_key: "openrouter-1", kind: "cost", category: "api", provider: "OpenRouter", label: "OpenRouter top-up", usd: 50, every: "once", starts_on: "2026-10-21", ends_on: null, note: "Shared with OpenClaw and LiteLLM/RepoHQ keys" },
   { seed_key: "mcp-listings", kind: "cost", category: "other", provider: "mcp.so + Glama", label: "MCP directory listings", usd: 20, every: "once", starts_on: "2026-10-21", ends_on: null, note: null },
