@@ -365,11 +365,25 @@ export function momentCue(transcript: readonly Turn[] | null | undefined, me: "a
     }
     prev = interest;
   }
-  if (!best || !checkFields({ line: best.line }).ok) return null;
-  const text = best.line.trim().replace(/\s+/g, " ");
+  return best ? shortLine(best.line) : null;
+}
+
+/** A line as a short cue (cut at a word near MOMENT_MAX), or null when it fails the content filter. */
+function shortLine(line: string): string | null {
+  if (!checkFields({ line }).ok) return null;
+  const text = line.trim().replace(/\s+/g, " ");
   if (text.length <= MOMENT_MAX) return text;
   const cut = text.slice(0, MOMENT_MAX);
   return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 40)).replace(/[,;:.!?-]+$/, "")}…`;
+}
+
+/**
+ * Its own walk-out line, as a cue, when this character walked out of the date (Turn.walked_out): what it said as it
+ * left is why it left. Null when it didn't walk out (or the line fails the content filter).
+ */
+export function walkOutCue(transcript: readonly Turn[] | null | undefined, me: "a" | "b"): string | null {
+  const out = (transcript ?? []).find((t) => t.side === me && t.walked_out && t.dialogue);
+  return out ? shortLine(out.dialogue) : null;
 }
 
 /** Counts items and returns the top `k` by frequency, ties broken by first appearance (deterministic). */
@@ -408,7 +422,9 @@ function buildArc(m: Omit<CharacterMemory, "arc">): string | null {
   const clauses: string[] = [];
   // A moment cue reads as a clause of its own ("when they said “…”"); an engine cue is a phrase to quote.
   if (m.likes[0]) clauses.push(m.likes[0].startsWith("when ") ? `lit up ${m.likes[0]}` : `warms to “${m.likes[0]}”`);
-  if (m.turnoffs[0]) clauses.push(m.turnoffs[0].startsWith("when ") ? `bristled ${m.turnoffs[0]}` : `keeps clashing over “${m.turnoffs[0]}”`);
+  // A walk-out cue is a clause already ("walked out saying “…”"): bristling is what the other cues read as.
+  const off = m.turnoffs[0];
+  if (off) clauses.push(off.startsWith("walked out ") ? off : off.startsWith("when ") ? `bristled ${off}` : `keeps clashing over “${off}”`);
   if (clauses.length === 0) {
     if (m.second_dates > 0) clauses.push("still chasing a spark that sticks");
     else if (m.disasters > 0) clauses.push("licking its wounds and guarded about it");
@@ -460,8 +476,12 @@ export function computeMemory(
     }
     if (mine?.dealbreaker_hit && meaningful(mine.dealbreaker_hit)) turnoffCues.push({ cue: mine.dealbreaker_hit, from });
     else if (r.ending === "disaster" && !r.roleplay) {
-      const moment = momentCue(r.transcript, meSide0, -1);
-      if (moment) turnoffCues.push({ cue: `when they said “${moment}”`, from });
+      // #1344: when it walked out, its walk-out line says what made it leave. The biggest drop in its interest can be
+      // an earlier line of theirs (“bristled at the dog line” when it left over a stranger shaking a globe).
+      const left = walkOutCue(r.transcript, meSide0);
+      const moment = left ? null : momentCue(r.transcript, meSide0, -1);
+      if (left) turnoffCues.push({ cue: `walked out saying “${left}”`, from });
+      else if (moment) turnoffCues.push({ cue: `when they said “${moment}”`, from });
     }
 
     const meSide = r.is_a ? "a" : "b";

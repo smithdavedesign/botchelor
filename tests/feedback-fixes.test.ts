@@ -34,6 +34,34 @@ describe("memory cues need substance (run 5: “warms to ‘check’”)", () =>
   });
 });
 
+describe("a walk-out is remembered for what it walked out over (#1344: blamed the dog line, left over a globe)", () => {
+  const line = (side: "a" | "b", dialogue: string, interest: number, walked_out?: true) => ({ side, act: 2, dialogue, action: "", emotion: "", interest, ...(walked_out ? { walked_out } : {}) });
+  const disaster = (transcript: ReturnType<typeof line>[]): MemoryEpisode => ({
+    id: "ep-globe", ending: "disaster", sides: [outcomeSide({ wants_another: false, satisfied: false }), outcomeSide()], transcript, reflections: null, is_a: true,
+    revealed_at: "2026-11-06T06:10:00Z", drama_question: null, drama_answer: null, venue: null, other_id: "house-nell", other_name: "Nell Abiodun", other_house: true,
+  });
+  const transcript = [
+    line("a", "Good evening.", 0.7),
+    line("b", "My dog would hate this place.", 0.6),
+    line("a", "Would he now.", 0.3), // the biggest drop: after the dog line
+    line("b", "Oh look, that man is shaking the snow globe again.", 0.6),
+    line("a", "Not with a stranger rattling a globe at us. I'm going.", 0.2, true),
+  ];
+
+  it("names its own walk-out line, not the earlier line its interest fell furthest after", () => {
+    const m = computeMemory([disaster(transcript)], { want: null, dealbreaker: null });
+    expect(m.turnoffs).toEqual(["walked out saying “Not with a stranger rattling a globe at us. I'm going.”"]);
+    expect(m.arc).toBe("One date in; walked out saying “Not with a stranger rattling a globe at us. I'm going.”.");
+    expect(m.arc).not.toMatch(/dog/);
+  });
+
+  it("a disaster it didn't walk out of still learns from the biggest drop", () => {
+    const m = computeMemory([disaster(transcript.map((t) => ({ ...t, walked_out: undefined })))], { want: null, dealbreaker: null });
+    expect(m.turnoffs).toEqual(["when they said “My dog would hate this place.”"]);
+    expect(m.arc).toMatch(/bristled when they said “My dog/);
+  });
+});
+
 describe("the why line shows the arithmetic (run 5: 62 a disaster, 68 friends)", () => {
   const box = (chemistry: number, attraction: number, trust: number, awkwardness: number) => ({
     chemistry: { start: 50, delta: chemistry - 50, final: chemistry },
