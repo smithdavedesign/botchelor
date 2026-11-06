@@ -3416,6 +3416,8 @@ export function argHints(name: string, unknown: string[], args: Record<string, u
   const enums = argEnums(MCP_TOOLS.find((t) => t.name === name)?.inputSchema);
   const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
   return unknown.flatMap((u) => {
+    const elsewhere = OTHER_TOOL_ARGS[name]?.[u];
+    if (elsewhere) return [elsewhere(args)];
     const value = typeof args[u] === "string" ? String(args[u]).trim() : "";
     if (enums[value]?.includes(u)) return [`"${u}": ${JSON.stringify(value)} is the wrong way round: did you mean ${value}: "${u}"?`];
     const n = norm(u);
@@ -3431,6 +3433,19 @@ export function argHints(name: string, unknown: string[], args: Record<string, u
     return best ? [`"${u}": did you mean "${best.k}"?`] : [];
   });
 }
+
+/**
+ * #1340 (the 2026-11-05-1606 run: two visitors put wait_seconds on send_text and were told only "Ignored: wait_seconds"):
+ * an argument this tool doesn't take that another tool does, for the same thing, names that call instead of a spelling.
+ */
+const OTHER_TOOL_ARGS: Record<string, Record<string, (args: Record<string, unknown>) => string>> = {
+  send_text: {
+    wait_seconds: (args) => {
+      const id = (k: string, fallback: string) => (typeof args[k] === "string" && args[k] !== "" ? JSON.stringify(args[k]) : fallback);
+      return `"wait_seconds": send_text doesn't wait; read_texts { character_id: ${id("character_id", "<yours>")}, with: ${id("to", "<to>")}, wait_seconds: ${WAIT_MAX_SECONDS} } waits for their reply (a reply already in comes straight back).`;
+    },
+  },
+};
 
 /** The arguments that take a character's id (#176: they read each other's names), and what each id kind looks like. */
 const CHARACTER_ID_ARGS = ["character_id", "partner_id", "with", "to", "target_id"] as const;
