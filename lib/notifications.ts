@@ -316,19 +316,32 @@ export async function ownersOf(db: Db, ids: string[]): Promise<Map<string, strin
 }
 
 /** How many notifications someone has (or how many unread), for the /notifications pager. */
-export async function countNotifications(db: Db, userId: string, opts: { unread?: boolean } = {}): Promise<number> {
+export async function countNotifications(db: Db, userId: string, opts: { unread?: boolean; kinds?: readonly string[] } = {}): Promise<number> {
   const { rows } = await db.query<{ n: number }>(
-    `select count(*)::int as n from notifications where user_id = $1${opts.unread ? " and read_at is null" : ""}`,
-    [userId],
+    `select count(*)::int as n from notifications where user_id = $1${opts.unread ? " and read_at is null" : ""}${opts.kinds ? " and kind = any($2)" : ""}`,
+    opts.kinds ? [userId, [...opts.kinds]] : [userId],
   );
   return rows[0]?.n ?? 0;
 }
 
-/** Someone's notifications, newest first: `limit` of them from `offset` (the /notifications page passes a page's worth). */
-export async function listNotifications(db: Db, userId: string, limit = 50, offset = 0): Promise<Notification[]> {
+/** How many notifications, and how many unread, someone has of each kind (the /notifications type filter's counts). */
+export async function countNotificationsByKind(db: Db, userId: string): Promise<{ kind: string; n: number; unread: number }[]> {
+  const { rows } = await db.query<{ kind: string; n: number; unread: number }>(
+    `select kind, count(*)::int as n, count(*) filter (where read_at is null)::int as unread from notifications where user_id = $1 group by kind`,
+    [userId],
+  );
+  return rows;
+}
+
+/**
+ * Someone's notifications, newest first: `limit` of them from `offset` (the /notifications page passes a page's worth),
+ * only of `kinds` when given (the page's type filter, lib/notification-types.ts).
+ */
+export async function listNotifications(db: Db, userId: string, limit = 50, offset = 0, opts: { kinds?: readonly string[] } = {}): Promise<Notification[]> {
   const { rows } = await db.query<{ id: string; kind: NotificationKind; title: string; body: string | null; link: string | null; created_at: Date | string; read_at: Date | string | null }>(
-    `select id, kind, title, body, link, created_at, read_at from notifications where user_id = $1 order by created_at desc, id desc limit $2 offset $3`,
-    [userId, limit, Math.max(0, offset)],
+    `select id, kind, title, body, link, created_at, read_at from notifications where user_id = $1${opts.kinds ? " and kind = any($4)" : ""}
+      order by created_at desc, id desc limit $2 offset $3`,
+    opts.kinds ? [userId, limit, Math.max(0, offset), [...opts.kinds]] : [userId, limit, Math.max(0, offset)],
   );
   const items: Notification[] = rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, link: r.link, created_at: new Date(r.created_at).toISOString(), read: r.read_at !== null }));
   return withTurnState(db, userId, await withBookings(db, userId, items));
@@ -405,9 +418,11 @@ export async function clearNotifications(db: Db, userId: string, ids: string[] |
 }
 
 /** Marks some (or all) of a person's notifications read. */
-export async function markRead(db: Db, userId: string, ids: string[] | "all"): Promise<number> {
+export async function markRead(db: Db, userId: string, ids: string[] | "all", opts: { kinds?: readonly string[] } = {}): Promise<number> {
   const { rows } =
-    ids === "all"
+    ids === "all" && opts.kinds
+      ? await db.query(`update notifications set read_at = now() where user_id = $1 and read_at is null and kind = any($2) returning id`, [userId, [...opts.kinds]])
+      : ids === "all"
       ? await db.query(`update notifications set read_at = now() where user_id = $1 and read_at is null returning id`, [userId])
       : await db.query(`update notifications set read_at = now() where user_id = $1 and id = any($2) and read_at is null returning id`, [userId, ids]);
   return rows.length;

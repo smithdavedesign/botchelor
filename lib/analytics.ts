@@ -14,6 +14,7 @@ export type AnalyticsEvent =
   | "episode_generated" // the unit-economics event: model calls + latency for one date
   | "prediction_submitted"
   | "situation_vote" // a vote on tonight's situation (lib/situations.ts)
+  | "season_format_vote" // a vote for next season's format (lib/season-vote.ts)
   | "recoupling_vote" // a vote on the recoupling night (lib/recoupling.ts)
   | "cast_backed" // a viewer backed a cast member for the month (lib/backing.ts)
   | "audition" // an owner put their character up for next month's cast (lib/auditions.ts)

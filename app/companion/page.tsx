@@ -2,41 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
-import { companionAllowed, listCompanions, type CompanionListItem } from "@/lib/companion";
+import { companionAllowed, listCompanions } from "@/lib/companion";
 import { companionAllowance, companionFreePerDay, type CompanionAllowance } from "@/lib/companion-plan";
 import { companionOpen } from "@/lib/companion-shared";
 import { planLink, planPrice } from "@/lib/paid-plans";
-import TalkButton from "./TalkButton";
+import CompanionBrowser from "./CompanionBrowser";
 
 export const metadata: Metadata = { title: "Companions · Botchelor", robots: { index: false, follow: false } };
-
-const first = (name: string) => name.split(/\s+/)[0] || name;
-
-function Card({ c, signIn = false }: { c: CompanionListItem; signIn?: boolean }) {
-  return (
-    <li className="companion-card">
-      <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={56} />
-      <div className="companion-card-body">
-        <strong>{c.name}</strong>
-        <p className="muted small companion-card-line">{c.last ?? c.bio}</p>
-      </div>
-      {signIn ? (
-        <Link className="button secondary small" href="/account?next=%2Fcompanion">
-          Sign in
-        </Link>
-      ) : c.thread_id ? (
-        <Link className="button secondary small" href={`/companion/${c.thread_id}`}>
-          Open
-        </Link>
-      ) : (
-        <TalkButton characterId={c.id} name={first(c.name)} label="Talk" className="button secondary small" />
-      )}
-    </li>
-  );
-}
 
 /** What talking costs, said before anyone starts (docs/companions.md: the price shown up front, the count in view). */
 function PlanLine({ a }: { a: CompanionAllowance }) {
@@ -91,14 +65,7 @@ export default async function CompanionsPage() {
             </Link>
           </p>
         </header>
-        <section aria-labelledby="companion-cast">
-          <h2 id="companion-cast">The cast</h2>
-          <ul className="companion-list">
-            {cast.slice(0, 24).map((c) => (
-              <Card key={c.id} c={c} signIn />
-            ))}
-          </ul>
-        </section>
+        <CompanionBrowser threads={[]} others={cast} signIn />
       </article>
     );
   }
@@ -115,38 +82,7 @@ export default async function CompanionsPage() {
         </p>
         <PlanLine a={allowance} />
       </header>
-      {threads.length > 0 && (
-        <section aria-labelledby="companion-threads">
-          <h2 id="companion-threads">Your conversations</h2>
-          <ul className="companion-list">
-            {threads.map((c) => (
-              <Card key={c.id} c={c} />
-            ))}
-          </ul>
-        </section>
-      )}
-      {yours.length > 0 && (
-        <section aria-labelledby="companion-yours">
-          <h2 id="companion-yours">Your characters</h2>
-          <ul className="companion-list">
-            {yours.map((c) => (
-              <Card key={c.id} c={c} />
-            ))}
-          </ul>
-        </section>
-      )}
-      <section aria-labelledby="companion-cast">
-        <h2 id="companion-cast">The cast</h2>
-        {cast.length ? (
-          <ul className="companion-list">
-            {cast.map((c) => (
-              <Card key={c.id} c={c} />
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">Nobody to talk with just now.</p>
-        )}
-      </section>
+      <CompanionBrowser threads={threads} others={[...yours, ...cast]} />
       <p className="muted small">
         PG, like the show. If you&apos;re having a hard time, <Link href="/safety">help is here</Link>.
       </p>

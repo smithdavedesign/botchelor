@@ -10,6 +10,11 @@ import { recapTeasers } from "@/lib/season-recap";
 import { closedSeasons, lastClosedSeason, seasonNumber } from "@/lib/season-ref";
 import { seasonIdOf, seasonLabel } from "@/lib/season-window";
 import ShowTabs from "@/app/ShowTabs";
+import SeasonFormatVote from "@/app/SeasonFormatVote";
+import { cookies } from "next/headers";
+import { userIdFromCookieStore } from "@/lib/http";
+import { seasonFormatNow } from "@/lib/season-format-store";
+import { seasonBallot } from "@/lib/season-vote";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +47,11 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
   const last = lastClosedSeason(now);
   const past = closedSeasons(now);
   const teasers = await recapTeasers(db, past.map((p) => p.id)).catch(() => new Map<string, string>());
+  // Next season's show, by the viewers (lib/season-vote.ts): the Seasons tab is where the ballot lives.
+  const viewerId = userIdFromCookieStore(await cookies());
+  const ballot = await seasonFormatNow(db, now)
+    .then((def) => seasonBallot(db, viewerId, def.slug, now))
+    .catch(() => null);
   return (
     <article className="reunion-page">
       <ShowTabs active="/reunion" />
@@ -64,6 +74,7 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
       ) : (
         <ReunionPanel reunion={reunion} heading="h1" season={season} couplesPage={couplesPage} couplesHref={(n) => pageHref("/reunion", {}, "couples", n, "couples")} hidden={hidden} />
       )}
+      {ballot && <SeasonFormatVote ballot={ballot} now={now.getTime()} />}
       {past.length > 0 && (
         <section className="reunion-seasons" aria-labelledby="seasons">
           <h2 id="seasons" className="section">

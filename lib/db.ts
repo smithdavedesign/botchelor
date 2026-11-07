@@ -3252,6 +3252,16 @@ create table if not exists season_formats (
   created_at timestamptz not null default now()
 );
 
+-- Next season's format, by the viewers (lib/season-vote.ts): one vote a viewer a season, cast during the month before it.
+create table if not exists season_format_votes (
+  season_id text not null,
+  user_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (season_id, user_id)
+);
+
 -- A season's finale (lib/season-recap.ts; David 2026-11-01): the recap of a closed season, frozen on its first read
 -- after the season ends. One row a season: the first reader claims it (claimed_at), writes data (the recap's facts, as
 -- shown) and the "Previously on" narrative (narrative_by: 'model' or 'template'), and it never changes afterwards.

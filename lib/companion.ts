@@ -26,6 +26,7 @@ import { loadOurIds } from "./our-traffic";
 import { recordServerError } from "./errors";
 import { DELETED_OWNER } from "./rules";
 import { checkShowText } from "./safety";
+import { showCastIds } from "./season-cast";
 import { countCrisis, lineInCrisis, PG_REDIRECT } from "./step-in";
 import { venue, venueName, type VenueId } from "./venues";
 
@@ -257,11 +258,44 @@ async function characterRef(db: Db, characterId: string, userId: string): Promis
   return r ? { id: r.id, name: r.name, portrait: r.portrait, hue: r.avatar_hue, house: r.is_house, yours: r.owner_id === userId, pronouns: r.pronouns ?? null } : null;
 }
 
-export type CompanionListItem = CompanionCharacterRef & { thread_id: string | null; last: string | null; last_at: string | null; bio: string };
+/** Where a companion comes from, for the companions page's filter: yours, the house cast, the show's agent-made cast, or another creator's opened one. */
+export type CompanionSource = "yours" | "house" | "agent" | "community";
+
+export type CompanionListItem = CompanionCharacterRef & {
+  thread_id: string | null;
+  last: string | null;
+  last_at: string | null;
+  bio: string;
+  age: number | null;
+  /** Their first few traits (the filter's search reads them, the card shows them). */
+  traits: string[];
+  source: CompanionSource;
+  /** On this month's show cast (lib/season-cast.ts showCastIds). */
+  on_show: boolean;
+  created_at: string | null;
+};
 
 /** The companions page: your threads (most recent first), then who else you could talk with (yours, then the cast). */
-export async function listCompanions(db: Db, userId: string): Promise<{ threads: CompanionListItem[]; yours: CompanionListItem[]; cast: CompanionListItem[] }> {
-  type Row = { id: string; name: string; bio: string; portrait: string | null; avatar_hue: number | null; is_house: boolean; owner_id: string | null; thread_id: string | null; last: string | null; last_at: string | null };
+export async function listCompanions(db: Db, userId: string, now: Date = new Date()): Promise<{ threads: CompanionListItem[]; yours: CompanionListItem[]; cast: CompanionListItem[] }> {
+  type Row = {
+    id: string;
+    name: string;
+    bio: string;
+    portrait: string | null;
+    avatar_hue: number | null;
+    is_house: boolean;
+    owner_id: string | null;
+    thread_id: string | null;
+    last: string | null;
+    last_at: string | null;
+    age: number | null;
+    pronouns: string | null;
+    traits: unknown;
+    created_via: string | null;
+    created_at: Date | string | null;
+  };
+  const onShow = new Set(showCastIds(now));
+  const pronounsOf = (p: string | null): CompanionCharacterRef["pronouns"] => (p === "she/her" || p === "he/him" || p === "they/them" ? p : null);
   const item = (r: Row): CompanionListItem => ({
     id: r.id,
     name: r.name,
@@ -270,11 +304,17 @@ export async function listCompanions(db: Db, userId: string): Promise<{ threads:
     hue: r.avatar_hue,
     house: r.is_house,
     yours: r.owner_id === userId,
+    pronouns: pronounsOf(r.pronouns),
     thread_id: r.thread_id,
     last: r.last,
     last_at: r.last_at ? new Date(r.last_at).toISOString() : null,
+    age: r.age,
+    traits: Array.isArray(r.traits) ? r.traits.filter((t): t is string => typeof t === "string").slice(0, 3) : [],
+    source: r.owner_id === userId && userId ? "yours" : r.is_house ? "house" : r.created_via === "mcp" ? "agent" : "community",
+    on_show: onShow.has(r.id),
+    created_at: r.created_at ? new Date(r.created_at).toISOString() : null,
   });
-  const cols = `c.id, c.name, c.bio, ${portraitPathSql("c")} as portrait, c.avatar_hue, c.is_house, c.owner_id`;
+  const cols = `c.id, c.name, c.bio, ${portraitPathSql("c")} as portrait, c.avatar_hue, c.is_house, c.owner_id, c.age, c.pronouns, c.traits, c.created_via, c.created_at`;
   const [threads, others] = await Promise.all([
     db.query<Row>(
       `select ${cols}, t.id as thread_id, t.last_at,

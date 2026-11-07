@@ -16,8 +16,16 @@ type Candidate = {
 type Audition = { character_id: string; name: string; status: "open" | "approved" | "rejected"; votes: number; aired: number; portrait: string | null };
 type View = {
   this_season: { id: string; label: string; format: string; cast: Slot[] };
-  next_season: { id: string; label: string; format: string; generate_from_day: number; candidates: Candidate[]; auditions: Audition[] };
-  formats: { slug: string; label: string }[];
+  next_season: {
+    id: string;
+    label: string;
+    format: string;
+    generate_from_day: number;
+    candidates: Candidate[];
+    auditions: Audition[];
+    ballot?: { slug: string; votes: number }[];
+  };
+  formats: { slug: string; label: string; title?: string }[];
   note?: string | null;
 };
 
@@ -161,8 +169,8 @@ export default function SeasonPanel() {
       <section className="card">
         <h2>Format</h2>
         <p className="muted small">
-          How a season runs (venues, weekly twists, recoupling nights). Classic is the default; nothing is scheduled
-          until you pick another here.
+          How a season runs (venues, weekly twists, recoupling nights). With no pick here, next season runs the viewers&apos;
+          ballot winner (/reunion, at least 3 votes), else classic. A pick here always wins.
         </p>
         {([
           ["This season", view.this_season],
@@ -178,13 +186,24 @@ export default function SeasonPanel() {
                   disabled={busy !== null || season.format === f.slug}
                   onClick={() => act(`f-${season.id}-${f.slug}`, { action: "format", season_id: season.id, slug: f.slug })}
                 >
-                  {f.slug === "classic" ? "Classic" : "Island"}
+                  {f.title ?? f.slug}
                 </button>{" "}
               </span>
             ))}
             <span className="muted small"> · announces itself as “{view.formats.find((f) => f.slug === season.format)?.label}”</span>
           </p>
         ))}
+        {view.next_season.ballot && (
+          <p className="muted small">
+            Viewers&apos; ballot for {view.next_season.label}:{" "}
+            {view.next_season.ballot.some((b) => b.votes > 0)
+              ? view.next_season.ballot
+                  .filter((b) => b.votes > 0)
+                  .map((b) => `${view.formats.find((f) => f.slug === b.slug)?.title ?? b.slug} ${b.votes}`)
+                  .join(" · ")
+              : "no votes yet"}
+          </p>
+        )}
         <p>
           <button type="button" className="button-ghost small" disabled={busy !== null} onClick={() => act("recoupling", { action: "recoupling" })}>
             {busy === "recoupling" ? "Running the night…" : "Stage a recoupling night now"}

@@ -25,7 +25,7 @@ import type { ProducerId } from "./rules";
 import { seasonWindow } from "./season-window";
 import type { VenueId } from "./venues";
 
-export const SEASON_FORMAT_SLUGS = ["classic", "island"] as const;
+export const SEASON_FORMAT_SLUGS = ["classic", "island", "last_standing", "sight_unseen", "meet_the_folks", "ex_files"] as const;
 export type SeasonFormatSlug = (typeof SEASON_FORMAT_SLUGS)[number];
 
 export type TwistWeek = {
@@ -52,6 +52,12 @@ export type RecouplingRule = {
 
 export type SeasonFormatDef = {
   slug: SeasonFormatSlug;
+  /** The ballot's name for it (the next-season vote, lib/season-vote.ts): a show title, our own words. */
+  title: string;
+  /** One line on the ballot: what a month of it is, in words the format really does (venues, twists, recouplings). */
+  pitch: string;
+  /** The ballot card's emoji. */
+  emoji: string;
   /** The public label ("a classic season of Botchelor"). The island's name is David's call: change it here only. */
   label: string;
   /** The week-1 announcement, producer voice. */
@@ -79,6 +85,9 @@ const VILLA_VENUES: readonly VenueId[] = [
 export const SEASON_FORMATS: readonly SeasonFormatDef[] = [
   {
     slug: "classic",
+    title: "Classic Botchelor",
+    pitch: "Blind dates all over the city, a newcomers' week, the ex returns, and one recoupling night to close it.",
+    emoji: "🌹",
     label: "a classic season of Botchelor",
     announce: "This month: a classic season of Botchelor. New faces, blind dates, and the audience calling every ending.",
     venues: null,
@@ -113,6 +122,9 @@ export const SEASON_FORMATS: readonly SeasonFormatDef[] = [
   },
   {
     slug: "island",
+    title: "The Villa",
+    pitch: "A month in the sun: beaches, rooftops and campsites, and a recoupling at the end of every week.",
+    emoji: "🏝️",
     // The public name is deliberately generic until David picks one (docs/ideas.md F: "Bot Island" is too close to
     // ITV's Love Island). Change this label and the announce line; nothing else keys on them.
     label: "an island season",
@@ -146,6 +158,75 @@ export const SEASON_FORMATS: readonly SeasonFormatDef[] = [
       },
     ],
     recoupling: { nights: "weekly", finalVote: "newcomer" },
+  },
+  {
+    // Reality-survival, with a bot twist: out in the wild, plans collapse, the cast takes dares, and every week ends with
+    // the audience naming the couple in trouble. A title of our own (no network's show name), like the island's.
+    slug: "last_standing",
+    title: "Last Bot Standing",
+    pitch: "Out in the wild: campsites, safaris and cliffs, plans that fall apart, dares, and the audience puts a couple on the block every week.",
+    emoji: "🔥",
+    label: "a Last Bot Standing season",
+    announce: "This month: Last Bot Standing. Out in the wild, the plans fall apart, and every week ends with the audience calling a couple out.",
+    venues: ["rainy_campsite", "safari", "skydive", "surf_lesson", "climbing_wall", "trail_ride", "paintball", "hot_air_balloon", "stargazing_hill", "night_beach"],
+    twists: [
+      { week: 1, label: "Into the wild", tease: "The cast heads out into the wild: no reservations, no backup plan.", format: null, producer: "the_plan_changes", pairing: null },
+      { week: 2, label: "Dare week", tease: "Dare week: every house date this week turns on a dare.", format: null, producer: "a_dare", pairing: null },
+      { week: 3, label: "The storm", tease: "Something goes wrong on every date this week, and they have to get through it together.", format: null, producer: "a_small_crisis", pairing: null },
+      { week: 4, label: "The last campfire", tease: "The last campfire: confessions on every date, and the final recoupling closes the season.", format: null, producer: "a_quiet_confession", pairing: null },
+    ],
+    recoupling: { nights: "weekly", finalVote: "couple_in_trouble" },
+  },
+  {
+    // Blind-dating, with a bot twist: they meet as voices first (speed rounds and dark rooms), the faces come later.
+    slug: "sight_unseen",
+    title: "Sight Unseen",
+    pitch: "Speed rounds in the dark: quick-fire first dates, hard questions before looks, and a newcomers' week.",
+    emoji: "🕶️",
+    label: "a Sight Unseen season",
+    announce: "This month: Sight Unseen. Quick-fire first dates in dim rooms, the hard questions first, and the looks last.",
+    venues: ["old_cinema", "jazz_bar", "late_bookshop", "museum_night", "silent_disco", "stargazing_hill", "late_night_diner", "escape_room", "murder_mystery", "haunted_house"],
+    twists: [
+      { week: 1, label: "Lights down", tease: "Lights down: speed rounds on every house date, three minutes to make it count.", format: "speed_date", producer: null, pairing: null },
+      { week: 2, label: "Ask me anything", tease: "No small talk this week: every house date opens on a hard question.", format: null, producer: "a_hard_question", pairing: null },
+      { week: 3, label: "New voices", tease: "New voices in the dark: every house date this week seats a newcomer.", format: "speed_date", producer: null, pairing: "newcomer" },
+      { week: 4, label: "The reveal", tease: "The reveal: confessions on every table, and the recoupling closes the season.", format: null, producer: "a_quiet_confession", pairing: null },
+    ],
+    recoupling: { nights: "last_night", finalVote: "couple_in_trouble" },
+  },
+  {
+    // Meet-the-family, with a bot twist: the cast's invented families get a seat at the table.
+    slug: "meet_the_folks",
+    title: "Meet the Folks",
+    pitch: "Families at the table: chaperoned dinners, cooking classes and a face from someone's past.",
+    emoji: "🍽️",
+    label: "a Meet the Folks season",
+    announce: "This month: Meet the Folks. Someone's family is always at the table, and everyone is on their best behaviour. For now.",
+    venues: ["tasting_menu", "cooking_class", "flat_pack", "corner_cafe", "bowling_alley", "ballroom_lesson", "pottery_class", "botanic_park", "late_night_diner", "comedy_club"],
+    twists: [
+      { week: 1, label: "Best behaviour", tease: "Best behaviour: a parent tags along on every house date this week.", format: "meet_the_parents", pairing: null, producer: null },
+      { week: 2, label: "The awkward dinner", tease: "The awkward dinner: long silences on every date this week.", format: null, producer: "an_awkward_silence", pairing: null },
+      { week: 3, label: "Family secrets", tease: "Family secrets: the parents are back, and someone's past walks in with them.", format: "meet_the_parents", producer: "a_face_from_the_past", pairing: null },
+      { week: 4, label: "Sunday lunch", tease: "Sunday lunch: confessions over dessert, and the recoupling closes the season.", format: null, producer: "a_quiet_confession", pairing: null },
+    ],
+    recoupling: { nights: "last_night", finalVote: "couple_in_trouble" },
+  },
+  {
+    // Exes-on-holiday, with a bot twist: every week someone's past checks in.
+    slug: "ex_files",
+    title: "The Ex Files",
+    pitch: "Every week an ex checks in: beaches and dive bars, old flames on every date, and a recoupling each week.",
+    emoji: "💔",
+    label: "an Ex Files season",
+    announce: "This month: The Ex Files. Every week someone's past checks in, and every week ends with a recoupling.",
+    venues: ["night_beach", "dive_bar", "karaoke_booth", "nightclub", "pier_at_night", "rooftop_bar", "night_market", "retro_arcade", "jazz_bar", "late_night_diner"],
+    twists: [
+      { week: 1, label: "Check-in", tease: "Check-in week: the first ex arrives, and nobody saw it coming.", format: "ex_returns", producer: null, pairing: null },
+      { week: 2, label: "Old flames", tease: "Old flames: faces from the past turn up on every house date.", format: null, producer: "a_face_from_the_past", pairing: null },
+      { week: 3, label: "Unfinished business", tease: "Unfinished business: the exes are back, and they have questions.", format: "ex_returns", producer: "a_hard_question", pairing: null },
+      { week: 4, label: "Closure", tease: "Closure: confessions on every date, and the final recoupling closes the season.", format: null, producer: "a_quiet_confession", pairing: null },
+    ],
+    recoupling: { nights: "weekly", finalVote: "couple_in_trouble" },
   },
 ] as const;
 
