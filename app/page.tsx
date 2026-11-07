@@ -65,10 +65,13 @@ const FAQ = [
 ];
 
 /**
- * The landing page, pitched at AI-friendly roleplayers. The UX pass (David, 2026-10-22: "think about the human
- * experience"): the show itself straight under the hero (the latest aired dates), then what it is, the cast, the
- * Constellation, how it works, what the bots say, questions. A newcomer gets one way to start (the hero's); someone with
- * a character comes back to "Since you were here" first (2026-11-01 audit, J4: lib/since.ts).
+ * The landing page, pitched at AI-friendly roleplayers, with two front doors (the 2026-11-07 outside reviews: too many
+ * features compete for a first visit; one journey — create, watch, come back — should lead):
+ *  - A first visit gets the pitch first: the hero, then the tonight band as proof the show is on, the latest aired
+ *    dates, how it works, the cast, the reviews, questions. The audience cards (the situation vote, dares, your calls,
+ *    the season banner) wait until they have a character; their boards aren't even fetched.
+ *  - Someone with a character gets the show first (docs/show-style.md: lead with tonight): the tonight band, the season
+ *    banner, "Since you were here" (2026-11-01 audit, J4: lib/since.ts), then everything else as before.
  */
 export default async function Home({ searchParams }: { searchParams: SearchParams }) {
   const { ref, said, bots } = await searchParams;
@@ -110,10 +113,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     Promise.all([
       forViewer(viewerId, "home:aired", () => listAiredPage(conn, viewerId, 1, 6)).catch(() => null),
       cachedConstellation(conn).catch(() => null), // the minute-old sky is plenty (2026-11-01 audit, R9)
-      forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null),
-      forViewer(viewerId, "home:dares", () => dareBoard(conn, viewerId)).catch(() => null),
+      // The audience boards are a creator's: a first visit doesn't show them, so it doesn't pay for them either.
+      myCharactersP.then((mine) => (mine.length ? forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null) : null)),
+      myCharactersP.then((mine) => (mine.length ? forViewer(viewerId, "home:dares", () => dareBoard(conn, viewerId)).catch(() => null) : null)),
       // Your calls (lib/streaks.ts): your record and run, and how many dates you could still call.
-      forViewer(viewerId, "home:calls", () => callRecord(conn, viewerId)).catch(() => null),
+      myCharactersP.then((mine) => (mine.length ? forViewer(viewerId, "home:calls", () => callRecord(conn, viewerId)).catch(() => null) : null)),
       forViewer(viewerId, "home:airing", () => listAiringSoon(conn, viewerId, airWindowMinutes())).catch(() => []),
       // The tonight band's live rooms (lib/watch.ts): what's on the air right now.
       forViewer(viewerId, "lobby", () => listLobby(conn)).catch(() => []),
@@ -135,15 +139,17 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const [heroA, heroB] = onSeason;
   // Next month's newcomers are written from the 20th (lib/season-gen.ts): from then, the cast strip points at them.
   const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
+  const creator = myCharacters.length > 0;
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} latest={aired?.episodes[0] ?? null} now={Date.now()} />;
 
   return (
     <div className="home">
-      {/* The show is on, before anything else (docs/show-style.md: lead with tonight). */}
-      <TonightBand rooms={rooms} airing={airing} situation={situation} latest={aired?.episodes[0] ?? null} now={Date.now()} />
+      {/* A creator's show is on before anything else (docs/show-style.md: lead with tonight); a first visit meets the
+          pitch first and the band right under it. */}
+      {creator && tonight}
       {/* The first week of a month: last season's finale (lib/season-ref.ts). */}
-      <SeasonBanner />
-      {myCharacters.length === 0 && showNews && <ShowSince card={showNews} />}
-      {myCharacters.length > 0 && (
+      {creator && <SeasonBanner />}
+      {creator && (
         <section id="start" className="card start-card since-card" aria-labelledby="since-title">
           <div className="section-head">
             <h2 id="since-title">Since you were here</h2>
@@ -220,6 +226,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <p className="muted mini-cap">A real box score, decided by the engine — and friends guess it first.</p>
         </div>
       </section>
+      {!creator && tonight}
+      {!creator && showNews && <ShowSince card={showNews} />}
 
       {situation && <SituationVote board={situation} now={Date.now()} />}
       {dares && <DareVote board={dares} />}

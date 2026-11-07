@@ -13450,10 +13450,14 @@ button.thread-menu-item:hover:not(:disabled) {
   }
 }
 @media (max-width: 760px) {
-  /* A full-bleed strip on a phone, flush under the header. */
+  /* A full-bleed strip on a phone; flush under the header only when it leads the page (a creator's home — on a first
+     visit it sits below the hero). */
   .tonight-band {
-    margin: calc(-1 * 1.25rem) calc(-1 * var(--gutter)) var(--space-4);
+    margin: 0 calc(-1 * var(--gutter)) var(--space-4);
     border-radius: 0;
+  }
+  .home > .tonight-band:first-child {
+    margin-top: calc(-1 * 1.25rem);
   }
 }
 
