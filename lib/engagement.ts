@@ -224,6 +224,8 @@ export const ENGAGEMENT_FUNNEL = [
   { key: "create_opened", label: "Opened Make your character", events: ["create_opened"] },
   { key: "character_created", label: "Made a character", events: ["character_created"] },
   { key: "date_started", label: "Started a date", events: ["date_started"] },
+  // The aha moment (the 2026-11-07 product review, item 5): the theater's replay reached the ending.
+  { key: "date_watched", label: "Watched it end", events: ["date_watched"] },
   { key: "sign_up", label: "Made an account", events: ["sign_up"] },
   { key: "begin_checkout", label: "Clicked Buy", events: ["begin_checkout"] },
   { key: "purchase", label: "Bought", events: ["purchase"] },
@@ -247,6 +249,8 @@ export type Engagement = {
     bounce_rate: number | null;
   };
   previous: { visitors: number; sessions: number; page_views: number };
+  /** The range's new visitors who had a row on any later UTC day (the "came back" number, 2026-11-07 review). */
+  returning: { new_visitors: number; returned: number; rate: number | null };
   days: string[];
   daily: { day: string; visitors: number; sessions: number; page_views: number }[];
   pages: PageRow[];
@@ -290,9 +294,14 @@ export async function loadEngagement(db: Db, q: EngagementQuery, now = new Date(
       [prevStart, start, ours],
     )
   ).rows;
-  // A visitor is new when their first row ever falls in the range.
-  const [fresh] = await rows<{ n: number }>(
-    `select count(*)::int as n from (select visitor, min(at) as first from web_events where ${OURS_FILTER}${hostFilter} group by visitor) f
+  // A visitor is new when their first row ever falls in the range; they "came back" when any later UTC day has a row
+  // of theirs (the fourth of the four numbers that matter, 2026-11-07 product review).
+  const [fresh] = await rows<{ n: number; returned: number }>(
+    `select count(*)::int as n,
+            count(*) filter (where exists (
+              select 1 from web_events w where w.visitor = f.visitor and date_trunc('day', w.at) > date_trunc('day', f.first)
+            ))::int as returned
+     from (select visitor, min(at) as first from web_events where ${OURS_FILTER}${hostFilter} group by visitor) f
      where f.first >= $1 and f.first < $2`,
   );
   // Per session: pages seen, seconds engaged (the page_leave beats), whether anything was clicked.
@@ -383,6 +392,11 @@ export async function loadEngagement(db: Db, q: EngagementQuery, now = new Date(
       bounce_rate: sess?.bounced == null ? null : Math.round(sess.bounced * 1000) / 10,
     },
     previous: { visitors: n(prev?.visitors), sessions: n(prev?.sessions), page_views: n(prev?.page_views) },
+    returning: {
+      new_visitors: n(fresh?.n),
+      returned: n(fresh?.returned),
+      rate: n(fresh?.n) ? Math.round((n(fresh?.returned) / n(fresh?.n)) * 1000) / 10 : null,
+    },
     days,
     daily: days.map((day) => ({ day, visitors: n(byDay.get(day)?.visitors), sessions: n(byDay.get(day)?.sessions), page_views: n(byDay.get(day)?.page_views) })),
     pages: pages.map((p) => ({ ...p, avg_seconds: p.avg_seconds ?? null, avg_scroll: p.avg_scroll ?? null })),

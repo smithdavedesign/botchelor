@@ -113,6 +113,13 @@ export default function EngagementTab({ from, to, includeOurs, interval, adminFe
           <span className="kpi-value">{secs(t.avg_session_seconds)}</span>
           <span className="kpi-sub">{t.bounce_rate == null ? "" : `${t.bounce_rate}% left after one page without clicking`}</span>
         </div>
+        <div className="kpi" title="Of the range's new visitors, how many had any activity on a later day (however much later)">
+          <span className="kpi-label">Came back</span>
+          <span className="kpi-value">{data.returning.rate == null ? "—" : `${data.returning.rate}%`}</span>
+          <span className="kpi-sub">
+            {num(data.returning.returned)} of {num(data.returning.new_visitors)} new visitors, a later day
+          </span>
+        </div>
       </div>
 
       <TimeChart
