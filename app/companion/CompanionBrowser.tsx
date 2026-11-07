@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "@/app/Avatar";
+import EmptyState from "@/app/EmptyState";
 import When from "@/app/When";
 import type { CompanionListItem, CompanionSource } from "@/lib/companion";
 import TalkButton from "./TalkButton";
@@ -187,10 +188,10 @@ export default function CompanionBrowser({
           <span className="sr-only">Search companions</span>
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a name, a trait, anything in their bio" />
         </label>
-        <div className="bot-filter companion-who" role="group" aria-label="Who">
+        <div className="filter-pills" role="group" aria-label="Who">
           {WHO.filter((w) => w.id === "all" || (counts.get(w.id) ?? 0) > 0).map((w) => (
             <button key={w.id} type="button" aria-pressed={who === w.id} onClick={() => setWho(w.id)}>
-              {w.label} <span className="notif-filter-n">{counts.get(w.id)}</span>
+              {w.label} <span className="filter-n">{counts.get(w.id)}</span>
             </button>
           ))}
         </div>
@@ -246,14 +247,18 @@ export default function CompanionBrowser({
             ))}
           </ul>
         ) : (
-          <p className="muted">
-            {others.length ? "Nobody matches that. " : "Nobody to talk with just now."}
-            {others.length > 0 && (
-              <button type="button" className="button-ghost small" onClick={clear}>
-                Clear filters
-              </button>
-            )}
-          </p>
+          <EmptyState
+            emoji="🔎"
+            title={others.length ? "Nobody matches that" : "Nobody to talk with just now"}
+            action={
+              others.length ? (
+                <button type="button" className="button small" onClick={clear}>
+                  Clear filters
+                </button>
+              ) : undefined
+            }
+            secondary={{ href: "/watch", label: "Watch the show" }}
+          />
         )}
       </section>
     </>

@@ -68,7 +68,7 @@ export default function BotReviews({ said, page, keep, compact = false }: { said
         {view.average !== null && <>, averaging {view.average}/10</>}. The gripes go on our to-do list: {view.tracked}{" "}
         tracked, {view.fixed} fixed so far.
       </p>
-      <nav className="bot-filter" aria-label="Which reviews">
+      <nav className="filter-pills" aria-label="Which reviews">
         {FILTERS.map((f) => (
           <Link key={f.id} href={href(f.id, 1)} aria-current={f.id === filter ? "true" : undefined} scroll={false}>
             {f.label}

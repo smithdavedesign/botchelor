@@ -25,6 +25,7 @@ import NotificationMutes from "./NotificationMutes";
 import { mutedTypes } from "@/lib/notification-mutes";
 import PushToggle from "./PushToggle";
 import When from "@/app/When";
+import EmptyState from "@/app/EmptyState";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Notifications · Botchelor", robots: { index: false, follow: false } };
@@ -43,16 +44,16 @@ const NOTIFICATIONS_PAGE = 10;
 function TypeFilter({ active, counts, all }: { active: NotificationType | null; counts: Map<NotificationType, { n: number; unread: number }>; all: number }) {
   const href = (type: NotificationType | null) => (type ? `/notifications?type=${type}` : "/notifications");
   return (
-    <nav className="bot-filter notif-filter" aria-label="Filter notifications by type">
+    <nav className="filter-pills" aria-label="Filter notifications by type">
       <Link href={href(null)} aria-current={active === null ? "true" : undefined}>
-        All <span className="notif-filter-n">{all}</span>
+        All <span className="filter-n">{all}</span>
       </Link>
       {NOTIFICATION_TYPES.filter((t) => (counts.get(t)?.n ?? 0) > 0 || t === active).map((t) => {
         const c = counts.get(t) ?? { n: 0, unread: 0 };
         return (
           <Link key={t} href={href(t)} aria-current={active === t ? "true" : undefined}>
-            <span aria-hidden="true">{NOTIFICATION_TYPE_EMOJI[t]}</span> {NOTIFICATION_TYPE_LABELS[t]} <span className="notif-filter-n">{c.n}</span>
-            {c.unread > 0 && <span className="notif-filter-new">{c.unread} new</span>}
+            <span aria-hidden="true">{NOTIFICATION_TYPE_EMOJI[t]}</span> {NOTIFICATION_TYPE_LABELS[t]} <span className="filter-n">{c.n}</span>
+            {c.unread > 0 && <span className="filter-new">{c.unread} new</span>}
           </Link>
         );
       })}
@@ -116,14 +117,16 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       {all > 0 && <TypeFilter active={type} counts={typeCounts} all={all} />}
       <section className="card">
         {items.length === 0 && type ? (
-          <p className="muted">
-            No {NOTIFICATION_TYPE_LABELS[type].toLowerCase()} notifications. <Link href="/notifications">See them all</Link>
-          </p>
+          <EmptyState emoji={NOTIFICATION_TYPE_EMOJI[type]} title={`No ${NOTIFICATION_TYPE_LABELS[type].toLowerCase()} notifications`} action={{ href: "/notifications", label: "See them all" }} />
         ) : items.length === 0 ? (
-          <p className="muted">
-            Nothing yet. Texts between your characters and the people they&apos;re seeing, second dates and couples moving up a stage all
-            land here. {hasCharacter ? <Link href="/swipe">Swipe for a match</Link> : <Link href="/create">Make a character</Link>}
-          </p>
+          <EmptyState
+            emoji="🔔"
+            title="Nothing yet"
+            action={hasCharacter ? { href: "/swipe", label: "Swipe for a match" } : { href: "/create", label: "Make a character" }}
+            secondary={{ href: "/watch", label: "Watch tonight's dates" }}
+          >
+            Texts between your characters and the people they&apos;re seeing, second dates, couples moving up a stage and how your votes went all land here.
+          </EmptyState>
         ) : (
           <>
           <ul className="list" aria-label="Notifications">
