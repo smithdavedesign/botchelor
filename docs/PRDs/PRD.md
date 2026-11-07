@@ -14,7 +14,7 @@ Character.AI ($9.99/mo c.ai+), Talkie, Chai, Janitor AI and Blush are chat-first
 ## Status: what's built today
 _Added 2026-10-13. A PRD review noted this doc describes several products at once; this section separates what exists from what's a future target. BUILD.md is the authoritative build log._
 
-- **Built and live** (botchelor.vercel.app, $0 on free models):
+- **Built and live** (botchelor.vercel.app then; botchelor.com since 2026-10-16, $0 on free models):
   - The MVP (M1–M4): the character builder, blind dates, the prediction game, anonymous viewing with mutual-consent reveal, reports and blocks, weekly seasons with friend leagues and badges, and a Stripe-Payment-Link shop.
   - The simulation (M5, the "Product vision" below): outcomes decided by a **deterministic seeded engine**, not the model; **private souls** (owner-only, deletable, with a **local-only** option that never touches a model); per-date **autonomy, strategy, game budget, secret agenda and a note**; **the AI producer** and a **three-act date**; **box score**, **private debrief**, **confessionals**, **surprise score**; **guess-the-dealbreaker**, **matchmakers**, **sliding doors**; and a **persistent relationship graph**. Episodes are immutable once stored, and predictions lock when the finale airs.
   - Watch parties (M8): a synchronized **date room** where a pre-generated date plays on one shared clock while the audience reacts (emojis), chats and votes a **chemistry verdict** — *spectator mode*, so the audience reacts and predicts but never steers the characters. **Always-on template rooms** start the moment someone joins; a creator can also host a **premiere** of their own date, whose finale airs automatically at the decision. Live reactions, live chat with moderation (content filter, slow mode, rate limit, report-to-hide, "watch without chat"), the hidden-until-the-decision chemistry split, and audience predictions that still resolve into free points.
@@ -33,7 +33,7 @@ _Added 2026-10-13. A PRD review noted this doc describes several products at onc
 - Real-money betting, prizes of value, point sales, or any way for payment to change odds or rank.
 - Real people, minors, sexual content, or anyone's character imported from elsewhere.
 - Image, voice or video generation.
-- Live chat between a user and an AI character (this keeps it clear of a plain companion chatbot).
+- ~~Live chat between a user and an AI character (this keeps it clear of a plain companion chatbot).~~ Reversed 2026-11-04 (David): companions, "a companion with a world", see [../companions.md](../companions.md).
 - Mobile apps in the MVP; web only.
 
 ## Success metrics

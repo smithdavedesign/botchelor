@@ -15,7 +15,7 @@
  */
 import { picturesBlocked } from "./readiness";
 import { includedPrice } from "./pricing";
-import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
+import { refundAdTokens, spendAdTokens } from "./tokens";
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { keepBytes } from "../object-store";
@@ -244,11 +244,11 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   // Free for an admin, included with a subscription (#1005; David, 2026-10-30), else menu_picture_tokens.
   const price = (await includedPrice(db, ownerId, settings.menu_picture_tokens)).tokens;
   const pays = price > 0;
-  if (pays && price > 0 && !(await spendBoughtTokens(db, ownerId, price))) {
-    return { ok: false, status: 402, error: "needs_tokens", message: `A picture from the menu costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.` };
+  if (pays && price > 0 && !(await spendAdTokens(db, ownerId, price))) {
+    return { ok: false, status: 402, error: "needs_tokens", message: `A picture from the menu costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.` };
   }
   const giveBack = async () => {
-    if (pays && price > 0) await refundBoughtTokens(db, ownerId, price);
+    if (pays && price > 0) await refundAdTokens(db, ownerId, price);
   };
   const tokensBack = pays && price > 0 ? ` Your token${price === 1 ? " is" : "s are"} back.` : "";
   const kept = await keepPictureOfBoth(db, ownerId, [ca, cb], plan, { keys, settings, baseUrl, reject });

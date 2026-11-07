@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import WaitlistForm from "@/app/WaitlistForm";
 import { configuredProcessors, priceLabel, PROCESSOR_INFO, subscriptionPrice } from "@/lib/adult/billing";
+import { adTokensOn, tokenPacks } from "@/lib/adult/tokens";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { BETA_DAYS, getInvite } from "@/lib/adult/invites";
 import { tokensWord } from "@/lib/adult/price-words";
@@ -112,8 +113,16 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
                 </li>
                 <li data-extras>
                   Extras: each clip past those {tokensWord(plan.clipTokens)}, the video of the night {tokensWord(plan.reelTokens)}, a talking moment{" "}
-                  {tokensWord(plan.clipTokens)}, taking them somewhere else mid-night {tokensWord(SET_SCENE_TOKEN_COST)}. Tokens come in packs from the{" "}
-                  <Link href="/shop">shop</Link>, where they&apos;re sold as dates: one date there is one token here.
+                  {tokensWord(plan.clipTokens)}, taking them somewhere else mid-night {tokensWord(SET_SCENE_TOKEN_COST)}.{" "}
+                  {adTokensOn() ? (
+                    <>
+                      Tokens come in packs, from {priceLabel(tokenPacks()[0]!.usd)} for {tokenPacks()[0]!.tokens}, bought on After Dark once you&apos;re in.
+                    </>
+                  ) : (
+                    <>
+                      Tokens come in packs from the <Link href="/shop">shop</Link>, where they&apos;re sold as dates: one date there is one token here.
+                    </>
+                  )}
                 </li>
                 {studioOpen && <li data-studio>The Studio: private photo shoots of your own characters (each shoot uses tokens).</li>}
               </>

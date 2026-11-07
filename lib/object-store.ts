@@ -235,12 +235,34 @@ export function bunnyStore(cfg: BunnyConfig): ObjectStore {
   };
 }
 
-/** The configured store (Bunny, else the S3 bucket), or null: then every file is kept and read in Postgres, as before. */
+/**
+ * The show's host with After Dark on its own and both stores set: After Dark's files (keys after-dark/…) go to Bunny,
+ * which every link to them reads from After Dark's host, and the show's own (looks/…, studio-pg/…) stay in its bucket.
+ * An After Dark file read here that Bunny lacks is tried in the bucket, where the ones made before this were kept.
+ */
+export function byArea(bunny: ObjectStore, bucket: ObjectStore): ObjectStore {
+  const ad = (key: string) => key.startsWith("after-dark/");
+  return {
+    put: (key, bytes, mime) => (ad(key) ? bunny : bucket).put(key, bytes, mime),
+    get: async (key) => (ad(key) ? ((await bunny.get(key)) ?? (await bucket.get(key))) : bucket.get(key)),
+    remove: async (key) => {
+      if (ad(key)) await bucket.remove(key).catch(() => {});
+      await (ad(key) ? bunny : bucket).remove(key);
+    },
+    presign: (key, now, opts) => (ad(key) ? bunny : bucket).presign(key, now, opts),
+  };
+}
+
+/**
+ * The configured store (Bunny, else the S3 bucket; on the show's host with After Dark elsewhere, both by area), or
+ * null: then every file is kept and read in Postgres, as before.
+ */
 export function objectStore(env: Record<string, string | undefined> = process.env): ObjectStore | null {
   if (testStore !== undefined) return testStore;
   const bunny = bunnyConfig(env);
-  if (bunny) return bunnyStore(bunny);
   const cfg = storeConfig(env);
+  if (bunny && cfg && afterDarkElsewhere(env)) return byArea(bunnyStore(bunny), s3Store(cfg));
+  if (bunny) return bunnyStore(bunny);
   return cfg ? s3Store(cfg) : null;
 }
 
@@ -278,8 +300,9 @@ export async function keepBytes(area: MediaArea, id: string, original: Buffer, m
   if (!store) return { data: bytes, object_key: null };
   // On the show's host with After Dark on its own, an After Dark file never goes in the show's bucket: every link to it
   // goes to After Dark's host, which reads its own store (Bunny) and 404'd them (2026-11-04: 13 living portraits made
-  // through the show's /api/admin/showcase/animate). Postgres instead, which both hosts read.
-  if (area === "after-dark" && afterDarkElsewhere()) {
+  // through the show's /api/admin/showcase/animate). Bunny when the show has its settings too (byArea), else Postgres,
+  // which both hosts read.
+  if (area === "after-dark" && afterDarkElsewhere() && !bunnyConfig()) {
     console.error(`[object-store] kept ${area}/${id} in Postgres: made on the show's host, After Dark's store is elsewhere`);
     return { data: bytes, object_key: null };
   }

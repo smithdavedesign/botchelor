@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleMcpMessage, type McpContext } from "@/lib/mcp";
+import { handleMcpMessage, TOOL_COSTS, type McpContext } from "@/lib/mcp";
+import { TOOL_DEFS } from "@/lib/mcp/tool-defs";
 import { MIXER_FILL_HOUR_UTC, siblingEpisode, DOUBLE_VENUE } from "@/lib/group-dates";
 import { api, episodeJson, HOUSE_PARTNER_ID, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter, newUserCookie } from "./helpers";
 import { seasonCastIds } from "@/lib/season-cast";
@@ -13,6 +14,7 @@ import { POST as metNotesPost } from "@/app/api/characters/[id]/met-notes/route"
 import { deckFor } from "@/lib/swipes";
 import { notifyNightAired } from "@/lib/group-dates";
 import { weekAt } from "@/lib/seasons";
+import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
 import { loadCharacterMemory, remembered } from "@/lib/memory";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -187,6 +189,92 @@ describe("double dates (lib/group-dates)", () => {
     const told = (await t.db.query<Any>(`select title from notifications where user_id = $1 and kind = 'double_date'`, [a.agentId])).rows;
     expect(told.some((n: Any) => /fell through/.test(n.title))).toBe(true);
   });
+
+  // #1318 (run 2026-11-04-0610): a self-double with one date left booked the first table, then failed the second and
+  // blamed "the other couple's table". The night's dates are checked before anything books.
+  const leaveDates = async (userId: string, left: number) =>
+    t.db.query(
+      `insert into free_episode_usage (user_id, season_id, used) values ($1, $2, $3)
+       on conflict (user_id, season_id) do update set used = $3`,
+      [userId, weekAt(new Date()).id, FREE_EPISODES_PER_SEASON - left],
+    );
+
+  it("a self-double with one date left books nothing and says it needs two", async () => {
+    const a = await agent("Juni Marsh");
+    const second = (await call("create_character", { ...validCharacter({ name: "Lotte Hale" }), extras: PROFILE, agent_id: a.agentId }, a.ctx)).structuredContent
+      .character.id as string;
+    await leaveDates(a.agentId, 1);
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson()]);
+    const r = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: second, with_partner: house2(), agent_id: a.agentId },
+      a.ctx,
+    );
+    expect(r.isError).toBe(true);
+    const text = r.content[0].text;
+    expect(text).toMatch(/self-double spends 2 dates/);
+    expect(text).toMatch(/you have 1 date left/);
+    expect(text).toMatch(/nothing was booked and nothing was spent/);
+    expect(text).not.toMatch(/other couple/);
+    expect((await t.db.query<Any>(`select count(*)::int as n from episodes`)).rows[0].n).toBe(0);
+    const used = (await t.db.query<Any>(`select used from free_episode_usage where user_id = $1`, [a.agentId])).rows[0].used;
+    expect(used).toBe(FREE_EPISODES_PER_SEASON - 1);
+    expect((await t.db.query<Any>(`select status from group_nights`)).rows[0].status).toBe("lapsed");
+  });
+
+  it("an invitee with no dates left can't accept yet: nothing books, and the invite stays open", async () => {
+    const a = await agent("Juni Marsh");
+    const b = await agent("Pia Voss");
+    const invite = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: b.id, with_partner: house2(), agent_id: a.agentId },
+      a.ctx,
+    );
+    const nightId = invite.structuredContent.invited;
+    await leaveDates(b.agentId, 0);
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson()]);
+    const refused = await call("double_date", { accept: nightId, agent_id: b.agentId }, b.ctx);
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0].text).toMatch(/you have none left, so nothing was booked and nothing was spent/);
+    expect(refused.content[0].text).toMatch(/invite stays open/);
+    expect((await t.db.query<Any>(`select count(*)::int as n from episodes`)).rows[0].n).toBe(0);
+    expect((await t.db.query<Any>(`select status from group_nights where id = $1`, [nightId])).rows[0].status).toBe("invited");
+    // The proposer spent nothing either.
+    expect((await t.db.query<Any>(`select used from free_episode_usage where user_id = $1`, [a.agentId])).rows[0]?.used ?? 0).toBe(0);
+
+    // With a date back, the same invite accepts and both tables book.
+    await leaveDates(b.agentId, 1);
+    const accepted = await call("double_date", { accept: nightId, agent_id: b.agentId }, b.ctx);
+    expect(accepted.isError).toBeUndefined();
+    expect((await t.db.query<Any>(`select count(*)::int as n from episodes`)).rows[0].n).toBe(2);
+  });
+
+  it("when a self-double's second table can't book, the error names your second table and the first one's episode", async () => {
+    const a = await agent("Juni Marsh");
+    const second = (await call("create_character", { ...validCharacter({ name: "Lotte Hale" }), extras: PROFILE, agent_id: a.agentId }, a.ctx)).structuredContent
+      .character.id as string;
+    // The second table's partner is another creator's, closed to dates: that table can't book.
+    const x = await agent("Sol Vega", { open_to_dates: false });
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson(), episodeJson()]);
+    const r = await call(
+      "double_date",
+      { character_id: a.id, partner_id: HOUSE_PARTNER_ID, with_character: second, with_partner: x.id, agent_id: a.agentId },
+      a.ctx,
+    );
+    expect(r.isError).toBe(true);
+    const text = r.content[0].text;
+    const night = (await t.db.query<Any>(`select * from group_nights`)).rows[0];
+    expect(night.status).toBe("half_booked");
+    expect(text).toMatch(/^Error: Your second table \(Lotte and Sol\) couldn't be booked/);
+    expect(text).toMatch(/Your first table \(Juni and [^)]+\) was already booked, so it goes ahead as a date on its own/);
+    expect(text).toContain(`episode ${night.episode_a}`);
+    expect(text).not.toMatch(/other couple/);
+    const told = (await t.db.query<Any>(`select title from notifications where user_id = $1 and kind = 'double_date'`, [a.agentId])).rows;
+    expect(told.map((n: Any) => n.title)).toContain("💞 Your second table fell through");
+  });
 });
 
 describe("the table is remembered (group dates PR B)", () => {
@@ -298,7 +386,16 @@ describe("mixers (group dates M2)", () => {
   it("a mixer that never fills is called off free; leaving before it runs works; the same character can't join twice", async () => {
     const a = await agent("Juni Marsh");
     const b = await agent("Pia Voss");
-    expect((await call("mixer", { join: a.id, agent_id: a.agentId }, a.ctx)).isError).toBeUndefined();
+    // #1321 (run 2026-11-04-0610: the tool said a short night is "called off free", the join reply that the house fills it):
+    // both say a short night is filled and runs, spending the date, and that leaving first keeps it.
+    const joined = await call("mixer", { join: a.id, agent_id: a.agentId }, a.ctx);
+    expect(joined.isError).toBeUndefined();
+    expect(joined.structuredContent.runs).toMatch(new RegExp(`short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house tops it up .* spending one of your dates: leave before then to keep it`));
+    expect(joined.structuredContent.note).toMatch(/at \d+:20 UTC the house fills it.*keeps the date/);
+    expect(TOOL_COSTS.mixer).toMatch(new RegExp(`short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house fills it and it runs then`));
+    expect(TOOL_COSTS.mixer).toMatch(/leave: <character_id> before it runs keeps the date/);
+    expect(TOOL_COSTS.mixer).not.toMatch(/never fills is called off free/);
+    expect(String(TOOL_DEFS.find((d) => d.name === "mixer")!.description)).toMatch(/a night you're in runs and spends your date \(leave before it runs to keep it\); only one the house can't fill is called off, free/);
     expect((await call("mixer", { join: a.id, agent_id: a.agentId }, a.ctx)).isError).toBe(true); // already in
     expect((await call("mixer", { join: b.id, agent_id: b.agentId }, b.ctx)).isError).toBeUndefined();
     expect((await call("mixer", { leave: b.id, agent_id: b.agentId }, b.ctx)).isError).toBeUndefined();

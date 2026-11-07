@@ -15,15 +15,20 @@
  *   expiry                     → lapsed now
  *   chargeback, refund         → lapsed now, and the account is flagged: subscribing again waits for an admin
  * Every postback is recorded (adult_billing_events); the same transaction twice is applied once.
+ *
+ * Token packs (lib/adult/tokens.ts, 2026-11-04) are one-time orders on the same processors (kind 'tokens'): a first
+ * payment grants the pack's tokens once; a refund or chargeback revokes them and flags the account; nothing else in a
+ * pack's postbacks touches the subscription.
  */
 import { createHash, randomBytes } from "node:crypto";
 import type { Db } from "../db";
 import { sendAccountEmail } from "../email";
 import { siteUrl } from "../site";
 import { PROCESSORS } from "../legal-entity";
-import { ccbillConfig, ccbillPayUrl } from "./billing-ccbill";
-import { segpayConfig, segpayPayPageUrl } from "./billing-segpay";
-import { verotelCancelUrl, verotelConfig, verotelStartOrderUrl, type ParsedPostback } from "./billing-verotel";
+import { ccbillConfig, ccbillPayUrl, ccbillSinglePayUrl } from "./billing-ccbill";
+import { segpayConfig, segpayPayPageUrl, segpayTokenPricePoints } from "./billing-segpay";
+import { verotelCancelUrl, verotelConfig, verotelPurchaseUrl, verotelStartOrderUrl, type ParsedPostback } from "./billing-verotel";
+import { grantOrderTokens, revokeOrderTokens, tokenPack, tokenProcessors } from "./tokens";
 
 export type Processor = "ccbill" | "segpay" | "verotel";
 type Env = Record<string, string | undefined>;
@@ -86,6 +91,39 @@ export async function startCheckout(db: Db, userId: string, opts: { processor?: 
   return { url, processor, orderId };
 }
 
+/**
+ * Opens a token-pack order (lib/adult/tokens.ts) and returns the processor's one-time checkout link, or null when the
+ * pack doesn't exist or no processor (or not the one named) can sell it. The buyer comes back to the tokens page.
+ */
+export async function startTokenCheckout(
+  db: Db,
+  userId: string,
+  opts: { tokens: number; processor?: Processor; base: string },
+  env: Env = process.env,
+): Promise<Checkout | null> {
+  const pack = tokenPack(opts.tokens, env);
+  if (!pack) return null;
+  const offered = tokenProcessors(env, pack);
+  const processor = opts.processor ? (offered.includes(opts.processor) ? opts.processor : null) : (offered[0] ?? null);
+  if (!processor) return null;
+  const orderId = newOrderId();
+  const base = opts.base.replace(/\/+$/, "");
+  const successUrl = `${base}/after-dark/tokens?done=1`;
+  const declineUrl = `${base}/after-dark/tokens?declined=1`;
+  let url: string;
+  if (processor === "ccbill") url = ccbillSinglePayUrl(ccbillConfig(env)!, { referenceId: orderId, priceUsd: pack.usd });
+  else if (processor === "segpay") url = segpayPayPageUrl(segpayConfig(env)!, { referenceId: orderId, successUrl, declineUrl, pricePointId: segpayTokenPricePoints(env).get(pack.tokens)! });
+  else url = verotelPurchaseUrl(verotelConfig(env)!, { referenceId: orderId, priceUsd: pack.usd, description: `${pack.tokens} tokens · ${subscriptionName(env)}`, successUrl, declineUrl });
+  await db.query(`insert into adult_billing_orders (id, user_id, processor, price_usd, kind, tokens) values ($1, $2, $3, $4, 'tokens', $5)`, [
+    orderId,
+    userId,
+    processor,
+    pack.usd,
+    pack.tokens,
+  ]);
+  return { url, processor, orderId };
+}
+
 /** Records the person's 18+ declaration the first time they subscribe (a provider's check, once one exists, is kept). */
 export async function recordSelfDeclaration(db: Db, userId: string, country: string | null): Promise<void> {
   await db.query(
@@ -126,16 +164,16 @@ function fingerprint(processor: Processor, ev: ParsedPostback): string {
   return createHash("sha256").update(`${processor}|${ev.kind}|${sorted}`).digest("hex").slice(0, 32);
 }
 
-type OrderRow = { id: string; user_id: string | null; sale_id: string | null };
+type OrderRow = { id: string; user_id: string | null; sale_id: string | null; kind: string; tokens: number | null };
 
 async function findOrder(db: Db, processor: Processor, ev: ParsedPostback): Promise<OrderRow | null> {
   if (ev.orderId) {
-    const r = (await db.query<OrderRow>(`select id, user_id, sale_id from adult_billing_orders where id = $1 and processor = $2`, [ev.orderId, processor])).rows[0];
+    const r = (await db.query<OrderRow>(`select id, user_id, sale_id, kind, tokens from adult_billing_orders where id = $1 and processor = $2`, [ev.orderId, processor])).rows[0];
     if (r) return r;
   }
   if (ev.saleId) {
     const r = (
-      await db.query<OrderRow>(`select id, user_id, sale_id from adult_billing_orders where processor = $1 and sale_id = $2 order by created_at desc limit 1`, [processor, ev.saleId])
+      await db.query<OrderRow>(`select id, user_id, sale_id, kind, tokens from adult_billing_orders where processor = $1 and sale_id = $2 order by created_at desc limit 1`, [processor, ev.saleId])
     ).rows[0];
     if (r) return r;
   }
@@ -163,10 +201,13 @@ export async function applyBillingEvent(db: Db, processor: Processor, ev: Parsed
   }
   const order = await findOrder(db, processor, ev);
   const userId = order?.user_id ?? null;
+  const pack = order?.kind === "tokens";
   let outcome: ApplyOutcome;
   if (!order) outcome = ev.kind === "ignored" || ev.kind === "declined" ? "ignored" : "unknown_order";
   else if (!userId) outcome = "no_account";
   else if (ev.kind === "ignored" || ev.kind === "declined") outcome = "ignored";
+  // A pack is paid once: renewals, cancels and expiries don't apply to it.
+  else if (pack && ev.kind !== "initial" && ev.kind !== "refund" && ev.kind !== "chargeback") outcome = "ignored";
   else outcome = "applied";
 
   const eventKey = ev.transactionId ? `tx:${ev.transactionId}` : `fp:${fp}:${randomBytes(6).toString("hex")}`;
@@ -196,6 +237,24 @@ export async function applyBillingEvent(db: Db, processor: Processor, ev: Parsed
   if (outcome !== "applied" || !order || !userId) return outcome;
 
   if (ev.saleId && !order.sale_id) await db.query(`update adult_billing_orders set sale_id = $2 where id = $1`, [order.id, ev.saleId.slice(0, 64)]);
+  const flag = (reason: string) =>
+    db.query(
+      `insert into adult_billing_flags (user_id, reason, processor, flagged_at) values ($1, $2, $3, $4)
+       on conflict (user_id) do update set reason = excluded.reason, processor = excluded.processor, flagged_at = excluded.flagged_at, reviewed_at = null, reviewed_by = null`,
+      [userId, reason, processor, now.toISOString()],
+    );
+  if (pack) {
+    if (ev.kind === "initial") {
+      await db.query(`update adult_billing_orders set paid_at = coalesce(paid_at, $2) where id = $1`, [order.id, now.toISOString()]);
+      if (order.tokens && order.tokens > 0) await grantOrderTokens(db, userId, order.id, order.tokens, processor);
+    } else {
+      // A refunded or charged-back pack: its tokens go (what's left of them), and buying or subscribing again waits for
+      // an admin. The subscription, if any, is the processor's own business and runs on.
+      await revokeOrderTokens(db, userId, order.id);
+      await flag(ev.kind);
+    }
+    return "applied";
+  }
   const current = (
     await db.query<{ subscription_status: string; period_end: Date | string | null; subscribed_at: Date | string | null }>(
       `select subscription_status, period_end, subscribed_at from adult_entitlements where user_id = $1`,
@@ -246,11 +305,7 @@ export async function applyBillingEvent(db: Db, processor: Processor, ev: Parsed
     case "chargeback":
     case "refund":
       await upsert("lapsed", now);
-      await db.query(
-        `insert into adult_billing_flags (user_id, reason, processor, flagged_at) values ($1, $2, $3, $4)
-         on conflict (user_id) do update set reason = excluded.reason, processor = excluded.processor, flagged_at = excluded.flagged_at, reviewed_at = null, reviewed_by = null`,
-        [userId, ev.kind, processor, now.toISOString()],
-      );
+      await flag(ev.kind);
       break;
   }
   return "applied";
@@ -287,7 +342,7 @@ export async function subscriptionState(db: Db, userId: string, now: Date = new 
       const config = verotelConfig(env);
       const sale = (
         await db.query<{ sale_id: string }>(
-          `select sale_id from adult_billing_orders where user_id = $1 and processor = 'verotel' and sale_id is not null order by paid_at desc nulls last, created_at desc limit 1`,
+          `select sale_id from adult_billing_orders where user_id = $1 and processor = 'verotel' and kind = 'subscription' and sale_id is not null order by paid_at desc nulls last, created_at desc limit 1`,
           [userId],
         )
       ).rows[0];

@@ -199,7 +199,7 @@ export const MIXER_FILL_HOUR_UTC = 20;
 /** A mixer runs once this many singles are in (and the doors have been open a short while, so others can join). */
 export const MIXER_MIN = 4;
 export const MIXER_MAX = 6;
-/** Doors open at most this long: an open mixer that never fills is called off, and nothing is spent. */
+/** Doors open at most this long: an open mixer that never fills (the house couldn't top it up) is called off, and nothing is spent. */
 export const MIXER_WAIT_HOURS = 24;
 /** How long the doors stay open once enough are in, so a mixer isn't dealt the instant the fourth arrives. */
 export const MIXER_DOORS_MINUTES = 30;
@@ -259,7 +259,7 @@ export async function joinMixer(db: Db, userId: string, characterId: string, now
   const runs =
     seats.length >= MIXER_MIN
       ? `Within the hour (the doors stay open ~${MIXER_DOORS_MINUTES} minutes so others can join).`
-      : `Once ${MIXER_MIN} are in (${seats.length} now). If it's short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house tops it up with its own cast and (labelled) crowd and it runs then.`;
+      : `Once ${MIXER_MIN} are in (${seats.length} now). If it's short at ${MIXER_FILL_HOUR_UTC}:20 UTC, the house tops it up with its own cast and (labelled) crowd and it runs then, spending one of your dates: leave before then to keep it.`;
   void now;
   return { ok: true, night: open.night, seats, runs };
 }

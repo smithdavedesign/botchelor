@@ -32,7 +32,7 @@
 import type { CameraMoveId } from "./camera-moves";
 import { readinessOf, type Readiness, type SetupOffer } from "./readiness";
 import { isAdmin } from "../admins";
-import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allowance";
+import { adTokenBalance, refundAdTokens, spendAdTokens } from "./tokens";
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { LOOK_DETAILS, LOOK_STEPS, hairWords, tileId, looksAppearance, looksPictureWords, normaliseLooks, optionPrompt, optionsFor, type Gender, type Looks } from "../looks";
@@ -44,7 +44,7 @@ import { actById, actMenu, crossesTaboo, FRAMINGS, type Eyes, type Framing, type
 import { framingScores } from "./framing";
 import { levelForStage, modelTagLater, ownWords, tagNow } from "./media-tags";
 import { nudeSql, shownNude } from "./attire";
-import { eligibleIds } from "./characters";
+import { eligibleIds, isShowsOwn } from "./characters";
 import { mediaLimits } from "./clips";
 import type { CheckResult } from "./check";
 import { isPublicPlace } from "./continuity";
@@ -143,7 +143,7 @@ export async function studioAccess(db: Db, viewer: string, characterId: string):
   const c = await loadCharacter(db, characterId);
   if (!c) return fail(404, "not_found", "No character with that id.");
   const own = c.ownerId === viewer;
-  if (!own && !(admin && c.house)) return fail(404, "not_found", "The Studio is for your own characters.");
+  if (!own && !(admin && (c.house || (await isShowsOwn(db, c.id))))) return fail(404, "not_found", "The Studio is for your own characters.");
   if (!(await eligibleIds(db, viewer)).has(c.id)) return fail(409, "not_switched_on", `Switch ${c.name} into After Dark first.`);
   const picked = c.extras?.looks?.gender;
   const noun = nounOf(c);
@@ -471,8 +471,8 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
   const gate = await mediaGate(db, { owner: viewer });
   if (!gate.ok) return fail(503, "hive_paused", gate.message);
   const pays = spec.tokens > 0 && !access.admin;
-  if (pays && !(await spendBoughtTokens(db, viewer, spec.tokens))) {
-    return fail(402, "needs_tokens", `That costs ${spec.tokens} token${spec.tokens === 1 ? "" : "s"}. Get more on the shop page.`);
+  if (pays && !(await spendAdTokens(db, viewer, spec.tokens))) {
+    return fail(402, "needs_tokens", `That costs ${spec.tokens} token${spec.tokens === 1 ? "" : "s"}. Get more on the tokens page.`);
   }
   const id = crypto.randomUUID();
   await db.query(
@@ -493,7 +493,7 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
   const made = kept.length;
   const status: Shoot["status"] = made === 0 ? "failed" : made < asked ? "partial" : "ready";
   const refunded = made === 0 && pays;
-  if (refunded) await refundBoughtTokens(db, viewer, spec.tokens);
+  if (refunded) await refundAdTokens(db, viewer, spec.tokens);
   const row = (
     await db.query<Parameters<typeof shootRow>[0]>(
       `update adult_studio_shoots set made = $2, status = $3, pictures = $4::jsonb, error = $5, tokens = $6, updated_at = now() where id = $1
@@ -588,7 +588,7 @@ async function finishShoot(db: Db, viewer: string, shootId: string): Promise<voi
   if (!row || row.tokens <= 0) return;
   const back = row.made === 0 ? row.tokens : Math.floor((row.tokens * (row.asked - row.made)) / row.asked);
   if (back <= 0) return;
-  await refundBoughtTokens(db, viewer, back);
+  await refundAdTokens(db, viewer, back);
   await db.query(`update adult_studio_shoots set tokens = tokens - $2 where id = $1`, [shootId, back]);
 }
 
@@ -1223,8 +1223,8 @@ export async function setUpForPictures(db: Db, viewer: string, characterId: stri
   if (!plan) return fail(409, "already_ready", `${first} is already set up for pictures.`);
   if (plan.drawing) return fail(409, "setting_up", `${first}'s setup is still drawing: it lands in a minute or two.`);
   // What both parts need, before anything is drawn or spent: the tokens for both, and room in the month for every picture.
-  if (plan.tokens > 0 && (await episodeAllowance(db, viewer)).pack_left < plan.tokens) {
-    return fail(402, "needs_tokens", `Setting ${first} up costs ${plan.tokens} token${plan.tokens === 1 ? "" : "s"}. Get more on the shop page.`);
+  if (plan.tokens > 0 && (await adTokenBalance(db, viewer)) < plan.tokens) {
+    return fail(402, "needs_tokens", `Setting ${first} up costs ${plan.tokens} token${plan.tokens === 1 ? "" : "s"}. Get more on the tokens page.`);
   }
   const room = await usageLeft(db, viewer, "studio");
   if (room !== null && room < plan.faces + plan.bodies) return fail(429, "over_cap", `That's ${plan.faces + plan.bodies} pictures and ${room} are left this month. They reset on the 1st.`);
@@ -1786,7 +1786,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
   if (capped) return fail(429, "over_cap", capped);
   const tokens = seconds === 10 ? config.prices.animate_10 : config.prices.animate_5;
   const pays = tokens > 0 && !admin;
-  if (pays && !(await spendBoughtTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the shop page.`);
+  if (pays && !(await spendAdTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the tokens page.`);
   const model = config.animate.model ?? (await getAdultSettings(db)).reel_model;
   let queueId: string;
   let sent: LoggedRequest[] = [];
@@ -1797,7 +1797,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
       queueVideo(keys.venice!, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative: pair ? ANIMATE_NEGATIVE_PAIR : ANIMATE_NEGATIVE }),
     ));
   } catch (err) {
-    if (pays) await refundBoughtTokens(db, viewer, tokens);
+    if (pays) await refundAdTokens(db, viewer, tokens);
     return fail(502, "not_made", `It couldn't be animated (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${pays ? " Your tokens are back." : ""}`);
   }
   const row = (
@@ -1825,7 +1825,7 @@ export async function collectAnimations(db: Db, viewer: string): Promise<void> {
   /** It didn't come through: failed, and its tokens back (only by the poll that settled it, so never twice). */
   const failed = async (r: (typeof rows)[number], error: string) => {
     const done = await db.query(`update adult_studio_shoots set status = 'failed', error = $2, tokens = 0, updated_at = now() where id = $1 and status = 'making' returning id`, [r.id, error.slice(0, 200)]);
-    if (done.rows.length && r.tokens > 0) await refundBoughtTokens(db, viewer, r.tokens);
+    if (done.rows.length && r.tokens > 0) await refundAdTokens(db, viewer, r.tokens);
   };
   const keys = await adultKeys(db);
   if (await hivePausedUntil(db)) return;
@@ -1978,7 +1978,7 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
   const keys = await adultKeys(db);
   const checker = await checkReady(db);
   const identity = await identityOf(db, viewer, c.id);
-  const mine = c.ownerId === viewer || (admin && c.house);
+  const mine = c.ownerId === viewer || (admin && (c.house || (await isShowsOwn(db, c.id))));
   const [places, gallery, shootRows, tokens, left, upscalesLeft, partners, shareTo, ownRow, usable] = await Promise.all([
     ownPlaces(db, viewer, c.id),
     listMedia(db, [c.id], viewer),
@@ -1987,7 +1987,7 @@ export async function studioState(db: Db, viewer: string, characterId: string): 
         where owner_id = $1 and character_id = $2 order by created_at desc limit 20`,
       [viewer, c.id],
     ),
-    admin ? Promise.resolve(null) : episodeAllowance(db, viewer).then((a) => a.pack_left),
+    admin ? Promise.resolve(null) : adTokenBalance(db, viewer),
     usageLeft(db, viewer, "studio"),
     usageLeft(db, viewer, "upscales"),
     pairPartners(db, viewer, c.id),

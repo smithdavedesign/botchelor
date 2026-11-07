@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ChatThread from "@/app/ChatThread";
-import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
+import { crisisFrom } from "@/app/CrisisNotice";
 import Scene from "@/app/Scene";
+import CrisisPause from "@/app/stage/CrisisPause";
 import { queueEvent } from "@/app/engagement";
 import type { Turn } from "@/lib/conversation";
 import type { CrisisResources } from "@/lib/crisis";
@@ -189,18 +190,18 @@ export default function StepInStage({ initial, initialCrisis }: { initial: StepI
       </div>
 
       {crisis && (
-        <div className="stepin-pause">
-          <CrisisNotice resources={crisis} />
-          <p className="small">The date is paused. Nothing more is said in character until you choose.</p>
-          <p className="cta-row">
-            <button type="button" className="button secondary" onClick={carryOn} disabled={busy}>
-              Carry on with the date
-            </button>
+        <CrisisPause
+          className="stepin-pause"
+          resources={crisis}
+          paused="The date is paused. Nothing more is said in character until you choose."
+          carryOn={{ label: "Carry on with the date", onClick: () => void carryOn() }}
+          leave={
             <button type="button" className="button-ghost" onClick={leave} disabled={busy}>
               Leave the date
             </button>
-          </p>
-        </div>
+          }
+          busy={busy}
+        />
       )}
 
       {!done && !crisis && (

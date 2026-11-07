@@ -26,6 +26,7 @@ import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTE
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
 import { withArgDocs } from "./arg-docs";
+import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
 
 /**
  * A roleplay for a date (lib/date-roleplays.ts), on go_on_date and start_own_date: terse, both are core tools with a byte
@@ -86,7 +87,7 @@ const RAW_TOOL_DEFS = [
         open: { type: "boolean", default: false, description: "Only dates still open for predictions (default false)." },
         character_id: str(64, "Only dates with this character."),
         venue: str(60, "Only dates whose venue name contains this."),
-        mine: { type: "string", enum: [...BROWSE_MINE], description: "Your own dates: include, only or exclude (left out: excluded with open: true, included otherwise)." },
+        mine: { type: "string", enum: [...BROWSE_MINE], description: "Your own dates: mine: \"include\", \"only\" or \"exclude\" (left out: excluded with open: true, included otherwise)." },
         limit: { type: "integer", minimum: 1, maximum: 30, default: 10, description: "How many (default 10)." },
         agent_id: AGENT_ID,
       },
@@ -407,7 +408,7 @@ const RAW_TOOL_DEFS = [
     name: "double_date",
     title: "Propose a double date",
     description:
-      "Two couples, one table: each couple's date is its own episode (its own ending, predictions and memory), at the same place, each knowing who shares the table — and the episodes link each other. Your couple is character_id + partner_id (the partner may be the house cast); the other couple is with_character + with_partner, and with_character's owner is its booker: your own → both tables book now (you spend two dates); another creator's → they get an invite and accepting books both (each booker spends one date, under the usual booking rules — a non-house partner still takes your match). accept/decline answer an invite by its id; list: true shows yours. Invites lapse after 7 days.",
+      "Two couples, one table: each couple's date is its own episode (its own ending, predictions and memory), at the same place, each knowing who shares the table — and the episodes link each other. Your couple is character_id + partner_id (the partner may be the house cast); the other couple is with_character + with_partner, and with_character's owner is its booker: your own → both tables book now (you spend two dates, so with fewer than two left nothing books); another creator's → they get an invite and accepting books both (each booker spends one date, under the usual booking rules — a non-house partner still takes your match). accept/decline answer an invite by its id; list: true shows yours. Invites lapse after 7 days.",
     inputSchema: {
       type: "object",
       properties: {
@@ -428,7 +429,7 @@ const RAW_TOOL_DEFS = [
     name: "mixer",
     title: "Join the speed-dating mixer",
     description:
-      "A speed-dating night: 4\u20136 singles in one room, and the bell pairs each with its two neighbours, round by round, for six lines each (speed_date format; the whole night plays at /mixers/<id>). join: one of your characters \u2014 joining is the consent, and your character's one rotation spends one of your dates when the night runs (within the hour of enough joining; the usual booking rules then). Each date is its own episode; everyone at the mixer joins your character's met memory once the dates air, and reflecting on each date afterwards is what makes the night stick. leave: back out before it runs; list: true shows the open mixer and your nights. Short of 4 at 20:20 UTC, the house tops it up with its own (season cast and labelled house crowd; house: true in list; the house pays their dates), and when nobody joined it runs one of its own to watch. A night that never fills is called off free.",
+      "A speed-dating night: 4\u20136 singles in one room, and the bell pairs each with its two neighbours, round by round, for six lines each (speed_date format; the whole night plays at /mixers/<id>). join: one of your characters \u2014 joining is the consent, and your character's one rotation spends one of your dates when the night runs (within the hour of enough joining; the usual booking rules then). Each date is its own episode; everyone at the mixer joins your character's met memory once the dates air, and reflecting on each date afterwards is what makes the night stick. leave: back out before it runs; list: true shows the open mixer and your nights. Short of 4 at 20:20 UTC, the house tops it up with its own (season cast and labelled house crowd; house: true in list; the house pays their dates), and when nobody joined it runs one of its own to watch. So a night you're in runs and spends your date (leave before it runs to keep it); only one the house can't fill is called off, free.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1202,6 +1203,29 @@ const RAW_TOOL_DEFS = [
       },
     },
     annotations: READ,
+  },
+  {
+    name: "companion",
+    title: "Talk one to one with a character",
+    description: COMPANION_TOOL_DESCRIPTION,
+    inputSchema: {
+      type: "object",
+      required: ["action"],
+      properties: {
+        action: { type: "string", enum: [...COMPANION_ACTIONS], description: "What to do (see the description)." },
+        character_id: str(64, "Who you're talking with (from action list): opens or finds your thread with them."),
+        thread_id: str(64, "Your thread (from open or list), instead of character_id."),
+        text: str(COMPANION_MESSAGE_MAX, "send / edit: your message. remember: a fact for them to keep about you."),
+        length: { type: "string", enum: [...REPLY_LENGTHS], description: "length: how much they say a reply." },
+        place: { type: "string", enum: [...SCENE_PLACES, SCENE_TEXTING], description: `scene: where to play a scene together (one of the show's places), or ${SCENE_TEXTING} to go back to texting.` },
+        message_id: str(64, "report: the reply (an id from reply or messages)."),
+        reason: { type: "string", enum: [...COMPANION_REPORT_REASONS], description: "report: why." },
+        fact_id: str(64, "forget: the fact (an id from memory)."),
+        limit: { type: "integer", minimum: 1, maximum: 50, description: "read: how many of the newest messages (default 20)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
   },
 ] as const;
 

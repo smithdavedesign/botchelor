@@ -3,13 +3,17 @@
  * couple as the proposer, the other couple as its own booker — so caps, consent and every booking rule apply per
  * booker. Kept out of lib/group-dates.ts because this imports the route, and the route imports that module.
  *
- * Half a night: if the proposer's table can't book (their budget, a block), nothing books and the night lapses.
+ * Dates first (#1318): before anything books, each booker must have the dates the night spends — two from a
+ * self-double's one booker, one from each otherwise. Short, and nothing books or is spent: a short acceptor keeps the
+ * invite open, a short proposer's night lapses.
+ *
+ * Half a night: if the proposer's table can't book (a block, a taken partner), nothing books and the night lapses.
  * If theirs books and the other side's doesn't, the booked date goes ahead solo (its group_id is cleared) and both
- * hear why — a spent date is a real date, never thrown away.
+ * hear why — a spent date is a real date, never thrown away. Every message is worded for whoever asked (`asker`).
  */
 import { POST as postEpisode } from "@/app/api/episodes/route";
 import type { Db } from "./db";
-import { MIXER_DOORS_MINUTES, MIXER_MAX, MIXER_MIN, MIXER_WAIT_HOURS, mixerSeats, openMixer, type GroupNight, type Rotation } from "./group-dates";
+import { INVITE_DAYS, MIXER_DOORS_MINUTES, MIXER_MAX, MIXER_MIN, MIXER_WAIT_HOURS, mixerSeats, openMixer, type GroupNight, type Rotation } from "./group-dates";
 import { seedFrom } from "./engine";
 import { MCP_CALL_URL, USER_COOKIE } from "./http";
 import { shortName } from "./names";
@@ -19,6 +23,8 @@ import { playOrder, roundOf } from "./mixer-room";
 import { fillMixerTonight } from "./mixer-fill";
 import { writeRoomOpening } from "./mixer-voice";
 import { HOUSE_BOOKER, markHouseRequest } from "./house-booker";
+import { episodeAllowance } from "./allowance";
+import { operatorReserved } from "./operator-pass";
 
 async function book(asUserId: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const req = new Request(MCP_CALL_URL, {
@@ -37,15 +43,93 @@ export type NightResult =
   | { ok: true; episode_a: string; episode_b: string }
   | { ok: false; error: string; episode_a?: string };
 
-/** Books a night whose status is already 'booked' (a self-double, or an accepted invite). */
-export async function bookDoubleNight(db: Db, g: GroupNight, visibility?: string): Promise<NightResult> {
+/** Dates a booker could spend now: this week's free ones, pack dates, and an operator pass's reserved ones. */
+async function datesOnHand(db: Db, userId: string): Promise<{ have: number; resets_at: string }> {
+  const [left, reserved] = await Promise.all([episodeAllowance(db, userId), operatorReserved(db, userId).catch(() => null)]);
+  return { have: left.left + (reserved?.reserved_left ?? 0), resets_at: left.resets_at };
+}
+
+/**
+ * #1318: the booker short of the dates this night spends (two from a self-double's one booker, one from each booker
+ * otherwise), or null when both have enough. Checked before anything books, so a short side never leaves the other
+ * table spent. Only the budget: every other rule is still the booking route's, per table.
+ */
+export async function doubleShortfall(db: Db, g: GroupNight): Promise<{ booker: string; need: number; have: number; resets_at: string } | null> {
   const bookerB = g.invite_to ?? g.created_by;
+  const needs: [string, number][] = bookerB === g.created_by ? [[g.created_by, 2]] : [[g.created_by, 1], [bookerB, 1]];
+  for (const [booker, need] of needs) {
+    const { have, resets_at } = await datesOnHand(db, booker);
+    if (have < need) return { booker, need, have, resets_at };
+  }
+  return null;
+}
+
+/** "Juni and Lotte": a couple by first names, for the messages below. */
+async function coupleNames(db: Db, couple: { character_id: string; partner_id: string }): Promise<string> {
+  const { rows } = await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[couple.character_id, couple.partner_id]]);
+  const name = (id: string) => shortName(rows.find((r) => r.id === id)?.name ?? "someone");
+  return `${name(couple.character_id)} and ${name(couple.partner_id)}`;
+}
+
+const dateCount = (n: number) => (n === 1 ? "1 date" : `${n} dates`);
+/** The route's reason as a sentence, so the line after it reads on. */
+const sentence = (why: string) => (/[.!?)]$/.test(why.trim()) ? why.trim() : `${why.trim()}.`);
+
+/**
+ * Books a night whose status is already 'booked' (a self-double, or an accepted invite). `asker` is whoever asked
+ * (the proposer for a self-double, the invitee for an accept): the error is worded for them, naming whose table it was.
+ */
+export async function bookDoubleNight(db: Db, g: GroupNight, visibility?: string, asker: string = g.created_by): Promise<NightResult> {
+  const bookerB = g.invite_to ?? g.created_by;
+  const self = bookerB === g.created_by;
+  const askerIsA = asker === g.created_by;
   const body = (couple: { character_id: string; partner_id: string }): Record<string, unknown> => ({
     character_id: couple.character_id,
     partner_id: couple.partner_id,
     group_night: g.id,
     ...(visibility ? { visibility } : {}),
   });
+  // Whose table, as the asker hears it: in a self-double both are theirs (first and second).
+  const tableOf = async (side: "a" | "b"): Promise<string> => {
+    const names = await coupleNames(db, side === "a" ? g.couple_a : g.couple_b);
+    if (self) return `Your ${side === "a" ? "first" : "second"} table (${names})`;
+    const mine = (side === "a") === askerIsA;
+    return mine ? `Your couple's table (${names})` : `The other couple's table (${names})`;
+  };
+
+  const short = await doubleShortfall(db, g);
+  if (short) {
+    const back = `Free dates come back at ${short.resets_at}, or a pack from the shop (/shop) adds dates.`;
+    if (g.invite_to && short.booker === g.invite_to) {
+      // The invitee is short: un-accept, so the invite stays theirs to accept once they have a date.
+      await db.query(`update group_nights set status = 'invited', decided_at = null where id = $1 and status = 'booked'`, [g.id]).catch(() => {});
+      const lapses = new Date(new Date(g.created_at).getTime() + INVITE_DAYS * 24 * 60 * 60_000).toISOString();
+      return {
+        ok: false,
+        error:
+          asker === g.invite_to
+            ? `Accepting spends one of your dates on your table, and you have none left, so nothing was booked and nothing was spent. The invite stays open until ${lapses}: accept it again once you have a date. ${back}`
+            : `The other couple's booker has no dates left for their table, so nothing was booked and nothing was spent. The invite stays open until ${lapses}.`,
+      };
+    }
+    await db.query(`update group_nights set status = 'lapsed', decided_at = now() where id = $1`, [g.id]).catch(() => {});
+    if (self) {
+      return {
+        ok: false,
+        error: `A self-double spends ${dateCount(2)} of yours (one per table) and you have ${dateCount(short.have)} left, so nothing was booked and nothing was spent. ${back}`,
+      };
+    }
+    // The proposer is short (their dates went since they invited): the night can't book, and the invitee spent nothing.
+    if (askerIsA) return { ok: false, error: `Your couple's table needs one of your dates and you have none left, so nothing was booked and nothing was spent. ${back}` };
+    await notify(db, g.created_by, {
+      kind: "double_date",
+      title: "💞 The double date fell through",
+      body: "Your double-date invite was accepted, but you had no dates left for your couple's table, so nothing was booked and nothing was spent.",
+      link: null,
+    }).catch(() => {});
+    return { ok: false, error: "The proposing couple's booker has no dates left for their table, so nothing was booked and you spent nothing." };
+  }
+
   const a = await book(g.created_by, body(g.couple_a));
   if (!a.ok) {
     const why = String(a.data.message ?? a.data.error ?? `refused (${a.status})`).slice(0, 300);
@@ -58,7 +142,7 @@ export async function bookDoubleNight(db: Db, g: GroupNight, visibility?: string
         link: null,
       }).catch(() => {});
     }
-    return { ok: false, error: `Your couple's table couldn't be booked: ${why}` };
+    return { ok: false, error: `${await tableOf("a")} couldn't be booked: ${sentence(why)} Nothing was booked, and nothing was spent.` };
   }
   const episodeA = String(a.data.id ?? "");
   const b = await book(bookerB, body(g.couple_b));
@@ -67,13 +151,22 @@ export async function bookDoubleNight(db: Db, g: GroupNight, visibility?: string
     // The booked date goes ahead solo: a spent date is a real date. The night is marked half, the tie removed.
     await db.query(`update group_nights set status = 'half_booked', decided_at = now() where id = $1`, [g.id]).catch(() => {});
     await db.query(`update episodes set group_id = null where id = $1`, [episodeA]).catch(() => {});
+    const [tableA, tableB] = [await tableOf("a"), await tableOf("b")];
     await notify(db, g.created_by, {
       kind: "double_date",
-      title: "💞 The other table fell through",
-      body: `The other couple's table couldn't be booked (${why.slice(0, 160)}), so your couple's date goes ahead on its own.`,
+      title: self ? "💞 Your second table fell through" : "💞 The other table fell through",
+      body: self
+        ? `Your second table couldn't be booked (${why.slice(0, 160)}), so your first table's date goes ahead on its own.`
+        : `The other couple's table couldn't be booked (${why.slice(0, 160)}), so your couple's date goes ahead on its own.`,
       link: episodeA ? `/episodes/${episodeA}` : null,
     }).catch(() => {});
-    return { ok: false, error: `The other couple's table couldn't be booked: ${why}`, episode_a: episodeA };
+    // The first table is kept, and says so: which one, its episode, and that its date was spent (it isn't given back).
+    const kept = self || askerIsA ? "it spent one of your dates" : "it spent one of theirs, and you spent nothing";
+    return {
+      ok: false,
+      error: `${tableB} couldn't be booked: ${sentence(why)} ${tableA} was already booked, so it goes ahead as a date on its own (episode ${episodeA}; ${kept}).`,
+      episode_a: episodeA,
+    };
   }
   const episodeB = String(b.data.id ?? "");
   // One notice per booker (a self-double has one booker, so one notice).

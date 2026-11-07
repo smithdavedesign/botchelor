@@ -72,6 +72,17 @@ export function ccbillPayUrl(config: CcbillConfig, order: { referenceId: string;
   return `${CCBILL_FLEXFORMS_BASE}/${encodeURIComponent(config.flexId)}?${qs}`;
 }
 
+/**
+ * The FlexForms link for a one-time charge (an After Dark token pack, lib/adult/tokens.ts): the dynamic-pricing guide's
+ * single billing, a price and a period with no recurring fields, signed with the single digest. The period is only how
+ * long CCBill calls the purchase active; the tokens don't expire.
+ */
+export function ccbillSinglePayUrl(config: CcbillConfig, order: { referenceId: string; priceUsd: number }): string {
+  const p = { initialPrice: order.priceUsd.toFixed(2), initialPeriod: String(CCBILL_PERIOD_DAYS), currencyCode: CCBILL_USD };
+  const qs = new URLSearchParams({ clientAccnum: config.accnum, clientSubacc: config.subacc, ...p, formDigest: ccbillSingleDigest(config.salt, p), "X-orderId": order.referenceId });
+  return `${CCBILL_FLEXFORMS_BASE}/${encodeURIComponent(config.flexId)}?${qs}`;
+}
+
 /** CCBill's sending ranges (the webhooks guide): 64.38.212/215/240/241.1–254. */
 export function ccbillAddress(ip: string | null): boolean {
   const m = /^64\.38\.(212|215|240|241)\.(\d{1,3})$/.exec(ip?.trim() ?? "");

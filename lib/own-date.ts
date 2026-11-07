@@ -67,7 +67,7 @@ import { buildDate, planFromChain, rememberDate, type BuiltDate, type CharacterF
 import { loadChain } from "./text-chain";
 import { pairKey } from "./relationships";
 import { dateShape, moveCost, moveProblem, placesOf, segmentBudget, settleLine, type DateShape } from "./moves";
-import { venueName, venuePhrase, type PlaceId } from "./venues";
+import { isPlaceholder, venueName, venuePhrase, type PlaceId } from "./venues";
 import { applyPlay } from "./step-in-play";
 import { applyWishes, resolveWishes, settledWishes, type StoredWishes, wishReport, wishRule } from "./wishes";
 import { dateHeading, forTwoAgents, headingLine, nearSecondDate, type Heading } from "./heading";
@@ -351,6 +351,8 @@ export type OwnDateStep =
       waiting_for: { id: string; name: string } | "recap";
       /** Who plays the turn being waited for (#457). */
       played_by?: "agent" | "house_bot" | "show";
+      /** #1320: a house-run bot asked your character out, so autoplay_own_date plays only your side (the bot keeps its own). */
+      started_by_bot?: true;
       quiet_minutes?: number;
       can_hand_over?: boolean;
       /** MCP 2.10.1 (#673): when the show's model takes their side if they stay quiet, and the seconds until then. */
@@ -405,6 +407,8 @@ export type OwnDateResult =
       wish?: KeptWish;
       /** #840: the line said yes to a move, so the date went somewhere else and got longer: where, and its length before and now. */
       moved?: { to: string; of: number; was_of: number };
+      /** #1322: accept_move was true but the date didn't move, and why (no suggestion to answer, or no moves on this date). */
+      move_ignored?: string;
       /** 2.10.1 (#672): a see_again sent with something that carries none (the recap), and why. */
       wish_ignored?: string;
       /** #1205: start_own_date set a roleplay, so its reply can say the roleplay sets the story, not the place. */
@@ -445,6 +449,8 @@ type Row = {
   wishes: StoredWishes | null;
   /** The other side is a house-run bot's (lib/house-bots.ts): one of the show's own scripts plays it, not another agent (#457). */
   partner_bot: boolean | null;
+  /** #1320: the side that started it is a house-run bot's (the house crowd asks visitors' characters out). */
+  creator_bot: boolean | null;
   a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
   b_id: string; b_name: string; b_age: number; b_bio: string; b_traits: string[]; b_want: string; b_dealbreaker: string; b_appearance: string | null; b_pronouns: string | null; b_voice: string | null;
 };
@@ -775,10 +781,11 @@ export async function previewOwnDate(
       format: { id: formatId, label: showFormat(formatId).label, lines: totalTurns(formatId) },
       // #1205: where it happens, before it starts.
       venue: where,
+      // #1322: a place named (yours, or their texts') wins over the last-two rule, and words the library has a set for become that set.
       venue_note: !at
-        ? `The show deals the venue as it starts, away from the places of either one's last two dates; the first step names it (where). place ("a night train", a few words) sets it instead.`
+        ? `The show deals the venue as it starts, away from the places of either one's last two dates; the first step names it (where). place ("a night train", a few words) sets it instead, even one of those two: a place you name wins over that rule.`
         : at.by === "you"
-          ? `Where you said (place): ${where}.`
+          ? `Where you said (place): ${isPlaceholder(at.place) || at.place.startsWith("home@") ? where : `"${input.place!.trim()}" is dealt as ${where}, the closest set the show has`}. A place you name wins over the show's rule of avoiding either one's last two venues.`
           : `Where the two agreed in their texts: ${where}. place sets somewhere else.`,
       roleplay: rp.roleplay ? { title: rp.roleplay.title, premise: fillPremise(rp.roleplay, two), roles: rolesLine(rp.roleplay, two), agreed: rp.roleplay.agreed } : null,
       ...(rp.roleplay ? { roleplay_note: roleplayPlaceNote(where, false) } : {}),
@@ -872,6 +879,8 @@ export async function startOwnDate(
   // Booked: the pair's "Book it" notices are done (lib/notifications.ts).
   await resolvePairNotices(db, a.id, b.id, { bookedBy: userId, private: visibility === "private" });
   if (partnerPerformer) {
+    // #1320: the house crowd asks visitors' characters out, so the side that started it can be one of the show's own scripts.
+    const starterBot = await isHouseBotAgent(db, userId).catch(() => false);
     await notify(db, partnerPerformer, {
       kind: "own_date_invite",
       // #563: the invite is also how its owner hears a date was booked with their character (emailed at once when they've
@@ -879,7 +888,9 @@ export async function startOwnDate(
       title: `🤖 ${a.name} asked ${b.name} out${visibility === "private" ? " (private: it never airs; you can still open it)" : ""}: you perform ${shortName(b.name)}'s side`,
       // 2.4.3: who started it, and who performs each side.
       body:
-        `Two-agent date ${episodeId}, started by ${shortName(a.name)}'s agent. ${shortName(a.name)}: their agent performs. ${shortName(b.name)}: you do, on your own model ` +
+        (starterBot
+          ? `Two-agent date ${episodeId}, started by ${shortName(a.name)}, a house-run bot's character (one of the show's own scripts, not another agent): its lines come on their own. ${shortName(b.name)}: you perform, on your own model `
+          : `Two-agent date ${episodeId}, started by ${shortName(a.name)}'s agent. ${shortName(a.name)}: their agent performs. ${shortName(b.name)}: you do, on your own model `) +
         `(get_own_date_step; quiet ${OWN_DATE_HANDOVER_MINUTES} min on your move and the show's model takes it). Or decline_own_date. Lapses in ${OWN_DATE_TTL_HOURS} hours.`,
       link: `/episodes/${episodeId}`,
     });
@@ -912,6 +923,7 @@ async function load(db: Db, userId: string, episodeId: string): Promise<Row | nu
   const { rows } = await db.query<Row>(
     `select e.id, e.creator_id, e.partner_performer, e.status, e.seed::text as seed, e.setup, e.note, e.transcript, e.reflections,
             e.created_at, e.last_move_at, e.handed_over, e.autoplay, e.visibility, e.ending, e.wishes, ${houseBotSql("e.partner_performer")} as partner_bot,
+            ${houseBotSql("e.creator_id")} as creator_bot,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want, a.dealbreaker a_dealbreaker,
             a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
             b.id b_id, b.name b_name, b.age b_age, b.bio b_bio, b.traits b_traits, b.want b_want, b.dealbreaker b_dealbreaker,
@@ -1342,8 +1354,17 @@ export function handOverClock(lastMoveAt: Date | string, now: number = Date.now(
   return { show_takes_over_at: at.toISOString(), seconds_left: Math.max(0, Math.ceil((at.getTime() - now) / 1000)) };
 }
 
+/**
+ * Which side of a date, if any, a house-run bot plays as this agent sees it (#1320): true when the invited side is one
+ * (autoplay_own_date can play both sides then), "starter" when a house-run bot asked this agent's character out.
+ */
+function botSide(row: Pick<Row, "creator_id" | "partner_bot" | "creator_bot">, viewer: string): boolean | "starter" {
+  if (row.partner_bot === true) return true;
+  return viewer !== row.creator_id && row.creator_bot === true ? "starter" : false;
+}
+
 /** The step as this agent sees it: the other agent's turns (and, two-agent, the show's recap) are a wait. */
-function forViewer(step: OwnDateStep, userId: string, performers: Performers, twoAgent: boolean, since?: Date, bot = false): OwnDateStep {
+function forViewer(step: OwnDateStep, userId: string, performers: Performers, twoAgent: boolean, since?: Date, bot: boolean | "starter" = false): OwnDateStep {
   if (step.stage === "turn" && performers[step.side] !== userId) {
     const quiet = since ? minutesSince(since) : 0;
     const show = performers[step.side] === SHOW;
@@ -1357,7 +1378,8 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
       of: step.of,
       waiting_for: step.speaker,
       // #457: who plays the other side, said outright: the show's model, a house-run bot (one of the show's own scripts), or another agent.
-      played_by: show ? "show" : bot ? "house_bot" : "agent",
+      played_by: show ? "show" : bot !== false ? "house_bot" : "agent",
+      ...(!show && bot === "starter" ? { started_by_bot: true as const } : {}),
       ...(since ? { last_move_at: since.toISOString(), quiet_minutes: quiet, can_hand_over: canHandOver } : {}),
       // 2.10.1 (#673): their clock, to the second, while it's theirs to play (the show's model plays it at once once it's the show's).
       ...(since && twoAgent && !show ? { ...handOverClock(since), show_takes_over: `${step.speaker.name}'s side (theirs), if they stay quiet` } : {}),
@@ -1366,14 +1388,14 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
       instructions:
         (show
           ? `The show's model plays ${step.speaker.name}'s side now`
-          : bot
+          : bot !== false
             ? `${step.speaker.name} is a house-run bot's character (one of the show's own scripts, not another agent): its turn comes automatically`
             : `${step.speaker.name}'s agent performs this turn on its own model`) +
         (since ? `; the last move on this date was ${quiet} minute${quiet === 1 ? "" : "s"} ago. ` : ". ") +
         "You'll get an own_date_turn notification when it's your move (get_own_date_step with wait_seconds waits for it; next time, submit_own_date_step with wait_seconds hands in your line and waits for theirs in one call). " +
         (show
           ? "Ask again in a moment."
-          : bot
+          : bot === true
             ? `autoplay_own_date (side: "both") has the show's model play both sides now (one of the agents' shared daily dates; preview: true first shows it); decline_own_date cancels.`
             : canHandOver
             ? `They've been quiet ${OWN_DATE_HANDOVER_MINUTES}+ minutes, but the show's model couldn't take over ${step.speaker.name}'s side yet (the agents' daily budget is spent): keep waiting, try hand_over_own_date later (preview: true first shows the cost), or decline_own_date to cancel.`
@@ -1407,7 +1429,7 @@ function forViewer(step: OwnDateStep, userId: string, performers: Performers, tw
 function whoPerformed(row: Row, to: string): string {
   const mine = to === row.creator_id ? row.a_name : row.b_name;
   const other = to === row.creator_id ? row.b_name : row.a_name;
-  if (row.partner_bot === true) return `You performed ${mine}'s side; ${other} is a house-run bot's character (one of the show's own scripts), so the show played it.`;
+  if (botSide(row, to) !== false) return `You performed ${mine}'s side; ${other} is a house-run bot's character (one of the show's own scripts), so the show played it.`;
   if (row.handed_over) {
     const taken = row.handed_over === "a" ? row.a_name : row.b_name;
     return `${taken}'s side was taken over by the show's model after its agent went quiet; ${taken === mine ? other : mine}'s agent performed the other.`;
@@ -1573,7 +1595,7 @@ export async function getOwnDateStep(db: Db, userId: string, episodeId: string):
       await nudgeQuiet(db, theirs, row, step.side).catch(() => {});
     }
   }
-  return { ok: true, step: forViewer(step, userId, performersOf(row), twoAgent, lastMove(row), row.partner_bot === true) };
+  return { ok: true, step: forViewer(step, userId, performersOf(row), twoAgent, lastMove(row), botSide(row, userId)) };
 }
 
 /**
@@ -1920,7 +1942,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     return getOwnDateStep(db, userId, episodeId).then((r) => (r.ok ? { ...r, rejected: why } : r));
   }
   // #432: a refused step goes back as this agent sees it, so a two-agent date's retry doesn't show the ending either.
-  const refuse = (rejected: string): OwnDateResult => ({ ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), row.partner_bot === true), rejected });
+  const refuse = (rejected: string): OwnDateResult => ({ ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), botSide(row, userId)), rejected });
   const raw = asText(current.stage === "turn" ? oneLineTurn(output) : output);
   // A rejected reply hands back the same step: as this agent sees it, so a two-agent date's ending stays hidden (#432;
   // a 2026-10-20 visitor saw "ending: friends" on the retry step).
@@ -1960,7 +1982,7 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     // check_only (2026-10-20 visitors: "validate a line before it counts"): every check above passed; nothing is saved.
     if (opts.checkOnly) {
       await draft("agent_check", "passed_check", parsed.turn.dialogue);
-      return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), row.partner_bot === true), checked: true };
+      return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), botSide(row, userId)), checked: true };
     }
     // "done" in the goodbye stretch ends the date (#491), as on the show's model (lib/conversation.ts); earlier it's
     // ignored. Never stored on the line itself. 2026-10-23 (three production visitors: a goodbye cut the other side off
@@ -1986,9 +2008,18 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
     // the last line is in; a later one of the side's replaces it).
     // #840 (run 2026-10-25-0346: "done: true at turn 15 failed because the date had grown"): an accepted move says so.
     const movedTo = (line as Turn).moved_to;
+    // #1322 (the 2026-11-04-0610 run: "a move accepted with accept_move: true did not change where/of, and the reply didn't
+    // say so"): a yes that moved nothing says why. moveProblem refuses a yes the line doesn't say, so it's one of these.
+    const moveIgnored =
+      parsed.reply.accept === true && !movedTo
+        ? !shape.enabled
+          ? `accept_move did nothing: this date doesn't change places (it has no moves), so it stays at ${venueName(shape.place)}.`
+          : `accept_move did nothing: there was no suggestion to answer (${shortName(names.other)}'s last line proposed no move the show took: a move counts only with "move" set and the place said in that line), so the date stays at ${venueName(shape.place)}. To go somewhere, suggest it yourself: "move" with the place, said in your line.`
+        : null;
     const kept: Partial<Extract<OwnDateResult, { ok: true }>> = {
       ...(typeof parsed.wish === "boolean" ? { wish: { side: current.side, character: speaker.name, see_again: parsed.wish, last_line: Boolean(current.see_again) } } : {}),
       ...(movedTo ? { moved: { to: venueName(movedTo), of: shapeFor(built, formatId, next).total, was_of: shape.total } } : {}),
+      ...(moveIgnored ? { move_ignored: moveIgnored } : {}),
     };
     const withWish = (r: OwnDateResult): OwnDateResult => (r.ok ? { ...r, ...kept } : r);
     // 2.4.2 (the 2026-10-21-0319 run): this agent's move is made, so its "Your move…" notice for this date resolves now,
@@ -2166,6 +2197,8 @@ export type OpenOwnDate = {
    */
   their_move_waiting_minutes?: number;
   partner_note?: string;
+  /** #1320: the other side is a house-run bot's character (one of the show's own scripts, not another agent): its lines come on their own. */
+  partner_bot?: true;
   /** The show's model plays this side now (the other agent went quiet and its side was handed over). */
   show_plays?: { id: string; name: string };
 };
@@ -2218,6 +2251,8 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
     const performers = performersOf(row);
     const mineSide: "a" | "b" = row.creator_id === userId ? "a" : "b";
     const other = mineSide === "a" ? "b" : "a";
+    // #1320: the other side is a house-run bot's whichever side started it (a bot asks visitors' characters out too).
+    const bot = row.partner_performer !== null && (mineSide === "a" ? row.partner_bot === true : row.creator_bot === true);
     out.push({
       episode_id: id,
       two_agent: row.partner_performer !== null,
@@ -2230,7 +2265,12 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
       started_at: new Date(row.created_at).toISOString(),
       last_move_at: lastMove(row).toISOString(),
       quiet_minutes: minutesSince(lastMove(row)),
-      ...(row.partner_performer
+      ...(bot
+        ? {
+            partner_bot: true as const,
+            partner_note: `${shortName(row[`${other}_name`])} is a house-run bot's character (one of the show's own scripts, not another agent): its lines come on their own.`,
+          }
+        : row.partner_performer
         ? {
             partner_last_seen_minutes: await lastSeenMinutes(db, row.creator_id === userId ? row.partner_performer : row.creator_id),
             ...(step.stage === "turn" && performers[step.side] !== userId && performers[step.side] !== SHOW
@@ -2255,14 +2295,15 @@ export async function openOwnDates(db: Db, userId: string): Promise<OpenOwnDate[
  * openOwnDates is the full read (it also hands a quiet side to the show).
  */
 export async function twoAgentDatesFor(db: Db, userId: string): Promise<OpenOwnDate[]> {
-  type Light = Pick<Row, "id" | "creator_id" | "created_at" | "last_move_at" | "handed_over" | "autoplay" | "visibility" | "a_id" | "a_name" | "b_id" | "b_name"> & {
+  type Light = Pick<Row, "id" | "creator_id" | "created_at" | "last_move_at" | "handed_over" | "autoplay" | "visibility" | "a_id" | "a_name" | "b_id" | "b_name" | "partner_bot"> & {
     partner_performer: string;
     transcript: Turn[] | null;
     setup: DateSetup | null;
   };
   const { rows } = await db.query<Light>(
     `select e.id, e.creator_id, e.partner_performer, e.transcript, e.setup, e.created_at, e.last_move_at, e.handed_over, e.autoplay, e.visibility,
-            a.id a_id, a.name a_name, b.id b_id, b.name b_name
+            a.id a_id, a.name a_name, b.id b_id, b.name b_name,
+            ${houseBotSql("case when e.creator_id = $1 then e.partner_performer else e.creator_id end")} as partner_bot
        from episodes e join characters a on a.id = e.character_a join characters b on b.id = e.character_b
       where e.performed_by = 'agent' and e.status = 'generating' and e.partner_performer is not null and (e.creator_id = $1 or e.partner_performer = $1)
       order by e.created_at`,
@@ -2291,6 +2332,8 @@ export async function twoAgentDatesFor(db: Db, userId: string): Promise<OpenOwnD
       started_at: new Date(r.created_at).toISOString(),
       last_move_at: lastMove(r).toISOString(),
       quiet_minutes: minutesSince(lastMove(r)),
+      // #1320: the other side is a house-run bot's (here, as this agent sees it: whichever side started it).
+      ...(r.partner_bot === true ? { partner_bot: true as const } : {}),
       ...(shown ? { show_plays: { id: r[`${shown}_id`], name: r[`${shown}_name`] } } : {}),
     };
   });

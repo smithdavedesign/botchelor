@@ -411,6 +411,12 @@ export async function deleteAccount(db: Db, userId: string): Promise<AccountDele
   );
 
   // 4. Everything else keyed to the user id.
+  // Companions (lib/companion.ts): every thread, with its messages and what the character remembered (on delete cascade).
+  await run("delete from companion_threads where user_id = $1", [userId]);
+  // A plan's billing record (lib/paid-plans.ts: plan, status, Stripe's subscription id, the address they paid with; nothing
+  // they said) stays while Stripe may still renew it (the yearly reminder is owed); its usage counts and Subscribe clicks go.
+  await run("delete from companion_usage where user_id = $1", [userId]);
+  await run("delete from plan_checkouts where user_id = $1", [userId]);
   await run("delete from league_members where user_id = $1", [userId]);
   await run("delete from leagues where owner_id = $1", [userId]); // cascades its remaining members
   await run("delete from predictions where user_id = $1", [userId]);
@@ -483,6 +489,8 @@ const AFTER_DARK_OWNED: readonly [string, string][] = [
   ["adult_steer_resets", "owner_id"], ["adult_shorts", "owner_id"], ["adult_nights", "owner_id"], ["adult_scenes", "owner_id"],
   ["adult_characters", "owner_id"], ["adult_switches", "owner_id"], ["adult_usage", "owner_id"], ["adult_privacy", "user_id"],
   ["adult_entitlements", "user_id"], ["adult_viewer_places", "user_id"], ["adult_billing_flags", "user_id"],
+  // After Dark's own tokens (lib/adult/tokens.ts): what they bought or were given, and what they spent.
+  ["adult_token_grants", "user_id"], ["adult_token_usage", "user_id"],
   // The PG Studio's (lib/studio/pg.ts): not After Dark's, but deleted the same way, pictures before their shoots.
   ["studio_pg_pictures", "owner_id"], ["studio_pg_shoots", "owner_id"], ["profile_photos", "owner_id"], ["date_photos", "owner_id"],
   // The Create library's (lib/studio/library.ts): their own prompts, venues and roleplays.

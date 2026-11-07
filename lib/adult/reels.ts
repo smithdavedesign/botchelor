@@ -42,7 +42,7 @@
 import { cameraWords, type CameraMoveId } from "./camera-moves";
 import { picturesBlocked } from "./readiness";
 import { isAdmin } from "../admins";
-import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
+import { refundAdTokens, spendAdTokens } from "./tokens";
 import type { Character } from "../character";
 import { loadCharacter } from "../character";
 import type { Db } from "../db";
@@ -62,7 +62,7 @@ import { ensureBaseline, ensureNudeBaseline, lookWords, signedMediaUrl, type Fac
 import { keptDetailWords } from "../looks";
 import { nudeSql } from "./attire";
 import { adultModel } from "./mode";
-import { REEL_STALLED_MS } from "./reel-timing";
+import { PICK_LINES_MAX, REEL_STALLED_MS } from "./reel-timing";
 import { cancelPrediction, createPrediction, downloadOutput, getPrediction, isDone, noOutput, outputUrls, ReplicateError, runModel, type Prediction, type ReplicateFile } from "./replicate";
 import { dropForeignActions, eligiblePair, type SceneLine } from "./scenes";
 import { groupNights, type NightChapter } from "./nights";
@@ -1213,6 +1213,9 @@ export async function drawReplicateKeyframe(r: ReplicateMedia, prompt: string, i
   return file;
 }
 
+/** A shot from undressing on (its stage), which a filtered talk model won't make. */
+export const explicitShot = (s: Pick<ReelShot, "stage">): boolean => (s.stage ?? 0) >= UNDRESSED_FROM;
+
 /**
  * Queues one shot's video on Replicate from its keyframe: the prediction's id is the shot's queue id. A shot with a line
  * goes to the talk model, which says it; the silent model's input is kept on it for when the talk model can't
@@ -1224,7 +1227,9 @@ async function queueReplicateShot(ctx: Pick<ShotContext, "cast" | "baseUrl" | "r
   delete s.speaks;
   delete s.silent_retry;
   delete s.voiceless;
-  if (r.talk && s.text.trim()) {
+  // From undressing on, straight to the silent model with the line said beside it: the talk model (Wan 2.6, behind
+  // Alibaba's filter) refused every explicit shot of a night and each waited on that refusal first (2026-11-04).
+  if (r.talk && s.text.trim() && !explicitShot(s)) {
     const link = signedMediaUrl(s.media_id!, ctx.baseUrl);
     const p = await createPrediction(r.token, r.talk, talkShotInput(ctx.cast, s, link, r.talk, ctx.avoid), { cancelAfter: "30m" });
     Object.assign(s, { queue_id: p.id, model: r.talk, speaks: true, silent_retry: { model: r.video, input: replicateShotInput(ctx.cast, s, link, r.videoLora) } });
@@ -1696,8 +1701,8 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
   const pays = !where.media.own && !(await isAdmin(db, ownerId));
   const price = settings.reel_tokens;
-  if (pays && !(await spendBoughtTokens(db, ownerId, price))) {
-    return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. Get more on the shop page.` };
+  if (pays && !(await spendAdTokens(db, ownerId, price))) {
+    return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. Get more on the tokens page.` };
   }
   const id = crypto.randomUUID();
   try {
@@ -1724,7 +1729,7 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
     await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [id, JSON.stringify(built.shots), made.provider, made.fell_back]);
     return { ok: true, reel: await settleIfDone(db, id) };
   } catch (err) {
-    if (pays) await refundBoughtTokens(db, ownerId, price);
+    if (pays) await refundAdTokens(db, ownerId, price);
     await db.query(`delete from adult_reels where id = $1`, [id]).catch(() => {});
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
     if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: hivePausedErrorMessage(err, pays && price > 0) };
@@ -1773,8 +1778,8 @@ export async function planReel(db: Db, ownerId: string, x: string, y: string, li
   }
 }
 
-/** Lines the owner can add to a storyboard at once (David, 2026-11-04: "choose 1 up to 4 lines from the transcript"). */
-export const PICK_LINES_MAX = 4;
+// PICK_LINES_MAX lives in ./reel-timing, which the storyboard page can import (this file can't: it pulls in sharp).
+export { PICK_LINES_MAX } from "./reel-timing";
 /** Shots a storyboard holds at most, the director's and the owner's together (pickShots' own ceiling). */
 const STORYBOARD_MAX = 12;
 
@@ -1928,8 +1933,8 @@ export async function filmReel(db: Db, ownerId: string, reelId: string, baseUrl:
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
   const pays = !where.media.own && !(await isAdmin(db, ownerId));
   const price = settings.reel_tokens;
-  if (pays && !(await spendBoughtTokens(db, ownerId, price))) {
-    return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. Get more on the shop page.` };
+  if (pays && !(await spendAdTokens(db, ownerId, price))) {
+    return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. Get more on the tokens page.` };
   }
   try {
     const [ca, cb] = await Promise.all([loadCharacter(db, row.a), loadCharacter(db, row.b)]);
@@ -1945,7 +1950,7 @@ export async function filmReel(db: Db, ownerId: string, reelId: string, baseUrl:
     await db.query(`update adult_reels set shots = $2::jsonb, provider = $3, fell_back = $4 where id = $1`, [reelId, JSON.stringify(row.shots), made.provider, made.fell_back]);
     return { ok: true, reel: await settleIfDone(db, reelId) };
   } catch (err) {
-    if (pays) await refundBoughtTokens(db, ownerId, price);
+    if (pays) await refundAdTokens(db, ownerId, price);
     // Back to a draft so they can film again; the drawn keyframes are kept.
     await db.query(`update adult_reels set status = 'draft' where id = $1 and status = 'making'`, [reelId]).catch(() => {});
     return { ok: false, status: 502, error: "not_started", message: `The video couldn't start (${err instanceof Error ? err.message : "error"}). Your tokens are back.` };
@@ -2232,7 +2237,7 @@ export async function settleIfDone(db: Db, id: string): Promise<Reel> {
       `update adult_reels set status = $2, updated_at = now()${refilmed.length ? ", shots = $3::jsonb" : ""} where id = $1 and status = 'making' returning 1`,
       refilmed.length ? [id, status, JSON.stringify(r.shots)] : [id, status],
     );
-    if (done.rows.length && refund > 0) await refundBoughtTokens(db, r.owner_id, refund);
+    if (done.rows.length && refund > 0) await refundAdTokens(db, r.owner_id, refund);
     // An included clip (#1005) that didn't come through: its place in the month's allowance back (a refilm's isn't one).
     if (done.rows.length && status === "failed" && !refilmed.length && r.kind === "clip" && r.clip?.included) await giveBackIncludedClip(db, r.owner_id, r.clip.included);
   }
@@ -2563,8 +2568,8 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
   const pays = !where.media.own && !(await isAdmin(db, ownerId));
   // A clip filmed again costs what a clip past the allowance does (#1005: extras at about cost); a night's shot, its share.
   const price = !pays ? 0 : r.kind === "clip" ? settings.clip_tokens : Math.max(1, Math.ceil(settings.reel_tokens / Math.max(1, r.shots.length)));
-  if (price && !(await spendBoughtTokens(db, ownerId, price))) {
-    return { ok: false, status: 402, error: "needs_tokens", message: `Filming a shot again costs ${price} token${price === 1 ? "" : "s"}. Get more on the shop page.` };
+  if (price && !(await spendAdTokens(db, ownerId, price))) {
+    return { ok: false, status: 402, error: "needs_tokens", message: `Filming a shot again costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.` };
   }
   try {
     const [ca, cb] = await Promise.all([loadCharacter(db, r.character_a), loadCharacter(db, r.character_b)]);
@@ -2581,7 +2586,7 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
     await db.query(`update adult_reels set shots = $2::jsonb where id = $1`, [reelId, JSON.stringify(r.shots)]);
     return { ok: true, reel: await settleIfDone(db, reelId) };
   } catch (err) {
-    if (price) await refundBoughtTokens(db, ownerId, price);
+    if (price) await refundAdTokens(db, ownerId, price);
     // Back as it was: the old video stays the shot's.
     await db.query(`update adult_reels set status = $2 where id = $1 and status = 'making'`, [reelId, r.status]).catch(() => {});
     return { ok: false, status: 502, error: "not_started", message: `It couldn't be filmed again (${err instanceof Error ? err.message : "error"}).${price ? " Your tokens are back." : ""}` };

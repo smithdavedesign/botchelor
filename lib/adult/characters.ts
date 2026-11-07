@@ -1,5 +1,6 @@
 /**
- * Who can be in a person's after-dark scenes (David, 2026-10-18): this season's house cast always, plus the characters
+ * Who can be in a person's after-dark scenes (David, 2026-10-18): this season's house cast always, the show's own agent
+ * cast that passed its checks (lib/adult/agent-cast.ts, characters.after_dark_open; 2026-11-04), plus the characters
  * that person has switched on. Each person switches only their own characters and the house characters they bring
  * along; never another person's character, which would put it in explicit scenes without its owner. One person's
  * switches never change anyone else's after dark.
@@ -10,10 +11,22 @@ import { lastSeasonOn, seasonCastIds, seasonMonth } from "../season-cast";
 
 export type Switchable = { id: string; name: string; house: boolean; portrait: string | null; on: boolean; season: boolean };
 
-/** Everyone who can be in this person's scenes: the season's cast and the characters they've switched on. */
+/** The show's own: a house character, or one of the agent cast After Dark opened (lib/adult/agent-cast.ts). SQL on `alias`. */
+export const showsOwnSql = (alias: string): string => `(${alias}.is_house or ${alias}.after_dark_open)`;
+
+/** Whether this character is the show's own (showsOwnSql): an admin curates it, as they do the house cast. */
+export async function isShowsOwn(db: Db, characterId: string): Promise<boolean> {
+  return (await db.query(`select 1 from characters c where c.id = $1 and ${showsOwnSql("c")}`, [characterId])).rows.length > 0;
+}
+
+/** Everyone who can be in this person's scenes: the season's cast, the agent cast that's open, and the characters they've switched on. */
 export async function eligibleIds(db: Db, ownerId: string): Promise<Set<string>> {
-  const on = (await db.query<{ character_id: string }>(`select character_id from adult_switches where owner_id = $1`, [ownerId])).rows.map((r) => r.character_id);
-  return new Set([...seasonCastIds(), ...on]);
+  const { rows } = await db.query<{ id: string }>(
+    `select character_id as id from adult_switches where owner_id = $1
+     union select id from characters where after_dark_open and visibility <> 'private'`,
+    [ownerId],
+  );
+  return new Set([...seasonCastIds(), ...rows.map((r) => r.id)]);
 }
 
 /**
@@ -48,7 +61,7 @@ export async function keptPairs(db: Db, ownerId: string, opts: { eligible?: Set<
        union
        select character_a, character_b from adult_nights where owner_id = $1 and ($2::text is null or (character_a = $2 and character_b = $3))
      )
-     select h.character_a as a, h.character_b as b, ca.is_house as a_house, cb.is_house as b_house
+     select h.character_a as a, h.character_b as b, ${showsOwnSql("ca")} as a_house, ${showsOwnSql("cb")} as b_house
        from had h join characters ca on ca.id = h.character_a join characters cb on cb.id = h.character_b`,
     [ownerId, x, y],
   );
@@ -87,7 +100,7 @@ export type PairAbsence = { left: { id: string; name: string; season: string | n
 export async function pairAbsence(db: Db, ownerId: string, x: string, y: string): Promise<PairAbsence | null> {
   if (!x || !y || x === y) return null;
   const { rows } = await db.query<{ id: string; name: string; is_house: boolean; owner_id: string | null }>(
-    `select id, name, is_house, owner_id from characters where id = any($1)`,
+    `select c.id, c.name, ${showsOwnSql("c")} as is_house, c.owner_id from characters c where c.id = any($1)`,
     [[x, y]],
   );
   const both = [rows.find((r) => r.id === x), rows.find((r) => r.id === y)];

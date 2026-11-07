@@ -93,6 +93,31 @@ export function verotelStartOrderUrl(
   return `${VEROTEL_STARTORDER_URL}?${qs}`;
 }
 
+/**
+ * The startorder link for a one-time purchase (an After Dark token pack, lib/adult/tokens.ts): the docs' "Create a
+ * purchase order", type=purchase with a price and a description, and referenceID our order id.
+ * https://controlcenter.verotel.com/flexpay-doc/purchase.html (read 2026-11-04)
+ */
+export function verotelPurchaseUrl(
+  config: VerotelConfig,
+  order: { referenceId: string; priceUsd: number; description: string; successUrl: string; declineUrl: string },
+): string {
+  const params: Params = {
+    version: VEROTEL_PROTOCOL_VERSION,
+    shopID: config.shopId,
+    type: "purchase",
+    priceAmount: order.priceUsd.toFixed(2),
+    priceCurrency: "USD",
+    description: order.description.slice(0, 100),
+    referenceID: order.referenceId,
+    ...(order.successUrl.length <= 255 ? { successURL: order.successUrl } : {}),
+    ...(order.declineUrl.length <= 255 ? { declineURL: order.declineUrl } : {}),
+  };
+  const signature = verotelSignature(config.signatureKey, params);
+  const qs = new URLSearchParams([...Object.keys(params).sort().map((k): [string, string] => [k, params[k]]), ["signature", signature]]);
+  return `${VEROTEL_STARTORDER_URL}?${qs}`;
+}
+
 /** The subscriber's own cancel link for one sale (the docs' "Cancel subscription request": version, shopID, saleID). */
 export function verotelCancelUrl(config: VerotelConfig, saleId: string): string {
   const params: Params = { version: VEROTEL_PROTOCOL_VERSION, shopID: config.shopId, saleID: saleId };
@@ -146,6 +171,9 @@ export function parseVerotelPostback(params: Params): ParsedPostback {
   for (const k of VEROTEL_KEPT) if (params[k] !== undefined && params[k] !== "") kept[k] = String(params[k]).slice(0, 200);
   const kind: BillingKind = (() => {
     switch (event) {
+      // A purchase's success postback has no event, only type=purchase (purchase.html); its credit and chargeback do.
+      case "":
+        return params.type?.trim().toLowerCase() === "purchase" ? "initial" : "ignored";
       case "initial":
       case "upgrade":
         return "initial";

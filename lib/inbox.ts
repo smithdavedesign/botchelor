@@ -11,7 +11,7 @@ import { markPairNotices, pairNoticeLinks } from "./notifications";
 import { loadRelationship, pairKey, viewRelationship } from "./relationships";
 import type { Ending } from "./rules";
 import { matchView } from "./swipes";
-import { chainPage, decisionShown, loadChain, type ChainItem, type ChainText } from "./text-chain";
+import { chainPage, decisionShown, loadChain, loadChainsFor, type ChainItem, type ChainText } from "./text-chain";
 import { unmatchedSql } from "./unmatch";
 
 /** At most this many threads per character: the newest first. */
@@ -238,7 +238,8 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
       [characterId],
     )
   ).rows;
-  const [matches, unread, latest, reads] = await Promise.all([
+  // Every partner's chain in one go (loadChainsFor), not three queries a partner.
+  const [matches, unread, latest, reads, chains] = await Promise.all([
     db.query<{ lo: string; hi: string; matched_at: string | Date; yes_lo: boolean | null; yes_hi: boolean | null }>(
       `select character_lo as lo, character_hi as hi, matched_at, yes_lo, yes_hi from matches where $1 in (character_lo, character_hi)`,
       [characterId],
@@ -252,8 +253,10 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
       `select character_lo as lo, character_hi as hi, read_at from thread_reads where user_id = $1 and $2 in (character_lo, character_hi)`,
       [userId, characterId],
     ),
+    loadChainsFor(db, characterId, { userId, owner: true }),
   ]);
   const readAt = new Map(reads.rows.map((r) => [`${r.lo}/${r.hi}`, new Date(r.read_at)]));
+  const matchOf = new Map(matches.rows.map((r) => [`${r.lo}/${r.hi}`, r]));
   const unreadBy = new Map(unread.rows.filter((r) => r.kind === "texted").map((r) => [r.link, r.n]));
   const newMatchLinks = new Set(unread.rows.filter((r) => r.kind === "matched").map((r) => r.link));
 
@@ -262,10 +265,10 @@ export async function listThreads(db: Db, userId: string, characterId: string): 
       const p = toProfile(row);
       const [lo, hi] = pairKey(characterId, p.id);
       const self = characterId === lo ? "lo" : "hi";
-      const chain: ChainItem[] = await loadChain(db, lo, hi, { userId, owner: true });
+      const chain: ChainItem[] = chains.get(p.id) ?? [];
       const texts = chain.filter((i): i is ChainText => i.kind === "text");
       const dates = chain.filter((i) => i.kind === "date").length;
-      const m = matches.rows.find((r) => r.lo === lo && r.hi === hi);
+      const m = matchOf.get(`${lo}/${hi}`);
       // A pair with nothing this viewer can see (say, only someone else's private date) isn't a thread.
       if (!m && !texts.length && !dates) return null;
       const last = texts.at(-1);

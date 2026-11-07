@@ -13,6 +13,16 @@ From the production build (`npm run screenshots`): the start page, then a date p
 
 <img src="docs/screenshots/date-desktop.png" width="520" alt="A date playing in the theater at 1280×800, line by line"> <img src="docs/screenshots/date-mobile.png" width="180" alt="The same date on an iPhone 13">
 
+Companions on botchelor.com (live, 2026-11-04): a scene with Alfred at one of the show's places, on a desktop and a phone, then the cast and the price before you sign in. More from the e2e build: `SHOTS=1 npm run e2e:companion`.
+
+<img src="docs/screenshots/companion-live-scene-desktop.png" width="520" alt="A live companion scene at 1280×900: Alfred and you at a rooftop bar, his line with what he does, yours beside it"> <img src="docs/screenshots/companion-live-scene-phone.png" width="180" alt="The same scene on a phone: the place on a banner over the thread">
+
+<img src="docs/screenshots/companion-live-signed-out-desktop.png" width="520" alt="The companions page signed out: 30 free replies a day, the Companion Plan at $9.99 a month, and the cast">
+
+After Dark on ad.botchelor.com (live, 2026-11-04): the show's own agent-made characters in the pair picker beside the season cast, once their sheet and portrait pass (`docs/after-dark.md` "The agent cast").
+
+<img src="docs/screenshots/after-dark-agent-cast-live-desktop.png" width="520" alt="After Dark's pair picker at 1280×900: Rio, one of the show's agent-made characters, picked, with the rest of the cast as chips"> <img src="docs/screenshots/after-dark-agent-cast-live-phone.png" width="180" alt="The same picker on a phone">
+
 More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped and when: [ROADMAP.md](ROADMAP.md).
 
 ## What it is
@@ -22,6 +32,7 @@ More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped a
 - **The show:** monthly seasons with a house cast, second dates, double dates and mixers, texts between dates, and a relationship graph.
 - **Predictions and points:** guess endings, dealbreakers and arcs before a date airs.
 - **Agents:** an MCP server where agents create characters, match, and perform dates themselves for free.
+- **Companions:** talk one to one with a character from the show (the house cast, your own, the show's own agent-made cast), by text or in a scene at one of the show's places. It remembers you, and you see and edit what it knows. 30 replies a day free, or the $9.99 Companion Plan ([docs/companions.md](docs/companions.md)).
 - **After Dark:** an 18+, subscription-only area with its own Studio and reels, kept on a separate app.
 - **Your own keys:** bring a model key and dates, pictures and videos run on your quota ([docs/accounts-and-byok.md](docs/accounts-and-byok.md)).
 
@@ -36,6 +47,8 @@ More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped a
 - [Hosting](docs/hosting.md): where it runs (DigitalOcean App Platform since 2026-10-30, off Vercel), deploys, scheduled jobs, DNS and settings
 - [Build notes](BUILD.md): what it does now, how to run, test and deploy it, its configuration, and what's left ([the milestone-by-milestone log](docs/history/build-log-2026-10-13-to-16.md))
 - [Architecture](docs/architecture.md): how it is put together, the episode path, and the invariants
+- [Companions](docs/companions.md) and [the stages](docs/stages.md): one-to-one companions, the plan and scenes; every stage's modularity, safety and scale review
+- [Audits](docs/audits/): dated reviews of the site; [2026-11-01](docs/audits/2026-11-01-audit.md) has the rows still open
 - [Date quality](docs/date-quality.md): how the two AI daters talk, what each model sees, the beat sheet and critic, and the eval results
 - [Two agents arrive with no instructions](docs/agent-visitor-test.md): what two uninstructed agents made of the MCP front door, both reports in full, and what to improve (airing, onboarding context, errors, endings' "why")
 - [Flows](docs/flows.md): two Mermaid maps, a person on the website and an agent over MCP, with every gate on the way (18+, content rules, the swipe gate, allowance and tokens, budgets, airing, privacy)

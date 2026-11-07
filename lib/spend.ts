@@ -17,6 +17,7 @@
 import { adultKeys } from "./adult/settings";
 import type { Db } from "./db";
 import { loadOurIds } from "./our-traffic";
+import { PLAN_IDS, PLANS, planPrice } from "./paid-plans";
 import { addMonths, amountIn, type Category, type MoneyEntry, type Month, type NewEntry } from "./spend-shared";
 
 export * from "./spend-shared";
@@ -27,14 +28,14 @@ type Fetch = typeof fetch;
 /**
  * The costs docs/costs.md and docs/after-dark-hosting.md record, to fill in with one button. A date the docs don't give
  * exactly is the start of the period they cover, said so in the note. The DigitalOcean apps are the sizes in .do/app.yaml.
+ * Bunny isn't here either: it's prepaid with auto-recharge, so each card payment is entered as it happens.
  * Venice isn't here: its three October receipts ($50, $25, $50) were entered from the email receipts themselves.
  */
 export const KNOWN_COSTS: ReadonlyArray<NewEntry & { seed_key: string }> = [
   { seed_key: "vercel-pro", kind: "cost", category: "infra", provider: "Vercel", label: "Vercel Pro (shared with the other products)", usd: 20, every: "month", starts_on: "2026-10-13", ends_on: "2026-10-30", note: "Hobby (free) since 2026-10-30, when the show moved to DigitalOcean" },
   { seed_key: "neon-launch", kind: "cost", category: "infra", provider: "Neon", label: "Neon Launch (database)", usd: 5, every: "month", starts_on: "2026-10-20", ends_on: null, note: "Usage-billed, about $3–6 a month; correct it from Neon's invoice" },
-  { seed_key: "do-show", kind: "cost", category: "infra", provider: "DigitalOcean", label: "DigitalOcean app: the show", usd: 10, every: "month", starts_on: "2026-10-30", ends_on: null, note: "apps-s-1vcpu-1gb-fixed" },
-  { seed_key: "do-after-dark", kind: "cost", category: "infra", provider: "DigitalOcean", label: "DigitalOcean app: After Dark", usd: 10, every: "month", starts_on: "2026-10-30", ends_on: null, note: "apps-s-1vcpu-1gb-fixed" },
-  { seed_key: "bunny", kind: "cost", category: "infra", provider: "Bunny", label: "Bunny storage and CDN (media)", usd: 1, every: "month", starts_on: "2026-10-30", ends_on: null, note: "Bunny's $1 minimum until media grows" },
+  { seed_key: "do-show", kind: "cost", category: "infra", provider: "DigitalOcean", label: "DigitalOcean app: the show", usd: 10, every: "month", starts_on: "2026-11-01", ends_on: null, note: "apps-s-1vcpu-1gb-fixed; October was covered by the signup credit (its invoice was $0)" },
+  { seed_key: "do-after-dark", kind: "cost", category: "infra", provider: "DigitalOcean", label: "DigitalOcean app: After Dark", usd: 10, every: "month", starts_on: "2026-11-01", ends_on: null, note: "apps-s-1vcpu-1gb-fixed; October was covered by the signup credit (its invoice was $0)" },
   { seed_key: "hive", kind: "cost", category: "api", provider: "Hive", label: "Hive top-up (moderation)", usd: 111, every: "once", starts_on: "2026-10-13", ends_on: null, note: "Date approximate (before 2026-10-22)" },
   { seed_key: "openrouter-1", kind: "cost", category: "api", provider: "OpenRouter", label: "OpenRouter top-up", usd: 50, every: "once", starts_on: "2026-10-21", ends_on: null, note: "Shared with OpenClaw and LiteLLM/RepoHQ keys" },
   { seed_key: "mcp-listings", kind: "cost", category: "other", provider: "mcp.so + Glama", label: "MCP directory listings", usd: 20, every: "once", starts_on: "2026-10-21", ends_on: null, note: null },
@@ -80,12 +81,18 @@ export async function knownCostsMissing(db: Db): Promise<number> {
 
 /* ------------------------------------------------- income from records ------------------------------------------------- */
 
-export type IncomeLine = { source: "orders" | "after_dark" | "operator_pass"; label: string; usd: number; count: number; ours_usd: number; note: string | null };
+export type IncomeLine = { source: "orders" | "plans" | "after_dark" | "operator_pass"; label: string; usd: number; count: number; ours_usd: number; note: string | null };
 
 /** The operator pass's price, for counting its payments (Stripe's events carry no amount). */
 export function operatorPassPrice(env: Env = process.env): number {
   const n = Number(env.OPERATOR_PASS_PRICE_USD?.trim());
   return Number.isFinite(n) && n > 0 ? n : 9;
+}
+
+/** A plan's price in dollars, from the label the page shows ("$9.99 a month"); Stripe's events carry no amount. */
+export function planPriceUsd(label: string): number {
+  const n = Number(/\$\s*(\d+(?:\.\d+)?)/.exec(label)?.[1]);
+  return Number.isFinite(n) ? n : 0;
 }
 
 const AD_SIGN: Record<string, number> = { initial: 1, rebill: 1, refund: -1, chargeback: -1 };
@@ -119,6 +126,13 @@ export async function recordedIncome(db: Db, month: Month, env: Env = process.en
     )
   ).rows;
 
+  const plans = (
+    await db.query<{ user_id: string | null; plan: string | null }>(
+      `select user_id, plan from plan_events where outcome in ('initial', 'rebill') and received_at >= $1 and received_at < $2`,
+      [from, to],
+    )
+  ).rows;
+
   const sum = <T>(rows: T[], usd: (r: T) => number, id: (r: T) => string | null) => ({
     usd: round(rows.reduce((s, r) => s + usd(r), 0)),
     ours_usd: round(rows.filter((r) => isOurs(id(r))).reduce((s, r) => s + usd(r), 0)),
@@ -126,9 +140,12 @@ export async function recordedIncome(db: Db, month: Month, env: Env = process.en
   });
   const adUsd = (r: (typeof ad)[number]) => (AD_SIGN[r.kind] ?? 0) * Math.abs(Number(r.amount) || 0);
   const price = operatorPassPrice(env);
+  const planUsd = Object.fromEntries(PLAN_IDS.map((id) => [id, planPriceUsd(planPrice(id, env))])) as Record<string, number>;
+  const planNames = PLAN_IDS.map((id) => `${PLANS[id].name} at ${planPrice(id, env)}`).join(", ");
   return [
     { source: "orders", label: "Show token packs and characters (Stripe)", ...sum(orders, (r) => r.amount_cents / 100, (r) => r.user_id), note: null },
-    { source: "after_dark", label: "After Dark subscriptions", ...sum(ad, adUsd, (r) => r.user_id), note: "Refunds and chargebacks taken off; before the processor's fees" },
+    { source: "plans", label: "Subscription plans (Stripe)", ...sum(plans, (r) => planUsd[r.plan ?? ""] ?? 0, (r) => r.user_id), note: `${planNames}; before Stripe's fees` },
+    { source: "after_dark", label: "After Dark subscriptions and token packs", ...sum(ad, adUsd, (r) => r.user_id), note: "Refunds and chargebacks taken off; before the processor's fees" },
     { source: "operator_pass", label: "Operator passes (Stripe)", ...sum(passes, () => price, (r) => r.user_id), note: `Counted at $${price} each` },
   ];
 }
@@ -226,14 +243,23 @@ export async function providerReadings(db: Db, env: Env = process.env, doFetch: 
   const keys = await adultKeys(db, env).catch(() => null);
   const bearer = (k: string) => ({ authorization: `Bearer ${k}` });
   const readings = await Promise.all([
-    readOne(base("openrouter", "OpenRouter (After Dark's writer)", "api", "https://openrouter.ai/settings/credits"), keys?.openrouter ?? null, async (k) => {
+    readOne(base("openrouter", "OpenRouter (After Dark's writer, companions)", "api", "https://openrouter.ai/settings/credits"), keys?.openrouter ?? null, async (k) => {
       const d = ((await getJson(doFetch, "https://openrouter.ai/api/v1/key", bearer(k)))?.data ?? {}) as Record<string, unknown>;
+      // The account's credit, shared with OpenClaw and LiteLLM, when this key may read it; else what's left under the key's limit.
+      const c = ((await getJson(doFetch, "https://openrouter.ai/api/v1/credits", bearer(k)).catch(() => null))?.data ?? {}) as Record<string, unknown>;
+      const [bought, spent] = [num(c.total_credits), num(c.total_usage)];
+      const account = bought !== null && spent !== null ? round(bought - spent) : null;
       const left = num(d.limit_remaining);
       return {
         used_total_usd: num(d.usage),
         used_month_usd: num(d.usage_monthly),
-        balance_usd: left,
-        note: left === null ? "This key's spend; the account's balance is on OpenRouter (shared with OpenClaw and LiteLLM)" : "Left under this key's limit",
+        balance_usd: account,
+        note:
+          account !== null
+            ? "Balance is the account's credit (shared with OpenClaw and LiteLLM); used is this key's"
+            : left !== null
+              ? `The account's credit isn't readable with this key; $${round(left)} is left under the key's own limit`
+              : "This key's spend; the account's balance is on OpenRouter (shared with OpenClaw and LiteLLM)",
       };
     }),
     readOne(base("venice", "Venice (pictures, video, checks)", "api", "https://venice.ai/settings/api"), keys?.venice ?? null, async (k) => {

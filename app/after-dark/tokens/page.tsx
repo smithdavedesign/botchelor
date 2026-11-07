@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { episodeAllowance, SET_SCENE_TOKEN_COST } from "@/lib/allowance";
+import { SET_SCENE_TOKEN_COST } from "@/lib/allowance";
+import { priceLabel, PROCESSOR_INFO } from "@/lib/adult/billing";
 import { afterDarkTitle } from "@/lib/adult/discreet";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { clipPrice, includedPlan, includedPrice } from "@/lib/adult/pricing";
@@ -10,12 +11,16 @@ import { tokensWord } from "@/lib/adult/price-words";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { talkPrice } from "@/lib/adult/talks";
+import { adTokenBalance, adTokensOn, tokenPacks, tokenProcessors } from "@/lib/adult/tokens";
 import { monthOf } from "@/lib/adult/usage";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { currentView } from "../view";
+import BuyTokens from "./BuyTokens";
 
 export const dynamic = "force-dynamic";
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: afterDarkTitle((await currentView()).neutralTitle, "Tokens · After Dark · Botchelor"), robots: { index: false, follow: false } };
@@ -33,10 +38,12 @@ const PASS: Record<string, string> = {
  * #1173 (David, 2026-11-01, "yes do 1-3"; about ten After Dark visitor reports since 2026-10-30: "I couldn't tell what a
  * token buys, or whether the 25 tokens and 24 topped-up dates are the same pool"): one page that says it. The balance,
  * what the pass includes and what's left of it this month, what every extra costs this viewer, and where tokens come
- * from: the show's shop sells them as dates, one date there being one token here. No ledger (the issue's lean: not until
- * someone asks for one).
+ * from. No ledger (the issue's lean: not until someone asks for one).
+ *
+ * Where they come from (lib/adult/tokens.ts, 2026-11-04): After Dark's own packs on the adult processor once one can sell
+ * them, with the buyer back here after paying (?done=1, ?declined=1); until then the show's shop, as dates.
  */
-export default async function AfterDarkTokensPage() {
+export default async function AfterDarkTokensPage({ searchParams }: { searchParams: SearchParams }) {
   const db = await getDb();
   const store = await cookies();
   const auth = authFromCookieStore(store);
@@ -44,11 +51,13 @@ export default async function AfterDarkTokensPage() {
   if (!entitled.ok) notFound();
   if (await lockedForCookies(db, auth!.userId, store)) notFound();
   const viewer = auth!.userId;
+  const params = await searchParams;
+  const own = adTokensOn();
   const admin = entitled.why === "admin";
   const settings = await getAdultSettings(db);
   const plan = includedPlan(settings);
   const [balance, chapter, picture, drawAhead, clip, talk, used] = await Promise.all([
-    episodeAllowance(db, viewer).then((a) => a.pack_left),
+    adTokenBalance(db, viewer),
     includedPrice(db, viewer, settings.chapter_tokens),
     includedPrice(db, viewer, settings.menu_picture_tokens),
     includedPrice(db, viewer, settings.draw_ahead_tokens),
@@ -83,6 +92,12 @@ export default async function AfterDarkTokensPage() {
           <Link href="/after-dark">← 🌙 After Dark</Link>
         </p>
         <h1>Tokens</h1>
+        {own && params.done === "1" && (
+          <p className="notice" data-tokens-done>
+            Thanks. Your tokens arrive as soon as the payment is confirmed, usually within a minute: refresh this page.
+          </p>
+        )}
+        {own && params.declined === "1" && <p className="error">The payment didn&apos;t go through. Nothing was charged; you can try again below.</p>}
         <p className="token-balance">
           You have <strong data-token-balance>{balance}</strong> {balance === 1 ? "token" : "tokens"}.
         </p>
@@ -118,19 +133,37 @@ export default async function AfterDarkTokensPage() {
           </table>
           <p className="muted small">Each button that spends tokens says its price too.</p>
         </section>
-        <section className="card">
-          <h2>Getting more</h2>
-          <p>
-            Tokens are one balance across Botchelor. They&apos;re sold on the show&apos;s shop as packs of <strong>dates</strong>: one date
-            bought there is one token here. The show&apos;s free dates each week are only for the show; After Dark spends only the ones you
-            buy.
-          </p>
-          <p>
-            <Link className="button" href="/shop">
-              Top up on the shop
-            </Link>
-          </p>
-        </section>
+        {own ? (
+          <section className="card" data-token-packs>
+            <h2>Getting more</h2>
+            <p>After Dark&apos;s tokens are its own, apart from the show&apos;s dates, and come in packs:</p>
+            <BuyTokens
+              packs={tokenPacks().map((p) => ({ tokens: p.tokens, price: priceLabel(p.usd), each: `${Math.round((p.usd / p.tokens) * 100)}¢` }))}
+              options={tokenProcessors().map((id) => ({
+                id,
+                label: PROCESSOR_INFO[id].label,
+                statement: PROCESSOR_INFO[id].statement,
+                packs: tokenPacks()
+                  .filter((p) => tokenProcessors(process.env, p).includes(id))
+                  .map((p) => p.tokens),
+              }))}
+            />
+          </section>
+        ) : (
+          <section className="card">
+            <h2>Getting more</h2>
+            <p>
+              Tokens are one balance across Botchelor. They&apos;re sold on the show&apos;s shop as packs of <strong>dates</strong>: one date
+              bought there is one token here. The show&apos;s free dates each week are only for the show; After Dark spends only the ones you
+              buy.
+            </p>
+            <p>
+              <Link className="button" href="/shop">
+                Top up on the shop
+              </Link>
+            </p>
+          </section>
+        )}
       </article>
     </div>
   );

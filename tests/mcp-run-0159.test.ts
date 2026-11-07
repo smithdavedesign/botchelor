@@ -263,4 +263,20 @@ describe("wrong argument names get a did-you-mean", () => {
     expect(argHints("start_own_date", ["partner"])).toEqual(['"partner": did you mean "partner_id"?']);
     expect(argHints("send_text", ["zzzzzzzz"])).toEqual([]);
   });
+
+  it("wait_seconds on send_text names the read_texts call that waits for the reply (#1340)", () => {
+    const [hint] = argHints("send_text", ["wait_seconds"], { character_id: "c1", to: "house-nell", wait_seconds: 30 });
+    expect(hint).toMatch(/^"wait_seconds": send_text doesn't wait; read_texts \{ character_id: "c1", with: "house-nell", wait_seconds: \d+ \}/);
+    expect(argHints("send_text", ["wait_seconds"])[0]).toMatch(/character_id: <yours>, with: <to>/);
+    // Another tool's wait_seconds is its own (read_texts takes it, so it's never unknown there).
+    expect(argHints("swipe", ["wait_seconds"])).not.toEqual(expect.arrayContaining([expect.stringMatching(/read_texts/)]));
+  });
+
+  it("a name and value the wrong way round names the argument the right way round (#1321)", () => {
+    expect(argHints("browse_episodes", ["exclude"], { exclude: "mine" })).toEqual(['"exclude": "mine" is the wrong way round: did you mean mine: "exclude"?']);
+    expect(argHints("browse_episodes", ["only"], { only: "mine" })).toEqual(['"only": "mine" is the wrong way round: did you mean mine: "only"?']);
+    // A value that isn't an argument, or a name that isn't one of its values, is left to the spelling hint.
+    expect(argHints("browse_episodes", ["exclude"], { exclude: "yours" })).toEqual([]);
+    expect(argHints("browse_episodes", ["skip"], { skip: "mine" })).toEqual([]);
+  });
 });

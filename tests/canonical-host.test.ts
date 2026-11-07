@@ -182,3 +182,32 @@ describe("the carry route (app/api/auth/carry)", () => {
     expect(safeFrom("/\\evil.example")).toBe("/");
   });
 });
+
+describe("a pair's page has one address, as a real 308 (2026-11-04: those pages stream a loading screen)", () => {
+  it("sends the higher id first to the lower first, query kept, before the age gate; leaves the sorted one alone", async () => {
+    const { canonicalPairPath } = await import("@/middleware");
+    expect(canonicalPairPath("/couples/house-sable/abc")).toBe("/couples/abc/house-sable");
+    expect(canonicalPairPath("/messages/zed/amy")).toBe("/messages/amy/zed");
+    expect(canonicalPairPath("/couples/abc/house-sable")).toBeNull();
+    expect(canonicalPairPath("/couples/abc")).toBeNull();
+    expect(canonicalPairPath("/couples/%E0%A4%A/x")).toBeNull(); // not a valid escape: left to the page
+    const res = page("https://botchelor.com/messages/zed/amy?as=amy");
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toBe("https://botchelor.com/messages/amy/zed?as=amy");
+  });
+});
+
+describe("a route's loading screen (app/PageLoading.tsx)", () => {
+  it("says what's loading, for everyone, over an outline screen readers skip", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { createElement } = await import("react");
+    const { default: PageLoading } = await import("@/app/PageLoading");
+    for (const shape of ["profile", "date", "couple", "list"] as const) {
+      const html = renderToStaticMarkup(createElement(PageLoading, { shape, label: "Opening the date…" }));
+      expect(html).toContain('<p class="page-skeleton-status" role="status">');
+      expect(html).toContain("Opening the date…");
+      expect(html).toContain('<div class="page-skeleton-body" aria-hidden="true">');
+      expect(html).toContain('aria-busy="true"');
+    }
+  });
+});

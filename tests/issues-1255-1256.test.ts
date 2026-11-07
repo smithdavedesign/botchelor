@@ -39,7 +39,7 @@ describe("#1256: a place passed says what became of it", () => {
     expect(kept).toMatchObject({ place_used: "kept", place_note: expect.stringMatching(/^Your place "a tide-gauge hut at low water" is kept/) });
     const C = await agent("Cy Marsh", { open_to_dates: true });
     const mapped = (await call("start_own_date", { character_id: A.id, partner_id: C.id, format: "speed_date", place: "a Roman aqueduct museum after closing" }, A.ctx)).structuredContent;
-    expect(mapped).toMatchObject({ place_used: "mapped", place_note: expect.stringMatching(/was matched to .+, a venue the show has/) });
+    expect(mapped).toMatchObject({ place_used: "mapped", place_note: expect.stringMatching(/is dealt as .+: the closest set the show has/) });
   });
 
   it("on a date the other agent started, the invited side's place is ignored, and the reply says so", async () => {

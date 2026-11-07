@@ -13,6 +13,7 @@
  * Priced like a shoot (`studio.pg.price`), refunded when nothing passes; free for admins. Open to whoever the PG Studio
  * is open to (`studio.pg.open_to`).
  */
+import { isAdmin } from "../admins";
 import { refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { recordAsset, reviewAsset } from "../assets";
 import { insertText } from "../between-dates";
@@ -22,8 +23,8 @@ import { notify } from "../notifications";
 import { pairKey } from "../relationships";
 import { checkPgPictureText } from "../safety";
 import { checkRating } from "../adult/moderation";
-import { adultKeys } from "../adult/settings";
-import { drawPg, faceReference, pgAccess, pgSubject, type PgConfig, type PgFail } from "./pg";
+import { adultKeys, getAdultSettings } from "../adult/settings";
+import { drawPg, faceReference, pgAccessFor, pgSubject, type PgConfig, type PgFail } from "./pg";
 import { PG_TAIL } from "./pg-catalog";
 
 export const DATE_PHOTO_STYLES = [
@@ -50,13 +51,14 @@ async function pairOf(db: Db, viewer: string | null, episodeId: string): Promise
   if (!viewer) return fail(401, "sign_in", "Sign in first.");
   const ep = (await db.query<{ id: string; setting: string; character_a: string; character_b: string; status: string }>(`select id, setting, character_a, character_b, status from episodes where id = $1`, [episodeId])).rows[0];
   if (!ep || ep.status !== "ready") return fail(404, "not_found", "No finished date with that id.");
-  for (const [mineId, partnerId] of [
-    [ep.character_a, ep.character_b],
-    [ep.character_b, ep.character_a],
+  // Both sides and the access rules in one go (pgAccessFor), not pgAccess for each side then the partner in turn.
+  const [settings, admin, ca, cb] = await Promise.all([getAdultSettings(db), isAdmin(db, viewer), loadCharacter(db, ep.character_a), loadCharacter(db, ep.character_b)]);
+  for (const [mine, partner] of [
+    [ca, cb],
+    [cb, ca],
   ]) {
-    const access = await pgAccess(db, viewer, mineId);
+    const access = pgAccessFor(viewer, settings.studio.pg, admin, mine);
     if (!access.ok) continue;
-    const partner = await loadCharacter(db, partnerId);
     if (!partner) break;
     return { ok: true, pair: { episode: ep, mine: access.character, partner }, config: access.config, admin: access.admin };
   }

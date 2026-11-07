@@ -17,7 +17,7 @@ import { loadCharacter } from "@/lib/character";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
 import { setSeasonCastForTests } from "@/lib/season-cast";
-import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
+import { api, BASE_URL, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 // Undressed moments start from nude baselines (David, 2026-10-24: "if we have our character set up with underwear, their
 // sex scenes and baselines have it on no matter the situation … in sex scenes we need a new baseline"). No live calls.
@@ -367,5 +367,35 @@ describe("#1158: a house character's first baseline starts from their show portr
     const juniper = (await loadCharacter(t.db, JUNIPER))!;
     expect(await ensureBaseline(t.db, id, juniper, null)).not.toBeNull();
     expect(pictures).toHaveLength(1);
+  });
+
+  it("a people's character starts from their newest drawn portrait (never an uploaded one); a retired baseline is drawn again", async () => {
+    const { id, cookie } = await admin();
+    await setUp(cookie);
+    fakeHive();
+    const { pictures } = fakeVenice();
+    const made = await (await api.createCharacter(validCharacter({ name: "Carson Vallis" }), cookie)).json();
+    const asset = (aid: string, source: string, ago: number, rating = "pg") =>
+      t.db.query(
+        `insert into character_assets (id, character_id, kind, source_type, source_model, url, review_status, content_rating, created_at)
+         values ($1, $2, 'portrait', $3, $4, 'data:image/png;base64,x', 'approved', $5, now() - make_interval(mins => $6))`,
+        [aid, made.id, source, source === "generated" ? "venice" : null, rating, ago],
+      );
+    await asset("old-face", "generated", 60);
+    await asset("recast-face", "generated", 30);
+    await asset("uploaded-face", "uploaded", 5);
+    await asset("racy-face", "generated", 1, "suggestive");
+    const carson = (await loadCharacter(t.db, made.id))!;
+    const edit = vi.fn(async (_prompt: string, _url: string) => ({ bytes: Buffer.from(PNG), mime: "image/png", provider: "venice", fell_back: false, model: "qwen-edit-uncensored" }));
+    const first = (await ensureBaseline(t.db, id, carson, edit))!;
+    expect(edit.mock.calls[0][1]).toMatch(/\/api\/assets\/recast-face$/);
+    expect(pictures).toHaveLength(0);
+    await setFaceReference(t.db, id, carson.id, first.id);
+    expect(await ensureBaseline(t.db, id, carson, edit)).toBeNull();
+    // Retired (2026-11-04, the face from before a recast): kept, never the face again, and the next one is drawn.
+    await t.db.query(`update adult_images set status = 'retired' where id = $1`, [first.id]);
+    expect(await faceReferenceId(t.db, id, carson.id)).toBeNull();
+    expect(await ensureBaseline(t.db, id, carson, edit)).not.toBeNull();
+    expect(edit).toHaveBeenCalledTimes(2);
   });
 });

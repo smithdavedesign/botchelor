@@ -1,10 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import NavProgress from "./NavProgress";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
+import { adTokenBalance, adTokensOn } from "@/lib/adult/tokens";
 import { afterDarkOnly } from "@/lib/after-dark-host";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
+import { companionOpen } from "@/lib/companion-shared";
 import { getDb } from "@/lib/db";
 import { gaGuardScript } from "@/lib/ga-guard";
 import { unreadCount } from "@/lib/notifications";
@@ -37,6 +40,7 @@ import "./ux/studio-media.css";
 import "./ux/showcase.css";
 import "./ux/seasons.css";
 import "./ux/step-in.css";
+import "./ux/companion.css";
 
 const TRACKING = trackingConfig();
 
@@ -89,24 +93,29 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // agent reading the page) it shows the fresh weekly allowance as "free dates", not as someone's count (run 2026-10-22-0215).
   const cookieStore = await cookies();
   const viewerId = userIdFromCookieStore(cookieStore);
-  // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
-  if (viewerId) await touchOwner(await getDb(), viewerId).catch(() => {});
-  // After Dark's link shows only to someone it's open to (lib/adult/entitlement.ts), and only where it's offered
-  // (lib/jurisdiction.ts); everyone else never sees it.
-  const afterDark = viewerId
-    ? await accessHere(await getDb(), authFromCookieStore(cookieStore)).then((h) => h.entitled.ok && h.mode !== "blocked", () => false)
-    : false;
-  const dates = viewerId ? await episodeAllowance(await getDb(), viewerId) : freshAllowance();
-  // #1005: After Dark spends only bought tokens, never the free weekly dates, so its host counts those, as "tokens".
+  // The nav's numbers, all at once (2026-11-04 performance audit: one after another they were five database round trips
+  // on every signed-in page load, ~70 ms each from New York to the database in Oregon).
+  const db = viewerId ? await getDb() : null;
+  // #1005: After Dark spends only bought tokens, never the free weekly dates, so its host counts those, as "tokens":
+  // its own once they're sold (lib/adult/tokens.ts), the show's until then.
   const adHost = afterDarkOnly();
-  // The bell's unread count (lib/notifications.ts): what happened between dates.
-  const unread = viewerId ? await unreadCount(await getDb(), viewerId).catch(() => 0) : 0;
-  // The Matches link's dot: texts this viewer's characters haven't read (lib/inbox.ts).
-  const texts = viewerId ? await unreadTexts(await getDb(), viewerId).catch(() => 0) : 0;
-  // The nav changes once there's a character of theirs (app/Nav.tsx): until then, the show and one create button.
-  const hasCharacter = viewerId
-    ? ((await (await getDb()).query(`select 1 from characters where owner_id = $1 and not is_house limit 1`, [viewerId]).catch(() => ({ rows: [] }))).rows.length > 0)
-    : false;
+  const [, afterDark, dates, unread, texts, hasCharacter, adTokens] = await Promise.all([
+    // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
+    db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
+    // After Dark's link shows only to someone it's open to (lib/adult/entitlement.ts), and only where it's offered
+    // (lib/jurisdiction.ts); everyone else never sees it.
+    db ? accessHere(db, authFromCookieStore(cookieStore)).then((h) => h.entitled.ok && h.mode !== "blocked", () => false) : false,
+    db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
+    // The bell's unread count (lib/notifications.ts): what happened between dates.
+    db && viewerId ? unreadCount(db, viewerId).catch(() => 0) : 0,
+    // The Matches link's dot: texts this viewer's characters haven't read (lib/inbox.ts).
+    db && viewerId ? unreadTexts(db, viewerId).catch(() => 0) : 0,
+    // The nav changes once there's a character of theirs (app/Nav.tsx): until then, the show and one create button.
+    db && viewerId
+      ? db.query(`select 1 from characters where owner_id = $1 and not is_house limit 1`, [viewerId]).then((r) => r.rows.length > 0, () => false)
+      : false,
+    db && viewerId && adHost && adTokensOn() ? adTokenBalance(db, viewerId).catch(() => null) : null,
+  ]);
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
   const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
   const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, placeFromEdge(await headers())?.country);
@@ -123,6 +132,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       {TRACKING.gtmId && <GoogleTagManager gtmId={TRACKING.gtmId} />}
       {TRACKING.gaId && <GoogleAnalytics gaId={TRACKING.gaId} />}
       <body>
+        {/* Search params need a Suspense boundary, or a static page would render on the client only. */}
+        <Suspense fallback={null}>
+          <NavProgress />
+        </Suspense>
         {/* The show, its app and its price (lib/seo.ts), on every page; After Dark's own host isn't the show. */}
         {!adHost && <JsonLd data={siteJsonLd()} />}
         <a href="#main" className="skip-link">
@@ -133,7 +146,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>
-          <Nav tokens={adHost && viewerId ? dates.pack_left : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} companions={!adHost && companionOpen()} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">

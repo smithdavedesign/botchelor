@@ -193,43 +193,74 @@ export default async function EpisodePage({
   // Dates air by default once their prediction window closes (lib/air.ts): opening one that's due airs it.
   await airIfDue(db, id).catch(() => null);
   const episode = await getEpisodeView(db, id, viewerId);
-  // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
-  const afterDarkLink = episode?.after_dark && (await adultViewerFromCookies(db, await cookies())) ? afterDarkHref(`/after-dark/${[episode!.characters[0].id, episode!.characters[1].id].sort().join("/")}`) : null;
-  // When an unaired date airs on its own (its booking plus the prediction window), for the host's controls.
-  const airsAt =
-    episode && !episode.revealed && episode.is_host
-      ? await db
+  // Hidden after reports: a 404 for everyone except its creators (see ./not-found.tsx).
+  if (!episode || (episode.hidden && !episode.is_creator)) notFound();
+  const cookieStore = await cookies();
+  // Everything below starts at once (2026-11-04 performance audit: one after another, the owner's date page waited on
+  // 25 database round trips in a row, ~70 ms each from New York to the database in Oregon).
+  const ready = episode.status === "ready";
+  const [
+    afterDarkLink,
+    airsAt,
+    lately,
+    points,
+    profileName,
+    quiz,
+    surprise,
+    secondDate,
+    datePhotos,
+    partyId,
+    dare,
+    myShare,
+    performerRows,
+    sibling,
+    mixerTable,
+    prev,
+  ] = await Promise.all([
+    // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
+    episode.after_dark
+      ? adultViewerFromCookies(db, cookieStore).then((ok) => (ok ? afterDarkHref(`/after-dark/${[episode.characters[0].id, episode.characters[1].id].sort().join("/")}`) : null))
+      : null,
+    // When an unaired date airs on its own (its booking plus the prediction window), for the host's controls.
+    !episode.revealed && episode.is_host
+      ? db
           .query<{ at: Date | string }>(`select coalesce(air_after, created_at + $2 * interval '1 minute') as at from episodes where id = $1`, [id, airWindowMinutes()])
           .then((r) => (r.rows[0] ? new Date(r.rows[0].at).toISOString() : null))
           .catch(() => null)
-      : null;
-  // #728: how recent aired public dates ended, beside the prediction form, so a pick isn't blind (never this date's ending).
-  const lately = episode && !episode.revealed && !episode.is_creator ? await endingsLately(db).then((l) => (l.of ? l.says : null)).catch(() => null) : null;
-  // Hidden after reports: a 404 for everyone except its creators (see ./not-found.tsx).
-  if (!episode || (episode.hidden && !episode.is_creator)) notFound();
-
-  const points = viewerId ? await getPoints(db, viewerId) : 0;
-  const profileName = episode.is_creator ? await getProfileName(db, viewerId) : null;
-  // The $0 mechanics: spectators get the dealbreaker quiz; the owner (host) sees the surprise reveal.
-  const quiz = !episode.is_creator ? await getDealbreakerQuiz(db, id, viewerId) : null;
-  const surprise = episode.is_creator ? await getSurprise(db, id, viewerId) : null;
-  // Their second date, when both characters want one (lib/second-date.ts): owners only.
-  const secondDate = episode.is_creator && viewerId ? await secondDateState(db, id, viewerId) : null;
-  // 📸 Date photos, for the owner of one of the two (lib/studio/date-photos.ts; null for anyone else).
-  const datePhotos = viewerId ? await datePhotoState(db, viewerId, id).catch(() => null) : null;
-  const partyId = await partyIdForEpisode(db, id);
-  // The dare reveal (lib/dares.ts): the audience's dare and the engine's own verdict, once the date has aired.
-  const dare = episode.revealed ? await dareReveal(db, id).catch(() => null) : null;
-  // A scored call: the viewer's record, for the spoiler-free share card (lib/share-record.ts).
-  const myShare = episode.revealed && !episode.is_creator && episode.my_pick && viewerId ? shareOf(await callRecord(db, viewerId).catch(() => NO_CALLS), new Date(), await sharerOf(db, viewerId).catch(() => null)) : null;
-  // Performed by its creator's own AI (an agent dating two of its own characters, lib/own-date.ts)?
-  // Who performed the lines (docs/agents-and-people.md): the show's model, one agent's AI, or each character's own agent.
-  const performer = (
-    await db.query<{ performed_by: string; two_agent: boolean; step_in: boolean }>(
+      : null,
+    // #728: how recent aired public dates ended, beside the prediction form, so a pick isn't blind (never this date's ending).
+    !episode.revealed && !episode.is_creator ? endingsLately(db).then((l) => (l.of ? l.says : null)).catch(() => null) : null,
+    viewerId ? getPoints(db, viewerId) : 0,
+    episode.is_creator ? getProfileName(db, viewerId) : null,
+    // The $0 mechanics: spectators get the dealbreaker quiz; the owner (host) sees the surprise reveal.
+    !episode.is_creator ? getDealbreakerQuiz(db, id, viewerId) : null,
+    episode.is_creator ? getSurprise(db, id, viewerId) : null,
+    // Their second date, when both characters want one (lib/second-date.ts): owners only.
+    episode.is_creator && viewerId ? secondDateState(db, id, viewerId) : null,
+    // 📸 Date photos, for the owner of one of the two (lib/studio/date-photos.ts; null for anyone else).
+    viewerId ? datePhotoState(db, viewerId, id).catch(() => null) : null,
+    partyIdForEpisode(db, id),
+    // The dare reveal (lib/dares.ts): the audience's dare and the engine's own verdict, once the date has aired.
+    episode.revealed ? dareReveal(db, id).catch(() => null) : null,
+    // A scored call: the viewer's record, for the spoiler-free share card (lib/share-record.ts).
+    episode.revealed && !episode.is_creator && episode.my_pick && viewerId
+      ? Promise.all([callRecord(db, viewerId).catch(() => NO_CALLS), sharerOf(db, viewerId).catch(() => null)]).then(([record, sharer]) => shareOf(record, new Date(), sharer))
+      : null,
+    // Performed by its creator's own AI (an agent dating two of its own characters, lib/own-date.ts)?
+    // Who performed the lines (docs/agents-and-people.md): the show's model, one agent's AI, or each character's own agent.
+    db.query<{ performed_by: string; two_agent: boolean; step_in: boolean }>(
       `select performed_by, partner_performer is not null as two_agent, coalesce(setup->>'met_via' = 'step_in', false) as step_in from episodes where id = $1`,
       [id],
-    )
-  ).rows[0];
+    ),
+    // A double date (lib/group-dates.ts): the other couple's episode of the same night, when both tables aired publicly.
+    ready ? siblingEpisode(db, episode.id).catch(() => null) : null,
+    // A mixer's table (lib/mixer-night.ts): its round, and the way back to the whole room's night (never on a double date).
+    ready ? mixerNightOf(db, episode.id).catch(() => null) : null,
+    // The cold open, for a pair with history: their last aired date, told in one line (lib/previously-on.ts).
+    ready && (dateNumberOf(episode) ?? 0) > 1 ? previouslyOn(db, episode.id).catch(() => null) : null,
+  ]);
+  const performer = performerRows.rows[0];
+  const mixer = sibling ? null : mixerTable;
   // Step into the date (lib/step-in.ts): a person played one side live, the show's model the cast member's.
   const steppedIn = performer?.step_in === true;
   const selfPerformed = performer?.performed_by === "agent" && !steppedIn;
@@ -301,16 +332,10 @@ export default async function EpisodePage({
   // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
   const dateNo = dateNumberOf(episode);
   const squash = (t: string | null | undefined) => (t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-  // A double date (lib/group-dates.ts): the other couple's episode of the same night, when both tables aired publicly.
-  const sibling = await siblingEpisode(db, episode.id).catch(() => null);
-  // A mixer's table (lib/mixer-night.ts): its round, and the way back to the whole room's night.
-  const mixer = sibling ? null : await mixerNightOf(db, episode.id).catch(() => null);
   // The title card (docs/show-style.md): the episode's code and title once it airs. Older aired episodes have no
   // stored title, so the $0 template stands in; an unaired episode shows none (the setting is the tease).
   const code = episodeCode(episode.aired_at);
   const displayTitle = episode.title ?? (episode.revealed ? templateEpisodeTitle({ venue: episode.venue ?? null, dateNumber: dateNo ?? null }) : null);
-  // The cold open, for a pair with history: their last aired date, told in one line (lib/previously-on.ts).
-  const prev = dateNo && dateNo > 1 ? await previouslyOn(db, episode.id).catch(() => null) : null;
   const lastAct = episode.scenes?.length ? episode.scenes.length - 1 : -1;
   const finaleRepeats =
     lastAct >= 0 && Boolean(episode.finale) && squash(withoutActLabel(episode.scenes![lastAct], DATE_ACTS[lastAct])) === squash(episode.finale);

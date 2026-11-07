@@ -1,0 +1,419 @@
+/* Companions (app/companion; lib/companion.ts): the list, the phone-style thread, the memory page. Light, on the page. */
+.companion-page,
+.companion-memory {
+  max-width: 760px;
+  margin: 0 auto;
+}
+.companion-list {
+  list-style: none;
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.companion-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.companion-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.companion-card-line {
+  margin: 0.15rem 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.companion-chat {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 140px);
+  min-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  overflow: hidden;
+}
+.companion-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.companion-head-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem var(--space-2);
+}
+.companion-head-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.companion-ai {
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}
+.companion-menu {
+  position: relative;
+}
+.companion-menu summary {
+  list-style: none;
+  cursor: pointer;
+}
+.companion-menu summary::-webkit-details-marker {
+  display: none;
+}
+.companion-menu-body {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  width: min(280px, calc(100vw - 32px));
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.companion-menu-body fieldset {
+  border: 0;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+}
+.companion-menu-body p {
+  margin: var(--space-2) 0 0;
+}
+.companion-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+}
+.companion-thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* A run of the character's messages shows its face once, beside the last (as a phone's messages app does). */
+.companion-avatar-gap {
+  flex: 0 0 28px;
+}
+.companion-thread .chat-note {
+  margin-top: var(--space-3);
+}
+.companion-foot {
+  margin: 0.1rem 0.5rem 0;
+  min-height: 1rem;
+}
+.companion-foot .linklike {
+  opacity: 0;
+  font-size: var(--text-2xs);
+}
+.chat-item:hover .companion-foot .linklike,
+.companion-foot .linklike:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .companion-foot .linklike {
+    opacity: 0.6;
+  }
+}
+.companion-report {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.companion-composer {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.companion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.companion-actions:empty {
+  display: none;
+}
+/* The site's own field (globals.css textarea): only its size and spacing change here. */
+.companion-composer textarea {
+  margin-top: 0;
+  min-height: 3rem;
+  resize: none;
+  font-size: 1rem;
+}
+.companion-send {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.companion-send .button {
+  min-height: 44px;
+}
+.companion-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--bad-text);
+}
+.companion-pause {
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.companion-memory-add .row,
+.companion-facts .row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.companion-memory-add input,
+.companion-facts input {
+  flex: 1;
+  min-width: 0;
+}
+.companion-memory-add {
+  margin: var(--space-4) 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.companion-facts {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.companion-facts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.companion-facts li.pinned {
+  border-color: var(--accent);
+}
+.companion-fact-text {
+  flex: 1;
+  min-width: 12ch;
+}
+.companion-fact-tools {
+  display: flex;
+  gap: 0.25rem;
+}
+/* The plan (app/companion/plan; lib/companion-plan.ts): the line on the list, the card when the free replies are gone. */
+.companion-plan-line {
+  margin: var(--space-2) 0 0;
+}
+.companion-out {
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.companion-out p {
+  margin: 0 0 var(--space-2);
+}
+.plan-price {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 var(--space-2);
+}
+.plan-card {
+  margin: 0 0 var(--space-4);
+}
+.plan-card ul {
+  margin: 0 0 var(--space-2);
+  padding-left: 1.2rem;
+}
+.plan-checkout .check {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: 0 0 var(--space-2);
+}
+.plan-wait {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  margin: 0 0 var(--space-4);
+}
+
+/* Scenes (lib/companion.ts setScene): the two of them at one of the show's places, on the shared stage (app/Scene.tsx). */
+.companion-stage {
+  --stage-h: clamp(220px, 36vh, 360px);
+  position: relative;
+  flex: 0 0 auto;
+  height: var(--stage-h);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+/* The place across the top, clear of the voice switch at its right. */
+.companion-stage .scene-act {
+  top: var(--space-3);
+  padding: 0 8rem;
+  font-size: 1.15rem;
+}
+/* No input rail on this stage (the composer is under it), so the two of them stand at its foot, and a long line
+   scrolls in its bubble instead of running off the top (all of it is in the thread too). */
+.companion-stage .scene-cast {
+  bottom: var(--space-3);
+}
+.companion-stage .scene-bubble {
+  max-height: calc(var(--stage-h) - 10rem);
+  overflow-y: auto;
+}
+/* What they do as they say it: before the words, quieter. */
+.scene-action {
+  display: block;
+  margin: 0 0 0.2rem;
+  font-size: var(--text-xs);
+  font-style: italic;
+  opacity: 0.72;
+}
+.companion-voice {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
+  background: rgba(12, 8, 16, 0.55);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.companion-action {
+  display: block;
+  margin: 0 0 0.15rem 0.35rem;
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--muted);
+}
+.companion-thread .chat-note-scene,
+.companion-thread .chat-note-texting {
+  text-align: center;
+  font-weight: 600;
+  color: var(--accent);
+}
+.place-picker {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+}
+.place-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.place-picker-head h2 {
+  margin: 0;
+  font-size: var(--text-lg, 1.2rem);
+}
+.place-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-2);
+}
+.place-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+}
+.place-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.place-tile span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.35rem 0.5rem;
+  background: linear-gradient(transparent, rgba(12, 8, 16, 0.8));
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+}
+.place-tile:hover,
+.place-tile:focus-visible {
+  border-color: var(--accent);
+}
+.place-tile.on {
+  border-color: var(--accent);
+  cursor: default;
+}
+.companion-memory .crisis-pause {
+  margin: var(--space-3) 0;
+}
+@media (max-width: 760px) {
+  /* Phone: the place is a mood banner over the thread (as on the show's theater); the lines are in the thread. */
+  .companion-stage {
+    --stage-h: 110px;
+  }
+  /* Its name on the banner, beside the voice switch (the show's theater hides the act on a phone: it has a title). */
+  .companion-stage .scene-act {
+    display: block;
+    top: auto;
+    bottom: var(--space-2);
+    left: var(--space-3);
+    right: 8.5rem;
+    padding: 0;
+    text-align: left;
+    font-size: 0.95rem;
+    letter-spacing: 0;
+  }
+  .companion-voice {
+    top: auto;
+    bottom: var(--space-2);
+  }
+  /* The header's buttons are their icons (the words stay for screen readers), so the name and "AI character" fit. */
+  .companion-head .button-ghost {
+    padding-inline: 0.7rem;
+  }
+  .companion-head-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .place-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

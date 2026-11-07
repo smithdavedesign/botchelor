@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
+import { COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY } from "@/lib/companion-shared";
 import {
   AFTER_DARK_BLOCKED_COUNTRIES,
   AFTER_DARK_BLOCKED_US_STATES,
@@ -44,6 +45,7 @@ export const TERMS_HEADINGS = [
   { id: "ai-fiction", title: "It's all AI fiction" },
   { id: "points", title: "Points, seasons and badges" },
   { id: "buy", title: "What you can buy" },
+  { id: "companion-plan", title: "The Companion Plan" },
   { id: "subscription", title: "The After Dark subscription" },
   { id: "refunds", title: "Refunds and cancelling" },
   { id: "where", title: "Where it's available" },
@@ -262,6 +264,11 @@ export function TermsSections() {
         any other kind). Don&apos;t rely on it. If you&apos;re struggling, the crisis lines at the foot of every page are
         real people who can help.
       </p>
+      <p id="companions">
+        Companions are the same: when you talk one to one with a character, it&apos;s an AI character, not a person, and the
+        conversation says so at the start and every few hours. It&apos;s PG like the show. It isn&apos;t therapy or a
+        substitute for people in your life, and it can be wrong about anything, including what it remembers about you.
+      </p>
 
       <h2 id="points">Points, seasons and badges</h2>
       <p>
@@ -290,6 +297,31 @@ export function TermsSections() {
         aren&apos;t on sale. Tokens are a licence to use a feature, not money: they can&apos;t be cashed out or
         transferred.
       </p>
+
+      <h2 id="companion-plan">The Companion Plan</h2>
+      <p>
+        Companions are free to try: {COMPANION_FREE_PER_DAY} replies a day across every companion. The Companion Plan takes the daily limit away (fair
+        use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} messages a month). These rules apply to it:
+      </p>
+      <ul>
+        <li>
+          <strong>Price first.</strong> The plan page shows the price, that it&apos;s charged every month, that it renews by itself and how to cancel, and
+          you subscribe only by ticking that you understand it. It&apos;s paid on Stripe&apos;s hosted page; we never see your card.
+        </li>
+        <li>
+          <strong>It renews every month until you cancel.</strong> The price you agreed to is charged to the same card each month. If the price ever changes,
+          we tell you first and the new price applies only from the next renewal after that notice; you can cancel before it does.
+        </li>
+        <li>
+          <strong>Cancel any time, online,</strong> in Stripe&apos;s billing portal (linked on the plan page and in your receipt) or by emailing us.
+          Cancelling takes effect at the end of the month you&apos;ve paid for: you keep the plan until then, and you aren&apos;t charged again.
+        </li>
+        <li>
+          <strong>A receipt and a reminder.</strong> We email you when the plan starts, with these terms and how to cancel, and at least once a year while
+          it runs.
+        </li>
+        <li>It&apos;s for one adult with an account. Sharing it isn&apos;t allowed, and fair use is for talking, not for scripts.</li>
+      </ul>
 
       <h2 id="subscription">The After Dark subscription</h2>
       <p>
@@ -325,6 +357,13 @@ export function TermsSections() {
         <li>
           It&apos;s for one adult, signed in, in a place where After Dark is offered. Sharing access isn&apos;t allowed.
         </li>
+        <li>
+          <strong>After Dark tokens</strong> pay for its extras (the video of a night, clips past those included, talking
+          moments, Studio shoots). They&apos;re sold in packs by the same processors, as a one-time charge that never
+          renews, and they&apos;re After Dark&apos;s own: the show&apos;s dates aren&apos;t spent there, and they
+          aren&apos;t spent on the show. Like the show&apos;s, they&apos;re a licence to use a feature, not money, and
+          they don&apos;t expire. Tokens spent on something that doesn&apos;t come through come back by themselves.
+        </li>
       </ul>
 
       <h2 id="refunds">Refunds and cancelling</h2>
@@ -333,6 +372,15 @@ export function TermsSections() {
           <strong>Token packs:</strong> if a pack doesn&apos;t work, or you change your mind within 14 days of buying it,
           email us with your Stripe receipt and we&apos;ll refund you in full. A refunded pack&apos;s dates stop counting,
           and episodes already written stay up.
+        </li>
+        <li>
+          <strong>After Dark token packs:</strong> if a pack doesn&apos;t work, or you change your mind within 14 days of
+          buying it and haven&apos;t spent any of it, email us and we&apos;ll refund you in full. Tokens already spent
+          aren&apos;t refunded. A refunded or charged-back pack&apos;s unspent tokens are removed.
+        </li>
+        <li>
+          <strong>The Companion Plan:</strong> cancel any time and it stops at the end of the month you paid for. We don&apos;t give refunds or credit for
+          part of a month, except where the law requires it. If something we charged was a mistake, email us and we&apos;ll put it right.
         </li>
         <li>
           <strong>The After Dark subscription:</strong> cancel any time and it stops at the end of the paid period. We
@@ -564,6 +612,11 @@ export function PrivacySections() {
           up when you ask us to.
         </li>
         <li>
+          For the Companion Plan: whether it&apos;s on and until when, Stripe&apos;s subscription ID, the email you paid with (for the
+          plan&apos;s receipt and yearly reminder, nothing else) and how many companion replies you had each day. Subscribe sends Stripe a
+          random reference, never your account ID.
+        </li>
+        <li>
           For a waitlist (After Dark&apos;s, for now): your email, where you roleplay if you tell us, and which link brought
           you. We use the email once, to tell you it&apos;s open. We never sell or share it, and we delete it if you ask.
         </li>
@@ -582,6 +635,12 @@ export function PrivacySections() {
         </li>
         <li>
           If you save your own model key: the key, encrypted, and only its last four characters are ever shown back.
+        </li>
+        <li>
+          If you talk with a companion: your messages and its replies, the facts it noted about you from them (which you
+          can see and change on its memory page), and a short running summary of the conversation. Only you see them, except a
+          reply you report: we read it and the few messages before it, to review it. They never reach the show, a date, a text
+          or another character. A message that set off the self-harm check isn&apos;t kept at all.
         </li>
       </ul>
 
@@ -672,6 +731,10 @@ export function PrivacySections() {
         </li>
         <li>Your 👍 and 👎 on lines, and your choice on training: until you delete your account.</li>
         <li>
+          A companion conversation and what the companion remembers: until you delete the conversation, the memory (a fact
+          at a time, or all of it), or your account.
+        </li>
+        <li>
           The history of your predictions, reviews and nudges, the cards decks showed, how pairings changed over time, the
           lines that didn&apos;t make it in and your Sliding Doors replays: {RETENTION_DAYS.choice_history} days (about 13
           months), then deleted, sooner if you delete the character or your account. Your past choices on training are
@@ -684,6 +747,10 @@ export function PrivacySections() {
           account, your email and the link to you are removed from them.
         </li>
         <li>Payment records: as long as tax and payment rules require (usually several years).</li>
+        <li>
+          The Companion Plan&apos;s record: while it runs, then as a payment record. Your daily reply counts: until the end of the next
+          month. Deleting your account doesn&apos;t cancel the plan with Stripe, so cancel it in the billing portal first.
+        </li>
       </ul>
 
       <h2 id="processors">Who processes it</h2>
@@ -702,6 +769,11 @@ export function PrivacySections() {
           OpenAI makes portraits and Google&apos;s Veo makes intro clips, under your agreement with them.
         </li>
         <li>
+          <strong>Companions:</strong> your conversation with a companion, the character&apos;s sheet and what it remembers
+          about you go to OpenRouter, through its hosts CoreWeave and DeepInfra, which write the replies and draw the facts;
+          the show&apos;s own model above stands in when they&apos;re down.
+        </li>
+        <li>
           <strong>After Dark:</strong> OpenRouter (through its hosts CoreWeave and DeepInfra) writes the scenes; Venice, with
           Replicate as a backup, makes the pictures, videos and voiced lines; Hive, or a vision model on Venice, checks every
           picture before it&apos;s kept, and Hive checks every video.
@@ -711,7 +783,7 @@ export function PrivacySections() {
           Dark runs on its own host, DigitalOcean hosts it and Bunny (bunny.net) stores and serves its media.
         </li>
         <li>
-          <strong>Payments:</strong> Stripe for token packs; {PROCESSORS.ccbill.name}, {PROCESSORS.segpay.name} or {PROCESSORS.verotel.name} for the
+          <strong>Payments:</strong> Stripe for token packs and the Companion Plan; {PROCESSORS.ccbill.name}, {PROCESSORS.segpay.name} or {PROCESSORS.verotel.name} for the
           After Dark subscription. Each under its own privacy policy.
         </li>
         <li>
@@ -735,7 +807,7 @@ export function PrivacySections() {
       <p>
         We only use your data to train or test our models if you opt in on your account page, and you can opt out any time.
         Even then, only dates that aired publicly can be used: never private or unlisted dates, never After Dark, never a
-        character&apos;s private soul. Opting out leaves you out of every dataset we build after that. Without your opt-in,
+        companion conversation, never a character&apos;s private soul. Opting out leaves you out of every dataset we build after that. Without your opt-in,
         your data is used only to run the show.
       </p>
       <p>

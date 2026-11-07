@@ -1018,6 +1018,127 @@ create table if not exists crisis_referrals (
   n integer not null default 0,
   primary key (day, surface)
 );
+-- Companions (lib/companion.ts; docs/companions.md): one person talking with one character, one to one, in a thread of
+-- their own. Who may be one: companion_open (house characters and the show's own agent-made cast), or the person's own
+-- character. A thread is only ever theirs: it never flows back into a date, a text or anyone's memory of the show.
+alter table characters add column if not exists companion_open boolean not null default false;
+-- After Dark's agent cast (lib/adult/agent-cast.ts): the show's own agent-made characters, in every person's After Dark
+-- like the house cast once their sheet and their portrait have passed its checks. Never an outside agent's character.
+alter table characters add column if not exists after_dark_open boolean not null default false;
+create table if not exists adult_cast_checks (
+  character_id text primary key references characters(id) on delete cascade,
+  sheet_ok boolean,
+  sheet_reason text,
+  sheet_checked_at timestamptz,
+  portrait_ok boolean,
+  portrait_reason text,
+  portrait_checked_at timestamptz
+);
+create table if not exists companion_threads (
+  id text primary key,
+  user_id text not null,
+  character_id text not null references characters (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  last_at timestamptz not null default now(),
+  -- The rolling summary of everything older than the prompt's recent turns, and the newest message it covers.
+  summary text,
+  summary_upto timestamptz,
+  -- The newest message the facts were last drawn from.
+  facts_upto timestamptz,
+  -- short | normal | long: how much the character says a reply.
+  reply_length text not null default 'normal',
+  -- When the "you're talking with an AI" notice was last put in the thread (New York GBL Art. 47: at the start and every
+  -- three hours of talking).
+  notice_at timestamptz,
+  -- Set while the crisis resources are up: nothing more in character until the person carries on.
+  paused_at timestamptz,
+  muted_proactive boolean not null default true,
+  unique (user_id, character_id)
+);
+create index if not exists companion_threads_user_idx on companion_threads (user_id, last_at desc);
+create table if not exists companion_messages (
+  id text primary key,
+  thread_id text not null references companion_threads (id) on delete cascade,
+  role text not null check (role in ('user', 'character', 'system')),
+  text text not null,
+  via text not null default 'text' check (via in ('text', 'voice', 'photo')),
+  media_url text,
+  -- A regenerated reply replaces the one it was drawn again from (that one is kept, hidden, for "the one before").
+  replaced_by text,
+  model text,
+  cost numeric,
+  -- The person's report on a reply: its reason, and when.
+  reported text,
+  reported_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists companion_messages_thread_idx on companion_messages (thread_id, created_at);
+-- Scenes (docs/companions.md): the two play a scene at one of the show's places (lib/venues.ts DATE_VENUES), face to
+-- face instead of texting. The thread's scene now (null: texting); each line's scene and what the character does as they
+-- say it; a system line that starts a scene or goes back to texting is marked as such.
+alter table companion_threads add column if not exists scene text;
+alter table companion_messages add column if not exists scene text;
+alter table companion_messages add column if not exists action text;
+alter table companion_messages add column if not exists marker text check (marker is null or marker in ('scene', 'texting'));
+-- A reported reply's review on /admin/reports (lib/companion-reports.ts): when, and fine or a real miss to fix.
+alter table companion_messages add column if not exists report_reviewed_at timestamptz;
+alter table companion_messages add column if not exists report_decision text check (report_decision is null or report_decision in ('fine', 'fix'));
+create index if not exists companion_messages_open_reports_idx on companion_messages (reported_at) where reported is not null and report_reviewed_at is null;
+-- What the character knows about the person (lib/companion-memory.ts): drawn from the person's own words, shown on the
+-- memory page, and theirs to edit, pin or delete. An edited one is never written over.
+create table if not exists companion_facts (
+  id text primary key,
+  thread_id text not null references companion_threads (id) on delete cascade,
+  kind text not null default 'other',
+  text text not null,
+  pinned boolean not null default false,
+  edited_by_user boolean not null default false,
+  uses integer not null default 0,
+  last_used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists companion_facts_thread_idx on companion_facts (thread_id);
+-- Replies drawn per person a UTC day (lib/companion-plan.ts): the free tier's count, the plan's fair use; '*free*' is
+-- every free reply that day, the cap on what the free tier can cost.
+create table if not exists companion_usage (
+  user_id text not null,
+  day date not null,
+  replies integer not null default 0,
+  primary key (user_id, day)
+);
+-- Subscription plans sold on a Stripe Payment Link (lib/paid-plans.ts): one row per person and plan.
+create table if not exists plan_entitlements (
+  user_id text not null,
+  plan text not null,
+  status text not null,
+  period_end timestamptz,
+  provider text not null default 'stripe',
+  stripe_subscription_id text,
+  -- The address they paid with (Stripe's checkout): the receipt and the yearly reminder go there.
+  email text,
+  subscribed_at timestamptz,
+  renewal_reminded_at timestamptz,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, plan)
+);
+create index if not exists plan_entitlements_sub_idx on plan_entitlements (stripe_subscription_id);
+-- A Subscribe click: its random id goes to Stripe as client_reference_id, never the person's id.
+create table if not exists plan_checkouts (
+  id text primary key,
+  user_id text not null,
+  plan text not null,
+  created_at timestamptz not null default now()
+);
+-- Each Stripe event, applied once.
+create table if not exists plan_events (
+  event_id text primary key,
+  type text not null,
+  plan text,
+  user_id text,
+  stripe_subscription_id text,
+  outcome text not null,
+  received_at timestamptz not null default now()
+);
 -- Hot takes the show derived once for a character with none of its own (lib/hot-takes.ts ensureHotTakes): {takes, source, at}.
 alter table characters add column if not exists hot_takes jsonb;
 -- More endings (lib/ending-detail.ts): which kind of its ending a date had (one_sided, slow_burn, walked_out, ghosted,
@@ -1471,6 +1592,17 @@ do $$ begin
     alter table adult_images add constraint adult_images_kind_check check (kind in ('baseline', 'scene', 'video', 'frame', 'audio'));
   end if;
 end $$;
+-- A baseline of an old face (2026-11-04: Carson Vallis's from before the recast) can be 'retired': its file is kept, and
+-- nothing that picks a ready picture picks it, so the next baseline is drawn from the face they have now.
+do $$ begin
+  if exists (
+    select 1 from pg_constraint where conname = 'adult_images_status_check'
+       and pg_get_constraintdef(oid) not like '%retired%'
+  ) then
+    alter table adult_images drop constraint if exists adult_images_status_check;
+    alter table adult_images add constraint adult_images_status_check check (status in ('pending', 'ready', 'failed', 'retired'));
+  end if;
+end $$;
 -- Agents (not the admin's) asking for after dark: the admins see them on the settings page.
 create table if not exists adult_access_requests (
   id text primary key,
@@ -1569,6 +1701,27 @@ create table if not exists adult_billing_flags (
   flagged_at timestamptz not null default now(),
   reviewed_at timestamptz,
   reviewed_by text
+);
+-- After Dark's own token packs (lib/adult/tokens.ts, David 2026-11-04: "I agree with your price analysis, lets do it"):
+-- one-time orders on the same processors, about $1 a token. kind says which an order is; tokens, how many it buys.
+alter table adult_billing_orders add column if not exists kind text not null default 'subscription';
+alter table adult_billing_orders add column if not exists tokens integer;
+-- After Dark's token balance, apart from the show's (Stripe never pays for adult extras): a grant per paid pack (order_id,
+-- once) or admin top-up, minus what's been spent (adult_token_usage, one row a person, like pack_episode_usage). A
+-- refund or chargeback revokes its pack's grant. Deleted with the account.
+create table if not exists adult_token_grants (
+  id text primary key,
+  user_id text not null,
+  tokens integer not null check (tokens > 0),
+  order_id text unique,
+  granted_by text not null,
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz
+);
+create index if not exists adult_token_grants_user_idx on adult_token_grants (user_id);
+create table if not exists adult_token_usage (
+  user_id text primary key,
+  used integer not null default 0 check (used >= 0)
 );
 -- When the current run of a subscription began (for California's yearly reminder, on each anniversary) and when that
 -- reminder last went.
@@ -2921,6 +3074,13 @@ create table if not exists money_entries (
   created_by text,
   created_at timestamptz not null default now()
 );
+-- DigitalOcean's first days (from 2026-10-30) were covered by its signup credit: October's invoice was $0 (read on its
+-- billing page 2026-11-04), so the seeded app bills start in November. Only rows still on the seeded date move.
+update money_entries set starts_on = '2026-11-01', note = 'apps-s-1vcpu-1gb-fixed; October was covered by the signup credit (its invoice was $0)'
+  where seed_key in ('do-show', 'do-after-dark') and starts_on = '2026-10-30';
+-- Bunny is prepaid with auto-recharge (its card payments are entered as they happen), so the seeded $1/month guess
+-- would count it twice.
+delete from money_entries where seed_key = 'bunny';
 -- What each provider said about its balance and usage, at most once a day (the latest reading of the day wins).
 create table if not exists spend_snapshots (
   day date not null,
@@ -3210,6 +3370,9 @@ create index if not exists audition_votes_character_idx on audition_votes (seaso
 alter table season_casts drop constraint if exists season_casts_source_check;
 alter table season_casts add constraint season_casts_source_check check (source in ('dealt', 'survivor', 'new', 'fan'));
 alter table season_casts add column if not exists withdrawn_at timestamptz;
+-- A pair's dates, and one character's (lib/text-chain.ts loadChain/loadChainsFor, lib/inbox.ts): by either side.
+create index if not exists episodes_pair_idx on episodes (character_a, character_b);
+create index if not exists episodes_b_idx on episodes (character_b);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

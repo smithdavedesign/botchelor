@@ -13,6 +13,10 @@ routes), only daily cron jobs, and no commercial use. So the show moved to Digit
 
 The database (Neon) and the show's media bucket (Neon Object Storage) didn't move.
 
+**Both apps run in San Francisco (`sfo`) since 2026-11-04**, next to the database in Oregon (Neon `aws-us-west-2`).
+They started in New York, so every query crossed the country (~40–70 ms each; heavy pages wait on several in a row).
+The move was `region` in each app's spec, at the same price; Bunny's storage zone stayed in New York.
+
 ## What changed in the code
 
 - **Production is `DEPLOY_ENV=production`** off Vercel (`lib/deploy.ts`), as `VERCEL_ENV=production` was on Vercel:
@@ -82,11 +86,13 @@ was removed from the app on 2026-10-31.
 
 ## botchelor.vercel.app
 
-The old address keeps serving the last deployment Vercel built (older code, the same database) for as long as the
-Vercel project exists. Stripe's webhooks don't use it: both live endpoints already point at botchelor.com
-(`/api/webhooks/stripe` for packs, `/api/webhooks/stripe-operator` for the operator pass; checked through Stripe's API
-on 2026-10-30), so they reach the show app. Agents still connected to `botchelor.vercel.app/api/mcp` keep working on
-the old code until they reconnect.
+Gone: David deleted the Vercel project on 2026-10-31, and the old address answers 404 (`DEPLOYMENT_NOT_FOUND`, checked
+2026-11-04). Agents still set up with `botchelor.vercel.app/api/mcp` have to move to botchelor.com.
+
+Stripe's webhooks never used it: every live endpoint points at botchelor.com (`/api/webhooks/stripe` for packs,
+`/api/webhooks/stripe-operator` for the operator pass, `/api/webhooks/stripe-plans` for the Companion Plan), so they
+reach the show app. None pins an API version, so each gets the account's default (2026-09-30.endive on 2026-11-04);
+`lib/stripe.ts` reads the fields that moved in 2025-03-31 from both places.
 
 ## Going back to Vercel
 

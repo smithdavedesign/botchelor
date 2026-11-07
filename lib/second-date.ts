@@ -111,9 +111,15 @@ export async function secondDateState(db: Db, episodeId: string, userId: string,
   const mutual = Boolean(d.sides?.[0]?.wants_another && d.sides?.[1]?.wants_another);
   // Both characters yours: your yes is theirs too.
   const needsTheirYes = partnerOwner !== null && partnerOwner !== userId && !partnerOpen;
-  const asks = (await db.query<{ user_id: string }>(`select user_id from second_date_requests where episode_id = $1`, [episodeId])).rows.map((r) => r.user_id);
-  // Theirs is with someone else and wants only them (lib/partners.ts): the booking would refuse it, so it says so here.
-  const withWhom = (await takenWith(db, [d[`${mine}_id`]]).catch(() => new Map<string, { id: string; name: string }[]>())).get(d[`${mine}_id`]) ?? [];
+  // The asks, who theirs is taken by and the pair's relationship, all at once (2026-11-04 performance audit).
+  const [asksRows, taken, rel] = await Promise.all([
+    db.query<{ user_id: string }>(`select user_id from second_date_requests where episode_id = $1`, [episodeId]),
+    // Theirs is with someone else and wants only them (lib/partners.ts): the booking would refuse it, so it says so here.
+    takenWith(db, [d[`${mine}_id`]]).catch(() => new Map<string, { id: string; name: string }[]>()),
+    loadRelationship(db, d.a_id, d.b_id).catch(() => null),
+  ]);
+  const asks = asksRows.rows.map((r) => r.user_id);
+  const withWhom = taken.get(d[`${mine}_id`]) ?? [];
   const takenWithName = withWhom.length && !withWhom.some((p) => p.id === d[`${theirs}_id`]) ? withWhom[0].name : null;
   const reason =
     d.status !== "ready" ? "not_ready"
@@ -123,7 +129,6 @@ export async function secondDateState(db: Db, episodeId: string, userId: string,
     : partnerOwner === DELETED_OWNER ? "partner_gone"
     : takenWithName ? "taken"
     : null;
-  const rel = await loadRelationship(db, d.a_id, d.b_id).catch(() => null);
   return {
     mutual,
     can_plan: reason === null,

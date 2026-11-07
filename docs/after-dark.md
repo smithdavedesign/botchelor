@@ -94,13 +94,39 @@ tokens for extras], but since we're brand new just break even overall is the goa
   Studio clips). One taken is recorded on the clip (`clip.included`: its month) and given back when it doesn't come
   through. Each clip after that costs `clip_tokens`.
 - **Extras at about cost:** `clip_tokens` 1 (was 3), `reel_tokens` 7 (was 15); a clip filmed again costs a clip's price.
-  Set the scene (1) and talking moments (`clip_tokens`) are extras too. Bought tokens come in packs from the shop.
+  Set the scene (1) and talking moments (`clip_tokens`) are extras too. Tokens come in After Dark's own packs once a
+  processor sells them, from the show's shop until then ("After Dark's own tokens" below).
 - **Admins** pay nothing, as before. The chapter, menu picture and Draw ahead prices stay in the settings for a viewer
   with no subscription, who can't open After Dark anyway.
 - **Shown everywhere:** Start and Next say "· included", the Make tab, the theater's 🎞 Clip, Keep going and Draw ahead
   say "included" or the tokens, and clips offered say "N of 3 clips left this month". The subscribe page says what
   $12.99 includes, from the settings.
-- **Refunds** (`refundBoughtTokens`) only ever give back what was charged; nothing included is charged.
+- **Refunds** (`refundAdTokens`) only ever give back what was charged; nothing included is charged.
+
+## After Dark's own tokens (2026-11-04)
+
+David, 2026-11-04: "I agree with your price analysis, lets do it." The show's tokens are bought through Stripe, whose
+rules bar paying for adult content, and a video (8 tokens = $6.40 of the show's $4-for-5 pack) cost $3.25–6.40 to make.
+So After Dark's extras get a balance of their own, sold as one-time packs on the adult processors. Code:
+`lib/adult/tokens.ts`; tests in `tests/after-dark-token-packs.test.ts`.
+
+- **Packs** (`AD_TOKEN_PACKS`, default `10:9.99,25:22.99,50:42.99`): about $1 a token, never under ~86¢, so a video
+  covers its worst-case cost even on the biggest pack. The video stays 8 tokens.
+- **On by itself.** The wallet runs once a processor can sell a pack (`adTokensOn`): CCBill and Verotel price each order
+  themselves (CCBill's single-billing FlexForms link, Verotel's `type=purchase`); Segpay needs a one-time price point
+  per pack in its portal (`SEGPAY_TOKEN_PRICE_POINTS`, `10:3101,25:3102,50:3103`). Until then every After Dark spend and
+  refund goes to the show's bought tokens, as before, so the beta keeps working.
+- **The balance:** `adult_token_grants` (a paid pack's, once per order; or an admin's, `POST
+  /api/admin/after-dark/tokens {user_id, tokens}`) not revoked, minus `adult_token_usage`. Every After Dark spend point
+  (`spendAdTokens`/`refundAdTokens`) and the header's count on After Dark's host read it.
+- **Buying:** `/after-dark/tokens` lists the packs; `POST /api/after-dark/tokens {tokens, processor?}` (someone After
+  Dark is open to, signed in, where its media is offered, not flagged) opens an order (`adult_billing_orders.kind
+  'tokens'`, `tokens`) and returns the checkout link; the buyer comes back to `?done=1` / `?declined=1`.
+- **Postbacks** on a pack's order: a first payment grants it (once); a refund or chargeback revokes the grant, caps
+  what was spent at what's left granted (the unspent part goes, spent tokens aren't taken from the next pack) and flags
+  the account like a subscription's; renewals, cancels and expiries are recorded and ignored. The subscription is never
+  touched by a pack.
+- **Deleting an account** deletes its grants and usage; the orders stay unlinked like the subscription's.
 
 ## Billing — CCBill first (2026-10-30), Segpay and Verotel as backups (2026-10-24)
 
@@ -299,8 +325,8 @@ Track cost-per-subscriber; alert when a subscriber's generation cost exceeds a s
 
 **Live (2026-10-30):** After Dark runs on its own host, `ad.botchelor.com` (DigitalOcean app `clownfish-app`, media on
 Bunny at `media.botchelor.com`), and the show has `AFTER_DARK_ORIGIN` set, so After Dark's pages and APIs on
-botchelor.com redirect there. It's still admin-only until payments and age checks. DNS is moving from Wix to
-Cloudflare (`docs/hosting.md`). What follows is the 2026-10-22 note.
+botchelor.com redirect there. It's still admin-only until payments and age checks. DNS is at Cloudflare since
+2026-10-30 (`docs/hosting.md`). What follows is the 2026-10-22 note.
 
 **Built, and off (2026-10-22): After Dark can run on a host of its own.** David's call: the split goes live with payments
 and age checks, before the first subscriber; until then After Dark stays admin-only on Vercel. The same code deploys a
@@ -1830,6 +1856,33 @@ that number filed since). Chapters it didn't film take their own chapter's newes
 
 New columns, additive: `adult_reels.scope` (`chapter` or `night`) and `adult_reels.chapters` (jsonb: each chapter's
 number, saved night id or null, and line count). Both are null on reels from before, and on clips.
+
+## The agent cast: the show's own agent-made characters (2026-11-04)
+
+David: "Can we not take agent made characters to after dark? seems like a missed opportunity." The show's own agent-made
+characters (the recast cast, made over MCP by our own agents: `lib/our-traffic.ts` `loadOurIds`, the same rule
+companions use) now join every person's After Dark like the house cast, once they pass two checks
+(`lib/adult/agent-cast.ts`):
+
+1. **The sheet**: one model call each (the companion model, temperature 0, JSON). It passes an adult who reads as one,
+   with a person's body (an alien, android, vampire, ghost or fae is fine; an animal, an animal hybrid such as a minotaur
+   or a werewolf, or a beast such as a dragon fails), not based on a real person, and written so an adult scene suits
+   them. Anything unreadable fails. The table already refuses an age under 18. The first prod run (v1 asked "human")
+   failed 62 of 157, nearly all aliens, androids, vampires and fae; the field became "humanoid", with the body the only
+   test, and `recheck_failed` asked the failed ones again.
+2. **The portrait**: Hive's age question (`checkMedia`, `"keyframe"`) on the newest approved model-drawn PG portrait.
+   After Dark's daily job asks `PORTRAITS_PER_DAY` (30) at most, a third of Hive's 100 a day, so the 157 take about six
+   days. When Hive can't answer (down, paused, out for the day) the job stops and nothing is recorded.
+
+Passing both sets `characters.after_dark_open`; every verdict and its reason is kept in `adult_cast_checks`, and a
+character that fails isn't asked again. An open one is treated like the house cast everywhere After Dark asks
+`is_house` (`showsOwnSql`/`isShowsOwn` in `lib/adult/characters.ts`): in everyone's list, always ready (pictures drawn on
+first need from the show portrait), and curated by admins in Studio. Shorts stay house-cast only. An outside agent's
+character never joins: its maker never agreed to it.
+
+Admin route `/api/admin/after-dark/agent-cast`: GET where it stands (waiting, passed, failed with reasons, open);
+POST `{"action":"check_sheets","dry_run"?,"recheck_failed"?,"limit"?}`, `{"action":"check_portraits","max"?}`,
+`{"action":"close","character_id"}` (takes one out again; its checks stay on record).
 
 ## Hive's daily limit (2026-10-23)
 
