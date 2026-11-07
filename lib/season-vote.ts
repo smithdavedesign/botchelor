@@ -13,8 +13,9 @@
  *  - $0: a table and a count, no model call.
  */
 import type { Db } from "./db";
+import { notifyAll } from "./notifications";
 import { SEASON_FORMATS, SEASON_FORMAT_SLUGS, seasonFormat, type SeasonFormatSlug } from "./season-format";
-import { nextSeasonStart, seasonIdOf, seasonLabel } from "./season-window";
+import { nextSeasonStart, seasonIdOf, seasonLabel, seasonWindow } from "./season-window";
 
 /** Votes a ballot needs in all before its winner sets a season's format; fewer and the season is classic. */
 export const SEASON_VOTE_MIN = 3;
@@ -98,3 +99,61 @@ export async function seasonBallot(db: Db, viewerId: string | null, current: Sea
 
 /** The title a slug goes by on the ballot. */
 export const ballotTitle = (slug: SeasonFormatSlug): string => seasonFormat(slug).title;
+
+export type BallotResult = { season_id: string; winner: SeasonFormatSlug | null; votes: number; total: number };
+
+/** A season's announced ballot result (null until the hourly job announces it, or when nobody voted). */
+export async function ballotResult(db: Db, seasonId: string): Promise<BallotResult | null> {
+  const r = (await db.query<{ winner: string | null; votes: number; total: number }>(`select winner, votes, total from season_vote_results where season_id = $1`, [seasonId])).rows[0];
+  return r ? { season_id: seasonId, winner: r.winner && isSlug(r.winner) ? r.winner : null, votes: r.votes, total: r.total } : null;
+}
+
+/** How long into a season the hourly job still announces its ballot (a job down for a day still gets there). */
+const ANNOUNCE_WITHIN_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * The season turned: tell everyone who voted on its ballot how it went, once (a claim row in season_vote_results), in
+ * the season's first three days (the hourly lobby job calls this). `running` is the format the season actually runs
+ * (an admin's pick can differ from the ballot's winner, and the notice says what's on, never what isn't). A ballot
+ * nobody voted on announces nothing.
+ */
+export async function announceBallotResult(db: Db, running: SeasonFormatSlug, now: Date = new Date()): Promise<BallotResult | null> {
+  const seasonId = seasonIdOf(now);
+  if (now.getTime() - seasonWindow(now).start.getTime() > ANNOUNCE_WITHIN_MS) return null;
+  const tally = await seasonBallotTally(db, seasonId);
+  const total = [...tally.values()].reduce((s, n) => s + n, 0);
+  if (!total) return null;
+  const winner = ballotWinner(tally);
+  const votes = winner ? (tally.get(winner) ?? 0) : 0;
+  const claimed = await db.query(
+    `insert into season_vote_results (season_id, winner, votes, total) values ($1, $2, $3, $4) on conflict (season_id) do nothing returning season_id`,
+    [seasonId, winner, votes, total],
+  );
+  if (!claimed.rows.length) return null;
+  const voters = (await db.query<{ user_id: string; pick: string }>(`select user_id, pick from season_format_votes where season_id = $1`, [seasonId])).rows;
+  const on = seasonFormat(running);
+  const link = "/watch#this-week";
+  const label = seasonLabel(seasonId);
+  if (winner && winner === running) {
+    await notifyAll(db, voters.filter((v) => v.pick === winner).map((v) => v.user_id), {
+      kind: "season_vote",
+      title: `📺 Your pick won: ${on.title} is ${label}'s show`,
+      body: `${votes} of ${total} votes. ${on.announce}`,
+      link,
+    });
+    await notifyAll(db, voters.filter((v) => v.pick !== winner).map((v) => v.user_id), {
+      kind: "season_vote",
+      title: `📺 The viewers picked ${on.title} for ${label}`,
+      body: `${votes} of ${total} votes. ${on.announce}`,
+      link,
+    });
+  } else {
+    await notifyAll(db, voters.map((v) => v.user_id), {
+      kind: "season_vote",
+      title: `📺 ${label} is ${on.title}`,
+      body: winner ? on.announce : `Not enough votes to pick this time (${total} of the ${SEASON_VOTE_MIN} needed). ${on.announce} Next month's ballot is open.`,
+      link,
+    });
+  }
+  return { season_id: seasonId, winner, votes, total };
+}

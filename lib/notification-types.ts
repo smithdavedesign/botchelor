@@ -59,6 +59,7 @@ const TYPE_OF: Record<NotificationKind, NotificationType> = {
   arc_resolved: "show",
   prediction_scored: "show",
   situation_on: "show",
+  season_vote: "show",
   backing_settled: "show",
   dare_on: "show",
   dare_settled: "show",

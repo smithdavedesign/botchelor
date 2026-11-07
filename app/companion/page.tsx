@@ -8,7 +8,7 @@ import { companionAllowed, listCompanions } from "@/lib/companion";
 import { companionAllowance, companionFreePerDay, type CompanionAllowance } from "@/lib/companion-plan";
 import { companionOpen } from "@/lib/companion-shared";
 import { planLink, planPrice } from "@/lib/paid-plans";
-import CompanionBrowser from "./CompanionBrowser";
+import CompanionBrowser, { type CompanionFilters } from "./CompanionBrowser";
 
 export const metadata: Metadata = { title: "Companions · Botchelor", robots: { index: false, follow: false } };
 
@@ -40,7 +40,10 @@ function PlanLine({ a }: { a: CompanionAllowance }) {
  * Companions (lib/companion.ts; docs/companions.md): your one-to-one threads with the characters, and who else you could
  * talk with: your own characters, the house cast and the show's own open cast.
  */
-export default async function CompanionsPage() {
+export default async function CompanionsPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> } = {}) {
+  const sp = (await searchParams) ?? {};
+  const pick = (k: string) => (Array.isArray(sp[k]) ? sp[k]?.[0] : (sp[k] as string | undefined));
+  const initial: CompanionFilters = { q: pick("q")?.slice(0, 80), who: pick("who"), pronouns: pick("pronouns"), sort: pick("sort") };
   const auth = authFromCookieStore(await cookies());
   const db = await getDb();
   // Open to everyone: a signed-out visitor sees who they could talk with and what it costs, and signs in first.
@@ -65,7 +68,7 @@ export default async function CompanionsPage() {
             </Link>
           </p>
         </header>
-        <CompanionBrowser threads={[]} others={cast} signIn />
+        <CompanionBrowser threads={[]} others={cast} signIn initial={initial} />
       </article>
     );
   }
@@ -82,7 +85,7 @@ export default async function CompanionsPage() {
         </p>
         <PlanLine a={allowance} />
       </header>
-      <CompanionBrowser threads={threads} others={[...yours, ...cast]} />
+      <CompanionBrowser threads={threads} others={[...yours, ...cast]} initial={initial} />
       <p className="muted small">
         PG, like the show. If you&apos;re having a hard time, <Link href="/safety">help is here</Link>.
       </p>

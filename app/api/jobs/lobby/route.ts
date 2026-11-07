@@ -11,6 +11,8 @@ import { drawQueuedSets, retryDueSets } from "@/lib/sets";
 import { runWhileAway } from "@/lib/away";
 import { portraitSweep } from "@/lib/default-portraits";
 import { playVotedSituation } from "@/lib/situations";
+import { seasonFormatNow } from "@/lib/season-format-store";
+import { announceBallotResult } from "@/lib/season-vote";
 import { judgePendingDares } from "@/lib/dare-verdict";
 import { settleDueDares } from "@/lib/dare-points";
 import { runDueRecoupling } from "@/lib/recoupling";
@@ -51,6 +53,10 @@ async function run(req: Request): Promise<Response> {
   // Tonight's situation (lib/situations.ts): once yesterday's vote has closed, its date is made, once. Before the lobby's
   // own refresh, so the voted room is the open one and the refresh doesn't make another beside it.
   const situation = await playVotedSituation(db).catch(() => null);
+  // The season turned: voters hear how next season's format vote went (lib/season-vote.ts), once, in its first days.
+  const ballot = await seasonFormatNow(db)
+    .then((def) => announceBallotResult(db, def.slug))
+    .catch(() => null);
   // A dare night whose verdict didn't land when its date was made (lib/dare-verdict.ts): judged now, once.
   const dareVerdicts = await judgePendingDares(db).catch(() => []);
   // An aired dare night whose winning voters haven't scored yet (lib/dare-points.ts): settled now, once.
@@ -77,7 +83,7 @@ async function run(req: Request): Promise<Response> {
   // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
   // unless the run is already long (a template date above takes most of the 300 s).
   const portraits = Date.now() - started > 150_000 ? { drawn: 0, failed: 0, left: -1 } : await portraitSweep(db).catch(() => ({ drawn: 0, failed: 0, left: -1 }));
-  return json({ ...lobby, portraits, situation, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, secrets, cast_chat: castChat, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, portraits, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, secrets, cast_chat: castChat, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

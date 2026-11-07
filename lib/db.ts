@@ -3252,6 +3252,22 @@ create table if not exists season_formats (
   created_at timestamptz not null default now()
 );
 
+-- Muted notification types (lib/notification-mutes.ts): such a notification arrives already read, with no push or email.
+create table if not exists notification_mutes (
+  user_id text not null,
+  type text not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, type)
+);
+-- The season ballot's result, announced once (lib/season-vote.ts announceBallotResult): who won, and when voters heard.
+create table if not exists season_vote_results (
+  season_id text primary key,
+  winner text,
+  votes integer not null,
+  total integer not null,
+  announced_at timestamptz not null default now()
+);
+
 -- Next season's format, by the viewers (lib/season-vote.ts): one vote a viewer a season, cast during the month before it.
 create table if not exists season_format_votes (
   season_id text not null,

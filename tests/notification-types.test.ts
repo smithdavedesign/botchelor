@@ -4,7 +4,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET } from "@/app/api/notifications/route";
 import { NOTIFICATION_TYPES, kindsOfType, notificationTypeOf } from "@/lib/notification-types";
 import { countNotifications, countNotificationsByKind, listNotifications, markRead, notify } from "@/lib/notifications";
-import { newUserCookie, startTestDb, userIdOf } from "./helpers";
+import { POST as mutesPost } from "@/app/api/notifications/mutes/route";
+import { mutedTypes, setMuted } from "@/lib/notification-mutes";
+import { jsonRequest, newUserCookie, startTestDb, userIdOf } from "./helpers";
 
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -53,5 +55,23 @@ describe("filtering by type (lib/notifications.ts)", () => {
     await notify(t.db, u, { kind: "key_failed", title: "Your key stopped working", body: null, link: null });
     const body = await (await GET(new Request("http://localhost:3000/api/notifications?type=account", { headers: { cookie } }))).json();
     expect(body.notifications.map((n: { kind: string; type: string }) => [n.kind, n.type])).toEqual([["key_failed", "account"]]);
+  });
+});
+
+describe("muting a type (lib/notification-mutes.ts)", () => {
+  it("a muted type still lands in the inbox, already read; unmuting brings the bell back", async () => {
+    const cookie = newUserCookie();
+    const u = userIdOf(cookie);
+    const res = await mutesPost(jsonRequest("/api/notifications/mutes", { type: "texts", muted: true }, { cookie }));
+    expect((await res.json()).muted).toEqual(["texts"]);
+    await notify(t.db, u, { kind: "texted", title: "Bo texted Cy", body: null, link: null });
+    await notify(t.db, u, { kind: "matched", title: "A match", body: null, link: null });
+    expect(await countNotifications(t.db, u)).toBe(2);
+    expect(await countNotifications(t.db, u, { unread: true })).toBe(1);
+    expect(await mutedTypes(t.db, u)).toEqual(["texts"]);
+    await setMuted(t.db, u, "texts", false);
+    await notify(t.db, u, { kind: "texted", title: "Cy texted Bo", body: null, link: null });
+    expect(await countNotifications(t.db, u, { unread: true })).toBe(2);
+    expect((await mutesPost(jsonRequest("/api/notifications/mutes", { type: "nope", muted: true }, { cookie }))).status).toBe(422);
   });
 });

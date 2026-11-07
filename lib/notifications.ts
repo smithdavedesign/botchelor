@@ -8,6 +8,7 @@
  */
 import type { Db } from "./db";
 import { emailNow } from "./email";
+import { notificationTypeOf } from "./notification-types";
 import { pushToUser } from "./push";
 
 export type NotificationKind =
@@ -54,6 +55,7 @@ export type NotificationKind =
   | "key_failed" // your own key stopped working (invalid, out of credit): what to do, and what happens meanwhile
   | "likes_waiting" // your characters have likes waiting and don't answer for themselves while you're away (never who; lib/away.ts)
   | "situation_on" // the house date whose situation you voted for is on (lib/situations.ts)
+  | "season_vote" // the season turned: how the format vote you cast went (lib/season-vote.ts announceBallotResult)
   | "backing_settled" // the season closed: how the cast member you backed ended it (lib/backing.ts)
   | "dare_on" // the house date carrying the dare you voted on is on (lib/dares.ts)
   | "dare_settled" // the dare you voted for aired: whether they went through with it, and what your vote earned (lib/dare-points.ts)
@@ -288,14 +290,18 @@ export async function notify(
   if (!userId || userId === "deleted") return;
   try {
     const id = crypto.randomUUID();
-    await db.query(`insert into notifications (id, user_id, kind, title, body, link) values ($1, $2, $3, $4, $5, $6)`, [
+    // A type they muted (lib/notification-mutes.ts) still lands in the inbox, but already read: no bell, no push, no email.
+    const muted = (await db.query(`select 1 from notification_mutes where user_id = $1 and type = $2`, [userId, notificationTypeOf(n.kind)]).catch(() => ({ rows: [] }))).rows.length > 0;
+    await db.query(`insert into notifications (id, user_id, kind, title, body, link, read_at) values ($1, $2, $3, $4, $5, $6, $7)`, [
       id,
       userId,
       n.kind,
       n.title.slice(0, 140),
       n.body ? clipBody(n.body) : null,
       n.link ?? null,
+      muted ? new Date() : null,
     ]);
+    if (muted) return;
     await pushToUser(db, userId, { title: n.title, body: n.body ?? "", url: n.link ?? "/notifications" });
     // Email only for what's waiting on them, if they turned it on (lib/email.ts); the rest is in the daily digest.
     await emailNow(db, userId, { ...n, id }).catch(() => false);

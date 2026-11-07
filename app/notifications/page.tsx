@@ -21,6 +21,8 @@ import { clampPage, pageCount, pageHref, parsePage } from "@/lib/paging";
 import { pushKeys } from "@/lib/push";
 import ClearNotifications from "./ClearNotifications";
 import NotificationSettings from "./NotificationSettings";
+import NotificationMutes from "./NotificationMutes";
+import { mutedTypes } from "@/lib/notification-mutes";
 import PushToggle from "./PushToggle";
 import When from "@/app/When";
 
@@ -78,6 +80,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
     typeCounts.set(t, { n: c.n + r.n, unread: c.unread + r.unread });
   }
   const all = byKind.reduce((s, r) => s + r.n, 0);
+  const muted = viewerId ? await mutedTypes(db, viewerId).catch(() => []) : [];
   const total = viewerId ? (type ? (typeCounts.get(type)?.n ?? 0) : all) : 0;
   const pages = pageCount(total, NOTIFICATIONS_PAGE);
   const page = clampPage(parsePage(params.page), pages);
@@ -100,6 +103,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         <h1>Notifications</h1>
         <NotificationSettings canClear={items.length > 0}>
           {push && <PushToggle publicKey={push.publicKey} />}
+          {viewerId && <NotificationMutes initial={muted} />}
           <div className="notif-setting">
             <h3>Email</h3>
             <p className="muted">

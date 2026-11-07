@@ -927,3 +927,22 @@ details.recap-toggle[open] .recap-toggle-hide {
 .notif-type {
   font-weight: 600;
 }
+/* ⚙ Settings → what to hear about (app/notifications/NotificationMutes.tsx): one checkbox a type. */
+.notif-mutes {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.notif-mutes label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  cursor: pointer;
+}
+.notif-mutes input {
+  width: auto;
+  margin: 0;
+}

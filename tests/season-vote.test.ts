@@ -3,7 +3,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET, POST } from "@/app/api/season-vote/route";
 import { seasonFormatNow, seasonFormatSlug, setSeasonFormat } from "@/lib/season-format-store";
-import { ballotSeasonId, ballotWinner, seasonBallot, SEASON_VOTE_MIN, voteSeasonFormat } from "@/lib/season-vote";
+import { announceBallotResult, ballotResult, ballotSeasonId, ballotWinner, seasonBallot, SEASON_VOTE_MIN, voteSeasonFormat } from "@/lib/season-vote";
 import { seasonIdOf } from "@/lib/season-window";
 import { jsonRequest, newUserCookie, startTestDb } from "./helpers";
 
@@ -89,5 +89,41 @@ describe("/api/season-vote", () => {
     const body = await get.json();
     expect(body.my_pick).toBe("island");
     expect(body.choices).toHaveLength(6);
+  });
+});
+
+describe("the result, announced (lib/season-vote.ts announceBallotResult)", () => {
+  const DEC_2 = new Date(Date.UTC(2026, 11, 2, 9));
+  // Notifications for made-up user ids outlive a reset: each test gets its own.
+  let u1 = "", u2 = "", u3 = "";
+  beforeEach(() => {
+    [u1, u2, u3] = [1, 2, 3].map((n) => `voter${n}-${crypto.randomUUID()}`);
+  });
+  const notices = async (u: string) => (await t.db.query(`select kind, title, body from notifications where user_id = $1`, [u])).rows;
+
+  it("tells each voter once, in the season's first days, whether their pick won", async () => {
+    for (const u of [u1, u2]) await voteSeasonFormat(t.db, u, "island", NOV(5));
+    await voteSeasonFormat(t.db, u3, "ex_files", NOV(5));
+    expect(await announceBallotResult(t.db, "island", DEC_2)).toEqual({ season_id: DEC, winner: "island", votes: 2, total: 3 });
+    expect(await announceBallotResult(t.db, "island", DEC_2)).toBeNull();
+    expect((await notices(u1))[0]).toMatchObject({ kind: "season_vote", title: "📺 Your pick won: The Villa is December 2026's show" });
+    expect((await notices(u3))[0].title).toBe("📺 The viewers picked The Villa for December 2026");
+    expect(await notices(u1)).toHaveLength(1);
+    expect(await ballotResult(t.db, DEC)).toEqual({ season_id: DEC, winner: "island", votes: 2, total: 3 });
+  });
+
+  it("says what's actually on when the admin picked otherwise or too few voted, and not at all once the first days pass", async () => {
+    await voteSeasonFormat(t.db, u1, "island", NOV(5));
+    expect(await announceBallotResult(t.db, "classic", new Date(Date.UTC(2026, 11, 9)))).toBeNull();
+    const r = await announceBallotResult(t.db, "classic", DEC_2);
+    expect(r).toMatchObject({ winner: null, total: 1 });
+    const [n] = await notices(u1);
+    expect(n.title).toBe("📺 December 2026 is Classic Botchelor");
+    expect(n.body).toMatch(/^Not enough votes to pick this time \(1 of the 3 needed\)/);
+  });
+
+  it("announces nothing for a ballot nobody voted on", async () => {
+    expect(await announceBallotResult(t.db, "classic", DEC_2)).toBeNull();
+    expect((await t.db.query(`select 1 from season_vote_results`)).rows).toHaveLength(0);
   });
 });
