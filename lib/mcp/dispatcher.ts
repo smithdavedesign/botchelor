@@ -219,7 +219,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.17.0 (the 2026-11-02-0704 run, #1254-#1256): compact: "min" on the turn tools, place_used/place_note wherever a place
 // passed wasn't used as written, led_to and timeline_note beside a happy ending's label, and a second date planned from an
 // older date numbered after the pair's later ones: new fields and values otherwise.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.17.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.17.1" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
