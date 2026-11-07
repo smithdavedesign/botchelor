@@ -9,6 +9,7 @@ import {
   companionFollowUp,
   companionNotice,
   companionOpen,
+  listCompanions,
   noticeDue,
   openOurAgentCast,
   openThread,
@@ -168,6 +169,20 @@ describe("who can talk with a companion", () => {
     expect(body.yours.map((x: Any) => x.id)).toEqual([mine]);
     expect(body.cast.some((x: Any) => x.id === CAST.id)).toBe(false);
     expect(body.cast.some((x: Any) => x.id === HOUSE_CHARACTERS[1].id)).toBe(true);
+  });
+
+  it("lists the house cast before everyone else's, however many agent-made characters there are", async () => {
+    const me = await person({ admin: true });
+    await t.db.query(
+      `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, created_via, companion_open)
+       select gen_random_uuid()::text, 'agent-owner', false, 'Aaron ' || n, 30, 'b', '[]'::jsonb, 'w', 'd', 'mcp', true from generate_series(1, 130) n`,
+    );
+    for (const viewer of [me.id, ""]) {
+      const { cast } = await listCompanions(t.db, viewer);
+      const firstAgent = cast.findIndex((c) => c.source === "agent");
+      expect(cast.filter((c) => c.source === "house").length).toBeGreaterThan(0);
+      expect(cast.slice(0, firstAgent).every((c) => c.source === "house")).toBe(true);
+    }
   });
 
   it("gives the companions page what its filters read: where each comes from, age, pronouns, traits, on the show now", async () => {
