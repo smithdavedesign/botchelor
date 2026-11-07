@@ -275,7 +275,11 @@ export type CompanionListItem = CompanionCharacterRef & {
   created_at: string | null;
 };
 
-/** The companions page: your threads (most recent first), then who else you could talk with (yours, then the cast). */
+/**
+ * The companions page: your threads (most recent first), then who else you could talk with: yours, then the house
+ * cast, then the rest. (Until 2026-11-07 the order was `(owner_id = $1) desc nulls last`, which sorts a house
+ * character's NULL owner LAST, so behind 177 agent-made characters the 120 limit cut the house cast out entirely.)
+ */
 export async function listCompanions(db: Db, userId: string, now: Date = new Date()): Promise<{ threads: CompanionListItem[]; yours: CompanionListItem[]; cast: CompanionListItem[] }> {
   type Row = {
     id: string;
@@ -329,8 +333,8 @@ export async function listCompanions(db: Db, userId: string, now: Date = new Dat
         where c.owner_id is distinct from $2
           and ((c.is_house and c.premium_sku is null and c.visibility <> 'private') or (c.companion_open and c.visibility <> 'private') or c.owner_id = $1)
           and not exists (select 1 from companion_threads t where t.user_id = $1 and t.character_id = c.id)
-        order by (c.owner_id = $1) desc nulls last, c.is_house desc, c.name asc
-        limit 120`,
+        order by (c.owner_id is not distinct from $1) desc, c.is_house desc, c.name asc
+        limit 200`,
       [userId, DELETED_OWNER],
     ),
   ]);

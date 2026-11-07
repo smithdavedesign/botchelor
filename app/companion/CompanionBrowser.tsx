@@ -189,7 +189,7 @@ export default function CompanionBrowser({
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a name, a trait, anything in their bio" />
         </label>
         <div className="filter-pills" role="group" aria-label="Who">
-          {WHO.filter((w) => w.id === "all" || (counts.get(w.id) ?? 0) > 0).map((w) => (
+          {WHO.filter((w) => w.id === "all" || w.id === who || (counts.get(w.id) ?? 0) > 0).map((w) => (
             <button key={w.id} type="button" aria-pressed={who === w.id} onClick={() => setWho(w.id)}>
               {w.label} <span className="filter-n">{counts.get(w.id)}</span>
             </button>
