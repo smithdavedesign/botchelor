@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import PhoneActionBar from "@/app/PhoneActionBar";
 import { redirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import { pageMetadata, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/seo";
@@ -196,7 +197,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             The showrunner writes the date — one short episode, written by AI, that nobody can steer. Build a character
             in under a minute. Free, no sign-up.
           </p>
-          <p className="cta-row">
+          <p className="cta-row" id="hero-cta">
             <Link className="button" href="/create">
               Make your character
             </Link>
@@ -226,6 +227,13 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <p className="muted mini-cap">A real box score, decided by the engine — and friends guess it first.</p>
         </div>
       </section>
+      {myCharacters.length === 0 && (
+        <PhoneActionBar watch="hero-cta">
+          <Link className="button" href="/create">
+            Make your character
+          </Link>
+        </PhoneActionBar>
+      )}
       {!creator && tonight}
       {!creator && showNews && <ShowSince card={showNews} />}
 

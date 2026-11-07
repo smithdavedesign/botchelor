@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import PhoneActionBar from "@/app/PhoneActionBar";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db";
@@ -62,12 +63,17 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
             Free: {companionFreePerDay()} replies a day across every companion.
             {planLink("companion") && ` The Companion Plan has no daily limit, ${planPrice("companion")}.`}
           </p>
-          <p className="cta-row">
+          <p className="cta-row" id="companion-cta">
             <Link className="button" href="/account?next=%2Fcompanion">
               Sign in to start
             </Link>
           </p>
         </header>
+        <PhoneActionBar watch="companion-cta">
+          <Link className="button" href="/account?next=%2Fcompanion">
+            Sign in to start talking
+          </Link>
+        </PhoneActionBar>
         <CompanionBrowser threads={[]} others={cast} signIn initial={initial} />
       </article>
     );

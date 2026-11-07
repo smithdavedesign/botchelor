@@ -143,6 +143,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
                   </span>
                 )}
                 <strong className="notif-title">
+                  {!n.read && <span className="sr-only">New: </span>}
                   {emoji && (
                     <span className="notif-emoji" aria-hidden="true">
                       {emoji}

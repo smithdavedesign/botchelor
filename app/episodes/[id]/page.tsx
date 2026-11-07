@@ -18,7 +18,9 @@ import { sharerOf } from "@/lib/share-record-name";
 import { getEpisodeView, getPoints } from "@/lib/game";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
-import { userIdFromCookieStore } from "@/lib/http";
+import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
+import { companionAllowed, companionEligible, companionOpen } from "@/lib/companion";
+import TalkButton from "@/app/companion/TalkButton";
 import { secondDateState } from "@/lib/second-date";
 import { siblingEpisode } from "@/lib/group-dates";
 import { mixerNightOf } from "@/lib/mixer-night";
@@ -199,6 +201,21 @@ export default async function EpisodePage({
   // Everything below starts at once (2026-11-04 performance audit: one after another, the owner's date page waited on
   // 25 database round trips in a row, ~70 ms each from New York to the database in Oregon).
   const ready = episode.status === "ready";
+  // After an aired date: talk with either of them one to one (lib/companion.ts), where companions are open to the
+  // viewer and the character is one they may talk with. Signed out, the same characters get a sign-in link.
+  const auth = authFromCookieStore(cookieStore);
+  const talkP: Promise<{ id: string; name: string; signIn: boolean }[]> =
+    ready && episode.revealed
+      ? (async () => {
+          const signedIn = Boolean(auth?.authenticated);
+          if (signedIn ? !(await companionAllowed(db, auth)) : !companionOpen()) return [];
+          const out: { id: string; name: string; signIn: boolean }[] = [];
+          for (const c of episode.characters) {
+            if (await companionEligible(db, signedIn ? auth!.userId : "", c.id)) out.push({ id: c.id, name: c.name, signIn: !signedIn });
+          }
+          return out;
+        })().catch(() => [])
+      : Promise.resolve([]);
   const [
     afterDarkLink,
     airsAt,
@@ -259,6 +276,7 @@ export default async function EpisodePage({
     // The cold open, for a pair with history: their last aired date, told in one line (lib/previously-on.ts).
     ready && (dateNumberOf(episode) ?? 0) > 1 ? previouslyOn(db, episode.id).catch(() => null) : null,
   ]);
+  const talk = await talkP;
   const performer = performerRows.rows[0];
   const mixer = sibling ? null : mixerTable;
   // Step into the date (lib/step-in.ts): a person played one side live, the show's model the cast member's.
@@ -504,6 +522,24 @@ export default async function EpisodePage({
             lately={lately}
           />
         </div>
+        {talk.length > 0 && (
+          <section className="card episode-talk" aria-labelledby="episode-talk-head">
+            <p className="kicker">After the date</p>
+            <h2 id="episode-talk-head">Ask {talk.length === 1 ? talk[0].name.split(/\s+/)[0] : "them"} how it went</h2>
+            <p className="muted small">Off the show, one to one. They&apos;ll tell you their side. Every companion is an AI character.</p>
+            <p className="episode-talk-actions">
+              {talk.map((c) =>
+                c.signIn ? (
+                  <Link key={c.id} className="button secondary small" href={`/account?next=${encodeURIComponent(`/characters/${c.id}`)}`}>
+                    Sign in to talk to {c.name.split(/\s+/)[0]}
+                  </Link>
+                ) : (
+                  <TalkButton key={c.id} characterId={c.id} name={c.name.split(/\s+/)[0]} label={`Talk to ${c.name.split(/\s+/)[0]}`} className="button secondary small" />
+                ),
+              )}
+            </p>
+          </section>
+        )}
         {/* J3: a creator's finished date is when they want to hear what happens next (gone once notifications are on). */}
         {episode.is_creator && episode.status === "ready" && push && (
           <PushToggle publicKey={push.publicKey} prompt emailFallback title="Tell me when they text" body="They text each other after a date. Hear it as it happens, even with the site closed." />
