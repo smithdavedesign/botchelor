@@ -31,11 +31,24 @@ describe("the header's date meter", () => {
   });
 });
 
-// David, 2026-11-01: "add constellation … when logged in … right now it disappears": the owner's nav had dropped it.
-describe("the Constellation link", () => {
-  it("is in the nav with or without a character", () => {
-    for (const hasCharacter of [true, false]) {
-      expect(renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter }))).toMatch(/<a[^>]*href="\/graph"[^>]*>Constellation<\/a>/);
-    }
+// Five doors since the 2026-11-07 product review (David: "do 1-5"): Watch · Dating · Characters · (Companions) ·
+// Account. The Constellation and the Showcase moved under Watch — the ShowTabs strip on every spectator surface —
+// which supersedes the 2026-11-01 "Constellation stays in the nav" call, with David's sign-off on the review plan.
+describe("the five-door nav", () => {
+  it("shows the doors and nothing else; Dating is one door at /matches", () => {
+    const owner = renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: true }));
+    expect(owner).toMatch(/<a[^>]*href="\/matches"[^>]*>Dating/);
+    for (const href of ["/watch", "/characters", "/account"]) expect(owner).toContain(`href="${href}"`);
+    for (const gone of ["/graph", "/showcase", "/swipe"]) expect(owner).not.toContain(`href="${gone}"`);
+    const newcomer = renderToStaticMarkup(createElement(Nav, { tokens: 3, hasCharacter: false }));
+    expect(newcomer).not.toContain('href="/matches"');
+    expect(newcomer).toContain('href="/create"');
+  });
+
+  it("keeps the Constellation one tap away: the show strip carries it on every spectator surface", async () => {
+    const ShowTabs = (await import("@/app/ShowTabs")).default;
+    const strip = renderToStaticMarkup(createElement(ShowTabs, { active: "/watch" }));
+    for (const href of ["/watch", "/showcase", "/reunion", "/reviews", "/graph"]) expect(strip).toContain(`href="${href}"`);
+    expect(strip).toMatch(/<a[^>]*aria-current="page"[^>]*href="\/watch"/);
   });
 });

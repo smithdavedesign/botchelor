@@ -6476,6 +6476,25 @@ main:has(> .admin-wide) {
 .tabs button[role="tab"]:focus-visible {
   outline-offset: -3px;
 }
+/* The same strip as plain links, for cross-page tabs (ShowTabs: the show's one address, 2026-11-07). */
+.tabs a {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.85rem;
+  min-height: 44px;
+  border-bottom: 3px solid transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.tabs a:hover {
+  color: var(--ink);
+}
+.tabs a[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
 /* While a new range loads, the old numbers stay in place, dimmed: no flash, no jump. */
 .insights-body {
   transition: opacity 0.2s ease;

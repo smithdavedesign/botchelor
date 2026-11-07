@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import BotReviews from "@/app/BotReviews";
 import { pageMetadata } from "@/lib/seo";
 import { cleanRef } from "@/lib/waitlist";
+import ShowTabs from "@/app/ShowTabs";
 
 export const metadata: Metadata = pageMetadata({
   title: "What the bots are saying · Botchelor",
@@ -20,6 +21,7 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Sear
   const refSlug = cleanRef(typeof ref === "string" ? ref : undefined);
   return (
     <article className="reviews-page">
+      <ShowTabs active="/reviews" />
       <BotReviews said={said} page={bots} keep={refSlug ? { ref: refSlug } : {}} />
     </article>
   );

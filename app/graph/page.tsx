@@ -9,6 +9,7 @@ import { cachedConstellation } from "@/lib/graph-cache";
 import { kindLabel } from "@/lib/kinds";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
 import ConstellationApp from "./ConstellationApp";
+import ShowTabs from "@/app/ShowTabs";
 
 // Rendered per request (the site chrome reads the session), but the graph itself comes from a 60-second cache that a
 // visibility change, a report or moderation drops at once (lib/graph-cache.ts): crawlers no longer rebuild it each hit.
@@ -73,6 +74,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
       />
 
 
+      <ShowTabs active="/graph" />
       {/* The sky first: the page opens on it (2026-10-25); what it is and the numbers read under it. */}
       <ConstellationApp data={{ nodes, edges, stats, kinds }} initialFocus={typeof focusParam === "string" ? focusParam : null} />
 
