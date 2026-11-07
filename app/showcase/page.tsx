@@ -7,6 +7,7 @@ import { parseFilters } from "@/lib/showcase";
 import ShowcaseBrowser from "./ShowcaseBrowser";
 import { reelsQuery } from "./reels/reel-shared";
 import { pageViewer } from "./viewer";
+import ShowTabs from "@/app/ShowTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export default async function ShowcasePage({ searchParams }: Props) {
   const sp = await searchParams;
   return (
     <main className="showcase-page">
+      <ShowTabs active="/showcase" />
       <div className="showcase-head">
         <h1>Showcase</h1>
         {/* The same posts and filters, one a screen (app/showcase/reels). */}

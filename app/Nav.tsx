@@ -9,36 +9,37 @@ import { openFeedback } from "@/lib/user-feedback-shared";
 
 /**
  * The primary nav links (the token meter and the logo sit outside these lists). David, 2026-10-22: Create isn't a nav
- * item. Someone with no character yet gets the show (Watch, Characters, the Constellation) and one "Make your character"
- * button; Swipe and Matches can't do anything for them, so they appear once there's a character, and doing anything
- * that needs one (swipe, match, date) sends them to /create and back.
+ * item; a newcomer gets one "Make your character" button, and doing anything that needs a character sends them to
+ * /create and back. Five doors since the 2026-11-07 product review (David: "do 1-5"): Watch · Dating · Characters ·
+ * Companions · Account. Dating is one door — /matches is the hub and /swipe one tap away (the deck's own topbar and
+ * the Matches header cross-link them). The Constellation and the Showcase moved under Watch (app/ShowTabs.tsx), which
+ * supersedes the 2026-11-01 "Constellation stays in the nav" call with David's sign-off on the review plan.
  */
-const OWNER_LINKS = [
+type NavLink = { href: string; label: string; also?: readonly string[] };
+const OWNER_LINKS: readonly NavLink[] = [
   { href: "/watch", label: "Watch" },
-  { href: "/swipe", label: "Swipe" },
-  { href: "/matches", label: "Matches" },
+  { href: "/matches", label: "Dating", also: ["/swipe", "/messages"] },
   { href: "/characters", label: "Characters" },
-  // David, 2026-11-01: it vanished once you had a character; the Constellation is for owners as much as newcomers.
-  { href: "/graph", label: "Constellation" },
-  { href: "/showcase", label: "Showcase" },
   { href: "/account", label: "Account" },
-] as const;
-const NEWCOMER_LINKS = [
+];
+const NEWCOMER_LINKS: readonly NavLink[] = [
   { href: "/watch", label: "Watch" },
   { href: "/characters", label: "Characters" },
-  { href: "/graph", label: "Constellation" },
-  { href: "/showcase", label: "Showcase" },
   { href: "/account", label: "Account" },
-] as const;
+];
 
-const COMPANIONS_LINK = { href: "/companion", label: "Companions" } as const;
-/** The links for this viewer: Companions (once open) after Matches, or after Characters for a newcomer. */
-function navLinks(hasCharacter: boolean, companions: boolean): readonly { href: string; label: string }[] {
+const COMPANIONS_LINK: NavLink = { href: "/companion", label: "Companions" };
+/** The links for this viewer: Companions (once open) after Dating, or after Characters for a newcomer. */
+function navLinks(hasCharacter: boolean, companions: boolean): readonly NavLink[] {
   const base = hasCharacter ? OWNER_LINKS : NEWCOMER_LINKS;
   if (!companions) return base;
   const after = base.findIndex((l) => l.href === (hasCharacter ? "/matches" : "/characters"));
   return [...base.slice(0, after + 1), COMPANIONS_LINK, ...base.slice(after + 1)];
 }
+
+/** Whether this link is where the viewer is, counting its sibling routes (`also`: /swipe and /messages are Dating). */
+const atLink = (l: NavLink, pathname: string): boolean =>
+  [l.href, ...(l.also ?? [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
 
 /**
  * The site nav: a token meter that's always visible, a hamburger that collapses the links on phones, and
@@ -163,7 +164,7 @@ export default function Nav({
           </Link>
         )}
         {navLinks(hasCharacter, companions).map((l) => (
-          <Link key={l.href} href={l.href} aria-current={pathname === l.href || pathname.startsWith(`${l.href}/`) ? "page" : undefined}>
+          <Link key={l.href} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
             {l.label}
             {l.href === "/matches" && texts > 0 && (
               <span className="nav-count" aria-label={`${texts} unread texts`}>

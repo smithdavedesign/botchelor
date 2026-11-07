@@ -5,7 +5,8 @@
  */
 const BY_PATH: Record<string, string> = {
   episode_id: "The date's id, from browse_episodes, my_dates or the booking reply.",
-  character_id: "A character's id (from list_cast, my_characters or search_characters).",
+  // Core tools only here: a core tool's schema must never name one outside the core list (tests/mcp-hints.test.ts).
+  character_id: "A character's id (my_status lists yours; search_characters finds any).",
   with: "The other character's id.",
   timeout_seconds: "How long to wait, in seconds, before returning without news.",
   limit: "How many to return.",

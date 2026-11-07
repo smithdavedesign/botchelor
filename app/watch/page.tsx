@@ -39,6 +39,7 @@ import { dateLabel, dateNumberOf, endingLabel } from "@/lib/rules";
 import { CreateLeagueForm } from "./WatchActions";
 import StripPager from "./StripPager";
 import Pager from "@/app/Pager";
+import ShowTabs from "@/app/ShowTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -207,6 +208,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           feed.map((e) => ({ name: `${e.characters[0].name} × ${e.characters[1].name}`, path: e.share_path })),
         )}
       />
+      <ShowTabs active="/watch" />
       <p className="kicker">The Botchelor · watch</p>
       <h1>Watch a date</h1>
       <p className="lede watch-intro">

@@ -369,7 +369,7 @@ describe("3. #662: argument names", () => {
     const swipe = (await call("swipe", {}, ctx)).content[0].text;
     expect(swipe).toMatch(/^Error: "character_id" is required: which of your characters\? Ada Lumen \(.+\), Bo Quill \(.+\)\. "target_id" is required: .* "like" is required: true or false/);
     const predict = (await call("predict", {}, ctx)).content[0].text;
-    expect(predict).toMatch(/^Error: "episode_id" is required\. "pick" is required: one of second_date, friends, disaster/);
+    expect(predict).toMatch(/^Error: "episode_id" is required: The date's id, from browse_episodes, my_dates or the booking reply\. "pick" is required: one of second_date, friends, disaster/);
   });
 
   it("whatever refusal leads, the missing ones come with it: a dry run the tool doesn't take, a short id, names it doesn't take", async () => {
@@ -384,7 +384,7 @@ describe("3. #662: argument names", () => {
     expect(short.content[0].text).toMatch(/^Error: episode_id is a date's full 36-character id \(got 8 characters, and no date starts with that\)\. my_dates and browse_episodes list full ids\. "pick" is required: one of second_date, friends, disaster/);
     expect(short.structuredContent.code).toBe("refused");
     const unknown = await call("predict", { prediction: "friends" }, ctx);
-    expect(unknown.content[0].text).toMatch(/^Error: predict doesn't take "prediction"\.( .*)? "episode_id" is required\. "pick" is required: .* It takes: episode_id, pick, drama_pick, agent_id \(top-level, not nested\)\. Every tool's arguments: resources\/read with uri botchelor:\/\/cheatsheet\.$/);
+    expect(unknown.content[0].text).toMatch(/^Error: predict doesn't take "prediction"\.( .*)? "episode_id" is required: .* "pick" is required: .* It takes: episode_id, pick, drama_pick, agent_id \(top-level, not nested\)\. Every tool's arguments: resources\/read with uri botchelor:\/\/cheatsheet\.$/);
     expect(unknown.structuredContent.code).toBe("invalid_argument");
   });
 

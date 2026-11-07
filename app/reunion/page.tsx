@@ -9,6 +9,7 @@ import { pageMetadata } from "@/lib/seo";
 import { recapTeasers } from "@/lib/season-recap";
 import { closedSeasons, lastClosedSeason, seasonNumber } from "@/lib/season-ref";
 import { seasonIdOf, seasonLabel } from "@/lib/season-window";
+import ShowTabs from "@/app/ShowTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -43,9 +44,7 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
   const teasers = await recapTeasers(db, past.map((p) => p.id)).catch(() => new Map<string, string>());
   return (
     <article className="reunion-page">
-      <p className="muted">
-        <Link href="/watch">← Watch</Link>
-      </p>
+      <ShowTabs active="/reunion" />
       {empty ? (
         <section className="card">
           <p className="kicker">{season ?? "Season special"}</p>
