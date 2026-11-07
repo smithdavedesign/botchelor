@@ -156,6 +156,7 @@ describe("the Engagement tab", () => {
       { e: "page_view", path: "/create" },
       { e: "character_created", path: "/create", props: { open_to_dates: true } },
       { e: "date_started", path: "/create", props: { mode: "blind" } },
+      { e: "date_watched", path: "/episodes/_", props: { just_filmed: true } },
       { e: "page_leave", path: "/create", props: { seconds: 100, scroll: 90 } },
     ]);
     // A bounce from a tagged link, on a phone.
@@ -176,12 +177,26 @@ describe("the Engagement tab", () => {
     expect(e.clicks).toEqual([{ key: "/create · nav", count: 1, visitors: 1 }]);
     expect(e.landing.map((l) => l.key).sort()).toEqual(["/", "/watch"]);
     expect(e.devices.map((d) => d.key).sort()).toEqual(["desktop", "phone"]);
-    expect(Object.fromEntries(e.funnel.map((f) => [f.key, f.visitors]))).toMatchObject({ visited: 2, engaged: 1, create_opened: 1, character_created: 1, date_started: 1, sign_up: 0 });
+    expect(Object.fromEntries(e.funnel.map((f) => [f.key, f.visitors]))).toMatchObject({ visited: 2, engaged: 1, create_opened: 1, character_created: 1, date_started: 1, date_watched: 1, sign_up: 0 });
     expect(e.funnel.find((f) => f.key === "date_started")?.of_first).toBe(50);
     expect(e.daily.find((d) => d.day === today)).toMatchObject({ visitors: 2, page_views: 3 });
+    // Nobody has a row on a later day yet.
+    expect(e.returning).toEqual({ new_visitors: 2, returned: 0, rate: 0 });
 
     const withOurs = await loadEngagement(t.db, { from: today, to: today, includeOurs: true, host: "all" });
     expect(withOurs.totals.visitors).toBe(3);
+  });
+
+  it("counts a new visitor as back once any later day has a row of theirs (2026-11-07 review, the fourth number)", async () => {
+    await visit(V1, S1, {}, [{ e: "page_view", path: "/" }]);
+    await visit(V2, S2, {}, [{ e: "page_view", path: "/watch" }], IPHONE);
+    // V1 comes back tomorrow (written straight to the table: the beacon only writes "now").
+    await t.db.query(`insert into web_events (at, visitor, session, event, path) values (now() + interval '1 day', $1, $2, 'page_view', '/watch')`, [
+      V1,
+      "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    ]);
+    const e = await loadEngagement(t.db, { from: today, to: today, includeOurs: false, host: "all" });
+    expect(e.returning).toEqual({ new_visitors: 2, returned: 1, rate: 50 });
   });
 
   it("is owner-only", async () => {

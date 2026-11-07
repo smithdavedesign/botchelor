@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { queueEvent } from "@/app/engagement";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
@@ -62,6 +63,13 @@ export default function EpisodeTheater(props: Props) {
 function Playback({ episodeId, characters, venue, transcript, endingLabel, autoOpen, startAt, roleplay, onExit }: Props & { onExit: () => void }) {
   const replay = useReplay(transcript, true, { startAt });
   const [convo, setConvo] = useState(true);
+  // The aha moment (2026-11-07 product review, item 5): the replay reached the ending. Once per mount, never on exit.
+  const watched = useRef(false);
+  useEffect(() => {
+    if (!replay.done || watched.current) return;
+    watched.current = true;
+    queueEvent("date_watched", { just_filmed: Boolean(autoOpen) });
+  }, [replay.done, autoOpen]);
   const shown = replay.shown;
   const [a, b] = characters;
   const actLabel = shown.length ? DATE_ACTS[shown[shown.length - 1].act] ?? null : null;
