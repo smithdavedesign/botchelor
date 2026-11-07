@@ -516,6 +516,7 @@ async function capture(base, leagueId, viewer) {
   try {
     for (const [label, device] of sizes) {
       const shot = async (page, name, opts = {}) => {
+        console.log(`[shot] ${name}`);
         await page.waitForLoadState("networkidle");
         // The local `next start` static server can drop the tail of a big image burst (17 cast portraits),
         // leaving an <img> blank in the shot even though the file is fine (prod's CDN serves them all).
@@ -624,7 +625,9 @@ async function capture(base, leagueId, viewer) {
       await sheet.getByLabel("Show format").selectOption("meet_the_parents");
       await shot(home, "date-settings");
       await sheet.getByRole("button", { name: /^Send .* on the date$/ }).click();
-      await home.waitForURL(/\/episodes\/[0-9a-f-]{36}$/);
+      // Sending lands on the theater (?play=1) these days; the shots below want the episode page itself.
+      await home.waitForURL(/\/episodes\/[0-9a-f-]{36}(\?play=1)?$/);
+      if (home.url().includes("?play=1")) await home.goto(home.url().split("?")[0]);
       await home.getByRole("heading", { level: 1, name: `${c.name} × Juniper Vale` }).waitFor();
       await shot(home, "episode");
       // The three acts (first impressions / the challenge / the decision) are the "The date" section.
@@ -827,6 +830,7 @@ async function captureLaunch(base) {
       await ctx.addInitScript(() => localStorage.setItem("bz_beta_prompt", new Date().toISOString()));
       const page = await ctx.newPage();
       const shot = async (name) => {
+        console.log(`[shot] ${name}-${label}`);
         await page.waitForLoadState("networkidle");
         const path = join(OUT_DIR, `${name}-${label}.png`);
         await page.screenshot({ path });
@@ -851,6 +855,10 @@ async function captureLaunch(base) {
       const juniper = page.getByRole("button", { name: "Send on a date with Juniper" });
       if (!(await juniper.isVisible())) await page.locator(".send-phase details").filter({ has: juniper }).locator("summary").first().click();
       await juniper.click();
+      // Every date asks first in a sheet (the 2026-10-25 UX audit): confirm it when it appears.
+      const confirmSend = page.locator("dialog[open]").getByRole("button", { name: /^Send .* on the date$/ });
+      await confirmSend.waitFor({ timeout: 5000 }).catch(() => {});
+      if (await confirmSend.isVisible().catch(() => false)) await confirmSend.click();
       await page.waitForURL(/\/episodes\/[0-9a-f-]{36}/);
       await page.getByRole("heading", { level: 1, name: `${c.name} × Juniper Vale` }).waitFor();
       // The date plays in the theater as it opens, a line at a time: wait until both of them have spoken twice.
