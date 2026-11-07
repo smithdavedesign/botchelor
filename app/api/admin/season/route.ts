@@ -10,6 +10,7 @@ import { seasonFormatSlug, setSeasonFormat } from "@/lib/season-format-store";
 import { stageRecouplingNight } from "@/lib/recoupling";
 import { generateCandidates, GENERATE_FROM_DAY, listCandidates, makePortrait, reviewCandidate } from "@/lib/season-gen";
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
+import { seasonBallotTally } from "@/lib/season-vote";
 
 export const dynamic = "force-dynamic";
 // Writing a candidate is a model call, a Venice picture and a Hive check; three of them can take a while.
@@ -36,7 +37,12 @@ async function view() {
   const portraits = new Map(
     (await db.query<{ id: string; url: string | null }>(`select id, url from character_assets where id = any($1)`, [candidates.map((c) => c.portrait_asset).filter(Boolean)])).rows.map((r) => [r.id, r.url]),
   );
-  const [thisFormat, nextFormat, auditions] = await Promise.all([seasonFormatSlug(db, thisId), seasonFormatSlug(db, nextId), listAuditions(db, nextId)]);
+  const [thisFormat, nextFormat, auditions, tally] = await Promise.all([
+    seasonFormatSlug(db, thisId),
+    seasonFormatSlug(db, nextId),
+    listAuditions(db, nextId),
+    seasonBallotTally(db, nextId),
+  ]);
   return {
     this_season: { id: thisId, label: seasonLabel(thisId), format: thisFormat, cast: cast.map((c) => ({ ...c, name: names.get(c.character_id) ?? c.character_id })) },
     next_season: {
@@ -47,9 +53,11 @@ async function view() {
       candidates: candidates.map((c) => ({ ...c, portrait: c.portrait_asset ? portraits.get(c.portrait_asset) ?? null : null })),
       // People's characters up for the cast (lib/auditions.ts): approved ones take the open places before candidates.
       auditions,
+      // The viewers' vote for next season's format (lib/season-vote.ts): the winner runs unless a format is picked here.
+      ballot: SEASON_FORMATS.map((f) => ({ slug: f.slug, votes: tally.get(f.slug) ?? 0 })),
     },
     // The formats a season can run in (lib/season-format.ts): classic is the default; the island month is picked here.
-    formats: SEASON_FORMATS.map((f) => ({ slug: f.slug, label: f.label })),
+    formats: SEASON_FORMATS.map((f) => ({ slug: f.slug, label: f.label, title: f.title })),
   };
 }
 

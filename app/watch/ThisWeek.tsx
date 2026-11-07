@@ -1,8 +1,10 @@
+import Link from "next/link";
 import type { ThisWeekCard } from "@/lib/season-format";
 
 /**
  * "This week on Botchelor" (lib/season-format.ts): the season's announcement on week 1, and this week's twist, in
- * producer voice. $0: every line is a template from the season format's calendar.
+ * producer voice. $0: every line is a template from the season format's calendar. It points at next season's ballot
+ * (lib/season-vote.ts) on the Seasons tab.
  */
 export default function ThisWeek({ card }: { card: ThisWeekCard }) {
   return (
@@ -11,6 +13,9 @@ export default function ThisWeek({ card }: { card: ThisWeekCard }) {
       <h2 id="this-week-head">{card.label}</h2>
       {card.announce && <p>{card.announce}</p>}
       <p className="muted small">{card.tease}</p>
+      <p className="small">
+        <Link href="/reunion#next-season">Vote on next season&apos;s show →</Link>
+      </p>
     </section>
   );
 }

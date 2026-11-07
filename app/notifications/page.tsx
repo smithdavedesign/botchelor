@@ -3,7 +3,16 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
-import { countNotifications, listNotifications, markRead } from "@/lib/notifications";
+import { countNotificationsByKind, listNotifications, markRead } from "@/lib/notifications";
+import {
+  NOTIFICATION_TYPES,
+  NOTIFICATION_TYPE_EMOJI,
+  NOTIFICATION_TYPE_LABELS,
+  isNotificationType,
+  kindsOfType,
+  notificationTypeOf,
+  type NotificationType,
+} from "@/lib/notification-types";
 import { notificationFaces } from "@/lib/notification-faces";
 import Avatar from "@/app/Avatar";
 import type { CharacterRef } from "@/lib/game";
@@ -28,18 +37,54 @@ function splitEmoji(title: string): [string | null, string] {
 /** Notifications: this many a page (?page=N), newest first. */
 const NOTIFICATIONS_PAGE = 10;
 
+/** The type filter's chips: All, then each type someone has any of, with how many (and how many are new). */
+function TypeFilter({ active, counts, all }: { active: NotificationType | null; counts: Map<NotificationType, { n: number; unread: number }>; all: number }) {
+  const href = (type: NotificationType | null) => (type ? `/notifications?type=${type}` : "/notifications");
+  return (
+    <nav className="bot-filter notif-filter" aria-label="Filter notifications by type">
+      <Link href={href(null)} aria-current={active === null ? "true" : undefined}>
+        All <span className="notif-filter-n">{all}</span>
+      </Link>
+      {NOTIFICATION_TYPES.filter((t) => (counts.get(t)?.n ?? 0) > 0 || t === active).map((t) => {
+        const c = counts.get(t) ?? { n: 0, unread: 0 };
+        return (
+          <Link key={t} href={href(t)} aria-current={active === t ? "true" : undefined}>
+            <span aria-hidden="true">{NOTIFICATION_TYPE_EMOJI[t]}</span> {NOTIFICATION_TYPE_LABELS[t]} <span className="notif-filter-n">{c.n}</span>
+            {c.unread > 0 && <span className="notif-filter-new">{c.unread} new</span>}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 /**
- * What happened between dates (lib/notifications.ts), a page at a time. Opening the page marks everything read; each
- * can be cleared, or all at once from ⚙ Settings. A row opens with a tap anywhere on it (2026-10-31 UX audit).
+ * What happened between dates (lib/notifications.ts), a page at a time, filtered by type (?type=, lib/notification-types.ts)
+ * with each row labelled with its type. Opening the page marks everything read; each can be cleared, or all at once
+ * from ⚙ Settings. A row opens with a tap anywhere on it (2026-10-31 UX audit).
  */
-export default async function NotificationsPage({ searchParams }: { searchParams?: Promise<{ page?: string | string[] }> } = {}) {
+export default async function NotificationsPage({ searchParams }: { searchParams?: Promise<{ page?: string | string[]; type?: string | string[] }> } = {}) {
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
-  const total = viewerId ? await countNotifications(db, viewerId) : 0;
+  const params = (await searchParams) ?? {};
+  const typeParam = Array.isArray(params.type) ? params.type[0] : params.type;
+  const type = isNotificationType(typeParam) ? typeParam : null;
+  const kinds = type ? kindsOfType(type) : undefined;
+  const byKind = viewerId ? await countNotificationsByKind(db, viewerId).catch(() => []) : [];
+  const typeCounts = new Map<NotificationType, { n: number; unread: number }>();
+  for (const r of byKind) {
+    const t = notificationTypeOf(r.kind);
+    const c = typeCounts.get(t) ?? { n: 0, unread: 0 };
+    typeCounts.set(t, { n: c.n + r.n, unread: c.unread + r.unread });
+  }
+  const all = byKind.reduce((s, r) => s + r.n, 0);
+  const total = viewerId ? (type ? (typeCounts.get(type)?.n ?? 0) : all) : 0;
   const pages = pageCount(total, NOTIFICATIONS_PAGE);
-  const page = clampPage(parsePage((await searchParams)?.page), pages);
-  const items = viewerId ? await listNotifications(db, viewerId, NOTIFICATIONS_PAGE, (page - 1) * NOTIFICATIONS_PAGE) : [];
-  if (viewerId && (await countNotifications(db, viewerId, { unread: true })) > 0) await markRead(db, viewerId, "all");
+  const page = clampPage(parsePage(params.page), pages);
+  const items = viewerId ? await listNotifications(db, viewerId, NOTIFICATIONS_PAGE, (page - 1) * NOTIFICATIONS_PAGE, { kinds }) : [];
+  // Opening the page reads what it shows: everything, or (filtered) that type only, so the other types keep their "new".
+  const unread = type ? (typeCounts.get(type)?.unread ?? 0) : [...typeCounts.values()].reduce((s, c) => s + c.unread, 0);
+  if (viewerId && unread > 0) await markRead(db, viewerId, "all", { kinds });
   const push = pushKeys();
   const faces = viewerId ? await notificationFaces(db, viewerId, items).catch(() => new Map<string, CharacterRef[]>()) : new Map<string, CharacterRef[]>();
   // With nothing here yet, the next step: someone with a character swipes for a match (it said "Make a character" to
@@ -64,8 +109,13 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         </NotificationSettings>
       </div>
       {push && <PushToggle publicKey={push.publicKey} prompt />}
+      {all > 0 && <TypeFilter active={type} counts={typeCounts} all={all} />}
       <section className="card">
-        {items.length === 0 ? (
+        {items.length === 0 && type ? (
+          <p className="muted">
+            No {NOTIFICATION_TYPE_LABELS[type].toLowerCase()} notifications. <Link href="/notifications">See them all</Link>
+          </p>
+        ) : items.length === 0 ? (
           <p className="muted">
             Nothing yet. Texts between your characters and the people they&apos;re seeing, second dates and couples moving up a stage all
             land here. {hasCharacter ? <Link href="/swipe">Swipe for a match</Link> : <Link href="/create">Make a character</Link>}
@@ -108,13 +158,14 @@ export default async function NotificationsPage({ searchParams }: { searchParams
                   n.body && <span className="notif-body">{n.body}</span>
                 )}
                 <span className="muted small">
-                  <When iso={n.created_at} /> · <ClearNotifications id={n.id} />
+                  <span className="notif-type">{NOTIFICATION_TYPE_LABELS[notificationTypeOf(n.kind)]}</span> · <When iso={n.created_at} /> ·{" "}
+                  <ClearNotifications id={n.id} />
                 </span>
               </li>
               );
             })}
           </ul>
-          <Pager page={page} pages={pages} label="Notifications pages" href={(n) => pageHref("/notifications", {}, "page", n)} prev="Newer" next="Older" />
+          <Pager page={page} pages={pages} label="Notifications pages" href={(n) => pageHref("/notifications", type ? { type } : {}, "page", n)} prev="Newer" next="Older" />
           </>
         )}
       </section>

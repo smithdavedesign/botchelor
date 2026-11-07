@@ -12,6 +12,7 @@ import {
   type SeasonFormatSlug,
 } from "./season-format";
 import { seasonIdOf } from "./season-window";
+import { ballotWinner, seasonBallotTally } from "./season-vote";
 
 let override: SeasonFormatSlug | null = null;
 /** Tests pin the running season's format (null = read the store). */
@@ -21,10 +22,14 @@ export function setSeasonFormatForTests(slug: SeasonFormatSlug | null): void {
 
 const isSlug = (s: string): s is SeasonFormatSlug => (SEASON_FORMAT_SLUGS as readonly string[]).includes(s);
 
-/** The stored slug for a season, 'classic' when there's no row (or a row from a format that no longer exists). */
+/**
+ * A season's format: the admin's row when there is one; else the viewers' ballot winner for it (lib/season-vote.ts,
+ * frozen once the season starts); else classic (a row from a format that no longer exists reads as classic too).
+ */
 export async function seasonFormatSlug(db: Db, seasonId: string): Promise<SeasonFormatSlug> {
   const row = (await db.query<{ slug: string }>(`select slug from season_formats where season_id = $1`, [seasonId])).rows[0];
-  return row && isSlug(row.slug) ? row.slug : DEFAULT_SEASON_FORMAT;
+  if (row) return isSlug(row.slug) ? row.slug : DEFAULT_SEASON_FORMAT;
+  return ballotWinner(await seasonBallotTally(db, seasonId).catch(() => new Map())) ?? DEFAULT_SEASON_FORMAT;
 }
 
 /** The format the season containing `now` runs in. */
@@ -33,9 +38,12 @@ export async function seasonFormatNow(db: Db, now: Date = new Date()): Promise<S
   return seasonFormat(await seasonFormatSlug(db, seasonIdOf(now)));
 }
 
-/** Sets a season's format (/admin/season). Picking classic removes the row: no row IS classic. */
+/**
+ * Sets a season's format (/admin/season). Picking classic removes the row (no row IS classic) unless the viewers'
+ * ballot would then pick something else: then classic is stored, so the admin's pick still wins.
+ */
 export async function setSeasonFormat(db: Db, seasonId: string, slug: SeasonFormatSlug): Promise<void> {
-  if (slug === DEFAULT_SEASON_FORMAT) {
+  if (slug === DEFAULT_SEASON_FORMAT && (ballotWinner(await seasonBallotTally(db, seasonId)) ?? DEFAULT_SEASON_FORMAT) === DEFAULT_SEASON_FORMAT) {
     await db.query(`delete from season_formats where season_id = $1`, [seasonId]);
     return;
   }

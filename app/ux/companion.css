@@ -417,3 +417,139 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* The companions browser (app/companion/CompanionBrowser.tsx): a search, the "who" pills, two selects, then the
+   conversations as rows and everyone else as tiles. Wider than the thread: a grid wants the room. */
+.companion-page {
+  max-width: 960px;
+}
+.companion-filters {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-4);
+}
+.companion-search input {
+  width: 100%;
+  margin-top: 0;
+}
+.companion-who {
+  margin: 0;
+}
+.companion-who button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.8rem;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.companion-who button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent-text);
+}
+.companion-selects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.companion-selects select {
+  --control-h: var(--control-h-sm);
+  width: auto;
+  margin-top: 0;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+  font-size: var(--text-sm);
+}
+@media (max-width: 720px) {
+  /* One row of pills that scrolls sideways, edge to edge, instead of three lines of them. */
+  .companion-who {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-left: calc(-1 * var(--gutter));
+    margin-right: calc(-1 * var(--gutter));
+    padding: 0 var(--gutter);
+  }
+  .companion-selects label {
+    flex: 1 1 calc(50% - var(--space-2));
+    min-width: 0;
+  }
+  .companion-selects select {
+    width: 100%;
+  }
+}
+.companion-thread-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.companion-grid {
+  list-style: none;
+  margin: var(--space-2) 0 var(--space-5);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: var(--space-3);
+}
+.companion-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.companion-tile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.companion-tile-who {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.companion-tile-who strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.companion-tile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.chip.chip-quiet {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 500;
+}
+.companion-tile-bio {
+  margin: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.companion-tile-traits {
+  margin: 0;
+}
+.companion-tile-action {
+  margin-top: auto;
+}
+.companion-tile-action :is(a, button) {
+  width: 100%;
+  justify-content: center;
+}

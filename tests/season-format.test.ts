@@ -54,13 +54,27 @@ describe("the catalogue (lib/season-format.ts)", () => {
   it("defaults to classic and falls back for unknown slugs", () => {
     expect(seasonFormat(null).slug).toBe("classic");
     expect(seasonFormat("not_a_format").slug).toBe("classic");
-    expect(SEASON_FORMATS.map((f) => f.slug)).toEqual(["classic", "island"]);
+    expect(SEASON_FORMATS.map((f) => f.slug)).toEqual(["classic", "island", "last_standing", "sight_unseen", "meet_the_folks", "ex_files"]);
   });
 
-  it("classic deals from the whole library; the island's villa pool is real venues only", () => {
+  it("classic deals from the whole library; every other format's pool is real venues only", () => {
     expect(CLASSIC.venues).toBeNull();
     expect(ISLAND.venues!.length).toBeGreaterThanOrEqual(8);
-    for (const v of ISLAND.venues!) expect(VENUE_IDS).toContain(v);
+    for (const def of SEASON_FORMATS.filter((f) => f.venues)) {
+      expect(def.venues!.length).toBeGreaterThanOrEqual(8);
+      for (const v of def.venues!) expect(VENUE_IDS).toContain(v);
+    }
+  });
+
+  it("every format has a ballot title, pitch and emoji, and no title is another network's show name", () => {
+    const titles = SEASON_FORMATS.map((f) => f.title);
+    expect(new Set(titles).size).toBe(titles.length);
+    for (const def of SEASON_FORMATS) {
+      expect(def.title.length).toBeGreaterThan(3);
+      expect(def.pitch.length).toBeGreaterThan(20);
+      expect(def.emoji).toBeTruthy();
+      expect(def.title).not.toMatch(/\b(survivor|love island|big brother|bachelor(ette)?|love is blind)\b/i);
+    }
   });
 
   it("every twist leans on an existing show format or producer event, never a new pipeline", () => {
@@ -262,7 +276,7 @@ describe("/api/admin/season: the format picker", () => {
   it("shows the formats, sets one for this season or the next, and refuses a closed one", async () => {
     vi.stubEnv("FRONTIER_PASSWORD", PW);
     const view = await (await adminSeasonGet(new Request(`${BASE_URL}/api/admin/season`, { headers }))).json();
-    expect(view.formats.map((f: { slug: string }) => f.slug)).toEqual(["classic", "island"]);
+    expect(view.formats.map((f: { slug: string }) => f.slug)).toEqual(["classic", "island", "last_standing", "sight_unseen", "meet_the_folks", "ex_files"]);
     expect(view.this_season.format).toBe("classic");
 
     const set = await post({ action: "format", season_id: view.next_season.id, slug: "island" });

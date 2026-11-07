@@ -19,6 +19,7 @@ import {
 import { FACTS_EVERY, FACTS_IN_PROMPT, FACTS_PER_THREAD, factsForPrompt, updateFacts, updateSummary, SUMMARY_EVERY } from "@/lib/companion-memory";
 import { replyBubbles } from "@/lib/companion-prompt";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { setSeasonCastForTests } from "@/lib/season-cast";
 import type { ChatMessage } from "@/lib/model";
 import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
@@ -167,6 +168,25 @@ describe("who can talk with a companion", () => {
     expect(body.yours.map((x: Any) => x.id)).toEqual([mine]);
     expect(body.cast.some((x: Any) => x.id === CAST.id)).toBe(false);
     expect(body.cast.some((x: Any) => x.id === HOUSE_CHARACTERS[1].id)).toBe(true);
+  });
+
+  it("gives the companions page what its filters read: where each comes from, age, pronouns, traits, on the show now", async () => {
+    setSeasonCastForTests([HOUSE_CHARACTERS[1].id, HOUSE_CHARACTERS[2].id]);
+    try {
+      const me = await person({ admin: true });
+      const mine = await character(me.id);
+      const agentMade = await character(crypto.randomUUID(), { created_via: "mcp", companion_open: true });
+      const creators = await character(crypto.randomUUID(), { companion_open: true });
+      const body = (await (await listRoute(req("/api/companion", null, me.cookie, "GET"))).json()) as Any;
+      const by = (id: string) => [...body.yours, ...body.cast].find((x: Any) => x.id === id);
+      expect(by(mine)).toMatchObject({ source: "yours", age: 29, traits: ["dry", "warm"], on_show: false });
+      expect(by(agentMade).source).toBe("agent");
+      expect(by(creators).source).toBe("community");
+      expect(by(HOUSE_CHARACTERS[1].id)).toMatchObject({ source: "house", on_show: true });
+      expect(by(HOUSE_CHARACTERS[3].id).on_show).toBe(false);
+    } finally {
+      setSeasonCastForTests(null);
+    }
   });
 });
 
