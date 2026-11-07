@@ -230,7 +230,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.20.0 (David, 2026-11-04: "enable this to go into theater mode"): companion's scene action {place}, playing a scene
 // together at one of the show's places (their replies carry does, what they do; place texting goes back), and remember
 // gets the self-harm check a message gets: a new action and fields, nothing else changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.20.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.20.1" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
