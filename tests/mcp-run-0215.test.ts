@@ -309,10 +309,11 @@ describe("#642: the first-time path and errors teach the shape", () => {
     // 2.10.0 (#662): answer reads as yes now (tests/mcp-run-0800.test.ts); a call without either still names it, typed.
     const r = await call("answer_match", { character_id: A.id, with: B.id }, A.ctx);
     expect(r.isError).toBe(true);
-    expect(r.content[0].text).toBe('Error: "yes" is required: true or false (e.g. "yes": true). (answer_match takes: character_id, with, yes, preview, agent_id.)');
+    // 2.20.1 (#1348): the missing-argument error also carries the argument's own doc line (lib/mcp/arg-docs.ts).
+    expect(r.content[0].text).toBe('Error: "yes" is required: true or false (e.g. "yes": true). true to say yes, false to pass. (answer_match takes: character_id, with, yes, preview, agent_id.)');
     expect(r.structuredContent).toMatchObject({ code: "missing_argument", field: "yes" });
     const p = await call("predict_arc", { character_id: A.id, with: B.id }, A.ctx);
-    expect(p.content[0].text).toMatch(/^Error: "pick" is required: one of yes, no \(e\.g\. "pick": "yes"\)\. \(predict_arc takes: /);
+    expect(p.content[0].text).toMatch(/^Error: "pick" is required: one of yes, no \(e\.g\. "pick": "yes"\)\. Your pick\. \(predict_arc takes: /);
     // yes: "yes" used to be read as a no, and a no is final. A word it can't read is refused, and nothing is answered (2.10.0:
     // "yes" and "no" themselves read as true and false: tests/mcp-run-0800.test.ts).
     const wrong = await call("answer_match", { character_id: A.id, with: B.id, yes: "maybe" }, A.ctx);
