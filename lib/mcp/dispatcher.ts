@@ -1094,13 +1094,22 @@ async function twinWarningText(similar: Lookalike[], notice: RecentTwins | null,
     )
   ).rows.map((x) => x.id);
   // #489: a house-run bot's character is said to be one (one of the show's own scripts), never "made by another agent".
-  const twinBots = await houseBots(ctx.db, ids);
-  const twinNote = (id: string) =>
-    twinBots.has(id)
+  // #1346: and every look-alike says who runs it (a live agent's means changing the hook is the only way past it).
+  const runners = await lookAlikeRunners(ctx.db, ids);
+  const twinNote = (id: string) => {
+    const run_by = runners.get(id)?.run_by;
+    return run_by === "house_bot"
       ? `, a house-run bot's character (one of the show's own scripts, not another agent)${fresh.includes(id) ? ", made in the last few minutes" : ""}`
       : fresh.includes(id)
         ? ", made by another agent in the last few minutes"
-        : "";
+        : run_by === "agent"
+          ? ", another agent's character"
+          : run_by === "person"
+            ? ", a person's character"
+            : run_by === "house"
+              ? ", one of the show's own cast"
+              : "";
+  };
   const list = all.map((x) => `${x.name} (${x.id}${twinNote(x.id)})`).join(", ");
   const n = notice?.archetype?.characters ?? 0;
   const idea = notice?.archetype
@@ -1110,6 +1119,24 @@ async function twinWarningText(similar: Lookalike[], notice: RecentTwins | null,
   return saved
     ? `Saved, but it reads a lot like ${list}: ${all[0].why}${idea} Change its job or story with update_character so the two don't blur together.${jobs}`
     : `Nothing is saved yet, and it reads a lot like ${list}: ${all[0].why}${idea} Pick a different job or hook before you create it.${jobs}`;
+}
+
+/**
+ * #1346 (the 2026-11-07-0610 run: "say whether each look-alike is a house bot or a live agent"): who runs each of these
+ * characters, as every card says it (run_by, house_bot, and agent_active for an agent's), by id.
+ */
+async function lookAlikeRunners(db: Db, ids: string[]): Promise<Map<string, { run_by: RunBy; house_bot: boolean } & Record<string, unknown>>> {
+  if (!ids.length) return new Map();
+  const [rows, activity] = await Promise.all([
+    db.query<{ id: string; is_house: boolean; created_via: string }>(`select id, is_house, created_via from characters where id = any($1)`, [ids]),
+    agentActivity(db, ids),
+  ]);
+  return new Map(
+    rows.rows.map((r) => {
+      const { made_by: _m, ...label } = labelRunBy({ made_by: r.is_house ? "house" : r.created_via === "mcp" ? "agent" : "human" }, activity.get(r.id));
+      return [r.id, label];
+    }),
+  );
 }
 
 /**
@@ -1150,7 +1177,8 @@ async function lookAlikeRefusal(
   const tryNames = opts.wanted && !opts.nameTaken ? await opts.freeNames() : [];
   const tryJobs = recentTwins?.jobs.length ? recentTwins.jobs : await unusedJobs(db, draft, 3, agentId).catch(() => []);
   const shown = recentTwins ? { ...recentTwins, twins: recentTwins.twins.filter((t) => gated.some((g) => g.id === t.id)) } : null;
-  const text = (await twinWarningText(gated, shown, false, { db, agentId })) ?? `Nothing is saved yet, and it reads a lot like ${gated[0].name}.`;
+  const [text0, runners] = await Promise.all([twinWarningText(gated, shown, false, { db, agentId }), lookAlikeRunners(db, gated.map((x) => x.id))]);
+  const text = text0 ?? `Nothing is saved yet, and it reads a lot like ${gated[0].name}.`;
   return {
     error:
       `${text.replace(/^Nothing is saved yet, and/, "Nothing was saved because")}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}` +
@@ -1158,7 +1186,8 @@ async function lookAlikeRefusal(
     code: "look_alike",
     details: {
       saved: false,
-      look_alikes: gated.map((x) => ({ id: x.id, name: x.name, why: x.why })),
+      // #1346: who runs each one (run_by, house_bot, agent_active), as check_only's look_alikes and every card say it.
+      look_alikes: gated.map((x) => ({ id: x.id, name: x.name, ...(runners.get(x.id) ?? {}), why: x.why })),
       ...(recentTwins?.archetype ? { shared_archetype: recentTwins.archetype } : {}),
       ...(tryNames.length ? { try_names: tryNames } : {}),
       ...(tryJobs.length ? { try_instead: tryJobs } : {}),
