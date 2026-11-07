@@ -432,28 +432,6 @@
   width: 100%;
   margin-top: 0;
 }
-.companion-who {
-  margin: 0;
-}
-.companion-who button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.8rem;
-  border: 1.5px solid var(--line);
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.companion-who button[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: var(--soft);
-  color: var(--accent-text);
-}
 .companion-selects {
   display: flex;
   flex-wrap: wrap;
@@ -469,15 +447,6 @@
   font-size: var(--text-sm);
 }
 @media (max-width: 720px) {
-  /* One row of pills that scrolls sideways, edge to edge, instead of three lines of them. */
-  .companion-who {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin-left: calc(-1 * var(--gutter));
-    margin-right: calc(-1 * var(--gutter));
-    padding: 0 var(--gutter);
-  }
   .companion-selects label {
     flex: 1 1 calc(50% - var(--space-2));
     min-width: 0;

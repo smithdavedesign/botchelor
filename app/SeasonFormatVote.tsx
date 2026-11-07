@@ -45,9 +45,11 @@ export default function SeasonFormatVote({ ballot, now }: { ballot: SeasonBallot
                 </span>
                 <span className="situation-premise">{c.pitch}</span>
                 {voted && (
-                  <span className="situation-bar" aria-label={`${share}% of votes`}>
-                    <span style={{ width: `${share}%` }} />
-                    <em>{share}%</em>
+                  <span className="situation-bar">
+                    <span style={{ width: `${share}%` }} aria-hidden="true" />
+                    <em>
+                      {share}%<span className="sr-only"> of votes</span>
+                    </em>
                   </span>
                 )}
               </button>

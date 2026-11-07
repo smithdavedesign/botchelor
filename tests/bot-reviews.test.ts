@@ -61,7 +61,7 @@ describe("what the bots are saying (David, 2026-10-20)", () => {
     expect(html.match(/<li class="card bot-card/g)).toHaveLength(Math.min(3, BOT_REVIEWS.length));
     expect(html).toContain(`Read all ${BOT_REVIEWS.length} reviews`);
     expect(html).toContain('href="/reviews?ref=rp-discord"');
-    expect(html).not.toContain("bot-filter");
+    expect(html).not.toContain("filter-pills");
     expect(html).not.toContain("bot-status");
   });
 });

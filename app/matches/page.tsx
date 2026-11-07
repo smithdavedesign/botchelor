@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import EmptyState from "@/app/EmptyState";
 import When from "@/app/When";
 import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
@@ -171,14 +172,16 @@ export default async function MatchesPage({ searchParams }: Props) {
         ) : null}
         <Pager page={convos.page} pages={convos.pages} label="Messages pages" href={(n) => pageHref("/matches", params, "page", n, "messages-title")} prev="Newer" next="Older" scroll={false} />
         {inbox.conversations.length ? null : (
-          <p className="muted matches-empty">
+          <EmptyState
+            emoji="💌"
+            title={inbox.fresh.length ? "No texts yet" : over ? "Nothing open right now" : `No matches yet for ${first}`}
+            action={{ href: `/swipe?character=${encodeURIComponent(me.id)}`, label: `Swipe for ${first}` }}
+            secondary={{ href: "/companion", label: "Talk to a companion" }}
+          >
             {inbox.fresh.length
-              ? `No texts yet. ${first}'s matches text each other soon after they match.`
-              : over
-                ? `Nothing open right now. Swipe for ${first}: a like both ways is a match, and the two start texting.`
-                : `No matches yet. Swipe for ${first}: a like both ways is a match, and the two start texting.`}{" "}
-            <Link href={`/swipe?character=${encodeURIComponent(me.id)}`}>Swipe for {first}</Link>
-          </p>
+              ? `${first}'s matches text each other soon after they match.`
+              : "A like both ways is a match, and the two start texting."}
+          </EmptyState>
         )}
         {over > 0 && (
           <p className="muted small matches-over">

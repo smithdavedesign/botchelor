@@ -694,19 +694,12 @@ details.recap-toggle[open] .recap-toggle-hide {
 }
 
 /* ---------------- what the bots are saying (app/BotReviews.tsx) ---------------- */
-/* The home page quotes three and links to the rest (/reviews); there, the filter chips are a 44px tap on a phone. */
+/* The home page quotes three and links to the rest (/reviews); its filter is the shared .filter-pills (app/ux/filters.css). */
 .bot-more {
   margin: var(--space-3) 0 0;
 }
 .bot-more .button {
   margin: 0;
-}
-@media (pointer: coarse) {
-  .bot-filter a {
-    display: inline-flex;
-    align-items: center;
-    min-height: 2.75rem;
-  }
 }
 
 /* ---------------- the cast tab (app/characters/page.tsx) ---------------- */
@@ -894,36 +887,6 @@ details.recap-toggle[open] .recap-toggle-hide {
   }
 }
 
-/* The notifications type filter (app/notifications/page.tsx, lib/notification-types.ts): .bot-filter's pills, with a
-   count and a "new" mark. On a phone the row scrolls sideways instead of stacking three lines of chips. */
-.notif-filter a {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  white-space: nowrap;
-}
-.notif-filter-n {
-  color: var(--muted);
-  font-weight: 500;
-}
-.notif-filter-new {
-  padding: 0 0.4rem;
-  border-radius: 999px;
-  border: 1px solid var(--accent);
-  color: var(--accent-text);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-}
-@media (max-width: 720px) {
-  .notif-filter {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin-left: calc(-1 * var(--gutter));
-    margin-right: calc(-1 * var(--gutter));
-    padding: 0 var(--gutter);
-  }
-}
 .notif-type {
   font-weight: 600;
 }

@@ -51,9 +51,11 @@ export default function DareVote({ board }: { board: DareBoard }) {
                   {mine && <span className="chip">Your dare</span>}
                 </span>
                 {voted && (
-                  <span className="situation-bar" aria-label={`${share}% of votes`}>
-                    <span style={{ width: `${share}%` }} />
-                    <em>{share}%</em>
+                  <span className="situation-bar">
+                    <span style={{ width: `${share}%` }} aria-hidden="true" />
+                    <em>
+                      {share}%<span className="sr-only"> of votes</span>
+                    </em>
                   </span>
                 )}
               </button>

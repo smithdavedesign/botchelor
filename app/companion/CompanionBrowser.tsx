@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "@/app/Avatar";
+import EmptyState from "@/app/EmptyState";
 import When from "@/app/When";
 import type { CompanionListItem, CompanionSource } from "@/lib/companion";
 import TalkButton from "./TalkButton";
@@ -39,17 +40,17 @@ type Sort = (typeof SORTS)[number]["id"];
 
 const SOURCE_LABEL: Record<CompanionSource, string> = { yours: "Yours", house: "House cast", agent: "Made by agents", community: "A creator's" };
 
-const matchesWho = (c: CompanionListItem, who: Who) => who === "all" || (who === "on_show" ? c.on_show : c.source === who);
+export const matchesWho = (c: CompanionListItem, who: Who) => who === "all" || (who === "on_show" ? c.on_show : c.source === who);
 
 /** Search reads the name, the bio and the traits, every word of the query somewhere in them. */
-function matchesQuery(c: CompanionListItem, q: string): boolean {
+export function matchesQuery(c: CompanionListItem, q: string): boolean {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
   const hay = `${c.name} ${c.bio} ${c.traits.join(" ")}`.toLowerCase();
   return words.every((w) => hay.includes(w));
 }
 
-function sorted(list: CompanionListItem[], sort: Sort): CompanionListItem[] {
+export function sorted(list: CompanionListItem[], sort: Sort): CompanionListItem[] {
   if (sort === "suggested") return list;
   const out = [...list];
   if (sort === "az") out.sort((a, b) => a.name.localeCompare(b.name));
@@ -187,10 +188,10 @@ export default function CompanionBrowser({
           <span className="sr-only">Search companions</span>
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a name, a trait, anything in their bio" />
         </label>
-        <div className="bot-filter companion-who" role="group" aria-label="Who">
+        <div className="filter-pills" role="group" aria-label="Who">
           {WHO.filter((w) => w.id === "all" || (counts.get(w.id) ?? 0) > 0).map((w) => (
             <button key={w.id} type="button" aria-pressed={who === w.id} onClick={() => setWho(w.id)}>
-              {w.label} <span className="notif-filter-n">{counts.get(w.id)}</span>
+              {w.label} <span className="filter-n">{counts.get(w.id)}</span>
             </button>
           ))}
         </div>
@@ -246,14 +247,18 @@ export default function CompanionBrowser({
             ))}
           </ul>
         ) : (
-          <p className="muted">
-            {others.length ? "Nobody matches that. " : "Nobody to talk with just now."}
-            {others.length > 0 && (
-              <button type="button" className="button-ghost small" onClick={clear}>
-                Clear filters
-              </button>
-            )}
-          </p>
+          <EmptyState
+            emoji="🔎"
+            title={others.length ? "Nobody matches that" : "Nobody to talk with just now"}
+            action={
+              others.length ? (
+                <button type="button" className="button small" onClick={clear}>
+                  Clear filters
+                </button>
+              ) : undefined
+            }
+            secondary={{ href: "/watch", label: "Watch the show" }}
+          />
         )}
       </section>
     </>

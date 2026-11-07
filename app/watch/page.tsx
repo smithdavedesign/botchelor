@@ -14,6 +14,7 @@ import CastChat from "@/app/CastChat";
 import { latestCastChat } from "@/lib/cast-chat";
 import DareVote from "@/app/DareVote";
 import SituationVote from "@/app/SituationVote";
+import OpenOnHash from "@/app/OpenOnHash";
 import SeasonBanner from "@/app/SeasonBanner";
 import ShowSince from "@/app/ShowSince";
 import ThisWeek from "./ThisWeek";
@@ -293,14 +294,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         )}
       </section>
 
-      {/* Yesterday's cast group chat (lib/cast-chat.ts): only ever about what has aired. */}
-      {castChat && <CastChat chat={castChat} />}
-
       {situation && <SituationVote board={situation} now={now} />}
-
-      {dares && <DareVote board={dares} />}
-
-      {backing && <BackCast board={backing} />}
 
       <section className="watch-section" id="latest">
         <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>
@@ -348,9 +342,27 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         </details>
       )}
 
-      {shifts && <ChemistryShiftsPanel shifts={shifts} />}
-
-      {callers && <CallersBoardPanel board={callers} nameless={viewerId !== null && profileName === null} />}
+      {/* Shorter (UX round C, 2026-11-07): the cast chat, the dare, backing, chemistry shifts and the callers board fold
+          under one line, so the page is tonight's dates, the vote and the episodes. A link into one opens it (OpenOnHash). */}
+      {(castChat || dares || backing || shifts || callers) && (
+        <details className="watch-section watch-more ux-fold">
+          <summary>
+            <h2>More from the show</h2>{" "}
+            <span className="muted small">
+              {[castChat && "the cast chat", dares && "today's dare", backing && "who you back", shifts && "chemistry shifts", callers && "the best callers"]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </summary>
+          {/* Yesterday's cast group chat (lib/cast-chat.ts): only ever about what has aired. */}
+          {castChat && <CastChat chat={castChat} />}
+          {dares && <DareVote board={dares} />}
+          {backing && <BackCast board={backing} />}
+          {shifts && <ChemistryShiftsPanel shifts={shifts} />}
+          {callers && <CallersBoardPanel board={callers} nameless={viewerId !== null && profileName === null} />}
+        </details>
+      )}
+      <OpenOnHash />
 
       <section className="watch-section" id="leagues">
         {leagues.length > 0 && <h2>Your leagues</h2>}
