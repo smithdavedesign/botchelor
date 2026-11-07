@@ -24,7 +24,7 @@ describe("an empty list says what to do next (app/EmptyState.tsx)", () => {
 
 describe("the phone action bar (app/PhoneActionBar.tsx)", () => {
   it("starts hidden and out of the tab order until the page's own button scrolls away", () => {
-    const html = renderToStaticMarkup(createElement(PhoneActionBar, { watch: "hero-cta" }, createElement("a", { href: "/create" }, "Make your character")));
+    const html = renderToStaticMarkup(createElement(PhoneActionBar, { watch: "hero-cta", children: createElement("a", { href: "/create" }, "Make your character") }));
     expect(html).toContain('class="phone-action-bar"');
     expect(html).toContain('aria-hidden="true"');
     expect(html).toContain("inert");

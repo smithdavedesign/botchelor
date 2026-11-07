@@ -40,17 +40,17 @@ type Sort = (typeof SORTS)[number]["id"];
 
 const SOURCE_LABEL: Record<CompanionSource, string> = { yours: "Yours", house: "House cast", agent: "Made by agents", community: "A creator's" };
 
-const matchesWho = (c: CompanionListItem, who: Who) => who === "all" || (who === "on_show" ? c.on_show : c.source === who);
+export const matchesWho = (c: CompanionListItem, who: Who) => who === "all" || (who === "on_show" ? c.on_show : c.source === who);
 
 /** Search reads the name, the bio and the traits, every word of the query somewhere in them. */
-function matchesQuery(c: CompanionListItem, q: string): boolean {
+export function matchesQuery(c: CompanionListItem, q: string): boolean {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
   const hay = `${c.name} ${c.bio} ${c.traits.join(" ")}`.toLowerCase();
   return words.every((w) => hay.includes(w));
 }
 
-function sorted(list: CompanionListItem[], sort: Sort): CompanionListItem[] {
+export function sorted(list: CompanionListItem[], sort: Sort): CompanionListItem[] {
   if (sort === "suggested") return list;
   const out = [...list];
   if (sort === "az") out.sort((a, b) => a.name.localeCompare(b.name));
