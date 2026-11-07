@@ -19,6 +19,8 @@ import ShowSince from "@/app/ShowSince";
 import ThisWeek from "./ThisWeek";
 import RecouplingCard from "./RecouplingCard";
 import { recouplingBoard } from "@/lib/recoupling";
+import { ballotResult } from "@/lib/season-vote";
+import { seasonIdOf } from "@/lib/season-window";
 import { thisWeekOn } from "@/lib/season-format";
 import { seasonFormatNow } from "@/lib/season-format-store";
 import ChemistryShiftsPanel from "@/app/ChemistryShifts";
@@ -171,7 +173,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
   const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat, ballot] = await Promise.all([
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
@@ -190,6 +192,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     mine("watch:recoupling", () => recouplingBoard(db, viewerId)).catch(() => null),
     // The cast group chat (lib/cast-chat.ts): the same for everyone.
     shared("watch:cast-chat", () => latestCastChat(db)).catch(() => null),
+    // How this season's format was picked (lib/season-vote.ts): the This Week card says so on week 1.
+    shared("watch:ballot-result", () => ballotResult(db, seasonIdOf(new Date()))).catch(() => null),
   ]);
   // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
   const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
@@ -217,7 +221,12 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       </p>
 
       <SeasonBanner />
-      {seasonDef && <ThisWeek card={thisWeekOn(seasonDef, new Date(now))} />}
+      {seasonDef && (
+        <ThisWeek
+          card={thisWeekOn(seasonDef, new Date(now))}
+          picked={ballot?.winner && ballot.winner === seasonDef.slug ? { title: seasonDef.title, votes: ballot.votes, total: ballot.total } : null}
+        />
+      )}
       {recoupling && <RecouplingCard board={recoupling} now={now} />}
       {showNews && <ShowSince card={showNews} />}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Avatar from "@/app/Avatar";
 import When from "@/app/When";
 import type { CompanionListItem, CompanionSource } from "@/lib/companion";
@@ -134,19 +134,38 @@ function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
  * cast, agent-made, a creator's, yours), pronouns, and a sort. Your conversations stay on top, unfiltered unless you
  * search. Everything is client-side: the page sends at most ~170 people.
  */
+export type CompanionFilters = { q?: string; who?: string; pronouns?: string; sort?: string };
+
+const oneOf = <T extends string>(list: readonly { id: T }[], v: string | undefined, fallback: T): T => list.find((x) => x.id === v)?.id ?? fallback;
+
 export default function CompanionBrowser({
   threads,
   others,
   signIn = false,
+  initial = {},
 }: {
   threads: CompanionListItem[];
   others: CompanionListItem[];
   signIn?: boolean;
+  /** The filters from the URL (?q=&who=&pronouns=&sort=), so Back and a shared link keep them. */
+  initial?: CompanionFilters;
 }) {
-  const [q, setQ] = useState("");
-  const [who, setWho] = useState<Who>("all");
-  const [pronouns, setPronouns] = useState<Pronouns>("any");
-  const [sort, setSort] = useState<Sort>("suggested");
+  const [q, setQ] = useState(initial.q ?? "");
+  const [who, setWho] = useState<Who>(oneOf(WHO, initial.who, "all"));
+  const [pronouns, setPronouns] = useState<Pronouns>(oneOf(PRONOUNS, initial.pronouns, "any"));
+  const [sort, setSort] = useState<Sort>(oneOf(SORTS, initial.sort, "suggested"));
+
+  // The filters live in the URL (replaceState: no history entry a keystroke), so Back to this page keeps them.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const set = (k: string, v: string, def: string) => (v && v !== def ? params.set(k, v) : params.delete(k));
+    set("q", q.trim(), "");
+    set("who", who, "all");
+    set("pronouns", pronouns, "any");
+    set("sort", sort, "suggested");
+    const next = `${window.location.pathname}${params.size ? `?${params}` : ""}${window.location.hash}`;
+    if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, "", next);
+  }, [q, who, pronouns, sort]);
 
   const counts = useMemo(() => new Map(WHO.map((w) => [w.id, others.filter((c) => matchesWho(c, w.id)).length])), [others]);
   const shown = useMemo(
