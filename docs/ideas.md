@@ -181,6 +181,19 @@ Sizes: **S** a day or less, **M** a few days, **L** a week or more. Costs are re
 
 ---
 
+## Revenue lanes parked on purpose (2026-11-07)
+
+_From the 2026-11-07 outside reviews (ChatGPT on monetization, Gemini on NSFW economics; docs/audits/2026-11-07-product-review.md). David approved logging both. Neither is built until its gate below is met — the point of logging them is to stop re-deciding._
+
+| Idea | What exists today | Size · cost | Gate before building |
+|---|---|---|---|
+| **Creator revenue share**: creators publish characters, build an audience, earn a cut of the premium interactions their characters appear in | Auditions + votes (`/casting`), creator pages (`/creators/[handle]`), the showcase, premium house characters as paid SKUs, per-character engagement in web_events | L · $0 until payouts exist (then tax forms, KYC, a payout rail) | A live adult processor, working moderation at scale, AND repeat human creators asking for it. Not before all three. |
+| **B2B agent persona testing**: a paid, self-serve "run your agent through N dates, get a consistency/memory/EQ report" for agent developers | The whole machinery: MCP visitors, the judge-scored visitor loops (loop10/loop25), bot reviews, date transcripts, `npm run sim:relationships` | M · a few cents a run, priced above cost | Unprompted demand from agent builders (r/mcp replies, MCP directory inbound). It's a different buyer: if built, it gets its own page and never leads the human site. |
+
+Rejected the same day, so it stays rejected: **paid influence on pairings or outcomes** (Gemini's "Match Maker votes"). "Nobody can buy the outcome" is the product's one sacred promise; cosmetics someday, influence never.
+
+---
+
 ## Sources
 
 Companion market & pricing: [TechCrunch — companion apps on track for $120M in 2025](https://techcrunch.com/2025/08/12/ai-companion-apps-on-track-to-pull-in-120m-in-2025), [Candy.ai revenue breakdown (makeanapplike)](https://makeanapplike.com/article/ai-llm/candy-ai-revenue-breakdown-how-ai-companion-apps-make-millions), [Candy AI pricing (findaiboyfriend)](https://findaiboyfriend.com/blog/candy-ai-pricing/), [Candy.ai company analysis (Accio)](https://www.accio.com/business/candy-ai), [Replika pricing (eesel)](https://www.eesel.ai/blog/replika-ai-pricing). Retention/churn: [RevenueCat via Localogy — AI apps churn ~30% higher](https://www.localogy.com/2026/03/do-ai-apps-have-more-user-churn-than-non-ai-apps/), [AI companion retention benchmarks (Kapex)](https://getkapex.ai/blog/ai-companion-retention-benchmarks), [Track360 retention playbook](https://track360.io/blog/ai-companion-retention-crm-churn-winback-operator-playbook-2026). Arena: [LMArena analysis (Sacra)](https://sacra.com/c/lmarena), [AI image leaderboard, 281k votes (getcoai)](https://getcoai.com/news/new-ai-image-leaderboard-ranks-9-models-using-281k-user-votes). NSFW landscape: [Best uncensored AI image/video generators (jsmanifest)](https://jsmanifest.com/best-uncensored-ai-image-video-generators), [Best NSFW AI models 2026 (spicyapi)](https://spicyapi.ai/blog/best-nsfw-ai-models-2026). Payments/legal: [Civitai cut off by card processor (404 Media)](https://www.404media.co/civitai-site-used-to-generate-ai-porn-cut-off-by-credit-card-processor), [OnlyFans ban reversal & banking influence (Payments Journal)](https://www.paymentsjournal.com/onlyfans-now-reversed-ban-underscores-bankings-influence-on-adult-content/). Agent social networks: [Agent social networks / Moltbook (sisgain)](https://sisgain.com/blogs/ai-agents-social-networks-meta-acquires-moltbook), [InWithAgents launch (techdogs)](https://www.techdogs.com/tech-news/globe-newswire/inwithagentscom-launches-the-worlds-fastest-growing-agentic-social-network-where-ai-agents-meet-socialize-and-do-business). Creator marketplace: [Character.AI alternatives operator map (Track360)](https://track360.io/blog/character-ai-build-your-own-companion-platform-operator-map-2026).
