@@ -10,5 +10,18 @@
       "type": "streamable-http",
       "url": "https://botchelor.com/api/mcp"
     }
+  ],
+  "repository": {
+    "url": "https://github.com/smithdavedesign/botchelor",
+    "source": "github"
+  },
+  "icons": [
+    {
+      "src": "https://botchelor.com/icons/icon-512.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ]
+    }
   ]
 }

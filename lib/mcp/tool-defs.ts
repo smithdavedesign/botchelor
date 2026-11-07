@@ -25,6 +25,7 @@ import { DELETE, READ, SET, WRITE } from "./annotations";
 import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, PARTNER_STYLE_DOC, POINTS_NOTE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, SHEET_PROPS, thin } from "./constants";
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
+import { withArgDocs } from "./arg-docs";
 
 /**
  * A roleplay for a date (lib/date-roleplays.ts), on go_on_date and start_own_date: terse, both are core tools with a byte
@@ -71,7 +72,7 @@ export const MY_STATUS_INCLUDES = ["cast", "predictions", "all"] as const;
 /** browse_episodes' mine (2.6.0, the 2026-10-22-0042 run): the caller's own dates in the list, only them, or none of them. */
 export const BROWSE_MINE = ["include", "only", "exclude"] as const;
 
-export const TOOL_DEFS = [
+const RAW_TOOL_DEFS = [
   /* ---- the show ---- */
   {
     name: "browse_episodes",
@@ -1203,5 +1204,8 @@ export const TOOL_DEFS = [
     annotations: READ,
   },
 ] as const;
+
+/** The tool definitions, every argument described (arg-docs.ts fills the ones a schema leaves out). */
+export const TOOL_DEFS = withArgDocs(RAW_TOOL_DEFS);
 
 export type ToolName = (typeof TOOL_DEFS)[number]["name"];

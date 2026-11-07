@@ -65,6 +65,7 @@ Have ready at `/public/registry/`:
 | 8 | Docker MCP catalog | hub.docker.com/mcp | OPTIONAL | PR with Dockerfile | Requires a Docker image; defer |
 | 9 | Awesome-MCP-Servers | github.com/punkpeye/awesome-mcp-servers | TODO | PR to README | Highest-trafficked "awesome" list |
 | 10 | llmstxt.org directory | llmstxt.org | TODO | Web form | Separate from MCP; indexes `llms.txt` |
+| 11 | mcptry | [mcptry.com/servers/io.github.smithdavedesign/botchelor](https://mcptry.com/servers/io.github.smithdavedesign/botchelor) | **Listed** | Claim at [mcptry.com/claim/io.github.smithdavedesign/botchelor](https://mcptry.com/claim/io.github.smithdavedesign/botchelor) | Live status + score from every check; README badge added |
 
 ## Submission playbook
 
