@@ -31,7 +31,7 @@ before it. If CCBill says it needs an LLC (question 4 of the inquiry, sent 2026-
 - AI-generated content is reviewed case by case.
 
 **Open:**
-- **The support address.** The legal pages show David's Gmail (`CONTACT_EMAIL`). A support@botchelor.com address needs the Cloudflare nameserver switch first, for free email routing.
+- **The support address.** Done 2026-11-08: `support@botchelor.com` forwards to David's Gmail (Cloudflare Email Routing), and `CONTACT_EMAIL` is set to it on both apps.
 - **David's name on the contact page.** CCBill requires it for a sole trader. Add it to the contact details when the application goes in.
 
 ## 1. The business name (a fictitious business name statement, your county)

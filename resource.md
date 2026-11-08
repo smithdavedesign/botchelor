@@ -38,6 +38,7 @@ Every dashboard, console and listing used for this project. Links only, no secre
 - [Google AI Studio billing](https://aistudio.google.com/billing?billing=011B5F-2D20A4-B63801)
 
 ## Email and payments
+- support@botchelor.com: forwards to 1426davejobs@gmail.com ([Cloudflare Email Routing](https://dash.cloudflare.com/157f90dfa6ce729a7575aaedc25d8fc8/botchelor.com/email/routing/routes)); the site's `CONTACT_EMAIL` on both DigitalOcean apps
 - [Resend](https://resend.com/login)
 - [Stripe dashboard (payments)](https://dashboard.stripe.com/login?redirect=%2Facct_1UR4AVAFlr4wKG3U%2Fpayments)
 
