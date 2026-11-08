@@ -1,6 +1,7 @@
 // Consistency and polish (docs/audits/2026-11-07-audit-and-benchmark.md, group D, items 14–22): the show's words as
 // addresses, the bots' reviews on /agents, the Constellation's first sky, whole tiles as tap targets, plain words, the
 // Companion Plan in the shop, After Dark's own gate, and /agents' counts kept.
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
@@ -138,6 +139,15 @@ describe("After Dark's own gate (item 21)", () => {
     expect(verifyAdult(token.replace(/.$/, (c) => (c === "A" ? "B" : "A")), env, now, "nonce-a")).toBe(false);
     expect(verifyAdult(token, { SESSION_SECRET: `${SECRET}-other` }, now, "nonce-a")).toBe(false);
     expect(signAdult({}, now, "nonce-a")).toBeNull();
+  });
+});
+
+describe("After Dark's gate settles (item 21)", () => {
+  it("prefetches none of the layout's links on After Dark's host, the logo included", () => {
+    // "/" there hops to the show and back (ad → botchelor.com/after-dark → ad), so a prefetch of it never settled.
+    const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+    expect(layout).toMatch(/<Link prefetch=\{showPrefetch\} href="\/" className="logo">/);
+    expect(layout.match(/<Link (?!prefetch=\{showPrefetch\})/g)).toBeNull();
   });
 });
 

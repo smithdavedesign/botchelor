@@ -147,7 +147,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           Skip to content
         </a>
         <header className="site-header">
-          <Link href="/" className="logo">
+          {/* Not prefetched on After Dark's host either: "/" there hops to the show and back, so the prefetch never settled. */}
+          <Link prefetch={showPrefetch} href="/" className="logo">
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>

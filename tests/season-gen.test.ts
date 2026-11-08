@@ -11,7 +11,7 @@ import { sessionCookies } from "@/lib/http";
 import { ensureSeasonCast, refreshSeasonCast, resetStoredSeasonCastForTests, seasonCastCards, seasonCastIds, setSeasonCastForTests } from "@/lib/season-cast";
 import { CANDIDATES, generateCandidates, listCandidates, NEWCOMERS, parseDraft, reviewCandidate, seasonGenerationDue } from "@/lib/season-gen";
 import { getDirectorModel, type Model } from "@/lib/model";
-import { BASE_URL, newUserCookie, scriptedModel, startTestDb, userIdOf } from "./helpers";
+import { api, BASE_URL, newUserCookie, scriptedModel, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 /** The model, scripted with these replies. */
 const script = (outputs: string[]): Model => {
@@ -188,5 +188,34 @@ describe("the admin review queue", () => {
     const id = written.next_season.candidates[0].character_id;
     const approved = await (await adminPost(req({ action: "approve", character_id: id }))).json();
     expect(approved.next_season.candidates[0].status).toBe("approved");
+  });
+
+  it("redraws a house cast member's portrait and makes it their face; a person's character's waits (2026-11-07 audit, item 15)", async () => {
+    await keys();
+    const venice = fakeProviders();
+    const owner = newUserCookie();
+    await claimAdmin(t.db, userIdOf(owner));
+    const cookie = sessionCookies({ userId: userIdOf(owner), authenticated: true })[0].split(";")[0];
+    const redraw = async (id: string) =>
+      (
+        await (
+          await adminPost(new Request(`${BASE_URL}/api/admin/season`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ action: "portrait", character_id: id }) }))
+        ).json()
+      ).note as string;
+    const newest = async (id: string) =>
+      (await t.db.query<{ id: string; review_status: string }>(`select id, review_status from character_assets where character_id = $1 and kind = 'portrait' order by created_at desc limit 1`, [id])).rows[0];
+    const served = (assetId: string) => assetGet(new Request(`${BASE_URL}/api/assets/${assetId}`), { params: Promise.resolve({ id: assetId }) });
+
+    expect(await redraw("house-nell")).toBe("made: it's their portrait now");
+    expect(venice).toEqual(["true"]);
+    const nell = await newest("house-nell");
+    expect(nell.review_status).toBe("approved");
+    expect((await served(nell.id)).status).toBe(200);
+
+    const mine = await (await api.createCharacter(validCharacter({ name: "Pell Ardent" }), newUserCookie())).json();
+    expect(await redraw(mine.id)).toBe("made");
+    const theirs = await newest(mine.id);
+    expect(theirs.review_status).toBe("pending");
+    expect((await served(theirs.id)).status).toBe(404);
   });
 });
