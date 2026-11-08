@@ -16,6 +16,7 @@ export type AnalyticsEvent =
   | "situation_vote" // a vote on tonight's situation (lib/situations.ts)
   | "season_format_vote" // a vote for next season's format (lib/season-vote.ts)
   | "recoupling_vote" // a vote on the recoupling night (lib/recoupling.ts)
+  | "reveal_vote" // a vote on Sunday's reveal (lib/weekly-reveal.ts)
   | "cast_backed" // a viewer backed a cast member for the month (lib/backing.ts)
   | "audition" // an owner put their character up for next month's cast (lib/auditions.ts)
   | "audition_vote" // a vote on next month's auditions (lib/auditions.ts)

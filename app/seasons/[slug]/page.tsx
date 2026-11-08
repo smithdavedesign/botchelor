@@ -11,6 +11,10 @@ import { getSeasonRecap, type RecapChar, type RecapPair } from "@/lib/season-rec
 import { seasonIdFromSlug, seasonRef } from "@/lib/season-ref";
 import { seasonIdOf } from "@/lib/season-window";
 import { pageMetadata } from "@/lib/seo";
+import { cookies } from "next/headers";
+import { userIdFromCookieStore } from "@/lib/http";
+import { PoolBoardList } from "@/app/SeasonPool";
+import { freezeSeasonPool, poolBoard } from "@/lib/season-pool";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +66,13 @@ export default async function SeasonPage({ params }: Props) {
   const nextIsNow = seasonIdOf(new Date()) === nextId;
   const nextCast = nextIsNow ? await seasonCastCards(db).catch(() => []) : [];
   const stayedIds = new Set(d.cast.filter((c) => c.stayed).map((c) => c.character.id));
+  // The season pool (lib/season-pool.ts): frozen when the season closed (the lobby job), or on this first read after it.
+  const viewerId = userIdFromCookieStore(await cookies());
+  const pool =
+    (await poolBoard(db, id, viewerId).catch(() => null)) ??
+    (await freezeSeasonPool(db, id)
+      .then(() => poolBoard(db, id, viewerId))
+      .catch(() => null));
 
   const n = d.numbers;
   return (
@@ -223,6 +234,19 @@ export default async function SeasonPage({ params }: Props) {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {pool && (
+        <section aria-labelledby="pool" className="season-pool">
+          <h2 id="pool" className="section">
+            🏆 The season pool
+          </h2>
+          <p className="muted small">
+            One score for the whole season: every right call and drama pick, dealbreaker guess, arc, dare, and the cast member each player
+            backed. Revealed when the season closed.
+          </p>
+          <PoolBoardList board={pool} link={false} />
         </section>
       )}
 

@@ -203,6 +203,11 @@ export async function startTestDb() {
         "dare_votes",
         "dare_nights",
         "cast_date_weeks",
+        // Sunday's reveal (lib/weekly-reveal.ts) and the season pool (lib/season-pool.ts): keyed by week and season.
+        "weekly_reveals",
+        "weekly_reveal_votes",
+        "season_pools",
+        "season_pool_entries",
         // A season's finale (lib/season-recap.ts): frozen once, so a reset must forget it.
         "season_recaps",
         // This season's cast secrets (lib/cast-secrets.ts) hang off the house cast, which outlives a reset.

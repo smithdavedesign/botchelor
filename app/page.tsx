@@ -36,6 +36,7 @@ import ShowSince from "./ShowSince";
 import { showSince } from "@/lib/show-since";
 import { dareBoard } from "@/lib/dares";
 import { situationBoard } from "@/lib/situations";
+import { revealBoard } from "@/lib/weekly-reveal";
 import { getProfileName } from "@/lib/people";
 import { forViewer, shared } from "@/lib/shared-cache";
 
@@ -99,7 +100,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       ? Promise.all([sinceYouWereHere(db, viewerId, mine).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0],
   );
-  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, sky, situation, dares, record, airing, rooms, onSeason]] = await Promise.all([
+  const [owned, tokens, myCharacters, [since, unread], profileName, sharer, showNews, [aired, sky, situation, dares, record, airing, rooms, onSeason, reveal]] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     myCharactersP,
@@ -125,6 +126,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       forViewer(viewerId, "lobby", () => listLobby(conn)).catch(() => []),
       // This season's handful of house characters (lib/season-cast.ts), the same for everyone.
       shared("season-cast", () => seasonCastCards(conn)),
+      // Sunday's reveal (lib/weekly-reveal.ts): the tonight band points at it while its vote is open, for everyone.
+      forViewer(viewerId, "home:reveal", () => revealBoard(conn, viewerId)).catch(() => null),
     ]),
   ]);
 
@@ -144,7 +147,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   // Next month's newcomers are written from the 20th (lib/season-gen.ts): from then, the cast strip points at them.
   const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
   const creator = myCharacters.length > 0;
-  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} latest={aired?.episodes[0] ?? null} now={Date.now()} />;
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} latest={aired?.episodes[0] ?? null} now={Date.now()} />;
 
   return (
     <div className="home">

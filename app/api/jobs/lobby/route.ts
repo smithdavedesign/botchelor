@@ -18,6 +18,8 @@ import { settleDueDares } from "@/lib/dare-points";
 import { runDueRecoupling } from "@/lib/recoupling";
 import { ensureCastSecrets } from "@/lib/cast-secrets";
 import { ensureCastChat } from "@/lib/cast-chat";
+import { runDueReveal } from "@/lib/weekly-reveal";
+import { revealDueSeasonPool } from "@/lib/season-pool";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -53,6 +55,9 @@ async function run(req: Request): Promise<Response> {
   // Tonight's situation (lib/situations.ts): once yesterday's vote has closed, its date is made, once. Before the lobby's
   // own refresh, so the voted room is the open one and the refresh doesn't make another beside it.
   const situation = await playVotedSituation(db).catch(() => null);
+  // Sunday's reveal (lib/weekly-reveal.ts): opens Saturday's vote, and after Sunday's close brings the winner's secret
+  // out and makes their date, once. Before the lobby's own refresh too, so its room is the open one.
+  const reveal = await runDueReveal(db).catch(() => null);
   // The season turned: voters hear how next season's format vote went (lib/season-vote.ts), once, in its first days.
   const ballot = await seasonFormatNow(db)
     .then((def) => announceBallotResult(db, def.slug))
@@ -65,6 +70,8 @@ async function run(req: Request): Promise<Response> {
   const recoupling = await runDueRecoupling(db).catch(() => null);
   // This season's cast secrets (lib/cast-secrets.ts): written once a season each on the show's cheap model; a no-op after.
   const secrets = await ensureCastSecrets(db).catch(() => null);
+  // The season pool (lib/season-pool.ts): the season that just closed is frozen and revealed, once.
+  const pool = await revealDueSeasonPool(db).catch(() => null);
   // Leaked from the cast group chat (lib/cast-chat.ts): yesterday's, written once, the first pass after midnight UTC.
   const castChat = await ensureCastChat(db).catch(() => null);
   // Dates whose generation died (a deploy swapped the container mid-date: the 2026-11-02 20:20 mixer's five sat
@@ -83,7 +90,7 @@ async function run(req: Request): Promise<Response> {
   // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
   // unless the run is already long (a template date above takes most of the 300 s).
   const portraits = Date.now() - started > 150_000 ? { drawn: 0, failed: 0, left: -1 } : await portraitSweep(db).catch(() => ({ drawn: 0, failed: 0, left: -1 }));
-  return json({ ...lobby, portraits, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, secrets, cast_chat: castChat, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, portraits, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, reveal, season_pool: pool, secrets, cast_chat: castChat, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);
