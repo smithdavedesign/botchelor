@@ -45,6 +45,11 @@ export type RecordShare = {
   /** The sharer's display name and its signature (lib/share-record-name.ts), when they have a name of their own. */
   by?: string;
   k?: string;
+  /**
+   * This week's calls (2026-11-07 audit, item 10: "I called 4/5 this week"): when set, the grid is this week's calls and
+   * the words lead with them. Shares from before it, without one, read as they always did.
+   */
+  week?: { right: number; called: number };
 };
 
 /** Today's "S1 · Night 2" as numbers (a monthly season is a month; its night is the UTC day of it). */
@@ -57,8 +62,12 @@ export const recordGrid = (recent: readonly boolean[]): string => recent.slice(-
 
 export const nightCode = (s: Pick<RecordShare, "season" | "night">): string | null => (s.season && s.night ? `S${s.season} · Night ${s.night}` : null);
 
-/** "5 of 6 right · 3 in a row" (lib/streaks.ts recordLine's words, so the card and the page agree). */
-export function recordWords(s: Pick<RecordShare, "right" | "called" | "streak" | "best">): string {
+/**
+ * "5 of 6 right · 3 in a row" (lib/streaks.ts recordLine's words, so the card and the page agree); with this week's
+ * calls, "4 of 5 this week · 3 in a row".
+ */
+export function recordWords(s: Pick<RecordShare, "right" | "called" | "streak" | "best" | "week">): string {
+  if (s.week) return [`${s.week.right} of ${s.week.called} this week`, ...(s.streak >= 2 ? [`${s.streak} in a row`] : [])].join(" · ");
   const parts = [`${s.right} of ${s.called} right`];
   if (s.streak >= 2) parts.push(`${s.streak} in a row`);
   if (s.best >= 2 && s.best > s.streak) parts.push(`best run ${s.best}`);
@@ -78,6 +87,7 @@ export function recordSharePath(s: RecordShare): string {
     b: String(s.best),
   });
   if (s.season && s.night) q.set("n", `${s.season}-${s.night}`);
+  if (s.week) q.set("t", `${s.week.right}-${s.week.called}`);
   if (s.by && s.k) {
     q.set("by", s.by);
     q.set("k", s.k);
@@ -111,7 +121,27 @@ export function parseRecordShare(params: Record<string, string | string[] | unde
   const n = /^(\d{1,3})-(\d{1,2})$/.exec(one("n") ?? "");
   const season = n ? Number(n[1]) : null;
   const night = n && Number(n[2]) >= 1 && Number(n[2]) <= 31 ? Number(n[2]) : null;
-  return { recent: [...g].map((c) => c === "1"), right, called, streak, best, season: season && night ? season : null, night: season && night ? night : null };
+  // This week's calls: the grid is theirs, so it can't hold more squares (or more right ones) than the week does.
+  let week: RecordShare["week"];
+  const t = one("t");
+  if (t !== undefined) {
+    const m = /^(\d{1,4})-(\d{1,4})$/.exec(t);
+    if (!m) return null;
+    const [wr, wc] = [Number(m[1]), Number(m[2])];
+    const ones = [...g].filter((c) => c === "1").length;
+    if (wr > wc || wc > called || wr > right || g.length > wc || ones > wr || g.length - ones > wc - wr) return null;
+    week = { right: wr, called: wc };
+  }
+  return {
+    recent: [...g].map((c) => c === "1"),
+    right,
+    called,
+    streak,
+    best,
+    season: season && night ? season : null,
+    night: season && night ? night : null,
+    ...(week ? { week } : {}),
+  };
 }
 
 /** The numbers a share's signature covers, in one fixed order (lib/share-record-name.ts signs and checks this). */
@@ -120,7 +150,8 @@ export function recordShareKey(s: RecordShare): string {
     .slice(-SHARE_SQUARES)
     .map((h) => (h ? "1" : "0"))
     .join("");
-  return [g, s.right, s.called, s.streak, s.best, s.season && s.night ? `${s.season}-${s.night}` : ""].join("|");
+  // A week rides the key only when the share has one, so a link signed before weeks existed still checks out.
+  return [g, s.right, s.called, s.streak, s.best, s.season && s.night ? `${s.season}-${s.night}` : "", ...(s.week ? [`t:${s.week.right}-${s.week.called}`] : [])].join("|");
 }
 
 /** The longest display name a link may carry (lib/people.ts PROFILE_NAME_MAX). */

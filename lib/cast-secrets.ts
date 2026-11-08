@@ -14,8 +14,9 @@
  * dates' words too: a cast member's side of a date carries its own secrets still hidden (secretsForDate), as private
  * context to guard, hint at or let slip. When a line clearly gives one away (the actor says which, and the line shares its
  * words: slipped), the date records it (recordSlips: cast_secrets.revealed_episode), and it counts as out once that date
- * airs publicly, the date's air time as when. The schedule then deals the next ones from the rest. Pure reads apart
- * from ensureCastSecrets and recordSlips.
+ * airs publicly, the date's air time as when. Since Sunday's reveal (2026-11-08, lib/weekly-reveal.ts) the audience can
+ * vote one out too (cast_secrets.voted_at). The schedule then deals the next ones from the rest. Pure reads apart from
+ * ensureCastSecrets and recordSlips.
  */
 import { z } from "zod";
 import type { Db } from "./db";
@@ -136,23 +137,25 @@ async function airedThisSeason(db: Db, characterId: string, now: Date): Promise<
  * The stored secrets for a cast member this season, or the pool's when none are stored yet; `slipped_at` when one came
  * out on a date (living dates) that has since aired publicly.
  */
-async function secretsFor(db: Db, characterId: string, seasonId: string, now: Date): Promise<{ secret: string; slipped_at: string | null }[]> {
-  const r = await db.query<{ secret: string; slipped_at: string | Date | null }>(
+async function secretsFor(db: Db, characterId: string, seasonId: string, now: Date): Promise<{ secret: string; slipped_at: string | null; voted_at: string | null }[]> {
+  const r = await db.query<{ secret: string; slipped_at: string | Date | null; voted_at: string | Date | null }>(
     `select s.secret,
-            case when e.revealed_at is not null and e.revealed_at <= $3 and e.visibility = 'public' then e.revealed_at end as slipped_at
+            case when e.revealed_at is not null and e.revealed_at <= $3 and e.visibility = 'public' then e.revealed_at end as slipped_at,
+            case when s.voted_at <= $3 then s.voted_at end as voted_at
        from cast_secrets s left join episodes e on e.id = s.revealed_episode
       where s.character_id = $1 and s.season_id = $2 order by s.idx`,
     [characterId, seasonId, now.toISOString()],
   );
+  const iso = (d: string | Date | null) => (d ? new Date(d).toISOString() : null);
   return r.rows.length >= SECRETS_PER_CAST
-    ? r.rows.map((x) => ({ secret: x.secret, slipped_at: x.slipped_at ? new Date(x.slipped_at).toISOString() : null }))
-    : dealtSecrets(characterId, seasonId).map((secret) => ({ secret, slipped_at: null }));
+    ? r.rows.map((x) => ({ secret: x.secret, slipped_at: iso(x.slipped_at), voted_at: iso(x.voted_at) }))
+    : dealtSecrets(characterId, seasonId).map((secret) => ({ secret, slipped_at: null, voted_at: null }));
 }
 
 export type CastSecrets = {
   total: number;
-  /** The secrets out so far, in the order they came out, with when. */
-  out: { secret: string; at: string }[];
+  /** The secrets out so far, in the order they came out, with when; `voted` when the audience voted it out (lib/weekly-reveal.ts). */
+  out: { secret: string; at: string; voted?: true }[];
   /** Public dates still to air before the next one comes out (null once they're all out). */
   next_in: number | null;
 };
@@ -162,12 +165,14 @@ export async function castSecrets(db: Db, characterId: string, now: Date = new D
   if (!seasonCastIds(now).includes(characterId)) return null;
   const season = seasonIdOf(now);
   const [secrets, aired] = await Promise.all([secretsFor(db, characterId, season, now), airedThisSeason(db, characterId, now)]);
-  // Those that slipped out on an aired date are out; the schedule deals the rest, in order, one per SECRET_EVERY dates.
+  // Those that slipped out on an aired date are out, and those the audience voted out on a Sunday (lib/weekly-reveal.ts);
+  // the schedule deals the rest, in order, one per SECRET_EVERY dates.
   const slipped = secrets.filter((s) => s.slipped_at).map((s) => ({ secret: s.secret, at: s.slipped_at! }));
-  const rest = secrets.filter((s) => !s.slipped_at);
+  const voted = secrets.filter((s) => !s.slipped_at && s.voted_at).map((s) => ({ secret: s.secret, at: s.voted_at!, voted: true as const }));
+  const rest = secrets.filter((s) => !s.slipped_at && !s.voted_at);
   const n = Math.min(rest.length, Math.floor(aired.length / SECRET_EVERY));
   const scheduled = rest.slice(0, n).map((s, i) => ({ secret: s.secret, at: aired[(i + 1) * SECRET_EVERY - 1].toISOString() }));
-  const out = [...slipped, ...scheduled].sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0));
+  const out = [...slipped, ...voted, ...scheduled].sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0));
   return {
     total: SECRETS_PER_CAST,
     out,

@@ -20,6 +20,10 @@ import SeasonLine from "./SeasonLine";
 import DateExcerpt from "@/app/DateExcerpt";
 import { pickFeaturedDate } from "@/lib/featured-date";
 import RecouplingCard from "./RecouplingCard";
+import WeeklyReveal from "@/app/WeeklyReveal";
+import { revealBoard } from "@/lib/weekly-reveal";
+import SeasonPoolPanel from "@/app/SeasonPool";
+import { poolStanding, recentPoolBoard } from "@/lib/season-pool";
 import { recouplingBoard } from "@/lib/recoupling";
 import { ballotResult } from "@/lib/season-vote";
 import { seasonIdOf } from "@/lib/season-window";
@@ -175,7 +179,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
   const mine = <T,>(key: string, load: () => Promise<T>) => forViewer(viewerId, key, load);
-  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat, ballot] = await Promise.all([
+  const [rooms, privateDates, airing, latest, leagues, profileName, reunion, situation, dares, backing, record, callers, showNews, shifts, seasonDef, recoupling, castChat, ballot, reveal, pool, poolRevealed] = await Promise.all([
     mine("lobby", () => listLobby(db)),
     shared("watch:private-dates", () => countRecentPrivateDates(db)),
     mine("home:airing", () => listAiringSoon(db, viewerId, airWindowMinutes())),
@@ -196,6 +200,10 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
     shared("watch:cast-chat", () => latestCastChat(db)).catch(() => null),
     // How this season's format was picked (lib/season-vote.ts): the This Week card says so on week 1.
     shared("watch:ballot-result", () => ballotResult(db, seasonIdOf(new Date()))).catch(() => null),
+    // Sunday's reveal (lib/weekly-reveal.ts) and the season pool (lib/season-pool.ts): the week's vote and the season's score.
+    mine("watch:reveal", () => revealBoard(db, viewerId)).catch(() => null),
+    mine("watch:pool", () => poolStanding(db, viewerId)).catch(() => null),
+    mine("watch:pool-revealed", () => recentPoolBoard(db, viewerId)).catch(() => null),
   ]);
   // Their shared calls link carries their display name when it's theirs alone (lib/share-record-name.ts).
   const sharer = profileName && record?.called ? await sharerOf(db, viewerId).catch(() => null) : null;
@@ -258,6 +266,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         now={now}
       />
       {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} />}
+      {/* Sunday's reveal leads while its vote is open or its result is minutes away; otherwise it sits by tonight's vote. */}
+      {reveal && (reveal.state === "open" || reveal.state === "closed") && <WeeklyReveal board={reveal} now={now} />}
       {showNews && <ShowSince card={showNews} />}
 
       {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
@@ -313,6 +323,9 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       </section>
 
       {situation && <SituationVote board={situation} now={now} />}
+      {reveal && reveal.state !== "open" && reveal.state !== "closed" && <WeeklyReveal board={reveal} now={now} />}
+      {/* The season pool's board just came out (the first week of the next season): shown, not folded. */}
+      {poolRevealed && <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now} />}
 
       <section className="watch-section" id="latest">
         <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>
@@ -364,12 +377,12 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
 
       {/* Shorter (UX round C, 2026-11-07): the cast chat, the dare, backing, chemistry shifts and the callers board fold
           under one line, so the page is tonight's dates, the vote and the episodes. A link into one opens it (OpenOnHash). */}
-      {(castChat || dares || backing || shifts || callers) && (
+      {(castChat || dares || backing || shifts || callers || (pool && !poolRevealed)) && (
         <details className="watch-section watch-more ux-fold">
           <summary>
             <h2>More from the show</h2>{" "}
             <span className="muted small">
-              {[castChat && "the cast chat", dares && "today's dare", backing && "who you back", shifts && "chemistry shifts", callers && "the best callers"]
+              {[castChat && "the cast chat", dares && "today's dare", backing && "who you back", shifts && "chemistry shifts", callers && "the best callers", pool && !poolRevealed && "the season pool"]
                 .filter(Boolean)
                 .join(" · ")}
             </span>
@@ -380,6 +393,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           {backing && <BackCast board={backing} />}
           {shifts && <ChemistryShiftsPanel shifts={shifts} />}
           {callers && <CallersBoardPanel board={callers} nameless={viewerId !== null && profileName === null} />}
+          {pool && !poolRevealed && <SeasonPoolPanel standing={pool} revealed={null} now={now} />}
         </details>
       )}
       <OpenOnHash />

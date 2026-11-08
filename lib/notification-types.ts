@@ -65,6 +65,8 @@ const TYPE_OF: Record<NotificationKind, NotificationType> = {
   dare_settled: "show",
   audition: "show",
   cast_date_won: "show",
+  secret_revealed: "show",
+  season_pool: "show",
   showcase_request: "creator",
   showcase_post: "creator",
   showcase_answer: "creator",

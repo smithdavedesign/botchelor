@@ -2,6 +2,7 @@ import type { Db } from "./db";
 import { predictionPointsSql } from "./game";
 import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "./rules";
 import { listLeagueSeasons, seasonAt, seasonWindow, UNNAMED_MEMBER, weekWindow, type PastSeason } from "./seasons";
+import { poolStanding } from "./season-pool";
 
 // The week rule moved to lib/seasons.ts with M4 (a season is the leaderboard week); M2 code imports it here.
 export { weekWindow };
@@ -112,32 +113,12 @@ export async function listMyLeagues(db: Db, userId: string): Promise<LeagueSumma
 export type SeasonStanding = { points: number; place: number | null; players: number };
 
 /**
- * Where one player stands this season among everyone who has scored (2026-10-20, the MCP's get_leaderboard): their
- * points, scored the way a league scores them (calls on public dates that aired this season, and arcs settled in it),
- * their place (ties share it; null with no points yet) and how many players have points. No one else's name or id.
+ * Where one player stands this season (2026-10-20, the MCP's get_leaderboard): since 2026-11-08 the season pool's one
+ * score (lib/season-pool.ts: calls, drama picks, arcs, dealbreaker guesses, dares and the backing), their place among
+ * the ranked players (ties share it; null with no points yet, or for one of the show's own accounts) and how many
+ * players have points. No one else's name or id.
  */
 export async function seasonStanding(db: Db, userId: string, now = new Date()): Promise<SeasonStanding> {
-  const { start, end } = seasonWindow(now);
-  const { rows } = await db.query<{ points: number | null; ahead: number; players: number }>(
-    `with scored as (
-       select user_id, sum(points)::int as points from (
-         select p.user_id, ${predictionPointsSql("$3", "$4")} as points
-           from predictions p
-           join episodes e on e.id = p.episode_id
-          where e.revealed_at >= $1 and e.revealed_at < $2 and e.visibility = 'public'
-         union all
-         select ap.user_id, case when ap.pick = ap.outcome then $5::int else 0 end as points
-           from arc_predictions ap
-          where ap.resolved_at >= $1 and ap.resolved_at < $2
-       ) s
-       group by user_id
-     )
-     select (select points from scored where user_id = $6) as points,
-            (select count(*)::int from scored where points > coalesce((select points from scored where user_id = $6), 0)) as ahead,
-            (select count(*)::int from scored where points > 0) as players`,
-    [start.toISOString(), end.toISOString(), POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_ARC, userId],
-  );
-  const r = rows[0];
-  const points = r?.points ?? 0;
-  return { points, place: points > 0 ? (r?.ahead ?? 0) + 1 : null, players: r?.players ?? 0 };
+  const { points, place, players } = await poolStanding(db, userId, now);
+  return { points, place: points > 0 ? place : null, players };
 }

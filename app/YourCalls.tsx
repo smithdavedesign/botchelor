@@ -70,7 +70,20 @@ export function CallsLine({
  */
 export function shareOf(record: CallRecord, now: Date = new Date(), sharer: Sharer | null = null): RecordShare | null {
   if (!record.called || !record.recent?.length) return null;
-  return signShare({ recent: record.recent, right: record.right, called: record.called, streak: record.streak, best: record.best, ...tonightOf(now) }, sharer);
+  // With calls this week, the card is the week's ("4 of 5 this week", 2026-11-07 audit item 10); else the latest calls.
+  const week = record.week && record.week.called > 0 && record.week.recent.length ? record.week : null;
+  return signShare(
+    {
+      recent: week ? week.recent : record.recent,
+      right: record.right,
+      called: record.called,
+      streak: record.streak,
+      best: record.best,
+      ...tonightOf(now),
+      ...(week ? { week: { right: week.right, called: week.called } } : {}),
+    },
+    sharer,
+  );
 }
 
 /** This week's best callers, by display name or "A viewer"; you're marked, and told your place when you're off the list. */
