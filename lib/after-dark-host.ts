@@ -132,13 +132,14 @@ export const AFTER_DARK_ROBOTS = "User-agent: *\nDisallow: /\n";
  *    pages, its agent docs) goes to the show.
  * `show` is the show's address (lib/site.ts siteUrl), passed in to keep this file free of imports.
  */
-export function afterDarkPageMove(pathname: string, search: string, opts: { identity: boolean; bot: boolean; show: string }, env: Env = processEnv()): HostMove {
+export function afterDarkPageMove(pathname: string, search: string, opts: { identity: boolean; bot: boolean; show: string; adult?: boolean }, env: Env = processEnv()): HostMove {
   const origin = afterDarkOrigin(env);
   if (!origin) return null;
   if (!afterDarkOnly(env)) {
     if (!isAfterDarkPage(pathname)) return null;
     const to = `${pathname}${search}`;
-    return { redirect: opts.identity && !opts.bot ? `${origin}/api/auth/carry?${new URLSearchParams({ to })}` : `${origin}${to}` };
+    // Through the hop with an identity to bring, or the 18+ answer (it carries that too: one gate, not two).
+    return { redirect: (opts.identity || opts.adult) && !opts.bot ? `${origin}/api/auth/carry?${new URLSearchParams({ to })}` : `${origin}${to}` };
   }
   if (pathname === "/robots.txt") return { robots: AFTER_DARK_ROBOTS };
   if (isAfterDarkPage(pathname) || (AFTER_DARK_HOST_PAGES as readonly string[]).includes(pathname)) return null;

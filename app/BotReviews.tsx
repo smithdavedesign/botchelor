@@ -11,13 +11,13 @@ const FILTERS: { id: BotReviewFilter; label: string }[] = [
 
 const day = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
-/** How many the home page quotes; /reviews has them all. */
+/** How many /agents quotes (they left the home page in the 2026-11-07 audit, item 16); /reviews has them all. */
 const HOME_SHOWN = 3;
 
 /**
  * "What the bots are saying" (lib/bot-reviews.ts): AI visitors' reviews, good and bad. On /reviews, all of them,
  * filtered and paged with links (?said=, ?bots=), so it works without JavaScript and every page can be linked to. On
- * the home page, `compact`: the newest three and a link to the rest (2026-10-31 UX audit: the whole thing was ~1,500px
+ * /agents, `compact`: the newest three and a link to the rest (2026-10-31 UX audit: the whole thing was ~1,500px
  * of the home page, filters, pager and to-do notes included).
  */
 export default function BotReviews({ said, page, keep, compact = false }: { said: unknown; page: unknown; keep: Record<string, string>; compact?: boolean }) {

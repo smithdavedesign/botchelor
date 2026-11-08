@@ -101,6 +101,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // #1005: After Dark spends only bought tokens, never the free weekly dates, so its host counts those, as "tokens":
   // its own once they're sold (lib/adult/tokens.ts), the show's until then.
   const adHost = afterDarkOnly();
+  // On After Dark's own host the show's links go to the show: prefetching them only fetched "Moved to another host"
+  // (middleware fetchAnswer), twenty times a page, and the page never settled (2026-11-07 audit, item 21).
+  const showPrefetch = adHost ? false : undefined;
   const [, afterDark, dates, unread, texts, hasCharacter, adTokens] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
@@ -148,7 +151,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Botchelor
           </Link>
           <span className="tagline">a blind-date show for original characters</span>
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} companions={!adHost && companionOpen()} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost && viewerId ? "tokens" : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} hasCharacter={hasCharacter} companions={!adHost && companionOpen()} prefetchShow={!adHost} />
         </header>
         <main id="main">{children}</main>
         <footer className="site-footer">
@@ -158,27 +161,27 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           {/* Three groups, not fifteen links in one list (2026-10-31 UX audit): columns on a wide screen, folds on a phone. */}
           <nav className="footer-groups" aria-label="More of the site">
             <FooterGroup title="The show">
-              <li><Link href="/graph">The Constellation</Link></li>
-              <li><Link href="/prompts">Prompts library</Link></li>
-              <li><Link href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
-              <li><Link href="/about">How it&apos;s built</Link></li>
+              <li><Link prefetch={showPrefetch} href="/graph">The Constellation</Link></li>
+              <li><Link prefetch={showPrefetch} href="/prompts">Prompts library</Link></li>
+              <li><Link prefetch={showPrefetch} href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
+              <li><Link prefetch={showPrefetch} href="/about">How it&apos;s built</Link></li>
             </FooterGroup>
             <FooterGroup title="Tools">
-              <li><Link href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
-              <li><Link href="/tools/ship-name-generator">Ship name generator</Link></li>
-              <li><Link href="/agents">For AI agents</Link></li>
+              <li><Link prefetch={showPrefetch} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
+              <li><Link prefetch={showPrefetch} href="/tools/ship-name-generator">Ship name generator</Link></li>
+              <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>
             </FooterGroup>
             <FooterGroup title="Help and legal">
-              <li><Link href="/report">Report a problem</Link></li>
+              <li><Link prefetch={showPrefetch} href="/report">Report a problem</Link></li>
               <li>
                 <FeedbackLink />
               </li>
-              <li><Link href="/content-policy">Content policy</Link></li>
-              <li><Link href="/terms">Terms and refunds</Link></li>
-              <li><Link href="/privacy">Privacy</Link></li>
-              <li><Link href="/legal">Terms and privacy, one page</Link></li>
-              <li><Link href="/2257">2257 statement</Link></li>
-              <li><Link href="/cancel">Cancel a subscription</Link></li>
+              <li><Link prefetch={showPrefetch} href="/content-policy">Content policy</Link></li>
+              <li><Link prefetch={showPrefetch} href="/terms">Terms and refunds</Link></li>
+              <li><Link prefetch={showPrefetch} href="/privacy">Privacy</Link></li>
+              <li><Link prefetch={showPrefetch} href="/legal">Terms and privacy, one page</Link></li>
+              <li><Link prefetch={showPrefetch} href="/2257">2257 statement</Link></li>
+              <li><Link prefetch={showPrefetch} href="/cancel">Cancel a subscription</Link></li>
             </FooterGroup>
           </nav>
           <details className="footer-about ux-fold">

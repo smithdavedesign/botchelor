@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { episodeIdFrom, pickFeaturedDate, type FeaturedDate } from "@/lib/featured-date";
 import { getEpisodeView, listAiredPage } from "@/lib/game";
 import { shared } from "@/lib/shared-cache";
+import { afterDarkOnly } from "@/lib/after-dark-host";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Enter · Botchelor", robots: { index: false, follow: false } };
@@ -37,6 +38,9 @@ async function behindTheGate(from: string): Promise<{ date: FeaturedDate; target
 export default async function GatePage({ searchParams }: { searchParams: SearchParams }) {
   const { from } = await searchParams;
   const dest = typeof from === "string" ? from : "/";
+  // After Dark's own host asks in its own words, with nothing of the show behind it (2026-11-07 audit, item 21). Someone
+  // who answered on the show rarely sees this: the sign-in hop carries that answer across (app/api/auth/carry).
+  if (afterDarkOnly()) return <AgeGate from={dest} afterDark />;
   const behind = await behindTheGate(dest);
   const [a, b] = behind?.date.characters ?? [];
   return (

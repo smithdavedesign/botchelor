@@ -188,6 +188,23 @@ a.showcase-picked-chip {
 .showcase-by {
   margin: 0;
 }
+/* On a touchscreen the ♡ and the creator's handle are 44px targets (2026-11-07 audit, item 18: 48 targets on /showcase
+   were smaller). The line grows to fit them rather than overlapping the picture above. */
+@media (pointer: coarse) {
+  .showcase-by {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 0.25rem;
+  }
+  .showcase-by > a,
+  .showcase-by .showcase-like-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}
 .showcase-viewer {
   position: fixed;
   inset: 0;

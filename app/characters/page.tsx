@@ -238,11 +238,12 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { 
           <h2>Top rated</h2>
           <ul className="top-rated-strip">
             {leaderboards.map(({ category, top }) => (
-              <li key={category.id} className="top-rated-item">
+              // The whole tile is the link (2026-11-07 audit, item 18: the name alone was a ~36px target on a phone).
+              <li key={category.id} className="top-rated-item tap-card">
                 <span className="muted small">
                   {category.emoji} {category.board}
                 </span>
-                {hidden.has(top[0].id) ? <PrivateName name={top[0].name} /> : <CharacterName character={top[0]} size={28} />}
+                {hidden.has(top[0].id) ? <PrivateName name={top[0].name} /> : <CharacterName character={top[0]} size={28} className="stretch" />}
               </li>
             ))}
           </ul>
@@ -257,14 +258,14 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { 
                 </h3>
                 <ol className="board-list">
                   {top.map((t) => (
-                    <li key={t.id}>
+                    <li key={t.id} className="tap-card">
                       {hidden.has(t.id) ? (
                         <>
                           <Avatar seed={t.id} name={t.name} hue={null} house={false} size={28} />
                           <PrivateName name={t.name} />
                         </>
                       ) : (
-                        <CharacterName character={t} size={28} />
+                        <CharacterName character={t} size={28} className="stretch" />
                       )}
                       <span className="board-count">{t.count}</span>
                     </li>
@@ -315,9 +316,9 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewerId }: { 
                   {hidden.has(e.b_id) ? <PrivateName name={e.b} /> : <strong>{e.b}</strong>}
                 </li>
               ) : (
-              <li key={`${e.a}-${e.b}`} className="card graph-row">
-                {/* One link to the couple; the faces sit inside it unlinked (no nested anchors). */}
-                <Link className="pair-link" href={`/couples/${e.a_id}/${e.b_id}`}>
+              <li key={`${e.a}-${e.b}`} className="card graph-row tap-card">
+                {/* One link to the couple over the whole row; the faces sit inside it unlinked (no nested anchors). */}
+                <Link className="pair-link stretch" href={`/couples/${e.a_id}/${e.b_id}`}>
                   <CharacterName character={named(e.a_id, e.a)} link={false} strong />
                   <span className="pair-x">×</span>
                   <CharacterName character={named(e.b_id, e.b)} link={false} strong />

@@ -35,14 +35,49 @@ type KindFilter = "all" | KindId | "unsaid";
  * filters), the sky itself, and the detail panel. Filtering happens here so the canvas just draws what it's given;
  * edges are always cut down to pairs whose both ends survived the node filter (the canvas relies on that alignment).
  */
-export default function ConstellationApp({ data, initialFocus = null }: { data: GraphData; initialFocus?: string | null }) {
-  // /graph?focus=<id> (from a character, couple or episode page): open on that character, its panel open.
+export default function ConstellationApp({
+  data: first,
+  total = null,
+  initialFocus = null,
+}: {
+  data: GraphData;
+  /** The whole sky's size when `data` is only its strongest pairs (lib/graph.ts firstSky); null when it's all of it. */
+  total?: { characters: number; pairs: number } | null;
+  initialFocus?: string | null;
+}) {
+  // The strongest pairs first; "Show the whole sky" swaps in all of it (/api/graph/sky). 2026-11-07 audit, item 17.
+  const [data, setData] = useState<GraphData>(first);
+  const [whole, setWhole] = useState(total === null);
+  const [loadingSky, setLoadingSky] = useState(false);
+  const loadWholeSky = async () => {
+    if (whole || loadingSky) return;
+    setLoadingSky(true);
+    try {
+      const res = await fetch("/api/graph/sky");
+      if (res.ok) {
+        setData((await res.json()) as GraphData);
+        setWhole(true);
+      }
+    } catch {
+      // The first sky stays, and so does the button, to try again.
+    } finally {
+      setLoadingSky(false);
+    }
+  };
+  // /graph?focus=<id> (from a character, couple or episode page): open on that character, its panel open. Someone
+  // outside the first sky brings the whole sky in first.
   const start = initialFocus && data.nodes.some((n) => n.id === initialFocus && !n.private) ? initialFocus : null;
   const [selection, setSelection] = useState<Selection>(start ? { kind: "node", id: start } : null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    if (initialFocus && !whole && !first.nodes.some((n) => n.id === initialFocus)) void loadWholeSky();
+    // Only on arrival: the focus named in the address.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // The canvas settles its layout first; focusing a moment later centres on where the node actually ends up.
   useEffect(() => {
     if (!start) return;
+    setSelection((s) => s ?? { kind: "node", id: start });
     const t = setTimeout(() => setFocusId(start), 600);
     return () => clearTimeout(t);
   }, [start]);
@@ -203,6 +238,14 @@ export default function ConstellationApp({ data, initialFocus = null }: { data: 
           </label>
         </div>
       </div>
+      {!whole && total && (
+        <p className="constellation-more small">
+          Showing the {first.edges.filter((e) => !e.masked).length} strongest pairs.{" "}
+          <button type="button" className="button-ghost small" onClick={() => void loadWholeSky()} disabled={loadingSky} data-track="graph-whole-sky">
+            {loadingSky ? "Lighting the rest…" : `Show the whole sky: ${total.characters} characters, ${total.pairs} pairs`}
+          </button>
+        </p>
+      )}
       <div className="constellation-sky">
         <ConstellationCanvas
           nodes={nodes}

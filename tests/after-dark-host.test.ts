@@ -99,7 +99,14 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
       outputFileTracingExcludes: { "/**": ["./public/**/*"] },
       outputFileTracingIncludes: { "/api/admin/after-dark/moments": ffmpeg, "/api/admin/after-dark/export": ffmpeg, "/api/admin/showcase/animate": ffmpeg, "/api/jobs/showcase-check": ffmpeg },
       headers: expect.any(Function),
+      // The show's words as addresses (lib/site-redirects.ts, 2026-11-07 audit item 14), with or without the switch.
+      redirects: expect.any(Function),
     });
+    expect(await config.redirects!()).toEqual([
+      { source: "/reels", destination: "/showcase", permanent: false },
+      { source: "/seasons", destination: "/reunion", permanent: false },
+      { source: "/messages", destination: "/matches", permanent: false },
+    ]);
     expect(await config.headers!()).toEqual([
       { source: "/cast/:file*", headers: [{ key: "x-ai-generated", value: "true" }, { key: "link", value: '</content-policy>; rel="describedby"' }] },
     ]);
@@ -168,6 +175,12 @@ describe("on the show, with After Dark moved out (AFTER_DARK_ORIGIN)", () => {
     expect(page(`${SHOW}/admin/after-dark/settings`, { cookie: "bz_sess=v1.x.y" })).toBe(`307 ${AD}/api/auth/carry?to=%2Fadmin%2Fafter-dark%2Fsettings - -`);
     expect(page(`${SHOW}/after-dark/subscribe`)).toBe(`307 ${AD}/after-dark/subscribe - -`);
     expect(page(`${SHOW}/after-dark`, { "user-agent": GOOGLEBOT, cookie: `bz_uid=${UID}` })).toBe(`307 ${AD}/after-dark - -`);
+  });
+
+  it("sends a browser that answered the 18+ question through the hop too, identity or not (2026-11-07 audit, item 21)", () => {
+    asShow();
+    expect(page(`${SHOW}/after-dark/subscribe`, { cookie: "bz_adult=1" })).toBe(`307 ${AD}/api/auth/carry?to=%2Fafter-dark%2Fsubscribe - -`);
+    expect(page(`${SHOW}/after-dark`, { "user-agent": GOOGLEBOT, cookie: "bz_adult=1" })).toBe(`307 ${AD}/after-dark - -`);
   });
 
   it("leaves every other page exactly as it was", () => {
@@ -391,6 +404,31 @@ describe("signing in across to After Dark's host (app/api/auth/carry)", () => {
     expect(landed.headers.get("location")).toBe("/after-dark");
     expect(landed.headers.getSetCookie().some((c) => c.startsWith("bz_sess="))).toBe(false);
     expect(landed.headers.getSetCookie().some((c) => c.startsWith("bz_place=place.v1."))).toBe(true);
+  });
+
+  it("carries the show's 18+ answer for a browser with no identity, so After Dark doesn't ask again (item 21)", async () => {
+    const { back, landed } = await walk("/after-dark", "bz_adult=1");
+    expect(back.searchParams.get("t")).toBeNull();
+    expect(back.searchParams.get("a")).toMatch(/^adult\.v1\.\d+\./);
+    expect(landed.headers.get("location")).toBe("/after-dark");
+    expect(cookieOf(landed, "bz_adult")).toBe("1");
+    expect(landed.headers.getSetCookie().some((c) => c.startsWith("bz_sess="))).toBe(false);
+    // Nothing is carried for a browser that never answered on the show.
+    const { back: none, landed: asked } = await walk("/after-dark", "");
+    expect(none.searchParams.get("a")).toBeNull();
+    expect(cookieOf(asked, "bz_adult")).toBeUndefined();
+  });
+
+  it("never lets a handed-out 18+ answer count in another browser: it's bound to the nonce it was minted for", async () => {
+    asShow();
+    const minted = await at(`${SHOW}/api/auth/carry?n=attackerattackerattack&to=/after-dark`, "bz_adult=1");
+    const back = new URL(minted.headers.get("location")!);
+    expect(back.searchParams.get("a")).toMatch(/^adult\.v1\./);
+    asAfterDark();
+    const victim = await at(back.toString(), "bz_carry=victimvictimvictimvict1");
+    expect(cookieOf(victim, "bz_adult")).toBeUndefined();
+    const noNonce = await at(back.toString());
+    expect(cookieOf(noNonce, "bz_adult")).toBeUndefined();
   });
 
   it("never lets someone else's token set an identity on After Dark's host", async () => {

@@ -12,6 +12,8 @@ import { pageMetadata } from "@/lib/seo";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import { afterDarkHref, afterDarkOnly } from "@/lib/after-dark-host";
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { companionOpen } from "@/lib/companion-shared";
+import { planLink, planPrice, PLANS } from "@/lib/paid-plans";
 import BuyButton from "./BuyButton";
 import SignInToBuy from "./SignInToBuy";
 
@@ -105,6 +107,22 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
             )}
           </li>
         ))}
+        {/* The Companion Plan sells on its own page (app/companion/plan): its card here, so the shop lists everything on
+            sale (2026-11-07 audit, item 20: on a phone the shop never mentioned it). Only while companions are open and the
+            plan has its link; never on After Dark's host, which has its own tokens. */}
+        {unit === "date" && companionOpen() && planLink("companion") && (
+          <li className="card shop-item shop-plan" data-shop-plan="companion">
+            <div className="shop-item-head">
+              <strong>{PLANS.companion.name}</strong>
+              <span className="shop-item-price">{planPrice("companion")}</span>
+            </div>
+            <span className="badge">Subscription</span>
+            <p>Talk with any companion as much as you like: no daily limit on replies. Cancel any time.</p>
+            <Link className="button" href="/companion/plan" data-track="shop-companion-plan">
+              See the Companion Plan
+            </Link>
+          </li>
+        )}
         {ownedOffSale.map((item) => (
           <li key={item.sku} className="card">
             <strong className={item.kind === "frame" ? frameClass(item.sku) : undefined}>{item.name}</strong>{" "}

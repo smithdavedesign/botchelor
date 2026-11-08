@@ -13,7 +13,7 @@ const html = (extra: Partial<EpisodeView>) => renderToStaticMarkup(createElement
 
 describe("a group night's card", () => {
   it("says Mixer for a mixer's pairing, Double date for a double date's table, and nothing for a date of two", () => {
-    expect(html({ double: true, group_kind: "mixer" })).toContain("💞 Mixer");
+    expect(html({ double: true, group_kind: "mixer" })).toContain("💞 Speed dating");
     expect(html({ double: true, group_kind: "double" })).toContain("💞💞 Double date");
     const plain = html({});
     expect(plain).not.toContain("Mixer");

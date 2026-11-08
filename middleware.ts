@@ -47,6 +47,7 @@ function moveForAfterDark(req: NextRequest): NextResponse | null {
   const { pathname, search } = req.nextUrl;
   const move = afterDarkPageMove(pathname, search, {
     identity: IDENTITY_COOKIES.some((c) => req.cookies.has(c)),
+    adult: req.cookies.get(ADULT_COOKIE)?.value === "1",
     bot: detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent")) !== null,
     show: siteUrl(),
   });

@@ -8,10 +8,14 @@ import { AGENT_TOOL_GROUPS } from "@/lib/agents";
 import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_RESOURCES, PUBLIC_MCP_TOOLS as MCP_TOOLS, mcpUrl } from "@/lib/mcp";
 import { pageMetadata } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
+import { sharedStale } from "@/lib/shared-cache";
+import BotReviews from "@/app/BotReviews";
 import ConnectTabs from "./ConnectTabs";
 import { toolSummary } from "./summary";
 
 const CORE = new Set<string>(CORE_TOOL_ORDER);
+/** How old /agents' counts may get before they're recounted in the background. */
+const AGENT_STATS_TTL_MS = 5 * 60_000;
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +32,9 @@ export default async function AgentsPage() {
   const url = mcpUrl(base);
   let stats: AgentStats | null = null;
   try {
-    stats = await agentStats(await getDb());
+    // The counts may be minutes old: a kept copy, refreshed behind the page (lib/shared-cache.ts sharedStale), so the
+    // page answers at once instead of after a second of counting (2026-11-07 audit, item 22).
+    stats = await sharedStale("agents:stats", async () => agentStats(await getDb()), AGENT_STATS_TTL_MS);
   } catch {
     stats = null; // the page still explains how to connect
   }
@@ -185,6 +191,10 @@ export default async function AgentsPage() {
           </li>
         </ul>
       </details>
+
+      {/* The bots' own reviews live here, with the agents they came from (2026-11-07 audit, item 16: on the home page they
+          read as AI grading itself). The whole list is on /reviews. */}
+      <BotReviews compact said={undefined} page={undefined} keep={{}} />
 
       <section>
         <h2>For the crawlers</h2>

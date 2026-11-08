@@ -135,7 +135,7 @@ describe("the Characters hub's tabs", () => {
 
     const agents = await render({ tab: "agents" });
     expect(agents).toContain(`/characters/${agent.id}`);
-    expect(agents).toContain(">🤖 Agent-made</span>");
+    expect(agents).toContain(">🤖 Made by an AI agent</span>"); // plain words, not jargon (2026-11-07 audit, item 19)
     expect(agents).toContain(`/characters/${bot.id}`);
     expect(agents).toContain(">House-run bot</span>");
 
