@@ -38,6 +38,19 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
+/**
+ * A page that called notFound(): a real 404, or (under a loading.tsx, which /companion has: the page streams, so its
+ * status is already 200) the site's not-found page with noindex. Either way it shows nothing of what was asked for.
+ */
+async function isNotFound(page, response) {
+  if (response?.status() === 404) return true;
+  const heading = page.getByRole("heading", { name: "This page isn't on the show" });
+  await heading.waitFor({ timeout: 10_000 }).catch(() => {});
+  // The page's own robots tag and the not-found's can both be there: any one of them says noindex.
+  const robots = await page.locator('meta[name="robots"]').evaluateAll((els) => els.map((e) => e.getAttribute("content") ?? ""));
+  return (await heading.isVisible()) && robots.some((r) => r.includes("noindex"));
+}
+
 /** What the stub was last asked to reply to (the companion's system prompt), to check what reaches the model. */
 const seen = { replyPrompts: [], crisisChecks: 0, factCalls: 0 };
 
@@ -158,9 +171,9 @@ async function main() {
       const ctx = await adultContext();
       try {
         const p = await ctx.newPage();
-        assert((await p.goto(`${base}/companion`)).status() === 404, "/companion should be not-found for a stranger");
+        assert(await isNotFound(p, await p.goto(`${base}/companion`)), "/companion should be not-found for a stranger");
         await register(ctx, `viewer${Date.now() % 1e6}`);
-        assert((await p.goto(`${base}/companion`)).status() === 404, "/companion should be not-found for a non-admin");
+        assert(await isNotFound(p, await p.goto(`${base}/companion`)), "/companion should be not-found for a non-admin");
         const api = await ctx.request.post(`${base}/api/companion`, { data: { character_id: "x" } });
         assert(api.status() === 404, `the API should be not-found too (HTTP ${api.status()})`);
         assert((await p.locator('nav a[href="/companion"]').count()) === 0, "no Companions nav link while it's off");
@@ -413,9 +426,12 @@ async function main() {
 
     await step("the list shows the conversation with its last message", async () => {
       await page.goto(`${base}/companion`);
-      const row = page.locator(".companion-card", { hasText: first }).first();
+      // Your conversations are cards that open the thread (the name is the card's link), with their last line.
+      const row = page.locator(".companion-thread-row", { hasText: first }).first();
       await row.waitFor({ timeout: 10_000 });
-      await row.getByRole("link", { name: "Open" }).waitFor();
+      const link = row.getByRole("link", { name: new RegExp(`^${first}`) }).first();
+      assert((await link.getAttribute("href")) === threadPath, `the card should open the thread (${await link.getAttribute("href")})`);
+      assert(((await row.locator(".companion-card-line").textContent()) ?? "").trim().length > 0, "the card should show the last message");
       await shot(page, "companion-list-desktop");
     });
 
@@ -425,7 +441,7 @@ async function main() {
       page.once("dialog", (d) => d.accept());
       await page.getByRole("button", { name: "Delete this conversation" }).click();
       await page.waitForURL(`${base}/companion`, { timeout: 15_000 });
-      assert((await page.goto(`${base}${threadPath}`)).status() === 404, "the deleted thread should be not-found");
+      assert(await isNotFound(page, await page.goto(`${base}${threadPath}`)), "the deleted thread should be not-found");
     });
   } finally {
     await browser.close();
