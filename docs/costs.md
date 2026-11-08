@@ -1,7 +1,7 @@
 # Botchelor: what it costs
 
 _Written 2026-10-21; updated 2026-10-24 (Venice's auto-pay, the scene writer measured: GLM-4.6 against DeepSeek V3.1,
-and admins' picture checks) and 2026-10-30 (the move off Vercel: DigitalOcean, Bunny, Cloudflare; `docs/hosting.md`). It covers what each operation costs, what the infrastructure costs every month, and what
+and admins' picture checks) 2026-10-30 (the move off Vercel: DigitalOcean, Bunny, Cloudflare; `docs/hosting.md`) and 2026-11-08 (Cloudflare Workers Paid). It covers what each operation costs, what the infrastructure costs every month, and what
 the project has spent so far. All amounts are in US dollars._
 
 The deeper write-ups are `docs/upgrade-cost.md` (a date's token cost, measured) and `docs/after-dark-costs.md`
@@ -63,6 +63,7 @@ browser keep finished files. Moving the bytes to object storage is in progress (
 | DigitalOcean scheduled job | On After Dark's app: the lobby hourly, the showcase check hourly, the daily job at 16:20 UTC | **up to $5** | Smallest size (`apps-s-1vcpu-0.5gb`), billed for the time it runs. Each hourly run lasts ~20 minutes (it waits between the lobby and the showcase check), so expect well under $5. DigitalOcean quoted $15 for After Dark's app with the job. A $15 spend alert is still to be set (Billing → Spend alerts; the form didn't save from automation). |
 | Bunny (After Dark's media, media.botchelor.com) | Storage zone `botchelor-ad` (New York, Standard) + pull zone `botchelor-ad-media` | **$1 minimum, ~$1–6** | Storage $0.025/GB a month (1.35 GB copied on 2026-10-30: ~3¢). CDN $0.01/GB in Europe and North America; Asia, Africa and South America are switched off. **Spend cap: 500 GB a month on the pull zone (at most $5 of traffic).** Prepaid: on a 14-day trial ($20 of trial credit, ends ~2026-11-13). Before then David adds $20 with Auto-Recharge off, or the account is disabled. |
 | Cloudflare (DNS and proxy for botchelor.com) | **Free** | $0 | Being set up 2026-10-30: DNS for botchelor.com, the bare domain proxied to the show, visitor location headers (After Dark's region rules). DigitalOcean's DNS holds the zone until the nameservers move. |
+| Cloudflare Workers Paid (the whole account) | **Workers Paid** since 2026-11-08 (David) | **$5** | Account-wide, shared with David's other products. Bought for alterpaw, pettycourt and squadwrap, whose share images take 0.1–1 s of CPU each; the free plan allows 10 ms a request. It includes 10M requests and 30M CPU-ms a month, then $0.30 a million requests and $0.02 a million CPU-ms. The idea-factory Worker (demand-test pages, every product's visit beacon) runs on the same account. |
 | Neon (Postgres) | **Launch** since 2026-10-20 (account 1426davejobs.agent@gmail.com) | **~$3–6** expected for botchelor | Compute $0.106 per CU-hour (32 CU-hours used in October so far), storage $0.35 per GB-month (~0.18 GB), transfer free up to 500 GB. A spending notification is set at $20. The same Neon org also holds alterpaw, squadwrap, tiebreak, grantgate and test, which are billed together. |
 | Domain botchelor.com | Wix registrar | David to fill in (typically ~$15–25 a year) | Wix is the registrar only. Since 2026-10-30 DNS is at DigitalOcean, moving to Cloudflare (`docs/hosting.md`). |
 | Stripe | Pay per sale | $0 fixed | 2.9% + 30¢ per purchase. |
@@ -94,16 +95,17 @@ cost per call (8 calls, 2.8¢ in all; each writer needed one second call in its 
 - **Thinking room:** GLM-4.6 thinks ~960 tokens before it writes, inside the step's 1,600-token reply budget, which left about 600 for the lines; one call in four ran out and the step was written again. Each writer now has `think_tokens` added to its reply budget (GLM-4.6: 1,200), so the lines always have room.
 - The recaps, memory, facts and clip directions stay on DeepSeek V3.1, so they don't take a minute and a half each.
 
-**Steady-state fixed cost (since 2026-10-30):** about **$30–40 a month** before any model spend:
+**Steady-state fixed cost (since 2026-10-30; Workers Paid added 2026-11-08):** about **$35–45 a month** before any model spend:
 
 | | A month |
 |---|---|
 | DigitalOcean: the show ($12) + After Dark ($10) + the scheduled job (up to $5) | $22–27 |
 | Neon | ~$3–6 |
 | Bunny | $1–6 (the $1 minimum until subscribers arrive) |
-| Cloudflare, Vercel (Hobby), Resend, GitHub | $0 |
+| Cloudflare Workers Paid (the whole account, shared with the other products) | $5 |
+| Cloudflare DNS, Vercel (Hobby), Resend, GitHub | $0 |
 | The domain, prorated | ~$2 |
-| **Total** | **~$28–41** |
+| **Total** | **~$33–46** |
 
 Before the move it was about $25 (Vercel Pro $20 shared with David's other products, Neon ~$5, the domain). Keeping
 Vercel Pro would have cost $20 *plus* the After Dark host it needs anyway (~$15–20 with Bunny, `docs/after-dark-hosting.md`),
