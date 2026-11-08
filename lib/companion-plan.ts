@@ -12,7 +12,7 @@ import { planLink, planPrice, planState, portalLink, type PlanStatus } from "./p
 
 type Env = Record<string, string | undefined>;
 
-import { COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY } from "./companion-shared";
+import { COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY, companionGuestReplies } from "./companion-shared";
 
 export { COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY };
 /** Every free reply in a UTC day, across everyone: about $3 on DeepSeek at the most. */
@@ -47,14 +47,49 @@ export type CompanionAllowance = {
   on_sale: boolean;
   /** Stripe's billing portal, for a subscriber to cancel or change their card. */
   manage: string | null;
+  /**
+   * No account yet (companion-shared.ts COMPANION_GUEST_REPLIES): `per_day` is then the guest's replies in all and `left`
+   * what's left of them, never coming back; a free account keeps the conversation going.
+   */
+  guest?: boolean;
 };
 
 async function used(db: Db, userId: string, day: string): Promise<number> {
   return (await db.query<{ replies: number }>(`select replies from companion_usage where user_id = $1 and day = $2`, [userId, day])).rows[0]?.replies ?? 0;
 }
 
-/** Where a person stands: unlimited, or how many free replies are left today, and the plan on offer. */
-export async function companionAllowance(db: Db, userId: string, now: Date = new Date(), env: Env = process.env): Promise<CompanionAllowance> {
+/** A guest's replies so far, every day counted (the counts are kept through last month, pruneCompanionUsage). */
+async function guestUsed(db: Db, userId: string): Promise<number> {
+  return (await db.query<{ n: number }>(`select coalesce(sum(replies), 0)::int as n from companion_usage where user_id = $1`, [userId])).rows[0]?.n ?? 0;
+}
+
+/**
+ * Where a person stands: unlimited, or how many free replies are left today, and the plan on offer. A guest (no account,
+ * `opts.guest`) has a handful of replies in all instead.
+ */
+export async function companionAllowance(
+  db: Db,
+  userId: string,
+  now: Date = new Date(),
+  env: Env = process.env,
+  opts: { guest?: boolean } = {},
+): Promise<CompanionAllowance> {
+  if (opts.guest) {
+    const cap = companionGuestReplies(env);
+    return {
+      unlimited: false,
+      admin: false,
+      plan: "none",
+      plan_ends: null,
+      per_day: cap,
+      left: Math.max(0, cap - (await guestUsed(db, userId))),
+      resets_at: nextDay(now),
+      price: planPrice("companion", env),
+      on_sale: planLink("companion", env) !== null,
+      manage: null,
+      guest: true,
+    };
+  }
   const [plan, admin] = await Promise.all([planState(db, userId, "companion", now), isAdmin(db, userId)]);
   const perDay = companionFreePerDay(env);
   const unlimited = plan.active || admin;
@@ -74,7 +109,7 @@ export async function companionAllowance(db: Db, userId: string, now: Date = new
 
 export type ReplyTicket =
   | { ok: true; free: boolean; day: string; counted: boolean }
-  | { ok: false; status: number; error: "free_used_up" | "free_busy" | "fair_use"; message: string; allowance: CompanionAllowance };
+  | { ok: false; status: number; error: "free_used_up" | "free_busy" | "fair_use" | "guest_used_up"; message: string; allowance: CompanionAllowance };
 
 const bump = (db: Db, userId: string, day: string, cap: number | null) =>
   db.query(
@@ -92,9 +127,26 @@ const unbump = (db: Db, userId: string, day: string) =>
  * Takes one reply before it's drawn: counted for the plan's fair use, or out of today's free ones (and the free tier's
  * ceiling). Refused before anything is sent, never in the middle of a reply.
  */
-export async function takeReply(db: Db, userId: string, now: Date = new Date(), env: Env = process.env): Promise<ReplyTicket> {
+export async function takeReply(db: Db, userId: string, now: Date = new Date(), env: Env = process.env, opts: { guest?: boolean } = {}): Promise<ReplyTicket> {
   const day = dayOf(now);
-  const allowance = await companionAllowance(db, userId, now, env);
+  const allowance = await companionAllowance(db, userId, now, env, opts);
+  if (opts.guest) {
+    if (!allowance.left) {
+      return {
+        ok: false,
+        status: 402,
+        error: "guest_used_up",
+        allowance,
+        message: `That's the ${allowance.per_day} free replies without an account. A free account keeps the conversation going, and everything you said is kept.`,
+      };
+    }
+    await bump(db, userId, day, null);
+    if (!(await bump(db, EVERYONE, day, companionFreeAllPerDay(env))).rows.length) {
+      await unbump(db, userId, day);
+      return { ok: false, status: 503, error: "free_busy", allowance, message: "Free replies are used up across Botchelor for today. They come back at midnight UTC." };
+    }
+    return { ok: true, free: true, day, counted: true };
+  }
   if (allowance.admin) return { ok: true, free: false, day, counted: false };
   if (allowance.unlimited) {
     const month = (await db.query<{ n: number }>(`select coalesce(sum(replies), 0)::int as n from companion_usage where user_id = $1 and day >= date_trunc('month', $2::date)`, [userId, day])).rows[0]?.n ?? 0;

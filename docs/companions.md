@@ -96,6 +96,14 @@ David, 2026-11-04: "open it up to the public and add the paywall with stripe".
   opens are rate-limited: 30 an hour, 100 a day). The free tier as a whole stops at 3,000 replies a day
   (`COMPANION_FREE_ALL_PER_DAY`, about $3), the most it can cost. Admins aren't counted; agents over MCP keep their own
   limits.
+- **Before an account (guests, 2026-11-07 audit item 6):** "Sign in to talk" used to come before a single line. Now a
+  visitor without an account gets 5 replies in all (`COMPANION_GUEST_REPLIES`, 0 turns guests off) in up to 3
+  conversations (`COMPANION_GUEST_THREADS`), then a free account keeps going: registering adopts the visitor's id, so
+  the conversation and what the character remembers carry over. Only on a signed session (`bz_sess`, or a new one the
+  first Talk signs), never a bare `bz_uid` that anyone could type in to read someone else's thread
+  (`app/api/companion/access.ts`, `lib/companion-access.ts`). One address (an HMAC of the IP) holds back a script that
+  throws cookies away: 25 replies an hour and 60 a day, 8 new conversations an hour and 20 a day. Guest replies count
+  in the free tier's daily ceiling, so the most it can cost stays the same.
 - **The Companion Plan, $9.99 a month** (`lib/paid-plans.ts`, `lib/companion-plan.ts`): no daily limit, fair use 3,000
   messages a month. Sold on a Stripe Payment Link (`COMPANION_PLAN_LINK`, label `COMPANION_PLAN_PRICE`) with no Stripe
   API key in the app: `/companion/plan` → `POST /api/plans/checkout` (an account, the 18+ gate and both boxes: 18+ and

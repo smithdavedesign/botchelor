@@ -193,6 +193,7 @@ function Stepper({
               type="button"
               className="wizard-rail-dot"
               aria-current={i === step ? "step" : undefined}
+              aria-label={`Step ${i + 1}: ${label}${i === step ? " (this step)" : i < max ? " (done)" : ""}`}
               disabled={i > max}
               onClick={() => i <= max && onJump(i)}
             >
@@ -312,6 +313,8 @@ export default function CreateWizard({
   const [week, setWeek] = useState(init?.thisWeek ?? "");
   // What they're hiding (Go deeper): saved as their own secrets beside the sheet, not in extras.
   const [hiding, setHiding] = useState<string[]>(init?.hiding ?? []);
+  // Filled from a sample (applySample): Review says so, and how to change it.
+  const [fromSample, setFromSample] = useState(false);
   // Editing: the owner chose to drop the explicit temperament and let the character's words decide again.
   const [temperamentCleared, setTemperamentCleared] = useState(false);
 
@@ -400,6 +403,10 @@ export default function CreateWizard({
     }
   }, [sheet, traits, pronouns, voice, appearance, hue, soul, autonomy, extras, hiding, maxStep, created, edit]);
 
+  /**
+   * Fills every step from a sample and goes straight to Review (2026-11-07 audit, item 5: a sample still took eight
+   * Next clicks). Every step stays open there, each with its Edit link.
+   */
   async function applySample() {
     const t = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
     // A sample someone already made keeps its surname under a free first name, so it isn't a second Juno Marlowe.
@@ -415,6 +422,10 @@ export default function CreateWizard({
     setImageSignals(null);
     setStyledFromImage(false);
     setLookId(null);
+    setTriedNext(false);
+    setFromSample(true);
+    setMaxStep(last);
+    setStep(S.review);
   }
 
   function applyLook(look: ResolvedLook) {
@@ -1095,6 +1106,12 @@ export default function CreateWizard({
         {step === S.review && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">{edit ? "Review" : "Review & create"}</legend>
+            {fromSample && !edit && (
+              <p className="notice wizard-sample-note">
+                <strong>{sheet.name || "A sample character"}</strong>, ready to go. Create them as they are, or change anything first with
+                the Edit links below.
+              </p>
+            )}
             {/* Grouped by the step each answer came from, each a line that opens (2026-10-31 UX audit, B7: a full
                 read-back was ~3 phone screens to Create), with a way straight back to that step. */}
             {(() => {

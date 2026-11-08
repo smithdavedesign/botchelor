@@ -51,6 +51,19 @@ export function authFromRequest(req: Request): Auth | null {
   return legacy ? { userId: legacy, authenticated: false } : null;
 }
 
+/**
+ * Whether the request's identity is a signed session (bz_sess), not a bare `bz_uid` that anyone could type in. What a
+ * person without an account keeps private (a companion conversation) is only theirs on a signed identity.
+ */
+export function signedIdentity(req: Request): boolean {
+  return verifySession(cookies(req).get(SESSION_COOKIE)) !== null;
+}
+
+/** signedIdentity, from a Next.js server cookie store. */
+export function signedIdentityFromCookieStore(store: { get(name: string): { value: string } | undefined }): boolean {
+  return verifySession(store.get(SESSION_COOKIE)?.value) !== null;
+}
+
 export function userIdFromRequest(req: Request): string | null {
   return authFromRequest(req)?.userId ?? null;
 }

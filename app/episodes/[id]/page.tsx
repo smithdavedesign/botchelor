@@ -21,6 +21,7 @@ import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { companionAllowed, companionEligible, companionOpen } from "@/lib/companion";
 import TalkButton from "@/app/companion/TalkButton";
+import { companionGuestFromCookies } from "@/lib/companion-access";
 import { secondDateState } from "@/lib/second-date";
 import { siblingEpisode } from "@/lib/group-dates";
 import { mixerNightOf } from "@/lib/mixer-night";
@@ -185,8 +186,9 @@ export default async function EpisodePage({
   searchParams: Promise<{ play?: string; from?: string }>;
 }) {
   const { id } = await params;
-  // `?play=1`: the creator just sent this date, so it opens on the theater stage and plays when it's filmed.
-  // `&from=N`: they watched N lines live while it was filmed, so the playback carries on from there.
+  // `?play=1`: the date opens in the theater and plays: for its creator, the date they just sent (on the filming stage
+  // while it's written); for anyone else, an aired date from a link that says "watch it" (home, /watch, the gate).
+  // `&from=N`: the creator watched N lines live while it was filmed, so the playback carries on from there.
   const query = await searchParams;
   const play = query.play === "1";
   const from = Math.max(0, Math.floor(Number(query.from) || 0));
@@ -209,9 +211,11 @@ export default async function EpisodePage({
       ? (async () => {
           const signedIn = Boolean(auth?.authenticated);
           if (signedIn ? !(await companionAllowed(db, auth)) : !companionOpen()) return [];
+          // Without an account: a guest tries a few replies first (lib/companion-access.ts), else a sign-in link.
+          const guest = companionGuestFromCookies(auth, cookieStore);
           const out: { id: string; name: string; signIn: boolean }[] = [];
           for (const c of episode.characters) {
-            if (await companionEligible(db, signedIn ? auth!.userId : "", c.id)) out.push({ id: c.id, name: c.name, signIn: !signedIn });
+            if (await companionEligible(db, auth?.userId ?? "", c.id)) out.push({ id: c.id, name: c.name, signIn: !signedIn && !guest });
           }
           return out;
         })().catch(() => [])
@@ -418,7 +422,8 @@ export default async function EpisodePage({
               venue={episode.venue ?? null}
               transcript={episode.transcript}
               endingLabel={endingWithDetail(episode.ending, dateNo, episode.ending_detail)}
-              autoOpen={play && episode.is_creator}
+              autoOpen={play}
+              justFilmed={play && episode.is_creator}
               startAt={play && episode.is_creator ? from : 0}
               roleplay={episode.roleplay ?? null}
             />
@@ -522,24 +527,6 @@ export default async function EpisodePage({
             lately={lately}
           />
         </div>
-        {talk.length > 0 && (
-          <section className="card episode-talk" aria-labelledby="episode-talk-head">
-            <p className="kicker">After the date</p>
-            <h2 id="episode-talk-head">Ask {talk.length === 1 ? talk[0].name.split(/\s+/)[0] : "them"} how it went</h2>
-            <p className="muted small">Off the show, one to one. They&apos;ll tell you their side. Every companion is an AI character.</p>
-            <p className="episode-talk-actions">
-              {talk.map((c) =>
-                c.signIn ? (
-                  <Link key={c.id} className="button secondary small" href={`/account?next=${encodeURIComponent(`/characters/${c.id}`)}`}>
-                    Sign in to talk to {c.name.split(/\s+/)[0]}
-                  </Link>
-                ) : (
-                  <TalkButton key={c.id} characterId={c.id} name={c.name.split(/\s+/)[0]} label={`Talk to ${c.name.split(/\s+/)[0]}`} className="button secondary small" />
-                ),
-              )}
-            </p>
-          </section>
-        )}
         {/* J3: a creator's finished date is when they want to hear what happens next (gone once notifications are on). */}
         {episode.is_creator && episode.status === "ready" && push && (
           <PushToggle publicKey={push.publicKey} prompt emailFallback title="Tell me when they text" body="They text each other after a date. Hear it as it happens, even with the site closed." />
@@ -690,6 +677,25 @@ export default async function EpisodePage({
         />
       )}
 
+      {/* After the date and how it ended (2026-11-07 audit, item 4: it asked "how did it go?" above the date itself). */}
+      {talk.length > 0 && (
+        <section className="card episode-talk" aria-labelledby="episode-talk-head">
+          <p className="kicker">After the date</p>
+          <h2 id="episode-talk-head">Ask {talk.length === 1 ? talk[0].name.split(/\s+/)[0] : "them"} how it went</h2>
+          <p className="muted small">Off the show, one to one. They&apos;ll tell you their side. Every companion is an AI character.</p>
+          <p className="episode-talk-actions">
+            {talk.map((c) =>
+              c.signIn ? (
+                <Link key={c.id} className="button secondary small" href={`/account?next=${encodeURIComponent(`/characters/${c.id}`)}`}>
+                  Sign in to talk to {c.name.split(/\s+/)[0]}
+                </Link>
+              ) : (
+                <TalkButton key={c.id} characterId={c.id} name={c.name.split(/\s+/)[0]} label={`Talk to ${c.name.split(/\s+/)[0]}`} className="button secondary small" />
+              ),
+            )}
+          </p>
+        </section>
+      )}
       {episode.afterglow && (
         <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} />
       )}

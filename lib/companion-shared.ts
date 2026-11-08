@@ -9,6 +9,25 @@ export function companionOpen(env: Record<string, string | undefined> = process.
   return env.COMPANION_OPEN?.trim() === "1";
 }
 
+/**
+ * Someone without an account can try a companion first (2026-11-07 audit, item 6: "Sign in to talk" came before a single
+ * line): this many replies in all, then a free account keeps the conversation going, memory and all (an account adopts
+ * the visitor's id, lib/auth.ts). COMPANION_GUEST_REPLIES overrides it; 0 turns guests off.
+ */
+export const COMPANION_GUEST_REPLIES = 5;
+/** The conversations a guest may open (each starts with a free opener from the character). */
+export const COMPANION_GUEST_THREADS = 3;
+
+export function companionGuestReplies(env: Record<string, string | undefined> = process.env): number {
+  const n = Number.parseInt((env.COMPANION_GUEST_REPLIES ?? "").trim(), 10);
+  return Number.isFinite(n) && n >= 0 ? n : COMPANION_GUEST_REPLIES;
+}
+
+/** Guests may talk once companions are open to everyone and guest replies aren't turned off. */
+export function companionGuestsOpen(env: Record<string, string | undefined> = process.env): boolean {
+  return companionOpen(env) && companionGuestReplies(env) > 0;
+}
+
 export const REPLY_LENGTHS = ["short", "normal", "long"] as const;
 export type ReplyLength = (typeof REPLY_LENGTHS)[number];
 export const REPLY_LENGTH_LABELS: Record<ReplyLength, string> = { short: "Short", normal: "Normal", long: "Long" };

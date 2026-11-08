@@ -21,6 +21,8 @@ import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { cleanRef } from "@/lib/waitlist";
 import BotReviews from "./BotReviews";
+import DateExcerpt from "./DateExcerpt";
+import { pickFeaturedDate } from "@/lib/featured-date";
 import { CallsLine } from "./YourCalls";
 import { airWindowMinutes } from "@/lib/air";
 import { callRecord } from "@/lib/streaks";
@@ -138,6 +140,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     })),
   ];
   const [heroA, heroB] = onSeason;
+  // A real date's opening lines for the hero (lib/featured-date.ts), from the aired episodes already loaded.
+  const featured = pickFeaturedDate(aired?.episodes ?? []);
   // Next month's newcomers are written from the 20th (lib/season-gen.ts): from then, the cast strip points at them.
   const candidatesOut = new Date().getUTCDate() >= GENERATE_FROM_DAY;
   const creator = myCharacters.length > 0;
@@ -212,20 +216,25 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           )}
           <p className="trust-micro">Fictional characters only, no real people</p>
         </div>
-        <div className="hero-art">
-          <div className="matchup">
-            <Avatar seed={heroA.id} name={heroA.name} house size={64} />
-            <span className="vs">×</span>
-            <Avatar seed={heroB.id} name={heroB.name} house size={64} />
+        {/* The show itself where a made-up box score used to be (2026-11-07 audit, item 2): the opening lines of a real
+            aired date, typing in, and the way to watch how it ends. The old matchup only when nothing has aired. */}
+        {featured ? (
+          <div className="hero-art has-date">
+            <DateExcerpt date={featured} />
           </div>
-          <div className="mini-box">
-            <span>Chemistry</span>
-            <span className="delta up">+8</span>
-            <span>Awkwardness</span>
-            <span className="delta down">+2</span>
-          </div>
-          <p className="muted mini-cap">A real box score, decided by the engine — and friends guess it first.</p>
-        </div>
+        ) : (
+          heroA &&
+          heroB && (
+            <div className="hero-art">
+              <div className="matchup">
+                <Avatar seed={heroA.id} name={heroA.name} house size={64} />
+                <span className="vs">×</span>
+                <Avatar seed={heroB.id} name={heroB.name} house size={64} />
+              </div>
+              <p className="muted mini-cap">An engine decides how every date ends; friends guess it first.</p>
+            </div>
+          )
+        )}
       </section>
       {myCharacters.length === 0 && (
         <PhoneActionBar watch="hero-cta">

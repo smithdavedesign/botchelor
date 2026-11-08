@@ -19,8 +19,10 @@ type Props = {
   venue: PlaceId | null;
   transcript: Turn[];
   endingLabel: string;
-  /** Open straight into the playback (the creator arriving from sending the date, `?play=1`). */
+  /** Open straight into the playback (`?play=1`: the creator arriving from sending the date, or a "watch it" link). */
   autoOpen?: boolean;
+  /** The creator's own date, just filmed (`?play=1` from sending it): the chip says so, and the funnel counts it apart. */
+  justFilmed?: boolean;
   /** Lines the creator already watched live while it was filmed (`?from=`): playback carries on from there. */
   startAt?: number;
   /** The roleplay the two played (lib/date-roleplays.ts): a chip in the header, so the lines read as their roles'. */
@@ -60,7 +62,7 @@ export default function EpisodeTheater(props: Props) {
   );
 }
 
-function Playback({ episodeId, characters, venue, transcript, endingLabel, autoOpen, startAt, roleplay, onExit }: Props & { onExit: () => void }) {
+function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, onExit }: Props & { onExit: () => void }) {
   const replay = useReplay(transcript, true, { startAt });
   const [convo, setConvo] = useState(true);
   // The aha moment (2026-11-07 product review, item 5): the replay reached the ending. Once per mount, never on exit.
@@ -68,8 +70,8 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, autoO
   useEffect(() => {
     if (!replay.done || watched.current) return;
     watched.current = true;
-    queueEvent("date_watched", { just_filmed: Boolean(autoOpen) });
-  }, [replay.done, autoOpen]);
+    queueEvent("date_watched", { just_filmed: Boolean(justFilmed) });
+  }, [replay.done, justFilmed]);
   const shown = replay.shown;
   const [a, b] = characters;
   const actLabel = shown.length ? DATE_ACTS[shown[shown.length - 1].act] ?? null : null;
@@ -96,7 +98,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, autoO
             <strong>
               <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
-            <span className="chip">{autoOpen ? "Just filmed" : "Replay"}</span>
+            <span className="chip">{justFilmed ? "Just filmed" : "Replay"}</span>
             {roleplay && (
               <span className="chip" title="A roleplay both sides agreed to: the lines are their roles'">
                 {roleplay.icon} {roleplay.title}
