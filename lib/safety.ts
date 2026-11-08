@@ -90,7 +90,11 @@ const REAL_PEOPLE_PATTERNS = REAL_PEOPLE.map((name) => new RegExp(` ${name.split
 // A thing's age, said right before the thing ("a sixteen-year-old fountain", "a twelve year old whisky"), isn't a
 // person's (#1210; David, 2026-11-01: allow it for a short list of things, everything else stays refused). Only these
 // words, only straight after "<age> year old": never a pet, a doll, a photo or anything a person could be.
-const THINGS = "fountain|house|home|building|bridge|tower|church|chapel|barn|cabin|hotel|bar|pub|restaurant|cafe|bakery|shop|store|theater|theatre|tree|oak|vine|garden|wine|whisky|whiskey|scotch|bourbon|rum|cognac|port|brandy|car|truck|van|bike|motorcycle|boat|ship|clock|piano|guitar|violin|cello|record|book|map|coat|jacket|recipe|painting|statue|sculpture|rug|sofa|couch|table|machine|laptop|computer|phone";
+// #1341 (2026-11-08, David: fix it): aged foods and drinks too ("a fourteen-year-old Gruyère"). Left out on purpose:
+// words that can be a person: ham (a show-off), brie and sherry (names), stout, starter (a player).
+const THINGS =
+  "fountain|house|home|building|bridge|tower|church|chapel|barn|cabin|hotel|bar|pub|restaurant|cafe|bakery|shop|store|theater|theatre|tree|oak|vine|garden|wine|whisky|whiskey|scotch|bourbon|rum|cognac|port|brandy|car|truck|van|bike|motorcycle|boat|ship|clock|piano|guitar|violin|cello|record|book|map|coat|jacket|recipe|painting|statue|sculpture|rug|sofa|couch|table|machine|laptop|computer|phone" +
+  "|cheese|cheddar|gruyere|gouda|parmesan|parmigiano|pecorino|manchego|comte|vinegar|balsamic|prosciutto|jamon|miso|sourdough|tequila|mezcal|armagnac|calvados|madeira|sake|beer|ale|vintage";
 const A_THINGS_AGE = `(?!(?:${THINGS})s? )`;
 const UNDER_18 = "(?:[1-9]|1[0-7])";
 const NOT_AN_AGE_AFTER = "(?!(?:\\d+|foot|feet|ft|cm|m|in|inch|inches|kg|lb|lbs|stone|of|out|percent|times)\\b)";
