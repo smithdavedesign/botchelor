@@ -11157,6 +11157,13 @@ html.constellation-locked body {
   background: var(--accent-btn);
   color: var(--accent-ink);
 }
+/* "Showing the 30 strongest pairs" and the button for the rest (2026-11-07 audit, item 17): it sits on the sky, so it
+   takes the sky's label colour (the page's ink was dark on dark). */
+.constellation-more {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) 0;
+  color: var(--constellation-label);
+}
 .constellation-filter {
   display: inline-flex;
   align-items: center;
