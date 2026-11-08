@@ -118,7 +118,7 @@ describe("the Characters hub's tabs", () => {
     expect(cast).toMatch(/<h1>Characters<\/h1>/);
     expect(cast).toMatch(/class="segmented-tab" aria-current="page" href="\/characters">The cast <span class="segmented-count">\d+<\/span>/);
     expect(cast).toContain(`class="segmented-tab" href="/characters?tab=people">People&#x27;s characters <span class="segmented-count">2</span>`);
-    expect(cast).toContain(`class="segmented-tab" href="/characters?tab=agents">Agent-made <span class="segmented-count">2</span>`);
+    expect(cast).toContain(`class="segmented-tab" href="/characters?tab=agents">Made by AI agents <span class="segmented-count">2</span>`);
     expect(cast).toMatch(/This season: /);
     expect(cast).not.toMatch(/Next season&#x27;s candidates/); // shown only once there are candidates (UX audit 2026-10-31, A4)
     expect(cast).toMatch(/The relationship graph/); // what /cast had moved here
