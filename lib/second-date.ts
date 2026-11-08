@@ -3,15 +3,20 @@
  * wants_another, the afterglow's "it was mutual"), an owner can book it. It costs a token like any date, and it
  * happens where they planned it, with the plan from their texts in both prompts (lib/relationships.ts).
  *
- * Consent, social-network style: the characters agreed, and the other character's owner has to have agreed to
- * dates too. A house character, or a player's character that's open to dates, already has; otherwise its owner
- * says yes as well (`second_date_requests`), and whichever owner completes the agreement books it. Blocks always
- * win. One second date per date (episodes.followup_of is unique).
+ * Consent, social-network style: the characters agreed, and the other character's owner says yes as well
+ * (`second_date_requests`); whichever owner completes the agreement books it, on their own dates. The show's own side
+ * has no one else to ask, so it agrees at once: a house character, a house-run bot's (lib/house-bots.ts), or both
+ * characters yours. Blocks always win. One second date per date (episodes.followup_of is unique).
+ *
+ * open_to_dates is a standing yes to FIRST dates only (#1343, 2026-11-08: both sides of an agent pair reported a second
+ * date booked on the shared budget "using texts as consent"; David: fix it). A second date is a choice about this one
+ * person, so their owner makes it.
  */
 import type { Db } from "./db";
 import { dateNumberSql, publicDateSql } from "./date-number";
 import { takenWith } from "./partners";
 import { loadRelationship } from "./relationships";
+import { isHouseBotAgent } from "./house-bots";
 import { DELETED_OWNER } from "./rules";
 import { secondDateFreeNow } from "./allowance";
 
@@ -79,7 +84,10 @@ export type SecondDateState = {
   taken_with?: string | null;
   /** The second date, once it's booked. */
   planned_episode_id: string | null;
-  /** The other character's owner has to say yes too (their character isn't house or open to dates). */
+  /**
+   * The other character's owner has to say yes too: anyone but the show's own side (a house character, a house-run
+   * bot's) or yourself. open_to_dates doesn't count here: it's a yes to first dates (#1343).
+   */
   needs_their_yes: boolean;
   /** This owner already said yes and is waiting; the other owner already asked. */
   you_asked: boolean;
@@ -107,10 +115,9 @@ export async function secondDateState(db: Db, episodeId: string, userId: string,
   if (!mine) return null;
   const theirs = mine === "a" ? "b" : "a";
   const partnerOwner = d[`${theirs}_owner`];
-  const partnerOpen = d[`${theirs}_open`];
   const mutual = Boolean(d.sides?.[0]?.wants_another && d.sides?.[1]?.wants_another);
-  // Both characters yours: your yes is theirs too.
-  const needsTheirYes = partnerOwner !== null && partnerOwner !== userId && !partnerOpen;
+  // Both characters yours: your yes is theirs too. The show's own side agrees at once.
+  const needsTheirYes = !(await agreesAtOnce(db, partnerOwner, userId));
   // The asks, who theirs is taken by and the pair's relationship, all at once (2026-11-04 performance audit).
   const [asksRows, taken, rel] = await Promise.all([
     db.query<{ user_id: string }>(`select user_id from second_date_requests where episode_id = $1`, [episodeId]),
@@ -146,6 +153,15 @@ export async function secondDateState(db: Db, episodeId: string, userId: string,
     next_date_number: d.next_number,
     free: reason === null && (await secondDateFreeNow(db, userId).catch(() => false)),
   };
+}
+
+/**
+ * The other side has no one else to ask, so its yes comes with the booking: a house character (no owner), a house-run
+ * bot's character, or your own. Everyone else's owner says yes themselves (#1343: open_to_dates is not a yes here).
+ */
+async function agreesAtOnce(db: Db, partnerOwner: string | null, userId: string): Promise<boolean> {
+  if (partnerOwner === null || partnerOwner === userId) return true;
+  return isHouseBotAgent(db, partnerOwner).catch(() => false);
 }
 
 /** Records this owner's yes. Idempotent. */
@@ -196,7 +212,7 @@ export async function checkSecondDate(
   if (d.planned) return no(409, "already_planned", "Their second date is already booked.");
   if (d.blocked) return no(409, "match_unavailable", "That match is no longer available.");
   if (partnerOwner === DELETED_OWNER) return no(409, "partner_gone", "That character's creator has left the show.");
-  if (partnerOwner !== null && partnerOwner !== userId && !d[`${theirs}_open`]) {
+  if (!(await agreesAtOnce(db, partnerOwner, userId))) {
     const yes = (await db.query(`select 1 from second_date_requests where episode_id = $1 and user_id = $2`, [episodeId, partnerOwner])).rows.length > 0;
     if (!yes) return no(409, "needs_their_yes", `${d[`${theirs}_name`]}'s creator hasn't said yes to a second date yet.`);
   }

@@ -2309,15 +2309,16 @@ export const MUTUAL_MEANS = "mutual is the show's decision for both characters (
  * Who agreed to a couple's second date, and where each yes came from (2.10.0, #661, the 2026-10-22-0800 run: "the reply said
  * mutual: true, which I took as their consent, but I couldn't see where it came from"): the two characters (both wanted
  * another when the date ended: the engine's call, which two see_again yeses can tip), the other character's creator (the
- * house cast always says yes; open to dates is its creator's standing yes; or their own yes to this second date, or not yet),
+ * house cast and the house-run bots always say yes; otherwise their own yes to this second date, or not yet: open to dates is a
+ * yes to first dates only, #1343),
  * and, when there's one, the match both said yes to and the plan in their texts. Null when the date isn't mutual.
  */
 async function whoAgreed(db: Db, episodeId: string, userId: string): Promise<string | null> {
   const state = await secondDateState(db, episodeId, userId).catch(() => null);
   if (!state?.mutual) return null;
   const r = (
-    await db.query<{ wishes: { a?: boolean | null; engine?: string } | null; ending: string; house: boolean; owner: string | null; open: boolean; asked: Date | string | null; matched: boolean }>(
-      `select e.wishes, e.ending, p.is_house as house, p.owner_id as owner, p.open_to_dates as open,
+    await db.query<{ wishes: { a?: boolean | null; engine?: string } | null; ending: string; house: boolean; owner: string | null; asked: Date | string | null; matched: boolean }>(
+      `select e.wishes, e.ending, p.is_house as house, p.owner_id as owner,
               (select q.created_at from second_date_requests q where q.episode_id = e.id and q.user_id = p.owner_id) as asked,
               exists (select 1 from matches m where m.character_lo = least($2, $3) and m.character_hi = greatest($2, $3) and m.yes_lo and m.yes_hi) as matched
          from episodes e join characters p on p.id = $3 where e.id = $1`,
@@ -2331,7 +2332,7 @@ async function whoAgreed(db: Db, episodeId: string, userId: string): Promise<str
   const creator =
     r.owner === userId ? "both characters are yours"
     : r.house || !r.owner ? `${them} is of the house cast, which always says yes`
-    : r.open ? `${them} is open to dates, its creator's standing yes, so no separate yes was needed`
+    : !state.needs_their_yes ? `${them} is one of the show's house-run bots, which always say yes`
     : r.asked ? `${them}'s creator said yes to this second date (${new Date(r.asked).toISOString()})`
     : `${them}'s creator hasn't said yes yet (it's booked when they do)`;
   const extras = [r.matched ? "they matched and both said yes to a date (answer_match)" : null, state.plan.length ? `their texts after the date planned it (“${state.plan[0].slice(0, 90)}”)` : null].filter(Boolean);

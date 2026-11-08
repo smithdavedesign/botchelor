@@ -42,7 +42,7 @@ const Input = z.object({
 
 /**
  * An owner says yes to their characters' second date. When the other owner has already agreed (or doesn't need
- * to: a house character, or one that's open to dates), this books it like any date (a token, the same limits), and
+ * to: a house character, a house-run bot's, or your own; open to dates is a yes to first dates only, #1343), this books it like any date (a token, the same limits), and
  * it happens where they planned it. Otherwise it records the yes and waits for theirs (202).
  */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
@@ -68,7 +68,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       await notify(db, owners.get(state.partner_character_id), {
         kind: "second_date_yes",
         title: `💌 ${shortName(mine)} wants a ${dateLabel(state.next_date_number).toLowerCase()} with ${shortName(state.partner_name)}`,
-        body: "Their creator said yes. Say yes too and it's booked.",
+        body: "Their creator said yes. Say yes too and it's booked, on your dates: whoever says yes last books it.",
         link: `/episodes/${id}`,
       });
     }
