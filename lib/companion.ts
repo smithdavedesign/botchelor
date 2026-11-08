@@ -5,7 +5,7 @@ import { adultKeys } from "./adult/settings";
 import { track } from "./analytics";
 import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
-import { AVOID_LINES, companionMessages, RECENT_TURNS, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
+import { AVOID_LINES, companionMessages, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
 import { factsForPrompt, updateFacts, updateSummary } from "./companion-memory";
 import {
   COMPANION_GUEST_THREADS,
@@ -29,7 +29,7 @@ import { loadOurIds } from "./our-traffic";
 import { recordServerError } from "./errors";
 import { premiseForYou, rolesOf, type RoleplayTerms } from "./roleplays";
 import { DELETED_OWNER } from "./rules";
-import { checkShowText } from "./safety";
+import { checkFamilyTalk } from "./safety";
 import { showCastIds } from "./season-cast";
 import { countCrisis, lineInCrisis, PG_REDIRECT } from "./step-in";
 import { venue, venueName, type VenueId } from "./venues";
@@ -437,6 +437,15 @@ async function recentTurns(db: Db, threadId: string, exclude: readonly string[] 
   return { turns: recent, avoid };
 }
 
+/** The character's own lines in this thread, newest first: what a new reply mustn't say again (repeatsEarlier). */
+async function earlierLines(db: Db, threadId: string): Promise<string[]> {
+  const { rows } = await db.query<{ text: string }>(
+    `select text from companion_messages where thread_id = $1 and role = 'character' order by created_at desc, id desc limit 150`,
+    [threadId],
+  );
+  return rows.map((r) => r.text);
+}
+
 /**
  * The character's reply to the thread as it stands: one model call, split into 1-3 messages, each checked against the
  * show's PG line and the crisis list. A reply that fails is drawn once more; a second failure is a deflection. Fails
@@ -460,6 +469,10 @@ async function speak(
   let bubbles: string[] | null = null;
   let action: string | null = null;
   const scene = promptScene(t, character.name);
+  const said = await earlierLines(db, t.id);
+  // A safe draw that only says something again: used when the redraw doesn't come back better (never a deflection).
+  let safeRepeat: { bubbles: string[]; action: string | null } | null = null;
+  const again = (x: string) => `${x.slice(0, 300)} (you've said this before: say something new)`;
   for (let attempt = 0; attempt < 2 && !bubbles; attempt++) {
     if (attempt > 0 && Date.now() - started > REDRAW_WITHIN_MS) break;
     let raw: string;
@@ -481,16 +494,29 @@ async function speak(
     if (scene) {
       // A scene: one line, with what they do as they say it; both under the PG line and the crisis list.
       const line = sceneReply(raw, character.name);
-      if (line && checkShowText({ dialogue: line.say, action: line.action ?? "" }).ok && !crisisIntent(line.say) && !crisisIntent(line.action ?? "")) {
+      if (line && checkFamilyTalk(line.say).ok && checkFamilyTalk(line.action ?? "").ok && !crisisIntent(line.say) && !crisisIntent(line.action ?? "")) {
+        if (repeatsEarlier(line.say, said)) {
+          safeRepeat ??= { bubbles: [line.say], action: line.action };
+          insteadOf = again(line.say);
+          continue;
+        }
         bubbles = [line.say];
         action = line.action;
       } else insteadOf = `${line ? `${line.action ? `(${line.action}) ` : ""}${line.say}` : raw}`.slice(0, 300) + " (keep it PG and kind)";
       continue;
     }
     const drawn = replyBubbles(raw, character.name);
-    if (drawn.length && drawn.every((b) => checkShowText({ dialogue: b }).ok && !crisisIntent(b))) bubbles = drawn;
-    else insteadOf = `${drawn.join(" ").slice(0, 300)} (keep it PG and kind)`;
+    if (drawn.length && drawn.every((b) => checkFamilyTalk(b).ok && !crisisIntent(b))) {
+      // Not an earlier line, and not a bubble before it in this same reply (the sim saw one paragraph sent twice).
+      const fresh = drawn.filter((b, i) => !repeatsEarlier(b, [...said, ...drawn.slice(0, i)]));
+      if (fresh.length === drawn.length) bubbles = drawn;
+      else {
+        safeRepeat ??= { bubbles: fresh.length ? fresh : drawn, action: null };
+        insteadOf = again(drawn.join(" "));
+      }
+    } else insteadOf = `${drawn.join(" ").slice(0, 300)} (keep it PG and kind)`;
   }
+  if (!bubbles && safeRepeat) ({ bubbles, action } = safeRepeat);
   const texts = bubbles ?? [scene ? SCENE_DEFLECTIONS[Math.floor(Math.random() * SCENE_DEFLECTIONS.length)] : DEFLECTIONS[Math.floor(Math.random() * DEFLECTIONS.length)]];
   const cost = usage.reduce((s, u) => s + (u.cost ?? 0), 0);
   const modelId = served ?? usage[0]?.model ?? null;
@@ -513,7 +539,7 @@ export type CompanionSend = { ok: true; view: CompanionThreadView; replied?: fal
 async function screen(db: Db, t: ThreadRow, text: string, now: Date, surface: CompanionSurface): Promise<CompanionFail | null> {
   const { crisis } = await lineInCrisis(text, surface, await modelFor(db));
   if (crisis) return pauseForCrisis(db, t.id, surface, now);
-  const safe = checkShowText({ dialogue: text });
+  const safe = checkFamilyTalk(text);
   if (!safe.ok) return fail(422, "refused", PG_REDIRECT[safe.reason]);
   return null;
 }

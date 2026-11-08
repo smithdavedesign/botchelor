@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Character } from "@/lib/character";
-import { BUBBLE_MAX, companionMessages, MAX_BUBBLES, RECENT_TURNS, replyBubbles, type PromptTurn } from "@/lib/companion-prompt";
+import { BUBBLE_MAX, companionMessages, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, type PromptTurn } from "@/lib/companion-prompt";
 import { companionNotice, companionOpen } from "@/lib/companion-shared";
 
 /** A character as loadCharacter returns it, with only what the prompt reads filled in. */
@@ -154,5 +154,18 @@ describe("the switch and the notice", () => {
   });
   it("names the character by first name", () => {
     expect(companionNotice("Nell Okafor")).toBe("Nell is an AI character, not a real person.");
+  });
+});
+
+describe("repeatsEarlier", () => {
+  const before = ["The rain came in sideways off the harbour and I spent the afternoon chasing an umbrella down the pier.", "Ha."];
+  it("catches an earlier line said again, word for word or nearly", () => {
+    expect(repeatsEarlier("The rain came in sideways off the harbour and I spent the afternoon chasing an umbrella down the pier.", before)).toBe(true);
+    expect(repeatsEarlier("Honestly the rain came in sideways off the harbour and I spent the afternoon chasing an umbrella down the pier!", before)).toBe(true);
+  });
+  it("lets new lines and short ones through", () => {
+    expect(repeatsEarlier("The rain stopped by noon, so I finally repainted the boat's name.", before)).toBe(false);
+    expect(repeatsEarlier("Ha.", before)).toBe(false);
+    expect(repeatsEarlier("How was your day?", ["How was your day?"])).toBe(false);
   });
 });

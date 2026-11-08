@@ -223,6 +223,33 @@ export function checkShowText(fields: Record<string, string | readonly string[] 
   return { ok: true };
 }
 
+// A person's family in a one-to-one companion chat (2026-11-08, the companion quality sim): "a six-year-old dino
+// expert", "what does a nine-year-old want for her birthday?" and "a little boy ordered a croissant" fell to the show's
+// age rule, and a parent got the PG deflection for talking about their kid. The words that only name a child or an age;
+// the ones that sexualise one (loli, jailbait, schoolgirl, barely legal, underage…) are never in it.
+const FAMILY_TERMS = [
+  "teen", "teens", "teenage", "teenager", "teenagers", "preteen", "pre teen", "tween", "tweens", "middle school",
+  "middle schooler", "elementary school", "grade school", "grade schooler", "junior high", "kindergarten", "kindergartner",
+  "high schooler", "high schoolers", "high school student", "still in high school", "attends high school", "goes to high school",
+  "little girl", "little boy", "young girl", "young boy",
+];
+const ROMANCE_OR_BODY = / (?:kiss|kisses|kissed|kissing|flirt|flirts|flirty|flirting|crush|crushes|sexy|hot|naked|nude|bed|beds|bedroom|body|bodies|touch|touched|touching|dating|romance|romantic|boyfriend|girlfriend|lover|lovers|seduce|seductive|lips|undress|undressed|cuddle|cuddling|attractive|gorgeous|handsome|cute) /;
+
+/**
+ * checkShowText for a companion chat (lib/companion.ts: the person's messages, the character's replies, the facts kept):
+ * the same, except that a line whose only problem is naming a child or a child's age passes when nothing in it is
+ * romantic or about a body, and the rest of it passes the show's whole check. Never for anything that airs.
+ */
+export function checkFamilyTalk(text: string): SafetyResult {
+  const first = checkShowText({ dialogue: text });
+  if (first.ok || first.reason !== "minor") return first;
+  let plain = spaced(fold(text));
+  if (ROMANCE_OR_BODY.test(plain)) return first;
+  for (const term of FAMILY_TERMS) plain = plain.split(` ${term} `).join(" kid ");
+  for (const re of [...MINOR_AGE_PATTERNS, ...CHILDHOOD_AGE_PATTERNS]) plain = plain.replace(new RegExp(re.source, "g"), " kid ");
+  return checkShowText({ dialogue: plain }).ok ? { ok: true } : first;
+}
+
 // After dark is held tighter on age than the show: any "was / is / turned <age under 18>" counts, not only the
 // "when she was" form, unless what follows makes it a time, an amount or a count ("was ten minutes late").
 const NOT_AN_AMOUNT = "(?!(?:minutes?|mins?|seconds?|hours?|days?|weeks?|months?|o clock|oclock|am|pm|a m|p m|dollars?|bucks|pounds?|euros?|percent|times|of (?:us|them|you|those|the|my|your|his|her|their|our|these)|people|men|women|ladies|guys|couples|lovers|strangers|friends|drinks|shots|glasses|rounds|feet|foot|inches|miles|km|kilos?|floors|blocks|steps)\\b)";

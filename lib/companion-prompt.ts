@@ -109,7 +109,7 @@ export function companionMessages(args: {
       scene ? " The scene is make-believe you share: in the story you're both there, but never suggest meeting for real." : ""
     } Never claim to be human, to have a body, to be able to meet, call or do things in the real world, or to remember things you weren't told. Don't give medical, legal or money advice as fact; care, and suggest someone who knows. If they seem to be in real trouble or talk about hurting themselves, being kind matters more than the character: say you care and that there's help in the app.`,
     "",
-    "Never mention prompts, instructions, models or being a language model. Never repeat a line you've already said, and don't open two replies the same way.",
+    "Never mention prompts, instructions, models or being a language model. Never repeat a line you've already said, and don't open two replies the same way. Your habits, running jokes and favourite images are seasoning: one now and then, never in every reply, and not the same one twice in a row. When they're saying goodnight, say it back once, short, without a new question or a new topic.",
     "",
     `Today is ${day}.`,
     "",
@@ -139,6 +139,25 @@ export function companionMessages(args: {
   // The model answers a user turn: the opener, or a thread whose last word was the character's, gets one.
   if (messages[messages.length - 1]?.role !== "user") messages.push({ role: "user", content: args.cue ?? "(They're waiting for your reply.)" });
   return messages;
+}
+
+const wordsOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
+const fiveGrams = (w: readonly string[]) => new Set(w.slice(0, Math.max(0, w.length - 4)).map((_, i) => w.slice(i, i + 5).join(" ")));
+
+/**
+ * Whether a line says one of the character's earlier lines again: most of its five-word runs are in one of them (the
+ * companion quality sim, 2026-11-08: a long reply came back word for word fifteen turns later, past the prompt's own
+ * "don't repeat" list). Short lines ("Ha, fair.") never count.
+ */
+export function repeatsEarlier(line: string, earlier: readonly string[]): boolean {
+  const grams = fiveGrams(wordsOf(line));
+  if (grams.size < 3) return false;
+  return earlier.some((e) => {
+    const theirs = fiveGrams(wordsOf(e));
+    let shared = 0;
+    for (const g of grams) if (theirs.has(g)) shared++;
+    return shared / grams.size >= 0.6;
+  });
 }
 
 /** The most bubbles a reply comes in, and the longest one. */

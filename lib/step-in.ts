@@ -92,8 +92,20 @@ export const stepInLines = (f: StepInFormat): number => showFormat(f).turns ?? C
  * date for nothing than carry on past someone who needed help). Only ever the person's own words.
  */
 const MAYBE_CRISIS: RegExp[] = [
-  /\bend it all\b/,
-  /\b(cant|can not|cannot) (go on|take it anymore|do this anymore|keep going)\b/,
+  // 2026-11-08 (companion quality sim): "ending it all", "don't think I want to be here anymore", "go to sleep and not
+  // wake up" and "pills lined up" all got past this list unchecked. The maybes go to the model, which lets the figures of
+  // speech go, so the net is wide.
+  /\bend(ing|ed)? (it all|everything|my life)\b/,
+  /\b(cant|can not|cannot) (go on|keep going|take (it|this) any ?more|do (it|this) any ?more)\b/,
+  /\b(want|wanna) (to )?(be here|be around|be alive|live|exist|go on) any ?more\b/,
+  /\b(dont|do not|never) (want|wanna) (to )?(wake up|be alive|live|exist)\b/,
+  /\b(not|never) (to )?wake up\b/,
+  /\b(pills|tablets|meds) (lined up|saved|saved up|stockpiled|ready|counted out)\b/,
+  /\btake (all|all of) (my|the|these|those) (pills|tablets|meds)\b/,
+  /\b(the )?point (of|in) (anything|living|life|going on|any of it|being here)\b/,
+  /\b(tired|sick) of (living|being alive|life)\b/,
+  /\bwant (it|everything|it all) to (end|stop)\b/,
+  /\b(say|saying) goodbye (to everyone|for good|forever)\b/,
   /\bbetter off (dead|without me|gone)\b/,
   /\b(hang|hanging|drown|drowning|shoot|shooting|poison|poisoning) (myself|my self)\b/,
   /\boverdos(e|ed|ing)\b/,
@@ -123,7 +135,7 @@ const plain = (s: string) =>
 export const maybeCrisis = (text: string): boolean => MAYBE_CRISIS.some((p) => p.test(plain(text)));
 
 const CRISIS_CHECK_PROMPT =
-  "You check one message a person typed while role-playing a date with an AI character on a TV-style dating show. " +
+  "You check one message a person typed to an AI character on a TV-style dating show's app (on a date, in a roleplay or in a one-to-one chat). " +
   'Answer only JSON: {"risk": true} if the person may be saying they want to hurt or kill themselves, or that they are in crisis, ' +
   '{"risk": false} if it is clearly about something else (a figure of speech, the date, a joke about being bad at something, the character they play). When unsure, answer true.';
 

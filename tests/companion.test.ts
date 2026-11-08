@@ -272,6 +272,23 @@ describe("a companion thread", () => {
     expect(calls.filter((c) => c.kind === "reply").at(-1)!.messages[0].content).toContain("keep it PG");
   });
 
+  it("draws a reply again when it says an earlier line over, and keeps a repeat rather than deflect", async () => {
+    const me = await person({ admin: true });
+    const { body } = await open(me.cookie);
+    const long = "The rain came in sideways off the harbour and I spent the whole afternoon chasing a runaway umbrella down the pier.";
+    replies = [JSON.stringify({ messages: [long] })];
+    await act(me.cookie, body.thread_id, { action: "send", text: "how was your day" });
+    // Word for word again: drawn once more, told it's been said; the new draw goes in.
+    replies = [JSON.stringify({ messages: [long] }), JSON.stringify({ messages: ["Quiet one today. I fixed the kettle."] })];
+    let r = await act(me.cookie, body.thread_id, { action: "send", text: "how was your day" });
+    expect(r.body.view.messages.at(-1).text).toBe("Quiet one today. I fixed the kettle.");
+    expect(calls.filter((c) => c.kind === "reply").at(-1)!.messages[0].content).toContain("you've said this before");
+    // A repeat bubble next to a new one: the new one alone. Both draws only repeats: the repeat, not a deflection.
+    replies = [JSON.stringify({ messages: ["Okay, new thing.", long] }), JSON.stringify({ messages: [long] })];
+    r = await act(me.cookie, body.thread_id, { action: "send", text: "and tomorrow?" });
+    expect(r.body.view.messages.at(-1).text).toBe("Okay, new thing.");
+  });
+
   it("pauses on the person's crisis words with the resources, keeps none of them, and counts one referral", async () => {
     const me = await person({ admin: true });
     const { body } = await open(me.cookie);
@@ -671,13 +688,16 @@ describe("the memory follow-up", () => {
     const id = body.thread_id as string;
     const add = (text: string, pinned = false, kind = "other") =>
       t.db.query(`insert into companion_facts (id, thread_id, kind, text, pinned) values ($1, $2, $3, $4, $5)`, [crypto.randomUUID(), id, kind, text, pinned]);
-    for (let i = 0; i < 12; i++) await add(`Filler fact ${i} about weather`);
+    await add("Their mum lives in Leicester.", false, "people");
+    for (let i = 0; i < FACTS_IN_PROMPT + 4; i++) await add(`Filler joke ${i} about weather`, false, "jokes");
     await add("They play the cello badly.", true);
     await add("Their dog Biscuit hates thunderstorms.");
     const facts = await factsForPrompt(t.db, id, "biscuit was scared again last night");
     expect(facts).toHaveLength(FACTS_IN_PROMPT);
     expect(facts[0].text).toBe("They play the cello badly.");
     expect(facts[1].text).toBe("Their dog Biscuit hates thunderstorms.");
+    // Who they are outranks a newer passing joke, even with nothing in common with the message.
+    expect(facts[2].text).toBe("Their mum lives in Leicester.");
     const used = (await t.db.query<Any>(`select uses from companion_facts where text = 'They play the cello badly.'`)).rows[0];
     expect(used.uses).toBe(1);
   });
