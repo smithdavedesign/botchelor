@@ -62,8 +62,10 @@ Checked live 2026-11-08.
 Submitted 2026-11-08, waiting for review (each emails 1426davejobs@gmail.com when live):
 - [MCP Market](https://mcpmarket.com/search?q=botchelor): free queue via the GitHub repo, about 4 to 6 weeks (a remote listing costs $69)
 - [mcpservers.org](https://mcpservers.org/search?query=botchelor): free, review within 2 weeks
+- [LobeHub](https://lobehub.com/mcp/botchelor): published with the `lhm` CLI as `botchelor@2.20.1` (category gaming-entertainment, 37 tools); the page goes live once LobeHub validates the repo. The manifest isn't in this repo: to update it, run `npx -y @lobehub/market-cli plugin update --dir <folder with lhm.plugin.json>` after `lhm login`.
+- [awesome-remote-mcp-servers PR #4221](https://github.com/punkpeye/awesome-remote-mcp-servers/pull/4221): Gaming section, waiting for a maintainer to merge
 
-Not submitted: PulseMCP blocks automated browsers but imports the official registry; Smithery stopped taking submissions on 2026-10-31 (now curated by Arcade); LobeHub needs its `lhm` CLI and an `lhm.plugin.json` in the repo.
+Not submitted: PulseMCP blocks automated browsers but imports the official registry; Smithery stopped taking submissions on 2026-10-31 (now curated by Arcade).
 
 ## Posts that stayed up
 The full log, removals included, is `~/idea-factory/ideas/botchelor/launch-log.json`. Reddit account: [u/Outside_Sir_9341](https://www.reddit.com/user/Outside_Sir_9341/submitted/).
