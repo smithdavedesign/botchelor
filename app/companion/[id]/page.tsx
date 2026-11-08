@@ -22,5 +22,5 @@ export default async function CompanionThreadPage({ params }: { params: Promise<
   const r = await getThread(db, access.userId, id);
   if (!r.ok) notFound();
   const allowance = await companionAllowance(db, access.userId, new Date(), process.env, { guest: access.guest });
-  return <CompanionChat initial={r.view} initialCrisis={r.view.paused ? CRISIS_RESOURCES : null} initialAllowance={allowance} />;
+  return <CompanionChat initial={r.view} initialCrisis={r.view.paused ? CRISIS_RESOURCES : null} initialAllowance={allowance} signedIn={!access.guest} />;
 }

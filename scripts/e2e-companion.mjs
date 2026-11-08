@@ -8,8 +8,8 @@
  *   reports a reply → a PG-breaking message is refused and kept out → a crisis message pauses the chat with the
  *   resources (kept out too) until they carry on → the memory page shows what was drawn, takes an edit, an add and a
  *   forget, and the edit reaches the next reply → a scene: they pick a place, the companion opens it on the stage
- *   with what they do, they talk out loud, and go back to texting → the same on a phone (a scene too), with no
- *   sideways scroll → the list shows the thread → deleting it takes it away.
+ *   with what they do, they talk out loud, and go back to texting → the same on a phone (a scene with a roleplay:
+ *   picked after the place, on the stage's line and in the prompt), with no sideways scroll → the list shows the thread → deleting it takes it away.
  *
  * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build; SHOTS=1 writes the
  * screenshots to docs/screenshots/ (else .data/e2e-companion/).
@@ -72,7 +72,7 @@ function startCompanionStub() {
           seen.replyPrompts.push(system);
           // A scene's line: what they say out loud and what they do.
           const line = (say, act) => JSON.stringify({ say, do: act });
-          content = /Open the scene/.test(last)
+          content = /Open the scene|starts now/.test(last)
             ? /rooftop/.test(last)
               ? line("Look at this view. Worth every stair?", "leans on the railing")
               : line("Good pick. I like it here already.", "looks around, smiling")
@@ -304,6 +304,12 @@ async function main() {
       const tile = picker.locator('.place-tile[data-place="rooftop_bar"]');
       place = ((await tile.textContent()) ?? "").trim();
       await tile.click();
+      // Then a roleplay, or just the two of them.
+      const step2 = page.getByRole("region", { name: "A roleplay, or just the two of you" });
+      await step2.waitFor({ timeout: 10_000 });
+      assert((await step2.locator(".rp-tile").count()) >= 25, "the show's roleplays should be there to pick");
+      await shot(page, "companion-roleplay-pick-desktop");
+      await step2.getByRole("button", { name: "Start the scene" }).click();
       await page.locator(".companion-thread .chat-note-scene").waitFor({ timeout: 15_000 });
       await page.locator(".companion-stage .scene-action", { hasText: "leans on the railing" }).waitFor({ timeout: 15_000 });
       await page.locator(".companion-stage", { hasText: "Worth every stair?" }).waitFor();
@@ -363,7 +369,19 @@ async function main() {
         const phoneTile = p.locator('.place-tile:not([data-place="rooftop_bar"])').first();
         const phonePlace = ((await phoneTile.textContent()) ?? "").trim();
         await phoneTile.tap();
+        // A roleplay this time: the time traveller, and you're the local.
+        const step2 = p.getByRole("region", { name: "A roleplay, or just the two of you" });
+        await step2.waitFor({ timeout: 10_000 });
+        await step2.locator(".rp-tile", { hasText: "The time traveller" }).tap();
+        await step2.locator(".rp-role", { hasText: "You're the local" }).tap();
+        const pickWide = await p.evaluate(() => document.documentElement.scrollWidth);
+        assert(pickWide <= 391, `the roleplay step should fit the phone (scrollWidth ${pickWide})`);
+        await shot(p, "companion-roleplay-pick-phone");
+        await step2.getByRole("button", { name: "🎭 Start the roleplay" }).tap();
         await p.locator(".companion-thread .chat-note-scene").nth(1).waitFor({ timeout: 15_000 });
+        await p.locator(".companion-roleplay-line", { hasText: "The time traveller" }).waitFor({ timeout: 15_000 });
+        assert(((await p.locator(".companion-roleplay-line").textContent()) ?? "").includes("You're the local"), "the line under the stage should say who you play");
+        assert(seen.replyPrompts.at(-1).includes("Tonight's scene is a roleplay the two of you picked together"), "the roleplay should reach the model");
         await p.waitForFunction(() => !document.querySelector(".chat-typing"), null, { timeout: 15_000 });
         assert(await p.locator(".companion-stage .scene-act", { hasText: phonePlace }).isVisible(), "the banner should name the place");
         assert(((await p.locator(".companion-thread .companion-action").last().textContent()) ?? "").includes("looks around, smiling"), "their opener should say what they do");

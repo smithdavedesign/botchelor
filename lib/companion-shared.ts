@@ -65,6 +65,25 @@ export const isScenePlace = (v: unknown): v is VenueId => typeof v === "string" 
 /** What MCP's scene action takes to go back to texting, in place of a place. */
 export const SCENE_TEXTING = "texting";
 
+/**
+ * A roleplay played in a scene (David, 2026-11-08: "in companion … do we want role play options like we have in after
+ * dark?"): the show's own PG roleplays (lib/roleplays.ts DATE_ROLEPLAYS), one from your Create library's safe side, or
+ * one written for the scene, and who plays which role. The person and an AI character, so it's agreed as it's picked
+ * (the show's rule for a person with the show's own side, lib/date-roleplays.ts). Make-believe the two share for the
+ * scene: what's said in it is never taken as a fact about the person (lib/companion-memory.ts).
+ */
+export type CompanionRoleplayView = {
+  /** The show's id (DATE_ROLEPLAYS), or "custom". */
+  id: string;
+  title: string;
+  icon: string;
+  /** The premise from your side ("You read fortunes at a night fair; Mara sat down…"). */
+  premise: string;
+  /** Your role and theirs (null: the same to each other, rival spies). */
+  you_play: string | null;
+  they_play: string | null;
+};
+
 export type CompanionMessageView = {
   id: string;
   role: "user" | "character" | "system";
@@ -77,6 +96,8 @@ export type CompanionMessageView = {
   action: string | null;
   /** A system line that starts a scene or goes back to texting (null: the AI notice). */
   marker: "scene" | "texting" | null;
+  /** The roleplay's title when it was said in one (make-believe, never a fact about the person). */
+  roleplay: string | null;
 };
 
 export type CompanionCharacterRef = {
@@ -97,6 +118,8 @@ export type CompanionThreadView = {
   reply_length: ReplyLength;
   /** The scene they're playing now (null: texting). */
   scene: VenueId | null;
+  /** The roleplay that scene plays (null: just the two of you). */
+  roleplay: CompanionRoleplayView | null;
   /** The crisis resources are up: nothing more in character until the person carries on. */
   paused: boolean;
   /** How many things the character remembers about you (the memory page). */
@@ -120,6 +143,6 @@ export const COMPANION_TOOL_DESCRIPTION =
   "The character is an AI character and says so (notice); it's PG like the show, and it remembers what you tell it (memory, yours to change). Nothing said here reaches a date, a text or the show. " +
   "action: list (who you can talk with, and your threads), open {character_id} (starts or finds your thread: its first messages), send {character_id or thread_id, text} (opens the thread if needed; returns reply, the character's new messages), " +
   "read {thread_id, limit}, regenerate (draw the last reply again), edit {text} (rewrite your last message), length {length: short|normal|long}, " +
-  "scene {place} (play a scene together at one of the show's places, face to face: they answer with what they say and what they do; place texting goes back to texting), report {message_id, reason}, " +
+  "scene {place, roleplay?, my_role?} (play a scene together at one of the show's places, face to face: they answer with what they say and what they do; place texting goes back to texting; roleplay: a show roleplay id or {title, premise, roles?}, agreed at once, never remembered as fact about you), report {message_id, reason}, " +
   "memory (what it knows about you), remember {text}, forget {fact_id}, forget_all, carry_on (after crisis resources paused it), delete. Every action but list and open takes thread_id (or character_id).";
 

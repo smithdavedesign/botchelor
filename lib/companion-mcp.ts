@@ -1,4 +1,5 @@
 import type { Db } from "./db";
+import { bookingAsk } from "./date-roleplays";
 import {
   carryOn,
   COMPANION_MESSAGE_MAX,
@@ -81,7 +82,7 @@ function compact(view: CompanionThreadView, since?: Set<string>, limit = RECENT)
       ...(m.reported ? { reported: true } : {}),
     })),
     // A scene at one of the show's places (action scene): they answer face to face, with what they do (does).
-    ...(view.scene ? { scene: { place: view.scene, name: venueName(view.scene) } } : {}),
+    ...(view.scene ? { scene: { place: view.scene, name: venueName(view.scene), ...(view.roleplay ? { roleplay: view.roleplay } : {}) } } : {}),
     reply_length: view.reply_length,
     remembers: view.facts,
     ...(view.paused ? { paused: true, crisis_resources: CRISIS_RESOURCES } : {}),
@@ -176,7 +177,9 @@ export async function runCompanionTool(db: Db, agentId: string, args: Record<str
           details: { places: SCENE_PLACES.map((id) => ({ id, name: venueName(id) })) },
         };
       }
-      return done(await setScene(db, agentId, thread.id, place), true);
+      // A roleplay to play in it (lib/date-roleplays.ts bookingAsk: an id or {title, premise, roles}; "none" is none).
+      const ask = bookingAsk(args.roleplay, args.my_role);
+      return done(await setScene(db, agentId, thread.id, place, new Date(), ask && !ask.skip ? ask : null), true);
     }
     case "carry_on":
       return done(await carryOn(db, agentId, thread.id));

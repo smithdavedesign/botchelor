@@ -153,6 +153,31 @@ David, 2026-11-04: "maybe enable this to go into theater mode too". The show's t
 - **Over MCP:** `companion {action: "scene", place}` (`"texting"` to go back); `read` shows `scene` and each reply's
   `does`.
 
+## Roleplays in a scene (built 2026-11-08)
+
+David, 2026-11-08: "in companion and normal date mode do we want role play options like we have in after dark?
+currently the companion you can only set the location". Show dates have had PG roleplays since 2026-10-31
+(lib/roleplays.ts, lib/date-roleplays.ts); a companion's scene now takes one too.
+- **Picking:** 🎭 Scene → a place → a second step: the show's 25 PG roleplays by kind, ✨ Yours (your Create library's
+  safe side, signed in) or one written for the scene, and who plays whom (the show's `app/RoleplayPicker.tsx` with
+  `asYou`: "You read fortunes…", "You're the captain"). Or none: "Start the scene" is just the two of you.
+- **Agreed as it's picked:** a person with an AI character, the show's rule for anyone with the show's own side. Written
+  ones go through `checkCustomRoleplay` (the PG check, the suggestive list and the never-list), as on a date.
+- **Stored:** `companion_threads.roleplay` (the terms, `first` = `"you"` or the character's id), cleared with the scene;
+  `companion_messages.roleplay` (its title) on every line said in it and on the scene's marker line, which carries the
+  premise and the roles.
+- **The prompt:** "Tonight's scene is a roleplay the two of you picked together", the premise from the character's side
+  (the person is "your scene partner"), the roles, play it in your own voice and move the story on, and what the person
+  says in it is their character, not their life. The opener's cue starts the roleplay. Back to texting (or in another
+  roleplay), earlier roleplay lines go in marked `[roleplay: title]` as make-believe.
+- **Memory:** facts never come from it: a draw where everything the person said was roleplay is covered without a
+  model call, and otherwise the lines are marked and the facts prompt says never to take a fact from them. The rolling
+  summary notes it as a game they played.
+- **The scene is the place and the roleplay together:** the same pair again changes nothing; another roleplay (or none)
+  at the same place starts the scene again (a new opener, counted as a reply).
+- **Over MCP (2.23.0):** `companion {action: "scene", place, roleplay, my_role}`: a show id or `{title, premise, roles}`,
+  my_role 0/1 or the role's words; `read` shows `scene.roleplay`.
+
 ## Still to build
 
 - **P3, voice notes, selfies, proactive texts:** voice from `lib/adult/voice-lines.ts` generalised into `lib/voice.ts`

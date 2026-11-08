@@ -7,6 +7,7 @@ import Avatar from "@/app/Avatar";
 import { crisisFrom } from "@/app/CrisisNotice";
 import Scene from "@/app/Scene";
 import CrisisPause from "@/app/stage/CrisisPause";
+import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import PlacePicker from "@/app/stage/PlacePicker";
 import { useSpeech } from "@/app/stage/useSpeech";
 import type { CrisisResources } from "@/lib/crisis";
@@ -48,16 +49,20 @@ const MARK: Record<NonNullable<CompanionMessageView["marker"]> | "notice", strin
  *
  * A scene (🎭): the two of you at one of the show's places, face to face. The stage (app/Scene.tsx) shows the place,
  * their latest line with what they do, and yours; the thread keeps every line. Their lines can be read aloud in the
- * device's own voices (app/stage/useSpeech.ts).
+ * device's own voices (app/stage/useSpeech.ts). Once there's a place, a roleplay can come with it (the show's PG ones,
+ * your library's or your own: app/RoleplayPicker.tsx), or it's just the two of you.
  */
 export default function CompanionChat({
   initial,
   initialCrisis,
   initialAllowance,
+  signedIn = false,
 }: {
   initial: CompanionThreadView;
   initialCrisis: CrisisResources | null;
   initialAllowance: CompanionAllowance;
+  /** For the roleplay picker's ✨ Yours (the Create library, accounts only). */
+  signedIn?: boolean;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -70,6 +75,9 @@ export default function CompanionChat({
   const [editing, setEditing] = useState(false);
   const [reporting, setReporting] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  // The place picked, while the roleplay (or none) is chosen; and that roleplay.
+  const [placed, setPlaced] = useState<VenueId | null>(null);
+  const [roleplay, setRoleplay] = useState<RoleplayChoice | null>(null);
   const [opening, setOpening] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const speech = useSpeech();
@@ -160,13 +168,22 @@ export default function CompanionChat({
     setDraft(lastUser.text);
   }
 
-  /** Into a scene somewhere (they open it), or back to texting. The stage shows at once; the server's answer settles it. */
-  async function playScene(place: VenueId | null) {
+  function closePicker() {
     setPicking(false);
+    setPlaced(null);
+    setRoleplay(null);
+  }
+
+  /**
+   * Into a scene somewhere (they open it), with a roleplay or without, or back to texting. The stage shows at once; the
+   * server's answer settles it.
+   */
+  async function playScene(place: VenueId | null, choice: RoleplayChoice | null = null) {
+    closePicker();
     const before = view.scene;
     setView((v) => ({ ...v, scene: place }));
     setOpening(place !== null);
-    const ok = await post({ action: "scene", place });
+    const ok = await post({ action: "scene", place, ...(place ? roleplayFields(choice) : {}) });
     setOpening(false);
     if (!ok) setView((v) => (v.scene === place ? { ...v, scene: before } : v));
   }
@@ -217,7 +234,7 @@ export default function CompanionChat({
               📱<span className="companion-head-label"> Text</span>
             </button>
           ) : (
-            <button type="button" className="button-ghost small" onClick={() => setPicking((p) => !p)} disabled={busy} aria-expanded={picking} data-track="companion-scene-pick">
+            <button type="button" className="button-ghost small" onClick={() => (picking ? closePicker() : setPicking(true))} disabled={busy} aria-expanded={picking} data-track="companion-scene-pick">
               🎭<span className="companion-head-label"> Scene</span>
             </button>
           ))}
@@ -264,15 +281,37 @@ export default function CompanionChat({
         </details>
       </header>
 
-      {picking && !view.scene && (
-        <PlacePicker
-          places={SCENE_PLACES}
-          current={view.scene}
-          onPick={(p) => void playScene(p)}
-          onClose={() => setPicking(false)}
-          busy={busy}
-          title={`Where are you and ${first}?`}
-        />
+      {picking && !view.scene && !placed && (
+        <PlacePicker places={SCENE_PLACES} current={view.scene} onPick={setPlaced} onClose={closePicker} busy={busy} title={`Where are you and ${first}?`} />
+      )}
+
+      {picking && !view.scene && placed && (
+        <section className="place-picker companion-roleplay-step" aria-label="A roleplay, or just the two of you">
+          <header className="place-picker-head">
+            <h2>
+              {venueName(placed)}: play a roleplay?
+            </h2>
+            <button type="button" className="button-ghost small" onClick={() => setPlaced(null)}>
+              ← Places
+            </button>
+          </header>
+          <p className="muted small">
+            Pick who you and {first} are to each other tonight, or leave it and it&apos;s just the two of you. It&apos;s make-believe: nothing you say in a
+            roleplay goes into what {first} remembers about you.
+          </p>
+          <RoleplayPicker me="You" them={c.name} value={roleplay} onChange={setRoleplay} signedIn={signedIn} asYou />
+          <p className="companion-roleplay-go">
+            <button
+              type="button"
+              className="button"
+              onClick={() => void playScene(placed, roleplay)}
+              disabled={busy || (roleplay !== null && !choiceReady(roleplay))}
+              data-track={roleplay ? "companion-roleplay-start" : "companion-scene-start"}
+            >
+              {roleplay ? "🎭 Start the roleplay" : "Start the scene"}
+            </button>
+          </p>
+        </section>
       )}
 
       {view.scene && (
@@ -289,7 +328,7 @@ export default function CompanionChat({
               ) : null
             }
             lineB={pending ?? onStage.you?.text ?? null}
-            actLabel={`🎭 ${venueName(view.scene)}`}
+            actLabel={view.roleplay ? `${view.roleplay.icon} ${view.roleplay.title} · ${venueName(view.scene)}` : `🎭 ${venueName(view.scene)}`}
             placeholder={opening ? `${first} is on the way…` : null}
             faceSize={96}
           />
@@ -299,6 +338,13 @@ export default function CompanionChat({
             </button>
           )}
         </div>
+      )}
+
+      {view.scene && view.roleplay && (
+        <p className="companion-roleplay-line" title={view.roleplay.premise}>
+          {view.roleplay.icon} <strong>{view.roleplay.title}</strong>
+          {view.roleplay.you_play ? ` · You're ${view.roleplay.you_play}, ${first} is ${view.roleplay.they_play}` : ""}
+        </p>
       )}
 
       <div className="companion-scroll" ref={scroller} hidden={picking && !view.scene}>
