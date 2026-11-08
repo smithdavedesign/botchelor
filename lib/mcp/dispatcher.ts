@@ -94,7 +94,7 @@ import { loadSoul, ownsCharacter } from "../souls";
 import { deleteCharacter } from "../account";
 import { invalidateGraph } from "../graph-cache";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
-import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, roleplayPlaceNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
+import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, roleplayPlaceNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, WRONG_SPEAKER, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
@@ -230,7 +230,9 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.20.0 (David, 2026-11-04: "enable this to go into theater mode"): companion's scene action {place}, playing a scene
 // together at one of the show's places (their replies carry does, what they do; place texting goes back), and remember
 // gets the self-harm check a message gets: a new action and fields, nothing else changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.20.1" } as const;
+// 2.21.0 (the 2026-11-08-0610 run, #1362): submit_own_date_step takes character_id (speaker), pinning a line to the character
+// it was written for, and every accepted line says whose turn it filled (filled): a new optional argument and field.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.21.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -3413,7 +3415,8 @@ const TOOL_ALIASES: Record<string, Record<string, string>> = {
   // The 2026-10-21-0159 run: about for with.
   leave_nudge: { about: "with", text: "note", message: "note", nudge: "note" },
   // 2.10.1 (#672): the line itself under its own name, when output isn't given (a turn's other fields beside it fold in).
-  submit_own_date_step: { dialogue: "output", line: "output" },
+  // #1362: the speaking character, as agents name it.
+  submit_own_date_step: { dialogue: "output", line: "output", speaker: "character_id", speaker_id: "character_id" },
 };
 
 /**
@@ -3547,8 +3550,24 @@ const REJECTION_WORDS: Record<string, string> = {
   // 2.8.0 (#648, the 2026-10-22-0400 run: "one of my parallel submissions was silently ignored").
   [RACED]: "another submission for this turn arrived first (transcript has the line that went in), so this one wasn't used.",
 };
-/** Refusals where the line itself was fine: nothing to correct, the date had moved on (2.8.0). */
-const MOVED_ON = new Set(["not_your_turn", "date_over", RACED]);
+/** Refusals where the line itself was fine: nothing to correct, the date had moved on (2.8.0), or isn't at that character's turn (#1362). */
+const MOVED_ON = new Set(["not_your_turn", "date_over", RACED, WRONG_SPEAKER]);
+/**
+ * #1362 (the 2026-11-08-0610 run: two calls sent side by side on a date between an agent's own two characters, and the
+ * second line went in as the other character's, with no word): a line pinned with character_id to a character who isn't
+ * speaking now: who it was for, who speaks, and that nothing was written.
+ */
+function wrongSpeakerWords(step: OwnDateStep, pinned: { asked: string; name: string | null } | undefined): string {
+  const now = step.stage === "turn" ? `turn ${step.turn_number} of ${step.of} is ${step.speaker.name}'s` : "every line is in (the recap is next)";
+  if (!pinned?.name) return `character_id "${String(pinned?.asked ?? "").slice(0, 64)}" is neither character on this date (it takes the speaking character's id or full name), and ${now}. Nothing was written.`;
+  if (step.stage !== "turn") return `this line is ${pinned.name}'s (character_id), but ${now}. Nothing was written.`;
+  return (
+    `this line is ${pinned.name}'s (character_id), but ${now}. Nothing was written. Steps go one at a time, each to whoever speaks when it lands: ` +
+    `was another call handed in first (transcript has what's been said)? Send ${step.speaker.name}'s line for turn ${step.turn_number}, then ${pinned.name}'s.`
+  );
+}
+/** #1362: whose line an accepted one went in as (filled, the shape outputs' reply has). */
+const filledFields = (r: { filled?: { turn_number: number; who: string } }): Record<string, unknown> => (r.filled ? { filled: [r.filled] } : {});
 /** #840: what a refused line costs: nothing. */
 const NOTHING_USED = "Nothing was used up: this turn is still yours.";
 
@@ -3799,7 +3818,8 @@ function withStepNext(data: Record<string, unknown>): Record<string, unknown> {
             {
               episode_id: id,
               output: step.see_again ? { dialogue: `<${step.speaker.name}'s line>`, see_again: `<true or false: does ${step.speaker.name} want another date?>` } : `<${step.speaker.name}'s line>`,
-              ...(step.ending ? {} : { wait_seconds: WAIT_MAX_SECONDS }),
+              // #1362: you play both sides, so the call names whose line it is: one that lands on the other's turn is refused.
+              ...(step.ending ? { character_id: step.speaker.id } : { wait_seconds: WAIT_MAX_SECONDS }),
             },
             `Your move: turn ${step.turn_number} of ${step.of}, ${step.speaker.name} speaks${step.see_again ? `, its last line: see_again (private) says whether ${step.speaker.name} wants another date, and with theirs it can tip the ending` : ""}${step.ending ? "" : "; wait_seconds then waits for their reply"}.`,
           ),
@@ -6705,9 +6725,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           };
         }
       }
+      // #1362: the character a line is for (its id or full name), pinned: a line that lands on the other's turn is refused.
+      const speakerPin = typeof args.character_id === "string" && args.character_id.trim() ? args.character_id.trim() : undefined;
       // #479: several lines in one call, between your own two characters (every line is yours), checked in order.
       if (Array.isArray(args.outputs)) {
         if (args.output !== undefined) return { error: "Send output (one reply) or outputs (several), not both." };
+        // #1362: one character can't pin lines that alternate; a batch's items pin themselves with turn_number.
+        if (speakerPin !== undefined) return { error: "character_id pins one line (output) to the character speaking it. outputs alternate between your two characters, so give each item its turn_number instead. Nothing was handed in." };
         const twoAgent = (await db.query(`select 1 from episodes where id = $1 and partner_performer is not null`, [episodeId])).rows.length > 0;
         // 2.4.2: no batch on a two-agent date. Turns alternate, so an agent never has two lines in a row there, and a line
         // written before the other side's reply couldn't answer it.
@@ -6826,13 +6850,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           };
         }
       }
-      const r = await submitOwnDateStep(db, who.id, episodeId, unpinned(args.output), { checkOnly: args.check_only === true });
+      const r = await submitOwnDateStep(db, who.id, episodeId, unpinned(args.output), { checkOnly: args.check_only === true, speaker: speakerPin });
       if (!r.ok) return ownDateError(r);
       if (r.checked) return { data: { checked: true, would_accept: true, note: "It passes every check. Nothing was handed in: submit it without check_only." }, identity: who };
       if (!r.rejected || r.step.stage !== "turn") await markTurnRead(db, who.id, episodeId);
       // #250: a refusal used to look like success with the same step. It leads with accepted: false and says why.
       if (r.rejected) {
-        const why = REJECTION_WORDS[r.rejected] ?? r.rejected;
+        const why = r.rejected === WRONG_SPEAKER ? wrongSpeakerWords(r.step, r.pinned) : (REJECTION_WORDS[r.rejected] ?? r.rejected);
         // #438: out of turn, the fix is to wait, not to correct the reply. #420, #422: ok: false, and the format to follow. 2.8.0
         // (#648): a line another submission beat to its turn was fine too: it says it lost, and why (line_used: false).
         // #840: a refused line uses nothing up, and says so plainly (turn_used: false).
@@ -6843,7 +6867,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
             ok: false,
             rejected: r.rejected,
             message,
-            ...(r.rejected === "date_over" || r.rejected === RACED ? { line_used: false } : {}),
+            ...(r.rejected === "date_over" || r.rejected === RACED || r.rejected === WRONG_SPEAKER ? { line_used: false } : {}),
             ...(!MOVED_ON.has(r.rejected) ? { turn_used: false } : {}),
             ...(!MOVED_ON.has(r.rejected) && r.step.stage === "turn" ? { reply_format: r.step.reply_format, example_reply: r.step.example_reply, shapes: TURN_SHAPES } : {}),
             ...(!MOVED_ON.has(r.rejected) && r.step.stage === "recap" ? { reply_format: r.step.reply_format } : {}),
@@ -6875,7 +6899,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           const { already_your_move: _a, ...rest } = waited.data;
           if (_a) delete rest.note;
           if (rest.returned_because === "at_start") rest.returned_because = "new";
-          return { ...waited, data: { accepted: true, ...wishFields(r), ...movedFields(r), ...doneIgnored, ...defaultsNote, ...rest } };
+          return { ...waited, data: { accepted: true, ...filledFields(r), ...wishFields(r), ...movedFields(r), ...doneIgnored, ...defaultsNote, ...rest } };
         }
         return waited;
       }
@@ -6890,7 +6914,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const lastLine = finished ? { last_line: true, line_used: true, done_note: "Your line was the date's last: it's in (transcript has it), and the date is done. get_episode (summary: true) reads it back." } : {};
       // #853: the line that brings the recap says its format at the top, as a refused recap does.
       const recapFormat = r.step.stage === "recap" ? { reply_format: r.step.reply_format } : {};
-      return { data: { accepted: true, ...lastLine, ...wishFields(r), ...movedFields(r), ...doneIgnored, ...defaultsNote, ...noWait, ...recapFormat, step: compactIf(r.step, args) }, identity: who };
+      return { data: { accepted: true, ...filledFields(r), ...lastLine, ...wishFields(r), ...movedFields(r), ...doneIgnored, ...defaultsNote, ...noWait, ...recapFormat, step: compactIf(r.step, args) }, identity: who };
     }
     case "wait_for_my_turn": {
       const who = resolveIdentity(args, session, false);
