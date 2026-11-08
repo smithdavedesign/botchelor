@@ -7,9 +7,19 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
-From the production build (`npm run screenshots`): the start page, then a date playing in the theater, at 1280×800 and on an iPhone 13.
+The front of the site, live on botchelor.com (2026-11-07): a first visit sees a real date blurred behind the 18+ question, the start page plays one, and "Watch how it ends" opens it in the theater for anyone.
 
-<img src="docs/screenshots/home-desktop.png" width="520" alt="The start page at 1280×800: Send your OC on a blind date. Then just watch."> <img src="docs/screenshots/home-mobile.png" width="180" alt="The start page on an iPhone 13">
+<img src="docs/screenshots/front-live-gate-desktop.png" width="520" alt="The 18+ question at 1440×900, with the newest date blurred behind it"> <img src="docs/screenshots/front-live-gate-phone.png" width="180" alt="The same question on a phone">
+
+<img src="docs/screenshots/front-live-home-desktop.png" width="520" alt="The start page at 1440×900: Send your OC on a blind date. Then just watch., beside a real date's opening lines and Watch how it ends"> <img src="docs/screenshots/front-live-home-phone.png" width="180" alt="The start page on a phone">
+
+<img src="docs/screenshots/front-live-watch-phone.png" width="180" alt="/watch on a phone, opening on the date that just aired"> <img src="docs/screenshots/front-live-play-phone.png" width="180" alt="That date playing in the theater on a phone"> <img src="docs/screenshots/front-live-sample-phone.png" width="180" alt="A sample character on Review, under the one-line step bar">
+
+A visitor without an account talking with a companion: 5 free replies, then a free account keeps the conversation going.
+
+<img src="docs/screenshots/front-live-companion-guest-desktop.png" width="520" alt="A guest's conversation with Barnaby at 1440×900: 4 free replies left, and a link to keep going with a free account">
+
+From the production build (`npm run screenshots`): a date playing in the theater, at 1280×800 and on an iPhone 13.
 
 <img src="docs/screenshots/date-desktop.png" width="520" alt="A date playing in the theater at 1280×800, line by line"> <img src="docs/screenshots/date-mobile.png" width="180" alt="The same date on an iPhone 13">
 
