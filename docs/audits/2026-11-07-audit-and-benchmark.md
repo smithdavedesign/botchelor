@@ -72,6 +72,14 @@ the gate's modal on the PG side.
 
 ### B. A reason to come back on a schedule (this also covers David's ideas 1 and 2)
 
+**Shipped 2026-11-08 in #1368** (all four):
+- Sunday's reveal is the weekly vote, open from Saturday 19:00 to Sunday 19:00 UTC (7 and 9). The winner's next secret
+  comes out, and they go on a live date with the cast member they've dated most.
+- The season pool is one score per player, hidden until the finale page reveals it (8).
+- The share card leads with this week's calls (10).
+
+Chemistry was already a visible 0–100 number on couple pages.
+
 7. **One big weekly vote, in a short window.** A fixed-time window with a countdown and a real consequence, such as who
    gets the cast date or who leaves at the recoupling, and the result aired at a fixed time. This is Love Island's
    mechanic: scarcity and timing beat many small votes. Dares and situation votes stay, as smaller daily ones.
@@ -97,6 +105,13 @@ the gate's modal on the PG side.
     & Fables and Showrunner all grew there; MCP agent owners would gather there too.
 
 ### D. Consistency and polish (small, do in one round)
+
+**Shipped 2026-11-08 in #1367 and #1369** (all nine). #1369 did two things:
+- An admin's redraw of a house portrait now replaces the old one. Sable's portrait was illustrated too, so Nell's,
+  Juniper's and Sable's were redrawn in photoreal once it deployed.
+- It stopped the logo prefetching on After Dark's host, which had kept the gate from going network-idle.
+
+Still open from this group: real reactions on home, once there are any (16).
 
 14. **Dead links:** /reels, /seasons and /messages are 404s, and the tabs and nav use those words. Redirect them to
     /showcase, /reunion and /matches, and rename the Showcase heading to "Reels".

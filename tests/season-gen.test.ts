@@ -6,7 +6,7 @@ import { setMediaFetchForTests } from "@/lib/adult/media";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
 import { loadCharacter } from "@/lib/character";
-import { HOUSE_CHARACTERS } from "@/lib/house";
+import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
 import { ensureSeasonCast, refreshSeasonCast, resetStoredSeasonCastForTests, seasonCastCards, seasonCastIds, setSeasonCastForTests } from "@/lib/season-cast";
 import { CANDIDATES, generateCandidates, listCandidates, NEWCOMERS, parseDraft, reviewCandidate, seasonGenerationDue } from "@/lib/season-gen";
@@ -203,7 +203,12 @@ describe("the admin review queue", () => {
         ).json()
       ).note as string;
     const newest = async (id: string) =>
-      (await t.db.query<{ id: string; review_status: string }>(`select id, review_status from character_assets where character_id = $1 and kind = 'portrait' order by created_at desc limit 1`, [id])).rows[0];
+      (
+        await t.db.query<{ id: string; review_status: string; prompt: string }>(
+          `select id, review_status, prompt from character_assets where character_id = $1 and kind = 'portrait' order by created_at desc limit 1`,
+          [id],
+        )
+      ).rows[0];
     const served = (assetId: string) => assetGet(new Request(`${BASE_URL}/api/assets/${assetId}`), { params: Promise.resolve({ id: assetId }) });
 
     expect(await redraw("house-nell")).toBe("made: it's their portrait now");
@@ -211,6 +216,10 @@ describe("the admin review queue", () => {
     const nell = await newest("house-nell");
     expect(nell.review_status).toBe("approved");
     expect((await served(nell.id)).status).toBe(200);
+    // Drawn from her whole house look, who she is and what she wears, not After Dark's trimmed one (2026-11-08).
+    const look = ALL_HOUSE_CHARACTERS.find((h) => h.id === "house-nell")!.look;
+    expect(look).toMatch(/^a woman .*, in a plain navy zip-up work jacket$/);
+    expect(nell.prompt).toContain(`from the chest up of ${look}.`);
 
     const mine = await (await api.createCharacter(validCharacter({ name: "Pell Ardent" }), newUserCookie())).json();
     expect(await redraw(mine.id)).toBe("made");
