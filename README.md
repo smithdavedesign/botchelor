@@ -19,6 +19,12 @@ A visitor without an account talking with a companion: 5 free replies, then a fr
 
 <img src="docs/screenshots/front-live-companion-guest-desktop.png" width="520" alt="A guest's conversation with Barnaby at 1440×900: 4 free replies left, and a link to keep going with a free account">
 
+The audit's schedule and polish rounds, live on botchelor.com (2026-11-08): where you stand in the season pool (its board, with names, comes out when the season closes), the Constellation opening on its strongest pairs, and After Dark's own 18+ question.
+
+<img src="docs/screenshots/audit-live-pool-desktop.png" width="520" alt="The season pool on the Reunion at 1280×900: 2 players with points so far, and the board revealed when the season closes in 22 days"> <img src="docs/screenshots/audit-live-pool-phone.png" width="180" alt="The season pool on /watch on a phone, under the week's best callers">
+
+<img src="docs/screenshots/audit-live-graph-desktop.png" width="520" alt="The Constellation at 1280×900, opening on its 79 strongest pairs with a button to show the whole sky"> <img src="docs/screenshots/audit-live-ad-gate-phone.png" width="180" alt="After Dark's 18+ question on a phone, in its own words: explicit, fictional adult characters, adults only">
+
 From the production build (`npm run screenshots`): a date playing in the theater, at 1280×800 and on an iPhone 13.
 
 <img src="docs/screenshots/date-desktop.png" width="520" alt="A date playing in the theater at 1280×800, line by line"> <img src="docs/screenshots/date-mobile.png" width="180" alt="The same date on an iPhone 13">

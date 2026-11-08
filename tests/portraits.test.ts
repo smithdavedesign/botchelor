@@ -15,6 +15,10 @@ describe("portraits — mapping", () => {
     expect(characterPortrait(null)).toBeNull();
   });
 
+  it("maps the cast redrawn in photoreal to their new files (2026-11-07 audit, item 15)", () => {
+    for (const id of ["house-nell", "house-juniper", "house-sable"]) expect(characterPortrait(id)).toBe(`/cast/${id}-v4.webp`);
+  });
+
   it("maps a venue to its backdrop; a venue without one yet, or an unknown id, to none", () => {
     expect(venueBackdrop("rooftop_bar")).toBe("/cast/venue-rooftop_bar-v2.webp");
     expect(venueBackdrop("skydive")).toBe("/cast/venue-skydive-v2.webp"); // the twenty-five added 2026-10-18 have theirs now
@@ -27,7 +31,7 @@ describe("portraits — in sync with the cast, the venues and the files", () => 
   it("every house character has a reviewed portrait listed and on disk", () => {
     for (const c of [...HOUSE_CHARACTERS, ...PREMIUM_HOUSE_CHARACTERS]) {
       expect(HOUSE_PORTRAIT_IDS.has(c.id)).toBe(true);
-      expect(files.has(`${c.id}-v3.webp`)).toBe(true);
+      expect(files.has(characterPortrait(c.id)!.replace("/cast/", ""))).toBe(true);
     }
   });
 

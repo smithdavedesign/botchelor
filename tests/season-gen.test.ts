@@ -11,6 +11,7 @@ import { sessionCookies } from "@/lib/http";
 import { ensureSeasonCast, refreshSeasonCast, resetStoredSeasonCastForTests, seasonCastCards, seasonCastIds, setSeasonCastForTests } from "@/lib/season-cast";
 import { CANDIDATES, generateCandidates, listCandidates, NEWCOMERS, parseDraft, reviewCandidate, seasonGenerationDue } from "@/lib/season-gen";
 import { getDirectorModel, type Model } from "@/lib/model";
+import { characterPortrait } from "@/lib/portraits";
 import { api, BASE_URL, newUserCookie, scriptedModel, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 /** The model, scripted with these replies. */
@@ -211,7 +212,8 @@ describe("the admin review queue", () => {
       ).rows[0];
     const served = (assetId: string) => assetGet(new Request(`${BASE_URL}/api/assets/${assetId}`), { params: Promise.resolve({ id: assetId }) });
 
-    expect(await redraw("house-nell")).toBe("made: it's their portrait now");
+    // Nell is drawn from her committed file (lib/portraits.ts), which wins over the ledger until the redraw is committed.
+    expect(await redraw("house-nell")).toBe(`made and approved: the show draws them from ${characterPortrait("house-nell")} until this one is committed there (lib/portraits.ts)`);
     expect(venice).toEqual(["true"]);
     const nell = await newest("house-nell");
     expect(nell.review_status).toBe("approved");

@@ -16,6 +16,7 @@ import type { Db } from "./db";
 import { ExtrasInput, normaliseExtras, type CharacterExtras } from "./extras";
 import { ALL_HOUSE_CHARACTERS } from "./house";
 import { getDirectorModel, type ChatMessage, type Model } from "./model";
+import { characterPortrait } from "./portraits";
 import { PRONOUNS, VOICE_MAX } from "./rules";
 import { checkShowText } from "./safety";
 import { DEFAULT_SEASON_CAST_SIZE, seasonCastIds, SURVIVORS } from "./season-cast";
@@ -180,10 +181,11 @@ export function portraitPrompt(look: string, age: number): string {
 /**
  * A portrait on Venice (safe mode on), photoreal, checked by Hive before it's kept, stored in the asset ledger as
  * pending (served only once approved). A season candidate's waits for the candidate's review (reviewCandidate approves
- * both; a rejected one's stays unserved). A house cast member's has no review of its own to wait for: the admin who asked for the redraw is the
- * approval, so it's their face from now on (2026-11-07 audit, item 15: one art style for the cast). Anyone else's
- * (a person's or an agent's character) stays pending: their face is their creator's. Returns a note on what
- * happened; never throws.
+ * both; a rejected one's stays unserved). A house cast member's has no review of its own to wait for: the admin who
+ * asked for the redraw is the approval (2026-11-07 audit, item 15: one art style for the cast). It's their face from
+ * then on, unless the show draws them from a committed file (lib/portraits.ts, the fixed house cast), which wins until
+ * the redraw is committed there; the note says which. Anyone else's (a person's or an agent's character) stays
+ * pending: their face is their creator's. Returns a note on what happened; never throws.
  */
 export async function makePortrait(db: Db, characterId: string): Promise<string> {
   const c = await loadCharacter(db, characterId);
@@ -222,7 +224,8 @@ export async function makePortrait(db: Db, characterId: string): Promise<string>
     await db.query(`update season_candidates set portrait_asset = $2, check_note = 'passed' where character_id = $1`, [characterId, asset]);
     if (c.house && !(await unapprovedCandidate(db, characterId))) {
       await reviewAsset(db, asset, "approved", "the show's own portrait, redrawn by an admin: drawn from their look in safe mode, PG-checked");
-      return "made: it's their portrait now";
+      const file = characterPortrait(characterId);
+      return file ? `made and approved: the show draws them from ${file} until this one is committed there (lib/portraits.ts)` : "made: it's their portrait now";
     }
     return "made";
   } catch (err) {
