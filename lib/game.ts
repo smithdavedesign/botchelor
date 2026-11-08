@@ -42,6 +42,7 @@ import {
 import type { AgreedPlan } from "./plans";
 import { fillPremise, rolesLine, type DateRoleplay } from "./roleplays";
 import type { PlaceId } from "./venues";
+import { placesOf } from "./moves";
 import type { Turn } from "./conversation";
 import type { AfterglowLine, AfterglowVerdict } from "./afterglow";
 import { isDefaultFormat, type FormatId } from "./formats";
@@ -259,6 +260,12 @@ export type EpisodeJson = {
   /** This date carried an After Dark memory (the page shows 🌙 only to someone After Dark is open to). */
   after_dark?: boolean;
   venue?: PlaceId;
+  /**
+   * #1363 (the 2026-11-08-0610 run: a date labelled "An ice rink, and neither can skate" whose story was a harbour wall and
+   * a cocoa stand): every place a date that moved was at, in order (venue first), wherever its lines are shown. A move is
+   * part of the story, so it's never in the teaser view. Absent when the date stayed put.
+   */
+  places?: PlaceId[];
   /** The show format (lib/formats.ts). Not a secret: it is the episode's billing, shown from the start. Classic omitted. */
   format?: FormatId;
   /** The roleplay both sides agreed to (lib/date-roleplays.ts), in their names: billing too, shown from the start. */
@@ -413,6 +420,8 @@ export function toEpisodeJson(ep: StoredEpisode, opts: EpisodeJsonOpts): Episode
     // (lib/wishes.ts), and on a two-agent date both agents see this view before the ending.
     if (ep.transcript.length) {
       json.transcript = ep.status === "generating" ? ep.transcript.map(({ interest: _private, ...line }) => line as Turn) : ep.transcript;
+      const places = ep.setup?.venue ? placesOf(ep.transcript, ep.setup.venue) : [];
+      if (places.length > 1) json.places = places;
       if (ep.status === "ready" && ep.transcript_partial) {
         json.transcript_partial = true;
         json.transcript_note = "Its last lines didn't come out when it was written, so it stops early for now. The rest is written in later from the same outcome, so the ending and the score stay as they are.";
