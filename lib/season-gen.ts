@@ -178,8 +178,12 @@ export function portraitPrompt(look: string, age: number): string {
 }
 
 /**
- * The candidate's portrait on Venice (safe mode on), checked by Hive before it's kept, stored in the asset ledger as
- * pending (served only once approved). Returns a note on what happened; never throws.
+ * A portrait on Venice (safe mode on), photoreal, checked by Hive before it's kept, stored in the asset ledger as
+ * pending (served only once approved). A season candidate's waits for the candidate's review (reviewCandidate approves
+ * both; a rejected one's stays unserved). A house cast member's has no review of its own to wait for: the admin who asked for the redraw is the
+ * approval, so it's their face from now on (2026-11-07 audit, item 15: one art style for the cast). Anyone else's
+ * (a person's or an agent's character) stays pending: their face is their creator's. Returns a note on what
+ * happened; never throws.
  */
 export async function makePortrait(db: Db, characterId: string): Promise<string> {
   const c = await loadCharacter(db, characterId);
@@ -212,12 +216,21 @@ export async function makePortrait(db: Db, characterId: string): Promise<string>
       content_rating: "pg",
     });
     await db.query(`update season_candidates set portrait_asset = $2, check_note = 'passed' where character_id = $1`, [characterId, asset]);
+    if (c.house && !(await unapprovedCandidate(db, characterId))) {
+      await reviewAsset(db, asset, "approved", "the show's own portrait, redrawn by an admin: drawn from their look in safe mode, PG-checked");
+      return "made: it's their portrait now";
+    }
     return "made";
   } catch (err) {
     const note = err instanceof Error ? err.message.slice(0, 200) : "error";
     await db.query(`update season_candidates set check_note = $2 where character_id = $1`, [characterId, note]);
     return note;
   }
+}
+
+/** Whether the character is a season candidate not approved: waiting for its review (which approves its portrait with it) or rejected. */
+async function unapprovedCandidate(db: Db, characterId: string): Promise<boolean> {
+  return (await db.query(`select 1 from season_candidates where character_id = $1 and status <> 'approved'`, [characterId])).rows.length > 0;
 }
 
 /** The candidates for a season, oldest first, with their portrait's state. */
