@@ -38,7 +38,7 @@ const cta = (name: "date" | "see_all" | "after_dark" | "create") => () => trackC
  *
  * - A clip plays, muted, while it's on screen (David, 2026-10-30: no sound buttons). A still moves slowly, a different
  *   way each time (a "living photo"): the safe picture of someone, animated, at no cost. Reduced motion: nothing moves or plays by itself.
- * - Each post asks one thing first: 💘 date them (their page, where a date is booked), then see all of them, and, for
+ * - Each post asks one thing first: 💘 date them (their page, where a date is booked), then see all of them (on this side), and, for
  *   someone After Dark isn't open to, how many more of them are after dark (the subscription; its waitlist until it
  *   opens). Every few posts a card: make your own character (the first dates free), or After Dark. No countdowns, no
  *   streaks, nothing locked that's on the showcase already.
@@ -231,6 +231,7 @@ export default function ReelFeed(props: Props) {
               moving={i === active && shown && !reduced}
               veiled={!shown}
               locked={props.explicit ? 0 : (locked[x.post.character.id] ?? 0)}
+              side={props.side}
               onShare={() => void share(x.post)}
               onInfo={() => setInfo(x.post.id)}
               onReady={() => setReady(i)}
@@ -288,6 +289,7 @@ function Slide({
   moving,
   veiled,
   locked,
+  side,
   onShare,
   onInfo,
   onReady,
@@ -299,6 +301,8 @@ function Slide({
   moving: boolean;
   veiled: boolean;
   locked: number;
+  /** The side being watched: "See all of" opens the same one. */
+  side: "pg" | "after_dark";
   onShare: () => void;
   onInfo: () => void;
   onReady: () => void;
@@ -355,7 +359,8 @@ function Slide({
             <Link href={`/characters/${p.character.id}`} className={styles.cta} onClick={cta("date")}>
               {p.dateable === false ? `Meet ${first}` : `💘 Date ${first}`}
             </Link>
-            <Link href={`/showcase?character=${encodeURIComponent(p.character.id)}`} className={styles.ctaGhost} onClick={cta("see_all")}>
+            {/* On the side being watched: from After Dark's reels, their After Dark shots (David, 2026-11-08). */}
+            <Link href={`/showcase?character=${encodeURIComponent(p.character.id)}${side === "after_dark" ? "&side=after_dark" : ""}`} className={styles.ctaGhost} onClick={cta("see_all")}>
               See all of {first}
             </Link>
           </p>

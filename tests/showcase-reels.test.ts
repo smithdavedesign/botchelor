@@ -231,6 +231,10 @@ describe("the reels' page", () => {
     expect(ad).toContain("Show them");
     expect(ad).toContain("Safe for work instead");
     expect(ad).not.toContain("Make your own character</a><button");
+    // "See all of" stays on the side being watched (David, 2026-11-08: from After Dark's reels it opened the safe side).
+    expect(html).toContain(`href="/showcase?character=${w.mara}"`);
+    expect(ad).toContain(`href="/showcase?character=${w.mara}&amp;side=after_dark"`);
+    expect(ad).not.toContain(`href="/showcase?character=${w.mara}"`);
   });
 
   it("starts a new feed for each set of filters, and opens the safe side for anyone After Dark isn't open to", async () => {
