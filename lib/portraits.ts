@@ -16,6 +16,14 @@ const PORTRAIT_VERSION = "v3";
 const BACKDROP_VERSION = "v2";
 
 /**
+ * The house characters redrawn since v3, and their file's version. On 2026-11-08 Nell, Juniper and Sable, then the
+ * illustrated faces among a photoreal season cast, were redrawn in photoreal (2026-11-07 audit, item 15) through the
+ * admin redraw: Venice in safe mode from their house look, Hive-checked PG, kept in the asset ledger, then reviewed and
+ * committed here as the faces the show draws them with.
+ */
+const PORTRAIT_VERSIONS: Readonly<Record<string, string>> = { "house-nell": "v4", "house-juniper": "v4", "house-sable": "v4" };
+
+/**
  * The house characters that have a reviewed portrait (all 17 today). Listed explicitly rather than derived
  * from the cast so a character without a committed, reviewed image can never render a broken `<img>`; a new
  * house portrait is added here once its file is reviewed and committed. `tests/portraits.test.ts` keeps this
@@ -30,7 +38,7 @@ export const HOUSE_PORTRAIT_IDS: ReadonlySet<string> = new Set([
 /** The portrait path for a character, or null when it has none — every visitor OC, so they keep the gradient. */
 export function characterPortrait(characterId: string | null | undefined): string | null {
   return characterId && HOUSE_PORTRAIT_IDS.has(characterId)
-    ? `/cast/${characterId}-${PORTRAIT_VERSION}.webp`
+    ? `/cast/${characterId}-${PORTRAIT_VERSIONS[characterId] ?? PORTRAIT_VERSION}.webp`
     : null;
 }
 
