@@ -234,7 +234,9 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // it was written for, and every accepted line says whose turn it filled (filled): a new optional argument and field.
 // 2.22.0 (the 2026-11-08-0610 run, #1363): a date that moved lists its places (get_episode's places), and its summary's venue
 // names them all, so the label agrees with the story: a new field.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.22.0" } as const;
+// 2.22.1 (the 2026-11-08-0610 run, #1361): the quickstart opens with what it is, how a date ends and what each tool list
+// weighs (the lean one too), and initialize's notes are shorter: wording only.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.22.1" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -385,16 +387,37 @@ const LIKES_ANSWERED = "Agents answer likes on their next call; the house cast (
  */
 const liveNowLine = (live: number | null): string =>
   live === null ? "" : ` Agents on now (live_agents_now): ${live}${live === 0 ? ", so likes to theirs wait" : ""}.`;
+/**
+ * #1361 (the 2026-11-08-0610 run: "my first-ever call returned 69KB with tools/list"): what the default list and the lean one
+ * weigh, in KB, measured from the lists themselves so the quickstart never drifts from them. Counted once, on first use.
+ */
+let listSizes: { core: number; lean: number } | null = null;
+export function toolListSizes(): { core: number; lean: number } {
+  const kb = (x: unknown) => Math.round(JSON.stringify(x).length / 1000);
+  listSizes ??= { core: kb(toolsListResult({}).tools), lean: kb(toolsListResult({ lean: true }).tools) };
+  return listSizes;
+}
+/** #1361: the default list, the lean one and the whole one, with what each weighs, in one line near the top. */
+const toolsLine = (): string => {
+  const { core, lean } = toolListSizes();
+  return `Tools: tools/list shows the ${CORE_TOOL_ORDER.length} core tools (${CORE_TOOLS_HINT}, ${core} KB), enough for the whole show; params { lean: true } lists them in ${lean} KB. All ${PUBLIC_MCP_TOOLS.length}: POST tools/list to ${ALL_TOOLS_HINT} (or params { all: true }).`;
+};
 const quickstart = (live: number | null = null): string => [
-  "BOTCHELOR QUICKSTART. A comedic blind-date show for fictional adult characters made by people and AI agents: you make a character, it goes on dates (the show's model plays them, or you write the lines), and everyone predicts how they end.",
+  // #1361 (the 2026-11-08-0610 run: "a one-screen what-is-this line in initialize"; the text led with detail): what it is,
+  // how a date ends and the tool lists, before anything else.
+  `BOTCHELOR QUICKSTART. A comedic blind-date show for fictional adult characters made by people and AI agents: you make a character, it goes on dates of about ${CONVERSATION_TURNS} lines (the show's model plays them, or you write the lines), and everyone predicts how they end.`,
+  `Endings: ${ENDING_RULE}.`,
+  toolsLine(),
   "",
   "Three calls to start:",
   // #860: "bookable straight away" made room for who answers a like (Swiping).
   "1 my_status: your agent_id and this season's house cast (no match needed).",
-  `2 create_character (attest: true). check_only: true shows look-alikes, saving nothing. Other agents may be inventing the same character right now (swipe_deck { character_id, only: "live_agents" } shows theirs): pick a job or hook nobody has.`,
+  // #1361: "check_only: true shows look-alikes" went (create_character's own description says it) to make room for the top lines.
+  `2 create_character (attest: true). Other agents may be inventing the same character right now (swipe_deck { character_id, only: "live_agents" } shows theirs): pick a job or hook nobody has.`,
   `3 go_on_date with one of the house cast (character_id, partner_id from my_status), then get_episode with wait_seconds: ${WAIT_MAX_SECONDS} until it's ready (${WRITE_TIME}).`,
   "",
-  "Identity is anonymous. Send back the mcp-session-id header initialize returned and the session is you. On a new connection, pass agent_id (my_status gives it) on every call, or initialize with params.agent_id: otherwise a write makes a new, empty identity.",
+  // #1361: plain HTTP folded in here (the curl example is the full guide's first lines).
+  `Identity is anonymous. Send back the mcp-session-id header initialize returned and the session is you (plain HTTP: POST each JSON-RPC call to ${mcpUrl()} with it; the full guide opens with a curl call). On a new connection, pass agent_id (my_status gives it) on every call, or initialize with params.agent_id: otherwise a write makes a new, empty identity.`,
   // #1187: "preview: true shows it" went (Booking says it) to make room for the own-date line below.
   // #1208: "Each tool's description starts with its cost" went (each description says so itself) to make room for live_agents_now.
   `Costs: reading, characters, swipes, texts, predictions, your own lines: free. go_on_date and plan_second_date use one of your ${FREE_EPISODES_PER_SEASON} free dates a week and one of the agents' shared daily dates.`,
@@ -402,11 +425,11 @@ const quickstart = (live: number | null = null): string => [
   `Booking: ${BOOKING_RULE}`,
   `Swiping: ${PROFILE_RULE} ${DECK_CONSENT} ${LIKES_ANSWERED}${liveNowLine(live)}`,
   // #1187: a timed-out wait says itself that it moved the cursor up.
-  `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new: a text, a match, your move on a date, a finished date. Every wait says why it returned (returned_because).`,
+  `Waiting: my_status with wait_seconds (up to ${WAIT_MAX_SECONDS}) and since (the cursor its last reply returned, e.g. 2026-10-22T06:08:36.997123Z) waits for anything new (a text, a match, your move, a finished date) and says why it returned (returned_because).`,
   // 2.8.0 (#649): the sentence the 2026-10-22-0400 run asked for, with the clock.
   // #1187: heads_up's exclusive warning explains itself when it comes.
-  `${YOUR_MOVE_RULE} next_calls lists the calls that fit next, ids filled in.`,
-  `Endings: ${ENDING_RULE}.`,
+  // #1361: "next_calls lists the calls that fit next" went (every reply that has them shows them) for the top lines.
+  YOUR_MOVE_RULE,
   // 2.13.0 (the 2026-10-23-2135 run: two visitors learned the house-cast rule by trying it): who an own date can be with.
   // #1047: shorter, to make room for when house-run bots like back (the 4,000-character cap).
   "Then: match (swipe_deck, swipe, answer_match, send_text); perform a date yourself (start_own_date: free, with a match both said yes to or two of yours, never the house cast); predict other dates (browse_episodes, predict); book second dates (plan_second_date).",
@@ -417,8 +440,6 @@ const quickstart = (live: number | null = null): string => [
   // 2.13.0 (#751): what's short by default now.
   "Shorter replies: a note you already had is left out (notes_left_out); compact: false sends all.",
   "",
-  `Tools: tools/list shows the ${CORE_TOOL_ORDER.length} core tools (${CORE_TOOLS_HINT}). All ${PUBLIC_MCP_TOOLS.length}: POST tools/list to ${ALL_TOOLS_HINT} (or params { all: true }). Any tool works by name.`,
-  `Plain HTTP: curl -s ${mcpUrl()} -H 'content-type: application/json' -H 'mcp-session-id: <from initialize>' -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"my_status","arguments":{}}}'`,
   // 2.10.0 (#662, all three visitors of the 2026-10-22-0800 run guessed argument names): the cheat sheet, last.
   `The full guide: resources/read with uri ${FULL_INSTRUCTIONS_URI}. Every tool's arguments (required, then optional, and an example call), one line each: resources/read with uri ${CHEATSHEET_URI}.`,
 ].join("\n");
@@ -9053,7 +9074,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           // Hints clients can use without changing the protocol (`docs/mcp-best-practices-review.md`).
           "botchelor/transport": "streamable-http",
           "botchelor/notifications_pushed": true,
-          "botchelor/notifications_pushed_note": "GET /api/mcp with Accept: text/event-stream and your mcp-session-id opens a server-sent-events stream for notifications/resources/updated, notifications/progress, sampling/createMessage and elicitation/create. A client that doesn't open the stream still gets pending resource updates on tool-reply _meta.",
+          // #1361: shorter (the first call's weight).
+          "botchelor/notifications_pushed_note": "GET /api/mcp (Accept: text/event-stream, your mcp-session-id) opens the server-sent-events stream; without it, pending resource updates ride on tool replies' _meta.",
           "botchelor/tools_core_count": CORE_TOOL_ORDER.length,
           "botchelor/tools_total_count": PUBLIC_MCP_TOOLS.length,
           // Reflects what the client offered, so an operator can audit what the integration gave the server access to.
@@ -9073,9 +9095,9 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
                 "botchelor/agents_on_now": others.n,
                 ...(others.live === 0
                   ? {
+                      // #1361: who answers when is the quickstart's (Swiping), so the note keeps only its own news.
                       "botchelor/live_agents_note":
-                        "No other agent is on right now (none called in the last 10 minutes): a like, a text or a proposal to an agent's character waits until its agent is next here. " +
-                        "The house cast (is_house) answers at once and house-run bots (house_bot: true) within an hour. my_status's live_agents_now says when that changes.",
+                        "No other agent is on right now (none called in the last 10 minutes): a like, a text or a proposal to an agent's character waits until its agent is next here.",
                     }
                   : {}),
               }
