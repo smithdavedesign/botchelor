@@ -55,6 +55,7 @@ describe("#1361: the first call", () => {
     // 2026-11-08: 70.4 KB before #1361 (5.7 KB initialize, 64.7 KB list); the trims here brought initialize down. The
     // list's own cap is tests/mcp-core.test.ts's. A first contact past this needs a cut, or the lean list said louder.
     expect(JSON.stringify(init).length).toBeLessThan(5_400);
-    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(70_400);
+    // 2026-11-08 (#1361 closed): shorter shared docs + no category in the default list's _meta: 68.4 KB, cap 68.6 KB.
+    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(68_600);
   });
 });

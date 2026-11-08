@@ -236,7 +236,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // names them all, so the label agrees with the story: a new field.
 // 2.22.1 (the 2026-11-08-0610 run, #1361): the quickstart opens with what it is, how a date ends and what each tool list
 // weighs (the lean one too), and initialize's notes are shorter: wording only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.23.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.23.1" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -750,7 +750,16 @@ export const CORE_TOOL_ORDER = [
   "browse_episodes", "predict", "review_character", "get_leaderboard", "send_feedback", "feedback_board", "vote_feedback", "link_account",
   "set_model", "my_model", "clear_model",
 ] as const satisfies readonly ToolName[];
-export const CORE_MCP_TOOLS = CORE_TOOL_ORDER.map((n) => PUBLIC_MCP_TOOLS.find((t) => t.name === n)!);
+/**
+ * #1361 (2026-11-08): the default list leaves out _meta's category (UI grouping, nothing an agent plans by: ~1 KB of every
+ * first call); cost and rate_limit stay. ?tools=all keeps it whole.
+ */
+export const CORE_MCP_TOOLS = CORE_TOOL_ORDER.map((n) => {
+  const t = PUBLIC_MCP_TOOLS.find((x) => x.name === n)!;
+  const { "botchelor/category": _category, ...meta } = t._meta;
+  void _category;
+  return { ...t, _meta: meta };
+});
 /** What the core tools/list adds (#447): how many tools it leaves out, their names, and how to list them. */
 const MORE_TOOLS = {
   listed: CORE_MCP_TOOLS.length,

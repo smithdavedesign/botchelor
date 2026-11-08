@@ -36,7 +36,12 @@ describe("tool _meta (non-breaking hints)", () => {
   });
 
   it("the core list carries _meta too (clients that read the short list still see hints)", () => {
-    for (const t of CORE_MCP_TOOLS) expect(t._meta).toBeDefined();
+    for (const t of CORE_MCP_TOOLS) {
+      expect(t._meta).toBeDefined();
+      expect((t._meta as Record<string, unknown>)["botchelor/cost"]).toBeTypeOf("string");
+      // #1361: category is UI grouping, left out of the default list to keep the first call small.
+      expect((t._meta as Record<string, unknown>)["botchelor/category"]).toBeUndefined();
+    }
   });
 });
 
