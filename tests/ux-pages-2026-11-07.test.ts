@@ -136,6 +136,10 @@ describe("the companions browser (app/companion/CompanionBrowser.tsx)", () => {
     expect(html).toContain("27 · she/her");
     expect(html).toContain("See you Tuesday?");
     expect(html).toContain("Clear filters");
+    // A conversation is a padded card. The chat page's message list (.companion-thread, padding 0) once shared its
+    // class and wiped the padding: the face and the day sat on the card's edge (2026-11-08).
+    expect(html).toContain('<li class="companion-card companion-thread-row tap-card">');
+    expect(html).not.toMatch(/class="[^"]*\bcompanion-thread\b(?!-)[^"]*"/);
   });
 
   it("signed out, every tile asks to sign in; a filter nobody matches offers to clear it", () => {

@@ -79,7 +79,8 @@ function Action({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
 /** A conversation you've started: who, their last line, and when. */
 function ThreadRow({ c }: { c: CompanionListItem }) {
   return (
-    <li className="companion-card companion-thread tap-card">
+    // Not .companion-thread: that's the chat page's message list, and its padding: 0 wiped this card's (2026-11-08).
+    <li className="companion-card companion-thread-row tap-card">
       <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={52} />
       <div className="companion-card-body">
         <span className="companion-thread-top">
