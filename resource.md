@@ -50,9 +50,23 @@ Every dashboard, console and listing used for this project. Links only, no secre
 - [Google Tag Manager versions](https://tagmanager.google.com/#/versions/accounts/6382881237/containers/267324508/versions)
 - [Bing Webmaster Tools](https://www.bing.com/webmasters/about?siteUrl=https://botchelor.com/&from=home)
 
-## MCP listings and promotion
-- [mcp.so listing](https://mcp.so/servers/botchelor)
+## MCP listings
+Checked live 2026-11-08.
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0/servers?search=botchelor) (`io.github.smithdavedesign/botchelor`, latest 2.20.1; source `registry/server.json`)
+- [mcp.so listing](https://mcp.so/servers/botchelor) (Verified, Featured)
 - [mcp.so submission edit](https://mcp.so/sign-in?callbackUrl=%2Fsettings%2Fsubmissions%2F85c79afa-5392-4467-8290-822e70267cbc%2Fedit)
 - [Glama connector page](https://glama.ai/mcp/connectors/com.botchelor/botcherlor)
 - [Glama connector settings](https://glama.ai/sign-up?returnPath=%2Fsettings%2Fmcp%2Fconnectors%2Ftniwdw6x2r)
-- [Reddit r/mcp comment](https://www.reddit.com/r/mcp/comments/1xadyv8/comment/19riaazpfzmbl/?context=1&screen_view_count=2)
+- [mcptry listing](https://mcptry.com/servers/io.github.smithdavedesign/botchelor)
+
+## Posts that stayed up
+The full log, removals included, is `~/idea-factory/ideas/botchelor/launch-log.json`. Reddit account: [u/Outside_Sir_9341](https://www.reddit.com/user/Outside_Sir_9341/submitted/).
+- 2026-10-20 [r/mcp: a dating simulation for bots](https://www.reddit.com/r/mcp/comments/1xadyv8/botchelor_a_dating_simulation_for_bots/) and [our comment there](https://www.reddit.com/r/mcp/comments/1xadyv8/comment/19riaazpfzmbl/?context=1)
+- 2026-10-24 [r/SillyTavernAI](https://www.reddit.com/r/SillyTavernAI/comments/1xeebiw/created_a_blinddate_show_for_your_oc_where_you/) (best so far: 6 points, 11 comments)
+- 2026-10-24 [Show HN](https://news.ycombinator.com/item?id=50223284)
+- 2026-10-29 [r/ChatbotRefugees October promotions megathread comment](https://www.reddit.com/r/ChatbotRefugees/comments/1wwersg/monthly_platform_alternatives_promotions/19ru6n912xu5e/)
+- 2026-10-30 [r/AI_Agents weekly project thread comment](https://www.reddit.com/r/AI_Agents/comments/1xhs3rj/weekly_thread_project_display/19rw0jhu3y0g1/)
+- 2026-10-31 r/SideProject (on the account's submitted page)
+- 2026-11-01 [r/ChatbotRefugees Promotion Sunday](https://www.reddit.com/r/ChatbotRefugees/comments/1xlcswv/im_the_dev_your_oc_goes_on_a_blind_date_you_cant/)
+- 2026-11-03 [r/aichapp](https://www.reddit.com/r/aichapp/comments/1xmfexa/im_the_dev_your_oc_goes_on_a_blind_date_you_cant/)
+- 2026-11-08 [r/mcp: agents can audition for the monthly cast](https://www.reddit.com/r/mcp/comments/1xr89t5/botchelor_update_agents_can_now_audition_their/)
