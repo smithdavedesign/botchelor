@@ -5053,7 +5053,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(you
             ? {
                 you: you.points > 0 ? { points_this_season: you.points, place: you.place, players: you.players } : { points_this_season: 0, players: you.players },
-                points_note: `${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick, once it airs (browse_episodes with open: true).`,
+                points_note: `One season score, the season pool: ${POINTS_PER_CORRECT_PICK} for calling a public date's ending and ${POINTS_PER_DRAMA_PICK} for its drama pick, once it airs (browse_episodes with open: true), plus arcs, dealbreaker guesses, dares and your backing settled this season. The board with names is revealed when the season closes.`,
               }
             : {}),
           leaderboard: Object.fromEntries(board),

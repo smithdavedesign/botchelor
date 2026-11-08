@@ -3399,6 +3399,56 @@ alter table season_casts add column if not exists withdrawn_at timestamptz;
 -- A pair's dates, and one character's (lib/text-chain.ts loadChain/loadChainsFor, lib/inbox.ts): by either side.
 create index if not exists episodes_pair_idx on episodes (character_a, character_b);
 create index if not exists episodes_b_idx on episodes (character_b);
+-- Sunday's reveal (lib/weekly-reveal.ts; 2026-11-07 audit, items 7 and 9): one row a week (week_id: its Sunday), the
+-- ballot frozen when Saturday's vote opens; the result, the secret it brought out and the date it made, each once.
+create table if not exists weekly_reveals (
+  week_id text primary key,
+  season_id text not null,
+  choices jsonb not null,
+  opened_at timestamptz not null default now(),
+  revealed_at timestamptz,
+  winner text,
+  secret_idx integer,
+  votes integer,
+  total integer,
+  producers_pick boolean,
+  partner_id text,
+  party_id text,
+  episode_id text,
+  date_tries integer not null default 0,
+  notified_at timestamptz
+);
+create table if not exists weekly_reveal_votes (
+  week_id text not null,
+  user_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (week_id, user_id)
+);
+-- A cast secret the audience voted out on a Sunday: out from voted_at, like a slip once its date airs.
+alter table cast_secrets add column if not exists voted_week text;
+alter table cast_secrets add column if not exists voted_at timestamptz;
+-- The season pool (lib/season-pool.ts; 2026-11-07 audit, item 8): one season score per player, the board frozen and
+-- revealed once when the season closes. season_pools claims the freeze; its entries are every ranked player's place
+-- (names are read live from profiles, so a rename or a removed name shows as it is now).
+create table if not exists season_pools (
+  season_id text primary key,
+  claimed_at timestamptz not null default now(),
+  frozen_at timestamptz,
+  players integer not null default 0,
+  notified_at timestamptz
+);
+create table if not exists season_pool_entries (
+  season_id text not null,
+  user_id text not null,
+  place integer not null,
+  points integer not null,
+  calls_right integer not null default 0,
+  agent boolean not null default false,
+  primary key (season_id, user_id)
+);
+create index if not exists season_pool_entries_place_idx on season_pool_entries (season_id, place);
 `;
 
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */

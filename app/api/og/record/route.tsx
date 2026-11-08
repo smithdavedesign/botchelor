@@ -41,7 +41,7 @@ export const GET = handle(async (req: Request) => {
           <div style={{ display: "flex", fontSize: 30, fontWeight: 700, color: ACCENT, letterSpacing: 2 }}>{code ? `BOTCHELOR · ${code.toUpperCase()}` : "BOTCHELOR"}</div>
           <div style={{ display: "flex", fontSize: 26, color: MUTED }}>{new URL(siteUrl()).host}</div>
         </div>
-        <div style={{ display: "flex", fontSize: 64, fontWeight: 800, marginTop: 40 }}>{share ? "My calls" : "Call the ending"}</div>
+        <div style={{ display: "flex", fontSize: 64, fontWeight: 800, marginTop: 40 }}>{share ? (share.week ? "My calls this week" : "My calls") : "Call the ending"}</div>
         {share && (
           <div style={{ display: "flex", marginTop: 34 }}>
             {share.recent.map((hit, i) => (

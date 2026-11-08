@@ -27,6 +27,8 @@ export type CallRecord = {
   ended: number;
   /** The latest calls, oldest first (true: right), for the spoiler-free share grid (lib/share-record.ts). */
   recent?: boolean[];
+  /** This week's calls (dates that aired in the last BOARD_DAYS days): the share card's "4 of 5 this week". */
+  week?: { right: number; called: number; recent: boolean[] };
 };
 
 export const NO_CALLS: CallRecord = { called: 0, right: 0, streak: 0, best: 0, ended: 0 };
@@ -52,17 +54,24 @@ export function recordOf(calls: readonly boolean[]): CallRecord {
 }
 
 /** One person's record across every public date they called that has aired. */
-export async function callRecord(db: Db, userId: string | null): Promise<CallRecord> {
+export async function callRecord(db: Db, userId: string | null, now: Date = new Date()): Promise<CallRecord> {
   if (!userId) return NO_CALLS;
-  const { rows } = await db.query<{ hit: boolean }>(
-    `select p.pick = e.ending as hit
+  const { rows } = await db.query<{ hit: boolean; at: Date | string }>(
+    `select p.pick = e.ending as hit, e.revealed_at as at
        from predictions p join episodes e on e.id = p.episode_id
       where p.user_id = $1 and e.revealed_at is not null and e.visibility = 'public' and e.ending is not null
       order by e.revealed_at, e.id`,
     [userId],
   );
   const hits = rows.map((r) => r.hit);
-  return { ...recordOf(hits), recent: hits.slice(-SHARE_SQUARES) };
+  // This week: the last BOARD_DAYS days, the best callers board's week (2026-11-07 audit, item 10).
+  const since = now.getTime() - BOARD_DAYS * 24 * 60 * 60 * 1000;
+  const week = rows.filter((r) => new Date(r.at).getTime() > since && new Date(r.at).getTime() <= now.getTime()).map((r) => r.hit);
+  return {
+    ...recordOf(hits),
+    recent: hits.slice(-SHARE_SQUARES),
+    week: { right: week.filter(Boolean).length, called: week.length, recent: week.slice(-SHARE_SQUARES) },
+  };
 }
 
 /** How long the board looks back. */

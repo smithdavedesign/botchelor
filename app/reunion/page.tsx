@@ -15,6 +15,8 @@ import { cookies } from "next/headers";
 import { userIdFromCookieStore } from "@/lib/http";
 import { seasonFormatNow } from "@/lib/season-format-store";
 import { seasonBallot } from "@/lib/season-vote";
+import SeasonPoolPanel from "@/app/SeasonPool";
+import { poolStanding, recentPoolBoard } from "@/lib/season-pool";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +54,8 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
   const ballot = await seasonFormatNow(db, now)
     .then((def) => seasonBallot(db, viewerId, def.slug, now))
     .catch(() => null);
+  // The season pool (lib/season-pool.ts): where you stand this season, and last season's board while it's fresh.
+  const [pool, poolRevealed] = await Promise.all([poolStanding(db, viewerId, now).catch(() => null), recentPoolBoard(db, viewerId, now).catch(() => null)]);
   return (
     <article className="reunion-page">
       <ShowTabs active="/reunion" />
@@ -74,6 +78,7 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
       ) : (
         <ReunionPanel reunion={reunion} heading="h1" season={season} couplesPage={couplesPage} couplesHref={(n) => pageHref("/reunion", {}, "couples", n, "couples")} hidden={hidden} />
       )}
+      <SeasonPoolPanel standing={pool} revealed={poolRevealed} now={now.getTime()} />
       {ballot && <SeasonFormatVote ballot={ballot} now={now.getTime()} />}
       {past.length > 0 && (
         <section className="reunion-seasons" aria-labelledby="seasons">

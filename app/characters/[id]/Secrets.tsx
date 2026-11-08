@@ -20,6 +20,12 @@ export function Secrets({ name, secrets }: { name: string; secrets: CastSecrets 
         {secrets.out.map((s, i) => (
           <li key={i}>
             <span aria-hidden="true">🔓</span> {s.secret}
+            {s.voted && (
+              <>
+                {" "}
+                <span className="chip">🗳️ Voted out by the audience</span>
+              </>
+            )}
           </li>
         ))}
         {Array.from({ length: locked }, (_, i) => (
@@ -36,7 +42,7 @@ export function Secrets({ name, secrets }: { name: string; secrets: CastSecrets 
       <p className="muted small">
         {secrets.own
           ? `${name} is hiding ${secrets.total === 1 ? "something" : `${secrets.total} things`}. One only comes out when a date draws it out of them, once that date airs.`
-          : `${name} has ${secrets.total} this season. One comes out for every ${SECRET_EVERY} of their dates that air.`}
+          : `${name} has ${secrets.total} this season. One comes out for every ${SECRET_EVERY} of their dates that air, and on Sundays the audience can vote one out.`}
       </p>
     </section>
   );

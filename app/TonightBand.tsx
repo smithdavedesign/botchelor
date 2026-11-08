@@ -2,6 +2,7 @@ import Link from "next/link";
 import Avatar from "./Avatar";
 import type { AiringSoon, EpisodeView } from "@/lib/game";
 import type { SituationBoard } from "@/lib/situations";
+import type { RevealBoard } from "@/lib/weekly-reveal";
 import type { LobbyEntry } from "@/lib/watch";
 
 /** "in 2h 10m", "in 4 min": server-rendered relative time (the page is dynamic; no ticking JS). */
@@ -31,12 +32,15 @@ export default function TonightBand({
   rooms,
   airing,
   situation,
+  reveal = null,
   latest,
   now,
 }: {
   rooms: LobbyEntry[];
   airing: AiringSoon[];
   situation: SituationBoard | null;
+  /** Sunday's reveal (lib/weekly-reveal.ts): a slot while its vote is open, the week's one appointment. */
+  reveal?: RevealBoard | null;
   latest: EpisodeView | null;
   now: number;
 }) {
@@ -73,6 +77,16 @@ export default function TonightBand({
       names: `${premiere.characters[0].name} × ${premiere.characters[1].name}`,
       line: `Starts ${inWords(premiere.starts_at, now)}`,
       href: premiere.room_path,
+    });
+  }
+  if (reveal && reveal.state === "open" && reveal.choices.length >= 2) {
+    slots.push({
+      key: "reveal",
+      label: "Sunday's reveal",
+      faces: reveal.choices.map((c) => ({ id: c.id, name: c.name, hue: c.hue, house: true, portrait: c.portrait })),
+      names: "Whose secret comes out?",
+      line: reveal.my_pick ? `Your vote is in — closes ${inWords(reveal.closes_at, now)}` : `Vote — closes ${inWords(reveal.closes_at, now)}`,
+      href: "/watch#sunday-reveal",
     });
   }
   if (situation) {
