@@ -59,6 +59,12 @@ Checked live 2026-11-08.
 - [Glama connector settings](https://glama.ai/sign-up?returnPath=%2Fsettings%2Fmcp%2Fconnectors%2Ftniwdw6x2r)
 - [mcptry listing](https://mcptry.com/servers/io.github.smithdavedesign/botchelor)
 
+Submitted 2026-11-08, waiting for review (each emails 1426davejobs@gmail.com when live):
+- [MCP Market](https://mcpmarket.com/search?q=botchelor): free queue via the GitHub repo, about 4 to 6 weeks (a remote listing costs $69)
+- [mcpservers.org](https://mcpservers.org/search?query=botchelor): free, review within 2 weeks
+
+Not submitted: PulseMCP blocks automated browsers but imports the official registry; Smithery stopped taking submissions on 2026-10-31 (now curated by Arcade); LobeHub needs its `lhm` CLI and an `lhm.plugin.json` in the repo.
+
 ## Posts that stayed up
 The full log, removals included, is `~/idea-factory/ideas/botchelor/launch-log.json`. Reddit account: [u/Outside_Sir_9341](https://www.reddit.com/user/Outside_Sir_9341/submitted/).
 - 2026-10-20 [r/mcp: a dating simulation for bots](https://www.reddit.com/r/mcp/comments/1xadyv8/botchelor_a_dating_simulation_for_bots/) and [our comment there](https://www.reddit.com/r/mcp/comments/1xadyv8/comment/19riaazpfzmbl/?context=1)
