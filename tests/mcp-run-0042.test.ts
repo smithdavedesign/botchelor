@@ -212,7 +212,8 @@ describe("#632: own dates carry the conversation so far, and a bare line works",
     ]);
     const keys = Object.keys(read);
     expect(keys.indexOf("transcript")).toBeLessThan(keys.indexOf("step"));
-    expect(read.next_calls).toEqual([{ tool: "submit_own_date_step", args: { episode_id: id, output: "<Ada Lumen's line>" }, why: expect.stringMatching(/turn 3 of/) }]);
+    // #1362: between your own two characters the call names its speaker.
+    expect(read.next_calls).toEqual([{ tool: "submit_own_date_step", args: { episode_id: id, output: "<Ada Lumen's line>", character_id: read.step.speaker.id }, why: expect.stringMatching(/turn 3 of/) }]);
   });
 
   it("on a two-agent date both agents read both sides' lines", async () => {

@@ -413,6 +413,10 @@ export type OwnDateResult =
       wish_ignored?: string;
       /** #1205: start_own_date set a roleplay, so its reply can say the roleplay sets the story, not the place. */
       roleplay?: string;
+      /** #1362: the turn an accepted line went to, and whose line it is now. */
+      filled?: { turn_number: number; who: string };
+      /** #1362: a wrong_speaker refusal's pinned character, by name (null: not on this date). */
+      pinned?: { asked: string; name: string | null };
     }
   | {
       ok: false;
@@ -1924,8 +1928,27 @@ async function finishedRefusal(db: Db, userId: string, episodeId: string, row: R
   return { ...err(410, DATE_FINISHED, `That date is over (state: gone): it lapsed after ${OWN_DATE_TTL_HOURS} hours unfinished, or was removed. ${unused}`), state: "gone" };
 }
 
-/** Hand in the output for the current step; returns the next one (or the same one, refused, with why). */
-export async function submitOwnDateStep(db: Db, userId: string, episodeId: string, output: unknown, opts: { checkOnly?: boolean } = {}): Promise<OwnDateResult> {
+/** #1362: a line pinned to a character that isn't the one speaking now (or the date is past its lines) is refused as this. */
+export const WRONG_SPEAKER = "wrong_speaker";
+
+/**
+ * #1362 (the 2026-11-08-0610 run: two submit_own_date_step calls sent side by side on a date between an agent's own two
+ * characters, and the second line went in as the other character's, unsaid): which side a pinned character is, by its id
+ * or its full name. Null when it's neither of the date's two.
+ */
+export function pinnedSide(pin: string, ids: readonly [string, string], names: readonly [string, string]): "a" | "b" | null {
+  const p = pin.trim().toLowerCase();
+  const i = ids.findIndex((id) => id.toLowerCase() === p);
+  const at = i >= 0 ? i : names.findIndex((n) => n.trim().toLowerCase() === p);
+  return at === 0 ? "a" : at === 1 ? "b" : null;
+}
+
+/**
+ * Hand in the output for the current step; returns the next one (or the same one, refused, with why). `speaker` (#1362)
+ * pins a turn to the character it was written for: checked against the same read the save is guarded on, so a call that
+ * lands after another took the turn is refused (wrong_speaker), never stored as the next character's line.
+ */
+export async function submitOwnDateStep(db: Db, userId: string, episodeId: string, output: unknown, opts: { checkOnly?: boolean; speaker?: string } = {}): Promise<OwnDateResult> {
   const row = await load(db, userId, episodeId);
   const over = await finishedRefusal(db, userId, episodeId, row);
   if (over) return over;
@@ -1943,6 +1966,14 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
   }
   // #432: a refused step goes back as this agent sees it, so a two-agent date's retry doesn't show the ending either.
   const refuse = (rejected: string): OwnDateResult => ({ ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), botSide(row, userId)), rejected });
+  // #1362: a line pinned to its character goes in as that character's or not at all (past the last line, not at all).
+  if (opts.speaker !== undefined) {
+    const side = pinnedSide(opts.speaker, [row.a_id, row.b_id], [built.characters[0].name, built.characters[1].name]);
+    if (current.stage !== "turn" || side !== current.side) {
+      const name = side ? built.characters[side === "a" ? 0 : 1].name : null;
+      return { ok: true, step: forViewer(current, userId, performersOf(row), twoAgent, lastMove(row), botSide(row, userId)), rejected: WRONG_SPEAKER, pinned: { asked: opts.speaker, name } };
+    }
+  }
   const raw = asText(current.stage === "turn" ? oneLineTurn(output) : output);
   // A rejected reply hands back the same step: as this agent sees it, so a two-agent date's ending stays hidden (#432;
   // a 2026-10-20 visitor saw "ending: friends" on the retry step).
@@ -2017,6 +2048,8 @@ export async function submitOwnDateStep(db: Db, userId: string, episodeId: strin
           : `accept_move did nothing: there was no suggestion to answer (${shortName(names.other)}'s last line proposed no move the show took: a move counts only with "move" set and the place said in that line), so the date stays at ${venueName(shape.place)}. To go somewhere, suggest it yourself: "move" with the place, said in your line.`
         : null;
     const kept: Partial<Extract<OwnDateResult, { ok: true }>> = {
+      // #1362: every accepted line says whose it went in as, so a line that landed on a later turn than meant shows.
+      filled: { turn_number: current.turn_number, who: speaker.name },
       ...(typeof parsed.wish === "boolean" ? { wish: { side: current.side, character: speaker.name, see_again: parsed.wish, last_line: Boolean(current.see_again) } } : {}),
       ...(movedTo ? { moved: { to: venueName(movedTo), of: shapeFor(built, formatId, next).total, was_of: shape.total } } : {}),
       ...(moveIgnored ? { move_ignored: moveIgnored } : {}),

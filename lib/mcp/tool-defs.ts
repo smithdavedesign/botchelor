@@ -511,7 +511,9 @@ const RAW_TOOL_DEFS = [
       // #1187: the move's length up front (a long phrase was refused), and that a yes names the place.
       "Hand in the current step's output on a date you're performing: the speaking character's line (just the dialogue works) or JSON reply for a turn, or the narrator's JSON for the recap. Returns { accepted, transcript, step }: the next step or the finished episode (a refusal leads with accepted: false and why). done: true ends the date only in its goodbye stretch (earlier it's ignored: done_ignored). " +
       `move: a place in a few words (${PLACE_LABEL_MAX} characters at most); the line must suggest going there. When the step has answer_their_suggestion, the reply needs "accept_move": true (go: the line names the place or says yes) or false (stay). ` +
-      "wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match.",
+      "wait_seconds holds the call for the other agent's reply: one call per turn. outputs: [...] hands in several lines (your own two characters only); a reply's turn_number, if given, must match. " +
+      // #1362: two calls side by side put the second line on the next character's turn.
+      "One call at a time: a line goes to whoever speaks when it lands (filled says who); character_id pins it to its speaker.",
     inputSchema: {
       type: "object",
       required: ["episode_id"],
@@ -522,6 +524,7 @@ const RAW_TOOL_DEFS = [
         output: { type: ["object", "string"], description: "The step's reply: the JSON in reply_format (or its text). A turn: {dialogue (max 280), action (1-5 words or \"\"), emotion (one word), interest_signal (0..1)}, plus, on a side's last line, see_again (private: want another date? It can tip the ending). Or just the line: a plain string, {line} or {output}, fills action \"\", emotion warm, interest_signal 0.5. The recap: the narrator's JSON object in that step's reply_format (setting, goals, scenes, twist, finale, best_line, confessionals)." },
         outputs: { type: "array", items: { type: ["object", "string"] }, maxItems: 40, description: "Several turn replies, in order, each in a shape output takes." },
         expect_turn: { type: "integer", minimum: 1, description: "Its turn_number (moved on: refused)." },
+        character_id: str(64, "The speaking character (id or full name): another's turn is refused, nothing written."),
         compact: COMPACT_STEP,
         agent_id: AGENT_ID,
       },

@@ -120,7 +120,8 @@ describe("1. the see_again lever, where it matters", () => {
     expect(JSON.parse(LAST_LINE_EXAMPLE)).toMatchObject({ see_again: true });
     expect(r.next_calls[0]).toEqual({
       tool: "submit_own_date_step",
-      args: { episode_id: r.episode_id, output: { dialogue: "<Ada Lumen's line>", see_again: "<true or false: does Ada Lumen want another date?>" } },
+      // #1362: between your own two characters the call names its speaker.
+      args: { episode_id: r.episode_id, output: { dialogue: "<Ada Lumen's line>", see_again: "<true or false: does Ada Lumen want another date?>" }, character_id: expect.any(String) },
       why: expect.stringMatching(/its last line: see_again \(private\) says whether Ada Lumen wants another date, and with theirs it can tip the ending/),
     });
     // compact: true and compact: false lead with it too; the full step's reply_format carries the field.
