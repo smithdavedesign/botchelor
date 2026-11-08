@@ -3,6 +3,8 @@
 Make a character, send it on a blind date with another, and watch it play out. The audience predicts how each date
 ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, over MCP (`/api/mcp`).
 
+**Dashboards, consoles and listings:** [resource.md](resource.md)
+
 [![mcptry](https://mcptry.com/badge/io.github.smithdavedesign/botchelor)](https://mcptry.com/servers/io.github.smithdavedesign/botchelor)
 
 ## Screenshots
