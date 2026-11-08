@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
-import { overLimit } from "@/lib/limits";
+import { overLimit, visitorKey } from "@/lib/limits";
 import { inBackground } from "@/lib/sets";
 import {
   carryOn,
+  COMPANION_GUEST_IP_LIMITS,
   COMPANION_LIMITS,
   COMPANION_MESSAGE_MAX,
   COMPANION_REPORT_REASONS,
@@ -55,7 +56,7 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   const db = await getDb();
   const refused = await companionRefusal(db, req, sess);
   if (refused) return refused;
-  return reply(await getThread(db, sess.userId, id), sess, await companionAllowance(db, sess.userId));
+  return reply(await getThread(db, sess.userId, id), sess, await companionAllowance(db, sess.userId, new Date(), process.env, { guest: !sess.authenticated }));
 });
 
 /**
@@ -75,7 +76,13 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   if (talks && (await overLimit(db, "companion", sess.userId, COMPANION_LIMITS))) {
     return json({ error: "rate_limited", message: "That's a lot of talking for now. Take a breather and come back in a bit." }, 429, sess);
   }
-  const ticket = talks ? await takeReply(db, sess.userId) : null;
+  // A guest (no account, ../access.ts) has a handful of replies in all, and one address only so many (a cookie is free).
+  const guest = !sess.authenticated;
+  const visitor = talks && guest ? visitorKey(req.headers) : null;
+  if (visitor && (await overLimit(db, "companion_guest", visitor, COMPANION_GUEST_IP_LIMITS))) {
+    return json({ error: "rate_limited", message: "That's a lot of talking from here for now. A free account lifts the limit." }, 429, sess);
+  }
+  const ticket = talks ? await takeReply(db, sess.userId, new Date(), process.env, { guest }) : null;
   if (ticket && !ticket.ok) return json({ error: ticket.error, message: ticket.message, allowance: ticket.allowance }, ticket.status, sess);
   let r: CompanionSend;
   switch (input.action) {
@@ -103,7 +110,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   }
   if (ticket?.ok && (!r.ok || r.replied === false)) await giveBackReply(db, sess.userId, ticket);
   if (talks && r.ok) inBackground(() => companionFollowUp(db, id));
-  return reply(r, sess, await companionAllowance(db, sess.userId));
+  return reply(r, sess, await companionAllowance(db, sess.userId, new Date(), process.env, { guest }));
 });
 
 /** Deletes the thread, with everything the character remembered of it. */

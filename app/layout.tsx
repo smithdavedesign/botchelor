@@ -42,6 +42,7 @@ import "./ux/seasons.css";
 import "./ux/step-in.css";
 import "./ux/companion.css";
 import "./ux/filters.css";
+import "./ux/front.css";
 
 const TRACKING = trackingConfig();
 

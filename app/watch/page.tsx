@@ -15,9 +15,10 @@ import { latestCastChat } from "@/lib/cast-chat";
 import DareVote from "@/app/DareVote";
 import SituationVote from "@/app/SituationVote";
 import OpenOnHash from "@/app/OpenOnHash";
-import SeasonBanner from "@/app/SeasonBanner";
 import ShowSince from "@/app/ShowSince";
-import ThisWeek from "./ThisWeek";
+import SeasonLine from "./SeasonLine";
+import DateExcerpt from "@/app/DateExcerpt";
+import { pickFeaturedDate } from "@/lib/featured-date";
 import RecouplingCard from "./RecouplingCard";
 import { recouplingBoard } from "@/lib/recoupling";
 import { ballotResult } from "@/lib/season-vote";
@@ -204,6 +205,10 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const ready = rooms.filter((r) => r.status === "ready");
   const upcoming = rooms.filter((r) => r.status === "upcoming");
   const replays = rooms.filter((r) => r.status === "replay");
+  // The date first (2026-11-07 audit, item 3): what's live, else the newest aired date playing its opening lines. It
+  // isn't listed again under Latest episodes.
+  const featured = page === 1 && live.length === 0 ? pickFeaturedDate(feed) : null;
+  const listed = featured ? feed.filter((e) => e.id !== featured.episode_id) : feed;
 
   return (
     <article className="watch-page">
@@ -221,14 +226,38 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         <a href="#how-it-works">How it works</a>
       </p>
 
-      <SeasonBanner />
-      {seasonDef && (
-        <ThisWeek
-          card={thisWeekOn(seasonDef, new Date(now))}
-          picked={ballot?.winner && ballot.winner === seasonDef.slug ? { title: seasonDef.title, votes: ballot.votes, total: ballot.total } : null}
-        />
+      {live.length > 0 ? (
+        <section className="watch-section watch-lead" aria-labelledby="live-now">
+          <h2 id="live-now">
+            <span className="watch-dot" aria-hidden /> Live now
+          </h2>
+          <div className="watch-lobby">
+            {live.map((r) => (
+              <RoomCard key={r.id} room={r} action={`● ${r.watching} watching`} />
+            ))}
+          </div>
+        </section>
+      ) : (
+        featured && (
+          <section className="watch-section watch-lead" aria-labelledby="watch-lead-head">
+            <h2 id="watch-lead-head" className="watch-lead-kicker">
+              Just aired
+            </h2>
+            <DateExcerpt date={featured} />
+          </section>
+        )
       )}
-      {recoupling && <RecouplingCard board={recoupling} now={now} />}
+
+      {/* The season, as one line under the date (it was three cards above it). The Recoupling's own card only while its
+          vote is open: then there's something to do. */}
+      <SeasonLine
+        def={seasonDef}
+        card={seasonDef ? thisWeekOn(seasonDef, new Date(now)) : null}
+        picked={seasonDef && ballot?.winner && ballot.winner === seasonDef.slug ? { title: seasonDef.title, votes: ballot.votes, total: ballot.total } : null}
+        recoupling={recoupling}
+        now={now}
+      />
+      {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} />}
       {showNews && <ShowSince card={showNews} />}
 
       {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
@@ -248,18 +277,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       <section className="watch-section">
         {/* The schedule block reads as tonight's listings (docs/show-style.md). */}
         <p className="watch-tonight-kicker">Tonight on Botchelor</p>
-        {live.length ? (
-          <>
-            <h2>
-              <span className="watch-dot" aria-hidden /> Live now
-            </h2>
-            <div className="watch-lobby">
-              {live.map((r) => (
-                <RoomCard key={r.id} room={r} action={`● ${r.watching} watching`} />
-              ))}
-            </div>
-          </>
-        ) : (
+        {live.length ? null : (
           // Nothing live: one line, not a heading over an empty space.
           <p className="watch-live-empty">
             <span className="watch-dot off" aria-hidden /> <strong>Nothing live right now.</strong>{" "}
@@ -298,12 +316,14 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
 
       <section className="watch-section" id="latest">
         <h2>Latest episodes{page > 1 ? ` · page ${page}` : ""}</h2>
-        {feed.length ? (
+        {listed.length ? (
           <ul className="list watch-latest-list">
-            {feed.map((episode) => (
+            {listed.map((episode) => (
               <EpisodeItem key={episode.id} episode={episode} />
             ))}
           </ul>
+        ) : featured ? (
+          <p className="muted">The only one so far is the date at the top.</p>
         ) : latest.total > 0 ? (
           <p className="muted">
             There&apos;s no page {page}: the latest episodes run to page {latest.pages}.{" "}

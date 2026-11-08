@@ -52,6 +52,7 @@ import { stepInAllowed } from "@/lib/step-in";
 import { companionAllowed, companionEligible } from "@/lib/companion";
 import { companionOpen } from "@/lib/companion-shared";
 import TalkButton from "@/app/companion/TalkButton";
+import { companionGuestFromCookies } from "@/lib/companion-access";
 import LearnedPanel from "./LearnedPanel";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
@@ -118,7 +119,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // database round trips in a row, ~70 ms each from New York to the database in Oregon). The owner is known from the
   // character itself, so nothing waits on the ratings to find out.
   const isOwner = Boolean(viewerId) && c.owner_id === viewerId;
-  const auth = authFromCookieStore(await cookies());
+  const cookieStore = await cookies();
+  const auth = authFromCookieStore(cookieStore);
   const firstP = Promise.all([
     getCharacterDatesPage(db, id, viewerId, parsePage(sp.dates)),
     getCharacterRatings(db, id, viewerId),
@@ -200,9 +202,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // Step into the date (lib/step-in.ts): this season's cast, for whoever it's open to (admins until STEP_IN_OPEN).
   const stepInP = c.house && isOnSeasonCast(id) ? stepInAllowed(db, auth).catch(() => false) : Promise.resolve(false);
   // Companions (lib/companion.ts): talk one to one with the house cast, the show's open cast or your own (admins until COMPANION_OPEN).
-  // "talk", or "signin" for a signed-out visitor once companions are open to everyone (an account comes first).
+  // "talk", or "signin" for a signed-out visitor once companions are open to everyone and guests aren't (a guest tries a
+  // few replies first, lib/companion-access.ts).
   const companionP = (async (): Promise<"talk" | "signin" | false> => {
-    if (!auth?.authenticated) return companionOpen() && (await companionEligible(db, "", id)) ? "signin" : false;
+    if (!auth?.authenticated) {
+      if (!companionOpen() || !(await companionEligible(db, auth?.userId ?? "", id))) return false;
+      return companionGuestFromCookies(auth, cookieStore) ? "talk" : "signin";
+    }
     return (await companionAllowed(db, auth)) && (await companionEligible(db, auth.userId, id)) ? "talk" : false;
   })().catch(() => false as const);
   // What it does while its owner is away (lib/activity.ts), for the owner's controls.

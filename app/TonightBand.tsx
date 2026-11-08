@@ -94,7 +94,8 @@ export default function TonightBand({
       faces: latest.characters,
       names: `${latest.characters[0].name} × ${latest.characters[1].name}`,
       line: latest.title ? `“${latest.title}”` : latest.setting,
-      href: latest.share_path,
+      // Straight into the theater, playing (2026-11-07 audit item 4).
+      href: latest.revealed ? `${latest.share_path}?play=1` : latest.share_path,
     });
   }
   if (!slots.length) return null;

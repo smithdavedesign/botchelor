@@ -1,0 +1,240 @@
+/* The front of the site (2026-11-07 audit + benchmark, items 1–5): a real date in the first seconds. Loaded after
+   globals.css (app/layout.tsx). */
+
+/* ---------------- a few lines of a real date (app/DateExcerpt.tsx) ---------------- */
+.date-excerpt {
+  --excerpt-step: 1.4s;
+  margin: 0;
+  width: 100%;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: 18px;
+  color: #fff;
+  background-size: cover;
+  background-position: center;
+  box-shadow: var(--shadow);
+}
+.date-excerpt-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.date-excerpt-head .pair-faces .avatar {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+.date-excerpt-who {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+.date-excerpt-meta {
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.78);
+}
+.date-excerpt-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+.date-excerpt-line {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.45rem;
+  max-width: 92%;
+  animation: excerpt-in 0.3s ease-out both;
+  animation-delay: calc(var(--i) * var(--excerpt-step));
+}
+.date-excerpt-line.is-b {
+  flex-direction: row-reverse;
+  justify-self: end;
+}
+.date-excerpt-bubble {
+  padding: 0.5rem 0.75rem;
+  border-radius: 16px 16px 16px 4px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #241022;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  animation: excerpt-in 0.3s ease-out both;
+  animation-delay: calc(var(--i) * var(--excerpt-step) + 0.75s);
+}
+.date-excerpt-line.is-b .date-excerpt-bubble {
+  border-radius: 16px 16px 4px 16px;
+  background: color-mix(in srgb, var(--accent) 88%, #fff);
+  color: #fff;
+}
+/* "…" while they type: over the bubble's start, gone as the line lands (the layout never moves). */
+.date-excerpt-typing {
+  position: absolute;
+  bottom: 0;
+  left: calc(28px + 0.45rem);
+  display: inline-flex;
+  gap: 4px;
+  padding: 0.6rem 0.75rem;
+  border-radius: 16px 16px 16px 4px;
+  background: rgba(255, 255, 255, 0.94);
+  animation: excerpt-out 0.2s ease-in both;
+  animation-delay: calc(var(--i) * var(--excerpt-step) + 0.7s);
+}
+.date-excerpt-line.is-b .date-excerpt-typing {
+  left: auto;
+  right: calc(28px + 0.45rem);
+  border-radius: 16px 16px 4px 16px;
+  background: color-mix(in srgb, var(--accent) 88%, #fff);
+}
+.date-excerpt-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8a6f86;
+  animation: excerpt-dot 0.9s ease-in-out infinite;
+}
+.date-excerpt-line.is-b .date-excerpt-typing span {
+  background: #fff;
+}
+.date-excerpt-typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.date-excerpt-typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.date-excerpt-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+}
+.date-excerpt-cta .button {
+  margin: 0;
+}
+.date-excerpt-note {
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.78);
+}
+@keyframes excerpt-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes excerpt-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes excerpt-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.date-excerpt.is-still .date-excerpt-line,
+.date-excerpt.is-still .date-excerpt-bubble {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .date-excerpt-line,
+  .date-excerpt-bubble {
+    animation: none;
+  }
+  .date-excerpt-typing {
+    display: none;
+  }
+}
+
+/* The home hero shows the date itself where the made-up box score was: the excerpt is its own card. */
+.hero-art.has-date {
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  align-items: stretch;
+}
+
+/* ---------------- the 18+ gate (app/gate/page.tsx): the show, blurred, behind the question ---------------- */
+.gate-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: var(--space-4);
+  padding: 5rem 16px 2rem;
+  background: var(--paper);
+  filter: blur(6px);
+  pointer-events: none;
+  user-select: none;
+}
+.gate-backdrop-copy {
+  max-width: 40rem;
+  text-align: center;
+}
+.gate-backdrop-copy h2 {
+  margin: 0;
+  font-size: var(--text-2xl);
+}
+.gate-backdrop .date-excerpt {
+  max-width: 34rem;
+}
+.age-gate.has-backdrop {
+  background: color-mix(in srgb, var(--paper) 45%, transparent);
+}
+.age-gate-behind {
+  margin: 0.75rem 0 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  background: var(--soft);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+/* ---------------- /watch: the date first, the season as one line (app/watch/page.tsx) ---------------- */
+.watch-lead {
+  margin-top: var(--space-3);
+}
+.watch-lead-kicker {
+  margin: 0 0 0.4rem;
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.season-line {
+  margin: var(--space-3) 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+}
+.season-line > summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.season-line > summary .muted {
+  white-space: nowrap;
+}
+.season-line-body {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+.season-line-body p {
+  margin: 0;
+}

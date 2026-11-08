@@ -390,7 +390,23 @@ export default function CompanionChat({
         />
       )}
 
-      {!paused && outOfReplies && (
+      {!paused && outOfReplies && allowance.guest && (
+        // A guest's free replies are gone (lib/companion-shared.ts): an account adopts this visitor's id (lib/auth.ts), so
+        // the conversation and what they remember carry straight on.
+        <div className="companion-out" role="status">
+          <p>
+            <strong>That&apos;s your {allowance.per_day} free replies without an account.</strong> Make a free account to keep talking:
+            this conversation is kept, and {first} remembers all of it.
+          </p>
+          <p className="cta-row">
+            <Link className="button" href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`} data-track="companion-guest-signup">
+              Keep talking with {first}
+            </Link>
+          </p>
+        </div>
+      )}
+
+      {!paused && outOfReplies && !allowance.guest && (
         <div className="companion-out" role="status">
           <p>
             <strong>That&apos;s today&apos;s {allowance.per_day} free replies.</strong> They come back {untilReset(allowance.resets_at)}. Your
@@ -453,7 +469,14 @@ export default function CompanionChat({
           <div className="companion-send">
             <span className="muted small">
               {draft.length}/{COMPANION_MESSAGE_MAX}
-              {!allowance.unlimited && allowance.left !== null && (
+              {allowance.guest && allowance.left !== null && (
+                <>
+                  {" · "}
+                  {allowance.left} free {allowance.left === 1 ? "reply" : "replies"} left ·{" "}
+                  <Link href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`}>Free account: keep going</Link>
+                </>
+              )}
+              {!allowance.guest && !allowance.unlimited && allowance.left !== null && (
                 <>
                   {" · "}
                   {allowance.left} free {allowance.left === 1 ? "reply" : "replies"} left today

@@ -11795,19 +11795,55 @@ details > summary.small {
     text-align: left;
   }
 }
-/* The create wizard's rail: seven 44px dots fit a 360px phone without scrolling, with the step named under them. */
+/* The create wizard's rail. On a phone eight dots wrapped onto two lines (2026-11-07 audit, item 5): there it's one thin
+   progress bar of eight tappable segments, with the step named under it. */
 .wizard-rail-caption {
   display: none;
 }
 @media (max-width: 520px) {
   .wizard-rail {
     flex-wrap: wrap;
-    justify-content: space-between;
+    gap: 4px;
     overflow: visible;
   }
   .wizard-rail-step {
-    flex: 0 0 auto;
+    flex: 1 1 0;
     min-width: 0;
+  }
+  .wizard-rail-step .wizard-rail-dot,
+  .wizard-rail-step.current .wizard-rail-dot,
+  .wizard-rail-step.done .wizard-rail-dot {
+    position: relative;
+    width: 100%;
+    height: 2.75rem;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+  .wizard-rail-dot::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(50% - 3px);
+    height: 6px;
+    border-radius: 999px;
+    background: var(--field);
+  }
+  .wizard-rail-step.done .wizard-rail-dot::before {
+    background: color-mix(in srgb, var(--accent) 45%, var(--line));
+  }
+  .wizard-rail-step.current .wizard-rail-dot::before {
+    background: var(--grad);
+  }
+  .wizard-rail-num {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   .wizard-rail-caption {
     display: block;
@@ -13683,19 +13719,6 @@ button.thread-menu-item:hover:not(:disabled) {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--accent-text);
-}
-
-/* "This week on Botchelor" (app/watch/ThisWeek.tsx): the producer's billboard above tonight's listings. */
-.watch-this-week.card {
-  background:
-    radial-gradient(120% 160% at 90% -40%, rgba(122, 54, 201, 0.14), transparent 60%),
-    var(--card);
-}
-.watch-this-week .kicker {
-  color: var(--accent-text);
-}
-.watch-this-week h2 {
-  margin: 0.1rem 0 0.35rem;
 }
 
 /* Back a cast member (app/BackCast.tsx): the cast as pickable faces, your pick ringed like a vote cast. */

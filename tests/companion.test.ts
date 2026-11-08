@@ -23,6 +23,10 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import type { ChatMessage } from "@/lib/model";
 import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
+import { signSession } from "@/lib/auth";
+import { COMPANION_GUEST_IP_LIMITS, COMPANION_GUEST_OPEN_IP_LIMITS } from "@/lib/companion";
+import { COMPANION_GUEST_REPLIES, COMPANION_GUEST_THREADS } from "@/lib/companion-shared";
+import { visitorKey } from "@/lib/limits";
 
 // The memory follow-up after a reply runs in after() on a server; here each test calls it itself, so none races.
 vi.mock("@/lib/sets", async (orig) => ({ ...((await orig()) as object), inBackground: () => {} }));
@@ -503,6 +507,92 @@ describe("what a request can't do", () => {
     expect(th.status).toBe(201);
     await t.db.query(`update characters set companion_open = false where id = $1`, [opened]);
     expect((await act(me.cookie, th.body.thread_id, { action: "send", text: "hi" })).status).toBe(404);
+  });
+});
+
+/** A visitor without an account, on a signed session (as the site issues them), past the 18+ gate. */
+function guest() {
+  const id = crypto.randomUUID();
+  return { id, cookie: adult(`bz_sess=${signSession({ uid: id, authenticated: false })}`) };
+}
+
+describe("a guest tries a companion before making an account (2026-11-07 audit, item 6)", () => {
+  it("gets a handful of replies in all, then an account (which adopts the visitor's id) keeps the conversation going", async () => {
+    vi.stubEnv("COMPANION_OPEN", "1");
+    const g = guest();
+    const opened = await open(g.cookie);
+    expect(opened.status).toBe(201);
+    for (let i = 0; i < COMPANION_GUEST_REPLIES; i++) {
+      const r = await act(g.cookie, opened.body.thread_id, { action: "send", text: `hello ${i}` });
+      expect(r.status).toBe(200);
+      expect(r.body.allowance).toMatchObject({ guest: true, per_day: COMPANION_GUEST_REPLIES, left: COMPANION_GUEST_REPLIES - i - 1 });
+    }
+    const over = await act(g.cookie, opened.body.thread_id, { action: "send", text: "one more?" });
+    expect(over.status).toBe(402);
+    expect(over.body.error).toBe("guest_used_up");
+    expect(over.body.allowance.left).toBe(0);
+    // Out of replies, a new conversation waits for the account too; the one they have still opens.
+    const other = await character("someone", { companion_open: true });
+    expect((await open(g.cookie, other)).status).toBe(401);
+    expect((await open(g.cookie)).status).toBe(200);
+    // Signed up (the account adopts this id): the same thread, on the account's free tier.
+    const member = adult(signedInCookie(g.id));
+    const after = await act(member, opened.body.thread_id, { action: "send", text: "I made an account" });
+    expect(after.status).toBe(200);
+    expect(after.body.allowance.guest).toBeUndefined();
+  });
+
+  it("starts with no cookie at all: the response signs a new guest session", async () => {
+    vi.stubEnv("COMPANION_OPEN", "1");
+    const res = await openRoute(req("/api/companion", { character_id: CAST.id }, "bz_adult=1"));
+    expect(res.status).toBe(201);
+    expect(res.headers.get("set-cookie") ?? "").toMatch(/^bz_sess=v1\./);
+  });
+
+  it("never talks on a bare bz_uid (anyone could type one in), nor once guests are turned off, nor before companions open", async () => {
+    vi.stubEnv("COMPANION_OPEN", "1");
+    expect((await open(adult(`bz_uid=${crypto.randomUUID()}`))).status).toBe(401);
+    vi.stubEnv("COMPANION_GUEST_REPLIES", "0");
+    expect((await open(guest().cookie)).status).toBe(401);
+    vi.unstubAllEnvs();
+    vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
+    expect((await open(guest().cookie)).status).toBe(401);
+    // And never without the 18+ gate.
+    vi.stubEnv("COMPANION_OPEN", "1");
+    const id = crypto.randomUUID();
+    expect((await open(`bz_sess=${signSession({ uid: id, authenticated: false })}`)).status).toBe(403);
+  });
+
+  it("opens a few conversations at most", async () => {
+    vi.stubEnv("COMPANION_OPEN", "1");
+    const g = guest();
+    const others = await Promise.all(Array.from({ length: COMPANION_GUEST_THREADS }, () => character("someone", { companion_open: true })));
+    for (const c of others) expect((await open(g.cookie, c)).status).toBe(201);
+    const refused = await open(g.cookie);
+    expect(refused.status).toBe(401);
+    expect(refused.body.message).toContain(`${COMPANION_GUEST_THREADS} characters`);
+    expect((await open(g.cookie, others[0])).status).toBe(200);
+  });
+
+  it("holds one address back: a new cookie costs nothing", async () => {
+    vi.stubEnv("COMPANION_OPEN", "1");
+    const headers = new Headers({ "x-forwarded-for": "203.0.113.9" });
+    const key = visitorKey(headers)!;
+    const fromThere = (path: string, body: unknown, cookie: string) =>
+      new Request(BASE_URL + path, { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.9", cookie }, body: JSON.stringify(body) });
+    const g = guest();
+    const opened = await openRoute(fromThere("/api/companion", { character_id: CAST.id }, g.cookie));
+    expect(opened.status).toBe(201);
+    const threadId = ((await opened.json()) as Any).thread_id;
+    for (let i = 0; i < COMPANION_GUEST_IP_LIMITS.perHour; i++) await t.db.query(`insert into rate_hits (bucket, key, at) values ('companion_guest', $1, now())`, [key]);
+    expect((await actRoute(fromThere(`/api/companion/${threadId}`, { action: "send", text: "hi" }, g.cookie), ctx(threadId))).status).toBe(429);
+    for (let i = 0; i < COMPANION_GUEST_OPEN_IP_LIMITS.perHour; i++) await t.db.query(`insert into rate_hits (bucket, key, at) values ('companion_guest_open', $1, now())`, [key]);
+    expect((await openRoute(fromThere("/api/companion", { character_id: CAST.id }, guest().cookie))).status).toBe(429);
+    // Going back to a conversation they already have isn't a new one: never held back.
+    expect((await openRoute(fromThere("/api/companion", { character_id: CAST.id }, g.cookie))).status).toBe(200);
+    // A person with an account isn't held by the guests' address limit.
+    const member = await person();
+    expect((await openRoute(fromThere("/api/companion", { character_id: CAST.id }, member.cookie))).status).toBe(201);
   });
 });
 

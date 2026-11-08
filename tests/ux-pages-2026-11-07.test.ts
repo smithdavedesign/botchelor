@@ -22,7 +22,7 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { setMuted } from "@/lib/notification-mutes";
 import { countNotifications, notify } from "@/lib/notifications";
 import { voteSeasonFormat } from "@/lib/season-vote";
-import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
+import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
@@ -145,8 +145,9 @@ describe("the companions browser (app/companion/CompanionBrowser.tsx)", () => {
     expect(none).toContain("Nobody matches that");
   });
 
-  it("/companion signed out lists the cast with the phone action bar", async () => {
+  it("/companion signed out (guests off) lists the cast with the phone action bar", async () => {
     vi.stubEnv("COMPANION_OPEN", "1");
+    vi.stubEnv("COMPANION_GUEST_REPLIES", "0");
     as(null);
     const CompanionsPage = (await import("@/app/companion/page")).default;
     const html = renderToStaticMarkup(await CompanionsPage({ searchParams: Promise.resolve({ who: "house" }) }));
@@ -154,6 +155,23 @@ describe("the companions browser (app/companion/CompanionBrowser.tsx)", () => {
     expect(html).toContain('class="phone-action-bar"');
     expect(html).toContain(HOUSE_CHARACTERS[0].name);
     expect(html).toMatch(/aria-pressed="true">House cast/);
+  });
+
+  it("/companion for a visitor with no account: try it now, with a Talk button on every character (2026-11-07 audit, item 6)", async () => {
+    vi.stubEnv("COMPANION_OPEN", "1");
+    vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
+    as(null);
+    const CompanionsPage = (await import("@/app/companion/page")).default;
+    const html = renderToStaticMarkup(await CompanionsPage({ searchParams: Promise.resolve({ who: "house" }) }));
+    expect(html).toContain("Try it now, no account needed: <strong>5 free replies</strong>");
+    expect(html).toContain('href="/account?next=%2Fcompanion"');
+    expect(html).toContain(HOUSE_CHARACTERS[0].name);
+    expect(html).not.toContain("Sign in to talk");
+    // A bare bz_uid (anyone could type one) never reads as a guest: that's the sign-in page.
+    as(`bz_uid=${crypto.randomUUID()}`);
+    const bare = renderToStaticMarkup(await CompanionsPage({ searchParams: Promise.resolve({}) }));
+    expect(bare).not.toContain("Try it now");
+    expect(bare).toContain('id="companion-cta"');
   });
 });
 
@@ -184,8 +202,9 @@ describe("the show's pages", () => {
     expect(after).toContain("3 votes so far: The Villa is ahead.");
   });
 
-  it("an aired date offers to talk with them after it; signed out, a sign-in link per character", async () => {
+  it("an aired date offers to talk with them after it; signed out (guests off), a sign-in link per character", async () => {
     vi.stubEnv("COMPANION_OPEN", "1");
+    vi.stubEnv("COMPANION_GUEST_REPLIES", "0");
     const owner = newUserCookie();
     const character = (await (await api.createCharacter(validCharacter({ name: "Talk Tester", open_to_dates: true }), owner)).json()).id;
     scriptOutcome({ ending: "second_date" });
@@ -199,6 +218,13 @@ describe("the show's pages", () => {
     expect(html).toContain(`Sign in to talk to ${HOUSE_CHARACTERS[0].name.split(" ")[0]}`);
     // Someone else's own character is never a companion for a stranger.
     expect(html).not.toContain("Sign in to talk to Talk");
+    // Guests on: the same card offers to talk straight away.
+    vi.stubEnv("COMPANION_GUEST_REPLIES", "5");
+    vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
+    const guest = renderToStaticMarkup(await EpisodePage({ params: Promise.resolve({ id: ep.id }), searchParams: Promise.resolve({}) }));
+    expect(guest).not.toContain(`Sign in to talk to ${HOUSE_CHARACTERS[0].name.split(" ")[0]}`);
+    expect(guest).toContain(`Talk to ${HOUSE_CHARACTERS[0].name.split(" ")[0]}`);
+    expect(guest).not.toContain("Talk to Talk");
   });
 });
 

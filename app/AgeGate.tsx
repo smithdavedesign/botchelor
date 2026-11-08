@@ -11,7 +11,17 @@ const ONE_YEAR = 60 * 60 * 24 * 365;
  * the remembered cookie and navigates straight back, so there's no redirect round-trip. "Leave" sends anyone
  * under 18 away. A self-attestation (the standard age gate), not a security boundary.
  */
-export default function AgeGate({ from }: { from: string }) {
+export default function AgeGate({
+  from,
+  backdrop = false,
+  behind = null,
+}: {
+  from: string;
+  /** The show is drawn blurred behind the question (app/gate/page.tsx), so the overlay lets it show through. */
+  backdrop?: boolean;
+  /** The date their link was for, named on the card: what they're one tap from. */
+  behind?: { names: string; title: string | null } | null;
+}) {
   const dest = safeFrom(from);
 
   function confirm(event: FormEvent<HTMLFormElement>) {
@@ -22,7 +32,7 @@ export default function AgeGate({ from }: { from: string }) {
   }
 
   return (
-    <div className="age-gate" role="dialog" aria-modal="true" aria-labelledby="age-gate-title">
+    <div className={`age-gate${backdrop ? " has-backdrop" : ""}`} role="dialog" aria-modal="true" aria-labelledby="age-gate-title">
       <div className="age-gate-card">
         <p className="age-gate-brand">Botchelor</p>
         <h1 id="age-gate-title">Are you 18 or older?</h1>
@@ -30,6 +40,12 @@ export default function AgeGate({ from }: { from: string }) {
           Botchelor is a comedic blind-date show starring <strong>fictional adult characters</strong>, written by AI.
           It is for <strong>adults (18+) only</strong>.
         </p>
+        {behind && (
+          <p className="age-gate-behind">
+            🎬 One tap from <strong>{behind.names}</strong>
+            {behind.title ? <>: “{behind.title}”</> : null}
+          </p>
+        )}
         <form action="/api/age" method="post" className="age-gate-actions" onSubmit={confirm}>
           <input type="hidden" name="from" value={dest} />
           <button type="submit" className="age-gate-enter">
