@@ -498,6 +498,18 @@ export async function showcaseFacets(db: Db, v: ShowcaseViewer, f: Filters = {})
       wc.args,
     )
   ).rows.map((r) => [r.id, r.name, r.n] as [string, string, number]);
+  // The picked character (and partner) keep their row, so the dropdown and the chip name them, even past the 24 most
+  // posted or with nothing on this side (2026-11-08: "See all of" from After Dark's reels opened the safe side, where she
+  // had none, and the dropdown said "Any character"). Named from a post of theirs this viewer may see, on either side.
+  for (const id of new Set([f.character, f.partner])) {
+    if (!id || characters.some(([c]) => c === id)) continue;
+    const wa = where(v, {}, { anySide: true });
+    const k = wa.args.length + 1;
+    const named = (await db.query<{ name: string }>(`select case when p.character_id = $${k} then c.name else cb.name end as name ${FROM} where ${wa.sql} and (p.character_id = $${k} or p.character_b = $${k}) limit 1`, [...wa.args, id])).rows[0];
+    if (!named) continue;
+    const n = (await db.query<{ n: number }>(`select count(*)::int as n ${FROM} where ${wc.sql} and (p.character_id = $${wc.args.length + 1} or p.character_b = $${wc.args.length + 1})`, [...wc.args, id])).rows[0].n;
+    characters.push([id, named.name, n]);
+  }
   const wp = where(v, without("pov"));
   const pov = (await db.query<{ n: number }>(`select count(*)::int as n ${FROM} where ${wp.sql} and p.pov`, wp.args)).rows[0].n;
   const ws = where(v, without("side"), { anySide: true });

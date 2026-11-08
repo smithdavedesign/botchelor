@@ -162,6 +162,27 @@ describe("the showcase's filters", () => {
     expect(await render(ANYONE, "")).not.toContain("Which side");
   });
 
+  it("names the picked character in the chip and the dropdown, even with nothing of theirs on this side", async () => {
+    // David, 2026-11-08: "See all of" from After Dark's reels opened the safe side, where she had nothing, and the
+    // dropdown said "Any character": the filter was on, with nothing to show it.
+    const w = await world();
+    const house = HOUSE_CHARACTERS[0];
+    // The pair's safe-for-work twin goes to After Dark: everything of the house character's is explicit now.
+    await t.db.query(`update showcase_posts set rating = 'nsfw' where media_id = 'pair-twin'`);
+    const render = async (v: ShowcaseViewer, q: string) => renderToStaticMarkup(createElement("div", null, await ShowcaseBrowser({ db: t.db, viewer: v, base: "/showcase", filters: parseFilters(new URLSearchParams(q)) })));
+    const safe = await render(ADMIN(w.me), `character=${house.id}`);
+    expect(safe).toContain(`aria-label="Remove: ${house.name}"`);
+    expect(safe).toContain(`<option value="${house.id}" selected="">${house.name} (0)</option>`);
+    expect(safe).toContain("Nothing here yet with those filters");
+    const dark = await render(ADMIN(w.me), `character=${house.id}&side=after_dark`);
+    expect(dark).toContain(`<option value="${house.id}" selected="">${house.name} (2)</option>`);
+    expect(dark).toContain(`aria-label="Remove: ${house.name}"`);
+    // Only a post this viewer may see names anyone: someone After Dark isn't open to isn't told who it is from there.
+    const anyone = await render(ANYONE, `character=${house.id}`);
+    expect(anyone).toContain('aria-label="Remove: That character"');
+    expect(anyone).not.toContain(house.name);
+  });
+
   it("lets an admin move a post to After Dark at once, or check it again: only a pass brings it to safe for work", async () => {
     const w = await world();
     const admin = ADMIN(w.me);
