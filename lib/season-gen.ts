@@ -190,7 +190,11 @@ export async function makePortrait(db: Db, characterId: string): Promise<string>
   if (!c) return "no such character";
   const keys = await adultKeys(db).catch(() => null);
   if (!keys?.venice || !(await checkReady(db, { pg: true }))) return "portraits need the Venice key and a checker (After Dark settings)";
-  const prompt = portraitPrompt(c.look.physical ?? physicalLook(c), c.age);
+  // A house character is drawn from its whole house look (lib/house.ts, written for the portrait generator): who they
+  // are and what they wear. physicalLook trims it for After Dark's face-reference model, which dropped the subject and,
+  // past its word budget, the clothes ("from the chest up of in her mid-thirties…", 2026-11-08).
+  const houseLook = ALL_HOUSE_CHARACTERS.find((h) => h.id === c.id)?.look;
+  const prompt = portraitPrompt(houseLook ?? c.look.physical ?? physicalLook(c), c.age);
   // Hive over its daily limit (lib/adult/hive-limit.ts): not drawn, so not paid for; the admin can make it again later.
   const gate = await mediaGate(db, { pg: true });
   if (!gate.ok) {
