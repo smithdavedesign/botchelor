@@ -172,7 +172,7 @@ import { arcQuestion, predictArc } from "../arcs";
 import { extrasText, renameLeftovers } from "../rename-leftovers";
 import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
 import { CONVERSATION_TURNS, TURN_DIALOGUE_MAX } from "../rules";
-import { isPlaceholder, placeLabel, venueName, venuePhrase, venueShown } from "../venues";
+import { isPlaceholder, placeLabel, placesLabel, venueName, venuePhrase, venueShown } from "../venues";
 import { movePlace, planPlace } from "../places";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, feedbackBoard, saveFeedback, similarOnBoard, voteFeedback } from "../feedback";
 import { followCouple, followState, unfollowCouple } from "../follows";
@@ -232,7 +232,9 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // gets the self-harm check a message gets: a new action and fields, nothing else changed.
 // 2.21.0 (the 2026-11-08-0610 run, #1362): submit_own_date_step takes character_id (speaker), pinning a line to the character
 // it was written for, and every accepted line says whose turn it filled (filled): a new optional argument and field.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.21.0" } as const;
+// 2.22.0 (the 2026-11-08-0610 run, #1363): a date that moved lists its places (get_episode's places), and its summary's venue
+// names them all, so the label agrees with the story: a new field.
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.22.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -4569,7 +4571,8 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
       status: e.status,
       share_path: e.share_path,
       characters: chars,
-      venue: venueShown(e.venue as string | null | undefined),
+      // #1363: a date that moved names every place it was at, so the label agrees with the story.
+      venue: Array.isArray(e.places) && e.places.length > 1 ? placesLabel(e.places as string[]) : venueShown(e.venue as string | null | undefined),
       setting: e.setting,
       ending: e.ending,
       best_line: e.best_line,

@@ -17,7 +17,9 @@ import { dateLabel } from "./rules";
 import { checkSheetText } from "./safety";
 import { seasonNumber } from "./season-ref";
 import { seasonIdOf } from "./season-window";
-import { venueName, venuePhrase } from "./venues";
+import type { Turn } from "./conversation";
+import { placesOf } from "./moves";
+import { placesLabel, venueName, venuePhrase, type PlaceId } from "./venues";
 
 /** The longest a title may be: a TV episode title fits on one line of the title card. */
 export const EPISODE_TITLE_MAX = 48;
@@ -50,6 +52,8 @@ export type EpisodeTitleFacts = {
   setting: string | null;
   /** The place id (lib/venues.ts), when the date had one. */
   venue: string | null;
+  /** #1363: every place a date that moved was at, in order (the venue first); absent when it stayed put. */
+  places?: readonly string[] | null;
   /** Which date this is for the couple (2, 3, …), when they've dated before. */
   dateNumber: number | null;
 };
@@ -86,7 +90,8 @@ const OUTCOME_WORDS = /\b(second date|disaster|just friends|soulmates?|breakup|b
 export async function writeEpisodeTitle(model: Model, facts: EpisodeTitleFacts): Promise<string | null> {
   const lines = [
     `The daters: ${facts.names[0]} and ${facts.names[1]}.`,
-    facts.venue ? `The venue: ${venueName(facts.venue)}.` : null,
+    // #1363: a date that moved is titled from all its places, not just where it started.
+    facts.places && facts.places.length > 1 ? `The places, in order (the date moved): ${placesLabel(facts.places)}.` : facts.venue ? `The venue: ${venueName(facts.venue)}.` : null,
     facts.setting ? `The setting: ${facts.setting}` : null,
     facts.dateNumber && facts.dateNumber > 1 ? `It's their ${dateLabel(facts.dateNumber).toLowerCase()}.` : null,
   ].filter(Boolean);
@@ -129,8 +134,8 @@ export async function titleEpisodeOnAir(db: Db, episodeId: string, opts: { model
   // tests of this module pass their own model instead.
   if (!voiceEnabled && !opts.model) return null;
   const row = (
-    await db.query<{ setting: string | null; venue: string | null; date_number: number | null; a_name: string; b_name: string; title: string | null }>(
-      `select e.setting, e.setup->>'venue' as venue, ${dateNumberSql("e")} as date_number, e.title,
+    await db.query<{ setting: string | null; venue: string | null; date_number: number | null; a_name: string; b_name: string; title: string | null; transcript: Turn[] | null }>(
+      `select e.setting, e.setup->>'venue' as venue, ${dateNumberSql("e")} as date_number, e.title, e.transcript,
               a.name as a_name, b.name as b_name
          from episodes e join characters a on a.id = e.character_a join characters b on b.id = e.character_b
         where e.id = $1`,
@@ -142,6 +147,7 @@ export async function titleEpisodeOnAir(db: Db, episodeId: string, opts: { model
     names: [row.a_name, row.b_name],
     setting: row.setting,
     venue: row.venue,
+    places: row.venue ? placesOf(row.transcript ?? [], row.venue as PlaceId) : null,
     dateNumber: row.date_number,
   };
   const written = await writeEpisodeTitle(opts.model ?? getModel(undefined, false), facts);

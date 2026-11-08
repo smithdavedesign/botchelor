@@ -150,6 +150,15 @@ export const venue = (id: PlaceId | string | null | undefined): Venue => {
 export const venueName = (id: PlaceId | string | null | undefined): string => venue(id).name;
 
 /**
+ * #1363 (the 2026-11-08-0610 run: a date labelled "An ice rink, and neither can skate" whose story was a harbour wall and a
+ * cocoa stand): where a date that moved was, as one label: the venue's name, then each place it moved to, in order
+ * ("An ice rink, and neither can skate, then a harbour wall, then the cocoa stand"). One place is just its name.
+ */
+export function placesLabel(places: readonly (PlaceId | string)[]): string {
+  return places.map((p, i) => (i ? venueName(p).replace(/^(A|An|The) /, (w) => w.toLowerCase()) : venueName(p))).join(", then ");
+}
+
+/**
  * A venue as a reply should say it: a stored id ("late_night_diner", "elsewhere@the lido") by its name, anything already
  * a name as it is (#1135: three MCP replies sent the raw id). Null stays null.
  */
