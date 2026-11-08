@@ -51,6 +51,9 @@ Reddit works. One permitted post beat everything else combined. The launch kit i
 
 ### A. Get a stranger to a date in 10 seconds (do first)
 
+**Shipped 2026-11-07 in #1359** (all six). Still open from this group: asking counsel whether a lighter banner can replace
+the gate's modal on the PG side.
+
 1. **Show the show behind the gate.** Render the hero and the tonight band blurred behind the 18+ modal instead of a
    blank page. Ask counsel whether a lighter "fiction for adults" banner is enough on the PG side; until then, keep the
    modal.
