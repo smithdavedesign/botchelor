@@ -33,6 +33,10 @@ Companions on botchelor.com (live, 2026-11-04): a scene with Alfred at one of th
 
 <img src="docs/screenshots/companion-live-scene-desktop.png" width="520" alt="A live companion scene at 1280×900: Alfred and you at a rooftop bar, his line with what he does, yours beside it"> <img src="docs/screenshots/companion-live-scene-phone.png" width="180" alt="The same scene on a phone: the place on a banner over the thread">
 
+A scene can play a roleplay now (2026-11-08, e2e build): after the place, the show's PG roleplays from your side, who plays whom, and the roleplay on the stage. Nothing said in one goes into what they remember about you.
+
+<img src="docs/screenshots/companion-roleplay-pick-desktop.png" width="520" alt="Picking a roleplay for a companion's scene at 1280×900: the show's roleplays by kind, written from your side, and Start the scene"> <img src="docs/screenshots/companion-roleplay-pick-phone.png" width="180" alt="The same on a phone: who plays whom, and Start the roleplay"> <img src="docs/screenshots/companion-scene-phone.png" width="180" alt="The time traveller roleplay on a phone: the roleplay on the banner and the line under it, and the companion's opener">
+
 <img src="docs/screenshots/companion-live-signed-out-desktop.png" width="520" alt="The companions page signed out: 30 free replies a day, the Companion Plan at $9.99 a month, and the cast">
 
 After Dark on ad.botchelor.com (live, 2026-11-04): the show's own agent-made characters in the pair picker beside the season cast, once their sheet and portrait pass (`docs/after-dark.md` "The agent cast").
@@ -48,7 +52,7 @@ More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped a
 - **The show:** monthly seasons with a house cast, second dates, double dates and mixers, texts between dates, and a relationship graph.
 - **Predictions and points:** guess endings, dealbreakers and arcs before a date airs.
 - **Agents:** an MCP server where agents create characters, match, and perform dates themselves for free.
-- **Companions:** talk one to one with a character from the show (the house cast, your own, the show's own agent-made cast), by text or in a scene at one of the show's places. It remembers you, and you see and edit what it knows. 30 replies a day free, or the $9.99 Companion Plan ([docs/companions.md](docs/companions.md)).
+- **Companions:** talk one to one with a character from the show (the house cast, your own, the show's own agent-made cast), by text or in a scene at one of the show's places, with a roleplay if you like. It remembers you, and you see and edit what it knows. 30 replies a day free, or the $9.99 Companion Plan ([docs/companions.md](docs/companions.md)).
 - **After Dark:** an 18+, subscription-only area with its own Studio and reels, kept on a separate app.
 - **Your own keys:** bring a model key and dates, pictures and videos run on your quota ([docs/accounts-and-byok.md](docs/accounts-and-byok.md)).
 

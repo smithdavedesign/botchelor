@@ -5,7 +5,7 @@ import { adultKeys } from "./adult/settings";
 import { track } from "./analytics";
 import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
-import { AVOID_LINES, companionMessages, RECENT_TURNS, replyBubbles, sceneReply, type PromptScene, type PromptTurn } from "./companion-prompt";
+import { AVOID_LINES, companionMessages, RECENT_TURNS, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
 import { factsForPrompt, updateFacts, updateSummary } from "./companion-memory";
 import {
   COMPANION_GUEST_THREADS,
@@ -17,14 +17,17 @@ import {
   type CompanionCharacterRef,
   type CompanionMessageView,
   type CompanionReportReason,
+  type CompanionRoleplayView,
   type CompanionThreadView,
   type ReplyLength,
 } from "./companion-shared";
 import { CRISIS_RESOURCES, crisisIntent, type CrisisResources } from "./crisis";
+import { resolveTerms, type TermsInput } from "./date-roleplays";
 import type { Db } from "./db";
 import { fallbackModel, getModel, openAICompatibleModel, type Model, type Usage } from "./model";
 import { loadOurIds } from "./our-traffic";
 import { recordServerError } from "./errors";
+import { premiseForYou, rolesOf, type RoleplayTerms } from "./roleplays";
 import { DELETED_OWNER } from "./rules";
 import { checkShowText } from "./safety";
 import { showCastIds } from "./season-cast";
@@ -154,6 +157,8 @@ type ThreadRow = {
   reply_length: ReplyLength;
   summary: string | null;
   scene: VenueId | null;
+  /** The scene's roleplay (`first` is YOU or the character's id); null without one, and always null while texting. */
+  roleplay: RoleplayTerms | null;
 };
 
 export type CompanionFail = { ok: false; status: number; error: string; message: string; crisis_resources?: CrisisResources };
@@ -162,7 +167,7 @@ const NOT_FOUND = fail(404, "not_found", "Not found.");
 
 async function ownThread(db: Db, userId: string, threadId: string): Promise<ThreadRow | null> {
   const { rows } = await db.query<ThreadRow>(
-    `select id, user_id, character_id, last_at, notice_at, paused_at, reply_length, summary, scene from companion_threads where id = $1 and user_id = $2`,
+    `select id, user_id, character_id, last_at, notice_at, paused_at, reply_length, summary, scene, roleplay from companion_threads where id = $1 and user_id = $2`,
     [threadId, userId],
   );
   return rows[0] ?? null;
@@ -174,12 +179,12 @@ async function addMessage(
   role: "user" | "character" | "system",
   text: string,
   at: Date,
-  extra: { model?: string | null; cost?: number | null; scene?: VenueId | null; action?: string | null; marker?: "scene" | "texting" } = {},
+  extra: { model?: string | null; cost?: number | null; scene?: VenueId | null; action?: string | null; marker?: "scene" | "texting"; roleplay?: string | null } = {},
 ): Promise<string> {
   const id = randomUUID();
   await db.query(
-    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null],
+    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null],
   );
   return id;
 }
@@ -203,12 +208,38 @@ async function putNotice(db: Db, t: ThreadRow, name: string, now: Date): Promise
 const OPENER_CUE =
   "(They've just started talking with you for the first time. Open the conversation your way: say hi like yourself, and something only you would say. Don't ask more than one question.)";
 
-/** A scene's place for the prompt: its name and its stage direction (lib/venues.ts). */
-const promptScene = (place: VenueId | null): PromptScene | null => (place ? { name: venueName(place), prompt: venue(place).prompt } : null);
+/** The person's side of a scene's roleplay (RoleplayTerms.first when they play the first role). */
+export const ROLEPLAY_YOU = "you";
 
-/** The user turn that has the character open a scene. */
-const sceneCue = (place: VenueId) =>
-  `(You've both just got to ${venue(place).prompt}. Open the scene: what you do and say as you get there, playing off the place. Don't ask more than one question.)`;
+const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
+
+/** A scene's roleplay from the person's side, for the page: the premise with "you" in it, and who plays whom. */
+export function roleplayView(rp: RoleplayTerms, characterName: string): CompanionRoleplayView {
+  const { mine, theirs } = rolesOf(rp, ROLEPLAY_YOU);
+  return { id: rp.id, title: rp.title, icon: rp.icon, premise: premiseForYou(rp.premise, rp.first === ROLEPLAY_YOU ? "a" : "b", characterName), you_play: mine, they_play: theirs };
+}
+
+/** The same from the character's side, for its prompt: its name in the premise, the person as "your scene partner". */
+export function promptRoleplay(rp: RoleplayTerms, characterName: string): PromptRoleplay {
+  const [person, own] = rp.first === ROLEPLAY_YOU ? ["{a}", "{b}"] : ["{b}", "{a}"];
+  const premise = rp.premise
+    .replaceAll(own, firstNameOf(characterName))
+    .replaceAll(`${person}'s`, "your scene partner's")
+    .replaceAll(person, "your scene partner")
+    .replace(/(^|[.!?]\s+)your scene partner/g, (_m, lead: string) => `${lead}Your scene partner`);
+  const { mine, theirs } = rolesOf(rp, ROLEPLAY_YOU);
+  return { title: rp.title, premise, you_play: theirs, they_play: mine };
+}
+
+/** A scene's place for the prompt: its name and its stage direction (lib/venues.ts), and its roleplay if any. */
+const promptScene = (t: Pick<ThreadRow, "scene" | "roleplay">, characterName: string): PromptScene | null =>
+  t.scene ? { name: venueName(t.scene), prompt: venue(t.scene).prompt, roleplay: t.roleplay ? promptRoleplay(t.roleplay, characterName) : null } : null;
+
+/** The user turn that has the character open a scene (in its roleplay, when there's one). */
+const sceneCue = (place: VenueId, roleplay: RoleplayTerms | null = null) =>
+  roleplay
+    ? `(You've both just got to ${venue(place).prompt}, and the roleplay "${roleplay.title}" starts now. Open it in character: what you do and say as you get there, setting up the story and playing off the place. Don't ask more than one question.)`
+    : `(You've both just got to ${venue(place).prompt}. Open the scene: what you do and say as you get there, playing off the place. Don't ask more than one question.)`;
 
 /** The user turn that has the character text first once a scene is over (asked for over MCP; the chat waits for the person). */
 const TEXTING_CUE = "(The scene's over and you're both back to texting. Pick the conversation up your way, in a line or two.)";
@@ -246,8 +277,8 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   const ref = await characterRef(db, t.character_id, userId);
   if (!ref) return NOT_FOUND;
   const [{ rows: msgs }, { rows: facts }] = await Promise.all([
-    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"] }>(
-      `select id, role, text, created_at, reported, scene, action, marker from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
+    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null }>(
+      `select id, role, text, created_at, reported, scene, action, marker, roleplay from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
       [threadId],
     ),
     db.query<{ n: number }>(`select count(*)::int as n from companion_facts where thread_id = $1`, [threadId]),
@@ -266,9 +297,11 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         scene: isScenePlace(m.scene) ? m.scene : null,
         action: m.action,
         marker: m.marker,
+        roleplay: m.roleplay,
       })),
       reply_length: t.reply_length,
       scene: isScenePlace(t.scene) ? t.scene : null,
+      roleplay: t.scene && t.roleplay ? roleplayView(t.roleplay, ref.name) : null,
       paused: Boolean(t.paused_at),
       facts: facts[0]?.n ?? 0,
     },
@@ -390,8 +423,8 @@ export const REDRAW_WITHIN_MS = 40_000;
 
 /** The recent turns, oldest first (a redrawn reply's earlier draw left out, and the reply being drawn again). */
 async function recentTurns(db: Db, threadId: string, exclude: readonly string[] = []): Promise<{ turns: PromptTurn[]; avoid: string[] }> {
-  const { rows } = await db.query<{ role: "user" | "character"; text: string; action: string | null }>(
-    `select role, text, action from companion_messages
+  const { rows } = await db.query<{ role: "user" | "character"; text: string; action: string | null; roleplay: string | null }>(
+    `select role, text, action, roleplay from companion_messages
       where thread_id = $1 and role <> 'system' and replaced_by is null and not (id = any($3::text[]))
       order by created_at desc, id desc limit $2`,
     [threadId, RECENT_TURNS + AVOID_LINES, exclude],
@@ -426,7 +459,7 @@ async function speak(
   let insteadOf = opts.insteadOf ?? null;
   let bubbles: string[] | null = null;
   let action: string | null = null;
-  const scene = promptScene(t.scene);
+  const scene = promptScene(t, character.name);
   for (let attempt = 0; attempt < 2 && !bubbles; attempt++) {
     if (attempt > 0 && Date.now() - started > REDRAW_WITHIN_MS) break;
     let raw: string;
@@ -463,7 +496,7 @@ async function speak(
   const modelId = served ?? usage[0]?.model ?? null;
   const ids: string[] = [];
   for (const [i, text] of texts.entries()) {
-    ids.push(await addMessage(db, t.id, "character", text, tick(now, i), { ...(i === 0 ? { model: modelId, cost: cost || null } : {}), scene: t.scene, action: bubbles ? action : null }));
+    ids.push(await addMessage(db, t.id, "character", text, tick(now, i), { ...(i === 0 ? { model: modelId, cost: cost || null } : {}), scene: t.scene, action: bubbles ? action : null, roleplay: t.roleplay?.title ?? null }));
   }
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, texts.length).toISOString()]);
   track("companion_reply", { model: modelId ?? undefined, cost: cost || undefined, ms: Date.now() - started, bubbles: texts.length, deflected: bubbles ? undefined : true });
@@ -529,7 +562,7 @@ export async function sendMessage(db: Db, userId: string, threadId: string, inpu
   const refused = await screen(db, t, text, now, surface);
   if (refused) return refused;
   if (noticeDue(t, now)) await putNotice(db, t, character.name, now);
-  await addMessage(db, t.id, "user", text, tick(now, 1), { scene: t.scene });
+  await addMessage(db, t.id, "user", text, tick(now, 1), { scene: t.scene, roleplay: t.roleplay?.title ?? null });
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, 1).toISOString()]);
   const r = await speak(db, t, character, tick(now, 2));
   if (!r.ok) return r;
@@ -546,7 +579,7 @@ export async function regenerate(db: Db, userId: string, threadId: string, now: 
   const { t, character } = l;
   if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
   const last = await lastReply(db, t.id);
-  const cue = last.afterUser ? undefined : last.marker ? (t.scene ? sceneCue(t.scene) : TEXTING_CUE) : OPENER_CUE;
+  const cue = last.afterUser ? undefined : last.marker ? (t.scene ? sceneCue(t.scene, t.roleplay) : TEXTING_CUE) : OPENER_CUE;
   const r = await speak(db, t, character, now, { insteadOf: last.texts.join(" ") || null, cue, replacing: last.ids });
   if (!r.ok) return r;
   if (last.ids.length) await db.query(`update companion_messages set replaced_by = $2 where id = any($1::text[])`, [last.ids, r.ids[0]]);
@@ -622,29 +655,53 @@ export async function setReplyLength(db: Db, userId: string, threadId: string, l
  * Starts a scene at one of the show's places (the character opens it: a reply, so it's counted like one), moves it
  * somewhere else, or goes back to texting (null). Each is a line in the thread. With the model down the scene still
  * starts, without its opener (replied: false); "Ask them to start" draws it.
+ *
+ * A scene can play a roleplay (`roleplay`: the show's by id, or written for it, and which role is the person's,
+ * lib/date-roleplays.ts resolveTerms): a person with an AI character, so it's agreed as it's picked. The scene is the
+ * place and the roleplay together: asking for the same place with another roleplay (or none) starts it again.
  */
-export async function setScene(db: Db, userId: string, threadId: string, place: VenueId | null, now: Date = new Date()): Promise<CompanionSend> {
+export async function setScene(db: Db, userId: string, threadId: string, place: VenueId | null, now: Date = new Date(), roleplay: TermsInput | null = null): Promise<CompanionSend> {
   const l = await loaded(db, userId, threadId);
   if ("status" in l) return l;
   const { t, character } = l;
   if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
   if (place !== null && !isScenePlace(place)) return fail(400, "invalid_place", "Pick one of the show's places.");
-  if (t.scene === place) {
+  let terms: RoleplayTerms | null = null;
+  if (roleplay) {
+    if (place === null) return fail(400, "roleplay_needs_scene", "A roleplay is played in a scene: pick a place too.");
+    const r = resolveTerms(roleplay, ROLEPLAY_YOU, character.id);
+    if (!r.ok) return fail(r.status, r.error, r.message);
+    terms = r.terms;
+  }
+  if (t.scene === place && sameTerms(place ? t.roleplay : null, terms)) {
     const same = await getThread(db, userId, threadId);
     return same.ok ? { ...same, replied: false } : same;
   }
   if (noticeDue(t, now)) await putNotice(db, t, character.name, now);
-  await db.query(`update companion_threads set scene = $2, last_at = $3 where id = $1`, [t.id, place, tick(now, 1).toISOString()]);
+  await db.query(`update companion_threads set scene = $2, roleplay = $3, last_at = $4 where id = $1`, [t.id, place, terms ? JSON.stringify(terms) : null, tick(now, 1).toISOString()]);
   t.scene = place;
-  await addMessage(db, t.id, "system", place ? `${venueName(place)}: a scene you're both imagining.` : "Back to texting.", tick(now, 1), { marker: place ? "scene" : "texting", scene: place });
-  track("companion_scene", { place: place ?? "texting" });
+  t.roleplay = terms;
+  const shown = terms ? roleplayView(terms, character.name) : null;
+  const line = !place
+    ? "Back to texting."
+    : shown
+      ? `${venueName(place)}: a scene you're both imagining. ${shown.icon} ${shown.title}: ${shown.premise}${shown.you_play ? ` You play ${shown.you_play}, ${firstNameOf(character.name)} ${shown.they_play}.` : ""}`
+      : `${venueName(place)}: a scene you're both imagining.`;
+  await addMessage(db, t.id, "system", line, tick(now, 1), { marker: place ? "scene" : "texting", scene: place, roleplay: terms?.title ?? null });
+  track("companion_scene", { place: place ?? "texting", ...(terms ? { roleplay: terms.id } : {}) });
   if (!place) {
     const view = await getThread(db, userId, threadId);
     return view.ok ? { ...view, replied: false } : view;
   }
-  const r = await speak(db, t, character, tick(now, 2), { cue: sceneCue(place) });
+  const r = await speak(db, t, character, tick(now, 2), { cue: sceneCue(place, terms) });
   const view = await getThread(db, userId, threadId);
   return view.ok && !r.ok ? { ...view, replied: false } : view;
+}
+
+/** Two scenes' roleplays are the same one, with the same roles. */
+function sameTerms(a: RoleplayTerms | null, b: RoleplayTerms | null): boolean {
+  if (!a || !b) return !a && !b;
+  return a.id === b.id && a.title === b.title && a.premise === b.premise && a.first === b.first && JSON.stringify(a.roles) === JSON.stringify(b.roles);
 }
 
 /** A person's report on one of the character's replies (reviewed on the admin reports page). */

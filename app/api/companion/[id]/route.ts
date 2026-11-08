@@ -25,6 +25,7 @@ import {
 import type { VenueId } from "@/lib/venues";
 import { companionAllowance, giveBackReply, takeReply } from "@/lib/companion-plan";
 import { companionRefusal } from "../access";
+import { bookingAsk } from "@/lib/date-roleplays";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -34,7 +35,13 @@ const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("edit"), text: z.string().max(COMPANION_MESSAGE_MAX * 2) }),
   z.object({ action: z.literal("length"), length: z.enum(REPLY_LENGTHS) }),
   // A scene at one of the show's places (they open it), or back to texting (null).
-  z.object({ action: z.literal("scene"), place: z.enum(SCENE_PLACES as [VenueId, ...VenueId[]]).nullable() }),
+  z.object({
+    action: z.literal("scene"),
+    place: z.enum(SCENE_PLACES as [VenueId, ...VenueId[]]).nullable(),
+    // A roleplay to play there (lib/date-roleplays.ts bookingAsk): the show's id, or { title, premise, roles? }.
+    roleplay: z.union([z.string().max(60), z.object({ title: z.string().max(200), premise: z.string().max(1000), roles: z.array(z.string().max(200)).length(2).optional() })]).nullish(),
+    my_role: z.union([z.literal(0), z.literal(1)]).optional(),
+  }),
   z.object({ action: z.literal("carry_on") }),
   z.object({ action: z.literal("report"), message_id: z.string().min(1).max(64), reason: z.enum(COMPANION_REPORT_REASONS) }),
 ]);
@@ -99,7 +106,10 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       r = await setReplyLength(db, sess.userId, id, input.length);
       break;
     case "scene":
-      r = await setScene(db, sess.userId, id, input.place);
+      {
+        const ask = bookingAsk(input.roleplay, input.my_role);
+        r = await setScene(db, sess.userId, id, input.place, new Date(), ask && !ask.skip ? ask : null);
+      }
       break;
     case "carry_on":
       r = await carryOn(db, sess.userId, id);

@@ -49,7 +49,7 @@ export async function factsForPrompt(db: Db, threadId: string, about: string, no
 }
 
 const FACTS_PROMPT = (name: string) =>
-  `You read part of a conversation between a person and ${name}, an AI character they talk with. List what ${name} should remember about THE PERSON (never about ${name}): their name, what they like and dislike, the people in their life, what happened to them, plans coming up, their work, topics they don't want to talk about (boundaries), and inside jokes between them. Only what they actually said or clearly meant; skip small talk and anything already known. Each fact is short, in the third person ("Their sister is called Maya."), under 140 characters. Answer only JSON: {"facts":[{"kind":"name|likes|dislikes|people|events|plans|work|boundaries|jokes|other","text":"..."}]}, at most 8, or {"facts":[]}.`;
+  `You read part of a conversation between a person and ${name}, an AI character they talk with. List what ${name} should remember about THE PERSON (never about ${name}): their name, what they like and dislike, the people in their life, what happened to them, plans coming up, their work, topics they don't want to talk about (boundaries), and inside jokes between them. Only what they actually said or clearly meant; skip small talk and anything already known. Lines marked [roleplay: …] are make-believe from a roleplay the two played: never take a fact from them. Each fact is short, in the third person ("Their sister is called Maya."), under 140 characters. Answer only JSON: {"facts":[{"kind":"name|likes|dislikes|people|events|plans|work|boundaries|jokes|other","text":"..."}]}, at most 8, or {"facts":[]}.`;
 
 /**
  * Draws new facts from the person's recent messages when FACTS_EVERY have come in since the last draw. One model call;
@@ -58,19 +58,27 @@ const FACTS_PROMPT = (name: string) =>
 export async function updateFacts(db: Db, threadId: string, name: string, model: Model, now: Date = new Date()): Promise<number> {
   const t = (await db.query<{ facts_upto: string | null }>(`select facts_upto from companion_threads where id = $1`, [threadId])).rows[0];
   if (!t) return 0;
-  const { rows: msgs } = await db.query<{ role: string; text: string; created_at: string }>(
-    `select role, text, created_at from companion_messages
+  const { rows: msgs } = await db.query<{ role: string; text: string; created_at: string; roleplay: string | null }>(
+    `select role, text, created_at, roleplay from companion_messages
       where thread_id = $1 and role <> 'system' and replaced_by is null and ($2::timestamptz is null or created_at > $2)
       order by created_at desc limit 24`,
     [threadId, t.facts_upto],
   );
+  // A roleplay's lines are make-believe (their character's, not their life): they count toward the draw and show as such,
+  // and the prompt says never to take a fact from them.
   const fromThem = msgs.filter((m) => m.role === "user");
   if (fromThem.length < FACTS_EVERY) return 0;
   const known = (await db.query<{ text: string }>(`select text from companion_facts where thread_id = $1 order by created_at desc limit $2`, [threadId, FACTS_PER_THREAD])).rows.map((r) => r.text);
   const convo = msgs
     .reverse()
-    .map((m) => `${m.role === "user" ? "Them" : name}: ${m.text}`)
+    .map((m) => `${m.roleplay ? `[roleplay: ${m.roleplay}] ` : ""}${m.role === "user" ? "Them" : name}: ${m.text}`)
     .join("\n");
+  // Everything they've said since the last draw was in a roleplay: nothing in it is about them, so it's read (covered)
+  // without asking the model.
+  if (fromThem.every((m) => m.roleplay)) {
+    await db.query(`update companion_threads set facts_upto = $2 where id = $1`, [threadId, msgs[msgs.length - 1].created_at]);
+    return 0;
+  }
   let raw: string;
   try {
     raw = await model.complete(
@@ -117,7 +125,7 @@ async function capFacts(db: Db, threadId: string): Promise<void> {
 }
 
 const SUMMARY_PROMPT = (name: string) =>
-  `You keep the running notes of a long conversation between a person and ${name}, an AI character they talk with. Given the notes so far and the next stretch of the conversation, write the new notes: what they talked about, what happened, how things stand between them, anything promised or left open. Under 150 words, plain prose, in the third person ("They told ${name} about…"). Answer only JSON: {"notes":"..."}.`;
+  `You keep the running notes of a long conversation between a person and ${name}, an AI character they talk with. Given the notes so far and the next stretch of the conversation, write the new notes: what they talked about, what happened, how things stand between them, anything promised or left open. Under 150 words, plain prose, in the third person ("They told ${name} about…"). Lines marked [roleplay: …] are a roleplay they played together: note it as a game they played ("They played rival spies at the café"), never as their real life. Answer only JSON: {"notes":"..."}.`;
 
 /**
  * Redraws the rolling summary when SUMMARY_EVERY messages have fallen out of the prompt's recent turns since the last
@@ -126,8 +134,8 @@ const SUMMARY_PROMPT = (name: string) =>
 export async function updateSummary(db: Db, threadId: string, name: string, model: Model): Promise<boolean> {
   const t = (await db.query<{ summary: string | null; summary_upto: string | null }>(`select summary, summary_upto from companion_threads where id = $1`, [threadId])).rows[0];
   if (!t) return false;
-  const { rows } = await db.query<{ role: string; text: string; created_at: string }>(
-    `select role, text, created_at from companion_messages
+  const { rows } = await db.query<{ role: string; text: string; created_at: string; roleplay: string | null }>(
+    `select role, text, created_at, roleplay from companion_messages
       where thread_id = $1 and role <> 'system' and replaced_by is null and ($2::timestamptz is null or created_at > $2)
       order by created_at asc`,
     [threadId, t.summary_upto],
@@ -139,7 +147,7 @@ export async function updateSummary(db: Db, threadId: string, name: string, mode
     next = await model.complete(
       [
         { role: "system", content: SUMMARY_PROMPT(name) },
-        { role: "user", content: `Notes so far: ${t.summary ?? "(none yet)"}\n\nThe next stretch:\n${older.map((m) => `${m.role === "user" ? "Them" : name}: ${m.text}`).join("\n")}` },
+        { role: "user", content: `Notes so far: ${t.summary ?? "(none yet)"}\n\nThe next stretch:\n${older.map((m) => `${m.roleplay ? `[roleplay: ${m.roleplay}] ` : ""}${m.role === "user" ? "Them" : name}: ${m.text}`).join("\n")}` },
       ],
       { temperature: 0.2, maxTokens: 400 },
     );

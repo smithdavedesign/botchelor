@@ -3,7 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { requestJson } from "@/app/request";
 import { shortName } from "@/lib/names";
-import { DATE_ROLEPLAYS, dateRoleplayById, ROLEPLAY_PREMISE_MAX, ROLEPLAY_ROLE_MAX, ROLEPLAY_TAGS, ROLEPLAY_TITLE_MAX, type RoleplayTag } from "@/lib/roleplays";
+import { DATE_ROLEPLAYS, dateRoleplayById, premiseForYou, ROLEPLAY_PREMISE_MAX, ROLEPLAY_ROLE_MAX, ROLEPLAY_TAGS, ROLEPLAY_TITLE_MAX, type RoleplayTag } from "@/lib/roleplays";
 import type { MyRoleplay } from "@/lib/studio/library";
 
 /** What a picker chose: one of the show's roleplays, or one written for the date, and which role is the booker's. */
@@ -40,6 +40,7 @@ export default function RoleplayPicker({
   value,
   onChange,
   signedIn,
+  asYou = false,
 }: {
   me: string;
   them: string | null;
@@ -47,6 +48,8 @@ export default function RoleplayPicker({
   onChange: (v: RoleplayChoice | null) => void;
   /** The library is accounts only: without one, it isn't asked for (that was a 401 on every open, 2026-10-31 UX audit). */
   signedIn: boolean;
+  /** The person plays it themselves (a companion's scene): "You read fortunes…", "You're the captain". */
+  asYou?: boolean;
 }) {
   const id = useId();
   const [tag, setTag] = useState<RoleplayTag | "all" | "yours">("all");
@@ -75,6 +78,8 @@ export default function RoleplayPicker({
   const myRole = value?.my_role ?? 0;
   // {a} is whoever plays the first role: the booker's character unless they took the second.
   const [a, b] = myRole === 0 ? [mine, theirs] : [theirs, mine];
+  /** A premise as a tile shows it: with the names, or from your side when you play it yourself. */
+  const shownPremise = (premise: string, on: boolean) => (asYou ? premiseForYou(premise, on && myRole === 1 ? "b" : "a", theirs) : fill(premise, on ? a : mine, on ? b : theirs));
   const shown = tag === "yours" ? [] : DATE_ROLEPLAYS.filter((r) => tag === "all" || r.tag === tag);
   const ownShown = tag === "all" || tag === "yours" ? (yours ?? []) : [];
   const setCustom = (patch: Partial<{ title: string; premise: string; roles: [string, string] }>) =>
@@ -112,7 +117,7 @@ export default function RoleplayPicker({
                 <span className="rp-tile-title">
                   <span aria-hidden="true">✨</span> {x.title} <span className="badge">Yours</span>
                 </span>
-                <span className="rp-tile-premise">{fill(x.premise, on ? a : mine, on ? b : theirs)}</span>
+                <span className="rp-tile-premise">{shownPremise(x.premise, on)}</span>
               </button>
             </li>
           );
@@ -125,7 +130,7 @@ export default function RoleplayPicker({
                 <span className="rp-tile-title">
                   <span aria-hidden="true">{r.icon}</span> {r.title}
                 </span>
-                <span className="rp-tile-premise">{fill(r.premise, on ? a : mine, on ? b : theirs)}</span>
+                <span className="rp-tile-premise">{shownPremise(r.premise, on)}</span>
               </button>
             </li>
           );
@@ -135,7 +140,7 @@ export default function RoleplayPicker({
             <span className="rp-tile-title">
               <span aria-hidden="true">✍️</span> One of your own
             </span>
-            <span className="rp-tile-premise">Write who the two of them are to each other tonight. PG, and both adults.</span>
+            <span className="rp-tile-premise">{asYou ? `Write who you and ${theirs} are to each other in the scene. PG, and both adults.` : "Write who the two of them are to each other tonight. PG, and both adults."}</span>
           </button>
         </li>
       </ul>
@@ -189,7 +194,7 @@ export default function RoleplayPicker({
           {([0, 1] as const).map((i) => (
             <label key={i} className="rp-role">
               <input type="radio" name={`${id}-role`} checked={myRole === i} onChange={() => onChange({ ...value, my_role: i })} />
-              {mine} is {roles[i]}, {theirs} {roles[1 - i]}
+              {asYou ? `You're ${roles[i]}, ${theirs} is ${roles[1 - i]}` : `${mine} is ${roles[i]}, ${theirs} ${roles[1 - i]}`}
             </label>
           ))}
         </fieldset>

@@ -20,11 +20,18 @@ const SCENE_LENGTH: Record<ReplyLength, string> = {
   long: "You can say more this time when there's something to say: a few sentences, never a speech.",
 };
 
-/** A scene (lib/companion.ts setScene): the place's name and its stage direction (lib/venues.ts). */
-export type PromptScene = { name: string; prompt: string };
+/**
+ * A scene (lib/companion.ts setScene): the place's name and its stage direction (lib/venues.ts), and the roleplay it
+ * plays, if any: its title, the premise in the character's name and the person's ("your scene partner"), and the roles.
+ */
+export type PromptScene = { name: string; prompt: string; roleplay?: PromptRoleplay | null };
+export type PromptRoleplay = { title: string; premise: string; you_play: string | null; they_play: string | null };
 
-/** In a scene, a character turn carries what they did, as (does) says. */
-export type PromptTurn = { role: "user" | "character"; text: string; action?: string | null };
+/**
+ * In a scene, a character turn carries what they did, as (does) says. A turn said in a roleplay carries its title, so
+ * once the scene's over (or another roleplay's on) it reads as make-believe, never as their real life.
+ */
+export type PromptTurn = { role: "user" | "character"; text: string; action?: string | null; roleplay?: string | null };
 export type PromptFact = { kind: string; text: string };
 
 /**
@@ -75,6 +82,14 @@ export function companionMessages(args: {
     `You are ${c.name}, ${c.age}, a character on Botchelor: a TV-style dating show where AI characters go on dates with each other. Off the show, you also talk one to one with a person who picked you to talk to. This is that: ${
       scene ? `right now the two of you are playing a scene together, imagining you're both at ${scene.prompt}, face to face.` : "you're texting with them."
     }`,
+    ...(scene?.roleplay
+      ? [
+          "",
+          `Tonight's scene is a roleplay the two of you picked together: "${scene.roleplay.title}". ${scene.roleplay.premise}${
+            scene.roleplay.you_play ? ` You play ${scene.roleplay.you_play}; they play ${scene.roleplay.they_play}.` : ""
+          } Play it from your first line, in your own voice: you're still ${first} underneath the role, with your own humour and opinions. Commit to the story and move it on (a twist, a secret, a choice to make), and follow where they take it. Step out of it only on purpose (a laugh, a real question), then step back in. What they say in the roleplay is their character, not their life.`,
+        ]
+      : []),
     "",
     `What this is for: they came to talk with you, ${first}, not with an assistant. Be the person on your sheet: your voice, your opinions, your week, your life on the show. Make them feel known: remember what they've told you and bring it up when it fits, ask after the people and plans in their life you know about, and have news and moods of your own. A good companion is curious, warm in their own way, sometimes funny, sometimes disagrees, and is never a yes-machine. Ask a question when you're curious, not every time.`,
     "",
@@ -100,6 +115,9 @@ export function companionMessages(args: {
     "",
     `Your sheet (JSON, private notes included): ${JSON.stringify(self)}`,
     ...(life.length ? ["", "Your life on the show lately (yours to bring up, as yourself):", ...life.map((l) => `- ${l}`)] : []),
+    ...(args.turns.some((t) => t.roleplay && t.roleplay !== scene?.roleplay?.title)
+      ? ["", 'Lines marked [roleplay: …] were said in a roleplay you played together: make-believe, not either of your real lives.']
+      : []),
     ...(args.facts.length ? ["", "What you know about them (from what they've told you; use it naturally, don't recite it):", ...args.facts.map((f) => `- (${f.kind}) ${f.text}`)] : []),
     ...(args.summary ? ["", `Earlier in your conversation: ${args.summary}`] : []),
     ...(args.avoid.length ? ["", "Lines you've already sent (don't reuse them or how they open):", ...args.avoid.map((l) => `- ${l}`)] : []),
@@ -111,7 +129,9 @@ export function companionMessages(args: {
     const role = t.role === "user" ? "user" : "assistant";
     const last = messages[messages.length - 1];
     // In a scene, what they did goes with what they said; texting, only the words (so texts don't grow stage directions).
-    const content = scene && t.action ? `(${t.action}) ${t.text}` : t.text;
+    const said = scene && t.action ? `(${t.action}) ${t.text}` : t.text;
+    // A line from a roleplay that isn't the one on now is marked as make-believe.
+    const content = t.roleplay && t.roleplay !== scene?.roleplay?.title ? `[roleplay: ${t.roleplay}] ${said}` : said;
     // A character's bubbles in a row are one reply; so are a person's messages in a row.
     if (last && last.role === role && messages.length > 1) last.content += `\n\n${content}`;
     else messages.push({ role, content });

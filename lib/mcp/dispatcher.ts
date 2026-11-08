@@ -236,7 +236,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // names them all, so the label agrees with the story: a new field.
 // 2.22.1 (the 2026-11-08-0610 run, #1361): the quickstart opens with what it is, how a date ends and what each tool list
 // weighs (the lean one too), and initialize's notes are shorter: wording only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.22.1" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.23.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";

@@ -1080,6 +1080,11 @@ alter table companion_threads add column if not exists scene text;
 alter table companion_messages add column if not exists scene text;
 alter table companion_messages add column if not exists action text;
 alter table companion_messages add column if not exists marker text check (marker is null or marker in ('scene', 'texting'));
+-- A scene's roleplay (lib/companion-shared.ts CompanionRoleplayView): the thread's terms now (lib/roleplays.ts
+-- RoleplayTerms, first = 'you' or the character's id), and the title on each line said in one, so memory never takes
+-- make-believe for a fact about the person.
+alter table companion_threads add column if not exists roleplay jsonb;
+alter table companion_messages add column if not exists roleplay text;
 -- A reported reply's review on /admin/reports (lib/companion-reports.ts): when, and fine or a real miss to fix.
 alter table companion_messages add column if not exists report_reviewed_at timestamptz;
 alter table companion_messages add column if not exists report_decision text check (report_decision is null or report_decision in ('fine', 'fix'));

@@ -1221,6 +1221,8 @@ const RAW_TOOL_DEFS = [
         text: str(COMPANION_MESSAGE_MAX, "send / edit: your message. remember: a fact for them to keep about you."),
         length: { type: "string", enum: [...REPLY_LENGTHS], description: "length: how much they say a reply." },
         place: { type: "string", enum: [...SCENE_PLACES, SCENE_TEXTING], description: `scene: where to play a scene together (one of the show's places), or ${SCENE_TEXTING} to go back to texting.` },
+        roleplay: { type: ["string", "object"], description: "scene: a roleplay to play in it: the show's id (roleplay tools: ?tools=all), or {title, premise, roles}." },
+        my_role: { type: ["string", "integer"], description: "scene: your role, 0 (first) or 1, or its words." },
         message_id: str(64, "report: the reply (an id from reply or messages)."),
         reason: { type: "string", enum: [...COMPANION_REPORT_REASONS], description: "report: why." },
         fact_id: str(64, "forget: the fact (an id from memory)."),

@@ -241,3 +241,47 @@ export function roleIndex(roles: readonly [string, string] | null, raw: unknown)
   });
   return hit === 0 || hit === 1 ? hit : null;
 }
+
+/** Third person to second for the verb right after "you" ("reads" → "read", "tries" → "try", "is" → "are"). */
+const IRREGULAR_YOU: Record<string, string> = { is: "are", has: "have", was: "were", does: "do", goes: "go" };
+const PAST_TENSE = new Set(["came", "sat", "went", "had", "got", "made", "took", "met", "ran", "saw", "said", "found", "left", "knew", "thought", "fell", "won", "lost", "kept", "brought", "caught", "drew", "wrote", "gave"]);
+function verbForYou(word: string): string {
+  const lower = word.toLowerCase();
+  if (IRREGULAR_YOU[lower]) return IRREGULAR_YOU[lower];
+  if (/[^aeiou]ies$/i.test(word)) return word.slice(0, -3) + "y";
+  if (/(?:ss|sh|ch|x|z)es$/i.test(word)) return word.slice(0, -2);
+  if (/[^s']s$/i.test(word) && word.length > 3) return word.slice(0, -1);
+  return word;
+}
+
+/**
+ * A premise from the person's side, when one of the two is the person themselves (a companion's scene, lib/companion.ts):
+ * their place is "you", with the verbs that follow it agreeing ("{a} reads fortunes" → "You read fortunes", "{b}'s love
+ * life" → "your love life", "has no idea and shows" → "have no idea and show"); the other place is `them`.
+ */
+export function premiseForYou(premise: string, youAre: "a" | "b", them: string): string {
+  const you = `{${youAre}}`;
+  const other = youAre === "a" ? "{b}" : "{a}";
+  let out = premise.replaceAll(other, firstName(them));
+  // Possessive first, then "you" as the subject with its verb (and a second verb joined by "and" in the same clause).
+  out = out.replaceAll(`${you}'s`, "your");
+  out = out.replace(new RegExp(`${escapeRe(you)} (\\w+)((?:[^,.;:!?]*?\\band )(\\w+))?`, "g"), (_m, verb: string, tail?: string, verb2?: string) => {
+    // "{a} and {b} are…": "you and Mara are", nothing to change.
+    if (verb === "and" || verb === "or") return `you ${verb}${tail ?? ""}`;
+    const first = verbForYou(verb);
+    if (!tail || !verb2) return `you ${first}`;
+    // A second verb only when the first was one ("you have no idea and shows" → "show", "you came … and has" → "have";
+    // "you and" was handled above).
+    const wasVerb = first !== verb || /ed$/i.test(verb) || PAST_TENSE.has(verb.toLowerCase());
+    return wasVerb ? `you ${first}${tail.slice(0, -verb2.length)}${verbForYou(verb2)}` : `you ${verb}${tail}`;
+  });
+  out = out.replaceAll(you, "you");
+  // "Mara and you are…" reads better the other way round.
+  out = out.replaceAll(`${firstName(them)} and you `, `you and ${firstName(them)} `);
+  // "you" at the start of a sentence.
+  return out.replace(/(^|[.!?]\s+)you\b/g, (_m, lead: string) => `${lead}You`).replace(/(^|[.!?]\s+)your\b/g, (_m, lead: string) => `${lead}Your`);
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
