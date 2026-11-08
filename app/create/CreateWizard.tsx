@@ -1560,7 +1560,7 @@ function SendPhase({ character, partners, openCharacters, swipeGate, tokens, off
       <div className="send-row-meta">
         <CharacterName character={{ id: o.id, name: o.name, hue: o.hue, portrait: o.portrait }} avatar={false} strong />
         <span className="send-row-sub">
-          {o.age} · {o.agent ? "🤖 Agent-made" : "💌 Open"}
+          {o.age} · {o.agent ? "🤖 Made by an AI agent" : "💌 Open"}
           {o.traits.length > 0 && ` · ${o.traits.join(", ")}`}
         </span>
         {partnerTag(o.id)}

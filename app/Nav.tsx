@@ -59,6 +59,7 @@ export default function Nav({
   afterDark = false,
   hasCharacter = true,
   companions = false,
+  prefetchShow = true,
 }: {
   tokens: number;
   /** "tokens" on After Dark's host: bought tokens only, which is all After Dark spends (#1005). */
@@ -71,7 +72,10 @@ export default function Nav({
   afterDark?: boolean;
   /** Companions are open to everyone (lib/companion-shared.ts companionOpen): their link after Matches. */
   companions?: boolean;
+  /** False on After Dark's own host: the show's links there only redirect, so they aren't prefetched (app/layout.tsx). */
+  prefetchShow?: boolean;
 }) {
+  const pf = prefetchShow ? undefined : false;
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   // #1005 (2026-10-30 prod loop: "the shop said 40 tokens, the header still said 43"): the count is read again when the
@@ -130,13 +134,13 @@ export default function Nav({
           <span className="token-word">{tokens === 1 ? "token" : "tokens"}</span>
         </Link>
       ) : personal ? (
-        <Link href="/shop" className={`token-pill${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
+        <Link prefetch={pf} href="/shop" className={`token-pill${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
           <span className="token-pip" aria-hidden="true">◈</span>
           <span className="token-count">{tokens}</span>
           <span className="token-word">{tokens === 1 ? "date left" : "dates left"}</span>
         </Link>
       ) : (
-        <Link href="/shop" className="token-pill" title={`Everyone gets ${tokens} free dates a week; yours count down here once you start. One sends a character on one date.`}>
+        <Link prefetch={pf} href="/shop" className="token-pill" title={`Everyone gets ${tokens} free dates a week; yours count down here once you start. One sends a character on one date.`}>
           <span className="token-pip" aria-hidden="true">◈</span>
           <span className="token-count">{tokens}</span>
           <span className="token-word">{tokens === 1 ? "free date" : "free dates"}</span>
@@ -159,12 +163,12 @@ export default function Nav({
         createPortal(<button type="button" className="nav-backdrop" aria-label="Close menu" tabIndex={-1} onClick={() => setOpen(false)} />, document.body)}
       <div id="nav-menu" className="nav-links" data-open={open}>
         {!hasCharacter && (
-          <Link href="/create" className="button nav-create" aria-current={pathname === "/create" ? "page" : undefined}>
+          <Link prefetch={pf} href="/create" className="button nav-create" aria-current={pathname === "/create" ? "page" : undefined}>
             Make your character
           </Link>
         )}
         {navLinks(hasCharacter, companions).map((l) => (
-          <Link key={l.href} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
+          <Link prefetch={pf} key={l.href} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
             {l.label}
             {l.href === "/matches" && texts > 0 && (
               <span className="nav-count" aria-label={`${texts} unread texts`}>
@@ -178,7 +182,7 @@ export default function Nav({
             🌙 After Dark
           </Link>
         )}
-        <Link href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
+        <Link prefetch={pf} href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
           <span aria-hidden="true">🔔</span>
           <span className="nav-bell-label">Notifications</span>
           {unread > 0 && (

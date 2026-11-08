@@ -2,9 +2,12 @@ import type { NextConfig } from "next";
 import { AI_HEADERS } from "./lib/ai-mark";
 import { afterDarkNextConfig } from "./lib/after-dark-host";
 import { siteUrl } from "./lib/site";
+import { SHOW_WORD_REDIRECTS } from "./lib/site-redirects";
 
 /** ffmpeg-static's binary and what Node needs to load the package (lib/media-tools/ffmpeg.ts). */
 const FFMPEG = ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffmpeg-static/index.js", "./node_modules/ffmpeg-static/package.json"];
+
+const afterDark = afterDarkNextConfig(process.env, siteUrl(process.env));
 
 const nextConfig: NextConfig = {
   // PGlite (local fallback database) ships WASM files and must be loaded by Node, not bundled. ffmpeg-static is a path to
@@ -30,7 +33,9 @@ const nextConfig: NextConfig = {
   // (lib/ai-mark.ts, EU AI Act Art. 50).
   headers: async () => [{ source: "/cast/:file*", headers: Object.entries(AI_HEADERS).map(([key, value]) => ({ key, value })) }],
   // After Dark on a host of its own (lib/after-dark-host.ts): adds nothing unless AFTER_DARK_ORIGIN is set at build time.
-  ...afterDarkNextConfig(process.env, siteUrl(process.env)),
+  ...afterDark,
+  // The show's words as addresses (lib/site-redirects.ts), before After Dark's own moves.
+  redirects: async () => [...SHOW_WORD_REDIRECTS, ...((await afterDark.redirects?.()) ?? [])],
 };
 
 export default nextConfig;

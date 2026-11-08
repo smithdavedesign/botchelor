@@ -83,3 +83,29 @@ export function placeCookie(where: Place, env: Env = process.env, now = Date.now
   const secure = env.NODE_ENV === "production" ? "; Secure" : "";
   return `${PLACE_COOKIE}=${token}; Path=/; Max-Age=${PLACE_TTL_SECONDS}; HttpOnly; SameSite=Lax${secure}`;
 }
+
+/** How long the show's handed-on 18+ answer counts: only across the hop itself. */
+export const ADULT_CARRY_TTL_SECONDS = 60;
+
+/**
+ * The show's 18+ answer for After Dark's host (2026-11-07 audit, item 21: one gate, not two), for a visitor with no
+ * identity to carry (someone with one has it in the carry token): `adult.v1.<expires>.<sig>`, bound to the receiving
+ * browser's nonce like the place, so it only counts in the browser it was minted for. Null without a SESSION_SECRET.
+ */
+export function signAdult(env: Env = process.env, now = Date.now(), bind = ""): string | null {
+  const secret = secretOf(env);
+  if (!secret) return null;
+  const payload = `adult.${Math.floor(now / 1000) + ADULT_CARRY_TTL_SECONDS}`;
+  return `adult.v1.${payload.slice("adult.".length)}.${sig(secret, payload, bind)}`;
+}
+
+/** Whether `token` is the show's signed, unexpired 18+ answer for this nonce. */
+export function verifyAdult(token: string | null | undefined, env: Env = process.env, now = Date.now(), bind = ""): boolean {
+  const secret = secretOf(env);
+  if (!secret || !token) return false;
+  const parts = token.split(".");
+  if (parts.length !== 4 || parts[0] !== "adult" || parts[1] !== "v1") return false;
+  const [, , expires, signature] = parts;
+  if (!/^\d+$/.test(expires) || Number(expires) < Math.floor(now / 1000)) return false;
+  return safeEqual(signature, sig(secret, `adult.${expires}`, bind));
+}

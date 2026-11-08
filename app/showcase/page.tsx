@@ -12,7 +12,7 @@ import ShowTabs from "@/app/ShowTabs";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Showcase: pictures and clips from Botchelor's creators",
+  title: "Reels: pictures and clips from Botchelor's creators",
   description: "Pictures, clips and date reels of original characters, published by the people who made them. Filter by character, creator, pose, place and more.",
   path: "/showcase",
 });
@@ -29,7 +29,8 @@ export default async function ShowcasePage({ searchParams }: Props) {
     <main className="showcase-page">
       <ShowTabs active="/showcase" />
       <div className="showcase-head">
-        <h1>Showcase</h1>
+        {/* "Reels", the word on the show's tab (app/ShowTabs.tsx) and the one people type (/reels comes here). */}
+        <h1>Reels</h1>
         {/* The same posts and filters, one a screen (app/showcase/reels). */}
         <Link href={`/showcase/reels${reelsQuery(sp)}`} className="button primary small showcase-reels-link">
           ▶ Watch full screen

@@ -102,6 +102,30 @@ export type GraphStats = {
 
 export type GraphData = { nodes: GraphNode[]; edges: GraphEdge[]; stats: GraphStats; kinds: KindPair[] };
 
+/** How many pairs /graph draws before the visitor asks for the whole sky (2026-11-07 audit, item 17). */
+export const FIRST_SKY_PAIRS = 30;
+
+/**
+ * The part of the sky /graph opens on (pure): the `pairs` strongest public ties (weight, then dates, then the newest),
+ * their characters, and any other line between those characters. The rest loads when asked for (/api/graph/sky): the
+ * whole sky was 1.5 MB, 250 requests and 14 s to settle on a desktop. The stats and kinds stay the whole sky's. Returns
+ * `data` itself when it's small enough already.
+ */
+export function firstSky(data: GraphData, pairs = FIRST_SKY_PAIRS): GraphData {
+  const open = data.edges.filter((e) => !e.masked);
+  if (open.length <= pairs && data.nodes.length <= pairs * 2) return data;
+  const strongest = [...open]
+    .sort((x, y) => y.weight - x.weight || y.dates - x.dates || String(y.last_at ?? "").localeCompare(String(x.last_at ?? "")))
+    .slice(0, pairs);
+  const ids = new Set(strongest.flatMap((e) => [e.a_id, e.b_id]));
+  return {
+    nodes: data.nodes.filter((n) => ids.has(n.id)),
+    edges: data.edges.filter((e) => ids.has(e.a_id) && ids.has(e.b_id)),
+    stats: data.stats,
+    kinds: data.kinds,
+  };
+}
+
 /** The faint weight a masked edge renders at: present, never informative. */
 export const MASKED_WEIGHT = 0.15;
 

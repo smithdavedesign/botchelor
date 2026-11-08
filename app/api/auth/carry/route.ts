@@ -2,7 +2,7 @@ import { afterDarkElsewhere, afterDarkOnly } from "@/lib/after-dark-host";
 import { ADULT_COOKIE, safeFrom } from "@/lib/age";
 import { isCarryNonce, newCarryNonce, signCarry, verifyCarry } from "@/lib/auth";
 import { authFromRequest, handle, safeEqual, sessionCookies } from "@/lib/http";
-import { placeCookie, requestPlace, signPlace, verifyPlace, PLACE_TRIED_COOKIE } from "@/lib/place";
+import { placeCookie, requestPlace, signAdult, signPlace, verifyAdult, verifyPlace, PLACE_TRIED_COOKIE } from "@/lib/place";
 import { OLD_HOSTS, requestHost, siteUrl } from "@/lib/site";
 
 const ONE_YEAR = 60 * 60 * 24 * 365;
@@ -62,6 +62,12 @@ export const GET = handle(async (req: Request) => {
     const set = where ? placeCookie(where) : null;
     return [`${PLACE_TRIED_COOKIE}=1; Path=/; Max-Age=60; HttpOnly; SameSite=Lax${secure()}`, ...(set ? [set] : [])];
   };
+  // The show's 18+ answer for a visitor with no identity to bring (`a`): only with this browser's own nonce, so After
+  // Dark doesn't ask again what the show just asked (2026-11-07 audit, item 21).
+  const adultFrom = (mine: string | undefined): string[] =>
+    afterDarkHost && isCarryNonce(mine) && verifyAdult(url.searchParams.get("a"), process.env, Date.now(), mine)
+      ? [`${ADULT_COOKIE}=1; Path=/; Max-Age=${ONE_YEAR}; HttpOnly; SameSite=Lax${secure()}`]
+      : [];
 
   const token = url.searchParams.get("t");
   if (token !== null) {
@@ -76,10 +82,11 @@ export const GET = handle(async (req: Request) => {
     return redirect(to, cookies);
   }
 
-  // Only a place, for a visitor with no identity to bring (After Dark's subscribe page still needs to know where they are).
-  if (url.searchParams.get("pl") !== null) {
+  // Only a place (and the 18+ answer), for a visitor with no identity to bring (After Dark's subscribe page still needs
+  // to know where they are).
+  if (url.searchParams.get("pl") !== null || url.searchParams.get("a") !== null) {
     const mine = cookie(req, NONCE_COOKIE);
-    return redirect(to, [nonceCookie("", 0), ...placeFrom(mine)]);
+    return redirect(to, [nonceCookie("", 0), ...placeFrom(mine), ...adultFrom(mine)]);
   }
 
   const nonce = url.searchParams.get("n");
@@ -90,7 +97,12 @@ export const GET = handle(async (req: Request) => {
     const carry = auth ? signCarry({ uid: auth.userId, authenticated: auth.authenticated, adult, nonce }) : null;
     // To After Dark's host, where this browser connects from, read from the show's (Vercel's) headers and bound to the nonce.
     const pl = toAfterDark && target === toAfterDark && isCarryNonce(nonce) ? signPlace(requestPlace(req.headers), process.env, Date.now(), nonce) : null;
-    if (!carry) return pl ? redirect(`${target}/api/auth/carry?${new URLSearchParams({ pl, to })}`) : redirect(`${target ?? canonical}${to}`);
+    // No identity, but the 18+ question answered here: After Dark's host gets that answer on its own (signed, bound).
+    const a = !carry && adult && toAfterDark && target === toAfterDark && isCarryNonce(nonce) ? signAdult(process.env, Date.now(), nonce) : null;
+    if (!carry) {
+      const q = { ...(pl ? { pl } : {}), ...(a ? { a } : {}) };
+      return Object.keys(q).length ? redirect(`${target}/api/auth/carry?${new URLSearchParams({ ...q, to })}`) : redirect(`${target ?? canonical}${to}`);
+    }
     return redirect(`${target}/api/auth/carry?${new URLSearchParams({ t: carry, ...(pl ? { pl } : {}), to })}`);
   }
 

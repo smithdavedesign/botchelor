@@ -4,7 +4,7 @@ import CharacterName from "@/app/CharacterName";
 import JsonLd from "@/app/JsonLd";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
-import type { KindPair } from "@/lib/graph";
+import { firstSky, type KindPair } from "@/lib/graph";
 import { cachedConstellation } from "@/lib/graph-cache";
 import { kindLabel } from "@/lib/kinds";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
@@ -57,6 +57,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
   const open = edges.filter((e) => !e.masked);
   const singles = nodes.filter((n) => n.degree === 0);
   const ledger = pageOf(edges, parsePage(sp.ledger), LEDGER_PAGE);
+  const first = firstSky({ nodes, edges, stats, kinds });
 
   return (
     <article className="constellation-page">
@@ -76,7 +77,12 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
 
       <ShowTabs active="/graph" />
       {/* The sky first: the page opens on it (2026-10-25); what it is and the numbers read under it. */}
-      <ConstellationApp data={{ nodes, edges, stats, kinds }} initialFocus={typeof focusParam === "string" ? focusParam : null} />
+      {/* The strongest pairs first; the rest of the sky loads when asked for (or when ?focus= names someone outside it). */}
+      <ConstellationApp
+        data={first}
+        total={first.nodes.length === nodes.length && first.edges.length === edges.length ? null : { characters: nodes.length, pairs: edges.length }}
+        initialFocus={typeof focusParam === "string" ? focusParam : null}
+      />
 
       <header className="constellation-header">
         <p className="kicker">The social graph</p>

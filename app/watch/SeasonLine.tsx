@@ -41,7 +41,8 @@ export default function SeasonLine({
   const parts = [
     `📺 ${number ? `Season ${number}` : "This season"}${def ? `: ${def.title}` : ""}`,
     card?.label ?? null,
-    nightAhead ? `💘 The Recoupling ${recouplingIn(nightAhead.runs_at, now)}` : null,
+    // Plain words on the first screen (2026-11-07 audit, item 19): the name, then what it is.
+    nightAhead ? `💘 The Recoupling, when everyone re-pairs, ${recouplingIn(nightAhead.runs_at, now)}` : null,
   ].filter(Boolean);
   return (
     <details className="season-line ux-fold" id="this-week" data-track-area="this-week">

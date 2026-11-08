@@ -537,7 +537,8 @@ describe("the modal, the button and the footer link (markup)", () => {
     expect(renderToStaticMarkup(createElement(FeedbackLink))).toBe('<button type="button" class="link-button footer-link" aria-haspopup="dialog">Give us feedback</button>');
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
     // The footer's links are three groups (2026-10-31 UX audit); feedback is with the other ways to reach us.
-    expect(layout).toMatch(/<FooterGroup title="Help and legal">\s*<li><Link href="\/report">Report a problem<\/Link><\/li>\s*<li>\s*<FeedbackLink \/>\s*<\/li>/);
+    // (The show's links don't prefetch on After Dark's host, 2026-11-08: `prefetch={showPrefetch}` may sit before href.)
+    expect(layout).toMatch(/<FooterGroup title="Help and legal">\s*<li><Link (?:prefetch=\{showPrefetch\} )?href="\/report">Report a problem<\/Link><\/li>\s*<li>\s*<FeedbackLink \/>\s*<\/li>/);
     expect(layout.match(/<FeedbackDock \/>/g)).toHaveLength(1);
   });
 

@@ -407,9 +407,9 @@ export default async function EpisodePage({
           episode.format ? formatLabel(episode.format) : null,
           episode.roleplay ? `${episode.roleplay.icon} Roleplay: ${episode.roleplay.title}` : null,
           a.house && b.house ? "House cast" : a.house || b.house ? "With a house character" : null,
-          a.agent || b.agent ? "🤖 Agent-made" : null,
+          a.agent || b.agent ? "🤖 Made by an AI agent" : null,
           sibling ? "💞💞 A double date" : null,
-          mixer ? `🍸 Mixer · round ${mixer.round} of ${mixer.rounds}` : null,
+          mixer ? `🍸 Speed-dating night · date ${mixer.round} of ${mixer.rounds}` : null,
           selfPerformed ? (twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI") : null,
           steppedIn ? "🎬 A viewer stepped in" : null,
         ]}

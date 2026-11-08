@@ -20,7 +20,6 @@ import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { cleanRef } from "@/lib/waitlist";
-import BotReviews from "./BotReviews";
 import DateExcerpt from "./DateExcerpt";
 import { pickFeaturedDate } from "@/lib/featured-date";
 import { CallsLine } from "./YourCalls";
@@ -310,7 +309,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </p>
         {/* The Constellation's own card is gone (A2): its numbers ride on the link. */}
         <p className="muted small home-sky-line">
-          <Link href="/graph">✨ Explore the Constellation</Link>
+          <Link href="/graph">✨ The Constellation: a map of who&apos;s dated whom</Link>
           {sky && sky.stats.couples > 0 && ` · ${sky.stats.characters} characters, ${sky.stats.couples} couples`}
         </p>
         <p className="muted small home-sky-line">
@@ -318,8 +317,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <Link href="/tools/ship-name-generator">a ship name generator</Link>
         </p>
       </section>
-
-      <BotReviews compact said={undefined} page={undefined} keep={refSlug ? { ref: refSlug } : {}} />
 
       <section className="faq">
         <h2>Questions</h2>

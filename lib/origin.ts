@@ -18,7 +18,7 @@ export type Origin = "cast" | "person" | "agent" | "house_bot";
 export const ORIGIN_LABEL: Record<Origin, string> = {
   cast: "Cast",
   person: "Made by a person",
-  agent: "🤖 Agent-made",
+  agent: "🤖 Made by an AI agent",
   house_bot: "House-run bot",
 };
 
@@ -56,7 +56,7 @@ export async function withOrigins<T extends { id: string; made_by: "house" | "ag
 export const TABS = ["cast", "people", "agents"] as const;
 export type Tab = (typeof TABS)[number];
 
-export const TAB_LABEL: Record<Tab, string> = { cast: "The cast", people: "People's characters", agents: "Agent-made" };
+export const TAB_LABEL: Record<Tab, string> = { cast: "The cast", people: "People's characters", agents: "Made by AI agents" };
 
 /** ?tab= as a tab: anything else is the cast, the default. */
 export const parseTab = (v: unknown): Tab => (typeof v === "string" && (TABS as readonly string[]).includes(v) ? (v as Tab) : "cast");

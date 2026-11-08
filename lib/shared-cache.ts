@@ -34,6 +34,41 @@ export function setSharedCacheForTests(enabled: boolean | null): void {
 /** Forget everything kept: the next visit to each page loads afresh. */
 export function clearSharedCache(): void {
   entries.clear();
+  staleEntries.clear();
+}
+
+type StaleEntry = { at: number; value: unknown; refreshing: boolean };
+const staleEntries = new Map<string, StaleEntry>();
+
+/**
+ * Like `shared`, for numbers that may be a few minutes old and are slow to count (/agents' stats: one count(distinct)
+ * over every MCP call, about a second; 2026-11-07 audit, item 22): once loaded, every caller gets the kept copy at
+ * once, and a copy older than `ttlMs` is refreshed in the background for the next one. Only the first caller after a
+ * restart waits. A failed refresh keeps the old copy; a failed first load isn't kept.
+ */
+export async function sharedStale<T>(key: string, load: () => Promise<T>, ttlMs: number, now = Date.now()): Promise<T> {
+  if (!on()) return load();
+  const hit = staleEntries.get(key);
+  if (hit) {
+    if (now - hit.at > ttlMs && !hit.refreshing) {
+      hit.refreshing = true;
+      load().then(
+        (value) => staleEntries.set(key, { at: Date.now(), value, refreshing: false }),
+        () => {
+          hit.refreshing = false;
+        },
+      );
+    }
+    try {
+      return structuredClone(hit.value) as T;
+    } catch {
+      return hit.value as T;
+    }
+  }
+  const value = await load();
+  staleEntries.set(key, { at: now, value, refreshing: false });
+  while (staleEntries.size > MAX_ENTRIES) staleEntries.delete(staleEntries.keys().next().value!);
+  return value;
 }
 
 /** `load()`'s result, at most SHARED_TTL_MS old, shared by every caller asking under `key`. */

@@ -52,13 +52,13 @@ export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
                 </span>
               ) : (
                 <span className="badge" title="One of the pairings at a mixer: just these two, and the episode links the rest of the night.">
-                  💞 Mixer
+                  💞 Speed dating
                 </span>
               ))}
             {episode.followup_of && <span className="badge">{dateLabel(episode.date_number ?? 2)}</span>}
             {(a.agent || b.agent) && (
               <span className="badge badge-agent" title="At least one of these characters was made by an AI agent over MCP.">
-                🤖 {a.agent && b.agent ? "Agents' characters" : "Agent-made character"}
+                🤖 {a.agent && b.agent ? "Both made by AI agents" : "Made by an AI agent"}
               </span>
             )}
           </span>

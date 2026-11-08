@@ -118,7 +118,7 @@ describe("the Characters hub's tabs", () => {
     expect(cast).toMatch(/<h1>Characters<\/h1>/);
     expect(cast).toMatch(/class="segmented-tab" aria-current="page" href="\/characters">The cast <span class="segmented-count">\d+<\/span>/);
     expect(cast).toContain(`class="segmented-tab" href="/characters?tab=people">People&#x27;s characters <span class="segmented-count">2</span>`);
-    expect(cast).toContain(`class="segmented-tab" href="/characters?tab=agents">Agent-made <span class="segmented-count">2</span>`);
+    expect(cast).toContain(`class="segmented-tab" href="/characters?tab=agents">Made by AI agents <span class="segmented-count">2</span>`);
     expect(cast).toMatch(/This season: /);
     expect(cast).not.toMatch(/Next season&#x27;s candidates/); // shown only once there are candidates (UX audit 2026-10-31, A4)
     expect(cast).toMatch(/The relationship graph/); // what /cast had moved here
@@ -135,7 +135,7 @@ describe("the Characters hub's tabs", () => {
 
     const agents = await render({ tab: "agents" });
     expect(agents).toContain(`/characters/${agent.id}`);
-    expect(agents).toContain(">🤖 Agent-made</span>");
+    expect(agents).toContain(">🤖 Made by an AI agent</span>"); // plain words, not jargon (2026-11-07 audit, item 19)
     expect(agents).toContain(`/characters/${bot.id}`);
     expect(agents).toContain(">House-run bot</span>");
 
