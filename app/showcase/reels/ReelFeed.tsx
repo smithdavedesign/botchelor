@@ -8,6 +8,7 @@ import type { Post } from "@/lib/showcase";
 import { shortName } from "@/lib/names";
 import LikeButton from "../LikeButton";
 import MadeWith from "../MadeWith";
+import { playClip, useSound } from "../sound";
 import { feedOf, loads, motionOf, type ReelCard } from "./reel-shared";
 import styles from "./reels.module.css";
 
@@ -36,7 +37,8 @@ const cta = (name: "date" | "see_all" | "after_dark" | "create") => () => trackC
  * The showcase as reels (David, 2026-10-29: "an infinite reel / video, scroll-swipe, like candy.ai, Instagram, TikTok"):
  * one post a screen, swiped or scrolled (↑ ↓, j k), the next page loading while the last few are watched.
  *
- * - A clip plays, muted, while it's on screen (David, 2026-10-30: no sound buttons). A still moves slowly, a different
+ * - A clip plays while it's on screen, muted until 🔇 on the rail turns sound on, then every clip after it has sound, as on
+ *   TikTok (David, 2026-11-09; ../sound.ts, shared with the grid). A still moves slowly, a different
  *   way each time (a "living photo"): the safe picture of someone, animated, at no cost. Reduced motion: nothing moves or plays by itself.
  * - Each post asks one thing first: 💘 date them (their page, where a date is booked), then see all of them (on this side), and, for
  *   someone After Dark isn't open to, how many more of them are after dark (the subscription; its waitlist until it
@@ -63,6 +65,7 @@ export default function ReelFeed(props: Props) {
   const [reduced, setReduced] = useState(false);
   // The screen whose clip can play through: only then does the next one start loading, so the one watched comes first.
   const [ready, setReady] = useState(-1);
+  const [sound, setSound] = useSound();
   const scroller = useRef<HTMLDivElement>(null);
   const feed = useMemo(() => feedOf(posts, { afterDarkCard: !props.explicit && props.side === "pg" }), [posts, props.explicit, props.side]);
   const total = feed.length + (more ? 0 : 1);
@@ -139,13 +142,13 @@ export default function ReelFeed(props: Props) {
     scroller.current?.querySelectorAll<HTMLVideoElement>("video[data-v]").forEach((v) => {
       // Loaded already (it was the next one, or came back to): ready now, since it won't say so again.
       if (Number(v.dataset.v) === active && v.readyState >= 4) setReady(active);
-      if (Number(v.dataset.v) === active && shown && !reduced) void v.play().catch(() => {});
+      if (Number(v.dataset.v) === active && shown && !reduced) void playClip(v);
       else {
         v.pause();
         if (Number(v.dataset.v) !== active) v.currentTime = 0;
       }
     });
-  }, [active, shown, reduced, total]);
+  }, [active, shown, reduced, total, sound]);
 
   const go = (to: number) => scroller.current?.querySelector(`[data-i="${Math.max(0, Math.min(total - 1, to))}"]`)?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
   useEffect(() => {
@@ -235,6 +238,8 @@ export default function ReelFeed(props: Props) {
               onShare={() => void share(x.post)}
               onInfo={() => setInfo(x.post.id)}
               onReady={() => setReady(i)}
+              sound={sound}
+              onSound={() => setSound(!sound)}
             />
           ),
         )}
@@ -293,6 +298,8 @@ function Slide({
   onShare,
   onInfo,
   onReady,
+  sound,
+  onSound,
 }: {
   i: number;
   post: Post;
@@ -306,6 +313,9 @@ function Slide({
   onShare: () => void;
   onInfo: () => void;
   onReady: () => void;
+  /** Whether clips play with sound (../sound.ts), and its switch. */
+  sound: boolean;
+  onSound: () => void;
 }) {
   const video = p.mime.startsWith("video/");
   // Where the file comes from; the show's own route once that fails.
@@ -324,6 +334,7 @@ function Slide({
           // Its first frame shows while it loads (the picture it was filmed from, when there is one).
           <video
             data-v={i}
+            data-sound
             src={near ? file : undefined}
             poster={near && p.poster ? still("screen") : undefined}
             muted
@@ -371,6 +382,12 @@ function Slide({
           )}
         </div>
         <div className={styles.rail}>
+          {video && (
+            <button type="button" onClick={onSound} aria-pressed={sound} aria-label={sound ? "Mute" : "Turn sound on"}>
+              {sound ? "🔊" : "🔇"}
+              <span>{sound ? "Sound" : "Muted"}</span>
+            </button>
+          )}
           <LikeButton postId={p.id} likes={p.likes} liked={p.liked} />
           <button type="button" onClick={onShare} aria-label="Share">
             ↗<span>Share</span>

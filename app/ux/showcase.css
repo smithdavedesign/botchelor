@@ -181,6 +181,41 @@ a.showcase-picked-chip {
   color: #fff;
   font-size: 0.8rem;
 }
+.showcase-media {
+  position: relative;
+}
+/* A clip tile's 🔇 / 🔊: the showcase's one sound switch (app/showcase/sound.ts), top left, clear of the ▶ badge. */
+.showcase-sound {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: rgba(10, 6, 18, 0.6);
+  box-shadow: none;
+  color: white;
+  font-size: var(--text-sm);
+  line-height: 1;
+  cursor: pointer;
+}
+.showcase-sound:hover {
+  transform: none;
+  box-shadow: none;
+  background: rgba(10, 6, 18, 0.8);
+}
+@media (pointer: coarse) {
+  .showcase-sound {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
 .showcase-by {
   margin: 0;
 }
