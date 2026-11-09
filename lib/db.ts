@@ -1685,6 +1685,15 @@ create table if not exists adult_tastes (
   writes integer not null default 0
 );
 create index if not exists adult_tastes_started on adult_tastes (started_at);
+-- A real age check through Didit (lib/adult/age-check.ts, 2026-11-09): opens After Dark in the UK, Australia and Brazil
+-- for a year. Only whether it passed, how, when and the country: never a selfie, an ID, a birth date or Didit's payload.
+create table if not exists adult_age_checks (
+  user_id text primary key,
+  passed boolean not null,
+  method text not null default 'didit',
+  checked_at timestamptz not null default now(),
+  country text
+);
 -- The mode After Dark last had for someone, from where they last connected (lib/adult/place.ts): background work that
 -- has no request (a chapter's picture, a video of the night) asks here, so text-only or blocked places get no media.
 -- A country and a US state, never an address or an IP; kept only while the account is.

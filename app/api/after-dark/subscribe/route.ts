@@ -2,7 +2,7 @@ import { z } from "zod";
 import { isAdmin } from "@/lib/admins";
 import { billingFlagged, billingOn, recordSelfDeclaration, startCheckout } from "@/lib/adult/billing";
 import { canAfterDark } from "@/lib/adult/entitlement";
-import { accessFor } from "@/lib/adult/place";
+import { accessForUser } from "@/lib/adult/place";
 import { afterDarkBase } from "@/lib/after-dark-host";
 import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
@@ -44,7 +44,7 @@ export const POST = handle(async (req: Request) => {
     return json({ error: "rate_limited", message: "Too many tries. Try again in an hour." }, 429);
   }
   const admin = await isAdmin(db, auth.userId);
-  const access = accessFor(requestPlace(req.headers), admin);
+  const access = await accessForUser(db, auth.userId, requestPlace(req.headers), admin);
   if (access.mode === "blocked") return json({ error: "not_available_here", message: access.reason ?? "After Dark isn't offered where you're connecting from." }, 451);
   const input = parseBody(Input, await readJson(req), "confirmations_required");
   const entitled = await canAfterDark(db, auth);

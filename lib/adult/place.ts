@@ -11,8 +11,9 @@
 import { isAdmin } from "../admins";
 import type { Db } from "../db";
 import { json } from "../http";
-import { adminAccess, afterDarkAccess, mediaAllowed, type Access, type AfterDarkMode, type Place } from "../jurisdiction";
+import { adminAccess, afterDarkAccess, mediaAllowed, verifyOpens, withAgePass, type Access, type AfterDarkMode, type Place } from "../jurisdiction";
 import { requestPlace } from "../place";
+import { hasAgePass } from "./age-check";
 import { canAfterDark, openEverywhere, REVIEWER_PROVIDER, type Entitlement } from "./entitlement";
 import { isTasting } from "./taste";
 
@@ -20,8 +21,16 @@ import { isTasting } from "./taste";
 const REWRITE_AFTER_MS = 10 * 60 * 1000;
 const written = new Map<string, { key: string; at: number }>();
 
-/** What After Dark may be for this person, from this place. */
-export const accessFor = (where: Place, everywhere: boolean): Access => (everywhere ? adminAccess(where) : afterDarkAccess(where));
+/** What After Dark may be for this person, from this place (`agePass`: they hold a current age check, lib/adult/age-check.ts). */
+export const accessFor = (where: Place, everywhere: boolean, agePass = false): Access =>
+  everywhere ? adminAccess(where) : withAgePass(afterDarkAccess(where), agePass);
+
+/** accessFor for a signed-in person: their age pass is read only where one would open more (lib/jurisdiction.ts VERIFY_OPENS). */
+export async function accessForUser(db: Db, userId: string | null, where: Place, everywhere: boolean): Promise<Access> {
+  if (everywhere) return adminAccess(where);
+  const pass = Boolean(userId) && verifyOpens(where) && (await hasAgePass(db, userId!));
+  return accessFor(where, false, pass);
+}
 
 /** Remembers the person's mode and place, when it changed or the last write is old. Best effort: a failed write is logged. */
 export async function rememberAccess(db: Db, userId: string, access: Access, now = Date.now()): Promise<void> {
@@ -43,7 +52,7 @@ export async function rememberAccess(db: Db, userId: string, access: Access, now
 
 /** The viewer's access from this request's place, remembered for background work. */
 export async function viewerAccess(db: Db, userId: string, admin: boolean, headers: Headers): Promise<Access> {
-  const access = accessFor(requestPlace(headers), admin);
+  const access = await accessForUser(db, userId, requestPlace(headers), admin);
   await rememberAccess(db, userId, access);
   return access;
 }
@@ -56,8 +65,14 @@ export async function mediaAllowedFor(db: Db, userId: string): Promise<boolean> 
   if (await isAdmin(db, userId)) return true;
   if (await isReviewer(db, userId)) return true;
   if (await isTasting(db, userId)) return false;
-  const row = (await db.query<{ mode: AfterDarkMode }>(`select mode from adult_viewer_places where user_id = $1`, [userId])).rows[0];
-  return row ? mediaAllowed(row) : false;
+  const row = (await db.query<{ mode: AfterDarkMode; country: string | null; region: string | null }>(
+    `select mode, country, region from adult_viewer_places where user_id = $1`,
+    [userId],
+  )).rows[0];
+  if (!row || !mediaAllowed(row)) return false;
+  // Open there only because of an age pass: the pass must still be current (it lasts a year, lib/adult/age-check.ts).
+  if (afterDarkAccess(row).mode !== "open" && verifyOpens(row)) return hasAgePass(db, userId);
+  return true;
 }
 
 /** Whether this person holds a reviewer pass still running (lib/adult/entitlement.ts). */
@@ -110,8 +125,9 @@ export type Here = Access & { entitled: Entitlement; admin: boolean; userId?: st
 export async function accessHere(db: Db, auth: { userId: string; authenticated: boolean } | null, headers?: Headers): Promise<Here> {
   const entitled = await canAfterDark(db, auth);
   const admin = entitled.ok && entitled.why === "admin";
-  const access = accessFor(requestPlace(headers ?? (await pageHeaders())), openEverywhere(entitled));
-  return { ...access, entitled, admin, userId: auth?.authenticated ? auth.userId : null };
+  const userId = auth?.authenticated ? auth.userId : null;
+  const access = await accessForUser(db, userId, requestPlace(headers ?? (await pageHeaders())), openEverywhere(entitled));
+  return { ...access, entitled, admin, userId };
 }
 
 /** Tests: forget what was remembered in memory (the table is reset with the database). */

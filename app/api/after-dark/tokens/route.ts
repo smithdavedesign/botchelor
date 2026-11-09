@@ -2,7 +2,7 @@ import { z } from "zod";
 import { isAdmin } from "@/lib/admins";
 import { billingFlagged, startTokenCheckout } from "@/lib/adult/billing";
 import { canAfterDark } from "@/lib/adult/entitlement";
-import { accessFor } from "@/lib/adult/place";
+import { accessForUser } from "@/lib/adult/place";
 import { adTokensOn } from "@/lib/adult/tokens";
 import { afterDarkBase } from "@/lib/after-dark-host";
 import { detectBot } from "@/lib/bots";
@@ -41,7 +41,7 @@ export const POST = handle(async (req: Request) => {
     return json({ error: "rate_limited", message: "Too many tries. Try again in an hour." }, 429);
   }
   if (!(await canAfterDark(db, auth)).ok) return json({ error: "not_found" }, 404);
-  const access = accessFor(requestPlace(req.headers), await isAdmin(db, auth.userId));
+  const access = await accessForUser(db, auth.userId, requestPlace(req.headers), await isAdmin(db, auth.userId));
   if (access.mode !== "open") {
     return json({ error: "not_available_here", message: access.reason ?? "After Dark's pictures and videos aren't offered where you're connecting from, so tokens aren't either." }, 451);
   }

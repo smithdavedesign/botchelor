@@ -3,7 +3,7 @@ import { isAdmin } from "@/lib/admins";
 import { accountEmail, recordSelfDeclaration } from "@/lib/adult/billing";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { emailRequest, NOTE_MAX, requestInvite } from "@/lib/adult/invites";
-import { accessFor } from "@/lib/adult/place";
+import { accessForUser } from "@/lib/adult/place";
 import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, isMcpCall, json, parseBody, readJson } from "@/lib/http";
@@ -38,7 +38,7 @@ export const POST = handle(async (req: Request) => {
   if ((visitor !== null && (await overLimit(db, "ad_invite", visitor, INVITE_LIMITS))) || (await overLimit(db, "ad_invite_user", auth.userId, INVITE_LIMITS))) {
     return json({ error: "rate_limited", message: "Too many tries. Try again in an hour." }, 429);
   }
-  const access = accessFor(requestPlace(req.headers), await isAdmin(db, auth.userId));
+  const access = await accessForUser(db, auth.userId, requestPlace(req.headers), await isAdmin(db, auth.userId));
   if (access.mode === "blocked") return json({ error: "not_available_here", message: access.reason ?? "After Dark isn't offered where you're connecting from." }, 451);
   const input = parseBody(Input, await readJson(req), "confirmations_required");
   if ((await canAfterDark(db, auth)).ok) return json({ error: "already_in", message: "You already have After Dark." }, 409);

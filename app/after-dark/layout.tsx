@@ -6,7 +6,9 @@ import AfterDarkFrame from "./Frame";
 import Link from "next/link";
 import { getDb } from "@/lib/db";
 import { tasteLeft } from "@/lib/adult/taste";
+import { ageCheckOffer } from "@/lib/adult/age-check";
 import Unavailable from "./Unavailable";
+import VerifyAge from "./VerifyAge";
 import { currentHere, currentView } from "./view";
 import "./discreet.css";
 
@@ -27,9 +29,12 @@ export default async function AfterDarkLayout({ children }: { children: ReactNod
   const here = await currentHere();
   // Someone it isn't open to gets the same not-found as anywhere else (nothing says After Dark exists); someone it is
   // open to is told why it won't open here.
+  // Where an age check would open it (lib/adult/age-check.ts, off until Didit is set up), the notice offers one, also to
+  // a signed-in person who isn't in yet but could start a taste, ask for an invite or subscribe once it opens.
+  const verify = here.mode === "open" ? null : await ageCheckOffer(await getDb(), here);
   if (here.mode === "blocked") {
-    if (!here.entitled.ok) notFound();
-    return <Unavailable reason={here.reason} />;
+    if (!here.entitled.ok && !verify) notFound();
+    return <Unavailable reason={here.reason} verify={verify} />;
   }
   // A free taste (lib/adult/taste.ts) says what's left of it on every page, and where to carry on.
   const taste = here.entitled.ok && here.entitled.why === "taste" && here.userId ? await tasteLeft(await getDb(), here.userId) : null;
@@ -47,6 +52,7 @@ export default async function AfterDarkLayout({ children }: { children: ReactNod
           {here.reason}
         </p>
       )}
+      {here.mode === "text_only" && verify && <VerifyAge failed={verify === "failed"} opens="media" />}
       {children}
     </AfterDarkFrame>
   );
