@@ -94,7 +94,7 @@ import { loadSoul, ownsCharacter } from "../souls";
 import { deleteCharacter } from "../account";
 import { invalidateGraph } from "../graph-cache";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
-import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, roleplayPlaceNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, WRONG_SPEAKER, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
+import { autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE, RECAP_REPLY, declineOwnDate, endingLine, episodeLines, getOwnDateStep, handOverOwnDate, houseBotDateNote, openOwnDates, quietPartnerNote, roleplayPlaceNote, type OpenOwnDate, ownDateInProgress, ownDateInProgressMessage, OWN_DATE_HANDOVER_MINUTES, OWN_DATE_NUDGE_MINUTES, type OwnDateStep, previewAutoplay, previewOwnDate, RACED, WRONG_SPEAKER, seeAgainLead, startOwnDate, submitOwnDateStep, TURN_FIELDS, TURN_SHAPES, turnDefaultsUsed, turnLead, twoAgentDatesFor, unwrapOutput, carriesSeeAgain, foldTurnFields, handOverClock, type KeptWish } from "../own-date";
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
@@ -2772,7 +2772,7 @@ function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateSte
     return {
       ...rest,
       ...(heading ? { heading } : {}),
-      instructions: `${lead}Turn ${step.turn_number} of ${step.of}: ${step.speaker.name} speaks. Write ${step.speaker.name}'s line as output (just the dialogue works; transcript has the conversation).${hints} Running it in its own process? compact: true adds this turn's prompt (messages), false all of it.`,
+      instructions: `${lead}${turnLead(step.turn, step.of, step.side, step.speaker.name)}. Write ${step.speaker.name}'s line as output (just the dialogue works; transcript has the conversation).${hints} Running it in its own process? compact: true adds this turn's prompt (messages), false all of it.`,
       reply_format: shortReplyFormat(step),
       // 2.10.0: a last line keeps its example, which carries see_again.
       ...(step.see_again ? { example_reply: example } : {}),
@@ -2780,7 +2780,7 @@ function compactIf(step: OwnDateStep, args: Record<string, unknown>): OwnDateSte
       prompt_left_out: true,
     } as unknown as OwnDateStep;
   }
-  const instructions = `${lead}Turn ${step.turn_number} of ${step.of}: ${step.speaker.name} speaks. As before: run it in ${step.speaker.name}'s own process; its JSON reply, or just the line, as "output". (Lost it? compact: false.)${hints}`;
+  const instructions = `${lead}${turnLead(step.turn, step.of, step.side, step.speaker.name)}. As before: run it in ${step.speaker.name}'s own process; its JSON reply, or just the line, as "output". (Lost it? compact: false.)${hints}`;
   if (args.compact === "delta" || args.compact === "min") {
     const { messages: _m, ...rest } = step;
     return { ...rest, instructions, messages: [], system_unchanged: true, delta: true } as OwnDateStep;

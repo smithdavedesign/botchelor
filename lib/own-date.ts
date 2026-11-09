@@ -302,6 +302,11 @@ export type OwnDateStep =
       /** #1011: the two turns that are each side's last line (1-based, as turn_number), and what that means for a batch. */
       last_line_turns: [number, number];
       last_line_note: string;
+      /**
+       * #1398 (the 2026-11-09-0610 run: "the turn counter jumps 1, 3, 5 because it counts both sides"): this line counted
+       * on the speaker's side alone, and the other side's count, in a sentence. turn_number still counts both.
+       */
+      your_line: string;
       /** Where the date is now (#421: on every step; it can move when both agree: lib/moves.ts), and a suggestion this turn must answer. */
       where: string;
       /** 2.8.0: in the last act, which way the date lands (actNote), for the performer whose turn it is. */
@@ -1203,6 +1208,13 @@ export async function episodeLines(db: Db, episodeId: string): Promise<DateLines
   });
 }
 
+/** #1398: how many of a date's `of` lines a side says (the sides take turns, a first). */
+export const sideLines = (of: number, side: "a" | "b"): number => (side === "a" ? Math.ceil(of / 2) : Math.floor(of / 2));
+/** #1398: whose turn it is, counted both ways: the date's turn (both sides' lines) and the speaker's own line (your_line says it in full). */
+export const turnLead = (turn: number, of: number, side: "a" | "b", name: string): string =>
+  `Turn ${turn + 1} of ${of}: ${name} speaks (own line ${Math.floor(turn / 2) + 1} of ${sideLines(of, side)})`;
+const ordinalOf = (n: number): string => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+
 /** Where an agent's date stands (lib/moves.ts): its length grows with each move, and its acts follow. */
 export const ownDateShape = (built: BuiltDate, formatId: FormatId, transcript: readonly Turn[]): DateShape => shapeFor(built, formatId, transcript);
 const shapeFor = (built: BuiltDate, formatId: FormatId, transcript: readonly Turn[]): DateShape =>
@@ -1236,6 +1248,10 @@ function stepFor(
     const other = built.characters[side === "a" ? 1 : 0];
     // The speaker has no line after this one, as the date stands (a move later adds lines, and a later see_again counts).
     const lastLine = turn >= of - 2;
+    // #1398: the sides take turns (a first), so each side's own count is half the date's, a's the bigger on an odd total.
+    const mine = sideLines(of, side);
+    const nth = Math.floor(turn / 2) + 1;
+    const lastTurn = side === (of % 2 ? "a" : "b") ? of : of - 1;
     return {
       stage: "turn",
       episode_id: episodeId,
@@ -1249,7 +1265,8 @@ function stepFor(
       // #1011 (the 2026-10-30 prod loop: "with outputs[] batching I missed that I needed see_again on both sides' last
       // lines"): which turns are the last lines, said on every step, so a batch can carry see_again on both.
       last_line_turns: [of - 1, of],
-      last_line_note: `Turns ${of - 1} and ${of} are each side's last line: each carries see_again. Handing in several lines with outputs[], put see_again on both. A move adds lines and moves these.`,
+      last_line_note: `Turns ${of - 1} and ${of} are each side's last line: each carries see_again. Handing in several lines with outputs[], put see_again on both. A move adds lines and moves these. ${speaker.name}'s is turn ${lastTurn}, its line ${mine} of ${mine}.`,
+      your_line: `${speaker.name}'s ${ordinalOf(nth)} of ${mine} lines (${other.name} has ${sideLines(of, side === "a" ? "b" : "a")}); turn_number counts both sides' lines.`,
       side,
       you_are: `${side}: ${speaker.name}`,
       speaker: { id: ids[side === "a" ? 0 : 1], name: speaker.name },
@@ -1267,7 +1284,7 @@ function stepFor(
         (lastLine ? `${lastLineLead(speaker.name, other.name)} ` : "") +
         // 2.6.0 (#632, the 2026-10-22-0042 run: "as a single agent I just wrote the lines myself, which is allowed but not obvious").
         // #1187: the line's limit, said before the first line instead of in its refusal.
-        `Turn ${turn + 1} of ${of}: ${speaker.name} speaks. Quickest: write ${speaker.name}'s line yourself and hand in just the dialogue as "output" ` +
+        `${turnLead(turn, of, side, speaker.name)}. Quickest: write ${speaker.name}'s line yourself and hand in just the dialogue as "output" ` +
         `(${TURN_DIALOGUE_MAX} characters at most; a bare string works; the reply's transcript has the conversation so far): messages is optional. ` +
         `For the best dates, run these messages in ${speaker.name}'s own process — a separate model ` +
         `instance or sub-agent that plays only ${speaker.name} — and send its raw JSON reply back as "output". Don't show it the other ` +
