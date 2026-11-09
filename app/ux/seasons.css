@@ -37,7 +37,7 @@
   border-color: transparent;
   background:
     radial-gradient(120% 160% at 85% -30%, rgba(229, 53, 107, 0.22), transparent 60%),
-    linear-gradient(160deg, #241131, #140a1e 70%);
+    var(--grad-dark);
   color: rgba(255, 255, 255, 0.94);
 }
 .season-previously h2 {

@@ -61,9 +61,20 @@
      pages you browse (home, the show's tabs, Characters, Companions, an episode). A page opts in with .page-wide. */
   --page-read: 46rem;
   --page-wide: 72rem;
-  /* Behind a photo while it loads, and words laid on one: the same in both themes (a photo is a photo). */
+  /* Behind a photo while it loads, and words laid on one: the same in both themes (a photo is a photo). --on-photo is
+     also the words on the show's surfaces that stay dark in both themes (the stage, the tonight band, the heroes). */
   --photo-bg: #1d1030;
   --on-photo: #fff;
+  /* Black behind a video, or a picture that letterboxes (the players, the reels, Studio's frames): both themes. */
+  --media-bg: #000;
+  /* A speech bubble laid on a photo (the theater's scene, the real date on home): white with dark words in both
+     themes; the second speaker's bubble mixes --accent into --bubble. */
+  --bubble: #fff;
+  --bubble-ink: #241022;
+  /* The show's dark cards, like its title cards (the tonight band, an episode's "previously" strip, a won cast date,
+     a finale's cold open): dark in both themes, their words --on-photo. */
+  --card-dark: #140a1e;
+  --grad-dark: linear-gradient(160deg, #241131, var(--card-dark) 70%);
   --shadow: 0 1px 2px rgba(36, 16, 34, 0.05), 0 10px 30px -16px rgba(36, 16, 34, 0.22);
   --shadow-sm: 0 1px 2px rgba(36, 16, 34, 0.06);
   --grad: linear-gradient(120deg, var(--accent-btn), var(--accent-2));
@@ -1311,7 +1322,7 @@ button.chosen {
   z-index: 2;
   border-color: transparent;
   background: rgba(10, 6, 18, 0.62);
-  color: #fff;
+  color: var(--on-photo);
   pointer-events: none;
 }
 /* The one line where people meet characters. */
@@ -1379,7 +1390,7 @@ button.chosen {
   padding: 0.85rem 1rem;
   border-radius: var(--radius-md);
   background-size: cover;
-  color: #fff;
+  color: var(--on-photo);
   font-family: "Fraunces", Georgia, serif;
   font-size: var(--text-base);
   font-weight: 700;
@@ -2470,7 +2481,7 @@ button.poll-option.chosen {
 .poll-option.chosen .poll-dot {
   border-color: var(--accent-ink);
   background: var(--accent-ink);
-  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 80%, #000);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 80%, black);
 }
 .poll-label {
   flex: 1 1 auto;
@@ -2828,10 +2839,10 @@ button.poll-option.chosen {
 }
 .watch-countdown.is-dark {
   margin: var(--space-6) var(--space-4) 0;
-  color: #fff;
+  color: var(--on-photo);
 }
 .watch-countdown.is-dark .watch-countdown-time {
-  color: #fff;
+  color: var(--on-photo);
 }
 .watch-countdown.is-dark .watch-countdown-hint {
   color: rgba(255, 255, 255, 0.65);
@@ -3902,7 +3913,7 @@ button.rating-chip:hover {
   z-index: 200;
   display: flex;
   background: #0c0810;
-  color: #fff;
+  color: var(--on-photo);
 }
 .theater-stage {
   position: relative;
@@ -3947,7 +3958,7 @@ button.rating-chip:hover {
   display: flex;
   flex-direction: column;
   border-left: 1px solid rgba(255, 255, 255, 0.12);
-  background: color-mix(in srgb, var(--card) 94%, #000);
+  background: color-mix(in srgb, var(--card) 94%, black);
   color: var(--ink);
   padding: 0 var(--space-4) var(--space-3);
   overflow-y: auto;
@@ -4041,7 +4052,7 @@ button.rating-chip:hover {
   margin: 0;
   font-weight: 700;
   font-size: var(--text-md);
-  color: #fff;
+  color: var(--on-photo);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
 }
 .scene-bubble {
@@ -4050,14 +4061,14 @@ button.rating-chip:hover {
   padding: 0.7rem 1rem;
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.95);
-  color: #241022;
+  color: var(--bubble-ink);
   font-size: var(--text-base);
   line-height: 1.4;
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
   animation: scene-pop 0.25s ease;
 }
 .scene-char-b .scene-bubble {
-  background: color-mix(in srgb, var(--accent) 16%, #fff);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bubble));
 }
 @keyframes scene-pop {
   from { transform: translateY(6px); opacity: 0; }
@@ -4139,7 +4150,7 @@ button.rating-chip:hover {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(0, 0, 0, 0.35);
-  color: #fff;
+  color: var(--on-photo);
   font-size: var(--icon-xs);
   cursor: pointer;
 }
@@ -4198,7 +4209,7 @@ button.rating-chip:hover {
   backdrop-filter: blur(6px);
 }
 .theater-verdict .ending {
-  color: #fff;
+  color: var(--on-photo);
   font-size: var(--text-xl);
   margin: 0 0 0.3rem;
 }
@@ -4307,7 +4318,7 @@ button.rating-chip:hover {
 }
 .chat-dark .chat-row-a .chat-bubble {
   background: rgba(255, 255, 255, 0.13);
-  color: #fff;
+  color: var(--on-photo);
 }
 .chat-meta {
   margin: 0.15rem 0.5rem 0;
@@ -4570,7 +4581,7 @@ button.link-button.danger {
   color: var(--bad-text);
 }
 .theater-verdict .linklike {
-  color: #fff;
+  color: var(--on-photo);
 }
 .theater-cta {
   display: flex;
@@ -6423,11 +6434,11 @@ main:has(> .admin-wide) {
   }
 }
 .tabs {
-  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
 }
 @supports (animation-timeline: scroll()) {
   .tabs {
-    mask-image: linear-gradient(to right, transparent, #000 var(--tabs-fade-l), #000 calc(100% - var(--tabs-fade-r)), transparent);
+    mask-image: linear-gradient(to right, transparent, black var(--tabs-fade-l), black calc(100% - var(--tabs-fade-r)), transparent);
     animation: tabs-fade linear both;
     animation-timeline: scroll(self inline);
   }
@@ -8463,7 +8474,7 @@ a.phone-head-btn {
   bottom: 0;
   padding: 18px 8px 8px;
   background: linear-gradient(transparent, rgba(20, 8, 20, 0.78));
-  color: #fff;
+  color: var(--on-photo);
   font-weight: 600;
   font-size: var(--text-sm);
   text-align: center;
@@ -8677,7 +8688,7 @@ a.phone-head-btn {
   flex: 1 1 14rem;
   min-width: 0;
   background: rgba(24, 18, 36, 0.9);
-  color: #fff;
+  color: var(--on-photo);
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 .theater-stage.with-convo .set-scene-bar {
@@ -8851,7 +8862,7 @@ a.phone-head-btn {
   max-height: 70vh;
   border-radius: var(--radius);
   overflow: hidden;
-  background: #000;
+  background: var(--media-bg);
 }
 /* Blurred, scaled keyframe behind the video: fills the letterbox so the frame never shows stark black bars, however
    the video's shape meets the screen's (Reels.tsx; David, 2026-10-24). No extra video is generated for it. */
@@ -8901,7 +8912,7 @@ a.phone-head-btn {
   padding: 0.4rem 0.8rem;
   border-radius: var(--radius-md);
   background: rgba(10, 6, 18, 0.72);
-  color: #fff;
+  color: var(--on-photo);
   text-align: center;
   font-size: var(--text-base);
   line-height: 1.35;
@@ -8918,7 +8929,7 @@ a.phone-head-btn {
   gap: var(--space-2);
   padding: var(--space-2);
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
-  color: #fff;
+  color: var(--on-photo);
 }
 .ad-reel-theater-btn {
   flex: 0 0 auto;
@@ -8927,7 +8938,7 @@ a.phone-head-btn {
   border: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  color: var(--on-photo);
   font: inherit;
   font-weight: 600;
   white-space: nowrap;
@@ -8970,7 +8981,7 @@ a.phone-head-btn {
   border: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  color: var(--on-photo);
   font-size: var(--icon-sm);
   cursor: pointer;
 }
@@ -9069,7 +9080,7 @@ a.phone-head-btn {
   overflow: hidden;
   border: 0;
   border-radius: var(--radius);
-  background: #000;
+  background: var(--media-bg);
   box-shadow: none;
   cursor: pointer;
 }
@@ -9089,7 +9100,7 @@ a.phone-head-btn {
   height: 48px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+  color: var(--on-photo);
   font-size: var(--icon-sm);
 }
 /* Their faces (Faces.tsx, lib/adult/steering.ts): the face each keeps, and three to pick from. */
@@ -9480,7 +9491,7 @@ a.phone-head-btn {
   aspect-ratio: 3 / 4;
   object-fit: cover;
   border-radius: var(--radius-sm);
-  background: #000;
+  background: var(--media-bg);
 }
 .ad-studio-item-tools {
   display: flex;
@@ -9548,7 +9559,7 @@ a.phone-head-btn {
   aspect-ratio: 3 / 4;
   object-fit: cover;
   border-radius: var(--radius-sm);
-  background: #000;
+  background: var(--media-bg);
 }
 /* A clip's own (native) full-screen button must show it whole, not the tile's cover-crop (David, 2026-10-25: a vertical
    video got cut off full screen on desktop). The tile stays cover; full screen is contain. */
@@ -9573,7 +9584,7 @@ a.phone-head-btn {
   border: 0;
   border-radius: var(--radius-sm);
   background: rgba(10, 6, 18, 0.6);
-  color: #fff;
+  color: var(--on-photo);
   font-size: var(--icon-xs);
   line-height: 1;
   cursor: pointer;
@@ -9623,7 +9634,7 @@ a.phone-head-btn {
   border: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  color: var(--on-photo);
   font-size: var(--icon-sm);
   cursor: pointer;
 }
@@ -9659,7 +9670,7 @@ a.phone-head-btn {
   aspect-ratio: 3 / 4;
   object-fit: cover;
   border-radius: var(--radius-sm);
-  background: #000;
+  background: var(--media-bg);
   padding: 0;
   font-size: 0.7rem;
 }
@@ -9685,7 +9696,7 @@ a.phone-head-btn {
   border: 2px solid var(--ad-line, var(--line));
   border-radius: var(--radius-sm);
   background: var(--ad-card, var(--card));
-  color: #fff;
+  color: var(--on-photo);
   box-shadow: none;
   font-size: var(--text-sm);
 }
@@ -10351,7 +10362,7 @@ html.ad-studio-locked {
 /* Exit in the theaters: white on a dark chip, readable over any backdrop photo (it was pink on the picture). */
 .theater-tools .secondary {
   background: rgba(0, 0, 0, 0.45);
-  color: #fff;
+  color: var(--on-photo);
   border-color: rgba(255, 255, 255, 0.4);
 }
 .theater-cta-top {
@@ -10399,8 +10410,8 @@ a.phone-head-btn {
 /* A long swipe card scrolls: the fade at its foot says there's more (it used to stop mid-line with no hint). */
 .swipe-body {
   padding-bottom: 2rem;
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+  mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
 }
 .swipe-match-buttons {
   display: flex;
@@ -10654,7 +10665,7 @@ a.phone-head-btn {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.3);
   background: rgba(0, 0, 0, 0.45);
-  color: #fff;
+  color: var(--on-photo);
   font-weight: 700;
   font-size: var(--text-sm);
   box-shadow: none;
@@ -10697,7 +10708,7 @@ html.theater-lock body {
 }
 /* The live count over the photo: white, like the rest of the theater's header (pink on a busy scene couldn't be read). */
 .theater-hud .watch-live {
-  color: #fff;
+  color: var(--on-photo);
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
 }
 
@@ -10712,10 +10723,10 @@ main:has(> .episode-page) {
   align-items: flex-end;
   min-height: clamp(26rem, 64vh, 38rem);
   margin: calc(-1 * 1.25rem) calc(-1 * var(--gutter)) var(--space-5);
-  background-color: #1d1030;
+  background-color: var(--photo-bg);
   background-size: cover;
   background-position: center 35%;
-  color: #fff;
+  color: var(--on-photo);
 }
 @media (min-width: 761px) {
   .episode-hero {
@@ -10775,7 +10786,7 @@ main:has(> .episode-page) {
   font-size: clamp(2rem, 6vw, 3.4rem);
   line-height: 1.05;
   text-wrap: balance;
-  color: #fff;
+  color: var(--on-photo);
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
 }
 /* The title card's own pieces (docs/show-style.md): the episode's title, and the cold open above the card. */
@@ -10797,7 +10808,7 @@ main:has(> .episode-page) {
   /* On a phone it takes the page-top compensation the hero would otherwise take; the two sit flush. */
   margin: calc(-1 * 1.25rem) calc(-1 * var(--gutter)) 1.25rem;
   padding: 0.65rem var(--gutter);
-  background: #140a1e;
+  background: var(--card-dark);
   color: rgba(255, 255, 255, 0.88);
   font-size: var(--text-sm);
 }
@@ -10868,7 +10879,7 @@ main:has(> .episode-page) {
 .episode-hero .button-ghost {
   border-color: rgba(255, 255, 255, 0.7);
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  color: var(--on-photo);
   backdrop-filter: blur(4px);
 }
 .episode-hero .button-ghost:hover {
@@ -11219,7 +11230,7 @@ html.constellation-locked body {
   object-fit: cover;
   display: inline-grid;
   place-items: center;
-  color: #ffffff;
+  color: var(--on-photo);
   font-weight: 600;
   flex: none;
 }
@@ -11486,7 +11497,7 @@ section:has(> .ad-pairs) {
 .ad-pictures img {
   width: 100%;
   border-radius: var(--radius-sm);
-  background: #000;
+  background: var(--media-bg);
 }
 /* The After Dark library (lib/adult/library.ts): filters, a grid of cards, stars, pages. */
 .ad-library-filters {
@@ -11512,7 +11523,7 @@ section:has(> .ad-pairs) {
   aspect-ratio: 3 / 4;
   object-fit: cover;
   border-radius: var(--radius-sm);
-  background: #000;
+  background: var(--media-bg);
 }
 .ad-library-item .ad-shots {
   grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
@@ -11533,7 +11544,7 @@ section:has(> .ad-pairs) {
   font-size: var(--icon-sm);
   line-height: 1;
   cursor: pointer;
-  color: var(--muted, #888);
+  color: var(--muted);
 }
 .ad-star.on {
   color: #f5b301;
@@ -12445,7 +12456,7 @@ button.pg-group-head:hover {
   padding: 0.35rem;
   border: 1.5px solid var(--line);
   border-radius: var(--radius-md);
-  background: var(--card, #fff);
+  background: var(--card);
 }
 .choose-picture-grid li.is-current {
   border-color: var(--accent);
@@ -12881,14 +12892,14 @@ button.thread-menu-item:hover:not(:disabled) {
 .mixer-roster-name {
   display: grid;
   justify-items: center;
-  color: #fff;
+  color: var(--on-photo);
   font-size: var(--text-xs);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 .mixer-roster-name .char-name,
 .mixer-roster-name a {
-  color: #fff;
+  color: var(--on-photo);
 }
 .mixer-house-tag {
   margin-top: 0.1rem;
@@ -13374,8 +13385,8 @@ button.thread-menu-item:hover:not(:disabled) {
   border-radius: var(--radius-lg);
   background:
     radial-gradient(120% 150% at 85% -30%, rgba(229, 53, 107, 0.3), transparent 60%),
-    linear-gradient(160deg, #241131, #140a1e 70%);
-  color: #fff;
+    var(--grad-dark);
+  color: var(--on-photo);
   box-shadow: var(--shadow);
 }
 .tonight-band-eyebrow {
@@ -13427,7 +13438,7 @@ button.thread-menu-item:hover:not(:disabled) {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  color: var(--on-photo);
   text-decoration: none;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
@@ -13542,7 +13553,7 @@ button.thread-menu-item:hover:not(:disabled) {
   border-radius: var(--radius);
   overflow: hidden;
   scroll-snap-align: start;
-  color: #fff;
+  color: var(--on-photo);
   background-size: cover;
   background-position: center;
   box-shadow: var(--shadow-sm);
@@ -13558,7 +13569,7 @@ button.thread-menu-item:hover:not(:disabled) {
 .episode-shelf-names {
   font-weight: 700;
   font-size: var(--text-md);
-  color: #fff;
+  color: var(--on-photo);
   text-decoration: none;
 }
 .episode-shelf-title {
@@ -13703,12 +13714,12 @@ button.thread-menu-item:hover:not(:disabled) {
   border-color: transparent;
   background:
     radial-gradient(120% 150% at 15% -30%, rgba(122, 54, 201, 0.35), transparent 60%),
-    linear-gradient(160deg, #241131, #140a1e 70%);
+    var(--grad-dark);
   color: rgba(255, 255, 255, 0.92);
 }
 .cast-secrets.card :is(h2, strong),
 .cast-date-won.card :is(h2, strong) {
-  color: #fff;
+  color: var(--on-photo);
 }
 .cast-secrets.card .muted,
 .cast-date-won.card .muted {

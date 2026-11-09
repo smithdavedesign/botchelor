@@ -293,8 +293,8 @@ label.after-dark-autoplay {
   }
   /* The chips scroll sideways inside the bar: a fade at the right edge says there's more. */
   .ad-suggestions {
-    -webkit-mask-image: linear-gradient(to right, #000 82%, transparent);
-    mask-image: linear-gradient(to right, #000 82%, transparent);
+    -webkit-mask-image: linear-gradient(to right, black 82%, transparent);
+    mask-image: linear-gradient(to right, black 82%, transparent);
     padding-right: 1.5rem;
   }
 }
@@ -1361,14 +1361,14 @@ button.ad-reel-cc {
   border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: var(--radius-xs);
   background: rgba(0, 0, 0, 0.35);
-  color: #fff;
+  color: var(--on-photo);
   font-size: var(--text-2xs);
   font-weight: 800;
   letter-spacing: 0.04em;
   box-shadow: none;
 }
 button.ad-reel-cc.on {
-  background: #fff;
+  background: var(--on-photo);
   color: #14091f;
 }
 @media (max-width: 640px) {
@@ -1617,7 +1617,7 @@ button.ad-roleplay-chip {
     padding: 0.5rem 0.75rem;
     border-radius: var(--radius-sm);
     background: rgba(8, 4, 14, 0.62);
-    color: #fff;
+    color: var(--on-photo);
     font-size: var(--text-base);
     line-height: 1.35;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
@@ -1881,7 +1881,7 @@ a.ad-scenes-make-link {
   min-width: 2.75rem;
   min-height: 2.2rem;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--ad-ink, #fff) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ad-ink, var(--on-photo)) 25%, transparent);
   font-size: var(--icon-xs);
   line-height: 1;
 }
@@ -1940,7 +1940,7 @@ a.ad-scenes-make-link {
   width: min(420px, 86vw);
   border-radius: var(--radius);
   overflow: hidden;
-  background: #000;
+  background: var(--media-bg);
   box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.9);
 }
 .ad-talk-player video {
@@ -2274,8 +2274,8 @@ a.ad-scenes-make-link {
    cut straight across, which read as the picture covering it. A short fade says it scrolls. */
 @media (max-width: 760px) {
   .theater-after-dark .theater-convo .chat-thread {
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem);
-    mask-image: linear-gradient(to bottom, transparent 0, #000 1.5rem);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 1.5rem);
+    mask-image: linear-gradient(to bottom, transparent 0, black 1.5rem);
   }
 }
 
