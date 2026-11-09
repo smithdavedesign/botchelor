@@ -91,8 +91,13 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
   gap: var(--space-2);
   margin: var(--space-2) 0 0;
+}
+/* a.button's own top margin made the row taller and stretched the ghost link with its label stuck at the top. */
+.empty-state-actions > * {
+  margin: 0;
 }
 
 /* The page's main action in thumb reach on a phone (app/PhoneActionBar.tsx): a floating pill bar, left of the feedback
