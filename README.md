@@ -9,6 +9,14 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+The new cast, live on botchelor.com on 2026-11-08 ([#1388](https://github.com/smithdavedesign/botchelor/pull/1388)): 24 original characters made by the show's own agent, 12 of them drawn in anime and 12 photoreal. Companions has a Style filter now, set to Anime here (`/companion?style=anime`: 12 of 197). Under it, the first anime date (Mitsuki and Takeru at a laundromat at midnight) plays in the theater, and last comes Kaede's contestant card.
+
+<img src="docs/screenshots/cast-live-companion-anime-desktop.png" width="520" alt="Companions at 1280×900 with the Style filter on Anime: 12 of 197, six anime companions in view, among them Akane the chocolatier, Kaede the jazz bar owner and Malachar the demon lord on sabbatical"> <img src="docs/screenshots/cast-live-companion-anime-phone.png" width="180" alt="The same filter on a phone: Any pronouns, Anime and Sort over the first anime companions">
+
+<img src="docs/screenshots/cast-live-theater-anime-desktop.png" width="520" alt="Mitsuki and Takeru's first date playing in the theater at 1280×900: their anime portraits in a laundromat at midnight, his line about her sock thief in a speech bubble, the transcript beside it"> <img src="docs/screenshots/cast-live-theater-anime-phone.png" width="180" alt="The same date on a phone: the laundromat on a banner over the conversation, line by line">
+
+<img src="docs/screenshots/cast-live-character-anime-desktop.png" width="420" alt="Kaede Hoshimura's contestant card at 1280×900: her anime portrait, jazz bar owner from Kobe, open to dates, and Talk with Kaede">
+
 These are the everyday pages after the [UI design audit](docs/audits/2026-11-08-ui-design-audit.md), live on botchelor.com on 2026-11-08. Each pair shows Watch's latest episodes on the live site, before and after the deploy. Now every episode sits on its place's photo with the couple's faces, and a speed-dating night is one card instead of a screen of its tables.
 
 <img src="docs/screenshots/ui-before-watch-latest-desktop.png" width="420" alt="Before, at 1280×900: Latest episodes as text cards with two small faces each; five of the six in view are tables of one rooftop speed-dating night, each badged both Speed date and Speed dating"> <img src="docs/screenshots/ui-live-watch-latest-desktop.png" width="420" alt="After, at 1280×900: each episode on its place's photo with the couple's faces; three speed-dating nights are one card each (5, 6 and 4 tables) among the dates">
