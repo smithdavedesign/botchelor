@@ -132,5 +132,15 @@ async function backTo(db: Awaited<ReturnType<typeof getDb>>, next: string | null
     const name = (await db.query<{ name: string }>(`select c.name from date_invites i join characters c on c.id = i.character_id where i.code = $1`, [invite]).catch(() => ({ rows: [] }))).rows[0]?.name;
     return { href, label: name ? `Go on your date with ${name.split(/\s+/)[0]}` : "Back to your date" };
   }
+  // A "bring a friend" double-date link (lib/double-links.ts): back to it, where one click books both tables.
+  const double = /^\/double\/([a-z0-9]+)/.exec(href)?.[1];
+  if (double) {
+    const names = (
+      await db
+        .query<{ a: string; b: string }>(`select a.name as a, b.name as b from double_links l join characters a on a.id = l.character_id join characters b on b.id = l.partner_id where l.code = $1`, [double])
+        .catch(() => ({ rows: [] as { a: string; b: string }[] }))
+    ).rows[0];
+    return { href, label: names ? `Go on the double date with ${names.a.split(/\s+/)[0]} and ${names.b.split(/\s+/)[0]}` : "Back to your double date" };
+  }
   return { href, label: "Back to where you were" };
 }

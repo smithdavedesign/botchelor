@@ -100,7 +100,7 @@ export default async function MessagesPage({ params, searchParams }: Props) {
   const more =
     next?.kind === "book" || others.length > 0 || canUnmatch ? (
       <>
-        {next?.kind === "book" && <DoublePicker mineId={me.id} themId={them.id} />}
+        {next?.kind === "book" && <DoublePicker mineId={me.id} themId={them.id} mineName={shortName(me.name)} themName={shortName(them.name)} />}
         {others.length > 0 && (
           <div className="thread-menu-chats" role="group" aria-label={`${shortName(me.name)}'s other chats`}>
             <span className="thread-menu-label">{shortName(me.name)}&apos;s other chats</span>

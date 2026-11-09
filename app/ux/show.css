@@ -911,3 +911,13 @@ details.recap-toggle[open] .recap-toggle-hide {
   width: auto;
   margin: 0;
 }
+
+/* "Bring a friend" double-date links (app/ShareDoubleLink.tsx, lib/double-links.ts): in the thread's double-date sheet
+   and on the link's own page, the link and its note take a line of their own under the buttons. */
+.share-double-link > .share-date-url,
+.share-double-link > [role="status"] {
+  flex: 1 0 100%;
+}
+.date-link .share-double-link {
+  margin-top: var(--space-3);
+}

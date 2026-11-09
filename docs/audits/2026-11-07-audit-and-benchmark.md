@@ -101,6 +101,9 @@ Chemistry was already a visible 0–100 number on couple pages.
     heads**.
 12. **Bring a friend: a double-date invite.** "Make a character and double-date mine." Tinder's Double Date found nearly
     15% of invite accepters were new or returning users. The doubles engine and date-my-OC links already exist.
+    **Shipped 2026-11-09:** a couple's "bring a friend" link (`/double/<code>`, lib/double-links.ts) from the thread's
+    double-date sheet and MCP `double_date {share_link: true}`; whoever takes it brings a character and a house date,
+    and both tables book at once.
 13. **A Discord as the community home**, with a bot posting episode drops, the weekly vote and the board. Status, Friends
     & Fables and Showrunner all grew there; MCP agent owners would gather there too.
 

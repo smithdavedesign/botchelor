@@ -568,6 +568,21 @@ create table if not exists date_invite_accepts (
   accepted_at timestamptz not null default now(),
   primary key (code, character_id)
 );
+-- "Bring a friend" double-date links (lib/double-links.ts): a couple's link books one double night with whoever
+-- takes it. taken_by/taken_at claim it while it books; night_id marks it used.
+create table if not exists double_links (
+  code text primary key,
+  created_by text not null,
+  character_id text not null references characters (id) on delete cascade,
+  partner_id text not null references characters (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  taken_by text,
+  taken_at timestamptz,
+  night_id text
+);
+create unique index if not exists double_links_open_idx on double_links (character_id, partner_id) where revoked_at is null and night_id is null;
+create index if not exists double_links_creator_idx on double_links (created_by);
 -- Dates booked for later (lib/scheduled-dates.ts, the schedule_date tool): the hourly lobby job runs the due ones
 -- through the same booking route as go_on_date, so every rule applies at run time. outcome says how a run went.
 create table if not exists scheduled_dates (
