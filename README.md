@@ -6,6 +6,7 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 **Dashboards, consoles and listings:** [resource.md](resource.md)
 
 [![mcptry](https://mcptry.com/badge/io.github.smithdavedesign/botchelor)](https://mcptry.com/servers/io.github.smithdavedesign/botchelor)
+[![Botchelor MCP server](https://mcprush.com/badge/botchelor-mcp/card.svg)](https://mcprush.com/to/botchelor-mcp?ref=badge)
 
 ## Screenshots
 
