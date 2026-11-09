@@ -180,12 +180,12 @@ async function addMessage(
   role: "user" | "character" | "system",
   text: string,
   at: Date,
-  extra: { model?: string | null; cost?: number | null; scene?: VenueId | null; action?: string | null; marker?: "scene" | "texting"; roleplay?: string | null } = {},
+  extra: { model?: string | null; cost?: number | null; scene?: VenueId | null; action?: string | null; marker?: "scene" | "texting"; roleplay?: string | null; onCall?: boolean } = {},
 ): Promise<string> {
   const id = randomUUID();
   await db.query(
-    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null],
+    `insert into companion_messages (id, thread_id, role, text, model, cost, created_at, scene, action, marker, roleplay, on_call) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    [id, threadId, role, text, extra.model ?? null, extra.cost ?? null, at.toISOString(), extra.scene ?? null, extra.action ?? null, extra.marker ?? null, extra.roleplay ?? null, extra.onCall === true],
   );
   return id;
 }
@@ -278,8 +278,8 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
   const ref = await characterRef(db, t.character_id, userId);
   if (!ref) return NOT_FOUND;
   const [{ rows: msgs }, { rows: facts }] = await Promise.all([
-    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null }>(
-      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
+    db.query<{ id: string; role: "user" | "character" | "system"; text: string; created_at: string; reported: string | null; scene: string | null; action: string | null; marker: CompanionMessageView["marker"]; roleplay: string | null; voice_key: string | null; on_call: boolean }>(
+      `select id, role, text, created_at, reported, scene, action, marker, roleplay, voice_key, on_call from companion_messages where thread_id = $1 and replaced_by is null order by created_at asc, id asc`,
       [threadId],
     ),
     db.query<{ n: number }>(`select count(*)::int as n from companion_facts where thread_id = $1`, [threadId]),
@@ -300,6 +300,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
         marker: m.marker,
         roleplay: m.roleplay,
         voice: m.voice_key ? voiceUrl(t.id, m.id) : null,
+        ...(m.on_call ? { call: true } : {}),
       })),
       reply_length: t.reply_length,
       scene: isScenePlace(t.scene) ? t.scene : null,
@@ -471,7 +472,14 @@ async function speak(
   t: ThreadRow,
   character: Character,
   now: Date,
-  opts: { cue?: string; insteadOf?: string | null; /** The reply being drawn again: not in the prompt's turns. */ replacing?: readonly string[] } = {},
+  opts: {
+    cue?: string;
+    insteadOf?: string | null;
+    /** The reply being drawn again: not in the prompt's turns. */
+    replacing?: readonly string[];
+    /** On a voice call (never in a scene): a short spoken reply, kept as one message marked as said on the call. */
+    call?: boolean;
+  } = {},
 ): Promise<SpeakResult> {
   const { turns, avoid } = await recentTurns(db, t.id, opts.replacing);
   const lastUser = [...turns].reverse().find((x) => x.role === "user")?.text ?? "";
@@ -484,6 +492,7 @@ async function speak(
   let bubbles: string[] | null = null;
   let action: string | null = null;
   const scene = promptScene(t, character.name);
+  const call = opts.call === true && !scene;
   const said = await earlierLines(db, t.id);
   // A safe draw that only says something again: used when the redraw doesn't come back better (never a deflection).
   let safeRepeat: { bubbles: string[]; action: string | null } | null = null;
@@ -493,11 +502,11 @@ async function speak(
     let raw: string;
     try {
       raw = await model.complete(
-        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene }),
+        companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf, cue: opts.cue, scene, call }),
         {
           temperature: 0.9,
           frequencyPenalty: 0.3,
-          maxTokens: t.reply_length === "long" ? 700 : 400,
+          maxTokens: call ? 250 : t.reply_length === "long" ? 700 : 400,
           onUsage: (u) => usage.push(u),
           onModel: (id) => (served = id),
         },
@@ -520,7 +529,9 @@ async function speak(
       } else insteadOf = `${line ? `${line.action ? `(${line.action}) ` : ""}${line.say}` : raw}`.slice(0, 300) + " (keep it PG and kind)";
       continue;
     }
-    const drawn = replyBubbles(raw, character.name);
+    // On a call it's said in one go: whatever came back as separate messages is one spoken reply.
+    const split = replyBubbles(raw, character.name);
+    const drawn = call && split.length > 1 ? [split.join(" ")] : split;
     if (drawn.length && drawn.every((b) => checkFamilyTalk(b).ok && !crisisIntent(b))) {
       // Not an earlier line, and not a bubble before it in this same reply (the sim saw one paragraph sent twice).
       const fresh = drawn.filter((b, i) => !repeatsEarlier(b, [...said, ...drawn.slice(0, i)]));
@@ -537,10 +548,18 @@ async function speak(
   const modelId = served ?? usage[0]?.model ?? null;
   const ids: string[] = [];
   for (const [i, text] of texts.entries()) {
-    ids.push(await addMessage(db, t.id, "character", text, tick(now, i), { ...(i === 0 ? { model: modelId, cost: cost || null } : {}), scene: t.scene, action: bubbles ? action : null, roleplay: t.roleplay?.title ?? null }));
+    ids.push(
+      await addMessage(db, t.id, "character", text, tick(now, i), {
+        ...(i === 0 ? { model: modelId, cost: cost || null } : {}),
+        scene: t.scene,
+        action: bubbles ? action : null,
+        roleplay: t.roleplay?.title ?? null,
+        onCall: call,
+      }),
+    );
   }
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, texts.length).toISOString()]);
-  track("companion_reply", { model: modelId ?? undefined, cost: cost || undefined, ms: Date.now() - started, bubbles: texts.length, deflected: bubbles ? undefined : true });
+  track("companion_reply", { model: modelId ?? undefined, cost: cost || undefined, ms: Date.now() - started, bubbles: texts.length, deflected: bubbles ? undefined : true, call: call || undefined });
   return { ok: true, ids, texts };
 }
 
@@ -591,8 +610,19 @@ const clean = (s: string) => s.replace(/\r/g, "").replace(/[ \t]+/g, " ").replac
 /** Where the person's words came from: the site, or an agent over MCP (each counted apart in crisis_referrals). */
 export type CompanionSurface = "companion" | "mcp_companion";
 
-/** One message from the person, and the character's reply. */
-export async function sendMessage(db: Db, userId: string, threadId: string, input: string, now: Date = new Date(), surface: CompanionSurface = "companion"): Promise<CompanionSend> {
+/**
+ * One message from the person, and the character's reply. `call`: said on a voice call in the app (the browser heard
+ * it; the reply is short and spoken aloud). Both lines are marked as said on the call; in a scene it's an ordinary line.
+ */
+export async function sendMessage(
+  db: Db,
+  userId: string,
+  threadId: string,
+  input: string,
+  now: Date = new Date(),
+  surface: CompanionSurface = "companion",
+  opts: { call?: boolean } = {},
+): Promise<CompanionSend> {
   const l = await loaded(db, userId, threadId);
   if ("status" in l) return l;
   const { t, character } = l;
@@ -603,9 +633,10 @@ export async function sendMessage(db: Db, userId: string, threadId: string, inpu
   const refused = await screen(db, t, text, now, surface);
   if (refused) return refused;
   if (noticeDue(t, now)) await putNotice(db, t, character.name, now);
-  await addMessage(db, t.id, "user", text, tick(now, 1), { scene: t.scene, roleplay: t.roleplay?.title ?? null });
+  const call = opts.call === true && !t.scene;
+  await addMessage(db, t.id, "user", text, tick(now, 1), { scene: t.scene, roleplay: t.roleplay?.title ?? null, onCall: call });
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, 1).toISOString()]);
-  const r = await speak(db, t, character, tick(now, 2));
+  const r = await speak(db, t, character, tick(now, 2), { call });
   if (!r.ok) return r;
   return getThread(db, userId, threadId);
 }

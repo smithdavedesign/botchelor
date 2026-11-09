@@ -1155,6 +1155,8 @@ create table if not exists companion_voice (
   created_at timestamptz not null default now()
 );
 alter table companion_messages add column if not exists voice_key text;
+-- Said on a voice call in the app (docs/companions.md, Calls): the person spoke it, or the reply was spoken aloud.
+alter table companion_messages add column if not exists on_call boolean not null default false;
 create index if not exists companion_messages_voice_idx on companion_messages (voice_key) where voice_key is not null;
 -- Subscription plans sold on a Stripe Payment Link (lib/paid-plans.ts): one row per person and plan.
 create table if not exists plan_entitlements (

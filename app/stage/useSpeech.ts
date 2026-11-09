@@ -57,10 +57,8 @@ export function useSpeech() {
     };
   }, []);
 
-  /** Reads one line aloud now (call it from a tap the first time: Safari speaks only after one). */
-  const speak = useCallback((text: string, who: Speaker) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window) || !text.trim()) return;
-    const synth = window.speechSynthesis;
+  /** One utterance in this character's voice. */
+  const utter = useCallback((text: string, who: Speaker) => {
     const u = new SpeechSynthesisUtterance(text);
     const v = voiceFor(voices.current, who);
     if (v) {
@@ -71,8 +69,62 @@ export function useSpeech() {
     const h = hash(who.id);
     u.pitch = 0.9 + (h % 21) / 100;
     u.rate = 0.96 + ((h >>> 8) % 9) / 100;
-    synth.cancel();
-    synth.speak(u);
+    return u;
+  }, []);
+
+  /** Reads one line aloud now (call it from a tap the first time: Safari speaks only after one). */
+  const speak = useCallback(
+    (text: string, who: Speaker) => {
+      if (typeof window === "undefined" || !("speechSynthesis" in window) || !text.trim()) return;
+      const synth = window.speechSynthesis;
+      synth.cancel();
+      synth.speak(utter(text, who));
+    },
+    [utter],
+  );
+
+  /**
+   * Says a whole reply now and resolves once it's said, or stopped (a call waits for it before it listens again).
+   * Sentence by sentence, since some browsers cut one long utterance short, and with a timer in case the end never comes.
+   */
+  const speakAll = useCallback(
+    (text: string, who: Speaker): Promise<void> => {
+      if (typeof window === "undefined" || !("speechSynthesis" in window) || !text.trim()) return Promise.resolve();
+      const synth = window.speechSynthesis;
+      const parts = (text.match(/[^.!?…]+[.!?…]*["'”’)]*\s*/g) ?? [text]).map((p) => p.trim()).filter(Boolean);
+      synth.cancel();
+      return new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve();
+        };
+        // About two words a second, and some slack.
+        const timer = setTimeout(finish, (text.split(/\s+/).length / 2) * 1000 + 4000);
+        parts.forEach((p, i) => {
+          const u = utter(p, who);
+          if (i === parts.length - 1) u.onend = finish;
+          u.onerror = finish;
+          synth.speak(u);
+        });
+      });
+    },
+    [utter],
+  );
+
+  /** Call it from a tap: a browser that speaks only after one (Safari) can then speak without one. */
+  const unlock = useCallback(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+  }, []);
+
+  /** Stops whatever is being said (a speakAll waiting on it resolves). */
+  const stop = useCallback(() => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   }, []);
 
   const setOn = useCallback((next: boolean) => {
@@ -93,5 +145,5 @@ export function useSpeech() {
     [on, speak],
   );
 
-  return { supported, on, setOn, say, speak };
+  return { supported, on, setOn, say, speak, speakAll, unlock, stop };
 }

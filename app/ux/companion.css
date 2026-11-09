@@ -561,3 +561,162 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* A call (app/companion/[id]/CompanionCall.tsx): the whole screen, their face in the middle, the words under it. */
+.companion-call {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: var(--space-5) var(--gutter);
+  background: radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--accent) 32%, var(--photo-bg)), var(--photo-bg) 72%);
+  color: var(--on-photo);
+}
+.companion-call-inner {
+  width: min(100%, 26rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+.companion-call-top {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+.companion-call .companion-ai {
+  background: color-mix(in srgb, var(--on-photo) 14%, transparent);
+  border-color: transparent;
+  color: var(--on-photo);
+}
+.companion-call-clock {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+.companion-call-face {
+  border-radius: 50%;
+  padding: var(--space-1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--on-photo) 25%, transparent);
+  transition: box-shadow 0.3s ease;
+}
+.companion-call.is-listening .companion-call-face {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+.companion-call.is-speaking .companion-call-face {
+  animation: companion-call-talking 1.6s ease-in-out infinite;
+}
+@keyframes companion-call-talking {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 14px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .companion-call.is-speaking .companion-call-face {
+    animation: none;
+    box-shadow: 0 0 0 5px var(--accent);
+  }
+}
+.companion-call-name {
+  margin: 0;
+  font-size: var(--text-xl);
+  color: inherit;
+}
+.companion-call-status {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: var(--text-sm);
+  opacity: 0.85;
+}
+.companion-call-words {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 6rem;
+}
+.companion-call-heard,
+.companion-call-said {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.companion-call-heard {
+  font-style: italic;
+  opacity: 0.75;
+}
+.companion-call-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--on-photo) 12%, transparent);
+  font-size: var(--text-sm);
+}
+.companion-call-left {
+  margin: 0;
+  font-size: var(--text-xs);
+  opacity: 0.75;
+}
+.companion-call-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+}
+.companion-call .button-ghost {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--on-photo) 45%, transparent);
+  color: var(--on-photo);
+}
+.companion-call .button-ghost:hover {
+  background: color-mix(in srgb, var(--on-photo) 12%, transparent);
+}
+.companion-call .companion-call-end {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: var(--on-photo);
+}
+.companion-call-ready {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+}
+.companion-call-voices {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--on-photo) 25%, transparent);
+  border-radius: var(--radius-md);
+}
+.companion-call-voices legend {
+  padding: 0 var(--space-1);
+  font-size: var(--text-sm);
+}
+.companion-call .muted {
+  color: inherit;
+  opacity: 0.75;
+}
+.companion-call-how {
+  font-size: var(--text-sm);
+}
+.companion-call-how summary {
+  cursor: pointer;
+}
+.companion-call-how p {
+  margin: var(--space-2) 0 0;
+  opacity: 0.9;
+}
+/* A line said on a call, in the thread. */
+.companion-call-tag {
+  font-size: var(--text-xs);
+}
