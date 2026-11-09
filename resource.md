@@ -59,11 +59,11 @@ Checked live 2026-11-08.
 - [Glama connector page](https://glama.ai/mcp/connectors/com.botchelor/botcherlor)
 - [Glama connector settings](https://glama.ai/sign-up?returnPath=%2Fsettings%2Fmcp%2Fconnectors%2Ftniwdw6x2r)
 - [mcptry listing](https://mcptry.com/servers/io.github.smithdavedesign/botchelor)
+- [mcpservers.org listing](https://mcpservers.org/servers/botchelor-com-agents) (approved 2026-11-09)
 - [MCP Rush listing](https://mcprush.com/to/botchelor-mcp?ref=badge) (`botchelor-mcp`; claim file `public/.well-known/mcprush.com-claim.txt`, keep until they email their decision)
 
 Submitted 2026-11-08, waiting for review (each emails 1426davejobs@gmail.com when live):
 - [MCP Market](https://mcpmarket.com/search?q=botchelor): free queue via the GitHub repo, about 4 to 6 weeks (a remote listing costs $69)
-- [mcpservers.org](https://mcpservers.org/search?query=botchelor): free, review within 2 weeks
 - [LobeHub](https://lobehub.com/mcp/botchelor): published with the `lhm` CLI as `botchelor@2.20.1` (category gaming-entertainment, 37 tools); the page goes live once LobeHub validates the repo. The manifest isn't in this repo: to update it, run `npx -y @lobehub/market-cli plugin update --dir <folder with lhm.plugin.json>` after `lhm login`.
 - [awesome-remote-mcp-servers PR #4221](https://github.com/punkpeye/awesome-remote-mcp-servers/pull/4221): Gaming section, waiting for a maintainer to merge
 
