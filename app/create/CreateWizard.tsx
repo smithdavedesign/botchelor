@@ -820,15 +820,7 @@ export default function CreateWizard({
           {/* One line (2026-11-08 UI audit, item 10: five lines of intro pushed the first field off a phone's first screen;
               that nobody steers a date is on the home page and in the questions). */}
           {step === S.identity && (
-            <p className="muted wizard-intro">
-              An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional.
-              {!imported && !startPair && (
-                <>
-                  {" "}
-                  Made one in another app? <Link href={IMPORT_PATH}>Bring it over</Link>.
-                </>
-              )}
-            </p>
+            <p className="muted wizard-intro">An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional.</p>
           )}
         </>
       )}
@@ -883,6 +875,12 @@ export default function CreateWizard({
                 <button type="button" className="secondary small" onClick={() => void applySample()}>
                   Use a sample character
                 </button>
+                {!imported && !startPair && (
+                  <>
+                    {" "}
+                    or <Link href={IMPORT_PATH}>bring one from another app</Link>
+                  </>
+                )}
               </p>
             )}
             <label>
