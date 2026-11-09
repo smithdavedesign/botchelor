@@ -184,6 +184,13 @@ describe("a mixer night's card (Watch) and tile (home)", () => {
     expect(card).toMatch(/<div class="venue-photo episode-item-photo"[^>]*><img [^>]*src="\/cast\/venue-rooftop_bar-v2\.webp"[^>]*loading="lazy"/);
   });
 
+  it("lets a tap on the picture's faces or chip through to the card's link", () => {
+    // They sit above the picture's grade (z-index 1), so above the .stretch overlay (z-index 0) too.
+    const css = source("app/ux/catalog.css");
+    expect(css).toMatch(/\.photo-chip \{[^}]*z-index: 1;[^}]*pointer-events: none;/);
+    expect(css).toMatch(/\.episode-item-photo :is\(\.pair-faces, \.night-faces\) \{[^}]*z-index: 1;[^}]*pointer-events: none;/);
+  });
+
   it("on home's shelf, a night is one tile too", () => {
     const shelf = html(createElement(EpisodeShelf, { items: [mixer([t1, t2, t3]), single(t4)] }));
     expect(shelf.match(/class="episode-shelf-card tap-card"/g)).toHaveLength(2);
@@ -394,6 +401,8 @@ describe("Watch's open rooms (app/watch/StripPager.tsx)", () => {
     expect(strip).toContain('<button type="button" class="link-button strip-more" aria-expanded="false">Show all 5</button>');
     expect(strip).not.toMatch(/aria-label="[^"]*pages"/);
     expect(html(createElement(StripPager, { label: "Open rooms", children: cards(3) }))).not.toContain("strip-more");
+    // Its groups are named for what they hold: there are no pages any more.
+    expect(source("app/watch/page.tsx")).not.toMatch(/<StripPager label="[^"]*pages"/);
   });
 });
 

@@ -1,9 +1,10 @@
 # Botchelor brand system & UI toolkit
 
 One source of truth for how the product looks, reads and behaves. Everything here is already implemented
-in [`app/globals.css`](../app/globals.css) as CSS custom properties and component classes — this doc names
-the standards so new work stays consistent. No design dependency, no component library: ~1,350 lines of
-hand-written CSS and a handful of presentational React components.
+in [`app/globals.css`](../app/globals.css) and the sheets in [`app/ux/`](../app/ux/) as CSS custom properties and
+component classes; this doc names the standards so new work stays consistent. No design dependency, no component
+library: hand-written CSS (about 22,000 lines by November 2026, 13,800 of them in globals.css) and a handful of
+presentational React components. At that size the tokens only hold if a test holds them: see Extending.
 
 ## Personality
 
@@ -36,6 +37,11 @@ never a raw hex, so dark mode and future theming keep working. Pick by job, not 
 | `--warn` | `#92400e` | `#fbbf24` | Low-token warning |
 | `--bad` / `--bad-text` | `#dc2626` / `#b91c1c` | `#ff6b6b` | Error icon or border / error text |
 | `--grad` | `linear-gradient(120deg, --accent-btn, --accent-2)` | same | Wordmark, hero, primary buttons |
+| `--photo-bg` | `#1d1030` | same | Behind a photo while it loads (a venue's, a reel's) |
+| `--on-photo` | `#fff` | same | Words and rings laid on a photo, under its dark grade |
+
+The two photo tokens are the one exception to "redefine it for dark": a photo looks the same in either theme, so
+what sits on it does too.
 
 **Contrast is checked, not assumed.** Every text token clears 4.5:1 on every surface it sits on, and every
 control edge and focus ring clears 3:1, in light and dark, and again under `prefers-contrast: more`. When you
@@ -72,6 +78,12 @@ than wrapping badly. Use a token, never a fixed rem or px, for text.
 `h1` is `clamp(2rem, 6vw, 3.1rem)` so the headline scales with the viewport. Inside a card that needs to shrink
 with its own width, use container units (`cqi`) inside a clamp, as `.owner-actions` does.
 
+**One heading scale** (2026-11-08 audit): every `h2` is `--text-xl` and every `h3` `--text-lg`, on every page
+(app/ux/catalog.css). Don't resize a section heading for one page; if a heading should read smaller, it's an
+eyebrow. **Eyebrows** (`.kicker` and the labels styled like it: "Tonight", "Latest", "Previously") are one look:
+`--text-2xs`, Inter 700, uppercase, 0.1em tracking. Fraunces is for `h1`, the wordmark and title-card names, not
+for small labels.
+
 ## Spacing & shape
 
 A spacing scale keeps vertical rhythm consistent. Prefer these over ad-hoc rems in new/updated components.
@@ -79,12 +91,35 @@ A spacing scale keeps vertical rhythm consistent. Prefer these over ad-hoc rems 
 ```
 --space-1 .25  --space-2 .5  --space-3 .75  --space-4 1  --space-5 1.5  --space-6 2  --space-8 3  (rem)
 --gutter clamp(1rem, 4vw, 1.25rem)   /* page side margin: 16px minimum on phones */
---radius 16px                         /* cards; pills use 999px; bubbles 14px */
 --shadow / --shadow-sm                /* card elevation, lifts on hover */
 ```
 
-Layout: content column caps at `46rem`, centered, with `--gutter` sides, so lines stay readable and phones
-never scroll horizontally.
+**Corners** are a scale too (2026-11-08: there were about fifteen different literal radii). Pick by what the thing
+is, not by eye:
+
+```
+--radius-xs   4px    hairline bars, progress tracks, a bubble's tail corner
+--radius-sm   8px    small chips, thumbnails, tags
+--radius-md   12px   controls (--control-radius), inner panels, message bubbles
+--radius      16px   cards
+--radius-lg   22px   heroes, sheets, the big feature cards
+--radius-pill 999px  pills and round buttons (50% for a circle)
+```
+
+**Layout: two widths** (2026-11-08 audit; there had been four). `main` is the reading column, `--page-read`
+(46rem): forms, settings, an account page, legal text, a conversation. The pages you browse, home, Watch,
+Characters, Companions, the showcase and creators, Reunion, Reviews and the graph, opt into `--page-wide` (72rem)
+by putting `.page-wide` on their root element (`main:has(> .page-wide)` in app/ux/catalog.css); an episode is wide by
+its own rule. Both are centred with `--gutter` sides, so phones never scroll sideways. A wide page still keeps
+running text to a readable measure: a paragraph in a wide page should sit in a card, a column or a `max-width`
+of about 40rem, never across the whole 72rem. The layout's `<main id="main">` is the only `main`: a page's root is
+an `article` or a `div`, never another `main`. Two exceptions size themselves to their own layout and say why in a
+comment: Swipe on a wide screen (62rem, the deck beside its intro, so the deck stays near the words) and admin's
+tables (84rem).
+
+**Short grids balance** (`.grid-balanced` with `--cols` from `balancedColumns(n)` in lib/grid-balance.ts): a row
+of a few cards, such as the season's cast, never ends on one lonely card. Four is four in a row, five is three and
+two, ten is four, four and two. Two a row on a phone.
 
 ## Components (the toolkit)
 
@@ -118,11 +153,29 @@ All in `globals.css`; reuse the class, don't restyle.
     `<details class="card settings">` so the builder stays uncluttered.
   - Live, desktop and phone: [`account-form-desktop.png`](screenshots/account-form-desktop.png) ·
     [`account-form-mobile.png`](screenshots/account-form-mobile.png).
-- **`.avatar`** — a pure gradient tile with initials (`app/Avatar.tsx`), seeded by character id so it never
-  changes; house characters get a ring. No hosted images (see `docs/image-strategy.md`).
+- **`.avatar`** (`app/Avatar.tsx`): the character's reviewed portrait when they have one, otherwise a gradient
+  tile with initials, seeded by character id so it never changes; house characters get a ring.
+- **Pictures** (`app/VenuePhoto.tsx`, 2026-11-08 audit): anything that's an episode, such as Watch's cards, home's
+  shelf or the real-date excerpt, shows its venue's photo with the couple's faces on it, never a blank tile.
+  `VenuePhoto` lays the venue's reviewed backdrop (lazy) over the venue's own gradient, which is the picture
+  until a venue has a photo, with a grade that darkens toward the bottom so faces and words read on any photo. A
+  label on a picture is a `.photo-chip`. A mixer night is one card (its faces in a row), never one per table.
 - **`.transcript` / `.afterglow` timelines** — chat-style turns: avatar + bubble, alternating left (side a)
   / right (side b), act headers in accent small-caps. Afterglow uses a warmer tint to read as texts.
 - **`.boxscore`**, **`.venue`** (gradient backdrop + location), **`.ending`** (the verdict line).
+
+## Icons
+
+The interface's own markers are drawn icons, not emoji: `<Icon name="…" />` from [`app/Icon.tsx`](../app/Icon.tsx),
+line icons on a 24px grid (2px stroke, round caps and joins) in `currentColor` at `1em`, so an icon takes its
+text's colour and size and sits on its baseline. Emoji drew differently on every platform and read as unfinished
+next to the type (2026-11-08 audit). Use an icon for the nav and its bell, badges and chips, a fact's marker (a
+job, a hometown), locks, the feedback bubble and a button's play mark.
+
+Emoji stay where they're **the show's voice, not the interface**: an award's or a format's own emoji, a
+roleplay's icon, a reaction, anything a character writes. A new icon is a new name in `IconName` with its paths
+in `PATHS`, drawn to the same grid. An icon is decorative (`aria-hidden`) because the words beside it carry the
+meaning; pass `label` when it stands alone, and it becomes `role="img"` with that name.
 
 ## Accessibility standards
 
@@ -135,12 +188,19 @@ All in `globals.css`; reuse the class, don't restyle.
   the palette; any new pairing must be checked before it ships.
 - **Tap targets:** every button and link is at least 24px tall (WCAG 2.5.8). `.link-button` and the removable-chip × get that minimum from their own rules.
 - **Live feedback:** status and error text inside a card sits in a `role="status"` region (`aria-live="polite"`), so a result is announced without a focus change. Errors add `.error`.
-- **Images:** `Avatar` carries `role="img"` + an `aria-label`; decorative gradients are CSS.
+- **Images:** `Avatar` carries `role="img"` + an `aria-label` (or is `decorative` beside the name); a venue's
+  photo has `alt=""` because the card's words say where it is; decorative gradients are CSS. An `Icon` is hidden
+  unless it's given a `label`.
 - **Hidden-but-spoken:** `.sr-only` for text assistive tech needs but the design doesn't show.
 
 ## Extending
 
 1. Reach for a token (color, space, text, radius) before a literal; add a token rather than a one-off.
+   `tests/css-tokens.test.ts` holds you to it: every literal hex colour, font size and corner in `app/**/*.css`
+   is counted in `tests/css-tokens-baseline.json`, and a new one fails with its file and line. When you remove
+   literals, lower the baseline (`UPDATE_CSS_BASELINE=1 npx vitest run tests/css-tokens.test.ts`) so they can't
+   come back; never run it to let a new one in. On 2026-11-08: 267 hex, 136 font sizes, 16 radii (the radii left are
+   shaped on purpose: a bubble's tail, a sheet's top corners).
 2. New color? Define it on `:root` **and** under both dark-mode selectors.
 3. New component? Give it a class here, make it work at phone width with the `--gutter`, and give it a
    `:focus-visible` state if it's interactive.

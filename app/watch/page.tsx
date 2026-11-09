@@ -306,7 +306,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         {ready.length > 0 && (
           <>
             <h3 className="watch-subhead">Ready to start</h3>
-            <StripPager label="Ready to start pages">
+            <StripPager label="Rooms ready to start">
               {ready.map((r) => (
                 <RoomCard key={r.id} room={r} action="Start it" />
               ))}
@@ -316,7 +316,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         {upcoming.length > 0 && (
           <>
             <h3 className="watch-subhead">Premieres coming up</h3>
-            <StripPager label="Premieres pages">
+            <StripPager label="Premieres coming up">
               {upcoming.map((r) => (
                 <RoomCard key={r.id} room={r} action={`Starts ${startsIn(r.starts_at, now)}`} />
               ))}
@@ -375,7 +375,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           <summary>
             <h2>Replays</h2> <span className="muted small">{replays.length > REPLAYS_SHOWN ? `the newest ${REPLAYS_SHOWN} of ${replays.length}` : replays.length}</span>
           </summary>
-          <StripPager label="Replays pages">
+          <StripPager label="Replays">
             {replays.slice(0, REPLAYS_SHOWN).map((r) => (
               <RoomCard key={r.id} room={r} action="Replay" />
             ))}

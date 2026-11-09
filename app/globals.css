@@ -2245,10 +2245,11 @@ button.button-ghost:hover:not(:disabled) {
   .watch-dot { animation: none; }
 }
 
-/* The standard watch room is wider than the site's reading column: the date, and beside it one sticky sidebar (the
-   vote and the chat in tabs, app/watch/[id]/WatchRoom.tsx RoomPanel). Theater mode is full-screen and ignores it. */
+/* The standard watch room is a wide page (docs/brand.md, Layout), like an episode's: the date, and beside it one
+   sticky sidebar (the vote and the chat in tabs, app/watch/[id]/WatchRoom.tsx RoomPanel). Theater mode is full-screen
+   and ignores it. */
 main:has(> .watch) {
-  max-width: 76rem;
+  max-width: var(--page-wide);
 }
 .watch-grid {
   display: grid;

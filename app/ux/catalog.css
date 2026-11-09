@@ -28,6 +28,14 @@ h3 {
   text-transform: uppercase;
 }
 
+/* The Reunion right under the show's tabs: their underline is the divider. The panel's own top rule (for when it sat
+   lower on a page) made a second line 24px under the first. */
+.show-tabs + .reunion-panel {
+  margin-top: var(--space-3);
+  padding-top: 0;
+  border-top: 0;
+}
+
 /* ---------------- icons (app/Icon.tsx, item 8) ---------------- */
 .icon {
   display: inline-block;
@@ -71,11 +79,14 @@ h3 {
   background: linear-gradient(180deg, rgba(20, 8, 30, 0) 35%, rgba(20, 8, 30, 0.62) 100%);
   pointer-events: none;
 }
+/* What sits on a picture is above its grade (z-index 1), so above the card's .stretch overlay too: it lets a tap
+   through to the card's link rather than swallowing it (the faces are much of a phone card's picture). */
 .photo-chip {
   position: absolute;
   top: var(--space-2);
   right: var(--space-2);
   z-index: 1;
+  pointer-events: none;
   display: inline-flex;
   align-items: center;
   gap: 0.3em;
@@ -128,6 +139,7 @@ h3 {
   left: var(--space-3);
   bottom: var(--space-3);
   z-index: 1;
+  pointer-events: none;
 }
 .episode-item-photo .avatar,
 .episode-shelf-card .avatar {
@@ -215,6 +227,18 @@ h3 {
   }
 }
 
+/* ---------------- Watch's airing-soon cards (item 5, on the wide page) ---------------- */
+/* A sideways strip on a phone, as before. From a tablet's width, the same three-across grid as the rooms under it: on
+   the wide page three fixed 14rem cards left half the row empty, and the most it lists (eight) scrolled sideways on
+   desktop (David, 2026-10-22: no sideways scroll on desktop). */
+@media (min-width: 721px) {
+  .watch-airing {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+}
+
 /* ---------------- home's Just aired shelf (app/EpisodeShelf.tsx) ---------------- */
 /* The venue's photo fills the card behind its words (isolated, so it can sit under them and over the card's fill). */
 .episode-shelf-card {
@@ -289,6 +313,11 @@ h3 {
    tablet's width, then the balanced count. */
 .grid-balanced {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+/* The grid owns its gaps: a .card's own 1rem margins don't collapse in a grid, so rows sat 44px apart against 12px
+   between columns. */
+.grid-balanced > .card {
+  margin: 0;
 }
 @media (min-width: 900px) {
   .grid-balanced {

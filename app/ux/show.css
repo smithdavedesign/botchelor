@@ -871,16 +871,21 @@ details.recap-toggle[open] .recap-toggle-hide {
   }
 }
 /* Home is a wide page (.page-wide; UX audit 2026-10-31, A2): Just aired, How it works and the reviews go three across
-   instead of stacking down a 46rem column. The questions keep a reading width. */
+   instead of stacking down a 46rem column (the cast balances itself, .grid-balanced). The questions keep a reading
+   width, centred over the closing button and the footer (2026-11-08 UI audit): flush left, they left the right third
+   of the page empty above a centred button. */
 @media (min-width: 1024px) {
   .home .watch-latest-list,
   .home ol.home-features,
-  .home .home-cast,
   .home .bot-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .home .faq {
-    max-width: 46rem;
+    max-width: var(--page-read);
+    margin-inline: auto;
+  }
+  .home .faq > h2 {
+    text-align: center;
   }
 }
 
