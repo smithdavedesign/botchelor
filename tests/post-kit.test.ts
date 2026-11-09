@@ -43,6 +43,7 @@ describe("the post kit (TikTok / Reels / Shorts)", () => {
     expect(caption).toContain("Would you have said yes to Malachar?");
     expect(caption).toContain("AI characters; the date is AI-generated fiction");
     expect(caption).toContain("botchelor.com");
+    expect(caption).toContain("botchelor.com/vote?s=tiktok");
     expect(caption.trim().split("\n").at(-1)).toMatch(/^#botchelor .* #anime$/);
   });
 

@@ -7,6 +7,10 @@ Scripts that take aired episodes and post them to third parties. All are **idemp
 | `discord.mjs` | Discord webhook | Cron every 15 min | `DISCORD_WEBHOOK_URL` |
 | `bluesky.mjs` | Bluesky | Cron every 1 h | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD` |
 
+## The vote link clips end on (2026-11-08)
+
+Clips are made by `scripts/clips/post-kit.mjs` (#1392). Its end card and caption send people to **botchelor.com/vote**, which lands on tonight's situation vote (`/watch#situation`, lib/situations.ts) tagged `utm_source=<s>&utm_medium=clip` (`?s=tiktok` by default in the caption). The winning situation becomes the next day's date, so a clip of it closes the loop the competitor review found working on TikTok ("Fruit Love Island": 10M+ views an episode, with a vote that changed the next episode): you voted, here's what happened.
+
 ## Running manually
 
 ```sh
