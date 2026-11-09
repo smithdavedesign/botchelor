@@ -11,9 +11,11 @@ import { tokensWord } from "@/lib/adult/price-words";
 import { includedPlan } from "@/lib/adult/pricing";
 import { SET_SCENE_TOKEN_COST } from "@/lib/allowance";
 import { getAdultSettings } from "@/lib/adult/settings";
-import { getDb } from "@/lib/db";
+import { getDb, type Db } from "@/lib/db";
+import { TASTE_HOURS, TASTE_WRITES, tasteRefusal } from "@/lib/adult/taste";
 import { authFromCookieStore } from "@/lib/http";
 import InviteForm from "./InviteForm";
+import TasteForm from "./TasteForm";
 import SubscribeForm from "./SubscribeForm";
 import WhatsInside from "./WhatsInside";
 import { currentHere } from "../view";
@@ -50,13 +52,19 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
             only, and never shown in the show.
           </p>
           {auth?.authenticated ? (
-            <InviteStep db={db} userId={auth.userId} />
+            <>
+              <TasteStep db={db} userId={auth.userId} />
+              <InviteStep db={db} userId={auth.userId} />
+            </>
           ) : (
             <>
               <section className="card" data-invite-sign-in>
-                <p>After Dark is in an invite-only beta. Invites belong to an account, so sign in first (or make one: it&apos;s free).</p>
+                <p>
+                  Try a free taste ({TASTE_HOURS} hours of scenes, no card), or ask for an invite to the beta. Both belong to an account, so sign in
+                  first (or make one: it&apos;s free).
+                </p>
                 <Link className="button" href={`/account?next=${encodeURIComponent("/after-dark/subscribe")}`}>
-                  Sign in to ask for an invite
+                  Sign in to start
                 </Link>
               </section>
               <p className="muted">Or leave your email and you&apos;ll hear when subscriptions open.</p>
@@ -131,6 +139,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
           </ul>
         </section>
         <WhatsInside shorts={shorts} price={null} />
+        {auth?.authenticated && <TasteStep db={db} userId={auth.userId} />}
         {auth?.authenticated ? (
           <SubscribeForm
             price={price}
@@ -150,6 +159,25 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
       </article>
     </div>
   );
+}
+
+/**
+ * The free taste (lib/adult/taste.ts), for a signed-in person who can still start one, in a place where After Dark is
+ * fully open; nothing otherwise (a used taste says so, so the person knows why it's gone).
+ */
+async function TasteStep({ db, userId }: { db: Db; userId: string }) {
+  const here = await currentHere();
+  if (here.mode !== "open") return null;
+  const refused = await tasteRefusal(db, userId);
+  if (refused === "already_had") {
+    return (
+      <p className="notice" data-taste-used>
+        You&apos;ve had your free taste. Subscribe to carry on where you left off.
+      </p>
+    );
+  }
+  if (refused) return null;
+  return <TasteForm hours={TASTE_HOURS} steps={TASTE_WRITES} />;
 }
 
 /** A signed-in person's step in the beta: their request's status, or the form to ask. */

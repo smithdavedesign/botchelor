@@ -14,6 +14,7 @@ import { json } from "../http";
 import { adminAccess, afterDarkAccess, mediaAllowed, type Access, type AfterDarkMode, type Place } from "../jurisdiction";
 import { requestPlace } from "../place";
 import { canAfterDark, openEverywhere, REVIEWER_PROVIDER, type Entitlement } from "./entitlement";
+import { isTasting } from "./taste";
 
 /** How often an unchanged place is written again (it's read by background work, so a stale row would mislead it). */
 const REWRITE_AFTER_MS = 10 * 60 * 1000;
@@ -47,10 +48,14 @@ export async function viewerAccess(db: Db, userId: string, admin: boolean, heade
   return access;
 }
 
-/** Whether pictures, video and voiced lines may be made for this person: an admin, a reviewer, or last seen in an open place. */
+/**
+ * Whether pictures, video and voiced lines may be made for this person: an admin, a reviewer, or last seen in an open
+ * place, and not on a free taste (lib/adult/taste.ts: a taste is the scenes only).
+ */
 export async function mediaAllowedFor(db: Db, userId: string): Promise<boolean> {
   if (await isAdmin(db, userId)) return true;
   if (await isReviewer(db, userId)) return true;
+  if (await isTasting(db, userId)) return false;
   const row = (await db.query<{ mode: AfterDarkMode }>(`select mode from adult_viewer_places where user_id = $1`, [userId])).rows[0];
   return row ? mediaAllowed(row) : false;
 }
@@ -64,9 +69,18 @@ async function isReviewer(db: Db, userId: string): Promise<boolean> {
   return r.rows.length > 0;
 }
 
-/** The refusal a media API gives in a text-only (or blocked) place, or null when media is allowed. */
+/** The refusal a media API gives in a text-only (or blocked) place, or on a free taste; null when media is allowed. */
 export async function mediaRefusal(db: Db, userId: string): Promise<Response | null> {
   if (await mediaAllowedFor(db, userId)) return null;
+  if (await isTasting(db, userId)) {
+    return json(
+      {
+        error: "media_needs_subscription",
+        message: "Your free taste is the scenes. Pictures, video and voiced lines come with the subscription.",
+      },
+      402,
+    );
+  }
   return json(
     {
       error: "media_not_available_here",
@@ -86,7 +100,7 @@ export async function pageHeaders(): Promise<Headers> {
   }
 }
 
-export type Here = Access & { entitled: Entitlement; admin: boolean };
+export type Here = Access & { entitled: Entitlement; admin: boolean; userId?: string | null };
 
 /**
  * After Dark for this visitor, here: their entitlement and what the place allows (admins open everywhere). For the
@@ -97,7 +111,7 @@ export async function accessHere(db: Db, auth: { userId: string; authenticated: 
   const entitled = await canAfterDark(db, auth);
   const admin = entitled.ok && entitled.why === "admin";
   const access = accessFor(requestPlace(headers ?? (await pageHeaders())), openEverywhere(entitled));
-  return { ...access, entitled, admin };
+  return { ...access, entitled, admin, userId: auth?.authenticated ? auth.userId : null };
 }
 
 /** Tests: forget what was remembered in memory (the table is reset with the database). */

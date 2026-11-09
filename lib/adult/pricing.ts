@@ -21,10 +21,13 @@ import { DEFAULT_CAPS, includedClipsUsed } from "./usage";
 /** A price for one viewer: its bought tokens, and whether it's covered by their subscription. */
 export type Price = { tokens: number; included: boolean };
 
-/** Whether a viewer has a subscription that includes the allowance: an active one, a reviewer pass or a beta pass. */
+/**
+ * Whether a viewer has a subscription that includes the allowance: an active one, a reviewer pass, a beta pass, or a
+ * free taste (its chapters cost no tokens; its media is refused before any price is asked, lib/adult/place.ts).
+ */
 export async function hasSubscription(db: Db, viewer: string, now: Date = new Date()): Promise<boolean> {
   const e = await canAfterDark(db, { userId: viewer, authenticated: true }, now);
-  return e.ok && (e.why === "subscribed" || e.why === "reviewer" || e.why === "beta");
+  return e.ok && (e.why === "subscribed" || e.why === "reviewer" || e.why === "beta" || e.why === "taste");
 }
 
 /** Whether the viewer's included clips apply: a subscription or reviewer pass, never a beta pass (video is on them). */
