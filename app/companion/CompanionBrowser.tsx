@@ -30,6 +30,15 @@ const PRONOUNS = [
 ] as const;
 type Pronouns = (typeof PRONOUNS)[number]["id"];
 
+/** How they're drawn (lib/companion.ts CompanionStyle): shown once anyone listed is drawn in anime (the show's anime cast, 2026-11-08). */
+const STYLES = [
+  { id: "any", label: "Any style" },
+  { id: "realistic", label: "Realistic" },
+  { id: "anime", label: "Anime" },
+] as const;
+type Style = (typeof STYLES)[number]["id"];
+export const matchesStyle = (c: CompanionListItem, style: Style) => style === "any" || c.style === style;
+
 const SORTS = [
   { id: "suggested", label: "Suggested" },
   { id: "az", label: "A to Z" },
@@ -144,10 +153,10 @@ function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
 
 /**
  * The companions list (app/companion/page.tsx), filterable on the page: a search, who they are (on the show now, house
- * cast, agent-made, a creator's, yours), pronouns, and a sort. Your conversations stay on top, unfiltered unless you
+ * cast, agent-made, a creator's, yours), pronouns, how they're drawn (realistic or anime), and a sort. Your conversations stay on top, unfiltered unless you
  * search. Everything is client-side: the page sends at most ~170 people.
  */
-export type CompanionFilters = { q?: string; who?: string; pronouns?: string; sort?: string };
+export type CompanionFilters = { q?: string; who?: string; pronouns?: string; style?: string; sort?: string };
 
 const oneOf = <T extends string>(list: readonly { id: T }[], v: string | undefined, fallback: T): T => list.find((x) => x.id === v)?.id ?? fallback;
 
@@ -160,15 +169,16 @@ export default function CompanionBrowser({
   threads: CompanionListItem[];
   others: CompanionListItem[];
   signIn?: boolean;
-  /** The filters from the URL (?q=&who=&pronouns=&sort=), so Back and a shared link keep them. */
+  /** The filters from the URL (?q=&who=&pronouns=&style=&sort=), so Back and a shared link keep them. */
   initial?: CompanionFilters;
 }) {
   const [q, setQ] = useState(initial.q ?? "");
   const [who, setWho] = useState<Who>(oneOf(WHO, initial.who, "all"));
   const [pronouns, setPronouns] = useState<Pronouns>(oneOf(PRONOUNS, initial.pronouns, "any"));
+  const [style, setStyle] = useState<Style>(oneOf(STYLES, initial.style, "any"));
   const [sort, setSort] = useState<Sort>(oneOf(SORTS, initial.sort, "suggested"));
   // How far down "Show more" has gone, for these filters: a new search, filter or sort starts from the first page again.
-  const filterKey = `${q.trim()}|${who}|${pronouns}|${sort}`;
+  const filterKey = `${q.trim()}|${who}|${pronouns}|${style}|${sort}`;
   const [paging, setPaging] = useState({ key: filterKey, limit: COMPANIONS_PAGE });
   const limit = paging.key === filterKey ? paging.limit : COMPANIONS_PAGE;
 
@@ -179,22 +189,25 @@ export default function CompanionBrowser({
     set("q", q.trim(), "");
     set("who", who, "all");
     set("pronouns", pronouns, "any");
+    set("style", style, "any");
     set("sort", sort, "suggested");
     const next = `${window.location.pathname}${params.size ? `?${params}` : ""}${window.location.hash}`;
     if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, "", next);
-  }, [q, who, pronouns, sort]);
+  }, [q, who, pronouns, style, sort]);
 
   const counts = useMemo(() => new Map(WHO.map((w) => [w.id, others.filter((c) => matchesWho(c, w.id)).length])), [others]);
   const shown = useMemo(
-    () => sorted(others.filter((c) => matchesWho(c, who) && (pronouns === "any" || c.pronouns === pronouns) && matchesQuery(c, q)), sort),
-    [others, who, pronouns, q, sort],
+    () => sorted(others.filter((c) => matchesWho(c, who) && (pronouns === "any" || c.pronouns === pronouns) && matchesStyle(c, style) && matchesQuery(c, q)), sort),
+    [others, who, pronouns, style, q, sort],
   );
+  const anyAnime = useMemo(() => others.some((c) => c.style === "anime"), [others]);
   const shownThreads = useMemo(() => threads.filter((c) => matchesQuery(c, q)), [threads, q]);
-  const filtered = q.trim() !== "" || who !== "all" || pronouns !== "any";
+  const filtered = q.trim() !== "" || who !== "all" || pronouns !== "any" || style !== "any";
   const clear = () => {
     setQ("");
     setWho("all");
     setPronouns("any");
+    setStyle("any");
   };
 
   return (
@@ -222,6 +235,18 @@ export default function CompanionBrowser({
               ))}
             </select>
           </label>
+          {(anyAnime || style !== "any") && (
+            <label>
+              <span className="sr-only">Style</span>
+              <select value={style} onChange={(e) => setStyle(e.target.value as Style)}>
+                {STYLES.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             <span className="sr-only">Sort</span>
             <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>

@@ -24,6 +24,7 @@ import { createHash } from "node:crypto";
 import { isAdmin } from "../admins";
 import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { loadCharacter, type Character } from "../character";
+import { isAnime } from "../looks";
 import { ALL_HOUSE_CHARACTERS } from "../house";
 import type { Db } from "../db";
 import { keepBytes } from "../object-store";
@@ -70,7 +71,7 @@ const nounOf = (c: Pick<Character, "pronouns">): PgSubject["noun"] => (c.pronoun
 export function pgSubject(c: Character): PgSubject {
   const raw = (ALL_HOUSE_CHARACTERS.find((h) => h.id === c.id)?.look ?? c.look.physical ?? c.look.appearance ?? "").trim().replace(/[.\s]+$/, "");
   const look = raw.replace(/^an?\s+((?:[\w-]+\s+)?)(?:man|woman|person)\b\s*/i, "$1").replace(/^,\s*/, "").slice(0, 300);
-  return { noun: nounOf(c), age: c.age, look: look && checkPgPictureText({ look }).ok ? look : "" };
+  return { noun: nounOf(c), age: c.age, look: look && checkPgPictureText({ look }).ok ? look : "", anime: isAnime(c) };
 }
 
 /** Their face for the edit: the house cast's reviewed portrait (a link), else their newest approved pg portrait's bytes. */

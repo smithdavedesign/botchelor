@@ -20,8 +20,11 @@ export type IdentityViewId = (typeof IDENTITY_VIEWS)[number]["id"];
 export const IDENTITY_VIEW_IDS: IdentityViewId[] = IDENTITY_VIEWS.map((v) => v.id);
 export const isIdentityView = (v: unknown): v is IdentityViewId => typeof v === "string" && (IDENTITY_VIEW_IDS as string[]).includes(v);
 
-/** Who the view shows, as a prompt reads it: a woman, a man or a person, their age (an adult's), their look. */
-export type ViewSubject = { noun: "woman" | "man" | "person"; age: number; look: string };
+/**
+ * Who the view shows, as a prompt reads it: a woman, a man or a person, their age (an adult's), their look, and whether
+ * they're drawn in anime (lib/looks.ts isAnime): an anime character's views stay anime, not photographs of them.
+ */
+export type ViewSubject = { noun: "woman" | "man" | "person"; age: number; look: string; anime?: boolean };
 
 /**
  * One view's prompt: the same person as Picture 1 (the face they keep), at that angle, on a plain backdrop, dressed (a
@@ -33,13 +36,15 @@ export function identityViewPrompt(view: IdentityViewId, subject: ViewSubject, o
   const age = Math.max(21, Math.round(subject.age || 21));
   const body = opts.body && view === "full_body" ? ", with the body from Picture 2" : "";
   const worn = opts.outfit ? `Wearing ${opts.outfit}.` : "Dressed in simple, fitted everyday clothes.";
+  const medium = subject.anime ? "anime illustration" : "photograph";
+  const finish = subject.anime ? "Clean modern anime illustration, cel shading, mature adult proportions." : "Photorealistic.";
   return [
-    `Make one photograph of the ${subject.noun} from Picture 1${body}, a ${age}-year-old adult${subject.look ? ` (${subject.look})` : ""}: the very same face, features, hair and skin tone, unchanged.`,
+    `Make one ${medium} of the ${subject.noun} from Picture 1${body}, a ${age}-year-old adult${subject.look ? ` (${subject.look})` : ""}: the very same face, features, hair and ${subject.anime ? "colours" : "skin tone"}, unchanged.`,
     `${v.words[0].toUpperCase()}${v.words.slice(1)}, against a plain light-grey studio backdrop, soft even light, sharp focus on the face.`,
     worn,
     "One person only.",
     // A given outfit is worn as described: "everyday" toned costumes down (the recast's pirates came out in plain clothes).
-    opts.pg ? `Fully clothed, tasteful${opts.outfit ? "" : " and everyday"}, safe for work. Photorealistic. Everyone shown is an adult.` : "Photorealistic. Everyone shown is an adult.",
+    opts.pg ? `Fully clothed, tasteful${opts.outfit ? "" : " and everyday"}, safe for work. ${finish} Everyone shown is an adult.` : `${finish} Everyone shown is an adult.`,
   ].join(" ");
 }
 

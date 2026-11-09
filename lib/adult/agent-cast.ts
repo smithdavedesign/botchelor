@@ -22,8 +22,12 @@ import { checkMedia } from "./moderation";
 /** Portraits asked a day: about a third of Hive's 100, leaving the rest to the people using After Dark. */
 export const PORTRAITS_PER_DAY = 30;
 
-/** The show's own agent-made characters, by the same rule companions open them by (lib/companion.ts openOurAgentCast). */
-const OURS = `c.created_via = 'mcp' and not c.is_house and c.owner_id = any($1::text[]) and c.owner_id <> $2 and c.visibility <> 'private'`;
+/**
+ * The show's own agent-made characters, by the same rule companions open them by (lib/companion.ts openOurAgentCast),
+ * except the ones drawn in anime (lib/looks.ts isAnime; the show's anime cast, 2026-11-08): After Dark never draws anime,
+ * and anime reads young to every age check, so they stay on the show and are never asked about here.
+ */
+const OURS = `c.created_via = 'mcp' and not c.is_house and c.owner_id = any($1::text[]) and c.owner_id <> $2 and c.visibility <> 'private' and coalesce(c.extras->'looks'->>'style', '') <> 'anime'`;
 
 export type SheetVerdict = { ok: boolean; reason: string };
 

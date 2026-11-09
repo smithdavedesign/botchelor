@@ -44,6 +44,12 @@ export const LOOK_MAX_AGE = 60;
 export const IMAGE_MIN_AGE = 21;
 export const LOOK_AGES: readonly number[] = Array.from({ length: LOOK_MAX_AGE - LOOK_MIN_AGE + 1 }, (_, i) => LOOK_MIN_AGE + i);
 
+/**
+ * Drawn in anime: their looks' style says so (the builder's Anime tile, or the show's own anime cast, 2026-11-08). The
+ * show's pictures follow it; After Dark never draws anime and leaves anime characters out of its cast.
+ */
+export const isAnime = (c: { extras?: { looks?: { style?: string } | null } | null } | null | undefined): boolean => c?.extras?.looks?.style === "anime";
+
 export const LOOK_STEPS: readonly LookStep[] = [
   {
     id: "gender",
