@@ -65,6 +65,7 @@ import ChoosePicture from "@/app/studio/ChoosePicture";
 import CharacterName from "@/app/CharacterName";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { THIS_WEEK_MAX } from "@/lib/life";
+import { IMPORT_PATH, IMPORT_STORAGE_KEY, type ImportedDraft } from "@/lib/import-character";
 
 export type Partner = {
   id: string;
@@ -231,6 +232,7 @@ export default function CreateWizard({
   startCharacterId = null,
   startName = null,
   startPair = null,
+  startImported = false,
   lookTiles = [],
   afterDark = false,
   afterDarkOpen = false,
@@ -252,6 +254,8 @@ export default function CreateWizard({
   startName?: string | null;
   /** Two characters from the OC chemistry test's "Watch the real date" (/create?a_name=…&b_name=…). */
   startPair?: StartPair | null;
+  /** From "Bring your character" (/import, then /create?imported=1): the draft it left in this browser goes in. */
+  startImported?: boolean;
   /** The looks builder's tiles that have a picture (lib/looks-draw.ts readyTiles). */
   lookTiles?: readonly string[];
   /** This viewer can open After Dark, so its looks tab is unlocked (lib/adult/entitlement.ts). */
@@ -315,6 +319,8 @@ export default function CreateWizard({
   const [hiding, setHiding] = useState<string[]>(init?.hiding ?? []);
   // Filled from a sample (applySample): Review says so, and how to change it.
   const [fromSample, setFromSample] = useState(false);
+  // Brought in from another app (/import): what came in, what's still needed and what was left out, said on step one.
+  const [imported, setImported] = useState<ImportNote | null>(null);
   // Editing: the owner chose to drop the explicit temperament and let the character's words decide again.
   const [temperamentCleared, setTemperamentCleared] = useState(false);
 
@@ -371,6 +377,7 @@ export default function CreateWizard({
     // Arrived with a name to make (a ship name page) or a pair (the chemistry test): start that character fresh, not an
     // older draft.
     if (startName || startPair) return;
+    if (startImported && applyImport()) return;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
@@ -426,6 +433,38 @@ export default function CreateWizard({
     setFromSample(true);
     setMaxStep(last);
     setStep(S.review);
+  }
+
+  /** The draft /import left in this browser (lib/import-character.ts), read once and removed. False when there isn't one. */
+  function applyImport(): boolean {
+    try {
+      const raw = localStorage.getItem(IMPORT_STORAGE_KEY);
+      if (!raw) return false;
+      localStorage.removeItem(IMPORT_STORAGE_KEY);
+      const r = JSON.parse(raw) as Partial<ImportNote> & { draft?: ImportedDraft };
+      const d = r.draft;
+      if (!d || typeof d !== "object" || !d.sheet) return false;
+      const s = (v: unknown) => (typeof v === "string" ? v : "");
+      setSheet({ name: s(d.sheet.name), age: s(d.sheet.age), bio: s(d.sheet.bio), want: s(d.sheet.want), dealbreaker: s(d.sheet.dealbreaker) });
+      if (Array.isArray(d.traits)) setTraits([s(d.traits[0]), s(d.traits[1]), s(d.traits[2])]);
+      setPronouns(s(d.pronouns));
+      setVoice(s(d.voice));
+      setAppearance(s(d.appearance));
+      if (s(d.appearance)) appearanceTyped.current = true;
+      setExtrasState(d.extras && typeof d.extras === "object" ? d.extras : {});
+      setSoul(EMPTY_SOUL);
+      setHiding([]);
+      const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+      setImported({
+        filled: list(r.filled),
+        missing: list(r.missing),
+        dropped: Array.isArray(r.dropped) ? r.dropped.filter((x) => x && typeof x.field === "string" && typeof x.why === "string") : [],
+        readBy: r.readBy === "model" || r.readBy === "fallback" ? r.readBy : null,
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function applyLook(look: ResolvedLook) {
@@ -781,12 +820,21 @@ export default function CreateWizard({
           {/* One line (2026-11-08 UI audit, item 10: five lines of intro pushed the first field off a phone's first screen;
               that nobody steers a date is on the home page and in the questions). */}
           {step === S.identity && (
-            <p className="muted wizard-intro">An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional.</p>
+            <p className="muted wizard-intro">
+              An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional.
+              {!imported && !startPair && (
+                <>
+                  {" "}
+                  Made one in another app? <Link href={IMPORT_PATH}>Bring it over</Link>.
+                </>
+              )}
+            </p>
           )}
         </>
       )}
 
       {!edit && startPair && step === S.identity && <PairPrefill pair={startPair} />}
+      {!edit && imported && step === S.identity && <ImportPrefill note={imported} />}
 
       <Stepper step={step} max={maxStep} onJump={jump} labels={labels} optional={edit ? [] : OPTIONAL_STEPS} />
       {livePreview}
@@ -1278,6 +1326,26 @@ export default function CreateWizard({
  * is shown here, one click from a builder with its own fields in. The builder makes one character at a time, and one
  * creator's characters never date each other, so this says so rather than promising the two a date together.
  */
+/** What /import brought in, said once on the first step: what came in, what's still needed, what was left out and why. */
+type ImportNote = { filled: string[]; missing: string[]; dropped: { field: string; why: string }[]; readBy: "model" | "fallback" | null };
+
+function ImportPrefill({ note }: { note: ImportNote }) {
+  return (
+    <section className="card pair-prefill import-prefill" aria-label="Brought in from another app">
+      <p>
+        <strong>{note.filled.length ? `Brought in: ${listWords(note.filled)}.` : "Brought in."}</strong>{" "}
+        {note.readBy === "model"
+          ? "The show's model read your description, so check every field: it can get things wrong."
+          : note.readBy === "fallback"
+            ? "The show's model couldn't read it just now, so your text went in as the bio. Fill in the rest."
+            : "Check every field: it's all yours to change."}
+      </p>
+      {note.missing.length > 0 && <p className="small">{`Still to add: ${listWords(note.missing)}.`}</p>}
+      {note.dropped.length > 0 && <p className="muted small">{`Left out: ${listWords(note.dropped.map((d) => `the ${d.field} (${d.why})`))}.`}</p>}
+    </section>
+  );
+}
+
 function PairPrefill({ pair }: { pair: StartPair }) {
   const first = shortName(pair.a.name);
   const second = shortName(pair.b.name);
