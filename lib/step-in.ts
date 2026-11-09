@@ -25,7 +25,7 @@ import { portraitPathSql } from "./assets";
 import { reserveEpisode, releaseEpisode, type Reservation } from "./allowance";
 import { CHOICE_ENGINE_VERSION } from "./choices";
 import { bestLine, buildTurnMessages, ConversationError, simulateConversation, type Turn } from "./conversation";
-import { CRISIS_RESOURCES, crisisIntent, type CrisisResources, type CrisisSurface } from "./crisis";
+import { countReferral, CRISIS_RESOURCES, crisisIntent, type CrisisResources, type CrisisSurface } from "./crisis";
 import { recordSlips, type SecretSlip } from "./cast-secrets";
 import type { Db } from "./db";
 import { decideTraced } from "./engine";
@@ -170,9 +170,7 @@ export async function lineInCrisis(text: string, surface: CrisisSurface = "step_
 
 /** One more referral counted (crisis_referrals): the day and the surface, never who or what. Never throws. */
 export async function countCrisis(db: Db, surface: CrisisSurface, now: Date = new Date()): Promise<void> {
-  await db
-    .query(`insert into crisis_referrals as r (day, surface, n) values ($1, $2, 1) on conflict (day, surface) do update set n = r.n + 1`, [now.toISOString().slice(0, 10), surface])
-    .catch(() => {});
+  await countReferral(db, surface, now);
 }
 
 /** The show's soft redirect for a line its PG filter won't take: in-world, never a scolding. */

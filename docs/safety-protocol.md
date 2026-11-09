@@ -70,4 +70,7 @@ one-to-one conversation (California SB 243 and New York GBL Art. 47 are written 
 - No model-based classifier: a phrase list misses indirect statements. A cheap moderation call on the person's own
   text would catch more; it was left out to keep this free and to keep the words off third-party services.
 - Minors: the site is 18+ behind the age gate, so SB 243's extra rules for minors aren't built.
-- SB 243's annual report to the Office of Suicide Prevention (from 2027-07-01) would read the counter events.
+- SB 243's annual report to the Office of Suicide Prevention (from 2027-07-01): **built 2026-11-08.** Every surface
+  now writes `crisis_referrals` (`crisisCheck` counts too, not only step-in and companions), and
+  `GET /api/admin/crisis-report?year=2026` gives the year's total and each surface's. File it with the protocol (/safety)
+  each July.
