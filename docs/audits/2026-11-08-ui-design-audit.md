@@ -58,6 +58,23 @@ same change:
 (A full-page screenshot on a phone shows the lazy pictures far down the page as their gradients; scrolled, every one
 loads. Not a bug, but worth knowing when reading a contact sheet.)
 
+## On botchelor.com
+
+Merged as #1385 and deployed on 2026-11-08. In a browser on the live site, at 1280×900 and 390×844, all 22 checks passed:
+
+- **Watch:** all 11 latest entries have a picture. The five mixer nights in them are one card each, opening
+  `/mixers/<id>`. There is one `<main>`, and the page is 1,152px wide.
+- **Feedback:** a 44px circle on desktop. A phone keeps it in the menu.
+- **Home:** the shelf has 6 of 6 pictures, and the cast of four is one row.
+- **Characters:** the season's four are one row on desktop, and two rows of two on a phone.
+- **Companions:** opens on 24 of 173. "Show 24 more" makes it 48.
+- No page errors.
+
+The README's Screenshots section opens with Watch before and after the deploy, on desktop and phone.
+
+The gate's one failure was a timing test that flaked under load (`tests/perf-pages.test.ts`), not this change. Main and
+the branch measured the same depths side by side. #1386 makes it take the best of three runs.
+
 ## What's left, on purpose
 
 - **The remaining literals** (267 hex, 136 font sizes) come down one area at a time, each pass lowering the baseline;
